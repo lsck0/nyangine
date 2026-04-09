@@ -17,9 +17,9 @@
  * */
 #pragma once
 
-#include "nyangine/base/base.h"
 #include "nyangine/base/base_attributes.h"
-#include "nyangine/base/base_guard.h"
+#include "nyangine/base/base_basic.h"
+#include "nyangine/base/base_clean.h"
 #include "nyangine/base/base_memory.h"
 #include "nyangine/base/base_types.h"
 
@@ -45,60 +45,60 @@ typedef struct NYA_ArneaAction       NYA_ArenaAction;
  */
 
 #define _NYA_ARENA_DEFAULT_OPTIONS                                                                                                                   \
-  .name = nullptr, .alignment = 16, .region_size = nya_gibyte_to_byte(1UL), .defragmentation_enabled = true, .defragmentation_threshold = 16,        \
-  .garbage_collection_enabled = true, .garbage_collection_threshold = 3
+    .name = nullptr, .alignment = 16, .region_size = nya_gibyte_to_byte(1UL), .defragmentation_enabled = true, .defragmentation_threshold = 16,      \
+    .garbage_collection_enabled = true, .garbage_collection_threshold = 3
 
 struct NYA_ArenaOptions {
-  const char* name;
+    const char* name;
 
-  u8 alignment;
+    u8 alignment;
 
-  u64 region_size;
+    u64 region_size;
 
-  /**
-   * When enabled, the free list will merge adjacent free blocks after `defragmentation_threshold` number of frees.
-   * */
-  b8 defragmentation_enabled;
-  u8 defragmentation_threshold;
+    /**
+     * When enabled, the free list will merge adjacent free blocks after `defragmentation_threshold` number of frees.
+     * */
+    b8 defragmentation_enabled;
+    u8 defragmentation_threshold;
 
-  /**
-   * Every free_all will increase a counter for unused regions.
-   * When the counter reaches this value, the region will be freed.
-   * Calling nya_arena_garbage_collect will free all unused regions regardless of the counter
-   * */
-  b8 garbage_collection_enabled;
-  u8 garbage_collection_threshold;
+    /**
+     * Every free_all will increase a counter for unused regions.
+     * When the counter reaches this value, the region will be freed.
+     * Calling nya_arena_garbage_collect will free all unused regions regardless of the counter
+     * */
+    b8 garbage_collection_enabled;
+    u8 garbage_collection_threshold;
 };
 
 struct NYA_Arena {
-  NYA_ArenaOptions options;
-  NYA_ArenaRegion *head, *tail;
+    NYA_ArenaOptions options;
+    NYA_ArenaRegion *head, *tail;
 };
 
 struct NYA_ArenaRegion {
-  u64 used;
-  u64 capacity;
-  u8* memory;
+    u64 used;
+    u64 capacity;
+    u8* memory;
 
-  u8                 gc_counter;
-  NYA_ArenaFreeList* free_list;
+    u8                 gc_counter;
+    NYA_ArenaFreeList* free_list;
 
-  NYA_ArenaRegion *next, *prev;
+    NYA_ArenaRegion *next, *prev;
 };
 
 struct NYA_ArenaFreeList {
-  u32 node_counter;
-  f32 average_free_size;
-  u8  defragmentation_counter;
+    u32 node_counter;
+    f32 average_free_size;
+    u8  defragmentation_counter;
 
-  NYA_ArenaFreeListNode *head, *tail;
+    NYA_ArenaFreeListNode *head, *tail;
 };
 
 struct NYA_ArenaFreeListNode {
-  void* ptr;
-  u64   size;
+    void* ptr;
+    u64   size;
 
-  NYA_ArenaFreeListNode *prev, *next;
+    NYA_ArenaFreeListNode *prev, *next;
 };
 
 /*
@@ -110,61 +110,61 @@ struct NYA_ArenaFreeListNode {
 typedef void (*NYA_ArenaActionCallback)(NYA_ArenaAction action);
 
 enum NYA_ArenaActionType {
-  NYA_ARENA_ACTION_ARENA_NEW,
-  NYA_ARENA_ACTION_ALLOC,
-  NYA_ARENA_ACTION_REALLOC,
-  NYA_ARENA_ACTION_FREE,
-  NYA_ARENA_ACTION_FREE_ALL,
-  NYA_ARENA_ACTION_GARBAGE_COLLECT,
-  NYA_ARENA_ACTION_ARENA_DESTROY,
-  NYA_ARENA_ACTION_COPY,
-  NYA_ARENA_ACTION_MOVE,
-  NYA_ARENA_ACTION_COUNT,
+    NYA_ARENA_ACTION_ARENA_NEW,
+    NYA_ARENA_ACTION_ALLOC,
+    NYA_ARENA_ACTION_REALLOC,
+    NYA_ARENA_ACTION_FREE,
+    NYA_ARENA_ACTION_FREE_ALL,
+    NYA_ARENA_ACTION_GARBAGE_COLLECT,
+    NYA_ARENA_ACTION_ARENA_DESTROY,
+    NYA_ARENA_ACTION_COPY,
+    NYA_ARENA_ACTION_MOVE,
+    NYA_ARENA_ACTION_COUNT,
 };
 
 struct NYA_ArneaAction {
-  NYA_ArenaActionType type;
+    NYA_ArenaActionType type;
 
-  const char* arena_name;
-  const char* file_name;
-  u32         line_number;
-  const char* function_name;
+    const char* arena_name;
+    const char* file_name;
+    u32         line_number;
+    const char* function_name;
 
-  union {
-    struct {
-      u8* ptr;
-      u64 size;
-    } as_alloc, as_free;
+    union {
+        struct {
+            u8* ptr;
+            u64 size;
+        } as_alloc, as_free;
 
-    struct {
-      u8* old_ptr;
-      u64 old_size;
-      u8* new_ptr;
-      u64 new_size;
-    } as_realloc;
+        struct {
+            u8* old_ptr;
+            u64 old_size;
+            u8* new_ptr;
+            u64 new_size;
+        } as_realloc;
 
-    struct {
-      u8* ptr;
-      u64 size;
-      u8* copy_ptr;
-    } as_copy;
+        struct {
+            u8* ptr;
+            u64 size;
+            u8* copy_ptr;
+        } as_copy;
 
-    struct {
-      u8*         ptr;
-      u64         size;
-      const char* move_arena_name;
-      u8*         move_ptr;
-    } as_move;
-  };
+        struct {
+            u8*         ptr;
+            u64         size;
+            const char* move_arena_name;
+            u8*         move_ptr;
+        } as_move;
+    };
 };
 
 /**
  * This structure cannot be modified using macros from base_array.h!
  * */
 struct NYA_ArenaActionArray {
-  u64              length;
-  u64              capacity;
-  NYA_ArenaAction* items;
+    u64              length;
+    u64              capacity;
+    NYA_ArenaAction* items;
 };
 
 /*

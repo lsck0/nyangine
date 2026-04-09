@@ -6,15 +6,15 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-__attr_unused NYA_INTERNAL NYA_Arena*                _nya_perf_arena         = nullptr;
-__attr_unused NYA_INTERNAL NYA_PerfMeasurementArray* _nya_perf_measurements  = nullptr;
-__attr_unused NYA_INTERNAL u64                       _nya_perf_start_time_ns = 0;
-__attr_unused NYA_INTERNAL u64                       _nya_perf_start_cycles  = 0;
+__attr_allow_unused NYA_INTERNAL NYA_Arena*                _nya_perf_arena         = nullptr;
+__attr_allow_unused NYA_INTERNAL NYA_PerfMeasurementArray* _nya_perf_measurements  = nullptr;
+__attr_allow_unused NYA_INTERNAL u64                       _nya_perf_start_time_ns = 0;
+__attr_allow_unused NYA_INTERNAL u64                       _nya_perf_start_cycles  = 0;
 
-__attr_unused NYA_INTERNAL void _nya_perf_init(void);
-__attr_unused NYA_INTERNAL void _nya_perf_shutdown(void);
-__attr_unused NYA_INTERNAL u64  _nya_perf_time_since_start_ns(void);
-__attr_unused NYA_INTERNAL u64  _nya_perf_cycles_since_start(void);
+__attr_allow_unused NYA_INTERNAL void _nya_perf_init(void);
+__attr_allow_unused NYA_INTERNAL void _nya_perf_shutdown(void);
+__attr_allow_unused NYA_INTERNAL u64  _nya_perf_time_since_start_ns(void);
+__attr_allow_unused NYA_INTERNAL u64  _nya_perf_cycles_since_start(void);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

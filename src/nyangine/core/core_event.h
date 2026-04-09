@@ -142,7 +142,7 @@ enum NYA_EventType {
   NYA_EVENT_COUNT,
 };
 
-__attr_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[] = {
+__attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[] = {
   [NYA_EVENT_INVALID] = "INVALID",
 
   [NYA_EVENT_FRAME_STARTED]     = "FRAME_STARTED",

@@ -31,7 +31,7 @@ s32 main(void) {
 
     const char*     argv[] = { "app", "--verbose" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 2, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 2, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(flag.value.as_bool == true);
   }
@@ -58,13 +58,13 @@ s32 main(void) {
 
     const char*     argv[] = { "app", "--debug", "true" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(flag.value.as_bool == true);
 
     const char* argv2[] = { "app", "--debug", "false" };
     cmd                 = nullptr;
-    nya_expect(nya_args_parse(&parser, 3, (NYA_CString*)argv2, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv2, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(flag.value.as_bool == false);
   }
@@ -91,7 +91,7 @@ s32 main(void) {
 
     const char*     argv[] = { "app", "--count", "42" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(count.value.as_integer == 42);
   }
@@ -118,7 +118,7 @@ s32 main(void) {
 
     const char*     argv[] = { "app", "--rate", "3.14159" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(rate.value.as_float > 3.14 && rate.value.as_float < 3.15);
   }
@@ -145,7 +145,7 @@ s32 main(void) {
 
     const char*     argv[] = { "app", "--output", "file.txt" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(strcmp(output.value.as_string, "file.txt") == 0);
   }
@@ -182,7 +182,7 @@ s32 main(void) {
 
     const char*     argv[] = { "app", "--flag1", "--flag2", "--flag3" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 4, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 4, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(flag1.value.as_bool == true);
     nya_assert(flag2.value.as_bool == true);
@@ -217,7 +217,7 @@ s32 main(void) {
 
     const char*     argv[] = { "app", "build", "--verbose" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(cmd == &build);
     nya_assert(verbose.value.as_bool == true);
@@ -246,7 +246,7 @@ s32 main(void) {
 
     const char*     argv[] = { "app", "input.txt" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 2, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 2, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(strcmp(input.value.as_string, "input.txt") == 0);
   }
@@ -275,7 +275,7 @@ s32 main(void) {
 
     const char*     argv[] = { "app", "file1.txt", "file2.txt", "file3.txt" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 4, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 4, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(files.values_count == 3);
     nya_assert(strcmp(files.values[0].as_string, "file1.txt") == 0);
@@ -312,7 +312,7 @@ s32 main(void) {
     // Validation should pass without crashing (validates paramless commands' subcommands)
     const char*     argv[] = { "app", "mid", "leaf" };
     NYA_ArgCommand* cmd    = nullptr;
-    nya_expect(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
+    NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd == &leaf);
   }
 

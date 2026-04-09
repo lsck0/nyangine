@@ -266,14 +266,14 @@ NYA_INTERNAL void _nya_asset_load_raw_from_filesystem(NYA_CString path, OUT NYA_
   NYA_Arena* arena = app->asset_system.allocator;
 
   NYA_String* content = nya_string_create(arena);
-  nya_expect(nya_file_read(path, content));
+  NYA_EXPECT(nya_file_read(path, content));
   nya_string_shrink_to_fit(content);
   u8* data = content->items;
   u64 size = content->length;
   nya_arena_free(content->arena, content, sizeof(NYA_String));
 
   u64 modification_time = 0;
-  nya_expect(nya_filesystem_last_modified(path, &modification_time));
+  NYA_EXPECT(nya_filesystem_last_modified(path, &modification_time));
 
   out_asset->as_text.data             = data;
   out_asset->as_text.size             = size;

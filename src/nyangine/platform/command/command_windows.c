@@ -85,7 +85,7 @@ NYA_Result nya_command_run(NYA_Command* command) {
   }
 
   // Build command line
-  NYA_GUARDED_BY(nya_arena_destroy) NYA_Arena* arena   = nya_arena_create();
+  NYA_CLEANUP_WITH(nya_arena_destroy) NYA_Arena* arena   = nya_arena_create();
   NYA_String*                                  cmdline = _nya_command_build_command_line(command, arena);
 
   // Setup startup info

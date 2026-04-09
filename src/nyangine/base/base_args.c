@@ -329,7 +329,7 @@ NYA_Result nya_args_run_command(NYA_ArgCommand* command) {
   if (command->handler != nullptr) {
     command->handler(command);
   } else if (command->build_rule != nullptr) {
-    nya_try(nya_build(command->build_rule));
+    NYA_TRY(nya_build(command->build_rule));
   } else {
     nya_panic("Command '%s' has neither a handler nor a build rule.", command->name ? command->name : "root");
   }

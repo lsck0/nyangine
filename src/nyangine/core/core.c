@@ -1,0 +1,8 @@
+#include "nyangine/core/core_app.c"
+#include "nyangine/core/core_asset.c"
+#include "nyangine/core/core_callback.c"
+#include "nyangine/core/core_entity.c"
+#include "nyangine/core/core_event.c"
+#include "nyangine/core/core_input.c"
+#include "nyangine/core/core_job.c"
+#include "nyangine/core/core_window.c"

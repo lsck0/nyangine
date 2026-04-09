@@ -203,7 +203,7 @@ NYA_Result nya_object_deserialize(NYA_Arena* arena, const u8* data, u64 size, NY
   idx++;
 
   NYA_Object* obj = nya_object_create(arena);
-  nya_try(_nya_object_parse_kvs(arena, &lexer, &idx, obj));
+  NYA_TRY(_nya_object_parse_kvs(arena, &lexer, &idx, obj));
 
   NYA_Token* close_brace = nya_array_get(lexer.tokens, idx);
   if (!(close_brace->type == NYA_TOKEN_SYMBOL && close_brace->symbol == '}')) {
@@ -467,7 +467,7 @@ NYA_INTERNAL NYA_Result _nya_object_parse_kvs(NYA_Arena* arena, NYA_Lexer* lexer
             }
 
             NYA_Value v;
-            nya_try(_nya_object_parse_value(arena, lexer, idx, value_type, &v));
+            NYA_TRY(_nya_object_parse_value(arena, lexer, idx, value_type, &v));
             nya_array_push_back(&arr, v);
           }
         }
@@ -477,7 +477,7 @@ NYA_INTERNAL NYA_Result _nya_object_parse_kvs(NYA_Arena* arena, NYA_Lexer* lexer
       nya_object_set(obj, key, arr_value);
     } else {
       NYA_Value v;
-      nya_try(_nya_object_parse_value(arena, lexer, idx, value_type, &v));
+      NYA_TRY(_nya_object_parse_value(arena, lexer, idx, value_type, &v));
       nya_object_set(obj, key, v);
     }
 
@@ -582,7 +582,7 @@ NYA_INTERNAL NYA_Result _nya_object_parse_value(NYA_Arena* arena, NYA_Lexer* lex
       (*idx)++;
 
       NYA_Object* nested = nya_object_create(arena);
-      nya_try(_nya_object_parse_kvs(arena, lexer, idx, nested));
+      NYA_TRY(_nya_object_parse_kvs(arena, lexer, idx, nested));
 
       if (*idx < lexer->tokens->length) {
         NYA_Token* close = &lexer->tokens->items[*idx];

@@ -1,9 +1,9 @@
 <div>
     <h1 align="center">
-        specturm
+        nyangine
     </h1>
     <h3 align="center">
-        2D Game Engine + Game
+        Game Engine
     </h3>
 </div>
 
@@ -23,7 +23,7 @@ git submodule update --init --recursive
 
 and bootstrap the build system with
 
-```bash
+````bash
 clang build.c -o build -std=c23 -fenable-matrix -I./src -lm -lSDL3 2> /dev/null
 ```
 
@@ -31,6 +31,6 @@ then run
 
 ```bash
 ./build
-```
+````
 
 to get the available commands.

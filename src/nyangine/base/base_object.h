@@ -61,7 +61,7 @@
  *   NYA_String* serialized_user = nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
  *   // store.. send.. whatever
  *   NYA_Object* deserialized_obj  = nullptr;
- *   nya_expect(nya_object_deserialize(arena, serialized_user.items, serialized_user.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &deserialized_obj));
+ *   NYA_EXPECT(nya_object_deserialize(arena, serialized_user.items, serialized_user.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &deserialized_obj));
  *   User        deserialized_user = object_to_user(deserialized_obj);
  *
  *   // ...
@@ -139,87 +139,84 @@ nya_derive_array(NYA_Value);
 nya_derive_array(NYA_Object);
 
 struct NYA_Value {
-  NYA_Type type;
+    NYA_Type type;
 
-  union {
-    b8   as_b8;
-    b16  as_b16;
-    b32  as_b32;
-    b64  as_b64;
-    b128 as_b128;
-    u8   as_u8;
-    u16  as_u16;
-    u32  as_u32;
-    u64  as_u64;
-    u128 as_u128;
-    s8   as_s8;
-    s16  as_s16;
-    s32  as_s32;
-    s64  as_s64;
-    s128 as_s128;
-    f16  as_f16;
-    f32  as_f32;
-    f64  as_f64;
-    f128 as_f128;
+    union {
+        b8   as_b8;
+        b16  as_b16;
+        b32  as_b32;
+        b64  as_b64;
+        b128 as_b128;
+        u8   as_u8;
+        u16  as_u16;
+        u32  as_u32;
+        u64  as_u64;
+        u128 as_u128;
+        s8   as_s8;
+        s16  as_s16;
+        s32  as_s32;
+        s64  as_s64;
+        s128 as_s128;
+        f16  as_f16;
+        f32  as_f32;
+        f64  as_f64;
+        f128 as_f128;
 
-    b8ptr   as_b8ptr;
-    b16ptr  as_b16ptr;
-    b32ptr  as_b32ptr;
-    b64ptr  as_b64ptr;
-    b128ptr as_b128ptr;
-    u8ptr   as_u8ptr;
-    u16ptr  as_u16ptr;
-    u32ptr  as_u32ptr;
-    u64ptr  as_u64ptr;
-    u128ptr as_u128ptr;
-    s8ptr   as_s8ptr;
-    s16ptr  as_s16ptr;
-    s32ptr  as_s32ptr;
-    s64ptr  as_s64ptr;
-    s128ptr as_s128ptr;
-    f16ptr  as_f16ptr;
-    f32ptr  as_f32ptr;
-    f64ptr  as_f64ptr;
-    f128ptr as_f128ptr;
+        b8ptr   as_b8ptr;
+        b16ptr  as_b16ptr;
+        b32ptr  as_b32ptr;
+        b64ptr  as_b64ptr;
+        b128ptr as_b128ptr;
+        u8ptr   as_u8ptr;
+        u16ptr  as_u16ptr;
+        u32ptr  as_u32ptr;
+        u64ptr  as_u64ptr;
+        u128ptr as_u128ptr;
+        s8ptr   as_s8ptr;
+        s16ptr  as_s16ptr;
+        s32ptr  as_s32ptr;
+        s64ptr  as_s64ptr;
+        s128ptr as_s128ptr;
+        f16ptr  as_f16ptr;
+        f32ptr  as_f32ptr;
+        f64ptr  as_f64ptr;
+        f128ptr as_f128ptr;
 
-    char   as_char;
-    wchar  as_wchar;
-    char*  as_string;
-    wchar* as_wstring;
+        char   as_char;
+        wchar  as_wchar;
+        char*  as_string;
+        wchar* as_wstring;
 
-    b8  as_bool;
-    s64 as_integer;
-    f64 as_float;
+        NYA_Object as_object;
 
-    NYA_Object     as_object;
-    NYA_ValueArray as_array;
-  };
+        NYA_ValueArray as_array;
+    };
 };
 
 enum NYA_ObjectSerializationFlags {
-  NYA_OBJECT_SERIALIZATION_FLAG_NONE = 0,
+    NYA_OBJECT_SERIALIZATION_FLAG_NONE = 0,
 
-  /**
-   * Base64-encode the serialized data.
-   * Conflicts with NYA_OBJECT_SERIALIZATION_FLAG_PRETTY.
-   * */
-  NYA_OBJECT_SERIALIZATION_FLAG_MINIFY = 1 << 0,
+    /**
+     * Base64-encode the serialized data.
+     * Conflicts with NYA_OBJECT_SERIALIZATION_FLAG_PRETTY.
+     * */
+    NYA_OBJECT_SERIALIZATION_FLAG_MINIFY = 1 << 0,
 
-  /**
-   * Pretty-print the serialized data with indentation and newlines.
-   * Conflicts with NYA_OBJECT_SERIALIZATION_FLAG_MINIFY.
-   * */
-  NYA_OBJECT_SERIALIZATION_FLAG_PRETTY = 1 << 1,
+    /**
+     * Pretty-print the serialized data with indentation and newlines.
+     * Conflicts with NYA_OBJECT_SERIALIZATION_FLAG_MINIFY.
+     * */
+    NYA_OBJECT_SERIALIZATION_FLAG_PRETTY = 1 << 1,
 
-  /**
-   * Skip CRC validation when deserializing.
-   * Use for when the data is allowed to be externally modifiable.
-   * */
-  NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION = 1 << 2,
+    /**
+     * Skip CRC validation when deserializing.
+     * Use for when the data is allowed to be externally modifiable.
+     * */
+    NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION = 1 << 2,
 
-  /* internal */
+    /* internal */
 
-  _NYA_OBJECT_SERIALIZATION_FLAG_NO_TYPE_SPECIFIER = 1 << 3,
+    _NYA_OBJECT_SERIALIZATION_FLAG_NO_TYPE_SPECIFIER = 1 << 3,
 };
 
 /*

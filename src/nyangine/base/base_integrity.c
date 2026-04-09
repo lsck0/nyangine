@@ -36,7 +36,7 @@ void nya_integrity_assert(void) {
 
   b8 binary_valid = true;
 
-  NYA_GUARDED_BY(nya_arena_destroy) NYA_Arena* arena          = nya_arena_create();
+  NYA_CLEANUP_WITH(nya_arena_destroy) NYA_Arena* arena          = nya_arena_create();
   NYA_String*                                  binary_content = nya_string_create(arena);
 
   NYA_Result file_result;
@@ -71,7 +71,7 @@ void nya_integrity_assert(void) {
 b8 nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_crc) {
   nya_assert(binary_path != nullptr);
 
-  NYA_GUARDED_BY(nya_arena_destroy) NYA_Arena* arena  = nya_arena_create();
+  NYA_CLEANUP_WITH(nya_arena_destroy) NYA_Arena* arena  = nya_arena_create();
   NYA_String*                                  binary = nya_string_create(arena);
 
   NYA_Result result = nya_file_read(binary_path, binary);

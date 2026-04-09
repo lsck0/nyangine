@@ -34,17 +34,17 @@ NYA_Result nya_filesystem_move(NYA_ConstCString source, NYA_ConstCString destina
 }
 
 NYA_Result nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destination) {
-  NYA_GUARDED_BY(close) s32 source_fd = open(source, O_RDONLY);
+  NYA_CLEANUP_WITH(close) s32 source_fd = open(source, O_RDONLY);
   if (source_fd < 0) return nya_result_from_errno();
 
-  NYA_GUARDED_BY(close) s32 destination_fd = open(destination, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  NYA_CLEANUP_WITH(close) s32 destination_fd = open(destination, O_WRONLY | O_CREAT | O_TRUNC, 0644);
   if (destination_fd < 0) return nya_result_from_errno();
 
-  NYA_GUARDED_BY(nya_arena_destroy) NYA_Arena* arena  = nya_arena_create();
+  NYA_CLEANUP_WITH(nya_arena_destroy) NYA_Arena* arena  = nya_arena_create();
   NYA_String*                                  buffer = nya_string_create(arena);
 
-  nya_try(nya_fd_read(source_fd, buffer));
-  nya_try(nya_fd_write(destination_fd, buffer));
+  NYA_TRY(nya_fd_read(source_fd, buffer));
+  NYA_TRY(nya_fd_write(destination_fd, buffer));
 
   return NYA_OK;
 }

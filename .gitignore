@@ -1,12 +1,18 @@
+# assets
 assets/assets.c
 assets/icon/icon.res
 assets/shader/compiled/
-dist/
-docs/doxygen/
 
+# binaries
+dist/
 build
 *.debug
 *.debug.so
 *.windows-x86_64.exe
 *.linux-x86_64
+
+# debug data
 perf*
+
+# doxygen
+docs/doxygen/

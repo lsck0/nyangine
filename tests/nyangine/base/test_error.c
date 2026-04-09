@@ -28,12 +28,12 @@ NYA_Result always_fail_fmt(void) {
 }
 
 NYA_Result try_ok(void) {
-  nya_try(always_ok());
+  NYA_TRY(always_ok());
   return NYA_OK;
 }
 
 NYA_Result try_fail(void) {
-  nya_try(always_fail());
+  NYA_TRY(always_fail());
   return NYA_OK;
 }
 
@@ -42,7 +42,7 @@ NYA_Result always_fail_not_found(void) {
 }
 
 NYA_Result try_fail_not_found(void) {
-  nya_try(always_fail_not_found());
+  NYA_TRY(always_fail_not_found());
   return NYA_OK;
 }
 
@@ -111,7 +111,7 @@ s32 main(void) {
   nya_assert_panic((void)_nya_result(NYA_ERROR_COUNT, ""));
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_try - passes through on success
+  // TEST: NYA_TRY - passes through on success
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Result result = try_ok();
@@ -119,7 +119,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_try - propagates error on failure
+  // TEST: NYA_TRY - propagates error on failure
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Result result = try_fail();
@@ -127,14 +127,14 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_expect - passes on success
+  // TEST: NYA_EXPECT - passes on success
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_expect(always_ok());
+  NYA_EXPECT(always_ok());
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_expect - panics on failure
+  // TEST: NYA_EXPECT - panics on failure
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_assert_panic(nya_expect(always_fail()));
+  nya_assert_panic(NYA_EXPECT(always_fail()));
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_derive_maybe / nya_none - has_value is false
@@ -289,7 +289,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_try - preserves specific error codes (not just GENERIC)
+  // TEST: NYA_TRY - preserves specific error codes (not just GENERIC)
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Result result = try_fail_not_found();

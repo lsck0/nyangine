@@ -78,8 +78,8 @@ NYA_Result nya_command_run(NYA_Command* command) {
 
   // read stdout and stderr
   if (nya_flag_check(command->flags, NYA_COMMAND_FLAG_OUTPUT_CAPTURE)) {
-    nya_try(nya_fd_read(stdout_pipe[0], command->stdout_content));
-    nya_try(nya_fd_read(stderr_pipe[0], command->stderr_content));
+    NYA_TRY(nya_fd_read(stdout_pipe[0], command->stdout_content));
+    NYA_TRY(nya_fd_read(stderr_pipe[0], command->stderr_content));
   }
   close(stdout_pipe[0]);
   close(stderr_pipe[0]);

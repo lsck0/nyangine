@@ -50,7 +50,7 @@ IncludeCategories:
     Priority: 4
   - Regex: '^".*"$'
     Priority: 5
-IndentWidth: 2
+IndentWidth: 4
 PointerAlignment: Left
 SortIncludes: CaseInsensitive
 AttributeMacros:
