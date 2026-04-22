@@ -20,9 +20,9 @@ CompileFlags:
       -Wno-keyword-macro,
       -DDEBUG=true,
       -DNYA_ASSET_BACKEND_FS,
-      -I/home/luca/code/specturm/src/,
-      -I/home/luca/code/specturm/vendor/,
-      -I/home/luca/code/specturm/vendor/sdl/include/,
+      -Isrc/,
+      -Ivendor/,
+      -Ivendor/sdl/include/,
     ]
 
 Diagnostics:

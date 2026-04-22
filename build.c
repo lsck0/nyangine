@@ -1067,7 +1067,7 @@ NYA_ArgCommand update = {
 };
 
 NYA_ArgParser parser = {
-    .name    = "specturm build system",
+    .name    = "nyangine build system",
     .version = VERSION,
 
     .root_command = &(NYA_ArgCommand){

@@ -10,14 +10,14 @@
 Clone the repository recursively with
 
 ```bash
-git clone --recursive http://github.com/lsck0/specturm.git
+git clone --recursive http://github.com/lsck0/nyangine.git
 ```
 
 or
 
 ```bash
-git clone http://github.com/lsck0/specturm.git
-cd specturm
+git clone http://github.com/lsck0/nyangine.git
+cd nyangine
 git submodule update --init --recursive
 ```
 

@@ -35,8 +35,8 @@
  * }};
  *
  * NYA_ArgParser parser = {
- *     .name = "specturm build system",
- *     .description = "Build system for the specturm project.",
+ *     .name = "nyangine build system",
+ *     .description = "Build system for the nyangine project.",
  *
  *     .root_command = &(NYA_ArgCommand){
  *         .is_root    = true,
