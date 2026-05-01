@@ -8,8 +8,8 @@
  * */
 #pragma once
 
-#include "nyangine/base/base.h"
 #include "nyangine/base/base_attributes.h"
+#include "nyangine/base/base_basic.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@
  * ```
  * */
 #define NYA_DEFINE_CLEANUP_FN(name, type, var_name, code)                                                                                            \
-    __attr_allow_unused void __cleanup_##name(type const* p) {                                                                                             \
+    __attr_allow_unused void __cleanup_##name(type const* p) {                                                                                       \
         if (!p) return;                                                                                                                              \
         type var_name = *p;                                                                                                                          \
         code;                                                                                                                                        \

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nyangine/base/base.h"
+#include "nyangine/base/base_basic.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -32,17 +32,17 @@
 #define nya_offsetof(type, member)     __builtin_offsetof(type, member)
 #define nya_offsetof_end(type, member) (offsetof(type, member) + nya_sizeof_field(type, member))
 #define nya_container_of(ptr, type, member)                                                                                                          \
-  _Generic(                                                                                                                                          \
-      ptr,                                                                                                                                           \
-      const typeof(*(ptr))*: ((const type*)_nya_raw_container_of(ptr, type, member)),                                                                \
-      default: ((type*)_nya_raw_container_of(ptr, type, member))                                                                                     \
-  )
+    _Generic(                                                                                                                                        \
+        ptr,                                                                                                                                         \
+        const typeof(*(ptr))*: ((const type*)_nya_raw_container_of(ptr, type, member)),                                                              \
+        default: ((type*)_nya_raw_container_of(ptr, type, member))                                                                                   \
+    )
 #define _nya_raw_container_of(ptr, type, member)                                                                                                     \
-  ({                                                                                                                                                 \
-    void* ptr_var = (void*)(ptr);                                                                                                                    \
-    assert_type_match(*(ptr), ((type*)0)->member);                                                                                                   \
-    ((type*)(ptr_var - offsetof(type, member)));                                                                                                     \
-  })
+    ({                                                                                                                                               \
+        void* ptr_var = (void*)(ptr);                                                                                                                \
+        assert_type_match(*(ptr), ((type*)0)->member);                                                                                               \
+        ((type*)(ptr_var - offsetof(type, member)));                                                                                                 \
+    })
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

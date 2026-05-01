@@ -1,7 +1,5 @@
 * PLAN
 
-- [ ] rebrand repo to "nyangine"
-- [ ] move object out of base, take value parsing with it
 - [ ] change vendor system by putting nyagine build files near its source files.
 - [ ] windows debug build with hotreloading
 - [ ] oneshot event handlers

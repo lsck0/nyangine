@@ -38,16 +38,12 @@ struct NYA_SourceLocation {
 };
 
 enum NYA_Error {
-    NYA_ERROR_NONE = 0,
+    NYA_ERROR_NONE,
 
     NYA_ERROR_NOT_OK,
     NYA_ERROR_GENERIC,
 
     NYA_ERROR_NOT_FOUND,
-    NYA_ERROR_PERMISSION_DENIED,
-    NYA_ERROR_OUT_OF_MEMORY,
-    NYA_ERROR_PARSE_ERROR,
-    NYA_ERROR_IO,
 
     NYA_ERROR_COUNT,
 };
@@ -59,14 +55,10 @@ struct NYA_Result {
 };
 
 __attr_allow_unused static NYA_ConstCString NYA_RESULT_NAME_MAP[NYA_ERROR_COUNT] = {
-    [NYA_ERROR_NONE]              = "NONE",
-    [NYA_ERROR_NOT_OK]            = "NOT_OK",
-    [NYA_ERROR_GENERIC]           = "GENERIC",
-    [NYA_ERROR_NOT_FOUND]         = "NOT_FOUND",
-    [NYA_ERROR_PERMISSION_DENIED] = "PERMISSION_DENIED",
-    [NYA_ERROR_OUT_OF_MEMORY]     = "OUT_OF_MEMORY",
-    [NYA_ERROR_PARSE_ERROR]       = "PARSE_ERROR",
-    [NYA_ERROR_IO]                = "IO",
+    [NYA_ERROR_NONE]      = "NONE",
+    [NYA_ERROR_NOT_OK]    = "NOT_OK",
+    [NYA_ERROR_GENERIC]   = "GENERIC",
+    [NYA_ERROR_NOT_FOUND] = "NOT_FOUND",
 };
 
 /*
@@ -120,6 +112,12 @@ nya_derive_maybe(f128);
 #define NYA_NOT_OK   ((NYA_Result){ .error = NYA_ERROR_NOT_OK })
 #define nya_err(...) _nya_err(__VA_ARGS__)
 
+// TRY: early return + add to stack trace, THROW: print error and explode, UNWRAP throw if error, EXPECT throw if error with message
+
+#define NYA_THROW(error)                                                                                                                             \
+    do {                                                                                                                                             \
+    } while (0)
+
 #define NYA_TRY(expr)                                                                                                                                \
     do {                                                                                                                                             \
         NYA_Result _result = (expr);                                                                                                                 \
@@ -127,10 +125,6 @@ nya_derive_maybe(f128);
             nya_error("Tried '%s' and got an error: '%s'. Propagating up.", #expr, NYA_RESULT_NAME_MAP[_result.error]);                              \
             return _result;                                                                                                                          \
         }                                                                                                                                            \
-    } while (0)
-
-#define NYA_THROW(error)                                                                                                                             \
-    do {                                                                                                                                             \
     } while (0)
 
 #define NYA_UNWRAP(expr)                                                                                                                             \

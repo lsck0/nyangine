@@ -20,9 +20,10 @@ CompileFlags:
       -Wno-keyword-macro,
       -DDEBUG=true,
       -DNYA_ASSET_BACKEND_FS,
-      -Isrc/,
-      -Ivendor/,
-      -Ivendor/sdl/include/,
+      -DDNYA_ASSET_HOT_RELOAD,
+      -I/home/luca/code/nyangine/src/,
+      -I/home/luca/code/nyangine/vendor/,
+      -I/home/luca/code/nyangine/vendor/sdl/include/,
     ]
 
 Diagnostics:

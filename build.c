@@ -1,3 +1,4 @@
+#include "nyangine/base/base_basic.h"
 #include "nyangine/nyangine.h"
 /**/
 #include "nyangine/base/base_arena.c"
@@ -950,7 +951,7 @@ NYA_INTERNAL void test_runner(NYA_ArgCommand* command) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_ArgParameter test_files = {
+NYA_INTERNAL NYA_ArgParameter test_files = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .variadic    = true,
     .value.type  = NYA_TYPE_STRING,
@@ -958,21 +959,21 @@ NYA_ArgParameter test_files = {
     .description = "Which tests to run. If none specified, all tests are run.",
 };
 
-NYA_ArgParameter skip_self_rebuild_flag = {
+NYA_INTERNAL NYA_ArgParameter skip_self_rebuild_flag = {
     .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
     .value.type  = NYA_TYPE_BOOL,
     .name        = "no-rebuild",
     .description = "Don't rebuild the build system before executing the command.",
 };
 
-NYA_ArgParameter help_flag = {
+NYA_INTERNAL NYA_ArgParameter help_flag = {
     .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
     .value.type  = NYA_TYPE_BOOL,
     .name        = "help",
     .description = "Show this message.",
 };
 
-NYA_ArgCommand run = {
+NYA_INTERNAL NYA_ArgCommand run = {
     .name = "run",
     .description = "Run things.",
     .subcommands = {
@@ -994,7 +995,7 @@ NYA_ArgCommand run = {
         },
 }};
 
-NYA_ArgCommand build = {
+NYA_INTERNAL NYA_ArgCommand build = {
     .name        = "build",
     .description = "Build things.",
     .subcommands = {
@@ -1036,37 +1037,37 @@ NYA_ArgCommand build = {
     },
 };
 
-NYA_ArgCommand bundle = {
+NYA_INTERNAL NYA_ArgCommand bundle = {
     .name        = "bundle",
     .description = "Bundle for shipping.",
     .build_rule  = &bundle_project,
 };
 
-NYA_ArgCommand perf = {
+NYA_INTERNAL NYA_ArgCommand perf = {
     .name        = "perf",
     .description = "Open Profiler with last profiling data.",
     .build_rule  = &open_perf_report,
 };
 
-NYA_ArgCommand docs = {
+NYA_INTERNAL NYA_ArgCommand docs = {
     .name        = "docs",
     .description = "Open doxygen generated documentation.",
     .build_rule  = &open_docs,
 };
 
-NYA_ArgCommand stats = {
+NYA_INTERNAL NYA_ArgCommand stats = {
     .name        = "stats",
     .description = "Show code statistics.",
     .build_rule  = &show_stats,
 };
 
-NYA_ArgCommand update = {
+NYA_INTERNAL NYA_ArgCommand update = {
     .name        = "update",
     .description = "Update git submodules.",
     .build_rule  = &update_submodules,
 };
 
-NYA_ArgParser parser = {
+NYA_INTERNAL NYA_ArgParser parser = {
     .name    = "nyangine build system",
     .version = VERSION,
 

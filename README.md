@@ -24,7 +24,7 @@ git submodule update --init --recursive
 and bootstrap the build system with
 
 ```bash
-clang build.c -o build -std=c23 -fenable-matrix -I./src -lm -lSDL3 2> /dev/null
+clang build.c -o build -std=c23 -fenable-matrix -I./src -lm 2> /dev/null
 ```
 
 then run

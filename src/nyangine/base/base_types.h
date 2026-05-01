@@ -5,8 +5,8 @@
  * */
 #pragma once
 
-#include "nyangine/base/base.h"
 #include "nyangine/base/base_attributes.h"
+#include "nyangine/base/base_basic.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -184,10 +184,6 @@ __attr_allow_unused static const char* NYA_TYPE_NAME_MAP[NYA_TYPE_COUNT] = {
 
     [NYA_TYPE_ARRAY] = "array",
 };
-
-NYA_API NYA_EXTERN b8 nya_type_parse(NYA_Type target, const u8* data, u64 length, OUT void* out_value);
-NYA_API NYA_EXTERN b8 nya_type_parse_guess(const u8* data, u64 length, OUT NYA_Type* out_type, OUT void* out_value);
-NYA_API NYA_EXTERN b8 nya_type_name_parse(const u8* data, u64 length, OUT NYA_Type* out_type, OUT NYA_ConstCString* out_type_name);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

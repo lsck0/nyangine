@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nyangine/base/base.h"
+#include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_types.h"
 
 /*

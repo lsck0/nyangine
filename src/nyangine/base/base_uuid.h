@@ -23,7 +23,7 @@
  * */
 #pragma once
 
-#include "nyangine/base/base.h"
+#include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_random.h"
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"

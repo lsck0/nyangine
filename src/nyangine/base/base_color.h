@@ -5,7 +5,7 @@
  * */
 #pragma once
 
-#include "nyangine/base/base.h"
+#include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 
@@ -67,7 +67,7 @@ typedef struct NYA_ColorHSL NYA_ColorHSL;
  * RGBA float color, each component in [0, 1].
  * */
 struct NYA_Color {
-  f32 r, g, b, a;
+    f32 r, g, b, a;
 };
 
 /**
@@ -76,7 +76,7 @@ struct NYA_Color {
  * HSV color. h in [0, 360), s and v in [0, 1].
  * */
 struct NYA_ColorHSV {
-  f32 h, s, v, a;
+    f32 h, s, v, a;
 };
 
 /**
@@ -85,7 +85,7 @@ struct NYA_ColorHSV {
  * HSL color. h in [0, 360), s and l in [0, 1].
  * */
 struct NYA_ColorHSL {
-  f32 h, s, l, a;
+    f32 h, s, l, a;
 };
 
 /*
