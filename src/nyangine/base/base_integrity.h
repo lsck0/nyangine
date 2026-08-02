@@ -17,5 +17,5 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_EXTERN void nya_integrity_assert(void);
-NYA_API NYA_EXTERN b8   nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_crc);
+NYA_API void      nya_integrity_assert(void);
+NYA_API NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_crc) __attr_no_discard;

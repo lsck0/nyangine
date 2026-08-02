@@ -33,16 +33,16 @@ typedef int (*NYA_JobFn)(NYA_Job* job);
  */
 
 struct NYA_JobSystem {
-  NYA_Arena* allocator;
+    NYA_Arena* allocator;
 
-  SDL_Mutex*   job_queue_mutex;
-  NYA_JobHeap* job_queue;
+    SDL_Mutex*         job_queue_mutex;
+    NYA_HeapᐸNYA_Jobᐳ* job_queue;
 
-  SDL_Mutex*    job_active_mutex;
-  NYA_JobArray* job_active;
+    SDL_Mutex*          job_active_mutex;
+    NYA_ArrayᐸNYA_Jobᐳ* job_active;
 
-  SDL_Thread* scheduler;
-  b8          scheduler_should_exit;
+    SDL_Thread* scheduler;
+    b8          scheduler_should_exit;
 };
 
 /*
@@ -52,23 +52,23 @@ struct NYA_JobSystem {
  */
 
 enum NYA_JobPriority {
-  NYA_JOB_PRIORITY_LOW,
-  NYA_JOB_PRIORITY_NORMAL,
-  NYA_JOB_PRIORITY_HIGH,
-  NYA_JOB_PRIORITY_COUNT,
+    NYA_JOB_PRIORITY_LOW,
+    NYA_JOB_PRIORITY_NORMAL,
+    NYA_JOB_PRIORITY_HIGH,
+    NYA_JOB_PRIORITY_COUNT,
 };
 
 struct NYA_Job {
-  NYA_JobPriority    priority;
-  NYA_CallbackHandle function;
-  void*              in_data;
-  u64                in_size;
-  void**             out_data;
-  u64*               out_size;
+    NYA_JobPriority    priority;
+    NYA_CallbackHandle function;
+    void*              in_data;
+    u64                in_size;
+    void**             out_data;
+    u64*               out_size;
 
-  /* set by the system */
-  NYA_JobHandle job_handle;
-  SDL_Thread*   sdl_thread;
+    /* set by the system */
+    NYA_JobHandle job_handle;
+    SDL_Thread*   sdl_thread;
 };
 
 /*
@@ -83,8 +83,8 @@ struct NYA_Job {
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_EXTERN void nya_system_job_init(void);
-NYA_API NYA_EXTERN void nya_system_job_deinit(void);
+NYA_API NYA_Error nya_system_job_init(void) __attr_no_discard;
+NYA_API void nya_system_job_deinit(void);
 
 /*
  * ─────────────────────────────────────────────────────────
@@ -92,6 +92,6 @@ NYA_API NYA_EXTERN void nya_system_job_deinit(void);
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_EXTERN NYA_JobHandle nya_job_submit(NYA_Job job);
-NYA_API NYA_EXTERN void          nya_job_wait(NYA_JobHandle job_handle);
-NYA_API NYA_EXTERN b8            nya_job_is_done(NYA_JobHandle job_handle);
+NYA_API NYA_JobHandle nya_job_submit(NYA_Job job);
+NYA_API void          nya_job_wait(NYA_JobHandle job_handle);
+NYA_API b8            nya_job_is_done(NYA_JobHandle job_handle);

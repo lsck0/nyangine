@@ -1,1 +1,7 @@
+#include "nyangine/math/math_complex.c"
 #include "nyangine/math/math_matrix.c"
+#include "nyangine/math/math_noise.c"
+#include "nyangine/math/math_quaternion.c"
+#include "nyangine/math/math_random.c"
+#include "nyangine/math/math_tween.c"
+#include "nyangine/math/math_uuid.c"

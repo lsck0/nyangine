@@ -21,17 +21,17 @@ NYA_INTERNAL BOOL WINAPI _nya_console_handler(DWORD ctrl_type);
  */
 
 void nya_signals_init(void) {
-  SetConsoleCtrlHandler(_nya_console_handler, TRUE);
+    SetConsoleCtrlHandler(_nya_console_handler, TRUE);
 }
 
 void nya_signals_deinit(void) {
-  SetConsoleCtrlHandler(_nya_console_handler, FALSE);
+    SetConsoleCtrlHandler(_nya_console_handler, FALSE);
 }
 
 void nya_signals_set_handler(NYA_Signal sig, NYA_SignalHandler handler) {
-  if (sig >= NYA_SIGNAL_COUNT) return;
+    if (sig >= NYA_SIGNAL_COUNT) return;
 
-  NYA_SIGNALS_TO_CALLBACK_MAP[sig] = handler;
+    NYA_SIGNALS_TO_CALLBACK_MAP[sig] = handler;
 }
 
 /*
@@ -41,23 +41,23 @@ void nya_signals_set_handler(NYA_Signal sig, NYA_SignalHandler handler) {
  */
 
 NYA_INTERNAL NYA_Signal _nya_signal_from_native(DWORD ctrl_type) {
-  switch (ctrl_type) {
-    case CTRL_C_EVENT:        return NYA_SIGNAL_INTERRUPT;
-    case CTRL_CLOSE_EVENT:    return NYA_SIGNAL_TERMINATE;
-    case CTRL_LOGOFF_EVENT:
-    case CTRL_SHUTDOWN_EVENT: return NYA_SIGNAL_HANGUP;
-    default:                  return NYA_SIGNAL_INVALID;
-  }
+    switch (ctrl_type) {
+        case CTRL_C_EVENT:        return NYA_SIGNAL_INTERRUPT;
+        case CTRL_CLOSE_EVENT:    return NYA_SIGNAL_TERMINATE;
+        case CTRL_LOGOFF_EVENT:
+        case CTRL_SHUTDOWN_EVENT: return NYA_SIGNAL_HANGUP;
+        default:                  return NYA_SIGNAL_INVALID;
+    }
 }
 
 NYA_INTERNAL BOOL WINAPI _nya_console_handler(DWORD ctrl_type) {
-  NYA_Signal signal = _nya_signal_from_native(ctrl_type);
-  if (signal == NYA_SIGNAL_INVALID) return FALSE;
+    NYA_Signal signal = _nya_signal_from_native(ctrl_type);
+    if (signal == NYA_SIGNAL_INVALID) return FALSE;
 
-  NYA_SignalHandler handler = NYA_SIGNALS_TO_CALLBACK_MAP[signal];
-  if (handler != nullptr) {
-    handler(signal);
-    return TRUE; /* Signal handled */
-  }
-  return FALSE; /* Use default handler */
+    NYA_SignalHandler handler = NYA_SIGNALS_TO_CALLBACK_MAP[signal];
+    if (handler != nullptr) {
+        handler(signal);
+        return TRUE; /* Signal handled */
+    }
+    return FALSE; /* Use default handler */
 }

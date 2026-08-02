@@ -4,15 +4,38 @@ assets/icon/icon.res
 assets/shader/compiled/
 
 # binaries
+#
+# Anchored to the repo root with a leading slash: every one of these is produced next to build.c,
+# and unanchored patterns like *.so or *.lib would also swallow anything vendored or nested.
 dist/
-build
-*.debug
-*.debug.so
-*.windows-x86_64.exe
-*.linux-x86_64
+/build
+/.backup_build_executable*
+
+# debug, developer and test artifacts, per mode and per platform. Hot reload means an exe, a shared
+# library and (on windows) an import library and the copy the loader actually opens.
+/*.debug
+/*.debug.so
+/*.debug.exe
+/*.debug.dll
+/*.debug.lib
+/*.debug.loaded.dll
+/*.dev
+/*.dev.so
+/*.dev.exe
+/*.dev.dll
+/*.dev.lib
+/*.dev.loaded.dll
+/*.test
+
+# release
+/*.linux-x86_64
+/*.windows-x86_64.exe
 
 # debug data
 perf*
 
 # doxygen
 docs/doxygen/
+
+# keep
+!src/build/

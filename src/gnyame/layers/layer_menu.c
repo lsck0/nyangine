@@ -7,7 +7,7 @@
  */
 
 void gny_layer_menu_on_create(NYA_Window* window) {
-  nya_unused(window);
+    nya_unused(window);
 }
 
 /*
@@ -17,7 +17,7 @@ void gny_layer_menu_on_create(NYA_Window* window) {
  */
 
 void gny_layer_menu_on_destroy(NYA_Window* window) {
-  nya_unused(window);
+    nya_unused(window);
 }
 
 /*
@@ -27,7 +27,7 @@ void gny_layer_menu_on_destroy(NYA_Window* window) {
  */
 
 void gny_layer_menu_on_event(NYA_Window* window, NYA_Event* event) {
-  nya_unused(window, event);
+    nya_unused(window, event);
 }
 
 /*
@@ -37,7 +37,7 @@ void gny_layer_menu_on_event(NYA_Window* window, NYA_Event* event) {
  */
 
 void gny_layer_menu_on_update(NYA_Window* window, f32 delta_time_s) {
-  nya_unused(window, delta_time_s);
+    nya_unused(window, delta_time_s);
 }
 
 /*
@@ -47,5 +47,5 @@ void gny_layer_menu_on_update(NYA_Window* window, f32 delta_time_s) {
  */
 
 void gny_layer_menu_on_render(NYA_Window* window) {
-  nya_unused(window);
+    nya_unused(window);
 }

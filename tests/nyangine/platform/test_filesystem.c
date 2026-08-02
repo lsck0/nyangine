@@ -13,7 +13,7 @@ s32 main(void) {
   NYA_String       copied_file_content  = *nya_string_create(nya_arena_global);
   NYA_String       moved_file_content   = *nya_string_create(nya_arena_global);
 
-  NYA_Result result;
+  NYA_Error result;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Files should not exist initially
@@ -71,7 +71,7 @@ s32 main(void) {
   nya_assert(!nya_filesystem_exists("nonexistent_file_12345.txt"));
 
   NYA_String   nonexistent_content = *nya_string_create(nya_arena_global);
-  NYA_Result   read_result         = nya_file_read("nonexistent_file_12345.txt", &nonexistent_content);
+  NYA_Error   read_result         = nya_file_read("nonexistent_file_12345.txt", &nonexistent_content);
   nya_assert(read_result.error == NYA_ERROR_NOT_FOUND);
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     u64 ts = 0;
-    NYA_Result r = nya_filesystem_last_modified("nonexistent_file_12345.txt", &ts);
+    NYA_Error r = nya_filesystem_last_modified("nonexistent_file_12345.txt", &ts);
     nya_assert(r.error == NYA_ERROR_NOT_FOUND);
   }
 

@@ -8,11 +8,12 @@
 #include "nyangine/base/base_array.h"
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_hmap.h"
-#include "nyangine/base/base_keys.h"
-#include "nyangine/base/base_mouse.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/core/core_callback.h"
 #include "nyangine/core/core_job.h"
+#include "nyangine/core/core_keys.h"
+#include "nyangine/core/core_mouse.h"
+#include "nyangine/core/core_types.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -39,9 +40,88 @@ typedef struct NYA_TextInputEvent     NYA_TextInputEvent;
 typedef struct NYA_WindowEvent        NYA_WindowEvent;
 typedef struct NYA_WindowMovedEvent   NYA_WindowMovedEvent;
 typedef struct NYA_WindowResizedEvent NYA_WindowResizedEvent;
+/*
+ * ─────────────────────────────────────────────────────────
+ * EVENT TYPE ENUM
+ * ─────────────────────────────────────────────────────────
+ */
+
+enum NYA_EventType {
+    NYA_EVENT_INVALID,
+
+    NYA_EVENT_LIFECYCLE_EVENTS_BEGIN,
+    NYA_EVENT_FRAME_STARTED,
+    NYA_EVENT_FRAME_ENDED,
+    NYA_EVENT_HANDLING_STARTED,
+    NYA_EVENT_HANDLING_ENDED,
+    NYA_EVENT_UPDATING_STARTED,
+    NYA_EVENT_UPDATING_ENDED,
+    NYA_EVENT_RENDERING_STARTED,
+    NYA_EVENT_RENDERING_ENDED,
+    NYA_EVENT_LIFECYCLE_EVENTS_END,
+
+    NYA_EVENT_CLIPBOARD_UPDATE,
+
+    NYA_EVENT_DISPLAY_ADDED,
+    NYA_EVENT_DISPLAY_CONTENT_SCALE_CHANGED,
+    NYA_EVENT_DISPLAY_CURRENT_MODE_CHANGED,
+    NYA_EVENT_DISPLAY_DESKTOP_MODE_CHANGED,
+    NYA_EVENT_DISPLAY_MOVED,
+    NYA_EVENT_DISPLAY_ORIENTATION,
+    NYA_EVENT_DISPLAY_REMOVED,
+
+    NYA_EVENT_DROP_FILE,
+    NYA_EVENT_DROP_TEXT,
+    NYA_EVENT_DROP_BEGIN,
+    NYA_EVENT_DROP_COMPLETE,
+    NYA_EVENT_DROP_POSITION,
+
+    NYA_EVENT_JOB_STARTED,
+    NYA_EVENT_JOB_COMPLETED,
+
+    NYA_EVENT_KEY_DOWN,
+    NYA_EVENT_KEY_UP,
+    NYA_EVENT_KEYMAP_CHANGED,
+
+    NYA_EVENT_MOUSE_BUTTON_DOWN,
+    NYA_EVENT_MOUSE_BUTTON_UP,
+    NYA_EVENT_MOUSE_MOVED,
+    NYA_EVENT_MOUSE_WHEEL_MOVED,
+
+    NYA_EVENT_QUIT,
+
+    NYA_EVENT_TEXT_INPUT,
+    NYA_EVENT_TEXT_EDITING,
+
+    NYA_EVENT_WINDOW_CLOSE_REQUESTED,
+    NYA_EVENT_WINDOW_DESTROYED,
+    NYA_EVENT_WINDOW_DISPLAY_CHANGED,
+    NYA_EVENT_WINDOW_DISPLAY_SCALE_CHANGED,
+    NYA_EVENT_WINDOW_ENTER_FULLSCREEN,
+    NYA_EVENT_WINDOW_EXPOSED,
+    NYA_EVENT_WINDOW_FOCUS_GAINED,
+    NYA_EVENT_WINDOW_FOCUS_LOST,
+    NYA_EVENT_WINDOW_HDR_STATE_CHANGED,
+    NYA_EVENT_WINDOW_HIDDEN,
+    NYA_EVENT_WINDOW_LEAVE_FULLSCREEN,
+    NYA_EVENT_WINDOW_MAXIMIZED,
+    NYA_EVENT_WINDOW_MINIMIZED,
+    NYA_EVENT_WINDOW_MOUSE_ENTER,
+    NYA_EVENT_WINDOW_MOUSE_LEAVE,
+    NYA_EVENT_WINDOW_MOVED,
+    NYA_EVENT_WINDOW_OCCLUDED,
+    NYA_EVENT_WINDOW_PIXEL_SIZE_CHANGED,
+    NYA_EVENT_WINDOW_RESIZED,
+    NYA_EVENT_WINDOW_RESTORED,
+    NYA_EVENT_WINDOW_SAFE_AREA_CHANGED,
+    NYA_EVENT_WINDOW_SHOWN,
+
+    NYA_EVENT_COUNT,
+};
+
 nya_derive_array(NYA_Event);
 nya_derive_array(NYA_EventHook);
-nya_derive_hmap(NYA_EventType, NYA_EventHookArray);
+nya_derive_hmap(NYA_EventType, NYA_ArrayᐸNYA_EventHookᐳ);
 
 typedef void (*NYA_EventHookFn)(NYA_Event*);
 typedef b8 (*NYA_EventHookConditionFn)(NYA_Event*);
@@ -53,159 +133,80 @@ typedef b8 (*NYA_EventHookConditionFn)(NYA_Event*);
  */
 
 struct NYA_EventSystem {
-  NYA_Arena* allocator;
+    NYA_Arena* allocator;
 
-  SDL_Mutex*      event_queue_mutex;
-  NYA_EventArray* event_queue;
-  u64             event_queue_read_index;
+    SDL_Mutex*            event_queue_mutex;
+    NYA_ArrayᐸNYA_Eventᐳ* event_queue;
+    u64                   event_queue_read_index;
 
-  NYA_EventType_NYA_EventHookArray_HMap* deferred_event_hooks;
-  NYA_EventType_NYA_EventHookArray_HMap* immediate_event_hooks;
-};
-
-/*
- * ─────────────────────────────────────────────────────────
- * EVENT TYPE ENUM
- * ─────────────────────────────────────────────────────────
- */
-
-enum NYA_EventType {
-  NYA_EVENT_INVALID,
-
-  NYA_EVENT_LIFECYCLE_EVENTS_BEGIN,
-  NYA_EVENT_FRAME_STARTED,
-  NYA_EVENT_FRAME_ENDED,
-  NYA_EVENT_HANDLING_STARTED,
-  NYA_EVENT_HANDLING_ENDED,
-  NYA_EVENT_UPDATING_STARTED,
-  NYA_EVENT_UPDATING_ENDED,
-  NYA_EVENT_RENDERING_STARTED,
-  NYA_EVENT_RENDERING_ENDED,
-  NYA_EVENT_LIFECYCLE_EVENTS_END,
-
-  NYA_EVENT_CLIPBOARD_UPDATE,
-
-  NYA_EVENT_DISPLAY_ADDED,
-  NYA_EVENT_DISPLAY_CONTENT_SCALE_CHANGED,
-  NYA_EVENT_DISPLAY_CURRENT_MODE_CHANGED,
-  NYA_EVENT_DISPLAY_DESKTOP_MODE_CHANGED,
-  NYA_EVENT_DISPLAY_MOVED,
-  NYA_EVENT_DISPLAY_ORIENTATION,
-  NYA_EVENT_DISPLAY_REMOVED,
-
-  NYA_EVENT_DROP_FILE,
-  NYA_EVENT_DROP_TEXT,
-  NYA_EVENT_DROP_BEGIN,
-  NYA_EVENT_DROP_COMPLETE,
-  NYA_EVENT_DROP_POSITION,
-
-  NYA_EVENT_JOB_STARTED,
-  NYA_EVENT_JOB_COMPLETED,
-
-  NYA_EVENT_KEY_DOWN,
-  NYA_EVENT_KEY_UP,
-  NYA_EVENT_KEYMAP_CHANGED,
-
-  NYA_EVENT_MOUSE_BUTTON_DOWN,
-  NYA_EVENT_MOUSE_BUTTON_UP,
-  NYA_EVENT_MOUSE_MOVED,
-  NYA_EVENT_MOUSE_WHEEL_MOVED,
-
-  NYA_EVENT_QUIT,
-
-  NYA_EVENT_TEXT_INPUT,
-  NYA_EVENT_TEXT_EDITING,
-
-  NYA_EVENT_WINDOW_CLOSE_REQUESTED,
-  NYA_EVENT_WINDOW_DESTROYED,
-  NYA_EVENT_WINDOW_DISPLAY_CHANGED,
-  NYA_EVENT_WINDOW_DISPLAY_SCALE_CHANGED,
-  NYA_EVENT_WINDOW_ENTER_FULLSCREEN,
-  NYA_EVENT_WINDOW_EXPOSED,
-  NYA_EVENT_WINDOW_FOCUS_GAINED,
-  NYA_EVENT_WINDOW_FOCUS_LOST,
-  NYA_EVENT_WINDOW_HDR_STATE_CHANGED,
-  NYA_EVENT_WINDOW_HIDDEN,
-  NYA_EVENT_WINDOW_LEAVE_FULLSCREEN,
-  NYA_EVENT_WINDOW_MAXIMIZED,
-  NYA_EVENT_WINDOW_MINIMIZED,
-  NYA_EVENT_WINDOW_MOUSE_ENTER,
-  NYA_EVENT_WINDOW_MOUSE_LEAVE,
-  NYA_EVENT_WINDOW_MOVED,
-  NYA_EVENT_WINDOW_OCCLUDED,
-  NYA_EVENT_WINDOW_PIXEL_SIZE_CHANGED,
-  NYA_EVENT_WINDOW_RESIZED,
-  NYA_EVENT_WINDOW_RESTORED,
-  NYA_EVENT_WINDOW_SAFE_AREA_CHANGED,
-  NYA_EVENT_WINDOW_SHOWN,
-
-  NYA_EVENT_COUNT,
+    NYA_HMapᐸNYA_EventTypeˏNYA_ArrayᐸNYA_EventHookᐳᐳ* deferred_event_hooks;
+    NYA_HMapᐸNYA_EventTypeˏNYA_ArrayᐸNYA_EventHookᐳᐳ* immediate_event_hooks;
 };
 
 __attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[] = {
-  [NYA_EVENT_INVALID] = "INVALID",
+    [NYA_EVENT_INVALID] = "INVALID",
 
-  [NYA_EVENT_FRAME_STARTED]     = "FRAME_STARTED",
-  [NYA_EVENT_FRAME_ENDED]       = "FRAME_ENDED",
-  [NYA_EVENT_HANDLING_STARTED]  = "HANDLING_STARTED",
-  [NYA_EVENT_HANDLING_ENDED]    = "HANDLING_ENDED",
-  [NYA_EVENT_UPDATING_STARTED]  = "UPDATING_STARTED",
-  [NYA_EVENT_UPDATING_ENDED]    = "UPDATING_ENDED",
-  [NYA_EVENT_RENDERING_STARTED] = "RENDERING_STARTED",
-  [NYA_EVENT_RENDERING_ENDED]   = "RENDERING_ENDED",
+    [NYA_EVENT_FRAME_STARTED]     = "FRAME_STARTED",
+    [NYA_EVENT_FRAME_ENDED]       = "FRAME_ENDED",
+    [NYA_EVENT_HANDLING_STARTED]  = "HANDLING_STARTED",
+    [NYA_EVENT_HANDLING_ENDED]    = "HANDLING_ENDED",
+    [NYA_EVENT_UPDATING_STARTED]  = "UPDATING_STARTED",
+    [NYA_EVENT_UPDATING_ENDED]    = "UPDATING_ENDED",
+    [NYA_EVENT_RENDERING_STARTED] = "RENDERING_STARTED",
+    [NYA_EVENT_RENDERING_ENDED]   = "RENDERING_ENDED",
 
-  [NYA_EVENT_CLIPBOARD_UPDATE] = "CLIPBOARD_UPDATE",
+    [NYA_EVENT_CLIPBOARD_UPDATE] = "CLIPBOARD_UPDATE",
 
-  [NYA_EVENT_DISPLAY_ADDED]                 = "DISPLAY_ADDED",
-  [NYA_EVENT_DISPLAY_CONTENT_SCALE_CHANGED] = "DISPLAY_CONTENT_SCALE_CHANGED",
-  [NYA_EVENT_DISPLAY_CURRENT_MODE_CHANGED]  = "DISPLAY_CURRENT_MODE_CHANGED",
-  [NYA_EVENT_DISPLAY_DESKTOP_MODE_CHANGED]  = "DISPLAY_DESKTOP_MODE_CHANGED",
-  [NYA_EVENT_DISPLAY_MOVED]                 = "DISPLAY_MOVED",
-  [NYA_EVENT_DISPLAY_ORIENTATION]           = "DISPLAY_ORIENTATION",
-  [NYA_EVENT_DISPLAY_REMOVED]               = "DISPLAY_REMOVED",
+    [NYA_EVENT_DISPLAY_ADDED]                 = "DISPLAY_ADDED",
+    [NYA_EVENT_DISPLAY_CONTENT_SCALE_CHANGED] = "DISPLAY_CONTENT_SCALE_CHANGED",
+    [NYA_EVENT_DISPLAY_CURRENT_MODE_CHANGED]  = "DISPLAY_CURRENT_MODE_CHANGED",
+    [NYA_EVENT_DISPLAY_DESKTOP_MODE_CHANGED]  = "DISPLAY_DESKTOP_MODE_CHANGED",
+    [NYA_EVENT_DISPLAY_MOVED]                 = "DISPLAY_MOVED",
+    [NYA_EVENT_DISPLAY_ORIENTATION]           = "DISPLAY_ORIENTATION",
+    [NYA_EVENT_DISPLAY_REMOVED]               = "DISPLAY_REMOVED",
 
-  [NYA_EVENT_DROP_BEGIN]    = "DROP_BEGIN",
-  [NYA_EVENT_DROP_COMPLETE] = "DROP_COMPLETE",
-  [NYA_EVENT_DROP_FILE]     = "DROP_FILE",
-  [NYA_EVENT_DROP_POSITION] = "DROP_POSITION",
-  [NYA_EVENT_DROP_TEXT]     = "DROP_TEXT",
+    [NYA_EVENT_DROP_BEGIN]    = "DROP_BEGIN",
+    [NYA_EVENT_DROP_COMPLETE] = "DROP_COMPLETE",
+    [NYA_EVENT_DROP_FILE]     = "DROP_FILE",
+    [NYA_EVENT_DROP_POSITION] = "DROP_POSITION",
+    [NYA_EVENT_DROP_TEXT]     = "DROP_TEXT",
 
-  [NYA_EVENT_KEY_DOWN]       = "KEY_DOWN",
-  [NYA_EVENT_KEY_UP]         = "KEY_UP",
-  [NYA_EVENT_KEYMAP_CHANGED] = "KEYMAP_CHANGED",
+    [NYA_EVENT_KEY_DOWN]       = "KEY_DOWN",
+    [NYA_EVENT_KEY_UP]         = "KEY_UP",
+    [NYA_EVENT_KEYMAP_CHANGED] = "KEYMAP_CHANGED",
 
-  [NYA_EVENT_MOUSE_BUTTON_DOWN] = "MOUSE_BUTTON_DOWN",
-  [NYA_EVENT_MOUSE_BUTTON_UP]   = "MOUSE_BUTTON_UP",
-  [NYA_EVENT_MOUSE_MOVED]       = "MOUSE_MOVED",
-  [NYA_EVENT_MOUSE_WHEEL_MOVED] = "MOUSE_WHEEL_MOVED",
+    [NYA_EVENT_MOUSE_BUTTON_DOWN] = "MOUSE_BUTTON_DOWN",
+    [NYA_EVENT_MOUSE_BUTTON_UP]   = "MOUSE_BUTTON_UP",
+    [NYA_EVENT_MOUSE_MOVED]       = "MOUSE_MOVED",
+    [NYA_EVENT_MOUSE_WHEEL_MOVED] = "MOUSE_WHEEL_MOVED",
 
-  [NYA_EVENT_QUIT] = "QUIT",
+    [NYA_EVENT_QUIT] = "QUIT",
 
-  [NYA_EVENT_TEXT_INPUT]   = "TEXT_INPUT",
-  [NYA_EVENT_TEXT_EDITING] = "TEXT_EDITING",
+    [NYA_EVENT_TEXT_INPUT]   = "TEXT_INPUT",
+    [NYA_EVENT_TEXT_EDITING] = "TEXT_EDITING",
 
-  [NYA_EVENT_WINDOW_CLOSE_REQUESTED]       = "WINDOW_CLOSE_REQUESTED",
-  [NYA_EVENT_WINDOW_DESTROYED]             = "WINDOW_DESTROYED",
-  [NYA_EVENT_WINDOW_DISPLAY_CHANGED]       = "WINDOW_DISPLAY_CHANGED",
-  [NYA_EVENT_WINDOW_DISPLAY_SCALE_CHANGED] = "WINDOW_DISPLAY_SCALE_CHANGED",
-  [NYA_EVENT_WINDOW_ENTER_FULLSCREEN]      = "WINDOW_ENTER_FULLSCREEN",
-  [NYA_EVENT_WINDOW_EXPOSED]               = "WINDOW_EXPOSED",
-  [NYA_EVENT_WINDOW_FOCUS_GAINED]          = "WINDOW_FOCUS_GAINED",
-  [NYA_EVENT_WINDOW_FOCUS_LOST]            = "WINDOW_FOCUS_LOST",
-  [NYA_EVENT_WINDOW_HDR_STATE_CHANGED]     = "WINDOW_HDR_STATE_CHANGED",
-  [NYA_EVENT_WINDOW_HIDDEN]                = "WINDOW_HIDDEN",
-  [NYA_EVENT_WINDOW_LEAVE_FULLSCREEN]      = "WINDOW_LEAVE_FULLSCREEN",
-  [NYA_EVENT_WINDOW_MAXIMIZED]             = "WINDOW_MAXIMIZED",
-  [NYA_EVENT_WINDOW_MINIMIZED]             = "WINDOW_MINIMIZED",
-  [NYA_EVENT_WINDOW_MOUSE_ENTER]           = "WINDOW_MOUSE_ENTER",
-  [NYA_EVENT_WINDOW_MOUSE_LEAVE]           = "WINDOW_MOUSE_LEAVE",
-  [NYA_EVENT_WINDOW_MOVED]                 = "WINDOW_MOVED",
-  [NYA_EVENT_WINDOW_OCCLUDED]              = "WINDOW_OCCLUDED",
-  [NYA_EVENT_WINDOW_PIXEL_SIZE_CHANGED]    = "WINDOW_PIXEL_SIZE_CHANGED",
-  [NYA_EVENT_WINDOW_RESIZED]               = "WINDOW_RESIZED",
-  [NYA_EVENT_WINDOW_RESTORED]              = "WINDOW_RESTORED",
-  [NYA_EVENT_WINDOW_SAFE_AREA_CHANGED]     = "WINDOW_SAFE_AREA_CHANGED",
-  [NYA_EVENT_WINDOW_SHOWN]                 = "WINDOW_SHOWN",
+    [NYA_EVENT_WINDOW_CLOSE_REQUESTED]       = "WINDOW_CLOSE_REQUESTED",
+    [NYA_EVENT_WINDOW_DESTROYED]             = "WINDOW_DESTROYED",
+    [NYA_EVENT_WINDOW_DISPLAY_CHANGED]       = "WINDOW_DISPLAY_CHANGED",
+    [NYA_EVENT_WINDOW_DISPLAY_SCALE_CHANGED] = "WINDOW_DISPLAY_SCALE_CHANGED",
+    [NYA_EVENT_WINDOW_ENTER_FULLSCREEN]      = "WINDOW_ENTER_FULLSCREEN",
+    [NYA_EVENT_WINDOW_EXPOSED]               = "WINDOW_EXPOSED",
+    [NYA_EVENT_WINDOW_FOCUS_GAINED]          = "WINDOW_FOCUS_GAINED",
+    [NYA_EVENT_WINDOW_FOCUS_LOST]            = "WINDOW_FOCUS_LOST",
+    [NYA_EVENT_WINDOW_HDR_STATE_CHANGED]     = "WINDOW_HDR_STATE_CHANGED",
+    [NYA_EVENT_WINDOW_HIDDEN]                = "WINDOW_HIDDEN",
+    [NYA_EVENT_WINDOW_LEAVE_FULLSCREEN]      = "WINDOW_LEAVE_FULLSCREEN",
+    [NYA_EVENT_WINDOW_MAXIMIZED]             = "WINDOW_MAXIMIZED",
+    [NYA_EVENT_WINDOW_MINIMIZED]             = "WINDOW_MINIMIZED",
+    [NYA_EVENT_WINDOW_MOUSE_ENTER]           = "WINDOW_MOUSE_ENTER",
+    [NYA_EVENT_WINDOW_MOUSE_LEAVE]           = "WINDOW_MOUSE_LEAVE",
+    [NYA_EVENT_WINDOW_MOVED]                 = "WINDOW_MOVED",
+    [NYA_EVENT_WINDOW_OCCLUDED]              = "WINDOW_OCCLUDED",
+    [NYA_EVENT_WINDOW_PIXEL_SIZE_CHANGED]    = "WINDOW_PIXEL_SIZE_CHANGED",
+    [NYA_EVENT_WINDOW_RESIZED]               = "WINDOW_RESIZED",
+    [NYA_EVENT_WINDOW_RESTORED]              = "WINDOW_RESTORED",
+    [NYA_EVENT_WINDOW_SAFE_AREA_CHANGED]     = "WINDOW_SAFE_AREA_CHANGED",
+    [NYA_EVENT_WINDOW_SHOWN]                 = "WINDOW_SHOWN",
 };
 
 /*
@@ -215,7 +216,7 @@ __attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[] = {
  */
 
 struct NYA_AssetEvent {
-  NYA_CString asset_handle;
+    NYA_CString asset_handle;
 };
 
 /*
@@ -225,9 +226,9 @@ struct NYA_AssetEvent {
  */
 
 struct NYA_DisplayEvent {
-  u32 display_id;
-  s32 data1;
-  s32 data2;
+    u32 display_id;
+    s32 data1;
+    s32 data2;
 };
 
 /*
@@ -237,14 +238,14 @@ struct NYA_DisplayEvent {
  */
 
 struct NYA_DropEvent {
-  void*            window_id;
-  NYA_ConstCString path;
+    NYA_WindowHandle window;
+    NYA_ConstCString path;
 };
 
 struct NYA_DropPositionEvent {
-  void* window_id;
-  f32   x;
-  f32   y;
+    NYA_WindowHandle window;
+    f32              x;
+    f32              y;
 };
 
 /*
@@ -254,7 +255,7 @@ struct NYA_DropPositionEvent {
  */
 
 struct NYA_JobEvent {
-  NYA_Job job;
+    NYA_Job job;
 };
 
 /*
@@ -264,13 +265,13 @@ struct NYA_JobEvent {
  */
 
 struct NYA_KeyEvent {
-  void*          window_id;
-  b8             is_down;
-  b8             is_repeat;
-  NYA_Keycode    key;
-  NYA_Scancode   scancode;
-  NYA_KeyModFlag modifier_flags;
-  u16            raw;
+    NYA_WindowHandle window;
+    b8               is_down;
+    b8               is_repeat;
+    NYA_Keycode      key;
+    NYA_Scancode     scancode;
+    NYA_KeyModFlag   modifier_flags;
+    u16              raw;
 };
 
 /*
@@ -280,32 +281,32 @@ struct NYA_KeyEvent {
  */
 
 struct NYA_MouseButtonEvent {
-  void*           window_id;
-  b8              is_down;
-  NYA_MouseButton button;
-  u8              clicks;
-  f32             x;
-  f32             y;
+    NYA_WindowHandle window;
+    b8               is_down;
+    NYA_MouseButton  button;
+    u8               clicks;
+    f32              x;
+    f32              y;
 };
 
 struct NYA_MouseMovedEvent {
-  void*                window_id;
-  NYA_MouseButtonFlags state;
-  f32                  x;
-  f32                  y;
-  f32                  delta_x;
-  f32                  delta_y;
+    NYA_WindowHandle     window;
+    NYA_MouseButtonFlags state;
+    f32                  x;
+    f32                  y;
+    f32                  delta_x;
+    f32                  delta_y;
 };
 
 struct NYA_MouseWheelEvent {
-  void*                   window_id;
-  NYA_MouseWheelDirection direction;
-  f32                     amount_x;
-  f32                     amount_y;
-  f32                     mouse_x;
-  f32                     mouse_y;
-  s32                     integer_amount_x;
-  s32                     integer_amount_y;
+    NYA_WindowHandle        window;
+    NYA_MouseWheelDirection direction;
+    f32                     amount_x;
+    f32                     amount_y;
+    f32                     mouse_x;
+    f32                     mouse_y;
+    s32                     integer_amount_x;
+    s32                     integer_amount_y;
 };
 
 /*
@@ -315,19 +316,19 @@ struct NYA_MouseWheelEvent {
  */
 
 struct NYA_WindowEvent {
-  void* window_id;
+    NYA_WindowHandle window;
 };
 
 struct NYA_WindowMovedEvent {
-  void* window_id;
-  u32   x;
-  u32   y;
+    NYA_WindowHandle window;
+    u32              x;
+    u32              y;
 };
 
 struct NYA_WindowResizedEvent {
-  void* window_id;
-  u32   width;
-  u32   height;
+    NYA_WindowHandle window;
+    u32              width;
+    u32              height;
 };
 
 /*
@@ -337,15 +338,15 @@ struct NYA_WindowResizedEvent {
  */
 
 struct NYA_TextInputEvent {
-  void*            window_id;
-  NYA_ConstCString text;
+    NYA_WindowHandle window;
+    NYA_ConstCString text;
 };
 
 struct NYA_TextEditingEvent {
-  void*            window_id;
-  NYA_ConstCString text;
-  s32              start;
-  s32              length;
+    NYA_WindowHandle window;
+    NYA_ConstCString text;
+    s32              start;
+    s32              length;
 };
 
 /*
@@ -355,47 +356,55 @@ struct NYA_TextEditingEvent {
  */
 
 struct NYA_Event {
-  NYA_EventType type;
-  b8            was_handled;
-  u64           timestamp;
+    NYA_EventType type;
+    b8            was_handled;
+    u64           timestamp;
 
-  union {
-    NYA_AssetEvent         as_asset_event;
-    NYA_DisplayEvent       as_display_event;
-    NYA_DropEvent          as_drop_event;
-    NYA_DropPositionEvent  as_drop_position_event;
-    NYA_JobEvent           as_job_event;
-    NYA_KeyEvent           as_key_event;
-    NYA_MouseButtonEvent   as_mouse_button_event;
-    NYA_MouseMovedEvent    as_mouse_moved_event;
-    NYA_MouseWheelEvent    as_mouse_wheel_event;
-    NYA_TextEditingEvent   as_text_editing_event;
-    NYA_TextInputEvent     as_text_input_event;
-    NYA_WindowEvent        as_window_event;
-    NYA_WindowMovedEvent   as_window_moved_event;
-    NYA_WindowResizedEvent as_window_resized_event;
-  };
+    union {
+        NYA_AssetEvent         as_asset_event;
+        NYA_DisplayEvent       as_display_event;
+        NYA_DropEvent          as_drop_event;
+        NYA_DropPositionEvent  as_drop_position_event;
+        NYA_JobEvent           as_job_event;
+        NYA_KeyEvent           as_key_event;
+        NYA_MouseButtonEvent   as_mouse_button_event;
+        NYA_MouseMovedEvent    as_mouse_moved_event;
+        NYA_MouseWheelEvent    as_mouse_wheel_event;
+        NYA_TextEditingEvent   as_text_editing_event;
+        NYA_TextInputEvent     as_text_input_event;
+        NYA_WindowEvent        as_window_event;
+        NYA_WindowMovedEvent   as_window_moved_event;
+        NYA_WindowResizedEvent as_window_resized_event;
+    };
 };
 
 enum NYA_EventHookType {
-  /** Deferred hooks are executed when the event is polled. */
-  NYA_EVENT_HOOK_TYPE_DEFERRED,
+    /** Deferred hooks are executed when the event is polled. */
+    NYA_EVENT_HOOK_TYPE_DEFERRED,
 
-  /**
-   * Immediate hooks are executed when the event is dispatched.
-   * Used to dynamically run code in different stages of the frame.
-   * */
-  NYA_EVENT_HOOK_TYPE_IMMEDIATE,
+    /**
+     * Immediate hooks are executed when the event is dispatched.
+     * Used to dynamically run code in different stages of the frame.
+     * */
+    NYA_EVENT_HOOK_TYPE_IMMEDIATE,
 
-  NYA_EVENT_HOOK_TYPE_COUNT,
+    NYA_EVENT_HOOK_TYPE_COUNT,
 };
 
 struct NYA_EventHook {
-  NYA_EventType      event_type;
-  NYA_EventHookType  hook_type;
-  NYA_CallbackHandle fn;
-  NYA_CallbackHandle condition_fn;
-  b64                one_shot;
+    NYA_EventType      event_type;
+    NYA_EventHookType  hook_type;
+    NYA_CallbackHandle fn;
+    NYA_CallbackHandle condition_fn;
+
+    /**
+     * Removes itself after it runs once.
+     *
+     * "Runs" means the hook's function was actually called, so a one shot with a condition waits
+     * for the first event that *passes* the condition rather than being spent on the first event
+     * that merely has the right type.
+     * */
+    b64 one_shot;
 };
 
 /*
@@ -410,10 +419,10 @@ struct NYA_EventHook {
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_EXTERN void nya_system_events_init(void);
-NYA_API NYA_EXTERN void nya_system_events_deinit(void);
-NYA_API NYA_EXTERN void nya_system_event_drain_sdl_events(void);
-NYA_API NYA_EXTERN b8   nya_system_event_poll(OUT NYA_Event* out_event);
+NYA_API NYA_Error nya_system_events_init(void) __attr_no_discard;
+NYA_API void      nya_system_events_deinit(void);
+NYA_API void      nya_system_event_drain_sdl_events(void);
+NYA_API b8        nya_system_event_poll(OUT NYA_Event* out_event);
 
 /*
  * ─────────────────────────────────────────────────────────
@@ -421,6 +430,28 @@ NYA_API NYA_EXTERN b8   nya_system_event_poll(OUT NYA_Event* out_event);
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_EXTERN void nya_event_dispatch(NYA_Event event);
-NYA_API NYA_EXTERN void nya_event_hook_register(NYA_EventHook hook);
-NYA_API NYA_EXTERN void nya_event_hook_unregister(NYA_EventHook hook);
+NYA_API void nya_event_dispatch(NYA_Event event);
+NYA_API void nya_event_hook_register(NYA_EventHook hook);
+
+/**
+ * Registers a hook that fires on the next matching event and then unregisters itself.
+ *
+ * For the "wait for the next X, then do Y" shape: the first frame after an asset finishes loading,
+ * the next keypress, the next time a window is resized. Without it every such case grows a static
+ * bool that the hook checks and sets, which is the same logic written badly once per site.
+ *
+ * ```c
+ * nya_event_hook_register_once((NYA_EventHook){
+ *     .event_type = NYA_EVENT_WINDOW_RESIZED,
+ *     .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
+ *     .fn         = nya_callback(on_first_resize),
+ * });
+ * ```
+ *
+ * Sets one_shot for you; anything already passing `.one_shot = true` to nya_event_hook_register
+ * behaves identically. A one shot that never sees its event is never removed, so it costs one array
+ * slot until the event system is torn down.
+ * */
+NYA_API void nya_event_hook_register_once(NYA_EventHook hook);
+
+NYA_API void nya_event_hook_unregister(NYA_EventHook hook);

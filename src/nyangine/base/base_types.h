@@ -1,7 +1,7 @@
 /**
  * @file base_types.h
  *
- * Fundamental type defines.
+ * Fundamental type defines, casting and parsing.
  * */
 #pragma once
 
@@ -36,6 +36,21 @@ typedef _Float16    f16;
 typedef float       f32;
 typedef double      f64;
 typedef long double f128;
+
+/*
+ * Named for their component width, matching the f types above: a c64 is two f64s, not 64 bits.
+ *
+ * Spelled with the builtin keywords rather than reusing f32/f64/f128, because _Complex is only
+ * valid next to a real type *keyword* — `f32 _Complex` does not compile. The assertions keep the
+ * two definitions from drifting apart.
+ */
+typedef float _Complex c32;
+typedef double _Complex c64;
+typedef long double _Complex c128;
+
+static_assert(sizeof(c32) == 2 * sizeof(f32), "c32 must be exactly two f32 components.");
+static_assert(sizeof(c64) == 2 * sizeof(f64), "c64 must be exactly two f64 components.");
+static_assert(sizeof(c128) == 2 * sizeof(f128), "c128 must be exactly two f128 components.");
 
 typedef b8*   b8ptr;
 typedef b16*  b16ptr;
@@ -335,3 +350,12 @@ __attr_allow_unused static const char* NYA_TYPE_NAME_MAP[NYA_TYPE_COUNT] = {
         nya_assert((val) >= F128_MIN && (val) <= F128_MAX, "Cannot cast to f128.");                                                                  \
         (f128)(val);                                                                                                                                 \
     })
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PARSING
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+NYA_API b8 nya_type_parse(NYA_Type target, const u8* data, u64 length, OUT void* out_value);
+NYA_API b8 nya_type_name_parse(const u8* data, u64 length, OUT NYA_Type* out_type, OUT NYA_ConstCString* out_type_name);

@@ -46,7 +46,7 @@ s32 main(void) {
   nya_debug("This is a debug message: %s", "debug");
   nya_info("This is an info message: %f", 3.14);
   nya_warn("This is a warn message: %d %d %d", 1, 2, 3);
-  nya_error("This is an error message: %s", "error");
+  NYA_Error("This is an error message: %s", "error");
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log filtering - lower levels not shown when higher level set
@@ -56,14 +56,14 @@ s32 main(void) {
   nya_debug("Should not appear");
   nya_info("Should not appear");
   nya_warn("Should not appear");
-  nya_error("Should appear: %d", 123);
+  NYA_Error("Should appear: %d", 123);
 
   nya_log_level_set(NYA_LOG_LEVEL_INFO);
   nya_trace("Should not appear");
   nya_debug("Should not appear");
   nya_info("Should appear: %s", "info");
   nya_warn("Should appear: %d", 456);
-  nya_error("Should appear: %f", 7.89);
+  NYA_Error("Should appear: %f", 7.89);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_panic_hook_set
@@ -171,7 +171,7 @@ s32 main(void) {
   nya_debug("DEBUG level");
   nya_info("INFO level");
   nya_warn("WARN level");
-  nya_error("ERROR level");
+  NYA_Error("ERROR level");
   // nya_panic would crash, so skip it
 
   // ─────────────────────────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@
 #include <complex.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <fenv.h>
 #include <immintrin.h>
 #include <inttypes.h>
@@ -20,6 +21,8 @@
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stdatomic.h>
+#include <stddef.h>
+#include <stddefer.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,12 +40,6 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#if defined(DEBUG) && DEBUG
-#define NYA_DEBUG 1
-#else
-#define NYA_DEBUG 0
-#endif
-
 #ifdef VERSION
 #define NYA_VERSION VERSION
 #else
@@ -55,16 +52,96 @@
 #define NYA_GIT_COMMIT "unknown"
 #endif
 
-typedef enum {
-    NYA_MODE_DEBUG,
-    NYA_MODE_RELEASE,
-    NYA_MODE_COUNT,
-#if NYA_DEBUG
-    NYA_MODE_CURRENT = NYA_MODE_DEBUG,
-#else
-    NYA_MODE_CURRENT = NYA_MODE_RELEASE,
+#ifndef NYA_EXECUTION_MODE
+#define NYA_EXECUTION_MODE 0
 #endif
-} NYA_Mode;
+
+/*
+ * The five execution modes, and what each is for.
+ *
+ * | mode      | for                 | hot reload | sanitizers | arena debug | assets     |
+ * |-----------|---------------------|------------|------------|-------------|------------|
+ * | DEBUG     | finding bugs        | yes        | yes        | yes         | filesystem |
+ * | DEVELOPER | playing while build |
+ * |           | ing it              | yes        | no         | no          | filesystem |
+ * | RELEASE   | shipping            | no         | no         | no          | blob       |
+ * | STEAM     | shipping on Steam   | no         | no         | no          | blob       |
+ * | TEST      | the test harness    | no         | yes        | yes         | filesystem |
+ *
+ * DEBUG and DEVELOPER are both development builds and both hot reload; DEBUG additionally carries
+ * ASan and the arena's own memory debugging, which is what makes it slow enough to want DEVELOPER.
+ *
+ * RELEASE and STEAM are both deploy ready and differ only in that STEAM expects the Steam runtime
+ * and links the Steam SDK.
+ *
+ * **Assertions are enabled in every mode, including the shipping ones.** A wrong assumption in a
+ * player's hands is worth catching loudly rather than continuing into undefined behaviour, and the
+ * crash sink turns it into a report. Nothing in the build defines NYA_NO_ASSERT; the static assert
+ * below keeps it that way.
+ */
+#define NYA_DEBUG     (NYA_EXECUTION_MODE == 0)
+#define NYA_DEVELOPER (NYA_EXECUTION_MODE == 1)
+#define NYA_RELEASE   (NYA_EXECUTION_MODE == 2)
+#define NYA_STEAM     (NYA_EXECUTION_MODE == 3)
+#define NYA_TEST      (NYA_EXECUTION_MODE == 4)
+
+/** Built to be worked on: hot reloading, filesystem assets, diagnostics that cost something. */
+#define NYA_DEVELOPMENT_BUILD (NYA_DEBUG || NYA_DEVELOPER)
+
+/** Built to be handed to someone else: bundled assets, integrity checked, no reload machinery. */
+#define NYA_SHIPPING_BUILD (NYA_RELEASE || NYA_STEAM)
+
+#ifdef NYA_NO_ASSERT
+#error "NYA_NO_ASSERT is not supported: assertions stay enabled in every execution mode, shipping included."
+#endif
+
+/*
+ * Whether the game is loaded from a shared library that can be swapped while it runs.
+ *
+ * Debug and developer builds both want it; release and steam must not have it, since it costs an
+ * indirection on every entry point and means shipping the game as a loose DLL beside the exe.
+ * main.c keys its entry point off this rather than off NYA_DEBUG, which is what previously made
+ * developer builds silently fall into the release path.
+ */
+#define NYA_CODE_HOT_RELOAD NYA_DEVELOPMENT_BUILD
+
+/*
+ * Headless: the engine runs, but nothing is drawn.
+ *
+ * Everything else stays live — events, jobs, assets, the simulation and its barriers — so a test
+ * exercises the same code paths it would in a real frame. Only the GPU work is skipped, which is
+ * what makes this usable on a CI machine that has no device to create and no display to present to.
+ *
+ * Distinct from NYA_NO_SDL, which compiles the renderer and core out entirely for host tools. This
+ * keeps them compiled and callable, and makes the drawing a no-op.
+ *
+ * Spelled 1/0 rather than true/false because `true` is `((b8)1)` here, which #if cannot evaluate.
+ */
+#ifdef NYA_HEADLESS
+#define NYA_HEADLESS_ENABLED 1
+#else
+#define NYA_HEADLESS_ENABLED 0
+#endif
+
+typedef enum {
+    NYA_EXECUTION_MODE_DEBUG     = 0,
+    NYA_EXECUTION_MODE_DEVELOPER = 1,
+    NYA_EXECUTION_MODE_RELEASE   = 2,
+    NYA_EXECUTION_MODE_STEAM     = 3,
+
+    /**
+     * Built to be run by the test harness.
+     *
+     * Distinct from DEBUG because a test is not an interactive session: it compiles in
+     * nya_expect_crash so a deliberate assertion can be survived, and it is the mode that pairs
+     * with NYA_HEADLESS on a machine with no GPU.
+     * */
+    NYA_EXECUTION_MODE_TEST = 4,
+
+    NYA_EXECUTION_MODE_COUNT,
+    NYA_EXECUTION_MODE_CURRENT = NYA_EXECUTION_MODE,
+} NYA_ExecutionMode;
+static_assert(NYA_EXECUTION_MODE_CURRENT < NYA_EXECUTION_MODE_COUNT, "Invalid execution mode");
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -191,7 +268,12 @@ typedef enum {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#if defined(__has_feature) && __has_feature(address_sanitizer)
+// The header is checked for separately from the feature. A toolchain can be perfectly capable of
+// -fsanitize=address while shipping the runtime headers in a package nobody installed, which is the
+// normal state of a CI container. Without the header the manual poisoning below is compiled out and
+// ASan still catches everything it finds on its own, which is a far better outcome than refusing to
+// build.
+#if defined(__has_feature) && __has_feature(address_sanitizer) && __has_include(<sanitizer/asan_interface.h>)
 #include <sanitizer/asan_interface.h>
 #define ASAN_ENABLED                            true
 #define ASAN_PADDING                            64 // bytes
@@ -212,22 +294,22 @@ static_assert(ASAN_PADDING >= 0);
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#ifdef __cplusplus
-#define NYA_EXTERN extern "C"
-#else
-#define NYA_EXTERN extern
-#endif
-
 #if COMPILER_CLANG || COMPILER_GCC
 #define NYA_INTERNAL __attribute__((visibility("hidden"))) static
 #else
 #define NYA_INTERNAL static
 #endif
 
-#if OS_WINDOWS
-#define NYA_API __declspec(dllexport)
+#ifdef __cplusplus
+#define NYA_EXTERN extern "C"
 #else
-#define NYA_API __attribute__((visibility("default")))
+#define NYA_EXTERN extern
+#endif
+
+#if OS_WINDOWS
+#define NYA_API __declspec(dllexport) NYA_EXTERN
+#else
+#define NYA_API __attribute__((visibility("default"))) NYA_EXTERN
 #endif
 
 /*

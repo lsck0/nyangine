@@ -15,6 +15,10 @@
   color: "0075ca"
   description: "Related to documentation"
 
+- name: "question"
+  color: "d876e3"
+  description: "A generic question"
+
 - name: "invalid"
   color: "e4e669"
   description: "This issue or PR is invalid"
@@ -25,7 +29,7 @@
 
 - name: "wontfix"
   color: "ffffff"
-  description: "This won't be fixed"
+  description: "This won't be fixed or done"
 
 # status workflow
 - name: "status: waiting"

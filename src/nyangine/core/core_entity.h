@@ -19,7 +19,7 @@ typedef struct NYA_EntitySystem NYA_EntitySystem;
  */
 
 struct NYA_EntitySystem {
-  NYA_Arena* allocator;
+    NYA_Arena* allocator;
 };
 
 /*
@@ -29,17 +29,17 @@ struct NYA_EntitySystem {
  */
 
 enum NYA_EntityFlag {
-  NYA_ENTITY_FLAG_NONE = 0,
+    NYA_ENTITY_FLAG_NONE = 0,
 };
 
 struct NYA_Entity {
-  NYA_EntityFlag flags;
+    NYA_EntityFlag flags;
 
-  void (*on_create)(void);
-  void (*on_destroy)(void);
-  void (*on_update)(f32 delta_time_s);
-  void (*on_event)(NYA_Event* event);
-  void (*on_render)(void);
+    void (*on_create)(void);
+    void (*on_destroy)(void);
+    void (*on_update)(f32 delta_time_s);
+    void (*on_event)(NYA_Event* event);
+    void (*on_render)(void);
 };
 
 /*
@@ -54,8 +54,8 @@ struct NYA_Entity {
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_EXTERN void nya_system_entity_init(void);
-NYA_API NYA_EXTERN void nya_system_entity_deinit(void);
+NYA_API void nya_system_entity_init(void);
+NYA_API void nya_system_entity_deinit(void);
 
 /*
  * ─────────────────────────────────────────────────────────

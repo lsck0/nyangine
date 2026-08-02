@@ -14,10 +14,10 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_file_write / nya_file_read (cstring overload)
   // ─────────────────────────────────────────────────────────────────────────────
-  NYA_Result write_ok = nya_file_write("test_file_write.txt", &test_content);
+  NYA_Error write_ok = nya_file_write("test_file_write.txt", &test_content);
   nya_assert(write_ok.error == NYA_ERROR_NONE);
 
-  NYA_Result read_ok = nya_file_read("test_file_write.txt", &read_back);
+  NYA_Error read_ok = nya_file_read("test_file_write.txt", &read_back);
   nya_assert(read_ok.error == NYA_ERROR_NONE);
   nya_assert(nya_string_equals(&read_back, "Hello, World!"));
 
@@ -111,7 +111,7 @@ s32 main(void) {
   // TEST: writing to invalid path returns error
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    NYA_Result r = nya_file_write("/nonexistent_dir_12345/file.txt", "data");
+    NYA_Error r = nya_file_write("/nonexistent_dir_12345/file.txt", "data");
     nya_assert(r.error != NYA_ERROR_NONE);
   }
 
@@ -119,7 +119,7 @@ s32 main(void) {
   // TEST: nya_fd_write to invalid fd returns error
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    NYA_Result r = nya_fd_write(-1, "bad fd");
+    NYA_Error r = nya_fd_write(-1, "bad fd");
     nya_assert(r.error != NYA_ERROR_NONE);
   }
 
@@ -218,7 +218,7 @@ s32 main(void) {
     s32 fd = open("test_fd_write.txt", O_CREAT | O_WRONLY | O_TRUNC, 0644);
     nya_assert(fd >= 0);
     NYA_String content = *nya_string_from(arena, "fd write test");
-    NYA_Result ok = nya_fd_write(fd, &content);
+    NYA_Error ok = nya_fd_write(fd, &content);
     nya_assert(ok.error == NYA_ERROR_NONE);
     close(fd);
 
@@ -237,7 +237,7 @@ s32 main(void) {
   {
     s32 fd = open("test_fd_write_cstr.txt", O_CREAT | O_WRONLY | O_TRUNC, 0644);
     nya_assert(fd >= 0);
-    NYA_Result ok = nya_fd_write(fd, "fd cstring write");
+    NYA_Error ok = nya_fd_write(fd, "fd cstring write");
     nya_assert(ok.error == NYA_ERROR_NONE);
     close(fd);
 
@@ -256,7 +256,7 @@ s32 main(void) {
   {
     s32 fd = open("test_fd_append.txt", O_CREAT | O_WRONLY | O_TRUNC, 0644);
     nya_assert(fd >= 0);
-    NYA_Result ok = nya_fd_write(fd, "Start");
+    NYA_Error ok = nya_fd_write(fd, "Start");
     nya_assert(ok.error == NYA_ERROR_NONE);
 
     NYA_String append_str = *nya_string_from(arena, " Middle");
@@ -279,7 +279,7 @@ s32 main(void) {
   {
     s32 fd = open("test_fd_append_cstr.txt", O_CREAT | O_WRONLY | O_TRUNC, 0644);
     nya_assert(fd >= 0);
-    NYA_Result ok = nya_fd_write(fd, "Base");
+    NYA_Error ok = nya_fd_write(fd, "Base");
     nya_assert(ok.error == NYA_ERROR_NONE);
 
     ok = nya_fd_append(fd, " Added");
@@ -306,7 +306,7 @@ s32 main(void) {
     fd = open("test_fd_empty.txt", O_RDONLY);
     nya_assert(fd >= 0);
     NYA_String fd_read_back = *nya_string_create(arena);
-    NYA_Result ok = nya_fd_read(fd, &fd_read_back);
+    NYA_Error ok = nya_fd_read(fd, &fd_read_back);
     nya_assert(ok.error == NYA_ERROR_NONE);
     nya_assert(nya_string_is_empty(&fd_read_back));
     close(fd);

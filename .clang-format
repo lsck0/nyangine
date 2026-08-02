@@ -44,19 +44,24 @@ IncludeCategories:
     Priority: 1
   - Regex: '^"SDL3/.*$'
     Priority: 2
-  - Regex: '^"nyangine/.*$'
+  - Regex: '^"nyangine/.*h"$'
     Priority: 3
-  - Regex: '^"gnyame/.*$'
+  - Regex: '^"gnyame/.*h"$'
     Priority: 4
-  - Regex: '^".*"$'
+  - Regex: '^".*h"$'
     Priority: 5
+  - Regex: '^".*c"$'
+    Priority: 6
 IndentWidth: 4
 PointerAlignment: Left
 SortIncludes: CaseInsensitive
 AttributeMacros:
+  - __attr_allow_unused
   - __attr_cleanup
   - __attr_cold
   - __attr_constructor
+  - __attr_deprecated
+  - __attr_deprecated_with_message
   - __attr_destructor
   - __attr_fmt_printf
   - __attr_fmt_scanf
@@ -67,7 +72,6 @@ AttributeMacros:
   - __attr_no_sanitize
   - __attr_noreturn
   - __attr_overloaded
-  - __attr_unused
   - __attr_vector
 ForEachMacros:
   - nya_array_for

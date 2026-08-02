@@ -1,11 +1,6 @@
 * PLAN
 
-- [ ] change vendor system by putting nyagine build files near its source files.
-- [ ] windows debug build with hotreloading
-- [ ] oneshot event handlers
-- [ ] events like layers, last in first served
-- [ ] add time since start to app
-- [ ] more asset system work (implement missing resource types, maybe priority system?)
+- [ ] more asset system work (implement missing resource types)
 - [ ] render primitives (lines, circles, rectangles, etc)
 - [ ] font rendering
 - [ ] ui system: widgets, layout, styling
@@ -14,10 +9,4 @@
 - [ ] rendering system
 - [ ] animation system
 - [ ] audio system
-- [ ] physics system
-
-* OTHER TODOs
-
-- [ ] buffered logging to file
 - [ ] basic nn library: tensors, layers, autograd --> NEAT implementation
-- [ ] building on w*ndows?

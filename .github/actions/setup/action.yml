@@ -1,0 +1,78 @@
+name: Setup
+description: Install build dependencies, setup caching, bootstrap build system.
+
+inputs:
+  llvm-version:
+    description: LLVM major version to install from apt.llvm.org.
+    required: false
+    default: "22"
+
+runs:
+  using: composite
+
+  steps:
+    - name: Keep downloaded packages
+      shell: bash
+      run: |
+        echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' \
+          | sudo tee /etc/apt/apt.conf.d/99keep-downloads > /dev/null
+
+    - name: Add apt.llvm.org repository
+      shell: bash
+      run: |
+        codename="$(lsb_release -cs)"
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+          | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+        echo "deb http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${{ inputs.llvm-version }} main" \
+          | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
+
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt/archives/*.deb
+        key: apt-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ hashFiles('.github/ci-packages.txt') }}
+
+    - name: Install packages
+      shell: bash
+      run: |
+        sudo apt-get update
+        mapfile -t packages < <(grep -vE '^\s*(#|$)' .github/ci-packages.txt)
+        sudo apt-get install -y --no-install-recommends "${packages[@]}"
+
+    - name: Select pinned LLVM as the default toolchain
+      shell: bash
+      run: |
+        for tool in clang clang++ lld ld.lld llvm-ar llvm-ranlib llvm-strip; do
+          versioned="/usr/bin/${tool}-${{ inputs.llvm-version }}"
+          if [ -x "$versioned" ]; then
+            sudo update-alternatives --install "/usr/bin/${tool}" "$tool" "$versioned" 100
+          else
+            echo "::warning::${versioned} not found, leaving ${tool} as-is"
+          fi
+        done
+        clang --version
+        ld.lld --version
+
+    - name: Compute vendor cache key
+      id: vendor
+      shell: bash
+      run: |
+        sha="$(git submodule status vendor/sdl vendor/sdl-shadercross | sha256sum | cut -d' ' -f1)"
+        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache vendor builds
+      uses: actions/cache@v4
+      with:
+        path: |
+          vendor/sdl/build-linux-x86_64
+          vendor/sdl/build-window-x86_64
+          vendor/sdl-shadercross/build
+        key: vendor-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ steps.vendor.outputs.sha }}
+
+    - name: Bootstrap build system
+      shell: bash
+      run: clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -I./ -I./src -DNYA_NO_SDL -lm -pthread
+
+    - name: Build vendored dependencies
+      shell: bash
+      run: ./build build vendor

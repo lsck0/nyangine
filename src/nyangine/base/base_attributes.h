@@ -16,6 +16,12 @@
 #error "attribute 'cleanup' not available."
 #endif
 
+#if __has_attribute(cold)
+#define __attr_cold __attribute__((cold))
+#else
+#error "attribute 'cold' not available."
+#endif
+
 #if __has_attribute(constructor)
 #define __attr_constructor __attribute__((constructor))
 #else
@@ -28,11 +34,24 @@
 #error "attribute 'destructor' not available."
 #endif
 
+#if __has_attribute(deprecated)
+#define __attr_deprecated                       __attribute__((deprecated))
+#define __attr_deprecated_with_message(message) __attribute__((deprecated(message)))
+#else
+#error "attribute 'deprecated' not available."
+#endif
+
 #if __has_attribute(format)
 #define __attr_fmt_printf(fmt_idx, varargs_idx) __attribute__((format(printf, fmt_idx, varargs_idx)))
 #define __attr_fmt_scanf(fmt_idx, varargs_idx)  __attribute__((format(scanf, fmt_idx, varargs_idx)))
 #else
 #error "attribute 'format' not available."
+#endif
+
+#if __has_attribute(hot)
+#define __attr_hot __attribute__((hot))
+#else
+#error "attribute 'hot' not available."
 #endif
 
 #if __has_attribute(malloc)
@@ -69,6 +88,30 @@
 #define __attr_overloaded __attribute__((overloadable))
 #else
 #error "attribute 'overloadable' not available."
+#endif
+
+/**
+ * Forces the symbol into the binary even when nothing appears to need its storage.
+ *
+ * Without it the optimizer is free to constant fold every read of a static and drop the object,
+ * which is fine until something searches the binary image for those exact bytes.
+ * */
+#if __has_attribute(used)
+#define __attr_used __attribute__((used))
+#else
+#error "attribute 'used' not available."
+#endif
+
+/**
+ * Additionally survives linker section garbage collection.
+ *
+ * `used` only binds the compiler; --gc-sections happens later and would still drop an otherwise
+ * unreferenced section. Optional because it needs a linker that understands SHF_GNU_RETAIN.
+ * */
+#if __has_attribute(retain)
+#define __attr_retain __attribute__((retain))
+#else
+#define __attr_retain
 #endif
 
 #if __has_attribute(unused)

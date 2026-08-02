@@ -54,22 +54,22 @@ nya_derive_array(NYA_PerfMeasurement);
  * Alternatively, just access the last_elapsed_* members.
  */
 struct NYA_PerfMeasurement {
-  NYA_ConstCString name;
-  b8               is_running;
+    NYA_ConstCString name;
+    b8               is_running;
 
-  u64 started_ns[NYA_PERF_MEASUREMENT_SAMPLES];
-  u64 ended_ns[NYA_PERF_MEASUREMENT_SAMPLES];
-  u64 elapsed_ns[NYA_PERF_MEASUREMENT_SAMPLES];
-  u64 last_elapsed_ns;
-  u64 last_elapsed_ms;
-  u64 last_elapsed_s;
+    u64 started_ns[NYA_PERF_MEASUREMENT_SAMPLES];
+    u64 ended_ns[NYA_PERF_MEASUREMENT_SAMPLES];
+    u64 elapsed_ns[NYA_PERF_MEASUREMENT_SAMPLES];
+    u64 last_elapsed_ns;
+    u64 last_elapsed_ms;
+    u64 last_elapsed_s;
 
-  u64 started_cycles[NYA_PERF_MEASUREMENT_SAMPLES];
-  u64 ended_cycles[NYA_PERF_MEASUREMENT_SAMPLES];
-  u64 elapsed_cycles[NYA_PERF_MEASUREMENT_SAMPLES];
-  u64 last_elapsed_cycles;
+    u64 started_cycles[NYA_PERF_MEASUREMENT_SAMPLES];
+    u64 ended_cycles[NYA_PERF_MEASUREMENT_SAMPLES];
+    u64 elapsed_cycles[NYA_PERF_MEASUREMENT_SAMPLES];
+    u64 last_elapsed_cycles;
 
-  u64 current;
+    u64 current;
 };
 
 /*
@@ -102,13 +102,13 @@ struct NYA_PerfMeasurement {
  */
 
 #if NYA_DEBUG
-NYA_API NYA_EXTERN NYA_PerfMeasurement*      _nya_perf_timer_get(NYA_ConstCString name);
-NYA_API NYA_EXTERN void                      _nya_perf_timer_start(NYA_ConstCString name);
-NYA_API NYA_EXTERN void                      _nya_perf_timer_stop(NYA_ConstCString name);
-NYA_API NYA_EXTERN void                      _nya_perf_timer_reset(NYA_ConstCString name);
-NYA_API NYA_EXTERN NYA_PerfMeasurementArray* _nya_perf_timer_get_all(void);
+NYA_API NYA_PerfMeasurement*            _nya_perf_timer_get(NYA_ConstCString name);
+NYA_API void                            _nya_perf_timer_start(NYA_ConstCString name);
+NYA_API void                            _nya_perf_timer_stop(NYA_ConstCString name);
+NYA_API void                            _nya_perf_timer_reset(NYA_ConstCString name);
+NYA_API NYA_ArrayᐸNYA_PerfMeasurementᐳ* _nya_perf_timer_get_all(void);
 #endif // NYA_DEBUG
 
-NYA_API NYA_EXTERN inline void _nya_perf_cleanup(NYA_CString* name_ptr) {
-  if (name_ptr && *name_ptr) nya_perf_timer_stop(*name_ptr);
+NYA_API inline void _nya_perf_cleanup(NYA_CString* name_ptr) {
+    if (name_ptr && *name_ptr) nya_perf_timer_stop(*name_ptr);
 }

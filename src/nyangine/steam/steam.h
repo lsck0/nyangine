@@ -45,8 +45,8 @@ typedef enum {
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_EXTERN NYA_SteamInitResult nya_system_steam_init(OUT NYA_CString err_msg) __attr_no_discard;
-NYA_API NYA_EXTERN void                nya_system_steam_deinit(void);
+NYA_API NYA_SteamInitResult nya_system_steam_init(OUT NYA_CString err_msg) __attr_no_discard;
+NYA_API void                nya_system_steam_deinit(void);
 
 /*
  * ─────────────────────────────────────────────────────────

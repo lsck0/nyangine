@@ -2,47 +2,29 @@ name: CD
 
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [master]
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-release:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          lfs: true
+          fetch-depth: 0
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential git make \
-          pkg-config cmake ninja-build gnome-desktop-testing libasound2-dev libpulse-dev \
-          libaudio-dev libfribidi-dev libjack-dev libsndio-dev libx11-dev libxext-dev \
-          libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev \
-          libxkbcommon-dev libdrm-dev libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
-          libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev libthai-dev \
-          libpipewire-0.3-dev libwayland-dev libdecor-0-dev liburing-dev \
-          clang mold lld mingw-w64 ffmpeg
+      - uses: ./.github/actions/setup
+        with:
+          llvm-version: 22
 
-      - name: Install SDL3
-        run: |
-          cmake -S ./vendor/sdl -B ./vendor/sdl/build-linux-x86_64/ -GNinja \
-            -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DSDL_SHARED=OFF -DSDL_STATIC=ON
-          cmake --build ./vendor/sdl/build-linux-x86_64/ --config Release -- -j $(nproc)
-          sudo cmake --install ./vendor/sdl/build-linux-x86_64/
-
-      - name: Bootstrap build system
-        run: clang build.c -o build -std=c23 -fenable-matrix -I./src -lm -lSDL3
-
-      - name: Bundle
-        run: ./build bundle
-
-      # - name: Create Release
-      #   uses: softprops/action-gh-release@v1
-      #   with:
-      #     files: |
-      #       ./dist/*.zip
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build release targets
+        run: ./build release

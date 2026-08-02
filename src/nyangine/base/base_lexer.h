@@ -34,50 +34,50 @@ typedef struct NYA_Lexer   NYA_Lexer;
 nya_derive_array(NYA_Token);
 
 enum NYA_TokenType {
-  NYA_TOKEN_INVALID,
+    NYA_TOKEN_INVALID,
 
-  NYA_TOKEN_EOF,
-  NYA_TOKEN_SYMBOL,
-  NYA_TOKEN_IDENT,
-  NYA_TOKEN_NUMBER_INTEGER,
-  NYA_TOKEN_NUMBER_FLOAT,
-  NYA_TOKEN_STRING,
+    NYA_TOKEN_EOF,
+    NYA_TOKEN_SYMBOL,
+    NYA_TOKEN_IDENT,
+    NYA_TOKEN_NUMBER_INTEGER,
+    NYA_TOKEN_NUMBER_FLOAT,
+    NYA_TOKEN_STRING,
 
-  NYA_TOKEN_COUNT,
+    NYA_TOKEN_COUNT,
 };
 
 struct NYA_Token {
-  NYA_TokenType type;
-  u32           source_location;
-  u32           length;
-  u32           line_number;
-  u32           char_number;
+    NYA_TokenType type;
+    u32           source_location;
+    u32           length;
+    u32           line_number;
+    u32           char_number;
 
-  /** only present if type == NYA_TOKEN_SYMBOL */
-  union {
-    u8 symbol;
-  };
+    /** only present if type == NYA_TOKEN_SYMBOL */
+    union {
+        u8 symbol;
+    };
 
-  /**
-   * For NYA_TOKEN_STRING: source_location points to the first character after the
-   * opening quote, and length is the raw content length (not including quotes).
-   * Escape sequences (e.g. \", \\) are preserved as-is in the source and must be
-   * processed when consuming the token value.
-   * */
+    /**
+     * For NYA_TOKEN_STRING: source_location points to the first character after the
+     * opening quote, and length is the raw content length (not including quotes).
+     * Escape sequences (e.g. \", \\) are preserved as-is in the source and must be
+     * processed when consuming the token value.
+     * */
 };
 
 struct NYA_Lexer {
-  NYA_Arena* arena;
+    NYA_Arena* arena;
 
-  NYA_ConstCString source;
-  u32              cursor;
+    NYA_ConstCString source;
+    u32              cursor;
 
-  u32 current_line_number;
-  u32 current_char_number;
+    u32 current_line_number;
+    u32 current_char_number;
 
-  /* will be filled after running */
+    /* will be filled after running */
 
-  NYA_TokenArray* tokens;
+    NYA_ArrayᐸNYA_Tokenᐳ* tokens;
 };
 
 /*
@@ -86,14 +86,6 @@ struct NYA_Lexer {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_EXTERN NYA_Lexer nya_lexer_create(NYA_ConstCString source);
-NYA_API NYA_EXTERN void      nya_lexer_run(NYA_Lexer* lexer);
-NYA_API NYA_EXTERN void      nya_lexer_destroy(NYA_Lexer* lexer);
-
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INTERNAL
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
-
-NYA_DEFINE_CLEANUP_FN(nya_lexer_destroy, NYA_Lexer, lexer, nya_lexer_destroy(&lexer))
+NYA_API NYA_Lexer nya_lexer_create(NYA_ConstCString source);
+NYA_API void      nya_lexer_run(NYA_Lexer* lexer);
+NYA_API void      nya_lexer_destroy(NYA_Lexer* lexer);

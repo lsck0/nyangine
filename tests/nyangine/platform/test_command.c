@@ -31,7 +31,7 @@ s32 main(void) {
       .program   = "echo",
       .arguments = { "captured", "output", nullptr },
     };
-    NYA_Result result = nya_command_run(&cmd);
+    NYA_Error result = nya_command_run(&cmd);
     nya_assert(result.error == NYA_ERROR_NONE);
     nya_assert(cmd.exit_code == 0);
     nya_assert(cmd.stdout_content != nullptr);
@@ -184,7 +184,7 @@ s32 main(void) {
       .program   = "false",
       .arguments = { nullptr },
     };
-    NYA_Result result = nya_command_run(&cmd);
+    NYA_Error result = nya_command_run(&cmd);
     nya_assert(result.error == NYA_ERROR_NONE);
     nya_assert(cmd.exit_code != 0);
   }

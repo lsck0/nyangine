@@ -7,7 +7,7 @@
  * ```c
  *  NYA_ArgParameter help_flag = {
  *   .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
- *   .value.type  = NYA_TYPE_BOOL,
+ *   .value.type  = NYA_TYPE_B8,
  *   .name        = "help",
  *   .description = "Show this message.",
  * };
@@ -55,20 +55,20 @@
  *   parser.executable_name = argv[0];
  *
  *   NYA_ArgCommand* command;
- *   NYA_Result      parse_result = nya_args_parse(&parser, argc, argv, &command);
- *   if (parse_result.error != NYA_ERROR_NONE) {
+ *   NYA_Error      parse_result = nya_args_parse(&parser, argc, argv, &command);
+ *   if (parse_result.kind != NYA_ERROR_NONE) {
  *     (void)fprintf(stderr, "Error: %s\n\n", parse_result.message);
  *     nya_args_print_usage(&parser, nullptr);
  *     return EXIT_FAILURE;
  *   }
  *
- *   if (help_flag.value.as_bool) {
+ *   if (help_flag.value.as_b8) {
  *     nya_args_print_usage(&parser, command);
  *     return EXIT_SUCCESS;
  *   }
  *
- *   NYA_Result run_result = nya_args_run_command(command);
- *   if (run_result.error != NYA_ERROR_NONE) {
+ *   NYA_Error run_result = nya_args_run_command(command);
+ *   if (run_result.kind != NYA_ERROR_NONE) {
  *     (void)fprintf(stderr, "Error: %s\n\n", run_result.message);
  *     nya_args_print_usage(&parser, command);
  *     return EXIT_FAILURE;
@@ -102,9 +102,9 @@ typedef struct NYA_ArgCommand     NYA_ArgCommand;
 typedef struct NYA_ArgParameter   NYA_ArgParameter;
 
 enum NYA_ArgParameterKind {
-  NYA_ARG_PARAMETER_KIND_FLAG,
-  NYA_ARG_PARAMETER_KIND_POSITIONAL,
-  NYA_ARG_PARAMETER_KIND_COUNT,
+    NYA_ARG_PARAMETER_KIND_FLAG,
+    NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    NYA_ARG_PARAMETER_KIND_COUNT,
 };
 
 /**
@@ -113,30 +113,30 @@ enum NYA_ArgParameterKind {
  * Parameters have to follow these rules:
  * - Name is required.
  * - Description is optional.
- * - Types can be BOOL, INTEGER, FLOAT or STRING.
+ * - Types can be B8, S64, F64 or STRING.
  * - Flags can have default values, positionals cannot.
  * - Only the last positional parameter can be variadic.
  *
  * For more details, see `_nya_args_validate_parser` in base_args.c.
  * */
 struct NYA_ArgParameter {
-  NYA_ArgParameterKind kind;
-  b8                   variadic;
+    NYA_ArgParameterKind kind;
+    b8                   variadic;
 
-  NYA_ConstCString name;
-  NYA_ConstCString description;
-  NYA_Value        default_value;
+    NYA_ConstCString name;
+    NYA_ConstCString description;
+    NYA_Value        default_value;
 
-  /* will be filled after parsing */
+    /* will be filled after parsing */
 
-  b8 was_matched;
+    b8 was_matched;
 
-  /** used for single parameters */
-  NYA_Value value;
+    /** used for single parameters */
+    NYA_Value value;
 
-  /** used for variadic parameters. default: 0*/
-  u32       values_count;
-  NYA_Value values[NYA_ARG_MAX_PARAMETERS];
+    /** used for variadic parameters. default: 0*/
+    u32       values_count;
+    NYA_Value values[NYA_ARG_MAX_PARAMETERS];
 };
 
 /**
@@ -152,21 +152,21 @@ struct NYA_ArgParameter {
  * For more details, see `_nya_args_validate_parser` in base_args.c.
  * */
 struct NYA_ArgCommand {
-  b8 is_root;
+    b8 is_root;
 
-  NYA_ConstCString name;
-  NYA_ConstCString description;
+    NYA_ConstCString name;
+    NYA_ConstCString description;
 
-  NYA_ArgCommand*   subcommands[NYA_ARG_MAX_COMMANDS];
-  NYA_ArgParameter* parameters[NYA_ARG_MAX_PARAMETERS];
+    NYA_ArgCommand*   subcommands[NYA_ARG_MAX_COMMANDS];
+    NYA_ArgParameter* parameters[NYA_ARG_MAX_PARAMETERS];
 
-  void (*handler)(NYA_ArgCommand* command);
-  NYA_BuildRule* build_rule;
+    void (*handler)(NYA_ArgCommand* command);
+    NYA_BuildRule* build_rule;
 
-  /* will be filled after parsing */
+    /* will be filled after parsing */
 
-  /** bad subcommand, only flags are parsed */
-  b8 incomplete;
+    /** bad subcommand, only flags are parsed */
+    b8 incomplete;
 };
 
 /**
@@ -186,13 +186,13 @@ struct NYA_ArgCommand {
  *   will be marked incomplete.
  * */
 struct NYA_ArgParser {
-  NYA_ConstCString name;
-  NYA_ConstCString version;
-  NYA_ConstCString author;
-  NYA_ConstCString description;
+    NYA_ConstCString name;
+    NYA_ConstCString version;
+    NYA_ConstCString author;
+    NYA_ConstCString description;
 
-  NYA_CString     executable_name;
-  NYA_ArgCommand* root_command;
+    NYA_CString     executable_name;
+    NYA_ArgCommand* root_command;
 };
 
 /*
@@ -201,6 +201,6 @@ struct NYA_ArgParser {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_EXTERN NYA_Result nya_args_parse(NYA_ArgParser* parser, s32 argc, NYA_CString* argv, OUT NYA_ArgCommand** out_command) __attr_no_discard;
-NYA_API NYA_EXTERN NYA_Result nya_args_run_command(NYA_ArgCommand* command) __attr_no_discard;
-NYA_API NYA_EXTERN void       nya_args_print_usage(NYA_ArgParser* parser, NYA_ArgCommand* command_override);
+NYA_API NYA_Error nya_args_parse(NYA_ArgParser* parser, s32 argc, NYA_CString* argv, OUT NYA_ArgCommand** out_command) __attr_no_discard;
+NYA_API NYA_Error nya_args_run_command(NYA_ArgCommand* command) __attr_no_discard;
+NYA_API void      nya_args_print_usage(NYA_ArgParser* parser, NYA_ArgCommand* command_override);

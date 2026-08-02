@@ -1,12 +1,45 @@
+[submodule "vendor/box2d"]
+	path = vendor/box2d
+	url = https://github.com/erincatto/box2d.git
+[submodule "vendor/box3d"]
+	path = vendor/box3d
+	url = https://github.com/erincatto/box3d.git
+[submodule "vendor/curl"]
+	path = vendor/curl
+	url = https://github.com/curl/curl.git
+[submodule "vendor/libbacktrace"]
+	path = vendor/libbacktrace
+	url = https://github.com/ianlancetaylor/libbacktrace.git
 [submodule "vendor/lua"]
 	path = vendor/lua
 	url = https://luajit.org/git/luajit.git
+[submodule "vendor/lz4"]
+	path = vendor/lz4
+	url = https://github.com/lz4/lz4.git
 [submodule "vendor/sdl"]
 	path = vendor/sdl
 	url = https://github.com/libsdl-org/SDL.git
+[submodule "vendor/sdl-image"]
+	path = vendor/sdl-image
+	url = https://github.com/libsdl-org/SDL_image.git
+[submodule "vendor/sdl-mixer"]
+	path = vendor/sdl-mixer
+	url = https://github.com/libsdl-org/SDL_mixer.git
+[submodule "vendor/sdl-net"]
+	path = vendor/sdl-net
+	url = https://github.com/libsdl-org/SDL_net.git
 [submodule "vendor/sdl-shadercross"]
 	path = vendor/sdl-shadercross
 	url = https://github.com/libsdl-org/SDL_shadercross.git
+[submodule "vendor/sdl-ttf"]
+	path = vendor/sdl-ttf
+	url = https://github.com/libsdl-org/SDL_ttf.git
+[submodule "vendor/sqlean"]
+	path = vendor/sqlean
+	url = https://github.com/nalgeon/sqlean.git
+[submodule "vendor/sqlite"]
+	path = vendor/sqlite
+	url = https://github.com/sqlite/sqlite.git
 [submodule "vendor/steam"]
 	path = vendor/steam
 	url = https://github.com/rlabrecque/SteamworksSDK.git

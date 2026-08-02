@@ -22,7 +22,7 @@
 #define nya_time_ns_to_ms(nanoseconds)  ((f64)(nanoseconds) / 1'000'000.0F)
 #define nya_time_ns_to_µs(nanoseconds)  ((f64)(nanoseconds) / 1'000.0F)
 
-NYA_API NYA_EXTERN u64 nya_clock_get_timestamp_s(void);
-NYA_API NYA_EXTERN u64 nya_clock_get_timestamp_ms(void);
-NYA_API NYA_EXTERN u64 nya_clock_get_timestamp_µs(void);
-NYA_API NYA_EXTERN u64 nya_clock_get_timestamp_ns(void);
+NYA_API u64 nya_clock_get_timestamp_s(void);
+NYA_API u64 nya_clock_get_timestamp_ms(void);
+NYA_API u64 nya_clock_get_timestamp_µs(void);
+NYA_API u64 nya_clock_get_timestamp_ns(void);

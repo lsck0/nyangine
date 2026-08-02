@@ -1,15 +1,17 @@
 /**
  * @file base_clean.h
  *
+ * THIS FILE IS OBSOLETE AS DEFER IS NOW A THING.
+ *
  * Linux Kernel inspired automatic cleanup for resources.
  * First define the cleanup function using NYA_DEFINE_CLEANUP_FN,
  * then adding NYA_CLEANUP_WITH before a variable declaration will ensure
  * that the cleanup function is called when the variable goes out of scope.
  * */
-#pragma once
+// #pragma once
 
-#include "nyangine/base/base_attributes.h"
-#include "nyangine/base/base_basic.h"
+// #include "nyangine/base/base_attributes.h"
+// #include "nyangine/base/base_basic.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -25,12 +27,12 @@
  * NYA_DEFINE_CLEANUP_FN(nya_arena_destroy, NYA_Arena, arena, nya_arena_destroy(&arena))
  * ```
  * */
-#define NYA_DEFINE_CLEANUP_FN(name, type, var_name, code)                                                                                            \
-    __attr_allow_unused void __cleanup_##name(type const* p) {                                                                                       \
-        if (!p) return;                                                                                                                              \
-        type var_name = *p;                                                                                                                          \
-        code;                                                                                                                                        \
-    }
+// #define NYA_DEFINE_CLEANUP_FN(name, type, var_name, code) \
+//     __attr_allow_unused void __cleanup_##name(type const* p) { \
+//         if (!p) return; \
+//         type var_name = *p; \
+//         code; \
+//     }
 
 /**
  * This is essentially poor mans RAII / defer for C.
@@ -52,7 +54,7 @@
  * return NYA_OK;
  * ```
  * */
-#define NYA_CLEANUP_WITH(cleanup_fn) __attr_cleanup(__cleanup_##cleanup_fn)
+// #define NYA_CLEANUP_WITH(cleanup_fn) __attr_cleanup(__cleanup_##cleanup_fn)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -60,22 +62,22 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_DEFINE_CLEANUP_FN(
-    close,
-    int,
-    fd,
-    if (fd >= 0) {
-        close(fd);
-        fd = -1;
-    }
-)
-
-NYA_DEFINE_CLEANUP_FN(
-    fclose,
-    FILE*,
-    f,
-    if (f) {
-        (void)fclose(f);
-        f = nullptr;
-    }
-)
+// NYA_DEFINE_CLEANUP_FN(
+//     close,
+//     int,
+//     fd,
+//     if (fd >= 0) {
+//         close(fd);
+//         fd = -1;
+//     }
+// )
+//
+// NYA_DEFINE_CLEANUP_FN(
+//     fclose,
+//     FILE*,
+//     f,
+//     if (f) {
+//         (void)fclose(f);
+//         f = nullptr;
+//     }
+// )
