@@ -133,7 +133,21 @@ NYA_String* nya_path_normalize(NYA_Arena* arena, NYA_ConstCString path) {
 
     u64 length = strlen(path);
 
-    NYA_Arena* scratch = nya_arena_create();
+    /*
+     * Sized to the segment table below rather than left at the default, which is a gibibyte.
+     *
+     * A region is malloc'd whole and then, under ASan, poisoned whole — a gibibyte of region is a
+     * hundred and twenty eight mebibytes of shadow writes, about sixteen milliseconds, to back a
+     * table that never needs more than a few kibibytes. Nothing here notices except by being slow,
+     * and this is called twice per directory entry by nya_filesystem_walk, which is how indexing
+     * fourteen hundred assets came to take forty seconds of a sanitized build.
+     *
+     * Undersizing is safe: the arena chains another region. Only oversizing costs anything.
+     * */
+    u64 table_size   = (length + 1) * (sizeof(NYA_ConstCString) + sizeof(u64));
+    u64 scratch_size = nya_max(nya_kibyte_to_byte(4UL), table_size + nya_kibyte_to_byte(1UL));
+
+    NYA_Arena* scratch = nya_arena_create(.region_size = scratch_size);
     defer      nya_arena_destroy(scratch);
 
     // Segment table, so ".." can drop the previous entry without rescanning the output.

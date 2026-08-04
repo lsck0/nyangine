@@ -33,7 +33,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: basic array creation
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* arr = nya_array_create(arena, u32);
   nya_assert(arr->length == 0);
   nya_assert(arr->capacity == _NYA_ARRAY_DEFAULT_CAPACITY);
   nya_assert(arr->items != nullptr);
@@ -43,7 +43,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: creation with custom capacity
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* arr_cap = nya_array_create_with_capacity(arena, u32, 128);
+  NYA_Arrayᐸu32ᐳ* arr_cap = nya_array_create_with_capacity(arena, u32, 128);
   nya_assert(arr_cap->length == 0);
   nya_assert(arr_cap->capacity == 128);
   nya_array_destroy(arr_cap);
@@ -51,7 +51,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_add (push_back)
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* add_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* add_arr = nya_array_create(arena, u32);
   nya_array_add(add_arr, 10U);
   nya_assert(add_arr->length == 1);
   nya_assert(add_arr->items[0] == 10);
@@ -67,7 +67,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_add_many
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* add_many_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* add_many_arr = nya_array_create(arena, u32);
   nya_array_add_many(add_many_arr, 1U, 2U, 3U, 4U, 5U);
   nya_assert(add_many_arr->length == 5);
   for (u32 i = 0; i < 5; ++i) { nya_assert(add_many_arr->items[i] == i + 1); }
@@ -76,7 +76,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: automatic resize on capacity overflow
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* resize_arr = nya_array_create_with_capacity(arena, u32, 4);
+  NYA_Arrayᐸu32ᐳ* resize_arr = nya_array_create_with_capacity(arena, u32, 4);
   nya_assert(resize_arr->capacity == 4);
   for (u32 i = 0; i < 10; ++i) { nya_array_add(resize_arr, i * 10); }
   nya_assert(resize_arr->length == 10);
@@ -87,7 +87,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_insert
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* insert_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* insert_arr = nya_array_create(arena, u32);
   nya_array_add_many(insert_arr, 10U, 30U, 40U);
   nya_array_insert(insert_arr, 20U, 1);
   nya_assert(insert_arr->length == 4);
@@ -100,7 +100,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_insert_many
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* insert_many_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* insert_many_arr = nya_array_create(arena, u32);
   nya_array_add_many(insert_many_arr, 1U, 5U);
   nya_array_insert_many(insert_many_arr, 1, 2U, 3U, 4U);
   nya_assert(insert_many_arr->length == 5);
@@ -110,7 +110,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_remove
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* remove_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* remove_arr = nya_array_create(arena, u32);
   nya_array_add_many(remove_arr, 10U, 20U, 30U, 40U, 50U);
   u32 removed = nya_array_remove(remove_arr, 2);
   nya_assert(removed == 30);
@@ -124,7 +124,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_remove at index 0
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* remove_first_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* remove_first_arr = nya_array_create(arena, u32);
   nya_array_add_many(remove_first_arr, 100U, 200U, 300U);
   u32 removed_first = nya_array_remove(remove_first_arr, 0);
   nya_assert(removed_first == 100);
@@ -136,7 +136,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_remove_many
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* remove_many_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* remove_many_arr = nya_array_create(arena, u32);
   nya_array_add_many(remove_many_arr, 1U, 2U, 3U, 4U, 5U, 6U, 7U);
   nya_array_remove_many(remove_many_arr, 2, 3);
   nya_assert(remove_many_arr->length == 4);
@@ -149,7 +149,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_remove_many from start
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* remove_many_start_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* remove_many_start_arr = nya_array_create(arena, u32);
   nya_array_add_many(remove_many_start_arr, 1U, 2U, 3U, 4U, 5U);
   nya_array_remove_many(remove_many_start_arr, 0, 2);
   nya_assert(remove_many_start_arr->length == 3);
@@ -161,7 +161,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_remove_item
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* remove_item_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* remove_item_arr = nya_array_create(arena, u32);
   nya_array_add_many(remove_item_arr, 100U, 200U, 300U, 400U);
   nya_array_remove_item(remove_item_arr, 200U);
   nya_assert(remove_item_arr->length == 3);
@@ -173,7 +173,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_remove_item first element
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* remove_item_first_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* remove_item_first_arr = nya_array_create(arena, u32);
   nya_array_add_many(remove_item_first_arr, 10U, 20U, 30U);
   nya_array_remove_item(remove_item_first_arr, 10U);
   nya_assert(remove_item_first_arr->length == 2);
@@ -184,7 +184,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_push_back
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* push_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* push_arr = nya_array_create(arena, u32);
   nya_array_push_back(push_arr, 1U);
   nya_array_push_back(push_arr, 2U);
   nya_array_push_back(push_arr, 3U);
@@ -197,7 +197,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_push_back_many
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* push_many_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* push_many_arr = nya_array_create(arena, u32);
   nya_array_push_back_many(push_many_arr, 1U, 2U, 3U, 4U, 5U);
   nya_assert(push_many_arr->length == 5);
   for (u32 i = 0; i < 5; ++i) { nya_assert(push_many_arr->items[i] == i + 1); }
@@ -206,7 +206,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_pop_back
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* pop_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* pop_arr = nya_array_create(arena, u32);
   nya_array_add_many(pop_arr, 1U, 2U, 3U, 4U, 5U);
 
   u32 back = nya_array_pop_back(pop_arr);
@@ -224,7 +224,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_pop_back_many
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* pop_many_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* pop_many_arr = nya_array_create(arena, u32);
   nya_array_add_many(pop_many_arr, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U);
   nya_array_pop_back_many(pop_many_arr, 2);
   nya_assert(pop_many_arr->length == 6);
@@ -237,7 +237,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_push_front
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* push_front_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* push_front_arr = nya_array_create(arena, u32);
   nya_array_add_many(push_front_arr, 2U, 3U, 4U);
   nya_array_push_front(push_front_arr, 1U);
   nya_assert(push_front_arr->length == 4);
@@ -250,7 +250,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_push_front_many
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* push_front_many_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* push_front_many_arr = nya_array_create(arena, u32);
   nya_array_add_many(push_front_many_arr, 4U, 5U);
   nya_array_push_front_many(push_front_many_arr, 1U, 2U, 3U);
   nya_assert(push_front_many_arr->length == 5);
@@ -260,7 +260,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_pop_front
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* pop_front_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* pop_front_arr = nya_array_create(arena, u32);
   nya_array_add_many(pop_front_arr, 10U, 20U, 30U, 40U);
   u32 front = nya_array_pop_front(pop_front_arr);
   nya_assert(front == 10);
@@ -273,7 +273,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_pop_front_many
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* pop_front_many_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* pop_front_many_arr = nya_array_create(arena, u32);
   nya_array_add_many(pop_front_many_arr, 1U, 2U, 3U, 4U, 5U, 6U);
   nya_array_pop_front_many(pop_front_many_arr, 2);
   nya_assert(pop_front_many_arr->length == 4);
@@ -284,7 +284,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_get / nya_array_set (including index 0)
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* access_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* access_arr = nya_array_create(arena, u32);
   nya_array_add_many(access_arr, 10U, 20U, 30U, 40U);
   nya_assert(*nya_array_get(access_arr, 0) == 10);
   nya_assert(*nya_array_get(access_arr, 1) == 20);
@@ -298,7 +298,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_first and nya_array_last
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* fl_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* fl_arr = nya_array_create(arena, u32);
   nya_array_add_many(fl_arr, 100U, 200U, 300U);
   nya_assert(*nya_array_first(fl_arr) == 100);
   nya_assert(*nya_array_last(fl_arr) == 300);
@@ -307,7 +307,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_contains
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* contains_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* contains_arr = nya_array_create(arena, u32);
   nya_array_add_many(contains_arr, 5U, 10U, 15U, 20U);
   nya_assert(nya_array_contains(contains_arr, 10U) == true);
   nya_assert(nya_array_contains(contains_arr, 20U) == true);
@@ -318,7 +318,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_find
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* find_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* find_arr = nya_array_create(arena, u32);
   nya_array_add_many(find_arr, 100U, 200U, 300U, 400U);
   nya_assert(nya_array_find(find_arr, 100U) == 0);
   nya_assert(nya_array_find(find_arr, 300U) == 2);
@@ -329,16 +329,16 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_equals
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* eq_arr1 = nya_array_create(arena, u32);
-  u32Array* eq_arr2 = nya_array_create(arena, u32);
-  u32Array* eq_arr3 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* eq_arr1 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* eq_arr2 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* eq_arr3 = nya_array_create(arena, u32);
   nya_array_add_many(eq_arr1, 1U, 2U, 3U);
   nya_array_add_many(eq_arr2, 1U, 2U, 3U);
   nya_array_add_many(eq_arr3, 1U, 2U, 4U);
   nya_assert(nya_array_equals(eq_arr1, eq_arr2) == true);
   nya_assert(nya_array_equals(eq_arr1, eq_arr3) == false);
 
-  u32Array* eq_arr4 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* eq_arr4 = nya_array_create(arena, u32);
   nya_array_add_many(eq_arr4, 1U, 2U);
   nya_assert(nya_array_equals(eq_arr1, eq_arr4) == false);
 
@@ -350,7 +350,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_swap (including index 0)
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* swap_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* swap_arr = nya_array_create(arena, u32);
   nya_array_add_many(swap_arr, 10U, 20U, 30U, 40U);
   nya_array_swap(swap_arr, 0, 3);
   nya_assert(swap_arr->items[0] == 40);
@@ -363,7 +363,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_reverse
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* reverse_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* reverse_arr = nya_array_create(arena, u32);
   nya_array_add_many(reverse_arr, 1U, 2U, 3U, 4U, 5U);
   nya_array_reverse(reverse_arr);
   nya_assert(reverse_arr->items[0] == 5);
@@ -376,7 +376,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_reverse with even count
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* reverse_even_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* reverse_even_arr = nya_array_create(arena, u32);
   nya_array_add_many(reverse_even_arr, 10U, 20U, 30U, 40U);
   nya_array_reverse(reverse_even_arr);
   nya_assert(reverse_even_arr->items[0] == 40);
@@ -388,7 +388,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_sort ascending
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* sort_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* sort_arr = nya_array_create(arena, u32);
   nya_array_add_many(sort_arr, 50U, 20U, 40U, 10U, 30U);
   nya_array_sort(sort_arr, compare_u32_asc);
   nya_assert(sort_arr->items[0] == 10);
@@ -401,7 +401,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_sort descending
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* sort_desc_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* sort_desc_arr = nya_array_create(arena, u32);
   nya_array_add_many(sort_desc_arr, 30U, 10U, 50U, 20U, 40U);
   nya_array_sort(sort_desc_arr, compare_u32_desc);
   nya_assert(sort_desc_arr->items[0] == 50);
@@ -414,7 +414,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_sort with signed integers
   // ─────────────────────────────────────────────────────────────────────────────
-  s32Array* sort_s32_arr = nya_array_create(arena, s32);
+  NYA_Arrayᐸs32ᐳ* sort_s32_arr = nya_array_create(arena, s32);
   nya_array_add_many(sort_s32_arr, 5, -10, 0, -5, 10);
   nya_array_sort(sort_s32_arr, compare_s32_asc);
   nya_assert(sort_s32_arr->items[0] == -10);
@@ -427,7 +427,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_clear
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* clear_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* clear_arr = nya_array_create(arena, u32);
   nya_array_add_many(clear_arr, 1U, 2U, 3U, 4U, 5U);
   nya_assert(clear_arr->length == 5);
   u64 cap_before_clear = clear_arr->capacity;
@@ -441,7 +441,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_resize
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* resize_manual_arr = nya_array_create_with_capacity(arena, u32, 8);
+  NYA_Arrayᐸu32ᐳ* resize_manual_arr = nya_array_create_with_capacity(arena, u32, 8);
   nya_array_add_many(resize_manual_arr, 1U, 2U, 3U, 4U);
   nya_array_resize(resize_manual_arr, 64);
   nya_assert(resize_manual_arr->capacity == 64);
@@ -452,7 +452,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_reserve
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* reserve_arr = nya_array_create_with_capacity(arena, u32, 4);
+  NYA_Arrayᐸu32ᐳ* reserve_arr = nya_array_create_with_capacity(arena, u32, 4);
   nya_array_add_many(reserve_arr, 1U, 2U);
   nya_array_reserve(reserve_arr, 100UL);
   nya_assert(reserve_arr->capacity >= 100);
@@ -468,8 +468,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_extend
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* ext_arr1 = nya_array_create(arena, u32);
-  u32Array* ext_arr2 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* ext_arr1 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* ext_arr2 = nya_array_create(arena, u32);
   nya_array_add_many(ext_arr1, 1U, 2U, 3U);
   nya_array_add_many(ext_arr2, 4U, 5U, 6U);
   nya_array_extend(ext_arr1, ext_arr2);
@@ -481,10 +481,10 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_copy
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* clone_src = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* clone_src = nya_array_create(arena, u32);
   nya_array_add_many(clone_src, 10U, 20U, 30U, 40U);
-  u32Array  clone_dst_val = nya_array_copy(clone_src);
-  u32Array* clone_dst     = nya_arena_alloc(arena, sizeof(u32Array));
+  NYA_Arrayᐸu32ᐳ  clone_dst_val = nya_array_copy(clone_src);
+  NYA_Arrayᐸu32ᐳ* clone_dst     = nya_arena_alloc(arena, sizeof(NYA_Arrayᐸu32ᐳ));
   *clone_dst              = clone_dst_val;
   nya_assert(clone_dst->length == clone_src->length);
   nya_assert(clone_dst->capacity == clone_src->capacity);
@@ -500,7 +500,7 @@ s32 main(void) {
   // TEST: nya_array_move
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena* move_arena = nya_arena_create(.name = "move_arena");
-  u32Array*  move_arr   = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ*  move_arr   = nya_array_create(arena, u32);
   nya_array_add_many(move_arr, 100U, 200U, 300U);
   u32* old_items = move_arr->items;
   nya_array_move(move_arr, move_arena);
@@ -515,9 +515,9 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_slice_excld
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* slice_src_excld = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* slice_src_excld = nya_array_create(arena, u32);
   nya_array_add_many(slice_src_excld, 10U, 20U, 30U, 40U, 50U);
-  u32Array slice_excld = nya_array_slice_excld(slice_src_excld, 1, 4);
+  NYA_Arrayᐸu32ᐳ slice_excld = nya_array_slice_excld(slice_src_excld, 1, 4);
   nya_assert(slice_excld.length == 3);
   nya_assert(slice_excld.items[0] == 20);
   nya_assert(slice_excld.items[1] == 30);
@@ -528,9 +528,9 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_slice_incld
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* slice_src_incld = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* slice_src_incld = nya_array_create(arena, u32);
   nya_array_add_many(slice_src_incld, 10U, 20U, 30U, 40U, 50U);
-  u32Array slice_incld = nya_array_slice_incld(slice_src_incld, 1, 3);
+  NYA_Arrayᐸu32ᐳ slice_incld = nya_array_slice_incld(slice_src_incld, 1, 3);
   nya_assert(slice_incld.length == 3);
   nya_assert(slice_incld.items[0] == 20);
   nya_assert(slice_incld.items[1] == 30);
@@ -541,7 +541,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_length
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* len_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* len_arr = nya_array_create(arena, u32);
   nya_assert(nya_array_length(len_arr) == 0);
   nya_array_add_many(len_arr, 1U, 2U, 3U);
   nya_assert(nya_array_length(len_arr) == 3);
@@ -550,7 +550,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_for iterator
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* for_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* for_arr = nya_array_create(arena, u32);
   nya_array_add_many(for_arr, 10U, 20U, 30U, 40U, 50U);
   u64 sum   = 0;
   u64 count = 0;
@@ -565,7 +565,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_foreach iterator
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* foreach_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* foreach_arr = nya_array_create(arena, u32);
   nya_array_add_many(foreach_arr, 1U, 2U, 3U, 4U, 5U);
   u64 foreach_sum = 0;
   nya_array_foreach (foreach_arr, item) { foreach_sum += *item; }
@@ -575,7 +575,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_for_reverse iterator
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* for_rev_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* for_rev_arr = nya_array_create(arena, u32);
   nya_array_add_many(for_rev_arr, 1U, 2U, 3U, 4U, 5U);
   u32 collected[5];
   u64 collect_idx = 0;
@@ -590,7 +590,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_array_foreach_reverse iterator
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* foreach_rev_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* foreach_rev_arr = nya_array_create(arena, u32);
   nya_array_add_many(foreach_rev_arr, 10U, 20U, 30U);
   u32 foreach_collected[3];
   u64 foreach_idx = 0;
@@ -603,7 +603,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: custom struct array
   // ─────────────────────────────────────────────────────────────────────────────
-  TestPointArray* points = nya_array_create(arena, TestPoint);
+  NYA_ArrayᐸTestPointᐳ* points = nya_array_create(arena, TestPoint);
   nya_array_add(points, ((TestPoint){ .x = 1, .y = 2 }));
   nya_array_add(points, ((TestPoint){ .x = 3, .y = 4 }));
   nya_array_add(points, ((TestPoint){ .x = 5, .y = 6 }));
@@ -616,7 +616,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: s32 (signed) array
   // ─────────────────────────────────────────────────────────────────────────────
-  s32Array* s32_arr = nya_array_create(arena, s32);
+  NYA_Arrayᐸs32ᐳ* s32_arr = nya_array_create(arena, s32);
   nya_array_add_many(s32_arr, -10, -5, 0, 5, 10);
   nya_assert(s32_arr->length == 5);
   nya_assert(s32_arr->items[0] == -10);
@@ -627,7 +627,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: f32 (float) array
   // ─────────────────────────────────────────────────────────────────────────────
-  f32Array* f32_arr = nya_array_create(arena, f32);
+  NYA_Arrayᐸf32ᐳ* f32_arr = nya_array_create(arena, f32);
   nya_array_add_many(f32_arr, 1.5F, 2.5F, 3.5F);
   nya_assert(f32_arr->length == 3);
   nya_assert(f32_arr->items[0] == 1.5F);
@@ -638,7 +638,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: f64 (double) array
   // ─────────────────────────────────────────────────────────────────────────────
-  f64Array* f64_arr = nya_array_create(arena, f64);
+  NYA_Arrayᐸf64ᐳ* f64_arr = nya_array_create(arena, f64);
   nya_array_add_many(f64_arr, 1.123456789, 2.234567890, 3.345678901);
   nya_assert(f64_arr->length == 3);
   nya_assert(f64_arr->items[0] == 1.123456789);
@@ -649,7 +649,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: u8 (byte) array
   // ─────────────────────────────────────────────────────────────────────────────
-  u8Array* u8_arr = nya_array_create(arena, u8);
+  NYA_Arrayᐸu8ᐳ* u8_arr = nya_array_create(arena, u8);
   for (u32 i = 0; i < 256; ++i) { nya_array_add(u8_arr, (u8)i); }
   nya_assert(u8_arr->length == 256);
   for (u32 i = 0; i < 256; ++i) { nya_assert(u8_arr->items[i] == (u8)i); }
@@ -658,7 +658,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: u64 array
   // ─────────────────────────────────────────────────────────────────────────────
-  u64Array* u64_arr = nya_array_create(arena, u64);
+  NYA_Arrayᐸu64ᐳ* u64_arr = nya_array_create(arena, u64);
   nya_array_add(u64_arr, (u64)0xFFFFFFFFFFFFFFFFULL);
   nya_array_add(u64_arr, (u64)0);
   nya_array_add(u64_arr, (u64)0x123456789ABCDEF0ULL);
@@ -671,7 +671,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: pointer array (voidptr)
   // ─────────────────────────────────────────────────────────────────────────────
-  voidptrArray* ptr_arr = nya_array_create(arena, voidptr);
+  NYA_Arrayᐸvoidptrᐳ* ptr_arr = nya_array_create(arena, voidptr);
   s32           val1    = 1;
   s32           val2    = 2;
   s32           val3    = 3;
@@ -687,7 +687,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: empty array operations
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* empty_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* empty_arr = nya_array_create(arena, u32);
   nya_assert(empty_arr->length == 0);
   nya_assert(nya_array_contains(empty_arr, 42U) == false);
   nya_assert(nya_array_find(empty_arr, 42U) == -1);
@@ -698,7 +698,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: single element array
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* single_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* single_arr = nya_array_create(arena, u32);
   nya_array_add(single_arr, 42U);
   nya_assert(single_arr->length == 1);
   nya_assert(single_arr->items[0] == 42);
@@ -709,7 +709,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: large array (stress test)
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* large_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* large_arr = nya_array_create(arena, u32);
   for (u32 i = 0; i < 10000; ++i) { nya_array_add(large_arr, i); }
   nya_assert(large_arr->length == 10000);
   for (u32 i = 0; i < 10000; ++i) { nya_assert(large_arr->items[i] == i); }
@@ -720,7 +720,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RNG             rng        = nya_rng_create();
-    u32Array*           stress_arr = nya_array_create(arena, u32);
+    NYA_Arrayᐸu32ᐳ*           stress_arr = nya_array_create(arena, u32);
     NYA_RNGDistribution val_dist   = {
         .type    = NYA_RNG_DISTRIBUTION_UNIFORM,
         .uniform = { .min = 0, .max = 1000 }
@@ -766,7 +766,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: duplicate values in array
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* dup_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* dup_arr = nya_array_create(arena, u32);
   nya_array_add_many(dup_arr, 5U, 5U, 5U, 10U, 10U);
   nya_assert(dup_arr->length == 5);
   nya_assert(nya_array_contains(dup_arr, 5U) == true);
@@ -781,9 +781,9 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: slice modifications affect original
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* slice_mod_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* slice_mod_arr = nya_array_create(arena, u32);
   nya_array_add_many(slice_mod_arr, 1U, 2U, 3U, 4U, 5U);
-  u32Array slice_mod = nya_array_slice_incld(slice_mod_arr, 1, 3);
+  NYA_Arrayᐸu32ᐳ slice_mod = nya_array_slice_incld(slice_mod_arr, 1, 3);
   slice_mod.items[0] = 999;
   nya_assert(slice_mod_arr->items[1] == 999);
   nya_array_destroy(slice_mod_arr);
@@ -791,10 +791,10 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: multiple arrays in same arena
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* multi_arr1 = nya_array_create(arena, u32);
-  u32Array* multi_arr2 = nya_array_create(arena, u32);
-  s32Array* multi_arr3 = nya_array_create(arena, s32);
-  f32Array* multi_arr4 = nya_array_create(arena, f32);
+  NYA_Arrayᐸu32ᐳ* multi_arr1 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* multi_arr2 = nya_array_create(arena, u32);
+  NYA_Arrayᐸs32ᐳ* multi_arr3 = nya_array_create(arena, s32);
+  NYA_Arrayᐸf32ᐳ* multi_arr4 = nya_array_create(arena, f32);
 
   nya_array_add_many(multi_arr1, 1U, 2U, 3U);
   nya_array_add_many(multi_arr2, 10U, 20U, 30U);
@@ -814,7 +814,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: remove at boundaries
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* boundary_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* boundary_arr = nya_array_create(arena, u32);
   nya_array_add_many(boundary_arr, 1U, 2U, 3U, 4U, 5U);
 
   u32 first_removed = nya_array_remove(boundary_arr, 0);
@@ -835,8 +835,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: extend empty array
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* ext_empty1 = nya_array_create(arena, u32);
-  u32Array* ext_empty2 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* ext_empty1 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* ext_empty2 = nya_array_create(arena, u32);
   nya_array_add_many(ext_empty2, 1U, 2U, 3U);
   nya_array_extend(ext_empty1, ext_empty2);
   nya_assert(ext_empty1->length == 3);
@@ -847,8 +847,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: extend with empty array
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* ext_with_empty1 = nya_array_create(arena, u32);
-  u32Array* ext_with_empty2 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* ext_with_empty1 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* ext_with_empty2 = nya_array_create(arena, u32);
   nya_array_add_many(ext_with_empty1, 1U, 2U, 3U);
   nya_array_extend(ext_with_empty1, ext_with_empty2);
   nya_assert(ext_with_empty1->length == 3);
@@ -858,8 +858,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: equals with empty arrays
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* eq_empty1 = nya_array_create(arena, u32);
-  u32Array* eq_empty2 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* eq_empty1 = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* eq_empty2 = nya_array_create(arena, u32);
   nya_assert(nya_array_equals(eq_empty1, eq_empty2) == true);
   nya_array_add(eq_empty1, 1U);
   nya_assert(nya_array_equals(eq_empty1, eq_empty2) == false);
@@ -869,7 +869,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: destroy resets array state
   // ─────────────────────────────────────────────────────────────────────────────
-  u32Array* destroy_arr = nya_array_create(arena, u32);
+  NYA_Arrayᐸu32ᐳ* destroy_arr = nya_array_create(arena, u32);
   nya_array_add_many(destroy_arr, 1U, 2U, 3U);
   nya_array_destroy(destroy_arr);
 

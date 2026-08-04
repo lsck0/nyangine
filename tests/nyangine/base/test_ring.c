@@ -15,7 +15,7 @@ void test_ring_basic_operations(void) {
   NYA_Arena* arena = nya_arena_create();
 
   // Test: nya_ring_create and nya_ring_create_with_capacity
-  TestItemRing* ring = nya_ring_create(arena, TestItem);
+  NYA_RingᐸTestItemᐳ* ring = nya_ring_create(arena, TestItem);
   nya_assert(ring != nullptr);
   nya_assert(nya_ring_capacity(ring) == 8);
   nya_assert(nya_ring_length(ring) == 0);
@@ -58,7 +58,7 @@ void test_ring_wraparound(void) {
   NYA_Arena* arena = nya_arena_create();
 
   // Create a small ring to test wraparound behavior
-  TestItemRing* ring = nya_ring_create_with_capacity(arena, TestItem, 3);
+  NYA_RingᐸTestItemᐳ* ring = nya_ring_create_with_capacity(arena, TestItem, 3);
 
   // Fill ring to capacity
   for (u32 i = 0; i < 3; i++) {
@@ -94,7 +94,7 @@ void test_ring_wraparound(void) {
 void test_ring_iterators(void) {
   NYA_Arena* arena = nya_arena_create();
 
-  TestItemRing* ring = nya_ring_create(arena, TestItem);
+  NYA_RingᐸTestItemᐳ* ring = nya_ring_create(arena, TestItem);
 
   // Add some items
   TestItem items[] = { { .id = 1 }, { .id = 2 }, { .id = 3 } };
@@ -132,7 +132,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*   arena    = nya_arena_create();
-    TestItemRing on_stack = nya_ring_create_on_stack(arena, TestItem);
+    NYA_RingᐸTestItemᐳ on_stack = nya_ring_create_on_stack(arena, TestItem);
     nya_assert(nya_ring_capacity(&on_stack) == 8);
     nya_assert(nya_ring_is_empty(&on_stack));
 
@@ -149,7 +149,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*   arena    = nya_arena_create();
-    TestItemRing on_stack = nya_ring_create_with_capacity_on_stack(arena, TestItem, 4);
+    NYA_RingᐸTestItemᐳ on_stack = nya_ring_create_with_capacity_on_stack(arena, TestItem, 4);
     nya_assert(nya_ring_capacity(&on_stack) == 4);
 
     for (u32 i = 0; i < 4; i++) {
@@ -166,7 +166,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
-    TestItemRing* ring  = nya_ring_create(arena, TestItem);
+    NYA_RingᐸTestItemᐳ* ring  = nya_ring_create(arena, TestItem);
 
     nya_ring_push(ring, ((TestItem){ .id = 10 }));
     nya_ring_push(ring, ((TestItem){ .id = 20 }));
@@ -185,7 +185,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
-    TestItemRing* ring  = nya_ring_create(arena, TestItem);
+    NYA_RingᐸTestItemᐳ* ring  = nya_ring_create(arena, TestItem);
 
     for (u32 i = 0; i < 5; i++) {
       nya_ring_push(ring, ((TestItem){ .id = i }));
@@ -205,7 +205,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
-    TestItemRing* ring  = nya_ring_create_with_capacity(arena, TestItem, 4);
+    NYA_RingᐸTestItemᐳ* ring  = nya_ring_create_with_capacity(arena, TestItem, 4);
 
     nya_ring_push(ring, ((TestItem){ .id = 1 }));
     nya_ring_push(ring, ((TestItem){ .id = 2 }));
@@ -225,7 +225,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
-    TestItemRing* ring  = nya_ring_create_with_capacity(arena, TestItem, 4);
+    NYA_RingᐸTestItemᐳ* ring  = nya_ring_create_with_capacity(arena, TestItem, 4);
 
     // Fill to capacity then push more to wrap around
     for (u32 i = 0; i < 4; i++) {
@@ -265,7 +265,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
-    TestItemRing* ring  = nya_ring_create_with_capacity(arena, TestItem, 3);
+    NYA_RingᐸTestItemᐳ* ring  = nya_ring_create_with_capacity(arena, TestItem, 3);
 
     // Overwrite: push 5 items into a cap-3 ring → wraps multiple times
     for (u32 i = 0; i < 5; i++) {
@@ -292,12 +292,12 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Arena*    arena = nya_arena_create();
-    TestItemRing* ring  = nya_ring_create(arena, TestItem);
+    NYA_RingᐸTestItemᐳ* ring  = nya_ring_create(arena, TestItem);
 
     nya_ring_push(ring, ((TestItem){ .id = 100 }));
     nya_ring_push(ring, ((TestItem){ .id = 200 }));
 
-    TestItemRing copied = nya_ring_copy(ring);
+    NYA_RingᐸTestItemᐳ copied = nya_ring_copy(ring);
     nya_assert(nya_ring_length(&copied) == 2);
     nya_assert(nya_ring_front(&copied)->id == 100);
     nya_assert(nya_ring_back(&copied)->id == 200);
@@ -318,7 +318,7 @@ s32 main(void) {
   {
     NYA_Arena*    arena1 = nya_arena_create();
     NYA_Arena*    arena2 = nya_arena_create();
-    TestItemRing* ring   = nya_ring_create(arena1, TestItem);
+    NYA_RingᐸTestItemᐳ* ring   = nya_ring_create(arena1, TestItem);
 
     nya_ring_push(ring, ((TestItem){ .id = 50 }));
     nya_ring_push(ring, ((TestItem){ .id = 60 }));

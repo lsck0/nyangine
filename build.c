@@ -1,19 +1,10 @@
 #include "nyangine/nyangine.h"
-/**/
+
 #include "nyangine/nyangine.c"
 /**/
-// Which host is doing the building decides the tool names every rule below uses.
-#if OS_WINDOWS
-#include "build/on_windows/toolchain.h"
-#else
-#include "build/on_linux/toolchain.h"
-#endif
-/**/
-#include "build/flags.h"
-#include "build/vendor/vendor.h"
-/**/
-#include "build/asset/asset.c"
-#include "build/hooks/hooks.c"
+#include "build/build.h"
+
+#include "build/build.c"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -21,19 +12,19 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+// Builds the host's own build tool, so every flag that names a platform comes from the host block
+// in build.h rather than from a target's set. See the note there.
 NYA_INTERNAL NYA_Command build_rebuild_command = {
     .program   = CC,
     .arguments = {
         "build.c",
-        "-o", "build",
+        "-o", BUILD_TOOL_BINARY,
         CFLAGS,
         WARNINGS,
         INCLUDE_PATHS,
         LINKER_FLAGS,
         FLAGS_DEBUG,
-        FLAGS_DEBUG_LINUX_X86_64,
-        FLAGS_SANITIZE,
-        FLAGS_LINUX_X86_64,
+        FLAGS_HOST_NATIVE,
         FLAGS_BUILD_TOOL,
     },
 };
@@ -74,10 +65,18 @@ NYA_INTERNAL NYA_BuildRule index_assets = {
     .post_build_hooks = { &hook_index_assets, },
 };
 
+/*
+ * Depends on index_assets, and the order is the point.
+ *
+ * Indexing writes assets/assets.h, one handle per file; bundling writes assets/assets.c, the bytes
+ * behind those handles. Conceptually you enumerate first and embed second, and both read the same
+ * memoised listing, so the handle set and the blob cannot disagree — but only if indexing is what
+ * populates that memo, which this ordering is what guarantees.
+ */
 NYA_INTERNAL NYA_BuildRule bundle_assets = {
     .name             = "bundle_assets",
     .is_metarule      = true,
-    .dependencies     = { &build_windows_icon, &build_shaders, },
+    .dependencies     = { &build_windows_icon, &build_shaders, &index_assets, },
     .post_build_hooks = { &hook_bundle_assets, },
 };
 
@@ -86,16 +85,6 @@ NYA_INTERNAL NYA_BuildRule bundle_assets = {
  * PROJECT BUILD RULES
  * ─────────────────────────────────────────────────────────
  */
-
-// Which host is doing the building decides how each target is produced, so the rules live in a
-// directory per host rather than behind conditionals inside one file.
-#if OS_WINDOWS
-#include "build/on_windows/build_linux.h"
-#include "build/on_windows/build_windows.h"
-#else
-#include "build/on_linux/build_linux.h"
-#include "build/on_linux/build_windows.h"
-#endif
 
 NYA_INTERNAL NYA_BuildRule build_project_release = {
     .name         = "build_project_release",
@@ -118,34 +107,6 @@ NYA_INTERNAL NYA_BuildRule build_docs = {
  * OTHER TARGETS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
-
-/*
- * Running always targets the host. Cross compiling to Windows from Linux is a build time
- * convenience; there is nothing sensible to do with the resulting .exe here, so `run` picks the
- * native artifact and the rules below are selected by host rather than exposed as a choice.
- */
-
-#if OS_WINDOWS
-#define HOST_DEBUG_BINARY   WINDOWS_X86_64_DEBUG_BINARY
-#define HOST_DEV_BINARY     WINDOWS_X86_64_DEV_BINARY
-#define HOST_RELEASE_BINARY WINDOWS_X86_64_BINARY
-#define host_build_debug    build_project_debug_windows
-#define host_build_dev      build_project_dev_windows
-#define host_build_release  build_project_windows_x86_64
-#else
-#define HOST_DEBUG_BINARY   LINUX_X86_64_DEBUG_BINARY
-#define HOST_DEV_BINARY     LINUX_X86_64_DEV_BINARY
-#define HOST_RELEASE_BINARY LINUX_X86_64_BINARY
-#define host_build_debug    build_project_debug_linux
-#define host_build_dev      build_project_dev_linux
-#define host_build_release  build_project_linux_x86_64
-#endif
-
-/** Sanitizer configuration shared by everything that runs an instrumented binary. */
-#define SANITIZER_ENVIRONMENT                                                                                                                        \
-    "ASAN_OPTIONS=suppressions=./.sanitizers/asan.supp:detect_leaks=1:strict_string_checks=1:halt_on_error=1",                                       \
-        "LSAN_OPTIONS=suppressions=./.sanitizers/lsan.supp", "TSAN_OPTIONS=suppressions=./.sanitizers/tsan.supp",                                    \
-        "UBSAN_OPTIONS=suppressions=./.sanitizers/ubsan.supp:print_stacktrace=1:halt_on_error=1"
 
 /*
  * Debug runs under perf. It is the slow, instrumented build, so the profile is not representative
@@ -257,7 +218,7 @@ NYA_INTERNAL NYA_BuildRule update_submodules = {
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TEST RUNNER
+ * COMMAND HANDLERS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
@@ -271,95 +232,6 @@ NYA_INTERNAL void vendor_runner(NYA_ArgCommand* command) {
     nya_unused(command);
 
     NYA_EXPECT(nya_vendor_build_all(NYA_VENDORS_ALL), "while building all vendor dependencies");
-}
-
-NYA_INTERNAL void test_runner(NYA_ArgCommand* command) {
-    nya_assert(command != nullptr);
-
-    NYA_ArgParameter* test_files = command->parameters[0];
-    nya_assert(test_files != nullptr);
-    nya_assert(nya_string_equals(test_files->name, "tests"));
-
-    NYA_Command find_tests_command = {
-    .arena     = nya_arena_global,
-    .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-    .program   = "find",
-    .arguments = { "./tests/", "-name", "*.c", },
-  };
-    NYA_EXPECT(nya_command_run(&find_tests_command));
-    NYA_ArrayᐸNYA_Stringᐳ* tests = nya_string_split_lines(nya_arena_global, find_tests_command.stdout_content);
-
-    nya_array_foreach (tests, original_test) {
-        NYA_String* test = nya_string_clone(nya_arena_global, original_test);
-        if (nya_string_is_empty(test)) continue;
-        NYA_CString test_cstr = nya_string_to_cstring(nya_arena_global, test);
-
-        // check if we should run this test, by checking if its name contains any of the requested test names
-        b8 should_run = test_files->values_count == 0 ? true : false;
-        for (u32 param_index = 0; param_index < test_files->values_count; param_index++) {
-            NYA_CString requested_test = test_files->values[param_index].as_string;
-            if (nya_string_contains(test, requested_test)) {
-                should_run = true;
-                break;
-            }
-        }
-        if (!should_run) continue;
-
-        nya_string_strip_suffix(test, ".c");
-        NYA_CString test_binary = nya_string_to_cstring(nya_arena_global, test);
-
-        NYA_String* build_test_name = nya_string_sprintf(nya_arena_global, "build_test:%s", test_binary);
-        NYA_BuildRule build_test_rule = {
-        .name        = nya_string_to_cstring(nya_arena_global, build_test_name),
-        .policy      = NYA_BUILD_ALWAYS,
-        .output_file = test_binary,
-
-        .command = {
-            .program   = CC,
-            .arguments = {
-                test_cstr,
-                "-o", test_binary,
-                CFLAGS,
-                WARNINGS,
-                INCLUDE_PATHS,
-                LINKER_FLAGS,
-                FLAGS_SANITIZE,
-                FLAGS_DEBUG,
-                FLAGS_DEBUG_LINUX_X86_64,
-                FLAGS_LINUX_X86_64,
-                // Only the test rule gets this. It compiles in nya_expect_crash, which lets a test
-                // survive a deliberate assertion, panic or thrown error.
-                "-DNYA_TESTING",
-                "-Wl,-rpath,$ORIGIN/../../../vendor/steam/redistributable_bin/linux64",
-            },
-        },
-
-        .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-        .vendors         = { &vendor_sdl_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
-    };
-
-        NYA_String* run_test_name = nya_string_sprintf(nya_arena_global, "run_test:%s", test_binary);
-        NYA_BuildRule run_test_rule = {
-        .name        = nya_string_to_cstring(nya_arena_global, run_test_name),
-        .policy      = NYA_BUILD_ALWAYS,
-        .output_file = test_binary,
-
-        .command = {
-            .program     = test_binary,
-            .environment = {
-              "ASAN_OPTIONS=suppressions=./.sanitizers/asan.supp:detect_leaks=1:strict_string_checks=1:halt_on_error=1",
-              "LSAN_OPTIONS=suppressions=./.sanitizers/lsan.supp",
-              "TSAN_OPTIONS=suppressions=./.sanitizers/tsan.supp",
-              "UBSAN_OPTIONS=suppressions=./.sanitizers/ubsan.supp:print_stacktrace=1:halt_on_error=1",
-            },
-        },
-
-        .dependencies      = { &build_test_rule, },
-        .post_build_hooks  = { &hook_remove_output_file, },
-    };
-
-        NYA_EXPECT(nya_build(&run_test_rule));
-    }
 }
 
 /*
@@ -498,6 +370,15 @@ NYA_INTERNAL NYA_ArgCommand build = {
             .build_rule  = &build_project_release,
         },
         &(NYA_ArgCommand){
+            .name        = "assets",
+            .description = "Regenerate assets/assets.h and assets/assets.c from what is on disk.",
+            // bundle_assets, not index_assets: it depends on the index, so this writes the handle
+            // header and the byte blob from one walk of the asset tree rather than two that could
+            // disagree. Compiling the shaders and the icon comes with it, because the index has to
+            // list artifacts that exist.
+            .build_rule  = &bundle_assets,
+        },
+        &(NYA_ArgCommand){
             .name        = "shaders",
             .description = "Build the shaders.",
             .build_rule  = &build_shaders,
@@ -583,11 +464,11 @@ s32 main(s32 argc, NYA_CString argv[]) {
     // __has_include("backtrace.h") and degrades to a null backend, so the first build has no traces
     // and every rebuild after the vendors exist has them. That is why crashes in the build system
     // print "no stack trace available" exactly once per clean checkout.
-    if (nya_filesystem_exists(BACKTRACE_A_LINUX_X86_64)) {
+    if (nya_filesystem_exists(BACKTRACE_A_HOST)) {
         u32 count = 0;
         while (count < NYA_COMMAND_MAX_ARGUMENTS && build_rebuild_command.arguments[count] != nullptr) count++;
 
-        NYA_ConstCString extra[]   = { BACKTRACE_INCLUDES_LINUX_X86_64, BACKTRACE_A_LINUX_X86_64 };
+        NYA_ConstCString extra[]   = { BACKTRACE_INCLUDES_HOST, BACKTRACE_A_HOST };
         u32              extra_len = (u32)(sizeof(extra) / sizeof(extra[0]));
 
         nya_assert(count + extra_len < NYA_COMMAND_MAX_ARGUMENTS, "No room to add libbacktrace to the rebuild command.");

@@ -132,7 +132,7 @@ s32 main(void) {
   // TEST: nya_string_split (cstring separator)
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_String      csv   = *nya_string_from(arena, "a,b,c,d");
-  NYA_StringArray parts = *nya_string_split(arena, &csv, ",");
+  NYA_ArrayᐸNYA_Stringᐳ parts = *nya_string_split(arena, &csv, ",");
   nya_assert(parts.length == 4);
   nya_assert(nya_string_equals(&parts.items[0], "a") == true);
   nya_assert(nya_string_equals(&parts.items[1], "b") == true);
@@ -144,7 +144,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_String      sep_str = *nya_string_from(arena, "::");
   NYA_String      data    = *nya_string_from(arena, "foo::bar::baz");
-  NYA_StringArray parts2  = *nya_string_split(arena, &data, &sep_str);
+  NYA_ArrayᐸNYA_Stringᐳ parts2  = *nya_string_split(arena, &data, &sep_str);
   nya_assert(parts2.length == 3);
   nya_assert(nya_string_equals(&parts2.items[0], "foo") == true);
   nya_assert(nya_string_equals(&parts2.items[1], "bar") == true);
@@ -154,7 +154,7 @@ s32 main(void) {
   // TEST: nya_string_split_lines
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_String      multiline = *nya_string_from(arena, "line1\nline2\nline3");
-  NYA_StringArray lines     = *nya_string_split_lines(arena, &multiline);
+  NYA_ArrayᐸNYA_Stringᐳ lines     = *nya_string_split_lines(arena, &multiline);
   nya_assert(lines.length == 3);
   nya_assert(nya_string_equals(&lines.items[0], "line1") == true);
   nya_assert(nya_string_equals(&lines.items[1], "line2") == true);
@@ -164,7 +164,7 @@ s32 main(void) {
   // TEST: nya_string_split_words
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_String      whitespace = *nya_string_from(arena, "  foo   bar\tbaz  ");
-  NYA_StringArray words      = *nya_string_split_words(arena, &whitespace);
+  NYA_ArrayᐸNYA_Stringᐳ words      = *nya_string_split_words(arena, &whitespace);
   nya_assert(words.length == 3);
   nya_assert(nya_string_equals(&words.items[0], "foo") == true);
   nya_assert(nya_string_equals(&words.items[1], "bar") == true);
@@ -393,7 +393,7 @@ s32 main(void) {
   // TEST: edge cases - nya_string_join with empty array (potential underflow)
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    NYA_StringArray empty_arr    = *nya_array_create(arena, NYA_String);
+    NYA_ArrayᐸNYA_Stringᐳ empty_arr    = *nya_array_create(arena, NYA_String);
     NYA_String      joined_empty = *nya_string_join(arena, &empty_arr, ",");
     nya_assert(nya_string_is_empty(&joined_empty) == true);
   }
@@ -402,7 +402,7 @@ s32 main(void) {
   // TEST: edge cases - nya_string_join with single element (no separator needed)
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    NYA_StringArray single_arr = *nya_array_create(arena, NYA_String);
+    NYA_ArrayᐸNYA_Stringᐳ single_arr = *nya_array_create(arena, NYA_String);
     NYA_String      elem       = *nya_string_from(arena, "only");
     nya_array_push_back(&single_arr, elem);
     NYA_String joined_single = *nya_string_join(arena, &single_arr, ",");
@@ -414,7 +414,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_String      empty_split  = *nya_string_from(arena, "");
-    NYA_StringArray split_result = *nya_string_split(arena, &empty_split, ",");
+    NYA_ArrayᐸNYA_Stringᐳ split_result = *nya_string_split(arena, &empty_split, ",");
     nya_assert(split_result.length == 0);
   }
 
@@ -424,7 +424,7 @@ s32 main(void) {
   {
     // separator at start
     NYA_String      sep_start   = *nya_string_from(arena, ",a,b");
-    NYA_StringArray parts_start = *nya_string_split(arena, &sep_start, ",");
+    NYA_ArrayᐸNYA_Stringᐳ parts_start = *nya_string_split(arena, &sep_start, ",");
     nya_assert(parts_start.length == 3);
     nya_assert(nya_string_is_empty(&parts_start.items[0]) == true);
     nya_assert(nya_string_equals(&parts_start.items[1], "a") == true);
@@ -432,7 +432,7 @@ s32 main(void) {
 
     // separator at end
     NYA_String      sep_end   = *nya_string_from(arena, "a,b,");
-    NYA_StringArray parts_end = *nya_string_split(arena, &sep_end, ",");
+    NYA_ArrayᐸNYA_Stringᐳ parts_end = *nya_string_split(arena, &sep_end, ",");
     nya_assert(parts_end.length == 3);
     nya_assert(nya_string_equals(&parts_end.items[0], "a") == true);
     nya_assert(nya_string_equals(&parts_end.items[1], "b") == true);
@@ -440,7 +440,7 @@ s32 main(void) {
 
     // consecutive separators
     NYA_String      consec_sep   = *nya_string_from(arena, "a,,b");
-    NYA_StringArray parts_consec = *nya_string_split(arena, &consec_sep, ",");
+    NYA_ArrayᐸNYA_Stringᐳ parts_consec = *nya_string_split(arena, &consec_sep, ",");
     nya_assert(parts_consec.length == 3);
     nya_assert(nya_string_equals(&parts_consec.items[0], "a") == true);
     nya_assert(nya_string_is_empty(&parts_consec.items[1]) == true);
@@ -453,14 +453,14 @@ s32 main(void) {
   {
     // multi-char separator near end (potential buffer over-read)
     NYA_String      near_end   = *nya_string_from(arena, "abc::d");
-    NYA_StringArray parts_near = *nya_string_split(arena, &near_end, "::");
+    NYA_ArrayᐸNYA_Stringᐳ parts_near = *nya_string_split(arena, &near_end, "::");
     nya_assert(parts_near.length == 2);
     nya_assert(nya_string_equals(&parts_near.items[0], "abc") == true);
     nya_assert(nya_string_equals(&parts_near.items[1], "d") == true);
 
     // string shorter than separator
     NYA_String      short_str   = *nya_string_from(arena, "a");
-    NYA_StringArray parts_short = *nya_string_split(arena, &short_str, "::");
+    NYA_ArrayᐸNYA_Stringᐳ parts_short = *nya_string_split(arena, &short_str, "::");
     nya_assert(parts_short.length == 1);
     nya_assert(nya_string_equals(&parts_short.items[0], "a") == true);
   }

@@ -620,6 +620,20 @@ NYA_INTERNAL void _nya_arena_free_list_add(NYA_ArenaRegion* region, void* ptr, u
             ((region->free_list->average_free_size * (f32)region->free_list->node_counter) + (f32)size) / (f32)(region->free_list->node_counter + 1);
         region->free_list->node_counter++;
     }
+
+    /*
+     * Counts frees since the last defragmentation, which is what the threshold in
+     * _nya_arena_nodebug_free is compared against.
+     *
+     * Nothing incremented this before, so the comparison was always 0 >= threshold and
+     * _nya_arena_free_list_defragment never ran at all: adjacent free blocks were never merged, and
+     * a region that had released a contiguous span could not satisfy an allocation the size of it.
+     *
+     * Saturating rather than wrapping because the counter is a u8 and defragmentation can be turned
+     * off, in which case nothing ever resets it — and FLAGS_SANITIZE treats unsigned wraparound as
+     * an error.
+     * */
+    if (region->free_list->defragmentation_counter < U8_MAX) region->free_list->defragmentation_counter++;
 }
 
 NYA_INTERNAL void _nya_arena_free_list_defragment(NYA_ArenaFreeList* free_list) {
@@ -635,11 +649,6 @@ NYA_INTERNAL void _nya_arena_free_list_defragment(NYA_ArenaFreeList* free_list) 
             node->size += next_size;
             nya_dll_node_unlink(free_list, next);
             nya_free(next);
-
-            if (free_list->node_counter > 1) {
-                free_list->average_free_size =
-                    (free_list->average_free_size * (f32)free_list->node_counter - (f32)next_size) / (f32)(free_list->node_counter - 1);
-            }
             free_list->node_counter--;
 
             // continue with the same node
@@ -648,6 +657,28 @@ NYA_INTERNAL void _nya_arena_free_list_defragment(NYA_ArenaFreeList* free_list) 
 
         node = node->next;
     }
+
+    /*
+     * Recomputed rather than adjusted as nodes merge.
+     *
+     * The incremental form subtracted the absorbed node's size from the running total, but merging
+     * two free blocks does not release any bytes — it only means one node describes what two did.
+     * Every merge therefore pushed the average further below the truth, and since
+     * _nya_arena_nodebug_alloc only searches the free list when average_free_size is at least the
+     * requested size, a region that had just coalesced a large contiguous span would refuse to
+     * allocate out of it and grow instead. Sixteen freed blocks in a row was enough to see it.
+     *
+     * The walk is the same order as the merge loop above, so this costs nothing worth saving.
+     * */
+    u64 total = 0;
+    u64 count = 0;
+    for (NYA_ArenaFreeListNode* node = free_list->head; node != nullptr; node = node->next) {
+        total += node->size;
+        count++;
+    }
+
+    free_list->node_counter      = count;
+    free_list->average_free_size = count == 0 ? 0.0F : (f32)total / (f32)count;
 
     free_list->defragmentation_counter = 0;
 }

@@ -64,6 +64,15 @@ struct NYA_BuildRule {
 
     void (*pre_build_hooks[NYA_BUILD_MAX_DEPENDENCIES])(NYA_BuildRule* rule);
     void (*post_build_hooks[NYA_BUILD_MAX_DEPENDENCIES])(NYA_BuildRule* rule);
+
+    /**
+     * Which build this rule last completed in. Bookkeeping; do not set it.
+     *
+     * A dependency graph is a graph, not a tree: shaders are needed by both the asset index and the
+     * asset bundle, and a release target depends on both. Without this the rule runs once per path
+     * that reaches it, which is why `./build build release` used to compile shaders twice.
+     * */
+    u64 last_built_epoch;
 };
 
 /**

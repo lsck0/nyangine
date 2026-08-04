@@ -6,5 +6,6 @@
 #include "nyangine/core/core_input.c"
 #include "nyangine/core/core_job.c"
 #include "nyangine/core/core_keys.c"
+#include "nyangine/core/core_settings.c"
 #include "nyangine/core/core_sim.c"
 #include "nyangine/core/core_window.c"

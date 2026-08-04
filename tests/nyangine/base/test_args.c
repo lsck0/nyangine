@@ -14,7 +14,7 @@ s32 main(void) {
   {
     NYA_ArgParameter flag = {
       .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type  = NYA_TYPE_BOOL,
+      .value.type  = NYA_TYPE_B8,
       .name        = "verbose",
       .description = "Enable verbose output",
     };
@@ -33,7 +33,7 @@ s32 main(void) {
     NYA_ArgCommand* cmd    = nullptr;
     NYA_EXPECT(nya_args_parse(&parser, 2, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
-    nya_assert(flag.value.as_bool == true);
+    nya_assert(flag.value.as_b8 == true);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ s32 main(void) {
   {
     NYA_ArgParameter flag = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type = NYA_TYPE_BOOL,
+      .value.type = NYA_TYPE_B8,
       .name       = "debug",
     };
 
@@ -60,13 +60,13 @@ s32 main(void) {
     NYA_ArgCommand* cmd    = nullptr;
     NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
-    nya_assert(flag.value.as_bool == true);
+    nya_assert(flag.value.as_b8 == true);
 
     const char* argv2[] = { "app", "--debug", "false" };
     cmd                 = nullptr;
     NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv2, &cmd));
     nya_assert(cmd != nullptr);
-    nya_assert(flag.value.as_bool == false);
+    nya_assert(flag.value.as_b8 == false);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ s32 main(void) {
   {
     NYA_ArgParameter count = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type = NYA_TYPE_INTEGER,
+      .value.type = NYA_TYPE_S64,
       .name       = "count",
     };
 
@@ -93,7 +93,7 @@ s32 main(void) {
     NYA_ArgCommand* cmd    = nullptr;
     NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
-    nya_assert(count.value.as_integer == 42);
+    nya_assert(count.value.as_s64 == 42);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ s32 main(void) {
   {
     NYA_ArgParameter rate = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type = NYA_TYPE_FLOAT,
+      .value.type = NYA_TYPE_F64,
       .name       = "rate",
     };
 
@@ -120,7 +120,7 @@ s32 main(void) {
     NYA_ArgCommand* cmd    = nullptr;
     NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
-    nya_assert(rate.value.as_float > 3.14 && rate.value.as_float < 3.15);
+    nya_assert(rate.value.as_f64 > 3.14 && rate.value.as_f64 < 3.15);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -156,17 +156,17 @@ s32 main(void) {
   {
     NYA_ArgParameter flag1 = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type = NYA_TYPE_BOOL,
+      .value.type = NYA_TYPE_B8,
       .name       = "flag1",
     };
     NYA_ArgParameter flag2 = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type = NYA_TYPE_BOOL,
+      .value.type = NYA_TYPE_B8,
       .name       = "flag2",
     };
     NYA_ArgParameter flag3 = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type = NYA_TYPE_BOOL,
+      .value.type = NYA_TYPE_B8,
       .name       = "flag3",
     };
 
@@ -184,9 +184,9 @@ s32 main(void) {
     NYA_ArgCommand* cmd    = nullptr;
     NYA_EXPECT(nya_args_parse(&parser, 4, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
-    nya_assert(flag1.value.as_bool == true);
-    nya_assert(flag2.value.as_bool == true);
-    nya_assert(flag3.value.as_bool == true);
+    nya_assert(flag1.value.as_b8 == true);
+    nya_assert(flag2.value.as_b8 == true);
+    nya_assert(flag3.value.as_b8 == true);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -195,7 +195,7 @@ s32 main(void) {
   {
     NYA_ArgParameter verbose = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type = NYA_TYPE_BOOL,
+      .value.type = NYA_TYPE_B8,
       .name       = "verbose",
     };
 
@@ -220,7 +220,7 @@ s32 main(void) {
     NYA_EXPECT(nya_args_parse(&parser, 3, (NYA_CString*)argv, &cmd));
     nya_assert(cmd != nullptr);
     nya_assert(cmd == &build);
-    nya_assert(verbose.value.as_bool == true);
+    nya_assert(verbose.value.as_b8 == true);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -322,12 +322,12 @@ s32 main(void) {
   {
     NYA_ArgParameter help1 = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type = NYA_TYPE_BOOL,
+      .value.type = NYA_TYPE_B8,
       .name       = "help",
     };
     NYA_ArgParameter help2 = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,
-      .value.type = NYA_TYPE_BOOL,
+      .value.type = NYA_TYPE_B8,
       .name       = "help",
     };
 

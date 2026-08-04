@@ -18,19 +18,19 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_assert - failing assertion panics
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_assert_panic(nya_assert(0));
-  nya_assert_panic(nya_assert(false));
-  nya_assert_panic(nya_assert(1 == 2));
-  nya_assert_panic(nya_assert(0, "Fail message"));
-  nya_assert_panic(nya_assert(0, "Fail with %d", 42));
+  nya_expect_crash(nya_assert(0));
+  nya_expect_crash(nya_assert(false));
+  nya_expect_crash(nya_assert(1 == 2));
+  nya_expect_crash(nya_assert(0, "Fail message"));
+  nya_expect_crash(nya_assert(0, "Fail with %d", 42));
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_assert_panic - catches panics
+  // TEST: nya_expect_crash - catches panics
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_assert_panic(nya_panic("Test panic"));
+  nya_expect_crash(nya_panic("Test panic"));
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_assert_panic - fails when no panic occurs
+  // TEST: nya_expect_crash - fails when no panic occurs
   // ─────────────────────────────────────────────────────────────────────────────
   // We can't test this directly without causing a test failure,
   // but we verify the mechanism works with a known panic above.
@@ -38,9 +38,9 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_todo, nya_unimplemented, nya_unreachable all panic
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_assert_panic(nya_todo());
-  nya_assert_panic(nya_unimplemented());
-  nya_assert_panic(nya_unreachable());
+  nya_expect_crash(nya_todo());
+  nya_expect_crash(nya_unimplemented());
+  nya_expect_crash(nya_unreachable());
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_unused - compiles without warning

@@ -26,6 +26,10 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
 
     nya_integrity_assert();
 
+    // As early as possible: the baseline is only meaningful if nothing has had a chance to hook the
+    // process yet, and everything below this line is a chance.
+    nya_integrity_baseline_capture();
+
     nya_signals_init();
     nya_signals_set_handler(NYA_SIGNAL_HANGUP, _nya_app_handle_shutdown_signal);
     nya_signals_set_handler(NYA_SIGNAL_INTERRUPT, _nya_app_handle_shutdown_signal);
@@ -59,6 +63,10 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     if (result.kind != NYA_ERROR_NONE) goto unwind;                                                                                                  \
     brought_up++;
 
+    // First, and cannot fail: it owns no memory, and everything else may want to read a setting
+    // while coming up.
+    nya_system_settings_init();
+    brought_up++;
     _NYA_APP_BRING_UP(nya_system_job_init());
     nya_system_callback_init();
     brought_up++;
@@ -81,18 +89,19 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     return NYA_OK;
 
 unwind:
-    nya_warn("Subsystem initialization failed after %u of 9 systems; unwinding. %s", brought_up, (NYA_ConstCString)result.message);
+    nya_warn("Subsystem initialization failed after %u of 10 systems; unwinding. %s", brought_up, (NYA_ConstCString)result.message);
 
     // Reverse order, skipping everything that never came up.
-    if (brought_up > 8) nya_system_sim_deinit();
-    if (brought_up > 7) nya_system_entity_deinit();
-    if (brought_up > 6) nya_system_asset_deinit();
-    if (brought_up > 5) nya_system_input_deinit();
-    if (brought_up > 4) nya_system_events_deinit();
-    if (brought_up > 3) nya_system_window_deinit();
-    if (brought_up > 2) nya_system_renderer_deinit();
-    if (brought_up > 1) nya_system_callback_deinit();
-    if (brought_up > 0) nya_system_job_deinit();
+    if (brought_up > 9) nya_system_sim_deinit();
+    if (brought_up > 8) nya_system_entity_deinit();
+    if (brought_up > 7) nya_system_asset_deinit();
+    if (brought_up > 6) nya_system_input_deinit();
+    if (brought_up > 5) nya_system_events_deinit();
+    if (brought_up > 4) nya_system_window_deinit();
+    if (brought_up > 3) nya_system_renderer_deinit();
+    if (brought_up > 2) nya_system_callback_deinit();
+    if (brought_up > 1) nya_system_job_deinit();
+    if (brought_up > 0) nya_system_settings_deinit();
 
     nya_arena_destroy(app->frame_allocator);
     app->initialized = false;
@@ -126,6 +135,7 @@ void nya_app_deinit(void) {
     nya_system_renderer_deinit();
     nya_system_job_deinit();
     nya_system_callback_deinit();
+    nya_system_settings_deinit();
 
     nya_info("Subsystems deinitialized successfully.");
 
@@ -217,6 +227,10 @@ void nya_app_run(void) {
                         }
                     }
                 }
+
+                // Entities update after the layers, so a layer that spawns something gets it
+                // simulated on the same tick rather than a frame late.
+                nya_system_entity_update((f32)nya_time_ns_to_s(app->options.time_step_ns));
 
                 // The barrier. Every update for this tick has run, so nothing is mid iteration and
                 // the queued mutations can be applied without changing what anyone is walking.

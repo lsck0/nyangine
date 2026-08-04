@@ -31,6 +31,13 @@ dist/
 /*.linux-x86_64
 /*.windows-x86_64.exe
 
+# vendor build trees
+#
+# Every vendor configures into vendor/<name>/build-<target>/ and nothing in there is ours. They also
+# must never be committed: a cmake cache records absolute paths to the compiler and make program, so
+# a tree built on one machine breaks the build on any other.
+vendor/*/build-*/
+
 # debug data
 perf*
 

@@ -10,6 +10,8 @@
 #include "nyangine/nyangine.h"
 
 #include "build/hooks/hooks.h"
+#include "build/toolchain.h"
+#include "build/vendor/vendor_common.h"
 
 #define SQLITE_BUILD_LINUX_X86_64   "./vendor/sqlite/build-linux-x86_64/"
 #define SQLITE_BUILD_WINDOWS_X86_64 "./vendor/sqlite/build-windows-x86_64/"

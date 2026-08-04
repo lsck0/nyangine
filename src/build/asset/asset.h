@@ -12,6 +12,11 @@
 
 #include "nyangine/nyangine.h"
 
+// For SHADERCROSS_BINARY: the shader rules invoke the tool the vendor build produces, so the path
+// belongs to whoever builds it. Spelling it out here is how it silently went stale when the vendor
+// build directories were renamed.
+#include "build/vendor/vendor_sdl_shadercross.h"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FUNCTIONS AND MACROS
@@ -33,6 +38,6 @@ void nya_asset_index(void);
 
 /**
  * Regenerates assets/assets.c, embedding every asset as a byte blob for the release build, where
- * NYA_ASSET_BACKEND_BLOB reads assets out of the executable instead of off disk.
+ * NYA_ASSET_PREFER_BLOB reads assets out of the executable, falling back to disk for anything missing.
  * */
 void nya_asset_bundle(void);

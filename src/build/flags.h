@@ -43,18 +43,24 @@
 #define INCLUDE_PATHS "-I./", "-I./src/"
 #define LINKER_FLAGS  "-lm", "-pthread"
 
-// Every mode names its NYA_EXECUTION_MODE explicitly. The macro defaults to 0, so leaving it off
-// does not mean "unset", it means "debug" — which is how release binaries ended up compiling the
-// hot reload entry point and skipping their own integrity check.
-#define FLAGS_DEBUG     "-DNYA_EXECUTION_MODE=0", "-DDEBUG=true", "-O0", "-DNYA_ASSET_BACKEND_FS"
+/*
+ * Every mode names its NYA_EXECUTION_MODE explicitly. The macro defaults to 0, so leaving it off
+ * does not mean "unset", it means "debug" — which is how release binaries ended up compiling the
+ * hot reload entry point and skipping their own integrity check.
+ *
+ * Assets are not a backend choice any more. The filesystem is always available; NYA_ASSET_PREFER_BLOB adds
+ * the baked copy in front of it and NYA_ASSET_HOT_RELOAD watches whatever still comes off disk. A
+ * mode naming neither reads assets from disk and does not watch them, which is what a test wants.
+ */
+#define FLAGS_DEBUG     "-DNYA_EXECUTION_MODE=0", "-DDEBUG=true", "-O0", "-DNYA_ASSET_HOT_RELOAD"
 
 // Developer: hot reload like debug, but optimized and without sanitizers. For actually playing the
 // game while iterating on it, where debug is too slow to feel right.
-#define FLAGS_DEVELOPER "-DNYA_EXECUTION_MODE=1", "-O2", "-DNYA_ASSET_BACKEND_FS"
+#define FLAGS_DEVELOPER "-DNYA_EXECUTION_MODE=1", "-O2", "-DNYA_ASSET_HOT_RELOAD"
 
 // Test: assertions live, nya_expect_crash compiled in so a test can survive a deliberate panic, and
 // headless so it needs no GPU. Statically linked game code, no hot reload DLL to find.
-#define FLAGS_TEST      "-DNYA_EXECUTION_MODE=4", "-O0", "-DNYA_ASSET_BACKEND_FS", "-DNYA_TESTING", "-DNYA_HEADLESS"
+#define FLAGS_TEST      "-DNYA_EXECUTION_MODE=4", "-O0", "-DNYA_TESTING", "-DNYA_HEADLESS"
 
 // The build system is a host tool. It needs base, math, platform and serde and nothing that opens
 // a window, so core and renderer are compiled out rather than linked and left unused. Without this
@@ -74,7 +80,7 @@
 // and the macro defaults to 0, so without this a release binary compiles main.c's *hot reload* entry
 // point and goes looking for gnyame.debug.so, and nya_integrity_assert early returns because it
 // believes it is a debug build. Both were true until this was added.
-#define FLAGS_RELEASE  "-O3", "-flto", "-fPIE", "-fuse-ld=lld", "-g1", "-DNYA_EXECUTION_MODE=2", "-DNYA_ASSET_BACKEND_BLOB", "-D_FORTIFY_SOURCE=2", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
+#define FLAGS_RELEASE  "-O3", "-flto", "-fPIE", "-fuse-ld=lld", "-g1", "-DNYA_EXECUTION_MODE=2", "-DNYA_ASSET_PREFER_BLOB", "-D_FORTIFY_SOURCE=2", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
 
 // Only what the target itself needs. Library paths and -l flags belong to the vendors.
 // Steam is release plus the Steam runtime. Same deploy shape, different execution mode, so

@@ -7,6 +7,10 @@
 
 #include "nyangine/nyangine.h"
 
+#include "build/hooks/hooks.h"
+#include "build/toolchain.h"
+#include "build/vendor/vendor_common.h"
+
 // clang-format off
 
 #define BOX3D_SOURCE               "./vendor/box3d"
@@ -41,6 +45,8 @@ NYA_VendorRule vendor_box3d_linux_x86_64 = {
                 .program   = "cmake",
                 .arguments = { "-S", BOX3D_SOURCE, "-B", BOX3D_BUILD_LINUX_X86_64, BOX3D_CMAKE_COMMON, },
             },
+
+            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_box3d_linux_x86_64_compile",
@@ -71,6 +77,8 @@ NYA_VendorRule vendor_box3d_windows_x86_64 = {
                 .program   = "cmake",
                 .arguments = { "-S", BOX3D_SOURCE, "-B", BOX3D_BUILD_WINDOWS_X86_64, BOX3D_CMAKE_COMMON, NYA_CMAKE_WINDOWS_TOOLCHAIN, },
             },
+
+            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_box3d_windows_x86_64_compile",

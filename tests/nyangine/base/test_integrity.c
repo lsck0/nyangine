@@ -56,7 +56,7 @@ s32 main(void) {
   {
     NYA_String   binary = nya_string_create_on_stack(arena);
     NYA_Error   r      = nya_file_read("/proc/self/exe", &binary);
-    nya_assert(r.error == NYA_ERROR_NONE);
+    nya_assert(r.kind == NYA_ERROR_NONE);
     nya_assert(binary.length > 0);
 
     b8 found = false;

@@ -11,7 +11,6 @@ static b8 values_equal(const NYA_Value* a, const NYA_Value* b) {
 
   switch (a->type) {
     case NYA_TYPE_NULL:    return true;
-    case NYA_TYPE_BOOL:    return a->as_bool == b->as_bool;
     case NYA_TYPE_B8:      return a->as_b8 == b->as_b8;
     case NYA_TYPE_B16:     return a->as_b16 == b->as_b16;
     case NYA_TYPE_B32:     return a->as_b32 == b->as_b32;
@@ -24,11 +23,9 @@ static b8 values_equal(const NYA_Value* a, const NYA_Value* b) {
     case NYA_TYPE_S16:     return a->as_s16 == b->as_s16;
     case NYA_TYPE_S32:     return a->as_s32 == b->as_s32;
     case NYA_TYPE_S64:     return a->as_s64 == b->as_s64;
-    case NYA_TYPE_INTEGER: return a->as_integer == b->as_integer;
     case NYA_TYPE_F16:     return a->as_f16 == b->as_f16;
     case NYA_TYPE_F32:     return a->as_f32 == b->as_f32;
     case NYA_TYPE_F64:     return a->as_f64 == b->as_f64;
-    case NYA_TYPE_FLOAT:   return a->as_float == b->as_float;
     case NYA_TYPE_CHAR:    return a->as_char == b->as_char;
     case NYA_TYPE_STRING:  return nya_string_equals(a->as_string, b->as_string);
     case NYA_TYPE_OBJECT:  return false; // TODO: Deep compare
@@ -66,27 +63,27 @@ s32 main(void) {
     nya_object_set(obj, "u32_val", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 4294967295 });
     nya_object_set(obj, "s32_val", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = -2147483648 });
     nya_object_set(obj, "f64_val", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 3.14159 });
-    nya_object_set(obj, "bool_val", (NYA_Value){ .type = NYA_TYPE_BOOL, .as_bool = true });
+    nya_object_set(obj, "bool_val", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
     nya_object_set(obj, "string_val", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "hello_world" });
 
     // Test compact serialization
-    NYA_String compact = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_NONE);
+    NYA_String compact = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
     nya_assert(compact.length > 0);
     printf("  Compact:\n    " NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(&compact));
 
     // Test pretty serialization
-    NYA_String pretty = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String pretty = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     nya_assert(pretty.length > 0);
     printf("  Pretty:\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(&pretty));
 
     // Test round-trip deserialization from compact
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, compact.items, compact.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, compact.items, compact.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
     nya_assert(objects_equal(obj, restored));
 
     // Test round-trip deserialization from pretty
     NYA_Object* restored_pretty = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, pretty.items, pretty.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored_pretty));
+    NYA_EXPECT(nya_deserialize(arena, pretty.items, pretty.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored_pretty));
     nya_assert(objects_equal(obj, restored_pretty));
     printf("  PASSED\n");
   }
@@ -107,12 +104,12 @@ s32 main(void) {
     nya_object_set(outer, "position", inner_val);
     nya_object_set(outer, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "player" });
 
-    NYA_String serialized = *nya_object_serialize(arena, outer, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String serialized = *nya_serialize(arena, outer, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     nya_assert(serialized.length > 0);
     printf("  Pretty:\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(&serialized));
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* restored_pos = nya_object_get(restored, "position");
     nya_assert(restored_pos != nullptr);
@@ -132,7 +129,7 @@ s32 main(void) {
     NYA_Object* obj = nya_object_create(arena);
 
     // Create array of u32
-    NYA_ValueArray arr = nya_array_create_on_stack(arena, NYA_Value);
+    NYA_ArrayᐸNYA_Valueᐳ arr = nya_array_create_on_stack(arena, NYA_Value);
     NYA_Value      v1  = { .type = NYA_TYPE_U32, .as_u32 = 1 };
     NYA_Value      v2  = { .type = NYA_TYPE_U32, .as_u32 = 2 };
     NYA_Value      v3  = { .type = NYA_TYPE_U32, .as_u32 = 3 };
@@ -142,11 +139,11 @@ s32 main(void) {
 
     nya_object_set(obj, "numbers", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = arr });
 
-    NYA_String serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     nya_assert(serialized.length > 0);
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* restored_arr = nya_object_get(restored, "numbers");
     nya_assert(restored_arr != nullptr);
@@ -176,7 +173,7 @@ s32 main(void) {
     nya_object_set(user2, "age", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 30 });
 
     // Create array of objects
-    NYA_ValueArray users = nya_array_create_on_stack(arena, NYA_Value);
+    NYA_ArrayᐸNYA_Valueᐳ users = nya_array_create_on_stack(arena, NYA_Value);
     NYA_Value      u1    = { .type = NYA_TYPE_OBJECT, .as_object = *user1 };
     NYA_Value      u2    = { .type = NYA_TYPE_OBJECT, .as_object = *user2 };
     nya_array_push_back(&users, u1);
@@ -184,14 +181,14 @@ s32 main(void) {
 
     nya_object_set(obj, "users", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = users });
 
-    NYA_String serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     nya_assert(serialized.length > 0);
 
     // Verify objects in array don't have "object" keyword
     nya_assert(nya_string_contains(&serialized, "object[]") == true);
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* restored_users = nya_object_get(restored, "users");
     nya_assert(restored_users != nullptr);
@@ -213,12 +210,12 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Object*    obj       = nya_object_create(arena);
-    NYA_ValueArray empty_arr = nya_array_create_on_stack(arena, NYA_Value);
+    NYA_ArrayᐸNYA_Valueᐳ empty_arr = nya_array_create_on_stack(arena, NYA_Value);
     nya_object_set(obj, "empty", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = empty_arr });
 
-    NYA_String  serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String  serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* arr = nya_object_get(restored, "empty");
     nya_assert(arr != nullptr);
@@ -232,7 +229,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     const char* text_with_comments = "/* This is a comment */\n"
-                                     "1 12345\n"
+                                     "nya 2 12345\n"
                                      "{\n"
                                      "key: u32 42;\n"
                                      "/* Another comment */\n"
@@ -240,7 +237,7 @@ s32 main(void) {
                                      "}\n";
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, (u8*)text_with_comments, strlen(text_with_comments), NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION, &restored));
+    NYA_EXPECT(nya_deserialize(arena, (u8*)text_with_comments, strlen(text_with_comments), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &restored));
 
     NYA_Value* key = nya_object_get(restored, "key");
     nya_assert(key != nullptr);
@@ -258,14 +255,14 @@ s32 main(void) {
   // TEST: Hex and binary numbers
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    const char* text_with_hex = "1 12345\n"
+    const char* text_with_hex = "nya 2 12345\n"
                                 "{\n"
                                 "hex_val: u32 0xFF;\n"
                                 "bin_val: u32 0b1010;\n"
                                 "}\n";
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, (u8*)text_with_hex, strlen(text_with_hex), NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION, &restored));
+    NYA_EXPECT(nya_deserialize(arena, (u8*)text_with_hex, strlen(text_with_hex), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &restored));
 
     NYA_Value* hex = nya_object_get(restored, "hex_val");
     nya_assert(hex != nullptr);
@@ -283,15 +280,15 @@ s32 main(void) {
   // TEST: Trailing comma in arrays
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    const char* text_with_trailing_comma = "1 12345\n"
+    const char* text_with_trailing_comma = "nya 2 12345\n"
                                            "{ arr: u32[] [1,2,3,]; }\n";
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(
+    NYA_EXPECT(nya_deserialize(
         arena,
         (u8*)text_with_trailing_comma,
         strlen(text_with_trailing_comma),
-        NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION
+        NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM
     , &restored));
 
     NYA_Value* arr = nya_object_get(restored, "arr");
@@ -313,7 +310,7 @@ s32 main(void) {
     nya_object_set(graphics, "resolution", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "1920x1080" });
 
     // Shader list
-    NYA_ValueArray shaders = nya_array_create_on_stack(arena, NYA_Value);
+    NYA_ArrayᐸNYA_Valueᐳ shaders = nya_array_create_on_stack(arena, NYA_Value);
     NYA_Value      s1      = { .type = NYA_TYPE_STRING, .as_string = "vertex" };
     NYA_Value      s2      = { .type = NYA_TYPE_STRING, .as_string = "fragment" };
     nya_array_push_back(&shaders, s1);
@@ -323,7 +320,7 @@ s32 main(void) {
     nya_object_set(config, "graphics", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *graphics });
 
     // Players list
-    NYA_ValueArray players = nya_array_create_on_stack(arena, NYA_Value);
+    NYA_ArrayᐸNYA_Valueᐳ players = nya_array_create_on_stack(arena, NYA_Value);
     for (u32 i = 0; i < 3; i++) {
       NYA_Object* player = nya_object_create(arena);
       char        name_buf[32];
@@ -337,12 +334,12 @@ s32 main(void) {
     }
     nya_object_set(config, "players", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = players });
 
-    NYA_String serialized = *nya_object_serialize(arena, config, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String serialized = *nya_serialize(arena, config, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     nya_assert(serialized.length > 0);
     printf("  Pretty:\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(&serialized));
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     // Verify graphics
     NYA_Value* gfx = nya_object_get(restored, "graphics");
@@ -363,9 +360,9 @@ s32 main(void) {
   // TEST: Version validation
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    const char* wrong_version = "2 12345\n{ key: u32 42; }\n";
+    const char* wrong_version = "nya 99 12345\n{ key: u32 42; }\n";
     NYA_Object* restored = nullptr;
-    nya_assert(nya_object_deserialize(arena, (u8*)wrong_version, strlen(wrong_version), NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION, &restored).error != NYA_ERROR_NONE);
+    nya_assert(nya_deserialize(arena, (u8*)wrong_version, strlen(wrong_version), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &restored).kind != NYA_ERROR_NONE);
     printf("  PASSED\n");
   }
 
@@ -440,7 +437,7 @@ s32 main(void) {
     NYA_Object* obj = nya_object_create(arena);
     nya_object_set(obj, "val", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 42 });
 
-    NYA_String minified = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_MINIFY);
+    NYA_String minified = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_OBFUSCATE);
     nya_assert(minified.length > 0);
     printf("  Obfuscated: ");
     for (u64 i = 0; i < minified.length; i++) { printf("%02x", minified.items[i]); }
@@ -451,7 +448,7 @@ s32 main(void) {
 
     // Should deserialize correctly
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, minified.items, minified.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, minified.items, minified.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
     NYA_Value* v = nya_object_get(restored, "val");
     nya_assert(v != nullptr);
     nya_assert(v->type == NYA_TYPE_U32);
@@ -494,26 +491,26 @@ s32 main(void) {
   printf("TEST: CRC validation\n");
   {
     // tampered CRC should fail
-    const char* tampered = "1 99999\n{ key: u32 42; }\n";
+    const char* tampered = "nya 2 99999\n{ key: u32 42; }\n";
     NYA_Object* restored = nullptr;
-    nya_assert(nya_object_deserialize(arena, (u8*)tampered, strlen(tampered), NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored).error != NYA_ERROR_NONE);
+    nya_assert(nya_deserialize(arena, (u8*)tampered, strlen(tampered), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored).kind != NYA_ERROR_NONE);
 
     // same data with NO_CRC_VALIDATION should succeed
     NYA_Object* restored_no_crc = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, (u8*)tampered, strlen(tampered), NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION, &restored_no_crc));
+    NYA_EXPECT(nya_deserialize(arena, (u8*)tampered, strlen(tampered), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &restored_no_crc));
     nya_assert(nya_object_get(restored_no_crc, "key")->as_u32 == 42);
 
     // round-trip CRC should match
     NYA_Object* obj = nya_object_create(arena);
     nya_object_set(obj, "x", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 123 });
     nya_object_set(obj, "y", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "hello" });
-    NYA_String  serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String  serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     NYA_Object* round_trip = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &round_trip));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &round_trip));
     nya_assert(nya_object_get(round_trip, "x")->as_u32 == 123);
 
     // tamper with serialized data: change a value, CRC should catch it
-    NYA_String tampered_data = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String tampered_data = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     for (u64 i = 0; i < tampered_data.length - 1; i++) {
       if (tampered_data.items[i] == '1' && tampered_data.items[i + 1] == '2') {
         tampered_data.items[i]     = '9';
@@ -522,11 +519,11 @@ s32 main(void) {
       }
     }
     NYA_Object* tampered_obj = nullptr;
-    nya_assert(nya_object_deserialize(arena, tampered_data.items, tampered_data.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &tampered_obj).error != NYA_ERROR_NONE);
+    nya_assert(nya_deserialize(arena, tampered_data.items, tampered_data.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &tampered_obj).kind != NYA_ERROR_NONE);
 
     // same tampered data with NO_CRC_VALIDATION should still parse
     NYA_Object* tampered_no_crc = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, tampered_data.items, tampered_data.length, NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION, &tampered_no_crc));
+    NYA_EXPECT(nya_deserialize(arena, tampered_data.items, tampered_data.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &tampered_no_crc));
     nya_assert(nya_object_get(tampered_no_crc, "x")->as_u32 == 993);
 
     printf("  PASSED\n");
@@ -538,16 +535,16 @@ s32 main(void) {
   printf("TEST: Empty object\n");
   {
     NYA_Object* obj     = nya_object_create(arena);
-    NYA_String  compact = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_NONE);
+    NYA_String  compact = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
     nya_assert(compact.length > 0);
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, compact.items, compact.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, compact.items, compact.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
     nya_assert(restored->length == 0);
 
-    NYA_String  pretty          = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String  pretty          = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     NYA_Object* restored_pretty = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, pretty.items, pretty.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored_pretty));
+    NYA_EXPECT(nya_deserialize(arena, pretty.items, pretty.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored_pretty));
     nya_assert(restored_pretty->length == 0);
     printf("  PASSED\n");
   }
@@ -566,9 +563,9 @@ s32 main(void) {
     nya_object_set(obj, "s32_max", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = INT32_MAX });
     nya_object_set(obj, "u32_max", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = UINT32_MAX });
 
-    NYA_String  serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String  serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &restored));
 
     nya_assert(nya_object_get(restored, "u8_max")->as_u8 == 255);
     nya_assert(nya_object_get(restored, "u8_zero")->as_u8 == 0);
@@ -588,15 +585,15 @@ s32 main(void) {
     NYA_Object* obj = nya_object_create(arena);
     nya_object_set(obj, "a", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 42 });
     nya_object_set(obj, "b", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "test" });
-    nya_object_set(obj, "c", (NYA_Value){ .type = NYA_TYPE_BOOL, .as_bool = false });
+    nya_object_set(obj, "c", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = false });
 
-    NYA_String compact = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_NONE);
-    NYA_String pretty  = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String compact = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
+    NYA_String pretty  = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
 
     NYA_Object* from_compact = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, compact.items, compact.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &from_compact));
+    NYA_EXPECT(nya_deserialize(arena, compact.items, compact.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &from_compact));
     NYA_Object* from_pretty = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, pretty.items, pretty.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &from_pretty));
+    NYA_EXPECT(nya_deserialize(arena, pretty.items, pretty.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &from_pretty));
     nya_assert(from_compact != nullptr);
     nya_assert(from_pretty != nullptr);
     nya_assert(objects_equal(from_compact, from_pretty));
@@ -609,13 +606,13 @@ s32 main(void) {
   printf("TEST: Single-element array\n");
   {
     NYA_Object*    obj = nya_object_create(arena);
-    NYA_ValueArray arr = nya_array_create_on_stack(arena, NYA_Value);
+    NYA_ArrayᐸNYA_Valueᐳ arr = nya_array_create_on_stack(arena, NYA_Value);
     nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "only" }));
     nya_object_set(obj, "items", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = arr });
 
-    NYA_String  serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String  serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* restored_arr = nya_object_get(restored, "items");
     nya_assert(restored_arr != nullptr);
@@ -643,9 +640,9 @@ s32 main(void) {
     NYA_Object* root = nya_object_create(arena);
     nya_object_set(root, "outer", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *level1 });
 
-    NYA_String  serialized = *nya_object_serialize(arena, root, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String  serialized = *nya_serialize(arena, root, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* o = nya_object_get(restored, "outer");
     nya_assert(o != nullptr && o->type == NYA_TYPE_OBJECT);
@@ -666,24 +663,24 @@ s32 main(void) {
     NYA_Object* obj = nya_object_create(arena);
     nya_object_set(obj, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "minify_test" });
     nya_object_set(obj, "val", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = -42 });
-    nya_object_set(obj, "flag", (NYA_Value){ .type = NYA_TYPE_BOOL, .as_bool = true });
+    nya_object_set(obj, "flag", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
 
-    NYA_ValueArray arr = nya_array_create_on_stack(arena, NYA_Value);
+    NYA_ArrayᐸNYA_Valueᐳ arr = nya_array_create_on_stack(arena, NYA_Value);
     nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 10 }));
     nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 20 }));
     nya_object_set(obj, "nums", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = arr });
 
-    NYA_String minified = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_MINIFY);
+    NYA_String minified = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_OBFUSCATE);
     nya_assert(minified.length > 0);
     nya_assert(minified.items[0] == 0xA7);
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, minified.items, minified.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, minified.items, minified.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     nya_assert(nya_object_get(restored, "name") != nullptr);
     nya_assert(nya_string_equals(nya_object_get(restored, "name")->as_string, "minify_test"));
     nya_assert(nya_object_get(restored, "val")->as_s32 == -42);
-    nya_assert(nya_object_get(restored, "flag")->as_bool == true);
+    nya_assert(nya_object_get(restored, "flag")->as_b8 == true);
 
     NYA_Value* restored_arr = nya_object_get(restored, "nums");
     nya_assert(restored_arr != nullptr);
@@ -699,15 +696,16 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Malformed input\n");
   {
-    // empty input
+    // Empty input is now a reported error rather than a success that yields nothing, so these
+    // assert the error instead of NYA_EXPECTing their way past it.
     {
       NYA_Object* _obj = (NYA_Object*)1;
-      NYA_EXPECT(nya_object_deserialize(arena, nullptr, 0, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &_obj));
+      nya_assert(nya_deserialize(arena, nullptr, 0, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &_obj).kind != NYA_ERROR_NONE);
       nya_assert(_obj == nullptr);
     }
     {
       NYA_Object* _obj = (NYA_Object*)1;
-      NYA_EXPECT(nya_object_deserialize(arena, (u8*)"", 0, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &_obj));
+      nya_assert(nya_deserialize(arena, (u8*)"", 0, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &_obj).kind != NYA_ERROR_NONE);
       nya_assert(_obj == nullptr);
     }
 
@@ -715,14 +713,14 @@ s32 main(void) {
     const char* ws = "   \n\n  ";
     {
       NYA_Object* _obj = nullptr;
-      nya_assert(nya_object_deserialize(arena, (u8*)ws, strlen(ws), NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION, &_obj).error != NYA_ERROR_NONE);
+      nya_assert(nya_deserialize(arena, (u8*)ws, strlen(ws), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &_obj).kind != NYA_ERROR_NONE);
     }
 
     // missing opening brace
-    const char* no_brace = "1 12345\nkey: u32 42;\n";
+    const char* no_brace = "nya 2 12345\nkey: u32 42;\n";
     {
       NYA_Object* _obj = nullptr;
-      nya_assert(nya_object_deserialize(arena, (u8*)no_brace, strlen(no_brace), NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION, &_obj).error != NYA_ERROR_NONE);
+      nya_assert(nya_deserialize(arena, (u8*)no_brace, strlen(no_brace), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &_obj).kind != NYA_ERROR_NONE);
     }
 
     printf("  PASSED\n");
@@ -743,9 +741,9 @@ s32 main(void) {
     }
     nya_assert(obj->length == 64);
 
-    NYA_String  serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_NONE);
+    NYA_String  serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
     nya_assert(restored->length == 64);
 
     for (u32 i = 0; i < 64; i++) {
@@ -766,9 +764,9 @@ s32 main(void) {
     NYA_Object* obj = nya_object_create(arena);
     nya_object_set(obj, "letter", (NYA_Value){ .type = NYA_TYPE_CHAR, .as_char = 'Z' });
 
-    NYA_String  serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_NONE);
+    NYA_String  serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* ch = nya_object_get(restored, "letter");
     nya_assert(ch != nullptr);
@@ -783,23 +781,23 @@ s32 main(void) {
   printf("TEST: Array of booleans\n");
   {
     NYA_Object*    obj = nya_object_create(arena);
-    NYA_ValueArray arr = nya_array_create_on_stack(arena, NYA_Value);
-    nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_BOOL, .as_bool = true }));
-    nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_BOOL, .as_bool = false }));
-    nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_BOOL, .as_bool = true }));
+    NYA_ArrayᐸNYA_Valueᐳ arr = nya_array_create_on_stack(arena, NYA_Value);
+    nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true }));
+    nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = false }));
+    nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true }));
     nya_object_set(obj, "flags", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = arr });
 
-    NYA_String  serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_NONE);
+    NYA_String  serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* flags = nya_object_get(restored, "flags");
     nya_assert(flags != nullptr);
     nya_assert(flags->type == NYA_TYPE_ARRAY);
     nya_assert(flags->as_array.length == 3);
-    nya_assert(flags->as_array.items[0].as_bool == true);
-    nya_assert(flags->as_array.items[1].as_bool == false);
-    nya_assert(flags->as_array.items[2].as_bool == true);
+    nya_assert(flags->as_array.items[0].as_b8 == true);
+    nya_assert(flags->as_array.items[1].as_b8 == false);
+    nya_assert(flags->as_array.items[2].as_b8 == true);
     printf("  PASSED\n");
   }
 
@@ -809,15 +807,15 @@ s32 main(void) {
   printf("TEST: Array of strings\n");
   {
     NYA_Object*    obj = nya_object_create(arena);
-    NYA_ValueArray arr = nya_array_create_on_stack(arena, NYA_Value);
+    NYA_ArrayᐸNYA_Valueᐳ arr = nya_array_create_on_stack(arena, NYA_Value);
     nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "alpha" }));
     nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "beta" }));
     nya_array_push_back(&arr, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "gamma" }));
     nya_object_set(obj, "names", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = arr });
 
-    NYA_String  serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String  serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* names = nya_object_get(restored, "names");
     nya_assert(names != nullptr);
@@ -834,7 +832,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Nested object with array\n");
   {
-    NYA_ValueArray scores = nya_array_create_on_stack(arena, NYA_Value);
+    NYA_ArrayᐸNYA_Valueᐳ scores = nya_array_create_on_stack(arena, NYA_Value);
     nya_array_push_back(&scores, ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 100 }));
     nya_array_push_back(&scores, ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 200 }));
 
@@ -845,9 +843,9 @@ s32 main(void) {
     NYA_Object* root = nya_object_create(arena);
     nya_object_set(root, "player", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *inner });
 
-    NYA_String  serialized = *nya_object_serialize(arena, root, NYA_OBJECT_SERIALIZATION_FLAG_PRETTY);
+    NYA_String  serialized = *nya_serialize(arena, root, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     NYA_Value* player = nya_object_get(restored, "player");
     nya_assert(player != nullptr && player->type == NYA_TYPE_OBJECT);
@@ -871,9 +869,9 @@ s32 main(void) {
     nya_object_set(obj, "neg", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = -1.5 });
     nya_object_set(obj, "large", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 1e10 });
 
-    NYA_String  serialized = *nya_object_serialize(arena, obj, NYA_OBJECT_SERIALIZATION_FLAG_NONE);
+    NYA_String  serialized = *nya_serialize(arena, obj, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, serialized.items, serialized.length, NYA_OBJECT_SERIALIZATION_FLAG_NONE, &restored));
+    NYA_EXPECT(nya_deserialize(arena, serialized.items, serialized.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored));
 
     nya_assert(nya_object_get(restored, "zero")->as_f64 == 0.0);
     nya_assert(nya_object_get(restored, "neg")->as_f64 == -1.5);
@@ -885,7 +883,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: Negative integers from text\n");
   {
-    const char* text = "1 12345\n"
+    const char* text = "nya 2 12345\n"
                        "{\n"
                        "neg_s8: s8 -128;\n"
                        "neg_s32: s32 -1;\n"
@@ -893,7 +891,7 @@ s32 main(void) {
                        "}\n";
 
     NYA_Object* restored = nullptr;
-    NYA_EXPECT(nya_object_deserialize(arena, (u8*)text, strlen(text), NYA_OBJECT_SERIALIZATION_FLAG_NO_CRC_VALIDATION, &restored));
+    NYA_EXPECT(nya_deserialize(arena, (u8*)text, strlen(text), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &restored));
     nya_assert(nya_object_get(restored, "neg_s8")->as_s8 == INT8_MIN);
     nya_assert(nya_object_get(restored, "neg_s32")->as_s32 == -1);
     nya_assert(nya_object_get(restored, "neg_s64")->as_s64 == -9223372036854775807LL);
@@ -945,11 +943,11 @@ s32 main(void) {
     nya_object_set(obj, "b128_val", val_b128);
 
     // CRC should compute without panicking
-    u64 crc = _nya_object_crc(obj);
+    u64 crc = nya_serde_nya_checksum(obj);
     nya_assert(crc != 0);
 
     // Same object should produce same CRC
-    u64 crc2 = _nya_object_crc(obj);
+    u64 crc2 = nya_serde_nya_checksum(obj);
     nya_assert(crc == crc2);
 
     // Different value should produce different CRC
@@ -958,7 +956,7 @@ s32 main(void) {
     nya_object_set(obj2, "u128_val", val_u128_diff);
     nya_object_set(obj2, "s128_val", val_s128);
     nya_object_set(obj2, "b128_val", val_b128);
-    u64 crc3 = _nya_object_crc(obj2);
+    u64 crc3 = nya_serde_nya_checksum(obj2);
     nya_assert(crc3 != crc);
     printf("  PASSED: 128-bit CRC\n");
   }

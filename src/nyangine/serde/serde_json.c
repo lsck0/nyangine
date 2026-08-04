@@ -15,6 +15,9 @@ struct _NYA_SerdeJsonParser {
     NYA_Lexer* lexer;
     u64        index;
     u32        depth;
+
+    /** JSONC: skip comments and tolerate a trailing comma. Strict JSON leaves this false. */
+    b8 lenient;
 };
 
 NYA_INTERNAL void _nya_serde_json_write_object(NYA_String* out, const NYA_Object* object, u32 indent, b8 pretty);
@@ -29,6 +32,7 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_number(_NYA_SerdeJsonParser* parser
 NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser, OUT NYA_CString* out_text);
 
 NYA_INTERNAL NYA_Token* _nya_serde_json_peek(_NYA_SerdeJsonParser* parser);
+NYA_INTERNAL void       _nya_serde_json_skip_comments(_NYA_SerdeJsonParser* parser);
 NYA_INTERNAL b8         _nya_serde_json_accept_symbol(_NYA_SerdeJsonParser* parser, char symbol);
 NYA_INTERNAL b8         _nya_serde_json_token_equals(_NYA_SerdeJsonParser* parser, const NYA_Token* token, NYA_ConstCString text);
 NYA_INTERNAL u32        _nya_serde_json_encode_utf8(u32 codepoint, OUT char* out);
@@ -50,6 +54,10 @@ NYA_String* nya_serde_json_serialize(NYA_Arena* arena, const NYA_Object* object,
 }
 
 NYA_Error nya_serde_json_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, OUT NYA_Object** out_object) {
+    return _nya_serde_json_deserialize_with(arena, data, size, flags, false, out_object);
+}
+
+NYA_Error _nya_serde_json_deserialize_with(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, b8 lenient, OUT NYA_Object** out_object) {
     nya_assert(arena != nullptr);
     nya_assert(out_object != nullptr);
 
@@ -62,7 +70,12 @@ NYA_Error nya_serde_json_deserialize(NYA_Arena* arena, const u8* data, u64 size,
     NYA_Lexer   lexer = nya_lexer_create(text);
     nya_lexer_run(&lexer);
 
-    _NYA_SerdeJsonParser parser = { .arena = arena, .lexer = &lexer, .index = 0, .depth = 0 };
+    // Destroyed on every path out, of which there are ten below, all of them early returns on a
+    // malformed document. Nothing in the parsed object points into the lexer: keys and string
+    // values are allocated from the caller's arena, not from the token stream.
+    defer nya_lexer_destroy(&lexer);
+
+    _NYA_SerdeJsonParser parser = { .arena = arena, .lexer = &lexer, .index = 0, .depth = 0, .lenient = lenient };
 
     NYA_Object* object = nullptr;
     NYA_TRY(_nya_serde_json_parse_object(&parser, &object));
@@ -310,7 +323,12 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_object(_NYA_SerdeJsonParser* parser
         NYA_TRY(_nya_serde_json_parse_value(parser, &value));
         nya_object_set(object, key, value);
 
-        if (_nya_serde_json_accept_symbol(parser, ',')) continue;
+        if (_nya_serde_json_accept_symbol(parser, ',')) {
+            // JSONC: a comma may be followed by the closing brace rather than another member. Only
+            // one, and only immediately — "a": 1,, still fails, on the second comma.
+            if (parser->lenient && _nya_serde_json_accept_symbol(parser, '}')) break;
+            continue;
+        }
         if (_nya_serde_json_accept_symbol(parser, '}')) break;
 
         NYA_Token* token = _nya_serde_json_peek(parser);
@@ -348,7 +366,10 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_array(_NYA_SerdeJsonParser* parser,
         NYA_TRY(_nya_serde_json_parse_value(parser, &element));
         nya_array_push_back(&elements, element);
 
-        if (_nya_serde_json_accept_symbol(parser, ',')) continue;
+        if (_nya_serde_json_accept_symbol(parser, ',')) {
+            if (parser->lenient && _nya_serde_json_accept_symbol(parser, ']')) break;
+            continue;
+        }
         if (_nya_serde_json_accept_symbol(parser, ']')) break;
 
         NYA_Token* token = _nya_serde_json_peek(parser);
@@ -602,10 +623,71 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser
  */
 
 NYA_INTERNAL NYA_Token* _nya_serde_json_peek(_NYA_SerdeJsonParser* parser) {
+    // Here rather than at each call site: every token the grammar looks at comes through this, so
+    // one skip covers keys, values, separators and the trailing content check alike.
+    if (parser->lenient) _nya_serde_json_skip_comments(parser);
+
     if (parser->index >= parser->lexer->tokens->length) return nullptr;
 
     NYA_Token* token = &parser->lexer->tokens->items[parser->index];
     return token->type == NYA_TOKEN_EOF ? nullptr : token;
+}
+
+/*
+ * Steps over line and block comments.
+ *
+ * Works on the token stream rather than the source text because the lexer has no comment token: it
+ * emits '/' and '*' as ordinary symbols, so a comment is recognised by two adjacent symbol tokens.
+ * Adjacency is what source_location is compared for — "a" / "b" divided across a line is two
+ * symbols that are not touching, and must not start a comment.
+ *
+ * The same shape as _nya_serde_nya_skip_trivia, which the nya format has had all along. They are not
+ * shared because the two parsers carry different parser types, and the twenty lines are cheaper than
+ * a common abstraction over both.
+ */
+NYA_INTERNAL void _nya_serde_json_skip_comments(_NYA_SerdeJsonParser* parser) {
+    while (parser->index + 1 < parser->lexer->tokens->length) {
+        NYA_Token* first  = &parser->lexer->tokens->items[parser->index];
+        NYA_Token* second = &parser->lexer->tokens->items[parser->index + 1];
+
+        if (first->type != NYA_TOKEN_SYMBOL || second->type != NYA_TOKEN_SYMBOL) return;
+        if (first->symbol != '/') return;
+        if (second->source_location != first->source_location + 1) return;
+
+        if (second->symbol == '*') {
+            parser->index += 2;
+
+            while (parser->index + 1 < parser->lexer->tokens->length) {
+                NYA_Token* star  = &parser->lexer->tokens->items[parser->index];
+                NYA_Token* slash = &parser->lexer->tokens->items[parser->index + 1];
+
+                if (star->type == NYA_TOKEN_SYMBOL && star->symbol == '*' && slash->type == NYA_TOKEN_SYMBOL && slash->symbol == '/' &&
+                    slash->source_location == star->source_location + 1) {
+                    parser->index += 2;
+                    break;
+                }
+
+                parser->index++;
+            }
+
+            continue;
+        }
+
+        if (second->symbol == '/') {
+            u32 line       = first->line_number;
+            parser->index += 2;
+
+            while (parser->index < parser->lexer->tokens->length) {
+                NYA_Token* token = &parser->lexer->tokens->items[parser->index];
+                if (token->type == NYA_TOKEN_EOF || token->line_number != line) break;
+                parser->index++;
+            }
+
+            continue;
+        }
+
+        return;
+    }
 }
 
 NYA_INTERNAL b8 _nya_serde_json_accept_symbol(_NYA_SerdeJsonParser* parser, char symbol) {

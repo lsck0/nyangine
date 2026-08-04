@@ -1,5 +1,7 @@
 #include "gnyame/gnyame.h"
 
+#include "assets/assets.h"
+
 NYA_WindowHandle GNY_WINDOW_MAIN = NYA_WINDOW_HANDLE_NONE;
 
 void gny_window_main_create(void) {
@@ -16,6 +18,13 @@ void gny_window_main_create(void) {
     //
     // If a floor is genuinely needed, clamp in NYA_EVENT_WINDOW_RESIZED rather than asking the
     // window manager to enforce it.
+
+    // Read, handed to SDL, released. Nothing stays resident: SDL keeps its own converted copy.
+    NYA_Error icon = nya_asset_set_window_icon(GNY_WINDOW_MAIN, NYA_ASSET_ICON_ICON_BMP);
+
+    // Not fatal. A Wayland compositor without xdg_toplevel_icon_v1 refuses this, and a default icon
+    // is a far better outcome than refusing to open the window.
+    if (icon.kind != NYA_ERROR_NONE) nya_warn("%s", (NYA_ConstCString)icon.message);
 
     nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_GAME);
     nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_UI);

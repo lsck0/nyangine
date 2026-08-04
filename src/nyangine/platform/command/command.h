@@ -9,7 +9,12 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#define NYA_COMMAND_MAX_ARGUMENTS 128
+/*
+ * Raised from 128 once the media libraries landed: SDL_image, SDL_ttf and SDL_mixer each vendor a
+ * handful of codecs, and a static link names every archive individually. A link line of ~150
+ * arguments is normal now.
+ */
+#define NYA_COMMAND_MAX_ARGUMENTS 256
 #define NYA_COMMAND_MAX_ENV_VARS  128
 
 typedef enum NYA_CommandFlags NYA_CommandFlags;

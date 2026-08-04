@@ -79,6 +79,9 @@ enum NYA_EventType {
     NYA_EVENT_JOB_STARTED,
     NYA_EVENT_JOB_COMPLETED,
 
+    /** An asset could not be loaded. Carries the handle that failed; the reason was already logged. */
+    NYA_EVENT_ASSET_LOAD_FAILED,
+
     NYA_EVENT_KEY_DOWN,
     NYA_EVENT_KEY_UP,
     NYA_EVENT_KEYMAP_CHANGED,

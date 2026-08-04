@@ -424,14 +424,28 @@ void nya_string_extend_front_sprintf(NYA_String* str, NYA_ConstCString fmt, ...)
     u64 length = vsnprintf(nullptr, 0, fmt, args);
     va_end(args);
 
-    nya_array_reserve(str, str->length + length);
+    // The +1 is for the terminator vsnprintf insists on writing. Without it a prepend onto a string
+    // whose capacity exactly equalled its length wrote one byte past the end.
+    nya_array_reserve(str, str->length + length + 1);
 
     // shift existing content to make room for new formatted string at the front
     nya_memmove(str->items + length, str->items, str->length);
 
+    /*
+     * That terminator lands on str->items[length], which is precisely where the first byte of the
+     * shifted content now lives, so it has to be put back afterwards. Prepending "hello " to
+     * "world" otherwise produced "hello \0orld": the right length, with the 'w' eaten.
+     *
+     * Writing the formatted text somewhere else and copying it in would avoid the dance, at the
+     * cost of a second buffer on every call.
+     */
+    u8 overwritten = str->length > 0 ? str->items[length] : 0;
+
     va_start(args, fmt);
     (void)vsnprintf((NYA_CString)str->items, length + 1, fmt, args);
     va_end(args);
+
+    if (str->length > 0) str->items[length] = overwritten;
 
     str->length += length;
 }

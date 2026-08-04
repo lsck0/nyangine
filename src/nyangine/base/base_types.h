@@ -267,34 +267,61 @@ __attr_allow_unused static const char* NYA_TYPE_NAME_MAP[NYA_TYPE_COUNT] = {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#define nya_cast_to_u8(val)                                                                                                                          \
-    ({                                                                                                                                               \
-        nya_assert((val) >= U8_MIN && (val) <= U8_MAX, "Cannot cast to u8.");                                                                        \
-        (u8)(val);                                                                                                                                   \
+/*
+ * A negative value is rejected on its own, before the range comparison.
+ *
+ * `val >= U32_MIN && val <= U32_MAX` cannot see a negative: the usual arithmetic conversions turn
+ * the signed operand unsigned before either comparison runs, so -1 becomes the largest value of the
+ * target type and satisfies both halves. nya_cast_to_u32(-1) therefore asserted nothing and handed
+ * back 4294967295, which is the exact accident this macro exists to prevent. Only u8 and u16
+ * escaped it, and only because they promote to int first.
+ *
+ * The value is also bound to a temporary, so an argument with a side effect happens once rather
+ * than once per mention.
+ * */
+
+/** True when `val` is a signed type holding a value below zero. Always false for unsigned types. */
+#define _nya_value_is_negative(val) (((typeof(val))-1 < (typeof(val))0) && ((val) < (typeof(val))0))
+
+
+#define nya_cast_to_u8(val)                                                                                                              \
+    ({                                                                                                                                        \
+        __auto_type _nya_cast_value = (val);                                                                                                 \
+        nya_assert(!_nya_value_is_negative(_nya_cast_value), "Cannot cast a negative value to u8.");                                        \
+        nya_assert((u128)_nya_cast_value <= (u128)U8_MAX, "Cannot cast to u8.");                                                            \
+        (u8)_nya_cast_value;                                                                                                                 \
     })
 
-#define nya_cast_to_u16(val)                                                                                                                         \
-    ({                                                                                                                                               \
-        nya_assert((val) >= U16_MIN && (val) <= U16_MAX, "Cannot cast to u16.");                                                                     \
-        (u16)(val);                                                                                                                                  \
+#define nya_cast_to_u16(val)                                                                                                              \
+    ({                                                                                                                                        \
+        __auto_type _nya_cast_value = (val);                                                                                                 \
+        nya_assert(!_nya_value_is_negative(_nya_cast_value), "Cannot cast a negative value to u16.");                                        \
+        nya_assert((u128)_nya_cast_value <= (u128)U16_MAX, "Cannot cast to u16.");                                                            \
+        (u16)_nya_cast_value;                                                                                                                 \
     })
 
-#define nya_cast_to_u32(val)                                                                                                                         \
-    ({                                                                                                                                               \
-        nya_assert((val) >= U32_MIN && (val) <= U32_MAX, "Cannot cast to u32.");                                                                     \
-        (u32)(val);                                                                                                                                  \
+#define nya_cast_to_u32(val)                                                                                                              \
+    ({                                                                                                                                        \
+        __auto_type _nya_cast_value = (val);                                                                                                 \
+        nya_assert(!_nya_value_is_negative(_nya_cast_value), "Cannot cast a negative value to u32.");                                        \
+        nya_assert((u128)_nya_cast_value <= (u128)U32_MAX, "Cannot cast to u32.");                                                            \
+        (u32)_nya_cast_value;                                                                                                                 \
     })
 
-#define nya_cast_to_u64(val)                                                                                                                         \
-    ({                                                                                                                                               \
-        nya_assert((val) >= U64_MIN && (val) <= U64_MAX, "Cannot cast to u64.");                                                                     \
-        (u64)(val);                                                                                                                                  \
+#define nya_cast_to_u64(val)                                                                                                              \
+    ({                                                                                                                                        \
+        __auto_type _nya_cast_value = (val);                                                                                                 \
+        nya_assert(!_nya_value_is_negative(_nya_cast_value), "Cannot cast a negative value to u64.");                                        \
+        nya_assert((u128)_nya_cast_value <= (u128)U64_MAX, "Cannot cast to u64.");                                                            \
+        (u64)_nya_cast_value;                                                                                                                 \
     })
 
-#define nya_cast_to_u128(val)                                                                                                                        \
-    ({                                                                                                                                               \
-        nya_assert((val) >= U128_MIN && (val) <= U128_MAX, "Cannot cast to u128.");                                                                  \
-        (u128)(val);                                                                                                                                 \
+#define nya_cast_to_u128(val)                                                                                                              \
+    ({                                                                                                                                        \
+        __auto_type _nya_cast_value = (val);                                                                                                 \
+        nya_assert(!_nya_value_is_negative(_nya_cast_value), "Cannot cast a negative value to u128.");                                        \
+        nya_assert((u128)_nya_cast_value <= (u128)U128_MAX, "Cannot cast to u128.");                                                            \
+        (u128)_nya_cast_value;                                                                                                                 \
     })
 
 #define nya_cast_to_s8(val)                                                                                                                          \

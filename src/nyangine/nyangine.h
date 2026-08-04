@@ -9,9 +9,13 @@
  * -DNYA_TESTING : Enable crash prevention (nya_expect_crash). TEST BUILDS ONLY, never ship this.
  * -DNYA_ARENA_FORCE_DEBUG : Force arena to use debug mode.
  * -DNYA_ARENA_FORCE_NODEBUG : Force arena to use no-debug mode.
- * -DNYA_ASSET_BACKEND_FS : Use filesystem as the asset backend.
- * -DNYA_ASSET_BACKEND_BLOB : Use embedded blob as the asset backend.
- * -DNYA_ASSET_HOT_RELOAD : Enable asset hot-reloading, only works with filesystem backend.
+ * -DNYA_ASSET_BLOB : Bake assets/assets.c into the binary and look there before the filesystem.
+ *                    Anything the blob does not carry still comes off disk, so this is a cache in
+ *                    front of the filesystem rather than a replacement for it.
+ * -DNYA_ASSET_HOT_RELOAD : Watch assets that came off disk and reload them when they change. An
+ *                    asset served out of the blob has no file behind it and is never watched, so
+ *                    this is independent of NYA_ASSET_PREFER_BLOB and the two combine.
+ * The filesystem is always available; neither flag is required.
  * -DNYA_HEADLESS : Run without drawing anything. No GPU device is created and every render call
  *                  becomes a no-op, while events, jobs, assets and the simulation still run. For
  *                  tests and CI machines that have no device to create. Unlike NYA_NO_SDL the

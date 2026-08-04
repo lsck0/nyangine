@@ -7,11 +7,15 @@
 
 #include "nyangine/nyangine.h"
 
+#include "build/hooks/hooks.h"
+#include "build/toolchain.h"
+#include "build/vendor/vendor_common.h"
+
 // clang-format off
 
 #define SDL_SOURCE               "./vendor/sdl"
 #define SDL_BUILD_LINUX_X86_64   "./vendor/sdl/build-linux-x86_64/"
-#define SDL_BUILD_WINDOWS_X86_64 "./vendor/sdl/build-window-x86_64/"
+#define SDL_BUILD_WINDOWS_X86_64 "./vendor/sdl/build-windows-x86_64/"
 
 #define SDL_A_LINUX_X86_64   SDL_BUILD_LINUX_X86_64 "libSDL3.a"
 #define SDL_A_WINDOWS_X86_64 SDL_BUILD_WINDOWS_X86_64 "libSDL3.a"
@@ -48,6 +52,8 @@ NYA_VendorRule vendor_sdl_linux_x86_64 = {
                     SDL_CMAKE_COMMON,
                 },
             },
+
+            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_linux_x86_64_compile",
@@ -106,6 +112,8 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
                     "-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH",
                 },
             },
+
+            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_windows_x86_64_compile",

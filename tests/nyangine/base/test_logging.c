@@ -6,13 +6,6 @@
 #include "nyangine/nyangine.h"
 
 static NYA_LogLevel original_level;
-static b8           hook_called = false;
-
-static u8 panic_test_hook(const char* function, const char* file, u32 line, const char* format, va_list args) {
-  nya_unused(function, file, line, format, args);
-  hook_called = true;
-  return true;
-}
 
 s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
@@ -46,7 +39,7 @@ s32 main(void) {
   nya_debug("This is a debug message: %s", "debug");
   nya_info("This is an info message: %f", 3.14);
   nya_warn("This is a warn message: %d %d %d", 1, 2, 3);
-  NYA_Error("This is an error message: %s", "error");
+  nya_log_error("This is an error message: %s", "error");
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log filtering - lower levels not shown when higher level set
@@ -56,83 +49,45 @@ s32 main(void) {
   nya_debug("Should not appear");
   nya_info("Should not appear");
   nya_warn("Should not appear");
-  NYA_Error("Should appear: %d", 123);
+  nya_log_error("Should appear: %d", 123);
 
   nya_log_level_set(NYA_LOG_LEVEL_INFO);
   nya_trace("Should not appear");
   nya_debug("Should not appear");
   nya_info("Should appear: %s", "info");
   nya_warn("Should appear: %d", 456);
-  NYA_Error("Should appear: %f", 7.89);
+  nya_log_error("Should appear: %f", 7.89);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_panic_hook_set
+  // TEST: nya_expect_crash catches a panic, and reports where it came from
+  //
+  // This replaced a panic *hook* plus nya_panic_prevent_set/_happened. The hook let an observer
+  // both see and swallow a panic; the crash API separates those, so a test arms a frame and then
+  // inspects NYA_CrashInfo rather than setting a global flag from a callback.
   // ─────────────────────────────────────────────────────────────────────────────
-  hook_called = false;
-  nya_panic_hook_set(panic_test_hook);
-
-  // Hook hasn't been called yet
-  nya_assert(hook_called == false);
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: panic hook receives correct arguments via va_list
-  // ─────────────────────────────────────────────────────────────────────────────
-  hook_called = false;
-  nya_panic_hook_set(panic_test_hook);
-
-  {
-    jmp_buf jb;
-    if (setjmp(jb) == 0) {
-      nya_panic_prevent_set(&jb);
-      // Panic with format args — hook should be called with va_list without UB
-      nya_panic("Hook test: %d %s %f", 42, "hello", 3.14);
-      nya_assert(false);
-    }
-    // Panic was prevented before hook is called, so hook_called stays false.
-    // The important thing is we didn't crash from va_list UB.
-    nya_assert(nya_panic_prevent_happened() == true);
-  }
-
-  // Test hook actually preventing crash (without prevent_set)
-  hook_called = false;
-  nya_panic("This should be caught by hook: %d", 999);
-  nya_assert(hook_called == true);
+  nya_expect_crash(nya_panic("This panic should be caught"));
+  nya_assert(nya_crash_caught() != nullptr);
+  nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_PANIC);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: setting hook to nullptr
+  // TEST: a panic carrying format arguments, which is where the old hook risked va_list UB
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_panic_hook_set(nullptr);
+  nya_expect_crash(nya_panic("Panic with args: %d %s %f", 999, "text", 1.5));
+  nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_PANIC);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_panic_prevent_set / nya_panic_prevent_happened
+  // TEST: a failed assertion reports as an assert, not a panic
   // ─────────────────────────────────────────────────────────────────────────────
-  jmp_buf jump_buffer;
-  if (setjmp(jump_buffer) == 0) {
-    nya_panic_prevent_set(&jump_buffer);
-
-    // Trigger a panic (this will jump)
-    nya_panic("This panic should be prevented");
-    nya_assert(false); // Should never reach here
-  }
-
-  // After the jump, check that panic was prevented
-  nya_assert(nya_panic_prevent_happened() == true);
-  nya_assert(nya_panic_prevent_happened() == false); // Should reset to false
+  nya_expect_crash(nya_assert(false, "deliberate"));
+  nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_ASSERT);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: multiple panic prevention calls
+  // TEST: repeated crashes, each caught independently
   // ─────────────────────────────────────────────────────────────────────────────
-  u32 panic_count = 0;
   for (u32 i = 0; i < 3; ++i) {
-    if (setjmp(jump_buffer) == 0) {
-      nya_panic_prevent_set(&jump_buffer);
-      nya_panic("Panic %u", i);
-      nya_assert(false);
-    }
-    panic_count++;
-    nya_assert(nya_panic_prevent_happened() == true);
+    nya_expect_crash(nya_panic("Panic %u", i));
+    nya_assert(nya_crash_caught() != nullptr);
   }
-  nya_assert(panic_count == 3);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log messages with various format specifiers
@@ -171,7 +126,7 @@ s32 main(void) {
   nya_debug("DEBUG level");
   nya_info("INFO level");
   nya_warn("WARN level");
-  NYA_Error("ERROR level");
+  nya_log_error("ERROR level");
   // nya_panic would crash, so skip it
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -190,7 +145,6 @@ s32 main(void) {
   // CLEANUP
   // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(original_level);
-  nya_panic_hook_set(nullptr);
   nya_arena_destroy(arena);
 
   return 0;

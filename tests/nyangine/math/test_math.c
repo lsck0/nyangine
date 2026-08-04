@@ -86,12 +86,16 @@ s32 main(void) {
   nya_assert(nya_lerp(10.0, 0.0, 1.0) == 0.0);
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_lerp panics on out of range t
+  // TEST: nya_lerp extrapolates outside [0, 1] rather than rejecting it
+  //
+  // This used to assert that t outside the unit range panicked. It is now documented as deliberate:
+  // overshoot is exactly what a spring or a back ease is built out of, so clamping or panicking
+  // would make those impossible to express.
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_assert_panic(nya_lerp(0.0, 10.0, -0.1));
-  nya_assert_panic(nya_lerp(0.0, 10.0, 1.1));
-  nya_assert_panic(nya_lerp(0.0, 10.0, -1.0));
-  nya_assert_panic(nya_lerp(0.0, 10.0, 2.0));
+  nya_assert(nya_lerp(0.0, 10.0, -0.1) == -1.0);
+  nya_assert(nya_lerp(0.0, 10.0, 1.1) == 11.0);
+  nya_assert(nya_lerp(0.0, 10.0, -1.0) == -10.0);
+  nya_assert(nya_lerp(0.0, 10.0, 2.0) == 20.0);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: chained min/max operations

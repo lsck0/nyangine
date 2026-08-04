@@ -15,6 +15,9 @@
 
 #include "nyangine/nyangine.h"
 
+#include "build/toolchain.h"
+#include "build/vendor/vendor_common.h"
+
 #define SQLEAN_SOURCE "./vendor/sqlean/src"
 
 NYA_VendorRule vendor_sqlean_linux_x86_64 = {

@@ -15,6 +15,8 @@
 #include "nyangine/nyangine.h"
 
 #include "build/hooks/hooks.h"
+#include "build/toolchain.h"
+#include "build/vendor/vendor_common.h"
 
 // clang-format off
 

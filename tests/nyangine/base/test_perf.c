@@ -11,6 +11,18 @@ static void sleep_ms(s64 ms) {
 }
 
 s32 main(void) {
+#if NYA_DEBUG
+  /*
+   * The perf timer API is compiled out of a test build.
+   *
+   * base_perf.h gates nya_perf_timer_* on NYA_DEBUG, so outside mode 0 each one expands to
+   * nya_panic(...) and has type void, which is why this file stopped compiling.
+   *
+   * Guarded rather than deleted: the body is still correct against the current API and
+   * compiles under a mode that has the subsystem. In NYA_EXECUTION_MODE=4 this test
+   * therefore asserts nothing, which is a real coverage gap, not a passing test.
+   */
+
   nya_perf_time_this_function();
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -53,7 +65,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Get all timers
   // ─────────────────────────────────────────────────────────────────────────────
-  NYA_PerfMeasurementArray* all_timers = nya_perf_timer_get_all();
+  NYA_ArrayᐸNYA_PerfMeasurementᐳ* all_timers = nya_perf_timer_get_all();
   nya_assert(all_timers != nullptr);
   nya_assert(all_timers->length >= 3);
 
@@ -152,6 +164,8 @@ s32 main(void) {
   NYA_PerfMeasurement* many = nya_perf_timer_get("many_samples");
   nya_assert(many != nullptr);
   nya_assert(many->current == (100 - 1) % NYA_PERF_MEASUREMENT_SAMPLES);
+
+#endif
 
   return 0;
 }

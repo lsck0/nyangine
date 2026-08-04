@@ -110,20 +110,37 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     NYA_App* app = nya_app_get();
 
-    b8 ok;
-
-    ok = SDL_ClaimWindowForGPUDevice(app->render_system.gpu_device, window->sdl_window);
+    b8 ok = SDL_ClaimWindowForGPUDevice(app->render_system.gpu_device, window->sdl_window);
     nya_assert(ok, "SDL_ClaimWindowForGPUDevice() failed: %s", SDL_GetError());
 
-    ok = SDL_SetGPUSwapchainParameters(
-        app->render_system.gpu_device,
-        window->sdl_window,
-        SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-        app->options.vsync_enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_MAILBOX
-    );
-    nya_assert(ok, "SDL_SetGPUSwapchainParameters() failed: %s", SDL_GetError());
-
     window->render_system = (NYA_RenderSystemWindow){ 0 };
+
+    /*
+     * Claiming the window already installed a working swapchain. Everything below is an attempt to
+     * improve on it, so a driver that refuses is a reason to keep the default, not to stop.
+     *
+     * Both parameters have to be asked about first: not every backend supports every combination,
+     * and SDL_SetGPUSwapchainParameters rejects the whole call if either half is unsupported. This
+     * asserted on the result, which is a hard crash on any driver that says no — observed on D3D12
+     * under Wine, where SDR composition is unavailable.
+     */
+    SDL_GPUSwapchainComposition composition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
+    if (!SDL_WindowSupportsGPUSwapchainComposition(app->render_system.gpu_device, window->sdl_window, composition)) {
+        nya_warn("Swapchain composition SDR is unsupported for window '%s'; keeping the driver's default.", window->title);
+        return;
+    }
+
+    // MAILBOX is the low latency choice and the first thing a driver drops. VSYNC is required to be
+    // supported everywhere, so it is the fallback rather than another thing to check.
+    SDL_GPUPresentMode present_mode = app->options.vsync_enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_MAILBOX;
+    if (!SDL_WindowSupportsGPUPresentMode(app->render_system.gpu_device, window->sdl_window, present_mode)) {
+        nya_warn("Present mode %d is unsupported for window '%s'; falling back to vsync.", (int)present_mode, window->title);
+        present_mode = SDL_GPU_PRESENTMODE_VSYNC;
+    }
+
+    if (!SDL_SetGPUSwapchainParameters(app->render_system.gpu_device, window->sdl_window, composition, present_mode)) {
+        nya_warn("SDL_SetGPUSwapchainParameters() failed for window '%s', keeping the default: %s", window->title, SDL_GetError());
+    }
 
     nya_info("Render system initialized for window '%s' (slot %u).", window->title, window->handle.index);
 }
@@ -147,13 +164,14 @@ void nya_system_renderer_set_vsync(b8 enabled) {
             NYA_Window* window = nya_window_at_slot(slot);
             if (window == nullptr) continue;
 
-            b8 ok = SDL_SetGPUSwapchainParameters(
-                app->render_system.gpu_device,
-                window->sdl_window,
-                SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-                enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_MAILBOX
-            );
-            nya_assert(ok, "SDL_SetGPUSwapchainParameters() failed: %s", SDL_GetError());
+            SDL_GPUPresentMode present_mode = enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_MAILBOX;
+            if (!SDL_WindowSupportsGPUPresentMode(app->render_system.gpu_device, window->sdl_window, present_mode)) {
+                present_mode = SDL_GPU_PRESENTMODE_VSYNC;
+            }
+
+            if (!SDL_SetGPUSwapchainParameters(app->render_system.gpu_device, window->sdl_window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, present_mode)) {
+                nya_warn("Could not change the present mode for window '%s': %s", window->title, SDL_GetError());
+            }
         }
     }
 }

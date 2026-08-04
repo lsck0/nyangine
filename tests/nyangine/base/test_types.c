@@ -69,16 +69,16 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Safe cast - overflow panics
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_assert_panic(nya_cast_to_u8(256));
-  nya_assert_panic(nya_cast_to_u8(-1));
-  nya_assert_panic(nya_cast_to_u16(65536));
-  nya_assert_panic(nya_cast_to_u16(-1));
-  nya_assert_panic(nya_cast_to_u32((s64)-1));
+  nya_expect_crash(nya_cast_to_u8(256));
+  nya_expect_crash(nya_cast_to_u8(-1));
+  nya_expect_crash(nya_cast_to_u16(65536));
+  nya_expect_crash(nya_cast_to_u16(-1));
+  nya_expect_crash(nya_cast_to_u32((s64)-1));
 
-  nya_assert_panic(nya_cast_to_s8(128));
-  nya_assert_panic(nya_cast_to_s8(-129));
-  nya_assert_panic(nya_cast_to_s16(32768));
-  nya_assert_panic(nya_cast_to_s16(-32769));
+  nya_expect_crash(nya_cast_to_s8(128));
+  nya_expect_crash(nya_cast_to_s8(-129));
+  nya_expect_crash(nya_cast_to_s16(32768));
+  nya_expect_crash(nya_cast_to_s16(-32769));
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: NYA_TYPE_NAME_MAP - key types have names
@@ -95,7 +95,7 @@ s32 main(void) {
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_S64], "s64") == 0);
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_F32], "f32") == 0);
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_F64], "f64") == 0);
-  nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_BOOL], "bool") == 0);
+  nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_B8], "b8") == 0);
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_STRING], "string") == 0);
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_OBJECT], "object") == 0);
   nya_assert(strcmp(NYA_TYPE_NAME_MAP[NYA_TYPE_ARRAY], "array") == 0);
@@ -295,8 +295,8 @@ s32 main(void) {
     nya_assert(nya_type_name_parse((u8*)"f128", 4, &type, &name) == true);
     nya_assert(type == NYA_TYPE_F128);
 
-    nya_assert(nya_type_name_parse((u8*)"bool", 4, &type, &name) == true);
-    nya_assert(type == NYA_TYPE_BOOL);
+    nya_assert(nya_type_name_parse((u8*)"b8", 2, &type, &name) == true);
+    nya_assert(type == NYA_TYPE_B8);
 
     nya_assert(nya_type_name_parse((u8*)"string", 6, &type, &name) == true);
     nya_assert(type == NYA_TYPE_STRING);

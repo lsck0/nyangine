@@ -16,73 +16,10 @@
 
 #include "nyangine/nyangine.h"
 
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * SHARED BUILD SETTINGS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
-
-#define CC "clang"
-
-/**
- * Parallel job count, as a string, for `make -j` and `cmake --build -- -j`.
- *
- * A buffer rather than a literal because the value is the machine's core count, which is only
- * known at runtime. Taking its address is still a compile time constant, so it can sit inside the
- * static vendor rule initializers below. nya_vendor_detect_nprocs fills it in; until then it reads
- * as a conservative "1".
- * */
-extern char NYA_NPROCS[8];
-#define NPROCS NYA_NPROCS
-
-char NYA_NPROCS[8] = "1";
-
-/** Fills NYA_NPROCS with the number of online cores. Call once, before building anything. */
-NYA_INTERNAL void nya_vendor_detect_nprocs(void) {
-    u32 cores = 1;
-
-#if OS_WINDOWS
-    SYSTEM_INFO system_info = { 0 };
-    GetSystemInfo(&system_info);
-    if (system_info.dwNumberOfProcessors > 0) cores = (u32)system_info.dwNumberOfProcessors;
-#else
-    s64 online = sysconf(_SC_NPROCESSORS_ONLN);
-    if (online > 0) cores = (u32)online;
-#endif
-
-    (void)snprintf(NYA_NPROCS, sizeof(NYA_NPROCS), FMTu32, cores);
-}
-
-/*
- * ─────────────────────────────────────────────────────────
- * SHARED CMAKE SETTINGS
- * ─────────────────────────────────────────────────────────
- */
-
-// clang-format off
-
-/**
- * Everything vendored is linked statically, so the shipped binary carries its dependencies with it
- * rather than relying on what happens to be installed. Only libraries that are guaranteed present
- * on a normal system are linked dynamically: libc, libm, pthread, dl, OpenGL, and the win32 system
- * DLLs.
- * */
-#define NYA_CMAKE_STATIC                        \
-    "-GNinja",                                  \
-    "-DCMAKE_BUILD_TYPE=Release",               \
-    "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",     \
-    "-DBUILD_SHARED_LIBS=OFF"
-
-// clang-format on
-
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * VENDORS
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
-
+#include "build/toolchain.h"
 #include "build/vendor/vendor_box2d.h"
 #include "build/vendor/vendor_box3d.h"
+#include "build/vendor/vendor_common.h"
 #include "build/vendor/vendor_curl.h"
 #include "build/vendor/vendor_libbacktrace.h"
 #include "build/vendor/vendor_lua.h"
@@ -128,12 +65,9 @@ NYA_VendorRule* NYA_VENDORS_WINDOWS_X86_64[] = {
  * Swap in NYA_VENDORS_LINUX_X86_64 if that is not wanted.
  * */
 NYA_VendorRule* NYA_VENDORS[] = {
-    &vendor_sdl_linux_x86_64,
-    &vendor_sdl_windows_x86_64,
-    &vendor_libbacktrace_linux_x86_64,
-    &vendor_libbacktrace_windows_x86_64,
-    &vendor_sdl_shadercross_linux_x86_64,
-    nullptr,
+    &vendor_sdl_linux_x86_64,          &vendor_sdl_windows_x86_64,          &vendor_sdl_image_linux_x86_64,       &vendor_sdl_image_windows_x86_64,
+    &vendor_sdl_ttf_linux_x86_64,      &vendor_sdl_ttf_windows_x86_64,      &vendor_sdl_mixer_linux_x86_64,       &vendor_sdl_mixer_windows_x86_64,
+    &vendor_libbacktrace_linux_x86_64, &vendor_libbacktrace_windows_x86_64, &vendor_sdl_shadercross_linux_x86_64, nullptr,
 };
 
 /**

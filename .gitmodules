@@ -1,45 +1,70 @@
+# Vendored dependencies: built, never edited.
+#
+# `ignore = dirty` means git reports one thing about these — whether the commit *this* repository
+# pins has changed — and stays quiet about the work tree. Without it every status is buried under
+# the out of tree build directories each vendor produces, plus drift in their own nested submodules,
+# none of which is ours and none of which affects reproducibility.
+#
+# The trade: an accidental edit to a vendor's source will not show up in git status either. That is
+# the right way round for dependencies nothing here patches.
+
 [submodule "vendor/box2d"]
 	path = vendor/box2d
 	url = https://github.com/erincatto/box2d.git
+	ignore = dirty
 [submodule "vendor/box3d"]
 	path = vendor/box3d
 	url = https://github.com/erincatto/box3d.git
+	ignore = dirty
 [submodule "vendor/curl"]
 	path = vendor/curl
 	url = https://github.com/curl/curl.git
+	ignore = dirty
 [submodule "vendor/libbacktrace"]
 	path = vendor/libbacktrace
 	url = https://github.com/ianlancetaylor/libbacktrace.git
+	ignore = dirty
 [submodule "vendor/lua"]
 	path = vendor/lua
-	url = https://luajit.org/git/luajit.git
+	url = https://github.com/LuaJIT/LuaJIT.git
+	ignore = dirty
 [submodule "vendor/lz4"]
 	path = vendor/lz4
 	url = https://github.com/lz4/lz4.git
+	ignore = dirty
 [submodule "vendor/sdl"]
 	path = vendor/sdl
 	url = https://github.com/libsdl-org/SDL.git
+	ignore = dirty
 [submodule "vendor/sdl-image"]
 	path = vendor/sdl-image
 	url = https://github.com/libsdl-org/SDL_image.git
+	ignore = dirty
 [submodule "vendor/sdl-mixer"]
 	path = vendor/sdl-mixer
 	url = https://github.com/libsdl-org/SDL_mixer.git
+	ignore = dirty
 [submodule "vendor/sdl-net"]
 	path = vendor/sdl-net
 	url = https://github.com/libsdl-org/SDL_net.git
+	ignore = dirty
 [submodule "vendor/sdl-shadercross"]
 	path = vendor/sdl-shadercross
 	url = https://github.com/libsdl-org/SDL_shadercross.git
+	ignore = dirty
 [submodule "vendor/sdl-ttf"]
 	path = vendor/sdl-ttf
 	url = https://github.com/libsdl-org/SDL_ttf.git
+	ignore = dirty
 [submodule "vendor/sqlean"]
 	path = vendor/sqlean
 	url = https://github.com/nalgeon/sqlean.git
+	ignore = dirty
 [submodule "vendor/sqlite"]
 	path = vendor/sqlite
 	url = https://github.com/sqlite/sqlite.git
+	ignore = dirty
 [submodule "vendor/steam"]
 	path = vendor/steam
 	url = https://github.com/rlabrecque/SteamworksSDK.git
+	ignore = dirty

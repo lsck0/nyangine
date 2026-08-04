@@ -1,4 +1,27 @@
-#include "build/asset/asset.h"
+#include "build/build.h"
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API DECLARATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_walk(NYA_ConstCString directory) __attr_no_discard;
+NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_enumerate(void) __attr_no_discard;
+NYA_INTERNAL b8                     _nya_asset_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
+NYA_INTERNAL s32                    _nya_asset_path_compare(const NYA_String* a, const NYA_String* b);
+
+/** Memo behind _nya_asset_enumerate. See the note there for why it is safe to share. */
+NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
+
+/**
+ * How the byte blob in assets.c is laid out.
+ *
+ * These are what clang-format used to produce, kept because the generator emits the final shape
+ * itself now; see the note at the end of nya_asset_bundle for why it no longer runs.
+ * */
+#define NYA_ASSET_BLOB_BYTES_PER_LINE 24
+#define NYA_ASSET_BLOB_INDENT         4
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -8,18 +31,12 @@
 
 void nya_asset_compile_shaders(void) {
 
-    NYA_Command find_source_shaders_command = {
-    .arena     = nya_arena_global,
-    .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-    .program   = "find",
-    .arguments = { "./assets/shader/source/", "-name", "*.hlsl", },
-  };
-    NYA_EXPECT(nya_command_run(&find_source_shaders_command));
-    nya_assert(find_source_shaders_command.exit_code == 0, "Failed to find source shaders.");
-    NYA_ArrayᐸNYA_Stringᐳ* shaders = nya_string_split_lines(nya_arena_global, find_source_shaders_command.stdout_content);
+    // Deliberately not the shared enumeration: this function writes into ./assets/shader/compiled/,
+    // so anything it cached would be a snapshot of the tree from before its own outputs existed.
+    NYA_ArrayᐸNYA_Stringᐳ* shaders = _nya_asset_walk("./assets/shader/source");
 
     nya_array_foreach (shaders, shader) {
-        if (nya_string_is_empty(shader)) continue;
+        if (!nya_string_ends_with(shader, ".hlsl")) continue;
 
         NYA_CString source = nya_string_to_cstring(nya_arena_global, shader);
         nya_string_strip_prefix(shader, "./assets/shader/source/");
@@ -38,15 +55,7 @@ void nya_asset_compile_shaders(void) {
         NYA_CString target_spirv = nya_string_to_cstring(nya_arena_global, shader);
         nya_string_strip_suffix(shader, ".spv");
 
-        NYA_Command create_dirs_command = {
-        .program   = "mkdir",
-        .arguments = {
-            "-p",
-            "./assets/shader/compiled/",
-        },
-    };
-        NYA_EXPECT(nya_command_run(&create_dirs_command));
-        nya_assert(create_dirs_command.exit_code == 0, "Failed to create shader output directories.");
+        NYA_EXPECT(nya_filesystem_create_directory("./assets/shader/compiled/"));
 
         // compile to DXIL
         NYA_String* compile_to_dxil_name = nya_string_sprintf(nya_arena_global, "%s -> %s", source, target_dxil);
@@ -56,7 +65,8 @@ void nya_asset_compile_shaders(void) {
         .input_file  = source,
         .output_file = target_dxil,
         .command = {
-            .program = "./vendor/sdl-shadercross/build/shadercross",
+            .program = SHADERCROSS_BINARY,
+            .environment = { SHADERCROSS_LIBRARY_PATH, },
             .arguments = {
                 source,
                 "-o", target_dxil,
@@ -75,7 +85,8 @@ void nya_asset_compile_shaders(void) {
         .input_file  = source,
         .output_file = target_metal,
         .command = {
-            .program = "./vendor/sdl-shadercross/build/shadercross",
+            .program = SHADERCROSS_BINARY,
+            .environment = { SHADERCROSS_LIBRARY_PATH, },
             .arguments = {
                 source,
                 "-o", target_metal,
@@ -94,7 +105,8 @@ void nya_asset_compile_shaders(void) {
         .input_file  = source,
         .output_file = target_spirv,
         .command = {
-            .program = "./vendor/sdl-shadercross/build/shadercross",
+            .program = SHADERCROSS_BINARY,
+            .environment = { SHADERCROSS_LIBRARY_PATH, },
             .arguments = {
                 source,
                 "-o", target_spirv,
@@ -109,32 +121,16 @@ void nya_asset_compile_shaders(void) {
 
 void nya_asset_index(void) {
 
-    NYA_ConstCString asset_directory = "./assets/";
-    NYA_ConstCString output_file     = "./assets/assets.h";
+    NYA_ConstCString output_file = "./assets/assets.h";
 
     NYA_Arena*  arena  = nya_arena_global;
     NYA_String* result = nya_string_create(arena);
 
-    NYA_Command find_assets_command = {
-      .arena     = arena,
-      .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-      .program   = "find",
-      .arguments = {
-          asset_directory,
-          "-type", "f",
-          "-not", "-name", "*.c",
-          "-not", "-name", "*.h",
-          "-not", "-name", ".keep",
-      },
-  };
-    NYA_EXPECT(nya_command_run(&find_assets_command));
-    NYA_ArrayᐸNYA_Stringᐳ* files = nya_string_split_lines(arena, find_assets_command.stdout_content);
+    NYA_ArrayᐸNYA_Stringᐳ* files = _nya_asset_enumerate();
     nya_string_extend(result, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
     nya_string_extend(result, "#pragma once\n\n");
 
     nya_array_foreach (files, file) {
-        if (nya_string_is_empty(file)) continue;
-
         // ignore compiled shaders, since they are then picked by the asset system depending on the platform
         if (nya_string_contains(file, "/shader/compiled/")) continue;
 
@@ -171,8 +167,7 @@ void nya_asset_index(void) {
 
 void nya_asset_bundle(void) {
 
-    NYA_ConstCString asset_directory = "./assets/";
-    NYA_ConstCString output_file     = "./assets/assets.c";
+    NYA_ConstCString output_file = "./assets/assets.c";
 
     NYA_Arena*  arena               = nya_arena_global;
     NYA_String* result              = nya_string_create(arena);
@@ -180,42 +175,57 @@ void nya_asset_bundle(void) {
     NYA_String* header_string       = nya_string_create(arena);
     NYA_String* blob_string         = nya_string_create(arena);
 
-    NYA_Command find_assets_command = {
-      .arena     = arena,
-      .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-      .program   = "find",
-      .arguments = {
-          asset_directory,
-          "-type", "f",
-          "-not", "-name", "*.c",
-          "-not", "-name", "*.h",
-          "-not", "-name", ".keep",
-      },
-  };
-    NYA_EXPECT(nya_command_run(&find_assets_command));
-    NYA_ArrayᐸNYA_Stringᐳ* files = nya_string_split_lines(arena, find_assets_command.stdout_content);
+    // The same list nya_asset_index built its handles from, not a second walk that could disagree
+    // with it. A file appearing or vanishing between the two used to yield a handle in assets.h with
+    // no matching entry in the blob, which only ever showed up as a failed load at runtime.
+    NYA_ArrayᐸNYA_Stringᐳ* files = _nya_asset_enumerate();
     nya_string_extend(result, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
     nya_string_extend(result, "#include \"nyangine/nyangine.h\"\n\n");
     header_count_string = nya_string_sprintf(arena, "static const u64 NYA_ASSET_BLOB_HEADER_COUNT = " FMTu64 ";\n", files->length);
     nya_string_extend(header_string, "static const NYA_AssetBlobHeader NYA_ASSET_BLOB_HEADER[] = {\n");
     nya_string_extend(blob_string, "static const u8 NYA_ASSET_BLOB[] = {\n");
 
-    u64 cursor = 0;
-    nya_array_foreach (files, file) {
-        if (nya_string_is_empty(file)) continue;
+    NYA_ConstCString HEX = "0123456789ABCDEF";
 
+    u64 cursor  = 0;
+    u64 emitted = 0;
+    nya_array_foreach (files, file) {
         NYA_String* content = nya_string_create(arena);
         NYA_EXPECT(nya_file_read(file, content));
 
         nya_string_extend_sprintf(header_string, "  { \"%.*s\", " FMTu64 ", " FMTu64 " },\n", NYA_FMT_STRING_ARG(file), cursor, content->length);
 
+        // A byte costs at most the indent plus "0xAB" plus a separator, so the room for a whole file
+        // is known before writing any of it and the buffer grows once rather than per byte.
+        nya_array_reserve(blob_string, blob_string->length + content->length * (NYA_ASSET_BLOB_INDENT + 6) + 1);
+
         nya_array_foreach (content, c) {
-            NYA_String* new = nya_string_sprintf(arena, "0x%02X,\n", *c);
-            nya_string_extend(blob_string, new);
+            u8* out = blob_string->items + blob_string->length;
+
+            if (emitted % NYA_ASSET_BLOB_BYTES_PER_LINE == 0) {
+                for (u64 i = 0; i < NYA_ASSET_BLOB_INDENT; i++) *out++ = ' ';
+                blob_string->length += NYA_ASSET_BLOB_INDENT;
+            }
+
+            out[0] = '0';
+            out[1] = 'x';
+            out[2] = (u8)HEX[*c >> 4];
+            out[3] = (u8)HEX[*c & 0x0F];
+            out[4] = ',';
+            out[5] = (emitted % NYA_ASSET_BLOB_BYTES_PER_LINE == NYA_ASSET_BLOB_BYTES_PER_LINE - 1) ? '\n' : ' ';
+
+            blob_string->length += 6;
+            emitted++;
         }
 
         cursor += content->length;
     }
+
+    // A blob whose last line was full already ends in a newline. One that did not ends in the
+    // separator space written after its final byte, which becomes that newline rather than being
+    // left behind as trailing whitespace.
+    if (emitted % NYA_ASSET_BLOB_BYTES_PER_LINE != 0) blob_string->items[blob_string->length - 1] = '\n';
+
     nya_string_extend(blob_string, "};\n\n");
     nya_string_extend(header_string, "};\n\n");
 
@@ -225,9 +235,88 @@ void nya_asset_bundle(void) {
 
     NYA_EXPECT(nya_file_write(output_file, result));
 
-    NYA_Command format_command = {
-    .program   = "clang-format",
-    .arguments = { "-i", output_file, },
-  };
-    NYA_EXPECT(nya_command_run(&format_command));
+    /*
+     * Deliberately not run through clang-format, which every other generated file here is.
+     *
+     * This one is seven megabytes of hex, and formatting it took nine seconds — by a wide margin the
+     * single most expensive step in a build, and spent entirely on the wrapping the loop above now
+     * emits directly. The header table loses clang-format's column alignment as a result, which
+     * costs nothing: the file says it is generated and nobody reads it.
+     * */
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API IMPLEMENTATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Every asset file under ./assets/, walked once per build tool invocation and memoised.
+ *
+ * Both the index and the bundle describe the same set of files — one as handles, one as bytes — so
+ * they must agree, and the cheapest way to guarantee that is to only ever ask the filesystem once.
+ *
+ * The memo is populated on first call, which the build graph arranges to be after
+ * nya_asset_compile_shaders has written ./assets/shader/compiled/. That ordering is load bearing:
+ * bundle_assets depends on index_assets which depends on build_shaders. Calling this before the
+ * shaders are compiled would cache a list that is missing them.
+ * */
+NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_enumerate(void) {
+    if (_NYA_ASSET_FILES != nullptr) return _NYA_ASSET_FILES;
+
+    _NYA_ASSET_FILES = _nya_asset_walk("./assets");
+    return _NYA_ASSET_FILES;
+}
+
+/**
+ * Collects every regular file under `directory`, sorted.
+ *
+ * This used to shell out to `find`, which is a problem on Windows off msys2: CreateProcessA resolves
+ * `find` against PATH and Windows ships its own unrelated find.exe, a text search tool that would
+ * take these arguments and produce nonsense rather than fail. Walking the directory ourselves has no
+ * such ambiguity, and drops a subprocess per invocation.
+ *
+ * Sorted because the resulting order is baked into generated source: the walk returns whatever order
+ * the filesystem feels like, which would make assets.c differ between machines for no reason.
+ * */
+NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_walk(NYA_ConstCString directory) {
+    nya_assert(directory != nullptr);
+
+    NYA_ArrayᐸNYA_Stringᐳ* files = nya_array_create(nya_arena_global, NYA_String);
+    NYA_EXPECT(nya_filesystem_walk(nya_arena_global, directory, _nya_asset_collect, files));
+
+    nya_array_sort(files, _nya_asset_path_compare);
+    return files;
+}
+
+NYA_INTERNAL b8 _nya_asset_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
+    NYA_ArrayᐸNYA_Stringᐳ* files = (NYA_ArrayᐸNYA_Stringᐳ*)user_data;
+
+    if (entry->type != NYA_FILE_TYPE_FILE) return true;
+
+    NYA_String* file = nya_string_from(nya_arena_global, path);
+
+    // nya_path_join normalises away a leading "./", but these paths are baked into generated source
+    // as asset IDs that the runtime then looks up verbatim. Put it back, so the IDs stay exactly
+    // what they were when this walked the tree with `find ./assets/`.
+    if (!nya_string_starts_with(file, "./")) nya_string_extend_front(file, "./");
+
+    // assets.c and assets.h are the generated output of this very walk, and .keep only exists to
+    // keep an empty directory in git. None of the three is an asset.
+    if (nya_string_ends_with(file, ".c")) return true;
+    if (nya_string_ends_with(file, ".h")) return true;
+    if (nya_string_ends_with(file, ".keep")) return true;
+
+    nya_array_push_back(files, *file);
+    return true;
+}
+
+NYA_INTERNAL s32 _nya_asset_path_compare(const NYA_String* a, const NYA_String* b) {
+    u64 shared     = nya_min(a->length, b->length);
+    s32 difference = nya_memcmp(a->items, b->items, shared);
+    if (difference != 0) return difference < 0 ? -1 : 1;
+
+    if (a->length == b->length) return 0;
+    return a->length < b->length ? -1 : 1;
 }

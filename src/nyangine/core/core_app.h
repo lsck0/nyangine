@@ -10,6 +10,7 @@
 #include "nyangine/core/core_event.h"
 #include "nyangine/core/core_input.h"
 #include "nyangine/core/core_job.h"
+#include "nyangine/core/core_settings.h"
 #include "nyangine/core/core_sim.h"
 #include "nyangine/core/core_window.h"
 #include "nyangine/renderer/renderer.h"
@@ -74,6 +75,7 @@ struct NYA_App {
     NYA_InputSystem    input_system;
     NYA_JobSystem      job_system;
     NYA_RenderSystem   render_system;
+    NYA_SettingsSystem settings_system;
     NYA_SimSystem      sim_system;
     NYA_WindowSystem   window_system;
 };

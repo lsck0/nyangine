@@ -10,7 +10,9 @@ NYA_Lexer nya_lexer_create(NYA_ConstCString source) {
     nya_assert(source != nullptr);
 
     NYA_Lexer lexer = {
-        .arena               = nya_arena_create(),
+        // A token stream is small and short lived, so it gets a region sized for one rather than
+        // the gibibyte default, which a sanitized build pays for in full on creation.
+        .arena               = nya_arena_create(.region_size = nya_mebyte_to_byte(1UL)),
         .source              = source,
         .cursor              = 0,
         .current_line_number = 1,
@@ -107,6 +109,16 @@ void nya_lexer_run(NYA_Lexer* lexer) {
             while (true) {
                 current_char = lexer->source[lexer->cursor];
                 if (is_hex) {
+                    // A hexadecimal float: 0x1.91eb86p+1. The mantissa is written in hex so it
+                    // survives a round trip through text exactly, which decimal cannot promise, and
+                    // the dot is part of the number rather than the end of it.
+                    if (current_char == '.') {
+                        if (is_float) break;
+                        is_float                    = true;
+                        lexer->cursor              += 1;
+                        lexer->current_char_number += 1;
+                        continue;
+                    }
                     if (!(('0' <= current_char && current_char <= '9') || ('a' <= current_char && current_char <= 'f') ||
                           ('A' <= current_char && current_char <= 'F'))) {
                         break;
@@ -131,7 +143,12 @@ void nya_lexer_run(NYA_Lexer* lexer) {
             if (is_float) {
                 u32 dot_index = start_cursor;
                 while (dot_index < lexer->cursor && lexer->source[dot_index] != '.') dot_index += 1;
-                if (dot_index + 1 >= lexer->cursor || !('0' <= lexer->source[dot_index + 1] && lexer->source[dot_index + 1] <= '9')) {
+                u8 after_dot = dot_index + 1 < lexer->cursor ? lexer->source[dot_index + 1] : '\0';
+                b8 digit_after_dot =
+                    ('0' <= after_dot && after_dot <= '9') ||
+                    (is_hex && (('a' <= after_dot && after_dot <= 'f') || ('A' <= after_dot && after_dot <= 'F')));
+
+                if (dot_index + 1 >= lexer->cursor || !digit_after_dot) {
                     lexer->cursor = dot_index;
                     is_float      = false;
                 }
@@ -142,6 +159,32 @@ void nya_lexer_run(NYA_Lexer* lexer) {
             //
             // The whole exponent is taken or none of it: "1e" and "1e+" are the number 1 followed by an
             // identifier, so the cursor rewinds rather than producing a number token that will not parse.
+            /*
+             * A hex literal takes its exponent with 'p' rather than 'e', because 'e' is a hex digit.
+             * The exponent itself is decimal and scales by a power of two: 0x1.8p+1 is 3.
+             *
+             * Required rather than optional after a hex fraction — 0x1.8 alone is not a C hexadecimal
+             * float — but accepted after a hex integer too, so 0x1p4 lexes as one number.
+             */
+            if (is_hex) {
+                char exponent_char = lexer->source[lexer->cursor];
+
+                if (exponent_char == 'p' || exponent_char == 'P') {
+                    u32 exponent_cursor = lexer->cursor + 1;
+
+                    if (lexer->source[exponent_cursor] == '+' || lexer->source[exponent_cursor] == '-') exponent_cursor += 1;
+
+                    u32 first_digit = exponent_cursor;
+                    while ('0' <= lexer->source[exponent_cursor] && lexer->source[exponent_cursor] <= '9') exponent_cursor += 1;
+
+                    if (exponent_cursor > first_digit) {
+                        lexer->current_char_number += exponent_cursor - lexer->cursor;
+                        lexer->cursor               = exponent_cursor;
+                        is_float                    = true;
+                    }
+                }
+            }
+
             if (!is_hex && !is_binary) {
                 char exponent_char = lexer->source[lexer->cursor];
 

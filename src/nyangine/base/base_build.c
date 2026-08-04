@@ -8,6 +8,15 @@
 
 #define _NYA_BUILD_MAX_BUILD_DEPTH 64
 
+/**
+ * Which build we are in. Incremented once per top level nya_build, never per dependency.
+ *
+ * Starts at 1 so that a rule's zeroed last_built_epoch cannot be mistaken for "already built".
+ * */
+NYA_INTERNAL u64 _nya_build_epoch = 1;
+NYA_INTERNAL u64 _nya_build_depth = 0;
+
+NYA_INTERNAL NYA_Error _nya_build_dispatch(NYA_BuildRule* build_rule);
 NYA_INTERNAL NYA_Error _nya_build_always(NYA_BuildRule* build_rule);
 NYA_INTERNAL NYA_Error _nya_build_run(NYA_BuildRule* build_rule);
 NYA_INTERNAL u32       _nya_build_argument_count(const NYA_Command* command);
@@ -23,6 +32,25 @@ NYA_INTERNAL u32       _nya_build_apply_vendors(NYA_BuildRule* build_rule);
 NYA_Error nya_build(NYA_BuildRule* build_rule) {
     nya_assert(build_rule != nullptr);
 
+    // A new top level build starts a new epoch. Nested calls share it, which is what makes the memo
+    // below scoped to one invocation rather than to the lifetime of the process — NYA_BUILD_ALWAYS
+    // still means always, just not twice for the same graph walk.
+    if (_nya_build_depth == 0) _nya_build_epoch++;
+
+    if (build_rule->last_built_epoch == _nya_build_epoch) return NYA_OK;
+
+    _nya_build_depth++;
+    NYA_Error result = _nya_build_dispatch(build_rule);
+    _nya_build_depth--;
+
+    // Only successes are remembered. A failure aborts the whole build anyway, and memoizing one
+    // would mean a retry silently skipped the rule that failed.
+    if (result.kind == NYA_ERROR_NONE) build_rule->last_built_epoch = _nya_build_epoch;
+
+    return result;
+}
+
+NYA_INTERNAL NYA_Error _nya_build_dispatch(NYA_BuildRule* build_rule) {
     switch (build_rule->policy) {
         case NYA_BUILD_ALWAYS: return _nya_build_always(build_rule);
 
@@ -131,8 +159,6 @@ void nya_rebuild_yourself(s32* argc, NYA_CString* argv, NYA_Command cmd) {
  */
 
 NYA_Error _nya_build_always(NYA_BuildRule* build_rule) {
-    static u64 depth = 0;
-
     nya_assert(build_rule != nullptr);
 
     // Vendors are not built here. They are all built up front by nya_vendor_build_all, so by the
@@ -140,17 +166,15 @@ NYA_Error _nya_build_always(NYA_BuildRule* build_rule) {
     // its flags.
 
     // build dependencies first
-    for (u64 i = 0; i < NYA_BUILD_MAX_DEPENDENCIES; i++) {
-        nya_assert(depth <= _NYA_BUILD_MAX_BUILD_DEPTH, "Maximum build depth exceeded (possible circular dependency).");
+    // nya_build maintains the depth now, so the guard reads the same counter the memo does rather
+    // than a second one that only this function knew about.
+    nya_assert(_nya_build_depth <= _NYA_BUILD_MAX_BUILD_DEPTH, "Maximum build depth exceeded (possible circular dependency).");
 
+    for (u64 i = 0; i < NYA_BUILD_MAX_DEPENDENCIES; i++) {
         NYA_BuildRule* dependency = build_rule->dependencies[i];
         if (!dependency) break;
 
-        depth++;
-        NYA_Error result = nya_build(dependency);
-        depth--;
-
-        if (result.kind != NYA_ERROR_NONE) return result;
+        NYA_TRY(nya_build(dependency));
     }
 
     // pre-build hooks

@@ -14,7 +14,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: basic hashmap creation
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* map = nya_hmap_create(arena, u32, u64);
   nya_assert(map->length == 0);
   nya_assert(map->capacity == _NYA_HASHMAP_DEFAULT_CAPACITY);
   nya_assert(map->keys != nullptr);
@@ -26,7 +26,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: creation with custom capacity
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* map_cap = nya_hmap_create_with_capacity(arena, u32, u64, 128);
+  NYA_HMapᐸu32ˏu64ᐳ* map_cap = nya_hmap_create_with_capacity(arena, u32, u64, 128);
   nya_assert(map_cap->length == 0);
   nya_assert(map_cap->capacity == 128);
   nya_hmap_destroy(map_cap);
@@ -34,7 +34,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hmap_set and nya_hmap_get
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* insert_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* insert_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(insert_map, 1U, 100UL);
   nya_assert(insert_map->length == 1);
   u64* val = nya_hmap_get(insert_map, 1U);
@@ -51,7 +51,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hmap_contains
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* contains_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* contains_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(contains_map, 10U, 1000UL);
   nya_hmap_set(contains_map, 20U, 2000UL);
   nya_assert(nya_hmap_contains(contains_map, 10U) == true);
@@ -63,7 +63,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hmap_get returns nullptr for missing keys
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* get_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* get_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(get_map, 5U, 500UL);
   nya_assert(nya_hmap_get(get_map, 5U) != nullptr);
   nya_assert(nya_hmap_get(get_map, 99U) == nullptr);
@@ -72,7 +72,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hmap_remove
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* remove_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* remove_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(remove_map, 1U, 10UL);
   nya_hmap_set(remove_map, 2U, 20UL);
   nya_hmap_set(remove_map, 3U, 30UL);
@@ -90,7 +90,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hmap_remove first and last
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* remove_first_last = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* remove_first_last = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(remove_first_last, 100U, 1UL);
   nya_hmap_set(remove_first_last, 200U, 2UL);
   nya_hmap_set(remove_first_last, 300U, 3UL);
@@ -108,7 +108,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hmap_clear
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* clear_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* clear_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(clear_map, 1U, 1UL);
   nya_hmap_set(clear_map, 2U, 2UL);
   nya_hmap_set(clear_map, 3U, 3UL);
@@ -125,7 +125,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: automatic resize on load factor exceeded
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* resize_map = nya_hmap_create_with_capacity(arena, u32, u64, 8);
+  NYA_HMapᐸu32ˏu64ᐳ* resize_map = nya_hmap_create_with_capacity(arena, u32, u64, 8);
   nya_assert(resize_map->capacity == 8);
   for (u32 i = 0; i < 10; ++i) { nya_hmap_set(resize_map, i, (u64)(i * 100)); }
   nya_assert(resize_map->length == 10);
@@ -139,7 +139,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: many insertions and removals
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* stress_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* stress_map = nya_hmap_create(arena, u32, u64);
   for (u32 i = 0; i < 100; ++i) { nya_hmap_set(stress_map, i, (u64)(i * 10)); }
   nya_assert(stress_map->length == 100);
 
@@ -156,13 +156,13 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_hmap_copy
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* orig_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* orig_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(orig_map, 1U, 100UL);
   nya_hmap_set(orig_map, 2U, 200UL);
   nya_hmap_set(orig_map, 3U, 300UL);
 
-  u32_u64_HMap  copy_val = nya_hmap_copy(orig_map);
-  u32_u64_HMap* copy_map = &copy_val;
+  NYA_HMapᐸu32ˏu64ᐳ  copy_val = nya_hmap_copy(orig_map);
+  NYA_HMapᐸu32ˏu64ᐳ* copy_map = &copy_val;
   nya_assert(copy_map->length == orig_map->length);
   nya_assert(copy_map->capacity == orig_map->capacity);
   nya_assert(*nya_hmap_get(copy_map, 1U) == 100UL);
@@ -179,7 +179,7 @@ s32 main(void) {
   // TEST: nya_hmap_move
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arena*    arena2   = nya_arena_create(.name = "test_hmap_move");
-  u32_u64_HMap* move_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* move_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(move_map, 10U, 1000UL);
   nya_hmap_set(move_map, 20U, 2000UL);
 
@@ -194,7 +194,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: manual iteration over keys and values
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* iter_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* iter_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(iter_map, 1U, 100UL);
   nya_hmap_set(iter_map, 2U, 200UL);
   nya_hmap_set(iter_map, 3U, 300UL);
@@ -214,7 +214,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: signed integer keys
   // ─────────────────────────────────────────────────────────────────────────────
-  s32_s32_HMap* signed_map = nya_hmap_create(arena, s32, s32);
+  NYA_HMapᐸs32ˏs32ᐳ* signed_map = nya_hmap_create(arena, s32, s32);
   nya_hmap_set(signed_map, -5, 50);
   nya_hmap_set(signed_map, 0, 0);
   nya_hmap_set(signed_map, 5, -50);
@@ -227,7 +227,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: remove non-existent key (should not crash)
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* remove_nonexist = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* remove_nonexist = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(remove_nonexist, 1U, 10UL);
   nya_hmap_remove(remove_nonexist, 999U);
   nya_assert(remove_nonexist->length == 1);
@@ -237,7 +237,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: empty hashmap operations
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* empty_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* empty_map = nya_hmap_create(arena, u32, u64);
   nya_assert(empty_map->length == 0);
   nya_assert(nya_hmap_contains(empty_map, 1U) == false);
   nya_assert(nya_hmap_get(empty_map, 1U) == nullptr);
@@ -248,7 +248,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: destroy resets hashmap state
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* destroy_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* destroy_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(destroy_map, 1U, 1UL);
   nya_hmap_set(destroy_map, 2U, 2UL);
   nya_hmap_destroy(destroy_map);
@@ -256,7 +256,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: insert updates existing key value
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* update_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* update_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(update_map, 1U, 100UL);
   nya_assert(*nya_hmap_get(update_map, 1U) == 100UL);
   nya_hmap_set(update_map, 1U, 999UL);
@@ -267,7 +267,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: zero key value
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* zero_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* zero_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(zero_map, 0U, 0UL);
   nya_assert(zero_map->length == 1);
   nya_assert(nya_hmap_contains(zero_map, 0U) == true);
@@ -280,7 +280,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: many keys that could cause collisions (same hash bucket)
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* collision_map = nya_hmap_create_with_capacity(arena, u32, u64, 8);
+  NYA_HMapᐸu32ˏu64ᐳ* collision_map = nya_hmap_create_with_capacity(arena, u32, u64, 8);
   // Insert keys that will wrap around in a small capacity
   for (u32 i = 0; i < 20; ++i) { nya_hmap_set(collision_map, i, (u64)(i * 100)); }
   nya_assert(collision_map->length == 20);
@@ -300,7 +300,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: clear then reuse
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* reuse_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* reuse_map = nya_hmap_create(arena, u32, u64);
   nya_hmap_set(reuse_map, 1U, 1UL);
   nya_hmap_set(reuse_map, 2U, 2UL);
   nya_hmap_clear(reuse_map);
@@ -316,7 +316,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: remove all items one by one
   // ─────────────────────────────────────────────────────────────────────────────
-  u32_u64_HMap* remove_all_map = nya_hmap_create(arena, u32, u64);
+  NYA_HMapᐸu32ˏu64ᐳ* remove_all_map = nya_hmap_create(arena, u32, u64);
   for (u32 i = 0; i < 10; ++i) { nya_hmap_set(remove_all_map, i, (u64)i); }
   for (u32 i = 0; i < 10; ++i) {
     nya_hmap_remove(remove_all_map, i);
@@ -333,7 +333,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_RNG       rng           = nya_rng_create();
-    u32_u64_HMap* stress        = nya_hmap_create(arena, u32, u64);
+    NYA_HMapᐸu32ˏu64ᐳ* stress        = nya_hmap_create(arena, u32, u64);
     u64           expected[256] = { 0 };
     b8            present[256]  = { 0 };
 

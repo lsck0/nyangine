@@ -300,6 +300,27 @@ NYA_API void nya_window_minimize(NYA_WindowHandle window);
 NYA_API void nya_window_restore(NYA_WindowHandle window);
 
 NYA_API void nya_window_set_title(NYA_WindowHandle window, NYA_ConstCString title);
+
+/**
+ * Sets the window's icon from encoded image bytes — whatever SDL_image reads: PNG, BMP, ICO.
+ *
+ * Bytes rather than an asset handle because the window system sits below the asset system, so it
+ * cannot ask it for anything. Load the image as NYA_ASSET_TYPE_TEXT and hand over what it read:
+ *
+ * ```c
+ * NYA_Asset* icon = nya_asset_get(NYA_ASSET_ICON_ICON_BMP);
+ * nya_asset_with(icon) NYA_EXPECT(nya_window_set_icon(window, icon->as_text.data, icon->as_text.size));
+ * ```
+ *
+ * SDL converts the image into its own surface, so the bytes are only needed for the call and the
+ * asset can be released straight after.
+ *
+ * Returns an error rather than asserting, because failing is not a programming mistake: on Wayland
+ * this needs the compositor to support xdg_toplevel_icon_v1, and one that does not will refuse.
+ * Windows, X11 and macOS set it directly. Note that on Windows the icon shown before the process
+ * starts comes from the resource the build compiles into the executable, not from this.
+ * */
+NYA_API NYA_Error nya_window_set_icon(NYA_WindowHandle window, const u8* data, u64 size) __attr_no_discard;
 NYA_API void nya_window_set_fullscreen(NYA_WindowHandle window, b8 fullscreen);
 NYA_API void nya_window_set_borderless(NYA_WindowHandle window, b8 borderless);
 NYA_API void nya_window_set_resizable(NYA_WindowHandle window, b8 resizable);

@@ -26,23 +26,23 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng);
 NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
     nya_assert(rng != nullptr);
 
-    __m256i o0 = rng->output[0];
-    __m256i o1 = rng->output[1];
-    __m256i o2 = rng->output[2];
-    __m256i o3 = rng->output[3];
-    __m256i s0 = rng->state[0];
-    __m256i s1 = rng->state[1];
-    __m256i s2 = rng->state[2];
-    __m256i s3 = rng->state[3];
-    __m256i t0;
-    __m256i t1;
-    __m256i t2;
-    __m256i t3;
-    __m256i u0;
-    __m256i u1;
-    __m256i u2;
-    __m256i u3;
-    __m256i counter = rng->counter;
+    u64x4 o0 = rng->output[0];
+    u64x4 o1 = rng->output[1];
+    u64x4 o2 = rng->output[2];
+    u64x4 o3 = rng->output[3];
+    u64x4 s0 = rng->state[0];
+    u64x4 s1 = rng->state[1];
+    u64x4 s2 = rng->state[2];
+    u64x4 s3 = rng->state[3];
+    u64x4 t0;
+    u64x4 t1;
+    u64x4 t2;
+    u64x4 t3;
+    u64x4 u0;
+    u64x4 u1;
+    u64x4 u2;
+    u64x4 u3;
+    u64x4 counter = rng->counter;
 
     // The following shuffles move weak (low-diffusion) 32-bit parts of 64-bit
     // additions to strong positions for enrichment. The low 32-bit part of a
@@ -50,8 +50,20 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
     // They do not remain in the same chunk. Each part eventually reaches all
     // positions ringwise: A to B, B to C, …, H to A.
     // You may notice that they are simply 256-bit rotations (96 and 160).
-    __m256i shu0 = _mm256_set_epi32(4, 3, 2, 1, 0, 7, 6, 5);
-    __m256i shu1 = _mm256_set_epi32(2, 1, 0, 7, 6, 5, 4, 3);
+    // As lane index lists rather than a mask register: result lane i takes source lane SHUFFLE_A[i].
+    // Both are rotations of the eight 32-bit lanes, by five and by three, which is what the ringwise
+    // movement described above amounts to.
+#define _NYA_RNG_SHUFFLE_A 5, 6, 7, 0, 1, 2, 3, 4
+#define _NYA_RNG_SHUFFLE_B 3, 4, 5, 6, 7, 0, 1, 2
+
+    /*
+     * One 64-bit lane vector shuffled as eight 32-bit lanes, then read back as 64-bit lanes.
+     *
+     * The casts reinterpret rather than convert — for vector types that is what a cast means, where
+     * __builtin_convertvector would be the conversion. __builtin_shufflevector takes two sources and
+     * picks between them; passing the same one twice makes it a single register permute.
+     * */
+#define _nya_rng_shuffle(vector, ...) ((u64x4)__builtin_shufflevector((u32x8)(vector), (u32x8)(vector), __VA_ARGS__))
 
     // The counter is not necessary to beat PractRand.
     // It sets a lower bound of 2^71 bytes = 2 ZiB to the period,
@@ -62,18 +74,21 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
     // I use different odd numbers for each 64-bit chunk
     // for a tiny amount of variation stirring.
     // I used the smallest odd numbers to avoid having a magic number.
-    __m256i increment = _mm256_set_epi64x(1, 3, 5, 7);
+    u64x4 increment = { 7, 5, 3, 1 };
 
     for (u64 index = 0; index < _NYA_RNG_BUFFER_SIZE; index += 128) {
-        _mm256_storeu_si256((__m256i*)&rng->buffer[index + 0], o0);
-        _mm256_storeu_si256((__m256i*)&rng->buffer[index + 32], o1);
-        _mm256_storeu_si256((__m256i*)&rng->buffer[index + 64], o2);
-        _mm256_storeu_si256((__m256i*)&rng->buffer[index + 96], o3);
+        // memcpy rather than a store through a vector pointer: the buffer is a plain byte array in
+        // the middle of a struct and carries no promise of 32 byte alignment. It compiles to the
+        // unaligned store either way.
+        nya_memcpy(&rng->buffer[index + 0], &o0, sizeof(o0));
+        nya_memcpy(&rng->buffer[index + 32], &o1, sizeof(o1));
+        nya_memcpy(&rng->buffer[index + 64], &o2, sizeof(o2));
+        nya_memcpy(&rng->buffer[index + 96], &o3, sizeof(o3));
 
         // I apply the counter to s1, since it is the one whose shift loses most entropy.
-        s1      = _mm256_add_epi64(s1, counter);
-        s3      = _mm256_add_epi64(s3, counter);
-        counter = _mm256_add_epi64(counter, increment);
+        s1      += counter;
+        s3      += counter;
+        counter += increment;
 
         // SIMD does not support rotations. Shift is the next best thing to entangle
         // bits with other 64-bit positions. We must shift by an odd number so that
@@ -82,27 +97,27 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
         // to increase divergence between the two sides. We use rightward shift
         // because the rightmost bits have the least diffusion in addition (the low
         // bit is just a XOR of the low bits).
-        u0 = _mm256_srli_epi64(s0, 1);
-        u1 = _mm256_srli_epi64(s1, 3);
-        u2 = _mm256_srli_epi64(s2, 1);
-        u3 = _mm256_srli_epi64(s3, 3);
-        t0 = _mm256_permutevar8x32_epi32(s0, shu0);
-        t1 = _mm256_permutevar8x32_epi32(s1, shu1);
-        t2 = _mm256_permutevar8x32_epi32(s2, shu0);
-        t3 = _mm256_permutevar8x32_epi32(s3, shu1);
+        u0 = s0 >> 1;
+        u1 = s1 >> 3;
+        u2 = s2 >> 1;
+        u3 = s3 >> 3;
+        t0 = _nya_rng_shuffle(s0, _NYA_RNG_SHUFFLE_A);
+        t1 = _nya_rng_shuffle(s1, _NYA_RNG_SHUFFLE_B);
+        t2 = _nya_rng_shuffle(s2, _NYA_RNG_SHUFFLE_A);
+        t3 = _nya_rng_shuffle(s3, _NYA_RNG_SHUFFLE_B);
 
         // Addition is the main source of diffusion.
         // Storing the output in the state keeps that diffusion permanently.
-        s0 = _mm256_add_epi64(t0, u0);
-        s1 = _mm256_add_epi64(t1, u1);
-        s2 = _mm256_add_epi64(t2, u2);
-        s3 = _mm256_add_epi64(t3, u3);
+        s0 = t0 + u0;
+        s1 = t1 + u1;
+        s2 = t2 + u2;
+        s3 = t3 + u3;
 
         // Two orthogonally grown pieces evolving independently, XORed.
-        o0 = _mm256_xor_si256(u0, t1);
-        o1 = _mm256_xor_si256(u2, t3);
-        o2 = _mm256_xor_si256(s0, s3);
-        o3 = _mm256_xor_si256(s2, s1);
+        o0 = u0 ^ t1;
+        o1 = u2 ^ t3;
+        o2 = s0 ^ s3;
+        o3 = s2 ^ s1;
     }
 
     rng->output[0] = o0;
@@ -169,10 +184,11 @@ NYA_RNG nya_rng_create_with_options(NYA_RNGOptions options) {
 
     // Diffuse first two seed elements in s0, then the last two. Same for s1.
     // We must keep half of the state unchanged so users cannot set a bad state.
-    rng.state[0] = _mm256_set_epi64x((s64)PHI[3], (s64)(PHI[2] ^ seed[1]), (s64)PHI[1], (s64)(PHI[0] ^ seed[0]));
-    rng.state[1] = _mm256_set_epi64x((s64)PHI[7], (s64)(PHI[6] ^ seed[3]), (s64)PHI[5], (s64)(PHI[4] ^ seed[2]));
-    rng.state[2] = _mm256_set_epi64x((s64)PHI[11], (s64)(PHI[10] ^ seed[3]), (s64)PHI[9], (s64)(PHI[8] ^ seed[2]));
-    rng.state[3] = _mm256_set_epi64x((s64)PHI[15], (s64)(PHI[14] ^ seed[1]), (s64)PHI[13], (s64)(PHI[12] ^ seed[0]));
+    // Lane order is lowest first here, where _mm256_set_epi64x took its arguments highest first.
+    rng.state[0] = (u64x4){ PHI[0] ^ seed[0], PHI[1], PHI[2] ^ seed[1], PHI[3] };
+    rng.state[1] = (u64x4){ PHI[4] ^ seed[2], PHI[5], PHI[6] ^ seed[3], PHI[7] };
+    rng.state[2] = (u64x4){ PHI[8] ^ seed[2], PHI[9], PHI[10] ^ seed[3], PHI[11] };
+    rng.state[3] = (u64x4){ PHI[12] ^ seed[0], PHI[13], PHI[14] ^ seed[1], PHI[15] };
 
     for (u64 round = 0; round < _NYA_RNG_INIT_ROUNDS; round++) {
         _nya_rng_fill_buffer(&rng);

@@ -25,12 +25,22 @@ enum NYA_SerdeFormat {
     /** Standard JSON. Portable, but loses the distinction between the integer and float widths. */
     NYA_SERDE_FORMAT_JSON,
 
+    /**
+     * JSON with comments and trailing commas, as editors and config files use it.
+     *
+     * A read-side dialect. Writing it produces ordinary JSON — nothing here invents comments — so a
+     * document written as JSONC is byte for byte what JSON would have written, and stays readable by
+     * anything that only speaks strict JSON.
+     * */
+    NYA_SERDE_FORMAT_JSONC,
+
     NYA_SERDE_FORMAT_COUNT,
 };
 
 __attr_allow_unused static NYA_ConstCString NYA_SERDE_FORMAT_NAME_MAP[NYA_SERDE_FORMAT_COUNT] = {
-    [NYA_SERDE_FORMAT_NYA]  = "nya",
-    [NYA_SERDE_FORMAT_JSON] = "json",
+    [NYA_SERDE_FORMAT_NYA]   = "nya",
+    [NYA_SERDE_FORMAT_JSON]  = "json",
+    [NYA_SERDE_FORMAT_JSONC] = "jsonc",
 };
 
 enum NYA_SerdeFlags {

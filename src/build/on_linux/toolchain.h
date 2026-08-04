@@ -13,10 +13,15 @@
 
 // clang-format off
 
-/** Cross compiling to Windows, so clang has to be pointed at the target explicitly. */
-#define FLAGS_TARGET_WINDOWS_X86_64 "--target=x86_64-w64-mingw32"
+/*
+ * Cross compiling to Windows, so clang has to be pointed at the target explicitly.
+ *
+ * The trailing comma belongs to the macro, not to the use site, because the other host defines this
+ * empty and `FLAGS, , FLAGS` is not an expression. Same convention as NYA_LUAJIT_CROSS below.
+ * */
+#define FLAGS_TARGET_WINDOWS_X86_64 "--target=x86_64-w64-mingw32",
 
-/** Native, so nothing to add. */
+/** Native, so nothing to add. Expands to nothing at all, comma included. */
 #define FLAGS_TARGET_LINUX_X86_64
 
 /** The only resource compiler that exists on a Linux host. */

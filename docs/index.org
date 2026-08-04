@@ -1,6 +1,5 @@
 * PLAN
 
-- [ ] more asset system work (implement missing resource types)
 - [ ] render primitives (lines, circles, rectangles, etc)
 - [ ] font rendering
 - [ ] ui system: widgets, layout, styling

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "gnyame/gnyame.h"
+// nyangine is a different subsystem, so its umbrella. Not gnyame.h: that is this subsystem's own
+// umbrella and it includes this file, so naming it here is a cycle that only #pragma once hides.
+#include "nyangine/nyangine.h"
 
 void gny_layers_init(void);
 

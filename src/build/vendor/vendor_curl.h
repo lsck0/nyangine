@@ -11,6 +11,10 @@
 
 #include "nyangine/nyangine.h"
 
+#include "build/hooks/hooks.h"
+#include "build/toolchain.h"
+#include "build/vendor/vendor_common.h"
+
 // clang-format off
 
 #define CURL_SOURCE               "./vendor/curl"
@@ -54,6 +58,8 @@ NYA_VendorRule vendor_curl_linux_x86_64 = {
                 .program   = "cmake",
                 .arguments = { "-S", CURL_SOURCE, "-B", CURL_BUILD_LINUX_X86_64, CURL_CMAKE_COMMON, "-DCURL_USE_OPENSSL=ON", },
             },
+
+            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_curl_linux_x86_64_compile",
@@ -93,6 +99,8 @@ NYA_VendorRule vendor_curl_windows_x86_64 = {
                     "-DCURL_USE_OPENSSL=OFF",
                 },
             },
+
+            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_curl_windows_x86_64_compile",

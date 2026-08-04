@@ -18,6 +18,7 @@
  */
 
 typedef struct NYA_WindowHandle NYA_WindowHandle;
+typedef struct NYA_EntityHandle NYA_EntityHandle;
 
 /**
  * Identifies a window for as long as it exists, and stops identifying it the moment it does not.
@@ -31,3 +32,18 @@ struct NYA_WindowHandle {
 };
 
 #define NYA_WINDOW_HANDLE_NONE ((NYA_WindowHandle){ .index = 0, .generation = 0 })
+
+/**
+ * Identifies an entity for as long as it lives, and stops identifying it once it does not.
+ *
+ * Same shape and same reasoning as NYA_WindowHandle, and the reason it matters more here: entities
+ * refer to each other constantly, and deferred simulation commands hold references across a barrier.
+ * A raw index would silently address whichever entity next occupied the slot. Bumping `generation`
+ * on despawn turns that into a lookup that returns null.
+ * */
+struct NYA_EntityHandle {
+    u32 index;
+    u32 generation;
+};
+
+#define NYA_ENTITY_HANDLE_NONE ((NYA_EntityHandle){ .index = 0, .generation = 0 })

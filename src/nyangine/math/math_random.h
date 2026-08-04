@@ -39,6 +39,7 @@
 #include "nyangine/base/base.h"
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/math/math_vector.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -64,9 +65,9 @@ struct NYA_RNGOptions {
 struct NYA_RNG {
     char seed[_NYA_RNG_MAX_SEED_LENGTH + 1];
 
-    __m256i state[4];
-    __m256i output[4];
-    __m256i counter;
+    u64x4 state[4];
+    u64x4 output[4];
+    u64x4 counter;
 
     u8  buffer[_NYA_RNG_BUFFER_SIZE];
     u64 cursor;

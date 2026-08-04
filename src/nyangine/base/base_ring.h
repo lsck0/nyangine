@@ -116,13 +116,19 @@
         u64                         _ring_old_cap  = (ring_ptr)->capacity;                                                                           \
         u64                         _ring_old_head = (ring_ptr)->head;                                                                               \
         u64                         _ring_old_len  = (ring_ptr)->length;                                                                             \
-        typeof(*(ring_ptr)->items)* _ring_new      = nya_arena_alloc((ring_ptr)->arena, (new_capacity) * sizeof(*(ring_ptr)->items));                \
+        u64                         _ring_new_cap  = (new_capacity);                                                                                 \
+        /* The copy below writes _ring_old_len entries, so a smaller capacity would run off the end  */ \
+        /* of the new buffer rather than dropping the excess.                                        */ \
+        nya_assert(_ring_new_cap >= _ring_old_len, "Cannot resize a ring below its length.");                                                        \
+        typeof(*(ring_ptr)->items)* _ring_new      = nya_arena_alloc((ring_ptr)->arena, _ring_new_cap * sizeof(*(ring_ptr)->items));                 \
         for (u64 _i = 0; _i < _ring_old_len; _i++) { _ring_new[_i] = (ring_ptr)->items[(_ring_old_head + _i) % _ring_old_cap]; }                     \
         nya_arena_free((ring_ptr)->arena, (ring_ptr)->items, _ring_old_cap * sizeof(*(ring_ptr)->items));                                            \
         (ring_ptr)->items    = _ring_new;                                                                                                            \
         (ring_ptr)->head     = 0;                                                                                                                    \
-        (ring_ptr)->tail     = _ring_old_len;                                                                                                        \
-        (ring_ptr)->capacity = (new_capacity);                                                                                                       \
+        /* Wrapped, because resizing to exactly the length leaves tail one past the last slot: a    */ \
+        /* valid length but not a valid index, and the next push wrote off the end of the buffer.   */ \
+        (ring_ptr)->tail     = _ring_old_len % _ring_new_cap;                                                                                        \
+        (ring_ptr)->capacity = _ring_new_cap;                                                                                                        \
     })
 
 #define nya_ring_clear(ring_ptr)                                                                                                                     \

@@ -51,4 +51,5 @@ nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFormat form
 NYA_API NYA_SerdeFormat nya_serde_detect_format(const u8* data, u64 size) __attr_no_discard;
 
 #include "nyangine/serde/serde_json.h"
+#include "nyangine/serde/serde_jsonc.h"
 #include "nyangine/serde/serde_nya.h"

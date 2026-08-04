@@ -230,7 +230,12 @@ _nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkCallback c
 
     // A scratch arena per level, so memory tracks the depth of the tree rather than its total size.
     // Walking a large tree otherwise grows without bound, which is exactly what a file browser does.
-    NYA_Arena* scratch = nya_arena_create();
+    //
+    // Explicitly sized because the default region is a gibibyte, which a sanitized build poisons in
+    // full on creation: a fixed cost per directory that dwarfed the walk itself. A mebibyte holds a
+    // few thousand entries and their joined paths, and a directory larger than that just chains
+    // another region.
+    NYA_Arena* scratch = nya_arena_create(.region_size = nya_mebyte_to_byte(1UL));
     defer      nya_arena_destroy(scratch);
 
     NYA_ArrayᐸNYA_DirectoryEntryᐳ* entries = nullptr;

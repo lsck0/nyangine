@@ -13,6 +13,8 @@
 
 #include "build/flags.h"
 #include "build/hooks/hooks.h"
+// The asset rules these depend on (build_shaders, index_assets, bundle_assets) live in
+// build.c, which defines them above the point it includes this file.
 #include "build/vendor/vendor.h"
 
 NYA_INTERNAL NYA_BuildRule build_project_debug_executable_linux = {
@@ -36,7 +38,8 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_executable_linux = {
     },
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-    .vendors         = { &vendor_sdl_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
+    .vendors         = { &vendor_sdl_linux_x86_64, &vendor_sdl_image_linux_x86_64, &vendor_sdl_ttf_linux_x86_64,
+                       &vendor_sdl_mixer_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
 };
 
 NYA_INTERNAL NYA_BuildRule build_project_debug_dll_linux = {
@@ -61,7 +64,8 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_dll_linux = {
     },
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-    .vendors         = { &vendor_sdl_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
+    .vendors         = { &vendor_sdl_linux_x86_64, &vendor_sdl_image_linux_x86_64, &vendor_sdl_ttf_linux_x86_64,
+                       &vendor_sdl_mixer_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
     .dependencies    = { &build_shaders, &index_assets, },
 };
 
@@ -91,8 +95,9 @@ NYA_INTERNAL NYA_BuildRule build_project_linux_x86_64 = {
     },
 
     .pre_build_hooks  = { &hook_add_version_flag_and_git_hash, },
-    .vendors          = { &vendor_sdl_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
-    .dependencies     = { &bundle_assets, &index_assets, },
+    .vendors          = { &vendor_sdl_linux_x86_64, &vendor_sdl_image_linux_x86_64, &vendor_sdl_ttf_linux_x86_64,
+                        &vendor_sdl_mixer_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
+    .dependencies     = { &bundle_assets, }, // index_assets comes with it, in the right order
     .post_build_hooks = { &hook_insert_integrity_hash, },
 };
 
@@ -128,7 +133,8 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_executable_linux = {
     },
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-    .vendors         = { &vendor_sdl_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
+    .vendors         = { &vendor_sdl_linux_x86_64, &vendor_sdl_image_linux_x86_64, &vendor_sdl_ttf_linux_x86_64,
+                       &vendor_sdl_mixer_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
 };
 
 NYA_INTERNAL NYA_BuildRule build_project_dev_dll_linux = {
@@ -152,7 +158,8 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_dll_linux = {
     },
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-    .vendors         = { &vendor_sdl_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
+    .vendors         = { &vendor_sdl_linux_x86_64, &vendor_sdl_image_linux_x86_64, &vendor_sdl_ttf_linux_x86_64,
+                       &vendor_sdl_mixer_linux_x86_64, &vendor_libbacktrace_linux_x86_64, },
     .dependencies    = { &build_shaders, &index_assets, },
 };
 

@@ -1,4 +1,5 @@
 #include "SDL3/SDL_gpu.h"
+#include "SDL3_image/SDL_image.h"
 
 #include "nyangine/nyangine.h"
 
@@ -8,7 +9,6 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_INTERNAL NYA_Window*   _nya_window_from_sdl(SDL_Window* sdl_window);
 NYA_INTERNAL NYA_Window*   _nya_window_require(NYA_WindowHandle window, NYA_ConstCString caller);
 NYA_INTERNAL SDL_DisplayID _nya_window_display(NYA_WindowHandle window);
 NYA_INTERNAL NYA_Rect      _nya_rect_from_sdl(SDL_Rect rect);
@@ -111,6 +111,26 @@ u32 nya_window_count(void) {
  * ─────────────────────────────────────────────────────────
  */
 
+/*
+ * Copies a window title into the window system's own memory.
+ *
+ * Titles arrive as string literals from whoever called, and for this engine that caller is usually
+ * the hot reloaded game DLL. Reloading dlcloses it and unmaps the .rodata the literal lives in, so a
+ * borrowed title is a dangling pointer from the next reload onward — which showed up as a fault
+ * inside the logging call in nya_system_renderer_for_window_deinit, printing a title that no longer
+ * existed.
+ *
+ * The window system outlives every DLL that creates a window through it.
+ * */
+NYA_INTERNAL NYA_ConstCString _nya_window_intern_title(NYA_ConstCString title) {
+    if (title == nullptr) return nullptr;
+
+    NYA_Arena*  arena = nya_app_get()->window_system.allocator;
+    NYA_String* owned = nya_string_from(arena, title);
+
+    return nya_string_to_cstring(arena, owned);
+}
+
 NYA_WindowHandle nya_window_create(NYA_ConstCString title, u32 requested_width, u32 requested_height, NYA_WindowFlags flags) {
     nya_assert(title != nullptr);
     nya_assert(requested_width > 0, "Requested width must be greater than 0.");
@@ -143,7 +163,7 @@ NYA_WindowHandle nya_window_create(NYA_ConstCString title, u32 requested_width, 
     NYA_Window* window = &app->window_system.windows[slot];
     *window            = (NYA_Window){
         .handle      = handle,
-        .title       = title,
+        .title       = _nya_window_intern_title(title),
         .sdl_window  = sdl_window,
         .layer_stack = nya_array_create(app->window_system.allocator, NYA_Layer),
     };
@@ -410,7 +430,27 @@ void nya_window_set_title(NYA_WindowHandle window, NYA_ConstCString title) {
     if (target == nullptr) return;
 
     SDL_SetWindowTitle(target->sdl_window, title);
-    target->title = title;
+    target->title = _nya_window_intern_title(title);
+}
+
+NYA_Error nya_window_set_icon(NYA_WindowHandle window, const u8* data, u64 size) {
+    if (data == nullptr || size == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "window icon data is empty.");
+
+    NYA_Window* target = _nya_window_require(window, "nya_window_set_icon");
+    if (target == nullptr) return nya_error(NYA_ERROR_NOT_FOUND, "no such window.");
+
+    SDL_Surface* surface = IMG_Load_IO(SDL_IOFromConstMem(data, size), true);
+    if (surface == nullptr) return nya_error(NYA_ERROR_CORRUPT, "could not decode the window icon: %s", SDL_GetError());
+
+    // SDL converts the surface into its own ARGB8888 copy, so ours is done with either way.
+    defer SDL_DestroySurface(surface);
+
+    if (!SDL_SetWindowIcon(target->sdl_window, surface)) {
+        return nya_error(NYA_ERROR_NOT_SUPPORTED, "could not set the window icon: %s", SDL_GetError());
+    }
+
+    nya_info("Set the icon for window '%s' (slot %u).", target->title, window.index);
+    return NYA_OK;
 }
 
 void nya_window_set_fullscreen(NYA_WindowHandle window, b8 fullscreen) {
@@ -599,17 +639,6 @@ NYA_INTERNAL NYA_Window* _nya_window_require(NYA_WindowHandle window, NYA_ConstC
     if (target == nullptr) nya_warn("%s called with a stale window handle (slot %u, generation %u).", caller, window.index, window.generation);
 
     return target;
-}
-
-NYA_INTERNAL NYA_Window* _nya_window_from_sdl(SDL_Window* sdl_window) {
-    if (sdl_window == nullptr) return nullptr;
-
-    for (u32 i = 0; i < NYA_WINDOW_MAX; i++) {
-        NYA_Window* window = nya_window_at_slot(i);
-        if (window != nullptr && window->sdl_window == sdl_window) return window;
-    }
-
-    return nullptr;
 }
 
 NYA_INTERNAL SDL_DisplayID _nya_window_display(NYA_WindowHandle window) {

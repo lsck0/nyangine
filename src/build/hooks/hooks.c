@@ -1,6 +1,4 @@
-#include "build/hooks/hooks.h"
-/**/
-#include "build/asset/asset.h"
+#include "build/build.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -34,7 +32,7 @@ NYA_INTERNAL NYA_CString cmake_cache_value(NYA_Arena* arena, const NYA_String* c
     nya_array_foreach (lines, line) {
         if (!nya_string_starts_with(line, key)) continue;
 
-        NYA_CString text  = nya_string_to_cstring(arena, line);
+        NYA_CString text   = nya_string_to_cstring(arena, line);
         NYA_CString equals = strchr(text, '=');
         if (equals == nullptr) continue;
 
@@ -207,77 +205,6 @@ void hook_remove_output_file(NYA_BuildRule* rule) {
     nya_assert(rule->output_file);
 
     NYA_EXPECT(nya_filesystem_delete(rule->output_file));
-}
-
-// we just need to move everything into the right place
-void hook_bundle_project(NYA_BuildRule* rule) {
-    nya_assert(rule != nullptr);
-
-    NYA_ConstCString dist_path    = "./dist/";
-    NYA_ConstCString linux_path   = "./dist/" PROJECT_NAME "." VERSION ".linux-x86_64/";
-    NYA_ConstCString windows_path = "./dist/" PROJECT_NAME "." VERSION ".windows-x86_64/";
-
-    NYA_Command clean_dist_command = {
-        .program   = "rm",
-        .arguments = { "-rf", dist_path },
-    };
-    NYA_EXPECT(nya_command_run(&clean_dist_command));
-    nya_assert(clean_dist_command.exit_code == 0, "Failed to clean dist directory.");
-
-    NYA_Command create_dirs_command = {
-    .program   = "mkdir",
-    .arguments = { "-p", linux_path, windows_path, },
-  };
-    NYA_EXPECT(nya_command_run(&create_dirs_command));
-    nya_assert(create_dirs_command.exit_code == 0, "Failed to create dist directories.");
-
-    // LINUX
-
-    NYA_Command copy_linux_binary_command = {
-    .program   = "cp",
-    .arguments = { LINUX_X86_64_BINARY, linux_path, },
-  };
-    NYA_EXPECT(nya_command_run(&copy_linux_binary_command));
-    nya_assert(copy_linux_binary_command.exit_code == 0, "Failed to copy linux binary.");
-
-    NYA_Command copy_steam_sdk_linux_command = {
-    .program   = "cp",
-    .arguments = { "./vendor/steam/redistributable_bin/linux64/libsteam_api.so", linux_path, },
-  };
-    NYA_EXPECT(nya_command_run(&copy_steam_sdk_linux_command));
-    nya_assert(copy_steam_sdk_linux_command.exit_code == 0, "Failed to copy steam sdk for linux.");
-
-    NYA_Command zip_linux_command = {
-        .program           = "zip",
-        .arguments         = { "-r", "../" PROJECT_NAME "." VERSION ".linux-x86_64.zip", "." },
-        .working_directory = linux_path,
-    };
-    NYA_EXPECT(nya_command_run(&zip_linux_command));
-    nya_assert(zip_linux_command.exit_code == 0, "Failed to create linux zip.");
-
-    // WINDOWS
-
-    NYA_Command copy_windows_binary_command = {
-    .program   = "cp",
-    .arguments = { WINDOWS_X86_64_BINARY, windows_path, },
-  };
-    NYA_EXPECT(nya_command_run(&copy_windows_binary_command));
-    nya_assert(copy_windows_binary_command.exit_code == 0, "Failed to copy windows binary.");
-
-    NYA_Command copy_steam_sdk_windows_command = {
-    .program   = "cp",
-    .arguments = { "./vendor/steam/redistributable_bin/win64/steam_api64.dll", windows_path, },
-  };
-    NYA_EXPECT(nya_command_run(&copy_steam_sdk_windows_command));
-    nya_assert(copy_steam_sdk_windows_command.exit_code == 0, "Failed to copy steam sdk for windows.");
-
-    NYA_Command zip_windows_command = {
-        .program           = "zip",
-        .arguments         = { "-r", "../" PROJECT_NAME "." VERSION ".windows-x86_64.zip", "." },
-        .working_directory = windows_path,
-    };
-    NYA_EXPECT(nya_command_run(&zip_windows_command));
-    nya_assert(zip_windows_command.exit_code == 0, "Failed to create windows zip.");
 }
 
 void hook_convert_perf_data_to_plain(NYA_BuildRule* rule) {

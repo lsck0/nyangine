@@ -38,6 +38,19 @@ typedef f128 f128x3 __attr_vector(3);
 typedef f128 f128x4 __attr_vector(4);
 
 /*
+ * Integer lanes, for code that works on a whole register at once rather than on a point in space.
+ *
+ * The same mechanism and the same operators, but not the same idea: these are lanes, so they get no
+ * `.x` / `.y` / `.z` / `.w` and no swizzles. Index them, or move lanes with __builtin_shufflevector.
+ *
+ * Only the widths something uses. math_random works on 256 bit registers as four 64 bit lanes, and
+ * shuffles them as eight 32 bit ones; add others here when they are actually needed rather than
+ * filling in the grid on spec.
+ * */
+typedef u32 u32x8 __attr_vector(8);
+typedef u64 u64x4 __attr_vector(4);
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FORMATTING
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

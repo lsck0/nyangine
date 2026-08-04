@@ -27,6 +27,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+/*
+ * Before <tgmath.h>, and only on Windows.
+ *
+ * tgmath.h turns abs, ceil and friends into type generic *macros*. mingw's intrin.h then declares
+ * those same names as functions, and the macros eat the declarations: "expected expression" from a
+ * header nobody in this project includes directly. Pulling intrin.h in first means its include
+ * guard is already set by the time SDL_assert.h asks for it, so it is never parsed with the macros
+ * in scope.
+ */
+#if defined(_WIN32) || defined(__CYGWIN__)
+#include <intrin.h>
+#endif
+
 #include <tgmath.h>
 #include <time.h>
 #include <uchar.h>

@@ -23,15 +23,15 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: RNG creation with invalid seeds should panic
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_assert_panic({
+  nya_expect_crash({
     NYA_RNG bad_rng = nya_rng_create(.seed = "BEGgEFZ");
     (void)bad_rng;
   });
-  nya_assert_panic({
+  nya_expect_crash({
     NYA_RNG bad_rng = nya_rng_create(.seed = "AAasd786hgfasPOAISDnAAAAAAAAAAAaafsdsdsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     (void)bad_rng;
   });
-  nya_assert_panic({
+  nya_expect_crash({
     NYA_RNG bad_rng = nya_rng_create(.seed = "lowercase");
     (void)bad_rng;
   });

@@ -9,6 +9,8 @@
 
 #include "build/flags.h"
 #include "build/hooks/hooks.h"
+// The asset rules these depend on (build_shaders, index_assets, bundle_assets) live in
+// build.c, which defines them above the point it includes this file.
 #include "build/vendor/vendor.h"
 
 /*
@@ -34,13 +36,14 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_executable_windows = {
             LINKER_FLAGS,
             FLAGS_DEBUG,
             FLAGS_DEBUG_WINDOWS_X86_64,
-            FLAGS_TARGET_WINDOWS_X86_64,
+            FLAGS_TARGET_WINDOWS_X86_64
             FLAGS_WINDOWS_X86_64,
         },
     },
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-    .vendors         = { &vendor_sdl_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
+    .vendors         = { &vendor_sdl_windows_x86_64, &vendor_sdl_image_windows_x86_64, &vendor_sdl_ttf_windows_x86_64,
+                       &vendor_sdl_mixer_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
 };
 
 NYA_INTERNAL NYA_BuildRule build_project_debug_dll_windows = {
@@ -58,7 +61,7 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_dll_windows = {
             LINKER_FLAGS,
             FLAGS_DEBUG,
             "-shared",
-            FLAGS_TARGET_WINDOWS_X86_64,
+            FLAGS_TARGET_WINDOWS_X86_64
             FLAGS_WINDOWS_X86_64,
             // Resolves the engine symbols out of the executable.
             WINDOWS_X86_64_DEBUG_IMPLIB,
@@ -66,7 +69,8 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_dll_windows = {
     },
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-    .vendors         = { &vendor_sdl_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
+    .vendors         = { &vendor_sdl_windows_x86_64, &vendor_sdl_image_windows_x86_64, &vendor_sdl_ttf_windows_x86_64,
+                       &vendor_sdl_mixer_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
     .dependencies    = { &build_project_debug_executable_windows, &build_shaders, &index_assets, },
 };
 
@@ -91,15 +95,16 @@ NYA_INTERNAL NYA_BuildRule build_project_windows_x86_64 = {
             INCLUDE_PATHS,
             LINKER_FLAGS,
             FLAGS_RELEASE,
-            FLAGS_TARGET_WINDOWS_X86_64,
+            FLAGS_TARGET_WINDOWS_X86_64
             FLAGS_WINDOWS_X86_64,
             "./assets/icon/icon.res",
         },
     },
 
     .pre_build_hooks  = { &hook_add_version_flag_and_git_hash, },
-    .vendors          = { &vendor_sdl_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
-    .dependencies     = { &bundle_assets, &index_assets, },
+    .vendors          = { &vendor_sdl_windows_x86_64, &vendor_sdl_image_windows_x86_64, &vendor_sdl_ttf_windows_x86_64,
+                        &vendor_sdl_mixer_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
+    .dependencies     = { &bundle_assets, }, // index_assets comes with it, in the right order
     .post_build_hooks = { &hook_insert_integrity_hash, },
 };
 
@@ -126,13 +131,14 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_executable_windows = {
             LINKER_FLAGS,
             FLAGS_DEVELOPER,
             FLAGS_DEV_WINDOWS_X86_64,
-            FLAGS_TARGET_WINDOWS_X86_64,
+            FLAGS_TARGET_WINDOWS_X86_64
             FLAGS_WINDOWS_X86_64,
         },
     },
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-    .vendors         = { &vendor_sdl_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
+    .vendors         = { &vendor_sdl_windows_x86_64, &vendor_sdl_image_windows_x86_64, &vendor_sdl_ttf_windows_x86_64,
+                       &vendor_sdl_mixer_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
 };
 
 NYA_INTERNAL NYA_BuildRule build_project_dev_dll_windows = {
@@ -150,7 +156,7 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_dll_windows = {
             LINKER_FLAGS,
             FLAGS_DEVELOPER,
             "-shared",
-            FLAGS_TARGET_WINDOWS_X86_64,
+            FLAGS_TARGET_WINDOWS_X86_64
             FLAGS_WINDOWS_X86_64,
             // Resolves the engine symbols out of the executable.
             WINDOWS_X86_64_DEV_IMPLIB,
@@ -158,7 +164,8 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_dll_windows = {
     },
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-    .vendors         = { &vendor_sdl_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
+    .vendors         = { &vendor_sdl_windows_x86_64, &vendor_sdl_image_windows_x86_64, &vendor_sdl_ttf_windows_x86_64,
+                       &vendor_sdl_mixer_windows_x86_64, &vendor_libbacktrace_windows_x86_64, },
     .dependencies    = { &build_project_dev_executable_windows, &build_shaders, &index_assets, },
 };
 

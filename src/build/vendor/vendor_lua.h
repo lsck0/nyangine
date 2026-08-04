@@ -12,6 +12,8 @@
 #include "nyangine/nyangine.h"
 
 #include "build/hooks/hooks.h"
+#include "build/toolchain.h"
+#include "build/vendor/vendor_common.h"
 
 #define LUAJIT_SRC "./vendor/lua/src"
 #define LUAJIT_A   LUAJIT_SRC "/libluajit.a"

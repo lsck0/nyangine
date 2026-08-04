@@ -8,6 +8,8 @@
 #include "nyangine/nyangine.h"
 
 #include "build/hooks/hooks.h"
+#include "build/toolchain.h"
+#include "build/vendor/vendor_common.h"
 
 // clang-format off
 
@@ -47,7 +49,7 @@ NYA_VendorRule vendor_sdl_net_linux_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, },
+            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_absolutize_cmake_prefix_path, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_net_linux_x86_64_compile",
@@ -87,7 +89,7 @@ NYA_VendorRule vendor_sdl_net_windows_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, },
+            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_absolutize_cmake_prefix_path, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_net_windows_x86_64_compile",

@@ -9,6 +9,7 @@
 #include "nyangine/core/core_job.h"
 #include "nyangine/core/core_keys.h"
 #include "nyangine/core/core_mouse.h"
+#include "nyangine/core/core_settings.h"
 #include "nyangine/core/core_sim.h"
 #include "nyangine/core/core_types.h"
 #include "nyangine/core/core_window.h"

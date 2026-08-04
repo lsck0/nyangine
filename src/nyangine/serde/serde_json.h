@@ -51,5 +51,24 @@ NYA_API NYA_String* nya_serde_json_serialize(NYA_Arena* arena, const NYA_Object*
 NYA_API NYA_Error nya_serde_json_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, OUT NYA_Object** out_object)
     __attr_no_discard;
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * INTERNAL
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * The parser behind both JSON and JSONC.
+ *
+ * `lenient` is what separates them: it skips comments and lets a trailing comma close an object or
+ * array. Everything else — the grammar, the escapes, the number handling, the depth limit — is one
+ * implementation, so the two dialects cannot drift apart.
+ *
+ * Call nya_serde_json_deserialize or nya_serde_jsonc_deserialize rather than this.
+ * */
+NYA_API NYA_Error
+_nya_serde_json_deserialize_with(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, b8 lenient, OUT NYA_Object** out_object)
+    __attr_no_discard;
+
 /** Escapes and quotes `text` as a JSON string literal, appending to `out`. */
 NYA_API void nya_serde_json_escape(NYA_String* out, NYA_ConstCString text);

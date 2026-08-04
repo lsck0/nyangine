@@ -347,6 +347,10 @@
             .keys     = nya_arena_copy((hmap_ptr)->arena, (hmap_ptr)->keys, sizeof(*(hmap_ptr)->keys) * (hmap_ptr)->capacity),                       \
             .values   = nya_arena_copy((hmap_ptr)->arena, (hmap_ptr)->values, sizeof(*(hmap_ptr)->values) * (hmap_ptr)->capacity),                   \
             .occupied = nya_arena_copy((hmap_ptr)->arena, (hmap_ptr)->occupied, sizeof(*(hmap_ptr)->occupied) * (hmap_ptr)->capacity),               \
+            /* Carried across, not defaulted: a map is useless without them, and leaving them null  */ \
+            /* meant the first lookup on any copy called through a null pointer.                    */ \
+            .hash     = (hmap_ptr)->hash,                                                                                                            \
+            .equals   = (hmap_ptr)->equals,                                                                                                          \
         };                                                                                                                                           \
         copy;                                                                                                                                        \
     })
@@ -362,7 +366,9 @@
                 nya_arena_move(_hmap_move_old_arena, new_arena_ptr, (hmap_ptr)->occupied, sizeof(*(hmap_ptr)->occupied) * (hmap_ptr)->capacity),     \
             .length   = (hmap_ptr)->length,                                                                                                          \
             .capacity = (hmap_ptr)->capacity,                                                                                                        \
-            .arena    = (new_arena_ptr)                                                                                                              \
+            .arena    = (new_arena_ptr),                                                                                                             \
+            .hash     = (hmap_ptr)->hash,                                                                                                            \
+            .equals   = (hmap_ptr)->equals,                                                                                                          \
         };                                                                                                                                           \
         typeof(hmap_ptr) _hmap_move_new_ptr = nya_arena_alloc(new_arena_ptr, sizeof(*(hmap_ptr)));                                                   \
         *_hmap_move_new_ptr                 = _hmap_move_tmp;                                                                                        \

@@ -17,10 +17,15 @@
 
 // clang-format off
 
-/** Native, so there is no target triple. */
+/** Native, so there is no target triple. Expands to nothing at all, comma included. */
 #define FLAGS_TARGET_WINDOWS_X86_64
 
-/** Cross compiling to Linux. Needs a glibc sysroot supplied out of band. */
+/**
+ * Cross compiling to Linux. Needs a glibc sysroot supplied out of band.
+ *
+ * Whatever goes here must carry its own trailing comma; see FLAGS_TARGET_WINDOWS_X86_64 on the
+ * Linux host for why.
+ * */
 #define FLAGS_TARGET_LINUX_X86_64
 
 /** mold is a Linux host linker, so a Windows host has to fall back to lld. */

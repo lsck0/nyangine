@@ -58,6 +58,27 @@ void nya_system_callback_deinit(void) {
 NYA_CallbackHandle _nya_callback(NYA_Callback callback) {
     NYA_App* app = nya_app_get();
 
+    /*
+     * The name is copied into the registry's own arena rather than kept as the caller's pointer.
+     *
+     * nya_callback stringifies its argument, so the name is a literal living in whichever module
+     * compiled the call — and for anything the game registers, that module is the hot reloaded DLL.
+     * Reloading dlcloses it, which unmaps the .rodata that literal sits in, and the pointer held
+     * here is left dangling into an unmapped page.
+     *
+     * That is precisely the pointer update_callback_pointers hands to dlsym to find the symbol
+     * again, so the first reload faulted with SIGSEGV inside dlsym — reading a name that no longer
+     * existed, in order to look up a function that did. The engine's own callbacks survived because
+     * they are compiled into the executable, which is why it only ever happened once the game had
+     * registered one.
+     *
+     * The registry outlives every DLL it points into, so the string has to as well.
+     * */
+    if (callback.name != nullptr) {
+        NYA_String* owned = nya_string_from(app->callback_system.allocator, callback.name);
+        callback.name     = nya_string_to_cstring(app->callback_system.allocator, owned);
+    }
+
     nya_array_push_back(app->callback_system.callbacks, callback);
 
     return (NYA_CallbackHandle)(app->callback_system.callbacks->length - 1);

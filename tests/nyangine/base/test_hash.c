@@ -88,7 +88,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: hash distribution test
   // ─────────────────────────────────────────────────────────────────────────────
-  u64Array* hashes = nya_array_create(arena, u64);
+  NYA_Arrayᐸu64ᐳ* hashes = nya_array_create(arena, u64);
   for (u32 i = 0; i < 1000; ++i) {
     NYA_String num_str = *nya_string_sprintf(arena, "test_%u", i);
     u64        h       = nya_hash_fnv1a(num_str);

@@ -300,6 +300,80 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
         if (length == 0) return false;
     }
 
+    /*
+     * A hexadecimal float, which is what the nya format writes: 0x1.91eb86p+1.
+     *
+     * Exact in both directions, and that is the whole point. Every part of it is a power of two — a
+     * hex digit is four bits and the exponent scales by two — so the mantissa accumulates into an
+     * integer with no rounding and the scaling is a shift rather than a division. The decimal path
+     * below cannot promise that: it accumulates digits and then divides, and the error from the
+     * division lands in the result. For f32 and f64 the f128 intermediate absorbs it, but for f128
+     * there is no headroom and nearly a third of values came back changed — enough to fail the
+     * document's own checksum on the next read.
+     * */
+    if (length > 2 && data[0] == '0' && (data[1] == 'x' || data[1] == 'X')) {
+        u128 mantissa            = 0;
+        s32  binary_exponent     = 0;
+        b8   seen_dot            = false;
+        b8   seen_digit          = false;
+        u64  i                   = 2;
+
+        for (; i < length; i++) {
+            u8 c = data[i];
+
+            if (c == '.') {
+                if (seen_dot) return false;
+                seen_dot = true;
+                continue;
+            }
+
+            u32 digit;
+            if ('0' <= c && c <= '9') {
+                digit = (u32)(c - '0');
+            } else if ('a' <= c && c <= 'f') {
+                digit = (u32)(c - 'a') + 10;
+            } else if ('A' <= c && c <= 'F') {
+                digit = (u32)(c - 'A') + 10;
+            } else {
+                break;
+            }
+
+            seen_digit = true;
+            mantissa   = (mantissa << 4) | digit;
+
+            // Each digit after the point is four bits further down.
+            if (seen_dot) binary_exponent -= 4;
+        }
+
+        if (!seen_digit) return false;
+
+        // The p exponent. Required by C for a hexadecimal float, and required here too rather than
+        // guessed at, so a plain 0x1F stays the integer it looks like.
+        if (i >= length || (data[i] != 'p' && data[i] != 'P')) return false;
+        i++;
+
+        b8 exponent_negative = false;
+        if (i < length && (data[i] == '+' || data[i] == '-')) {
+            exponent_negative = data[i] == '-';
+            i++;
+        }
+
+        if (i >= length) return false;
+
+        s32 exponent = 0;
+        for (; i < length; i++) {
+            if (!('0' <= data[i] && data[i] <= '9')) return false;
+            if (exponent < 100000) exponent = (exponent * 10) + (data[i] - '0');
+        }
+
+        binary_exponent += exponent_negative ? -exponent : exponent;
+
+        *out_value = ldexpl((f128)mantissa, binary_exponent);
+        if (is_negative) *out_value = -*out_value;
+
+        return true;
+    }
+
     u128 integer_part        = 0;
     u128 fractional_part     = 0;
     u128 fractional_divisor  = 1;

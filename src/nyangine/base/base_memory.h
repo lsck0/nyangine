@@ -14,10 +14,52 @@
 #define nya_calloc  calloc
 #define nya_free    free
 
-#define nya_memcmp  memcmp
-#define nya_memcpy  memcpy
-#define nya_memmove memmove
-#define nya_memset  memset
+/*
+ * The libc block operations, made safe to call with a count of zero.
+ *
+ * memcpy, memmove, memcmp and memset all declare their pointer parameters non-null, and that holds
+ * even when the count is zero — passing null is undefined behaviour the standard permits a compiler
+ * to optimise around, and UBSan flags it outright.
+ *
+ * That matters here because an empty container in this engine has a null items pointer: an
+ * NYA_String of length zero, a freshly created array, a substring that came out empty. Comparing
+ * two empty strings or concatenating them therefore reached memcmp/memcpy with null and a count of
+ * zero, and since FLAGS_SANITIZE pairs that check with -fno-sanitize-recover=all, it aborted rather
+ * than reporting. Every caller guarding its own call sites would be the alternative, which is a
+ * guard per call for a condition that is never interesting.
+ *
+ * Statement expressions so each argument is evaluated exactly once, and so the return value stays
+ * what the libc function returns.
+ * */
+#define nya_memcmp(lhs, rhs, size)                                                                                                                   \
+    ({                                                                                                                                               \
+        u64 _nya_mem_size = (size);                                                                                                                  \
+        _nya_mem_size == 0 ? 0 : memcmp((lhs), (rhs), _nya_mem_size);                                                                                \
+    })
+
+#define nya_memcpy(destination, source, size)                                                                                                        \
+    ({                                                                                                                                               \
+        void* _nya_mem_destination = (destination);                                                                                                  \
+        u64   _nya_mem_size        = (size);                                                                                                         \
+        if (_nya_mem_size != 0) memcpy(_nya_mem_destination, (source), _nya_mem_size);                                                               \
+        _nya_mem_destination;                                                                                                                        \
+    })
+
+#define nya_memmove(destination, source, size)                                                                                                       \
+    ({                                                                                                                                               \
+        void* _nya_mem_destination = (destination);                                                                                                  \
+        u64   _nya_mem_size        = (size);                                                                                                         \
+        if (_nya_mem_size != 0) memmove(_nya_mem_destination, (source), _nya_mem_size);                                                              \
+        _nya_mem_destination;                                                                                                                        \
+    })
+
+#define nya_memset(destination, value, size)                                                                                                         \
+    ({                                                                                                                                               \
+        void* _nya_mem_destination = (destination);                                                                                                  \
+        u64   _nya_mem_size        = (size);                                                                                                         \
+        if (_nya_mem_size != 0) memset(_nya_mem_destination, (value), _nya_mem_size);                                                                \
+        _nya_mem_destination;                                                                                                                        \
+    })
 
 #define nya_is_zeroed(val) (nya_memcmp(&(val), &(typeof(val)){ 0 }, sizeof(val)) == 0)
 
