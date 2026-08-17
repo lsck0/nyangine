@@ -89,3 +89,55 @@ NYA_API NYA_CString            nya_string_to_cstring(NYA_Arena* arena, const NYA
 NYA_API void                   nya_string_to_lower(NYA_String* str);
 NYA_API void                   nya_string_to_upper(NYA_String* str);
 NYA_API void                   nya_string_trim_whitespace(NYA_String* str);
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * UTF-8
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * NYA_String holds bytes and nothing here changes that. `length` is bytes, indexing is bytes, and
+ * every function above operates on bytes — which is right, because that is what a string *is* in
+ * memory and what a file holds.
+ *
+ * What these add is the ability to walk a string as *characters* where that is the question being
+ * asked. Two places need it and both are load bearing: the text renderer, which has to know which
+ * glyph to draw, and i18n, which has to count the characters a translator wrote rather than the
+ * bytes their language happens to need.
+ *
+ * Deliberately not a full Unicode library. There is no normalisation, no case mapping outside ASCII,
+ * no grapheme clustering and no bidirectional algorithm. Each of those is a real feature with a real
+ * data table behind it, and pretending otherwise by adding a half-implementation is worse than not
+ * having one.
+ */
+
+/** How many bytes the sequence starting at `cursor` occupies, from its lead byte. Never zero. */
+NYA_API u32 nya_utf8_length(NYA_ConstCString cursor) __attr_no_discard;
+
+/**
+ * Decodes one sequence into `out_codepoint` and answers how many bytes it consumed. Never zero.
+ *
+ * Malformed input decodes as U+FFFD and consumes exactly one byte. That is not a detail: consuming
+ * zero spins forever, and consuming the length a truncated lead byte *claimed* reads past the end of
+ * the buffer. One byte is the only answer that both makes progress and stays in bounds.
+ *
+ * Overlong encodings and surrogates are rejected the same way. Both are ways of spelling something
+ * that has a shorter or no legal encoding, and accepting them is how a decoder becomes a security
+ * problem — a filter checking for a literal NUL never sees the two-byte spelling of one.
+ *
+ * ```c
+ * for (NYA_ConstCString cursor = text; *cursor != '\0';) {
+ *     u32 codepoint = 0;
+ *     cursor       += nya_utf8_next(cursor, &codepoint);
+ *     ...
+ * }
+ * ```
+ * */
+NYA_API u32 nya_utf8_next(NYA_ConstCString cursor, OUT u32* out_codepoint);
+
+/**
+ * How many codepoints a NUL terminated string holds, which is not how many bytes it holds.
+ *
+ * The difference is the whole reason this exists: `"Grüße"` is five characters and seven bytes, and
+ * anything that lays text out or truncates it by byte count gets both wrong.
+ * */
+NYA_API u64 nya_utf8_count(NYA_ConstCString text) __attr_no_discard;

@@ -22,7 +22,7 @@ NYA_Error nya_filesystem_create_directory(NYA_ConstCString path) {
 
     char   partial[PATH_MAX] = { 0 };
     size_t length            = strlen(path);
-    if (length >= sizeof(partial)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "Path too long: '%s'.", path);
+    if (length >= sizeof(partial)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "path too long: '%s'", path);
 
     // Walk the path creating each component in turn, so missing parents are handled too.
     for (size_t i = 0; i < length; i++) {
@@ -40,7 +40,7 @@ NYA_Error nya_filesystem_create_directory(NYA_ConstCString path) {
         if (truncated) partial[i] = '\0';
 
         if (mkdir(partial, 0o755) != 0 && errno != EEXIST) {
-            return nya_error(NYA_ERROR_IO, "Failed to create directory '%s': %s.", partial, strerror(errno));
+            return nya_error(NYA_ERROR_IO, "failed to create directory '%s': %s", partial, strerror(errno));
         }
 
         if (truncated) partial[i] = saved;
@@ -290,7 +290,7 @@ NYA_INTERNAL b8 _nya_filesystem_delete_walk(NYA_ConstCString path, const NYA_Dir
     NYA_Error* first_error = user_data;
     NYA_Error  result      = nya_filesystem_delete(path);
 
-    if (result.kind != NYA_ERROR_NONE && first_error->kind == NYA_ERROR_NONE) *first_error = result;
+    if (!result.ok && first_error->ok) *first_error = result;
 
     return true;
 }
@@ -305,7 +305,7 @@ NYA_Error nya_filesystem_delete_recursive(NYA_ConstCString path) {
 
     NYA_Error first_error = NYA_OK;
     NYA_TRY(nya_filesystem_walk(arena, path, _nya_filesystem_delete_walk, &first_error));
-    if (first_error.kind != NYA_ERROR_NONE) return first_error;
+    if (!first_error.ok) return first_error;
 
     return nya_filesystem_delete(path);
 }
@@ -539,7 +539,7 @@ NYA_Error nya_filesystem_user_data_directory(NYA_Arena* arena, NYA_ConstCString 
         root = nya_string_sprintf(arena, "%s", base);
     } else {
         NYA_ConstCString home = getenv("HOME");
-        if (home == nullptr || home[0] == '\0') return nya_error(NYA_ERROR_NOT_FOUND, "Neither XDG_DATA_HOME nor HOME is set.");
+        if (home == nullptr || home[0] == '\0') return nya_error(NYA_ERROR_NOT_FOUND, "neither XDG_DATA_HOME nor HOME is set");
         root = nya_string_sprintf(arena, "%s/.local/share", home);
     }
 

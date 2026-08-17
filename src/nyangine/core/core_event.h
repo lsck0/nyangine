@@ -146,8 +146,29 @@ struct NYA_EventSystem {
     NYA_HMapᐸNYA_EventTypeˏNYA_ArrayᐸNYA_EventHookᐳᐳ* immediate_event_hooks;
 };
 
-__attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[] = {
+/*
+ * Sized to NYA_EVENT_COUNT, not left for the initialisers to size.
+ *
+ * It was declared `[]`, which makes the length one past the highest index anyone happened to write
+ * rather than the number of event types. Five entries were missing: the two lifecycle range
+ * sentinels, and — the ones that mattered — JOB_STARTED, JOB_COMPLETED and ASSET_LOAD_FAILED.
+ *
+ * nya_event_dispatch does `nya_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type])` on
+ * every dispatch, so each of those passed a null pointer to a %s conversion. That is undefined
+ * behaviour, and the job events are dispatched on every job start and finish; it survived only
+ * because glibc prints "(null)" rather than faulting.
+ *
+ * The explicit size is what stops the next omission being an out of bounds read instead of a null,
+ * and tests/nyangine/core/test_bug_event_name_map.c fails on any entry left empty. Every other name
+ * map in the tree — NYA_INTEGRITY_STATUS_NAME_MAP, NYA_FILETYPE_NAME_MAP — was already spelled this
+ * way; this one was the exception.
+ */
+__attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[NYA_EVENT_COUNT] = {
     [NYA_EVENT_INVALID] = "INVALID",
+
+    // The range markers are not dispatched, but they are valid indices and a hole is still a hole.
+    [NYA_EVENT_LIFECYCLE_EVENTS_BEGIN] = "LIFECYCLE_EVENTS_BEGIN",
+    [NYA_EVENT_LIFECYCLE_EVENTS_END]   = "LIFECYCLE_EVENTS_END",
 
     [NYA_EVENT_FRAME_STARTED]     = "FRAME_STARTED",
     [NYA_EVENT_FRAME_ENDED]       = "FRAME_ENDED",
@@ -172,6 +193,11 @@ __attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[] = {
     [NYA_EVENT_DROP_COMPLETE] = "DROP_COMPLETE",
     [NYA_EVENT_DROP_FILE]     = "DROP_FILE",
     [NYA_EVENT_DROP_POSITION] = "DROP_POSITION",
+
+    [NYA_EVENT_JOB_STARTED]   = "JOB_STARTED",
+    [NYA_EVENT_JOB_COMPLETED] = "JOB_COMPLETED",
+
+    [NYA_EVENT_ASSET_LOAD_FAILED] = "ASSET_LOAD_FAILED",
     [NYA_EVENT_DROP_TEXT]     = "DROP_TEXT",
 
     [NYA_EVENT_KEY_DOWN]       = "KEY_DOWN",
@@ -269,12 +295,23 @@ struct NYA_JobEvent {
 
 struct NYA_KeyEvent {
     NYA_WindowHandle window;
-    b8               is_down;
-    b8               is_repeat;
-    NYA_Keycode      key;
-    NYA_Scancode     scancode;
-    NYA_KeyModFlag   modifier_flags;
-    u16              raw;
+
+    /**
+     * Which keyboard produced this. See NYA_InputSource.
+     *
+     * Zero-id and NYA_INPUT_DEVICE_KIND_KEYBOARD on any platform that does not separate keyboards,
+     * which is most of them — that is the ordinary case, not a failure. It is what lets two players
+     * on one machine, or several remote players over Steam Remote Play Together, be told apart when
+     * the platform can tell them apart.
+     * */
+    NYA_InputSource source;
+
+    b8             is_down;
+    b8             is_repeat;
+    NYA_Keycode    key;
+    NYA_Scancode   scancode;
+    NYA_KeyModFlag modifier_flags;
+    u16            raw;
 };
 
 /*
@@ -285,15 +322,23 @@ struct NYA_KeyEvent {
 
 struct NYA_MouseButtonEvent {
     NYA_WindowHandle window;
-    b8               is_down;
-    NYA_MouseButton  button;
-    u8               clicks;
-    f32              x;
-    f32              y;
+
+    /** Which mouse produced this. SDL fills the id in only in relative mode; see NYA_InputSource. */
+    NYA_InputSource source;
+
+    b8              is_down;
+    NYA_MouseButton button;
+    u8              clicks;
+    f32             x;
+    f32             y;
 };
 
 struct NYA_MouseMovedEvent {
-    NYA_WindowHandle     window;
+    NYA_WindowHandle window;
+
+    /** Which mouse produced this. SDL fills the id in only in relative mode; see NYA_InputSource. */
+    NYA_InputSource source;
+
     NYA_MouseButtonFlags state;
     f32                  x;
     f32                  y;
@@ -302,7 +347,11 @@ struct NYA_MouseMovedEvent {
 };
 
 struct NYA_MouseWheelEvent {
-    NYA_WindowHandle        window;
+    NYA_WindowHandle window;
+
+    /** Which mouse produced this. SDL fills the id in only in relative mode; see NYA_InputSource. */
+    NYA_InputSource source;
+
     NYA_MouseWheelDirection direction;
     f32                     amount_x;
     f32                     amount_y;

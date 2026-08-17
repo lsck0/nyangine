@@ -57,6 +57,7 @@ u32 nya_error_format(const NYA_Error* error, OUT u8* buffer, u32 capacity) {
 
     u32 length = _nya_error_format_summary(error, buffer, capacity);
 
+#if NYA_ERROR_CAPTURE_STACK
     if (error->stack_trace.count > 0 && length + 1 < capacity) {
         s32 written = snprintf((char*)&buffer[length], capacity - length, "\n\nStack Trace:\n");
         if (written > 0) {
@@ -66,6 +67,7 @@ u32 nya_error_format(const NYA_Error* error, OUT u8* buffer, u32 capacity) {
             if (length + 1 < capacity) length += nya_backtrace_format(&error->stack_trace, &buffer[length], capacity - length);
         }
     }
+#endif // NYA_ERROR_CAPTURE_STACK
 
     return length;
 }
@@ -80,7 +82,9 @@ NYA_Error _nya_error_create(NYA_ErrorKind kind, NYA_ConstCString fmt, ...) {
     nya_assert(fmt != nullptr);
     nya_assert(kind < NYA_ERROR_COUNT);
 
-    NYA_Error error = { .kind = kind };
+    // The third and last place an NYA_Error is constructed, after NYA_OK and NYA_NOT_OK. `ok` is
+    // derived here rather than by the caller so the two cannot drift apart.
+    NYA_Error error = { .kind = kind, .ok = kind == NYA_ERROR_NONE };
 
     va_list args;
     va_start(args, fmt);
@@ -123,8 +127,13 @@ void _nya_error_throw(NYA_Error error, NYA_ConstCString function, NYA_ConstCStri
     if (length + 1 < sizeof(detail)) length += _nya_error_format_summary(&error, &detail[length], (u32)sizeof(detail) - length);
 
     // The stack the error was *created* with, not the stack of whoever finally threw it. That is
-    // the one that says where things actually went wrong.
+    // the one that says where things actually went wrong. Absent from the struct at all when the
+    // capture is off, in which case the sink captures at the throw site as it would for a panic.
+#if NYA_ERROR_CAPTURE_STACK
     const NYA_Backtrace* backtrace = error.stack_trace.count > 0 ? &error.stack_trace : nullptr;
+#else
+    const NYA_Backtrace* backtrace = nullptr;
+#endif // NYA_ERROR_CAPTURE_STACK
 
     _nya_crash_raise_with_backtrace(NYA_CRASH_SOURCE_ERROR, function, file, line, (u32)error.kind, backtrace, "%s", (const char*)detail);
 }

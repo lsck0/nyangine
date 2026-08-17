@@ -1,0 +1,103 @@
+name: Setup (Windows)
+description: Install build dependencies on a Windows runner, setup caching, bootstrap build system.
+
+# The Windows counterpart to ../setup-linux. Split rather than branched because the two share
+# nothing: that one is apt and apt.llvm.org, this one is MSYS2 and pacman, and a single action
+# carrying both would be two scripts behind an `if` anyway.
+#
+# MSYS2's CLANG64 environment, for two reasons. The engine needs clang 22 for -fdefer-ts and
+# -fenable-matrix and MSYS2 tracks LLVM releases quickly, and the autotools vendors (libbacktrace,
+# sqlite) need `sh` and `make` on PATH — which is the same reason the README names msys2 as a
+# Windows dependency. CLANG64 produces native Windows binaries against UCRT, not Cygwin ones, so
+# OS_WINDOWS is true and nothing is being cross compiled.
+
+inputs:
+  llvm-version:
+    description: LLVM major version to require. MSYS2 ships one clang; this asserts which.
+    required: false
+    default: "22"
+
+runs:
+  using: composite
+
+  steps:
+    - name: Install MSYS2 and the toolchain
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: CLANG64
+        update: true
+        # pacman caching is handled by the action itself.
+        cache: true
+        # `make`, `git` and `gettext` come from the MSYS2 environment rather than CLANG64: they are
+        # build drivers, not things being linked into the target. gettext is there for envsubst,
+        # which is what generates sqlite-vec.h from its template.
+        install: >-
+          make
+          git
+          patch
+          gettext
+        pacboy: >-
+          clang:p
+          lld:p
+          cmake:p
+          ninja:p
+          pkg-config:p
+          binutils:p
+
+    - name: Verify the toolchain is what the build needs
+      shell: msys2 {0}
+      run: |
+        clang --version
+        ld.lld --version
+        windres --version
+
+        # Same assertion the Linux setup makes. -fdefer-ts (C2y defer) and -fenable-matrix do not
+        # exist before clang 22, and without this a mismatch surfaces as a wall of parse errors in
+        # engine headers rather than as "your compiler is too old".
+        clang --version | grep -q "clang version ${{ inputs.llvm-version }}\." \
+          || { echo "::error::clang is not LLVM ${{ inputs.llvm-version }}"; exit 1; }
+
+    - name: Compute vendor cache key
+      id: vendor
+      shell: msys2 {0}
+      run: |
+        # Two inputs, not one: which revision of each dependency, and how this repository configures
+        # it. src/build/vendor is the second half — a cmake flag changed there produces a different
+        # archive from identical sources, and keying on submodule status alone would hand the next
+        # run a cached build of the old configuration. That is not hypothetical: turning libcurl's
+        # nghttp2 detection off changed what the archive requires at link time while leaving every
+        # submodule revision untouched.
+        revisions="$(git submodule status --recursive vendor)"
+        recipes="$(find src/build/vendor -type f -name '*.h' -print0 | sort -z | xargs -0 sha256sum)"
+        sha="$(printf '%s\n%s' "${revisions}" "${recipes}" | sha256sum | cut -d' ' -f1)"
+        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache vendor builds
+      uses: actions/cache@v4
+      with:
+        # A Windows host builds Windows targets only, so there is no build-linux-x86_64 here.
+        # shadercross is a host tool and lands in a directory named for this host.
+        #
+        # vendor/lua/src/luajit.h is generated from luajit_rolling.h and untracked, so a cache
+        # holding only the archive leaves anything including it failing to compile — the archive's
+        # presence is what makes the build system skip the rule that creates it. sqlite-vec.h is
+        # generated too, and is cached alongside it for the same reason.
+        path: |
+          vendor/*/build-windows-x86_64
+          vendor/lua/libluajit-windows.a
+          vendor/lz4/liblz4-windows.a
+          vendor/lua/src/luajit.h
+          vendor/sqlvec/sqlite-vec.h
+        key: vendor-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ steps.vendor.outputs.sha }}
+
+    - name: Bootstrap build system
+      shell: msys2 {0}
+      # -o build.exe, not -o build. host.h defines BUILD_TOOL_BINARY as "build.exe" here, and
+      # nya_rebuild_yourself compiles over exactly that name after backing up argv[0]. Bootstrapping
+      # to a different name means the rebuild writes a file nobody runs while the stale binary
+      # re-execs itself — a build tool that silently ignores its own source changes.
+      run: clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread
+
+    - name: Build vendored dependencies
+      shell: msys2 {0}
+      run: ./build.exe build vendor

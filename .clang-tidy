@@ -1,0 +1,61 @@
+Checks:
+  [
+    clang-diagnostic-*,
+    bugprone-*,
+    cert-*,
+    clang-analyzer-*,
+    concurrency-*,
+    linuxkernel-*,
+    misc-*,
+    modernize-*,
+    performance-*,
+    portability-*,
+    readability-*,
+
+    -bugprone-assignment-in-if-condition,
+    -bugprone-easily-swappable-parameters,
+    -bugprone-inc-dec-in-conditions,
+    -bugprone-multi-level-implicit-pointer-conversion,
+    -bugprone-multiple-statement-macro,
+    -bugprone-narrowing-conversions,
+    -bugprone-reserved-identifier,
+    -bugprone-signal-handler,
+    -bugprone-suspicious-include,
+    -bugprone-suspicious-missing-comma,
+    # Every enum here ends in a _COUNT sentinel, and this check reads that as an
+    # undersized tagged union in any struct that holds one.
+    -bugprone-tagged-union-member-count,
+    -cert-dcl37-c,
+    -cert-dcl51-cpp,
+    -cert-exp42-c,
+    -cert-int09-c,
+    -cert-msc54-cpp,
+    -cert-sig30-c,
+    -concurrency-mt-unsafe,
+    -misc-confusable-identifiers,
+    -misc-no-recursion,
+    # Tunables are #defines on purpose, so a game can override them with -D. An enum
+    # cannot be overridden from the command line, which is the whole point of them.
+    -modernize-macro-to-enum,
+    -modernize-use-nullptr,
+    -performance-no-int-to-ptr,
+    -readability-avoid-nested-conditional-operator,
+    -readability-braces-around-statements,
+    -readability-enum-initial-value,
+    -readability-function-cognitive-complexity,
+    -readability-function-size,
+    -readability-identifier-length,
+    -readability-implicit-bool-conversion,
+    -readability-isolate-declaration,
+    -readability-magic-numbers,
+    -readability-math-missing-parentheses,
+    -readability-non-const-parameter,
+    -readability-redundant-control-flow,
+    -readability-suspicious-call-argument,
+
+    -portability-avoid-pragma-once,
+    -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+    -misc-include-cleaner,
+  ]
+WarningsAsErrors: ""
+HeaderFilterRegex: "^.*/src/(nyangine|gnyame|build)/.*"

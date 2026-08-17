@@ -1,0 +1,30 @@
+{
+  "_comment": "The base locale. Its keys and format specifiers are the schema every other locale is checked against, and the source the generated assets/strings.h is built from. Keys starting with an underscore are metadata and are not generated.",
+  "_locale": "en",
+  "_name": "English",
+
+  "menu_start": "start",
+  "menu_quit": "quit",
+  "menu_resume": "resume",
+  "menu_restart": "restart",
+  "menu_main_menu": "main menu",
+  "menu_master_volume": "master volume",
+  "menu_music_volume": "music volume",
+
+  "menu_2d_scene": "2d scene",
+  "menu_3d_scene": "3d scene",
+
+  "hud_players": "players %u",
+  "hud_offline": "offline",
+  "hud_hosting": "hosting on port %u",
+  "hud_hovering": "hovering %s",
+  "hud_boxes": "boxes %u (%u awake)",
+  "hud_paused": "PHYSICS PAUSED",
+  "hud_greeting": "Hello, %s!",
+  "hud_score": "%s scored %d points",
+
+  "cube3d_title": "3d demo",
+  "cube3d_hint_click": "click the cube",
+  "cube3d_hint_drag": "drag the cube to spin it",
+  "cube3d_hint_camera": "right drag orbits, wheel zooms, r resets"
+}

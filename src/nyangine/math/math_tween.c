@@ -262,21 +262,45 @@ NYA_INTERNAL f32 _nya_ease_smootherstep(f32 t) {
 NYA_INTERNAL f32 _nya_bezier_solve_x(f32 x1, f32 x2, f32 t) {
     f32 s = t; // initial guess
 
+    /*
+     * Newton first, and it returns the moment it has the answer.
+     *
+     * Both loops used to run unconditionally and the closer of the two results was taken, so every
+     * call paid for eight Newton iterations *and* sixteen bisection steps regardless — about three
+     * times the arithmetic actually needed, on a function an animation calls per tweened property
+     * per frame. Newton lands inside the tolerance below in two or three iterations for any ordinary
+     * pair of control points.
+     *
+     * The tolerance is on x, which is what is being solved for, and 1e-6 is finer than an f32 can
+     * meaningfully distinguish once the result is fed back through the y curve.
+     */
     for (u32 i = 0; i < 8; i++) {
         f32 s2   = s * s;
         f32 s3   = s2 * s;
         f32 inv  = 1.0F - s;
         f32 inv2 = inv * inv;
 
-        f32 x  = 3.0F * inv2 * s * x1 + 3.0F * inv * s2 * x2 + s3;
+        f32 x     = 3.0F * inv2 * s * x1 + 3.0F * inv * s2 * x2 + s3;
+        f32 error = x - t;
+
+        if (fabsf(error) < 1e-6F) return s;
+
         f32 dx = 3.0F * inv2 * x1 + 6.0F * inv * s * (x2 - x1) + 3.0F * s2 * (1.0F - x2);
 
+        // A flat spot: the tangent gives no direction to step in, so Newton cannot continue and the
+        // bisection below has to finish the job.
         if (fabsf(dx) < 1e-7F) break;
-        s -= (x - t) / dx;
+
+        s -= error / dx;
         s  = fmaxf(0.0F, fminf(1.0F, s));
     }
 
-    // bisection fallback for robustness
+    /*
+     * Bisection, reached only when Newton did not converge — a flat tangent, or control points that
+     * make x non monotonic and send the iteration oscillating.
+     *
+     * Always converges here: x(0) is 0 and x(1) is 1 by construction, so the target is bracketed.
+     */
     f32 lo = 0.0F, hi = 1.0F;
     for (u32 i = 0; i < 16; i++) {
         f32 mid = (lo + hi) * 0.5F;
@@ -287,13 +311,6 @@ NYA_INTERNAL f32 _nya_bezier_solve_x(f32 x1, f32 x2, f32 t) {
         else
             hi = mid;
     }
-    f32 bisect = (lo + hi) * 0.5F;
 
-    // pick whichever is closer to target
-    f32 inv_s = 1.0F - s;
-    f32 x_nr  = 3.0F * inv_s * inv_s * s * x1 + 3.0F * inv_s * s * s * x2 + s * s * s;
-    f32 inv_b = 1.0F - bisect;
-    f32 x_bi  = 3.0F * inv_b * inv_b * bisect * x1 + 3.0F * inv_b * bisect * bisect * x2 + bisect * bisect * bisect;
-
-    return fabsf(x_nr - t) < fabsf(x_bi - t) ? s : bisect;
+    return (lo + hi) * 0.5F;
 }

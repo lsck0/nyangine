@@ -11,6 +11,7 @@
 #include "nyangine/base/base_lexer.c"
 #include "nyangine/base/base_logging.c"
 #include "nyangine/base/base_object.c"
+#include "nyangine/base/base_reflection.c"
 #include "nyangine/base/base_path.c"
 #include "nyangine/base/base_perf.c"
 #include "nyangine/base/base_string.c"

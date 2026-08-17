@@ -214,8 +214,15 @@ NYA_String* nya_string_sprintf(NYA_Arena* arena, NYA_ConstCString fmt, ...) __at
     va_list args;
     va_start(args, fmt);
 
-    u64 length = vsnprintf(nullptr, 0, fmt, args);
+    // Signed, then checked. vsnprintf returns a negative int on an encoding error, and storing that
+    // straight into a u64 turned it into roughly 2^64 — which is then asked of the arena as a
+    // capacity. An empty string is the honest answer to "this could not be formatted".
+    s32 measured = vsnprintf(nullptr, 0, fmt, args);
     va_end(args);
+
+    if (measured < 0) return nya_string_create(arena);
+
+    u64 length = (u64)measured;
 
     NYA_String* result = nya_string_create_with_capacity(arena, length + 1); // +1 for null terminator
 
@@ -421,8 +428,13 @@ void nya_string_extend_front_sprintf(NYA_String* str, NYA_ConstCString fmt, ...)
 
     va_list args;
     va_start(args, fmt);
-    u64 length = vsnprintf(nullptr, 0, fmt, args);
+    // Signed, then checked: a negative return stored into a u64 becomes an enormous reservation.
+    s32 measured = vsnprintf(nullptr, 0, fmt, args);
     va_end(args);
+
+    if (measured < 0) return; // nothing to prepend, and no reason to disturb the string
+
+    u64 length = (u64)measured;
 
     // The +1 is for the terminator vsnprintf insists on writing. Without it a prepend onto a string
     // whose capacity exactly equalled its length wrote one byte past the end.
@@ -456,8 +468,13 @@ void nya_string_extend_sprintf(NYA_String* str, NYA_ConstCString fmt, ...) __att
 
     va_list args;
     va_start(args, fmt);
-    u64 length = vsnprintf(nullptr, 0, fmt, args);
+    // Signed, then checked: a negative return stored into a u64 becomes an enormous reservation.
+    s32 measured = vsnprintf(nullptr, 0, fmt, args);
     va_end(args);
+
+    if (measured < 0) return; // nothing to append, and no reason to disturb the string
+
+    u64 length = (u64)measured;
 
     nya_array_reserve(str, str->length + length + 1);
 
@@ -605,10 +622,23 @@ s32 nya_string_sscanf(NYA_String* str, NYA_ConstCString fmt, ...) __attr_fmt_sca
     nya_assert(str != nullptr);
     nya_assert(fmt != nullptr);
 
+    /*
+     * Scanned from a terminated copy, not from the string's own bytes.
+     *
+     * NYA_String is length counted and carries no terminator, so handing items straight to vsscanf
+     * let it read past the end — as far as the next zero byte in the arena, which on a string whose
+     * capacity exactly equals its length is somebody else's memory.
+     *
+     * The temp arena rather than nya_alloca, because the length here is the caller's and an alloca
+     * of it would trip NYA_ALLOCA_MAX on any string over 64 KiB.
+     */
+    NYA_CString terminated = nya_string_to_cstring(nya_arena_temp, str);
+    defer       nya_arena_free(nya_arena_temp, terminated, str->length + 1);
+
     va_list args;
     va_start(args, fmt);
 
-    s32 ret = vsscanf((NYA_ConstCString)str->items, fmt, args);
+    s32 ret = vsscanf(terminated, fmt, args);
 
     va_end(args);
     return ret;
@@ -619,6 +649,10 @@ void nya_string_strip_prefix(NYA_String* str, NYA_ConstCString prefix) {
     nya_assert(prefix != nullptr);
 
     u64 prefix_length = strlen(prefix);
+
+    // A prefix longer than the string cannot match, and comparing it reads past what the string
+    // owns. nya_string_strip_suffix has always checked; this did not.
+    if (prefix_length > str->length) return;
 
     if (nya_memcmp(str->items, prefix, prefix_length) == 0) {
         nya_memmove(str->items, str->items + prefix_length, str->length - prefix_length);
@@ -685,4 +719,97 @@ static NYA_CString _nya_strstrn(NYA_ConstCString haystack, NYA_ConstCString need
     }
 
     return nullptr;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * UTF-8
+ * ─────────────────────────────────────────────────────────
+ */
+
+u32 nya_utf8_length(NYA_ConstCString cursor) {
+    u8 lead = (u8)cursor[0];
+
+    if (lead < 0x80) return 1;
+    if ((lead & 0xE0) == 0xC0) return 2;
+    if ((lead & 0xF0) == 0xE0) return 3;
+    if ((lead & 0xF8) == 0xF0) return 4;
+
+    // Not a lead byte at all. One, so a caller stepping by this makes progress rather than stalling.
+    return 1;
+}
+
+u32 nya_utf8_next(NYA_ConstCString cursor, OUT u32* out_codepoint) {
+    const u8* bytes = (const u8*)cursor;
+
+    u8 lead = bytes[0];
+
+    if (lead < 0x80) {
+        *out_codepoint = lead;
+        return 1;
+    }
+
+    /*
+     * Length from the lead byte, then the continuation bytes checked rather than assumed.
+     *
+     * A truncated or malformed sequence decodes as U+FFFD and consumes exactly one byte. Consuming
+     * the length the lead byte *claimed* would walk past the terminator on a truncated string, which
+     * is a read off the end of the buffer — and consuming zero would spin forever. One byte is the
+     * only choice that is both safe and guaranteed to make progress.
+     */
+    u32 length    = 0;
+    u32 codepoint = 0;
+
+    if ((lead & 0xE0) == 0xC0) {
+        length    = 2;
+        codepoint = lead & 0x1Fu;
+    } else if ((lead & 0xF0) == 0xE0) {
+        length    = 3;
+        codepoint = lead & 0x0Fu;
+    } else if ((lead & 0xF8) == 0xF0) {
+        length    = 4;
+        codepoint = lead & 0x07u;
+    } else {
+        // A continuation byte where a lead was expected, or one of the two lengths UTF-8 retired.
+        *out_codepoint = 0xFFFD;
+        return 1;
+    }
+
+    for (u32 i = 1; i < length; i++) {
+        if ((bytes[i] & 0xC0) != 0x80) {
+            *out_codepoint = 0xFFFD;
+            return 1;
+        }
+
+        codepoint = (codepoint << 6) | (bytes[i] & 0x3Fu);
+    }
+
+    /*
+     * Overlong encodings and surrogates rejected.
+     *
+     * Both are ways of spelling something that has a shorter or no legal encoding, and accepting
+     * them is how a decoder becomes a security problem: C0 80 is a two byte NUL, and a filter that
+     * checked for a literal 0x00 never sees it.
+     */
+    if (codepoint >= 0xD800 && codepoint <= 0xDFFF) codepoint = 0xFFFD;
+    if (length == 2 && codepoint < 0x80) codepoint = 0xFFFD;
+    if (length == 3 && codepoint < 0x800) codepoint = 0xFFFD;
+    if (length == 4 && codepoint < 0x10000) codepoint = 0xFFFD;
+
+    *out_codepoint = codepoint;
+
+    return length;
+}
+
+u64 nya_utf8_count(NYA_ConstCString text) {
+    if (text == nullptr) return 0;
+
+    u64 count = 0;
+
+    for (NYA_ConstCString cursor = text; *cursor != '\0'; count++) {
+        u32 codepoint = 0;
+        cursor       += nya_utf8_next(cursor, &codepoint);
+    }
+
+    return count;
 }

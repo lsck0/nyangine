@@ -485,8 +485,27 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_number(_NYA_SerdeJsonParser* parser
 
     if (negative) text[length++] = '-';
 
+    /*
+     * Refused rather than clamped.
+     *
+     * The digits used to be truncated to whatever fit, silently, so a number longer than this buffer
+     * was parsed from its prefix and the document round tripped to a value orders of magnitude away
+     * from what it said. Either rejecting it or carrying it exactly would be defensible; quietly
+     * returning a different number is not.
+     *
+     * The bound is generous by a wide margin: f64 saturates to infinity around 309 digits and the
+     * widest integer this can produce is 39, so nothing representable is being turned away.
+     */
     u64 digits_length = token->length;
-    if (digits_length > sizeof(text) - length - 1) digits_length = sizeof(text) - length - 1;
+    if (digits_length > sizeof(text) - length - 1) {
+        return nya_error(
+            NYA_ERROR_PARSE,
+            "the number at line " FMTu32 " has " FMTu64 " digits, past the %zu this parser accepts",
+            token->line_number,
+            digits_length,
+            sizeof(text) - length - 1
+        );
+    }
 
     nya_memcpy(text + length, parser->lexer->source + token->source_location, digits_length);
     length       += digits_length;
@@ -602,6 +621,23 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser
                     }
                 }
 
+                /*
+                 * Anything still in the surrogate range did not pair up: a high surrogate with no
+                 * low one after it, or a lone low surrogate. It becomes U+FFFD REPLACEMENT
+                 * CHARACTER, which is what the Unicode standard prescribes and what every other
+                 * reader does.
+                 *
+                 * Encoding it as it stands instead produced a three byte sequence in the D800..DFFF
+                 * range, which is CESU-8 and not valid UTF-8 — so a document with one unpaired
+                 * escape yielded a string that no downstream consumer could decode. Rejecting the
+                 * document is the other defensible answer; substituting keeps one bad escape from
+                 * costing a whole save file.
+                 *
+                 * U+FFFD is three bytes and the escape it replaces is at least six characters of
+                 * source, so the buffer sizing above still holds.
+                 */
+                if (0xD800 <= codepoint && codepoint <= 0xDFFF) codepoint = 0xFFFD;
+
                 written += _nya_serde_json_encode_utf8(codepoint, unescaped + written);
             } break;
 
@@ -634,59 +670,20 @@ NYA_INTERNAL NYA_Token* _nya_serde_json_peek(_NYA_SerdeJsonParser* parser) {
 }
 
 /*
- * Steps over line and block comments.
+ * Steps over comments, for JSONC only.
  *
- * Works on the token stream rather than the source text because the lexer has no comment token: it
- * emits '/' and '*' as ordinary symbols, so a comment is recognised by two adjacent symbol tokens.
- * Adjacency is what source_location is compared for — "a" / "b" divided across a line is two
- * symbols that are not touching, and must not start a comment.
+ * One token type now, since the lexer recognises a comment itself — this used to reassemble one from
+ * the two adjacent symbol tokens it arrived as, comparing source offsets so that a slash and a star
+ * divided across a line were not mistaken for an opener.
  *
- * The same shape as _nya_serde_nya_skip_trivia, which the nya format has had all along. They are not
- * shared because the two parsers carry different parser types, and the twenty lines are cheaper than
- * a common abstraction over both.
+ * Strict JSON deliberately does not call this. Leaving the comment token in the stream is what makes
+ * it an error: every caller reaches the grammar through _nya_serde_json_peek, which then reports an
+ * unexpected token exactly as it did when a comment arrived as a stray '/' symbol.
  */
 NYA_INTERNAL void _nya_serde_json_skip_comments(_NYA_SerdeJsonParser* parser) {
-    while (parser->index + 1 < parser->lexer->tokens->length) {
-        NYA_Token* first  = &parser->lexer->tokens->items[parser->index];
-        NYA_Token* second = &parser->lexer->tokens->items[parser->index + 1];
-
-        if (first->type != NYA_TOKEN_SYMBOL || second->type != NYA_TOKEN_SYMBOL) return;
-        if (first->symbol != '/') return;
-        if (second->source_location != first->source_location + 1) return;
-
-        if (second->symbol == '*') {
-            parser->index += 2;
-
-            while (parser->index + 1 < parser->lexer->tokens->length) {
-                NYA_Token* star  = &parser->lexer->tokens->items[parser->index];
-                NYA_Token* slash = &parser->lexer->tokens->items[parser->index + 1];
-
-                if (star->type == NYA_TOKEN_SYMBOL && star->symbol == '*' && slash->type == NYA_TOKEN_SYMBOL && slash->symbol == '/' &&
-                    slash->source_location == star->source_location + 1) {
-                    parser->index += 2;
-                    break;
-                }
-
-                parser->index++;
-            }
-
-            continue;
-        }
-
-        if (second->symbol == '/') {
-            u32 line       = first->line_number;
-            parser->index += 2;
-
-            while (parser->index < parser->lexer->tokens->length) {
-                NYA_Token* token = &parser->lexer->tokens->items[parser->index];
-                if (token->type == NYA_TOKEN_EOF || token->line_number != line) break;
-                parser->index++;
-            }
-
-            continue;
-        }
-
-        return;
+    while (parser->index < parser->lexer->tokens->length &&
+           parser->lexer->tokens->items[parser->index].type == NYA_TOKEN_COMMENT) {
+        parser->index++;
     }
 }
 

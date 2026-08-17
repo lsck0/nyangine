@@ -115,6 +115,30 @@ typedef void (*NYA_LogSink)(NYA_LogLevel level, NYA_ConstCString message, u32 le
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/*
+ * Which level to use, and how to word it.
+ *
+ * The levels only mean something if they are applied the same way everywhere. A log where INFO
+ * carries per asset chatter is a log nobody reads, and one where a hard failure arrives as a
+ * warning is a log that hides the thing it was written to surface.
+ *
+ * - TRACE  every occurrence of something that happens constantly. Off outside deep debugging.
+ * - DEBUG  per item detail: one line per asset, per entity, per request. Useful while working on
+ *          that subsystem, noise otherwise.
+ * - INFO   events a reader wants without asking. Subsystem boundaries, mode changes, one-per-run
+ *          milestones. If it can fire more than a few times a second it is DEBUG.
+ * - WARN   degraded, but continuing as designed. An optional capability is unavailable, a fallback
+ *          was taken, a limit was reached. Nothing the caller asked for was lost.
+ * - ERROR  an operation the caller explicitly asked for definitively failed, and the failure is
+ *          being swallowed here rather than returned. If it is returned as an NYA_Error instead,
+ *          do not also log it: the caller decides how loud it is.
+ * - PANIC  nya_panic, which does not return.
+ *
+ * Message wording: capitalised, no trailing period, present tense. Error *messages* are the
+ * exception and are deliberately the other way round — lowercase and unpunctuated — because
+ * nya_error_format renders them as a clause after the kind, "NOT_FOUND, asset not found on disk",
+ * and NYA_EXPECT context reads the same way, "while loading the shader".
+ */
 // clang-format off
 #define nya_trace(format, ...)     _nya_log_message(NYA_LOG_LEVEL_TRACE, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
 #define nya_debug(format, ...)     _nya_log_message(NYA_LOG_LEVEL_DEBUG, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))

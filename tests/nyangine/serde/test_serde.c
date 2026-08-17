@@ -182,7 +182,7 @@ s32 main(void) {
     for (u64 i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
       NYA_Object* out = (NYA_Object*)1;
       NYA_Error   e   = nya_deserialize(arena, (const u8*)bad[i], strlen(bad[i]), NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, &out);
-      nya_assert(e.kind != NYA_ERROR_NONE, "expected \"%s\" to be rejected", bad[i]);
+      nya_assert(!e.ok, "expected \"%s\" to be rejected", bad[i]);
       nya_assert(out == nullptr, "a rejected parse must not hand back an object (\"%s\")", bad[i]);
     }
     printf("  PASSED\n");
@@ -200,7 +200,7 @@ s32 main(void) {
 
     NYA_Object* out = (NYA_Object*)1;
     NYA_Error   e   = nya_deserialize(arena, deep->items, deep->length, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, &out);
-    nya_assert(e.kind != NYA_ERROR_NONE);
+    nya_assert(!e.ok);
     nya_assert(out == nullptr);
     printf("  PASSED\n");
   }
@@ -267,7 +267,7 @@ s32 main(void) {
     for (u64 i = 0; i < sizeof(documents) / sizeof(documents[0]); i++) {
       NYA_Object* out = nullptr;
       NYA_Error   e   = nya_deserialize(arena, (const u8*)documents[i], strlen(documents[i]), NYA_SERDE_FORMAT_JSONC, NYA_SERDE_NONE, &out);
-      nya_assert(e.kind == NYA_ERROR_NONE, "JSONC rejected \"%s\": %s", documents[i], (const char*)e.message);
+      nya_assert(e.ok, "JSONC rejected \"%s\": %s", documents[i], (const char*)e.message);
       nya_assert(out != nullptr);
       nya_assert(nya_object_get(out, "a") != nullptr, "the comment ate the data in \"%s\"", documents[i]);
       nya_assert(nya_object_get(out, "a")->as_s64 == 1);
@@ -295,7 +295,7 @@ s32 main(void) {
     for (u64 i = 0; i < sizeof(still_bad) / sizeof(still_bad[0]); i++) {
       NYA_Object* bad = (NYA_Object*)1;
       NYA_Error   e   = nya_deserialize(arena, (const u8*)still_bad[i], strlen(still_bad[i]), NYA_SERDE_FORMAT_JSONC, NYA_SERDE_NONE, &bad);
-      nya_assert(e.kind != NYA_ERROR_NONE, "JSONC accepted \"%s\"", still_bad[i]);
+      nya_assert(!e.ok, "JSONC accepted \"%s\"", still_bad[i]);
       nya_assert(bad == nullptr);
     }
     printf("  PASSED\n");
@@ -318,7 +318,7 @@ s32 main(void) {
     for (u64 i = 0; i < sizeof(rejected_by_json) / sizeof(rejected_by_json[0]); i++) {
       NYA_Object* out = (NYA_Object*)1;
       NYA_Error   e   = nya_deserialize(arena, (const u8*)rejected_by_json[i], strlen(rejected_by_json[i]), NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, &out);
-      nya_assert(e.kind != NYA_ERROR_NONE, "strict JSON accepted \"%s\"", rejected_by_json[i]);
+      nya_assert(!e.ok, "strict JSON accepted \"%s\"", rejected_by_json[i]);
     }
     printf("  PASSED\n");
   }

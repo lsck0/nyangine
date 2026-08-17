@@ -8,11 +8,10 @@
 
 #if !NYA_CODE_HOT_RELOAD
 #include "nyangine/nyangine.h"
-
 #include "gnyame/gnyame.h"
 
-#include "gnyame/gnyame.c"
 #include "nyangine/nyangine.c"
+#include "gnyame/gnyame.c"
 
 s32 main(s32 argc, NYA_CString* argv) {
     // First thing in the process: from here on every assertion, panic, thrown error and hardware
@@ -82,12 +81,22 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     dll_load();
 
+    gnyame_init(argc, argv);
+    nya_app = nya_app_get();
+
+    /*
+     * Started after nya_app exists, not before.
+     *
+     * The watch thread writes nya_app->should_quit the moment it sees the DLL change, and it used to
+     * be created ahead of gnyame_init — which opens windows and queues assets and is not quick. Any
+     * rebuild finishing inside that window found nya_app still null and dereferenced it, and a
+     * rebuild while the game is starting is precisely what this whole path is for.
+     *
+     * Nothing between the load above and here needs watching: the DLL was just read.
+     */
     pthread_t thread;
     ok = pthread_create(&thread, nullptr, dll_watch_thread_fn, nullptr) == 0;
     nya_assert(ok, "Failed to create DLL watch thread.");
-
-    gnyame_init(argc, argv);
-    nya_app = nya_app_get();
 
     while (!nya_app->should_quit) {
         gnyame_run();
@@ -156,7 +165,7 @@ void* dll_watch_thread_fn(void* arg) {
         u64       last_modified;
         NYA_Error result = nya_filesystem_last_modified(DLL_PATH, &last_modified);
 
-        if (result.kind == NYA_ERROR_NONE && last_modified != gnyame_dll_last_modified && !gnyame_dll_reload_requested) {
+        if (result.ok && last_modified != gnyame_dll_last_modified && !gnyame_dll_reload_requested) {
             nya_debug("%s was changed, requesting reload.", DLL_PATH);
             gnyame_dll_reload_requested = true;
             nya_app->should_quit        = true;
@@ -250,11 +259,14 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     dll_load();
 
-    HANDLE thread = CreateThread(nullptr, 0, dll_watch_thread_fn, nullptr, 0, nullptr);
-    nya_assert(thread != nullptr, "Failed to create DLL watch thread.");
-
     gnyame_init(argc, argv);
     nya_app = nya_app_get();
+
+    // Started after nya_app exists. See the note on the Linux path: the watch thread writes
+    // nya_app->should_quit, and creating it ahead of gnyame_init left a window in which a rebuild
+    // finishing during startup dereferenced a null pointer.
+    HANDLE thread = CreateThread(nullptr, 0, dll_watch_thread_fn, nullptr, 0, nullptr);
+    nya_assert(thread != nullptr, "Failed to create DLL watch thread.");
 
     while (!nya_app->should_quit) {
         gnyame_run();
@@ -323,7 +335,7 @@ DWORD WINAPI dll_watch_thread_fn(LPVOID arg) {
         u64       last_modified;
         NYA_Error result = nya_filesystem_last_modified(DLL_PATH, &last_modified);
 
-        if (result.kind == NYA_ERROR_NONE && last_modified != gnyame_dll_last_modified && !gnyame_dll_reload_requested) {
+        if (result.ok && last_modified != gnyame_dll_last_modified && !gnyame_dll_reload_requested) {
             nya_debug("%s was changed, requesting reload.", DLL_PATH);
             gnyame_dll_reload_requested = true;
             nya_app->should_quit        = true;

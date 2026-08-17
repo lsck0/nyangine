@@ -8,8 +8,7 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-
-#include "build/hooks/hooks.h"
+#include "build/hooks.h"
 #include "build/toolchain.h"
 #include "build/vendor/vendor_common.h"
 
@@ -33,8 +32,8 @@ NYA_VendorRule vendor_sqlite_linux_x86_64 = {
 
             .command = {
                 .working_directory = SQLITE_BUILD_LINUX_X86_64,
-                .program           = "../configure",
-                .arguments         = { "--disable-shared", "--enable-static", "--disable-tcl", "CC=" CC, "CFLAGS=-O2 -fPIC", },
+                .program           = NYA_CONFIGURE_PROGRAM,
+                .arguments         = { NYA_CONFIGURE_LEADING_ARGS "--disable-shared", "--enable-static", "--disable-tcl", "CC=" CC, "CFLAGS=-O2 -fPIC", },
             },
 
             .pre_build_hooks = { &hook_create_build_directory, },
@@ -66,8 +65,9 @@ NYA_VendorRule vendor_sqlite_windows_x86_64 = {
 
             .command = {
                 .working_directory = SQLITE_BUILD_WINDOWS_X86_64,
-                .program           = "../configure",
+                .program           = NYA_CONFIGURE_PROGRAM,
                 .arguments = {
+                    NYA_CONFIGURE_LEADING_ARGS
                     "--disable-shared", "--enable-static", "--disable-tcl",
                     NYA_AUTOTOOLS_WINDOWS_HOST
                     "CC=" NYA_WINDOWS_CC,

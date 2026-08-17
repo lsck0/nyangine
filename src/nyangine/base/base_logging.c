@@ -107,10 +107,10 @@ NYA_Error nya_log_file_open(NYA_ConstCString path) {
 
 #if OS_WINDOWS
     _nya_log_file = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (_nya_log_file == INVALID_HANDLE_VALUE) return nya_error(NYA_ERROR_IO, "could not open the log file '%s'.", path);
+    if (_nya_log_file == INVALID_HANDLE_VALUE) return nya_error(NYA_ERROR_IO, "could not open the log file '%s'", path);
 #else
     _nya_log_file = open(path, O_WRONLY | O_CREAT | O_APPEND, 0o644);
-    if (_nya_log_file < 0) return nya_error(NYA_ERROR_IO, "could not open the log file '%s': %s.", path, strerror(errno));
+    if (_nya_log_file < 0) return nya_error(NYA_ERROR_IO, "could not open the log file '%s': %s", path, strerror(errno));
 #endif
 
     return NYA_OK;
@@ -151,9 +151,9 @@ void nya_log_file_close(void) {
 }
 
 NYA_Error nya_crash_observer_add(NYA_CrashObserver observer, void* user_data) {
-    if (observer == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "crash observer is null.");
+    if (observer == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "crash observer is null");
     if (_nya_crash_observer_count >= NYA_CRASH_OBSERVER_MAX) {
-        return nya_error(NYA_ERROR_NOT_OK, "cannot register more than %d crash observers.", NYA_CRASH_OBSERVER_MAX);
+        return nya_error(NYA_ERROR_NOT_OK, "cannot register more than %d crash observers", NYA_CRASH_OBSERVER_MAX);
     }
 
     _nya_crash_observers[_nya_crash_observer_count++] = (_NYA_CrashObserverEntry){ .callback = observer, .user_data = user_data };

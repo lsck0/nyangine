@@ -12,6 +12,8 @@
 
 #include "SDL3/SDL_init.h"
 
+#include <stdlib.h>
+
 enum {
   ACTION_JUMP = NYA_INPUT_ACTION_USER,
   ACTION_FIRE,
@@ -45,11 +47,34 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
+  /*
+   * Both variables, because the save root is resolved per platform: Linux reads XDG_DATA_HOME and
+   * Windows reads APPDATA. Pointed at a scratch directory so the round-trip test does not write into
+   * the developer's real ~/.local/share, which is where it would otherwise land — a test that edits
+   * the machine it runs on is a test nobody can run twice.
+   */
+  NYA_Arena*  scratch_arena = nya_arena_create(.name = "test_settings_scratch");
+  NYA_String* temp_root     = nullptr;
+  NYA_EXPECT(nya_filesystem_temp_directory(scratch_arena, &temp_root));
+
+  NYA_String* save_home = nya_path_join(scratch_arena, nya_string_to_cstring(scratch_arena, temp_root), "nyangine-test-settings");
+  NYA_CString save_home_cstring = nya_string_to_cstring(scratch_arena, save_home);
+
+  // Not NYA_EXPECT: on a clean checkout there is nothing there to delete, and NOT_FOUND is the
+  // successful outcome of "make sure this is gone".
+  (void)nya_filesystem_delete_recursive(save_home_cstring);
+
+  setenv("XDG_DATA_HOME", save_home_cstring, 1);
+  setenv("APPDATA", save_home_cstring, 1);
+
+  NYA_EXPECT(nya_system_save_init());
   nya_system_settings_init();
   nya_system_callback_init();
-  nya_system_events_init();
+  NYA_EXPECT(nya_system_events_init());
   nya_system_input_init();
 
+  defer nya_arena_destroy(scratch_arena);
+  defer nya_system_save_deinit();
   defer nya_system_input_deinit();
   defer nya_system_events_deinit();
   defer nya_system_callback_deinit();
@@ -319,6 +344,99 @@ s32 main(void) {
     nya_assert(nya_input_action_pressed(ACTION_JUMP) == true, "the primary binding did not fire");
     feed_key(NYA_KEY_SPACE, false, NYA_KEYMOD_NONE);
     end_frame();
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: settings round-trip through a file, by name rather than by number
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    nya_settings_reset();
+
+    // The game's actions have to be named before they can be persisted. An unnamed action is skipped
+    // on write, which is the behaviour the last assertion in this block checks.
+    nya_input_action_name_set(ACTION_JUMP, "jump");
+    nya_input_action_name_set(ACTION_FIRE, "fire");
+
+    nya_settings_volume_set(NYA_VOLUME_CHANNEL_MUSIC, 0.25F);
+    nya_input_action_rebind(ACTION_JUMP, NYA_KEY_SPACE);
+    nya_input_action_bind(ACTION_JUMP, NYA_KEY_W);
+    nya_input_action_rebind(ACTION_FIRE, NYA_KEY_S, NYA_KEYMOD_CTRL);
+
+    // ACTION_SAVE is deliberately bound and deliberately unnamed.
+    nya_input_action_rebind(ACTION_SAVE, NYA_KEY_F5);
+
+    NYA_EXPECT(nya_settings_save());
+    nya_assert(nya_save_exists(NYA_SETTINGS_FILE), "saving settings writes the file");
+
+    // Everything back to defaults, so a successful load is the only thing that could restore it.
+    nya_settings_reset();
+    nya_assert(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 1.0F, "reset put the volume back");
+    nya_assert(!nya_input_action_bound(ACTION_JUMP), "reset cleared the bindings");
+
+    NYA_EXPECT(nya_settings_load());
+
+    nya_assert(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 0.25F, "the volume came back, got %f",
+               (f64)nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC));
+
+    nya_assert(nya_input_action_get(ACTION_JUMP, 0).key == NYA_KEY_SPACE, "the primary binding came back");
+    nya_assert(nya_input_action_get(ACTION_JUMP, 1).key == NYA_KEY_W, "and so did the alternative");
+
+    // The modifier has to survive as well, or a Ctrl+S binding loads as a bare S and fires on every
+    // typed letter.
+    nya_assert(nya_input_action_get(ACTION_FIRE, 0).key == NYA_KEY_S, "the chorded binding's key came back");
+    nya_assert(nya_input_action_get(ACTION_FIRE, 0).modifiers == NYA_KEYMOD_CTRL, "and its modifier came with it");
+
+    nya_assert(!nya_input_action_bound(ACTION_SAVE), "an unnamed action is not persisted");
+
+    // Loading twice must not append duplicates into the second slot, which is what makes
+    // nya_settings_from_object replace rather than add.
+    NYA_EXPECT(nya_settings_load());
+    nya_assert(nya_input_action_get(ACTION_JUMP, 0).key == NYA_KEY_SPACE, "a second load is idempotent");
+    nya_assert(nya_input_action_get(ACTION_JUMP, 1).key == NYA_KEY_W, "on both slots");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the settings file is text a human can read and edit
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Arena* arena = nya_arena_create(.name = "test_settings_readback");
+    defer nya_arena_destroy(arena);
+
+    NYA_String* path = nya_save_path(arena, NYA_SETTINGS_FILE);
+    nya_assert(path != nullptr, "the save root resolved");
+
+    NYA_String* contents = nya_string_create(arena);
+    NYA_EXPECT(nya_file_read(nya_string_to_cstring(arena, path), contents));
+
+    // The point of choosing the native format over anything binary: these are the strings a player
+    // would look for if they opened the file to change a key.
+    nya_assert(nya_string_contains(contents, "jump"), "the action is named in the file");
+    nya_assert(nya_string_contains(contents, "Space"), "and its key is spelled out");
+    nya_assert(nya_string_contains(contents, "Ctrl+S"), "chords are one editable token");
+    nya_assert(nya_string_contains(contents, "music"), "volume channels are named too");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a save path cannot escape the save root
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Arena* arena = nya_arena_create(.name = "test_settings_escape");
+    defer nya_arena_destroy(arena);
+
+    nya_assert(nya_save_path(arena, "../outside.nya") == nullptr, "a parent segment is refused");
+    nya_assert(nya_save_path(arena, "saves/../../outside.nya") == nullptr, "and so is one in the middle");
+    nya_assert(nya_save_path(arena, "/etc/passwd") == nullptr, "an absolute path is not relative to anything");
+
+    // A dot in a filename is not a parent segment, and refusing those would be a rule nobody could
+    // predict from the outside.
+    nya_assert(nya_save_path(arena, "saves/..config.nya") != nullptr, "a leading dot-dot in a name is fine");
+    nya_assert(nya_save_path(arena, "saves/slot..nya") != nullptr, "and so is one in the middle of a name");
+
     printf("  PASSED\n");
   }
 

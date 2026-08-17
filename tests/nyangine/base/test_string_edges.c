@@ -428,6 +428,49 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: an oversized separator dies on the bound rather than on the stack
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    printf("TEST: oversized separator\n");
+
+    /*
+     * nya_string_split and nya_string_count copy their needle onto the stack with nya_alloca to get
+     * a null terminated form of it. The length comes from the caller, so a long enough needle used
+     * to run off the end of the stack — a fault at whatever address the next frame would have
+     * touched, with nothing pointing back at the split that caused it.
+     *
+     * nya_alloca is bounded now, so the same call dies at a named limit with the size in the
+     * message. That is the behaviour being pinned here: predictable and attributable, not survival.
+     */
+    NYA_String* haystack = nya_string_from(arena, "the quick brown fox");
+
+    NYA_String* huge = nya_string_create_with_capacity(arena, NYA_ALLOCA_MAX + 64);
+    for (u64 i = 0; i < NYA_ALLOCA_MAX + 8; i++) nya_string_push_back(huge, 'x');
+    nya_assert(huge->length > NYA_ALLOCA_MAX, "the separator has to exceed the bound to test it");
+
+    nya_expect_crash((void)nya_string_split(arena, haystack, huge));
+    nya_expect_crash((void)nya_string_count(haystack, huge));
+
+    /*
+     * The boundary itself still works, so the bound is a ceiling rather than a haircut. One under
+     * the limit, because the copy is the separator plus its terminator.
+     */
+    NYA_String* at_limit = nya_string_create_with_capacity(arena, NYA_ALLOCA_MAX);
+    for (u64 i = 0; i < NYA_ALLOCA_MAX - 1; i++) nya_string_push_back(at_limit, 'y');
+
+    NYA_ArrayᐸNYA_Stringᐳ* unsplit = nya_string_split(arena, haystack, at_limit);
+    nya_assert(unsplit->length == 1, "a separator that does not occur must leave the string whole");
+    nya_assert(nya_string_count(haystack, at_limit) == 0, "a separator that does not occur must count zero");
+
+    // And the ordinary case still behaves, so none of the above broke the common path.
+    NYA_String*            space  = nya_string_from(arena, " ");
+    NYA_ArrayᐸNYA_Stringᐳ* fields = nya_string_split(arena, haystack, space);
+    nya_assert(fields->length == 4, "expected four fields, got " FMTu64, fields->length);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
   // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);

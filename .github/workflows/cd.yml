@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -22,9 +22,9 @@ jobs:
           lfs: true
           fetch-depth: 0
 
-      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/setup-linux
         with:
           llvm-version: 22
 
       - name: Build release targets
-        run: ./build release
+        run: ./build build release

@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  test-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -21,14 +21,14 @@ jobs:
           submodules: recursive
           lfs: true
 
-      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/setup-linux
         with:
           llvm-version: 22
 
       - name: Run tests
         run: ./build run test
 
-  build:
+  build-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -37,9 +37,72 @@ jobs:
           submodules: recursive
           lfs: true
 
-      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/setup-linux
         with:
           llvm-version: 22
 
       - name: Build release targets
         run: ./build build release
+
+  # The Windows host path, which the Linux jobs above cannot cover.
+  #
+  # They cross compile the Windows *target* with mingw-w64, which exercises on_linux/build_windows.h
+  # and nothing in on_windows/. Everything only that host reaches — its toolchain file, the native
+  # resource compiler, the autotools vendors needing sh and make, signtool over osslsigncode — was
+  # previously verified by nobody, on a target that ships.
+  #
+  # MSYS2 is slow to bring up and builds every vendor natively, hence the longer timeout.
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - uses: ./.github/actions/setup-windows
+        with:
+          llvm-version: 22
+
+      - name: Run tests
+        run: ./build.exe run test
+
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - uses: ./.github/actions/setup-windows
+        with:
+          llvm-version: 22
+
+      # On this host `release` is the Windows executable alone; there is no Linux target to ask for.
+      - name: Build release target
+        run: ./build.exe build release
+
+      - name: Report the produced executable
+        run: |
+          exe=$(ls gnyame.*.windows-x86_64.exe) || { echo "::error::no windows executable was produced"; exit 1; }
+          echo "built ${exe} ($(stat -c%s "${exe}") bytes)"
+
+          # Informational, not a gate. signtool lives in a versioned Windows SDK directory rather
+          # than on PATH, so the signing hook usually warns and skips here — which is allowed, and
+          # is why the build does not fail on it. Reported so a run that *was* expected to sign
+          # does not do so silently.
+          if command -v signtool >/dev/null 2>&1; then
+            signtool verify /pa "${exe}" \
+              || echo "::notice::signed, publisher untrusted — expected for the sample certificate"
+          else
+            echo "::notice::signtool not on PATH, executable is unsigned"
+          fi

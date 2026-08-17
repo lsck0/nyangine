@@ -197,6 +197,14 @@
 #define nya_ring_push(ring_ptr, item)                                                                                                                \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (ring_ptr)->items[0]);                                                                                           \
+        /*                                                                                                                                          \
+         * A ring with no slots has nowhere to put this. `items` is null at capacity zero and the    \
+         * wrap below is a modulo by it, so the write went through a null pointer and the wrap was   \
+         * a division by zero. A ring is fixed capacity by construction — a full one overwrites its  \
+         * oldest entry rather than growing — so an empty one is a caller mistake, not a reason to   \
+         * allocate.                                                                                 \
+         */                                                                                         \
+        nya_assert((ring_ptr)->capacity > 0, "Cannot push onto a ring buffer with zero capacity.");                                                  \
         (ring_ptr)->items[(ring_ptr)->tail] = item;                                                                                                  \
         (ring_ptr)->tail                    = ((ring_ptr)->tail + 1) % (ring_ptr)->capacity;                                                         \
         if ((ring_ptr)->length < (ring_ptr)->capacity) {                                                                                             \
@@ -226,10 +234,18 @@
         }                                                                                                                                            \
     })
 
+/*
+ * The count is read once, before anything is popped.
+ *
+ * Popping is exactly what shrinks `length`, and the bound was re-read every iteration — so
+ * `nya_ring_pop_many(ring, nya_ring_length(ring))`, which is the obvious way to drain one, stopped
+ * at the half way point where the shrinking length met the climbing index.
+ * */
 #define nya_ring_pop_many(ring_ptr, count)                                                                                                           \
     ({                                                                                                                                               \
-        nya_assert((count) <= (ring_ptr)->length, "Cannot pop more items than ring buffer contains");                                                \
-        for (u64 i = 0; i < (count); i++) { nya_ring_pop(ring_ptr); }                                                                                \
+        u64 _ring_pop_many_count = (count);                                                                                                          \
+        nya_assert(_ring_pop_many_count <= (ring_ptr)->length, "Cannot pop more items than ring buffer contains");                                   \
+        for (u64 _ring_pop_many_i = 0; _ring_pop_many_i < _ring_pop_many_count; _ring_pop_many_i++) { (void)nya_ring_pop(ring_ptr); }                \
     })
 
 /*
@@ -241,6 +257,15 @@
 #define nya_ring_is_empty(ring_ptr) ((ring_ptr)->length == 0)
 #define nya_ring_length(ring_ptr)   ((ring_ptr)->length)
 #define nya_ring_capacity(ring_ptr) ((ring_ptr)->capacity)
+
+/**
+ * Slots that can be pushed before the ring starts overwriting its oldest entry.
+ *
+ * Listed in the API overview at the top of this file since it was written, and never defined, so
+ * anything following that list got an implicit function declaration rather than a macro. Zero means
+ * the next push evicts, not that the push fails — a ring is fixed capacity and overwrites.
+ * */
+#define nya_ring_available_space(ring_ptr) ((ring_ptr)->capacity - (ring_ptr)->length)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

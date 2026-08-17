@@ -137,6 +137,34 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+NYA_RNG* nya_rng_create_in(NYA_Arena* arena, NYA_ConstCString seed) {
+    nya_assert(arena != nullptr);
+
+    /*
+     * An arena configured with `.alignment = alignof(NYA_RNG)` or better already hands back what is
+     * needed, so nothing is wasted in the case a caller has set up deliberately.
+     *
+     * Otherwise the block is over-allocated by one alignment and rounded up. That costs at most
+     * thirty-two bytes, once, and is the only way to get a stricter alignment out of an arena whose
+     * other allocations should stay at sixteen — raising the whole arena's alignment to suit one
+     * object pads every allocation in it.
+     */
+    if (arena->options.alignment >= alignof(NYA_RNG)) {
+        NYA_RNG* rng = nya_arena_alloc(arena, sizeof(NYA_RNG));
+        *rng         = nya_rng_create(.seed = seed);
+
+        return rng;
+    }
+
+    u8*       memory  = nya_arena_alloc(arena, sizeof(NYA_RNG) + alignof(NYA_RNG));
+    uintptr_t aligned = ((uintptr_t)memory + (alignof(NYA_RNG) - 1)) & ~(uintptr_t)(alignof(NYA_RNG) - 1);
+
+    NYA_RNG* rng = (NYA_RNG*)aligned;
+    *rng         = nya_rng_create(.seed = seed);
+
+    return rng;
+}
+
 NYA_RNG nya_rng_create_with_options(NYA_RNGOptions options) {
     NYA_RNG rng     = { 0 };
     u64     seed[4] = { 0 };

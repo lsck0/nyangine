@@ -13,7 +13,7 @@ s32 main(void) {
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
   nya_system_callback_init();
-  nya_system_events_init();
+  NYA_EXPECT(nya_system_events_init());
   nya_system_input_init();
 
   // ─────────────────────────────────────────────────────────────────────────────

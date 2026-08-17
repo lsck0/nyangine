@@ -56,7 +56,7 @@ s32 main(void) {
   {
     NYA_String   binary = nya_string_create_on_stack(arena);
     NYA_Error   r      = nya_file_read("/proc/self/exe", &binary);
-    nya_assert(r.kind == NYA_ERROR_NONE);
+    nya_assert(r.ok);
     nya_assert(binary.length > 0);
 
     b8 found = false;
@@ -247,6 +247,149 @@ s32 main(void) {
     u64 offset = 0;
     b8  found  = _nya_integrity_find_sentinel((u8*)"", 0, &offset);
     nya_assert(!found, "Should not find sentinel in empty data.");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: nya_integrity_verify_file rejects what it cannot check
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    nya_assert(!nya_integrity_verify_file("./_no_such_file_at_all"), "a missing file cannot be valid");
+
+    NYA_ConstCString path = "./_test_integrity_no_sentinel.bin";
+    FILE*            file = fopen(path, "wb");
+    nya_assert(file != nullptr);
+    u8 filler[256];
+    memset(filler, 0xAA, sizeof(filler));
+    (void)fwrite(filler, 1, sizeof(filler), file);
+    (void)fclose(file);
+
+    nya_assert(!nya_integrity_verify_file(path), "a file with no sentinel cannot be valid");
+    (void)remove(path);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: _nya_integrity_pe_regions rejects an e_lfanew that would wrap its own bounds check
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // e_lfanew is read straight out of the file, so it is whatever a corrupt or hostile binary says
+    // it is. Computed in u32, `pe_offset + 24` wraps for anything this large and the bounds check
+    // passes, after which the PE magic is read from far past the end of the buffer.
+    u8 image[0x100];
+    memset(image, 0, sizeof(image));
+    image[0] = 'M';
+    image[1] = 'Z';
+
+    const u32 wrapping[] = { 0xFFFFFFFFU, 0xFFFFFFE8U, 0xFFFFFF00U };
+    for (u64 index = 0; index < sizeof(wrapping) / sizeof(wrapping[0]); index++) {
+      memcpy(&image[0x3C], &wrapping[index], sizeof(u32));
+
+      u64 hashed_len = 0, checksum_offset = 0, security_offset = 0;
+      b8  is_pe      = _nya_integrity_pe_regions(image, sizeof(image), &hashed_len, &checksum_offset, &security_offset);
+      nya_assert(!is_pe, "e_lfanew of 0x%X is past the end of the buffer and must be rejected", wrapping[index]);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a stamped PE stays valid once a signature is appended to it
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * A minimal PE, only as real as the fields the hashing looks at: the e_lfanew pointer, the PE
+     * magic, one section header, and a PE32+ optional header long enough to hold a data directory.
+     *
+     * The point is what Authenticode does to a file after it has been stamped — pad, append a
+     * certificate, fill in the security directory, rewrite the checksum — and that none of it
+     * changes what the integrity MAC covers.
+     */
+    const u64 pe_offset       = 0x80;
+    const u64 optional_offset = pe_offset + 24;
+    const u64 optional_size   = 240;
+    const u64 section_offset  = optional_offset + optional_size;
+    const u64 section_data    = 0x400;
+    const u64 section_size    = 0x200;
+    const u64 file_size       = section_data + section_size;
+
+    u8* image = nya_arena_alloc(arena, file_size);
+    memset(image, 0, file_size);
+
+    image[0]           = 'M';
+    image[1]           = 'Z';
+    u32 lfanew         = (u32)pe_offset;
+    memcpy(&image[0x3C], &lfanew, sizeof(u32));
+    image[pe_offset]   = 'P';
+    image[pe_offset + 1] = 'E';
+
+    u16 section_count = 1;
+    u16 optional_size_field = (u16)optional_size;
+    memcpy(&image[pe_offset + 6], &section_count, sizeof(u16));
+    memcpy(&image[pe_offset + 20], &optional_size_field, sizeof(u16));
+
+    u16 magic = 0x20B; // PE32+
+    memcpy(&image[optional_offset], &magic, sizeof(u16));
+
+    u32 raw_size = (u32)section_size;
+    u32 raw_ptr  = (u32)section_data;
+    memcpy(&image[section_offset + 16], &raw_size, sizeof(u32));
+    memcpy(&image[section_offset + 20], &raw_ptr, sizeof(u32));
+
+    // The stamp itself, inside the section where the linker would have put it.
+    u64 block_offset = section_data + 32;
+    memcpy(&image[block_offset], SENTINEL_BEGIN, sizeof(SENTINEL_BEGIN));
+    memcpy(&image[block_offset + 8 + 8], SENTINEL_END, sizeof(SENTINEL_END));
+    // Something for the hash to actually cover.
+    for (u64 i = 0; i < 16; i++) image[section_data + i] = (u8)(i * 7);
+
+    NYA_ConstCString path = "./_test_integrity_fake.exe";
+    FILE*            file = fopen(path, "wb");
+    nya_assert(file != nullptr);
+    (void)fwrite(image, 1, file_size, file);
+    (void)fclose(file);
+
+    u64 mac = 0;
+    NYA_EXPECT(nya_integrity_patch(path, &mac));
+    nya_assert(mac != 0, "patching produced no hash");
+    nya_assert(nya_integrity_verify_file(path), "a freshly stamped binary must verify");
+
+    // Now do to it what signing does.
+    {
+      NYA_String* content = nya_string_create(arena);
+      NYA_EXPECT(nya_file_read(path, content));
+
+      u64 signed_length = content->length;
+      while (signed_length % 8 != 0) signed_length++; // the alignment padding signing inserts
+
+      u64 certificate_size = 512;
+      NYA_String* signed_content = nya_string_create(arena);
+      for (u64 i = 0; i < signed_length; i++) {
+        nya_string_push_back(signed_content, i < content->length ? content->items[i] : 0);
+      }
+      for (u64 i = 0; i < certificate_size; i++) nya_string_push_back(signed_content, (u8)(i ^ 0x5A));
+
+      u32 certificate_offset = (u32)signed_length;
+      u32 certificate_length = (u32)certificate_size;
+      u64 security_offset    = optional_offset + 112 + (4 * 8ULL);
+      memcpy(&signed_content->items[security_offset], &certificate_offset, sizeof(u32));
+      memcpy(&signed_content->items[security_offset + 4], &certificate_length, sizeof(u32));
+
+      u32 checksum = 0xDEADBEEF;
+      memcpy(&signed_content->items[optional_offset + 64], &checksum, sizeof(u32));
+
+      NYA_EXPECT(nya_file_write(path, signed_content));
+    }
+
+    nya_assert(nya_integrity_verify_file(path), "signing must not invalidate the stamp");
+
+    // And that the check is still a check: a byte inside the section is covered.
+    {
+      NYA_String* content = nya_string_create(arena);
+      NYA_EXPECT(nya_file_read(path, content));
+      content->items[section_data + 4] ^= 0xFF;
+      NYA_EXPECT(nya_file_write(path, content));
+    }
+
+    nya_assert(!nya_integrity_verify_file(path), "a patched section byte must fail the check");
+
+    (void)remove(path);
   }
 
   nya_arena_destroy(arena);

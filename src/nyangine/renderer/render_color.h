@@ -66,6 +66,7 @@ typedef struct NYA_ColorHSL NYA_ColorHSL;
  *
  * RGBA float color, each component in [0, 1].
  * */
+// @reflect
 struct NYA_Color {
     f32 r, g, b, a;
 };

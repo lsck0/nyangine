@@ -27,6 +27,10 @@ dist/
 /*.dev.loaded.dll
 /*.test
 
+# `./build run example <name>` builds examples/<name>/main.c to <name>.example at the root, so the
+# rpath in FLAGS_LINUX_X86_64 ($ORIGIN) finds the vendored shared objects.
+/*.example
+
 # release
 /*.linux-x86_64
 /*.windows-x86_64.exe
@@ -46,3 +50,6 @@ docs/doxygen/
 
 # keep
 !src/build/
+
+# Coverage profiles and merged data from `./build run coverage`.
+.coverage/

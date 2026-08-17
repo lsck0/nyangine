@@ -75,6 +75,15 @@ NYA_API void nya_integrity_assert(void);
 /** Stamps the MAC into a freshly linked binary. Called by the build system after linking. */
 NYA_API NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) __attr_no_discard;
 
+/**
+ * Whether the file at `path` still matches the hash stamped into it. What nya_integrity_assert asks
+ * about its own executable.
+ *
+ * Separate from the assert so a build can check an artifact it has just produced, and so the check
+ * itself is testable without arranging for a tampered process to be running.
+ * */
+NYA_API b8 nya_integrity_verify_file(NYA_ConstCString path) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────
  * IN MEMORY

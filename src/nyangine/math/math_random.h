@@ -36,6 +36,8 @@
  * */
 #pragma once
 
+#include "nyangine/base/base_arena.h"
+
 #include "nyangine/base/base.h"
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
@@ -126,6 +128,22 @@ static_assert(_NYA_RNG_BUFFER_SIZE % 128 == 0, "RNG buffer size must be a multip
 
 #define nya_rng_create(...) nya_rng_create_with_options((NYA_RNGOptions){ _NYA_RNG_DEFAULT_OPTIONS, __VA_ARGS__ })
 NYA_API NYA_RNG nya_rng_create_with_options(NYA_RNGOptions options);
+
+/**
+ * Allocates and seeds an NYA_RNG inside `arena`, respecting its alignment.
+ *
+ * NYA_RNG holds AVX2 state and needs 32 byte alignment; NYA_Arena hands out 16 by default. Taking
+ * the obvious `nya_arena_alloc(arena, sizeof(NYA_RNG))` therefore produces a pointer that is
+ * *usually* fine and occasionally misaligned, which shows up as a UBSan report or a segfault on the
+ * first buffer refill rather than at the allocation — long after the cause.
+ *
+ * That trap has been walked into twice, and every fix was a copy of the same over-allocate-and-round
+ * arithmetic. It lives here now, beside the type whose alignment causes it.
+ *
+ * An arena created with `.alignment = alignof(NYA_RNG)` needs none of that and is used directly, so
+ * a caller who has already set their arena up for this pays nothing for the convenience.
+ * */
+NYA_API NYA_RNG* nya_rng_create_in(NYA_Arena* arena, NYA_ConstCString seed) __attr_no_discard;
 
 NYA_API void nya_rng_gen_bytes(NYA_RNG* rng, u8 buffer[], u64 size);
 NYA_API b8   nya_rng_gen_bool(NYA_RNG* rng, f32 true_chance);

@@ -1,0 +1,30 @@
+{
+  "_comment": "German. Every key and every format specifier here is checked against en.json at build time — a missing key or a reordered specifier fails the build rather than the frame that draws it.",
+  "_locale": "de",
+  "_name": "Deutsch",
+
+  "menu_start": "starten",
+  "menu_quit": "beenden",
+  "menu_resume": "fortsetzen",
+  "menu_restart": "neu starten",
+  "menu_main_menu": "hauptmenü",
+  "menu_master_volume": "gesamtlautstärke",
+  "menu_music_volume": "musiklautstärke",
+
+  "menu_2d_scene": "2d-szene",
+  "menu_3d_scene": "3d-szene",
+
+  "hud_players": "spieler %u",
+  "hud_offline": "offline",
+  "hud_hosting": "hostet auf port %u",
+  "hud_hovering": "zeigt auf %s",
+  "hud_boxes": "kisten %u (%u wach)",
+  "hud_paused": "PHYSIK ANGEHALTEN",
+  "hud_greeting": "Hallo, %s!",
+  "hud_score": "%s erzielte %d Punkte",
+
+  "cube3d_title": "3d-demo",
+  "cube3d_hint_click": "klicke auf den würfel",
+  "cube3d_hint_drag": "ziehe den würfel zum drehen",
+  "cube3d_hint_camera": "rechtsziehen dreht, mausrad zoomt, r setzt zurück"
+}

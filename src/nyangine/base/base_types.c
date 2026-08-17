@@ -206,6 +206,29 @@ NYA_INTERNAL b8 _nya_type_try_parse_bool(const u8* data, u64 length, OUT u128* o
     return false;
 }
 
+/**
+ * `*accumulator = *accumulator * base + digit`, or false if that would not fit in a u128.
+ *
+ * The three loops below used to accumulate unchecked, which is wrong twice over. Under
+ * FLAGS_SANITIZE the build names unsigned-integer-overflow together with -fno-sanitize-recover=all,
+ * so an over long literal aborted the process; without sanitizers it wrapped, and the range check
+ * the integer cases in nya_type_parse apply afterwards then ran on the wrapped value. A literal that
+ * wrapped back into the target's range was therefore *accepted* as a completely different number —
+ * `nya_type_parse(NYA_TYPE_S64, "340282366920938463463374607431768211499")` returned true with 43.
+ *
+ * That matters because this is the parse primitive behind command line arguments, JSON numbers and
+ * the .nya save format, so the input is user supplied on every path into it.
+ *
+ * The predicate is written as a division rather than as a multiply that is checked afterwards,
+ * because the multiply is the thing that must not happen.
+ * */
+NYA_INTERNAL b8 _nya_type_accumulate_digit(u128* accumulator, u128 base, u8 digit) {
+    if (*accumulator > (U128_MAX - digit) / base) return false;
+
+    *accumulator = (*accumulator * base) + digit;
+    return true;
+}
+
 NYA_INTERNAL b8 _nya_type_try_parse_u128(const u8* data, u64 length, OUT u128* out_value) {
     nya_assert(data != nullptr);
     nya_assert(out_value != nullptr);
@@ -219,7 +242,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_u128(const u8* data, u64 length, OUT u128* o
         for (u64 i = 2; i < length; i++) {
             u8 c = data[i];
             if (c != '0' && c != '1') return false;
-            *out_value = (*out_value * 2) + (c - '0');
+            if (!_nya_type_accumulate_digit(out_value, 2, (u8)(c - '0'))) return false;
         }
         return true;
     }
@@ -238,7 +261,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_u128(const u8* data, u64 length, OUT u128* o
             } else {
                 return false;
             }
-            *out_value = (*out_value * 16) + digit;
+            if (!_nya_type_accumulate_digit(out_value, 16, digit)) return false;
         }
         return true;
     }
@@ -248,8 +271,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_u128(const u8* data, u64 length, OUT u128* o
         u8 c = data[i];
         if (!('0' <= c && c <= '9')) return false;
 
-        u8 digit   = c - '0';
-        *out_value = (*out_value * 10) + digit;
+        if (!_nya_type_accumulate_digit(out_value, 10, (u8)(c - '0'))) return false;
     }
 
     return true;
@@ -275,9 +297,21 @@ NYA_INTERNAL b8 _nya_type_try_parse_s128(const u8* data, u64 length, OUT s128* o
 
     u128 magnitude = 0;
     if (!_nya_type_try_parse_u128(data, length, &magnitude)) return false;
-    *out_value = (s128)magnitude;
 
-    if (is_negative) *out_value = -*out_value;
+    /*
+     * Bounded before the conversion, not after.
+     *
+     * A magnitude above S128_MAX has no value in s128 to be range checked, and negating S128_MIN
+     * afterwards is signed overflow — which FLAGS_SANITIZE names, so it aborts rather than wrapping.
+     * The negative side is allowed one more than the positive one, which is what lets S128_MIN
+     * itself parse.
+     */
+    u128 limit = is_negative ? (u128)S128_MAX + 1 : (u128)S128_MAX;
+    if (magnitude > limit) return false;
+
+    // Negated as unsigned and converted afterwards, so S128_MIN never exists as a positive s128 on
+    // the way to itself.
+    *out_value = is_negative ? (s128)(~magnitude + 1) : (s128)magnitude;
 
     return true;
 }
@@ -374,9 +408,18 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
         return true;
     }
 
-    u128 integer_part        = 0;
-    u128 fractional_part     = 0;
-    u128 fractional_divisor  = 1;
+    /*
+     * One mantissa and a decimal exponent, rather than an integer part over a fractional divisor.
+     *
+     * The pair form accumulated into u128 unchecked — the mistake _nya_type_accumulate_digit above
+     * documents and fixes for the integer paths, and that the real path was simply missed by.
+     *
+     * Digits past what the accumulator holds are counted rather than accumulated, which is what a
+     * strtod does and costs nothing: an f128 carries 113 bits of significand either way.
+     * */
+    u128 mantissa            = 0;
+    s64  decimal_exponent    = 0;
+    b8   mantissa_saturated  = false;
     b8   has_fractional_part = false;
 
     // Scientific notation. The mantissa is scanned first and the exponent applied at the end, so
@@ -426,22 +469,47 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
         has_mantissa_digits = true;
 
         u8 digit = c - '0';
-        if (!has_fractional_part) {
-            integer_part = (integer_part * 10) + digit;
-        } else {
-            fractional_part     = (fractional_part * 10) + digit;
-            fractional_divisor *= 10;
+
+        // _nya_type_accumulate_digit leaves the accumulator untouched when the multiply would
+        // overflow, which is exactly the saturation wanted here, so the guard is not spelled out a
+        // fourth time. The flag is sticky: once a digit has been dropped a later, smaller one must
+        // not sneak back in under the limit and land in the wrong place value.
+        if (mantissa_saturated || !_nya_type_accumulate_digit(&mantissa, 10, digit)) {
+            // Past what the accumulator holds. The digit's *place* still counts; its value does not.
+            mantissa_saturated = true;
+            if (!has_fractional_part) decimal_exponent++;
+        } else if (has_fractional_part) {
+            decimal_exponent--;
         }
     }
 
     if (!has_mantissa_digits) return false;
     if (has_exponent && !has_exponent_digits) return false;
 
-    *out_value = (f128)integer_part + ((f128)fractional_part / (f128)fractional_divisor);
+    *out_value = (f128)mantissa;
 
-    if (has_exponent && exponent != 0) {
-        f128 scale = powl(10.0L, (f128)exponent);
-        if (exponent_negative)
+    if (has_exponent) decimal_exponent += exponent_negative ? -exponent : exponent;
+
+    /*
+     * Zero is left alone, because scaling it would not leave it zero.
+     *
+     * `exponent` is clamped at six digits, so powl saturates to infinity long before the end of that
+     * range, and 0.0 * infinity is NaN. NaN then passes the range checks in nya_type_parse, which
+     * compare with < and >, so "0e999999" came back as a successfully parsed NaN.
+     *
+     * Scaling by a positive power and dividing, rather than by a negative one and multiplying, so a
+     * fraction is divided by the exact 10^k it was accumulated over — which is what the fractional
+     * divisor did before and what keeps the round trip through the nya format exact.
+     * */
+    if (mantissa != 0 && decimal_exponent != 0) {
+        // Bounded before negating, so the magnitude below cannot overflow and powl is asked for
+        // something it can answer with an infinity rather than with undefined behaviour.
+        if (decimal_exponent > 1000000) decimal_exponent = 1000000;
+        if (decimal_exponent < -1000000) decimal_exponent = -1000000;
+
+        f128 scale = powl(10.0L, (f128)(decimal_exponent < 0 ? -decimal_exponent : decimal_exponent));
+
+        if (decimal_exponent < 0)
             *out_value /= scale;
         else
             *out_value *= scale;

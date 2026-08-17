@@ -49,6 +49,7 @@
 typedef enum NYA_WindowFlags    NYA_WindowFlags;
 typedef enum NYA_FlashOperation NYA_FlashOperation;
 typedef struct NYA_Layer        NYA_Layer;
+typedef enum NYA_CursorShape NYA_CursorShape;
 typedef struct NYA_Window       NYA_Window;
 typedef struct NYA_WindowSystem NYA_WindowSystem;
 typedef struct NYA_DisplayMode  NYA_DisplayMode;
@@ -372,3 +373,61 @@ NYA_API void       nya_layer_enable(NYA_WindowHandle window, void* layer_id);
 NYA_API void       nya_layer_disable(NYA_WindowHandle window, void* layer_id);
 NYA_API void       nya_layer_push(NYA_WindowHandle window, NYA_Layer layer);
 NYA_API NYA_Layer  nya_layer_pop(NYA_WindowHandle window);
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * MOUSE CURSOR
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Which shape the pointer takes.
+ *
+ * A named set rather than an image, because these are the OS's own cursors: the user has themes,
+ * accessibility sizes and a DPI, and a game that draws its own arrow gets none of that and a visibly
+ * wrong pointer on a scaled display.
+ *
+ * The list is what a UI actually reaches for. It is deliberately shorter than the platform's — the
+ * eight directional resize cursors collapse to the four axes, because a panel splitter only ever
+ * needs the axis it splits on.
+ * */
+enum NYA_CursorShape {
+    NYA_CURSOR_DEFAULT,
+
+    /** An I-beam. Over any text a click would put a caret in. */
+    NYA_CURSOR_TEXT,
+
+    NYA_CURSOR_POINTER,
+    NYA_CURSOR_CROSSHAIR,
+    NYA_CURSOR_MOVE,
+
+    /** Splitters, and the edges of a resizable panel. */
+    NYA_CURSOR_RESIZE_HORIZONTAL,
+    NYA_CURSOR_RESIZE_VERTICAL,
+    NYA_CURSOR_RESIZE_NWSE,
+    NYA_CURSOR_RESIZE_NESW,
+
+    NYA_CURSOR_NOT_ALLOWED,
+    NYA_CURSOR_WAIT,
+
+    NYA_CURSOR_COUNT,
+};
+
+/**
+ * Sets the pointer's shape. Cheap to call every frame with the same value.
+ *
+ * An immediate mode UI decides what is under the pointer while it draws, so this is written every
+ * frame from whatever the hovered widget wants — which only works because setting the shape it
+ * already has does nothing at all.
+ *
+ * Cursors are created once, on first use, and released with the window system.
+ * */
+NYA_API void nya_cursor_set(NYA_CursorShape shape);
+
+/** The shape currently set. */
+NYA_API NYA_CursorShape nya_cursor(void) __attr_no_discard;
+
+/** Shows or hides the pointer entirely. What a first person camera does while it has the mouse. */
+NYA_API void nya_cursor_visible_set(b8 visible);
+
+NYA_API b8 nya_cursor_visible(void) __attr_no_discard;

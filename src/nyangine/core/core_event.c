@@ -10,7 +10,25 @@
  */
 
 NYA_INTERNAL NYA_WindowHandle _nya_event_window_from_sdl_id(SDL_WindowID sdl_window_id);
+
+/** Packs SDL's per-device instance id into an NYA_InputSource. See NYA_InputSource for what zero means. */
+NYA_INTERNAL NYA_InputSource _nya_event_source_from_sdl(NYA_InputDeviceKind kind, u32 which) __attr_no_discard;
 NYA_INTERNAL NYA_Event        _nya_event_from_sdl_event(SDL_Event sdl_event);
+
+/**
+ * Copies a string SDL owns into memory that outlives the event queue.
+ *
+ * The dropped path and the text input strings are SDL's "temporary memory": SDL_PumpEvents frees
+ * everything handed out before it, and SDL_PollEvent pumps. nya_system_event_drain_sdl_events polls
+ * SDL's whole queue before nya_system_event_poll hands any of it to the layers, so storing SDL's
+ * pointer meant every one of those strings was already freed by the time anything read it — a use
+ * after free on any drag and drop or any text field.
+ *
+ * The frame allocator, because that is exactly the lifetime wanted: the event is consumed later in
+ * the same frame, and the arena is reset once the frame ends. Anything that needs a dropped path
+ * beyond the frame it arrived in has to copy it, which was already true.
+ * */
+NYA_INTERNAL NYA_ConstCString _nya_event_copy_transient_string(NYA_ConstCString text);
 NYA_INTERNAL void             _nya_event_notify_deferred_listeners(NYA_Event* event);
 NYA_INTERNAL void             _nya_event_notify_immediate_listeners(NYA_Event* event);
 
@@ -179,6 +197,36 @@ void nya_event_hook_unregister(NYA_EventHook hook) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+NYA_INTERNAL NYA_ConstCString _nya_event_copy_transient_string(NYA_ConstCString text) {
+    if (text == nullptr) return nullptr;
+
+    NYA_Arena* arena = nya_app_get()->frame_allocator;
+
+    // Only reachable from the frame loop's drain, which cannot run before the app is up. Handing
+    // back SDL's pointer rather than asserting keeps a caller that gets here some other way with
+    // the behaviour it had, instead of turning a missing arena into a crash inside the conversion.
+    if (arena == nullptr) return text;
+
+    u64         length = strlen(text);
+    NYA_CString copy   = nya_arena_alloc(arena, length + 1);
+    nya_memcpy(copy, text, length);
+    copy[length] = '\0';
+
+    return copy;
+}
+
+NYA_InputSource _nya_event_source_from_sdl(NYA_InputDeviceKind kind, u32 which) {
+    /*
+     * Carried through untouched, zero included.
+     *
+     * Zero is what SDL reports when it cannot separate devices — every keyboard on a platform
+     * without per-device keyboard support, and every mouse outside relative mode. It is the ordinary
+     * single-player reading rather than an error, and it routes like any other source, so there is
+     * nothing here to normalise or reject. See NYA_InputSource.
+     */
+    return (NYA_InputSource){ .kind = kind, .id = which };
+}
+
 NYA_INTERNAL NYA_WindowHandle _nya_event_window_from_sdl_id(SDL_WindowID sdl_window_id) {
     for (u32 i = 0; i < NYA_WINDOW_MAX; i++) {
         NYA_Window* window = nya_window_at_slot(i);
@@ -250,7 +298,7 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
         case SDL_EVENT_DROP_FILE: {
             event.type                 = NYA_EVENT_DROP_FILE;
             event.as_drop_event.window = _nya_event_window_from_sdl_id(sdl_event.drop.windowID);
-            event.as_drop_event.path   = sdl_event.drop.data;
+            event.as_drop_event.path   = _nya_event_copy_transient_string(sdl_event.drop.data);
         } break;
 
         case SDL_EVENT_DROP_POSITION: {
@@ -263,12 +311,13 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
         case SDL_EVENT_DROP_TEXT: {
             event.type                 = NYA_EVENT_DROP_TEXT;
             event.as_drop_event.window = _nya_event_window_from_sdl_id(sdl_event.drop.windowID);
-            event.as_drop_event.path   = sdl_event.drop.data;
+            event.as_drop_event.path   = _nya_event_copy_transient_string(sdl_event.drop.data);
         } break;
 
         case SDL_EVENT_KEY_DOWN: {
             event.type                        = NYA_EVENT_KEY_DOWN;
             event.as_key_event.window         = _nya_event_window_from_sdl_id(sdl_event.key.windowID);
+            event.as_key_event.source         = _nya_event_source_from_sdl(NYA_INPUT_DEVICE_KIND_KEYBOARD, sdl_event.key.which);
             event.as_key_event.is_down        = true;
             event.as_key_event.is_repeat      = sdl_event.key.repeat != 0;
             event.as_key_event.key            = sdl_event.key.key;
@@ -280,6 +329,7 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
         case SDL_EVENT_KEY_UP: {
             event.type                        = NYA_EVENT_KEY_UP;
             event.as_key_event.window         = _nya_event_window_from_sdl_id(sdl_event.key.windowID);
+            event.as_key_event.source         = _nya_event_source_from_sdl(NYA_INPUT_DEVICE_KIND_KEYBOARD, sdl_event.key.which);
             event.as_key_event.is_down        = false;
             event.as_key_event.is_repeat      = sdl_event.key.repeat != 0;
             event.as_key_event.key            = sdl_event.key.key;
@@ -295,6 +345,7 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
         case SDL_EVENT_MOUSE_BUTTON_DOWN: {
             event.type                          = NYA_EVENT_MOUSE_BUTTON_DOWN;
             event.as_mouse_button_event.window  = _nya_event_window_from_sdl_id(sdl_event.button.windowID);
+            event.as_mouse_button_event.source  = _nya_event_source_from_sdl(NYA_INPUT_DEVICE_KIND_MOUSE, sdl_event.button.which);
             event.as_mouse_button_event.is_down = true;
             event.as_mouse_button_event.button  = sdl_event.button.button;
             event.as_mouse_button_event.x       = sdl_event.button.x;
@@ -305,6 +356,7 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
         case SDL_EVENT_MOUSE_BUTTON_UP: {
             event.type                          = NYA_EVENT_MOUSE_BUTTON_UP;
             event.as_mouse_button_event.window  = _nya_event_window_from_sdl_id(sdl_event.button.windowID);
+            event.as_mouse_button_event.source  = _nya_event_source_from_sdl(NYA_INPUT_DEVICE_KIND_MOUSE, sdl_event.button.which);
             event.as_mouse_button_event.is_down = false;
             event.as_mouse_button_event.button  = sdl_event.button.button;
             event.as_mouse_button_event.x       = sdl_event.button.x;
@@ -315,6 +367,7 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
         case SDL_EVENT_MOUSE_MOTION: {
             event.type                         = NYA_EVENT_MOUSE_MOVED;
             event.as_mouse_moved_event.window  = _nya_event_window_from_sdl_id(sdl_event.motion.windowID);
+            event.as_mouse_moved_event.source  = _nya_event_source_from_sdl(NYA_INPUT_DEVICE_KIND_MOUSE, sdl_event.motion.which);
             event.as_mouse_moved_event.state   = sdl_event.motion.state;
             event.as_mouse_moved_event.x       = sdl_event.motion.x;
             event.as_mouse_moved_event.y       = sdl_event.motion.y;
@@ -325,6 +378,7 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
         case SDL_EVENT_MOUSE_WHEEL: {
             event.type                                  = NYA_EVENT_MOUSE_WHEEL_MOVED;
             event.as_mouse_wheel_event.window           = _nya_event_window_from_sdl_id(sdl_event.wheel.windowID);
+            event.as_mouse_wheel_event.source           = _nya_event_source_from_sdl(NYA_INPUT_DEVICE_KIND_MOUSE, sdl_event.wheel.which);
             event.as_mouse_wheel_event.direction        = (NYA_MouseWheelDirection)sdl_event.wheel.direction;
             event.as_mouse_wheel_event.amount_x         = sdl_event.wheel.x;
             event.as_mouse_wheel_event.amount_y         = sdl_event.wheel.y;
@@ -341,7 +395,7 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
         case SDL_EVENT_TEXT_EDITING: {
             event.type                         = NYA_EVENT_TEXT_EDITING;
             event.as_text_editing_event.window = _nya_event_window_from_sdl_id(sdl_event.edit.windowID);
-            event.as_text_editing_event.text   = sdl_event.edit.text;
+            event.as_text_editing_event.text   = _nya_event_copy_transient_string(sdl_event.edit.text);
             event.as_text_editing_event.start  = sdl_event.edit.start;
             event.as_text_editing_event.length = sdl_event.edit.length;
         } break;
@@ -349,7 +403,7 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
         case SDL_EVENT_TEXT_INPUT: {
             event.type                       = NYA_EVENT_TEXT_INPUT;
             event.as_text_input_event.window = _nya_event_window_from_sdl_id(sdl_event.text.windowID);
-            event.as_text_input_event.text   = sdl_event.text.text;
+            event.as_text_input_event.text   = _nya_event_copy_transient_string(sdl_event.text.text);
         } break;
 
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED: {
@@ -492,29 +546,61 @@ NYA_INTERNAL void _nya_event_notify_listeners(NYA_HMapᐸNYA_EventTypeˏNYA_Arra
 
     NYA_App* app = nya_app_get();
 
+    // Read for the early return and the initial count, then deliberately not kept — see below.
     NYA_ArrayᐸNYA_EventHookᐳ* hook_array = nya_hmap_get(hooks, event->type);
-    if (!hook_array) return;
+    if (hook_array == nullptr) return;
+
+    u64 hook_count = hook_array->length;
 
     NYA_ArrayᐸNYA_EventHookᐳ finished_oneshot_hooks = nya_array_create_on_stack(app->event_system.allocator, NYA_EventHook);
     defer                    nya_array_destroy_on_stack(&finished_oneshot_hooks);
 
-    nya_array_foreach (hook_array, hook) {
-        NYA_EventHookFn          fn           = nya_callback_get(hook->fn);
-        NYA_EventHookConditionFn condition_fn = nya_callback_get(hook->condition_fn);
+    /*
+     * Nothing about this walk may be cached across a handler, because a hook may register another
+     * one from inside the dispatch — the asset system's hot reload path and the job system's
+     * completion handlers both do — and that moves memory in two places.
+     *
+     * The hook array is one: a push into a full one reallocates `items` and hands the old block back
+     * to the arena. The hash map is the other, and the one that is easy to miss — `hook_array` points
+     * *into* the map's `values` block, and registering for an event type nothing has hooked yet is an
+     * insert, so crossing the load factor reallocates that block and frees the old one. The map starts
+     * at capacity 64 against 63 event types, so the threshold of 48 is inside what an application
+     * registers. Re-reading costs a hash and a probe per hook, nothing beside the handler about to
+     * run, and it covers the array case as a side effect.
+     *
+     * The count is sampled once, so a hook registered during this dispatch runs on the next matching
+     * event rather than the one that created it — which is also what stops a hook that registers
+     * itself from running forever.
+     */
+    for (u64 i = 0; i < hook_count; i++) {
+        // Re-read every iteration, and re-checked against the current length: a handler may have
+        // unregistered every hook for this type, or shrunk the array past where we are.
+        NYA_ArrayᐸNYA_EventHookᐳ* current = nya_hmap_get(hooks, event->type);
+        if (current == nullptr || i >= current->length) break;
+
+        // Copied out before the handler runs, since the handler is what may move the array.
+        NYA_EventHook hook = current->items[i];
+
+        NYA_EventHookFn          fn           = nya_callback_get(hook.fn);
+        NYA_EventHookConditionFn condition_fn = nya_callback_get(hook.condition_fn);
 
         if (fn == nullptr) continue;
         if (condition_fn != nullptr && !condition_fn(event)) continue;
 
         // Collected before the call, not after: a hook that unregisters itself, or one whose
         // handler marks the event handled and breaks the loop, must still be spent.
-        if (hook->one_shot) nya_array_push_back(&finished_oneshot_hooks, *hook);
+        if (hook.one_shot) nya_array_push_back(&finished_oneshot_hooks, hook);
 
         fn(event);
 
         if (event->was_handled) break;
     }
 
-    nya_array_foreach (&finished_oneshot_hooks, hook_to_remove) nya_array_remove_item(hook_array, *hook_to_remove);
+    // Looked up once more for the same reason: the handlers above may have moved it since.
+    if (finished_oneshot_hooks.length > 0) {
+        NYA_ArrayᐸNYA_EventHookᐳ* current = nya_hmap_get(hooks, event->type);
+        if (current != nullptr) nya_array_foreach (&finished_oneshot_hooks, hook_to_remove) nya_array_remove_item(current, *hook_to_remove);
+    }
 }
 
 NYA_INTERNAL void _nya_event_notify_deferred_listeners(NYA_Event* event) {

@@ -21,8 +21,10 @@
  * */
 #define FLAGS_TARGET_WINDOWS_X86_64 "--target=x86_64-w64-mingw32",
 
-/** Native, so nothing to add. Expands to nothing at all, comma included. */
-#define FLAGS_TARGET_LINUX_X86_64
+/*
+ * There is no FLAGS_TARGET_LINUX_X86_64. Linux is only ever built natively — the Windows host does
+ * not target it, see build.h — so there is no host for which that macro would expand to anything.
+ */
 
 /** The only resource compiler that exists on a Linux host. */
 #define WINDRES "x86_64-w64-mingw32-windres"
@@ -36,6 +38,14 @@
 
 /** Autotools needs telling it is cross compiling. */
 #define NYA_AUTOTOOLS_WINDOWS_HOST "--host=x86_64-w64-mingw32",
+
+/**
+ * How an autotools `configure` is invoked. See the Windows counterpart for why this is host specific.
+ *
+ * Directly here: `configure` opens with `#! /bin/sh`, and execve honours that.
+ * */
+#define NYA_CONFIGURE_PROGRAM      "../configure"
+#define NYA_CONFIGURE_LEADING_ARGS
 
 /** Points cmake at mingw-w64 for vendors targeting Windows. */
 #define NYA_CMAKE_WINDOWS_TOOLCHAIN                     \

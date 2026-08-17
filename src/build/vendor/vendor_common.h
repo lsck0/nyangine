@@ -12,8 +12,17 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-
 #include "build/toolchain.h"
+
+// For GetSystemInfo below, and after nyangine.h because that is what defines OS_WINDOWS.
+//
+// Included here rather than relied upon: nothing in nyangine.h pulls windows.h in, only the
+// platform .c files do, so this header used to compile on a Windows host purely because build.c
+// included nyangine.c ahead of build.h. It no longer does, and a header should not need its
+// includer to have gone first anyway.
+#if OS_WINDOWS
+#include <windows.h>
+#endif
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

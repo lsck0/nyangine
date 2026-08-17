@@ -164,6 +164,20 @@
         (hmap_ptr) = nullptr;                                                                                                                        \
     })
 
+/*
+ * The length and the capacity are reset alongside the three pointers.
+ *
+ * Exactly the bug nya_heap_destroy_on_stack's comment describes having fixed, still present here.
+ * Nulling only the pointers left the map claiming 64 slots and one entry while owning nothing: a set
+ * afterwards saw length < capacity, skipped the resize that would have reallocated, and indexed
+ * `occupied` through null — "applying non-zero offset to null pointer" under UBSan. Destroying twice
+ * handed the arena a null pointer with a non-zero size for the same reason.
+ *
+ * Note this takes the map by value while nya_hmap_destroy takes a pointer, and that
+ * nya_hset_destroy_on_stack and nya_array_destroy_on_stack take pointers. The on-stack destructors
+ * are not consistent with each other across base; left as they are rather than changed underneath a
+ * caller. base_heap.h's note on this got the hset one backwards.
+ */
 #define nya_hmap_destroy_on_stack(hmap_ptr)                                                                                                          \
     ({                                                                                                                                               \
         nya_arena_free((hmap_ptr).arena, (hmap_ptr).keys, sizeof(*(hmap_ptr).keys) * (hmap_ptr).capacity);                                           \
@@ -172,6 +186,8 @@
         (hmap_ptr).keys     = nullptr;                                                                                                               \
         (hmap_ptr).values   = nullptr;                                                                                                               \
         (hmap_ptr).occupied = nullptr;                                                                                                               \
+        (hmap_ptr).length   = 0;                                                                                                                     \
+        (hmap_ptr).capacity = 0;                                                                                                                     \
     })
 
 /*
@@ -186,7 +202,7 @@
         nya_assert_type_match(value, (hmap_ptr)->values[0]);                                                                                         \
         typeof(key)   key_var    = key;                                                                                                              \
         typeof(value) value_var  = value;                                                                                                            \
-        u64           index      = (hmap_ptr)->hash(&key_var) % (hmap_ptr)->capacity;                                                                \
+        u64           index      = (hmap_ptr)->capacity == 0 ? 0 : (hmap_ptr)->hash(&key_var) % (hmap_ptr)->capacity;                                \
         u64           iterations = 0;                                                                                                                \
         b8            updated    = false;                                                                                                            \
         while (iterations < (hmap_ptr)->capacity) {                                                                                                  \
@@ -205,6 +221,13 @@
             index = (index + 1) % (hmap_ptr)->capacity;                                                                                              \
             iterations++;                                                                                                                            \
         }                                                                                                                                            \
+        /*                                                                                                                                           \
+         * Storing and updating both break out early, so a loop that ran to the bound is exactly the                                                 \
+         * one that found no slot. The load factor keeps a quarter of the table free, so reaching                                                    \
+         * here means that invariant is already broken — and returning quietly dropped the entry,                                                  \
+         * which the caller then met as a lookup missing a key it had just set.                                                                      \
+         */                                                                                                                                          \
+        nya_assert(iterations < (hmap_ptr)->capacity, "Hash map is full; the entry was dropped rather than stored.");                                \
         (void)updated;                                                                                                                               \
     })
 
@@ -243,7 +266,7 @@
         nya_assert_type_match(key, (hmap_ptr)->keys[0]);                                                                                             \
         typeof(key) key_var    = key;                                                                                                                \
         bool        contains   = false;                                                                                                              \
-        u64         index      = (hmap_ptr)->hash(&key_var) % (hmap_ptr)->capacity;                                                                  \
+        u64         index      = (hmap_ptr)->capacity == 0 ? 0 : (hmap_ptr)->hash(&key_var) % (hmap_ptr)->capacity;                                  \
         u64         iterations = 0;                                                                                                                  \
         while (iterations < (hmap_ptr)->capacity) {                                                                                                  \
             if (!(hmap_ptr)->occupied[index]) break;                                                                                                 \
@@ -262,7 +285,7 @@
         nya_assert_type_match(key, (hmap_ptr)->keys[0]);                                                                                             \
         typeof(key) key_var    = key;                                                                                                                \
         bool        contains   = false;                                                                                                              \
-        u64         index      = (hmap_ptr)->hash(&key_var) % (hmap_ptr)->capacity;                                                                  \
+        u64         index      = (hmap_ptr)->capacity == 0 ? 0 : (hmap_ptr)->hash(&key_var) % (hmap_ptr)->capacity;                                  \
         u64         iterations = 0;                                                                                                                  \
         while (iterations < (hmap_ptr)->capacity) {                                                                                                  \
             if (!(hmap_ptr)->occupied[index]) break;                                                                                                 \
@@ -286,7 +309,16 @@
     ({                                                                                                                                               \
         nya_assert_type_match(key, (hmap_ptr)->keys[0]);                                                                                             \
         nya_assert_type_match(value, (hmap_ptr)->values[0]);                                                                                         \
-        if (((f32)((hmap_ptr)->length + 1) / (f32)(hmap_ptr)->capacity) > _NYA_HASHMAP_LOAD_FACTOR) {                                                \
+        /*                                                                                                                                           \
+         * Zero capacity handled before the load factor is computed, the way nya_array_reserve and                                                   \
+         * nya_heap_push already do it. A map created with capacity 0 could not grow and could not be                                                \
+         * written to: the load factor divided by zero, doubling zero left it at zero, and                                                           \
+         * _nya_hmap_set_unchecked then took a hash modulo zero. Under the test build's                                                              \
+         * -fno-sanitize-recover=all that is two sanitizer aborts in a row rather than a diagnosis.                                                  \
+         */                                                                                                                                          \
+        if ((hmap_ptr)->capacity == 0) {                                                                                                             \
+            nya_hmap_resize_and_rehash(hmap_ptr, _NYA_HASHMAP_DEFAULT_CAPACITY);                                                                     \
+        } else if (((f32)((hmap_ptr)->length + 1) / (f32)(hmap_ptr)->capacity) > _NYA_HASHMAP_LOAD_FACTOR) {                                         \
             nya_hmap_resize_and_rehash(hmap_ptr, (hmap_ptr)->capacity * 2);                                                                          \
         }                                                                                                                                            \
         _nya_hmap_set_unchecked(hmap_ptr, key, value);                                                                                               \
@@ -296,7 +328,7 @@
     ({                                                                                                                                               \
         nya_assert_type_match(key, (hmap_ptr)->keys[0]);                                                                                             \
         typeof(key) key_var    = key;                                                                                                                \
-        u64         index      = (hmap_ptr)->hash(&key_var) % (hmap_ptr)->capacity;                                                                  \
+        u64         index      = (hmap_ptr)->capacity == 0 ? 0 : (hmap_ptr)->hash(&key_var) % (hmap_ptr)->capacity;                                  \
         u64         iterations = 0;                                                                                                                  \
         while (iterations < (hmap_ptr)->capacity) {                                                                                                  \
             if (!(hmap_ptr)->occupied[index]) break;                                                                                                 \
@@ -346,11 +378,14 @@
             .arena    = (hmap_ptr)->arena,                                                                                                           \
             .keys     = nya_arena_copy((hmap_ptr)->arena, (hmap_ptr)->keys, sizeof(*(hmap_ptr)->keys) * (hmap_ptr)->capacity),                       \
             .values   = nya_arena_copy((hmap_ptr)->arena, (hmap_ptr)->values, sizeof(*(hmap_ptr)->values) * (hmap_ptr)->capacity),                   \
-            .occupied = nya_arena_copy((hmap_ptr)->arena, (hmap_ptr)->occupied, sizeof(*(hmap_ptr)->occupied) * (hmap_ptr)->capacity),               \
-            /* Carried across, not defaulted: a map is useless without them, and leaving them null  */ \
-            /* meant the first lookup on any copy called through a null pointer.                    */ \
-            .hash     = (hmap_ptr)->hash,                                                                                                            \
-            .equals   = (hmap_ptr)->equals,                                                                                                          \
+            .occupied = nya_arena_copy(                                                                                                              \
+                (hmap_ptr)->arena,                                                                                                                   \
+                (hmap_ptr)->occupied,                                                                                                                \
+                sizeof(*(hmap_ptr)->occupied) * (hmap_ptr)->capacity                                                                                 \
+            ), /* Carried across, not defaulted: a map is useless without them, and leaving them null  */ /* meant the first lookup on any copy      \
+                                                                                                             called through a null pointer. */                                                                                                                                                  \
+            .hash   = (hmap_ptr)->hash,                                                                                                              \
+            .equals = (hmap_ptr)->equals,                                                                                                            \
         };                                                                                                                                           \
         copy;                                                                                                                                        \
     })

@@ -35,6 +35,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/core/core_callback.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -113,8 +114,16 @@ struct NYA_SimSystem {
     NYA_ArrayᐸNYA_SimCommandᐳ* commands;
 
     struct {
-        NYA_SimObserverFn callback;
-        void*             user_data;
+        /**
+         * By handle rather than by pointer, so an observer registered by the game survives a reload.
+         *
+         * The game is a shared library that is closed and reopened, and a raw function pointer into
+         * it aims at an unmapped page afterwards — the next end of frame would call it. Callback
+         * handles are re-resolved by name in update_callback_pointers, which is the same reason the
+         * per entity hooks are stored this way.
+         * */
+        NYA_CallbackHandle callback;
+        void*              user_data;
     } observers[NYA_SIM_OBSERVER_MAX];
     u32 observer_count;
 
@@ -171,6 +180,15 @@ NYA_API const NYA_ArrayᐸNYA_SimRecordᐳ* nya_sim_records(void) __attr_no_disc
 NYA_API u64 nya_sim_tick(void) __attr_no_discard;
 
 /** Registers a frame end observer. Errors rather than silently dropping it once full. */
-NYA_API NYA_Error nya_sim_observer_add(NYA_SimObserverFn observer, void* user_data) __attr_no_discard;
+/**
+ * Registers an observer, by callback handle so it survives a hot reload.
+ *
+ * ```c
+ * NYA_EXPECT(nya_sim_observer_add(nya_callback(gny_sim_observe), nullptr));
+ * ```
+ *
+ * The function must be exported — not NYA_INTERNAL — because the handle is resolved by name.
+ * */
+NYA_API NYA_Error nya_sim_observer_add(NYA_CallbackHandle observer, void* user_data) __attr_no_discard;
 
 NYA_API void nya_sim_observer_clear(void);

@@ -362,7 +362,7 @@ s32 main(void) {
   {
     const char* wrong_version = "nya 99 12345\n{ key: u32 42; }\n";
     NYA_Object* restored = nullptr;
-    nya_assert(nya_deserialize(arena, (u8*)wrong_version, strlen(wrong_version), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &restored).kind != NYA_ERROR_NONE);
+    nya_assert(!nya_deserialize(arena, (u8*)wrong_version, strlen(wrong_version), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &restored).ok);
     printf("  PASSED\n");
   }
 
@@ -493,7 +493,7 @@ s32 main(void) {
     // tampered CRC should fail
     const char* tampered = "nya 2 99999\n{ key: u32 42; }\n";
     NYA_Object* restored = nullptr;
-    nya_assert(nya_deserialize(arena, (u8*)tampered, strlen(tampered), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored).kind != NYA_ERROR_NONE);
+    nya_assert(!nya_deserialize(arena, (u8*)tampered, strlen(tampered), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &restored).ok);
 
     // same data with NO_CRC_VALIDATION should succeed
     NYA_Object* restored_no_crc = nullptr;
@@ -519,7 +519,7 @@ s32 main(void) {
       }
     }
     NYA_Object* tampered_obj = nullptr;
-    nya_assert(nya_deserialize(arena, tampered_data.items, tampered_data.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &tampered_obj).kind != NYA_ERROR_NONE);
+    nya_assert(!nya_deserialize(arena, tampered_data.items, tampered_data.length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &tampered_obj).ok);
 
     // same tampered data with NO_CRC_VALIDATION should still parse
     NYA_Object* tampered_no_crc = nullptr;
@@ -700,12 +700,12 @@ s32 main(void) {
     // assert the error instead of NYA_EXPECTing their way past it.
     {
       NYA_Object* _obj = (NYA_Object*)1;
-      nya_assert(nya_deserialize(arena, nullptr, 0, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &_obj).kind != NYA_ERROR_NONE);
+      nya_assert(!nya_deserialize(arena, nullptr, 0, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &_obj).ok);
       nya_assert(_obj == nullptr);
     }
     {
       NYA_Object* _obj = (NYA_Object*)1;
-      nya_assert(nya_deserialize(arena, (u8*)"", 0, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &_obj).kind != NYA_ERROR_NONE);
+      nya_assert(!nya_deserialize(arena, (u8*)"", 0, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE, &_obj).ok);
       nya_assert(_obj == nullptr);
     }
 
@@ -713,14 +713,14 @@ s32 main(void) {
     const char* ws = "   \n\n  ";
     {
       NYA_Object* _obj = nullptr;
-      nya_assert(nya_deserialize(arena, (u8*)ws, strlen(ws), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &_obj).kind != NYA_ERROR_NONE);
+      nya_assert(!nya_deserialize(arena, (u8*)ws, strlen(ws), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &_obj).ok);
     }
 
     // missing opening brace
     const char* no_brace = "nya 2 12345\nkey: u32 42;\n";
     {
       NYA_Object* _obj = nullptr;
-      nya_assert(nya_deserialize(arena, (u8*)no_brace, strlen(no_brace), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &_obj).kind != NYA_ERROR_NONE);
+      nya_assert(!nya_deserialize(arena, (u8*)no_brace, strlen(no_brace), NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &_obj).ok);
     }
 
     printf("  PASSED\n");

@@ -28,3 +28,15 @@
  * failed rather than burying it under the tests that came after.
  * */
 void test_runner(NYA_ArgCommand* command);
+
+/**
+ * The same, with the tests compiled under source based coverage instrumentation.
+ *
+ * Builds every test with FLAGS_COVERAGE, runs each with its own LLVM_PROFILE_FILE, keeps the
+ * binaries so llvm-cov can read their coverage mapping, then merges the profiles and prints a per
+ * file report for src/nyangine.
+ *
+ * Slower than `run test` and not a substitute for it: instrumentation perturbs timing, so a test
+ * that depends on it is worth distrusting under this rather than trusting.
+ * */
+void coverage_runner(NYA_ArgCommand* command);

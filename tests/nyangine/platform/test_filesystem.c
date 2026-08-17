@@ -78,13 +78,13 @@ s32 main(void) {
   // TEST: Copy non-existent source fails
   // ─────────────────────────────────────────────────────────────────────────────
   result = nya_filesystem_copy("nonexistent_src_12345.txt", "nonexistent_dst_12345.txt");
-  nya_assert(result.kind != NYA_ERROR_NONE);
+  nya_assert(!result.ok);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Move non-existent source fails
   // ─────────────────────────────────────────────────────────────────────────────
   result = nya_filesystem_move("nonexistent_src_12345.txt", "nonexistent_dst_12345.txt");
-  nya_assert(result.kind != NYA_ERROR_NONE);
+  nya_assert(!result.ok);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Last modified on non-existent file returns NOT_FOUND
@@ -161,7 +161,7 @@ s32 main(void) {
   // Non-existent file should fail
   u64 bad_timestamp = 0;
   result = nya_filesystem_last_modified("nonexistent_12345.txt", &bad_timestamp);
-  nya_assert(result.kind != NYA_ERROR_NONE);
+  nya_assert(!result.ok);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Large file content

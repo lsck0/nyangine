@@ -124,7 +124,7 @@
     ({                                                                                                                                               \
         nya_assert_type_match(item, (hset_ptr)->items[0]);                                                                                           \
         typeof(item) item_var   = item;                                                                                                              \
-        u64          index      = nya_hash_fnv1a(&item_var, sizeof(item_var)) % (hset_ptr)->capacity;                                                \
+        u64          index      = (hset_ptr)->capacity == 0 ? 0 : nya_hash_fnv1a(&item_var, sizeof(item_var)) % (hset_ptr)->capacity;                \
         u64          iterations = 0;                                                                                                                 \
         b8           found      = false;                                                                                                             \
         while (iterations < (hset_ptr)->capacity) {                                                                                                  \
@@ -141,6 +141,10 @@
             index = (index + 1) % (hset_ptr)->capacity;                                                                                              \
             iterations++;                                                                                                                            \
         }                                                                                                                                            \
+        /* Storing and matching both break out early, so a loop that ran all the way to the bound is                                                 \
+         * exactly the one that found nowhere to put the item. The load factor is supposed to make                                                   \
+         * that unreachable; dropping the item silently surfaced as a failed lookup much later.  */                                                  \
+        nya_assert(iterations < (hset_ptr)->capacity, "Hash set is full; the item was dropped rather than stored.");                                 \
         (void)found;                                                                                                                                 \
     })
 
@@ -175,7 +179,7 @@
         nya_assert_type_match(item, (hset_ptr)->items[0]);                                                                                           \
         typeof(item) item_var   = item;                                                                                                              \
         bool         contains   = false;                                                                                                             \
-        u64          index      = nya_hash_fnv1a(&item_var, sizeof(item_var)) % (hset_ptr)->capacity;                                                \
+        u64          index      = (hset_ptr)->capacity == 0 ? 0 : nya_hash_fnv1a(&item_var, sizeof(item_var)) % (hset_ptr)->capacity;                \
         u64          iterations = 0;                                                                                                                 \
         while (iterations < (hset_ptr)->capacity) {                                                                                                  \
             if (!(hset_ptr)->occupied[index]) break;                                                                                                 \
@@ -198,31 +202,23 @@
 #define nya_hset_insert(hset_ptr, item)                                                                                                              \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (hset_ptr)->items[0]);                                                                                           \
-        if (((f32)((hset_ptr)->length + 1) / (f32)(hset_ptr)->capacity) > _NYA_HASHSET_LOAD_FACTOR) {                                                \
+        /* Same zero capacity case as nya_hmap_set; see the note there. */                                                                           \
+        if ((hset_ptr)->capacity == 0) {                                                                                                             \
+            nya_hset_resize_and_rehash(hset_ptr, _NYA_HASHSET_DEFAULT_CAPACITY);                                                                     \
+        } else if (((f32)((hset_ptr)->length + 1) / (f32)(hset_ptr)->capacity) > _NYA_HASHSET_LOAD_FACTOR) {                                         \
             nya_hset_resize_and_rehash(hset_ptr, (hset_ptr)->capacity * 2);                                                                          \
         }                                                                                                                                            \
-        typeof(item) _insert_item = item;                                                                                                            \
-        u64          _insert_idx  = nya_hash_fnv1a(&_insert_item, sizeof(_insert_item)) % (hset_ptr)->capacity;                                      \
-        bool         _found_dup   = false;                                                                                                           \
-        while ((hset_ptr)->occupied[_insert_idx]) {                                                                                                  \
-            if (nya_memcmp(&(hset_ptr)->items[_insert_idx], &_insert_item, sizeof(_insert_item)) == 0) {                                             \
-                _found_dup = true;                                                                                                                   \
-                break;                                                                                                                               \
-            }                                                                                                                                        \
-            _insert_idx = (_insert_idx + 1) % (hset_ptr)->capacity;                                                                                  \
-        }                                                                                                                                            \
-        if (!_found_dup) {                                                                                                                           \
-            (hset_ptr)->items[_insert_idx]    = _insert_item;                                                                                        \
-            (hset_ptr)->occupied[_insert_idx] = true;                                                                                                \
-            (hset_ptr)->length++;                                                                                                                    \
-        }                                                                                                                                            \
+        /* The probe loop lives in _nya_hset_insert_unchecked and nowhere else. This used to spell                                                   \
+         * out its own copy — same probe, same duplicate check, same "full" message — which is two                                               \
+         * places to keep in step for no gain. nya_hmap_set and nya_dict_set already delegate.  */                                                   \
+        _nya_hset_insert_unchecked(hset_ptr, item);                                                                                                  \
     })
 
 #define nya_hset_remove(hset_ptr, item)                                                                                                              \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (hset_ptr)->items[0]);                                                                                           \
         typeof(item) item_var   = item;                                                                                                              \
-        u64          index      = nya_hash_fnv1a(&item_var, sizeof(item_var)) % (hset_ptr)->capacity;                                                \
+        u64          index      = (hset_ptr)->capacity == 0 ? 0 : nya_hash_fnv1a(&item_var, sizeof(item_var)) % (hset_ptr)->capacity;                \
         u64          iterations = 0;                                                                                                                 \
         while (iterations < (hset_ptr)->capacity) {                                                                                                  \
             if (!(hset_ptr)->occupied[index]) break;                                                                                                 \
@@ -251,45 +247,91 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/*
+ * All four set operations walk one set and mutate another, and every one of them has to tolerate
+ * being handed the *same* set twice — `nya_hset_union(a, a)`, `a \ a`, `a △ a` and `a ∩ a` are all
+ * things a caller writes, and test_hset.c writes them.
+ *
+ * Iterating a table while mutating it does not work here, for two separate reasons:
+ *
+ *  - nya_hset_remove is a backward shift deletion. After clearing a slot it reinserts the rest of
+ *    the probe chain at the first free slot from each entry's own hash, frequently an index *below*
+ *    the cursor. An entry moved there is never looked at again, so it survives an operation that
+ *    should have removed it. Nine keys in a table of sixteen is enough to see it.
+ *  - nya_hset_insert checks the load factor before it knows whether the item is a duplicate, so it
+ *    can call nya_hset_resize_and_rehash, which frees `items` and `occupied`. A loop reading those
+ *    is then reading freed memory — which is how an aliased union, a no-op by definition, can fault.
+ *
+ * So each operation resolves its input to a flat array first and iterates that. `_nya_hset_snapshot`
+ * takes a copy of the source's items; nya_hset_intersection instead collects the doomed subset of
+ * the destination, since it is the one operation whose predicate is evaluated against the source
+ * while the destination is what shrinks.
+ *
+ * Cost is one arena allocation per call, freed before returning. The +1 keeps an empty set from
+ * asking the arena for nothing.
+ */
+#define _nya_hset_snapshot(src_hset_ptr, items_name, count_name, bytes_name)                                                                         \
+    u64                               bytes_name = ((src_hset_ptr)->length + 1) * sizeof(*(src_hset_ptr)->items);                                    \
+    typeof((src_hset_ptr)->items[0])* items_name = nya_arena_alloc((src_hset_ptr)->arena, bytes_name);                                               \
+    u64                               count_name = 0;                                                                                                \
+    for (u64 _snapshot_idx = 0; _snapshot_idx < (src_hset_ptr)->capacity; _snapshot_idx++) {                                                         \
+        if ((src_hset_ptr)->occupied[_snapshot_idx]) items_name[count_name++] = (src_hset_ptr)->items[_snapshot_idx];                                \
+    }
+
 #define nya_hset_union(dest_hset_ptr, src_hset_ptr)                                                                                                  \
     do {                                                                                                                                             \
-        for (u64 _union_idx = 0; _union_idx < (src_hset_ptr)->capacity; _union_idx++) {                                                              \
-            if ((src_hset_ptr)->occupied[_union_idx]) { nya_hset_insert(dest_hset_ptr, (src_hset_ptr)->items[_union_idx]); }                         \
-        }                                                                                                                                            \
+        NYA_Arena* _union_arena = (src_hset_ptr)->arena;                                                                                             \
+        _nya_hset_snapshot(src_hset_ptr, _union_items, _union_count, _union_bytes);                                                                  \
+                                                                                                                                                     \
+        for (u64 _union_i = 0; _union_i < _union_count; _union_i++) nya_hset_insert(dest_hset_ptr, _union_items[_union_i]);                          \
+                                                                                                                                                     \
+        nya_arena_free(_union_arena, _union_items, _union_bytes);                                                                                    \
     } while (0)
 
 #define nya_hset_intersection(dest_hset_ptr, src_hset_ptr)                                                                                           \
     do {                                                                                                                                             \
+        NYA_Arena*                         _inter_arena        = (dest_hset_ptr)->arena;                                                             \
+        u64                                _inter_bytes        = ((dest_hset_ptr)->length + 1) * sizeof(*(dest_hset_ptr)->items);                    \
+        typeof((dest_hset_ptr)->items[0])* _inter_doomed       = nya_arena_alloc(_inter_arena, _inter_bytes);                                        \
+        u64                                _inter_doomed_count = 0;                                                                                  \
+                                                                                                                                                     \
         for (u64 _inter_idx = 0; _inter_idx < (dest_hset_ptr)->capacity; _inter_idx++) {                                                             \
-            if ((dest_hset_ptr)->occupied[_inter_idx]) {                                                                                             \
-                typeof((dest_hset_ptr)->items[0]) _inter_item = (dest_hset_ptr)->items[_inter_idx];                                                  \
-                if (!nya_hset_contains(src_hset_ptr, _inter_item)) { nya_hset_remove(dest_hset_ptr, _inter_item); }                                  \
-            }                                                                                                                                        \
+            if (!(dest_hset_ptr)->occupied[_inter_idx]) continue;                                                                                    \
+                                                                                                                                                     \
+            typeof((dest_hset_ptr)->items[0]) _inter_item = (dest_hset_ptr)->items[_inter_idx];                                                      \
+            if (!nya_hset_contains(src_hset_ptr, _inter_item)) _inter_doomed[_inter_doomed_count++] = _inter_item;                                   \
         }                                                                                                                                            \
+                                                                                                                                                     \
+        for (u64 _inter_i = 0; _inter_i < _inter_doomed_count; _inter_i++) nya_hset_remove(dest_hset_ptr, _inter_doomed[_inter_i]);                  \
+                                                                                                                                                     \
+        nya_arena_free(_inter_arena, _inter_doomed, _inter_bytes);                                                                                   \
     } while (0)
 
 #define nya_hset_difference(dest_hset_ptr, src_hset_ptr)                                                                                             \
     do {                                                                                                                                             \
-        for (u64 _diff_idx = 0; _diff_idx < (src_hset_ptr)->capacity; _diff_idx++) {                                                                 \
-            if ((src_hset_ptr)->occupied[_diff_idx]) {                                                                                               \
-                typeof((src_hset_ptr)->items[0]) _diff_item = (src_hset_ptr)->items[_diff_idx];                                                      \
-                if (nya_hset_contains(dest_hset_ptr, _diff_item)) { nya_hset_remove(dest_hset_ptr, _diff_item); }                                    \
-            }                                                                                                                                        \
+        NYA_Arena* _diff_arena = (src_hset_ptr)->arena;                                                                                              \
+        _nya_hset_snapshot(src_hset_ptr, _diff_items, _diff_count, _diff_bytes);                                                                     \
+                                                                                                                                                     \
+        for (u64 _diff_i = 0; _diff_i < _diff_count; _diff_i++) {                                                                                    \
+            if (nya_hset_contains(dest_hset_ptr, _diff_items[_diff_i])) nya_hset_remove(dest_hset_ptr, _diff_items[_diff_i]);                        \
         }                                                                                                                                            \
+                                                                                                                                                     \
+        nya_arena_free(_diff_arena, _diff_items, _diff_bytes);                                                                                       \
     } while (0)
 
 #define nya_hset_symmetric_difference(dest_hset_ptr, src_hset_ptr)                                                                                   \
     do {                                                                                                                                             \
-        for (u64 _sym_idx = 0; _sym_idx < (src_hset_ptr)->capacity; _sym_idx++) {                                                                    \
-            if ((src_hset_ptr)->occupied[_sym_idx]) {                                                                                                \
-                typeof((src_hset_ptr)->items[0]) _sym_item = (src_hset_ptr)->items[_sym_idx];                                                        \
-                if (nya_hset_contains(dest_hset_ptr, _sym_item)) {                                                                                   \
-                    nya_hset_remove(dest_hset_ptr, _sym_item);                                                                                       \
-                } else {                                                                                                                             \
-                    nya_hset_insert(dest_hset_ptr, _sym_item);                                                                                       \
-                }                                                                                                                                    \
-            }                                                                                                                                        \
+        NYA_Arena* _sym_arena = (src_hset_ptr)->arena;                                                                                               \
+        _nya_hset_snapshot(src_hset_ptr, _sym_items, _sym_count, _sym_bytes);                                                                        \
+                                                                                                                                                     \
+        for (u64 _sym_i = 0; _sym_i < _sym_count; _sym_i++) {                                                                                        \
+            if (nya_hset_contains(dest_hset_ptr, _sym_items[_sym_i]))                                                                                \
+                nya_hset_remove(dest_hset_ptr, _sym_items[_sym_i]);                                                                                  \
+            else                                                                                                                                     \
+                nya_hset_insert(dest_hset_ptr, _sym_items[_sym_i]);                                                                                  \
         }                                                                                                                                            \
+                                                                                                                                                     \
+        nya_arena_free(_sym_arena, _sym_items, _sym_bytes);                                                                                          \
     } while (0)
 
 /*

@@ -33,6 +33,17 @@ CompileFlags:
       -DNYA_EXECUTION_MODE=0,
       -DNYA_ASSET_PREFER_BLOB,
       -DNYA_ASSET_HOT_RELOAD,
+      # The plugins the project actually compiles, mirroring FLAGS_PLUGINS in src/build/flags.h.
+      #
+      # Without these every plugin source is an empty translation unit as far as clangd is concerned
+      # — no diagnostics, no completion, no rename coverage — which is the same failure the headless
+      # fragment below was added to fix. Three whole modules were being edited blind.
+      -DNYA_PLUGIN_CURL,
+      -DNYA_PLUGIN_SQLITE,
+      -DNYA_PLUGIN_DISCORD,
+      # What the sqlite plugin's extensions compile against. From the vendor rules, not invented here.
+      -DSQLITE_CORE,
+      -DSQLITE_VEC_STATIC,
       -I/home/luca/projects/nyangine/,
       -I/home/luca/projects/nyangine/src/,
       -I/home/luca/projects/nyangine/vendor/,
@@ -49,6 +60,9 @@ CompileFlags:
       -I/home/luca/projects/nyangine/vendor/libbacktrace/,
       -I/home/luca/projects/nyangine/vendor/libbacktrace/build-linux-x86_64/,
       -I/home/luca/projects/nyangine/vendor/sqlite/build-linux-x86_64/,
+      -I/home/luca/projects/nyangine/vendor/sqlean/src,
+      -I/home/luca/projects/nyangine/vendor/sqlvec,
+      -I/home/luca/projects/nyangine/vendor/ufbx,
     ]
 
 Diagnostics:
@@ -67,6 +81,9 @@ Diagnostics:
         portability-*,
         readability-*,
       ]
+    # Three more suppressions live in .clang-tidy rather than here, because a command line
+    # `clang-tidy` run does not read this file and was reporting eighty findings the editor never
+    # showed. clangd reads .clang-tidy too, so putting them there covers both.
     Remove:
       [
         bugprone-assignment-in-if-condition,
@@ -104,3 +121,47 @@ Diagnostics:
         readability-redundant-control-flow,
         readability-suspicious-call-argument,
       ]
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# PER PATH FRAGMENTS
+#
+# The block above describes a normal debug build of the engine: windowed, SDL present, hot reload on.
+# That is the right default because it is what most of the tree compiles as — but three parts of the
+# tree do not compile that way, and until these fragments existed clangd analysed them under flags
+# they are never actually built with. The effect is not subtle: a file behind an #if that is false in
+# the default config gets no diagnostics, no completion and no rename coverage at all, so a signature
+# change sails straight through it. Renaming a font parameter broke render2d_headless.c twice in
+# one session without a single squiggle, because clangd had never once parsed it.
+#
+# clangd applies every fragment whose If matches, in order, on top of the base block above.
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+---
+# The headless halves of the renderer: whole files that only exist when NYA_HEADLESS is defined, and
+# are therefore dead text without it. See NYA_HEADLESS_ENABLED in base_basic.h.
+#
+# Matched by filename rather than listed one by one, so a new *_headless.c is covered the day it is
+# written rather than the day someone remembers this file.
+If:
+  PathMatch: .*_headless\.c
+
+CompileFlags:
+  Add: [-DNYA_HEADLESS]
+
+---
+# Tests build headless, with assertions and nya_expect_crash live. Analysing them as an ordinary
+# debug build gets NYA_TESTING wrong, which is what gates the crash-expectation machinery.
+If:
+  PathMatch: tests/.*
+
+CompileFlags:
+  Add: [-DNYA_HEADLESS, -DNYA_TESTING, -DNYA_EXECUTION_MODE=4]
+
+---
+# The build system is a host tool: core and renderer are compiled out entirely rather than stubbed,
+# so nearly every engine header behaves differently here than anywhere else in the tree.
+If:
+  PathMatch: src/build/.*
+
+CompileFlags:
+  Add: [-DNYA_NO_SDL]

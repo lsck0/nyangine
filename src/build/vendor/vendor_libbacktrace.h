@@ -13,8 +13,7 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-
-#include "build/hooks/hooks.h"
+#include "build/hooks.h"
 #include "build/toolchain.h"
 #include "build/vendor/vendor_common.h"
 
@@ -49,8 +48,9 @@ NYA_VendorRule vendor_libbacktrace_linux_x86_64 = {
 
             .command = {
                 .working_directory = BACKTRACE_BUILD_LINUX_X86_64,
-                .program           = "../configure",
+                .program           = NYA_CONFIGURE_PROGRAM,
                 .arguments = {
+                    NYA_CONFIGURE_LEADING_ARGS
                     "CC=" CC,
                     // -fPIC because the debug build links this archive into a shared object.
                     "CFLAGS=-g -O2 -fPIC",
@@ -86,8 +86,9 @@ NYA_VendorRule vendor_libbacktrace_windows_x86_64 = {
 
             .command = {
                 .working_directory = BACKTRACE_BUILD_WINDOWS_X86_64,
-                .program           = "../configure",
+                .program           = NYA_CONFIGURE_PROGRAM,
                 .arguments = {
+                    NYA_CONFIGURE_LEADING_ARGS
                     NYA_AUTOTOOLS_WINDOWS_HOST
                     "CC=" NYA_WINDOWS_CC,
                     "CFLAGS=-g -O2",

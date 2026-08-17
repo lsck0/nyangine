@@ -1,0 +1,114 @@
+name: Setup (Linux)
+description: Install build dependencies, setup caching, bootstrap build system.
+
+inputs:
+  llvm-version:
+    description: LLVM major version to install from apt.llvm.org.
+    required: false
+    default: "22"
+
+runs:
+  using: composite
+
+  steps:
+    - name: Keep downloaded packages
+      shell: bash
+      run: |
+        echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' \
+          | sudo tee /etc/apt/apt.conf.d/99keep-downloads > /dev/null
+
+    - name: Add apt.llvm.org repository
+      shell: bash
+      run: |
+        codename="$(lsb_release -cs)"
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+          | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+        echo "deb http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${{ inputs.llvm-version }} main" \
+          | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
+
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt/archives/*.deb
+        key: apt-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ hashFiles('.github/ci-packages.txt') }}
+
+    - name: Install packages
+      shell: bash
+      run: |
+        sudo apt-get update
+        mapfile -t packages < <(grep -vE '^\s*(#|$)' .github/ci-packages.txt)
+        sudo apt-get install -y --no-install-recommends "${packages[@]}"
+
+    - name: Select pinned LLVM as the default toolchain
+      shell: bash
+      run: |
+        # /usr/local/bin precedes /usr/bin in PATH, so these shadow the runner
+        # image's preinstalled clang without fighting dpkg-owned symlinks.
+        #
+        # The list is every LLVM tool the build system spells *unversioned*, not just the compiler.
+        # src/build/test.c invokes llvm-profdata and llvm-cov, src/build/asset.c invokes
+        # clang-format, and src/build/check.c invokes clang-tidy — none of which apt installs under
+        # a bare name. Leaving them off meant `./build run coverage` could only ever fail on CI,
+        # while `./build build assets` silently used whatever clang-format the runner image shipped.
+        for tool in clang clang++ clang-format clang-tidy lld ld.lld llvm-ar llvm-cov llvm-profdata llvm-ranlib llvm-strip; do
+          versioned="/usr/bin/${tool}-${{ inputs.llvm-version }}"
+          if [ -x "$versioned" ]; then
+            sudo ln -sf "$versioned" "/usr/local/bin/${tool}"
+          else
+            echo "::error::${versioned} not found"
+            exit 1
+          fi
+        done
+        hash -r
+        clang --version
+        ld.lld --version
+        clang --version | grep -q "clang version ${{ inputs.llvm-version }}\." \
+          || { echo "::error::clang is not LLVM ${{ inputs.llvm-version }}"; exit 1; }
+
+    - name: Compute vendor cache key
+      id: vendor
+      shell: bash
+      run: |
+        # Every submodule, not a hand picked few. The project links thirteen vendors and naming a
+        # subset meant a bump to any of the others reused a cache built against the old revision.
+        # Two inputs, not one: which revision of each dependency, and how this repository configures
+        # it. src/build/vendor is the second half — a cmake flag changed there produces a different
+        # archive from identical sources, and keying on submodule status alone would hand the next
+        # run a cached build of the old configuration. That is not hypothetical: turning libcurl's
+        # nghttp2 detection off changed what the archive requires at link time while leaving every
+        # submodule revision untouched.
+        revisions="$(git submodule status --recursive vendor)"
+        recipes="$(find src/build/vendor -type f -name '*.h' -print0 | sort -z | xargs -0 sha256sum)"
+        sha="$(printf '%s\n%s' "${revisions}" "${recipes}" | sha256sum | cut -d' ' -f1)"
+        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache vendor builds
+      uses: actions/cache@v4
+      with:
+        # Every configured build tree, by the convention vendor rules follow — plus the two
+        # Makefile vendors that build in tree and park a renamed archive one directory up.
+        #
+        # This used to name three paths, one of which was misspelled (build-window-x86_64) and one
+        # of which no longer exists under that name, so most of the tree was rebuilt every run.
+        #
+        # vendor/lua/src/luajit.h is generated from luajit_rolling.h by LuaJIT's Makefile and is
+        # untracked in the submodule, so a cache holding only the archive leaves anything including
+        # it failing to compile — the archive's presence is what makes the build system skip the
+        # rule that creates it. vendor/sqlvec/sqlite-vec.h is generated from a template the same way
+        # and is cached for the same reason.
+        path: |
+          vendor/*/build-linux-x86_64
+          vendor/*/build-windows-x86_64
+          vendor/lua/libluajit-*.a
+          vendor/lz4/liblz4-*.a
+          vendor/lua/src/luajit.h
+          vendor/sqlvec/sqlite-vec.h
+        key: vendor-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ steps.vendor.outputs.sha }}
+
+    - name: Bootstrap build system
+      shell: bash
+      run: clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread
+
+    - name: Build vendored dependencies
+      shell: bash
+      run: ./build build vendor

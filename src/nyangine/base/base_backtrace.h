@@ -32,7 +32,12 @@
  * */
 // Spelled 1/0 rather than true/false: base_basic.h defines those as ((b8)1) and ((b8)0), which a
 // preprocessor #if cannot evaluate.
-#if (OS_LINUX || OS_WINDOWS) && __has_include("backtrace.h")
+//
+// The NYA_NO_BACKTRACE term was documented above but missing from this condition, so defining the
+// macro did nothing at all and the only way to get the null backend was to not have built
+// libbacktrace. That is the opposite of an override: it made the fallback reachable by accident and
+// unreachable on purpose.
+#if (OS_LINUX || OS_WINDOWS) && __has_include("backtrace.h") && !defined(NYA_NO_BACKTRACE)
 #define NYA_BACKTRACE_SUPPORTED 1
 #else
 #define NYA_BACKTRACE_SUPPORTED 0

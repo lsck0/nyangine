@@ -10,8 +10,7 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-
-#include "build/hooks/hooks.h"
+#include "build/hooks.h"
 #include "build/toolchain.h"
 #include "build/vendor/vendor_common.h"
 
@@ -31,6 +30,27 @@ NYA_VendorRule vendor_lua_linux_x86_64 = {
     .linker_flags = { LUAJIT_A_LIN, },
 
     .parts = {
+        /*
+         * Cleaned first, exactly as the Windows rule below does, and for the same reason.
+         *
+         * LuaJIT builds in tree, so both targets compile into ./vendor/lua/src and only the archive
+         * is renamed afterwards. Its Makefile keys off the object files alone and knows nothing
+         * about which toolchain produced them, so a tree left over from the Windows build is
+         * "up to date" for the Linux one: make relinks those objects and libluajit-linux.a comes
+         * out full of COFF. lld then skips every member with a warning, and because nothing calls
+         * into Lua yet the link still succeeds — a dependency that is silently absent rather than
+         * missing. Whichever target runs second has to start from an empty tree.
+         */
+        &(NYA_BuildRule){
+            .name        = "vendor_lua_linux_x86_64_clean",
+            .policy      = NYA_BUILD_ONCE,
+            .output_file = LUAJIT_A_LIN,
+
+            .command = {
+                .program   = "make",
+                .arguments = { "-C", LUAJIT_SRC, "clean", },
+            },
+        },
         &(NYA_BuildRule){
             .name        = "vendor_lua_linux_x86_64_compile",
             .policy      = NYA_BUILD_ONCE,

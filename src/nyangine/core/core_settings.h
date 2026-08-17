@@ -69,8 +69,70 @@ struct NYA_SettingsSystem {
  */
 
 /** Every volume starts at 1.0 and every action starts unbound. */
+/** Resets to defaults, then loads whatever is on disk over the top. Never fails. */
 NYA_API void nya_system_settings_init(void);
+
+/** Writes the settings back out. A failure is logged rather than raised; teardown cannot unwind. */
 NYA_API void nya_system_settings_deinit(void);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * PERSISTENCE
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * Where the settings file lives, relative to the save root. See core_save.h.
+ *
+ * `.nya` rather than `.json` on purpose: the native format is typed, indents under NYA_SERDE_PRETTY,
+ * and checksums the object tree rather than the bytes — so a player who opens this in a text editor,
+ * changes a number and saves it with different whitespace still has a valid file. A JSON settings
+ * file would be equally readable and would lose the distinction between a volume of `1` and a volume
+ * of `1.0`, which is the difference between a u32 and an f32 coming back.
+ * */
+#define NYA_SETTINGS_FILE "settings.nya"
+
+/**
+ * The version written into the file, and what a loader checks before trusting its shape.
+ *
+ * Raise it when the meaning of an existing key changes. Adding a key does not need a raise: a loader
+ * that does not find one leaves the default in place, which is already the right answer for a file
+ * written by an older build.
+ * */
+#define NYA_SETTINGS_VERSION 1
+
+/**
+ * Writes the settings to NYA_SETTINGS_FILE, atomically.
+ *
+ * Called on the way out, so a game does not normally call it. Call it directly after a settings
+ * screen closes, if losing the change to a crash would be annoying — which for a rebound key it
+ * generally is.
+ * */
+NYA_API NYA_Error nya_settings_save(void);
+
+/**
+ * Reads NYA_SETTINGS_FILE over the current settings.
+ *
+ * Additive rather than replacing: anything the file does not mention keeps whatever it had, which is
+ * what makes a file written by an older build load cleanly instead of zeroing the settings that did
+ * not exist yet. Call nya_settings_reset first for "discard everything and load".
+ *
+ * NYA_ERROR_NOT_FOUND on a first run, which is not a problem — the defaults are already in place.
+ * */
+NYA_API NYA_Error nya_settings_load(void);
+
+/** The settings as an object tree, for writing or for showing. Everything comes from `arena`. */
+NYA_API NYA_Object* nya_settings_to_object(NYA_Arena* arena) __attr_no_discard;
+
+/**
+ * Applies whatever an object tree has to say about the settings, ignoring the rest.
+ *
+ * Every field is optional and every value is validated: a volume outside [0, 1] is clamped, a key
+ * name SDL does not recognise leaves that binding alone, and an action index past
+ * NYA_INPUT_ACTION_MAX is skipped. A settings file is a file a player is invited to edit, so it is
+ * untrusted input and is treated as such rather than asserted on.
+ * */
+NYA_API void nya_settings_from_object(const NYA_Object* object);
 
 /*
  * ─────────────────────────────────────────────────────────

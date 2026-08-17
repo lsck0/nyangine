@@ -19,15 +19,24 @@
  * nya_assert(condition, format, ...) with a max. of 10 format arguments
  * ```
  *
- * Compiled out by -DNYA_NO_ASSERT. Use nya_assert_always for checks that must survive that.
+ * Always compiled in, in every execution mode, shipping included. base_basic.h rejects
+ * -DNYA_NO_ASSERT with an #error, so there is no configuration in which this costs nothing — write
+ * the condition accordingly and keep side effects out of it.
  * */
-#define nya_assert(...)             _nya_assert(__VA_ARGS__)
+#define nya_assert(...)             _NYA_ASSERT_ENABLED(__VA_ARGS__)
 
 /**
- * An assertion that -DNYA_NO_ASSERT does not remove.
+ * The same assertion, spelled so the reader knows the check is load bearing.
  *
  * For invariants whose failure is a security or data integrity problem rather than a programming
- * mistake, where silently continuing is worse than dying.
+ * mistake, where silently continuing is worse than dying: the alloca bound in base_memory.h and the
+ * tamper check in base_integrity.c are the two cases.
+ *
+ * Identical to nya_assert today, and deliberately kept rather than folded into it. It used to be
+ * the one form that survived -DNYA_NO_ASSERT; that flag is now refused outright, which makes the
+ * distinction documentary. The documentation is the point — these are the call sites where removing
+ * the check would be a vulnerability rather than a lost diagnostic, and that is worth saying at the
+ * call site even when nothing enforces it.
  * */
 #define nya_assert_always(...)      _NYA_ASSERT_ENABLED(__VA_ARGS__)
 
@@ -55,14 +64,15 @@
 #define _NYA_ASSERT2(condition, message)     do { if (!(condition)) { _nya_crash_raise(NYA_CRASH_SOURCE_ASSERT, __FUNCTION__, __FILE__, __LINE__, 0, "%s, %s", #condition, message); } } while (0)
 #define _NYA_ASSERT3(condition, format, ...) do { if (!(condition)) { _nya_crash_raise(NYA_CRASH_SOURCE_ASSERT, __FUNCTION__, __FILE__, __LINE__, 0, "%s, " format, #condition, __VA_ARGS__); } } while (0)
 
-#ifdef NYA_NO_ASSERT
-// The condition is kept in a discarded context rather than dropped outright, so that variables it
-// mentions do not suddenly become unused and side effects inside it still fail to compile loudly.
-#define _nya_assert(...)                     _NYA_ASSERT_DISABLED(__VA_ARGS__)
-#define _NYA_ASSERT_DISABLED(...)            _NYA_PICK_ASSERT(__VA_ARGS__, _NYA_NOASSERT3, _NYA_NOASSERT3, _NYA_NOASSERT3, _NYA_NOASSERT3, _NYA_NOASSERT3, _NYA_NOASSERT3, _NYA_NOASSERT3, _NYA_NOASSERT3, _NYA_NOASSERT3, _NYA_NOASSERT3, _NYA_NOASSERT2, _NYA_NOASSERT1)(__VA_ARGS__)
-#define _NYA_NOASSERT1(condition)              ((void)sizeof((condition) ? 1 : 0))
-#define _NYA_NOASSERT2(condition, message)     ((void)sizeof((condition) ? 1 : 0))
-#define _NYA_NOASSERT3(condition, format, ...) ((void)sizeof((condition) ? 1 : 0))
-#else
-#define _nya_assert(...)                     _NYA_ASSERT_ENABLED(__VA_ARGS__)
-#endif // NYA_NO_ASSERT
+/*
+ * There is no disabled form.
+ *
+ * There was one, behind #ifdef NYA_NO_ASSERT, and it could never be reached: base_basic.h refuses
+ * that macro with an #error, so the branch had not been compiled since the day that check was
+ * added. It also did not do what its comment claimed — it kept the *condition* in a discarded
+ * context but dropped the message and every format argument, so a variable mentioned only in the
+ * message would have become unused the moment anyone did switch it on.
+ *
+ * Dead either way, and the kind of dead that is worse than absent: it documented a build mode the
+ * engine does not have, in the file a reader checks to find out whether an assertion is guaranteed.
+ */

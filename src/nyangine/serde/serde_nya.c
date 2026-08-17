@@ -206,7 +206,7 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 nya_serde_nya_checksum(const
     // XOR is commutative *and* self cancelling: under XOR, swapping the values of two keys leaves
     // the total unchanged, and so does any pair of entries that happen to hash alike. Adding a
     // mixed key/value pair keeps the order independence without either weakness.
-    nya_dict_foreach_key(object, key) {
+    nya_dict_foreach_key (object, key) {
         const NYA_Value* value = nya_object_get(object, *key);
 
         u64 key_hash   = nya_crc64((const u8*)*key, strlen(*key));
@@ -242,7 +242,7 @@ NYA_INTERNAL void _nya_serde_nya_write_object(NYA_String* out, const NYA_Object*
     nya_string_extend(out, pretty ? "{\n" : "{");
 
     b8 first = true;
-    nya_dict_foreach_key(object, key) {
+    nya_dict_foreach_key (object, key) {
         const NYA_Value* value = nya_object_get(object, *key);
 
         if (!first) nya_string_extend(out, pretty ? "\n" : " ");
@@ -666,8 +666,27 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_number(_NYA_SerdeNyaParser* parser, 
 
     if (negative) text[length++] = '-';
 
+    /*
+     * Refused rather than clamped, matching _nya_serde_json_parse_number.
+     *
+     * The digits were truncated to whatever fit, silently, so a literal longer than this buffer was
+     * parsed from its prefix and came back orders of magnitude from what the document said. That is
+     * worse here than it was in JSON: this is the save format, so a number that does not survive a
+     * round trip is a corrupted save rather than a misread response — and the checksum is computed
+     * over the object that was parsed, so it agrees with the wrong value.
+     *
+     * The bound is generous by a wide margin: an f128 in decimal is nowhere near it.
+     */
     u64 digits_length = token->length;
-    if (digits_length > sizeof(text) - length - 1) digits_length = sizeof(text) - length - 1;
+    if (digits_length > sizeof(text) - length - 1) {
+        return nya_error(
+            NYA_ERROR_PARSE,
+            "the number at line " FMTu32 " has " FMTu64 " digits, past the %zu this parser accepts",
+            token->line_number,
+            digits_length,
+            sizeof(text) - length - 1
+        );
+    }
 
     nya_memcpy(text + length, parser->lexer->source + token->source_location, digits_length);
     length       += digits_length;
@@ -693,52 +712,15 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_number(_NYA_SerdeNyaParser* parser, 
 /**
  * Skips comments.
  *
- * The lexer has no notion of a comment, so a slash-star or a double slash arrives as two ordinary
- * symbol tokens and is recognised here. Adjacency is checked against the source offsets, so a
- * slash and a star with a space between them are not mistaken for a comment opener.
+ * One token type now, since the lexer recognises a comment itself. This used to reassemble one from
+ * the two adjacent symbol tokens it arrived as, checking source offsets so that a slash and a star
+ * with a space between them were not mistaken for an opener — all of which the lexer does better,
+ * because it is looking at characters rather than at tokens that have already lost their spacing.
  * */
 NYA_INTERNAL void _nya_serde_nya_skip_trivia(_NYA_SerdeNyaParser* parser) {
-    while (parser->index + 1 < parser->lexer->tokens->length) {
-        NYA_Token* first  = &parser->lexer->tokens->items[parser->index];
-        NYA_Token* second = &parser->lexer->tokens->items[parser->index + 1];
-
-        if (first->type != NYA_TOKEN_SYMBOL || second->type != NYA_TOKEN_SYMBOL) return;
-        if (first->symbol != '/') return;
-        if (second->source_location != first->source_location + 1) return;
-
-        if (second->symbol == '*') {
-            parser->index += 2;
-
-            while (parser->index + 1 < parser->lexer->tokens->length) {
-                NYA_Token* star  = &parser->lexer->tokens->items[parser->index];
-                NYA_Token* slash = &parser->lexer->tokens->items[parser->index + 1];
-
-                if (star->type == NYA_TOKEN_SYMBOL && star->symbol == '*' && slash->type == NYA_TOKEN_SYMBOL && slash->symbol == '/' &&
-                    slash->source_location == star->source_location + 1) {
-                    parser->index += 2;
-                    break;
-                }
-
-                parser->index++;
-            }
-
-            continue;
-        }
-
-        if (second->symbol == '/') {
-            u32 line       = first->line_number;
-            parser->index += 2;
-
-            while (parser->index < parser->lexer->tokens->length) {
-                NYA_Token* token = &parser->lexer->tokens->items[parser->index];
-                if (token->type == NYA_TOKEN_EOF || token->line_number != line) break;
-                parser->index++;
-            }
-
-            continue;
-        }
-
-        return;
+    while (parser->index < parser->lexer->tokens->length &&
+           parser->lexer->tokens->items[parser->index].type == NYA_TOKEN_COMMENT) {
+        parser->index++;
     }
 }
 

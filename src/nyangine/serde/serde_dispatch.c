@@ -64,3 +64,65 @@ NYA_SerdeFormat nya_serde_detect_format(const u8* data, u64 size) {
 
     return NYA_SERDE_FORMAT_COUNT;
 }
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * FILES
+ * ─────────────────────────────────────────────────────────
+ */
+
+/** True when the path ends in .json, which is the one extension that is not the native format. */
+NYA_INTERNAL b8 _nya_serde_path_is_json(NYA_ConstCString path) {
+    u64 length = strlen(path);
+    if (length < 5) return false;
+
+    return strcmp(path + length - 5, ".json") == 0;
+}
+
+NYA_Error nya_serde_save_file(const NYA_Object* object, NYA_ConstCString path, NYA_SerdeFlags flags) {
+    nya_assert(object != nullptr);
+    nya_assert(path != nullptr);
+
+    // A scratch arena for the text, which does not outlive the write. The caller should not have to
+    // supply somewhere to put something they never see.
+    NYA_Arena scratch = nya_arena_create_on_stack(.name = "serde_save_file");
+    defer     nya_arena_destroy_on_stack(&scratch);
+
+    NYA_SerdeFormat format = _nya_serde_path_is_json(path) ? NYA_SERDE_FORMAT_JSON : NYA_SERDE_FORMAT_NYA;
+
+    NYA_String* text = nya_serialize(&scratch, object, format, flags);
+    if (text == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not serialize the object for '%s'", path);
+
+    /*
+     * The length carrying overload, not the cstring one.
+     *
+     * An obfuscated nya document is base64 XORed against a repeating key, so a zero byte appears
+     * wherever the key happens to match the encoded character — and nya_serde_detect_format keys off
+     * the leading 0xA7 precisely because that output is binary rather than text. Converting to a
+     * cstring made nya_file_write measure it with strlen, which truncated the file at the first such
+     * byte and produced a save that would not load back.
+     */
+    return nya_file_write(path, text);
+}
+
+NYA_Error nya_serde_load_file(NYA_Arena* arena, NYA_ConstCString path, NYA_SerdeFlags flags, OUT NYA_Object** out_object) {
+    nya_assert(arena != nullptr);
+    nya_assert(path != nullptr);
+    nya_assert(out_object != nullptr);
+
+    NYA_Arena scratch = nya_arena_create_on_stack(.name = "serde_load_file");
+    defer     nya_arena_destroy_on_stack(&scratch);
+
+    // Created against the arena rather than zero initialised: NYA_String carries the arena it grows
+    // in, and a zeroed one reallocs against a null arena the moment the file is longer than nothing.
+    NYA_String contents = nya_string_create_on_stack(&scratch);
+    defer      nya_string_destroy_on_stack(&contents);
+
+    NYA_TRY(nya_file_read(path, &contents));
+
+    NYA_SerdeFormat format = nya_serde_detect_format(contents.items, contents.length);
+    if (format == NYA_SERDE_FORMAT_COUNT) return nya_error(NYA_ERROR_CORRUPT, "'%s' is neither the native format nor JSON", path);
+
+    // Into the caller's arena, not the scratch one — the tree is what survives this call.
+    return nya_deserialize(arena, contents.items, contents.length, format, flags, out_object);
+}

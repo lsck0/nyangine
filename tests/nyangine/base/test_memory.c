@@ -117,12 +117,30 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_container_of macro (basic functionality) - skipped
+  // TEST: nya_container_of macro
   // ─────────────────────────────────────────────────────────────────────────────
+  //
+  // No longer skipped. It used to be, because the macro named `assert_type_match` rather than
+  // `nya_assert_type_match` and so failed to compile the moment anything expanded it — which meant
+  // nothing ever did, and the one test for it asserted `true`.
   {
-    // Container_of macro uses assert_type_match (without nya_ prefix) which is undefined.
-    // This is a pre-existing issue in base_memory.h.
-    nya_assert(true);
+    TestStruct container = { .byte_field = 7, .int_field = 1234, .float_field = 2.5f, .long_field = 99 };
+
+    // From a member in the middle of the struct, not just the first one, so a wrong offset shows up.
+    u32*        int_ptr   = &container.int_field;
+    TestStruct* recovered = nya_container_of(int_ptr, TestStruct, int_field);
+    nya_assert(recovered == &container, "nya_container_of did not recover the enclosing struct");
+    nya_assert(recovered->long_field == 99, "recovered struct has the wrong contents");
+
+    // The first member, where the offset is zero.
+    u8*         byte_ptr        = &container.byte_field;
+    TestStruct* from_first      = nya_container_of(byte_ptr, TestStruct, byte_field);
+    nya_assert(from_first == &container, "nya_container_of failed at offset zero");
+
+    // And the const branch of the _Generic, which is the half that the type check used to reject.
+    const f32*        const_ptr       = &container.float_field;
+    const TestStruct* const_recovered = nya_container_of(const_ptr, TestStruct, float_field);
+    nya_assert(const_recovered == &container, "nya_container_of lost the struct through a const pointer");
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -258,6 +276,57 @@ s32 main(void) {
     // Expected result: [1, 2, 3, 4, 1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16]
     u8 expected[16] = { 1, 2, 3, 4, 1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15, 16 };
     nya_assert(nya_memcmp(overlap, expected, 16) == 0);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: nya_alloca is bounded
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // The bound is the whole point: every caller sizes a stack allocation from data, and without it
+    // a long enough input is a stack overflow with no diagnostic — a fault at whatever address the
+    // next frame would have touched, nowhere near the call that caused it.
+
+    // Right up to the limit still allocates, so the guard is a ceiling rather than a haircut.
+    volatile u8* at_limit = nya_alloca(NYA_ALLOCA_MAX);
+    nya_assert(at_limit != nullptr, "an allocation exactly at NYA_ALLOCA_MAX must still be made");
+
+    // Written to, so the allocation has to be real memory rather than a pointer nobody touches. The
+    // far end is what a too-small allocation would fail on.
+    at_limit[0]                    = 0xAB;
+    at_limit[NYA_ALLOCA_MAX - 1]   = 0xCD;
+    nya_assert(at_limit[0] == 0xAB && at_limit[NYA_ALLOCA_MAX - 1] == 0xCD);
+
+    // One byte past it must die rather than quietly take the stack with it. Left null so the
+    // assertion after it also proves the allocation never happened.
+    volatile u8* over = nullptr;
+    nya_expect_crash(over = nya_alloca(NYA_ALLOCA_MAX + 1));
+    nya_assert(over == nullptr, "an allocation past the bound must not be made");
+
+    // The realistic shape of the bug: a length that came from data, not a literal.
+    u64          attacker_length = NYA_ALLOCA_MAX * 4;
+    volatile u8* huge            = nullptr;
+    nya_expect_crash(huge = nya_alloca(attacker_length + 1));
+    nya_assert(huge == nullptr, "a data-sized allocation past the bound must not be made");
+
+    // Zero is legal and must not trip the bound — nya_alloca(0) is what an empty string reaches.
+    volatile u8* empty = nya_alloca(0);
+    nya_assert(empty != nullptr || empty == nullptr, "a zero sized allocation must not abort");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: nya_alloca evaluates its size exactly once
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // A plain comma-expression version of the bound would evaluate `size` twice, so a caller passing
+    // anything with a side effect would allocate one length and advance the other. The statement
+    // expression exists for this; nothing else would notice it had been dropped.
+    u64 evaluations = 0;
+    u64 side_effect = 0;
+
+    volatile u8* once = nya_alloca((evaluations++, side_effect = 16, side_effect));
+    nya_unused(once);
+
+    nya_assert(evaluations == 1, "nya_alloca evaluated its size " FMTu64 " times, expected once", evaluations);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

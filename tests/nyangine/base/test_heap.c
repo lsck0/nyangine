@@ -162,10 +162,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_heap_from_carray
   // ─────────────────────────────────────────────────────────────────────────────
-  s32      carray_values[] = { 5, 3, 8, 1, 4, 2 };
-  s32*     carray_ptr      = carray_values;
-  NYA_Heapᐸs32ᐳ* from_array      = nya_heap_create_with_capacity(arena, s32, compare_s32_asc, 6UL);
-  for (u64 i = 0; i < 6; i++) { nya_heap_push(from_array, carray_ptr[i]); }
+  s32            carray_values[] = { 5, 3, 8, 1, 4, 2 };
+  NYA_Heapᐸs32ᐳ* from_array      = nya_heap_from_carray(arena, s32, carray_values, nya_carray_length(carray_values), compare_s32_asc);
   nya_assert(from_array->length == 6);
 
   // Should produce sorted output
@@ -368,6 +366,78 @@ s32 main(void) {
   }
   nya_assert(neg_heap->length == 0);
   nya_heap_destroy(neg_heap);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the heap property survives arbitrary interleaved pushes and pops
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * The cases above push a batch and drain it. What that never reaches is the sift path taken when
+     * a pop lands the last element at the root of a heap that is *still being pushed into* — the
+     * shape a job queue is in continuously, and the one where an off-by-one in the child indices
+     * hides, because a heap that is merely almost correct still pops its smallest element first.
+     *
+     * Driven by the engine's RNG with a fixed seed, so a failure is reproducible rather than a
+     * sequence nobody can get back.
+     */
+    NYA_Heapᐸs32ᐳ* churn = nya_heap_create(arena, s32, compare_s32_asc);
+    NYA_RNG        rng   = nya_rng_create(.seed = "5EED");
+
+    NYA_RNGDistribution values = { .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { .min = -1000.0, .max = 1000.0 } };
+    NYA_RNGDistribution coin   = { .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { .min = 0.0, .max = 1.0 } };
+
+    s32 live_minimum = 0;
+    u64 live_count   = 0;
+
+    for (u32 step = 0; step < 4000; step++) {
+      b8 push = live_count == 0 || nya_rng_sample_u32(&rng, coin) == 0;
+
+      if (push) {
+        s32 value = nya_rng_sample_s32(&rng, values);
+        nya_heap_push(churn, value);
+
+        if (live_count == 0 || value < live_minimum) live_minimum = value;
+        live_count++;
+      } else {
+        s32 popped = nya_heap_pop(churn);
+
+        // The invariant that matters: a pop returns the smallest element currently held. Tracked
+        // independently of the heap so the assertion does not consult the thing under test.
+        nya_assert(popped == live_minimum, "step %u popped %d, expected the minimum %d", step, popped, live_minimum);
+        live_count--;
+
+        // Recomputed by scanning, which is O(n) and exactly the point — an independent answer.
+        if (live_count > 0) {
+          live_minimum = churn->items[0];
+          for (u64 i = 1; i < churn->length; i++) {
+            if (churn->items[i] < live_minimum) live_minimum = churn->items[i];
+          }
+        }
+      }
+
+      nya_assert(churn->length == live_count, "step %u: heap holds " FMTu64 ", expected " FMTu64, step, churn->length, live_count);
+
+      // The structural invariant, checked in full rather than sampled: every parent orders before
+      // both of its children. A heap can pop correctly for a long time while quietly violating this.
+      for (u64 parent = 0; parent < churn->length; parent++) {
+        u64 left  = (2 * parent) + 1;
+        u64 right = (2 * parent) + 2;
+
+        if (left < churn->length) nya_assert(churn->items[parent] <= churn->items[left], "step %u: parent " FMTu64 " is above its left child", step, parent);
+        if (right < churn->length) nya_assert(churn->items[parent] <= churn->items[right], "step %u: parent " FMTu64 " is above its right child", step, parent);
+      }
+    }
+
+    // Drained to empty, which is the other edge: the final pop replaces the root with itself.
+    while (churn->length > 0) (void)nya_heap_pop(churn);
+    nya_assert(churn->length == 0);
+
+    // And usable again afterwards, rather than left in a state only a fresh heap recovers from.
+    nya_heap_push(churn, 42);
+    nya_assert(nya_heap_pop(churn) == 42, "a drained heap must still work");
+
+    nya_heap_destroy(churn);
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP

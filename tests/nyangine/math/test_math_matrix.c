@@ -243,5 +243,85 @@ s32 main(void) {
   nya_assert(lerp_result.y == 20.0F);
   nya_assert(lerp_result.z == 30.0F);
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the 3D projections land on SDL_GPU's 0..1 depth range
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * The one thing about these matrices that is easy to get wrong and impossible to see.
+     *
+     * Every OpenGL-era reference derives them for a -1..1 depth range; SDL_GPU normalizes every
+     * backend to Direct3D's 0..1. A matrix built for the wrong one does not look like a sign error —
+     * it clips everything in the near half of the frustum, and renders as geometry with holes in it.
+     */
+    f32     near_plane = 0.5F;
+    f32     far_plane  = 100.0F;
+    f32_4x4 perspective = nya_matrix_perspective(1.0F, 1.6F, near_plane, far_plane);
+
+    // View space looks down -z, so the near plane is at z = -near.
+    f32x4 at_near = nya_matrix_times_vector(perspective, (f32x4){ 0.0F, 0.0F, -near_plane, 1.0F });
+    f32x4 at_far  = nya_matrix_times_vector(perspective, (f32x4){ 0.0F, 0.0F, -far_plane, 1.0F });
+
+    nya_assert(at_near.w > 0.0F, "anything in front of the camera has positive w, got %f", (f64)at_near.w);
+    nya_assert(fabsf(at_near.z / at_near.w) < 0.001F, "the near_plane plane maps to depth 0, got %f", (f64)(at_near.z / at_near.w));
+    nya_assert(fabsf((at_far.z / at_far.w) - 1.0F) < 0.001F, "the far_plane plane maps to depth 1, got %f", (f64)(at_far.z / at_far.w));
+
+    f32_4x4 orthographic = nya_matrix_orthographic_3d(10.0F, 1.6F, near_plane, far_plane);
+
+    f32x4 ortho_near = nya_matrix_times_vector(orthographic, (f32x4){ 0.0F, 0.0F, -near_plane, 1.0F });
+    f32x4 ortho_far  = nya_matrix_times_vector(orthographic, (f32x4){ 0.0F, 0.0F, -far_plane, 1.0F });
+
+    // No projective divide at all, which is the whole of what "no vanishing point" means.
+    nya_assert(ortho_near.w == 1.0F, "an orthographic projection leaves w at one, got %f", (f64)ortho_near.w);
+    nya_assert(fabsf(ortho_near.z) < 0.001F, "the near_plane plane maps to depth 0, got %f", (f64)ortho_near.z);
+    nya_assert(fabsf(ortho_far.z - 1.0F) < 0.001F, "the far_plane plane maps to depth 1, got %f", (f64)ortho_far.z);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: look_at puts the world into the camera's frame
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // Looking at the origin from four units along +z, which is the camera's own -z direction.
+    f32_4x4 view = nya_matrix_look_at((f32x3){ 0.0F, 0.0F, 4.0F }, f32x3_zero, (f32x3){ 0.0F, 1.0F, 0.0F });
+
+    f32x4 origin = nya_matrix_times_vector(view, (f32x4){ 0.0F, 0.0F, 0.0F, 1.0F });
+
+    // Four units in front of the camera means z = -4 in view space, not +4. The sign is the whole
+    // handedness question, and getting it backwards renders the scene from behind itself.
+    nya_assert(fabsf(origin.x) < 0.001F && fabsf(origin.y) < 0.001F, "the target sits on the view axis");
+    nya_assert(fabsf(origin.z + 4.0F) < 0.001F, "the target is four units down -z, got %f", (f64)origin.z);
+
+    // A point to the world's right is to the camera's right too, from this vantage.
+    f32x4 right = nya_matrix_times_vector(view, (f32x4){ 1.0F, 0.0F, 0.0F, 1.0F });
+    nya_assert(right.x > 0.0F, "world +x is camera +x from here, got %f", (f64)right.x);
+
+    // Up parallel to the view direction names no roll, so the identity comes back rather than NaNs.
+    f32_4x4 degenerate = nya_matrix_look_at((f32x3){ 0.0F, 4.0F, 0.0F }, f32x3_zero, (f32x3){ 0.0F, 1.0F, 0.0F });
+
+    f32x4 unmoved = nya_matrix_times_vector(degenerate, (f32x4){ 3.0F, 0.0F, 0.0F, 1.0F });
+    nya_assert(unmoved.x == 3.0F, "a degenerate look_at is the identity, not NaN");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the vector products the projections are built from
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    nya_assert(nya_vector_dot((f32x3){ 1.0F, 2.0F, 3.0F }, (f32x3){ 4.0F, 5.0F, 6.0F }) == 32.0F);
+
+    // Right-handed: x cross y is +z. The other handedness turns every look_at inside out.
+    f32x3 cross = nya_vector_cross((f32x3){ 1.0F, 0.0F, 0.0F }, (f32x3){ 0.0F, 1.0F, 0.0F });
+    nya_assert(cross.x == 0.0F && cross.y == 0.0F && cross.z == 1.0F, "x cross y is +z");
+
+    nya_assert(nya_vector_length((f32x3){ 3.0F, 4.0F, 0.0F }) == 5.0F);
+
+    f32x3 unit = nya_vector_normalize((f32x3){ 0.0F, 0.0F, -7.0F });
+    nya_assert(unit.z == -1.0F, "normalize keeps the direction");
+
+    // Zero rather than NaN, which is what keeps a camera that has not been aimed yet from blanking
+    // the whole window.
+    f32x3 zero = nya_vector_normalize(f32x3_zero);
+    nya_assert(zero.x == 0.0F && zero.y == 0.0F && zero.z == 0.0F, "a zero vector normalizes to zero");
+  }
+
   return 0;
 }

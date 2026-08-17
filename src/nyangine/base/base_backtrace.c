@@ -100,7 +100,14 @@ u32 nya_backtrace_format(const NYA_Backtrace* backtrace, OUT u8* buffer, u32 cap
 
     if (backtrace->count == 0) {
         s32 written = snprintf((char*)buffer, capacity, "  <no stack trace available>\n");
-        return written > 0 ? (u32)written : 0;
+        if (written <= 0) return 0;
+
+        // Clamped, like the loop below already does. snprintf reports what it *would* have written,
+        // so a capacity under the length of that string returned a count past the end of the buffer
+        // — and the header promises bytes actually written. A caller adding it to an offset then
+        // indexes outside its own buffer. _nya_crash_report is the only caller today and has about
+        // ten kibibytes spare, so this was a latent contract break rather than a live overflow.
+        return (u32)written < capacity ? (u32)written : capacity - 1;
     }
 
     for (u32 i = 0; i < backtrace->count; i++) {

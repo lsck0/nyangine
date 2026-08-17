@@ -1,11 +1,51 @@
-* PLAN
+* Documentation
 
-- [ ] render primitives (lines, circles, rectangles, etc)
-- [ ] font rendering
-- [ ] ui system: widgets, layout, styling
-- [ ] debug ui: profiling, memory, console
-- [ ] entity system
-- [ ] rendering system
-- [ ] animation system
-- [ ] audio system
-- [ ] basic nn library: tensors, layers, autograd --> NEAT implementation
+** ToDo
+ 
+    - ui system: widgets, layout, styling
+    - debug ui
+ 
+** GDD Unnamed Robot Game
+
+*** Similar Games
+
+    - https://store.steampowered.com/app/2060160/The_Farmer_Was_Replaced/ !!!! but mining and more options than just code
+    - https://store.steampowered.com/app/3780950/Chipmatic/
+    - https://store.steampowered.com/app/211820/Starbound/
+    - https://store.steampowered.com/app/1603180/Mining_Mechs/
+
+*** Genre
+
+    - Rougelite robot automation mining game with crafting and tech tree.
+
+*** Design Pillars and artistic Goal
+
+    - Self-Exploratory mechanics / story in favour to tutorials and handholding.
+    - Failure is good, reward for experimentation.
+    - Runs should be more or less unique?
+
+*** Setting and Story
+
+    - Human negligence made AI take over and destroy plant. Now you go back in to dig up
+      some resources for a colony.
+
+*** Audio and Visuals
+
+    - 2dArt dark low res pixel art (like https://kenney-assets.itch.io/pixel-platformer)
+    - 8bit chiptune?
+
+*** Gameloops and Mechanics
+
+    - procedurally generated world with biomes, mutations
+    - Core Loop: Drop on planet (with a loadout) -> Collect Resources / Fight Rouge Robots -> Evacuate
+    - Meta Loop: Craft -> Upgrade / Research -> Improve Tools
+
+    - Mining via Robots:
+        - Craft them with specialized eqiupment and tools.
+        - Program them via manual control, ASM, lua, DQN, NEAT.
+
+    - Sensors, Model Settings, Procedures, input variables are all unlocks.
+
+    - Discover lost Wikipedia sites that tell the story / history.
+
+    - Limit runs by: enemies (death), battery charge (can be improved), inventory size / escape rocket inv size

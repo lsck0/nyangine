@@ -61,37 +61,40 @@ void nya_integrity_assert(void) {
     // test build is never stamped, so checking either would fail every time.
     if (!NYA_SHIPPING_BUILD) return;
 
-    b8 binary_valid = true;
+    NYA_Arena* arena = nya_arena_create();
+    defer      nya_arena_destroy(arena);
+
+    // Asks the filesystem layer rather than reimplementing /proc/self/exe and GetModuleFileNameA
+    // here, so there is one definition of "where am I" to get right.
+    NYA_String* executable_path = nullptr;
+    NYA_Error   path_result     = nya_filesystem_executable_path(arena, &executable_path);
+
+    b8 binary_valid = path_result.ok && nya_integrity_verify_file(nya_string_to_cstring(arena, executable_path));
+
+    // Deliberately nya_assert_always: this check must never be weakened into something a build
+    // configuration can remove, or a modified executable starts up silently. It is the same macro as
+    // nya_assert — assertions cannot be compiled out — so the spelling is a marker for the next
+    // editor rather than an enforced difference.
+    nya_assert_always(binary_valid, "Executable integrity check failed. The executable is corrupted or was tampered with.");
+}
+
+b8 nya_integrity_verify_file(NYA_ConstCString path) {
+    nya_assert(path != nullptr);
 
     NYA_Arena* arena = nya_arena_create();
     defer      nya_arena_destroy(arena);
 
     NYA_String* binary_content = nya_string_create(arena);
-    NYA_Error   file_result;
-
-    // Asks the filesystem layer rather than reimplementing /proc/self/exe and GetModuleFileNameA
-    // here, so there is one definition of "where am I" to get right.
-    NYA_String* executable_path = nullptr;
-    file_result                 = nya_filesystem_executable_path(arena, &executable_path);
-    if (file_result.kind == NYA_ERROR_NONE) file_result = nya_file_read(nya_string_to_cstring(arena, executable_path), binary_content);
-
-    if (file_result.kind != NYA_ERROR_NONE || binary_content->length == 0) binary_valid = false;
+    if (!nya_file_read(path, binary_content).ok) return false;
+    if (binary_content->length == 0) return false;
 
     u64 hash_offset = 0;
-    b8  ok          = _nya_integrity_find_sentinel(binary_content->items, binary_content->length, &hash_offset);
-    if (!ok) {
-        binary_valid = false;
-    } else {
-        u64 stored_mac = 0;
-        nya_memcpy(&stored_mac, &binary_content->items[hash_offset], sizeof(u64));
+    if (!_nya_integrity_find_sentinel(binary_content->items, binary_content->length, &hash_offset)) return false;
 
-        u64 computed_mac = _nya_integrity_compute_mac(binary_content->items, binary_content->length, hash_offset);
-        if (stored_mac != computed_mac) binary_valid = false;
-    }
+    u64 stored_mac = 0;
+    nya_memcpy(&stored_mac, &binary_content->items[hash_offset], sizeof(u64));
 
-    // Deliberately nya_assert_always: with a plain nya_assert, building with -DNYA_NO_ASSERT would
-    // compile the tamper check away and let a modified executable start up silently.
-    nya_assert_always(binary_valid, "Executable integrity check failed. The executable is corrupted or was tampered with.");
+    return stored_mac == _nya_integrity_compute_mac(binary_content->items, binary_content->length, hash_offset);
 }
 
 NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) {
@@ -160,7 +163,7 @@ void nya_integrity_baseline_capture(void) {
     u64       size  = 0;
 
     if (!_nya_integrity_code_region(&start, &size)) {
-        nya_warn("Could not locate the executable's code region; runtime integrity checks are disabled.");
+        nya_log_error("Could not locate the executable's code region; runtime integrity checks are disabled.");
         return;
     }
 
@@ -255,13 +258,111 @@ NYA_INTERNAL b8 _nya_integrity_find_sentinel(const u8* data, u64 len, OUT u64* o
     return false;
 }
 
+/**
+ * Narrows a PE down to the part of it that Authenticode signing cannot move.
+ *
+ * A signed executable is the same file with a certificate appended, the security data directory
+ * pointed at it, and the header checksum recomputed. Hashing any of those would mean the stamp
+ * written before signing never matches the file that ships, so the region hashed stops at the end
+ * of the last section and the two mutable header fields are reported for zeroing.
+ *
+ * The end of the last section rather than the certificate's own offset, because signing pads the
+ * file to an eight byte boundary first, and those pad bytes exist in the signed file and not in the
+ * unsigned one.
+ *
+ * Returns false for anything that is not a PE, which is how ELF keeps being hashed whole.
+ * */
+NYA_INTERNAL b8 _nya_integrity_pe_regions(const u8* data, u64 len, OUT u64* out_len, OUT u64* out_checksum_offset, OUT u64* out_security_offset) {
+    if (len < 0x40 || data[0] != 'M' || data[1] != 'Z') return false;
+
+    // Widened before anything is done with it: e_lfanew is whatever the file says it is, and every
+    // bound below would otherwise be computed in u32 and wrap on a corrupt or hostile value.
+    u32 pe_offset_field = 0;
+    nya_memcpy(&pe_offset_field, &data[0x3C], sizeof(u32));
+
+    u64 pe_offset = pe_offset_field;
+    if (pe_offset + 24 > len) return false;
+    if (data[pe_offset] != 'P' || data[pe_offset + 1] != 'E' || data[pe_offset + 2] != 0 || data[pe_offset + 3] != 0) return false;
+
+    u16 section_count = 0;
+    u16 optional_size = 0;
+    nya_memcpy(&section_count, &data[pe_offset + 6], sizeof(u16));
+    nya_memcpy(&optional_size, &data[pe_offset + 20], sizeof(u16));
+
+    u64 optional_offset = pe_offset + 24;
+    if (optional_offset + optional_size > len || optional_size < 2) return false;
+
+    u16 magic = 0;
+    nya_memcpy(&magic, &data[optional_offset], sizeof(u16));
+
+    // The data directory sits after a header whose size differs between PE32 and PE32+, which is
+    // the only thing the two formats disagree on here.
+    u64 directory_offset = 0;
+    if (magic == 0x10B) {
+        directory_offset = optional_offset + 96;
+    } else if (magic == 0x20B) {
+        directory_offset = optional_offset + 112;
+    } else {
+        return false;
+    }
+
+    // Entry 4 is IMAGE_DIRECTORY_ENTRY_SECURITY, and each entry is eight bytes.
+    u64 security_offset = directory_offset + (4 * 8);
+    u64 checksum_offset = optional_offset + 64;
+    if (security_offset + 8 > len || checksum_offset + 4 > len) return false;
+
+    u64 sections_offset = optional_offset + optional_size;
+    u64 end_of_sections = 0;
+    for (u16 section = 0; section < section_count; section++) {
+        u64 header = sections_offset + ((u64)section * 40);
+        if (header + 40 > len) return false;
+
+        u32 raw_size    = 0;
+        u32 raw_pointer = 0;
+        nya_memcpy(&raw_size, &data[header + 16], sizeof(u32));
+        nya_memcpy(&raw_pointer, &data[header + 20], sizeof(u32));
+        if (raw_pointer == 0 || raw_size == 0) continue; // uninitialised data, nothing in the file
+
+        u64 section_end = (u64)raw_pointer + raw_size;
+        if (section_end > end_of_sections) end_of_sections = section_end;
+    }
+
+    if (end_of_sections == 0 || end_of_sections > len) return false;
+
+    *out_len             = end_of_sections;
+    *out_checksum_offset = checksum_offset;
+    *out_security_offset = security_offset;
+    return true;
+}
+
 NYA_INTERNAL u64 _nya_integrity_compute_mac(u8* data, u64 len, u64 hash_offset) {
     u8 saved[_NYA_INTEGRITY_HASH_SIZE];
     nya_memcpy(saved, &data[hash_offset], _NYA_INTEGRITY_HASH_SIZE);
     nya_memset(&data[hash_offset], 0, _NYA_INTEGRITY_HASH_SIZE);
 
+    // Zeroed rather than skipped, so the hashed bytes stay one contiguous run and a signed and an
+    // unsigned copy of the same executable produce the same value.
+    u8  saved_checksum[4] = { 0 };
+    u8  saved_security[8] = { 0 };
+    u64 hashed_len        = len;
+    u64 checksum_offset   = 0;
+    u64 security_offset   = 0;
+
+    b8 is_pe = _nya_integrity_pe_regions(data, len, &hashed_len, &checksum_offset, &security_offset);
+    if (is_pe) {
+        nya_memcpy(saved_checksum, &data[checksum_offset], sizeof(saved_checksum));
+        nya_memcpy(saved_security, &data[security_offset], sizeof(saved_security));
+        nya_memset(&data[checksum_offset], 0, sizeof(saved_checksum));
+        nya_memset(&data[security_offset], 0, sizeof(saved_security));
+    }
+
     // Keyed, so the value cannot simply be recomputed after an edit the way a CRC can.
-    u64 mac = nya_siphash(data, len, _NYA_INTEGRITY_KEY_LOW, _NYA_INTEGRITY_KEY_HIGH);
+    u64 mac = nya_siphash(data, hashed_len, _NYA_INTEGRITY_KEY_LOW, _NYA_INTEGRITY_KEY_HIGH);
+
+    if (is_pe) {
+        nya_memcpy(&data[checksum_offset], saved_checksum, sizeof(saved_checksum));
+        nya_memcpy(&data[security_offset], saved_security, sizeof(saved_security));
+    }
 
     nya_memcpy(&data[hash_offset], saved, _NYA_INTEGRITY_HASH_SIZE);
     return mac;

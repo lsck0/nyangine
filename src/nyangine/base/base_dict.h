@@ -134,7 +134,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
         nya_assert_type_match(value, (dict_ptr)->values[0]);                                                                                         \
         NYA_CString   key_var    = key;                                                                                                              \
         typeof(value) value_var  = value;                                                                                                            \
-        u64           index      = nya_hash_fnv1a(key_var) % (dict_ptr)->capacity;                                                                   \
+        u64           index      = (dict_ptr)->capacity == 0 ? 0 : nya_hash_fnv1a(key_var) % (dict_ptr)->capacity;                                   \
         u64           iterations = 0;                                                                                                                \
         b8            updated    = false;                                                                                                            \
         while (iterations < (dict_ptr)->capacity) {                                                                                                  \
@@ -153,6 +153,9 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
             index = (index + 1) % (dict_ptr)->capacity;                                                                                              \
             iterations++;                                                                                                                            \
         }                                                                                                                                            \
+        /* See _nya_hmap_set_unchecked: reaching the bound means the load factor invariant is                                                        \
+         * already broken, and dropping the entry silently surfaces as a missing key much later.  */                                                 \
+        nya_assert(iterations < (dict_ptr)->capacity, "Dict is full; the entry was dropped rather than stored.");                                    \
         (void)updated;                                                                                                                               \
     })
 
@@ -190,7 +193,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
     ({                                                                                                                                               \
         NYA_CString key_var    = key;                                                                                                                \
         bool        contains   = false;                                                                                                              \
-        u64         index      = nya_hash_fnv1a(key_var) % (dict_ptr)->capacity;                                                                     \
+        u64         index      = (dict_ptr)->capacity == 0 ? 0 : nya_hash_fnv1a(key_var) % (dict_ptr)->capacity;                                     \
         u64         iterations = 0;                                                                                                                  \
         while (iterations < (dict_ptr)->capacity) {                                                                                                  \
             if (!(dict_ptr)->occupied[index]) break;                                                                                                 \
@@ -208,7 +211,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
     ({                                                                                                                                               \
         NYA_CString key_var    = key;                                                                                                                \
         bool        contains   = false;                                                                                                              \
-        u64         index      = nya_hash_fnv1a(key_var) % (dict_ptr)->capacity;                                                                     \
+        u64         index      = (dict_ptr)->capacity == 0 ? 0 : nya_hash_fnv1a(key_var) % (dict_ptr)->capacity;                                     \
         u64         iterations = 0;                                                                                                                  \
         while (iterations < (dict_ptr)->capacity) {                                                                                                  \
             if (!(dict_ptr)->occupied[index]) break;                                                                                                 \
@@ -231,7 +234,10 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
 #define nya_dict_set(dict_ptr, key, value)                                                                                                           \
     ({                                                                                                                                               \
         nya_assert_type_match(value, (dict_ptr)->values[0]);                                                                                         \
-        if (((f32)((dict_ptr)->length + 1) / (f32)(dict_ptr)->capacity) > _NYA_HASHMAP_LOAD_FACTOR) {                                                \
+        /* Same zero capacity case as nya_hmap_set; see the note there. */                                                                           \
+        if ((dict_ptr)->capacity == 0) {                                                                                                             \
+            nya_dict_resize_and_rehash(dict_ptr, _NYA_HASHMAP_DEFAULT_CAPACITY);                                                                     \
+        } else if (((f32)((dict_ptr)->length + 1) / (f32)(dict_ptr)->capacity) > _NYA_HASHMAP_LOAD_FACTOR) {                                         \
             nya_dict_resize_and_rehash(dict_ptr, (dict_ptr)->capacity * 2);                                                                          \
         }                                                                                                                                            \
         _nya_dict_set_unchecked(dict_ptr, key, value);                                                                                               \
@@ -240,7 +246,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
 #define nya_dict_remove(dict_ptr, key)                                                                                                               \
     ({                                                                                                                                               \
         NYA_CString key_var    = key;                                                                                                                \
-        u64         index      = nya_hash_fnv1a(key_var) % (dict_ptr)->capacity;                                                                     \
+        u64         index      = (dict_ptr)->capacity == 0 ? 0 : nya_hash_fnv1a(key_var) % (dict_ptr)->capacity;                                     \
         u64         iterations = 0;                                                                                                                  \
         while (iterations < (dict_ptr)->capacity) {                                                                                                  \
             if (!(dict_ptr)->occupied[index]) break;                                                                                                 \

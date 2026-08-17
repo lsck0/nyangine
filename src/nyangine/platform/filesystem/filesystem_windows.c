@@ -72,7 +72,7 @@ NYA_Error nya_filesystem_info(NYA_ConstCString path, OUT NYA_FileInfo* out_info)
     nya_assert(out_info != nullptr);
 
     WIN32_FILE_ATTRIBUTE_DATA data;
-    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data)) return nya_error(NYA_ERROR_NOT_FOUND, "Failed to stat '%s'.", path);
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data)) return nya_error(NYA_ERROR_NOT_FOUND, "failed to stat '%s'", path);
 
     ULARGE_INTEGER size;
     size.LowPart  = data.nFileSizeLow;
@@ -117,7 +117,7 @@ NYA_Error nya_filesystem_absolute(NYA_Arena* arena, NYA_ConstCString path, OUT N
 
     char  resolved[MAX_PATH];
     DWORD length = GetFullPathNameA(path, sizeof(resolved), resolved, nullptr);
-    if (length == 0 || length >= sizeof(resolved)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "Failed to resolve '%s'.", path);
+    if (length == 0 || length >= sizeof(resolved)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "failed to resolve '%s'", path);
 
     // Normalising converts the backslashes, so a resolved path looks like every other path here.
     *out_path = nya_path_normalize(arena, resolved);
@@ -134,7 +134,17 @@ NYA_Error nya_filesystem_move(NYA_ConstCString old_path, NYA_ConstCString new_pa
     nya_assert(old_path != nullptr);
     nya_assert(new_path != nullptr);
 
-    if (!MoveFileA(old_path, new_path)) return nya_error(NYA_ERROR_IO, "Failed to move '%s' to '%s'.", old_path, new_path);
+    /*
+     * MoveFileExA with MOVEFILE_REPLACE_EXISTING matches the behavior of rename() on POSIX.
+     *
+     * Without it, moving a file over an existing one fails with ERROR_ALREADY_EXISTS. This is
+     * exactly what happens when the build system tries to restore its backup after a failed
+     * rebuild: the compiler may have already created a (broken) executable at the destination.
+     */
+    if (!MoveFileExA(old_path, new_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED)) {
+        return nya_error(NYA_ERROR_IO, "failed to move '%s' to '%s' (error %lu)", old_path, new_path, GetLastError());
+    }
+
     return NYA_OK;
 }
 
@@ -142,7 +152,7 @@ NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destinat
     nya_assert(source != nullptr);
     nya_assert(destination != nullptr);
 
-    if (!CopyFileA(source, destination, FALSE)) return nya_error(NYA_ERROR_IO, "Failed to copy '%s' to '%s'.", source, destination);
+    if (!CopyFileA(source, destination, FALSE)) return nya_error(NYA_ERROR_IO, "failed to copy '%s' to '%s'", source, destination);
     return NYA_OK;
 }
 
@@ -151,11 +161,11 @@ NYA_Error nya_filesystem_delete(NYA_ConstCString path) {
 
     // DeleteFileA refuses directories, so the right call depends on what is actually there.
     if (nya_filesystem_is_directory(path)) {
-        if (!RemoveDirectoryA(path)) return nya_error(NYA_ERROR_IO, "Failed to delete directory '%s'.", path);
+        if (!RemoveDirectoryA(path)) return nya_error(NYA_ERROR_IO, "failed to delete directory '%s'", path);
         return NYA_OK;
     }
 
-    if (!DeleteFileA(path)) return nya_error(NYA_ERROR_IO, "Failed to delete '%s'.", path);
+    if (!DeleteFileA(path)) return nya_error(NYA_ERROR_IO, "failed to delete '%s'", path);
     return NYA_OK;
 }
 
@@ -164,7 +174,7 @@ NYA_Error nya_filesystem_create_directory(NYA_ConstCString path) {
 
     char   partial[MAX_PATH] = { 0 };
     size_t length            = strlen(path);
-    if (length >= sizeof(partial)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "Path too long: '%s'.", path);
+    if (length >= sizeof(partial)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "path too long: '%s'", path);
 
     // Walk the path creating each component in turn, so missing parents are handled too.
     for (size_t i = 0; i < length; i++) {
@@ -174,6 +184,12 @@ NYA_Error nya_filesystem_create_directory(NYA_ConstCString path) {
         b8 is_last      = i + 1 == length;
         if (!is_separator && !is_last) continue;
 
+        // Skip the empty component in front of a leading separator, as the POSIX side does. Without
+        // it an absolute path truncated `partial` to "" on the first iteration and handed that to
+        // CreateDirectoryA, which fails with ERROR_PATH_NOT_FOUND rather than ERROR_ALREADY_EXISTS —
+        // so the whole call returned an error for a path that works on Linux.
+        if (i == 0 && is_separator) continue;
+
         // Do not try to create the bare drive letter in "C:\".
         if (i > 0 && partial[i - 1] == ':') continue;
 
@@ -182,7 +198,7 @@ NYA_Error nya_filesystem_create_directory(NYA_ConstCString path) {
         if (truncated) partial[i] = '\0';
 
         if (!CreateDirectoryA(partial, nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) {
-            return nya_error(NYA_ERROR_IO, "Failed to create directory '%s'.", partial);
+            return nya_error(NYA_ERROR_IO, "failed to create directory '%s'", partial);
         }
 
         if (truncated) partial[i] = saved;
@@ -207,7 +223,7 @@ NYA_Error nya_filesystem_list(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_A
 
     WIN32_FIND_DATAA find_data;
     HANDLE           find = FindFirstFileA(nya_string_to_cstring(arena, pattern), &find_data);
-    if (find == INVALID_HANDLE_VALUE) return nya_error(NYA_ERROR_NOT_FOUND, "Failed to list '%s'.", path);
+    if (find == INVALID_HANDLE_VALUE) return nya_error(NYA_ERROR_NOT_FOUND, "failed to list '%s'", path);
 
     NYA_ArrayᐸNYA_DirectoryEntryᐳ* entries = nya_array_create(arena, NYA_DirectoryEntry);
 
@@ -304,7 +320,7 @@ NYA_INTERNAL b8 _nya_filesystem_delete_walk(NYA_ConstCString path, const NYA_Dir
     NYA_Error* first_error = user_data;
     NYA_Error  result      = nya_filesystem_delete(path);
 
-    if (result.kind != NYA_ERROR_NONE && first_error->kind == NYA_ERROR_NONE) *first_error = result;
+    if (!result.ok && first_error->ok) *first_error = result;
 
     return true;
 }
@@ -319,7 +335,7 @@ NYA_Error nya_filesystem_delete_recursive(NYA_ConstCString path) {
 
     NYA_Error first_error = NYA_OK;
     NYA_TRY(nya_filesystem_walk(arena, path, _nya_filesystem_delete_walk, &first_error));
-    if (first_error.kind != NYA_ERROR_NONE) return first_error;
+    if (!first_error.ok) return first_error;
 
     return nya_filesystem_delete(path);
 }
@@ -400,7 +416,7 @@ NYA_Error nya_file_open(NYA_ConstCString path, NYA_FileMode mode, OUT NYA_File* 
     }
 
     HANDLE handle = CreateFileA(path, access, FILE_SHARE_READ, nullptr, creation, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (handle == INVALID_HANDLE_VALUE) return nya_error(NYA_ERROR_IO, "Failed to open '%s'.", path);
+    if (handle == INVALID_HANDLE_VALUE) return nya_error(NYA_ERROR_IO, "failed to open '%s'", path);
 
     *out_file = (NYA_File){ .handle = handle, .is_open = true };
     return NYA_OK;
@@ -423,7 +439,7 @@ NYA_Error nya_file_read_bytes(NYA_File* file, OUT u8* buffer, u64 length, OUT u6
     nya_assert(out_read != nullptr);
 
     DWORD got = 0;
-    if (!ReadFile((HANDLE)file->handle, buffer, (DWORD)length, &got, nullptr)) return nya_error(NYA_ERROR_IO, "Failed to read from file.");
+    if (!ReadFile((HANDLE)file->handle, buffer, (DWORD)length, &got, nullptr)) return nya_error(NYA_ERROR_IO, "failed to read from file");
 
     *out_read = (u64)got;
     return NYA_OK;
@@ -438,9 +454,9 @@ NYA_Error nya_file_write_bytes(NYA_File* file, const u8* buffer, u64 length) {
     while (written < length) {
         DWORD chunk = 0;
         if (!WriteFile((HANDLE)file->handle, buffer + written, (DWORD)(length - written), &chunk, nullptr)) {
-            return nya_error(NYA_ERROR_IO, "Failed to write to file.");
+            return nya_error(NYA_ERROR_IO, "failed to write to file");
         }
-        if (chunk == 0) return nya_error(NYA_ERROR_IO, "Write made no progress.");
+        if (chunk == 0) return nya_error(NYA_ERROR_IO, "write made no progress");
 
         written += (u64)chunk;
     }
@@ -461,7 +477,7 @@ NYA_Error nya_file_seek(NYA_File* file, s64 offset, NYA_FileSeek origin) {
 
     LARGE_INTEGER distance;
     distance.QuadPart = offset;
-    if (!SetFilePointerEx((HANDLE)file->handle, distance, nullptr, method)) return nya_error(NYA_ERROR_IO, "Failed to seek file.");
+    if (!SetFilePointerEx((HANDLE)file->handle, distance, nullptr, method)) return nya_error(NYA_ERROR_IO, "failed to seek file");
 
     return NYA_OK;
 }
@@ -472,7 +488,7 @@ NYA_Error nya_file_tell(NYA_File* file, OUT u64* out_offset) {
 
     LARGE_INTEGER zero     = { 0 };
     LARGE_INTEGER position = { 0 };
-    if (!SetFilePointerEx((HANDLE)file->handle, zero, &position, FILE_CURRENT)) return nya_error(NYA_ERROR_IO, "Failed to query file position.");
+    if (!SetFilePointerEx((HANDLE)file->handle, zero, &position, FILE_CURRENT)) return nya_error(NYA_ERROR_IO, "failed to query file position");
 
     *out_offset = (u64)position.QuadPart;
     return NYA_OK;
@@ -483,7 +499,7 @@ NYA_Error nya_file_truncate(NYA_File* file, u64 length) {
 
     // SetEndOfFile truncates wherever the pointer is, so it has to be moved there first.
     NYA_TRY(nya_file_seek(file, (s64)length, NYA_FILE_SEEK_SET));
-    if (!SetEndOfFile((HANDLE)file->handle)) return nya_error(NYA_ERROR_IO, "Failed to truncate file.");
+    if (!SetEndOfFile((HANDLE)file->handle)) return nya_error(NYA_ERROR_IO, "failed to truncate file");
 
     return NYA_OK;
 }
@@ -491,7 +507,7 @@ NYA_Error nya_file_truncate(NYA_File* file, u64 length) {
 NYA_Error nya_file_flush(NYA_File* file) {
     nya_assert(nya_file_is_open(file), "Cannot flush a file that is not open.");
 
-    if (!FlushFileBuffers((HANDLE)file->handle)) return nya_error(NYA_ERROR_IO, "Failed to flush file.");
+    if (!FlushFileBuffers((HANDLE)file->handle)) return nya_error(NYA_ERROR_IO, "failed to flush file");
     return NYA_OK;
 }
 
@@ -507,7 +523,7 @@ NYA_Error nya_filesystem_working_directory(NYA_Arena* arena, OUT NYA_String** ou
 
     char  buffer[MAX_PATH];
     DWORD length = GetCurrentDirectoryA(sizeof(buffer), buffer);
-    if (length == 0 || length >= sizeof(buffer)) return nya_error(NYA_ERROR_IO, "Failed to get the working directory.");
+    if (length == 0 || length >= sizeof(buffer)) return nya_error(NYA_ERROR_IO, "failed to get the working directory");
 
     *out_path = nya_path_normalize(arena, buffer);
     return NYA_OK;
@@ -516,7 +532,7 @@ NYA_Error nya_filesystem_working_directory(NYA_Arena* arena, OUT NYA_String** ou
 NYA_Error nya_filesystem_working_directory_set(NYA_ConstCString path) {
     nya_assert(path != nullptr);
 
-    if (!SetCurrentDirectoryA(path)) return nya_error(NYA_ERROR_IO, "Failed to set the working directory to '%s'.", path);
+    if (!SetCurrentDirectoryA(path)) return nya_error(NYA_ERROR_IO, "failed to set the working directory to '%s'", path);
     return NYA_OK;
 }
 
@@ -526,7 +542,7 @@ NYA_Error nya_filesystem_executable_path(NYA_Arena* arena, OUT NYA_String** out_
 
     char  buffer[MAX_PATH];
     DWORD length = GetModuleFileNameA(nullptr, buffer, sizeof(buffer));
-    if (length == 0 || length >= sizeof(buffer)) return nya_error(NYA_ERROR_IO, "Failed to get the executable path.");
+    if (length == 0 || length >= sizeof(buffer)) return nya_error(NYA_ERROR_IO, "failed to get the executable path");
 
     *out_path = nya_path_normalize(arena, buffer);
     return NYA_OK;
@@ -538,7 +554,7 @@ NYA_Error nya_filesystem_temp_directory(NYA_Arena* arena, OUT NYA_String** out_p
 
     char  buffer[MAX_PATH];
     DWORD length = GetTempPathA(sizeof(buffer), buffer);
-    if (length == 0 || length >= sizeof(buffer)) return nya_error(NYA_ERROR_IO, "Failed to get the temp directory.");
+    if (length == 0 || length >= sizeof(buffer)) return nya_error(NYA_ERROR_IO, "failed to get the temp directory");
 
     *out_path = nya_path_normalize(arena, buffer);
     return NYA_OK;
@@ -551,7 +567,7 @@ NYA_Error nya_filesystem_user_data_directory(NYA_Arena* arena, NYA_ConstCString 
 
     // APPDATA rather than SHGetKnownFolderPath, which would drag in shell32 and ole32 for one string.
     NYA_ConstCString roaming = getenv("APPDATA");
-    if (roaming == nullptr || roaming[0] == '\0') return nya_error(NYA_ERROR_NOT_FOUND, "APPDATA is not set.");
+    if (roaming == nullptr || roaming[0] == '\0') return nya_error(NYA_ERROR_NOT_FOUND, "APPDATA is not set");
 
     *out_path = nya_path_join(arena, roaming, application);
     return NYA_OK;

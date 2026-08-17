@@ -36,12 +36,29 @@
 #define WINDOWS_X86_64_BINARY       PROJECT_NAME "." VERSION ".windows-x86_64.exe"
 
 // CC and NPROCS come from build/vendor/vendor.h, which needs them for the vendor rules.
-#define CFLAGS        "-std=c2y", "-mavx", "-mavx2", "-fdefer-ts", "-fenable-matrix", "-ggdb"
+// -mfma is not implied by -mavx2: they are separate feature bits, and the nn kernels in
+// nn/nn_simd.h fall back to a separate multiply and add without it. Every part that shipped with
+// AVX2 has FMA3 — both arrived with Haswell — so this widens nothing the -mavx2 above had not
+// already committed to.
+#define CFLAGS        "-std=c2y", "-mavx", "-mavx2", "-mfma", "-fdefer-ts", "-fenable-matrix", "-ggdb"
 #define WARNINGS      "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro"
 // Only the project's own paths. Everything a third party dependency needs lives on its
 // NYA_VendorRule instead, so this does not grow as dependencies are added.
 #define INCLUDE_PATHS "-I./", "-I./src/"
 #define LINKER_FLAGS  "-lm", "-pthread"
+
+/*
+ * Which optional plugins the *project* compiles. See src/nyangine/plugins/plugins.h.
+ *
+ * On the project rules rather than in CFLAGS, because CFLAGS is also what the build tool compiles
+ * itself with — and the build tool is what builds libcurl and libsqlite3, so on a fresh checkout it
+ * cannot link against either. Naming them here keeps that asymmetry in one visible place instead of
+ * as a negative flag the bootstrap has to remember.
+ *
+ * The matching vendors must be in the target's NYA_PROJECT_VENDORS_* list, or the plugin compiles
+ * and then fails to link.
+ */
+#define FLAGS_PLUGINS "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_SQLITE", "-DNYA_PLUGIN_DISCORD"
 
 /*
  * Every mode names its NYA_EXECUTION_MODE explicitly. The macro defaults to 0, so leaving it off
@@ -61,6 +78,22 @@
 // Test: assertions live, nya_expect_crash compiled in so a test can survive a deliberate panic, and
 // headless so it needs no GPU. Statically linked game code, no hot reload DLL to find.
 #define FLAGS_TEST      "-DNYA_EXECUTION_MODE=4", "-O0", "-DNYA_TESTING", "-DNYA_HEADLESS"
+
+/**
+ * Source based coverage instrumentation, for `./build run coverage`.
+ *
+ * Both flags are needed and both go on the one clang invocation: -fprofile-instr-generate links the
+ * runtime that writes the raw profile, and -fcoverage-mapping embeds the table mapping counters back
+ * to source ranges. Without the second, llvm-cov has counts it cannot attribute to any line.
+ *
+ * Coexists with FLAGS_SANITIZE, so a coverage run is still a sanitized run and cannot report a line
+ * as covered that only "worked" by reading uninitialised memory.
+ * */
+#define FLAGS_COVERAGE  "-fprofile-instr-generate", "-fcoverage-mapping"
+
+/** Where a coverage run puts the raw profiles, the merged profile and the instrumented binaries. */
+#define COVERAGE_DIRECTORY    "./.coverage"
+#define COVERAGE_PROFILE_DATA COVERAGE_DIRECTORY "/merged.profdata"
 
 // The build system is a host tool. It needs base, math, platform and serde and nothing that opens
 // a window, so core and renderer are compiled out rather than linked and left unused. Without this
@@ -82,10 +115,26 @@
 // believes it is a debug build. Both were true until this was added.
 #define FLAGS_RELEASE  "-O3", "-flto", "-fPIE", "-fuse-ld=lld", "-g1", "-DNYA_EXECUTION_MODE=2", "-DNYA_ASSET_PREFER_BLOB", "-D_FORTIFY_SOURCE=2", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
 
-// Only what the target itself needs. Library paths and -l flags belong to the vendors.
-// Steam is release plus the Steam runtime. Same deploy shape, different execution mode, so
-// NYA_STEAM can gate overlay and achievements without a second set of build rules.
-#define FLAGS_STEAM "-DNYA_EXECUTION_MODE=3"
+/*
+ * Steam is release plus the Steam runtime. Same deploy shape, different execution mode, so the mode
+ * can gate overlay and achievements without a second set of build rules.
+ *
+ * Unlike the other plugins this one has no NYA_VendorRule to carry its link flags: the Steamworks
+ * SDK is a prebuilt redistributable checked into vendor/steam rather than something the build
+ * system compiles, so there is nothing for a vendor rule to build and the flags are spelled out.
+ *
+ * -Wl,-rpath,$ORIGIN, not a path into vendor/: the .so ships *beside* the executable, so pointing
+ * the rpath at the checkout would produce a binary that runs on this machine and on no other.
+ * Copying libsteam_api.so next to the binary is part of using this, and there is no build rule that
+ * does it yet — see plugins/steam/steam.h.
+ *
+ * Named by no rule today, which is why NYA_EXECUTION_MODE=3 is still unreachable.
+ */
+#define FLAGS_STEAM_LINUX_X86_64                                                                                                                     \
+    "-DNYA_EXECUTION_MODE=3", "-DNYA_PLUGIN_STEAM", "-L./vendor/steam/redistributable_bin/linux64/", "-Wl,-rpath,$ORIGIN", "-lsteam_api"
+
+#define FLAGS_STEAM_WINDOWS_X86_64                                                                                                                   \
+    "-DNYA_EXECUTION_MODE=3", "-DNYA_PLUGIN_STEAM", "-L./vendor/steam/redistributable_bin/win64/", "-lsteam_api64"
 
 #define FLAGS_LINUX_X86_64   "-Wl,-rpath,$ORIGIN"
 #define FLAGS_WINDOWS_X86_64 "-Wl,-subsystem,windows", "-static"
@@ -101,5 +150,28 @@
 #define FLAGS_HOTRELOAD_WINDOWS_X86_64 "-fuse-ld=lld", "-Wl,--export-all-symbols"
 #define FLAGS_DEBUG_WINDOWS_X86_64     FLAGS_HOTRELOAD_WINDOWS_X86_64, "-Wl,--out-implib," WINDOWS_X86_64_DEBUG_IMPLIB
 #define FLAGS_DEV_WINDOWS_X86_64       FLAGS_HOTRELOAD_WINDOWS_X86_64, "-Wl,--out-implib," WINDOWS_X86_64_DEV_IMPLIB
+
+/*
+ * Authenticode signing of the shipped .exe. See hook_sign_windows_executable.
+ *
+ * The checked in certificate is self signed, which no operating system trusts: it does not satisfy
+ * SmartScreen and it is not a credential. It exists so the signing path is exercised by every
+ * release build rather than discovered to be broken on release day, and because an unsigned
+ * download draws harsher treatment from browsers than a signed one with an unknown publisher.
+ * Its password is published here for the same reason it can be: the key protects nothing.
+ *
+ * A real certificate is never checked in. Point the three environment variables below at it
+ * instead, from a secret store, and leave this file alone. See the README.
+ */
+// Deliberately not under assets/: that tree is walked by the asset indexer and embedded into
+// assets.c, which would put the private key inside the shipped binary.
+#define SIGNING_PFX_PATH      "./.signing/sample.pfx"
+#define SIGNING_PFX_PASSWORD  "nyangine-sample-certificate"
+#define SIGNING_TIMESTAMP_URL "http://timestamp.digicert.com"
+
+/** Overrides for the three above, so CI can sign with a real certificate without editing this file. */
+#define SIGNING_PFX_PATH_ENV      "NYA_SIGNING_PFX"
+#define SIGNING_PFX_PASSWORD_ENV  "NYA_SIGNING_PASSWORD"
+#define SIGNING_TIMESTAMP_URL_ENV "NYA_SIGNING_TIMESTAMP_URL"
 
 // clang-format on

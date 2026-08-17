@@ -38,6 +38,7 @@ BreakArrays: true
 ColumnLimit: 150
 Cpp11BracedListStyle: false
 IncludeBlocks: Regroup
+IncludeIsMainRegex: "$^"
 IndentCaseLabels: true
 IncludeCategories:
   - Regex: "^<.*>$"
@@ -46,12 +47,22 @@ IncludeCategories:
     Priority: 2
   - Regex: '^"nyangine/.*h"$'
     Priority: 3
+    SortPriority: 3
   - Regex: '^"gnyame/.*h"$'
-    Priority: 4
+    Priority: 3
+    SortPriority: 4
   - Regex: '^".*h"$'
-    Priority: 5
+    Priority: 3
+    SortPriority: 5
+  - Regex: '^"nyangine/.*c"$'
+    Priority: 4
+    SortPriority: 6
+  - Regex: '^"gnyame/.*c"$'
+    Priority: 4
+    SortPriority: 7
   - Regex: '^".*c"$'
-    Priority: 6
+    Priority: 4
+    SortPriority: 8
 IndentWidth: 4
 PointerAlignment: Left
 SortIncludes: CaseInsensitive
@@ -72,17 +83,36 @@ AttributeMacros:
   - __attr_no_sanitize
   - __attr_noreturn
   - __attr_overloaded
+  - __attr_retain
+  - __attr_used
   - __attr_vector
 ForEachMacros:
   - nya_array_for
   - nya_array_for_reverse
   - nya_array_foreach
   - nya_array_foreach_reverse
+  - nya_dict_foreach_key
+  - nya_dict_foreach_value
   - nya_dll_foreach
+  - nya_dll_foreach_reverse
+  - nya_entity_foreach
+  - nya_entity_foreach_flags
+  - nya_entity_foreach_kind
   - nya_hmap_foreach_key
   - nya_hmap_foreach_value
   - nya_hset_foreach
+  - nya_ring_foreach
+  - nya_ring_foreach_reverse
+IfMacros:
+  - nya_asset_with
 TypenameMacros:
+  - _nya_derive_array_name
+  - _nya_derive_dict_name
+  - _nya_derive_heap_name
+  - _nya_derive_hmap_name
+  - _nya_derive_hset_name
+  - _nya_derive_maybe_name
+  - _nya_derive_ring_name
   - nya_derive_array
   - nya_derive_dict
   - nya_derive_heap
@@ -90,3 +120,4 @@ TypenameMacros:
   - nya_derive_hset
   - nya_derive_maybe
   - nya_derive_ring
+  - nya_template

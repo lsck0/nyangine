@@ -191,31 +191,50 @@ nya_derive_array(f128_4x4);
         arr;                                                                                                                                         \
     })
 
+/*
+ * Never compiled until someone tried to call it, and then it did not.
+ *
+ * Three separate errors, all of the kind a macro hides until it is expanded: `s32(0)` is a function
+ * style cast and not C at all; nya_string_from returns an NYA_String*, while the array holds
+ * NYA_String by value, so both the type assert and the add were wrong. It has been in the API
+ * overview at the top of this file the whole time.
+ *
+ * `argc` is cast rather than asserted, because main's argc is s32 in this tree but plain int
+ * elsewhere and the two need not be the same type to mean the same thing. A negative argc would
+ * make the capacity enormous, so it is clamped to zero first.
+ */
 #define nya_array_from_argv(arena_ptr, argc, argv)                                                                                                   \
     ({                                                                                                                                               \
         nya_assert_type_match(arena_ptr, (NYA_Arena*)0);                                                                                             \
-        nya_assert_type_match(argc, s32(0));                                                                                                         \
-        nya_assert_type_match(argv, (const char**)0);                                                                                                \
-        NYA_ArrayᐸNYA_Stringᐳ* args = nya_array_create_with_capacity(arena_ptr, NYA_String, argc);                                                   \
-        for (s32 i = 0; i < (argc); i++) nya_array_add(args, nya_string_from(arena_ptr, (argv)[i]));                                                 \
+        s64 _argv_count = (s64)(argc) < 0 ? 0 : (s64)(argc);                                                                                         \
+        NYA_ArrayᐸNYA_Stringᐳ* args = nya_array_create_with_capacity(arena_ptr, NYA_String, (u64)_argv_count);                                       \
+        for (s64 _argv_i = 0; _argv_i < _argv_count; _argv_i++) nya_array_add(args, *nya_string_from(arena_ptr, (argv)[_argv_i]));                   \
         args;                                                                                                                                        \
     })
 
-#define nya_array_resize(arr_ptr, new_capacity)                                                                                                      \
-    ({                                                                                                                                               \
-        (arr_ptr)->items = nya_arena_realloc(                                                                                                        \
-            (arr_ptr)->arena,                                                                                                                        \
-            (arr_ptr)->items,                                                                                                                        \
-            (arr_ptr)->capacity * sizeof(*(arr_ptr)->items),                                                                                         \
-            (new_capacity) * sizeof(*(arr_ptr)->items)                                                                                               \
-        );                                                                                                                                           \
-        (arr_ptr)->capacity = new_capacity;                                                                                                          \
+#define nya_array_resize(arr_ptr, new_capacity)                                                                                                     \
+    ({                                                                                                                                              \
+        /*                                                                                                                                          \
+         * A first allocation cannot go through nya_arena_realloc, which returns null for a null pointer                                            \
+         * by design — test_arena.c pins that contract. An array created with a capacity of zero, or one                                            \
+         * shrunk to fit while empty, holds exactly that null items pointer, and reallocating it left the                                           \
+         * capacity claiming room that items did not point at.                                                                                      \
+         */                                                                                                                                         \
+        (arr_ptr)->items = (arr_ptr)->items == nullptr                                                                                              \
+                             ? nya_arena_alloc((arr_ptr)->arena, (new_capacity) * sizeof(*(arr_ptr)->items))                                        \
+                             : nya_arena_realloc(                                                                                                   \
+                                   (arr_ptr)->arena,                                                                                                \
+                                   (arr_ptr)->items,                                                                                                \
+                                   (arr_ptr)->capacity * sizeof(*(arr_ptr)->items),                                                                 \
+                                   (new_capacity) * sizeof(*(arr_ptr)->items)                                                                       \
+                               );                                                                                                                   \
+        (arr_ptr)->capacity = new_capacity;                                                                                                         \
     })
 
 #define nya_array_reserve(arr_ptr, min_capacity)                                                                                                     \
     ({                                                                                                                                               \
         if ((arr_ptr)->capacity < (min_capacity)) { /**/                                                                                             \
-            nya_array_resize((arr_ptr), nya_cast_to_u64(nya_max(2UL * (arr_ptr)->capacity, (min_capacity))));                                        \
+            nya_array_resize((arr_ptr), nya_cast_to_u64(nya_max((u64)2 * (arr_ptr)->capacity, (u64)(min_capacity))));                                        \
         }                                                                                                                                            \
     })
 
@@ -236,6 +255,14 @@ nya_derive_array(f128_4x4);
 #define nya_array_destroy_on_stack(arr_ptr)                                                                                                          \
     ({                                                                                                                                               \
         nya_arena_free((arr_ptr)->arena, (arr_ptr)->items, sizeof(*(arr_ptr)->items) * (arr_ptr)->capacity);                                         \
+        /*                                                                                                                                          \
+         * `items` is nulled too, not only the length and the capacity. nya_array_resize branches on \
+         * `items == nullptr` to choose between a first allocation and a realloc, so leaving the      \
+         * freed pointer here sent the next push down the realloc path with a block the arena had     \
+         * already taken back. It survived only because the free list tends to hand the same block    \
+         * straight back again.                                                                       \
+         */                                                                                          \
+        (arr_ptr)->items    = nullptr;                                                                                                               \
         (arr_ptr)->length   = 0;                                                                                                                     \
         (arr_ptr)->capacity = 0;                                                                                                                     \
     })
@@ -271,10 +298,23 @@ nya_derive_array(f128_4x4);
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/*
+ * Doubling, with a floor.
+ *
+ * `2 * capacity` is zero at capacity zero, so the resize was a no-op and the element was then
+ * written through the null items pointer that nya_array_create_with_capacity_on_stack leaves behind
+ * for an initial capacity of zero. Two ways in: asking for zero outright, and nya_array_shrink_to_fit
+ * on an empty array, which is what nya_string_shrink_to_fit does to an empty string.
+ */
+#define _NYA_ARRAY_GROWN_CAPACITY(arr_ptr) nya_cast_to_u64(nya_max((u64)1, (u64)2 * (arr_ptr)->capacity))
+
+/** Bytes between `index` and the end of the array. The unit is elements, so the multiply is last. */
+#define _nya_array_bytes_from(arr_ptr, index) (((arr_ptr)->length - (index)) * sizeof(*(arr_ptr)->items))
+
 #define nya_array_add(arr_ptr, item)                                                                                                                 \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (arr_ptr)->items[0]);                                                                                            \
-        if ((arr_ptr)->length == (arr_ptr)->capacity) { nya_array_resize(arr_ptr, nya_cast_to_u64(2UL * (arr_ptr)->capacity)); }                     \
+        if ((arr_ptr)->length == (arr_ptr)->capacity) { nya_array_resize(arr_ptr, _NYA_ARRAY_GROWN_CAPACITY(arr_ptr)); }                             \
         (arr_ptr)->items[(arr_ptr)->length++] = item;                                                                                                \
     })
 
@@ -297,12 +337,20 @@ nya_derive_array(f128_4x4);
         (arr_ptr)->length += (other_arr_ptr)->length;                                                                                                \
     })
 
+/*
+ * The shift is sized in elements and converted to bytes once, at the end.
+ *
+ * It used to read `length * sizeof(*items) - index`, with the subtraction outside the multiply, so
+ * it moved `index * (sizeof - 1)` bytes too many and wrote past the allocation. Invisible for a one
+ * byte element type, where the two expressions coincide — which is every NYA_String — and invisible
+ * for a small array, where the arena's padding absorbs the overrun.
+ */
 #define nya_array_insert(arr_ptr, item, index)                                                                                                       \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (arr_ptr)->items[0]);                                                                                            \
         _nya_array_access_guard(index, (arr_ptr)->length);                                                                                           \
-        if ((arr_ptr)->length == (arr_ptr)->capacity) { nya_array_resize(arr_ptr, nya_cast_to_u64(2UL * (arr_ptr)->capacity)); }                     \
-        nya_memmove((arr_ptr)->items + (index) + 1, (arr_ptr)->items + (index), ((arr_ptr)->length * sizeof(*(arr_ptr)->items) - (index)));          \
+        if ((arr_ptr)->length == (arr_ptr)->capacity) { nya_array_resize(arr_ptr, _NYA_ARRAY_GROWN_CAPACITY(arr_ptr)); }                             \
+        nya_memmove((arr_ptr)->items + (index) + 1, (arr_ptr)->items + (index), _nya_array_bytes_from(arr_ptr, index));                              \
         (arr_ptr)->items[index] = (item);                                                                                                            \
         (arr_ptr)->length++;                                                                                                                         \
     })
@@ -316,7 +364,7 @@ nya_derive_array(f128_4x4);
         nya_memmove(                                                                                                                                 \
             (arr_ptr)->items + (start_index) + items_to_add_count,                                                                                   \
             (arr_ptr)->items + (start_index),                                                                                                        \
-            ((arr_ptr)->length * sizeof(*(arr_ptr)->items) - (start_index))                                                                          \
+            _nya_array_bytes_from(arr_ptr, start_index)                                                                                              \
         );                                                                                                                                           \
         for (u64 i = 0; i < items_to_add_count; i++) {                                                                                               \
             nya_assert_type_match(items_to_add[i], (arr_ptr)->items[0]);                                                                             \
@@ -344,7 +392,7 @@ nya_derive_array(f128_4x4);
             nya_memmove(                                                                                                                             \
                 (arr_ptr)->items + (start_index),                                                                                                    \
                 (arr_ptr)->items + (start_index) + (count),                                                                                          \
-                ((arr_ptr)->length * sizeof(*(arr_ptr)->items) - (start_index) - (count))                                                            \
+                _nya_array_bytes_from(arr_ptr, (start_index) + (count))                                                                              \
             );                                                                                                                                       \
         }                                                                                                                                            \
         (arr_ptr)->length -= (count);                                                                                                                \

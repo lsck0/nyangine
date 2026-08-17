@@ -7,8 +7,7 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-
-#include "build/hooks/hooks.h"
+#include "build/hooks.h"
 #include "build/toolchain.h"
 #include "build/vendor/vendor_common.h"
 
@@ -28,6 +27,20 @@ NYA_VendorRule vendor_lz4_linux_x86_64 = {
     .linker_flags = { LZ4_A_LIN, },
 
     .parts = {
+        // Cleaned first, as the Windows rule below does. lz4 builds in tree and its Makefile keys
+        // off the object files alone, so a tree left behind by the other target counts as up to
+        // date and gets relinked into an archive for the wrong platform. See vendor_lua.h, where
+        // the missing clean produced exactly that.
+        &(NYA_BuildRule){
+            .name        = "vendor_lz4_linux_x86_64_clean",
+            .policy      = NYA_BUILD_ONCE,
+            .output_file = LZ4_A_LIN,
+
+            .command = {
+                .program   = "make",
+                .arguments = { "-C", LZ4_LIB, "clean", },
+            },
+        },
         &(NYA_BuildRule){
             .name        = "vendor_lz4_linux_x86_64_compile",
             .policy      = NYA_BUILD_ONCE,

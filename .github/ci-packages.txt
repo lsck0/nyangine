@@ -1,10 +1,11 @@
 build-essential
 clang-22
+clang-format-22
+clang-tidy-22
 clang-tools-22
 cmake
-ffmpeg
+gettext-base
 git-lfs
-gnome-desktop-testing
 libasound2-dev
 libaudio-dev
 libclang-rt-22-dev
@@ -21,6 +22,7 @@ libjack-dev
 libpipewire-0.3-dev
 libpulse-dev
 libsndio-dev
+libssl-dev
 libthai-dev
 libudev-dev
 liburing-dev
@@ -38,8 +40,10 @@ lld-22
 llvm-22
 make
 mingw-w64
-nasm
 mold
+nasm
 ninja-build
+osslsigncode
 pkg-config
 zip
+zsh

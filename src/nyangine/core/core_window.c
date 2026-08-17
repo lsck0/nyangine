@@ -54,6 +54,8 @@ void nya_system_window_init(void) {
     nya_info("Window system initialized (video driver: %s, client geometry: %s).", driver ? driver : "none", client_geometry ? "yes" : "no");
 }
 
+NYA_INTERNAL void _nya_cursor_deinit(void);
+
 void nya_system_window_deinit(void) {
     NYA_App* app = nya_app_get();
 
@@ -63,6 +65,10 @@ void nya_system_window_deinit(void) {
         if (!app->window_system.occupied[i]) continue;
         nya_window_destroy(app->window_system.windows[i].handle);
     }
+
+    // Before the arena, though they do not live in it: cursors are platform objects and releasing
+    // them belongs with the rest of the window system's platform teardown.
+    _nya_cursor_deinit();
 
     nya_arena_destroy(app->window_system.allocator);
 
@@ -146,13 +152,13 @@ NYA_WindowHandle nya_window_create(NYA_ConstCString title, u32 requested_width, 
     }
 
     if (slot == NYA_WINDOW_MAX) {
-        nya_warn("Cannot create window '%s': all %d window slots are in use.", title, NYA_WINDOW_MAX);
+        nya_log_error("Cannot create window '%s': all %d window slots are in use.", title, NYA_WINDOW_MAX);
         return NYA_WINDOW_HANDLE_NONE;
     }
 
     SDL_Window* sdl_window = SDL_CreateWindow(title, (s32)requested_width, (s32)requested_height, flags);
     if (sdl_window == nullptr) {
-        nya_warn("SDL_CreateWindow() failed for '%s': %s", title, SDL_GetError());
+        nya_log_error("SDL_CreateWindow() failed for '%s': %s", title, SDL_GetError());
         return NYA_WINDOW_HANDLE_NONE;
     }
 
@@ -434,10 +440,10 @@ void nya_window_set_title(NYA_WindowHandle window, NYA_ConstCString title) {
 }
 
 NYA_Error nya_window_set_icon(NYA_WindowHandle window, const u8* data, u64 size) {
-    if (data == nullptr || size == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "window icon data is empty.");
+    if (data == nullptr || size == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "window icon data is empty");
 
     NYA_Window* target = _nya_window_require(window, "nya_window_set_icon");
-    if (target == nullptr) return nya_error(NYA_ERROR_NOT_FOUND, "no such window.");
+    if (target == nullptr) return nya_error(NYA_ERROR_NOT_FOUND, "no such window");
 
     SDL_Surface* surface = IMG_Load_IO(SDL_IOFromConstMem(data, size), true);
     if (surface == nullptr) return nya_error(NYA_ERROR_CORRUPT, "could not decode the window icon: %s", SDL_GetError());
@@ -648,4 +654,90 @@ NYA_INTERNAL SDL_DisplayID _nya_window_display(NYA_WindowHandle window) {
 
 NYA_INTERNAL NYA_Rect _nya_rect_from_sdl(SDL_Rect rect) {
     return (NYA_Rect){ .x = rect.x, .y = rect.y, .width = rect.w, .height = rect.h };
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * MOUSE CURSOR
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * One platform cursor per shape, created on first use.
+ *
+ * Cached because creating one is a round trip to the window system, and an immediate mode UI sets the
+ * shape every frame. File scope rather than on the window system's struct: the platform's cursor is
+ * global state, not a property of any one window.
+ * */
+NYA_INTERNAL SDL_Cursor*     _NYA_CURSORS[NYA_CURSOR_COUNT] = { 0 };
+NYA_INTERNAL NYA_CursorShape _NYA_CURSOR_CURRENT            = NYA_CURSOR_DEFAULT;
+
+NYA_INTERNAL SDL_SystemCursor _nya_cursor_to_sdl(NYA_CursorShape shape) {
+    switch (shape) {
+        case NYA_CURSOR_TEXT:               return SDL_SYSTEM_CURSOR_TEXT;
+        case NYA_CURSOR_POINTER:            return SDL_SYSTEM_CURSOR_POINTER;
+        case NYA_CURSOR_CROSSHAIR:          return SDL_SYSTEM_CURSOR_CROSSHAIR;
+        case NYA_CURSOR_MOVE:               return SDL_SYSTEM_CURSOR_MOVE;
+        case NYA_CURSOR_RESIZE_HORIZONTAL:  return SDL_SYSTEM_CURSOR_EW_RESIZE;
+        case NYA_CURSOR_RESIZE_VERTICAL:    return SDL_SYSTEM_CURSOR_NS_RESIZE;
+        case NYA_CURSOR_RESIZE_NWSE:        return SDL_SYSTEM_CURSOR_NWSE_RESIZE;
+        case NYA_CURSOR_RESIZE_NESW:        return SDL_SYSTEM_CURSOR_NESW_RESIZE;
+        case NYA_CURSOR_NOT_ALLOWED:        return SDL_SYSTEM_CURSOR_NOT_ALLOWED;
+        case NYA_CURSOR_WAIT:               return SDL_SYSTEM_CURSOR_WAIT;
+
+        case NYA_CURSOR_DEFAULT:
+        case NYA_CURSOR_COUNT:
+        default:                            return SDL_SYSTEM_CURSOR_DEFAULT;
+    }
+}
+
+void nya_cursor_set(NYA_CursorShape shape) {
+    if (shape >= NYA_CURSOR_COUNT) return;
+
+    // The common case by far, since this is written every frame from whatever is hovered.
+    if (shape == _NYA_CURSOR_CURRENT && _NYA_CURSORS[shape] != nullptr) return;
+
+    if (_NYA_CURSORS[shape] == nullptr) {
+        _NYA_CURSORS[shape] = SDL_CreateSystemCursor(_nya_cursor_to_sdl(shape));
+
+        // A platform that cannot supply a shape keeps whatever it had. A missing cursor is a cosmetic
+        // problem and never a reason to stop.
+        if (_NYA_CURSORS[shape] == nullptr) {
+            nya_warn("Could not create cursor %d: %s", (s32)shape, SDL_GetError());
+            return;
+        }
+    }
+
+    (void)SDL_SetCursor(_NYA_CURSORS[shape]);
+
+    _NYA_CURSOR_CURRENT = shape;
+}
+
+NYA_CursorShape nya_cursor(void) {
+    return _NYA_CURSOR_CURRENT;
+}
+
+void nya_cursor_visible_set(b8 visible) {
+    if (visible) {
+        (void)SDL_ShowCursor();
+        return;
+    }
+
+    (void)SDL_HideCursor();
+}
+
+b8 nya_cursor_visible(void) {
+    return SDL_CursorVisible();
+}
+
+/** Releases every cursor created on demand. Called from the window system's teardown. */
+NYA_INTERNAL void _nya_cursor_deinit(void) {
+    for (u32 i = 0; i < NYA_CURSOR_COUNT; i++) {
+        if (_NYA_CURSORS[i] == nullptr) continue;
+
+        SDL_DestroyCursor(_NYA_CURSORS[i]);
+        _NYA_CURSORS[i] = nullptr;
+    }
+
+    _NYA_CURSOR_CURRENT = NYA_CURSOR_DEFAULT;
 }

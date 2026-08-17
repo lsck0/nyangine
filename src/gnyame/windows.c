@@ -1,5 +1,4 @@
 #include "gnyame/gnyame.h"
-
 #include "assets/assets.h"
 
 NYA_WindowHandle GNY_WINDOW_MAIN = NYA_WINDOW_HANDLE_NONE;
@@ -24,8 +23,19 @@ void gny_window_main_create(void) {
 
     // Not fatal. A Wayland compositor without xdg_toplevel_icon_v1 refuses this, and a default icon
     // is a far better outcome than refusing to open the window.
-    if (icon.kind != NYA_ERROR_NONE) nya_warn("%s", (NYA_ConstCString)icon.message);
+    if (!icon.ok) nya_warn("%s", (NYA_ConstCString)icon.message);
 
-    nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_GAME);
-    nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_UI);
+    /*
+     * The background and the title screen, and nothing else.
+     *
+     * The game and the HUD are pushed by "start" and popped again by "main menu", so the world does
+     * not exist until it is asked for. Push order is draw order and there is no depth test, so the
+     * background goes first; it is also the layer that is never popped, which is why the music lives
+     * on it rather than on the game.
+     *
+     * Event order is the reverse of this, so the menu on top sees input first and can be modal
+     * without anything underneath having to check whether a menu is open.
+     */
+    nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_BACKGROUND);
+    nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU);
 }

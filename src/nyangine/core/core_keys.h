@@ -2,8 +2,12 @@
  * @file core_keys.h
  *
  * Those are from:
- *  - https://github.com/libsdl-org/NYA/blob/main/include/SDL3/SDL_scancode.h
- *  - https://github.com/libsdl-org/NYA/blob/main/include/SDL3/SDL_keycode.h
+ *  - https://github.com/libsdl-org/SDL/blob/main/include/SDL3/SDL_scancode.h
+ *  - https://github.com/libsdl-org/SDL/blob/main/include/SDL3/SDL_keycode.h
+ *
+ * The repository is libsdl-org/SDL. Both links said libsdl-org/NYA and had done for a while — a
+ * project-wide SDL-to-NYA rename caught the URLs along with the identifiers, leaving two dead links
+ * on the file whose only purpose is to say where its 400 constants were copied from.
  * */
 #pragma once
 

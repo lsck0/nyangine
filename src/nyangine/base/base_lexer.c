@@ -2,11 +2,34 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API DECLARATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Whether `character` may begin or continue an identifier.
+ *
+ * Split in two because a digit continues a name but cannot start one, which is the only difference
+ * between them and the reason `0x` lexes as a number rather than as an identifier.
+ *
+ * Bytes at or above 0x80 are accepted under NYA_LEXER_UTF8_IDENTS without being decoded. A UTF-8
+ * continuation byte is in that range too, so every byte of a multi-byte character is swallowed by the
+ * same test and the name stays in one piece — which is all this needs to do. See the flag's note.
+ * */
+NYA_INTERNAL b8 _nya_lexer_is_ident_start(u8 character, NYA_LexerFlags flags);
+NYA_INTERNAL b8 _nya_lexer_is_ident_continue(u8 character, NYA_LexerFlags flags);
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_Lexer nya_lexer_create(NYA_ConstCString source) {
+NYA_Lexer nya_lexer_create(NYA_ConstCString source) __attr_overloaded {
+    return nya_lexer_create(source, NYA_LEXER_DEFAULT);
+}
+
+NYA_Lexer nya_lexer_create(NYA_ConstCString source, NYA_LexerFlags flags) __attr_overloaded {
     nya_assert(source != nullptr);
 
     NYA_Lexer lexer = {
@@ -15,6 +38,7 @@ NYA_Lexer nya_lexer_create(NYA_ConstCString source) {
         .arena               = nya_arena_create(.region_size = nya_mebyte_to_byte(1UL)),
         .source              = source,
         .cursor              = 0,
+        .flags               = flags,
         .current_line_number = 1,
         .current_char_number = 1,
     };
@@ -55,18 +79,85 @@ void nya_lexer_run(NYA_Lexer* lexer) {
             continue;
         }
 
+        /*
+         * lex comment
+         *
+         * Before the symbol case, since a comment is made of characters that are otherwise symbols.
+         * A '/' that opens nothing falls through to that case unchanged, so division and a path
+         * separator still lex the way they always did.
+         */
+        if (current_char == '/' && (lexer->source[lexer->cursor + 1] == '/' || lexer->source[lexer->cursor + 1] == '*')) {
+            b8 is_block = lexer->source[lexer->cursor + 1] == '*';
+
+            u32 start_char_number = lexer->current_char_number;
+            u32 start_line_number = lexer->current_line_number;
+
+            // Past the opener, so the token covers the body. Same convention as a string literal,
+            // whose source_location points after the quote.
+            lexer->cursor              += 2;
+            lexer->current_char_number += 2;
+
+            u32 body_start = lexer->cursor;
+            u32 body_end   = lexer->cursor;
+
+            while (true) {
+                current_char = lexer->source[lexer->cursor];
+
+                // Unterminated: the body runs to the end of the source and the token is emitted
+                // anyway, matching how an unterminated string literal is handled rather than
+                // discarding everything that came before the mistake.
+                if (current_char == '\0') {
+                    body_end = lexer->cursor;
+                    break;
+                }
+
+                if (!is_block && current_char == '\n') {
+                    // The newline itself is left for the main loop, which is what keeps the line
+                    // counter in one place instead of two.
+                    body_end = lexer->cursor;
+                    break;
+                }
+
+                if (is_block && current_char == '*' && lexer->source[lexer->cursor + 1] == '/') {
+                    body_end                    = lexer->cursor;
+                    lexer->cursor              += 2;
+                    lexer->current_char_number += 2;
+                    break;
+                }
+
+                if (current_char == '\n') {
+                    lexer->cursor              += 1;
+                    lexer->current_line_number += 1;
+                    lexer->current_char_number  = 1;
+                } else {
+                    lexer->cursor              += 1;
+                    lexer->current_char_number += 1;
+                }
+            }
+
+            NYA_Token token = {
+                .type             = NYA_TOKEN_COMMENT,
+                .source_location  = body_start,
+                .length           = body_end - body_start,
+                .line_number      = start_line_number,
+                .char_number      = start_char_number,
+                .is_block_comment = is_block,
+            };
+            nya_array_push_back(lexer->tokens, token);
+
+            continue;
+        }
+
         // lex identifier
-        if (('a' <= current_char && current_char <= 'z') || ('A' <= current_char && current_char <= 'Z') || (current_char == '_')) {
+        if (_nya_lexer_is_ident_start(current_char, lexer->flags)) {
             u32 start_cursor      = lexer->cursor;
             u32 start_char_number = lexer->current_char_number;
             u32 start_line_number = lexer->current_line_number;
 
             while (true) {
                 current_char = lexer->source[lexer->cursor];
-                if (!(('a' <= current_char && current_char <= 'z') || ('A' <= current_char && current_char <= 'Z') ||
-                      ('0' <= current_char && current_char <= '9') || (current_char == '_'))) {
-                    break;
-                }
+                if (!_nya_lexer_is_ident_continue(current_char, lexer->flags)) break;
+
                 lexer->cursor              += 1;
                 lexer->current_char_number += 1;
             }
@@ -289,6 +380,24 @@ void nya_lexer_run(NYA_Lexer* lexer) {
         lexer->cursor              += 1;
         lexer->current_char_number += 1;
     }
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API IMPLEMENTATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+b8 _nya_lexer_is_ident_start(u8 character, NYA_LexerFlags flags) {
+    if (('a' <= character && character <= 'z') || ('A' <= character && character <= 'Z') || character == '_') return true;
+
+    return (flags & NYA_LEXER_UTF8_IDENTS) != 0 && character >= 0x80;
+}
+
+b8 _nya_lexer_is_ident_continue(u8 character, NYA_LexerFlags flags) {
+    if ('0' <= character && character <= '9') return true;
+
+    return _nya_lexer_is_ident_start(character, flags);
 }
 
 void nya_lexer_destroy(NYA_Lexer* lexer) {

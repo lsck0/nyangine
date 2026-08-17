@@ -6,10 +6,11 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-
-#include "build/hooks/hooks.h"
+#include "build/hooks.h"
 #include "build/toolchain.h"
 #include "build/vendor/vendor_common.h"
+// For SDL_BUILD_LINUX_X86_64 and SDL_BUILD_WINDOWS_X86_64: these link against the SDL built beside them.
+#include "build/vendor/vendor_sdl.h"
 
 // clang-format off
 

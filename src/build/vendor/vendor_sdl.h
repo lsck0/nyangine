@@ -6,8 +6,7 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-
-#include "build/hooks/hooks.h"
+#include "build/hooks.h"
 #include "build/toolchain.h"
 #include "build/vendor/vendor_common.h"
 
@@ -101,15 +100,24 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
                     "-S", SDL_SOURCE,
                     "-B", SDL_BUILD_WINDOWS_X86_64,
                     SDL_CMAKE_COMMON,
-                    "-DCMAKE_SYSTEM_NAME=Windows",
-                    "-DCMAKE_C_COMPILER=/usr/bin/x86_64-w64-mingw32-gcc",
-                    "-DCMAKE_CXX_COMPILER=/usr/bin/x86_64-w64-mingw32-g++",
-                    "-DCMAKE_LINKER=/usr/bin/x86_64-w64-mingw32-ld",
-                    "-DCMAKE_RC_COMPILER=/usr/bin/x86_64-w64-mingw32-windres",
-                    "-DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32",
-                    "-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH",
-                    "-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY",
-                    "-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=BOTH",
+                    /*
+                     * The shared macro, like every other cmake vendor here.
+                     *
+                     * This rule used to spell the toolchain out inline, and it was the only one that
+                     * did. Three things came of that. The compiler paths were absolute
+                     * (/usr/bin/x86_64-w64-mingw32-gcc), so a mingw-w64 installed anywhere else was
+                     * not found. FIND_ROOT_PATH_MODE_INCLUDE was BOTH, which is exactly what the
+                     * shared macro's own comment warns against — a find_package that reaches the
+                     * host's /usr/include mixes glibc headers into a mingw compile. And because
+                     * nothing here expanded NYA_CMAKE_WINDOWS_TOOLCHAIN, a Windows host — where that
+                     * macro is native and takes no cross compiler at all — configured SDL against
+                     * mingw paths that do not exist on it, so the one dependency everything else
+                     * links against could not be built there.
+                     *
+                     * Verified equivalent before switching: configuring both ways produces a
+                     * byte identical include-config-release/build_config/SDL_build_config.h.
+                     */
+                    NYA_CMAKE_WINDOWS_TOOLCHAIN,
                 },
             },
 

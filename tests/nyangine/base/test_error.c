@@ -52,7 +52,56 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = NYA_OK;
-    nya_assert(result.kind == NYA_ERROR_NONE);
+    nya_assert(result.ok);
+    nya_assert(result.ok);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: `ok` agrees with `kind` everywhere an NYA_Error can be born
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * `ok` is redundant state, so the only thing that keeps it true is that every NYA_Error comes
+     * out of one of three places. This asserts the invariant at all three rather than trusting it:
+     * a fourth construction site added later — or a designated initializer that names `kind` and
+     * forgets this — fails here rather than silently reporting every error as a success.
+     */
+    nya_assert(NYA_OK.ok, "NYA_OK must be ok");
+    nya_assert(NYA_OK.ok);
+
+    nya_assert(!NYA_NOT_OK.ok, "NYA_NOT_OK must not be ok");
+    nya_assert(NYA_NOT_OK.kind == NYA_ERROR_NOT_OK);
+
+    // _nya_error_create, across every kind there is, including NONE — which is legal to construct
+    // and is the one case where the derivation is not simply "false".
+    for (u32 kind = 0; kind < NYA_ERROR_COUNT; kind++) {
+      NYA_Error error = nya_error((NYA_ErrorKind)kind, "kind %u", kind);
+
+      nya_assert(error.kind == (NYA_ErrorKind)kind);
+      nya_assert(error.ok == (kind == NYA_ERROR_NONE), "ok disagreed with kind %s", NYA_ERRORKIND_NAME_MAP[kind]);
+    }
+
+    // And through errno, which builds its result with _nya_error_create rather than by hand.
+    errno            = ENOENT;
+    NYA_Error from_errno = nya_error_from_errno();
+    nya_assert(from_errno.kind == NYA_ERROR_NOT_FOUND);
+    nya_assert(!from_errno.ok);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: `ok` survives propagation through NYA_TRY
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // NYA_TRY copies the struct into the caller's frame and pushes a trace frame onto it, so this is
+    // checking that the flag rides along with the kind rather than being recomputed on the way.
+    NYA_Error ok_result = try_ok();
+    nya_assert(ok_result.ok);
+    nya_assert(ok_result.ok);
+
+    NYA_Error fail_result = try_fail();
+    nya_assert(!fail_result.ok);
+    nya_assert(fail_result.kind == NYA_ERROR_NOT_OK);
+    nya_assert(fail_result.error_trace_count > 0, "the propagation frame was still recorded");
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +185,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = try_ok();
-    nya_assert(result.kind == NYA_ERROR_NONE);
+    nya_assert(result.ok);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -191,7 +240,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = always_ok();
-    nya_assert(result.kind == NYA_ERROR_NONE);
+    nya_assert(result.ok);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -331,7 +380,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Error result = NYA_OK;
-    nya_assert(result.kind == NYA_ERROR_NONE);
+    nya_assert(result.ok);
     nya_assert(result.message[0] == '\0');
   }
 

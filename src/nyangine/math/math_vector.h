@@ -52,6 +52,47 @@ typedef u64 u64x4 __attr_vector(4);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRODUCTS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * The four operations the elementwise operators cannot express, and deliberately only those.
+ *
+ * `a * b` on two vectors is already elementwise multiplication, which is a different and equally
+ * useful thing — so a dot product has to be a function or the two would be spelled the same. Same
+ * for a cross product, which is not elementwise at all. Length and normalize follow from dot and are
+ * here rather than at every call site because the zero-length case has exactly one right answer and
+ * writing it out repeatedly is how half the call sites end up dividing by zero.
+ *
+ * f32 only, and only the widths something uses. See the note on the integer lane types above.
+ */
+
+NYA_API f32 nya_vector_dot(f32x2 a, f32x2 b) __attr_overloaded __attr_no_discard;
+NYA_API f32 nya_vector_dot(f32x3 a, f32x3 b) __attr_overloaded __attr_no_discard;
+
+/**
+ * The vector perpendicular to both, right-handed.
+ *
+ * Right-handed because that is what the view and projection matrices in math_matrix.h assume, and a
+ * cross product with the other handedness turns a look-at matrix inside out — which renders as a
+ * scene that is mirrored and back-face culled rather than as anything that looks like a sign error.
+ * */
+NYA_API f32x3 nya_vector_cross(f32x3 a, f32x3 b) __attr_no_discard;
+
+NYA_API f32 nya_vector_length(f32x2 vector) __attr_overloaded __attr_no_discard;
+NYA_API f32 nya_vector_length(f32x3 vector) __attr_overloaded __attr_no_discard;
+
+/**
+ * The same direction, length one. A zero vector comes back zero rather than as NaN.
+ *
+ * Zero rather than an assert, because the input is routinely computed — `target - position` for a
+ * camera that has not been placed yet — and a frame drawn from the origin is a far better failure
+ * than a frame of NaNs, which propagate into the projection and blank the whole window.
+ * */
+NYA_API f32x2 nya_vector_normalize(f32x2 vector) __attr_overloaded __attr_no_discard;
+NYA_API f32x3 nya_vector_normalize(f32x3 vector) __attr_overloaded __attr_no_discard;
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FORMATTING
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */

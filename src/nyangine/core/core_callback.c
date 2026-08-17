@@ -87,6 +87,24 @@ NYA_CallbackHandle _nya_callback(NYA_Callback callback) {
 void* nya_callback_get(NYA_CallbackHandle handle) {
     NYA_App* app = nya_app_get();
 
+    /*
+     * Bounds checked, because a handle is an index and nothing stops a caller inventing one.
+     *
+     * The registry only exists in hot reloading builds, and the handles a caller holds outlive a
+     * reload by design — that is the point of it. A stale handle from before a reload, a
+     * default-initialised zero on an empty registry, or a handle from a different NYA_App all
+     * indexed straight into the array. Returning null instead makes the failure a null function
+     * pointer at the call site rather than a plausible-looking pointer read out of arbitrary
+     * memory, and the assertion names the handle while the frame that produced it is still up.
+     */
+    nya_assert(
+        handle < app->callback_system.callbacks->length,
+        "Callback handle " FMTu64 " is out of range (only " FMTu64 " are registered)",
+        (u64)handle,
+        app->callback_system.callbacks->length
+    );
+    if (handle >= app->callback_system.callbacks->length) return nullptr;
+
     return app->callback_system.callbacks->items[handle].fn;
 }
 

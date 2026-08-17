@@ -42,6 +42,12 @@
 #pragma once
 
 #include "nyangine/base/base_arena.h"
+// For nya_array_swap and _nya_array_access_guard, which nya_heap_push, nya_heap_pop and
+// nya_heap_peek expand to. This header did not name it, so including base_heap.h on its own and
+// pushing anything failed with "use of undeclared identifier 'nya_array_swap'" — it worked only
+// because base.h happens to include base_array.h first. The same problem build.h's docblock
+// describes, and the reason the build headers were split up.
+#include "nyangine/base/base_array.h"
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_memory.h"
 #include "nyangine/base/base_template.h"
@@ -91,7 +97,7 @@
 #define nya_heap_create_with_capacity_on_stack(arena_ptr, item_type, compare_fn, initial_capacity)                                                   \
     ({                                                                                                                                               \
         _nya_derive_heap_name(item_type) heap = {                                                                                                    \
-            .items    = nya_arena_alloc(arena_ptr, (initial_capacity) * sizeof(item_type)),                                                          \
+            .items    = (initial_capacity) == 0 ? nullptr : nya_arena_alloc(arena_ptr, (initial_capacity) * sizeof(item_type)),                      \
             .length   = 0,                                                                                                                           \
             .capacity = (initial_capacity),                                                                                                          \
             .arena    = (arena_ptr),                                                                                                                 \
@@ -100,31 +106,43 @@
         heap;                                                                                                                                        \
     })
 
+/**
+ * Builds a heap from a plain C array. Returns a pointer, like every other heap constructor here.
+ *
+ * `carray_length` is read once, since it serves as both the initial capacity and the loop bound.
+ * */
 #define nya_heap_from_carray(arena_ptr, item_type, carray, carray_length, compare_fn)                                                                \
     ({                                                                                                                                               \
         nya_assert_type_match(arena_ptr, (NYA_Arena*)0);                                                                                             \
-        nya_assert_type_match(carray, (item_type*)0);                                                                                                \
         nya_assert_type_match(carray_length, (u64)0);                                                                                                \
-        _nya_derive_heap_name(item_type) heap = nya_heap_create_with_capacity(arena_ptr, item_type, compare_fn, carray_length);                      \
-        for (u64 i = 0; i < carray_length; i++) { nya_heap_push(&heap, carray[i]); }                                                                 \
-        heap;                                                                                                                                        \
+        /* Assigned rather than nya_assert_type_match'd: that is __builtin_types_compatible_p, which \
+         * does not apply array-to-pointer decay and so rejected the `item_type[N]` this is for.  */ \
+        item_type*                        _heap_from_items = (carray);                                                                               \
+        u64                               _heap_from_count = (carray_length);                                                                        \
+        _nya_derive_heap_name(item_type)* _heap_from_ptr = nya_heap_create_with_capacity(arena_ptr, item_type, compare_fn, _heap_from_count);        \
+        for (u64 _heap_from_i = 0; _heap_from_i < _heap_from_count; _heap_from_i++) nya_heap_push(_heap_from_ptr, _heap_from_items[_heap_from_i]);   \
+        _heap_from_ptr;                                                                                                                              \
     })
 
 #define nya_heap_resize(heap_ptr, new_capacity)                                                                                                      \
     ({                                                                                                                                               \
-        (heap_ptr)->items = nya_arena_realloc(                                                                                                       \
-            (heap_ptr)->arena,                                                                                                                       \
-            (heap_ptr)->items,                                                                                                                       \
-            (heap_ptr)->capacity * sizeof(*(heap_ptr)->items),                                                                                       \
-            (new_capacity) * sizeof(*(heap_ptr)->items)                                                                                              \
-        );                                                                                                                                           \
+        /* Same fix, and same reason, as nya_array_resize: nya_arena_realloc returns null for a null \
+         * pointer by design, so a heap that started at capacity zero could never grow.  */          \
+        (heap_ptr)->items = (heap_ptr)->items == nullptr                                                                                             \
+                              ? nya_arena_alloc((heap_ptr)->arena, (new_capacity) * sizeof(*(heap_ptr)->items))                                     \
+                              : nya_arena_realloc(                                                                                                  \
+                                    (heap_ptr)->arena,                                                                                              \
+                                    (heap_ptr)->items,                                                                                              \
+                                    (heap_ptr)->capacity * sizeof(*(heap_ptr)->items),                                                              \
+                                    (new_capacity) * sizeof(*(heap_ptr)->items)                                                                     \
+                                );                                                                                                                  \
         (heap_ptr)->capacity = new_capacity;                                                                                                         \
     })
 
 #define nya_heap_reserve(heap_ptr, min_capacity)                                                                                                     \
     ({                                                                                                                                               \
         if ((heap_ptr)->capacity < (min_capacity)) { /**/                                                                                            \
-            nya_heap_resize((heap_ptr), nya_cast_to_u64(nya_max(2UL * (heap_ptr)->capacity, (min_capacity))));                                       \
+            nya_heap_resize((heap_ptr), nya_cast_to_u64(nya_max((u64)2 * (heap_ptr)->capacity, (u64)(min_capacity))));                                       \
         }                                                                                                                                            \
     })
 
@@ -137,10 +155,24 @@
         (heap_ptr) = nullptr;                                                                                                                        \
     })
 
+/*
+ * Note this takes the heap by value, where nya_heap_destroy takes a pointer.
+ *
+ * The on-stack destructors are not consistent with each other across base, and the split is: heap
+ * and hmap take a value, array, ring and hset take a pointer. This note used to put hset on the
+ * by-value side, which is the wrong half. Left as they are rather than changed underneath a caller.
+ *
+ * The capacity and the length are reset alongside `items`. Clearing only the pointer left the heap
+ * claiming to own a block it no longer had, so a second destroy handed the arena a null pointer with
+ * a non-zero size, and a push onto the destroyed heap saw length < capacity and wrote through null
+ * rather than reallocating.
+ */
 #define nya_heap_destroy_on_stack(heap_ptr)                                                                                                          \
     ({                                                                                                                                               \
         nya_arena_free((heap_ptr).arena, (heap_ptr).items, sizeof(*(heap_ptr).items) * (heap_ptr).capacity);                                         \
-        (heap_ptr).items = nullptr;                                                                                                                  \
+        (heap_ptr).items    = nullptr;                                                                                                               \
+        (heap_ptr).length   = 0;                                                                                                                     \
+        (heap_ptr).capacity = 0;                                                                                                                     \
     })
 
 /*
@@ -151,7 +183,7 @@
 
 #define nya_heap_peek(heap_ptr)                                                                                                                      \
     ({                                                                                                                                               \
-        _nya_array_access_guard(0, heap_ptr->length);                                                                                                \
+        _nya_array_access_guard(0, (heap_ptr)->length);                                                                                              \
         (heap_ptr)->items[0];                                                                                                                        \
     })
 

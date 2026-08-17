@@ -17,6 +17,15 @@
  */
 
 #define NYA_BUILD_MAX_DEPENDENCIES 64
+
+/**
+ * Most commands nya_build_parallel will have in flight at once.
+ *
+ * A ceiling on the slot table rather than a target: the job count is normally the processor count,
+ * and this only stops a machine with an implausible core count from asking for a slot array bigger
+ * than the batch it is building.
+ * */
+#define NYA_BUILD_MAX_PARALLEL_JOBS 64
 #define NYA_BUILD_MAX_VENDORS      16
 #define NYA_VENDOR_MAX_PARTS       8
 #define NYA_VENDOR_MAX_FLAGS       32
@@ -66,6 +75,18 @@ struct NYA_BuildRule {
     void (*post_build_hooks[NYA_BUILD_MAX_DEPENDENCIES])(NYA_BuildRule* rule);
 
     /**
+     * Where the vendor flag splice began, so nya_build_parallel can undo it after the command has
+     * been waited for rather than immediately after it was started.
+     *
+     * A serial build keeps this on the stack; a parallel one cannot, because preparation and
+     * completion are separated by every other rule in the batch.
+     * */
+    u32 parallel_arguments_before_vendors;
+
+    /** Set between spawn and wait, so an aborted batch still reaps exactly the rules it started. */
+    b8 parallel_is_running;
+
+    /**
      * Which build this rule last completed in. Bookkeeping; do not set it.
      *
      * A dependency graph is a graph, not a tree: shaders are needed by both the asset index and the
@@ -113,6 +134,27 @@ struct NYA_VendorRule {
  */
 
 NYA_API NYA_Error nya_build(NYA_BuildRule* build_rule) __attr_no_discard;
+
+/**
+ * Builds `count` independent rules, running up to `max_jobs` of their commands at once.
+ *
+ * For a set of rules that genuinely do not depend on each other. The test suite is the case this
+ * exists for: every test binary compiles the whole engine from scratch, so building them one at a
+ * time leaves every core but one idle for the length of the run.
+ *
+ * Each rule's *preparation* still happens sequentially and in order — dependencies, vendors and
+ * pre-build hooks — because those are shared between rules and are exactly the part that must not
+ * race. Only the rules' own commands overlap. Post-build hooks run as each command is reaped, on
+ * this thread, so a hook is no more concurrent than it was before.
+ *
+ * `max_jobs` of zero means one job per hardware thread. Output is buffered per rule and printed when
+ * that rule finishes, so a failure reads as one contiguous block rather than as interleaved lines
+ * from a dozen compilers.
+ *
+ * Stops at the first failure: rules already running are still waited for, since abandoning a child
+ * mid-compile leaves a half-written object file that a later build would happily use.
+ * */
+NYA_API NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_jobs) __attr_no_discard;
 
 /** Builds a vendor's parts in order. */
 NYA_API NYA_Error nya_vendor_build(NYA_VendorRule* vendor) __attr_no_discard;
