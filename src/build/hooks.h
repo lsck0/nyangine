@@ -120,7 +120,7 @@ void hook_compile_shaders(NYA_BuildRule* rule);
 /** Wrapper around nya_asset_index. */
 void hook_index_assets(NYA_BuildRule* rule);
 
-/** Generates assets/strings.h and validates every locale against the base. See build/i18n.h. */
+/** Generates src/generated/strings.h and validates every locale against the base. See build/pp/i18n.h. */
 void hook_generate_strings(NYA_BuildRule* rule);
 
 /** Regenerates src/generated/reflection.{h,c} from the @reflect annotations. See src/build/reflection.h. */

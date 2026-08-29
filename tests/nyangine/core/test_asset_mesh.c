@@ -18,7 +18,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-#include "assets/assets.h"
+#include "generated/assets.h"
 
 #include "SDL3/SDL_init.h"
 
@@ -51,7 +51,7 @@ static void assert_unit_sized(NYA_ConstCString name, const NYA_Asset* asset) {
     hi = (f32x3){ nya_max(hi.x, v.x), nya_max(hi.y, v.y), nya_max(hi.z, v.z) };
   }
 
-  nya_info("  %s: %u triangles, bounds %.2f %.2f %.2f .. %.2f %.2f %.2f", name, asset->as_mesh.vertex_count / 3, (f64)lo.x, (f64)lo.y,
+  nya_log_info("  %s: %u triangles, bounds %.2f %.2f %.2f .. %.2f %.2f %.2f", name, asset->as_mesh.vertex_count / 3, (f64)lo.x, (f64)lo.y,
            (f64)lo.z, (f64)hi.x, (f64)hi.y, (f64)hi.z);
 
   f32 extent = nya_max(hi.x - lo.x, nya_max(hi.y - lo.y, hi.z - lo.z));
@@ -121,7 +121,7 @@ s32 main(void) {
 
     // Whether the reservation and the write agreed. Not a requirement — the teardown frees by the
     // reserved extent precisely so it need not be — but worth knowing for these two files.
-    nya_info("  Cubie.fbx wrote %u of %u reserved vertices", vertices, asset->as_mesh.allocated);
+    nya_log_info("  Cubie.fbx wrote %u of %u reserved vertices", vertices, asset->as_mesh.allocated);
 
     u32 in_unit_range = 0;
 
@@ -190,7 +190,7 @@ s32 main(void) {
       nya_assert(asset->as_mesh.texture_count == 0, "no GPU, so no texture was uploaded");
     }
 
-    nya_info("  Cubie.fbx: %u parts, %u textures, part 0 base colour %.2f %.2f %.2f", asset->as_mesh.part_count,
+    nya_log_info("  Cubie.fbx: %u parts, %u textures, part 0 base colour %.2f %.2f %.2f", asset->as_mesh.part_count,
              asset->as_mesh.texture_count, (f64)asset->as_mesh.parts[0].base_color.r, (f64)asset->as_mesh.parts[0].base_color.g,
              (f64)asset->as_mesh.parts[0].base_color.b);
 
@@ -263,7 +263,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  nya_info("PASSED: test_asset_mesh (0 failures)");
+  nya_log_info("PASSED: test_asset_mesh (0 failures)");
 
   return EXIT_SUCCESS;
 }

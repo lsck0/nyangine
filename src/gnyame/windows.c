@@ -1,5 +1,5 @@
 #include "gnyame/gnyame.h"
-#include "assets/assets.h"
+#include "generated/assets.h"
 
 NYA_WindowHandle GNY_WINDOW_MAIN = NYA_WINDOW_HANDLE_NONE;
 
@@ -23,7 +23,7 @@ void gny_window_main_create(void) {
 
     // Not fatal. A Wayland compositor without xdg_toplevel_icon_v1 refuses this, and a default icon
     // is a far better outcome than refusing to open the window.
-    if (!icon.ok) nya_warn("%s", (NYA_ConstCString)icon.message);
+    if (!icon.ok) nya_log_warn("%s", (NYA_ConstCString)icon.message);
 
     /*
      * The background and the title screen, and nothing else.

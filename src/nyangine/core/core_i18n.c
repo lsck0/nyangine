@@ -84,7 +84,7 @@ void nya_system_i18n_init(void) {
     });
 #endif // NYA_ASSET_HOT_RELOAD
 
-    nya_info("Localization system initialized.");
+    nya_log_info("Localization system initialized.");
 }
 
 void nya_system_i18n_deinit(void) {
@@ -95,7 +95,7 @@ void nya_system_i18n_deinit(void) {
 
     *system = (NYA_I18nSystem){ 0 };
 
-    nya_info("Localization system deinitialized.");
+    nya_log_info("Localization system deinitialized.");
 }
 
 NYA_Error nya_i18n_load(NYA_ConstCString locale, const NYA_ConstCString* keys, u32 count) {
@@ -104,7 +104,7 @@ NYA_Error nya_i18n_load(NYA_ConstCString locale, const NYA_ConstCString* keys, u
 
     NYA_TRY(_nya_i18n_load_locale(locale, keys, count));
 
-    nya_info("Loaded locale '%s' (%u strings).", locale, count);
+    nya_log_info("Loaded locale '%s' (%u strings).", locale, count);
 
     return NYA_OK;
 }
@@ -240,7 +240,7 @@ void _nya_i18n_watch(NYA_Event* event) {
 
     if (!reloaded.ok) return;
 
-    nya_info("Reloaded locale '%s'.", locale);
+    nya_log_info("Reloaded locale '%s'.", locale);
 }
 #endif // NYA_ASSET_HOT_RELOAD
 
@@ -293,7 +293,7 @@ NYA_Error _nya_i18n_load_locale(NYA_ConstCString locale, const NYA_ConstCString*
         // Not fatal. A build without the base locale on disk is a broken install, and showing the
         // requested language with keys as placeholders beats refusing to start.
         if (!fallback_error.ok) {
-            nya_warn("Could not read the base locale '%s' as a fallback; missing keys will show their names.", NYA_I18N_BASE_LOCALE);
+            nya_log_warn("Could not read the base locale '%s' as a fallback; missing keys will show their names.", NYA_I18N_BASE_LOCALE);
             fallback = nullptr;
         }
     }
@@ -405,7 +405,7 @@ void _nya_i18n_rearm(void) {
 
         system->next_recovery_ns = now_ns + _NYA_ASSET_STAT_INTERVAL_NS;
 
-        nya_debug("Re-arming the locale asset '%s' after a failed load.", handles[i]);
+        nya_log_debug("Re-arming the locale asset '%s' after a failed load.", handles[i]);
 
         (void)nya_asset_unload(handles[i]);
         (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = handles[i] });

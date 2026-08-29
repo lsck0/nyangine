@@ -427,7 +427,7 @@ void _nya_nn_dqn_build_sequential(NYA_NNDQN* dqn, NYA_NNSequential* sequential) 
                 break;
 
             default:
-                nya_panic("unsupported DQN layer kind %d", (int)layer.kind);
+                nya_log_panic("unsupported DQN layer kind %d", (int)layer.kind);
         }
     }
 

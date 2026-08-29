@@ -27,14 +27,11 @@ nya_derive_array(SDL_ThreadPtr);
 typedef int (*NYA_JobFn)(NYA_Job* job);
 
 /**
- * Jobs that can be running at once, ever — the size of the pool their records live in.
+ * Jobs that can be running at once, ever — the pool size for their records.
  *
- * A ceiling rather than the configured limit: NYA_AppOptions.max_concurrent_jobs can be changed
- * while the app runs, and the pool cannot be resized without moving records that live threads hold
- * pointers into. 256 covers every value a u8 field can take, and the scheduler clamps to it anyway
- * so a wider field later degrades to a lower limit rather than to memory corruption.
- *
- * Costs sizeof(NYA_Job) × 256 in the app singleton, which is tens of kilobytes once.
+ * A ceiling, not NYA_AppOptions.max_concurrent_jobs: live threads hold pointers into these records,
+ * so the pool can't be resized at runtime. 256 covers every u8 value; costs tens of kilobytes once,
+ * in the app singleton.
  * */
 #define _NYA_JOB_MAX_ACTIVE 256
 
@@ -83,15 +80,11 @@ struct NYA_JobSystem {
     /**
      * Running jobs, in storage that never moves.
      *
-     * A job thread is handed the address of its own entry and dereferences it for as long as it
-     * runs, so an entry has to outlive the thread and must never be relocated. This used to be a
-     * growable array compacted with nya_array_remove on every eviction — a memmove that shifted
-     * every still-running job's record down by one and handed live threads somebody else's job,
-     * and that could also reallocate out from under them. A fixed pool has neither problem: a slot
-     * is written before its thread starts and released only once that thread is no longer running.
-     *
-     * Sized to the ceiling of NYA_AppOptions.max_concurrent_jobs rather than to its current value,
-     * so raising the limit at runtime cannot outgrow it. The scheduler clamps to this regardless.
+     * A job thread holds the address of its own entry for as long as it runs, so it must never be
+     * relocated — this used to be a growable array compacted with nya_array_remove, and a memmove
+     * during eviction could hand a live thread somebody else's job or reallocate out from under it.
+     * A fixed pool avoids both: a slot is written before its thread starts, freed once it's done, and
+     * sized to the ceiling of NYA_AppOptions.max_concurrent_jobs so raising the limit can't outgrow it.
      * */
     NYA_Job job_slots[_NYA_JOB_MAX_ACTIVE];
 
@@ -104,14 +97,10 @@ struct NYA_JobSystem {
     /**
      * Where the next handle comes from. Guarded by job_queue_mutex, alongside the push it names.
      *
-     * A counter rather than a hash of the job, which is what this used to be. Two jobs with the same
-     * function and the same arguments hash identically, so a batch of identical work — the normal
-     * case, and exactly what a parallel for loop submits — all shared one handle. Waiting on any of
-     * them then returned as soon as the *first* finished, because that is all nya_job_is_done can
-     * see. Hashing the struct also read its padding, so the handle was not reliably stable anyway.
-     *
-     * Left at zero by init so the first handle is one, which keeps a zeroed NYA_JobHandle meaning
-     * "no job" rather than naming the first one submitted.
+     * A counter, not a hash of the job as this used to be: identical jobs (e.g. a parallel-for batch)
+     * hashed identically and shared one handle, so waiting on any of them returned as soon as the
+     * *first* finished — and hashing the struct also read its padding, so it wasn't reliably stable
+     * anyway. Left at zero by init so the first handle is one, keeping a zeroed NYA_JobHandle "no job".
      * */
     NYA_JobHandle next_job_handle;
 
@@ -120,12 +109,10 @@ struct NYA_JobSystem {
     /**
      * Told to the scheduler thread by whoever calls nya_system_job_deinit.
      *
-     * Atomic because it is read in the scheduler's loop condition and written from another thread.
-     * As a plain b8 that is a data race, and not a harmless one: nothing in the loop body forces a
-     * reload, so the compiler may hoist the load and turn the condition into `while (true)`, leaving
-     * deinit blocked in SDL_WaitThread forever. It survived only because SDL_Delay is opaque enough
-     * to defeat the hoist, which is luck rather than a guarantee — and release builds are built with
-     * -flto, where more of the program is visible at once.
+     * Atomic because it's read in the scheduler's loop and written from another thread. As a plain b8
+     * this is a data race: nothing forces a reload, so the compiler may hoist the load into `while
+     * (true)`, leaving deinit blocked in SDL_WaitThread forever. It survived only because SDL_Delay is
+     * opaque enough to defeat the hoist — luck, not a guarantee — and release builds use -flto.
      * */
     atomic b8 scheduler_should_exit;
 };

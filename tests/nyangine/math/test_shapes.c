@@ -241,7 +241,7 @@ s32 main(void) {
     nya_assert(!nya_circle_overlaps_rect(circle, (NYA_Rectf){ 0 }), "nothing overlaps an empty rectangle");
   }
 
-  nya_info("PASSED: test_shapes (0 failures)");
+  nya_log_info("PASSED: test_shapes (0 failures)");
 
   return EXIT_SUCCESS;
 }

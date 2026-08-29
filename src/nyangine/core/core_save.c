@@ -51,7 +51,7 @@ NYA_Error nya_system_save_init(void) {
         // is a worse answer than running without saves.
         u8 message[256];
         (void)nya_error_format(&error, message, sizeof(message));
-        nya_warn("No user data directory is available, so nothing can be saved: %s", (NYA_CString)message);
+        nya_log_warn("No user data directory is available, so nothing can be saved: %s", (NYA_CString)message);
 
         return error;
     }
@@ -62,14 +62,14 @@ NYA_Error nya_system_save_init(void) {
     if (!error.ok) {
         u8 message[256];
         (void)nya_error_format(&error, message, sizeof(message));
-        nya_warn("Could not create the save directory '%s', so nothing can be saved: %s", root_cstring, (NYA_CString)message);
+        nya_log_warn("Could not create the save directory '%s', so nothing can be saved: %s", root_cstring, (NYA_CString)message);
 
         return error;
     }
 
     system->root = root_cstring;
 
-    nya_info("Save system initialized at '%s'.", system->root);
+    nya_log_info("Save system initialized at '%s'.", system->root);
 
     return NYA_OK;
 }
@@ -81,7 +81,7 @@ void nya_system_save_deinit(void) {
 
     *system = (NYA_SaveSystem){ 0 };
 
-    nya_info("Save system deinitialized.");
+    nya_log_info("Save system deinitialized.");
 }
 
 /*

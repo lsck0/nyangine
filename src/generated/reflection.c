@@ -33,6 +33,38 @@ const NYA_TypeReflection _NYA_REFLECT_f32x2 = { .name = "f32x2", .kind = NYA_REF
 const NYA_TypeReflection _NYA_REFLECT_f32x3 = { .name = "f32x3", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x3), .alignment = alignof(f32x3), .element = &_NYA_REFLECT_f32, .element_count = 3 };
 const NYA_TypeReflection _NYA_REFLECT_f32x4 = { .name = "f32x4", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x4), .alignment = alignof(f32x4), .element = &_NYA_REFLECT_f32, .element_count = 4 };
 
+/* GNY_ConfigGame — src/gnyame/config.h */
+
+static const NYA_ReflectField _NYA_REFLECT_GNY_ConfigGame_FIELDS[] = {
+    { .name = "player_speed", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, player_speed), .hint = NYA_HINT_NONE },
+    { .name = "player_spawn_spacing", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, player_spawn_spacing), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame = {
+    .name = "GNY_ConfigGame",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(GNY_ConfigGame),
+    .alignment = alignof(GNY_ConfigGame),
+    .fields = _NYA_REFLECT_GNY_ConfigGame_FIELDS,
+    .field_count = 2,
+};
+
+/* GNY_Config — src/gnyame/config.h */
+
+static const NYA_ReflectField _NYA_REFLECT_GNY_Config_FIELDS[] = {
+    { .name = "engine", .type = &_NYA_REFLECT_NYA_ConfigEngine, .offset = nya_offsetof(GNY_Config, engine), .hint = NYA_HINT_NONE },
+    { .name = "game", .type = &_NYA_REFLECT_GNY_ConfigGame, .offset = nya_offsetof(GNY_Config, game), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_GNY_Config = {
+    .name = "GNY_Config",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(GNY_Config),
+    .alignment = alignof(GNY_Config),
+    .fields = _NYA_REFLECT_GNY_Config_FIELDS,
+    .field_count = 2,
+};
+
 /* GNY_EntityKind — src/gnyame/entities/entities.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_GNY_EntityKind_VARIANTS[] = {
@@ -42,6 +74,7 @@ static const NYA_ReflectVariant _NYA_REFLECT_GNY_EntityKind_VARIANTS[] = {
     { .name = "GNY_ENTITY_CAMERA", .value = (s64)(GNY_ENTITY_CAMERA) },
     { .name = "GNY_ENTITY_CUBE3D", .value = (s64)(GNY_ENTITY_CUBE3D) },
     { .name = "GNY_ENTITY_TILEMAP", .value = (s64)(GNY_ENTITY_TILEMAP) },
+    { .name = "GNY_ENTITY_LEDGE", .value = (s64)(GNY_ENTITY_LEDGE) },
     { .name = "GNY_ENTITY_PLAYER", .value = (s64)(GNY_ENTITY_PLAYER) },
     { .name = "GNY_ENTITY_KIND_COUNT", .value = (s64)(GNY_ENTITY_KIND_COUNT) },
 };
@@ -56,7 +89,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_EntityKind = {
                 : sizeof(GNY_EntityKind) == 1 ? NYA_TYPE_S8
                                   : NYA_TYPE_S32),
     .variants = _NYA_REFLECT_GNY_EntityKind_VARIANTS,
-    .variant_count = 8,
+    .variant_count = 9,
     .is_bitflags = false,
 };
 
@@ -83,6 +116,55 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_EntityFlags = {
     .variants = _NYA_REFLECT_GNY_EntityFlags_VARIANTS,
     .variant_count = 6,
     .is_bitflags = true,
+};
+
+/* NYA_ConfigEngineRenderer — src/nyangine/core/core_config.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
+    { .name = "shadow_bias", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_bias), .hint = NYA_HINT_NONE },
+    { .name = "shadow_cascades", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_cascades), .hint = NYA_HINT_NONE },
+    { .name = "shadow_map_size", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_map_size), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
+    .name = "NYA_ConfigEngineRenderer",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_ConfigEngineRenderer),
+    .alignment = alignof(NYA_ConfigEngineRenderer),
+    .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
+    .field_count = 3,
+};
+
+/* NYA_ConfigEnginePhysics — src/nyangine/core/core_config.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEnginePhysics_FIELDS[] = {
+    { .name = "gravity", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_ConfigEnginePhysics, gravity), .hint = NYA_HINT_NONE },
+    { .name = "sub_steps", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_ConfigEnginePhysics, sub_steps), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEnginePhysics = {
+    .name = "NYA_ConfigEnginePhysics",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_ConfigEnginePhysics),
+    .alignment = alignof(NYA_ConfigEnginePhysics),
+    .fields = _NYA_REFLECT_NYA_ConfigEnginePhysics_FIELDS,
+    .field_count = 2,
+};
+
+/* NYA_ConfigEngine — src/nyangine/core/core_config.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngine_FIELDS[] = {
+    { .name = "renderer", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer, .offset = nya_offsetof(NYA_ConfigEngine, renderer), .hint = NYA_HINT_NONE },
+    { .name = "physics", .type = &_NYA_REFLECT_NYA_ConfigEnginePhysics, .offset = nya_offsetof(NYA_ConfigEngine, physics), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
+    .name = "NYA_ConfigEngine",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_ConfigEngine),
+    .alignment = alignof(NYA_ConfigEngine),
+    .fields = _NYA_REFLECT_NYA_ConfigEngine_FIELDS,
+    .field_count = 2,
 };
 
 /* NYA_NetChatMessage — src/nyangine/net/net_chat.h */
@@ -153,8 +235,13 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Color = {
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
+    &_NYA_REFLECT_GNY_ConfigGame,
+    &_NYA_REFLECT_GNY_Config,
     &_NYA_REFLECT_GNY_EntityKind,
     &_NYA_REFLECT_GNY_EntityFlags,
+    &_NYA_REFLECT_NYA_ConfigEngineRenderer,
+    &_NYA_REFLECT_NYA_ConfigEnginePhysics,
+    &_NYA_REFLECT_NYA_ConfigEngine,
     &_NYA_REFLECT_NYA_NetChatMessage,
     &_NYA_REFLECT_NYA_NetPeerId,
     &_NYA_REFLECT_NYA_Color,

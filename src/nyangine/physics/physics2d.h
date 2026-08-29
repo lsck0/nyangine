@@ -3,10 +3,9 @@
  *
  * 2D rigid body physics, as a property an entity can have.
  *
- * Box2D v3 owns the simulation; this owns exactly one world and the mapping between it and the
- * entity table. A body is attached to an entity rather than created on its own, so there is no
- * second identity to keep in step — the entity's handle is the body's handle, and despawning the
- * entity destroys the body.
+ * Box2D v3 owns the simulation; this owns one world and the mapping to the entity table. A body
+ * attaches to an entity rather than existing on its own — **the entity's handle is the body's handle,
+ * so there is no second identity to keep in step**, and despawning the entity destroys the body.
  *
  * ```c
  * NYA_EntityHandle crate = nya_entity_spawn(.name = "crate", .position = { 200, 0, 0 });
@@ -17,26 +16,14 @@
  * nya_render2d_rect_rotated(window, entity->position.xy, entity->physics2d.size, angle, colour);
  * ```
  *
- * ## Units, and the two of them
+ * Everything here is world units (pixels, y down). Box2D is metric and tuned for bodies of roughly 0.1
+ * to 10 metres, so a pixel-sized body simulated directly jitters and sleeps wrong — conversion happens
+ * at **exactly one seam**, nya_physics2d_pixels_per_meter, and nowhere else. Gravity defaults to
+ * positive y and positive rotation is clockwise, matching NYA_Render2DTexture.rotation.
  *
- * Everything in this API is in **world units**, which is what an entity transform is in and what
- * the renderer draws in — pixels, y down, positive y toward the bottom of the screen. Box2D is
- * metric and is tuned for bodies between roughly 0.1 and 10 metres, which a pixel sized body is
- * emphatically not: solver tolerances are absolute, so a 32 unit crate simulated as 32 metres
- * jitters and sleeps wrong. Conversion happens at this boundary and nowhere else, through
- * nya_physics2d_pixels_per_meter.
- *
- * The y axis points **down** here and up in most Box2D material, which costs nothing: Box2D has no
- * opinion about which way is up, it only integrates the gravity vector it is given. So the default
- * gravity is positive y, and a positive rotation reads as clockwise on screen — the same sense
- * NYA_Render2DTexture.rotation already uses.
- *
- * ## The step is the engine's, not the game's
- *
- * nya_system_physics2d_update runs once per fixed tick, from the same loop that updates entities, and
- * writes each body's transform back onto its entity before any callback runs. A game therefore
- * never steps the world and never reads a b2BodyId; it reads `entity->position` like it would for
- * anything else, and an entity with a body simply stops integrating its own velocity.
+ * nya_system_physics2d_update steps once per fixed tick and writes each body's transform onto its
+ * entity before any callback runs, so a game never steps the world or touches a b2BodyId — and an
+ * entity with a body stops integrating its own velocity.
  * */
 #pragma once
 
@@ -61,13 +48,9 @@ typedef struct NYA_Entity NYA_Entity;
 /**
  * World units per metre, the scale the whole module converts through.
  *
- * Pick it so that the things in the game land in the range Box2D's solver is tuned for: a character
- * around one to two metres, a crate around half of one. At the default a 32x32 pixel crate is a
- * one metre crate, which is exactly right.
- *
- * Changeable at runtime through nya_physics2d_pixels_per_meter_set, but only sensibly before anything
- * is created — existing bodies keep the size they were built at and would silently change scale
- * relative to their entities.
+ * At the default, a 32x32 pixel crate is a one metre crate — the range Box2D's solver is tuned
+ * for. Change only via nya_physics2d_pixels_per_meter_set before anything is created; existing
+ * bodies keep the size they were built at.
  * */
 #ifndef NYA_PHYSICS2D_PIXELS_PER_METER
 #define NYA_PHYSICS2D_PIXELS_PER_METER 32.0F
@@ -87,9 +70,8 @@ typedef struct NYA_Entity NYA_Entity;
 /**
  * Most points one chain shape may be given.
  *
- * The points are converted to metres into a stack buffer of this size before they are handed over,
- * because the caller's array is in world units and Box2D copies what it is given. Terrain longer
- * than this is more than one chain, which is what a chunked world would want anyway.
+ * Points are converted to metres into a stack buffer of this size before being handed to Box2D.
+ * Terrain longer than this is more than one chain, which is what a chunked world would want anyway.
  * */
 #ifndef NYA_PHYSICS2D_CHAIN_MAX_POINTS
 #define NYA_PHYSICS2D_CHAIN_MAX_POINTS 1024
@@ -99,8 +81,7 @@ typedef struct NYA_Entity NYA_Entity;
  * Contacts inspected when answering nya_physics2d_grounded.
  *
  * A stack buffer, so this is the whole cost of the call. A body resting on terrain has one or two;
- * anything with more than sixteen is wedged in a crevice and the seventeenth will not change the
- * answer.
+ * more than sixteen means it is wedged in a crevice.
  * */
 #ifndef NYA_PHYSICS2D_MAX_CONTACTS_PER_BODY
 #define NYA_PHYSICS2D_MAX_CONTACTS_PER_BODY 16
@@ -121,11 +102,11 @@ typedef struct NYA_Entity NYA_Entity;
 #define NYA_PHYSICS2D_GRAVITY_DEFAULT ((f32x2){ 0.0F, 9.81F * NYA_PHYSICS2D_PIXELS_PER_METER })
 
 /**
- * Hits kept per step. Anything past this is dropped, oldest first in the sense that it is never copied.
+ * Hits kept per step. Anything past this is dropped, and overflow is logged once per step rather
+ * than silently truncated.
  *
  * A ceiling rather than a growable buffer, because this is per tick data with a hard deadline: a
- * pile collapsing produces a burst of contacts and there are only so many an audio or damage
- * response can do anything with. Overflow is logged once per step rather than silently truncating.
+ * pile collapsing produces a burst of contacts more than an audio or damage response can use.
  * */
 #ifndef NYA_PHYSICS2D_MAX_HITS
 #define NYA_PHYSICS2D_MAX_HITS 256
@@ -134,9 +115,9 @@ typedef struct NYA_Entity NYA_Entity;
 /**
  * How fast two things have to be closing before a contact counts as a hit, in world units per second.
  *
- * The whole point of the hit list: every resting crate generates contacts every step, and almost
- * none of them are events. At the default scale this is about four metres per second, which is a
- * body that has fallen roughly a metre — audible as an impact rather than as a settle.
+ * Filters out settle noise: every resting crate generates contacts every step, and almost none are
+ * events. At the default scale this is about four metres per second, which is a body that has
+ * fallen roughly a metre — audible as an impact rather than a settle.
  * */
 #ifndef NYA_PHYSICS2D_HIT_THRESHOLD
 #define NYA_PHYSICS2D_HIT_THRESHOLD (4.0F * NYA_PHYSICS2D_PIXELS_PER_METER)
@@ -159,6 +140,25 @@ typedef struct NYA_Physics2DSystem      NYA_Physics2DSystem;
  * on_collision that both solvers deliver to — see that file for why the hit is one type with a
  * dimension tag rather than two types.
  */
+
+/**
+ * Which way a surface admits contacts. See nya_physics2d_one_way_set.
+ *
+ * The direction is the one a body may **pass through from**, so a floor you jump up through and land
+ * back down on is `UP`: something moving up relative to it goes through, something moving down is
+ * stopped. Screen axes, so `UP` is toward negative y.
+ * */
+typedef enum NYA_Physics2DOneWay {
+    /** Solid from every direction. The default. */
+    NYA_PHYSICS2D_ONE_WAY_NONE = 0,
+
+    NYA_PHYSICS2D_ONE_WAY_UP,
+    NYA_PHYSICS2D_ONE_WAY_DOWN,
+    NYA_PHYSICS2D_ONE_WAY_LEFT,
+    NYA_PHYSICS2D_ONE_WAY_RIGHT,
+
+    NYA_PHYSICS2D_ONE_WAY_COUNT,
+} NYA_Physics2DOneWay;
 
 enum NYA_Physics2DShape {
     /** An axis aligned box in the body's own frame, `size` being its full width and height. */
@@ -191,7 +191,7 @@ struct NYA_Physics2DSystem {
     b2WorldId world;
 
     /**
-     * False between deinit and the next init, and what every entry point checks first.
+     * False between deinit and the next init; every entry point checks this first.
      *
      * Teardown destroys the world and every body in it at once, and entity teardown runs afterwards
      * and detaches bodies one at a time. Without this the second pass would hand freed ids back to
@@ -209,6 +209,30 @@ struct NYA_Physics2DSystem {
     /** Bodies currently attached to an entity. */
     u32 body_count;
 
+    /**
+     * Box2D's contact recycle distance, as it was at init, in **metres**.
+     *
+     * Kept so it can be restored: it is set to zero while a drop-through is in flight and put back
+     * afterwards. See `contact_recycling_suspended`.
+     * */
+    f32 contact_recycle_distance;
+
+    /**
+     * Whether contact recycling is currently switched off.
+     *
+     * ⚠ **This exists because Box2D skips the pre-solve callback for a contact that has not moved.**
+     * `b2UpdateContact` is where pre-solve is invoked, and the step loop `continue`s past it entirely
+     * when both bodies are within the recycle distance of where they were — which is every step for
+     * something resting on a platform. So a body standing still on a one-way surface never gets its
+     * contact re-examined, and "let me through" is never heard.
+     *
+     * Recycling is therefore suspended for as long as any body has an open drop-through window, and
+     * restored the moment none does. Correctness is unaffected either way — it is purely a solver
+     * optimisation — and the cost is paid for the fraction of a second a drop takes rather than
+     * always.
+     * */
+    b8 contact_recycling_suspended;
+
     /** Seconds the last step spent inside Box2D. For an overlay, and for noticing a stack that costs. */
     f32 last_step_time_s;
 
@@ -217,17 +241,14 @@ struct NYA_Physics2DSystem {
      *
      * Not the simulation tick: that only advances in the application's own update loop, so anything
      * keyed on it goes stale the moment the solver is stepped by something else — a test, a tool, a
-     * rewind. This counts the thing it is actually measuring.
+     * rewind.
      * */
     u64 step_count;
 
     /*
-     * ── Hits from the last step ──
-     *
-     * Copied out of Box2D's transient event buffer rather than pointed at, and converted to world
-     * units and entity handles on the way. Upstream's buffer is only valid until the next step and
-     * speaks in metres and shape ids, neither of which anything outside this file should have to
-     * know about.
+     * Hits from the last step. Copied out of Box2D's transient event buffer rather than pointed at,
+     * and converted to world units and entity handles on the way — upstream's buffer is only valid
+     * until the next step and speaks in metres and shape ids.
      */
     NYA_PhysicsHit hits[NYA_PHYSICS2D_MAX_HITS];
     u32            hit_count;
@@ -245,9 +266,9 @@ struct NYA_Physics2DSystem {
 /**
  * What an entity carries when it is simulated. Zeroed, and `attached` false, when it is not.
  *
- * The dimensions are kept alongside the id because they are what a renderer needs and Box2D does
- * not hand them back in the form they went in as — reading a box's extents means walking its shape
- * list and inspecting a polygon's vertices, per frame, to recover a number the caller already had.
+ * The dimensions are kept alongside the id because Box2D does not hand them back in the form they
+ * went in as — reading a box's extents means walking its shape list and inspecting a polygon's
+ * vertices, per frame, to recover a number the caller already had.
  * */
 struct NYA_Physics2DBody {
     b2BodyId id;
@@ -267,12 +288,10 @@ struct NYA_Physics2DBody {
     b8 attached;
 
     /*
-     * ── Cached grounded state ──
-     *
-     * Answering "is this standing on something" means asking Box2D for the body's contacts and
-     * looking at their normals, which is far too much to do per body per frame for a world of
-     * hundreds — and far too little to bother precomputing for the handful anyone actually asks
-     * about. So it is computed on demand and remembered for the tick it was computed in.
+     * Cached grounded state: asking Box2D for a body's contacts and checking their normals is too
+     * much to do per body per frame for a world of hundreds, and too little to bother precomputing
+     * for the handful anyone actually asks about — so it is computed on demand and remembered for
+     * the tick it was computed in.
      */
 
     b8 grounded;
@@ -280,10 +299,21 @@ struct NYA_Physics2DBody {
     /**
      * The step `grounded` was computed on, plus one. Zero means "never computed".
      *
-     * Plus one so that a zeroed NYA_Physics2DBody — which is what a detached one is — cannot look like
-     * a valid answer for step zero.
+     * Plus one so that a zeroed (detached) NYA_Physics2DBody cannot look like a valid answer for
+     * step zero.
      * */
     u64 grounded_step;
+
+    /** Which way this surface lets bodies through, if any. See nya_physics2d_one_way_set. */
+    NYA_Physics2DOneWay one_way;
+
+    /**
+     * Seconds left in which this body ignores every one-way surface. See nya_physics2d_drop_through.
+     *
+     * On the body that *falls*, not on the platform: "let go of this floor" is a decision the thing
+     * standing on it makes, and it has to hold across the frames the fall takes.
+     * */
+    f32 drop_through_s;
 };
 
 /**
@@ -333,12 +363,14 @@ struct NYA_Physics2DBodyOptions {
     /** Stops the body from turning, without giving it infinite inertia. What a character wants. */
     b8 lock_rotation;
 
+    /** Makes this a one-way surface at creation. Same meaning as nya_physics2d_one_way_set. */
+    NYA_Physics2DOneWay one_way;
+
     /**
      * Collides and reports, but never resolves. A trigger volume.
      *
-     * What a pickup is. The overlap arrives as an NYA_PHYSICS_HIT_SENSOR_ENTER through the same
-     * on_collision the impacts come through, so a coin is an ordinary entity with an ordinary
-     * callback:
+     * The overlap arrives as NYA_PHYSICS_HIT_SENSOR_ENTER through the same on_collision impacts use, so
+     * a coin is an ordinary entity with an ordinary callback:
      *
      * ```c
      * void coin_on_collision(NYA_Entity* coin, NYA_Entity* other, const NYA_PhysicsHit* hit) {
@@ -350,10 +382,9 @@ struct NYA_Physics2DBodyOptions {
      * }
      * ```
      *
-     * Nothing has to be done to the *other* body for this to work: every shape this API creates
-     * enables sensor events, so anything can be seen by a sensor. Box2D's own default is off on both
-     * sides, which is a footgun — a coin with `is_sensor` set and a player without would produce no
-     * events at all, and look exactly like a coin that was never reached.
+     * ⚠ Every shape this API creates enables sensor events on **both** sides, unlike Box2D's default of
+     * off on both — a coin with `is_sensor` and a player without would produce no events at all, and
+     * look exactly like a coin that was never reached.
      * */
     b8 is_sensor;
 
@@ -371,7 +402,7 @@ struct NYA_Physics2DBodyOptions {
      * not. Silencing an impact entirely means both bodies setting this.
      *
      * Reported by default, because an empty hit list with no way to tell why is a bad afternoon.
-     * Set it for the bodies whose impacts nothing reacts to — debris, decoration — since the
+     * Set it for bodies whose impacts nothing reacts to — debris, decoration — since the
      * measurement is not free.
      * */
     b8 ignore_hits;
@@ -401,8 +432,8 @@ NYA_API void nya_system_physics2d_deinit(void);
  * Steps the world once and writes every body's transform onto its entity.
  *
  * Called from the fixed timestep loop with the fixed step, which is the only thing Box2D's solver
- * is stable under; handing it a variable frame time makes a stack of crates behave differently at
- * different frame rates. A game does not call this.
+ * is stable under; a variable frame time makes a stack of crates behave differently at different
+ * frame rates. A game does not call this.
  * */
 NYA_API void nya_system_physics2d_update(f32 delta_time_s);
 
@@ -506,8 +537,8 @@ NYA_API f32 nya_physics2d_rotation(const NYA_Entity* entity) __attr_no_discard;
 /**
  * Whether the body is resting on something that could hold it up.
  *
- * True when any contact's normal points up within NYA_PHYSICS2D_GROUND_NORMAL_MIN — so a crate on flat
- * terrain is grounded, one wedged against a vertical wall is not, and one in mid air is not.
+ * True when any contact's normal points up within NYA_PHYSICS2D_GROUND_NORMAL_MIN — so a crate on
+ * flat terrain is grounded, one wedged against a vertical wall is not, and one in mid air is not.
  *
  * Computed on first ask each tick and remembered until the next one, so calling it repeatedly in a
  * frame costs one contact query rather than one per call. A sleeping body keeps whatever it last
@@ -524,16 +555,69 @@ NYA_API void nya_physics2d_wake(NYA_Entity* entity);
 
 /*
  * ─────────────────────────────────────────────────────────
+ * ONE-WAY SURFACES
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * Makes this body's surface passable from one direction.
+ *
+ * ```c
+ * // A ledge you jump up through and then stand on.
+ * nya_physics2d_body_attach(ledge, (NYA_Physics2DBodyOptions){
+ *     .type = NYA_PHYSICS_BODY_STATIC, .size = { 96, 8 }, .one_way = NYA_PHYSICS2D_ONE_WAY_UP,
+ * });
+ *
+ * // Down on the stick, and the player falls off it.
+ * if (nya_input_action_just_pressed("crouch")) nya_physics2d_drop_through(player, 0.25F);
+ * ```
+ *
+ * **How the decision is made.** Box2D offers a pre-solve callback, which runs after a contact has
+ * been found and before it is solved, and returning false from it discards that contact for the
+ * step. A contact is discarded when the *other* body is moving through the surface the passable way,
+ * which is tested by the sign of its velocity along the contact normal rather than by where it is:
+ * position tests need a skin thickness, and a character resting exactly on the surface then flickers
+ * between solid and not.
+ *
+ * ⚠ **Velocity-based means a body that has already stopped inside the surface stays inside it.**
+ * Nothing pushes it out — a one-way surface has no interior to expel from. In practice this is what
+ * is wanted: something that gets there was moving the passable way, and it goes on through.
+ *
+ * ⚠ **The callback runs inside `b2World_Step`.** It reads body user data and the body's velocity and
+ * writes nothing, which is what makes it safe; this world is stepped single-threaded (the enqueue
+ * hooks in `nya_system_physics2d_init` are deliberately left unset), so it is not a threading
+ * question today, and anything added to it must stay read-only if that changes.
+ * */
+NYA_API void nya_physics2d_one_way_set(NYA_Entity* entity, NYA_Physics2DOneWay direction);
+
+/** Which way this body lets bodies through. NONE for a solid one, or for an entity with no body. */
+NYA_API NYA_Physics2DOneWay nya_physics2d_one_way(const NYA_Entity* entity) __attr_no_discard;
+
+/**
+ * Lets this body fall through every one-way surface for `seconds`.
+ *
+ * On the falling body rather than on the platform, because "let go" is the standing thing's decision
+ * and it has to hold for the frames the fall takes — a single-frame flag is consumed before the body
+ * has moved far enough to clear the surface, and it lands straight back on it.
+ *
+ * A quarter of a second is a good default: long enough to clear a thin ledge, short enough not to
+ * fall through the next one down. Counted down by the fixed step, so it is frame-rate independent.
+ * Calling it again replaces the remaining time rather than adding to it.
+ * */
+NYA_API void nya_physics2d_drop_through(NYA_Entity* entity, f32 seconds);
+
+/*
+ * ─────────────────────────────────────────────────────────
  * HITS
  * ─────────────────────────────────────────────────────────
  */
 
 /**
- * The hits from the step just taken, and how many there are — impacts and sensor overlaps together.
+ * The hits from the step just taken — impacts and sensor overlaps together.
  *
- * One list rather than two, because everything downstream of it wants the same thing: walk what
- * happened this tick and react. Filter on `kind`; the example below does, and code that does not
- * will find itself playing an impact sound at zero gain every time something walks into a trigger.
+ * One list rather than two, because everything downstream wants the same thing: walk what happened this
+ * tick and react. ⚠ Filter on `kind`, or you will play an impact sound at zero gain every time
+ * something walks into a trigger.
  *
  * ```c
  * void layer_on_update(NYA_Window* window, f32 delta_time_s) {
@@ -549,10 +633,8 @@ NYA_API void nya_physics2d_wake(NYA_Entity* entity);
  * }
  * ```
  *
- * **Read it during the tick that produced it.** The list is refilled by the next
- * nya_system_physics2d_update, which runs at the top of every tick — so a layer's on_update and an
- * entity's on_update both see the current one, and anything that stashes the pointer across a frame
- * is reading the next tick's contacts. Copy what has to outlive the tick.
+ * ⚠ **Read it during the tick that produced it.** The list is refilled at the top of every tick, so a
+ * stashed pointer reads the *next* tick's contacts. Copy what has to outlive the tick.
  *
  * Never null; `count` is zero on a quiet tick and on a paused world.
  * */
@@ -580,4 +662,16 @@ NYA_API f32  nya_physics2d_hit_threshold(void) __attr_no_discard;
  * first, which is stable within a frame and not otherwise ordered — for a picker that has to be
  * exact, walk the candidates yourself.
  * */
+/**
+ * The nearest body along `origin + direction`, or NYA_ENTITY_HANDLE_NONE.
+ *
+ * `direction` carries the length: this casts to the end of that vector, not infinitely along it, which
+ * is what a ground probe or a line of sight actually wants.
+ *
+ * The normal comes back unit and in world orientation; the point comes back in world units. Either
+ * out-parameter may be null.
+ * */
+NYA_API NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, OUT f32x2* out_point, OUT f32x2* out_normal)
+    __attr_no_discard;
+
 NYA_API NYA_EntityHandle nya_physics2d_entity_at(f32x2 point) __attr_no_discard;

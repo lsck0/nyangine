@@ -254,6 +254,17 @@ struct NYA_ParticleSystem {
      * */
     NYA_ConstCString texture;
 
+    /**
+     * Whether a 3D system's billboards contribute to the shadow map. Off by default.
+     *
+     * The shadow pass has no idea what alpha is — it writes full depth for anything drawn into it, so a
+     * translucent billboard would cast a hard-edged, fully opaque square rather than the soft puff it
+     * draws as everywhere else. Additive systems (fire, sparks) never had this problem, since light does
+     * not cast a shadow and additive geometry already skips the pass entirely; ordinary alpha-blended
+     * systems — smoke, dust — need to opt in explicitly instead, via nya_particles_casts_shadow_set.
+     * */
+    b8 casts_shadow;
+
     NYA_ParticleUpdateFn on_update;
     void*                on_update_user_data;
 
@@ -290,6 +301,9 @@ NYA_API void nya_particles_space_set(NYA_ParticleSystem* system, NYA_ParticleSpa
 
 /** The texture every particle draws with, or null for solid quads. See NYA_ParticleSystem.texture. */
 NYA_API void nya_particles_texture_set(NYA_ParticleSystem* system, NYA_ConstCString texture);
+
+/** Opts a 3D system into casting a (solid) shadow. See NYA_ParticleSystem.casts_shadow. */
+NYA_API void nya_particles_casts_shadow_set(NYA_ParticleSystem* system, b8 casts_shadow);
 
 /** Installs the per particle callback. Null removes it. */
 NYA_API void nya_particles_on_update_set(NYA_ParticleSystem* system, NYA_ParticleUpdateFn on_update, void* user_data);

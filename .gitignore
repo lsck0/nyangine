@@ -1,5 +1,8 @@
-# assets
-assets/assets.c
+# generated
+#
+# The asset index and the string table are committed so a fresh clone builds. The blob is not:
+# it is the whole asset tree as a byte array.
+src/generated/assets.c
 assets/icon/icon.res
 assets/shader/compiled/
 
@@ -53,3 +56,10 @@ docs/doxygen/
 
 # Coverage profiles and merged data from `./build run coverage`.
 .coverage/
+
+# Daily log files written by nya_log_directory_open, pruned to NYA_LOG_RETENTION_DAYS.
+/logs/
+
+# Benchmark binaries, built next to their source by `./build run bench`.
+bench/*
+!bench/*.c

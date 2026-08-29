@@ -11,7 +11,7 @@
  * Three real event types were missing: NYA_EVENT_JOB_STARTED, NYA_EVENT_JOB_COMPLETED and
  * NYA_EVENT_ASSET_LOAD_FAILED. core_event.c's dispatch does
  *
- *     nya_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type]);
+ *     nya_log_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type]);
  *
  * on every single dispatch, so dispatching any of those three passed a null pointer to a %s
  * conversion. That is undefined behaviour; glibc happens to print "(null)" instead of faulting,

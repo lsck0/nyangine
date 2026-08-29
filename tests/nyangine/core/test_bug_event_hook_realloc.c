@@ -84,6 +84,6 @@ s32 main(void) {
   nya_system_callback_deinit();
   SDL_Quit();
 
-  nya_info("PASSED: growing the hook array during dispatch does not strand the walk");
+  nya_log_info("PASSED: growing the hook array during dispatch does not strand the walk");
   return 0;
 }

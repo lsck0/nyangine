@@ -245,7 +245,7 @@ void _nya_sql_register_extensions(void) {
             // Not fatal, and deliberately not an error return. The database still opens and every
             // statement that does not reach for these functions still works; what breaks is the
             // subset of queries that use them, and those fail with SQLite's own "no such function".
-            nya_warn("could not register the %s sqlite extensions (code %d)", extensions[i].name, code);
+            nya_log_warn("could not register the %s sqlite extensions (code %d)", extensions[i].name, code);
         }
     }
 }

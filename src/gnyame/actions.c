@@ -54,6 +54,7 @@ NYA_INTERNAL const GNY_ActionDefault _GNY_ACTION_DEFAULTS[] = {
     { .action = GNY_ACTION_TOGGLE_BLOOM,         .name = "toggle_bloom",         .primary = NYA_KEY_B     },
     { .action = GNY_ACTION_TOGGLE_MUSIC,         .name = "toggle_music",         .primary = NYA_KEY_M     },
     { .action = GNY_ACTION_TOGGLE_TRACE,         .name = "toggle_trace",         .primary = NYA_KEY_T     },
+    { .action = GNY_ACTION_DROP_THROUGH,         .name = "drop_through",         .primary = NYA_KEY_G     },
 };
 
 /*
@@ -91,7 +92,7 @@ void gny_actions_init(void) {
     if (!loaded.ok && loaded.kind != NYA_ERROR_NOT_FOUND) {
         u8 message[256];
         (void)nya_error_format(&loaded, message, sizeof(message));
-        nya_warn("Could not read the settings file, continuing with defaults: %s", (NYA_CString)message);
+        nya_log_warn("Could not read the settings file, continuing with defaults: %s", (NYA_CString)message);
     }
 }
 
@@ -101,5 +102,5 @@ void gny_actions_deinit(void) {
 
     u8 message[256];
     (void)nya_error_format(&saved, message, sizeof(message));
-    nya_warn("Could not write the settings file: %s", (NYA_CString)message);
+    nya_log_warn("Could not write the settings file: %s", (NYA_CString)message);
 }

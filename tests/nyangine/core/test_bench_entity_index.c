@@ -48,7 +48,7 @@ s32 main(void) {
 
   // The shape the demo actually has: a great many of one thing, a couple of another. Finding the
   // rare one is what every system does every tick.
-  nya_info("entities  ns/query(rare)  ns/query(common)");
+  nya_log_info("entities  ns/query(rare)  ns/query(common)");
 
   const u32 populations[] = { 8, 64, 512, 4096 };
 
@@ -68,12 +68,12 @@ s32 main(void) {
     u64 rare   = bench_kind(KIND_CAMERA, 1);
     u64 common = bench_kind(KIND_CRATE, crates);
 
-    nya_info("%8u  %14" PRIu64 "  %16" PRIu64, crates, rare, common);
+    nya_log_info("%8u  %14" PRIu64 "  %16" PRIu64, crates, rare, common);
   }
 
   nya_entity_clear();
 
-  nya_info("PASSED: test_bench_entity_index");
+  nya_log_info("PASSED: test_bench_entity_index");
 
   return EXIT_SUCCESS;
 }

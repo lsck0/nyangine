@@ -14,10 +14,11 @@
  *
  * ## Who runs them
  *
- * The layer that owns the world, from its on_update. Systems are not registered anywhere and the
- * engine does not know they exist — a system is just a function over a query, and the order they run
- * in is a decision the game should be making out loud rather than one buried in a registration
- * order.
+ * gny_systems_register_all hands the per-frame ones to the engine's system registry once, from
+ * gny_world_create; the layer that owns the world then runs them all with one
+ * nya_system_registry_run_update from its on_update, instead of calling each by name. A system is
+ * still just a function over a query, and the order is still a decision the game makes out loud —
+ * it is just spelled as `after` in a registration call now, rather than as call order in a layer.
  * */
 #pragma once
 
@@ -52,12 +53,13 @@ void gny_system_player_input_update(f32 delta_time_s);
 void gny_system_camera_follow_update(f32 delta_time_s);
 
 /**
- * Runs the movement systems, in the order they have to run in.
+ * Registers every per-frame system with the engine's system registry, in the order they have to run
+ * in, and finalizes the schedule. See system_movement.c for why follow has to come after input.
  *
- * Follow after input, so a camera chasing a player-controlled entity closes on where that entity is
- * *now* rather than trailing it by a tick.
+ * Called once, from gny_world_create — before the world's first on_update, which is the only thing
+ * the registry requires of whoever calls it.
  * */
-void gny_system_movement_update(f32 delta_time_s);
+void gny_systems_register_all(void);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -146,70 +148,30 @@ NYA_INTERNAL void _gny_sky_clouds_draw(NYA_Window* window, GNY_SkyState sky);
  * static triangle mesh. See system_terrain3d.c for why the collider and the draw are built separately.
  */
 
-typedef struct GNY_Terrain3D GNY_Terrain3D;
-
 /**
- * The 3D scene's ground, as a heightmap and the static body built from it.
+ * The scene's terrain handle, or null before the first generation.
  *
- * Held by value on the scene rather than allocated beside it, because it has exactly one instance and
- * its only variable-sized part is the sample grid. See system_terrain3d.c for what is derived from that
- * grid and why the collider and the draw cannot share a representation.
+ * The terrain itself is NYA_Terrain3D in the engine; these are the game's wrappers over it, holding the
+ * shape constants from constants.h and GNY_ENTITY_TERRAIN so call sites do not repeat them.
  * */
-struct GNY_Terrain3D {
-    /**
-     * GNY_TERRAIN3D_VERTS squared samples, row major in z then x, from the world's arena.
-     *
-     * Kept across a regeneration and across leaving the scene: the grid never changes size, and an arena
-     * does not hand memory back, so allocating per generation would grow the world by a hundred
-     * kilobytes on every press of R.
-     * */
-    f32* heights;
+NYA_Terrain3D* gny_terrain3d(void);
 
-    /** The static body carrying the triangle mesh. Despawning it releases the mesh Box3D built. */
-    NYA_EntityHandle entity;
-
-    /** What produced the current surface. Shown in the HUD, so a landscape can be asked for again. */
-    u64 seed;
-
-    /** The extremes of `heights`, for the colour bands and for deciding how high to drop things from. */
-    f32 min_height;
-    f32 max_height;
-};
-
-/** The scene's terrain state. On the world, so it survives a hot reload. */
-GNY_Terrain3D* gny_terrain3d(void);
-
-/**
- * Samples the heightmap, builds the collider and spawns the static body carrying it.
- *
- * `arena` is only used the first time, for the sample grid; later calls reuse it. Despawns the previous
- * terrain body first, so calling this again with another seed replaces the surface rather than stacking
- * a second one on top of it.
- * */
+/** Creates the terrain on first call, then samples it. `arena` is only used the first time. */
 void gny_terrain3d_generate(NYA_Window* window, NYA_Arena* arena, u64 seed);
 
 /** Despawns the terrain body and releases its geometry. The sample grid stays; it is the world's. */
 void gny_terrain3d_destroy(NYA_Window* window);
 
-/**
- * The ground height at a world xz, bilinear between the four samples around it.
- *
- * Clamped to the terrain rather than extrapolated, and approximate by a few centimetres in the middle of
- * a steep cell — this places things above the ground, it does not resolve contacts. Zero before the
- * first generation.
- * */
+/** The ground height at a world xz. Zero before the first generation. See nya_terrain3d_height_at. */
 f32 gny_terrain3d_height_at(f32 x, f32 z);
 
 /**
- * Draws the surface. Must be called between nya_render3d_begin and _end.
+ * Re-picks each terrain chunk's detail level from where the viewer is.
  *
- * One instanced draw of geometry uploaded at generation, not a rebuild — see the note in
- * system_terrain3d.c for what that changed and what it costs.
+ * Once per frame, from the 3D layer's on_update. A no-op before the terrain is created, and cheap on
+ * the frames where nothing crosses a level boundary — see nya_terrain3d_update.
  * */
+void gny_terrain3d_update(f32x3 viewer);
+
+/** Draws the surface. Must be called between nya_render3d_begin and _end. */
 void gny_terrain3d_draw(NYA_Window* window);
-
-/** The handle the surface's geometry is registered under. See nya_render3d_mesh_register. */
-#define GNY_TERRAIN3D_MESH "gny_terrain3d_mesh"
-
-NYA_INTERNAL f32x3     _gny_terrain3d_corner(const GNY_Terrain3D* terrain, u32 i, u32 j);
-NYA_INTERNAL NYA_Color _gny_terrain3d_shade(const GNY_Terrain3D* terrain, f32 height, u32 cell, u32 half);

@@ -116,7 +116,7 @@ void nya_render3d_point_light_add(NYA_Window* window, NYA_Render3DPointLight lig
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
     if (batch->point_light_count >= NYA_RENDER3D_MAX_POINT_LIGHTS) {
-        nya_warn("A fifth point light was added and dropped; NYA_RENDER3D_MAX_POINT_LIGHTS is %d.", NYA_RENDER3D_MAX_POINT_LIGHTS);
+        nya_log_warn("A fifth point light was added and dropped; NYA_RENDER3D_MAX_POINT_LIGHTS is %d.", NYA_RENDER3D_MAX_POINT_LIGHTS);
         return;
     }
 
@@ -222,6 +222,20 @@ void nya_render3d_outline_set(NYA_Window* window, f32 thickness, NYA_Color color
     nya_unused(window, thickness, color);
 }
 
+// Real rather than stubbed, both of them: the culling path is CPU only and a headless test is the
+// only place it can be driven without a GPU. See render_occlusion.h.
+void nya_render3d_occlusion(NYA_Window* window, const NYA_OcclusionBuffer* buffer) {
+    nya_assert(window != nullptr);
+
+    window->render_system.mesh_batch.occlusion = buffer;
+}
+
+f32_4x4 nya_render3d_view_projection(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.mesh_batch.view_projection;
+}
+
 void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky) {
     nya_unused(window, sky);
 }
@@ -317,6 +331,7 @@ NYA_Render3DFrameStats nya_render3d_frame_stats(NYA_Window* window) {
         .indices       = batch->frame_indices,
         .instances     = batch->frame_instances,
         .culled        = batch->frame_culled,
+        .occluded      = batch->frame_occluded,
         .dropped_draws = batch->frame_dropped_draws,
     };
 }

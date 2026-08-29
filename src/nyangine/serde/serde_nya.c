@@ -370,7 +370,7 @@ NYA_INTERNAL void _nya_serde_nya_write_value(NYA_String* out, const NYA_Value* v
             nya_string_extend(out, "]");
         } break;
 
-        default: nya_panic("Cannot serialize a value of type %s.", NYA_TYPE_NAME_MAP[value->type]);
+        default: nya_log_panic("Cannot serialize a value of type %s.", NYA_TYPE_NAME_MAP[value->type]);
     }
 }
 
@@ -868,7 +868,7 @@ NYA_INTERNAL u64 _nya_serde_nya_checksum_value(const NYA_Value* value) {
             hash = _nya_serde_nya_mix(hash, value->as_array.length);
         } break;
 
-        default: nya_panic("Cannot checksum a value of type %s.", NYA_TYPE_NAME_MAP[value->type]);
+        default: nya_log_panic("Cannot checksum a value of type %s.", NYA_TYPE_NAME_MAP[value->type]);
     }
 
     return hash;

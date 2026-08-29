@@ -58,7 +58,7 @@
  * The matching vendors must be in the target's NYA_PROJECT_VENDORS_* list, or the plugin compiles
  * and then fails to link.
  */
-#define FLAGS_PLUGINS "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_SQLITE", "-DNYA_PLUGIN_DISCORD"
+#define FLAGS_PLUGINS "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_SQLITE", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA"
 
 /*
  * Every mode names its NYA_EXECUTION_MODE explicitly. The macro defaults to 0, so leaving it off
@@ -89,6 +89,19 @@
  * Coexists with FLAGS_SANITIZE, so a coverage run is still a sanitized run and cannot report a line
  * as covered that only "worked" by reading uninitialised memory.
  * */
+/**
+ * What a benchmark is compiled with: optimised, headless, and *without* sanitizers.
+ *
+ * The absence is the point. FLAGS_TEST is -O0 under four sanitizers, and a benchmark built that way
+ * measures the instrumentation rather than the code — unevenly, too, because the overhead lands hardest
+ * on memory-heavy work. The engine's reverb profiled at 5.52% of frame time under ASAN and measured at
+ * 0.22% of a core without it.
+ *
+ * Not FLAGS_RELEASE either: -flto makes every benchmark relink the world, and the hardening flags are
+ * about shipping rather than about measuring.
+ * */
+#define FLAGS_BENCH     "-DNYA_EXECUTION_MODE=2", "-O2", "-DNYA_HEADLESS", "-fno-omit-frame-pointer"
+
 #define FLAGS_COVERAGE  "-fprofile-instr-generate", "-fcoverage-mapping"
 
 /** Where a coverage run puts the raw profiles, the merged profile and the instrumented binaries. */

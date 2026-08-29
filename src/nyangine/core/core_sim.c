@@ -13,9 +13,8 @@
  */
 
 void nya_system_sim_init(void) {
-    // Its own arena rather than the app frame allocator: records have to outlive every update in
-    // the frame and are dropped at a point this system chooses, right after the observers have read
-    // them. Sharing an arena would make that ordering someone else's problem to preserve.
+    // Its own arena rather than the app frame allocator: records must outlive every update in the
+    // frame and are dropped only after the observers have read them, right when this system chooses to.
     NYA_Arena* allocator = nya_arena_create(.name = "sim_allocator");
 
     nya_world()->sim_system = (NYA_SimSystem){
@@ -24,7 +23,15 @@ void nya_system_sim_init(void) {
         .commands  = nya_array_create(allocator, NYA_SimCommand),
     };
 
-    nya_info("Simulation system initialized.");
+    nya_log_info("Simulation system initialized.");
+
+    // Guarded so bringing the app up and down within one process — tests do this a lot — does not
+    // add a copy of itself to the ceiling registry on every cycle.
+    static b8 ceiling_registered = false;
+    if (!ceiling_registered) {
+        nya_ceiling_register("sim_observers", NYA_SIM_OBSERVER_MAX, &nya_world()->sim_system.observer_count);
+        ceiling_registered = true;
+    }
 }
 
 void nya_system_sim_deinit(void) {
@@ -33,7 +40,7 @@ void nya_system_sim_deinit(void) {
     nya_arena_destroy(sim->allocator);
     *sim = (NYA_SimSystem){ 0 };
 
-    nya_info("Simulation system deinitialized.");
+    nya_log_info("Simulation system deinitialized.");
 }
 
 void nya_system_sim_apply_commands(void) {
@@ -45,9 +52,8 @@ void nya_system_sim_apply_commands(void) {
 
     sim->draining = true;
 
-    // A command may defer more work, so the queue is drained rather than iterated once. Each pass
-    // takes the current contents and clears the queue, so commands added during a pass run in the
-    // next one and ordering within a pass stays the order they were deferred in.
+    // A command may defer more work, so the queue is drained rather than iterated once: each pass
+    // takes the current contents and clears it, so new commands run in the next pass, in deferred order.
     u32 pass = 0;
     while (sim->commands->length > 0) {
         nya_assert(
@@ -74,9 +80,8 @@ void nya_system_sim_end_frame(void) {
 
     NYA_SimSystem* sim = &nya_world()->sim_system;
 
-    // Anything still queued has missed every barrier this frame. Applying it here rather than
-    // carrying it over keeps a command from being applied a frame late, which is the kind of thing
-    // that only shows up as a one frame flicker much later.
+    // Anything still queued missed every barrier this frame; applying it here rather than carrying it
+    // over avoids a command landing a frame late — the kind of bug that shows up as a flicker much later.
     nya_system_sim_apply_commands();
 
     for (u32 i = 0; i < sim->observer_count; i++) {
@@ -135,8 +140,8 @@ void nya_sim_defer(NYA_SimCommandFn apply, const void* data, u64 size) {
 
     NYA_SimSystem* sim = &nya_world()->sim_system;
 
-    // Copied rather than referenced: the caller's payload is usually a stack local in an update
-    // that will have returned long before the barrier runs.
+    // Copied rather than referenced: the caller's payload is usually a stack local that will have
+    // returned long before the barrier runs.
     void* copy = nullptr;
     if (size > 0) {
         copy = nya_arena_alloc(sim->allocator, size);

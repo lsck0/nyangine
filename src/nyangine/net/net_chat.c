@@ -405,9 +405,9 @@ b8 nya_net_chat_server_consume(NYA_NetPeerId peer, const NYA_Object* event) {
     // Logged rather than propagated: the caller is an event callback with nowhere to return an error
     // to, and a dedicated server wants the line in its output anyway.
     if (!sent.ok) {
-        nya_warn("Could not relay a chat line from %s: %s", sender->name, sent.message);
+        nya_log_warn("Could not relay a chat line from %s: %s", sender->name, sent.message);
     } else {
-        nya_info("[chat] %s: %s", sender->name, clean);
+        nya_log_info("[chat] %s: %s", sender->name, clean);
     }
 
     return true;

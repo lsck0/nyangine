@@ -20,6 +20,22 @@ NYA_INTERNAL b8 _nya_physics2d_shape_create(b2BodyId body, const NYA_Entity* ent
 /** b2OverlapResultFcn for nya_physics2d_entity_at: narrows the broadphase hit to a real point test. */
 NYA_INTERNAL bool _nya_physics2d_point_query_callback(b2ShapeId shape, void* context);
 
+/**
+ * b2PreSolveFcn: discards the contact when one side is a one-way surface being passed the right way.
+ *
+ * Runs inside b2World_Step, after a contact is found and before it is solved. Read-only — see
+ * nya_physics2d_one_way_set for why that matters and why it is safe here.
+ * */
+NYA_INTERNAL bool _nya_physics2d_pre_solve(b2ShapeId shape_a, b2ShapeId shape_b, b2Pos point, b2Vec2 normal, void* context);
+
+/**
+ * Whether a contact between `surface` and `mover` should be solved.
+ *
+ * `normal` points from the surface's body toward the mover's, in metres. Both callers hand it in
+ * that orientation, which is what lets one function answer for either ordering of the pair.
+ * */
+NYA_INTERNAL b8 _nya_physics2d_one_way_admits(const NYA_Entity* surface, const NYA_Entity* mover, b2Vec2 normal);
+
 /** Copies the step's hit events out of Box2D's transient buffer, in world units and entity handles. */
 NYA_INTERNAL void _nya_physics2d_collect_hits(NYA_Physics2DSystem* system);
 
@@ -88,7 +104,16 @@ void nya_system_physics2d_init(void) {
 
     system->world = b2CreateWorld(&world_def);
 
-    nya_info("Physics2D system initialized (%.1f world units per metre, %u sub steps).", (f64)system->pixels_per_meter, system->sub_step_count);
+    // Read back rather than assumed: it is a Box2D constant, and reading it means this tracks a
+    // change to that constant instead of drifting from it.
+    system->contact_recycle_distance = b2World_GetContactRecycleDistance(system->world);
+
+    // One-way surfaces are the only thing that needs to veto a contact, and Box2D's pre-solve hook is
+    // the only place a contact can be vetoed. Installed unconditionally: the callback returns true
+    // immediately for every pair where neither side is one-way, which is every pair in most worlds.
+    b2World_SetPreSolveCallback(system->world, _nya_physics2d_pre_solve, nullptr);
+
+    nya_log_info("Physics2D system initialized (%.1f world units per metre, %u sub steps).", (f64)system->pixels_per_meter, system->sub_step_count);
 }
 
 void nya_system_physics2d_deinit(void) {
@@ -102,7 +127,7 @@ void nya_system_physics2d_deinit(void) {
 
     *system = (NYA_Physics2DSystem){ 0 };
 
-    nya_info("Physics system deinitialized.");
+    nya_log_info("Physics system deinitialized.");
 }
 
 void nya_system_physics2d_update(f32 delta_time_s) {
@@ -118,6 +143,32 @@ void nya_system_physics2d_update(f32 delta_time_s) {
     if (delta_time_s <= 0.0F) return;
 
     system->step_count++;
+
+    /*
+     * The drop-through windows, before the step rather than after it.
+     *
+     * The pre-solve callback reads them during the step, so decrementing afterwards would give every
+     * window one extra step — and at a 0.25 s window and a 60 Hz step that is a 7% error nobody
+     * would ever trace.
+     */
+    u32 dropping = 0;
+
+    nya_entity_foreach (entity) {
+        if (entity->physics2d.drop_through_s <= 0.0F) continue;
+
+        entity->physics2d.drop_through_s -= delta_time_s;
+        if (entity->physics2d.drop_through_s < 0.0F) entity->physics2d.drop_through_s = 0.0F;
+
+        if (entity->physics2d.drop_through_s > 0.0F) dropping++;
+    }
+
+    // Off while anything is dropping, back on when nothing is. See contact_recycling_suspended for
+    // why a resting contact is otherwise never offered to the pre-solve callback at all.
+    b8 suspend = dropping > 0;
+    if (suspend != system->contact_recycling_suspended) {
+        b2World_SetContactRecycleDistance(system->world, suspend ? 0.0F : system->contact_recycle_distance);
+        system->contact_recycling_suspended = suspend;
+    }
 
     u64 started_ns = nya_clock_get_monotonic_ns();
     b2World_Step(system->world, delta_time_s, (int)system->sub_step_count);
@@ -188,7 +239,7 @@ void nya_physics2d_pixels_per_meter_set(f32 pixels_per_meter) {
     if (!system->initialized) return;
 
     if (system->body_count > 0) {
-        nya_warn("Changing the physics scale with %u bodies already created; those keep their old size.", system->body_count);
+        nya_log_warn("Changing the physics scale with %u bodies already created; those keep their old size.", system->body_count);
     }
 
     system->pixels_per_meter = pixels_per_meter;
@@ -293,6 +344,7 @@ b8 nya_physics2d_body_attach_with_options(NYA_EntityHandle entity_handle, NYA_Ph
         .size     = options.size,
         .radius   = options.radius,
         .length   = options.length,
+        .one_way  = options.one_way,
         .attached = true,
     };
 
@@ -461,6 +513,38 @@ void nya_physics2d_wake(NYA_Entity* entity) {
     b2Body_SetAwake(body->id, true);
 }
 
+void nya_physics2d_one_way_set(NYA_Entity* entity, NYA_Physics2DOneWay direction) {
+    NYA_Physics2DBody* body = _nya_physics2d_body_of(entity, "set a one-way direction");
+    if (body == nullptr) return;
+
+    nya_assert(direction < NYA_PHYSICS2D_ONE_WAY_COUNT, "not a one-way direction: %d", (int)direction);
+
+    body->one_way = direction;
+
+    // Woken, because the veto is applied when a contact is solved and a sleeping body solves none —
+    // so a platform made passable under something already resting on it would not let go until
+    // something else disturbed it.
+    if (b2Body_IsValid(body->id)) b2Body_SetAwake(body->id, true);
+}
+
+NYA_Physics2DOneWay nya_physics2d_one_way(const NYA_Entity* entity) {
+    if (entity == nullptr || !entity->physics2d.attached) return NYA_PHYSICS2D_ONE_WAY_NONE;
+
+    return entity->physics2d.one_way;
+}
+
+void nya_physics2d_drop_through(NYA_Entity* entity, f32 seconds) {
+    NYA_Physics2DBody* body = _nya_physics2d_body_of(entity, "drop through a one-way surface");
+    if (body == nullptr) return;
+
+    // Replaced rather than accumulated: holding the button should not bank a longer and longer fall.
+    body->drop_through_s = seconds > 0.0F ? seconds : 0.0F;
+
+    // A body resting on a platform is asleep, and an asleep body is never solved — so without this
+    // the request is stored and nothing ever reads it.
+    if (b2Body_IsValid(body->id)) b2Body_SetAwake(body->id, true);
+}
+
 /*
  * ─────────────────────────────────────────────────────────
  * HITS
@@ -496,6 +580,31 @@ f32 nya_physics2d_hit_threshold(void) {
  * QUERIES
  * ─────────────────────────────────────────────────────────
  */
+
+NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, OUT f32x2* out_point, OUT f32x2* out_normal) {
+    NYA_Physics2DSystem* system = &nya_world()->physics2d_system;
+    if (!system->initialized) return NYA_ENTITY_HANDLE_NONE;
+
+    b2RayResult result = b2World_CastRayClosest(
+        system->world,
+        b2ToPos(_nya_physics2d_to_meters(origin)),
+        _nya_physics2d_to_meters(direction),
+        b2DefaultQueryFilter()
+    );
+
+    if (!result.hit) return NYA_ENTITY_HANDLE_NONE;
+
+    NYA_Entity* entity = b2Body_GetUserData(b2Shape_GetBody(result.shapeId));
+    if (entity == nullptr) return NYA_ENTITY_HANDLE_NONE;
+
+    if (out_point != nullptr) *out_point = _nya_physics2d_to_world(b2ToVec2(result.point));
+
+    // The normal is a unit vector and dimensionless, so it does not cross the unit boundary the point
+    // does. Converting it would divide it by the scale and quietly stop it being unit.
+    if (out_normal != nullptr) *out_normal = (f32x2){ result.normal.x, result.normal.y };
+
+    return entity->handle;
+}
 
 NYA_EntityHandle nya_physics2d_entity_at(f32x2 point) {
     NYA_Physics2DSystem* system = &nya_world()->physics2d_system;
@@ -564,6 +673,21 @@ b8 _nya_physics2d_shape_create(b2BodyId body, const NYA_Entity* entity, const NY
     shape_def.material.restitution = options->restitution;
     shape_def.isSensor             = options->is_sensor;
     shape_def.enableContactEvents  = true;
+
+    /*
+     * Pre-solve events, which are what one-way surfaces are built on, and which Box2D defaults off
+     * because they are not free — the callback runs per contact per step.
+     *
+     * ⚠ **Set on the dynamic body, not on the platform.** Box2D ignores the flag on static shapes,
+     * and the pair is what gets the callback, so a one-way ledge whose *visitor* has not opted in is
+     * simply solid. Enabling it only for shapes declared one-way would therefore not work at all:
+     * the ledge is static and the thing passing through is what has to ask.
+     *
+     * On for every dynamic shape, then, which is the same trade nya_physics2d_body_attach already
+     * makes for sensor events one comment down — a feature that silently does nothing on the one
+     * body somebody forgot to flag is worse than the cost of the check.
+     */
+    shape_def.enablePreSolveEvents = options->type == NYA_PHYSICS_BODY_DYNAMIC;
 
     /*
      * On for every shape, not just for the sensors.
@@ -714,7 +838,7 @@ void _nya_physics2d_collect_hits(NYA_Physics2DSystem* system) {
     // Logged rather than swallowed: a burst past the ceiling means the reaction to these is already
     // being rationed, and silently dropping the tail makes that look like a physics bug instead.
     if (available > kept) {
-        nya_warn("Physics produced %u hits this step, past the %d that fit; %u were dropped.", available, NYA_PHYSICS2D_MAX_HITS, available - kept);
+        nya_log_warn("Physics produced %u hits this step, past the %d that fit; %u were dropped.", available, NYA_PHYSICS2D_MAX_HITS, available - kept);
     }
 
     _nya_physics2d_collect_sensor_events(system);
@@ -768,7 +892,7 @@ void _nya_physics2d_collect_sensor_events(NYA_Physics2DSystem* system) {
     }
 
     if (dropped > 0) {
-        nya_warn(
+        nya_log_warn(
             "Physics produced %u sensor events this step and the hit list was already full; %u were dropped.",
             begin_count + end_count,
             dropped
@@ -846,6 +970,88 @@ void _nya_physics2d_dispatch_collisions(const NYA_Physics2DSystem* system) {
             on_collision(self, nya_entity_get(other_handle), hit);
         }
     }
+}
+
+/**
+ * The axis a one-way direction admits passage along, in **Box2D** coordinates.
+ *
+ * Box2D's y grows the way the world's does — the wrapper hands it screen-space vectors unchanged and
+ * gravity is positive y — so "up the screen" is negative y here too, and no flip is needed. Written
+ * out rather than derived so that the day the scale gains a sign, this is the one place to change.
+ * */
+NYA_INTERNAL b2Vec2 _nya_physics2d_one_way_axis(NYA_Physics2DOneWay direction) {
+    switch (direction) {
+        case NYA_PHYSICS2D_ONE_WAY_UP:    return (b2Vec2){ 0.0F, -1.0F };
+        case NYA_PHYSICS2D_ONE_WAY_DOWN:  return (b2Vec2){ 0.0F, 1.0F };
+        case NYA_PHYSICS2D_ONE_WAY_LEFT:  return (b2Vec2){ -1.0F, 0.0F };
+        case NYA_PHYSICS2D_ONE_WAY_RIGHT: return (b2Vec2){ 1.0F, 0.0F };
+
+        case NYA_PHYSICS2D_ONE_WAY_NONE:
+        case NYA_PHYSICS2D_ONE_WAY_COUNT:
+        default: return (b2Vec2){ 0.0F, 0.0F };
+    }
+}
+
+b8 _nya_physics2d_one_way_admits(const NYA_Entity* surface, const NYA_Entity* mover, b2Vec2 normal) {
+    if (surface == nullptr || mover == nullptr) return true;
+    if (surface->physics2d.one_way == NYA_PHYSICS2D_ONE_WAY_NONE) return true;
+
+    // The mover asked to be let through everything, which is what a "press down to drop off" does.
+    if (mover->physics2d.drop_through_s > 0.0F) return false;
+
+    b2Vec2 velocity = b2Body_GetLinearVelocity(mover->physics2d.id);
+    b2Vec2 axis     = _nya_physics2d_one_way_axis(surface->physics2d.one_way);
+
+    /*
+     * The sign of the mover's velocity along the passable axis decides, not its position.
+     *
+     * A position test needs a skin thickness — "is it far enough above the surface to count as
+     * landing on it" — and a character standing exactly on a ledge then sits on the boundary and
+     * flickers between solid and passable, which reads as the floor vibrating. Velocity has no such
+     * boundary: something moving up through an UP surface is going through, and something moving
+     * down onto it is landing, and a body at rest is landing by default.
+     */
+    f32 approach = (velocity.x * axis.x) + (velocity.y * axis.y);
+
+    // Strictly positive, so a body with no velocity along the axis is stopped rather than let
+    // through. That is what makes a character rest on the ledge it just jumped up onto.
+    if (approach > 0.0F) return false;
+
+    /*
+     * Which side of the surface the mover is on, which decides the resting case.
+     *
+     * `normal` points from the surface toward the mover, and `axis` is the direction of passage — so
+     * a mover on the passable side (under an UP ledge) has a normal opposing the axis, and one that
+     * has already come through and is standing on top has a normal along it.
+     *
+     * Needed as well as the velocity test, not instead of it: velocity alone lets a body sit under a
+     * ledge with a horizontal shove and be stopped by its underside, and the side test alone snaps a
+     * rising body onto the platform the instant its centre crosses.
+     */
+    f32 side = (normal.x * axis.x) + (normal.y * axis.y);
+
+    // Underneath. Not a floor from here, whichever way it happens to be moving.
+    return side >= 0.0F;
+}
+
+bool _nya_physics2d_pre_solve(b2ShapeId shape_a, b2ShapeId shape_b, b2Pos point, b2Vec2 normal, void* context) {
+    nya_unused(point, context);
+
+    NYA_Entity* a = b2Body_GetUserData(b2Shape_GetBody(shape_a));
+    NYA_Entity* b = b2Body_GetUserData(b2Shape_GetBody(shape_b));
+
+    if (a == nullptr || b == nullptr) return true;
+
+    // The overwhelmingly common case, and the reason installing this callback unconditionally costs
+    // nothing: neither side is a one-way surface, so the contact stands.
+    if (a->physics2d.one_way == NYA_PHYSICS2D_ONE_WAY_NONE && b->physics2d.one_way == NYA_PHYSICS2D_ONE_WAY_NONE) return true;
+
+    // Box2D's normal points from A toward B. Each call passes it oriented away from the surface, so
+    // the second one is negated — which is what lets both orderings share one predicate.
+    if (!_nya_physics2d_one_way_admits(a, b, normal)) return false;
+    if (!_nya_physics2d_one_way_admits(b, a, (b2Vec2){ -normal.x, -normal.y })) return false;
+
+    return true;
 }
 
 bool _nya_physics2d_point_query_callback(b2ShapeId shape, void* context) {

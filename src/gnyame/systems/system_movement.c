@@ -112,15 +112,16 @@ void gny_system_camera_follow_update(f32 delta_time_s) {
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * ORDER
+ * REGISTRATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-void gny_system_movement_update(f32 delta_time_s) {
-    nya_perf_time_this_function();
+void gny_systems_register_all(void) {
+    nya_system_register((NYA_SystemEntry){ .name = "player_input", .update = gny_system_player_input_update });
 
-    // Input first, follow second: a camera chasing a player-controlled entity should close on where
-    // that entity is now, not on where it was at the start of the tick.
-    gny_system_player_input_update(delta_time_s);
-    gny_system_camera_follow_update(delta_time_s);
+    // After player_input: a camera chasing a player-controlled entity should close on where that
+    // entity is now, not on where it was at the start of the tick.
+    nya_system_register((NYA_SystemEntry){ .name = "camera_follow", .after = "player_input", .update = gny_system_camera_follow_update });
+
+    NYA_EXPECT(nya_system_registry_finalize());
 }

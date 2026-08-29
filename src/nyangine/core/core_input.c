@@ -7,10 +7,8 @@
  */
 
 /*
- * Deliberately not NYA_INTERNAL: registered with nya_callback, so update_callback_pointers in main.c
- * re-resolves it by name with dlsym after every hot reload. A hidden or static symbol is not in the
- * dynamic symbol table that -rdynamic populates, so making this internal survives the build and dies
- * on the first reload. See the longer note in core_asset.c.
+ * Deliberately not NYA_INTERNAL: nya_callback resolves it by name with dlsym after every hot reload,
+ * and a hidden/static symbol isn't in the dynamic symbol table -rdynamic populates. See core_asset.c.
  */
 // NOLINTNEXTLINE(misc-use-internal-linkage)
 void _nya_system_event_on_update_ended_hook(NYA_Event* event);
@@ -18,11 +16,9 @@ void _nya_system_event_on_update_ended_hook(NYA_Event* event);
 /**
  * Whether the modifiers a binding asks for are exactly the ones in `current`.
  *
- * Takes the held set rather than reading it, for two reasons. nya_input_action_matches is asked about
- * the modifiers an *event* carried, and the live set is not the right answer there: a slow frame can
- * deliver a key event several milliseconds late, by which time the player may have let go of the
- * Ctrl that was part of it. And a per player query has to compare against that player's own
- * modifiers, or player 2 holding shift would satisfy a chord player 1 is halfway through.
+ * Takes the held set rather than reading it: a slow frame can deliver a key event after the player
+ * already released a modifier, and a per-player query must compare against that player's own
+ * modifiers, not the merged one.
  * */
 NYA_INTERNAL b8 _nya_input_modifiers_match_against(NYA_KeyModFlag required, NYA_KeyModFlag current) __attr_no_discard;
 
@@ -32,8 +28,8 @@ NYA_INTERNAL NYA_InputBinding* _nya_input_bindings_for(NYA_InputAction action) _
 /**
  * The state a query should read, or null when the slot is unclaimed.
  *
- * NYA_INPUT_PLAYER_ANY is the merged view. A slot with no device assigned has no state and reads as
- * nothing held, which is what lets a loop over NYA_INPUT_MAX_PLAYERS run without a guard.
+ * NYA_INPUT_PLAYER_ANY is the merged view; an unclaimed slot reads as nothing held, so a loop over
+ * NYA_INPUT_MAX_PLAYERS runs without a guard.
  * */
 NYA_INTERNAL NYA_InputState* _nya_input_state_for(u32 player) __attr_no_discard;
 
@@ -43,8 +39,8 @@ NYA_INTERNAL NYA_InputSourceBinding* _nya_input_source_find(NYA_InputSource sour
 /**
  * The roster entry for `source`, adding it as unclaimed if this is the first time it is seen.
  *
- * Null once the roster is full, which is not a failure: past NYA_INPUT_MAX_SOURCES a device still
- * feeds the merged view, it just cannot be assigned to a player.
+ * Null once the roster is full — not a failure: past NYA_INPUT_MAX_SOURCES a device still feeds the
+ * merged view, it just can't be assigned to a player.
  * */
 NYA_INTERNAL NYA_InputSourceBinding* _nya_input_source_intern(NYA_InputSource source) __attr_no_discard;
 
@@ -90,13 +86,19 @@ void nya_system_input_init(void) {
 
     app->input_system.last_source = NYA_INPUT_SOURCE_NONE;
 
-    // Every slot starts unclaimed, which is to say with no key tables. Those are created by
-    // nya_input_source_assign, so a single-player game never pays for seven empty copies of them.
+    // Guarded so bringing the app up and down within one process does not add a copy of itself.
+    static b8 ceiling_registered = false;
+    if (!ceiling_registered) {
+        nya_ceiling_register("input_sources", NYA_INPUT_MAX_SOURCES, &app->input_system.source_count);
+        ceiling_registered = true;
+    }
+
+    // Slots start unclaimed (no key tables); nya_input_source_assign allocates them lazily, so a
+    // single-player game pays for none of the unused ones.
     for (u32 player = 0; player < NYA_INPUT_MAX_PLAYERS; player++) app->input_system.players[player] = (NYA_InputState){ 0 };
 
-    // The engine's own actions name themselves, so a settings file can carry a rebound Confirm
-    // without the game having to know these exist. A game's actions name themselves, or are not
-    // persisted.
+    // Named so a settings file can carry a rebound Confirm without the game knowing these exist. A
+    // game's own actions must name themselves too, or they aren't persisted.
     nya_input_action_name_set(NYA_INPUT_ACTION_CONFIRM, "confirm");
     nya_input_action_name_set(NYA_INPUT_ACTION_CANCEL, "cancel");
     nya_input_action_name_set(NYA_INPUT_ACTION_PAUSE, "pause");
@@ -111,7 +113,7 @@ void nya_system_input_init(void) {
         .fn         = nya_callback(_nya_system_event_on_update_ended_hook),
     });
 
-    nya_info("Input system initialized.");
+    nya_log_info("Input system initialized.");
 }
 
 void nya_system_input_deinit(void) {
@@ -128,7 +130,7 @@ void nya_system_input_deinit(void) {
     // The key tables came out of this arena, so whatever the loop above missed goes with it.
     nya_arena_destroy(app->input_system.allocator);
 
-    nya_info("Input system deinitialized.");
+    nya_log_info("Input system deinitialized.");
 }
 
 void nya_system_input_handle_event(NYA_Event* event) {
@@ -137,11 +139,9 @@ void nya_system_input_handle_event(NYA_Event* event) {
     NYA_InputSystem* system = &nya_app_get()->input_system;
 
     /*
-     * Every event goes to the merged view, and to the routed player's view as well when there is one.
-     *
-     * Both rather than either: the merged view is what the whole single-player API and every menu
-     * reads, so routing an event *away* from it the moment a game assigned a device to a slot would
-     * silently break the pause menu of any game that added a second player.
+     * Every event goes to the merged view, and to the routed player's view when there is one. The merged
+     * view is what the whole single-player API and every menu reads, so routing an event away from it
+     * once a device is assigned would silently break the pause menu of a game that adds a second player.
      */
     _nya_input_text_handle_event(system, event);
 
@@ -184,11 +184,9 @@ NYA_KeyModFlag nya_input_modifiers(void) {
 }
 
 /*
- * The per player forms, which the six above are the NYA_INPUT_PLAYER_ANY case of.
- *
- * Written this way round rather than the other so there is exactly one implementation of each
- * question. The single-player spelling stays because it is what almost every call site wants, and
- * making every one of them pass a slot it does not have would be noise.
+ * The per player forms, which the six above are the NYA_INPUT_PLAYER_ANY case of. Written this way
+ * round so there is one implementation of each question; the single-player spelling stays since most
+ * call sites want it and passing a slot they don't have would be noise.
  */
 
 b8 nya_input_key_just_pressed_by(u32 player, NYA_Keycode key) {
@@ -247,8 +245,7 @@ NYA_InputSource nya_input_source_at(u32 index) {
 u32 nya_input_source_player(NYA_InputSource source) {
     NYA_InputSourceBinding* binding = _nya_input_source_find(source);
 
-    // A device nobody has seen is as unclaimed as one nobody has assigned, and a join screen wants
-    // the same answer for both.
+    // A device nobody has seen reads the same as one nobody has assigned — what a join screen wants.
     if (binding == nullptr) return NYA_INPUT_PLAYER_NONE;
 
     return binding->player;
@@ -261,15 +258,15 @@ void nya_input_source_assign(NYA_InputSource source, u32 player) {
     NYA_InputSourceBinding* binding = _nya_input_source_intern(source);
 
     if (binding == nullptr) {
-        // The roster is full. Reported rather than asserted: it is a device count, which is outside
-        // the game's control, and the device still feeds the merged view.
-        nya_warn("Cannot assign input source (kind %d, id %u) to player %u: already tracking %d sources.", (int)source.kind, source.id, player,
+        // Roster full: reported not asserted, since device count is outside the game's control and it
+        // still feeds the merged view.
+        nya_log_warn("Cannot assign input source (kind %d, id %u) to player %u: already tracking %d sources.", (int)source.kind, source.id, player,
                  NYA_INPUT_MAX_SOURCES);
         return;
     }
 
-    // Before the write, so a slot that turns out to be unclaimable leaves the routing alone rather
-    // than pointing at a state that was never allocated.
+    // Before the write, so an unclaimable slot leaves the routing alone rather than pointing at
+    // unallocated state.
     if (_nya_input_player_claim(player) == nullptr) return;
 
     binding->player = player;
@@ -288,14 +285,10 @@ void nya_input_players_reset(void) {
     for (u32 i = 0; i < system->source_count; i++) system->sources[i].player = NYA_INPUT_PLAYER_NONE;
 
     /*
-     * The slots are torn down rather than merely unrouted.
-     *
-     * A player who leaves mid-frame leaves keys held in their state, and a slot reused by somebody
-     * else would start with those still down — a lobby that assigns player 2 to a new device would
-     * find them already walking left. Destroying the tables is the only way to be sure.
-     *
-     * The roster of *devices* is kept: they are still plugged in, and forgetting them would break
-     * nya_input_source_at for a join screen drawn on the very next frame.
+     * Slots are torn down, not merely unrouted: a leftover held key would carry into whoever reuses the
+     * slot next — a lobby reassigning player 2 would find them already walking left. The device roster
+     * is kept, since they're still plugged in and forgetting them would break nya_input_source_at for a
+     * join screen drawn the next frame.
      */
     for (u32 player = 0; player < NYA_INPUT_MAX_PLAYERS; player++) {
         if (system->players[player].keys_pressed == nullptr) continue;
@@ -310,6 +303,82 @@ void nya_input_players_reset(void) {
  * ─────────────────────────────────────────────────────────
  */
 
+/** Which edge a query is asking about, so one gamepad walk serves all three. */
+typedef enum {
+    _NYA_INPUT_EDGE_PRESSED = 0,
+    _NYA_INPUT_EDGE_JUST_PRESSED,
+    _NYA_INPUT_EDGE_JUST_RELEASED,
+} _NYA_InputEdge;
+
+/**
+ * Whether any connected pad satisfies `binding` at `edge`.
+ *
+ * Any pad, not a specific one: a binding says *what* triggers an action, and *who* is asking is the
+ * player routing. Binding to one controller instance would make a rebinding screen wrong the moment a
+ * player swapped pads or one reconnected with a new instance id.
+ */
+NYA_INTERNAL b8 _nya_input_binding_gamepad_edge(NYA_InputBinding binding, _NYA_InputEdge edge) {
+    for (u32 i = 0; i < nya_gamepad_count(); i++) {
+        NYA_GamepadId pad = nya_gamepad_at(i);
+
+        b8 hit = false;
+
+        switch (binding.kind) {
+            case NYA_INPUT_BINDING_GAMEPAD_BUTTON: {
+                switch (edge) {
+                    case _NYA_INPUT_EDGE_PRESSED: hit = nya_gamepad_button_pressed(pad, binding.button); break;
+                    case _NYA_INPUT_EDGE_JUST_PRESSED: hit = nya_gamepad_button_just_pressed(pad, binding.button); break;
+                    case _NYA_INPUT_EDGE_JUST_RELEASED: hit = nya_gamepad_button_just_released(pad, binding.button); break;
+                    default: break;
+                }
+            } break;
+
+            case NYA_INPUT_BINDING_GAMEPAD_AXIS: {
+                switch (edge) {
+                    case _NYA_INPUT_EDGE_PRESSED: hit = nya_gamepad_axis_pressed(pad, binding.axis, binding.axis_threshold); break;
+                    case _NYA_INPUT_EDGE_JUST_PRESSED: hit = nya_gamepad_axis_just_pressed(pad, binding.axis, binding.axis_threshold); break;
+                    case _NYA_INPUT_EDGE_JUST_RELEASED: hit = nya_gamepad_axis_just_released(pad, binding.axis, binding.axis_threshold); break;
+                    default: break;
+                }
+            } break;
+
+            default: break;
+        }
+
+        if (hit) return true;
+    }
+
+    return false;
+}
+
+b8 nya_input_binding_gamepad_pressed(NYA_InputBinding binding) {
+    return _nya_input_binding_gamepad_edge(binding, _NYA_INPUT_EDGE_PRESSED);
+}
+
+/** Takes the next free slot for a non-keyboard binding, replacing the last when full. */
+NYA_INTERNAL void _nya_input_action_bind_slot(NYA_InputAction action, NYA_InputBinding binding) {
+    NYA_InputBinding* bindings = _nya_input_bindings_for(action);
+
+    for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
+        if (bindings[i].kind != NYA_INPUT_BINDING_NONE) continue;
+
+        bindings[i] = binding;
+        return;
+    }
+
+    nya_log_warn("Action %d already has %d bindings; replacing the last.", (int)action, NYA_INPUT_BINDINGS_PER_ACTION);
+    bindings[NYA_INPUT_BINDINGS_PER_ACTION - 1] = binding;
+}
+
+void nya_input_action_bind_button(NYA_InputAction action, NYA_GamepadButton button) {
+    _nya_input_action_bind_slot(action, (NYA_InputBinding){ .kind = NYA_INPUT_BINDING_GAMEPAD_BUTTON, .button = button });
+}
+
+void nya_input_action_bind_axis(NYA_InputAction action, NYA_GamepadAxis axis, f32 threshold) {
+    _nya_input_action_bind_slot(action,
+                                (NYA_InputBinding){ .kind = NYA_INPUT_BINDING_GAMEPAD_AXIS, .axis = axis, .axis_threshold = threshold });
+}
+
 void nya_input_action_bind(NYA_InputAction action, NYA_Keycode key) __attr_overloaded {
     nya_input_action_bind(action, key, NYA_KEYMOD_NONE);
 }
@@ -321,23 +390,23 @@ void nya_input_action_bind(NYA_InputAction action, NYA_Keycode key, NYA_KeyModFl
 
     // Already bound to this key: update the modifiers rather than spending a second slot on it.
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
-        if (bindings[i].key != key) continue;
+        if (bindings[i].kind != NYA_INPUT_BINDING_KEY || bindings[i].key != key) continue;
 
         bindings[i].modifiers = modifiers;
         return;
     }
 
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
-        if (bindings[i].key != NYA_KEY_UNKNOWN) continue;
+        if (bindings[i].kind != NYA_INPUT_BINDING_NONE) continue;
 
-        bindings[i] = (NYA_InputBinding){ .key = key, .modifiers = modifiers };
+        bindings[i] = (NYA_InputBinding){ .kind = NYA_INPUT_BINDING_KEY, .key = key, .modifiers = modifiers };
         return;
     }
 
-    // Full. Replacing the last is friendlier than dropping the request on the floor, and a rebinding
-    // screen that offers more alternatives than there are slots is the caller's bug to notice.
-    nya_warn("Action %d already has %d bindings; replacing the last.", (int)action, NYA_INPUT_BINDINGS_PER_ACTION);
-    bindings[NYA_INPUT_BINDINGS_PER_ACTION - 1] = (NYA_InputBinding){ .key = key, .modifiers = modifiers };
+    // Full: replacing the last is friendlier than dropping the request; a rebinding UI offering more
+    // alternatives than there are slots is the caller's bug to notice.
+    nya_log_warn("Action %d already has %d bindings; replacing the last.", (int)action, NYA_INPUT_BINDINGS_PER_ACTION);
+    bindings[NYA_INPUT_BINDINGS_PER_ACTION - 1] = (NYA_InputBinding){ .kind = NYA_INPUT_BINDING_KEY, .key = key, .modifiers = modifiers };
 }
 
 void nya_input_action_rebind(NYA_InputAction action, NYA_Keycode key) __attr_overloaded {
@@ -357,7 +426,9 @@ void nya_input_action_set(NYA_InputAction action, u32 slot, NYA_Keycode key, NYA
     NYA_InputBinding* bindings = _nya_input_bindings_for(action);
 
     // A cleared slot must not keep stale modifiers, or rebinding it later would inherit them.
-    bindings[slot] = key == NYA_KEY_UNKNOWN ? (NYA_InputBinding){ 0 } : (NYA_InputBinding){ .key = key, .modifiers = modifiers };
+    bindings[slot] = key == NYA_KEY_UNKNOWN
+                         ? (NYA_InputBinding){ 0 }
+                         : (NYA_InputBinding){ .kind = NYA_INPUT_BINDING_KEY, .key = key, .modifiers = modifiers };
 }
 
 NYA_InputBinding nya_input_action_get(NYA_InputAction action, u32 slot) {
@@ -375,8 +446,9 @@ void nya_input_action_unbind(NYA_InputAction action) {
 b8 nya_input_action_bound(NYA_InputAction action) {
     NYA_InputBinding* bindings = _nya_input_bindings_for(action);
 
+    // The tag, not the key: an action bound only to a gamepad button has a zero key and is still bound.
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
-        if (bindings[i].key != NYA_KEY_UNKNOWN) return true;
+        if (bindings[i].kind != NYA_INPUT_BINDING_NONE) return true;
     }
 
     return false;
@@ -391,8 +463,8 @@ void nya_input_action_name_set(NYA_InputAction action, NYA_ConstCString name) {
 
     NYA_InputAction existing = nya_input_action_from_name(name);
     if (existing != NYA_INPUT_ACTION_NONE && existing != action) {
-        // Refused rather than allowed to win, because the reverse lookup can only answer one of them
-        // and the loser would silently never load its bindings from a settings file.
+        // Refused: the reverse lookup can only answer one of them, and the loser would silently never
+        // load its bindings from a settings file.
         nya_log_error("Action %d cannot be called '%s': action %d already is.", (int)action, name, (int)existing);
         return;
     }
@@ -413,8 +485,8 @@ NYA_InputAction nya_input_action_from_name(NYA_ConstCString name) {
 
     NYA_InputSystem* system = &nya_app_get()->input_system;
 
-    // A linear scan over 256 slots, on a path that runs once per action per settings load. A map
-    // would cost an allocation and a hash to save a few hundred comparisons at startup.
+    // Linear scan over 256 slots, once per action per settings load — a map would cost an allocation
+    // to save a few hundred comparisons.
     for (u32 action = 1; action < NYA_INPUT_ACTION_MAX; action++) {
         if (system->action_names[action] == nullptr) continue;
         if (nya_string_equals(system->action_names[action], name)) return (NYA_InputAction)action;
@@ -435,11 +507,19 @@ b8 nya_input_action_just_pressed_by(u32 player, NYA_InputAction action) {
     NYA_InputBinding* bindings = _nya_input_bindings_for(action);
 
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
-        if (bindings[i].key == NYA_KEY_UNKNOWN) continue;
+        if (bindings[i].kind == NYA_INPUT_BINDING_NONE) continue;
+
+        // A gamepad binding is not routed per player yet — every connected pad satisfies it. See
+        // nya_input_binding_gamepad_pressed.
+        if (bindings[i].kind != NYA_INPUT_BINDING_KEY) {
+            if (_nya_input_binding_gamepad_edge(bindings[i], _NYA_INPUT_EDGE_JUST_PRESSED)) return true;
+            continue;
+        }
+
         if (!nya_input_key_just_pressed_by(player, bindings[i].key)) continue;
 
-        // Against this player's own modifier state, not the merged one: player 2 holding shift must
-        // not satisfy a chord that player 1 is halfway through.
+        // Against this player's own modifiers, not the merged set — player 2's shift must not satisfy
+        // a chord player 1 is halfway through.
         if (!_nya_input_modifiers_match_against(bindings[i].modifiers, nya_input_modifiers_by(player))) continue;
 
         return true;
@@ -452,7 +532,13 @@ b8 nya_input_action_pressed_by(u32 player, NYA_InputAction action) {
     NYA_InputBinding* bindings = _nya_input_bindings_for(action);
 
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
-        if (bindings[i].key == NYA_KEY_UNKNOWN) continue;
+        if (bindings[i].kind == NYA_INPUT_BINDING_NONE) continue;
+
+        if (bindings[i].kind != NYA_INPUT_BINDING_KEY) {
+            if (_nya_input_binding_gamepad_edge(bindings[i], _NYA_INPUT_EDGE_PRESSED)) return true;
+            continue;
+        }
+
         if (!nya_input_key_pressed_by(player, bindings[i].key)) continue;
         if (!_nya_input_modifiers_match_against(bindings[i].modifiers, nya_input_modifiers_by(player))) continue;
 
@@ -469,7 +555,7 @@ b8 nya_input_action_matches(NYA_InputAction action, NYA_Keycode key, NYA_KeyModF
 
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
         if (bindings[i].key == NYA_KEY_UNKNOWN) continue;
-        if (bindings[i].key != key) continue;
+        if (bindings[i].kind != NYA_INPUT_BINDING_KEY || bindings[i].key != key) continue;
         if (!_nya_input_modifiers_match_against(bindings[i].modifiers, modifiers)) continue;
 
         return true;
@@ -488,8 +574,8 @@ b8 nya_input_action_just_released_by(u32 player, NYA_InputAction action) {
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
         if (bindings[i].key == NYA_KEY_UNKNOWN) continue;
 
-        // No modifier check here on purpose; see the note in core_input.h. Releasing Ctrl before the
-        // key it modified is the normal way to end a chord.
+        // No modifier check here on purpose (see core_input.h): releasing Ctrl before the key it
+        // modified is the normal way to end a chord.
         if (nya_input_key_just_released_by(player, bindings[i].key)) return true;
     }
 
@@ -586,14 +672,11 @@ NYA_InputBinding* _nya_input_bindings_for(NYA_InputAction action) {
 
 b8 _nya_input_modifiers_match_against(NYA_KeyModFlag required, NYA_KeyModFlag current) {
     /*
-     * Compared a group at a time, so a binding can ask for either Ctrl or specifically left Ctrl.
-     *
-     * A group the binding does not ask for must not be held: that is what stops a bare W firing
-     * while Ctrl+W is being pressed. A group it does ask for must be held on at least one of the
-     * sides requested, so NYA_KEYMOD_CTRL accepts either and NYA_KEYMOD_LCTRL accepts only the left.
-     *
-     * Lock keys are excluded entirely. Caps Lock being on is a state of the keyboard, not part of a
-     * chord, and requiring it off would make half the bindings in a game stop working.
+     * Compared a group at a time, so a binding can ask for either Ctrl or specifically left Ctrl. A
+     * group not asked for must not be held (what stops a bare W firing during Ctrl+W); a group asked
+     * for must be held on at least one requested side, so NYA_KEYMOD_CTRL accepts either and
+     * NYA_KEYMOD_LCTRL only the left. Lock keys are excluded — Caps Lock is keyboard state, not part
+     * of a chord.
      */
     const NYA_KeyModFlag groups[] = { NYA_KEYMOD_CTRL, NYA_KEYMOD_SHIFT, NYA_KEYMOD_ALT, NYA_KEYMOD_GUI };
 
@@ -626,12 +709,9 @@ void _nya_system_event_on_update_ended_hook(NYA_Event* event) {
     }
 
     /*
-     * Typed text is cleared here and the composition is not.
-     *
-     * They have different lifetimes and it matters: text is what arrived *this frame* and a reader
-     * that missed it has missed it, while a composition persists across frames until the IME either
-     * commits or cancels it. Clearing the composition here would make it flicker for exactly one
-     * frame each time it changed.
+     * Typed text is cleared here and the composition is not: text is what arrived this frame, while a
+     * composition persists across frames until the IME commits or cancels it. Clearing it here would
+     * make it flicker for one frame each time it changed.
      */
     system->text[0]   = '\0';
     system->text_length = 0;
@@ -910,7 +990,7 @@ void nya_input_text_begin(NYA_WindowHandle window) {
     NYA_InputSystem* system = &nya_app_get()->input_system;
 
     if (!SDL_StartTextInput(target->sdl_window)) {
-        nya_warn("Could not start text input: %s", SDL_GetError());
+        nya_log_warn("Could not start text input: %s", SDL_GetError());
         return;
     }
 

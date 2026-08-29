@@ -127,7 +127,7 @@ void nya_net_command_set(NYA_NetCommand* command, u32 bit, b8 held) {
     if (bit >= 64) {
         // Reported rather than ignored: a game that has run out of action bits has a real problem and
         // silently dropping the highest ones would look like an input bug.
-        nya_warn("Action bit %u is past the 64 a command carries; it will never be sent.", bit);
+        nya_log_warn("Action bit %u is past the 64 a command carries; it will never be sent.", bit);
         return;
     }
 

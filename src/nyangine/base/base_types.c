@@ -142,7 +142,7 @@ b8 nya_type_parse(NYA_Type target, const u8* data, u64 length, OUT void* out_val
             return false;
         } break;
 
-        default: nya_panic("Parsing not implemented for type %s.", NYA_TYPE_NAME_MAP[target]); nya_unreachable();
+        default: nya_log_panic("Parsing not implemented for type %s.", NYA_TYPE_NAME_MAP[target]); nya_unreachable();
     }
 }
 

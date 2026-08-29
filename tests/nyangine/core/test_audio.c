@@ -474,7 +474,7 @@ s32 main(void) {
     NYA_SoundVoice voice = nya_audio_play_sound(TEST_WAV_PATH, 1.0F);
 
     if (voice.generation == 0) {
-      nya_info("no audio device, so playback was not exercised (this is expected in CI)");
+      nya_log_info("no audio device, so playback was not exercised (this is expected in CI)");
       nya_assert(!nya_audio_voice_valid(voice), "a null voice from a failed play must not be valid");
     } else {
       nya_assert(nya_audio_voice_valid(voice), "a voice that just started must be valid");

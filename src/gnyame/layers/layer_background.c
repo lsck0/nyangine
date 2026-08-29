@@ -19,7 +19,7 @@
  * of its own — it reads the camera the game layer owns and never writes it.
  * */
 #include "gnyame/gnyame.h"
-#include "assets/assets.h"
+#include "generated/assets.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ void gny_layer_background_on_create(NYA_Window* window) {
     });
 
     // Not fatal. A machine with no audio device still runs the demo.
-    if (!music.ok) nya_warn("%s", (NYA_ConstCString)music.message);
+    if (!music.ok) nya_log_warn("%s", (NYA_ConstCString)music.message);
 }
 
 /*
@@ -159,7 +159,7 @@ void _gny_music_start_when_ready(void) {
     world->music_started = true;
 
     if (status != NYA_ASSET_STATUS_LOADED) {
-        nya_warn("The background track '%s' could not be loaded; running without music.", NYA_ASSET_MUSIC_BGM_WAV);
+        nya_log_warn("The background track '%s' could not be loaded; running without music.", NYA_ASSET_MUSIC_BGM_WAV);
         return;
     }
 
@@ -204,7 +204,7 @@ void _gny_trace_log_once(void) {
      * frame did — the loop sleeps the remainder. Reading that as the cost of a frame is the single
      * most common way to conclude an idle demo is slow.
      */
-    nya_info("Perf: work %.3f ms, slept %.3f ms, period %.3f ms (%.0f fps, limit %u)", nya_time_ns_to_s(stats.work_ns) * 1000.0,
+    nya_log_info("Perf: work %.3f ms, slept %.3f ms, period %.3f ms (%.0f fps, limit %u)", nya_time_ns_to_s(stats.work_ns) * 1000.0,
              nya_time_ns_to_s(stats.sleep_ns) * 1000.0, nya_time_ns_to_s(stats.elapsed_ns) * 1000.0, (f64)stats.fps,
              nya_app_get()->options.frame_rate_limit);
 

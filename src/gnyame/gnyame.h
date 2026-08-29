@@ -1,9 +1,12 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-#include "assets/strings.h"
+#include "generated/strings.h"
 // Before the layers, which size the terrain array from GNY_TERRAIN_POINT_COUNT.
 #include "gnyame/constants.h"
+/**/
+// NYA_CONFIG, which the world and its systems may read once they exist — so named before either.
+#include "gnyame/config.h"
 /**/
 // What the player can ask for, before anything that asks whether they did.
 #include "gnyame/actions.h"

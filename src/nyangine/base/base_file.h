@@ -13,10 +13,8 @@
  */
 
 /*
- * Whole-content helpers over an open NYA_File.
- *
- * These took a raw `s32 fd` before, which quietly made them POSIX only. NYA_File wraps a
- * descriptor or a Windows HANDLE, so the same code works on both.
+ * Whole-content helpers over an open NYA_File. These took a raw `s32 fd` before, which quietly made
+ * them POSIX only; NYA_File wraps a descriptor or a Windows HANDLE, so the same code works on both.
  */
 
 NYA_API NYA_Error nya_file_read_string(NYA_File* file, OUT NYA_String* out_content) __attr_no_discard;

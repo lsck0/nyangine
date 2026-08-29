@@ -115,7 +115,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
             gnyame_dll_reload_requested = false;
             nya_app->should_quit        = false;
-            nya_debug("Reloaded %s.", DLL_PATH);
+            nya_log_debug("Reloaded %s.", DLL_PATH);
         }
     }
 
@@ -166,7 +166,7 @@ void* dll_watch_thread_fn(void* arg) {
         NYA_Error result = nya_filesystem_last_modified(DLL_PATH, &last_modified);
 
         if (result.ok && last_modified != gnyame_dll_last_modified && !gnyame_dll_reload_requested) {
-            nya_debug("%s was changed, requesting reload.", DLL_PATH);
+            nya_log_debug("%s was changed, requesting reload.", DLL_PATH);
             gnyame_dll_reload_requested = true;
             nya_app->should_quit        = true;
         } else {
@@ -282,7 +282,7 @@ s32 main(s32 argc, NYA_CString* argv) {
 
             gnyame_dll_reload_requested = false;
             nya_app->should_quit        = false;
-            nya_debug("Reloaded %s.", DLL_PATH);
+            nya_log_debug("Reloaded %s.", DLL_PATH);
         }
     }
 
@@ -336,7 +336,7 @@ DWORD WINAPI dll_watch_thread_fn(LPVOID arg) {
         NYA_Error result = nya_filesystem_last_modified(DLL_PATH, &last_modified);
 
         if (result.ok && last_modified != gnyame_dll_last_modified && !gnyame_dll_reload_requested) {
-            nya_debug("%s was changed, requesting reload.", DLL_PATH);
+            nya_log_debug("%s was changed, requesting reload.", DLL_PATH);
             gnyame_dll_reload_requested = true;
             nya_app->should_quit        = true;
         } else {

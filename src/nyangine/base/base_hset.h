@@ -32,7 +32,7 @@
  * nya_hset_insert(player_set, (Player){ .id = 1, .name = "Alice" });
  * nya_hset_insert(player_set, (Player){ .id = 2, .name = "Bob" });
  *
- * nya_hset_foreach (player_set, player) nya_info("Player %u: %s", player->id, player->name);
+ * nya_hset_foreach (player_set, player) nya_log_info("Player %u: %s", player->id, player->name);
  *
  * nya_arena_destroy(arena);
  * ```c

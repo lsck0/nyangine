@@ -35,27 +35,27 @@ s32 main(void) {
   // TEST: log messages don't crash (just ensure they don't segfault)
   // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(NYA_LOG_LEVEL_TRACE);
-  nya_trace("This is a trace message: %d", 42);
-  nya_debug("This is a debug message: %s", "debug");
-  nya_info("This is an info message: %f", 3.14);
-  nya_warn("This is a warn message: %d %d %d", 1, 2, 3);
+  nya_log_trace("This is a trace message: %d", 42);
+  nya_log_debug("This is a debug message: %s", "debug");
+  nya_log_info("This is an info message: %f", 3.14);
+  nya_log_warn("This is a warn message: %d %d %d", 1, 2, 3);
   nya_log_error("This is an error message: %s", "error");
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log filtering - lower levels not shown when higher level set
   // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(NYA_LOG_LEVEL_ERROR);
-  nya_trace("Should not appear");
-  nya_debug("Should not appear");
-  nya_info("Should not appear");
-  nya_warn("Should not appear");
+  nya_log_trace("Should not appear");
+  nya_log_debug("Should not appear");
+  nya_log_info("Should not appear");
+  nya_log_warn("Should not appear");
   nya_log_error("Should appear: %d", 123);
 
   nya_log_level_set(NYA_LOG_LEVEL_INFO);
-  nya_trace("Should not appear");
-  nya_debug("Should not appear");
-  nya_info("Should appear: %s", "info");
-  nya_warn("Should appear: %d", 456);
+  nya_log_trace("Should not appear");
+  nya_log_debug("Should not appear");
+  nya_log_info("Should appear: %s", "info");
+  nya_log_warn("Should appear: %d", 456);
   nya_log_error("Should appear: %f", 7.89);
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -65,14 +65,14 @@ s32 main(void) {
   // both see and swallow a panic; the crash API separates those, so a test arms a frame and then
   // inspects NYA_CrashInfo rather than setting a global flag from a callback.
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_expect_crash(nya_panic("This panic should be caught"));
+  nya_expect_crash(nya_log_panic("This panic should be caught"));
   nya_assert(nya_crash_caught() != nullptr);
   nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_PANIC);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a panic carrying format arguments, which is where the old hook risked va_list UB
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_expect_crash(nya_panic("Panic with args: %d %s %f", 999, "text", 1.5));
+  nya_expect_crash(nya_log_panic("Panic with args: %d %s %f", 999, "text", 1.5));
   nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_PANIC);
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ s32 main(void) {
   // TEST: repeated crashes, each caught independently
   // ─────────────────────────────────────────────────────────────────────────────
   for (u32 i = 0; i < 3; ++i) {
-    nya_expect_crash(nya_panic("Panic %u", i));
+    nya_expect_crash(nya_log_panic("Panic %u", i));
     nya_assert(nya_crash_caught() != nullptr);
   }
 
@@ -93,41 +93,41 @@ s32 main(void) {
   // TEST: log messages with various format specifiers
   // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(NYA_LOG_LEVEL_INFO);
-  nya_info("String: %s", "test");
-  nya_info("Integer: %d", -42);
-  nya_info("Unsigned: %u", 42);
-  nya_info("Hex: 0x%x", 255);
-  nya_info("Float: %f", 3.14159);
-  nya_info("Pointer: %p", (void*)0x12345678);
-  nya_info("Char: %c", 'A');
-  nya_info("Percent: %%");
+  nya_log_info("String: %s", "test");
+  nya_log_info("Integer: %d", -42);
+  nya_log_info("Unsigned: %u", 42);
+  nya_log_info("Hex: 0x%x", 255);
+  nya_log_info("Float: %f", 3.14159);
+  nya_log_info("Pointer: %p", (void*)0x12345678);
+  nya_log_info("Char: %c", 'A');
+  nya_log_info("Percent: %%");
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log messages with multiple arguments
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_info("Multiple: %d %s %f %u", 1, "two", 3.0, 4);
-  nya_info("Five args: %d %d %d %d %d", 1, 2, 3, 4, 5);
+  nya_log_info("Multiple: %d %s %f %u", 1, "two", 3.0, 4);
+  nya_log_info("Five args: %d %d %d %d %d", 1, 2, 3, 4, 5);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: empty log message
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_info("");
+  nya_log_info("");
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: log message with special characters
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_info("Special: \t\n\r%s", "test");
+  nya_log_info("Special: \t\n\r%s", "test");
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: all log level messages work
   // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(NYA_LOG_LEVEL_TRACE);
-  nya_trace("TRACE level");
-  nya_debug("DEBUG level");
-  nya_info("INFO level");
-  nya_warn("WARN level");
+  nya_log_trace("TRACE level");
+  nya_log_debug("DEBUG level");
+  nya_log_info("INFO level");
+  nya_log_warn("WARN level");
   nya_log_error("ERROR level");
-  // nya_panic would crash, so skip it
+  // nya_log_panic would crash, so skip it
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: very long log message
@@ -139,7 +139,7 @@ s32 main(void) {
     nya_string_extend(&long_msg, &part);
   }
   NYA_CString cstr = nya_string_to_cstring(arena, &long_msg);
-  nya_info("Long message: %s", cstr);
+  nya_log_info("Long message: %s", cstr);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP

@@ -19,6 +19,18 @@ static b8 close_enough(f32 a, f32 b) {
   return fabsf(a - b) < 0.001F;
 }
 
+/**
+ * One tick of the two systems interpolated motion needs, in the order core_app.c runs them.
+ *
+ * A move is a core_tween.h tween writing into NYA_Entity.move_position, which
+ * nya_system_entity_update then applies to the transform — so stepping only the entity system
+ * advances nothing, and stepping it first applies every move a tick late.
+ * */
+static void tick(f32 delta_time_s) {
+  nya_system_tween_update(delta_time_s);
+  nya_system_entity_update(delta_time_s);
+}
+
 /** Counts calls, so a test can prove a lifecycle callback actually fired. */
 static u32 spawn_calls   = 0;
 static u32 despawn_calls = 0;
@@ -453,19 +465,19 @@ s32 main(void) {
 
     // Half the duration, linear, so exactly half the distance. Anything else here means the origin
     // was not captured at the call and the lerp is stepping from wherever the entity happens to be.
-    nya_system_entity_update(0.5F);
+    tick(0.5F);
     nya_assert(close_enough(entity->position.x, 50.0F), "half a linear move is half the distance, got %f", (f64)entity->position.x);
 
     // Deliberately overshooting the remaining time. The step clamps rather than extrapolating, so
     // the entity lands on the target instead of sailing past it on a long frame.
-    nya_system_entity_update(10.0F);
+    tick(10.0F);
     nya_assert(close_enough(entity->position.x, 100.0F), "an overlong tick still lands on the target, got %f", (f64)entity->position.x);
     nya_assert(!nya_entity_moving(entity), "the move ends on the tick it arrives, not the one after");
 
     // Restart, then abandon it partway. The entity keeps what it had reached rather than snapping
     // back to the origin or on to the target.
     nya_entity_move_to(entity, (f32x3){ 0.0F, 0.0F, 0.0F }, 1.0F, NYA_EASE_LINEAR);
-    nya_system_entity_update(0.25F);
+    tick(0.25F);
     nya_entity_move_stop(entity);
 
     nya_assert(!nya_entity_moving(entity), "a stopped move is not running");
@@ -479,8 +491,37 @@ s32 main(void) {
     // Speed derived duration: 100 units at 50 per second is two seconds, so one second is halfway.
     nya_entity_move_to(entity, (f32x3){ 90.0F, 5.0F, 0.0F }, 0.0F, NYA_EASE_LINEAR);
     nya_entity_move_to_at_speed(entity, (f32x3){ -10.0F, 5.0F, 0.0F }, 50.0F);
-    nya_system_entity_update(1.0F);
+    tick(1.0F);
     nya_assert(close_enough(entity->position.x, 40.0F), "speed and distance decide the duration, got %f", (f64)entity->position.x);
+
+    nya_entity_clear();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the draw-order key, and y-sorting deriving it from where the feet are
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_EntityHandle handle = nya_entity_spawn(.name = "sorted", .position = { 0.0F, 40.0F, 0.0F });
+    NYA_Entity*      entity = nya_entity_get(handle);
+
+    entity->visual.z_order = 3.0F;
+    nya_assert(nya_entity_sort_key(entity) == 3.0F, "without y-sorting the key is the field, got %f", (f64)nya_entity_sort_key(entity));
+
+    // With it on, the field is ignored entirely — a half-applied version would read as depth
+    // flickering only for entities that happen to have both set.
+    entity->visual.y_sorted = true;
+    nya_assert(nya_entity_sort_key(entity) == 40.0F, "y-sorting takes the position, got %f", (f64)nya_entity_sort_key(entity));
+
+    // The anchor is where the feet are, which is what makes a tall sprite sort against a short one
+    // by where they stand rather than by where their middles are.
+    entity->visual.y_sort_anchor = 16.0F;
+    nya_assert(nya_entity_sort_key(entity) == 56.0F, "the anchor is added, got %f", (f64)nya_entity_sort_key(entity));
+
+    // Moving re-decides the order, with nothing to keep in step.
+    entity->position.y = 10.0F;
+    nya_assert(nya_entity_sort_key(entity) == 26.0F, "and it follows the entity, got %f", (f64)nya_entity_sort_key(entity));
+
+    nya_assert(nya_entity_sort_key(nullptr) == 0.0F, "nothing sorts at zero rather than crashing");
 
     nya_entity_clear();
   }

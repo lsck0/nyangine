@@ -42,12 +42,12 @@
  */
 
 NYA_Error nya_system_renderer_init(void) {
-    nya_info("Render system initialized (headless: no GPU device, nothing will be drawn).");
+    nya_log_info("Render system initialized (headless: no GPU device, nothing will be drawn).");
     return NYA_OK;
 }
 
 void nya_system_renderer_deinit(void) {
-    nya_info("Render system deinitialized (headless).");
+    nya_log_info("Render system deinitialized (headless).");
 }
 
 void nya_system_renderer_for_window_init(NYA_Window* window) {
@@ -133,7 +133,7 @@ NYA_Error nya_system_renderer_init(void) {
      */
     app->render_system.sample_count = SDL_GPU_SAMPLECOUNT_1;
 
-    nya_info("Render system initialized.");
+    nya_log_info("Render system initialized.");
     return NYA_OK;
 }
 
@@ -157,7 +157,7 @@ void nya_system_renderer_deinit(void) {
     nya_arena_destroy(app->render_system.allocator);
     app->render_system.allocator = nullptr;
 
-    nya_info("Render system deinitialized.");
+    nya_log_info("Render system deinitialized.");
 }
 
 /**
@@ -290,8 +290,8 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
         app->render_system.sample_count_decided = true;
 
-        nya_info("Multisampling: %s.", app->render_system.sample_count == SDL_GPU_SAMPLECOUNT_4 ? "4x" : "unsupported, falling back to none");
-        nya_info("Depth buffer: %s.", app->render_system.depth_format == SDL_GPU_TEXTUREFORMAT_D32_FLOAT ? "D32_FLOAT" : "D24_UNORM_S8_UINT");
+        nya_log_info("Multisampling: %s.", app->render_system.sample_count == SDL_GPU_SAMPLECOUNT_4 ? "4x" : "unsupported, falling back to none");
+        nya_log_info("Depth buffer: %s.", app->render_system.depth_format == SDL_GPU_TEXTUREFORMAT_D32_FLOAT ? "D32_FLOAT" : "D24_UNORM_S8_UINT");
     }
 
     /*
@@ -1010,7 +1010,8 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     // Sort scratch: one key per triangle the index array could hold, and somewhere to write the
     // reordered run. Allocated once here rather than per flush, which is a per-frame allocation.
     mesh_batch->sort_keys      = nya_arena_alloc(app->render_system.allocator, (NYA_RENDER3D_MAX_INDICES / 3) * sizeof(NYA_Render3DSortKey));
-    mesh_batch->sorted_indices = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INDICES * sizeof(u32));
+    mesh_batch->sort_keys_scratch = nya_arena_alloc(app->render_system.allocator, (NYA_RENDER3D_MAX_INDICES / 3) * sizeof(NYA_Render3DSortKey));
+    mesh_batch->sorted_indices    = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INDICES * sizeof(u32));
 
     mesh_batch->sorted_instances = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
 
@@ -1047,7 +1048,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
      */
     SDL_GPUSwapchainComposition composition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
     if (!SDL_WindowSupportsGPUSwapchainComposition(app->render_system.gpu_device, window->sdl_window, composition)) {
-        nya_warn("Swapchain composition SDR is unsupported for window '%s'; keeping the driver's default.", window->title);
+        nya_log_warn("Swapchain composition SDR is unsupported for window '%s'; keeping the driver's default.", window->title);
         return;
     }
 
@@ -1055,15 +1056,15 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     // supported everywhere, so it is the fallback rather than another thing to check.
     SDL_GPUPresentMode present_mode = app->options.vsync_enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_MAILBOX;
     if (!SDL_WindowSupportsGPUPresentMode(app->render_system.gpu_device, window->sdl_window, present_mode)) {
-        nya_warn("Present mode %d is unsupported for window '%s'; falling back to vsync.", (int)present_mode, window->title);
+        nya_log_warn("Present mode %d is unsupported for window '%s'; falling back to vsync.", (int)present_mode, window->title);
         present_mode = SDL_GPU_PRESENTMODE_VSYNC;
     }
 
     if (!SDL_SetGPUSwapchainParameters(app->render_system.gpu_device, window->sdl_window, composition, present_mode)) {
-        nya_warn("SDL_SetGPUSwapchainParameters() failed for window '%s', keeping the default: %s", window->title, SDL_GetError());
+        nya_log_warn("SDL_SetGPUSwapchainParameters() failed for window '%s', keeping the default: %s", window->title, SDL_GetError());
     }
 
-    nya_info("Render system initialized for window '%s' (slot %u).", window->title, window->handle.index);
+    nya_log_info("Render system initialized for window '%s' (slot %u).", window->title, window->handle.index);
 }
 
 void nya_system_renderer_for_window_deinit(NYA_Window* window) {
@@ -1141,7 +1142,7 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
 
     SDL_ReleaseWindowFromGPUDevice(app->render_system.gpu_device, window->sdl_window);
 
-    nya_info("Render system deinitialized for window '%s' (slot %u).", window->title, window->handle.index);
+    nya_log_info("Render system deinitialized for window '%s' (slot %u).", window->title, window->handle.index);
 }
 
 void nya_system_renderer_set_vsync(b8 enabled) {
@@ -1172,7 +1173,7 @@ void nya_system_renderer_set_vsync(b8 enabled) {
             }
 
             if (!SDL_SetGPUSwapchainParameters(app->render_system.gpu_device, window->sdl_window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, present_mode)) {
-                nya_warn("Could not change the present mode for window '%s': %s", window->title, SDL_GetError());
+                nya_log_warn("Could not change the present mode for window '%s': %s", window->title, SDL_GetError());
             }
         }
     }
@@ -1212,7 +1213,7 @@ b8 nya_render_begin(NYA_Window* window) {
     // which is what puts the image outside the window frame. It also lets command buffers pile up
     // while the GPU catches up.
     if (!SDL_WaitAndAcquireGPUSwapchainTexture(command_buffer, window->sdl_window, &swapchain_texture, &swapchain_width, &swapchain_height)) {
-        nya_warn("SDL_WaitAndAcquireGPUSwapchainTexture() failed for window '%s': %s", window->title, SDL_GetError());
+        nya_log_warn("SDL_WaitAndAcquireGPUSwapchainTexture() failed for window '%s': %s", window->title, SDL_GetError());
         SDL_CancelGPUCommandBuffer(command_buffer);
         return false;
     }
@@ -1249,7 +1250,7 @@ b8 nya_render_begin(NYA_Window* window) {
 
             SDL_WindowFlags flags = SDL_GetWindowFlags(window->sdl_window);
 
-            nya_info(
+            nya_log_info(
                 "swapchain=%ux%u logical=%dx%d pixels=%dx%d position=%d,%d scale=%.3f%s%s%s%s",
                 swapchain_width,
                 swapchain_height,
@@ -1360,6 +1361,7 @@ b8 nya_render_begin(NYA_Window* window) {
     window->render_system.mesh_batch.frame_indices       = 0;
     window->render_system.mesh_batch.frame_instances     = 0;
     window->render_system.mesh_batch.frame_culled        = 0;
+    window->render_system.mesh_batch.frame_occluded      = 0;
     window->render_system.mesh_batch.frame_dropped_draws = 0;
 
     window->render_system.draw_batch.target_texture    = swapchain_texture;
@@ -1434,7 +1436,9 @@ void nya_render_end(NYA_Window* window) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-SDL_GPUSampler* _nya_render_sampler_for(NYA_TextureFilter filter) {
+// Maybe-unused because its only callers are render2d.c and render3d.c, which a headless build swaps
+// out for the stubs — so a headless translation unit compiles this and calls it from nowhere.
+__attr_maybe_unused SDL_GPUSampler* _nya_render_sampler_for(NYA_TextureFilter filter) {
     // Clamped rather than asserted: the filter reaches here off an asset's load parameters, which a game
     // fills in, and a value out of range should draw with a sensible sampler rather than end the process.
     if (filter >= NYA_TEXTURE_FILTER_COUNT) filter = NYA_TEXTURE_FILTER_LINEAR;

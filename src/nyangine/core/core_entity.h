@@ -4,10 +4,8 @@
  * Entities: one flat struct per thing in the world, addressed by generational handle.
  *
  * Deliberately not an ECS. There are no components, no archetypes and no queries — every entity is
- * the same fat struct and unused fields simply sit there. For a game of this size that trades a
- * little memory for the ability to read a whole entity in one place, and it can be replaced later
- * without changing how anything refers to an entity, because references are handles rather than
- * pointers or indices.
+ * the same fat struct — unused fields just sit there. References are handles, not pointers, so the
+ * implementation can change without touching call sites.
  *
  * ```c
  * NYA_EntityHandle player = nya_entity_spawn(.name = "player", .position = { 0, 1, 0 });
@@ -18,9 +16,9 @@
  * nya_entity_despawn_deferred(player);           // applied at the simulation barrier
  * ```
  *
- * **Borrow pointers, hold handles.** `NYA_Entity*` stays valid for as long as that entity lives,
- * because the table never moves, but it says nothing about whether the entity still exists. Anything
- * that outlives the current scope — a deferred command, a field on another entity — stores a handle.
+ * **Borrow pointers, hold handles.** `NYA_Entity*` stays valid while the entity lives — the table
+ * never moves — but says nothing about whether it still exists. Anything that outlives the current
+ * scope stores a handle instead.
  * */
 #pragma once
 
@@ -28,15 +26,16 @@
 #include "nyangine/core/core_event.h"
 #include "nyangine/physics/physics2d.h"
 #include "nyangine/physics/physics3d.h"
+#include "nyangine/core/core_tween.h"
 #include "nyangine/core/core_types.h"
+#include "nyangine/math/math_matrix.h"
 #include "nyangine/math/math_quaternion.h"
 #include "nyangine/math/math_tween.h"
 #include "nyangine/math/math_vector.h"
-// The entity carries its own appearance, which is a sprite, an animator and an atlas by value.
+// The entity carries its own appearance: sprite, animator and atlas by value.
 #include "nyangine/renderer/render2d_sprite.h"
 
-// Only ever a pointer here, and core_window.h is a far heavier include than one opaque type is
-// worth — the same arrangement render2d.h uses.
+// Pointer only; core_window.h is a far heavier include than one opaque type is worth.
 typedef struct NYA_Window NYA_Window;
 
 /*
@@ -46,41 +45,31 @@ typedef struct NYA_Window NYA_Window;
  */
 
 /**
- * Entity slots, allocated up front.
+ * Entity slots, allocated up front and fixed rather than growable so an NYA_Entity* stays put —
+ * on_update holds a raw pointer, and "spawn a bullet, then set my own cooldown" crossing a growth
+ * boundary would be a silent use-after-free.
  *
- * Fixed rather than growable so an NYA_Entity* stays put.
- *
- * Handles already cover identity and lifetime, so a reallocating array would be safe *across*
- * frames. What it would not be safe for is a single callback body: on_update is handed a raw
- * NYA_Entity*, and code as ordinary as "spawn a bullet, then set my own cooldown" would be a use
- * after free whenever that spawn crossed a growth boundary. Silent, and only sometimes.
- *
- * Override with -DNYA_ENTITY_MAX=<n> per game. Costs sizeof(NYA_Entity) x n up front, allocated
- * once from the entity arena. If a hard ceiling is the wrong shape, the answer is chunked blocks
- * rather than one reallocating array: those grow without ever moving what already exists.
+ * Override with -DNYA_ENTITY_MAX=<n>. Costs sizeof(NYA_Entity) x n up front. If a hard ceiling is
+ * wrong, use chunked blocks rather than a reallocating array — those grow without moving anything.
  * */
 #ifndef NYA_ENTITY_MAX
 #define NYA_ENTITY_MAX 8192
 #endif
 
 /**
- * World units across one cell of the spatial index.
- *
- * The one number that decides whether the grid helps. Too small and a query walks hundreds of empty
- * cells; too large and every cell holds everything and the index degenerates to the linear scan it
- * replaced. A few times the size of a typical entity is the usual answer — at the demo's 32 unit
- * crates, 128 puts roughly a dozen per cell.
+ * World units across one cell of the spatial index. Too small and a query walks empty cells; too
+ * large and every cell holds everything, degenerating to the linear scan it replaced — a few times a
+ * typical entity's size works well (32 unit crates at the demo's scale, 128 here, roughly a dozen
+ * entities per cell).
  * */
 #ifndef NYA_ENTITY_GRID_CELL_SIZE
 #define NYA_ENTITY_GRID_CELL_SIZE 128.0F
 #endif
 
 /**
- * Hash buckets. Must be a power of two; the hash is masked rather than divided.
- *
- * This is a spatial *hash*, not a dense array of cells, so the world has no bounds and negative
- * coordinates cost nothing. The price is collisions: two distant cells can share a bucket, which is
- * why every query re-checks the cell an entity actually sits in rather than trusting the bucket.
+ * Hash buckets; must be a power of two since the hash is masked rather than divided. A spatial hash,
+ * not a dense array of cells, so the world has no bounds — collisions mean distant cells can share a
+ * bucket, so every query re-checks the cell an entity actually sits in.
  * */
 #ifndef NYA_ENTITY_GRID_BUCKETS
 #define NYA_ENTITY_GRID_BUCKETS 4096
@@ -89,22 +78,18 @@ typedef struct NYA_Window NYA_Window;
 static_assert((NYA_ENTITY_GRID_BUCKETS & (NYA_ENTITY_GRID_BUCKETS - 1)) == 0, "NYA_ENTITY_GRID_BUCKETS must be a power of two");
 
 /**
- * How far outside the view nya_system_entity_render still draws, in world units.
- *
- * The index knows where an entity *is*, not how big it is, so an entity whose origin has left the
- * screen may still be half on it. Without a margin those pop out at the edge; with one they leave
- * properly. Set it to a little more than the largest entity's radius.
+ * How far outside the view nya_system_entity_render still draws, in world units. The index knows
+ * where an entity *is*, not how big it is, so one whose origin left the screen may still be half on
+ * it and pop at the edge without a margin. Set to a little more than the largest entity's radius.
  * */
 #ifndef NYA_ENTITY_RENDER_CULL_MARGIN
 #define NYA_ENTITY_RENDER_CULL_MARGIN 128.0F
 #endif
 
 /**
- * Kinds the index has a bitset for. A kind at or above this still works, just without the shortcut.
- *
- * One bitset per kind is NYA_ENTITY_MAX bits — a kilobyte at the default — so sixty four kinds is
- * sixty four kilobytes. Generous for a game and cheap enough not to think about; a game with more
- * than sixty four kinds of thing has bigger questions than this table.
+ * Kinds the index has a bitset for; a kind at or above this still works, just without the shortcut.
+ * One bitset per kind is NYA_ENTITY_MAX bits — a kilobyte at the default, so 64 kinds is 64
+ * kilobytes, cheap enough not to think about.
  * */
 #ifndef NYA_ENTITY_KIND_MAX
 #define NYA_ENTITY_KIND_MAX 64
@@ -145,29 +130,24 @@ enum NYA_EntityState {
     NYA_ENTITY_STATE_STATIC = 1 << 2,
 
     /**
-     * Despawn has been requested and is waiting on the simulation barrier.
-     *
-     * Set by nya_entity_despawn_deferred. The entity is still fully valid until the barrier runs,
-     * so anything mid update sees a consistent world; this flag is how it can tell the difference.
+     * Despawn requested, waiting on the simulation barrier. Set by nya_entity_despawn_deferred; the
+     * entity stays fully valid until the barrier runs, so this flag is how mid-update code can tell
+     * the difference.
      * */
     NYA_ENTITY_STATE_DESPAWNING = 1 << 3,
 };
 
 /**
- * A uniform grid over entity positions, rebuilt every tick.
+ * A uniform grid over entity positions, rebuilt every tick. Intrusive and allocation free: `buckets`
+ * holds the first entity slot in each bucket, `next` chains the rest — insert is two writes, clearing
+ * is one memset of `buckets`, nothing allocated after init. That's what makes a full rebuild every
+ * tick cheaper than incremental maintenance for a world where everything moves.
  *
- * Intrusive and allocation free: `buckets` holds the first entity slot in each bucket and `next`
- * chains the rest, one entry per entity slot. Inserting is two writes, clearing is one memset of
- * `buckets`, and nothing is allocated after init — which is what makes rebuilding the whole thing
- * every tick cheaper than maintaining it incrementally for a world where everything moves.
+ * **Indexes positions, not bounds.** An entity sits in exactly one cell, the one its origin falls in,
+ * however large it is. An overlap query has to expand its rectangle by the largest entity's radius.
  *
- * **It indexes positions, not bounds.** An entity is in exactly one cell, the one its origin falls
- * in, however large it is. A query that needs overlap rather than containment has to expand its
- * rectangle by the largest entity's radius; the grid does not know how big anything is.
- *
- * Physics already has its own broadphase over everything with a rigid body, so this earns its place
- * on the cases that one cannot answer: entities with no body at all, and queries filtered by the
- * game's `type`, which Box2D knows nothing about.
+ * Physics already broadphases everything with a rigid body; this covers what it cannot — entities
+ * with no body, and queries filtered by the game's `type`, which Box2D knows nothing about.
  * */
 struct NYA_EntityGrid {
     /** First entity slot in each bucket, or NYA_ENTITY_GRID_EMPTY. */
@@ -183,25 +163,19 @@ struct NYA_EntityGrid {
 };
 
 /**
- * Bitsets saying which slots hold which kind and which flags.
+ * Bitsets saying which slots hold which kind and which flags — what makes "every camera" cost the
+ * number of cameras rather than the number of entities. Walking the slot table and testing `type` got
+ * slower with the world: at eight hundred crates, finding the two cameras meant eight hundred
+ * comparisons, every system, every tick. A bitset turns that into a scan of NYA_ENTITY_BITSET_WORDS
+ * words (128 at the default), and each zero word skips sixty four slots at once — in a world of
+ * crates the camera bitset is almost entirely zero.
  *
- * What makes "every camera" cost the number of cameras rather than the number of entities. Walking
- * the slot table and testing `type` was correct and got slower with the world: at eight hundred
- * crates, finding the two cameras meant eight hundred comparisons, every system, every tick.
+ * Maintained on spawn, despawn and every flag change, rather than rebuilt once a tick like the
+ * spatial grid: a grid that is a tick stale gives slightly wrong positions (invisible), while a stale
+ * index makes a query *miss an entity* — a bug that is miserable to find.
  *
- * A bitset turns that into a scan of NYA_ENTITY_BITSET_WORDS words — a hundred and twenty eight at
- * the default — whatever the world contains, and each word that is zero skips sixty four slots at
- * once. In a world of crates the camera bitset is almost entirely zero words.
- *
- * ## Maintained, not rebuilt
- *
- * Updated on spawn, on despawn and on every flag change, rather than rebuilt once a tick like the
- * spatial grid. That difference is deliberate: a grid that is a tick stale gives slightly wrong
- * positions, which is invisible, while an index that is a tick stale makes a query *miss an entity*,
- * which is a bug that shows up as something not happening for one frame and is miserable to find.
- *
- * The price is that flags cannot be written directly. nya_entity_flag_enable and friends are the
- * only supported way, and `NYA_Entity.flags` is read-only to everyone else.
+ * The price: flags cannot be written directly. Use nya_entity_flag_enable and friends;
+ * `NYA_Entity.flags` is read-only to everyone else.
  * */
 struct NYA_EntityIndex {
     /** Occupied slots. Every query is masked by this, so a freed slot can never be returned. */
@@ -232,11 +206,9 @@ struct NYA_EntityIter {
     u32 word;
 
     /**
-     * Words worth scanning, from the entity table's high water mark.
-     *
-     * The bitsets cover every slot, but slots past the high water mark have never held anything, so
-     * scanning them is scanning guaranteed zeroes. A world of a few hundred entities is five words,
-     * not a hundred and twenty eight.
+     * Words worth scanning, from the entity table's high water mark. Slots past it have never held
+     * anything — scanning them is scanning guaranteed zeroes. A world of a few hundred entities is
+     * five words, not a hundred and twenty eight.
      * */
     u32 word_count;
 
@@ -260,10 +232,9 @@ struct NYA_EntitySystem {
     u32*        generations;
 
     /**
-     * Indices of free slots, most recently freed first.
-     *
-     * A stack rather than a scan for the first empty slot: with NYA_ENTITY_MAX slots that scan is
-     * what turns spawning a few thousand entities from linear into quadratic.
+     * Indices of free slots, most recently freed first — a stack rather than a scan for the first
+     * empty slot, since that scan is what turns spawning a few thousand entities from linear into
+     * quadratic.
      * */
     u32* free_slots;
     u32  free_count;
@@ -277,13 +248,20 @@ struct NYA_EntitySystem {
     NYA_EntityIndex index;
 
     /**
-     * Who the cursor is currently on, or NYA_ENTITY_HANDLE_NONE.
+     * Entities that currently have a parent.
      *
-     * Held here rather than as a bit on the entity because the *transition* is what matters and a bit
-     * per entity cannot describe one: firing "left" requires knowing who was hovered before, and
-     * scanning every entity for a stale flag every frame is the thing this one handle replaces.
+     * Kept so a world with no hierarchy — which is most of them, and every world this engine had
+     * before there was one — pays a single comparison per tick rather than a walk over every slot.
+     * */
+    u32 parented_count;
+
+    /**
+     * Who the cursor is currently on, or NYA_ENTITY_HANDLE_NONE. Held here rather than as a bit on
+     * the entity because the *transition* matters: firing "left" requires knowing who was hovered
+     * before, which a per-entity bit cannot describe without scanning every entity for a stale flag
+     * each frame.
      *
-     * Zero is NYA_ENTITY_HANDLE_NONE, and generations start at one, so a zeroed system already means
+     * Zero is NYA_ENTITY_HANDLE_NONE and generations start at one, so a zeroed system already means
      * nothing is hovered.
      * */
     NYA_EntityHandle hovered;
@@ -294,19 +272,15 @@ struct NYA_EntitySystem {
  * APPEARANCE
  * ─────────────────────────────────────────────────────────
  *
- * What an entity looks like, so that most entities need no on_render at all.
+ * What an entity looks like, so most entities need no on_render at all. Before this, drawing meant a
+ * callback reading the transform and calling the renderer by hand — the same eight lines per kind of
+ * thing, and where z-ordering and batching went to die: nya_system_entity_render walked the spatial
+ * grid in bucket order and drew immediately, so draw order was neither spatial nor stable and shared
+ * textures batched only by luck. Giving the entity its appearance lets the system sort before
+ * drawing; see nya_system_entity_render_in.
  *
- * Before this, drawing an entity meant writing a callback that read the entity's transform and
- * called the renderer — which is the same eight lines in every game, per kind of thing, and is where
- * the z-ordering and the batching went to die: nya_system_entity_render walked the spatial grid in
- * bucket order and each callback drew immediately, so draw order was neither spatial nor stable and
- * two entities sharing a texture were only batched by luck.
- *
- * Giving the entity its appearance instead lets the system sort before it draws. See
- * nya_system_entity_render_in.
- *
- * on_render still exists and still runs, *after* the visual — for the health bar over the sprite, the
- * debug outline, the thing no enum will ever cover.
+ * on_render still exists and runs *after* the visual — for the health bar, the debug outline,
+ * whatever no enum covers.
  */
 
 enum NYA_EntityVisualKind {
@@ -317,19 +291,16 @@ enum NYA_EntityVisualKind {
     NYA_ENTITY_VISUAL_SPRITE,
 
     /**
-     * A sprite whose frame comes from `animator` playing over `atlas`.
-     *
-     * The animator is advanced by nya_system_entity_update, and its signals are delivered to
-     * on_animation — so an attack's hit frame arrives as a callback without the game running a timer.
+     * A sprite whose frame comes from `animator` playing over `atlas`. Advanced by
+     * nya_system_entity_update; its signals are delivered to on_animation, so an attack's hit frame
+     * arrives as a callback without the game running a timer.
      * */
     NYA_ENTITY_VISUAL_ANIMATION,
 
     /**
-     * A solid box, through render3d, with the entity's own rotation.
-     *
-     * Here so that a 3D entity is as little work as a 2D one. It is drawn only while a 3D camera is
-     * active — see nya_render3d_begin — and is silently skipped otherwise, because there is no
-     * projection to draw it through and guessing one would put it somewhere arbitrary.
+     * A solid box, through render3d, with the entity's own rotation — so a 3D entity is as little
+     * work as a 2D one. Drawn only while a 3D camera is active (see nya_render3d_begin); silently
+     * skipped otherwise, since there is no projection to draw it through.
      * */
     NYA_ENTITY_VISUAL_CUBE,
 
@@ -337,12 +308,10 @@ enum NYA_EntityVisualKind {
 };
 
 /**
- * How an entity draws itself. Zeroed means NONE, so this costs nothing to ignore.
- *
- * A tagged union would be smaller. It is not one because an animation needs the sprite *and* the
- * atlas *and* the animator at the same time, and the fields that would overlap — a cube's size
- * against an atlas's frame size — are two floats against a struct. Flat is readable and the entity
- * table is preallocated anyway.
+ * How an entity draws itself. Zeroed means NONE, costing nothing to ignore. A tagged union would be
+ * smaller, but an animation needs sprite, atlas and animator at once, and the overlapping fields (a
+ * cube's size vs. an atlas's frame size) are two floats against a struct — flat is readable and the
+ * entity table is preallocated anyway.
  * */
 struct NYA_EntityVisual {
     NYA_EntityVisualKind kind;
@@ -362,17 +331,43 @@ struct NYA_EntityVisual {
     NYA_Color color;
 
     /**
-     * Draw order among everything the same render call is drawing. Lower draws first, so behind.
+     * Draw order among everything the same render call is drawing; lower draws first, so behind.
+     * Explicit rather than taken from `position.z`: a top-down game sorts by `position.y` so
+     * something further down is in front, while z is either unused or a real third axis — sorting by
+     * the wrong one collapses every sprite to one plane, back at bucket order.
      *
-     * Explicit rather than taken from `position.z`, because the two are different questions: a
-     * top-down game sorts by `position.y` so that something further down the screen is in front,
-     * and an entity's z is either unused or is a real third axis. Sorting by the wrong one puts
-     * every sprite in the same plane and back at bucket order.
-     *
-     * Ties are broken by texture, which is what keeps sorting from destroying the batching — see
+     * Ties are broken by texture, which keeps sorting from destroying the batching — see
      * nya_system_entity_render_in.
+     *
+     * Ignored when `y_sorted` is set.
      * */
     f32 z_order;
+
+    /**
+     * Take the draw order from the entity's position instead of from `z_order`.
+     *
+     * What a top-down or 2.5D scene wants: something standing lower on the screen is nearer the
+     * camera and has to draw in front, and that relationship changes every time anything moves. With
+     * this set the sort key is `position.y + y_sort_anchor`, recomputed each frame, so a character
+     * walking around a tree passes behind it and then in front of it without anything managing depth.
+     *
+     * Per entity rather than per scene, because a scene mixes the two: the ground and the shadows
+     * under everything sort by a fixed layer, and only the things standing on the ground sort by
+     * where they stand.
+     * */
+    b8 y_sorted;
+
+    /**
+     * Added to `position.y` before sorting: where this entity's **feet** are, relative to its origin.
+     *
+     * The number that makes y-sorting look right rather than merely work. A sprite is normally
+     * anchored at its centre or its top left, and sorting by that puts a tall tree behind a short
+     * character standing beside it — what decides who is in front is where each of them *touches the
+     * ground*, which is the bottom of the sprite and not its middle.
+     *
+     * Zero sorts by the origin, which is correct for something already anchored at its base.
+     * */
+    f32 y_sort_anchor;
 };
 
 /*
@@ -385,34 +380,29 @@ struct NYA_Entity {
     NYA_EntityHandle handle;
 
     /**
-     * Engine owned lifecycle bits: active, visible, static, despawning. See NYA_EntityState.
-     *
-     * Named `state` rather than `flags` so that `flags` can be the game's, which is the field a game
-     * actually reaches for. These four are the engine's business and a game only rarely sets them.
+     * Engine owned lifecycle bits: active, visible, static, despawning. See NYA_EntityState. Named
+     * `state` rather than `flags` so `flags` can be the game's — the field a game actually reaches
+     * for.
      * */
     NYA_EntityState state;
 
     /**
-     * What kind of thing this is. Game defined; core never interprets it.
-     *
-     * The tag half of a tagged fat struct: code switches on it to decide which of the fields below
-     * actually mean anything for this entity. Same arrangement as NYA_SimRecord.type, and for the
-     * same reason — the engine has no business enumerating what a game contains.
+     * What kind of thing this is. Game defined; core never interprets it. The tag half of a tagged
+     * fat struct — code switches on it to decide which fields below mean anything. Same arrangement
+     * as NYA_SimRecord.type, for the same reason: the engine has no business enumerating what a game
+     * contains.
      * */
     u32 type;
 
     /**
-     * Whatever the game wants to be true of this entity. Game defined; core never interprets it.
+     * Whatever the game wants to be true of this entity. Game defined; core never interprets it —
+     * the companion to `type`: that says what an entity *is*, this says what is *true* of it. Both
+     * are plain integers rather than pointers so an entity spawned/despawned by the hundred needs no
+     * allocation to carry either.
      *
-     * The companion to `type`: that says what an entity *is*, this says what is *true* of it. Both
-     * are opaque to the engine for the same reason, and both are plain integers rather than a
-     * pointer so that an entity spawned and despawned by the hundred needs no allocation to carry
-     * either.
-     *
-     * Sixty four bits rather than thirty two, and separate from `type` rather than sharing its high
-     * bits, because a flag word runs out far sooner than a kind enum does — and a game that packed
-     * both into one field would find every `entity->type == SOMETHING` comparison silently false the
-     * day it set its first flag.
+     * Sixty four bits, separate from `type` rather than sharing its high bits: a flag word runs out
+     * sooner than a kind enum, and packing both into one field would make every
+     * `entity->type == SOMETHING` comparison silently false the day the first flag was set.
      * */
     u64 flags;
 
@@ -425,6 +415,41 @@ struct NYA_Entity {
     NYA_Quaternion rotation;
     f32x3          scale;
 
+    /* ── hierarchy ──
+     *
+     * A scene graph over the flat table, by handle rather than by pointer — the table never moves, but
+     * a pointer says nothing about whether the entity still exists and these links outlive despawns.
+     *
+     * ⚠ **The three transform fields above stay the WORLD transform.** That is deliberate and it is
+     * the whole design: physics writes `position`, rendering and every query read it, and making them
+     * local would have meant changing every one of those to compose a matrix first. Instead a parented
+     * entity keeps its offset from its parent in the three `local_*` fields, and
+     * nya_system_entity_transforms_update writes `position`/`rotation`/`scale` from the parent's.
+     *
+     * The children are an intrusive singly-linked list — `first_child` plus a `next_sibling` on each —
+     * so a hierarchy of any shape allocates nothing. ⚠ The order of siblings is the reverse of the
+     * order they were parented in: a new child is pushed at the front, because appending would mean
+     * walking the list every time. Nothing about drawing or updating depends on sibling order.
+     */
+
+    NYA_EntityHandle parent;
+    NYA_EntityHandle first_child;
+    NYA_EntityHandle next_sibling;
+
+    /** Direct children only, not the whole subtree. Maintained by the parenting calls. */
+    u32 child_count;
+
+    /**
+     * This entity's transform **relative to its parent**. Meaningless while `parent` is NONE.
+     *
+     * Captured when the entity is parented, from the world transform it had at that moment — so
+     * parenting never moves anything. Change these to move a child within its parent;
+     * writing `position` directly on a parented entity is overwritten by the next propagation.
+     * */
+    f32x3          local_position;
+    NYA_Quaternion local_rotation;
+    f32x3          local_scale;
+
     /* ── motion ── */
 
     f32x3 velocity;
@@ -432,65 +457,62 @@ struct NYA_Entity {
 
     /* ── interpolated motion ──
      *
-     * The other way to move something: velocity says how fast, this says where to end up and by when.
-     * Driven by nya_system_entity_update alongside the velocity integration, and set through
-     * nya_entity_move_to rather than field by field — `target_origin` has to be captured at the moment
-     * the move is asked for, and a plain assignment to `target_position` could not do that.
+     * The other way to move something: velocity says how fast, this says where to end up and by
+     * when. Set through nya_entity_move_to rather than field by field.
      *
-     * The two are not exclusive but they do fight: while a move is running the interpolation writes
-     * `position` outright, so any velocity integrated into it that tick is overwritten. See
-     * nya_entity_move_to.
+     * The interpolation itself is a core_tween.h tween — the same pool, curves, timing and pooling
+     * everything else animates through — rather than a second easing loop living on the entity. What
+     * stays here is only what a tween cannot know: the staging value it writes into, and the handle
+     * that says a move is running.
+     *
+     * Not exclusive with velocity, but they fight: while a move runs the staged position is applied
+     * outright, so any velocity integrated that tick is overwritten. See nya_entity_move_to.
      */
 
-    /** Where the entity is heading. Meaningless unless `target_duration_s` is above zero. */
-    f32x3 target_position;
+    /**
+     * Where the tween writes. Applied to `position` — or to a kinematic body's velocity — once per
+     * tick by nya_system_entity_update.
+     *
+     * Staged rather than tweened straight into `position` because a body-backed entity must not have
+     * its transform written from outside: the solver owns it, and the move has to reach it as a
+     * velocity instead. One indirection buys both cases the identical curve.
+     * */
+    f32x3 move_position;
+
+    /** The running move, or NYA_TWEEN_NONE. Generational, so an arrived move stops resolving. */
+    NYA_Tween move_tween;
 
     /**
-     * Where it started, captured when the move was requested.
+     * Set for one tick after a body-backed move arrives, to say its velocity still needs clearing.
      *
-     * Kept rather than recomputed, because the interpolation is an absolute lerp from origin to target
-     * rather than a step toward the target from wherever the entity currently is. That difference is
-     * what makes easing possible at all: an eased step from the current position re-eases the shrinking
-     * remainder every tick and converges to something that is not the requested curve.
+     * The solver steps before nya_system_entity_update, so a velocity set during the arrival tick is
+     * not consumed until the next one — clearing it immediately drops the move's last step and leaves
+     * a kinematic platform permanently short of its target.
      * */
-    f32x3 target_origin;
-
-    /** Total seconds the move takes. Zero means no move is running, which is what stops the update. */
-    f32 target_duration_s;
-
-    /** Seconds elapsed into it. Clamped to `target_duration_s`, at which point the move ends. */
-    f32 target_elapsed_s;
-
-    NYA_EaseType target_ease;
+    b8 move_settling;
 
     /* ── physics ──
      *
-     * Two solvers, two fields, and an entity is expected to use at most one of them.
-     *
-     * They are separate rather than a tagged union because they are separate simulations: Box2D and
-     * Box3D each own a world, and neither knows the other exists. Both being attached is not checked
-     * for and is not useful — two solvers writing one transform is the same fight the velocity
-     * integration already steps aside from, decided by whichever runs second.
+     * Two solvers, two fields; an entity is expected to use at most one. Separate rather than a
+     * tagged union because they're separate simulations — Box2D and Box3D each own a world and
+     * neither knows the other exists. Both being attached is unchecked and not useful: two solvers
+     * writing one transform is the same fight velocity integration steps aside from, decided by
+     * whichever runs second.
      */
 
     /**
-     * The 2D rigid body simulating this entity, if it has one. See physics2d.h.
-     *
-     * Zeroed, and `attached` false, for the ordinary entity that moves by having its velocity
-     * integrated. While it is attached the solver owns the transform and the integration above is
-     * skipped, because two things writing one position is a fight the frame rate decides.
-     *
-     * Attach it with nya_physics2d_body_attach rather than by filling this in: the body has to exist
-     * in the world before the entity can point at it, and despawning has to destroy it.
+     * The 2D rigid body simulating this entity, if it has one. See physics2d.h. Zeroed with
+     * `attached` false for an ordinary entity moved by velocity integration; while attached, the
+     * solver owns the transform and integration is skipped. Attach with nya_physics2d_body_attach
+     * rather than filling this in directly — the body must exist in the world before the entity can
+     * point at it, and despawning destroys it.
      * */
     NYA_Physics2DBody physics2d;
 
     /**
-     * The 3D rigid body, if it has one. See physics3d.h.
-     *
-     * The same contract as the 2D one in every respect, against a different solver: attach with
-     * nya_physics3d_body_attach, the solver owns position *and* the full rotation quaternion while it
-     * is attached, and despawning destroys it.
+     * The 3D rigid body, if it has one. See physics3d.h. Same contract as the 2D one against a
+     * different solver: attach with nya_physics3d_body_attach; while attached the solver owns
+     * position *and* the full rotation quaternion, and despawning destroys it.
      * */
     NYA_Physics3DBody physics3d;
 
@@ -498,25 +520,22 @@ struct NYA_Entity {
 
     /**
      * What this entity looks like. Drawn by nya_system_entity_render before its on_render runs.
-     *
-     * Zeroed is NYA_ENTITY_VISUAL_NONE, which draws nothing — so an entity that had an on_render
-     * before this existed behaves exactly as it did.
+     * Zeroed is NYA_ENTITY_VISUAL_NONE (draws nothing), so an entity with an on_render predating
+     * this feature behaves exactly as it did.
      * */
     NYA_EntityVisual visual;
 
     /**
-     * What this entity emits. Zeroed emits nothing, which is the common case and costs nothing.
-     *
-     * Read by nya_system_entity_lights rather than drawn by the entity itself, because lighting is
-     * one pass over the whole scene and cannot be assembled a draw call at a time.
+     * What this entity emits. Zeroed emits nothing — the common case, costing nothing. Read by
+     * nya_system_entity_lights rather than drawn by the entity itself, since lighting is one pass
+     * over the whole scene and cannot be assembled a draw call at a time.
      * */
     NYA_Light2D light;
 
     /**
-     * Whatever the game needs to hang off this entity.
-     *
-     * Not owned and not freed on despawn. The engine has no business knowing what a player or a
-     * projectile is, and this is the seam where that stays true.
+     * Whatever the game needs to hang off this entity. Not owned, not freed on despawn — the engine
+     * has no business knowing what a player or a projectile is, and this is the seam where that
+     * stays true.
      * */
     void* user_data;
 
@@ -527,33 +546,27 @@ struct NYA_Entity {
     NYA_CallbackHandle on_update;
 
     /**
-     * Draws this entity. Run by nya_system_entity_render, which a game calls itself.
-     *
-     * Unlike the other three this one is not driven by the engine's own loop, because *when* to draw
-     * entities is a decision only the game can make: they belong inside whatever camera and render
-     * target the drawing layer has set up, and the engine has no idea which layer that is.
+     * Draws this entity. Run by nya_system_entity_render, which a game calls itself. Unlike the
+     * other three, not driven by the engine's own loop — *when* to draw is a decision only the game
+     * can make, since entities belong inside whatever camera and render target the drawing layer
+     * set up.
      * */
     NYA_CallbackHandle on_render;
 
     /**
-     * Struck something hard enough to count. Run by the physics step, once per hit per entity.
-     *
-     * Both sides of a hit are called, each with the other as `other`, so a pair that both care will
-     * both hear about it — which is why anything that should happen *once* per collision has to say
-     * so, usually by acting only for the lower of the two handle indices.
-     *
-     * Only hits above nya_physics2d_hit_threshold arrive here. A resting stack generates contacts every
-     * step and none of them are events; see physics2d.h.
+     * Struck something hard enough to count. Run by the physics step, once per hit per entity — both
+     * sides are called, each with the other as `other`, so anything that should happen *once* per
+     * collision must act only for the lower of the two handle indices. Only hits above
+     * nya_physics2d_hit_threshold arrive here; a resting stack generates contacts every step and none
+     * of them are events. See physics2d.h.
      * */
     NYA_CallbackHandle on_collision;
 
     /**
-     * An animation started, looped, hit a marked frame, or finished.
-     *
-     * Run by nya_system_entity_update, once per signal, only for an entity whose visual is an
-     * ANIMATION. This is the hook an attack hangs off: play the swing and the sound on the input, and
-     * land the hit when the frame carrying the marker comes up — a frame number the artist owns and
-     * can retime without the game noticing.
+     * An animation started, looped, hit a marked frame, or finished. Run by
+     * nya_system_entity_update, once per signal, only for an entity whose visual is ANIMATION — the
+     * hook an attack hangs off: play the swing on input, land the hit when the frame carrying the
+     * marker comes up, a frame number the artist owns and can retime without the game noticing.
      *
      * ```c
      * void goblin_on_animation(NYA_Entity* entity, NYA_SpriteAnimationSignal signal) {
@@ -566,30 +579,26 @@ struct NYA_Entity {
     NYA_CallbackHandle on_animation;
 
     /**
-     * Pointed at and clicked. Run by nya_entity_click, which a game calls itself.
+     * Pointed at and clicked. Run by nya_entity_click, which a game calls itself. Not driven by the
+     * engine's input handling, for the same reason on_render isn't driven by its frame loop: a click
+     * arrives in screen pixels and only the game knows which camera turns it into a world point or,
+     * in 3D, a ray.
      *
-     * Not driven by the engine's input handling, for the same reason on_render is not driven by its
-     * frame loop: a click arrives in screen pixels and only the game knows which camera turns those
-     * into a world point — or, in 3D, into a ray.
-     *
-     * Works in both dimensions. It used to work in one: nya_entity_click took an f32x2 and asked
-     * nya_physics2d_entity_at, so a 3D entity's on_click could never fire at all — nothing in the
-     * engine was able to reach it, and the 3D scene in gnyame did its own raycast and never called
-     * the callback. See the ray-taking overload of nya_entity_click.
+     * Works in both dimensions now. It used to work in one: nya_entity_click took an f32x2 and asked
+     * nya_physics2d_entity_at, so a 3D entity's on_click could never fire — the 3D scene in gnyame
+     * did its own raycast and never called the callback. See the ray-taking overload.
      * */
     NYA_CallbackHandle on_click;
 
     /**
-     * Pointed at, without clicking. Run by nya_entity_hover, which a game calls itself.
+     * Pointed at, without clicking. Run by nya_entity_hover, which a game calls itself. Driven by the
+     * game for the same reason on_click is: hovering is a cursor in screen pixels, and only the game
+     * knows which camera turns it into a world point or ray.
      *
-     * Driven by the game for the same reason on_click is: hovering is a cursor in screen pixels, and
-     * only the game knows which camera turns those into a world point or a ray.
-     *
-     * **Edge triggered.** It runs once with `entered` true when the cursor arrives and once with false
-     * when it leaves, rather than every frame the cursor rests on it. That is what the callback is
-     * almost always used for — turn a highlight on, turn it off, show a tooltip, hide it — and a
-     * per-frame version would make the common case count its own repeats to find the edges. A game that
-     * genuinely wants "while hovered" has it already: nya_entity_hovered says who it is, every frame.
+     * **Edge triggered**: runs once with `entered` true on arrival and once with false on leaving,
+     * not every frame the cursor rests — that's what the callback is almost always used for
+     * (highlight on/off, tooltip show/hide). A game that wants "while hovered" has
+     * nya_entity_hovered, every frame.
      *
      * Exactly one entity is hovered at a time, the same topmost-wins rule a click uses.
      * */
@@ -602,32 +611,25 @@ typedef void (*NYA_EntityOnUpdateFn)(NYA_Entity* entity, f32 delta_time_s);
 typedef void (*NYA_EntityOnRenderFn)(NYA_Entity* entity, NYA_Window* window);
 
 /**
- * `other` is whatever it struck, and is null when that body has no entity behind it.
- *
- * The hit is the engine's, valid only for the tick it is delivered in — copy anything from it that
- * has to outlive the call. See NYA_PhysicsHit.
+ * `other` is whatever it struck, null when that body has no entity behind it. The hit is the
+ * engine's, valid only for the tick it is delivered — copy anything that must outlive the call. See
+ * NYA_PhysicsHit.
  * */
 typedef void (*NYA_EntityOnCollisionFn)(NYA_Entity* entity, NYA_Entity* other, const NYA_PhysicsHit* hit);
 
 /**
- * `world_point` is where the click landed, in three dimensions.
- *
- * f32x3 for both dimensions rather than one signature each, and z is zero for a 2D click. That is
- * not a fiction: the 2D world *is* the z = 0 plane and 2D entities already sit there — the same
- * reasoning, and the same shape, as NYA_PhysicsHit. See physics_types.h.
- *
- * One signature is what lets a single on_click serve an entity whichever solver is simulating it,
- * which matters for a game putting a 2D interface over a 3D scene.
+ * `world_point` is where the click landed, in three dimensions. f32x3 for both, z zero for a 2D
+ * click — not a fiction: the 2D world *is* the z = 0 plane, the same reasoning and shape as
+ * NYA_PhysicsHit. See physics_types.h. One signature lets a single on_click serve an entity whichever
+ * solver simulates it, which matters for a 2D interface over a 3D scene.
  * */
 typedef void (*NYA_EntityOnClickFn)(NYA_Entity* entity, f32x3 world_point, u8 button);
 
 /**
- * `entered` is true when the cursor arrived on this entity and false when it left.
- *
- * No world point, unlike NYA_EntityOnClickFn. A click happens *at* a place and what was struck is the
- * substance of it; hovering is a state with two edges, and the position on leaving is by definition
- * somewhere the entity no longer is. A callback that wanted the cursor can read it — and one that
- * wants it every frame wants nya_entity_hovered rather than this.
+ * `entered` is true when the cursor arrived, false when it left. No world point, unlike
+ * NYA_EntityOnClickFn: a click happens *at* a place, but hovering is a state with two edges and the
+ * leaving position is by definition somewhere the entity no longer is. Wants it every frame? Use
+ * nya_entity_hovered instead.
  * */
 typedef void (*NYA_EntityOnHoverFn)(NYA_Entity* entity, b8 entered);
 
@@ -635,10 +637,8 @@ typedef void (*NYA_EntityOnHoverFn)(NYA_Entity* entity, b8 entered);
 typedef void (*NYA_EntityOnAnimationFn)(NYA_Entity* entity, NYA_SpriteAnimationSignal signal);
 
 /**
- * What an entity starts as. Everything is optional.
- *
- * Scale defaults to 1 and rotation to identity rather than to zero, because a zeroed transform
- * produces an entity of no size facing nowhere, which is never what anyone meant.
+ * What an entity starts as; everything optional. Scale defaults to 1 and rotation to identity rather
+ * than zero, since a zeroed transform produces an entity of no size facing nowhere.
  * */
 struct NYA_EntitySpawnOptions {
     NYA_ConstCString name;
@@ -660,20 +660,14 @@ struct NYA_EntitySpawnOptions {
     NYA_CallbackHandle on_despawn;
     NYA_CallbackHandle on_update;
 
-    /**
-     * Draws this entity. Run by nya_system_entity_render, which a game calls itself.
-     *
-     * Unlike the other three this one is not driven by the engine's own loop, because *when* to draw
-     * entities is a decision only the game can make: they belong inside whatever camera and render
-     * target the drawing layer has set up, and the engine has no idea which layer that is.
-     * */
+    /** Draws this entity. Run by nya_system_entity_render, which a game calls itself. See NYA_Entity.on_render. */
     NYA_CallbackHandle on_render;
     NYA_CallbackHandle on_collision;
     NYA_CallbackHandle on_click;
     NYA_CallbackHandle on_hover;
     NYA_CallbackHandle on_animation;
 
-    /** What it looks like. Zeroed draws nothing, which is what an entity with an on_render wants. */
+    /** What it looks like. Zeroed draws nothing — what an entity with an on_render wants. */
     NYA_EntityVisual visual;
 
     /** What it emits. Zeroed emits nothing. See NYA_Light2D. */
@@ -702,50 +696,38 @@ NYA_API void nya_system_entity_deinit(void);
 NYA_API void nya_system_entity_update(f32 delta_time_s);
 
 /**
- * Runs on_render for every visible entity **that is on screen**.
+ * Runs on_render for every visible entity **that is on screen**. Called by the game, from inside the
+ * layer that owns the camera, not by the engine's frame loop — an entity must be drawn in the same
+ * coordinate space as the world around it, and the engine can't know which layer that is.
  *
- * Called by the game, from inside the layer that owns the camera — not by the engine's frame loop.
- * An entity has to be drawn in the same coordinate space as the world around it, and the engine
- * cannot know which of a window's layers that is.
+ * The visible region comes from the target's size and whatever camera is set: no camera means the
+ * target in screen pixels, a camera means the world rectangle mapping onto it. All four corners are
+ * transformed, not two, so a rotated camera still gets a rectangle containing its view. Widened by
+ * NYA_ENTITY_RENDER_CULL_MARGIN, since the grid indexes an entity's *position* and something large
+ * enough can be visible while its origin is not — see NYA_EntityGrid.
  *
- * The visible region is derived from the target's size and whatever camera is currently set, so this
- * culls without being told anything: with no camera it is the target in screen pixels, and with one
- * it is the world rectangle that maps onto it. All four corners are transformed rather than two, so a
- * rotated camera still gets a rectangle that contains its view.
- *
- * Widened by NYA_ENTITY_RENDER_CULL_MARGIN, because the grid indexes an entity's *position* and
- * something large enough can be visible while its origin is not — see NYA_EntityGrid.
- *
- * Draw order is bucket order, which is neither spatial nor stable across a rebuild. It was slot order
- * before culling existed; anything that needs a depth sort should keep its own list rather than
- * expecting this to grow one.
- *
- * Entities without NYA_ENTITY_STATE_VISIBLE are skipped, which is what that bit is for.
+ * Draw order is bucket order (slot order before culling existed), neither spatial nor stable across a
+ * rebuild — anything needing a depth sort should keep its own list. Entities without
+ * NYA_ENTITY_STATE_VISIBLE are skipped.
  * */
 NYA_API void nya_system_entity_render(NYA_Window* window);
 
 /**
- * Finds the entity whose body covers `world_point` and runs its on_click.
+ * Finds the entity whose body covers `world_point` and runs its on_click. Returns who was clicked, or
+ * NYA_ENTITY_HANDLE_NONE when the point hit nothing — or hit something with no on_click, which is how
+ * an entity declines to be clickable (no separate flag, since a second way to say it is a second way
+ * for the two to disagree).
  *
- * Returns who was clicked, or NYA_ENTITY_HANDLE_NONE when the point hit nothing — or hit something
- * with no on_click, which is how an entity declines to be clickable. There is no flag for that: not
- * having the callback *is* the property, and a second way to say the same thing is a second way for
- * the two to disagree.
- *
- * The topmost body wins and the click does not fall through to whatever is behind it, which matches
- * how nya_physics2d_entity_at answers and is what a picker normally wants.
- *
+ * Topmost body wins; the click does not fall through, matching how nya_physics2d_entity_at answers.
  * The callback receives the point as f32x3 with z zero. See NYA_EntityOnClickFn.
  * */
 NYA_API NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button) __attr_overloaded;
 
 /**
- * The same, for a 3D scene: the first entity along a ray gets its on_click.
- *
- * Two overloads rather than one function, because a click is genuinely a different shape in each
- * dimension — in 2D the screen *is* the world plane and the click names a point, while in 3D it
- * names a line into the volume. That is the same split nya_physics2d_entity_at and
- * nya_physics3d_raycast already make, and this sits on top of both.
+ * The same, for a 3D scene: the first entity along a ray gets its on_click. Two overloads rather than
+ * one function, since a click is a different shape in each dimension — in 2D the screen *is* the
+ * world plane and the click names a point, in 3D it names a line into the volume, the same split
+ * nya_physics2d_entity_at and nya_physics3d_raycast already make.
  *
  * ```c
  * NYA_Render3DRay ray = nya_render3d_screen_ray(window, (f32x2){ mouse->x, mouse->y });
@@ -753,26 +735,21 @@ NYA_API NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button) __attr_o
  * ```
  *
  * `direction` need not be normalised; its length is how far the click reaches, so a game decides
- * whether something across the map is clickable. The callback gets the point on the surface that
- * was struck, not the ray's origin.
- *
- * Closest hit wins, so a crate behind another crate cannot take the click.
+ * whether something across the map is clickable. The callback gets the point on the struck surface,
+ * not the ray's origin. Closest hit wins, so a crate behind another crate cannot take the click.
  * */
 NYA_API NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button) __attr_overloaded;
 
 /**
- * Tells the entity system where the cursor is, and runs on_hover for whatever moved under or out from
- * under it. Returns who is hovered now, or NYA_ENTITY_HANDLE_NONE.
+ * Tells the entity system where the cursor is, running on_hover for whatever moved under or out from
+ * under it. Returns who is hovered now, or NYA_ENTITY_HANDLE_NONE. Called once a frame with the
+ * cursor in world space; calling it repeatedly on the same entity does nothing, since callbacks fire
+ * on the edges — cheap to call unconditionally, which is the intended use.
  *
- * Called once a frame with the cursor in world space, exactly like nya_entity_click is called on a
- * press. Calling it repeatedly with the cursor on the same entity does nothing: the callbacks fire on
- * the edges, so this is cheap to call unconditionally and that is how it is meant to be used.
- *
- * The entity being left gets its `false` before the entity being entered gets its `true`, so a game
- * that clears a highlight on leaving and sets one on entering cannot end up having cleared the new one.
- *
- * Unlike nya_entity_click this returns the handle even when it has no on_hover: the question a caller
- * asks here is "what is under the cursor", which is worth answering whether or not anything reacted.
+ * The entity being left gets `false` before the entity being entered gets `true`, so clearing a
+ * highlight on leaving cannot clear the newly set one. Unlike nya_entity_click this returns the
+ * handle even with no on_hover: the question here is "what is under the cursor", worth answering
+ * whether or not anything reacted.
  * */
 NYA_API NYA_EntityHandle nya_entity_hover(f32x2 world_point) __attr_overloaded;
 
@@ -780,11 +757,9 @@ NYA_API NYA_EntityHandle nya_entity_hover(f32x2 world_point) __attr_overloaded;
 NYA_API NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction) __attr_overloaded;
 
 /**
- * Says the cursor is on nothing, running the current entity's on_hover with false.
- *
- * For when the pointer leaves the window, a menu opens over the world, or the game stops accepting
- * pointer input. Without it the last entity hovered before the cursor left would keep its highlight
- * until the cursor came back, because nothing would ever tell it otherwise.
+ * Says the cursor is on nothing, running the current entity's on_hover with false. For when the
+ * pointer leaves the window, a menu opens over the world, or the game stops accepting pointer input —
+ * without it the last hovered entity would keep its highlight until the cursor came back.
  * */
 NYA_API void nya_entity_hover_clear(void);
 
@@ -792,16 +767,100 @@ NYA_API void nya_entity_hover_clear(void);
 NYA_API NYA_EntityHandle nya_entity_hovered(void) __attr_no_discard;
 
 /**
- * Runs on_render only for entities whose position falls inside `min`..`max`.
+ * The value an entity sorts on, which is either its `z_order` or where its feet are.
  *
- * What a camera wants: at eight hundred crates the untargeted form calls on_render eight hundred
- * times regardless of how many are on screen, and drawing something off screen costs the same as
- * drawing something on it right up until the GPU discards it.
- *
- * Positions, not bounds — see NYA_EntityGrid. Expand the rectangle by the largest entity's radius or
- * things straddling the edge pop out one frame early.
+ * Public because a scene that draws something outside the entity system — a tilemap object, a
+ * decal — has to be able to interleave it with the entities, and the only way to do that is to
+ * compute the same number the sort uses. See NYA_EntityVisual.y_sorted.
+ * */
+NYA_API f32 nya_entity_sort_key(const NYA_Entity* entity) __attr_no_discard;
+
+/**
+ * Runs on_render only for entities whose position falls inside `min`..`max` — what a camera wants: at
+ * eight hundred crates the untargeted form calls on_render eight hundred times regardless of how many
+ * are on screen. Positions, not bounds — see NYA_EntityGrid. Expand the rectangle by the largest
+ * entity's radius or things straddling the edge pop out one frame early.
  * */
 NYA_API void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 max);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * HIERARCHY
+ * ─────────────────────────────────────────────────────────
+ *
+ * ```c
+ * NYA_EntityHandle tank   = nya_entity_spawn(.name = "tank",   .position = { 100, 0, 0 });
+ * NYA_EntityHandle turret = nya_entity_spawn(.name = "turret", .position = { 100, -20, 0 });
+ *
+ * // The turret keeps exactly where it is; its offset from the tank is captured here.
+ * nya_entity_parent_set(turret, tank);
+ *
+ * // Now driving the tank carries the turret, and turning the turret does not move the tank.
+ * nya_entity_get(tank)->position.x += 10.0F;
+ * ```
+ *
+ * **Where the work happens.** Nothing is recomputed when a parent moves; the whole hierarchy is
+ * propagated once per tick at the end of nya_system_entity_update. So a child's `position` is
+ * correct for everything that reads it *after* that — rendering, queries, the next tick's callbacks —
+ * and is one tick stale for an on_update that runs before its parent's does in the same tick. Call
+ * nya_entity_transform_sync when that matters, which is rare and usually means aiming something.
+ */
+
+/**
+ * Makes `child` follow `parent`, without moving it.
+ *
+ * The child's current world transform is kept and its offset from the parent captured, which is what
+ * "parent" almost always means — attaching a turret to a tank should not teleport the turret to the
+ * tank's origin. Pass NYA_ENTITY_HANDLE_NONE as the parent to unparent, which likewise leaves the
+ * child exactly where it is.
+ *
+ * Refused, and logged, when it would make a cycle: an entity cannot be its own ancestor, and neither
+ * can it be parented to itself. False for that, or for a handle that does not resolve.
+ * */
+NYA_API b8 nya_entity_parent_set(NYA_EntityHandle child, NYA_EntityHandle parent);
+
+/** Unparents, keeping the world transform. The same as parenting to NYA_ENTITY_HANDLE_NONE. */
+NYA_API void nya_entity_parent_clear(NYA_EntityHandle child);
+
+/** The parent, or NYA_ENTITY_HANDLE_NONE for a root or for nothing at all. */
+NYA_API NYA_EntityHandle nya_entity_parent(const NYA_Entity* entity) __attr_no_discard;
+
+/**
+ * The direct children, written into `out`. Returns how many there are, which may exceed `capacity`.
+ *
+ * Direct children only — a subtree is this applied recursively, and doing it here would need an
+ * allocation for the queue. Pass a null `out` with a zero capacity to count them, or read
+ * `child_count`.
+ * */
+NYA_API u32 nya_entity_children(const NYA_Entity* entity, OUT NYA_EntityHandle* out, u32 capacity);
+
+/** Whether `ancestor` is above `descendant` anywhere in the tree. What parenting checks for cycles. */
+NYA_API b8 nya_entity_is_ancestor(NYA_EntityHandle ancestor, NYA_EntityHandle descendant) __attr_no_discard;
+
+/**
+ * Rewrites `entity` and everything under it from their parents' transforms, immediately.
+ *
+ * The per-tick propagation is what normally does this, and it runs at the end of the entity update —
+ * so this is for the case that cannot wait: something in an on_update that moves a parent and then
+ * has to read a child's world position in the same tick.
+ * */
+NYA_API void nya_entity_transform_sync(NYA_EntityHandle entity);
+
+/**
+ * Propagates every parented entity's transform from its parent's. Called by nya_system_entity_update.
+ *
+ * Roots first, then down, so a chain three deep resolves in one pass rather than one level per tick.
+ * Returns immediately in a world where nothing is parented.
+ * */
+NYA_API void nya_system_entity_transforms_update(void);
+
+/**
+ * The entity's world transform as a matrix, for handing to a renderer.
+ *
+ * Built from `position`, `rotation` and `scale` — which are the world transform whether or not the
+ * entity has a parent, so this needs no hierarchy walk.
+ * */
+NYA_API f32_4x4 nya_entity_world_matrix(const NYA_Entity* entity) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────
@@ -816,43 +875,56 @@ NYA_API void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 ma
  * nya_entity_move_to(nya_entity_get(chest), (f32x3){ 0, -64, 0 }, 0.4F, NYA_EASE_BACK_OUT);
  * ```
  *
- * The origin is captured here, so the curve runs from where the entity is *now* to where it is being
- * sent — calling this again mid-move restarts from the current position rather than resuming, which
- * is what "go somewhere else instead" should mean.
+ * The origin is captured here, so the curve runs from where the entity is *now* to the target —
+ * calling this again mid-move restarts from the current position rather than resuming.
  *
- * While the move runs it writes `position` outright, once per tick, before on_update. Velocity is
- * still integrated on the same tick and then overwritten, so an entity should be doing one or the
- * other; giving something both is not an error and not useful either.
+ * While the move runs it writes `position` outright, once per tick, before on_update; velocity is
+ * still integrated the same tick and then overwritten, so an entity should use one or the other, not
+ * both.
  *
- * A duration of zero or less puts the entity at `target` immediately and leaves no move running,
- * which makes `nya_entity_move_to(e, p, 0, ...)` a teleport that reads like every other move.
+ * A duration of zero or less teleports to `target` immediately with no move running, so
+ * `nya_entity_move_to(e, p, 0, ...)` reads like every other move.
+ *
+ * **This is a core_tween.h tween underneath**, which has two consequences worth knowing. Moves come
+ * out of the shared pool, so a world that starts more than `NYA_TWEEN_MAX` at once has the excess
+ * refused and logged rather than silently queued. And `nya_tween_cancel_target(&entity->move_position)`
+ * stops a move from outside, which is what despawn does.
  *
  * **Bodies.** An entity the solver owns cannot have its position written from outside without the two
- * disagreeing, so:
+ * disagreeing:
  *
  * - no body — `position` is written directly.
- * - kinematic body — the per tick delta is turned into a linear velocity and given to the solver,
- *   which is how a moving platform pushes what stands on it rather than passing through it.
+ * - kinematic body — the per tick delta becomes a linear velocity given to the solver, so a moving
+ *   platform pushes what stands on it rather than passing through it.
  * - dynamic or static body — ignored, and logged once. Push a dynamic body with an impulse; a static
  *   one is static.
  * */
 NYA_API void nya_entity_move_to(NYA_Entity* entity, f32x3 target, f32 duration_s, NYA_EaseType ease);
 
 /**
- * The same move, with the duration derived from a constant speed in world units per second.
+ * The same move with the rest of NYA_TweenOptions available: a delay before it starts, a repeat
+ * count, yoyo, and a completion callback that runs on arrival.
  *
- * Forced to NYA_EASE_LINEAR, because a speed and an easing curve are contradictory requests — an
- * eased move covers the distance at a speed that is only equal to the requested one on average.
+ * `options.ease` is the curve, so this subsumes nya_entity_move_to rather than sitting beside it.
+ * The completion callback is handed `&entity->move_position` — the tween's write target — since that
+ * is what NYA_TweenOnCompleteFn receives; recover the entity from it if the callback needs more than
+ * "the move ended".
  *
- * A speed of zero or less is a teleport, matching a duration of zero.
+ * ⚠ `repeat` restarts from the position the move began at, not from the target, so a repeating move
+ * snaps back before each run rather than ping-ponging. Pass `.yoyo = true` for the ping-pong.
+ * */
+NYA_API void nya_entity_move_to_with_options(NYA_Entity* entity, f32x3 target, f32 duration_s, NYA_TweenOptions options);
+
+/**
+ * The same move, with duration derived from a constant speed in world units per second. Forced to
+ * NYA_EASE_LINEAR — a speed and an easing curve are contradictory, since an eased move only matches
+ * the requested speed on average. A speed of zero or less is a teleport, matching a duration of zero.
  * */
 NYA_API void nya_entity_move_to_at_speed(NYA_Entity* entity, f32x3 target, f32 world_units_per_second);
 
 /**
- * Abandons the move where it is. The entity keeps the position it had reached.
- *
- * Harmless on an entity that is not moving, which is what makes it safe to call from a state change
- * that does not know.
+ * Abandons the move where it is; the entity keeps the position reached. Harmless on an entity that
+ * is not moving, so it's safe to call from a state change that doesn't know.
  * */
 NYA_API void nya_entity_move_stop(NYA_Entity* entity);
 
@@ -860,11 +932,9 @@ NYA_API void nya_entity_move_stop(NYA_Entity* entity);
 NYA_API b8 nya_entity_moving(const NYA_Entity* entity) __attr_no_discard;
 
 /**
- * How far into the move the entity is, from 0 at the origin to 1 at the target.
- *
- * The eased value rather than the raw fraction of time, so it is the same number the position was
- * built from — which is what anything driving a second property off the same move wants. One for an
- * entity that is not moving, since "not moving" and "arrived" are the same state once the move ends.
+ * How far into the move the entity is, from 0 at origin to 1 at target — the eased value, not raw
+ * time fraction, so it's the same number the position was built from. One for an entity that is not
+ * moving, since "not moving" and "arrived" are the same state once the move ends.
  * */
 NYA_API f32 nya_entity_move_progress(const NYA_Entity* entity) __attr_no_discard;
 
@@ -875,19 +945,15 @@ NYA_API f32 nya_entity_move_progress(const NYA_Entity* entity) __attr_no_discard
  */
 
 /**
- * Collects every entity light that could reach the visible region, brightest first.
+ * Collects every entity light that could reach the visible region, brightest first. Written into
+ * `out` in world coordinates, capped at `capacity`, returns how many. Sorted so that when a scene has
+ * more lights than the pass can carry, the ones dropped are the ones nobody would have noticed.
  *
- * Written into `out` in world coordinates, capped at `capacity`, and returns how many. Sorted by how
- * much light each contributes at all — so when a scene has more lights than the pass can carry, the
- * ones that get dropped are the ones nobody would have noticed.
+ * Called by nya_render2d_lights_apply; exposed separately for a game lighting a render texture or
+ * feeding a shader of its own, so it needn't walk the entity table by hand.
  *
- * Called by nya_render2d_lights_apply, which is what a game actually uses. Exposed because a game
- * that wants to light a render texture, or to feed the list to a shader of its own, needs the same
- * query and should not have to walk the entity table by hand.
- *
- * The region is widened by each light's own radius before the test, because a light whose *origin*
- * is off screen still spills onto it — the same margin nya_system_entity_render applies to sprites,
- * for the same reason.
+ * Widened by each light's own radius before the test — a light whose *origin* is off screen still
+ * spills onto it, the same margin nya_system_entity_render applies to sprites.
  * */
 NYA_API u32 nya_system_entity_lights(f32x2 min, f32x2 max, OUT NYA_Light2D* out, OUT f32x2* out_positions, u32 capacity);
 
@@ -901,23 +967,18 @@ NYA_API u32 nya_system_entity_lights(f32x2 min, f32x2 max, OUT NYA_Light2D* out,
 #define NYA_ENTITY_GRID_EMPTY 0xFFFFFFFFu
 
 /**
- * Rebuilds the spatial index from every live entity's current position.
- *
- * Called at the top of nya_system_entity_update, after the physics step has written this tick's
- * transforms, so a query during a layer's update or render sees the world as it is now. A game does
- * not call this — but it must call it itself if it moves entities directly and then queries in the
- * same tick, because nothing else notices that positions changed.
+ * Rebuilds the spatial index from every live entity's current position. Called at the top of
+ * nya_system_entity_update, after the physics step writes this tick's transforms, so queries during
+ * update or render see the world as it is now. A game doesn't call this normally — but must, if it
+ * moves entities directly and then queries in the same tick, since nothing else notices positions
+ * changed.
  * */
 NYA_API void nya_system_entity_grid_rebuild(void);
 
 /**
- * Entity handles whose positions fall inside the rectangle, written into `out`.
- *
- * Returns how many were written, which is capped at `capacity` — a caller that gets exactly
- * `capacity` back should assume it was truncated and ask for a smaller region or a bigger buffer.
- *
- * Order is bucket order, which is neither spatial nor stable across a rebuild. Sort the result if it
- * matters.
+ * Entity handles whose positions fall inside the rectangle, written into `out`. Returns how many,
+ * capped at `capacity` — getting exactly `capacity` back means it was truncated. Order is bucket
+ * order, neither spatial nor stable across a rebuild; sort the result if it matters.
  * */
 NYA_API u32 nya_entity_query_rect(f32x2 min, f32x2 max, OUT NYA_EntityHandle* out, u32 capacity);
 
@@ -928,11 +989,9 @@ NYA_API u32 nya_entity_query_radius(f32x2 center, f32 radius, OUT NYA_EntityHand
 NYA_API u32 nya_entity_query_kind(f32x2 min, f32x2 max, u32 type, OUT NYA_EntityHandle* out, u32 capacity);
 
 /**
- * nya_entity_query_rect, keeping only entities with **every** bit of `flags` set.
- *
- * The other half of "systems query for what they care about": a kind says what a thing is, flags say
- * what is true of it, and a system usually wants the second — "everything flammable near the fire"
- * rather than "every crate near the fire".
+ * nya_entity_query_rect, keeping only entities with **every** bit of `flags` set — a kind says what a
+ * thing is, flags say what is true of it, and a system usually wants the second ("everything
+ * flammable near the fire", not "every crate near the fire").
  * */
 NYA_API u32 nya_entity_query_flags(f32x2 min, f32x2 max, u64 flags, OUT NYA_EntityHandle* out, u32 capacity);
 
@@ -943,15 +1002,13 @@ NYA_API u32 nya_entity_query_flags(f32x2 min, f32x2 max, u64 flags, OUT NYA_Enti
  */
 
 /**
- * Every entity whose position is inside the box, ignoring nothing.
+ * Every entity whose position is inside the box. The 2D queries above test x and y only, correct for
+ * side-on/top-down and silently wrong in 3D — a marquee select would take everything in the column
+ * above and below the box too.
  *
- * The 2D queries above test x and y and say nothing about z, which is correct for a side-on or
- * top-down game and silently wrong for a 3D one — a marquee select would take everything in the
- * column above and below the box as well.
- *
- * Position only, not bounds: an entity is a point here. Testing a model's extents means resolving
- * its mesh, which the entity system deliberately knows nothing about — a caller that needs it
- * narrows this result with nya_render3d_mesh_bounds.
+ * Position only, not bounds: an entity is a point here. Testing a model's extents means resolving its
+ * mesh, which the entity system deliberately doesn't know about — narrow the result with
+ * nya_render3d_mesh_bounds if needed.
  * */
 NYA_API u32 nya_entity_query_box(f32x3 min, f32x3 max, OUT NYA_EntityHandle* out, u32 capacity);
 
@@ -966,34 +1023,30 @@ NYA_API u32 nya_entity_query_sphere(f32x3 center, f32 radius, OUT NYA_EntityHand
 
 /**
  * The nearest entity a ray hits, treating each as a sphere of `radius`, or NYA_ENTITY_HANDLE_NONE.
- *
  * What clicking in a 3D viewport does: nya_render3d_screen_ray gives the ray, this gives the thing
- * under the pointer. Spheres rather than boxes because an entity has no bounds here — see
- * nya_entity_query_box — and a sphere is the one shape a point can be given without asking the
- * renderer anything.
- *
- * `out_distance` receives the distance along the ray, so a caller can compare hits across several
- * calls with different radii.
+ * under the pointer. Spheres rather than boxes since an entity has no bounds here (see
+ * nya_entity_query_box) — a sphere is the one shape a point can be given without asking the renderer
+ * anything. `out_distance` receives the distance along the ray, for comparing hits across calls with
+ * different radii.
  * */
 NYA_API NYA_EntityHandle nya_entity_query_ray(f32x3 origin, f32x3 direction, f32 radius, OUT f32* out_distance) __attr_no_discard;
 
 /*
  * ── Iterating the whole world ──
  *
- * The spatial queries above answer "what is near here". These answer "what exists", which is what a
- * system that is not spatial at all wants — scoring, ageing, saving, counting.
+ * The spatial queries above answer "what is near here"; these answer "what exists" — for systems
+ * that aren't spatial at all: scoring, ageing, saving, counting.
  *
- * Macros rather than functions returning arrays, so there is no buffer to size and nothing to
- * truncate. Same iteration rules as nya_entity_foreach: spawning during one is safe, despawning is
- * only safe through nya_entity_despawn_deferred.
+ * Macros rather than functions returning arrays, so there's no buffer to size or truncate. Same
+ * iteration rules as nya_entity_foreach: spawning during one is safe, despawning only through
+ * nya_entity_despawn_deferred.
  */
 
 /**
- * Walks every live entity whose `type` is `kind`, through the index.
- *
- * Costs the number of matches plus a scan of the kind's bitset, rather than the size of the world.
- * Same iteration rules as nya_entity_foreach: spawning during one is safe and the new entity may or
- * may not be visited, despawning is only safe through nya_entity_despawn_deferred.
+ * Walks every live entity whose `type` is `kind`, through the index. Costs the number of matches plus
+ * a scan of the kind's bitset, not the size of the world. Same iteration rules as nya_entity_foreach:
+ * spawning during one is safe (the new entity may or may not be visited); despawning only through
+ * nya_entity_despawn_deferred.
  * */
 #define nya_entity_foreach_kind(kind, entity_name)                                                                                                   \
     for (NYA_EntityIter _nya_iter = _nya_entity_iter_kind((u32)(kind)); _nya_iter.entity != nullptr; _nya_entity_iter_advance(&_nya_iter))            \
@@ -1007,11 +1060,10 @@ NYA_API NYA_EntityHandle nya_entity_query_ray(f32x3 origin, f32x3 direction, f32
 /*
  * ── Changing flags ──
  *
- * **Do not write NYA_Entity.flags directly.** The index carries a bitset per flag bit and is updated
- * here; a direct write leaves it disagreeing with the entity, and the symptom is a query quietly
- * skipping something rather than anything that looks like a bug at the point it was caused.
- *
- * Reading the field is fine.
+ * **Do not write NYA_Entity.flags directly.** The index carries a bitset per flag bit, updated only
+ * here — a direct write leaves it disagreeing with the entity, and the symptom is a query quietly
+ * skipping something, not anything that looks like a bug at the point it was caused. Reading the
+ * field is fine.
  */
 
 /** Sets every bit in `flags`, leaving the rest alone. */
@@ -1045,19 +1097,15 @@ NYA_API void           _nya_entity_iter_advance(NYA_EntityIter* iter);
 NYA_API NYA_EntityHandle nya_entity_spawn_with_options(NYA_EntitySpawnOptions options) __attr_no_discard;
 
 /**
- * Removes an entity immediately.
- *
- * Only safe outside iteration. Anything running during an update should use the deferred form,
- * which is the whole reason the simulation has a barrier.
+ * Removes an entity immediately. Only safe outside iteration — anything running during an update
+ * should use the deferred form, which is the whole reason the simulation has a barrier.
  * */
 NYA_API void nya_entity_despawn(NYA_EntityHandle entity);
 
 /**
- * Marks an entity to be removed at the next simulation barrier.
- *
- * What game code should reach for. The entity stays valid for the rest of the tick, so nothing
- * iterating the world has the ground moved under it, and NYA_ENTITY_STATE_DESPAWNING says what is
- * about to happen. Despawning twice is harmless.
+ * Marks an entity to be removed at the next simulation barrier. What game code should reach for: the
+ * entity stays valid for the rest of the tick, so nothing iterating the world has the ground moved
+ * under it. NYA_ENTITY_STATE_DESPAWNING says what's about to happen; despawning twice is harmless.
  * */
 NYA_API void nya_entity_despawn_deferred(NYA_EntityHandle entity);
 
@@ -1081,10 +1129,8 @@ NYA_API NYA_Entity* nya_entity_at_slot(u32 index) __attr_no_discard;
 NYA_API u32         nya_entity_slot_count(void) __attr_no_discard;
 
 /**
- * Walks every live entity.
- *
- * Spawning during iteration is safe but the new entity may or may not be visited this pass;
- * despawning during iteration is only safe through nya_entity_despawn_deferred.
+ * Walks every live entity. Spawning during iteration is safe but the new entity may or may not be
+ * visited this pass; despawning is only safe through nya_entity_despawn_deferred.
  * */
 #define nya_entity_foreach(entity_name)                                                                                                              \
     for (u32 _nya_entity_slot = 0; _nya_entity_slot < nya_entity_slot_count(); _nya_entity_slot++)                                                   \

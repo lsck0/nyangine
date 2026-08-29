@@ -3,47 +3,29 @@
  *
  * What the server tells clients about the world, and how little of it it has to send.
  *
- * A snapshot is a **complete statement of the replicated world at one tick**. Not a list of changes —
- * a statement. That is what makes it safe to lose one: the next arrives a sixteenth of a second later
- * and says everything the lost one would have. It is also why snapshots go out unreliably. Resending
- * one would deliver stale truth *after* fresher truth, which is worse than the gap it filled.
+ * A snapshot is a **complete statement of the replicated world at one tick** — not a list of changes.
+ * That is what makes it safe to lose one: the next arrives a sixteenth of a second later saying
+ * everything the lost one would have. It is also why snapshots go out unreliably, since resending one
+ * would deliver stale truth *after* fresher truth.
  *
- * ## What is replicated, and what is not
+ * **Only entities carrying NYA_ENTITY_FLAG_REPLICATED**, a bit in the game's own flags word, because
+ * the engine cannot know that a decorative emitter is not worth 40 bytes per tick per player while a
+ * crate is. Of those, a fixed set of fields: transform, motion, state and type bits, and the game's
+ * flags. Not callbacks (function pointers do not cross a process), not `user_data` (a pointer into the
+ * server's memory), not physics bodies (each side owns its solver), not `name` (a literal in the
+ * server's binary).
  *
- * Only entities the game marks. An entity is replicated when it carries NYA_ENTITY_FLAG_REPLICATED —
- * a flag in the game's own `flags` word, whose bit the game names — because the engine has no way to
- * know that a decorative particle emitter is not worth 40 bytes per tick per player while a crate is.
+ * **Delta-compressed against a per-client baseline** — the newest snapshot *that client* acknowledged,
+ * so one on a bad connection is sent more without a good one paying for it. Each entity carries a
+ * bitmask of which fields differ; an unchanged entity costs its handle and a zero mask, so a world
+ * where nothing moved costs almost nothing. A client that has acknowledged nothing, or whose last
+ * acknowledgement aged out of NYA_NET_SNAPSHOT_HISTORY, gets a **full** snapshot — the recovery path
+ * as well as the join path.
  *
- * Of a replicated entity, a fixed set of fields: the transform, the motion, the state and type bits,
- * and the game's flags. Not the callbacks (function pointers do not cross a process), not
- * `user_data` (a pointer into the server's memory), not the physics bodies (each side owns its own
- * solver), and not `name` (a literal in the server's binary).
- *
- * ## Delta compression, and what it is against
- *
- * A snapshot is encoded against a **baseline**: the newest snapshot that *this particular client*
- * has acknowledged. Per client, not global — a client on a bad connection is further behind and
- * needs more sent, and one on a good connection should not pay for it.
- *
- * Each entity carries a bitmask of which fields differ from the baseline, and only those follow. An
- * entity identical to its baseline costs its handle and a zero mask. A world where nothing moved
- * costs almost nothing, which is the common case in a building game.
- *
- * When a client has acknowledged nothing — it just joined, or it has been dropping packets long
- * enough that its last acknowledged snapshot has aged out of NYA_NET_SNAPSHOT_HISTORY — the snapshot
- * is encoded against nothing and every field is sent. That is a *full* snapshot, and it is the
- * recovery path as well as the join path.
- *
- * ## Why this is not serde_nya
- *
- * serde_nya is the engine's binary format and it is the right thing for a save file, a config, or the
- * handshake — see net_message.h, which does use it. It works on NYA_Object, which is a hash map, and
- * a snapshot is emitted for every replicated entity for every client for every tick. Building a hash
- * map per entity per tick would put an allocation and a hash where a memcpy belongs.
- *
- * So a snapshot is a flat record stream: fixed field order, explicit little-endian encoding,
- * versioned by NYA_NET_SNAPSHOT_VERSION. Structural messages that happen once keep the nya format,
- * where its self-describing shape earns the cost.
+ * **Not serde_nya**, which is right for a save file, a config or the handshake (net_message.h does use
+ * it). It works on NYA_Object, a hash map, and a snapshot is emitted per replicated entity per client
+ * per tick — that would put an allocation and a hash where a memcpy belongs. So this is a flat record
+ * stream: fixed field order, explicit little-endian, versioned by NYA_NET_SNAPSHOT_VERSION.
  * */
 #pragma once
 

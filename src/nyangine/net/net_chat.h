@@ -3,55 +3,33 @@
  *
  * Player chat, as a layer over NYA_NET_MSG_GAME_EVENT rather than a message kind of its own.
  *
- * ## Why this is not a new NYA_NetMessageKind
+ * A new NYA_NetMessageKind would mean bumping NYA_NET_PROTOCOL_VERSION, which refuses every older
+ * client, for something the existing reliable-ordered event channel already carries. So chat is a
+ * *shape of event*, identified by its `kind` field, and a build that has never heard of it ignores it
+ * like any other unreadable event. It also costs nothing when unused: no socket, no tick work, no
+ * state beyond a history ring that stays empty.
  *
- * net_message.h says what GAME_EVENT is for in as many words — "a chat line, an inventory change,
- * 'the boss died'" — and adding NYA_NET_MSG_CHAT would mean bumping NYA_NET_PROTOCOL_VERSION, which
- * refuses every older client, for a feature that the existing reliable-ordered event channel already
- * carries. So chat is a *shape of event*, identified by its `kind` field, and a build that has never
- * heard of chat ignores it the way it ignores any event it cannot read.
- *
- * That also means chat costs nothing when unused: no socket, no tick work, no state beyond a history
- * ring that stays empty.
- *
- * ## The shape on the wire
- *
- * Client to server, the whole message:
+ * On the wire — client to server, then server to every client:
  *
  * ```
  * { "kind": "chat", "text": "hello" }
- * ```
- *
- * Server to every client:
- *
- * ```
  * { "kind": "chat", "text": "hello", "name": "luca", "sender": <index>, "generation": <gen>, "system": false }
  * ```
  *
  * **The client does not name itself.** It sends text and nothing else; the server stamps the name and
- * the peer id from its own peer table. A client that puts a "name" field in its outgoing message is
- * not lying successfully, it is wasting bytes — nya_net_chat_server_consume never reads one. That is
- * the whole impersonation defence, and it works because the server already knows who sent the packet.
+ * peer id from its own peer table, and nya_net_chat_server_consume never reads an incoming "name".
+ * That is the whole impersonation defence, and it works because the server already knows who sent the
+ * packet.
  *
- * ## Chat is untrusted input, twice
+ * **Chat is untrusted input twice**, so nya_net_chat_sanitize runs on both sides: on the server so a
+ * hostile client cannot make everyone else render something they cannot, and on the client so a hostile
+ * *server* or a bug cannot either — the server is authoritative over the world, not over what this
+ * process will draw. Strict UTF-8, no control characters, no bidirectional overrides; details on that
+ * function. A server-side rate limit covers the other half of the problem, how many lines arrive rather
+ * than what one says. See NYA_NET_CHAT_BURST.
  *
- * A chat line is the one place in the protocol where bytes chosen by a stranger are shown on your
- * screen, so nya_net_chat_sanitize runs on **both** sides:
- *
- * - On the server, so a hostile client cannot make every other player render something they cannot.
- * - On the client, so a hostile *server* — or a bug — cannot either. The server is authoritative over
- *   the world, not over what this process is willing to draw.
- *
- * What it removes and why is documented on that function. The short version: strict UTF-8, no control
- * characters, no bidirectional overrides.
- *
- * A rate limit sits on the server side for the other half of the problem, which is not what one line
- * says but how many of them arrive. See NYA_NET_CHAT_BURST.
- *
- * ## Wiring it up
- *
- * Chat has no tick and nothing to initialise. It hooks into the two event callbacks a game already
- * has, and each returns true when it took the event so the game can go on to handle its own:
+ * No tick and nothing to initialise. It hooks the two event callbacks a game already has, each
+ * returning true when it took the event:
  *
  * ```c
  * void on_client_event(NYA_NetPeerId peer, const NYA_Object* event) {

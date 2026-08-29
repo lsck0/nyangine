@@ -1,0 +1,31 @@
+// Starter values for GNY_Config, loaded by gny_world_create and — in a hot reload build — watched
+// from then on. Edit a number and save; the running game picks it up within one asset stat interval.
+// See src/gnyame/config.h and src/nyangine/core/core_config.h for what each field means.
+//
+// The checksum in the header below is not checked on load (NYA_SERDE_NO_CHECKSUM): this file is meant
+// to be hand edited, unlike a save.
+nya 2 0
+{
+    engine: object {
+        renderer: object {
+            // See NYA_RENDER3D_SHADOW_BIAS.
+            shadow_bias: f32 0.0015;
+            // See NYA_RENDER3D_SHADOW_CASCADES.
+            shadow_cascades: u32 3;
+            // See NYA_RENDER3D_SHADOW_MAP_SIZE.
+            shadow_map_size: u32 1024;
+        };
+        physics: object {
+            // Metres per second squared. See NYA_PHYSICS3D_GRAVITY_DEFAULT.
+            gravity: f32 9.81;
+            // See NYA_PHYSICS2D_SUB_STEPS / NYA_PHYSICS3D_SUB_STEPS.
+            sub_steps: u32 4;
+        };
+    };
+    game: object {
+        // See GNY_PLAYER_SPEED.
+        player_speed: f32 220.0;
+        // See GNY_PLAYER_SPAWN_SPACING.
+        player_spawn_spacing: f32 64.0;
+    };
+}

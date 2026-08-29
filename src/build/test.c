@@ -275,8 +275,8 @@ void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules) {
     NYA_EXPECT(nya_build(&merge), "while merging the coverage profiles");
     NYA_EXPECT(nya_build(&report), "while generating the coverage report");
 
-    nya_info("Coverage profile written to " COVERAGE_PROFILE_DATA);
-    nya_info("For an annotated listing: llvm-cov show -instr-profile=" COVERAGE_PROFILE_DATA " <one of the test binaries> <source file>");
+    nya_log_info("Coverage profile written to " COVERAGE_PROFILE_DATA);
+    nya_log_info("For an annotated listing: llvm-cov show -instr-profile=" COVERAGE_PROFILE_DATA " <one of the test binaries> <source file>");
 }
 
 /*

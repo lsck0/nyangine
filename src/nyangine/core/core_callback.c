@@ -30,7 +30,7 @@ void nya_system_callback_init(void) {
         })
     );
 
-    nya_info("Callback system initialized.");
+    nya_log_info("Callback system initialized.");
 }
 
 void nya_system_callback_deinit(void) {
@@ -39,7 +39,7 @@ void nya_system_callback_deinit(void) {
     nya_array_destroy(app->callback_system.callbacks);
     nya_arena_destroy(app->callback_system.allocator);
 
-    nya_info("Callback system deinitialized.");
+    nya_log_info("Callback system deinitialized.");
 }
 
 /*
@@ -49,9 +49,8 @@ void nya_system_callback_deinit(void) {
  */
 
 /*
- * Only the hot reloading builds have a registry. In a shipping build nya_callback and
- * nya_callback_get are macros that carry the function pointer directly, so defining these would both
- * be dead weight and collide with the macro of the same name.
+ * Only hot reloading builds have a registry — in a shipping build these are macros carrying the
+ * function pointer directly, so defining them here would collide with the macro of the same name.
  */
 #if NYA_CODE_HOT_RELOAD
 
@@ -61,16 +60,11 @@ NYA_CallbackHandle _nya_callback(NYA_Callback callback) {
     /*
      * The name is copied into the registry's own arena rather than kept as the caller's pointer.
      *
-     * nya_callback stringifies its argument, so the name is a literal living in whichever module
-     * compiled the call — and for anything the game registers, that module is the hot reloaded DLL.
-     * Reloading dlcloses it, which unmaps the .rodata that literal sits in, and the pointer held
-     * here is left dangling into an unmapped page.
-     *
-     * That is precisely the pointer update_callback_pointers hands to dlsym to find the symbol
-     * again, so the first reload faulted with SIGSEGV inside dlsym — reading a name that no longer
-     * existed, in order to look up a function that did. The engine's own callbacks survived because
-     * they are compiled into the executable, which is why it only ever happened once the game had
-     * registered one.
+     * nya_callback stringifies its argument, so for anything the game registers the name is a literal
+     * living in the hot reloaded DLL's .rodata. Reloading dlcloses it, unmapping that page, and the
+     * dangling pointer held here is exactly what update_callback_pointers hands to dlsym to find the
+     * symbol again — so the first reload faulted with SIGSEGV inside dlsym. The engine's own callbacks
+     * survived because they are compiled into the executable.
      *
      * The registry outlives every DLL it points into, so the string has to as well.
      * */
@@ -88,14 +82,10 @@ void* nya_callback_get(NYA_CallbackHandle handle) {
     NYA_App* app = nya_app_get();
 
     /*
-     * Bounds checked, because a handle is an index and nothing stops a caller inventing one.
-     *
-     * The registry only exists in hot reloading builds, and the handles a caller holds outlive a
-     * reload by design — that is the point of it. A stale handle from before a reload, a
-     * default-initialised zero on an empty registry, or a handle from a different NYA_App all
-     * indexed straight into the array. Returning null instead makes the failure a null function
-     * pointer at the call site rather than a plausible-looking pointer read out of arbitrary
-     * memory, and the assertion names the handle while the frame that produced it is still up.
+     * Bounds checked because a handle is an index and nothing stops a caller inventing one: a stale
+     * handle from before a reload, a zeroed default, or one from a different NYA_App would otherwise
+     * index straight into the array. Returning null turns that into a null function pointer at the
+     * call site instead of a plausible-looking read out of arbitrary memory.
      */
     nya_assert(
         handle < app->callback_system.callbacks->length,

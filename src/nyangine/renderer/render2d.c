@@ -3,14 +3,13 @@
  *
  * The 2D batch. See render2d.h for what it is and how to use it.
  *
- * This file is the real implementation; render2d_headless.c is the same public surface doing
- * nothing, and nyangine.c includes whichever the build calls for. They were one file behind a single
- * #if, which put every function in the subsystem seventeen hundred lines from its own stub — the
- * arrangement that let a set of camera functions be edited on one side only and still compile,
- * because nothing referenced them.
+ * This file is the real implementation; render2d_headless.c is the same public surface doing nothing,
+ * and nyangine.c includes whichever the build calls for. They were one file behind a single #if, which
+ * put every function seventeen hundred lines from its own stub — how a set of camera functions once got
+ * edited on one side only and still compiled, since nothing referenced them.
  *
- * The two must keep the same public surface. Nothing enforces that but the linker, so when adding a
- * function here, add its stub there.
+ * Nothing but the linker enforces that the two keep the same surface; add a stub there for every
+ * function added here.
  * */
 #include "assets/shader/uniforms.h"
 
@@ -18,7 +17,7 @@
 
 #include "nyangine/renderer/render_internal.h"
 
-#include "assets/assets.h"
+#include "generated/assets.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -28,30 +27,38 @@
 
 
 /**
- * The ASCII range baked into every atlas up front, inclusive.
+ * The ASCII range the atlas sizes its cells against, inclusive.
  *
- * Not the whole atlas any more — see NYA_RENDER2D_GLYPH_CAPACITY. These are baked eagerly because
- * essentially every string contains them, and because it keeps their lookup a subtraction rather
- * than a hash.
+ * Only for sizing now. Glyphs used to be baked eagerly over this range and looked up by subtracting
+ * 32; keying the atlas by glyph index ended both, since a codepoint no longer names a slot. What is
+ * left is the measurement that decides how big a cell has to be, which still wants a representative
+ * sample of the face and for which ASCII is exactly that.
  * */
 #define NYA_RENDER2D_GLYPH_FIRST 32
 #define NYA_RENDER2D_GLYPH_LAST  126
-#define NYA_RENDER2D_GLYPH_ASCII (NYA_RENDER2D_GLYPH_LAST - NYA_RENDER2D_GLYPH_FIRST + 1)
 
 /**
- * Glyphs one atlas can hold in total: the ASCII block plus whatever else gets asked for.
+ * Glyphs one atlas can hold in total.
  *
- * The atlas grew from a fixed ASCII grid into this because ASCII is not text. A byte-indexed atlas
- * draws `é` as two gaps and `日` as three, which is not a rendering limitation a game can work
- * around — it is the renderer refusing to display most of the languages it might be translated into.
+ * 512 covers Latin, Latin-1 Supplement, Latin Extended-A and a margin — every European language. Not
+ * CJK: a grid of cells large enough for those is megabytes, and that case wants a real packer and
+ * eviction.
  *
- * Five hundred and twelve covers Latin, Latin-1 Supplement, Latin Extended-A and a comfortable
- * margin, which is every European language. It does not cover CJK, and could not: a grid of fixed
- * cells large enough for those is megabytes, and that case wants a real packer and eviction.
+ * The unit is a **glyph**, not a codepoint, and shaping makes those diverge: a ligature is one glyph
+ * for two codepoints, a mark cluster several glyphs for one. In either direction the count is close
+ * enough to the character count that the margin here absorbs it.
  * */
 #ifndef NYA_RENDER2D_GLYPH_CAPACITY
 #define NYA_RENDER2D_GLYPH_CAPACITY 512
 #endif
+
+/**
+ * Buckets in an atlas's glyph-index lookup. A power of two, because the index is a masked hash.
+ *
+ * Four times the capacity, so a full atlas leaves the table a quarter loaded and collisions rare. Two
+ * kilobytes per atlas against roughly a megabyte of glyph surface beside it.
+ * */
+#define NYA_RENDER2D_GLYPH_LOOKUP (NYA_RENDER2D_GLYPH_CAPACITY * 4)
 
 /** Cells across the atlas texture. Rows follow from the capacity. */
 #define NYA_RENDER2D_GLYPH_COLUMNS 16
@@ -65,17 +72,18 @@
 typedef struct NYA_Glyph      NYA_Glyph;
 typedef struct NYA_FontAtlas  NYA_FontAtlas;
 
-/** One glyph's place in the atlas, and what it does to the pen. All in pixels except the uvs. */
+/**
+ * One glyph's place in the atlas. All in pixels except the uvs.
+ *
+ * ⚠ **No bearing and no advance, and that is the shape of the change to shaping.** Where a glyph goes
+ * and how far the pen moves afterwards are properties of a glyph *in a string* — they depend on what
+ * precedes it — so they belong to NYA_TextGlyph, which the shaper fills in. What is left here is what
+ * belongs to the glyph alone: where its picture is.
+ * */
 struct NYA_Glyph {
     f32 u0, v0, u1, v1;
 
     f32 width, height;
-
-    /** Where the quad sits relative to the pen, which is not the glyph's own top left. */
-    f32 bearing_x, bearing_y;
-
-    /** How far the pen moves after drawing it. */
-    f32 advance;
 };
 
 struct NYA_FontAtlas {
@@ -91,21 +99,17 @@ struct NYA_FontAtlas {
     f32 point_size;
 
     /**
-     * The asset handle, built from the path and the point size — "./assets/fonts/x.ttf@19".
-     *
-     * Owned here because the asset system keeps the pointer it is given, and the caller only ever
-     * passes a path. This is what removes the need for a game to invent handles like "neat_font"
-     * just to have the same face at a second size.
+     * The asset handle, built from the path and the point size — "./assets/fonts/x.ttf@19". Owned here
+     * because the asset system keeps the pointer it is given and the caller only ever passes a path —
+     * which removes the need to invent handles like "neat_font" just to have the same face at a second
+     * size.
      * */
     char handle[NYA_RENDER2D_FONT_HANDLE_MAX];
 
     /**
-     * The TTF_Font the glyphs were rasterised from, purely to notice that it is no longer the one
-     * the asset holds.
-     *
-     * A reload replaces the asset's TTF_Font with a new one built from the new file. Nothing else
-     * about the asset changes identity, so comparing this pointer is how the atlas learns that the
-     * glyphs it baked belong to a font that no longer exists.
+     * The TTF_Font the glyphs were rasterised from, purely to notice that it is no longer the one the
+     * asset holds: a reload replaces the asset's TTF_Font with a new one built from the new file, and
+     * comparing this pointer is how the atlas learns its glyphs belong to a font that no longer exists.
      * */
     TTF_Font* source_font;
 
@@ -121,26 +125,36 @@ struct NYA_FontAtlas {
     /*
      * ── The lazily baked glyph table ──
      *
-     * Slots 0..NYA_RENDER2D_GLYPH_ASCII-1 are ASCII, in order, so that lookup for the overwhelmingly
-     * common case is `codepoint - 32` and nothing else. Everything past that is filled in as it is
-     * first asked for, which is what makes the atlas cover a language without knowing in advance
-     * which language.
+     * Keyed by the face's **glyph index**, not by codepoint, because that is what shaping outputs — see
+     * render_text.h. There is no eager ASCII block any more and there cannot be one: SDL_ttf exposes no
+     * codepoint-to-index mapping, so the only way to learn a glyph's index is to shape text containing
+     * it. Everything is filled in on first use instead, which is what the non-ASCII path always did.
      */
 
     NYA_Glyph glyphs[NYA_RENDER2D_GLYPH_CAPACITY];
 
-    /** What each slot holds. Only meaningful at or past the ASCII block. */
-    u32 codepoints[NYA_RENDER2D_GLYPH_CAPACITY];
+    /** The glyph index each slot holds. */
+    u32 glyph_indices[NYA_RENDER2D_GLYPH_CAPACITY];
 
-    /** Slots used. Starts at the ASCII block's size and grows as glyphs are baked. */
+    /**
+     * Slot number plus one for each glyph index, or zero for "not baked". Masked, so the size is a
+     * power of two.
+     *
+     * A direct-mapped index in front of the table, replacing the linear scan the codepoint version
+     * used. It is worth more now: without an ASCII block there is no subtraction fast path, so every
+     * glyph of every string would otherwise walk the table. A collision falls through to the scan,
+     * which cannot be wrong.
+     * */
+    u16 lookup[NYA_RENDER2D_GLYPH_LOOKUP];
+
+    /** Slots used. Grows as glyphs are baked. */
     u32 glyph_count;
 
     /**
-     * The CPU side of the atlas, kept alive after the initial upload.
-     *
-     * Held rather than freed because a glyph baked later has to be blitted *somewhere* before it can
-     * be uploaded, and re-rasterising the whole atlas to add one character would be far worse. Costs
-     * about a megabyte per face, which for the handful of faces a game uses is the right trade.
+     * The CPU side of the atlas, kept alive after the initial upload. Held rather than freed because a
+     * glyph baked later has to be blitted *somewhere* before it can be uploaded, and re-rasterising the
+     * whole atlas to add one character would be far worse. About a megabyte per face, the right trade
+     * for the handful of faces a game uses.
      * */
     SDL_Surface* surface;
 
@@ -173,15 +187,13 @@ NYA_INTERNAL void _nya_render2d_pack_color(NYA_Color color, OUT u8 out_rgba[4]);
 
 /**
  * Flushes if the pending draw needs a different pipeline or texture, then makes room for `count`.
- *
- * Returns false when the batch cannot draw at all. Every draw call bails on that rather than half
- * emitting, so a shape is either wholly queued or not queued.
+ * Returns false when the batch cannot draw at all — every call bails on that rather than half emitting,
+ * so a shape is either wholly queued or not queued.
  * */
 /**
- * Flushes, recording why.
- *
- * The reason is set immediately before rather than passed into nya_render2d_flush, because that function
- * is public and the reason is not something a caller should have to name.
+ * Flushes, recording why. The reason is set immediately before rather than passed into
+ * nya_render2d_flush, because that function is public and the reason is not something a caller should
+ * have to name.
  * */
 NYA_INTERNAL void _nya_render2d_flush_for(NYA_Window* window, NYA_Render2DFlushReason reason);
 
@@ -189,23 +201,6 @@ NYA_INTERNAL void _nya_render2d_flush_for(NYA_Window* window, NYA_Render2DFlushR
 NYA_INTERNAL void _nya_render2d_textf_va(NYA_Window* window, NYA_ConstCString font_path, f32 point_size, f32 x, f32 y, NYA_Color color, NYA_ConstCString format, va_list arguments);
 
 NYA_INTERNAL b8 _nya_render2d_prepare(NYA_Window* window, NYA_ConstCString pipeline, SDL_GPUTexture* texture, SDL_GPUSampler* sampler, u32 vertex_count, u32 index_count);
-
-/**
- * The next laid-out line, and how far to advance to reach the one after it.
- *
- * Returns false at the end of the string. `out_length` is the line's bytes and `out_skip` is what to add
- * to the cursor — the two differ by the separator, so a line broken at a space reports the space in the
- * skip and not in the length, and a trailing space never widens a right-aligned line.
- * */
-NYA_INTERNAL b8 _nya_render2d_wrap_line(
-    NYA_FontAtlas*   atlas,
-    TTF_Font*        face,
-    NYA_ConstCString cursor,
-    f32              max_width,
-    OUT u64*         out_length,
-    OUT u64*         out_skip,
-    OUT f32*         out_width
-);
 
 /** Lays a box out, drawing when `window` is non-null and only measuring when it is not. */
 NYA_INTERNAL f32x2 _nya_render2d_text_box_layout(NYA_Window* window, NYA_ConstCString text, NYA_Render2DTextBox params);
@@ -264,15 +259,18 @@ NYA_INTERNAL void _nya_render2d_pass_resume(NYA_Window* window);
 NYA_INTERNAL NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString font_path, f32 point_size);
 
 /**
- * The glyph for a codepoint, rasterising it into a free cell if it is not there yet.
+ * The glyph for a **glyph index**, rasterising it into a free cell if it is not there yet.
  *
- * Null when the atlas is full or the face has no such glyph. ASCII resolves by subtraction; anything
- * else is a scan of what has been baked, which is short because a game uses one language at a time.
+ * Null when the atlas is full or the face has no such glyph. The index comes from shaping — see
+ * render_text.h — which is why there is no codepoint anywhere in the atlas any more.
  * */
-NYA_INTERNAL const NYA_Glyph* _nya_render2d_glyph(NYA_FontAtlas* atlas, u32 codepoint);
+NYA_INTERNAL const NYA_Glyph* _nya_render2d_glyph(NYA_FontAtlas* atlas, u32 glyph_index);
 
-/** Rasterises one codepoint into `slot`'s cell of the atlas surface and fills in its NYA_Glyph. */
-NYA_INTERNAL void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 codepoint, u32 slot);
+/** Rasterises one glyph index into `slot`'s cell of the atlas surface and fills in its NYA_Glyph. */
+NYA_INTERNAL void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 glyph_index, u32 slot);
+
+/** Which bucket of an atlas's lookup a glyph index maps to. Mixed, so adjacent indices do not collide. */
+NYA_INTERNAL u32 _nya_render2d_glyph_bucket(u32 glyph_index) __attr_no_discard;
 
 /**
  * The face an atlas was built from, or null.
@@ -282,19 +280,6 @@ NYA_INTERNAL void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font,
  * outlive it. Callers take it once per string, not once per glyph.
  * */
 NYA_INTERNAL TTF_Font* _nya_render2d_atlas_font(const NYA_FontAtlas* atlas) __attr_no_discard;
-
-/**
- * The spacing adjustment between two glyphs, in pixels. Zero for the first glyph of a run.
- *
- * Kerning is the difference between text that is *set* and text that is merely placed: without it "AV"
- * and "To" carry the same gap as "nn", because an advance describes one glyph in isolation and cannot
- * know what follows. Most faces ship a few hundred pairs covering exactly the combinations that look
- * wrong without them.
- *
- * Applied identically by the draw, the measure and the wrap — a measure that disagreed with the draw
- * would lay a panel out against a width the text does not have.
- * */
-NYA_INTERNAL f32 _nya_render2d_kerning(TTF_Font* font, u32 previous, u32 current) __attr_no_discard;
 
 /**
  * Pushes the atlas surface to its texture, if anything has been baked since the last time.
@@ -321,6 +306,16 @@ NYA_INTERNAL void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* 
  * */
 NYA_INTERNAL NYA_FontAtlas _nya_render2d_font_cache[NYA_RENDER2D_FONT_CACHE_MAX] = { 0 };
 
+/** Slots claimed in _nya_render2d_font_cache. Kept alongside it rather than derived by scanning on
+ *  every read, purely for the ceiling registry — nothing else here needed a running total before. */
+NYA_INTERNAL u32 _nya_render2d_font_cache_count = 0;
+
+/** The fullest any single glyph atlas has gotten. A glyph is never evicted once baked, so this is
+ *  also simply "the current busiest atlas" — tracked because NYA_RENDER2D_GLYPH_CAPACITY is a
+ *  per-atlas cap and there is no one atlas to point the ceiling registry at instead. */
+NYA_INTERNAL u32 _nya_render2d_glyph_count_worst = 0;
+
+
 /**
  * The font nya_render2d_text and the measurements use, set by nya_render2d_font_set.
  *
@@ -340,21 +335,6 @@ NYA_INTERNAL f32 _nya_render2d_current_font_size = 0.0F;
  * */
 NYA_INTERNAL NYA_FontAtlas* _nya_render2d_current_atlas = nullptr;
 
-/**
- * The 2x2 a camera applies to a world offset, before the view centre is added.
- *
- * The one place the two 2D projections differ. Everything downstream — the view matrix at flush, the
- * screen/world inverse, the world/screen forward — works on these four numbers and never asks which
- * kind produced them, which is what keeps the isometric camera from being a second copy of the
- * camera path.
- *
- * Written as `[a b; c d]`, matching the two rows of the view matrix it becomes.
- * */
-NYA_INTERNAL void _nya_render2d_camera_basis(const NYA_Camera2D* camera, OUT f32* out_a, OUT f32* out_b, OUT f32* out_c, OUT f32* out_d);
-
-/** The world (or tile) point the camera centres on, whichever kind it is. */
-NYA_INTERNAL f32x2 _nya_render2d_camera_position(const NYA_Camera2D* camera) __attr_no_discard;
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -364,10 +344,8 @@ NYA_INTERNAL f32x2 _nya_render2d_camera_position(const NYA_Camera2D* camera) __a
 void nya_render2d_shutdown(void) {
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
-    /*
-     * The atlases are keyed by font handle, not by window, so nothing per-window frees them — and
-     * before this they were simply never released, at shutdown or otherwise.
-     */
+    // Keyed by font handle, not by window, so nothing per-window frees them — before this they were
+    // simply never released, at shutdown or otherwise.
     for (u32 i = 0; i < NYA_RENDER2D_FONT_CACHE_MAX; i++) {
         NYA_FontAtlas* atlas = &_nya_render2d_font_cache[i];
 
@@ -384,37 +362,35 @@ void nya_render2d_shutdown(void) {
     // Cleared too: they point into the cache that was just emptied.
     _nya_render2d_current_font  = nullptr;
     _nya_render2d_current_atlas = nullptr;
+
+    _nya_render2d_font_cache_count = 0;
+    _nya_render2d_glyph_count_worst = 0;
 }
 
 /**
- * The projection a range draws through, built from its own target and camera.
- *
- * Per range rather than per flush because both change mid frame: a render texture has a different
- * size from the window it is composited into, and a world camera is set and cleared around the HUD.
- * The batch used to hold the only copy, which was fine when a flush drew exactly one state.
+ * The projection a range draws through, built from its own target and camera. Per range rather than per
+ * flush because both change mid frame: a render texture has a different size from the window it is
+ * composited into, and a world camera is set and cleared around the HUD. The batch used to hold the only
+ * copy, which was fine when a flush drew exactly one state.
  *
  * Top is 0 and bottom is the height, which is what makes y grow downward from the top left.
  * */
 NYA_INTERNAL f32_4x4 _nya_render2d_range_projection(const NYA_Render2DDrawRange* range) {
     f32_4x4 projection = nya_matrix_orthographic(0.0F, (f32)range->target_width, 0.0F, (f32)range->target_height);
 
-    /*
-     * The camera is a view matrix folded in ahead of the projection: world → screen pixels, then
-     * screen pixels → clip space. Skipped entirely when no camera is set, which is the UI case and
-     * the case for everything that existed before cameras did.
-     *
-     * The 2x2 is a rotation scaled by the zoom, and the translation puts the camera's position at
-     * the centre of the target rather than at its corner — which is what makes zooming feel like it
-     * happens around what you are looking at.
-     */
+    // The camera is a view matrix folded in ahead of the projection: world → screen pixels, then screen
+    // pixels → clip space. Skipped entirely when no camera is set, the UI case and everything that
+    // existed before cameras did. The 2x2 is a rotation scaled by the zoom, and the translation puts the
+    // camera's position at the centre of the target rather than its corner, so zooming happens around
+    // what you're looking at.
     if (range->camera.kind == NYA_CAMERA2D_KIND_NONE) return projection;
 
     // Both kinds collapse to the same four numbers here, which is the whole reason the batch stores a
     // tagged camera rather than a top-down one: the flush does not care which it is.
     f32 a, b, c, d;
-    _nya_render2d_camera_basis(&range->camera, &a, &b, &c, &d);
+    nya_camera2d_basis(&range->camera, &a, &b, &c, &d);
 
-    f32x2 position = _nya_render2d_camera_position(&range->camera);
+    f32x2 position = nya_camera2d_position(&range->camera);
 
     f32 center_x = (f32)range->target_width * 0.5F;
     f32 center_y = (f32)range->target_height * 0.5F;
@@ -606,18 +582,14 @@ void nya_render2d_flush(NYA_Window* window) {
     _nya_render2d_pass_resume(window);
 
     /*
-     * Built here rather than cached, because it depends on the *target* size and that changes both
-     * on a window resize and every time drawing moves in or out of a render texture. It is four
-     * multiplies; caching it would mean invalidating it correctly.
-     *
-     * Top is 0 and bottom is the height, which is what makes y grow downward from the top left.
+     * Built here rather than cached: it depends on the *target* size, which changes on a window resize
+     * and whenever drawing moves in or out of a render texture, and is only four multiplies to redo.
+     * Top is 0 and bottom is the height, so y grows downward from the top left.
      */
     /*
-     * Sorted, then issued.
-     *
-     * The buffers are bound once for all of them: every range indexes into the same upload and
-     * differs only in where its slice starts, which is the reason recording ranges costs a draw call
-     * each and no more than it did before.
+     * Sorted, then issued. The buffers are bound once for all of them — every range indexes into the
+     * same upload and differs only in where its slice starts — which is why recording ranges costs a
+     * draw call each and no more than before.
      */
     qsort(batch->ranges, batch->range_count, sizeof(NYA_Render2DDrawRange), _nya_render2d_range_compare);
 
@@ -819,19 +791,11 @@ void nya_render2d_circle(NYA_Window* window, f32x2 center, f32 radius, NYA_Color
     if (radius <= 0.0F) return;
 
     /*
-     * Segments scale with the radius rather than being fixed.
-     *
-     * A 3 pixel dot subdivided 64 ways spends 192 vertices on something a hexagon would cover, and
-     * the batch is a fixed budget those come out of. Roughly one segment per two pixels of
-     * circumference, floored at 8 so the smallest circle is still convincingly round.
-     */
-    /*
-     * The cap scales with the radius rather than being flat.
-     *
-     * A fixed ceiling of sixty-four is right for a UI dot and visibly polygonal on anything large —
-     * a two hundred pixel circle drawn with sixty-four segments has straight edges about ten pixels
-     * long. The constant is the ceiling for a *small* circle; a big one is allowed proportionally
-     * more, up to a hard limit that keeps one shape from eating the batch.
+     * Both the segment count and its ceiling scale with the radius rather than being fixed. A 3 pixel
+     * dot subdivided 64 ways would spend 192 vertices on what a hexagon covers, so segments run roughly
+     * one per two pixels of circumference, floored at 8. The ceiling itself starts at 64 — right for a UI
+     * dot, visibly polygonal on anything bigger (a 200px circle at 64 segments has ~10px straight edges)
+     * — and grows proportionally with radius up to a hard cap of 512, so one shape cannot eat the batch.
      */
     u32 ceiling  = (u32)nya_clamp((f32)NYA_RENDER2D_CIRCLE_SEGMENTS * (radius / 64.0F), (f32)NYA_RENDER2D_CIRCLE_SEGMENTS, 512.0F);
     u32 segments = (u32)(radius * 1.5F);
@@ -874,14 +838,13 @@ void nya_render2d_camera_set(NYA_Window* window, NYA_Camera2DTopDown camera) {
 
     NYA_Render2DBatch* batch = &window->render_system.draw_batch;
 
-    // A zoom of zero collapses the world to a point and divides by zero on the way back out, so it
-    // is corrected rather than propagated. A caller wanting nothing drawn should not draw.
-    if (camera.zoom <= 0.0F) camera.zoom = 1.0F;
+    // Shared with the headless build, which is the whole reason it is not written out here: the two
+    // copies had already drifted apart. See render_camera.c.
+    camera = nya_camera2d_top_down_sanitized(camera);
 
-    // Flushed before the change, so what was queued is drawn through the camera it was queued under.
-    // A boundary, not a draw: the clip rectangle and the camera are both recorded per range, so
-    // what is already queued keeps the state it was queued under and can still be reordered by
-    // layer. Flushing here instead would make every scissored panel a barrier to layering.
+    // Closes the range rather than flushing: camera and clip are both recorded per range, so what is
+    // already queued keeps the state it was queued under and stays reorderable by layer — flushing
+    // here would make every scissored panel a hard barrier to layering.
     _nya_render2d_range_close(window);
 
     batch->camera = (NYA_Camera2D){ .kind = NYA_CAMERA2D_KIND_TOP_DOWN, .as_top_down = camera };
@@ -892,12 +855,7 @@ void nya_render2d_camera_isometric_set(NYA_Window* window, NYA_Camera2DIsometric
 
     NYA_Render2DBatch* batch = &window->render_system.draw_batch;
 
-    if (camera.zoom <= 0.0F) camera.zoom = 1.0F;
-
-    // A tile with no size projects every tile coordinate onto the same point, which is the isometric
-    // spelling of a zero zoom and is corrected the same way. 64x32 is the classic 2:1 diamond.
-    if (camera.tile_width <= 0.0F) camera.tile_width = 64.0F;
-    if (camera.tile_height <= 0.0F) camera.tile_height = 32.0F;
+    camera = nya_camera2d_isometric_sanitized(camera);
 
     _nya_render2d_flush_for(window, NYA_RENDER2D_FLUSH_STATE);
 
@@ -923,68 +881,23 @@ NYA_Camera2D nya_render2d_camera_get(NYA_Window* window) {
 NYA_Camera2DTopDown nya_render2d_camera_top_down_get(NYA_Window* window) {
     nya_assert(window != nullptr);
 
-    NYA_Camera2D camera = window->render_system.draw_batch.camera;
-
-    // The identity, spelled out, rather than the zeroed struct the batch holds when no camera is set
-    // — a zoom of zero would be a surprising thing to hand back and then pass straight back in. An
-    // isometric camera answers the identity too: it is not a top-down camera and there is no
-    // top-down camera that means the same thing, so the honest answer is "none".
-    if (camera.kind != NYA_CAMERA2D_KIND_TOP_DOWN) return (NYA_Camera2DTopDown){ .zoom = 1.0F };
-
-    return camera.as_top_down;
+    return nya_camera2d_top_down_or_identity(window->render_system.draw_batch.camera);
 }
 
 f32x2 nya_render2d_screen_to_world(NYA_Window* window, f32x2 screen) {
     nya_assert(window != nullptr);
 
     NYA_Render2DBatch* batch = &window->render_system.draw_batch;
-    if (batch->camera.kind == NYA_CAMERA2D_KIND_NONE) return screen;
 
-    f32 a, b, c, d;
-    _nya_render2d_camera_basis(&batch->camera, &a, &b, &c, &d);
-
-    f32x2 position = _nya_render2d_camera_position(&batch->camera);
-
-    f32 center_x = (f32)batch->target_width * 0.5F;
-    f32 center_y = (f32)batch->target_height * 0.5F;
-
-    /*
-     * Inverting the 2x2 the view matrix applies, written out.
-     *
-     * A general matrix inverse for four numbers would be more code and more to get wrong, and the
-     * determinant is the one thing worth naming: for a top-down camera it is the zoom squared, and
-     * for an isometric one it is half the tile area times the zoom squared. Neither can be zero,
-     * because both setters correct a zero zoom and a zero tile size before they store anything.
-     */
-    f32 determinant = (a * d) - (b * c);
-
-    f32 dx = screen[0] - center_x;
-    f32 dy = screen[1] - center_y;
-
-    return (f32x2){
-        (((d * dx) - (b * dy)) / determinant) + position[0],
-        ((((-c) * dx) + (a * dy)) / determinant) + position[1],
-    };
+    return nya_camera2d_screen_to_world(&batch->camera, screen, batch->target_width, batch->target_height);
 }
 
 f32x2 nya_render2d_world_to_screen(NYA_Window* window, f32x2 world) {
     nya_assert(window != nullptr);
 
     NYA_Render2DBatch* batch = &window->render_system.draw_batch;
-    if (batch->camera.kind == NYA_CAMERA2D_KIND_NONE) return world;
 
-    f32 a, b, c, d;
-    _nya_render2d_camera_basis(&batch->camera, &a, &b, &c, &d);
-
-    f32x2 position = _nya_render2d_camera_position(&batch->camera);
-
-    f32 center_x = (f32)batch->target_width * 0.5F;
-    f32 center_y = (f32)batch->target_height * 0.5F;
-
-    f32 dx = world[0] - position[0];
-    f32 dy = world[1] - position[1];
-
-    return (f32x2){ (a * dx) + (b * dy) + center_x, (c * dx) + (d * dy) + center_y };
+    return nya_camera2d_world_to_screen(&batch->camera, world, batch->target_width, batch->target_height);
 }
 
 /*
@@ -995,8 +908,7 @@ f32x2 nya_render2d_world_to_screen(NYA_Window* window, f32x2 world) {
 
 
 void nya_render2d_texture(NYA_Window* window, NYA_ConstCString texture_handle, f32 x, f32 y, NYA_Color tint) {
-    // Cast because nya_asset_get takes a mutable handle while only reading it; every caller here
-    // passes a literal.
+    // Cast: nya_asset_get takes a mutable handle but every caller here only reads it, passing a literal.
     NYA_Asset* asset = nya_asset_get((NYA_CString)texture_handle);
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return;
 
@@ -1092,10 +1004,8 @@ void nya_render2d_texture_rect(
 ) {
     nya_assert(window != nullptr);
 
-    // Missing or still loading. Assets load asynchronously, so this is the normal state for the
-    // first frames after a load rather than an error worth reporting every frame.
-    // Cast because nya_asset_get takes a mutable handle while only reading it; every caller here
-    // passes a literal.
+    // Missing or still loading is the normal state for the first frames after a load, not an error
+    // worth reporting every frame. Cast: nya_asset_get only reads its mutable handle here.
     NYA_Asset* asset = nya_asset_get((NYA_CString)texture_handle);
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->as_texture.texture == nullptr) {
         window->render_system.draw_batch.frame_dropped_draws++;
@@ -1157,14 +1067,10 @@ void nya_render2d_nine_slice(NYA_Window* window, NYA_ConstCString texture_handle
     if (texture_width <= 0.0F || texture_height <= 0.0F) return;
     if (params.width <= 0.0F || params.height <= 0.0F) return;
 
-    /*
-     * An all-zero tint means white, and this has to be done *here*.
-     *
-     * nya_render2d_texture_ex makes that substitution and nya_render2d_texture_rect does not — it passes
-     * the colour straight to the quad. This routes through the second one, so a caller who left the tint
-     * alone got an alpha of zero and an invisible panel, while the field's own documentation promised
-     * white. The default use of the call was the broken one.
-     */
+    // An all-zero tint means white, and this has to be done *here*: nya_render2d_texture_ex makes that
+    // substitution but nya_render2d_texture_rect does not, passing the colour straight to the quad — and
+    // this routes through the second one, so leaving the tint alone used to give an alpha of zero and an
+    // invisible panel, though the field's own docs promised white. The default use was the broken one.
     NYA_Color tint = params.tint;
 
     if (tint.r == 0.0F && tint.g == 0.0F && tint.b == 0.0F && tint.a == 0.0F) tint = (NYA_Color){ 1.0F, 1.0F, 1.0F, 1.0F };
@@ -1175,14 +1081,11 @@ void nya_render2d_nine_slice(NYA_Window* window, NYA_ConstCString texture_handle
     f32 bottom = nya_max(params.bottom, 0.0F);
 
     /*
-     * Borders scaled down when the destination is smaller than they are.
-     *
-     * Without this a panel narrower than its own two corners draws them overlapping and gives the edge
-     * patch a negative width, which comes out as an inside-out quad rather than as nothing. A panel
-     * animating open from zero passes through exactly that state on its way, so it is the common case
-     * and not the pathological one.
-     *
-     * Scaled proportionally, so a lopsided border stays lopsided as it shrinks.
+     * Borders scaled down when the destination is smaller than they are. Without this a panel narrower
+     * than its own two corners draws them overlapping and gives the edge patch a negative width — an
+     * inside-out quad rather than nothing. A panel animating open from zero passes through exactly that
+     * state, so it's the common case, not the pathological one. Scaled proportionally, so a lopsided
+     * border stays lopsided as it shrinks.
      */
     f32 horizontal = left + right;
     f32 vertical   = top + bottom;
@@ -1199,13 +1102,10 @@ void nya_render2d_nine_slice(NYA_Window* window, NYA_ConstCString texture_handle
         bottom     *= shrink;
     }
 
-    /*
-     * The grid, as three source spans and three destination spans per axis.
-     *
-     * The source borders are unscaled — they name the authored image — while the destination ones are
-     * the possibly shrunk values above. That difference is the entire point of a nine-slice: the corners
-     * are drawn at whatever size the destination gives them and the *middle* absorbs the rest.
-     */
+    // The grid, as three source spans and three destination spans per axis. Source borders are
+    // unscaled — they name the authored image — while destination ones are the possibly shrunk values
+    // above: the corners draw at whatever size the destination gives them and the *middle* absorbs the
+    // rest, which is the entire point of a nine-slice.
     f32 source_x[4]   = { 0.0F, params.left, texture_width - params.right, texture_width };
     f32 source_y[4]   = { 0.0F, params.top, texture_height - params.bottom, texture_height };
     f32 destination_x[4] = { params.x, params.x + left, params.x + params.width - right, params.x + params.width };
@@ -1261,6 +1161,87 @@ void nya_render2d_textf_with_font(NYA_Window* window, NYA_ConstCString font_path
     va_end(arguments);
 }
 
+/**
+ * The scratch a draw or a measure shapes into.
+ *
+ * File-scope rather than a local: NYA_TextRun is about thirty kilobytes, which is more than a draw
+ * call should be putting on the stack, and there is never more than one shaping in flight — the whole
+ * run is consumed before the next call begins. Not thread safe, in a module that is already not.
+ * */
+NYA_INTERNAL NYA_TextRun _nya_render2d_run = { 0 };
+
+/**
+ * Bakes every glyph a shaped run needs, then pushes the atlas once.
+ *
+ * The two-pass rule, in one place instead of copied into each draw. Resolving may rasterise a glyph
+ * nobody has drawn before, dirtying the atlas surface — and the texture has to carry that *before* any
+ * quad referencing it is queued, or the quad points at a cell the GPU has not received yet, drawing a
+ * blank rectangle for exactly one frame and maddening to reproduce.
+ * */
+NYA_INTERNAL void _nya_render2d_run_bake(NYA_Window* window, NYA_FontAtlas* atlas, const NYA_TextRun* run) {
+    for (u32 i = 0; i < run->glyph_count; i++) (void)_nya_render2d_glyph(atlas, run->glyphs[i].glyph_index);
+
+    _nya_render2d_atlas_upload(window, atlas);
+}
+
+/**
+ * Emits one shaped glyph at `origin` plus its own position. Returns false when the batch is full.
+ *
+ * The one place a glyph becomes vertices, shared by the plain draw and the box layout — they used to
+ * carry a copy each, differing only in which colour field they read.
+ * */
+NYA_INTERNAL b8 _nya_render2d_glyph_emit(NYA_Window* window, NYA_FontAtlas* atlas, const NYA_TextGlyph* shaped, f32 origin_x, f32 origin_y, NYA_Color color) {
+    const NYA_Glyph* glyph = _nya_render2d_glyph(atlas, shaped->glyph_index);
+
+    // Not in the atlas and not bakeable — a full atlas, or a face with no such glyph. Nothing is
+    // emitted, and nothing needs to be: the shaper already decided where the *next* glyph goes, so a
+    // missing picture leaves a gap of exactly the right width rather than shortening the line.
+    if (glyph == nullptr) return true;
+
+    // A space has a position and no picture. Skipping the quad rather than queueing an empty one keeps
+    // six vertices per space out of the batch.
+    if (glyph->width <= 0.0F || glyph->height <= 0.0F) return true;
+
+    // Nearest, matching the glyphs' texel-exact baking: linear here blurs text drawn at exactly one
+    // texel per pixel, since a glyph landing on a fractional coordinate samples between texels and
+    // every stem picks up a soft edge on both sides.
+    if (!_nya_render2d_prepare(window, NYA_RENDER2D_PIPELINE_TEXTURED, atlas->texture, _nya_render_sampler_for(NYA_TEXTURE_FILTER_NEAREST), 4, 6)) {
+        return false;
+    }
+
+    /*
+     * The shaper's sub-rectangle, folded into the cell's uv.
+     *
+     * Almost always the whole picture, but it is allowed not to be, and taking the cell's uv verbatim
+     * would then draw a different part of the glyph than the one that was measured.
+     */
+    f32 texel_width  = 1.0F / (f32)atlas->atlas_width;
+    f32 texel_height = 1.0F / (f32)atlas->atlas_height;
+
+    f32 u0 = glyph->u0 + ((f32)shaped->source_x * texel_width);
+    f32 v0 = glyph->v0 + ((f32)shaped->source_y * texel_height);
+    f32 u1 = u0 + ((f32)shaped->width * texel_width);
+    f32 v1 = v0 + ((f32)shaped->height * texel_height);
+
+    // Snapped to whole pixels: point sampling only stays crisp on the pixel grid — a glyph at x = 12.4
+    // samples the texel boundary and drops or doubles a column, the shimmer that makes small text look
+    // broken while animating. Rounds the destination only, so the run's own layout is unchanged.
+    _nya_render2d_quad(
+        &window->render_system.draw_batch,
+        roundf(origin_x + (f32)shaped->x),
+        roundf(origin_y + (f32)shaped->y),
+        (f32)shaped->width,
+        (f32)shaped->height,
+        u0,
+        v0,
+        u1,
+        v1,
+        color
+    );
+
+    return true;
+}
+
 void nya_render2d_text_with_font(NYA_Window* window, NYA_ConstCString font_path, f32 point_size, NYA_ConstCString text, f32 x, f32 y, NYA_Color color) {
     nya_assert(window != nullptr);
 
@@ -1269,98 +1250,22 @@ void nya_render2d_text_with_font(NYA_Window* window, NYA_ConstCString font_path,
     NYA_FontAtlas* atlas = _nya_render2d_font_atlas(window, font_path, point_size);
     if (atlas == nullptr) return;
 
-    f32 pen_x = x;
-    f32 pen_y = y;
-
-    // Taken once for the whole string. Kerning needs the face, and resolving it per glyph would be an
-    // asset lookup per character.
-    TTF_Font* face = _nya_render2d_atlas_font(atlas);
-
-    u32 previous = 0;
+    TTF_Font* font = _nya_render2d_atlas_font(atlas);
+    if (font == nullptr) return;
 
     /*
-     * Two passes over the string: resolve every glyph, then emit the quads.
+     * Shaped once, and everything after this is placement.
      *
-     * Resolving may rasterise a glyph nobody has drawn before, which dirties the atlas surface — and
-     * the texture has to carry that *before* any quad referencing it is queued. Emitting as we
-     * resolve would put a quad in the batch pointing at a cell the GPU has not received yet, which
-     * draws as a blank rectangle for exactly one frame and is maddening to reproduce.
-     *
-     * Decoding twice costs nothing worth measuring: these are strings, not files.
+     * The loop that used to be here walked codepoints, looked each one up, and added a kerning
+     * correction per pair — which is what shaping does, done by hand and only for Latin. Newlines fall
+     * out of the layout now instead of being a case in the walk. See render_text.h.
      */
-    for (NYA_ConstCString cursor = text; *cursor != '\0';) {
-        u32 codepoint = 0;
-        cursor       += nya_utf8_next(cursor, &codepoint);
+    if (!nya_text_shape(font, text, 0, 0, &_nya_render2d_run)) return;
 
-        if (codepoint == '\n') continue;
+    _nya_render2d_run_bake(window, atlas, &_nya_render2d_run);
 
-        (void)_nya_render2d_glyph(atlas, codepoint);
-    }
-
-    _nya_render2d_atlas_upload(window, atlas);
-
-    for (NYA_ConstCString cursor = text; *cursor != '\0';) {
-        u32 codepoint = 0;
-        cursor       += nya_utf8_next(cursor, &codepoint);
-
-        if (codepoint == '\n') {
-            pen_x    = x;
-            pen_y   += atlas->line_height;
-            previous = 0;
-            continue;
-        }
-
-        // Before the glyph is placed, because kerning moves *this* glyph relative to the one before it.
-        pen_x += _nya_render2d_kerning(face, previous, codepoint);
-
-        previous = codepoint;
-
-        const NYA_Glyph* glyph = _nya_render2d_glyph(atlas, codepoint);
-
-        // Not in the atlas and not bakeable — a full atlas, or a face with no such glyph. Advanced by
-        // a space rather than skipped, so unsupported text is visibly wrong instead of silently
-        // shortening the line.
-        if (glyph == nullptr) {
-            pen_x += atlas->glyphs[0].advance;
-            continue;
-        }
-
-        // A space has an advance and no pixels. Skipping the quad rather than queueing an empty one
-        // keeps six vertices per space out of the batch.
-        if (glyph->width > 0.0F && glyph->height > 0.0F) {
-            /*
-             * Nearest, and the glyphs are rasterised without anti-aliasing to match.
-             *
-             * Linear here was blurring text that is drawn at exactly one texel per pixel: a glyph
-             * landing on a fractional coordinate gets sampled between texels, and every stem picks
-             * up a soft edge on both sides. Point sampling a hard-edged glyph keeps the stems the
-             * width the rasteriser made them.
-             */
-            if (!_nya_render2d_prepare(window, NYA_RENDER2D_PIPELINE_TEXTURED, atlas->texture, _nya_render_sampler_for(NYA_TEXTURE_FILTER_NEAREST), 4, 6)) return;
-
-            /*
-             * Snapped to whole pixels.
-             *
-             * Point sampling only stays crisp if the quad lands on the pixel grid — a glyph at x =
-             * 12.4 samples the texel boundary and drops or doubles a column, which is exactly the
-             * shimmer that makes small text look broken while the caller is animating anything.
-             * Rounding the destination, not the advance, so the run's total width is unchanged.
-             */
-            _nya_render2d_quad(
-                &window->render_system.draw_batch,
-                roundf(pen_x + glyph->bearing_x),
-                roundf(pen_y + glyph->bearing_y),
-                glyph->width,
-                glyph->height,
-                glyph->u0,
-                glyph->v0,
-                glyph->u1,
-                glyph->v1,
-                color
-            );
-        }
-
-        pen_x += glyph->advance;
+    for (u32 i = 0; i < _nya_render2d_run.glyph_count; i++) {
+        if (!_nya_render2d_glyph_emit(window, atlas, &_nya_render2d_run.glyphs[i], x, y, color)) return;
     }
 }
 
@@ -1384,61 +1289,17 @@ f32x2 nya_render2d_text_measure_with_font(NYA_ConstCString font_path, f32 point_
     if (text == nullptr) return f32x2_zero;
 
     /*
-     * Builds the atlas if it is not there yet, with a null window.
+     * The face, not the atlas.
      *
-     * Measuring has to work before anything has been drawn — that is the whole point of it, since a
-     * layout pass runs first. The builder takes a null window to mean "there is no render pass to
-     * borrow", and uploads on its own command buffer instead.
+     * Measuring used to build an atlas first, because the advances it needed lived in baked glyphs.
+     * They come from the shaper now, so a measure needs nothing rasterised — which is what lets it
+     * work before the first frame has drawn anything, and what makes the headless build's answer the
+     * same number rather than zero.
      */
-    NYA_FontAtlas* atlas = _nya_render2d_font_atlas(nullptr, font_path, point_size);
-    if (atlas == nullptr) return f32x2_zero;
+    TTF_Font* font = nya_text_font_for(font_path, point_size);
+    if (font == nullptr) return f32x2_zero;
 
-    // An empty string still occupies a line, which is what a caller stacking rows expects. Its width
-    // is zero.
-    if (text[0] == '\0') return (f32x2){ 0.0F, atlas->line_height };
-
-    f32 widest  = 0.0F;
-    f32 current = 0.0F;
-    f32 height  = atlas->line_height;
-
-    TTF_Font* face = _nya_render2d_atlas_font(atlas);
-
-    u32 previous = 0;
-
-    for (NYA_ConstCString cursor = text; *cursor != '\0';) {
-        u32 codepoint = 0;
-        cursor       += nya_utf8_next(cursor, &codepoint);
-
-        if (codepoint == '\n') {
-            widest   = nya_max(widest, current);
-            current  = 0.0F;
-            height  += atlas->line_height;
-            previous = 0;
-            continue;
-        }
-
-        // The same adjustment the draw applies, so a measured width is the width that gets drawn.
-        current += _nya_render2d_kerning(face, previous, codepoint);
-
-        previous = codepoint;
-
-        /*
-         * Resolving here bakes the glyph if it is new, which is what makes measuring a string agree
-         * with drawing it.
-         *
-         * A measure that reported a space's width for every accented character would lay out a
-         * translated menu against widths that are wrong by a third — and the atlas has to be built
-         * eventually anyway, so doing it at layout time is doing it once rather than twice.
-         *
-         * No upload: measuring needs the advance, which is metrics, not pixels. The next draw's
-         * upload carries whatever this baked.
-         */
-        const NYA_Glyph* glyph = _nya_render2d_glyph(atlas, codepoint);
-
-        current += glyph != nullptr ? glyph->advance : atlas->glyphs[0].advance;
-    }
-
-    return (f32x2){ nya_max(widest, current), height };
+    return nya_text_measure_font(font, text, 0);
 }
 
 f32 nya_render2d_text_width(NYA_ConstCString text) {
@@ -1449,24 +1310,28 @@ f32 nya_render2d_text_height(NYA_ConstCString text) {
     return nya_render2d_text_measure(text)[1];
 }
 
+/*
+ * The vertical metrics, each one line, each reading the current face directly.
+ *
+ * They used to go through the atlas, which cached the same three numbers TTF_GetFont* returns and
+ * meant asking for a line height before anything had been drawn built a whole glyph atlas to answer.
+ */
 f32 nya_render2d_font_line_height(void) {
-    NYA_FontAtlas* atlas = _nya_render2d_current_atlas != nullptr ? _nya_render2d_current_atlas : _nya_render2d_font_atlas(nullptr, _nya_render2d_current_font, _nya_render2d_current_font_size);
-    return atlas != nullptr ? atlas->line_height : 0.0F;
+    return nya_text_line_height(nya_text_font_for(_nya_render2d_current_font, _nya_render2d_current_font_size));
 }
 
 f32 nya_render2d_font_ascent(void) {
-    NYA_FontAtlas* atlas = _nya_render2d_current_atlas != nullptr ? _nya_render2d_current_atlas : _nya_render2d_font_atlas(nullptr, _nya_render2d_current_font, _nya_render2d_current_font_size);
-    return atlas != nullptr ? atlas->ascent : 0.0F;
+    return nya_text_ascent(nya_text_font_for(_nya_render2d_current_font, _nya_render2d_current_font_size));
 }
 
 f32 nya_render2d_font_descent(void) {
-    NYA_FontAtlas* atlas = _nya_render2d_current_atlas != nullptr ? _nya_render2d_current_atlas : _nya_render2d_font_atlas(nullptr, _nya_render2d_current_font, _nya_render2d_current_font_size);
-    return atlas != nullptr ? atlas->descent : 0.0F;
+    return nya_text_descent(nya_text_font_for(_nya_render2d_current_font, _nya_render2d_current_font_size));
 }
 
 f32 nya_render2d_font_height(void) {
-    NYA_FontAtlas* atlas = _nya_render2d_current_atlas != nullptr ? _nya_render2d_current_atlas : _nya_render2d_font_atlas(nullptr, _nya_render2d_current_font, _nya_render2d_current_font_size);
-    return atlas != nullptr ? atlas->ascent + atlas->descent : 0.0F;
+    TTF_Font* font = nya_text_font_for(_nya_render2d_current_font, _nya_render2d_current_font_size);
+
+    return nya_text_ascent(font) + nya_text_descent(font);
 }
 
 /*
@@ -1554,12 +1419,10 @@ void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handl
     batch->frame_flush_reasons[NYA_RENDER2D_FLUSH_PIPELINE]++;
 
     /*
-     * The batch's cached pipeline is cleared, not left pointing at what it was.
-     *
-     * The batch skips rebinding when the pipeline it wants is the one it believes is bound. This
-     * draw bound a different one behind its back, so without clearing the cache the next shape would
-     * be drawn through this pipeline — which is the exact failure the raw SDL calls in a layer used
-     * to produce, only later and harder to attribute.
+     * The batch's cached pipeline is cleared, not left pointing at what it was: the batch skips
+     * rebinding when it believes the one it wants is already bound, and this draw bound a different one
+     * behind its back. Without clearing, the next shape would draw through this pipeline — the exact
+     * failure the raw SDL calls in a layer used to produce, only later and harder to attribute.
      */
     batch->pipeline = nullptr;
     batch->texture  = nullptr;
@@ -1571,19 +1434,14 @@ void nya_render2d_scissor_begin(NYA_Window* window, f32 x, f32 y, f32 width, f32
 
     NYA_Render2DBatch* batch = &window->render_system.draw_batch;
 
-    // Flushed first: what was queued was queued unclipped, and clipping is pass state that would
-    // otherwise apply to it retroactively.
-    // A boundary, not a draw: the clip rectangle and the camera are both recorded per range, so
-    // what is already queued keeps the state it was queued under and can still be reordered by
-    // layer. Flushing here instead would make every scissored panel a barrier to layering.
+    // Closes the range rather than flushing: what was queued was queued unclipped, and clip rectangle
+    // and camera are both recorded per range, so it keeps the state it was queued under and stays
+    // reorderable by layer — flushing here would make every scissored panel a hard barrier to layering.
     _nya_render2d_range_close(window);
 
-    /*
-     * Clamped to the target, and to a non-negative size.
-     *
-     * SDL_GPU rejects a scissor that leaves the target, so a panel scrolled half off the left edge —
-     * which is ordinary in a UI — would otherwise be a hard failure rather than a smaller clip.
-     */
+    // Clamped to the target and to a non-negative size: SDL_GPU rejects a scissor that leaves the
+    // target, so a panel scrolled half off the left edge — ordinary in a UI — would otherwise be a hard
+    // failure rather than a smaller clip.
     f32 left   = nya_max(0.0F, x);
     f32 top    = nya_max(0.0F, y);
     f32 right  = nya_min((f32)batch->target_width, x + width);
@@ -1603,9 +1461,8 @@ void nya_render2d_scissor_end(NYA_Window* window) {
 
     NYA_Render2DBatch* batch = &window->render_system.draw_batch;
 
-    // A boundary, not a draw: the clip rectangle and the camera are both recorded per range, so
-    // what is already queued keeps the state it was queued under and can still be reordered by
-    // layer. Flushing here instead would make every scissored panel a barrier to layering.
+    // Closes the range rather than flushing, for the same reason nya_render2d_scissor_begin does: it
+    // keeps queued geometry tied to the state it was queued under and reorderable by layer.
     _nya_render2d_range_close(window);
 
     batch->scissor_active = false;
@@ -1645,13 +1502,10 @@ NYA_RenderTexture nya_render_texture_create(NYA_Window* window, u32 width, u32 h
     );
     nya_assert(texture != nullptr, "SDL_CreateGPUTexture() failed for a render texture: %s", SDL_GetError());
 
-    /*
-     * A multisampled companion, for the same reason the window has one: the pipelines are built for
-     * the renderer's sample count and cannot draw into a single-sampled target.
-     *
-     * Drawing goes into this one and resolves onto the sampled texture above as the pass ends, so
-     * nya_render2d_render_texture still reads the resolved image and nothing else has to know.
-     */
+    // A multisampled companion, for the same reason the window has one: the pipelines are built for the
+    // renderer's sample count and cannot draw into a single-sampled target. Drawing goes into this one
+    // and resolves onto the sampled texture above as the pass ends, so nya_render2d_render_texture still
+    // reads the resolved image and nothing else has to know.
     SDL_GPUTexture* msaa_texture = nullptr;
 
     if (nya_app_get()->render_system.sample_count != SDL_GPU_SAMPLECOUNT_1) {
@@ -1703,12 +1557,9 @@ void nya_render_texture_destroy(NYA_RenderTexture* render_texture) {
 
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
-    /*
-     * No wait. SDL_ReleaseGPUTexture frees "as soon as it is safe to do so", so it already defers
-     * past any frame still reading the texture — the SDL_WaitForGPUIdle that used to be here was a
-     * full pipeline stall buying nothing, which a game resizing a render texture would pay every
-     * time it did so.
-     */
+    // No wait: SDL_ReleaseGPUTexture frees "as soon as it is safe to do so", already deferring past any
+    // frame still reading the texture. The SDL_WaitForGPUIdle that used to be here was a full pipeline
+    // stall buying nothing, paid every time a game resized a render texture.
     SDL_ReleaseGPUTexture(gpu_device, render_texture->texture);
     if (render_texture->msaa_texture != nullptr) SDL_ReleaseGPUTexture(gpu_device, render_texture->msaa_texture);
     if (render_texture->depth_texture != nullptr) SDL_ReleaseGPUTexture(gpu_device, render_texture->depth_texture);
@@ -1866,303 +1717,110 @@ NYA_ConstCString nya_render2d_flush_reason_name(NYA_Render2DFlushReason reason) 
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-b8 _nya_render2d_wrap_line(
-    NYA_FontAtlas*   atlas,
-    TTF_Font*        face,
-    NYA_ConstCString cursor,
-    f32              max_width,
-    OUT u64*         out_length,
-    OUT u64*         out_skip,
-    OUT f32*         out_width
-) {
-    if (cursor == nullptr || *cursor == '\0') return false;
-
-    f32 width = 0.0F;
-
-    u64 offset = 0;
-
-    // Zero at the start of every line, so the first glyph after a wrap kerns against nothing — which is
-    // what it now sits next to.
-    u32 previous = 0;
-
-    /*
-     * The last place a break would be legal, remembered as we go.
-     *
-     * Zero means "no space seen yet on this line", which is what makes a single over-long word fall
-     * through to the character break below rather than wrapping to a width of nothing.
-     */
-    u64 break_length = 0;
-    u64 break_skip   = 0;
-    f32 break_width  = 0.0F;
-
-    for (;;) {
-        u32 codepoint = 0;
-
-        u64 step = (u64)nya_utf8_next(cursor + offset, &codepoint);
-        if (step == 0) step = 1;
-
-        // End of string: the rest of it is the line.
-        if (codepoint == 0) {
-            *out_length = offset;
-            *out_skip   = offset;
-            *out_width  = width;
-
-            return true;
-        }
-
-        // An explicit break always wins over the wrapping below, and consumes the newline itself.
-        if (codepoint == '\n') {
-            *out_length = offset;
-            *out_skip   = offset + step;
-            *out_width  = width;
-
-            return true;
-        }
-
-        const NYA_Glyph* glyph = _nya_render2d_glyph(atlas, codepoint);
-
-        // The kerning is part of this glyph's cost, so the fit test below accounts for it exactly as the
-        // draw will apply it.
-        f32 advance = _nya_render2d_kerning(face, previous, codepoint);
-
-        advance += glyph != nullptr ? glyph->advance : atlas->glyphs[0].advance;
-
-        /*
-         * Too wide, and there is somewhere legal to break: break there.
-         *
-         * The space itself goes into the skip and not the length, so it is neither drawn nor counted in
-         * the line's width — a trailing space on a right-aligned line would otherwise push the text left
-         * by a space for no visible reason.
-         */
-        if (max_width > 0.0F && offset > 0 && (width + advance) > max_width) {
-            if (break_length > 0) {
-                *out_length = break_length;
-                *out_skip   = break_skip;
-                *out_width  = break_width;
-
-                return true;
-            }
-
-            /*
-             * Nowhere legal to break, so break here — mid-word.
-             *
-             * A word longer than the box has to go somewhere, and the alternatives are worse: letting it
-             * overflow puts text outside the panel that was sized to hold it, and refusing to draw it
-             * loses the text entirely. An ugly break is the one failure a reader can still work with.
-             */
-            *out_length = offset;
-            *out_skip   = offset;
-            *out_width  = width;
-
-            return true;
-        }
-
-        width   += advance;
-        offset  += step;
-        previous = codepoint;
-
-        // Recorded *after* the space is consumed, so the break point is the text up to it.
-        if (codepoint == ' ') {
-            break_length = offset - step;
-            break_skip   = offset;
-            break_width  = width - advance;
-        }
-    }
-}
-
 f32x2 _nya_render2d_text_box_layout(NYA_Window* window, NYA_ConstCString text, NYA_Render2DTextBox params) {
     if (text == nullptr || text[0] == '\0') return f32x2_zero;
 
     NYA_ConstCString font_path  = params.font_path != nullptr ? params.font_path : _nya_render2d_current_font;
     f32              point_size = params.point_size > 0.0F ? params.point_size : _nya_render2d_current_font_size;
 
-    /*
-     * A measure needs an atlas too, and building one needs a window.
-     *
-     * _nya_render2d_font_atlas takes a window because rasterising creates a GPU texture. A pure measure
-     * therefore has to reach the atlas some other way — it uses the same lookup with a null window, which
-     * finds an already-built atlas and declines to build a new one. Measuring a font nothing has drawn yet
-     * answers zero, which is the same answer nya_render2d_text_measure has always given.
-     */
-    NYA_FontAtlas* atlas = _nya_render2d_font_atlas(window, font_path, point_size);
-    if (atlas == nullptr) return f32x2_zero;
-
-    f32 line_height = atlas->line_height * (params.line_spacing > 0.0F ? params.line_spacing : 1.0F);
-
-    // Once for the whole box, and handed to both the wrap and the emit so they cannot disagree.
-    TTF_Font* face = _nya_render2d_atlas_font(atlas);
+    TTF_Font* font = nya_text_font_for(font_path, point_size);
+    if (font == nullptr) return f32x2_zero;
 
     /*
-     * Every glyph resolved before any quad is emitted.
+     * The wrapping is the shaper's now, not ours.
      *
-     * The same two-pass rule nya_render2d_text_with_font documents at length: resolving may rasterise a
-     * glyph, which dirties the atlas surface, and a quad queued before the upload points at a cell the
-     * GPU has not received. Here it matters more, because the wrapping pass *also* resolves glyphs to
-     * measure them — so without this the first frame of a wrapped string would be blank rectangles.
+     * What used to be here was a hand-rolled line breaker walking codepoints, accumulating advances
+     * and remembering the last space — a second copy of the draw's own arithmetic, kept in step by
+     * hand. Handing the wrap width to the layout replaces all of it, and it breaks on more than
+     * spaces, which is what any non-English text needs.
      */
-    if (window != nullptr) {
-        for (NYA_ConstCString scan = text; *scan != '\0';) {
-            u32 codepoint = 0;
+    s32 wrap_width = params.width > 0.0F ? (s32)params.width : 0;
 
-            u64 step = (u64)nya_utf8_next(scan, &codepoint);
-            if (step == 0) step = 1;
+    if (!nya_text_shape(font, text, 0, wrap_width, &_nya_render2d_run)) return f32x2_zero;
 
-            scan += step;
+    const NYA_TextRun* run = &_nya_render2d_run;
 
-            if (codepoint == '\n') continue;
+    // The caller's line spacing scales the face's own, and a run's lines are already positioned at the
+    // unscaled spacing — so the scale is applied as a per-line offset rather than by relaying out.
+    f32 spacing     = params.line_spacing > 0.0F ? params.line_spacing : 1.0F;
+    f32 line_height = nya_text_line_height(font) * spacing;
 
-            (void)_nya_render2d_glyph(atlas, codepoint);
-        }
+    u32 lines = run->line_count;
+    if (params.max_lines > 0 && lines > params.max_lines) lines = params.max_lines;
+
+    b8 truncated = lines < run->line_count;
+
+    NYA_FontAtlas* atlas = window != nullptr ? _nya_render2d_font_atlas(window, font_path, point_size) : nullptr;
+
+    if (atlas != nullptr) {
+        _nya_render2d_run_bake(window, atlas, run);
 
         /*
-         * The ellipsis glyph too, before the upload rather than when it is drawn.
-         *
-         * It is emitted below only when the text was truncated, and it was resolved at that point — after
-         * this upload. Baking a glyph dirties the atlas *surface*, so a full stop that the text itself did
-         * not contain was drawn from a cell the GPU had not received: three blank rectangles for one
-         * frame, and again every time the atlas is rebuilt. Exactly the trap the two-pass rule exists for.
-         *
-         * Resolved unconditionally, because whether the text truncates is not known until the layout runs
-         * and one glyph is not worth a second upload to find out.
+         * The ellipsis glyph too, before the upload rather than when it is drawn. It is emitted below
+         * only when the text was truncated, which used to mean three blank rectangles for one frame:
+         * exactly the trap the two-pass rule exists for. Shaped separately because it is not part of
+         * the caller's string, and only when it will actually be needed.
          */
-        if (params.ellipsis) (void)_nya_render2d_glyph(atlas, '.');
+        if (truncated && params.ellipsis) {
+            static NYA_TextRun ellipsis_run;
 
-        _nya_render2d_atlas_upload(window, atlas);
+            if (nya_text_shape(font, "...", 0, 0, &ellipsis_run)) _nya_render2d_run_bake(window, atlas, &ellipsis_run);
+        }
     }
 
     f32 widest = 0.0F;
-    f32 pen_y  = params.y;
 
-    u32 line_index = 0;
+    for (u32 line_index = 0; line_index < lines; line_index++) {
+        const NYA_TextLine* line = &run->lines[line_index];
 
-    NYA_ConstCString cursor = text;
+        widest = nya_max(widest, (f32)line->width);
 
-    for (;;) {
-        u64 length = 0;
-        u64 skip   = 0;
-        f32 width  = 0.0F;
-
-        if (!_nya_render2d_wrap_line(atlas, face, cursor, params.width, &length, &skip, &width)) break;
-
-        b8 last_allowed = params.max_lines > 0 && line_index + 1 >= params.max_lines;
-
-        // Something is left over after this line, and this line is the last one allowed.
-        b8 truncated = last_allowed && cursor[skip] != '\0';
-
-        widest = nya_max(widest, width);
-
-        /*
-         * Alignment is a horizontal offset, computed against the box width.
-         *
-         * A zero box width makes centre and right align against `x` itself, which is what a centred
-         * title without a wrap width means: the line is centred *on the point*. Any other reading would
-         * need a width the caller did not give.
-         */
-        f32 pen_x = params.x;
+        // Alignment is a horizontal offset, computed against the box width. A zero box width makes
+        // centre and right align against `x` itself — a centred title with no wrap width is centred *on
+        // the point*, since any other reading would need a width the caller did not give.
+        f32 align_x = 0.0F;
 
         switch (params.align) {
-            case NYA_TEXT_ALIGN_CENTER: pen_x += (params.width - width) * 0.5F; break;
-            case NYA_TEXT_ALIGN_RIGHT: pen_x += params.width - width; break;
+            case NYA_TEXT_ALIGN_CENTER: align_x = (params.width - (f32)line->width) * 0.5F; break;
+            case NYA_TEXT_ALIGN_RIGHT: align_x = params.width - (f32)line->width; break;
 
             case NYA_TEXT_ALIGN_LEFT:
             case NYA_TEXT_ALIGN_COUNT:
             default: break;
         }
 
-        if (window != nullptr) {
-            u32 previous = 0;
+        if (atlas == nullptr) continue;
 
-            for (u64 offset = 0; offset < length;) {
-                u32 codepoint = 0;
+        // The glyphs carry positions relative to the run, so the origin subtracts the line's own y and
+        // adds back where this layout wants that line — which is what applies the line spacing.
+        f32 origin_x = params.x + align_x;
+        f32 origin_y = params.y + ((f32)line_index * line_height) - (f32)line->y;
 
-                u64 step = (u64)nya_utf8_next(cursor + offset, &codepoint);
-                if (step == 0) step = 1;
+        for (u32 i = 0; i < line->glyph_count; i++) {
+            const NYA_TextGlyph* shaped = &run->glyphs[line->first_glyph + i];
 
-                offset += step;
-
-                pen_x += _nya_render2d_kerning(face, previous, codepoint);
-
-                previous = codepoint;
-
-                const NYA_Glyph* glyph = _nya_render2d_glyph(atlas, codepoint);
-
-                if (glyph == nullptr) {
-                    pen_x += atlas->glyphs[0].advance;
-                    continue;
-                }
-
-                if (glyph->width > 0.0F && glyph->height > 0.0F) {
-                    if (!_nya_render2d_prepare(window, NYA_RENDER2D_PIPELINE_TEXTURED, atlas->texture,
-                                               _nya_render_sampler_for(NYA_TEXTURE_FILTER_NEAREST), 4, 6)) {
-                        return (f32x2){ widest, (f32)(line_index + 1) * line_height };
-                    }
-
-                    // Snapped to whole pixels, for the reason the unwrapped draw gives: point sampling
-                    // only stays crisp on the pixel grid.
-                    _nya_render2d_quad(
-                        &window->render_system.draw_batch,
-                        roundf(pen_x + glyph->bearing_x),
-                        roundf(pen_y + glyph->bearing_y),
-                        glyph->width,
-                        glyph->height,
-                        glyph->u0,
-                        glyph->v0,
-                        glyph->u1,
-                        glyph->v1,
-                        params.color
-                    );
-                }
-
-                pen_x += glyph->advance;
-            }
-
-            /*
-             * The ellipsis, appended after the line rather than fitted inside it.
-             *
-             * Strictly it should displace enough trailing characters to make room, which needs a second
-             * backward pass over the line. Appending overhangs the box by up to three dots' width, which
-             * at any realistic box size is less wrong than the alternative and is a great deal less code.
-             */
-            if (truncated && params.ellipsis) {
-                for (u32 dot = 0; dot < 3; dot++) {
-                    const NYA_Glyph* glyph = _nya_render2d_glyph(atlas, '.');
-                    if (glyph == nullptr) break;
-
-                    if (glyph->width > 0.0F && glyph->height > 0.0F) {
-                        if (!_nya_render2d_prepare(window, NYA_RENDER2D_PIPELINE_TEXTURED, atlas->texture,
-                                                   _nya_render_sampler_for(NYA_TEXTURE_FILTER_NEAREST), 4, 6)) {
-                            break;
-                        }
-
-                        _nya_render2d_quad(
-                            &window->render_system.draw_batch,
-                            roundf(pen_x + glyph->bearing_x),
-                            roundf(pen_y + glyph->bearing_y),
-                            glyph->width,
-                            glyph->height,
-                            glyph->u0,
-                            glyph->v0,
-                            glyph->u1,
-                            glyph->v1,
-                            params.color
-                        );
-                    }
-
-                    pen_x += glyph->advance;
-                }
+            if (!_nya_render2d_glyph_emit(window, atlas, shaped, origin_x, origin_y, params.color)) {
+                return (f32x2){ widest, (f32)lines * line_height };
             }
         }
 
-        pen_y += line_height;
-        line_index++;
+        // The ellipsis, appended after the last line rather than fitted inside it. Strictly it should
+        // displace trailing characters to make room, needing a second backward pass; appending
+        // overhangs the box by up to three dots' width instead, less wrong at any realistic box size
+        // and a great deal less code.
+        if (!truncated || !params.ellipsis || line_index + 1 != lines) continue;
 
-        cursor += skip;
+        static NYA_TextRun ellipsis_run;
+        if (!nya_text_shape(font, "...", 0, 0, &ellipsis_run)) continue;
 
-        if (*cursor == '\0') break;
-        if (last_allowed) break;
+        for (u32 i = 0; i < ellipsis_run.glyph_count; i++) {
+            if (!_nya_render2d_glyph_emit(window, atlas, &ellipsis_run.glyphs[i], origin_x + (f32)line->width, origin_y, params.color)) {
+                break;
+            }
+        }
     }
 
-    return (f32x2){ widest, (f32)line_index * line_height };
+    return (f32x2){ widest, (f32)lines * line_height };
 }
 
 void _nya_render2d_vertex(NYA_Render2DBatch* batch, f32 x, f32 y, f32 u, f32 v, NYA_Color color) {
@@ -2271,7 +1929,7 @@ b8 _nya_render2d_prepare(NYA_Window* window, NYA_ConstCString pipeline, SDL_GPUT
     // draw a torn shape, so it is refused and said out loud — the fix is a larger
     // NYA_RENDER2D_MAX_VERTICES, which the caller cannot guess without being told.
     if (vertex_count > NYA_RENDER2D_MAX_VERTICES || index_count > NYA_RENDER2D_MAX_INDICES) {
-        nya_warn(
+        nya_log_warn(
             "a single shape needs %u vertices and %u indices, past NYA_RENDER2D_MAX_VERTICES (%d) or NYA_RENDER2D_MAX_INDICES (%d)",
             vertex_count,
             index_count,
@@ -2284,13 +1942,10 @@ b8 _nya_render2d_prepare(NYA_Window* window, NYA_ConstCString pipeline, SDL_GPUT
     }
 
     /*
-     * A draw call has one pipeline and one texture, so anything queued under different state has to
-     * go out first.
-     *
-     * Pipeline handles are compared by pointer rather than by content because they are the
-     * NYA_RENDER2D_PIPELINE_* literals, which are the same pointer every time. A custom pipeline arrives
-     * through shader_override instead, which is not consulted here at all — switching it flushes on
-     * its own.
+     * A draw call has one pipeline and one texture, so anything queued under different state has to go
+     * out first. Pipeline handles compare by pointer, not content, since they're the
+     * NYA_RENDER2D_PIPELINE_* literals — the same pointer every time. A custom pipeline arrives through
+     * shader_override instead, not consulted here at all: switching it flushes on its own.
      */
     if (batch->index_count > batch->range_first_index) {
         // Attributed most-specific first: a pipeline change usually brings a texture change with it,
@@ -2300,25 +1955,18 @@ b8 _nya_render2d_prepare(NYA_Window* window, NYA_ConstCString pipeline, SDL_GPUT
         else if (batch->texture != texture) batch->pending_flush_reason = NYA_RENDER2D_FLUSH_TEXTURE;
         else if (batch->sampler != sampler) batch->pending_flush_reason = NYA_RENDER2D_FLUSH_SAMPLER;
 
-        /*
-         * A state change closes a range rather than drawing one.
-         *
-         * This is the whole change: the geometry stays in the staging arrays and is issued later, in
-         * layer order, instead of the moment the state moved. See NYA_Render2DDrawRange.
-         */
+        // A state change closes a range rather than drawing one: the geometry stays in the staging
+        // arrays and is issued later, in layer order, instead of the moment the state moved. See
+        // NYA_Render2DDrawRange.
         if (batch->pipeline != pipeline || batch->texture != texture || batch->sampler != sampler) {
             _nya_render2d_range_close(window);
         }
     }
 
-    /*
-     * Out of room, or out of ranges: this one has to actually draw.
-     *
-     * Deferring is bounded by the staging arrays every pending range shares — once they are full,
-     * nothing more can be recorded and the only way forward is to issue what is held. A frame that
-     * hits this loses cross-layer ordering for the geometry on either side of it, which is why the
-     * bounds are generous rather than tight.
-     */
+    // Out of room, or out of ranges: this one has to actually draw. Deferring is bounded by the staging
+    // arrays every pending range shares — once full, the only way forward is to issue what is held. A
+    // frame that hits this loses cross-layer ordering for the geometry on either side, which is why the
+    // bounds are generous rather than tight.
     if (batch->vertex_count + vertex_count > NYA_RENDER2D_MAX_VERTICES ||
         batch->index_count + index_count > NYA_RENDER2D_MAX_INDICES ||
         batch->range_count + 1 >= NYA_RENDER2D_MAX_RANGES) {
@@ -2370,16 +2018,13 @@ void _nya_render2d_pass_resume(NYA_Window* window) {
     if (render->render_commands == nullptr) return;
 
     /*
-     * Resuming a shadow pass: back onto the light-space depth map.
+     * Resuming a shadow pass: back onto the light-space depth map. Mid-pass flushes during the shadow
+     * pass — e.g. a material change — suspend the pass to upload their vertices, and this resume has to
+     * point them back at the shadow map rather than the window, or everything drawn after the first
+     * shadow flush lands in the scene's colour buffer at light-space coordinates.
      *
-     * Mid-pass flushes during the shadow pass — e.g. a material change — suspend the pass to upload
-     * their vertices, and this resume has to point them back at the shadow map rather than at the
-     * window. Without this branch, everything drawn after the first shadow flush lands in the scene's
-     * colour buffer at light-space coordinates.
-     *
-     * `active` is what tells them apart: it is false during the 2D flush that begins a 3D pass, so
-     * that flush correctly lands on the window; it is set true immediately afterwards, so every
-     * subsequent 3D flush correctly lands on the shadow map.
+     * `active` tells the two apart: false during the 2D flush that begins a 3D pass, so that flush lands
+     * on the window; set true immediately afterwards, so every subsequent 3D flush lands on the shadow map.
      */
     if (render->mesh_batch.shadow_pass_active && render->mesh_batch.active) {
         render->render_pass = SDL_BeginGPURenderPass(
@@ -2406,24 +2051,18 @@ void _nya_render2d_pass_resume(NYA_Window* window) {
     if (batch->target_texture == nullptr) return;
 
     /*
-     * Multisampling is resolved once a frame, on the last pass, not on every reopen.
+     * Multisampling resolves once a frame, on the last pass, not on every reopen — resolving on every
+     * flush's reopen would fully resolve the target once per draw call (fourteen resolves for fourteen
+     * draws), and only the last is ever seen. Intermediate passes target the multisample texture alone,
+     * no resolve texture attached, and STORE; a resolve target attached with a plain STORE is not a
+     * combination to rely on.
      *
-     * A frame opens a pass per flush — every flush suspends to run its copy pass — so resolving as
-     * each one ends resolved the entire target once per draw call: fourteen full resolves in a
-     * frame with fourteen draws. Only the last one produces pixels anyone sees; the rest are thrown
-     * away by the next pass's LOAD.
+     * An earlier version kept the resolve target attached throughout and did the single resolve in a
+     * final *empty* pass, which segfaulted inside the AMD Vulkan driver at BeginRenderPass. There is no
+     * empty pass here: nya_render_end guarantees the resolving pass has something to draw before it opens.
      *
-     * Intermediate passes therefore target the multisample texture alone, with no resolve texture
-     * attached at all, and STORE. Attaching a resolve texture and asking for a plain STORE is not a
-     * combination to rely on — if there is a resolve target, the store op is expected to resolve.
-     *
-     * The earlier attempt at this kept the resolve target attached throughout and put the single
-     * resolve in a final *empty* pass, which segfaults inside the AMD Vulkan driver at
-     * BeginRenderPass. There is no empty pass here: nya_render_end guarantees the resolving pass has
-     * something to draw before it opens, so the driver never sees that shape.
-     *
-     * Render textures are exempt and always resolve. They are ended explicitly and read back the
-     * moment they are, so there is no later pass to defer to.
+     * Render textures are exempt and always resolve — ended explicitly and read back immediately, with
+     * no later pass to defer to.
      */
     b8 resolving = batch->target_msaa != nullptr && (batch->target_is_texture || batch->resolve_pending);
 
@@ -2462,31 +2101,24 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     if (point_size <= 0.0F) point_size = NYA_RENDER2D_FONT_DEFAULT_SIZE;
 
     /*
-     * The asset handle is derived from the path and the size, and the asset is queued if it is not
-     * there yet.
-     *
-     * A face carries no point size, so one .ttf at two sizes is two textures and therefore two
-     * assets — and an asset is keyed by one handle, so the two cannot both be keyed on the path. A
-     * game used to resolve that by inventing a handle ("neat_font") and loading the file a second
-     * time under it, which put an asset system detail in the caller's lap and made the font argument
-     * to every draw call a name that meant nothing on its own.
-     *
-     * Derived here instead. A caller passes NYA_ASSET_FONTS_ALDRICH_TTF and a size, and gets that
-     * face at that size — loading it on first use if nobody has.
+     * The asset handle is derived from the path and size, queuing the asset if new. A face carries no
+     * point size, so one .ttf at two sizes is two assets — and since an asset is keyed by one handle, the
+     * two can't both key on the path. Games used to work around this by inventing a second handle
+     * ("neat_font") and reloading the file under it, leaking an asset-system detail into the caller and
+     * making the font argument a name that meant nothing on its own. Derived here instead: pass
+     * NYA_ASSET_FONTS_ALDRICH_TTF and a size, and get that face at that size, loaded on first use.
      */
     char derived[NYA_RENDER2D_FONT_HANDLE_MAX];
     (void)snprintf(derived, sizeof(derived), "%s@%.0f", font_path, (f64)point_size);
 
     /*
-     * The asset is resolved first, on every call, and that is deliberate.
+     * Resolved first, on every call, deliberately: the cache used to answer from a hit without touching
+     * the asset system, so a font was looked up once per process — hot reload couldn't see it (nothing
+     * polled it) and couldn't have helped anyway (the atlas holds glyphs baked from the TTF_Font the
+     * reload replaces). Fonts silently did not hot reload while every other asset type did.
      *
-     * The cache used to answer from a hit without ever touching the asset system, which meant a font
-     * was looked up exactly once per process — so hot reload could not see it (nothing polled it)
-     * and could not have helped if it had (the atlas holds glyphs baked from a TTF_Font the reload
-     * replaces). Fonts silently did not hot reload while every other asset type did.
-     *
-     * The lookup is cheap: nya_asset_get rate limits its stat, so this is a dictionary hit on all
-     * but a handful of calls a second.
+     * Cheap regardless: nya_asset_get rate limits its stat, so this is a dictionary hit on all but a
+     * handful of calls a second.
      */
     NYA_Asset* asset = nya_asset_get(derived);
 
@@ -2522,23 +2154,21 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
         }
 
         /*
-         * Reloaded. The slot is freed and falls through to be rebuilt below.
-         *
-         * Flushed first: queued vertices reference the texture about to be released, and releasing
-         * it while a draw call still names it is a use after free inside the driver. Without a
-         * window there is no batch to flush and no pass to upload into, so the stale atlas is
-         * returned for now — measurement calls arrive that way, and being one frame behind on a text
-         * width is not worth a rebuild path that cannot flush.
+         * Reloaded: the slot is freed and falls through to be rebuilt below. Flushed first, since queued
+         * vertices reference the texture about to be released, and releasing it while a draw call still
+         * names it is a use-after-free inside the driver. Without a window there's no batch to flush and
+         * no pass to upload into, so the stale atlas is returned instead — measurement calls arrive that
+         * way, and being one frame behind on a text width isn't worth a rebuild path that can't flush.
          */
         if (window == nullptr) return &_nya_render2d_font_cache[i];
 
-        nya_debug("font '%s' reloaded; rebuilding its glyph atlas", derived);
+        nya_log_debug("font '%s' reloaded; rebuilding its glyph atlas", derived);
 
         _nya_render2d_flush_for(window, NYA_RENDER2D_FLUSH_STATE);
 
-        // All three, not just the texture. The atlas now owns a CPU surface and a transfer buffer as
-        // well, and a reload that released only the texture leaked both — once per reload, which on a
-        // hot-reloading development build is once every time a line changes.
+        // All three, not just the texture: the atlas now owns a CPU surface and a transfer buffer too,
+        // and releasing only the texture used to leak both — once per reload, i.e. once per edit on a
+        // hot-reloading build.
         SDL_GPUDevice* device = nya_app_get()->render_system.gpu_device;
         NYA_FontAtlas* stale  = &_nya_render2d_font_cache[i];
 
@@ -2564,21 +2194,25 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     // the texture it is about to release, and a game that needs more than eight faces at once is
     // better served by raising the constant than by a cache that quietly drops one.
     if (slot == nullptr) {
-        nya_warn("no free glyph atlas slot for '%s'; raise NYA_RENDER2D_FONT_CACHE_MAX (%d)", derived, NYA_RENDER2D_FONT_CACHE_MAX);
+        nya_log_warn("no free glyph atlas slot for '%s'; raise NYA_RENDER2D_FONT_CACHE_MAX (%d)", derived, NYA_RENDER2D_FONT_CACHE_MAX);
         return nullptr;
+    }
+
+    _nya_render2d_font_cache_count++;
+
+    // Registered here, once: the first atlas built is the first point this count means anything.
+    static b8 ceiling_registered = false;
+    if (!ceiling_registered) {
+        nya_ceiling_register("glyph_atlases", NYA_RENDER2D_FONT_CACHE_MAX, &_nya_render2d_font_cache_count);
+        ceiling_registered = true;
     }
 
     TTF_Font*      font       = asset->as_font.font;
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
-    /*
-     * A fixed grid rather than a packer.
-     *
-     * Every cell is as large as the tallest and widest glyph, so a 95 glyph atlas wastes the
-     * difference. For one face that is a few hundred kilobytes and it makes the layout arithmetic a
-     * multiply instead of a rectangle packer — the right trade until an atlas holds enough faces for
-     * the waste to matter.
-     */
+    // A fixed grid rather than a packer: every cell is as large as the tallest and widest glyph, so a
+    // 95 glyph atlas wastes the difference — a few hundred kilobytes for one face — in exchange for
+    // layout arithmetic that is a multiply instead of a rectangle packer.
     s32 line_skip = TTF_GetFontLineSkip(font);
     s32 ascent    = TTF_GetFontAscent(font);
     // SDL reports the descent below the baseline as negative; flipped so ascent + descent is the ink
@@ -2586,16 +2220,13 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     s32 descent   = -TTF_GetFontDescent(font);
 
     /*
-     * A cell is the size of a *rendered glyph surface*, not of the glyph's ink.
+     * A cell has to hold a glyph's **ink**, which is what TTF_GetGlyphImageForIndex hands back — a
+     * cropped picture rather than the full line box TTF_RenderGlyph_Blended used to return. That makes
+     * this sizing conservative rather than exact, which is the right direction: the box a glyph is
+     * measured against here is at least as large as the picture that gets baked into it.
      *
-     * TTF_RenderGlyph_Blended hands back a surface the full height of the font with the glyph already
-     * sitting on its baseline, and the full width of the advance with the glyph already at its left
-     * bearing. Measured, not assumed: every glyph in this face comes back 23 pixels tall at 24pt,
-     * whether it is an 'x' or a 'd'.
-     *
-     * That is why the glyphs below carry no bearing. Positioning them by `ascent - max_y` as well
-     * applies the baseline offset a second time, which lifts every ascender and drops everything at
-     * x-height — text that looks like the letters are on different lines.
+     * ASCII is only a sample. A glyph baked later can be wider than anything in it, which the margin
+     * below is for.
      */
     s32 cell_width  = 1;
     s32 cell_height = nya_max(TTF_GetFontHeight(font), line_skip);
@@ -2610,19 +2241,17 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     }
 
     /*
-     * Widened past what ASCII needs, because the cells are sized once and filled forever.
-     *
-     * A glyph baked later has to fit the cell chosen now, and a `W` with an umlaut over it or a `Æ`
-     * is wider than anything in ASCII. Half again is measured rather than guessed: across the Latin
-     * Extended blocks the widest glyph in a typical face is around a third wider than the widest
-     * ASCII one, and a cell too small clips the new glyph rather than failing to bake it — which
-     * looks like a font bug and is invisible until someone plays in the language that has it.
+     * Widened past what ASCII needs, because cells are sized once and filled forever: a glyph baked
+     * later — a `W` with an umlaut, an `Æ` — can be wider than anything in ASCII. Half again is measured,
+     * not guessed: across the Latin Extended blocks the widest glyph in a typical face runs about a third
+     * wider than the widest ASCII one. Too small a cell clips the new glyph rather than failing to bake
+     * it, which looks like a font bug and stays invisible until someone plays in the language that has it.
      */
     cell_width  = (cell_width * 3) / 2;
     cell_height = (cell_height * 3) / 2;
 
-    // A one pixel gutter, so linear filtering at a cell edge cannot bleed the neighbouring glyph in.
-    // Without it the right edge of every glyph picks up a sliver of the next one at small sizes.
+    // A one pixel gutter, so linear filtering at a cell edge cannot bleed the neighbouring glyph in —
+    // without it the right edge of every glyph picks up a sliver of the next one at small sizes.
     cell_width  += 2;
     cell_height += 2;
 
@@ -2633,7 +2262,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
 
     SDL_Surface* atlas_surface = SDL_CreateSurface(atlas_width, atlas_height, SDL_PIXELFORMAT_RGBA32);
     if (atlas_surface == nullptr) {
-        nya_warn("could not allocate a glyph atlas for '%s': %s", derived, SDL_GetError());
+        nya_log_warn("could not allocate a glyph atlas for '%s': %s", derived, SDL_GetError());
         return nullptr;
     }
 
@@ -2652,21 +2281,18 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
         .atlas_height = atlas_height,
         .cell_width   = cell_width,
         .cell_height  = cell_height,
-        // The ASCII block occupies the first slots, so a lookup for it is a subtraction. Everything
-        // baked later appends past this.
-        .glyph_count = NYA_RENDER2D_GLYPH_ASCII,
+
+        /*
+         * Empty. There is no eager block any more: an atlas is keyed by glyph index, and the only way
+         * to learn a glyph's index is to shape text containing it — SDL_ttf exposes no
+         * codepoint-to-index mapping. Every glyph is baked the first time a shaped run asks for it,
+         * which is what the non-ASCII path always did anyway.
+         */
+        .glyph_count = 0,
     };
 
     // Copied, because the asset system keeps the pointer it was handed and `derived` is a local.
     (void)snprintf(slot->handle, sizeof(slot->handle), "%s", derived);
-
-    // ASCII up front, because essentially every string contains it. Everything else is baked the
-    // first time it is asked for; see _nya_render2d_glyph.
-    for (u32 index = 0; index < NYA_RENDER2D_GLYPH_ASCII; index++) {
-        slot->codepoints[index] = NYA_RENDER2D_GLYPH_FIRST + index;
-        _nya_render2d_glyph_bake(slot, font, NYA_RENDER2D_GLYPH_FIRST + index, index);
-    }
-
 
     SDL_GPUTexture* texture = SDL_CreateGPUTexture(
         gpu_device,
@@ -2690,8 +2316,9 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
 
     slot->texture = texture;
 
-    // The ASCII block is already in the surface; this is what puts it on the GPU. Every later bake
-    // marks the atlas dirty again and the next draw re-uploads.
+    // Nothing is baked yet, so this uploads an empty surface — which still has to happen, because the
+    // texture is otherwise undefined until the first glyph dirties it, and a frame that draws text
+    // before any bake would sample whatever the driver left there.
     slot->upload_pending = true;
     _nya_render2d_atlas_upload(window, slot);
 
@@ -2701,70 +2328,10 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
 
     if (font_path == _nya_render2d_current_font && point_size == _nya_render2d_current_font_size) _nya_render2d_current_atlas = slot;
 
-    nya_info("Built a glyph atlas for '%s' (%dx%d, %u of %d slots used).", derived, atlas_width, atlas_height, slot->glyph_count,
+    nya_log_info("Built a glyph atlas for '%s' (%dx%d, %d slots, filled on demand).", derived, atlas_width, atlas_height,
              NYA_RENDER2D_GLYPH_CAPACITY);
 
     return slot;
-}
-
-/*
- * ─────────────────────────────────────────────────────────
- * CAMERA INTERNALS
- * ─────────────────────────────────────────────────────────
- */
-
-void _nya_render2d_camera_basis(const NYA_Camera2D* camera, OUT f32* out_a, OUT f32* out_b, OUT f32* out_c, OUT f32* out_d) {
-    switch (camera->kind) {
-        case NYA_CAMERA2D_KIND_TOP_DOWN: {
-            // A rotation scaled by the zoom. Positive rotation reads clockwise on screen, which is
-            // the same sense NYA_Render2DTexture.rotation and the 2D solver already use.
-            f32 c = cosf(camera->as_top_down.rotation) * camera->as_top_down.zoom;
-            f32 s = sinf(camera->as_top_down.rotation) * camera->as_top_down.zoom;
-
-            *out_a = c;
-            *out_b = -s;
-            *out_c = s;
-            *out_d = c;
-        } break;
-
-        case NYA_CAMERA2D_KIND_ISOMETRIC: {
-            /*
-             * The classic tile-to-screen map, as a matrix.
-             *
-             * Stepping one tile along +x moves half a tile right and half a tile down; stepping one
-             * along +y moves half a tile *left* and half a tile down. That is what makes a square
-             * grid draw as diamonds and what makes rows further down the screen read as further away.
-             *
-             * Halves because the widths are the full diamond, which is what the art is authored to.
-             */
-            f32 half_width  = camera->as_isometric.tile_width * 0.5F * camera->as_isometric.zoom;
-            f32 half_height = camera->as_isometric.tile_height * 0.5F * camera->as_isometric.zoom;
-
-            *out_a = half_width;
-            *out_b = -half_width;
-            *out_c = half_height;
-            *out_d = half_height;
-        } break;
-
-        case NYA_CAMERA2D_KIND_NONE:
-        default: {
-            // The identity. Not reachable through the callers, which all check the kind first, but a
-            // basis of zeroes would be a division by zero in the inverse rather than a visible bug.
-            *out_a = 1.0F;
-            *out_b = 0.0F;
-            *out_c = 0.0F;
-            *out_d = 1.0F;
-        } break;
-    }
-}
-
-f32x2 _nya_render2d_camera_position(const NYA_Camera2D* camera) {
-    switch (camera->kind) {
-        case NYA_CAMERA2D_KIND_TOP_DOWN:  return camera->as_top_down.position;
-        case NYA_CAMERA2D_KIND_ISOMETRIC: return camera->as_isometric.position;
-        case NYA_CAMERA2D_KIND_NONE:
-        default:                          return f32x2_zero;
-    }
 }
 
 /*
@@ -2809,14 +2376,10 @@ void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, co
     u32 kept = nya_min(count, (u32)NYA_SHADER_LIGHT2D_MAX);
 
     for (u32 i = 0; i < kept; i++) {
-        /*
-         * World to target pixels, through the same camera the scene was drawn with.
-         *
-         * The lights arrive in world coordinates because that is where the entities carrying them
-         * are, and the shader works in target pixels because a fullscreen pass has no camera. Doing
-         * the conversion here rather than in the shader means the camera matrix does not have to be
-         * a uniform, and means a light's radius is in world units like everything else.
-         */
+        // World to target pixels, through the same camera the scene was drawn with. Lights arrive in
+        // world coordinates because that's where the entities carrying them are, and the shader works
+        // in target pixels because a fullscreen pass has no camera; converting here instead of in the
+        // shader keeps the camera matrix out of the uniforms and keeps a light's radius in world units.
         f32x2 screen = nya_render2d_world_to_screen(window, positions[i]);
 
         // The radius has to cross the same boundary, and a zoomed camera scales it — a torch does
@@ -2860,31 +2423,113 @@ void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, co
  * ─────────────────────────────────────────────────────────
  */
 
-void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 codepoint, u32 slot) {
-    NYA_Glyph* glyph = &atlas->glyphs[slot];
+TTF_Font* _nya_render2d_atlas_font(const NYA_FontAtlas* atlas) {
+    if (atlas == nullptr) return nullptr;
 
-    s32 min_x = 0, max_x = 0, min_y = 0, max_y = 0, advance = 0;
-    if (!TTF_GetGlyphMetrics(font, codepoint, &min_x, &max_x, &min_y, &max_y, &advance)) {
-        // The face has no such glyph. Left with a zero advance and no ink, so it draws as nothing
-        // rather than as whatever the cell happened to hold.
-        *glyph = (NYA_Glyph){ 0 };
-        return;
+    // Cast: nya_asset_get only reads its mutable handle, the same cast every lookup in this file makes.
+    NYA_Asset* asset = nya_asset_get((NYA_AssetHandle)atlas->handle);
+    if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return nullptr;
+
+    return asset->as_font.font;
+}
+
+/*
+ * ⚠ **The attribute is load-bearing, and its absence is a crash rather than a wrong answer.**
+ *
+ * Unsigned overflow is defined in C, but this build compiles with -fsanitize=unsigned-integer-overflow
+ * and -fno-sanitize-recover=all, so a multiply meant to wrap aborts the process on the first frame
+ * that draws a character. nya_hash_fnv1a carries the same attribute for the same reason.
+ *
+ * This is the *second* time this exact mistake has been made in this file — the kerning memo's hash
+ * had it, and it got through 152 tests and two clean builds because nothing under tests/ drew text.
+ * That is fixed now (render_text.c is CPU-only and tested), but the atlas itself still needs a device,
+ * so this one was again found by running the game and not by the suite.
+ */
+__attr_no_sanitize("unsigned-integer-overflow") u32 _nya_render2d_glyph_bucket(u32 glyph_index) {
+    // Mixed rather than masked directly: glyph indices in a face run consecutively for a script, so
+    // the letters of one word would otherwise land in adjacent buckets and collide along the word.
+    // The shift takes the high bits, where the multiply has actually mixed anything.
+    u32 hash = glyph_index * 2654435761U;
+
+    return (hash >> 16) & (NYA_RENDER2D_GLYPH_LOOKUP - 1);
+}
+
+const NYA_Glyph* _nya_render2d_glyph(NYA_FontAtlas* atlas, u32 glyph_index) {
+    u32 bucket = _nya_render2d_glyph_bucket(glyph_index);
+
+    // Plus one, so that a zeroed table reads as empty and slot 0 is still addressable.
+    u16 stored = atlas->lookup[bucket];
+    if (stored != 0 && atlas->glyph_indices[stored - 1] == glyph_index) return &atlas->glyphs[stored - 1];
+
+    /*
+     * The bucket is taken by another index, or empty. Either way the table is only a shortcut, so the
+     * scan behind it is what decides — a collision costs a walk and cannot answer wrongly. Short in
+     * practice: a game shows one language at a time, and one language is a few dozen distinct glyphs
+     * past the ASCII it shares with every other.
+     */
+    for (u32 i = 0; i < atlas->glyph_count; i++) {
+        if (atlas->glyph_indices[i] != glyph_index) continue;
+
+        // Claimed on the way past, so a colliding pair settles on whichever was asked for most
+        // recently rather than leaving the bucket pointing at neither.
+        atlas->lookup[bucket] = (u16)(i + 1);
+
+        return &atlas->glyphs[i];
     }
 
-    *glyph = (NYA_Glyph){ .advance = (f32)advance };
+    if (atlas->glyph_count >= NYA_RENDER2D_GLYPH_CAPACITY) {
+        // Full rather than evicting, for the same reason the font cache is: eviction would have to
+        // know that no queued vertex still references the cell it is about to overwrite.
+        nya_log_warn("glyph atlas for '%s' is full at %d glyphs; raise NYA_RENDER2D_GLYPH_CAPACITY", atlas->path, NYA_RENDER2D_GLYPH_CAPACITY);
+        return nullptr;
+    }
+
+    TTF_Font* font = _nya_render2d_atlas_font(atlas);
+    if (font == nullptr) return nullptr;
+
+    u32 slot = atlas->glyph_count++;
+
+    atlas->glyph_indices[slot] = glyph_index;
+    atlas->lookup[bucket]      = (u16)(slot + 1);
+
+    if (atlas->glyph_count > _nya_render2d_glyph_count_worst) _nya_render2d_glyph_count_worst = atlas->glyph_count;
+
+    // Registered here, once: the first glyph baked into any atlas is the first point this means
+    // anything. See _nya_render2d_glyph_count_worst for why it tracks a worst rather than a single
+    // atlas's count — NYA_RENDER2D_GLYPH_CAPACITY is a per-atlas cap and there is no one atlas here.
+    static b8 ceiling_registered = false;
+    if (!ceiling_registered) {
+        nya_ceiling_register("glyphs_per_atlas", NYA_RENDER2D_GLYPH_CAPACITY, &_nya_render2d_glyph_count_worst);
+        ceiling_registered = true;
+    }
+
+    _nya_render2d_glyph_bake(atlas, font, glyph_index, slot);
+
+    return &atlas->glyphs[slot];
+}
+
+void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 glyph_index, u32 slot) {
+    NYA_Glyph* glyph = &atlas->glyphs[slot];
+
+    *glyph = (NYA_Glyph){ 0 };
 
     s32 cell_x = (s32)(slot % NYA_RENDER2D_GLYPH_COLUMNS) * atlas->cell_width;
     s32 cell_y = (s32)(slot / NYA_RENDER2D_GLYPH_COLUMNS) * atlas->cell_height;
 
     /*
-     * Blended, even though the atlas is not anti-aliased.
+     * By index, not by codepoint, and that is the whole reason this function changed: the shaper has
+     * already decided which glyph goes here, and asking for it by character would undo that — a
+     * ligature has no codepoint to ask with, and a mark cluster has one codepoint for several glyphs.
      *
-     * TTF_RenderGlyph_Solid looks like the obvious choice and is wrong twice over: it returns an
-     * 8-bit palettised surface whose background blits as opaque black, so every glyph came out in a
-     * dark box, and it returns a surface cropped to the glyph rather than the full line box — which
-     * the zero bearings below depend on. The anti-aliasing comes off afterwards, by thresholding.
+     * The surface this hands back is the glyph's **ink**, cropped, unlike the full-line-box surface
+     * TTF_RenderGlyph_Blended returned. That is why NYA_Glyph no longer carries bearings: the shaped
+     * position already places this exact picture, so there is nothing left to compensate for.
      */
-    SDL_Surface* glyph_surface = TTF_RenderGlyph_Blended(font, codepoint, (SDL_Color){ 255, 255, 255, 255 });
+    TTF_ImageType image_type = TTF_IMAGE_INVALID;
+    SDL_Surface*  glyph_surface = TTF_GetGlyphImageForIndex(font, glyph_index, &image_type);
+
+    // A face with no such glyph, or one whose image failed to rasterise. Left with no ink, so it draws
+    // as nothing rather than as whatever the cell happened to hold.
     if (glyph_surface == nullptr) return;
 
     defer SDL_DestroySurface(glyph_surface);
@@ -2904,31 +2549,43 @@ void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 codepoin
         SDL_MapSurfaceRGBA(atlas->surface, 0, 0, 0, 0)
     );
 
-    // Copied, not blended: the glyph's alpha has to land in the atlas verbatim for the threshold
-    // below to have anything to threshold.
-    SDL_SetSurfaceBlendMode(glyph_surface, SDL_BLENDMODE_NONE);
+    /*
+     * Converted rather than blitted straight in when the formats differ.
+     *
+     * TTF_GetGlyphImageForIndex returns whatever the face rasterises to — 32-bit RGBA for an outline
+     * face, but an 8-bit alpha surface for a bitmap strike and a colour format for an emoji face — and
+     * a blit between mismatched formats is where a glyph silently comes out as a black box.
+     */
+    SDL_Surface* source = glyph_surface;
+    SDL_Surface* converted = nullptr;
+
+    if (source->format != SDL_PIXELFORMAT_RGBA32) {
+        converted = SDL_ConvertSurface(source, SDL_PIXELFORMAT_RGBA32);
+        if (converted == nullptr) return;
+
+        source = converted;
+    }
+
+    // Copied, not blended: the glyph's alpha has to land in the atlas verbatim.
+    SDL_SetSurfaceBlendMode(source, SDL_BLENDMODE_NONE);
     SDL_BlitSurface(
-        glyph_surface, &(SDL_Rect){ .x = 0, .y = 0, .w = width, .h = height }, atlas->surface,
+        source, &(SDL_Rect){ .x = 0, .y = 0, .w = width, .h = height }, atlas->surface,
         &(SDL_Rect){ .x = cell_x + 1, .y = cell_y + 1, .w = width, .h = height }
     );
 
+    if (converted != nullptr) SDL_DestroySurface(converted);
+
     /*
-     * The coverage is kept. RGB is forced to white so the vertex colour alone decides the text colour.
+     * The coverage is kept, not thresholded to a hard mask — that was tried first, on the theory that
+     * nearest sampling needs a binary mask because point-sampling a coverage ramp "keeps the soft edge
+     * and just makes it blocky as well". Wrong diagnosis: the blur came from *linear* sampling at a
+     * half-texel offset. Nearest fixed it completely once paired with pixel-snapped, texel-exact quads —
+     * one output pixel maps to one texel, so nearest reproduces the cell, coverage and all. Thresholding
+     * on top only threw away anti-aliasing a solved problem no longer needed, jagging every curve.
      *
-     * This used to threshold the alpha to fully on or fully off, turning every cell into a hard mask. The
-     * reasoning was that the nearest sampler expects one, because point sampling a coverage ramp "keeps
-     * the soft edge and just makes it blocky as well" — and that is the wrong diagnosis of a real problem.
-     *
-     * The blur being fought came from *linear* sampling at a half-texel offset. Nearest was the fix for
-     * that, and it is a complete one: the glyph quad is snapped to whole pixels and drawn at exactly its
-     * texel size, so one output pixel maps to one texel and nearest reproduces the cell exactly — coverage
-     * and all. Thresholding on top threw away the anti-aliasing to solve a problem the sampler change had
-     * already solved, and left every curve and diagonal jagged.
-     *
-     * RGB is still overwritten. TTF_RenderGlyph_Blended puts the requested colour in rgb and the coverage
-     * in alpha, so the channels are already white — but a texel at zero coverage is not guaranteed to
-     * carry a defined colour, and a texel whose rgb drifts toward black darkens the tint when it is
-     * multiplied through.
+     * RGB is still forced to white: the rasterised glyph carries coverage in alpha, but a zero-coverage
+     * texel has no guaranteed colour, and any drift toward black darkens the tint once multiplied
+     * through.
      */
     for (s32 pixel_y = cell_y; pixel_y < cell_y + atlas->cell_height && pixel_y < atlas->atlas_height; pixel_y++) {
         u8* row = (u8*)atlas->surface->pixels + ((size_t)pixel_y * (size_t)atlas->surface->pitch);
@@ -2951,71 +2608,9 @@ void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 codepoin
         .v1     = (f32)(cell_y + 1 + height) / (f32)atlas->atlas_height,
         .width  = (f32)width,
         .height = (f32)height,
-        // Both zero: the surface is already the whole line box with the glyph placed inside it, so
-        // the quad goes at the pen and the pen is the top left of the line.
-        .bearing_x = 0.0F,
-        .bearing_y = 0.0F,
-        .advance   = (f32)advance,
     };
 
     atlas->upload_pending = true;
-}
-
-TTF_Font* _nya_render2d_atlas_font(const NYA_FontAtlas* atlas) {
-    if (atlas == nullptr) return nullptr;
-
-    // Cast because nya_asset_get takes a mutable handle while only reading it, and the atlas keeps its
-    // own copy. The same cast every other lookup in this file makes.
-    NYA_Asset* asset = nya_asset_get((NYA_AssetHandle)atlas->handle);
-    if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return nullptr;
-
-    return asset->as_font.font;
-}
-
-f32 _nya_render2d_kerning(TTF_Font* font, u32 previous, u32 current) {
-    // No previous glyph means the start of a run, which nothing kerns against. Zero rather than a lookup
-    // against codepoint zero, which some faces do have a pair for.
-    if (font == nullptr || previous == 0) return 0.0F;
-
-    s32 kerning = 0;
-
-    // Failure is not an error: a face with no kern table simply has no pairs, which is the common case for
-    // a monospace or a simple display font.
-    if (!TTF_GetGlyphKerning(font, previous, current, &kerning)) return 0.0F;
-
-    return (f32)kerning;
-}
-
-const NYA_Glyph* _nya_render2d_glyph(NYA_FontAtlas* atlas, u32 codepoint) {
-    // ASCII by subtraction, which is the overwhelmingly common case and the reason the block is baked
-    // in order at the front rather than appended like everything else.
-    if (codepoint >= NYA_RENDER2D_GLYPH_FIRST && codepoint <= NYA_RENDER2D_GLYPH_LAST) {
-        return &atlas->glyphs[codepoint - NYA_RENDER2D_GLYPH_FIRST];
-    }
-
-    // A linear scan of what has been baked past ASCII. Short in practice: a game shows one language
-    // at a time, and one language is a few dozen accented characters. A map would cost an allocation
-    // and a hash to save a scan that is usually under fifty comparisons.
-    for (u32 i = NYA_RENDER2D_GLYPH_ASCII; i < atlas->glyph_count; i++) {
-        if (atlas->codepoints[i] == codepoint) return &atlas->glyphs[i];
-    }
-
-    if (atlas->glyph_count >= NYA_RENDER2D_GLYPH_CAPACITY) {
-        // Full rather than evicting, for the same reason the font cache is: eviction would have to
-        // know that no queued vertex still references the cell it is about to overwrite.
-        nya_warn("glyph atlas for '%s' is full at %d glyphs; raise NYA_RENDER2D_GLYPH_CAPACITY", atlas->path, NYA_RENDER2D_GLYPH_CAPACITY);
-        return nullptr;
-    }
-
-    NYA_Asset* asset = nya_asset_get(atlas->handle);
-    if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->as_font.font == nullptr) return nullptr;
-
-    u32 slot = atlas->glyph_count++;
-
-    atlas->codepoints[slot] = codepoint;
-    _nya_render2d_glyph_bake(atlas, asset->as_font.font, codepoint, slot);
-
-    return &atlas->glyphs[slot];
 }
 
 void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
@@ -3031,13 +2626,11 @@ void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
     SDL_UnmapGPUTransferBuffer(gpu_device, atlas->transfer_buffer);
 
     /*
-     * This runs inside a render pass — the first frame that draws text, and every later frame that
-     * draws a character nobody has drawn before — and a copy pass cannot open while one is. Hence
-     * the suspend, the same way a vertex flush does it.
-     *
-     * Uploading on its own command buffer instead would work and would avoid breaking the pass, but
-     * it would also mean a second submission and a fence to know when it landed. This happens a
-     * handful of times per run, so the suspend is cheaper in every sense.
+     * This runs inside a render pass — the first frame that draws text, and every later frame that draws
+     * a character nobody has drawn before — and a copy pass cannot open while one is, hence the suspend,
+     * the same way a vertex flush does it. Uploading on its own command buffer would avoid breaking the
+     * pass but cost a second submission and a fence; this happens only a handful of times per run, so the
+     * suspend is cheaper in every sense.
      */
     b8 borrowed_pass = window != nullptr && window->render_system.render_pass != nullptr;
     if (borrowed_pass) _nya_render2d_pass_suspend(window);

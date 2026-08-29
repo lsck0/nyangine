@@ -27,6 +27,15 @@ NYA_INTERNAL NYA_ConstCString _nya_tilemap_string(NYA_Arena* arena, const NYA_Ob
 NYA_INTERNAL const NYA_TilemapTileset* _nya_tilemap_tileset_for(const NYA_Tilemap* map, u32 gid);
 
 NYA_INTERNAL NYA_Error _nya_tilemap_parse_tilesets(NYA_Tilemap* map, const NYA_Object* root, NYA_ConstCString asset_handle);
+
+/**
+ * Reads a tileset's `tiles[]` array for the ones carrying an `animation`.
+ *
+ * Silent about everything else in there — a tile entry also carries per-tile properties, a type and
+ * collision shapes, none of which this module reads. A tileset with no animations leaves the
+ * tileset's pointer null, which is the common case and costs nothing.
+ * */
+NYA_INTERNAL void _nya_tilemap_parse_animations(NYA_Tilemap* map, const NYA_Object* tileset_object, OUT NYA_TilemapTileset* out_tileset);
 NYA_INTERNAL NYA_Error _nya_tilemap_parse_layers(NYA_Tilemap* map, const NYA_Object* root);
 NYA_INTERNAL NYA_Error _nya_tilemap_parse_objects(NYA_Tilemap* map, const NYA_Object* layer_object, OUT NYA_TilemapLayer* out_layer);
 
@@ -104,7 +113,7 @@ NYA_Error nya_tilemap_load(NYA_Arena* arena, NYA_ConstCString asset_handle, OUT 
     NYA_TRY(_nya_tilemap_parse_tilesets(map, root, asset_handle));
     NYA_TRY(_nya_tilemap_parse_layers(map, root));
 
-    nya_info("Loaded tilemap '%s': %ux%u tiles, %u tilesets, %u layers.", asset_handle, map->width, map->height, map->tileset_count,
+    nya_log_info("Loaded tilemap '%s': %ux%u tiles, %u tilesets, %u layers.", asset_handle, map->width, map->height, map->tileset_count,
              map->layer_count);
 
     *out_map = map;
@@ -180,6 +189,10 @@ void nya_tilemap_layer_draw(NYA_Window* window, const NYA_Tilemap* map, u32 laye
 
             u32 gid = raw & NYA_TILEMAP_GID_MASK;
             if (gid == 0) continue;
+
+            // Before the tileset lookup, because an animation's frames are allowed to live in a
+            // different part of the sheet — the identity for the overwhelming majority of tiles.
+            gid = nya_tilemap_tile_frame(map, gid) & NYA_TILEMAP_GID_MASK;
 
             const NYA_TilemapTileset* tileset = _nya_tilemap_tileset_for(map, gid);
             if (tileset == nullptr) continue;
@@ -333,13 +346,13 @@ u32 nya_tilemap_collision_build(const NYA_Tilemap* map, NYA_ConstCString layer_n
     if (map->orientation != NYA_TILEMAP_ORTHOGONAL) {
         // A diamond is not a box, and boxing one is wrong in a way nobody sees until something walks
         // into a corner. An isometric map wants a polygon per cell or a hand-authored object layer.
-        nya_warn("Tilemap collision is orthogonal only; layer '%s' of an isometric map was skipped.", layer_name);
+        nya_log_warn("Tilemap collision is orthogonal only; layer '%s' of an isometric map was skipped.", layer_name);
         return 0;
     }
 
     u32 layer_index = nya_tilemap_layer_find(map, layer_name);
     if (layer_index == NYA_TILEMAP_LAYER_NONE) {
-        nya_warn("Tilemap has no layer called '%s'; no collision was built.", layer_name);
+        nya_log_warn("Tilemap has no layer called '%s'; no collision was built.", layer_name);
         return 0;
     }
 
@@ -403,7 +416,7 @@ u32 nya_tilemap_collision_build(const NYA_Tilemap* map, NYA_ConstCString layer_n
         }
     }
 
-    nya_info("Built %u colliders from tilemap layer '%s'.", built, layer_name);
+    nya_log_info("Built %u colliders from tilemap layer '%s'.", built, layer_name);
 
     return built;
 }
@@ -480,6 +493,248 @@ NYA_ConstCString _nya_tilemap_string(NYA_Arena* arena, const NYA_Object* object,
     return nya_string_to_cstring(arena, nya_string_from(arena, value->as_string));
 }
 
+/*
+ * ─────────────────────────────────────────────────────────
+ * ANIMATED TILES
+ * ─────────────────────────────────────────────────────────
+ */
+
+void nya_tilemap_animate(NYA_Tilemap* map, f32 delta_time_s) {
+    if (map == nullptr || delta_time_s <= 0.0F) return;
+
+    map->animation_time_s += delta_time_s;
+
+    /*
+     * Wrapped, rather than left to grow.
+     *
+     * An f32 clock that only ever increases loses its fractional resolution: past about four hours
+     * of running time the smallest step it can represent is longer than an animation frame, and
+     * every animated tile freezes. Wrapping at an hour is far enough out that no animation's period
+     * divides it awkwardly and near enough in that the precision never degrades.
+     */
+    if (map->animation_time_s > 3600.0F) map->animation_time_s -= 3600.0F;
+}
+
+const NYA_TilemapAnimation* nya_tilemap_animation_for(const NYA_Tilemap* map, u32 gid) {
+    if (map == nullptr) return nullptr;
+
+    u32 id = gid & NYA_TILEMAP_GID_MASK;
+    if (id == 0) return nullptr;
+
+    const NYA_TilemapTileset* tileset = _nya_tilemap_tileset_for(map, id);
+    if (tileset == nullptr || tileset->animation_count == 0) return nullptr;
+
+    u32 local = id - tileset->first_gid;
+
+    // Linear over at most NYA_TILEMAP_MAX_ANIMATIONS entries, and only for tilesets that have any —
+    // the check above is what keeps a map with no animated tiles from paying for this at all.
+    for (u32 i = 0; i < tileset->animation_count; i++) {
+        if (tileset->animations[i].local_id == local) return &tileset->animations[i];
+    }
+
+    return nullptr;
+}
+
+u32 nya_tilemap_tile_frame(const NYA_Tilemap* map, u32 gid) {
+    const NYA_TilemapAnimation* animation = nya_tilemap_animation_for(map, gid);
+    if (animation == nullptr || animation->frame_count == 0 || animation->total_duration_s <= 0.0F) return gid;
+
+    const NYA_TilemapTileset* tileset = _nya_tilemap_tileset_for(map, gid & NYA_TILEMAP_GID_MASK);
+    if (tileset == nullptr) return gid;
+
+    f32 elapsed = fmodf(map->animation_time_s, animation->total_duration_s);
+
+    for (u32 i = 0; i < animation->frame_count; i++) {
+        if (elapsed < animation->frames[i].duration_s) {
+            // The flip bits come along unchanged: which way a tile faces is a property of where it was
+            // placed, and every frame of its animation faces the same way.
+            return (tileset->first_gid + animation->frames[i].local_id) | (gid & ~NYA_TILEMAP_GID_MASK);
+        }
+
+        elapsed -= animation->frames[i].duration_s;
+    }
+
+    // Only reachable on a rounding edge, where fmodf returns something a hair under the total and the
+    // subtractions do not quite reach it. The last frame is the right answer there.
+    return (tileset->first_gid + animation->frames[animation->frame_count - 1].local_id) | (gid & ~NYA_TILEMAP_GID_MASK);
+}
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * AUTO-TILING
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * The 47 distinct blob cases, indexed by the raw 8-bit neighbour mask.
+ *
+ * 256 combinations collapse to 47 because a corner only matters when both edges beside it are
+ * filled — with either edge empty the corner is hidden behind the gap that edge leaves, so the two
+ * combinations are the same picture. The table is the standard order a 47-tile blob sheet is drawn
+ * in, so a game's lookup has 47 entries and matches the sheet it bought.
+ *
+ * Built once at first use rather than written out: the collapse rule is four lines and the table is
+ * 256 numbers, and a hand-written table is 256 chances to mistype one.
+ * */
+NYA_INTERNAL u8 _nya_tilemap_blob_case[256];
+NYA_INTERNAL b8 _nya_tilemap_blob_case_built = false;
+
+/** Bit positions in the raw 8-neighbour mask. Clockwise from north, edges and corners interleaved. */
+enum {
+    _NYA_TILEMAP_N  = 1u << 0,
+    _NYA_TILEMAP_NE = 1u << 1,
+    _NYA_TILEMAP_E  = 1u << 2,
+    _NYA_TILEMAP_SE = 1u << 3,
+    _NYA_TILEMAP_S  = 1u << 4,
+    _NYA_TILEMAP_SW = 1u << 5,
+    _NYA_TILEMAP_W  = 1u << 6,
+    _NYA_TILEMAP_NW = 1u << 7,
+};
+
+/** Drops the corner bits whose two adjoining edges are not both set. The collapse, in one place. */
+NYA_INTERNAL u32 _nya_tilemap_blob_canonical(u32 mask) {
+    if ((mask & (_NYA_TILEMAP_N | _NYA_TILEMAP_E)) != (_NYA_TILEMAP_N | _NYA_TILEMAP_E)) mask &= ~(u32)_NYA_TILEMAP_NE;
+    if ((mask & (_NYA_TILEMAP_E | _NYA_TILEMAP_S)) != (_NYA_TILEMAP_E | _NYA_TILEMAP_S)) mask &= ~(u32)_NYA_TILEMAP_SE;
+    if ((mask & (_NYA_TILEMAP_S | _NYA_TILEMAP_W)) != (_NYA_TILEMAP_S | _NYA_TILEMAP_W)) mask &= ~(u32)_NYA_TILEMAP_SW;
+    if ((mask & (_NYA_TILEMAP_W | _NYA_TILEMAP_N)) != (_NYA_TILEMAP_W | _NYA_TILEMAP_N)) mask &= ~(u32)_NYA_TILEMAP_NW;
+
+    return mask;
+}
+
+NYA_INTERNAL void _nya_tilemap_blob_build(void) {
+    if (_nya_tilemap_blob_case_built) return;
+
+    // Every canonical mask, in ascending order, numbered as it is first met. Ascending because that is
+    // the order the sheets are drawn in, and because it makes the numbering reproducible.
+    u32 next = 0;
+
+    for (u32 mask = 0; mask < 256; mask++) {
+        if (_nya_tilemap_blob_canonical(mask) != mask) continue;
+
+        _nya_tilemap_blob_case[mask] = (u8)next++;
+    }
+
+    // Then the non-canonical ones point at whatever they collapse to.
+    for (u32 mask = 0; mask < 256; mask++) {
+        u32 canonical = _nya_tilemap_blob_canonical(mask);
+        if (canonical != mask) _nya_tilemap_blob_case[mask] = _nya_tilemap_blob_case[canonical];
+    }
+
+    nya_assert(next == 47, "the blob collapse should yield exactly 47 cases, got " FMTu32, next);
+
+    _nya_tilemap_blob_case_built = true;
+}
+
+u32 nya_tilemap_autotile_mask(NYA_TilemapAutoTileFilledFn filled, void* user_data, s32 x, s32 y, NYA_TilemapAutoTile kind) {
+    if (filled == nullptr) return 0;
+
+    if (kind == NYA_TILEMAP_AUTOTILE_EDGES) {
+        u32 mask = 0;
+
+        if (filled(x, y - 1, user_data)) mask |= 1u << 0;   // north
+        if (filled(x + 1, y, user_data)) mask |= 1u << 1;   // east
+        if (filled(x, y + 1, user_data)) mask |= 1u << 2;   // south
+        if (filled(x - 1, y, user_data)) mask |= 1u << 3;   // west
+
+        return mask;
+    }
+
+    _nya_tilemap_blob_build();
+
+    u32 mask = 0;
+
+    if (filled(x, y - 1, user_data)) mask |= _NYA_TILEMAP_N;
+    if (filled(x + 1, y - 1, user_data)) mask |= _NYA_TILEMAP_NE;
+    if (filled(x + 1, y, user_data)) mask |= _NYA_TILEMAP_E;
+    if (filled(x + 1, y + 1, user_data)) mask |= _NYA_TILEMAP_SE;
+    if (filled(x, y + 1, user_data)) mask |= _NYA_TILEMAP_S;
+    if (filled(x - 1, y + 1, user_data)) mask |= _NYA_TILEMAP_SW;
+    if (filled(x - 1, y, user_data)) mask |= _NYA_TILEMAP_W;
+    if (filled(x - 1, y - 1, user_data)) mask |= _NYA_TILEMAP_NW;
+
+    return _nya_tilemap_blob_case[mask];
+}
+
+/** What nya_tilemap_autotile_layer hands its predicate: the snapshot, its size, and the edge answer. */
+typedef struct {
+    const u32* tiles;
+    u32        width;
+    u32        height;
+    b8         out_of_bounds;
+} _NYA_TilemapAutoTileContext;
+
+NYA_INTERNAL b8 _nya_tilemap_autotile_filled(s32 x, s32 y, void* user_data) {
+    const _NYA_TilemapAutoTileContext* context = user_data;
+
+    if (x < 0 || y < 0 || (u32)x >= context->width || (u32)y >= context->height) return context->out_of_bounds;
+
+    return (context->tiles[((u32)y * context->width) + (u32)x] & NYA_TILEMAP_GID_MASK) != 0;
+}
+
+NYA_Error nya_tilemap_autotile_layer(
+    NYA_Tilemap*        map,
+    u32                 layer_index,
+    const u32*          lookup,
+    u32                 lookup_length,
+    NYA_TilemapAutoTile kind,
+    b8                  out_of_bounds
+) {
+    if (map == nullptr || lookup == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "auto-tiling needs a map and a lookup");
+    if (layer_index >= map->layer_count) return nya_error(NYA_ERROR_NOT_FOUND, "layer " FMTu32 " does not exist", layer_index);
+
+    const NYA_TilemapLayer* layer = &map->layers[layer_index];
+
+    if (layer->kind != NYA_TILEMAP_LAYER_TILES || layer->tiles == nullptr) {
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "layer '%s' is not a tile layer", layer->name);
+    }
+
+    // Refused rather than clamped: a short table means the caller's sheet does not match the rule they
+    // asked for, and reading past it would draw whatever happened to follow it in memory.
+    u32 required = kind == NYA_TILEMAP_AUTOTILE_EDGES ? 16u : 47u;
+    if (lookup_length < required) {
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "auto-tiling needs " FMTu32 " lookup entries, got " FMTu32, required, lookup_length);
+    }
+
+    /*
+     * A snapshot of the layer, because the walk both reads and writes it.
+     *
+     * Deciding a cell from the layer being written would have every cell after the first partly
+     * decided by its neighbours' *new* values, so the same map would come out differently depending
+     * on which corner the walk started from. From the temp arena: it lives for one call.
+     */
+    NYA_Arena scratch    = nya_arena_create_on_stack(.name = "tilemap_autotile");
+    defer     nya_arena_destroy_on_stack(&scratch);
+
+    u64 cell_count = (u64)layer->width * (u64)layer->height;
+
+    u32* snapshot = nya_arena_alloc(&scratch, cell_count * sizeof(u32));
+    nya_memcpy(snapshot, layer->tiles, cell_count * sizeof(u32));
+
+    _NYA_TilemapAutoTileContext context = {
+        .tiles         = snapshot,
+        .width         = layer->width,
+        .height        = layer->height,
+        .out_of_bounds = out_of_bounds,
+    };
+
+    for (u32 y = 0; y < layer->height; y++) {
+        for (u32 x = 0; x < layer->width; x++) {
+            u32 existing = snapshot[((u64)y * layer->width) + x];
+
+            // Empty stays empty: auto-tiling picks which variant a filled cell shows, it does not
+            // decide what is filled.
+            if ((existing & NYA_TILEMAP_GID_MASK) == 0) continue;
+
+            u32 variant = nya_tilemap_autotile_mask(_nya_tilemap_autotile_filled, &context, (s32)x, (s32)y, kind);
+
+            // Flip bits preserved, like everywhere else: the artist flipped this cell on purpose.
+            (void)nya_tilemap_tile_set(map, layer_index, (s32)x, (s32)y, lookup[variant] | (existing & ~NYA_TILEMAP_GID_MASK));
+        }
+    }
+
+    return NYA_OK;
+}
+
 const NYA_TilemapTileset* _nya_tilemap_tileset_for(const NYA_Tilemap* map, u32 gid) {
     const NYA_TilemapTileset* best = nullptr;
 
@@ -552,6 +807,9 @@ NYA_Error _nya_tilemap_parse_tilesets(NYA_Tilemap* map, const NYA_Object* root, 
             .margin      = (u32)_nya_tilemap_integer(object, "margin", 0),
         };
 
+        // After the tileset is filled in, not before: it reports the sheet's name when it has to warn.
+        _nya_tilemap_parse_animations(map, object, &parsed[i]);
+
         /*
          * Queued here rather than left to the caller.
          *
@@ -571,6 +829,92 @@ NYA_Error _nya_tilemap_parse_tilesets(NYA_Tilemap* map, const NYA_Object* root, 
     map->tileset_count = count;
 
     return NYA_OK;
+}
+
+/** The most animations any single tileset has been kept at. NYA_TILEMAP_MAX_ANIMATIONS is a
+ *  per-tileset cap and a session can have many tilesets loaded at once, so there is no one
+ *  animation_count to point the ceiling registry at — this stands in for "the busiest one so far",
+ *  same trade as _nya_render2d_glyph_count_worst in render2d.c. */
+NYA_INTERNAL u32 _nya_tilemap_animation_count_worst = 0;
+
+void _nya_tilemap_parse_animations(NYA_Tilemap* map, const NYA_Object* tileset_object, OUT NYA_TilemapTileset* out_tileset) {
+    out_tileset->animations      = nullptr;
+    out_tileset->animation_count = 0;
+
+    NYA_Value* tiles = nya_object_get((NYA_Object*)tileset_object, "tiles");
+    if (tiles == nullptr || tiles->type != NYA_TYPE_ARRAY) return;
+
+    // Counted first so the array is allocated at its final size: the arena has no realloc, and a
+    // tileset's `tiles` array is mostly entries that carry properties rather than animations.
+    u32 animated = 0;
+
+    for (u64 i = 0; i < tiles->as_array.length; i++) {
+        NYA_Value* entry = &tiles->as_array.items[i];
+        if (entry->type != NYA_TYPE_OBJECT) continue;
+
+        NYA_Value* animation = nya_object_get(&entry->as_object, "animation");
+        if (animation != nullptr && animation->type == NYA_TYPE_ARRAY && animation->as_array.length > 0) animated++;
+    }
+
+    if (animated == 0) return;
+
+    if (animated > NYA_TILEMAP_MAX_ANIMATIONS) {
+        nya_log_warn("tileset '%s' defines %u animated tiles; only %d are kept — raise NYA_TILEMAP_MAX_ANIMATIONS",
+                     out_tileset->name != nullptr ? out_tileset->name : "(unnamed)", animated, NYA_TILEMAP_MAX_ANIMATIONS);
+        animated = NYA_TILEMAP_MAX_ANIMATIONS;
+    }
+
+    NYA_TilemapAnimation* parsed = nya_arena_alloc(map->allocator, animated * sizeof(NYA_TilemapAnimation));
+
+    u32 kept = 0;
+
+    for (u64 i = 0; i < tiles->as_array.length && kept < animated; i++) {
+        NYA_Value* entry = &tiles->as_array.items[i];
+        if (entry->type != NYA_TYPE_OBJECT) continue;
+
+        NYA_Value* frames = nya_object_get(&entry->as_object, "animation");
+        if (frames == nullptr || frames->type != NYA_TYPE_ARRAY || frames->as_array.length == 0) continue;
+
+        NYA_TilemapAnimation* animation = &parsed[kept];
+
+        *animation = (NYA_TilemapAnimation){ .local_id = (u32)_nya_tilemap_integer(&entry->as_object, "id", 0) };
+
+        for (u64 f = 0; f < frames->as_array.length && animation->frame_count < NYA_TILEMAP_MAX_ANIMATION_FRAMES; f++) {
+            NYA_Value* frame = &frames->as_array.items[f];
+            if (frame->type != NYA_TYPE_OBJECT) continue;
+
+            // Tiled stores the duration in milliseconds. Converted here so nothing downstream has to
+            // remember which unit it is in — the same reason NYA_TilemapAnimationFrame names it _s.
+            f32 duration_s = (f32)_nya_tilemap_integer(&frame->as_object, "duration", 100) / 1000.0F;
+
+            // A frame of no duration would make the total zero and the resolve divide by it. Given the
+            // shortest duration Tiled can express instead of being dropped, so the frame still shows.
+            if (duration_s <= 0.0F) duration_s = 0.001F;
+
+            animation->frames[animation->frame_count++] = (NYA_TilemapAnimationFrame){
+                .local_id   = (u32)_nya_tilemap_integer(&frame->as_object, "tileid", 0),
+                .duration_s = duration_s,
+            };
+
+            animation->total_duration_s += duration_s;
+        }
+
+        if (animation->frame_count == 0) continue;
+
+        kept++;
+    }
+
+    out_tileset->animations      = parsed;
+    out_tileset->animation_count = kept;
+
+    if (kept > _nya_tilemap_animation_count_worst) _nya_tilemap_animation_count_worst = kept;
+
+    // Registered once, on the first tileset with any animations at all.
+    static b8 ceiling_registered = false;
+    if (!ceiling_registered) {
+        nya_ceiling_register("tilemap_animations", NYA_TILEMAP_MAX_ANIMATIONS, &_nya_tilemap_animation_count_worst);
+        ceiling_registered = true;
+    }
 }
 
 NYA_Error _nya_tilemap_parse_layers(NYA_Tilemap* map, const NYA_Object* root) {
@@ -632,7 +976,7 @@ NYA_Error _nya_tilemap_parse_layers(NYA_Tilemap* map, const NYA_Object* root) {
         } else {
             // An image layer or a group. Skipped rather than refused: neither carries anything a game
             // reads, and refusing would make a decorative layer break a map that works.
-            nya_debug("Skipping tilemap layer '%s' of unsupported type '%s'.", layer.name, type);
+            nya_log_debug("Skipping tilemap layer '%s' of unsupported type '%s'.", layer.name, type);
             continue;
         }
 
@@ -922,7 +1266,19 @@ NYA_Error nya_tilemap_save(const NYA_Tilemap* map, NYA_ConstCString path) {
 
     if (root == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not build the document");
 
-    // Pretty, because a map file is something a person opens in a text editor and a diff has to be
-    // readable — a tile layer on one line is a diff nobody can review.
-    return nya_serde_save_file(root, path, NYA_SERDE_PRETTY);
+    /*
+     * JSON explicitly, not nya_serde_save_file.
+     *
+     * That helper picks the format from the extension and gives anything that is not `.json` the
+     * native format — so a `.tmj`, which is Tiled's JSON map and the extension every map here uses,
+     * was silently written as native and could not be read back by nya_tilemap_load, which only ever
+     * parses JSONC. The round trip this function documents did not happen.
+     *
+     * Pretty, because a map file is something a person opens in a text editor and a diff has to be
+     * readable — a tile layer on one line is a diff nobody can review.
+     */
+    NYA_String* text = nya_serialize(scratch, root, NYA_SERDE_FORMAT_JSON, NYA_SERDE_PRETTY);
+    if (text == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not serialize the map for '%s'", path);
+
+    return nya_file_write(path, text);
 }

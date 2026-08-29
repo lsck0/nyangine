@@ -8,7 +8,7 @@
  * is set and unset within this one render call rather than left standing.
  * */
 #include "gnyame/gnyame.h"
-#include "assets/assets.h"
+#include "generated/assets.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ void gny_layer_game_on_create(NYA_Window* window) {
 
     // Not fatal. A machine with no audio device still plays the demo, and nya_audio_play_sound
     // already treats a missing asset as a no-op.
-    if (!sound.ok) nya_warn("%s", (NYA_ConstCString)sound.message);
+    if (!sound.ok) nya_log_warn("%s", (NYA_ConstCString)sound.message);
 
     // Shared with the 3D scene, which composites through the same pipeline. See layers.c.
     gny_bloom_pipeline_ensure(window);
@@ -69,7 +69,7 @@ void gny_layer_game_on_create(NYA_Window* window) {
     if (!map_error.ok) {
         u8 message[256];
         (void)nya_error_format(&map_error, message, sizeof(message));
-        nya_warn("Could not load the demo tilemap: %s", (NYA_CString)message);
+        nya_log_warn("Could not load the demo tilemap: %s", (NYA_CString)message);
     } else {
         // Placed before anything reads it, because the origin is what every coordinate on the map is
         // relative to — draw, collision and the conversions all go through it.
@@ -79,6 +79,20 @@ void gny_layer_game_on_create(NYA_Window* window) {
         // solid rows are three wide boxes rather than sixty one-tile ones a crate could catch on.
         (void)nya_tilemap_collision_build(world->tilemap, "collision", GNY_TILEMAP_COLLIDER_KIND);
     }
+
+    /*
+     * Three one-way ledges above the terrain, the middle one patrolling.
+     *
+     * Not decoration: they are the only thing in the game that drives one-way surfaces, a tween-backed
+     * kinematic move, or the transform hierarchy — see entity_ledge.c. Crates thrown up through them
+     * pass; crates falling onto them land; `drop_through` lets go.
+     */
+    gny_entity_ledge_create((f32x2){ GNY_LEDGE_LEFT_X, GNY_TERRAIN_BASE_Y - GNY_LEDGE_BASE_LIFT }, GNY_LEDGE_SIZE, 0.0F);
+
+    gny_entity_ledge_create((f32x2){ GNY_LEDGE_MIDDLE_X, GNY_TERRAIN_BASE_Y - GNY_LEDGE_BASE_LIFT - GNY_LEDGE_STEP_LIFT },
+                            GNY_LEDGE_SIZE, GNY_LEDGE_PATROL_DISTANCE);
+
+    gny_entity_ledge_create((f32x2){ GNY_LEDGE_RIGHT_X, GNY_TERRAIN_BASE_Y - GNY_LEDGE_BASE_LIFT }, GNY_LEDGE_SIZE, 0.0F);
 
     _gny_box_burst(12);
 }
@@ -101,7 +115,7 @@ void gny_layer_game_on_destroy(NYA_Window* window) {
      * below is somebody else's job.
      */
     GNY_World* world = gny_world();
-    if (world != nullptr && world->scene.texture != nullptr) nya_render_texture_destroy(&world->scene);
+    if (world != nullptr) nya_post_chain_destroy(&world->post);
 
     /*
      * The world itself is torn down by the screen change that pops this layer, in gny_world_clear,
@@ -242,6 +256,12 @@ void gny_layer_game_on_event(NYA_Window* window, NYA_Event* event) {
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_BLOOM, key->key, key->modifier_flags)) {
                 world->bloom_enabled = !world->bloom_enabled;
                 event->was_handled   = true;
+            } else if (nya_input_action_matches(GNY_ACTION_DROP_THROUGH, key->key, key->modifier_flags)) {
+                // Every crate, whether or not it is on a ledge — the window is harmless on one that is
+                // not, and asking which are would mean walking contacts. See
+                // gny_entity_ledge_drop_everything_through.
+                (void)gny_entity_ledge_drop_everything_through(GNY_LEDGE_DROP_SECONDS);
+                event->was_handled = true;
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_MUSIC, key->key, key->modifier_flags)) {
                 // Paused rather than stopped, so it resumes where it was instead of restarting
                 // the track every time the key is pressed.
@@ -269,16 +289,29 @@ void gny_layer_game_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_unused(window);
 
     /*
-     * The layer runs the systems, in the order it wants them run.
+     * The per-frame systems, in the order gny_systems_register_all gave them.
      *
-     * That order is a decision worth making out loud, which is why systems are called rather than
-     * registered — a registration order is the same decision written somewhere nobody reads.
+     * That order is still a decision made out loud, just read here instead of written here — see
+     * systems.h for where it is now spelled out, and gny_world_create for where it is finalized.
      *
      * Everything else that used to be here has moved to where it belongs: panning and following to
-     * the movement system, the listener to the camera's own update, impacts to the crate's
+     * the movement systems, the listener to the camera's own update, impacts to the crate's
      * on_collision.
      */
-    gny_system_movement_update(delta_time_s);
+    nya_system_registry_run_update(delta_time_s);
+
+    /*
+     * The map's animation clock.
+     *
+     * The whole of what animated tiles cost per frame: nothing is stored per cell, and drawing
+     * resolves each tile's frame from this — so a map with none is a single add and a compare. In
+     * on_update rather than on_render for the same reason the particles are: several cameras draw the
+     * world, and advancing a clock in the draw ages it once per camera.
+     */
+    nya_tilemap_animate(gny_world()->tilemap, delta_time_s);
+
+    // The startup script, and its once-a-second hook. See gny_world_script_tick.
+    gny_world_script_tick(delta_time_s);
 
     // Once a tick, here rather than in on_render — drawing can happen more than once a frame with
     // several cameras, and advancing them there would age them once per camera.

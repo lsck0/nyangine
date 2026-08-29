@@ -69,7 +69,7 @@ void nya_system_physics3d_init(void) {
 
     system->world = b3CreateWorld(&world_def);
 
-    nya_info("Physics3D system initialized (%.1f world units per metre, %u sub steps).", (f64)system->units_per_meter, system->sub_step_count);
+    nya_log_info("Physics3D system initialized (%.1f world units per metre, %u sub steps).", (f64)system->units_per_meter, system->sub_step_count);
 }
 
 void nya_system_physics3d_deinit(void) {
@@ -83,7 +83,7 @@ void nya_system_physics3d_deinit(void) {
 
     *system = (NYA_Physics3DSystem){ 0 };
 
-    nya_info("Physics3D system deinitialized.");
+    nya_log_info("Physics3D system deinitialized.");
 }
 
 void nya_system_physics3d_update(f32 delta_time_s) {
@@ -720,7 +720,7 @@ void _nya_physics3d_collect_hits(NYA_Physics3DSystem* system) {
     system->hit_count = kept;
 
     if (available > kept) {
-        nya_warn("Physics3D produced %u hits this step, past the %d that fit; %u were dropped.", available, NYA_PHYSICS3D_MAX_HITS, available - kept);
+        nya_log_warn("Physics3D produced %u hits this step, past the %d that fit; %u were dropped.", available, NYA_PHYSICS3D_MAX_HITS, available - kept);
     }
 
     _nya_physics3d_collect_sensor_events(system);
@@ -762,7 +762,7 @@ void _nya_physics3d_collect_sensor_events(NYA_Physics3DSystem* system) {
     }
 
     if (dropped > 0) {
-        nya_warn("Physics3D produced %u sensor events this step and the hit list was already full; %u were dropped.", begin_count + end_count,
+        nya_log_warn("Physics3D produced %u sensor events this step and the hit list was already full; %u were dropped.", begin_count + end_count,
                  dropped);
     }
 }

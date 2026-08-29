@@ -1,5 +1,6 @@
 #include "gnyame/gnyame.h"
 
+#include "gnyame/config.c"
 #include "gnyame/actions.c"
 #include "gnyame/entities/entities.c"
 #include "gnyame/net.c"
@@ -48,7 +49,7 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
     if (GNY_LAUNCH.tickrate != 0) {
         u32 tickrate = nya_clamp(GNY_LAUNCH.tickrate, 10U, 240U);
 
-        if (tickrate != GNY_LAUNCH.tickrate) nya_warn("--tickrate %u is outside 10..240; using %u.", GNY_LAUNCH.tickrate, tickrate);
+        if (tickrate != GNY_LAUNCH.tickrate) nya_log_warn("--tickrate %u is outside 10..240; using %u.", GNY_LAUNCH.tickrate, tickrate);
 
         time_step_ns = 1'000'000'000ULL / tickrate;
     }
@@ -97,7 +98,7 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
      * does for a shipped binary.
      */
     if (nya_net_server_is_dedicated()) {
-        nya_info("Running headless; no window will be created.");
+        nya_log_info("Running headless; no window will be created.");
         return;
     }
 

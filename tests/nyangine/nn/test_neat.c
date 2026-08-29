@@ -256,7 +256,7 @@ s32 main(void) {
         if (best >= 3.9) break;
       }
 
-      nya_info("NEAT seed %u: generation %u, %u species, best %.4f", run, nya_nn_neat_generation(neat), nya_nn_neat_species_count(neat), best);
+      nya_log_info("NEAT seed %u: generation %u, %u species, best %.4f", run, nya_nn_neat_generation(neat), nya_nn_neat_species_count(neat), best);
 
       if (best < 3.9) continue;
 

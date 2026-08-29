@@ -8,6 +8,11 @@
 
 #include "nyangine/nyangine.h"
 
+/** A stat timestamp as the milliseconds since the unix epoch NYA_FileInfo documents. */
+NYA_INTERNAL u64 _nya_filesystem_time_from_timespec(struct timespec time) {
+    return (u64)time.tv_sec * 1000ULL + (u64)(time.tv_nsec / 1000000L);
+}
+
 b8 nya_filesystem_exists(NYA_ConstCString path) {
     b8 ok;
 
@@ -56,7 +61,7 @@ NYA_Error nya_filesystem_last_modified(NYA_ConstCString path, OUT u64* out_times
     b8          ok = stat(path, &path_stat) == 0;
     if (!ok) return nya_error_from_errno();
 
-    *out_timestamp = (u64)path_stat.st_mtim.tv_sec * 1000ULL + (u64)(path_stat.st_mtim.tv_nsec / 1000000ULL);
+    *out_timestamp = _nya_filesystem_time_from_timespec(path_stat.st_mtim);
 
     return NYA_OK;
 }
@@ -146,9 +151,9 @@ NYA_Error nya_filesystem_info(NYA_ConstCString path, OUT NYA_FileInfo* out_info)
     *out_info = (NYA_FileInfo){
         .type        = _nya_filesystem_type_from_mode(path_stat.st_mode),
         .size        = (u64)path_stat.st_size,
-        .modified_at = (u64)path_stat.st_mtime,
-        .created_at  = (u64)path_stat.st_ctime,
-        .accessed_at = (u64)path_stat.st_atime,
+        .modified_at = _nya_filesystem_time_from_timespec(path_stat.st_mtim),
+        .created_at  = _nya_filesystem_time_from_timespec(path_stat.st_ctim),
+        .accessed_at = _nya_filesystem_time_from_timespec(path_stat.st_atim),
         .readonly    = access(path, W_OK) != 0,
     };
 

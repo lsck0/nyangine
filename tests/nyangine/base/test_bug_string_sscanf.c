@@ -51,6 +51,6 @@ s32 main(void) {
 
   nya_arena_destroy(arena);
 
-  nya_info("PASSED: nya_string_sscanf does not read past the string");
+  nya_log_info("PASSED: nya_string_sscanf does not read past the string");
   return 0;
 }

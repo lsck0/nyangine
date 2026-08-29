@@ -224,7 +224,7 @@ s32 main(void) {
     nya_assert(peak <= limit, "%u jobs ran at once with a limit of %u", peak, limit);
     nya_assert(peak >= 1, "nothing ever ran");
 
-    nya_info("job concurrency: peak %u of a limit of %u across " FMTu32 " jobs", peak, limit, (u32)COUNT);
+    nya_log_info("job concurrency: peak %u of a limit of %u across " FMTu32 " jobs", peak, limit, (u32)COUNT);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

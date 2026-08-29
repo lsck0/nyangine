@@ -243,7 +243,7 @@ __attr_allow_unused static const char* NYA_TYPE_NAME_MAP[NYA_TYPE_COUNT] = {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-// use like: nya_debug("number: "FMTu64, number);
+// use like: nya_log_debug("number: "FMTu64, number);
 #define FMTb8   "%" PRIu8
 #define FMTb16  "%" PRIu16
 #define FMTb32  "%" PRIu32

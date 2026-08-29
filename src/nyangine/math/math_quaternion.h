@@ -1,18 +1,13 @@
 /**
  * @file math_quaternion.h
  *
- * Unit quaternions for 3D rotation.
+ * Unit quaternions for 3D rotation: no gimbal lock, cheap to compose, shortest-arc interpolation.
+ * Euler conversions exist for editor input. f32 only, unlike the rest of math/ — rotation is the one
+ * thing quaternions are for, so the f16/f128 overloads the vector and matrix headers carry would be
+ * dead weight here.
  *
- * A quaternion beats euler angles for storing and composing orientation: no gimbal lock, cheap to
- * compose, and it interpolates along the shortest arc. Euler angles are still what a human types
- * into an editor, so conversions both ways live here.
- *
- * f32 only, unlike the rest of math/. Rotation is the one thing quaternions are for, and no
- * renderer or physics engine wants a half precision or long double rotation, so the f16 and f128
- * overloads the vector and matrix headers carry would be dead weight here.
- *
- * Every function that is documented as taking a rotation expects a *unit* quaternion. Composing
- * many rotations drifts off the unit sphere, so re-normalize periodically:
+ * Functions documented as taking a rotation expect a *unit* quaternion; composing many rotations
+ * drifts off the unit sphere, so re-normalize periodically:
  *
  * ```c
  * NYA_Quaternion yaw   = nya_quaternion_from_axis_angle(f32x3_unit_y, angle);
@@ -36,11 +31,9 @@
 typedef struct NYA_Quaternion NYA_Quaternion;
 
 /**
- * `x`, `y`, `z` are the vector part, `w` the scalar part.
- *
- * A struct rather than a typedef for f32x4, so it cannot be passed where a vector is wanted and so
- * the __attr_overloaded functions can tell the two apart. It is laid out exactly like an f32x4, so
- * uploading one to a GPU buffer is still a plain copy.
+ * `x`, `y`, `z` are the vector part, `w` the scalar part. A struct rather than an f32x4 typedef so it
+ * can't be passed where a vector is wanted and __attr_overloaded functions can tell them apart; it is
+ * laid out exactly like f32x4, so uploading one to a GPU buffer is a plain copy.
  * */
 struct NYA_Quaternion {
     f32 x;
@@ -81,10 +74,9 @@ NYA_API NYA_Quaternion nya_quaternion_create(f32 x, f32 y, f32 z, f32 w) __attr_
 NYA_API NYA_Quaternion nya_quaternion_from_axis_angle(f32x3 axis, f32 radians) __attr_no_discard;
 
 /**
- * Euler angles in radians, applied roll (Z) then pitch (X) then yaw (Y).
- *
- * That is the convention a first person camera wants: yaw turns you around the world up axis
- * regardless of where you are looking, and pitch tilts in your own frame.
+ * Euler angles in radians, applied roll (Z) then pitch (X) then yaw (Y) — the convention a first
+ * person camera wants: yaw turns around the world up axis regardless of look direction, pitch tilts
+ * in the local frame.
  * */
 NYA_API NYA_Quaternion nya_quaternion_from_euler(f32 pitch, f32 yaw, f32 roll) __attr_no_discard;
 
@@ -106,10 +98,7 @@ NYA_API NYA_Quaternion nya_quaternion_look(f32x3 direction, f32x3 up) __attr_no_
  * ─────────────────────────────────────────────────────────
  */
 
-/**
- * Composition. The result applies `b` first, then `a`, matching how the equivalent matrix product
- * reads. It does not commute.
- * */
+/** Composition: applies `b` first, then `a`, matching the equivalent matrix product; does not commute. */
 NYA_API NYA_Quaternion nya_quaternion_multiply(NYA_Quaternion a, NYA_Quaternion b) __attr_no_discard;
 
 NYA_API NYA_Quaternion nya_quaternion_add(NYA_Quaternion a, NYA_Quaternion b) __attr_no_discard;
@@ -149,17 +138,47 @@ NYA_API f32x3 nya_quaternion_rotate(NYA_Quaternion quaternion, f32x3 vector) __a
  * ─────────────────────────────────────────────────────────
  */
 
-/**
- * Normalized linear interpolation. Cheap, always takes the shortest arc, but the angular velocity is
- * not constant. Right for blending poses every frame.
- * */
+/** Normalized linear interpolation: cheap, shortest arc, non-constant angular velocity. Good for blending poses every frame. */
 NYA_API NYA_Quaternion nya_quaternion_nlerp(NYA_Quaternion a, NYA_Quaternion b, f32 t) __attr_no_discard;
 
+/** Spherical linear interpolation: constant angular velocity, shortest arc, more expensive. Use when the path itself matters, like a camera sweeping to a target. */
 /**
- * Spherical linear interpolation: constant angular velocity, shortest arc, more expensive. Right
- * when the path itself matters, like a camera sweeping to a target.
+ * How parallel two rotations must be before slerp falls back to nlerp, as a cosine.
+ *
+ * The two curves are not the same, so this is a claim about *how far apart* they are. Measured, worst
+ * case over t, as the separation grows:
+ *
+ *     cos      angle    worst angular error
+ *     0.9999   0.81°    0.000003°
+ *     0.9989   2.63°    0.000088°
+ *     0.9939   6.34°    0.001248°
+ *     0.9890   8.51°    0.003018°
+ *     0.9643  15.36°    0.017755°
+ *
+ * At 0.99 the arc is at most 8.1° and the error at most ~0.0026° — a four-hundredth of a degree, which
+ * over a one metre bone is five hundredths of a micron. Nothing downstream resolves that: the palette
+ * is f32, and the bake it came from quantised the pose harder than this does.
+ *
+ * It matters because the case is the common one. Sampling a clip interpolates *adjacent baked frames*,
+ * which are a few degrees apart at most, so this path is taken almost every time a pose is built.
+ * A crossfade between two unrelated clips is far apart and takes the exact path, which is correct —
+ * that is where the difference would be visible.
  * */
+#define NYA_QUATERNION_NLERP_THRESHOLD 0.99F
+
 NYA_API NYA_Quaternion nya_quaternion_slerp(NYA_Quaternion a, NYA_Quaternion b, f32 t) __attr_no_discard;
+
+/**
+ * The same, for rotations already known to be unit length.
+ *
+ * Skips the two normalizations, which are two square roots and eight multiplies of pure waste when the
+ * caller already knows — as skeletal animation does, since baked clip frames and blended poses are unit
+ * by construction. Measurably faster; see bench/bench_slerp.c.
+ *
+ * ⚠ Undefined for non-unit input, in the ordinary way: the result will not be a rotation. Use
+ * nya_quaternion_slerp when the input came from arithmetic that could have drifted.
+ * */
+NYA_API NYA_Quaternion nya_quaternion_slerp_unit(NYA_Quaternion a, NYA_Quaternion b, f32 t) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────
@@ -167,10 +186,7 @@ NYA_API NYA_Quaternion nya_quaternion_slerp(NYA_Quaternion a, NYA_Quaternion b, 
  * ─────────────────────────────────────────────────────────
  */
 
-/*
- * Two names rather than one overload set: both take a single quaternion and differ only in return
- * type, which C overloading cannot resolve.
- */
+/* Two names, not one overload set: return type differs and C overloading can't resolve on that alone. */
 
 NYA_API f32_3x3 nya_quaternion_to_matrix3(NYA_Quaternion quaternion) __attr_no_discard;
 

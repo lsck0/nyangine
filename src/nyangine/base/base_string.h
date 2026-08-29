@@ -6,7 +6,7 @@
 #include "nyangine/base/base_types.h"
 
 /**
- * use like: nya_debug("string: "NYA_FMT_STRING"\n", NYA_FMT_STRING_ARG(str))
+ * use like: nya_log_debug("string: "NYA_FMT_STRING"\n", NYA_FMT_STRING_ARG(str))
  * */
 #define NYA_FMT_STRING          "%.*s"
 #define NYA_FMT_STRING_ARG(str) (s32)((str)->length), ((str)->items)

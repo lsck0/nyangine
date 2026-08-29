@@ -15,15 +15,9 @@ NYA_API u64 nya_hash_fnv1a(NYA_ConstCString string) __attr_overloaded;
 NYA_API u64 nya_hash_fnv1a(NYA_String string) __attr_overloaded;
 
 /**
- * SipHash-2-4: a keyed hash, i.e. a MAC.
- *
- * The difference from nya_crc64 that matters: a checksum can be recomputed by anyone, so it detects
- * accidental corruption but not deliberate modification — change the data, recompute, done. Without
- * `key` you cannot produce a matching SipHash for altered data.
- *
- * Not a replacement for HMAC-SHA256 where real cryptographic strength is needed; it is the standard
- * choice where the input is short, the check is frequent, and the attacker is a person with a hex
- * editor rather than a cryptanalyst.
+ * SipHash-2-4: a keyed hash, i.e. a MAC. Unlike nya_crc64, a matching hash cannot be produced for
+ * altered data without `key`. Not a replacement for HMAC-SHA256 where real cryptographic strength
+ * is needed; for short inputs checked frequently against a non-cryptanalyst attacker, it is enough.
  * */
 NYA_API u64 nya_siphash(const void* data, u64 size, u64 key_low, u64 key_high) __attr_no_discard;
 

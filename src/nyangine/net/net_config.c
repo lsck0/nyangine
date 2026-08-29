@@ -63,7 +63,7 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
             NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
 
             if (value == nullptr || value[0] == '\0') {
-                nya_warn("--connect needs an address; ignoring it and starting single player.");
+                nya_log_warn("--connect needs an address; ignoring it and starting single player.");
                 continue;
             }
 
@@ -80,7 +80,7 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
             // Zero is "let the system choose", which is meaningless for a port players have to reach,
             // and anything above 65535 is not a port at all.
             if (port == 0 || port > 65535) {
-                nya_warn("--port %llu is not a usable port; using %d.", (unsigned long long)port, NYA_NET_DEFAULT_PORT);
+                nya_log_warn("--port %llu is not a usable port; using %d.", (unsigned long long)port, NYA_NET_DEFAULT_PORT);
                 port = NYA_NET_DEFAULT_PORT;
             }
 
@@ -94,7 +94,7 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
             u64 port = _nya_net_config_number(value, "--listen", NYA_NET_DEFAULT_PORT);
 
             if (port == 0 || port > 65535) {
-                nya_warn("--listen %llu is not a usable port; not listening.", (unsigned long long)port);
+                nya_log_warn("--listen %llu is not a usable port; not listening.", (unsigned long long)port);
                 continue;
             }
 
@@ -106,7 +106,7 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
             NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
 
             if (value == nullptr || value[0] == '\0') {
-                nya_warn("--name needs a value; keeping '%s'.", config.name);
+                nya_log_warn("--name needs a value; keeping '%s'.", config.name);
                 continue;
             }
 
@@ -144,7 +144,7 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
          * and a player's stale launch option must not cost them their game. A tool that wants to
          * refuse unknown input uses base_args.h, which does exactly that.
          */
-        nya_debug("Ignoring unrecognised launch argument '%s'.", argument);
+        nya_log_debug("Ignoring unrecognised launch argument '%s'.", argument);
     }
 
     /*
@@ -154,7 +154,7 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
      * is the worst of the three outcomes for whoever wrote it.
      */
     if (wants_server && wants_connect) {
-        nya_warn("Both --server and --connect were given; running as a server and ignoring --connect.");
+        nya_log_warn("Both --server and --connect were given; running as a server and ignoring --connect.");
         wants_connect      = false;
         config.address[0]  = '\0';
     }
@@ -175,22 +175,22 @@ void nya_net_config_report(const NYA_NetLaunchConfig* config) {
     nya_assert(config != nullptr);
 
     if (config->role == NYA_NET_ROLE_CLIENT) {
-        nya_info("Joining %s:%u as '%s'.", config->address, config->port, config->name);
+        nya_log_info("Joining %s:%u as '%s'.", config->address, config->port, config->name);
         return;
     }
 
     if (config->dedicated) {
-        nya_info("Dedicated server on port %u, up to %u players.", config->listen_port,
+        nya_log_info("Dedicated server on port %u, up to %u players.", config->listen_port,
                  config->max_players == 0 ? NYA_NET_MAX_PEERS : config->max_players);
         return;
     }
 
     if (config->listen_port != 0) {
-        nya_info("Listen server on port %u, playing as '%s'.", config->listen_port, config->name);
+        nya_log_info("Listen server on port %u, playing as '%s'.", config->listen_port, config->name);
         return;
     }
 
-    nya_info("Single player as '%s'.", config->name);
+    nya_log_info("Single player as '%s'.", config->name);
 }
 
 /*
@@ -253,7 +253,7 @@ NYA_ConstCString _nya_net_config_value(s32 argc, NYA_CString* argv, s32* at, NYA
 
 u64 _nya_net_config_number(NYA_ConstCString text, NYA_ConstCString what, u64 fallback) {
     if (text == nullptr || text[0] == '\0') {
-        nya_warn("%s needs a number; using %llu.", what, (unsigned long long)fallback);
+        nya_log_warn("%s needs a number; using %llu.", what, (unsigned long long)fallback);
         return fallback;
     }
 
@@ -261,14 +261,14 @@ u64 _nya_net_config_number(NYA_ConstCString text, NYA_ConstCString what, u64 fal
 
     for (const char* cursor = text; *cursor != '\0'; cursor++) {
         if (*cursor < '0' || *cursor > '9') {
-            nya_warn("%s '%s' is not a number; using %llu.", what, text, (unsigned long long)fallback);
+            nya_log_warn("%s '%s' is not a number; using %llu.", what, text, (unsigned long long)fallback);
             return fallback;
         }
 
         // Overflow, on a value that came from a command line. Reported rather than wrapped, because a
         // wrapped port number is a port nobody asked for.
         if (value > (UINT64_MAX - (u64)(*cursor - '0')) / 10) {
-            nya_warn("%s '%s' is too large; using %llu.", what, text, (unsigned long long)fallback);
+            nya_log_warn("%s '%s' is too large; using %llu.", what, text, (unsigned long long)fallback);
             return fallback;
         }
 

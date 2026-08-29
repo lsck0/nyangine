@@ -17,44 +17,29 @@
  * }
  * ```
  *
- * ## 2D and 3D in one frame
+ * **2D and 3D share one render pass**; there is no mode to switch. The depth buffer is attached
+ * unconditionally, the 3D pipeline tests and writes it and the 2D pipelines do neither, so 3D occludes
+ * itself while 2D lands on top in submission order — what a HUD over a scene needs. The one rule is
+ * ordering, and since a batch is drawn only when flushed, "drawn later" means "flushed later":
+ * nya_render3d_begin flushes queued 2D so a background stays behind, and nya_render3d_end flushes the
+ * 3D batch so later 2D lands in front. Interleaving further works, at a draw call per switch.
  *
- * They are not alternatives and there is no mode to switch between. One render pass carries both:
- * the window's depth buffer is attached unconditionally, the 3D pipeline tests and writes it, and
- * the 2D pipelines do neither — so 3D geometry occludes itself while 2D content lands on top in the
- * order it was submitted, which is exactly what a HUD over a scene needs.
+ * **Shading** is flat-shaded cartoon: a wrapped diffuse quantised into three bands, one hard highlight
+ * and a rim. Base colour is per vertex so one batch holds many differently coloured objects; the rest is
+ * NYA_Render3DMaterial, set per flush — a constraint matching how a renderer wants to sort anyway.
  *
- * The one rule is ordering. Both halves batch, and a batch is only drawn when it is flushed, so
- * "drawn later" means "flushed later":
+ * **Not physically based, despite the parameter names.** It was — Cook-Torrance metallic-roughness with
+ * a Reinhard tonemap — and it made every flat colour dark: an 0.85 white lands at 0.21 once the diffuse
+ * is divided by pi and tonemapped, and a face turned from the light kept only ambient and read as a
+ * hole. Physical plausibility is given up so a caller's colour is very nearly what appears. Reasoning at
+ * the top of mesh3d.frag.hlsl; per-field effects on NYA_Render3DMaterial.
  *
- * - nya_render3d_begin flushes whatever 2D is queued, so a background drawn in 2D stays behind.
- * - nya_render3d_end flushes the 3D batch, so 2D drawn afterwards lands in front.
+ * Deliberately absent, each a real addition rather than a tweak: texture maps, shadow maps, an outline
+ * pass over the depth and normal buffers, and more than one light.
  *
- * Interleaving beyond that — 3D, then 2D, then more 3D — works and costs a draw call per switch.
- *
- * ## Shading
- *
- * Flat-shaded cartoon lighting: a wrapped diffuse quantised into three bands, one hard highlight and a
- * rim. Base colour is per vertex so one batch can hold many differently coloured objects; the rest is
- * NYA_Render3DMaterial, set per flush — which is a constraint that matches how a renderer wants to sort
- * anyway, by material.
- *
- * **Not physically based, despite the parameter names.** It was: a Cook-Torrance metallic-roughness BRDF
- * with a Reinhard tonemap, which was correct and which made every flat colour come out dark — an 0.85
- * white lands at 0.21 once the diffuse is divided by pi and tonemapped, and a face turned from the light
- * kept only the ambient and read as a hole. The trade is now explicit: physical plausibility is given up
- * so that what a caller sets as a colour is very nearly what appears. The reasoning is written out at
- * the top of mesh3d.frag.hlsl, and what each material field now controls is on NYA_Render3DMaterial.
- *
- * What is deliberately absent, and would each be a real addition rather than a tweak: texture maps,
- * shadow maps, an outline pass using the depth and normal buffers, and more than one light.
- *
- * ## What this is not
- *
- * There is no mesh asset and no model format. The batch takes triangles with a position, a colour
- * and a normal; nya_render3d_cube and friends are convenience generators over that. A loader belongs
- * on top of this, not inside it, and putting it inside is how a renderer ends up owning a scene
- * graph.
+ * **There is no mesh asset and no model format.** The batch takes triangles with a position, a colour
+ * and a normal; nya_render3d_cube and friends generate those. A loader belongs on top of this — putting
+ * it inside is how a renderer ends up owning a scene graph.
  * */
 #pragma once
 
@@ -67,6 +52,10 @@
 
 typedef struct NYA_Window NYA_Window;
 
+// Same reason as NYA_Window: this file deliberately includes nothing that includes it back, and
+// nya_render3d_occlusion only ever takes a pointer. render_occlusion.h has the definition.
+typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * CONSTANTS
@@ -77,12 +66,11 @@ typedef struct NYA_Window NYA_Window;
 /**
  * How many point lights one draw call can be lit by.
  *
- * Four, and the number is a budget rather than a limit of the technique: every light is a term in the
- * fragment's loop and the whole set is pushed in the uniform block per draw call, so raising it costs
- * fragment time on every pixel whether or not the lights are near it. A scene that wants dozens wants a
- * different renderer — tiled or clustered — not a bigger array here.
+ * Four, as a budget rather than a limit of the technique: every light is a term in the fragment loop and
+ * the whole set is pushed per draw call, so raising it costs fragment time on every pixel whether or not
+ * a light is near it. A scene wanting dozens wants a tiled or clustered renderer, not a bigger array.
  *
- * Has to match MESH3D_MAX_POINT_LIGHTS in mesh3d_shading.hlsli and the arrays in NYA_ShaderMesh3DUniform.
+ * Must match MESH3D_MAX_POINT_LIGHTS in mesh3d_shading.hlsli and the arrays in NYA_ShaderMesh3DUniform.
  * */
 #define NYA_RENDER3D_MAX_POINT_LIGHTS 4
 
@@ -149,14 +137,12 @@ typedef struct NYA_Window NYA_Window;
 
 /** Untextured, depth-tested, no depth write. */
 /**
- * The gizmo pipeline: the transparent one with depth *testing* off as well as depth writing.
+ * The gizmo pipeline: transparent, with depth *testing* off as well as depth writing.
  *
- * A gizmo is not part of the scene. A translate handle sitting inside the object it moves is still
- * something you have to be able to grab, and a selection outline that disappears where the model is
- * closer than it reads as a broken outline rather than as depth working correctly.
- *
- * Blending stays on, so a gizmo can still be drawn translucent — which is how "this handle is behind
- * the object" is usually shown, by drawing it twice at two alphas rather than by letting depth hide it.
+ * A gizmo is not part of the scene. A translate handle inside the object it moves must still be
+ * grabbable, and a selection outline that vanishes where the model is nearer reads as broken rather than
+ * as depth working. Blending stays on, so "this handle is behind the object" is shown by drawing it
+ * twice at two alphas rather than by letting depth hide it.
  * */
 /**
  * The skinned mesh pipeline. See nya_render3d_skinned_mesh.
@@ -220,17 +206,15 @@ typedef struct NYA_Window NYA_Window;
 /**
  * Cascades the shadow map is split into. Between one and four.
  *
- * One map over the whole view has to choose between covering the scene and being sharp: a volume wide
- * enough for the distance spreads its texels so thinly that the shadow at the camera's feet is a blur.
- * Cascades resolve that by covering *near* and *far* with separate maps — each the same resolution over a
- * different extent, so the near one is dense where it matters.
+ * One map over the whole view must choose between covering the scene and being sharp: a volume wide
+ * enough for the distance spreads its texels so thinly the shadow at your feet is a blur. Cascades cover
+ * near and far with separate maps at the same resolution over different extents.
  *
- * Four because they are packed into one texture as a two-by-two atlas, which is what keeps this to one
- * sampler binding and no texture-array support to depend on. One cascade is the single-map behaviour
- * exactly, and costs nothing extra.
+ * Four because they pack into one texture as a two-by-two atlas, which keeps this to one sampler binding
+ * and no texture-array support to depend on. One cascade is the single-map behaviour exactly.
  *
- * Each cascade is a *separate pass* over the scene, so this is also a multiplier on how many times a
- * frame's geometry is emitted. Three is the usual balance; four is for a very deep view.
+ * Each cascade is a *separate pass* over the scene, so this multiplies how often a frame's geometry is
+ * emitted. Three is the usual balance; four is for a very deep view.
  * */
 #ifndef NYA_RENDER3D_SHADOW_CASCADES
 #define NYA_RENDER3D_SHADOW_CASCADES 3
@@ -249,6 +233,15 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
 #ifndef NYA_RENDER3D_SHADOW_CASCADE_RATIO
 #define NYA_RENDER3D_SHADOW_CASCADE_RATIO 2.5F
 #endif
+
+/**
+ * The default sun's direction: upper front left, the one that makes a cube read as a cube by lighting
+ * three faces differently. Straight down lights one and leaves four identical.
+ *
+ * Named rather than written out inside the default light, because the shadow fit needs the same
+ * answer when a caller passes no direction and the two must not drift.
+ * */
+#define NYA_RENDER3D_LIGHT_DIRECTION_DEFAULT (nya_vector_normalize((f32x3){ -0.4F, -1.0F, -0.6F }))
 
 #ifndef NYA_RENDER3D_SHADOW_MAP_SIZE
 #define NYA_RENDER3D_SHADOW_MAP_SIZE 1024
@@ -283,13 +276,11 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
 /**
  * Drawn copies of retained meshes one frame can hold.
  *
- * Eighty bytes each, so a thousand is eighty kilobytes uploaded per pass — against the two hundred and
- * fifty thousand vertices those same thousand copies would have cost the immediate batch, which could
- * not have held them in the first place.
+ * Eighty bytes each, so a thousand is eighty kilobytes per pass — against the two hundred and fifty
+ * thousand vertices those copies would have cost the immediate batch, which could not have held them.
  *
- * A frame that asks for more logs and drops the extra rather than growing, for the same reason the vertex
- * batch has a ceiling: a renderer that quietly allocates under load hides the moment it stopped being
- * affordable.
+ * A frame asking for more logs and drops the extra rather than growing, for the reason the vertex batch
+ * has a ceiling: a renderer that quietly allocates under load hides the moment it stopped being affordable.
  * */
 #ifndef NYA_RENDER3D_MAX_INSTANCES
 #define NYA_RENDER3D_MAX_INSTANCES 1024
@@ -308,12 +299,15 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
 /**
  * Meshes a caller can register at once. See nya_render3d_mesh_register.
  *
- * Small on purpose. These are generated surfaces — a terrain, a cave, a marching-cubes chunk — not a model
- * library, and a scene wanting hundreds of them wants a chunked streaming system rather than a bigger
- * fixed table.
+ * These are generated surfaces — a terrain, a cave, a marching-cubes chunk — not a model library.
+ *
+ * It used to be 32, on the reasoning that a scene wanting hundreds of them wants a chunked streaming
+ * system rather than a bigger table. That system now exists: chunked terrain registers one mesh per
+ * chunk (see core_terrain3d.h), and an eight-by-eight chunking is already 64. The table is a pointer
+ * and a handle per entry, so this costs kilobytes.
  * */
 #ifndef NYA_RENDER3D_MAX_REGISTERED_MESHES
-#define NYA_RENDER3D_MAX_REGISTERED_MESHES 32
+#define NYA_RENDER3D_MAX_REGISTERED_MESHES 256
 #endif
 
 /** Segments around a sphere's equator. Halved for the rings from pole to pole. */
@@ -329,6 +323,7 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
 
 typedef struct NYA_Render3DLight      NYA_Render3DLight;
 typedef struct NYA_Render3DPointLight NYA_Render3DPointLight;
+typedef struct NYA_Render3DShadowFit NYA_Render3DShadowFit;
 typedef struct NYA_Render3DShadow     NYA_Render3DShadow;
 typedef struct NYA_Render3DMaterial NYA_Render3DMaterial;
 typedef struct NYA_Render3DSky      NYA_Render3DSky;
@@ -402,17 +397,13 @@ enum NYA_Render3DBlend {
 /**
  * A procedural sky: a vertical gradient, a ground half, and a sun.
  *
- * The 3D counterpart of a 2D backdrop, and the difference between them is the only thing that matters
- * here: a backdrop is drawn in screen space and stays where it is when the camera turns, while this is
- * shaded from a *view ray* per pixel and therefore rotates with the camera exactly as the world does.
- * Orbiting past a hill and finding the sun still in the corner of the screen is what a backdrop looks
- * like once a scene is genuinely three-dimensional.
+ * Unlike a 2D backdrop, which is screen space and stays put when the camera turns, this is shaded from a
+ * *view ray* per pixel and so rotates with the camera as the world does. Orbiting a hill and finding the
+ * sun still in the corner of the screen is what a backdrop looks like in a genuinely 3D scene.
  *
- * There is no cube map and no texture. That is a fit to the style rather than a shortcut — the reference
- * is bands of flat colour, which is what a gradient already is — and it buys something a cube map cannot
- * give: the whole sky is six colours and a direction, so a day cycle is a function of one number rather
- * than six images per time of day. What it cannot do is clouds with shape, which is when a cube map or a
- * noise pass earns its place.
+ * No cube map and no texture — a fit to the style, since the reference is bands of flat colour, and it
+ * buys what a cube map cannot: the whole sky is six colours and a direction, so a day cycle is a function
+ * of one number rather than six images per time of day. What it cannot do is clouds with shape.
  *
  * Every field has a usable default at zero, so `(NYA_Render3DSky){ .sun_direction = ... }` is a sky.
  * */
@@ -487,12 +478,10 @@ struct NYA_Render3DLight {
     /**
      * How lit a surface facing away from the light still is, in [0, 1].
      *
-     * Zero renders unlit faces pure black, which reads as a hole rather than as a shadow — nothing
-     * outdoors is ever that dark, because the sky is also a light.
-     *
-     * Higher than a physical renderer would want, deliberately: this is the darkest shade an object
-     * reaches, and a flat colour has to still read as itself there. Around 0.6 suits the cartoon model;
-     * 0.25 is a dramatically lit room and leaves half of everything muddy.
+     * Zero renders unlit faces pure black, which reads as a hole rather than a shadow — nothing outdoors
+     * is that dark, because the sky is also a light. Deliberately higher than a physical renderer would
+     * want: this is the darkest an object reaches and a flat colour must still read as itself there.
+     * Around 0.6 suits the cartoon model; 0.25 is a dramatically lit room and leaves half of it muddy.
      * */
     f32 ambient;
 
@@ -503,13 +492,12 @@ struct NYA_Render3DLight {
 /**
  * How a surface responds to light: the metallic-roughness half of a glTF material.
  *
- * Base colour is not here. It is per vertex, which is what lets one material cover a hundred
- * differently coloured cubes in one draw call — and is the split every batching renderer ends up
- * making, because colour varies per object and response varies per *kind* of object.
+ * Base colour is not here — it is per vertex, which lets one material cover a hundred differently
+ * coloured cubes in one draw call. Every batching renderer ends up making this split, because colour
+ * varies per object and response varies per *kind* of object.
  *
- * Set per flush with nya_render3d_material_set. Changing it costs a draw call, which is the real
- * price of changing material and is why a scene is drawn material by material rather than object by
- * object.
+ * Set per flush with nya_render3d_material_set. Changing it costs a draw call, which is why a scene is
+ * drawn material by material rather than object by object.
  * */
 /*
  * The names are historical, and each field says what it now controls.
@@ -551,33 +539,29 @@ struct NYA_Render3DMaterial {
     /**
      * How far this surface bends what is behind it, in [0, 1]. Zero for none.
      *
-     * Non-zero turns a translucent surface into *glass*: instead of blending its colour over whatever was
-     * already in the target, it samples the opaque scene at an offset and tints that. The offset follows
-     * the surface normal, so a facetted glass shape distorts the view through it the way a real one does —
-     * flat where a face points at the camera, strongest where one turns away.
+     * Non-zero turns a translucent surface into *glass*: it samples the opaque scene at an offset along
+     * the surface normal and tints that, so a facetted shape distorts the view flat where a face points
+     * at the camera and strongest where one turns away.
      *
-     * Approximate, and deliberately so. It is a screen-space offset rather than a traced ray, so it does
-     * not obey Snell's law, cannot show what is hidden behind the object's own silhouette, and refracts
-     * only geometry drawn *before* it — which for this renderer means the opaque pass. Glass behind glass
-     * shows the further pane undistorted.
+     * A screen-space offset rather than a traced ray, so it does not obey Snell's law, cannot show what
+     * is hidden behind the object's own silhouette, and refracts only geometry drawn *before* it — the
+     * opaque pass. Glass behind glass shows the further pane undistorted.
      *
-     * **Needs the scene to be drawn into a render texture.** The capture it samples is taken by resolving
-     * the current colour target mid-frame, which only happens for a render texture target; drawn straight
-     * to the window, refraction is ignored and the surface falls back to ordinary blending. See
-     * nya_render_texture_begin.
+     * ⚠ **Needs the scene drawn into a render texture.** The capture is taken by resolving the current
+     * colour target mid-frame, which only happens for a render texture; drawn straight to the window,
+     * refraction is ignored and the surface falls back to ordinary blending.
      * */
     f32 refraction;
 
     /**
      * How much the view through this surface is blurred, in [0, 1]. Zero is clear glass.
      *
-     * Frosted glass, and the knob that makes varying levels of blur a per-material property rather than a
-     * separate shader. It widens the kernel the refraction lookup samples with, so low values soften the
-     * edges of what is behind and high ones reduce it to colour.
+     * Frosted glass, as a per-material property rather than a separate shader: it widens the kernel the
+     * refraction lookup samples with.
      *
-     * A fixed tap count with a widening radius rather than a mip chain, so a very heavy blur shows its
+     * ⚠ A fixed tap count with a widening radius, not a mip chain — so a very heavy blur shows its
      * individual taps as a faint grid rather than getting smoother. Same trade GNY_BLOOM_2D_SPREAD
-     * documents, and the same fix if it ever matters: a downsampled chain.
+     * documents, and the same fix: a downsampled chain.
      *
      * Does nothing unless `refraction` is also non-zero — there is no capture to blur otherwise.
      * */
@@ -586,32 +570,30 @@ struct NYA_Render3DMaterial {
     /**
      * How much of the surface's own colour is added regardless of any light. Zero for none.
      *
-     * **Unlit, which is the point.** An emissive surface is its own light source, so it must not darken
-     * on the side facing away from the sun — folding it into the shaded term would do exactly that and
-     * make a glowing panel look like a painted one.
+     * **Unlit, which is the point**: an emissive surface must not darken on the side facing away from the
+     * sun, and folding it into the shaded term would make a glowing panel look like a painted one.
      *
-     * It does not light anything else. A surface that should also illuminate its surroundings needs a
-     * NYA_Render3DPointLight at the same place; nothing here derives one, because a renderer that
-     * guessed light positions from emissive geometry would be guessing.
+     * It lights nothing else — that needs a NYA_Render3DPointLight at the same place. Nothing derives one
+     * here, because a renderer guessing light positions from emissive geometry would be guessing.
      *
-     * Values above one are meaningful even though the result is clamped: they lift the *whole* surface
-     * past a bloom threshold rather than only its lit half. See GNY_BLOOM_3D_THRESHOLD.
+     * Values above one still mean something despite the clamp: they lift the *whole* surface past a bloom
+     * threshold rather than only its lit half. See GNY_BLOOM_3D_THRESHOLD.
      * */
     f32 emission;
 
     /**
      * How strongly curved edges are darkened, in [0, 1]. Zero for none.
      *
-     * Reads as an ink line drawn along a rounded edge, and is what gives a flat-coloured model definition
-     * where the shading alone leaves it looking like a decal.
+     * Reads as an ink line along a rounded edge, and gives a flat-coloured model definition where shading
+     * alone leaves it looking like a decal.
      *
-     * **Curvature, not creases.** It comes from how fast the interpolated normal turns per pixel, which is
-     * large on a tight fillet and exactly zero across a flat face — so a rounded cube and a capsule show
-     * it strongly and a hard-edged cube shows none at all. A hard crease needs neighbour information this
-     * pass does not have; see mesh3d_edge in mesh3d_shading.hlsli for what that would cost.
+     * ⚠ **Curvature, not creases.** It comes from how fast the interpolated normal turns per pixel — large
+     * on a tight fillet, exactly zero across a flat face — so a rounded cube shows it strongly and a
+     * hard-edged cube shows none at all. A hard crease needs neighbour information this pass does not
+     * have; see mesh3d_edge in mesh3d_shading.hlsli.
      *
-     * Free of any distance term: the derivative is per pixel, so a model at the back of the scene gets the
-     * same treatment as one at the front.
+     * No distance term: the derivative is per pixel, so a model at the back gets the same treatment as one
+     * at the front.
      * */
     f32 edge;
 };
@@ -646,6 +628,35 @@ struct NYA_Render3DPointLight {
 
     /** Scales the light. One is neutral; zero is off, which is cheaper expressed by not adding it. */
     f32 intensity;
+};
+
+/**
+ * The parts of a shadow volume that are not derived from the camera. See nya_render3d_shadow_for_camera.
+ *
+ * Every field's zero is its default, so `(NYA_Render3DShadowFit){ .strength = 0.45F }` is the whole of
+ * a normal call — `strength` is the one that has no useful default, because zero means "no shadows"
+ * and that is a real thing to ask for.
+ * */
+struct NYA_Render3DShadowFit {
+    /** Half-width of the **nearest** cascade, world units. Zero is NYA_RENDER3D_SHADOW_EXTENT. */
+    f32 near_extent;
+
+    /** How dark a shadow goes. Zero disables them, so this is the field a caller must set. */
+    f32 strength;
+
+    /** Passed through. Zero is NYA_RENDER3D_SHADOW_BIAS. */
+    f32 bias;
+
+    /** Passed through. Zero is four times the cascade's extent. */
+    f32 depth;
+
+    /**
+     * Leave the volume where the camera puts it, unsnapped.
+     *
+     * For looking at what snapping is worth, and for a camera that does not move — where the snap is
+     * a no-op anyway. Not something to ship with: see the note on nya_render3d_shadow_for_camera.
+     * */
+    b8 no_texel_snap;
 };
 
 /**
@@ -842,6 +853,27 @@ NYA_API void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky);
 NYA_API void nya_render3d_outline_set(NYA_Window* window, f32 thickness, NYA_Color color);
 
 /**
+ * Culls this pass against an occlusion buffer as well as the frustum. Null turns it back off.
+ *
+ * Set after `nya_render3d_begin`, which clears it — the same rule the light and the material follow,
+ * and for the same reason: a buffer built for the camera of two frames ago would keep hiding things
+ * for this one. See render_occlusion.h, which is where the buffer comes from and where the argument
+ * for doing this in software rather than with GPU queries is made.
+ *
+ * The buffer is not copied and not written to; it must outlive the pass.
+ * */
+NYA_API void nya_render3d_occlusion(NYA_Window* window, const NYA_OcclusionBuffer* buffer);
+
+/**
+ * The camera matrix this pass is drawing with, for handing to nya_occlusion_begin.
+ *
+ * Read only, and read back rather than recomputed: the batch built it from the target size at
+ * `nya_render3d_begin`, and a caller rebuilding it from the camera would have to know the same
+ * aspect ratio and get the same answer.
+ * */
+NYA_API f32_4x4 nya_render3d_view_projection(NYA_Window* window) __attr_no_discard;
+
+/**
  * Switches later translucent geometry between alpha blending and adding.
  *
  * Batch state like the material is, so changing it costs a draw call and a scene should group by it.
@@ -966,6 +998,54 @@ NYA_API void nya_render3d_point_lights_clear(NYA_Window* window);
  * and turn shadows off with one field.
  * */
 NYA_API void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow);
+
+/**
+ * A cascade's shadow volume, fitted to a camera and snapped to the shadow map's texel grid.
+ *
+ * ```c
+ * for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
+ *     nya_render3d_shadow_begin(window, nya_render3d_shadow_for_camera(camera, sun, cascade,
+ *                                                                     (NYA_Render3DShadowFit){ .strength = 0.45F }));
+ *     draw_scene(window);
+ *     nya_render3d_shadow_end(window);
+ * }
+ * ```
+ *
+ * **Two things it does that placing the volume by hand does not.**
+ *
+ * ⭐ **The centre is pushed a half-extent down the camera's forward axis**, rather than sitting on the
+ * camera. A volume centred on the viewer spends half its resolution on what is behind them, which is
+ * the single cheapest doubling of shadow sharpness available — and it has to be done per cascade,
+ * because each one is a different size and therefore wants a different push.
+ *
+ * ⭐ **The centre is snapped to whole shadow-map texels.** Without it the volume slides continuously
+ * as the camera moves, every texel covers a slightly different patch of world each frame, and shadow
+ * edges crawl and fizz — the most recognisable artifact cascaded shadows have, and one that looks
+ * like a filtering problem rather than a placement one. Snapping makes the volume move in whole-texel
+ * steps, so a static shadow edge stays on the same texels while the camera moves through it.
+ *
+ * `light_direction` is the way the light *travels*, matching NYA_Render3DLight.direction; a zero
+ * vector is read as the default light's. The result is an ordinary NYA_Render3DShadow, so a caller
+ * that wants to adjust one field can.
+ * */
+/**
+ * The light's own axes: where it points, and an up that is not parallel to it.
+ *
+ * Public because the shadow pass and the volume fit have to agree exactly — the fit snaps a position
+ * onto the grid the pass then rasterises, and a basis differing by a hair would put the snap on a
+ * grid the map does not use.
+ * */
+NYA_API void nya_render3d_light_basis(f32x3 direction, OUT f32x3* out_forward, OUT f32x3* out_right, OUT f32x3* out_up);
+
+/** The half-width of cascade `index`, from the nearest cascade's. Geometric — see the ratio's note. */
+NYA_API f32 nya_render3d_cascade_extent(f32 near_extent, u32 index) __attr_no_discard;
+
+NYA_API NYA_Render3DShadow nya_render3d_shadow_for_camera(
+    NYA_Camera3DPerspective camera,
+    f32x3                   light_direction,
+    u32                     cascade,
+    NYA_Render3DShadowFit   fit
+) __attr_no_discard;
 
 /** Ends the shadow pass and restores the previous render target. */
 NYA_API void nya_render3d_shadow_end(NYA_Window* window);
@@ -1239,6 +1319,15 @@ struct NYA_Render3DFrameStats {
 
     /** Primitives rejected by the frustum test before any vertex was written. */
     u32 culled;
+
+    /**
+     * Primitives that were on screen and hidden behind an occluder. Zero unless a buffer is set.
+     *
+     * Worth reading beside `culled` rather than instead of it: occlusion culling costs a rasterised
+     * occluder and a rectangle scan per primitive, so a scene where this stays near zero is paying
+     * for nothing. See render_occlusion.h.
+     * */
+    u32 occluded;
 
     /** Primitives too large for an empty batch, or past the instance ceiling. Any of these is a bug. */
     u32 dropped_draws;

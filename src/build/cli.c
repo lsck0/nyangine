@@ -40,6 +40,15 @@ NYA_INTERNAL void completions_runner(NYA_ArgCommand* command) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+NYA_INTERNAL NYA_ArgParameter bench_files = {
+    .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    .variadic    = true,
+    .value.type  = NYA_TYPE_STRING,
+    .name        = "benchmarks",
+    .description = "Which benchmarks to run. If none specified, all are run.",
+    .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE, .directory = "bench", .glob = "*.c", },
+};
+
 NYA_INTERNAL NYA_ArgParameter test_files = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .variadic    = true,
@@ -85,6 +94,13 @@ NYA_INTERNAL NYA_ArgParameter skip_self_rebuild_flag = {
     .value.type  = NYA_TYPE_B8,
     .name        = "no-rebuild",
     .description = "Don't rebuild the build system before executing the command.",
+};
+
+NYA_INTERNAL NYA_ArgParameter regenerate_flag = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_B8,
+    .name        = "regenerate",
+    .description = "Run every preprocessor pass even if nothing it reads has changed.",
 };
 
 NYA_INTERNAL NYA_ArgParameter help_flag = {
@@ -140,6 +156,12 @@ NYA_INTERNAL NYA_ArgCommand run = {
             .description = "Build and run the tests.",
             .handler     = &test_runner,
             .parameters  = { &test_files, },
+        },
+        &(NYA_ArgCommand){
+            .name        = "bench",
+            .description = "Build and run the benchmarks under bench/, optimised and without sanitizers.",
+            .handler     = &bench_runner,
+            .parameters  = { &bench_files, },
         },
         &(NYA_ArgCommand){
             .name        = "coverage",
@@ -239,7 +261,7 @@ NYA_INTERNAL NYA_ArgCommand build = {
         },
         &(NYA_ArgCommand){
             .name        = "assets",
-            .description = "Regenerate assets/assets.h and assets/assets.c from what is on disk.",
+            .description = "Regenerate src/generated/assets.h and src/generated/assets.c from what is on disk.",
             // bundle_assets, not index_assets: it depends on the index, so this writes the handle
             // header and the byte blob from one walk of the asset tree rather than two that could
             // disagree. Compiling the shaders and the icon comes with it, because the index has to
@@ -311,6 +333,7 @@ NYA_INTERNAL NYA_ArgParser parser = {
         .is_root    = true,
         .parameters = {
             &skip_self_rebuild_flag,
+            &regenerate_flag,
             &help_flag,
         },
         .subcommands = {

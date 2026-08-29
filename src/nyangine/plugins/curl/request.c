@@ -117,7 +117,7 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
     if (request.insecure_skip_tls_verify) {
         // Loud on purpose. This is the one option here that can turn a working request into a
         // silent interception, so it does not get to happen quietly.
-        nya_warn("TLS verification disabled for '%s'. Never do this outside a local test.", request.url);
+        nya_log_warn("TLS verification disabled for '%s'. Never do this outside a local test.", request.url);
         curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0L);
         curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 0L);
     }
@@ -203,7 +203,7 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
             if (result.ok) {
                 out_response->body = parsed;
             } else {
-                nya_debug("Response from %s was not parseable as JSON: %s", request.url, (NYA_ConstCString)result.message);
+                nya_log_debug("Response from %s was not parseable as JSON: %s", request.url, (NYA_ConstCString)result.message);
             }
         }
     }

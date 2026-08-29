@@ -155,7 +155,7 @@ void nya_integrity_baseline_capture(void) {
      * class of reason.
      */
     if (ASAN_ENABLED) {
-        nya_debug("Runtime integrity baseline skipped: ASan instrumentation makes the code region unhashable.");
+        nya_log_debug("Runtime integrity baseline skipped: ASan instrumentation makes the code region unhashable.");
         return;
     }
 
@@ -170,7 +170,7 @@ void nya_integrity_baseline_capture(void) {
     _nya_integrity_code_baseline       = nya_siphash(start, size, _NYA_INTEGRITY_KEY_LOW, _NYA_INTEGRITY_KEY_HIGH);
     _nya_integrity_code_baseline_taken = true;
 
-    nya_debug("Integrity baseline captured over " FMTu64 " bytes of code.", size);
+    nya_log_debug("Integrity baseline captured over " FMTu64 " bytes of code.", size);
 }
 
 NYA_IntegrityStatus nya_integrity_verify_code(void) {

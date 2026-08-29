@@ -12,6 +12,15 @@ NYA_INTERNAL f32_4x4 _nya_skeleton_transform_matrix(NYA_BoneTransform transform)
 /** Blends two bone transforms. Rotation by slerp, the rest linearly. See NYA_BoneTransform. */
 NYA_INTERNAL NYA_BoneTransform _nya_skeleton_transform_blend(NYA_BoneTransform a, NYA_BoneTransform b, f32 amount);
 
+/**
+ * Which two baked frames `time_s` falls between, and how far.
+ *
+ * Shared by the two samplers rather than written twice. They have to agree to the bit: root motion
+ * differences the root bone across a step while the pose interpolates every bone across the same
+ * one, and a rounding difference between them is a character sliding against its own feet.
+ * */
+NYA_INTERNAL void _nya_skeleton_frame_pair(const NYA_SkeletonClip* clip, f32 time_s, OUT u32* out_frame, OUT u32* out_next, OUT f32* out_blend);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -63,21 +72,10 @@ void nya_skeleton_pose_sample(const NYA_Skeleton* skeleton, const NYA_SkeletonCl
 
     out_pose->bone_count = bone_count;
 
-    // Clamped, not wrapped. Looping belongs to the animator; see the note on this function.
-    f32 clamped = time_s;
-    if (clamped < 0.0F) clamped = 0.0F;
-    if (clamped > clip->duration_s) clamped = clip->duration_s;
-
-    f32 position = clamped * clip->frame_rate;
-
-    u32 frame = (u32)position;
-    if (frame >= clip->frame_count - 1) frame = clip->frame_count > 1 ? clip->frame_count - 2 : 0;
-
-    u32 next = frame + 1 < clip->frame_count ? frame + 1 : frame;
-
-    f32 blend = position - (f32)frame;
-    if (blend < 0.0F) blend = 0.0F;
-    if (blend > 1.0F) blend = 1.0F;
+    u32 frame = 0;
+    u32 next  = 0;
+    f32 blend = 0.0F;
+    _nya_skeleton_frame_pair(clip, time_s, &frame, &next, &blend);
 
     const NYA_BoneTransform* current = &clip->frames[(u64)frame * skeleton->bone_count];
     const NYA_BoneTransform* upcoming = &clip->frames[(u64)next * skeleton->bone_count];
@@ -85,6 +83,22 @@ void nya_skeleton_pose_sample(const NYA_Skeleton* skeleton, const NYA_SkeletonCl
     for (u32 i = 0; i < bone_count; i++) {
         out_pose->local[i] = _nya_skeleton_transform_blend(current[i], upcoming[i], blend);
     }
+}
+
+NYA_BoneTransform nya_skeleton_clip_bone(const NYA_Skeleton* skeleton, const NYA_SkeletonClip* clip, s32 bone, f32 time_s) {
+    if (skeleton == nullptr || bone < 0 || (u32)bone >= skeleton->bone_count) {
+        return (NYA_BoneTransform){ .rotation = nya_quaternion_identity, .scale = { 1.0F, 1.0F, 1.0F } };
+    }
+
+    if (clip == nullptr || clip->frame_count == 0 || clip->frames == nullptr) return skeleton->bones[bone].rest;
+
+    u32 frame = 0;
+    u32 next  = 0;
+    f32 blend = 0.0F;
+    _nya_skeleton_frame_pair(clip, time_s, &frame, &next, &blend);
+
+    return _nya_skeleton_transform_blend(clip->frames[((u64)frame * skeleton->bone_count) + (u64)bone],
+                                         clip->frames[((u64)next * skeleton->bone_count) + (u64)bone], blend);
 }
 
 void nya_skeleton_pose_blend(const NYA_SkeletonPose* from, const NYA_SkeletonPose* to, f32 amount,
@@ -205,6 +219,26 @@ f32_4x4 _nya_skeleton_transform_matrix(NYA_BoneTransform transform) {
     return rotation;
 }
 
+void _nya_skeleton_frame_pair(const NYA_SkeletonClip* clip, f32 time_s, OUT u32* out_frame, OUT u32* out_next, OUT f32* out_blend) {
+    // Clamped, not wrapped. Looping belongs to the animator; see the note on nya_skeleton_pose_sample.
+    f32 clamped = time_s;
+    if (clamped < 0.0F) clamped = 0.0F;
+    if (clamped > clip->duration_s) clamped = clip->duration_s;
+
+    f32 position = clamped * clip->frame_rate;
+
+    u32 frame = (u32)position;
+    if (frame >= clip->frame_count - 1) frame = clip->frame_count > 1 ? clip->frame_count - 2 : 0;
+
+    f32 blend = position - (f32)frame;
+    if (blend < 0.0F) blend = 0.0F;
+    if (blend > 1.0F) blend = 1.0F;
+
+    *out_frame = frame;
+    *out_next  = frame + 1 < clip->frame_count ? frame + 1 : frame;
+    *out_blend = blend;
+}
+
 NYA_BoneTransform _nya_skeleton_transform_blend(NYA_BoneTransform a, NYA_BoneTransform b, f32 amount) {
     if (amount <= 0.0F) return a;
     if (amount >= 1.0F) return b;
@@ -214,7 +248,7 @@ NYA_BoneTransform _nya_skeleton_transform_blend(NYA_BoneTransform a, NYA_BoneTra
 
         // Slerp rather than a component lerp: two rotations lerped component-wise pass *through* the
         // interior of the sphere, which shortens the rotation and makes a limb visibly shrink mid swing.
-        .rotation = nya_quaternion_slerp(a.rotation, b.rotation, amount),
+        .rotation = nya_quaternion_slerp_unit(a.rotation, b.rotation, amount),
 
         .scale = a.scale + ((b.scale - a.scale) * amount),
     };

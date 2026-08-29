@@ -49,6 +49,6 @@ s32 main(void) {
 
   nya_arena_destroy(arena);
 
-  nya_info("PASSED: the arena free list stays address ordered and coalesces");
+  nya_log_info("PASSED: the arena free list stays address ordered and coalesces");
   return 0;
 }

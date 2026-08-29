@@ -218,7 +218,7 @@ void hook_convert_perf_data_to_plain(NYA_BuildRule* rule) {
      * the build system over a missing file the user is about to be told about anyway.
      */
     if (!nya_filesystem_exists("./perf.data")) {
-        nya_warn("There is no ./perf.data to convert; run './build run debug' first.");
+        nya_log_warn("There is no ./perf.data to convert; run './build run debug' first.");
         return;
     }
 
@@ -257,7 +257,7 @@ void hook_sign_windows_executable(NYA_BuildRule* rule) {
     NYA_ConstCString timestamp = signing_setting(SIGNING_TIMESTAMP_URL_ENV, SIGNING_TIMESTAMP_URL);
 
     if (!nya_filesystem_exists(pfx)) {
-        nya_warn("No signing certificate at '%s', leaving %s unsigned. See the README.", pfx, rule->output_file);
+        nya_log_warn("No signing certificate at '%s', leaving %s unsigned. See the README.", pfx, rule->output_file);
         return;
     }
 
@@ -310,14 +310,14 @@ void hook_sign_windows_executable(NYA_BuildRule* rule) {
         // game, so it cannot fail the build. A release that has to be signed is a CI concern, and
         // CI installs the tool.
         NYA_ConstCString reason = !result.ok ? (NYA_ConstCString)result.message : "the signing tool reported failure";
-        nya_warn("Could not sign %s: %s. Leaving it unsigned.", rule->output_file, reason);
+        nya_log_warn("Could not sign %s: %s. Leaving it unsigned.", rule->output_file, reason);
 
         // The captured output, which is the only place the actual reason is written.
         if (command.stderr_content != nullptr && command.stderr_content->length > 0) {
-            nya_warn("%s", nya_string_to_cstring(nya_arena_global, command.stderr_content));
+            nya_log_warn("%s", nya_string_to_cstring(nya_arena_global, command.stderr_content));
         }
         if (command.stdout_content != nullptr && command.stdout_content->length > 0) {
-            nya_warn("%s", nya_string_to_cstring(nya_arena_global, command.stdout_content));
+            nya_log_warn("%s", nya_string_to_cstring(nya_arena_global, command.stdout_content));
         }
 
 #if !OS_WINDOWS

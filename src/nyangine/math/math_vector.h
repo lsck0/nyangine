@@ -34,7 +34,25 @@ typedef f64  f64x2 __attr_vector(2);
 typedef f64  f64x3 __attr_vector(3);
 typedef f64  f64x4 __attr_vector(4);
 typedef f128 f128x2 __attr_vector(2);
-typedef f128 f128x3 __attr_vector(3);
+
+/*
+ * ⚠ Four lanes, not three, and that is a compiler workaround rather than a design choice.
+ *
+ * f128 is x87 long double: 10 bytes of value that clang's frontend reports as 16, and that LLVM
+ * packs at 10 in a vector. For a three-lane vector those two answers disagree — the stack slot is
+ * sized from the packed <3 x x86_fp80> (32 bytes) while every store to it is emitted as the padded
+ * four-lane form (40 bytes), so the last eight bytes land outside the object. AddressSanitizer
+ * catches it as a 40-byte stack-buffer-overflow on the plain initialization `(f128x3){ 1, 2, 3 }`;
+ * two and four lanes are both fine, and no other element type has a non-power-of-two store size, so
+ * f128x3 is the only member of the grid that hits it. Verified on clang 22.1.8.
+ *
+ * Declaring the fourth lane makes the slot and the store agree. sizeof is unchanged (the frontend
+ * already said 64), `.x`/`.y`/`.z` are unchanged, and the extra lane is never read: every f128x3
+ * value in the tree is built by a compound literal, which zero-fills it. The cost is that f128x3
+ * and f128x4 are now the same type — checked, and nothing overloads or _Generic-dispatches on them
+ * against each other, since the vector products are f32-only.
+ */
+typedef f128 f128x3 __attr_vector(4);
 typedef f128 f128x4 __attr_vector(4);
 
 /*

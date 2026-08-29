@@ -2,6 +2,7 @@
 #include "nyangine/base/base_args.c"
 #include "nyangine/base/base_backtrace.c"
 #include "nyangine/base/base_base64.c"
+#include "nyangine/base/base_bench.c"
 #include "nyangine/base/base_build.c"
 #include "nyangine/base/base_crc.c"
 #include "nyangine/base/base_error.c"

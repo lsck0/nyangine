@@ -13,7 +13,7 @@
 #include "nyangine/core/core_event.h"
 #include "nyangine/core/core_window.h"
 #include "nyangine/renderer/renderer.h"
-#include "../../../assets/assets.h"
+#include "generated/assets.h"
 #include "SDL3_image/SDL_image.h"
 #include "SDL3_mixer/SDL_mixer.h"
 #include "SDL3_ttf/SDL_ttf.h"
@@ -36,33 +36,19 @@ typedef struct NYA_AssetSystem         NYA_AssetSystem;
 typedef struct NYA_MeshPart            NYA_MeshPart;
 typedef struct NYA_VertexSkinned3D     NYA_VertexSkinned3D;
 
-/**
- * One material's worth of a model: a run of triangles, a texture and a colour.
- *
- * The unit a textured model is drawn in. An FBX may hold several materials over one mesh, and each needs
- * its own texture bound — which is per draw call, so the run has to be contiguous in the index buffer
- * for the draw to be one range rather than a scatter.
- * */
-/**
- * A vertex that can be skinned: NYA_Vertex3D plus who moves it.
- *
- * A separate type rather than twenty spare bytes on every vertex in the engine. A static prop pays
- * nothing for skinning it does not use, which matters because props are what there are thousands of
- * — the same reasoning that keeps NYA_VERTEX_LAYOUT_3D and _3D_INSTANCED apart.
- * */
+/** One material's worth of a model: a run of triangles, a texture and a colour. Must be contiguous in
+ * the index buffer, since each material needs its own texture bound per draw call. */
+/** A vertex that can be skinned: NYA_Vertex3D plus who moves it. Separate type rather than extra bytes
+ * on every vertex, since a static prop (of which there are thousands) pays nothing for skinning it
+ * doesn't use — the same reasoning that keeps NYA_VERTEX_LAYOUT_3D and _3D_INSTANCED apart. */
 struct NYA_VertexSkinned3D {
     f32x3     position;
     NYA_Color color;
     f32x3     normals;
     f32x2     uv;
 
-    /**
-     * Which bones move this vertex, as indices into the skeleton's palette.
-     *
-     * u32 rather than something narrower: a u8x4 would fit and would need its own vertex attribute
-     * format, and the four bytes saved per vertex are not worth a second way for the layout to be
-     * wrong.
-     * */
+    /** Which bones move this vertex, indices into the skeleton's palette. u32 rather than u8x4 to avoid
+     * a second vertex attribute format for four bytes saved per vertex. */
     u32 bones[NYA_SKELETON_WEIGHTS_PER_VERTEX];
 
     /** How much each of them moves it. Normalised at load; see core_skeleton.h. */
@@ -70,31 +56,19 @@ struct NYA_VertexSkinned3D {
 };
 
 struct NYA_MeshPart {
-    /**
-     * Where this part's vertices start in NYA_Asset.as_mesh, and how many there are.
-     *
-     * Vertices rather than indices, because the mesh is fully de-indexed: every corner of every triangle
-     * is its own vertex, so a run of vertices *is* a run of triangles and there is no indirection between
-     * them. A count that is not a multiple of three would be a malformed part.
-     * */
+    /** Where this part's vertices start in NYA_Asset.as_mesh, and how many. Vertices not indices — the
+     * mesh is fully de-indexed, so a run of vertices is a run of triangles. Count must be a multiple of
+     * three. */
     u32 first_vertex;
     u32 vertex_count;
 
-    /**
-     * Which of NYA_Asset.as_mesh.textures this part samples, or -1 for none.
-     *
-     * An index rather than a pointer so that two parts sharing a material share the texture without
-     * either of them owning it. See the note on as_mesh.textures.
-     * */
+    /** Index into NYA_Asset.as_mesh.textures this part samples, or -1 for none. Index rather than pointer
+     * so parts sharing a material share the texture without either owning it. */
     s32 texture;
 
-    /**
-     * The material's flat base colour, multiplied into the vertex colour.
-     *
-     * White when the material names none. It is not the whole material: this shading model has no use
-     * for a specular exponent or an index of refraction, and reading them in order to ignore them would
-     * suggest they do something.
-     * */
+    /** The material's flat base colour, multiplied into the vertex colour. White when the material names
+     * none. Not the whole material — no specular exponent or index of refraction; this shading model has
+     * no use for them. */
     NYA_Color base_color;
 };
 nya_derive_array(NYA_AssetHandle);
@@ -110,10 +84,8 @@ nya_derive_dict(NYA_Asset);
 struct NYA_AssetSystem {
     NYA_Arena* allocator;
 
-    /**
-     * Owns every decoded sound. SDL_mixer needs a mixer before it can load anything, and audio
-     * outlives the track playing it, so the system holds one rather than each caller making its own.
-     * */
+    /** Owns every decoded sound. SDL_mixer needs a mixer before loading anything; held here rather than
+     * per caller since audio outlives the track playing it. */
     MIX_Mixer* mixer;
 
     NYA_DictᐸNYA_Assetᐳ*                assets;
@@ -137,79 +109,47 @@ struct NYA_AssetBlobHeader {
     u64              size;
 };
 
-/**
- * Which vertex struct a graphics pipeline reads.
- *
- * A pipeline bakes in the layout of the buffer it will be fed, so this has to be decided when the
- * pipeline is built rather than when it is bound. Two, because the 2D batch wants a vertex a third
- * the size of the general one and there is no reason for either to carry the other's fields.
- * */
-/**
- * How a pipeline's output combines with what the target already holds.
- *
- * A property of the pipeline rather than of a draw, because it is baked in at creation — two blend
- * modes is two pipelines, which is exactly why this is a short enum rather than the full set of
- * factors and operations. Each of these earns its place by being something a 2D game actually draws.
- * */
+/** Which vertex struct a graphics pipeline reads. Baked into the pipeline at build time rather than
+ * decided at bind time. Two exist because the 2D batch's vertex is a third the size of the general one. */
+/** How a pipeline's output combines with what the target already holds. Baked into the pipeline at
+ * creation — two blend modes means two pipelines — so this is a short enum of what a 2D game actually
+ * draws, not the full set of factors and operations. */
 enum NYA_BlendMode {
     /** Replace. What opaque geometry wants, and what costs least. */
     NYA_BLEND_NONE = 0,
 
-    /**
-     * Straight alpha over the destination: SRC_ALPHA / ONE_MINUS_SRC_ALPHA.
-     *
-     * One, deliberately, so that the `.blend = true` this replaced still selects it. Anything with a
-     * soft edge needs it: an anti-aliased glyph, a fade, a translucent panel. Without it those draw
-     * their background as opaque pixels, so text sits in rectangular boxes of whatever the colour
-     * buffer happened to hold.
-     * */
+    /** Straight alpha over the destination: SRC_ALPHA / ONE_MINUS_SRC_ALPHA. Value 1 deliberately, so the
+     * older `.blend = true` still selects it. Needed for anything with a soft edge — glyph, fade,
+     * translucent panel — or it draws as opaque pixel boxes instead. */
     NYA_BLEND_ALPHA = 1,
 
-    /**
-     * Adds light rather than covering: SRC_ALPHA / ONE.
-     *
-     * What a spark, a muzzle flash or a glow is. Never darkens, so overlapping ones saturate toward
-     * white instead of stacking into a dark blob the way alpha would.
-     * */
+    /** Adds light rather than covering: SRC_ALPHA / ONE. For sparks, muzzle flashes, glows. Never
+     * darkens — overlaps saturate toward white instead of stacking dark the way alpha would. */
     NYA_BLEND_ADDITIVE = 2,
 
-    /**
-     * Multiplies into the destination: DST_COLOR / ZERO.
-     *
-     * What a light map is. Drawing a mostly-dark texture over a finished scene darkens everything it
-     * covers and leaves the bright parts alone, which is how 2D lighting is done without a deferred
-     * pass — see nya_render2d_lights_apply.
-     * */
+    /** Multiplies into the destination: DST_COLOR / ZERO. What a light map is — darkens what a mostly-dark
+     * texture covers, leaves bright parts alone. How 2D lighting works without a deferred pass; see
+     * nya_render2d_lights_apply. */
     NYA_BLEND_MULTIPLY = 3,
 
     NYA_BLEND_MODE_COUNT,
 };
 
 enum NYA_VertexLayout {
-    /**
-     * NYA_Vertex2D: position, uv, packed byte colour. Twenty bytes. What the 2D batch uses.
-     *
-     * First, and therefore what a zeroed struct means. It used to be second, behind a layout called
-     * STANDARD — which named a 3D vertex "standard" and then made it the default for every pipeline,
-     * so a 2D shader that simply did not mention the field was silently fed sixty-four byte strides
-     * and drew its geometry off screen. The layout the engine actually draws with is the one a
-     * caller should get for free.
-     * */
+    /** NYA_Vertex2D: position, uv, packed byte colour. Twenty bytes. What the 2D batch uses. First, so a
+     * zeroed struct means this — it used to be second, behind a layout called STANDARD that silently fed
+     * a 2D shader sixty-four byte strides and drew its geometry off screen. The layout actually used
+     * should be the default. */
     NYA_VERTEX_LAYOUT_2D,
 
     /** NYA_Vertex3D: position, colour, normal, uv, all floats. Sixty-four bytes. */
     NYA_VERTEX_LAYOUT_3D,
 
-    /**
-     * NYA_Vertex3D in buffer 0 and NYA_Render3DInstance in buffer 1, stepped per *instance*.
-     *
-     * The layout the retained mesh path draws with. Buffer 1 carries a model matrix and a tint, which is
-     * what lets one upload of a model be drawn a hundred times with one draw call — the thing the
-     * immediate batch structurally cannot do, because it has no per-primitive anything.
-     *
-     * The matrix arrives as four FLOAT4 attributes at locations 4 through 7, because a vertex attribute
-     * is at most four components and there is no matrix element format. The shader reassembles it.
-     * */
+    /** NYA_Vertex3D in buffer 0, NYA_Render3DInstance in buffer 1, stepped per *instance*. What the
+     * retained mesh path draws with — buffer 1 carries a model matrix and tint, letting one upload of a
+     * model be drawn a hundred times in one draw call, which the immediate batch structurally cannot do.
+     * The matrix arrives as four FLOAT4 attributes at locations 4 through 7 (a vertex attribute is at
+     * most four components); the shader reassembles it. */
     NYA_VERTEX_LAYOUT_3D_INSTANCED,
 
     /** NYA_VertexSkinned3D. The 3D layout plus bone indices and weights. See nya_render3d_skinned_mesh. */
@@ -229,14 +169,9 @@ enum NYA_AssetType {
     // processed data on gpu vram
     NYA_ASSET_TYPE_TEXTURE,
 
-    /**
-     * A 3D model, read with ufbx. See nya_render3d_mesh.
-     *
-     * Holds triangles on the CPU and nothing on the GPU, which is deliberate and is what
-     * render3d.h means by "a loader belongs on top of this, not inside it": the 3D batch already owns
-     * the vertex buffer, the pipeline and the upload, so a mesh that brought its own would be a second
-     * draw call per model and would opt out of every bit of batching the renderer does.
-     * */
+    /** A 3D model, read with ufbx. See nya_render3d_mesh. Holds triangles on the CPU, nothing on the
+     * GPU — deliberate, since the 3D batch already owns the vertex buffer, pipeline and upload; a mesh
+     * with its own would cost a draw call per model and opt out of batching. */
     NYA_ASSET_TYPE_MESH,
     NYA_ASSET_TYPE_SHADER_VERTEX,
     NYA_ASSET_TYPE_SHADER_FRAGMENT,
@@ -257,12 +192,9 @@ enum NYA_AssetLoadStatus {
     NYA_ASSET_STATUS_LOADING,
     NYA_ASSET_STATUS_LOADED,
 
-    /**
-     * Could not be loaded, and will not be retried.
-     *
-     * A baked asset failing is a build problem; an external one failing is ordinary, because the
-     * file came from outside the game and may have moved. Either way the engine keeps running.
-     * */
+    /** Could not be loaded, and will not be retried. A baked asset failing is a build problem; an
+     * external one failing is ordinary — the file came from outside the game and may have moved. Either
+     * way the engine keeps running. */
     NYA_ASSET_STATUS_FAILED,
 
     NYA_ASSET_STATUS_COUNT,
@@ -272,33 +204,16 @@ struct NYA_AssetLoadParameters {
     NYA_AssetType   type;
     NYA_AssetHandle handle;
 
-    /**
-     * The file to read, when it is not the handle itself.
-     *
-     * A handle is normally the path, which means one file can be loaded exactly once — and that is
-     * wrong for anything whose load parameters matter. A font is the case that forced it: a face
-     * carries no size, so one .ttf at two point sizes is two assets, and they cannot both be keyed
-     * on the same path.
-     *
-     * Null keeps the old behaviour, where the handle is the path.
-     * */
+    /** The file to read, when it is not the handle itself. A handle is normally the path, so a file
+     * could only be loaded once — wrong when load parameters matter, e.g. one .ttf at two point sizes is
+     * two assets that can't share a path key. Null keeps the old behaviour: handle is the path. */
     NYA_ConstCString source;
 
-    /**
-     * Load from the filesystem regardless of which backend this build uses.
-     *
-     * The default is a *baked* asset: the handle names something the build system indexed, and a
-     * shipping build resolves it against the embedded blob. An external asset is one that did not
-     * exist at build time — a file the player dropped on the window, a mod, a save thumbnail — so
-     * there is nothing in the blob to find and the path has to be read at runtime.
-     *
-     * This is what makes such a load behave the same in a development build and a shipped one.
-     * Without it a dropped file resolves in development, where the filesystem backend happily reads
-     * any path, and fails in release, where the blob lookup misses.
-     *
-     * Being external also means the engine cannot vouch for the contents. The handle is a path from
-     * outside the game, so treat a failure to load as ordinary rather than as a build error.
-     * */
+    /** Load from the filesystem regardless of build backend. Default is a *baked* asset resolved against
+     * the embedded blob; external is one that didn't exist at build time — a dropped file, a mod, a save
+     * thumbnail — so it must be read at runtime. Without this, a dropped file resolves in development
+     * (which reads any path) but fails in release (blob lookup misses). Also means the engine cannot vouch
+     * for the contents — treat a load failure as ordinary, not a build error. */
     b8 external;
 
     union {
@@ -314,84 +229,46 @@ struct NYA_AssetLoadParameters {
             NYA_AssetHandle vertex_shader_handle;
             NYA_AssetHandle fragment_shader_handle;
 
-            /**
-             * How the output combines with what is already in the target. See NYA_BlendMode.
-             *
-             * NYA_BLEND_NONE by default, which is what opaque geometry wants and what costs least.
-             *
-             * Typed as an enum whose ALPHA is one, so the older `.blend = true` spelling still means
-             * exactly what it always did — the flag became a mode without a single call site having
-             * to change, which is why the enum is numbered that way round rather than alphabetically.
-             * */
+            /** How the output combines with the target. See NYA_BlendMode. Defaults to NYA_BLEND_NONE.
+             * ALPHA is deliberately value 1 so the older `.blend = true` spelling still selects it without
+             * any call site changing. */
             NYA_BlendMode blend;
 
-            /**
-             * Which vertex struct the vertex shader is written against.
-             *
-             * Defaults to NYA_VERTEX_LAYOUT_2D, which is what everything the engine draws for itself
-             * uses. Getting this wrong is not a compile error and not a validation error either —
-             * the shader reads whatever bytes the stride lands on, and the result is geometry in
-             * nonsense positions, so the default is the one that is usually right.
-             * */
+            /** Which vertex struct the vertex shader is written against. Defaults to NYA_VERTEX_LAYOUT_2D.
+             * Getting this wrong is neither a compile nor validation error — the shader reads whatever
+             * bytes the stride lands on and geometry ends up in nonsense positions — so the default is
+             * chosen to usually be right. */
             NYA_VertexLayout vertex_layout;
 
-            /**
-             * Whether this pipeline reads the depth buffer and refuses fragments behind what is there.
-             *
-             * Off for everything 2D, which is what makes the painter's order a 2D batch relies on
-             * still work — turning it on for the UI would let a HUD element drawn second lose to the
-             * world drawn first. On for 3D, where the whole point is that geometry occludes itself
-             * without being sorted.
-             * */
+            /** Whether this pipeline reads the depth buffer and refuses fragments behind what is there.
+             * Off for 2D, which keeps painter's-order drawing working — on would let a HUD element lose to
+             * the world drawn before it. On for 3D, where geometry occludes itself without sorting. */
             b8 depth_test;
 
-            /**
-             * Whether this pipeline writes the depth it passed.
-             *
-             * Almost always the same answer as `depth_test`, and separate because of the one case
-             * where it is not: transparent 3D geometry tests against the opaque pass but must not
-             * write, or the nearest transparent surface hides the ones behind it that should show
-             * through.
-             * */
+            /** Whether this pipeline writes the depth it passed. Usually matches `depth_test`; separate
+             * because transparent 3D geometry must test against the opaque pass but not write, or the
+             * nearest transparent surface would hide the ones behind it. */
             b8 depth_write;
 
-            /**
-             * Discard back faces, deciding front by counter-clockwise winding.
-             *
-             * Off by default, because the 2D batch emits both windings and would lose half its
-             * triangles. On for closed 3D geometry, where it halves the fragment work for free.
-             * */
+            /** Discard back faces, front decided by counter-clockwise winding. Off by default — the 2D
+             * batch emits both windings and would lose half its triangles. On for closed 3D geometry,
+             * halving fragment work for free. */
             b8 cull_back_faces;
 
-            /**
-             * Discard *front* faces instead. For a shadow pass, and for very little else.
-             *
-             * Recording the far side of each object rather than the side facing the light moves the depth
-             * in the map away from the surface being tested by the thickness of the object, which is the
-             * cheapest defence against shadow acne there is. Wrong for open geometry, which then casts
-             * nothing at all — usually the right answer for a floor.
-             *
-             * Ignored when `cull_back_faces` is also set; culling both would draw nothing.
-             * */
+            /** Discard *front* faces instead. For a shadow pass, and little else — recording the far side
+             * of each object moves the depth away from the tested surface, the cheapest defence against
+             * shadow acne. Wrong for open geometry, which then casts nothing (usually right for a floor).
+             * Ignored when `cull_back_faces` is also set. */
             b8 cull_front_faces;
 
-            /**
-             * The colour target's format. Zero means the window's swapchain format.
-             *
-             * A pipeline is compiled against the format it will draw into, and one built for the swapchain
-             * is rejected at bind time when the pass targets something else. Only needed by a pipeline that
-             * renders into an offscreen target of an unusual format — the shadow map's R32_FLOAT.
-             * */
+            /** The colour target's format. Zero means the window's swapchain format. A pipeline compiled
+             * for the swapchain is rejected at bind time against any other target, so only needed for an
+             * offscreen target of unusual format — the shadow map's R32_FLOAT. */
             SDL_GPUTextureFormat color_format;
 
-            /**
-             * Force one sample per pixel, whatever the renderer is using.
-             *
-             * A pipeline's sample count has to match every target it draws into, and the renderer's
-             * multisampled default is wrong for a target that is deliberately not: averaging two depths in
-             * a shadow map produces a distance describing neither surface, so it is single sampled and this
-             * is how a pipeline agrees with it.
-             * */
+            /** Force one sample per pixel, whatever the renderer is using. A pipeline's sample count must
+             * match its target; the renderer's multisampled default is wrong for the shadow map, where
+             * averaging two depths would describe neither surface. */
             b8 single_sampled;
         } as_graphics_pipeline;
 

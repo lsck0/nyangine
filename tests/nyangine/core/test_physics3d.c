@@ -301,7 +301,7 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
-  nya_info("PASSED: test_physics3d");
+  nya_log_info("PASSED: test_physics3d");
 
   return EXIT_SUCCESS;
 }

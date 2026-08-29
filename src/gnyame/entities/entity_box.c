@@ -45,6 +45,19 @@ NYA_EntityHandle gny_entity_box_create(f32x2 position, GNY_EntityFlags flags) {
         .on_collision     = nya_callback(gny_entity_box_on_collision),
         .on_click         = nya_callback(gny_entity_box_on_click),
 
+        /*
+         * Sorted by where it sits rather than by a fixed layer.
+         *
+         * A pile of crates has no meaningful draw order otherwise — the entity index answers in grid
+         * bucket order, so two overlapping crates can swap which is in front whenever one of them
+         * moves between cells, which reads as flickering. Taking the order from `position.y` makes the
+         * lower crate the nearer one and keeps it stable while nothing moves.
+         *
+         * No anchor: a crate is drawn from its centre and its body is square, so its centre is as good
+         * a stand-in for where it rests as its lowest corner, and the corner moves as it tumbles.
+         * */
+        .visual = { .y_sorted = true },
+
         // Every crate glows a little. Not because a wooden box would, but because it is the clearest
         // demonstration the demo can give: a dozen of them falling past each other is a light map
         // that visibly moves, which a single static lamp is not.

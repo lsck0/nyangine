@@ -6,6 +6,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/core/core_asset.h"
 #include "nyangine/core/core_callback.h"
+#include "nyangine/core/core_config.h"
 #include "nyangine/core/core_entity.h"
 #include "nyangine/core/core_event.h"
 #include "nyangine/core/core_i18n.h"
@@ -51,11 +52,9 @@ struct NYA_FrameStats {
     u64 uptime_ns;
 
     /**
-     * uptime_ns as seconds, ready to hand to a shader uniform without a cast at every call site.
-     *
-     * f32 because that is what lands in a uniform buffer anyway. It costs resolution the longer the
-     * app runs — around a millisecond after three hours — so drive animation from it, not anything
-     * that needs to stay exact. uptime_ns remains the precise value.
+     * uptime_ns as seconds, ready for a shader uniform without a cast. f32 because that is what lands
+     * in a uniform buffer; loses resolution as the app runs — about a millisecond after three hours —
+     * so drive animation from it, not anything that needs to stay exact. uptime_ns is the precise value.
      * */
     f32 uptime_s;
 
@@ -68,19 +67,15 @@ struct NYA_FrameStats {
     u64 prev_frame_time_ns;
 
     /**
-     * Frame **period**: start of this frame to start of the last one, sleep included.
-     *
-     * What fps is computed from, and what a frame rate limited application is *supposed* to hold
-     * steady. It is not a cost — at the default 120 limit it sits at 8.3 ms however little the frame
-     * actually did, which reads alarmingly like a slow frame and is not one.
+     * Frame period: start of this frame to start of the last, sleep included. What fps is computed
+     * from. Not a cost — at the default 120 limit it sits at 8.3 ms regardless of frame work, which
+     * reads like a slow frame and isn't one.
      * */
     u64 elapsed_ns;
 
     /**
-     * Frame **work**: what the frame actually spent before the limiter slept.
-     *
-     * The number to look at when asking "is this slow". `elapsed_ns` minus this is the sleep, and on
-     * an idle demo almost all of the period is the sleep.
+     * Frame work: what the frame actually spent before the limiter slept. The number to look at when
+     * asking "is this slow" — `elapsed_ns` minus this is the sleep.
      * */
     u64 work_ns;
 
@@ -95,17 +90,13 @@ struct NYA_App {
     b8 should_quit;
 
     /**
-     * The world this application created at startup, and destroys on the way out.
+     * The world this application created at startup, and destroys on the way out. Owning it is all
+     * NYA_App does with it — everything that operates on a world goes through nya_world instead.
      *
-     * Owning it is all NYA_App does with it — everything that operates on a world goes through
-     * nya_world instead, which is what a game swapping worlds changes. This field is the one that
-     * says who is responsible for freeing this particular one.
-     *
-     * It is also what makes hot reloading work. The game is a shared library that gets closed and
-     * reopened, so every file scope variable in it is reinitialised on each reload; a game keeping
-     * its state in a static loses it every time a line changes, which defeats the point of reloading
-     * at all. NYA_App lives in the executable and outlives every reload, and the world hangs off it,
-     * so `nya_world()->user_data` is still there on the other side.
+     * Also what makes hot reloading work. The game is a shared library that gets closed and reopened,
+     * so every file scope variable in it reinitialises on each reload; a game keeping state in a
+     * static loses it every reload. NYA_App lives in the executable and outlives reloads, so
+     * `nya_world()->user_data` is still there on the other side.
      * */
     NYA_World* world;
 
@@ -115,11 +106,10 @@ struct NYA_App {
     NYA_Arena* frame_allocator;
 
     /**
-     * Stands in for frame_allocator while a window is being dragged by its edge.
-     *
-     * Frames produced during a drag are nested inside an outer frame that is parked in the event
-     * pump, so they cannot reset the arena that frame is using. Emptying this one per nested frame
-     * is what keeps a long drag from growing memory until the mouse comes up.
+     * Stands in for frame_allocator while a window is dragged by its edge. Frames produced during a
+     * drag nest inside an outer frame parked in the event pump, so they cannot reset that frame's
+     * arena; emptying this one per nested frame keeps a long drag from growing memory until the mouse
+     * comes up.
      * */
     NYA_Arena* live_resize_allocator;
 
@@ -127,6 +117,7 @@ struct NYA_App {
 
     NYA_AssetSystem    asset_system;
     NYA_CallbackSystem callback_system;
+    NYA_ConfigSystem   config_system;
     NYA_EventSystem    event_system;
     NYA_I18nSystem     i18n_system;
     NYA_InputSystem    input_system;
@@ -144,11 +135,9 @@ struct NYA_App {
  */
 
 /**
- * Brings up SDL and every subsystem.
- *
- * Returns an error rather than panicking, because what fails here is environmental rather than
- * programmer error: no GPU backend, no display, out of handles. Whether that means quit or fall
- * back to something else is the caller's decision to make, and an assert would take it away.
+ * Brings up SDL and every subsystem. Returns an error rather than panicking, because what fails here
+ * is environmental rather than programmer error: no GPU backend, no display, out of handles. Whether
+ * that means quit or fall back to something else is the caller's decision.
  *
  * On failure nothing is left standing — whatever came up before the failure is torn back down — so
  * the caller must not follow a failed init with nya_app_deinit.
@@ -164,12 +153,9 @@ NYA_API void     nya_app_run(void);
 NYA_API NYA_App* nya_app_get(void);
 
 /*
- * The game's root pointer moved to nya_world_user_data; see core_world.h.
- *
- * It used to be `void* state` here, with the game allocating an arena, hanging a struct off it and
- * parking the pointer. That is now what a world is, and the world owns the arena — so the arena, the
- * entities and the game's own state are one lifetime instead of three that had to be unwound in the
- * right order by hand.
+ * The game's root pointer moved to nya_world_user_data; see core_world.h. It used to be `void* state`
+ * here; now the world owns the arena, so the arena, entities and game state are one lifetime instead
+ * of three that had to be unwound in order by hand.
  */
 
 NYA_API void nya_app_options_update(NYA_AppOptions options);

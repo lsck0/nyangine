@@ -33,6 +33,6 @@ s32 main(void) {
   nya_array_destroy(numbers);
   nya_arena_destroy(arena);
 
-  nya_info("PASSED: nya_array_remove_many stays inside its allocation");
+  nya_log_info("PASSED: nya_array_remove_many stays inside its allocation");
   return 0;
 }

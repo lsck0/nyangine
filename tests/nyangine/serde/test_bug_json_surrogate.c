@@ -72,6 +72,6 @@ s32 main(void) {
 
   nya_arena_destroy(arena);
 
-  nya_info("PASSED: unpaired surrogates become U+FFFD and valid pairs still combine");
+  nya_log_info("PASSED: unpaired surrogates become U+FFFD and valid pairs still combine");
   return 0;
 }

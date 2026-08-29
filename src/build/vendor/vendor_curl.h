@@ -25,17 +25,13 @@
 #define CURL_A_WINDOWS_X86_64 CURL_BUILD_WINDOWS_X86_64 "/lib/libcurl.a"
 
 /*
- * Every optional dependency named explicitly, including the ones being turned off.
+ * Every optional dependency named explicitly, including the ones turned off: cmake auto-detects
+ * what it finds on the host, so anything unstated makes the build depend on which -dev packages
+ * happen to be installed. nghttp2 and libidn2 were once left off this list, got auto-enabled
+ * wherever present, and then failed to link on any machine without them — worked locally, broke CI.
  *
- * cmake auto-detects what it finds on the host, so anything left unstated makes the build depend on
- * which -dev packages happen to be installed. nghttp2 and libidn2 were the two that were missing
- * from this list: they were switched on wherever they were present, the archive picked up undefined
- * references to both, and the final link then failed on any machine that did not have them — which
- * is exactly what happened in CI while working locally.
- *
- * The cost of turning them off is HTTP/2 and internationalised domain names. Neither matters for
- * the JSON REST this is here for: HTTP/1.1 reaches every API, and endpoint hostnames are ASCII.
- * Wanting either back means vendoring it as a submodule rather than hoping the host has it.
+ * Turning them off costs HTTP/2 and internationalised domain names, neither needed for the JSON
+ * REST this is here for.
  */
 #define CURL_CMAKE_COMMON           \
     NYA_CMAKE_STATIC,               \

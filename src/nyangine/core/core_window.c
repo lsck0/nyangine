@@ -51,7 +51,7 @@ void nya_system_window_init(void) {
     // struct field holds, never resolves to slot 0.
     for (u32 i = 0; i < NYA_WINDOW_MAX; i++) app->window_system.generations[i] = 1;
 
-    nya_info("Window system initialized (video driver: %s, client geometry: %s).", driver ? driver : "none", client_geometry ? "yes" : "no");
+    nya_log_info("Window system initialized (video driver: %s, client geometry: %s).", driver ? driver : "none", client_geometry ? "yes" : "no");
 }
 
 NYA_INTERNAL void _nya_cursor_deinit(void);
@@ -72,7 +72,7 @@ void nya_system_window_deinit(void) {
 
     nya_arena_destroy(app->window_system.allocator);
 
-    nya_info("Window system deinitialized.");
+    nya_log_info("Window system deinitialized.");
 }
 
 void nya_system_window_handle_event(NYA_Event* event) {
@@ -186,7 +186,7 @@ NYA_WindowHandle nya_window_create(NYA_ConstCString title, u32 requested_width, 
 
     nya_system_renderer_for_window_init(window);
 
-    nya_info("Created window '%s' (slot %u, generation %u, %dx%d).", title, slot, handle.generation, actual_width, actual_height);
+    nya_log_info("Created window '%s' (slot %u, generation %u, %dx%d).", title, slot, handle.generation, actual_width, actual_height);
 
     return handle;
 }
@@ -206,7 +206,7 @@ void nya_window_destroy(NYA_WindowHandle window) {
     nya_system_renderer_for_window_deinit(target);
     SDL_DestroyWindow(target->sdl_window);
 
-    nya_info("Destroyed window '%s' (slot %u).", target->title, window.index);
+    nya_log_info("Destroyed window '%s' (slot %u).", target->title, window.index);
 
     // Bumping the generation is what makes every outstanding handle to this window stop resolving.
     app->window_system.generations[window.index]++;
@@ -455,7 +455,7 @@ NYA_Error nya_window_set_icon(NYA_WindowHandle window, const u8* data, u64 size)
         return nya_error(NYA_ERROR_NOT_SUPPORTED, "could not set the window icon: %s", SDL_GetError());
     }
 
-    nya_info("Set the icon for window '%s' (slot %u).", target->title, window.index);
+    nya_log_info("Set the icon for window '%s' (slot %u).", target->title, window.index);
     return NYA_OK;
 }
 
@@ -642,7 +642,7 @@ NYA_Layer nya_layer_pop(NYA_WindowHandle window) {
  * */
 NYA_INTERNAL NYA_Window* _nya_window_require(NYA_WindowHandle window, NYA_ConstCString caller) {
     NYA_Window* target = nya_window_get(window);
-    if (target == nullptr) nya_warn("%s called with a stale window handle (slot %u, generation %u).", caller, window.index, window.generation);
+    if (target == nullptr) nya_log_warn("%s called with a stale window handle (slot %u, generation %u).", caller, window.index, window.generation);
 
     return target;
 }
@@ -703,7 +703,7 @@ void nya_cursor_set(NYA_CursorShape shape) {
         // A platform that cannot supply a shape keeps whatever it had. A missing cursor is a cosmetic
         // problem and never a reason to stop.
         if (_NYA_CURSORS[shape] == nullptr) {
-            nya_warn("Could not create cursor %d: %s", (s32)shape, SDL_GetError());
+            nya_log_warn("Could not create cursor %d: %s", (s32)shape, SDL_GetError());
             return;
         }
     }

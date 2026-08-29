@@ -294,20 +294,24 @@ NYA_Quaternion nya_quaternion_nlerp(NYA_Quaternion a, NYA_Quaternion b, f32 t) {
     return nya_quaternion_normalize(blended);
 }
 
-NYA_Quaternion nya_quaternion_slerp(NYA_Quaternion a, NYA_Quaternion b, f32 t) {
-    NYA_Quaternion start = nya_quaternion_normalize(a);
-    NYA_Quaternion end   = nya_quaternion_normalize(b);
+NYA_Quaternion nya_quaternion_slerp_unit(NYA_Quaternion a, NYA_Quaternion b, f32 t) {
+    f32 cosine = nya_quaternion_dot(a, b);
 
-    f32 cosine = nya_quaternion_dot(start, end);
-
+    // q and -q are the same rotation, so the negated end is the short way round.
     if (cosine < 0.0F) {
-        end    = nya_quaternion_scale(end, -1.0F);
+        b      = nya_quaternion_scale(b, -1.0F);
         cosine = -cosine;
     }
 
-    // Nearly parallel: sin θ approaches zero and the division below loses all its precision. nlerp
-    // and slerp agree to well under a float's worth of error at this angle anyway.
-    if (cosine > 1.0F - NYA_EPSILON) return nya_quaternion_nlerp(start, end, t);
+    /*
+     * Nearly parallel: nlerp instead.
+     *
+     * Not only for precision — though sin θ approaching zero does destroy the division below — but
+     * because this is the *common* case and nlerp is an order of magnitude cheaper. The bound on how
+     * far the two curves diverge is on NYA_QUATERNION_NLERP_THRESHOLD, and it is small enough that
+     * nothing downstream can represent the difference.
+     */
+    if (cosine > NYA_QUATERNION_NLERP_THRESHOLD) return nya_quaternion_nlerp(a, b, t);
 
     f32 theta = acosf(nya_clamp(cosine, -1.0F, 1.0F));
     f32 sine  = sinf(theta);
@@ -315,7 +319,12 @@ NYA_Quaternion nya_quaternion_slerp(NYA_Quaternion a, NYA_Quaternion b, f32 t) {
     f32 start_weight = sinf((1.0F - t) * theta) / sine;
     f32 end_weight   = sinf(t * theta) / sine;
 
-    return nya_quaternion_add(nya_quaternion_scale(start, start_weight), nya_quaternion_scale(end, end_weight));
+    return nya_quaternion_add(nya_quaternion_scale(a, start_weight), nya_quaternion_scale(b, end_weight));
+}
+
+NYA_Quaternion nya_quaternion_slerp(NYA_Quaternion a, NYA_Quaternion b, f32 t) {
+    // Normalized here and nowhere else, so the unit path stays free of the two square roots.
+    return nya_quaternion_slerp_unit(nya_quaternion_normalize(a), nya_quaternion_normalize(b), t);
 }
 
 /*

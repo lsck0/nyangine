@@ -182,11 +182,11 @@ NYA_RNG nya_rng_create_with_options(NYA_RNGOptions options) {
         while (options.seed[cursor] != '\0' && cursor <= 64) {
             char ch = options.seed[cursor];
             if (!(('0' <= ch && ch <= '9') || ('A' <= ch && ch <= 'F'))) {
-                nya_panic("Invalid seed: Must be an uppercase hex string, got '%c' at position " FMTu64 ".", ch, cursor);
+                nya_log_panic("Invalid seed: Must be an uppercase hex string, got '%c' at position " FMTu64 ".", ch, cursor);
             }
             cursor++;
         }
-        if (cursor > 64) nya_panic("Invalid seed: Must be at most 64 characters, got " FMTu64 " characters.", cursor);
+        if (cursor > 64) nya_log_panic("Invalid seed: Must be at most 64 characters, got " FMTu64 " characters.", cursor);
         u64 padding = 64 - cursor;
 
         for (u64 s = 0; s < 4; s++) {

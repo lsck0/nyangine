@@ -102,7 +102,7 @@ NYA_Error nya_net_snapshot_capture(NYA_Arena* arena, u64 flag, u64 tick, OUT NYA
         if (count >= NYA_NET_MAX_REPLICATED) {
             // Reported once rather than per entity: at this point the world is over budget and the
             // useful information is that it happened, not how many times.
-            nya_warn("More than %d replicated entities; the rest are not being sent.", NYA_NET_MAX_REPLICATED);
+            nya_log_warn("More than %d replicated entities; the rest are not being sent.", NYA_NET_MAX_REPLICATED);
             break;
         }
 
@@ -408,7 +408,7 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
         // Never seen. Spawned locally, and the pairing recorded so the next snapshot moves it rather
         // than spawning another.
         if (map->count >= NYA_NET_MAX_REPLICATED) {
-            nya_warn("More than %d replicated entities; the rest cannot be tracked.", NYA_NET_MAX_REPLICATED);
+            nya_log_warn("More than %d replicated entities; the rest cannot be tracked.", NYA_NET_MAX_REPLICATED);
             break;
         }
 

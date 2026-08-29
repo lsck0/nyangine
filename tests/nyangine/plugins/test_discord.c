@@ -408,7 +408,7 @@ s32 main(void) {
     nya_discord_deinit();
   }
 
-  nya_info("PASSED: test_discord (0 failures)");
+  nya_log_info("PASSED: test_discord (0 failures)");
 
   return EXIT_SUCCESS;
 }

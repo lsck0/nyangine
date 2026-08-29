@@ -27,7 +27,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_expect_crash - catches panics
   // ─────────────────────────────────────────────────────────────────────────────
-  nya_expect_crash(nya_panic("Test panic"));
+  nya_expect_crash(nya_log_panic("Test panic"));
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_expect_crash - fails when no panic occurs

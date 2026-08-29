@@ -24,7 +24,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_sql");
   defer      nya_arena_destroy(arena);
 
-  nya_info("SQLite %s", nya_sql_version());
+  nya_log_info("SQLite %s", nya_sql_version());
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: opening rejects nothing sensible, and a closed handle is safe to close

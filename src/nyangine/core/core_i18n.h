@@ -10,55 +10,27 @@
  * nya_render2d_text(window, nya_string_hud_score("Ada", 4200), x, y, colour);
  * ```
  *
- * `nya_string_*` is not written by hand. `assets/strings.h` is generated from the base locale by the
- * build system — see src/build/i18n.h — with one accessor per key whose parameters come from that
- * string's own format specifiers. So `hud_score` above takes exactly a string and an integer, in that
- * order, and passing anything else does not compile.
+ * `nya_string_*` is generated into `assets/strings.h` by the build system (see src/build/i18n.h), one
+ * accessor per key with parameters taken from that string's own format specifiers — passing anything
+ * else does not compile, unlike `nya_i18n_get(id)` handed to printf with a runtime-chosen format
+ * string. The build also refuses a translation whose arguments disagree with the base locale.
  *
- * That is the whole design. The alternative is `nya_i18n_get(id)` handed to printf, where the format
- * string is chosen at runtime by the player's locale setting — which the compiler cannot check, and
- * which crashes in whichever language nobody on the team reads. The build refuses a translation whose
- * arguments disagree with the base for the same reason.
+ * Moved here from base, which could only read locale files once at startup with nya_file_read. Locales
+ * are assets: indexed by the build, bakeable into the blob, and reloadable at runtime through
+ * nya_asset_read, so a translator sees an edit without a restart.
  *
- * ## Why this is in core
+ * A locale is `assets/i18n/<code>.json`, also its asset handle. nya_i18n_load reads it **synchronously**
+ * through nya_asset_read — not a queued nya_asset_load, which lands a frame late and would draw
+ * `[string 4]` for the first frame — and registers it so the asset system watches it: one `stat` per
+ * locale file per NYA_ASSET_HOT_RELOAD stat interval, none in a release build. Reading a string costs
+ * nothing — nya_i18n_raw is an array index, touching neither the asset system nor the filesystem, which
+ * is why the watch lives on a frame hook rather than in the accessors. A key the file lacks falls back
+ * to the base locale, since the build already rejects a locale missing a key.
  *
- * It used to be in base, where it read its locale files with nya_file_read because base cannot reach
- * the asset system. That worked and cost the one thing worth having: a locale file was read once at
- * startup and never looked at again, so editing a translation meant restarting the game.
- *
- * Locales are assets. They are indexed by the build, they can be baked into the blob, and they change
- * while the game runs — which is the definition of what nya_asset_load is for. Being in core buys all
- * three: the bytes come through nya_asset_read, so a shipped build reads them out of the blob with no
- * second code path, and the file is watched, so a translator sees an edit without a restart.
- *
- * ## Loading, and what it costs per frame
- *
- * A locale is `assets/i18n/<code>.json`, which is also its asset handle. nya_i18n_load reads it, then
- * registers it so the asset system will watch it.
- *
- * The read is **synchronous**, through nya_asset_read, rather than a queued nya_asset_load. A queued
- * load lands at the end of the frame, and a game whose first frame drew every label as `[string 4]`
- * would be trading a visible bug for nothing — the file is a few kilobytes of JSON.
- *
- * Watching costs one `stat` per locale file per NYA_ASSET_HOT_RELOAD stat interval — two files, so two
- * stats per hundred milliseconds, and none at all in a release build where hot reload is compiled out.
- * **Reading a string costs nothing**: nya_i18n_raw is an array index into memory this system owns, and
- * touches neither the asset system nor the filesystem. That distinction is the whole reason the watch
- * lives on a frame hook instead of in the accessors — text is read thousands of times a frame, and a
- * `stat` on that path would be a filesystem call per label per frame.
- *
- * A key the file does not have falls back to the base locale rather than to empty — the build already
- * refuses a locale with a missing key, so this only fires for a file edited after it was built, and
- * showing English is better than showing nothing.
- *
- * ## Formatting, and where the result lives
- *
- * An accessor with no arguments returns the stored string directly and costs nothing. One with
- * arguments formats into a ring of frame-lifetime buffers and returns a pointer into it.
- *
- * **The result is valid until NYA_I18N_FORMAT_SLOTS more formatted strings have been made.** That is
- * deliberate and is what makes the call usable inline in a draw call without an arena or a free. It
- * is also why nothing should store one: copy it if it has to outlive the frame.
+ * An accessor with no arguments returns the stored string directly. One with arguments formats into a
+ * ring of frame-lifetime buffers. **The result is valid until NYA_I18N_FORMAT_SLOTS more formatted
+ * strings have been made** — usable inline in a draw call with no arena or free, but copy it if it has
+ * to outlive the frame.
  * */
 #pragma once
 
@@ -77,11 +49,8 @@
  */
 
 /**
- * Formatted strings alive at once before the oldest is overwritten.
- *
- * Sixteen because a frame formats a handful of strings and hands each straight to a draw call. A
- * caller holding more than this many at once is building a list, which wants an arena rather than a
- * ring — and would find the earliest entries quietly changing under it.
+ * Formatted strings alive at once before the oldest is overwritten. Sixteen covers a frame's worth of
+ * draw calls; a caller holding more than this is building a list and wants an arena instead.
  * */
 #ifndef NYA_I18N_FORMAT_SLOTS
 #define NYA_I18N_FORMAT_SLOTS 16
@@ -98,13 +67,9 @@
 /**
  * Where locale files live, as the asset index spells it.
  *
- * Duplicated from src/build/i18n.h rather than shared, because the build system and the engine are
- * separate programs — the build tool compiles with -DNYA_NO_SDL and cannot include a core header.
- * Two constants, one string, and a note in each pointing at the other.
- *
- * It has to agree with what the asset indexer generated into assets.h, because a locale's path *is*
- * its asset handle: `NYA_ASSET_I18N_EN_JSON` is `"./assets/i18n/en.json"`, and this plus the locale
- * code is how that handle is rebuilt at runtime for a locale chosen from a settings file.
+ * Duplicated from src/build/i18n.h rather than shared: the build tool compiles with -DNYA_NO_SDL and
+ * cannot include a core header. Must agree with what the asset indexer generated into assets.h, since
+ * a locale's path *is* its asset handle — this plus a locale code rebuilds it at runtime.
  * */
 #define NYA_I18N_ASSET_DIRECTORY "./assets/i18n"
 

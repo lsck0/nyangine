@@ -3,17 +3,12 @@
  *
  * The simulation barrier: what happened this frame, and what should change because of it.
  *
- * Two problems, one mechanism.
- *
- * **Mutating the world while it is being iterated.** A projectile's update killing the entity it
- * hit invalidates whatever the caller was walking, and makes the outcome depend on update order.
- * So mutations are not applied where they are decided — they are queued with nya_sim_defer and
- * applied at a barrier, after every update for the tick has run.
- *
- * **Telling anyone what happened.** A damage number, an achievement, a combat log, a replay stream
- * and a telemetry counter all want the same facts, and none of them belong in the code that does
- * the hitting. So facts are recorded with nya_sim_record and read back at the end of the frame by
- * observers, which know nothing about each other.
+ * Two problems, one mechanism. Mutating the world while it is being iterated — a projectile's update
+ * killing the entity it hit invalidates whatever the caller was walking — is avoided by queuing
+ * mutations with nya_sim_defer and applying them at a barrier, after every update for the tick has
+ * run. Telling anyone what happened (a damage number, an achievement, a combat log, a replay stream,
+ * telemetry) without wiring each into the code that does the hitting is solved by recording facts
+ * with nya_sim_record and reading them back at frame end by observers, which know nothing of each other.
  *
  * ```c
  * // in the projectile's update
@@ -22,11 +17,8 @@
  * ```
  *
  * Records are cleared at the end of every frame, so an observer sees exactly the frame it is being
- * notified about and nothing accumulates. Anything that must outlive the frame is the observer's to
- * copy somewhere durable.
- *
- * `type` is a plain u32 that the game defines. Core does not interpret it — it has no business
- * knowing what damage is.
+ * notified about; anything that must outlive the frame is the observer's to copy somewhere durable.
+ * `type` is a plain u32 the game defines — core does not interpret it.
  * */
 #pragma once
 
@@ -48,9 +40,8 @@
 /**
  * How many times the command queue may refill while draining before it is called a runaway.
  *
- * A deferred command is allowed to defer more work, which is what makes a chain like death → drop
- * loot → trigger pickup express itself naturally. A cycle would otherwise spin forever, so the
- * drain gives up loudly instead.
+ * A deferred command may defer more work — death → drop loot → trigger pickup — so a cycle would
+ * otherwise spin forever; the drain gives up loudly instead.
  * */
 #define NYA_SIM_COMMAND_DRAIN_MAX 64
 
@@ -115,12 +106,9 @@ struct NYA_SimSystem {
 
     struct {
         /**
-         * By handle rather than by pointer, so an observer registered by the game survives a reload.
-         *
-         * The game is a shared library that is closed and reopened, and a raw function pointer into
-         * it aims at an unmapped page afterwards — the next end of frame would call it. Callback
-         * handles are re-resolved by name in update_callback_pointers, which is the same reason the
-         * per entity hooks are stored this way.
+         * By handle rather than by pointer, so an observer registered by the game survives a reload:
+         * the game's shared library is closed and reopened, and a raw function pointer into it would
+         * aim at an unmapped page afterwards. Handles are re-resolved by name in update_callback_pointers.
          * */
         NYA_CallbackHandle callback;
         void*              user_data;
@@ -179,15 +167,15 @@ NYA_API const NYA_ArrayᐸNYA_SimRecordᐳ* nya_sim_records(void) __attr_no_disc
 /** Fixed update ticks since startup. */
 NYA_API u64 nya_sim_tick(void) __attr_no_discard;
 
-/** Registers a frame end observer. Errors rather than silently dropping it once full. */
 /**
- * Registers an observer, by callback handle so it survives a hot reload.
+ * Registers an observer, by callback handle so it survives a hot reload. Errors rather than silently
+ * dropping it once full.
  *
  * ```c
  * NYA_EXPECT(nya_sim_observer_add(nya_callback(gny_sim_observe), nullptr));
  * ```
  *
- * The function must be exported — not NYA_INTERNAL — because the handle is resolved by name.
+ * Must be exported, not NYA_INTERNAL, since the handle is resolved by name.
  * */
 NYA_API NYA_Error nya_sim_observer_add(NYA_CallbackHandle observer, void* user_data) __attr_no_discard;
 

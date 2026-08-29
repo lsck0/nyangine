@@ -20,6 +20,8 @@
  * */
 #pragma once
 
+#include "nyangine/base/base_attributes.h"
+#include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_vector.h"
 
@@ -110,7 +112,7 @@ enum NYA_Camera2DKind {
  *
  * Both kinds collapse to the same thing before they reach the GPU — a 2x2 linear map plus a
  * translation — so the flush path and the screen/world inverse are one code path with two ways of
- * filling in four numbers. See _nya_render2d_camera_basis.
+ * filling in four numbers. See nya_camera2d_basis.
  * */
 struct NYA_Camera2D {
     NYA_Camera2DKind kind;
@@ -183,3 +185,57 @@ struct NYA_Camera3DOrthographic {
     f32 far_plane;
 };
 
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * FUNCTIONS AND MACROS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * The 2D camera arithmetic, in the header both renderers already include, because both need it and
+ * writing it twice is what let the headless build drift. Everything here is a pure function of a
+ * camera and a target size — see render_camera.c for what the drift actually was.
+ *
+ * There is no 3D counterpart here: the 3D cameras become matrices through math_matrix.h, which is
+ * shared already.
+ */
+
+/**
+ * The camera with the values that cannot mean anything replaced by the ones that can.
+ *
+ * A setter's first call. A zero zoom is the case that matters — it collapses the world to a point and
+ * divides by zero on the way back out — and the isometric form corrects a zero tile size for the same
+ * reason.
+ * */
+NYA_API NYA_Camera2DTopDown   nya_camera2d_top_down_sanitized(NYA_Camera2DTopDown camera) __attr_no_discard;
+NYA_API NYA_Camera2DIsometric nya_camera2d_isometric_sanitized(NYA_Camera2DIsometric camera) __attr_no_discard;
+
+/**
+ * The top-down camera in `camera`, or the identity for a camera that is not one.
+ *
+ * A getter's whole body. The identity is spelled out rather than handed back as a zeroed struct,
+ * since a zoom of zero is a surprising thing to receive and pass straight back in.
+ * */
+NYA_API NYA_Camera2DTopDown nya_camera2d_top_down_or_identity(NYA_Camera2D camera) __attr_no_discard;
+
+/**
+ * The 2x2 a camera applies to a world offset, before the view centre is added.
+ *
+ * The one place the two 2D projections differ: everything downstream — the view matrix at flush, the
+ * screen/world inverse, the world/screen forward — works on these four numbers and never asks which
+ * kind produced them, which is what keeps the isometric camera from being a second copy of the camera
+ * path. Written as `[a b; c d]`, matching the two rows of the view matrix it becomes.
+ * */
+NYA_API void nya_camera2d_basis(const NYA_Camera2D* camera, OUT f32* out_a, OUT f32* out_b, OUT f32* out_c, OUT f32* out_d);
+
+/** The world (or tile) point the camera centres on, whichever kind it is. */
+NYA_API f32x2 nya_camera2d_position(const NYA_Camera2D* camera) __attr_no_discard;
+
+/**
+ * The two conversions between the target's pixels and the camera's world.
+ *
+ * Exact inverses of each other, and of the view matrix the flush builds from the same basis. A camera
+ * of kind NONE is the identity in both directions, which is the UI case: drawing with no camera lands
+ * in screen pixels already.
+ * */
+NYA_API f32x2 nya_camera2d_screen_to_world(const NYA_Camera2D* camera, f32x2 screen, u32 target_width, u32 target_height) __attr_no_discard;
+NYA_API f32x2 nya_camera2d_world_to_screen(const NYA_Camera2D* camera, f32x2 world, u32 target_width, u32 target_height) __attr_no_discard;

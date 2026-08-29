@@ -131,8 +131,6 @@ void gny_world_create(void) {
     *world = (GNY_World){
         .allocator           = allocator,
         .terrain             = NYA_ENTITY_HANDLE_NONE,
-        .terrain_points      = nya_arena_alloc(allocator, GNY_TERRAIN_POINT_COUNT * sizeof(f32x2)),
-        .terrain_point_count = 0,
         /*
          * From --seed where one was given, so a server operator can reproduce a world.
          *
@@ -158,6 +156,112 @@ void gny_world_create(void) {
     };
 
     nya_world_user_data_set(world);
+
+    /*
+     * The scripting VM, and the fonts.
+     *
+     * Both here rather than in a layer's on_create: they belong to the world's lifetime rather than to
+     * any one screen, and creating them per screen change would leak a VM per visit to the menu.
+     */
+    NYA_Error lua = nya_lua_create(allocator, (NYA_LuaOptions){ .engine_api = true }, &world->lua);
+
+    // Not fatal. Scripting is content, and a demo that refuses to start because a VM would not come up
+    // is worse than one that runs without scripts.
+    if (!lua.ok) nya_log_warn("Could not create the Lua VM: %s", (NYA_ConstCString)lua.message);
+
+    /*
+     * The script itself is queued rather than run: assets resolve at the end of a frame, so the first
+     * tick that finds it loaded is what runs it. See gny_world_script_tick.
+     *
+     * ⚠ **And acquired, or it does not survive to be run.** Nothing else holds a reference to it, so
+     * the unloading sweep takes it back before the game layer's first update — which showed up as the
+     * script silently never running, with one "Unloading asset" line the only evidence. Held for the
+     * world's lifetime rather than released on a screen change; see the note in gny_world_clear.
+     */
+    (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = NYA_ASSET_SCRIPTS_STARTUP_LUA });
+    (void)nya_asset_acquire(NYA_ASSET_SCRIPTS_STARTUP_LUA);
+
+    /*
+     * The named fonts.
+     *
+     * The HUD used to spell the path and the point size out at every call site, which is exactly what
+     * render_font.h exists to stop — "the UI font" is now a name, and changing which face that is
+     * became one line here rather than a search.
+     */
+    (void)nya_font_register("ui", GNY_UI_FONT, GNY_UI_FONT_SIZE);
+    (void)nya_font_register("title", GNY_UI_FONT, GNY_UI_TITLE_FONT_SIZE);
+
+    nya_font_default_set(nya_font_named("ui"));
+
+    /*
+     * The runtime config, loaded once here and — with NYA_ASSET_HOT_RELOAD compiled in — kept in sync
+     * with its file from then on. See gnyame/config.h for what NYA_CONFIG holds and why this call does
+     * not repeat on a code reload the way it does on an edit to the file itself.
+     */
+    NYA_Error config_loaded = nya_config_watch(GNY_CONFIG_FILE, nya_reflect_of(GNY_Config), &NYA_CONFIG);
+
+    // Not fatal, and treated the same as a missing settings file: NYA_CONFIG keeps whatever it was
+    // already holding (its zero-initialised defaults on a fresh process), so a demo missing its
+    // config file still runs — just with every field at zero rather than the shipped ones.
+    if (!config_loaded.ok) nya_log_warn("Could not load %s: %s", GNY_CONFIG_FILE, (NYA_ConstCString)config_loaded.message);
+
+    // Before the game layer's first on_update, which is the only requirement the registry has of
+    // whoever calls it — and this runs exactly once, unlike a layer's on_create.
+    gny_systems_register_all();
+}
+
+void gny_world_script_tick(f32 delta_time_s) {
+    GNY_World* world = gny_world();
+    if (world == nullptr || world->lua == nullptr) return;
+
+    // The first tick that finds the script loaded runs it. NOT_FOUND while it is still queued, which
+    // is the ordinary state for the first frame or two and not worth reporting.
+    if (!world->lua_started) {
+        NYA_Error result = nya_lua_run_asset(world->lua, NYA_ASSET_SCRIPTS_STARTUP_LUA);
+
+        if (result.ok) {
+            world->lua_started = true;
+
+            /*
+             * A value read straight back out of the script.
+             *
+             * Not for anything — it is the smallest end-to-end demonstration that a Lua table arrives
+             * on this side as an NYA_Object, which is what makes a script and a JSON body and a
+             * database row the same type here.
+             */
+            NYA_Value config = { 0 };
+
+            if (nya_lua_global_get(world->lua, nya_arena_temp, "gnyame", &config).ok && config.type == NYA_TYPE_OBJECT) {
+                NYA_Value* greeting = nya_object_get(&config.as_object, "greeting");
+
+                if (greeting != nullptr && greeting->type == NYA_TYPE_STRING) {
+                    nya_log_info("startup.lua greets the world as '%s'.", greeting->as_string);
+                }
+            }
+        } else if (result.kind != NYA_ERROR_NOT_FOUND) {
+            // A syntax error in the script, which is worth saying once rather than every tick.
+            nya_log_warn("startup.lua: %s", (NYA_ConstCString)result.message);
+            world->lua_started = true;
+        }
+
+        return;
+    }
+
+    world->lua_tick_timer_s += delta_time_s;
+
+    if (world->lua_tick_timer_s < GNY_LUA_TICK_INTERVAL_S) return;
+
+    world->lua_tick_timer_s = 0.0F;
+
+    // Optional: a script that does not define it is not an error, which is what NOT_FOUND from
+    // nya_lua_call is for. Asked rather than called-and-ignored so a real failure still reports.
+    if (!nya_lua_has_function(world->lua, "gnyame_tick")) return;
+
+    NYA_Value crates = nya_lua_number((f64)gny_entity_box_count(nullptr));
+
+    NYA_Error called = nya_lua_call(world->lua, nya_arena_temp, "gnyame_tick", &crates, 1, nullptr);
+
+    if (!called.ok) nya_log_warn("gnyame_tick: %s", (NYA_ConstCString)called.message);
 }
 
 NYA_EntityHandle gny_world_inset_camera(void) {
@@ -203,7 +307,14 @@ void gny_world_clear(void) {
         // The map's colliders go with the crates. They are spawned by the game layer and would
         // otherwise survive a return to the menu — and then be spawned a second time on the next
         // start, doubling the floor and pushing anything resting on it out hard.
-        if (!gny_entity_is(entity, GNY_ENTITY_BOX) && !gny_entity_is(entity, GNY_ENTITY_TILEMAP)) continue;
+        // Ledges go with them, and a ledge takes the marker parented to it — which is why this is by
+        // slot: despawning a parent removes its children, so a handle collected earlier in the walk
+        // may already be gone by the time it is reached. nya_entity_despawn on a stale handle is a
+        // no-op, which is what makes that safe rather than merely unlikely.
+        if (!gny_entity_is(entity, GNY_ENTITY_BOX) && !gny_entity_is(entity, GNY_ENTITY_TILEMAP)
+            && !gny_entity_is(entity, GNY_ENTITY_LEDGE)) {
+            continue;
+        }
 
         nya_entity_despawn(entity->handle);
     }
@@ -215,11 +326,26 @@ void gny_world_clear(void) {
     world->terrain             = NYA_ENTITY_HANDLE_NONE;
     world->camera              = NYA_ENTITY_HANDLE_NONE;
     world->inset_camera        = NYA_ENTITY_HANDLE_NONE;
-    world->terrain_point_count = 0;
 
     // The map itself came out of the world's arena and is not freed here — only forgotten, so the
     // next start loads a fresh one rather than drawing a map whose colliders have just been despawned.
     world->tilemap = nullptr;
+
+    /*
+     * The VM and the script's reference both stay.
+     *
+     * ⚠ **Not released here**, which is deliberate and was nearly got wrong: gny_world_create runs
+     * once for the process and this runs on every return to the menu, so a release here would be
+     * unbalanced against a single acquire — and the second visit would drop the count below zero and
+     * unload a script the next start still needs. The reference is held for the world's lifetime,
+     * which is the process's.
+     *
+     * `lua_started` is cleared so the next start re-runs the script against whatever is on disk,
+     * which is how a script hot reloads. The VM itself keeps whatever globals the last run left,
+     * which is what lets a script carry state across a return to the menu.
+     */
+    world->lua_started      = false;
+    world->lua_tick_timer_s = 0.0F;
 }
 
 void gny_world_destroy(void) {
@@ -247,62 +373,31 @@ void gny_terrain_generate(u64 seed) {
     GNY_World* world = gny_world();
     nya_assert(world != nullptr, "gny_terrain_generate before the world exists.");
 
-    // Immediate rather than deferred: this runs from startup and from a key press, never from
-    // inside an entity iteration, and the new terrain has to be spawned before this call returns.
-    if (nya_entity_is_valid(world->terrain)) nya_entity_despawn(world->terrain);
-
-    world->terrain_seed = seed;
-
-    // The RNG takes its seed as an uppercase hex string of at most 64 digits, left padded — not an
-    // arbitrary label. A descriptive one like "gnyame-terrain-1" is rejected at the first letter.
-    char seed_text[17];
-    (void)snprintf(seed_text, sizeof(seed_text), "%016llX", (unsigned long long)seed);
-
-    NYA_RNG   rng   = nya_rng_create(.seed = seed_text);
-    NYA_Noise noise = nya_noise_create(&rng);
-
-    NYA_NoiseParams params = { .octaves = 4, .lacunarity = 2.0F, .gain = 0.5F };
-
-    /*
-     * Sampled left to right at a fixed spacing, which is what makes the result a *height field*
-     * rather than an arbitrary polyline: x is strictly increasing, so no segment can double back and
-     * trap a crate inside the ground.
-     *
-     * fbm returns roughly [-1, 1]; the low frequency term is what gives the hills their overall
-     * shape and the higher octaves the small bumps a crate visibly tumbles over.
-     */
-    for (u32 i = 0; i < GNY_TERRAIN_POINT_COUNT; i++) {
-        f32 x = -GNY_TERRAIN_HALF_WIDTH + ((f32)i * GNY_TERRAIN_POINT_STEP);
-
-        f32 height = nya_noise_fbm1(&noise, x * 0.0018F, params);
-
-        world->terrain_points[i] = (f32x2){ x, GNY_TERRAIN_BASE_Y + (height * GNY_TERRAIN_AMPLITUDE) };
+    // Created on first use. The shape constants and GNY_ENTITY_TERRAIN are the game's opinion; the
+    // sampling, the chain body and the drawing are nya_terrain2d_*.
+    if (world->terrain2d == nullptr) {
+        NYA_EXPECT(
+            nya_terrain2d_create(
+                nya_world()->allocator,
+                (NYA_Terrain2DOptions){
+                    .half_width  = GNY_TERRAIN_HALF_WIDTH,
+                    .point_step  = GNY_TERRAIN_POINT_STEP,
+                    .base_y      = GNY_TERRAIN_BASE_Y,
+                    .amplitude   = GNY_TERRAIN_AMPLITUDE,
+                    .fill        = GNY_TERRAIN_FILL,
+                    .surface     = GNY_TERRAIN_SURFACE,
+                    .entity_type = GNY_ENTITY_TERRAIN,
+                },
+                &world->terrain2d
+            ),
+            "while creating the 2D terrain"
+        );
     }
 
-    world->terrain_point_count = GNY_TERRAIN_POINT_COUNT;
+    nya_terrain2d_generate(world->terrain2d, seed);
 
-    world->terrain = nya_entity_spawn(
-        .name  = "terrain",
-        .type  = GNY_ENTITY_TERRAIN,
-        .state = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_VISIBLE | NYA_ENTITY_STATE_STATIC,
-    );
-    nya_assert(nya_entity_is_valid(world->terrain), "Failed to spawn the terrain entity.");
-
-    // The points are already in world units relative to the origin, and the entity sits at the
-    // origin, so they are its body frame unchanged. Friction high enough that a crate landing on a
-    // slope settles instead of sliding to the bottom of the map.
-    b8 attached = nya_physics2d_body_attach(
-        world->terrain,
-        .type        = NYA_PHYSICS_BODY_STATIC,
-        .shape       = NYA_PHYSICS2D_SHAPE_CHAIN,
-        .points      = world->terrain_points,
-        .point_count = world->terrain_point_count,
-        .friction    = 0.8F,
-        .restitution = 0.0F,
-    );
-    nya_assert(attached, "Failed to attach the terrain's chain body.");
-
-    nya_info("Terrain generated: %u points, seed %llu.", world->terrain_point_count, (unsigned long long)seed);
+    world->terrain_seed = seed;
+    world->terrain      = world->terrain2d->entity;
 }
 
 /*
@@ -675,51 +770,11 @@ void gny_bloom_pipeline_ensure(NYA_Window* window) {
     }), "while queueing the bloom pipeline");
 }
 
-void gny_scene_target_ensure(NYA_Window* window) {
-    GNY_World* world = gny_world();
-
-    u32 width  = window->screen_width;
-    u32 height = window->screen_height;
-
-    // A zero sized window is minimised or mid resize. Creating a target of no size is not a thing
-    // the GPU will do, and the caller falls back to drawing straight to the window.
-    if (width == 0 || height == 0) return;
-
-    if (world->scene.texture != nullptr && world->scene.width == width && world->scene.height == height) return;
-
-    // Recreated rather than resized, because a GPU texture has no resize. Freeing first matters: a
-    // window dragged to a new size produces a run of these, and leaking one per frame of a drag adds
-    // up to hundreds of megabytes by the time the mouse comes up.
-    if (world->scene.texture != nullptr) nya_render_texture_destroy(&world->scene);
-
-    world->scene = nya_render_texture_create(window, width, height);
-}
-
 void _gny_terrain_draw(NYA_Window* window) {
     GNY_World* world = gny_world();
-    if (world->terrain_point_count < 2) return;
+    if (world->terrain2d == nullptr) return;
 
-    /*
-     * Filled as one quad per sample interval, from the surface down to a flat bottom well below the
-     * view.
-     *
-     * Not a triangle fan from a single centre: the terrain is a wide, shallow height field, so a fan
-     * would produce long thin slivers whose shared vertex is off screen, and any concavity in the
-     * profile would fold the fan back over itself. A quad per interval has neither problem and is
-     * the same two triangles the batch is built for.
-     */
-    f32 bottom = GNY_TERRAIN_BASE_Y + GNY_TERRAIN_AMPLITUDE + 2000.0F;
-
-    for (u32 i = 0; i + 1 < world->terrain_point_count; i++) {
-        f32x2 left  = world->terrain_points[i];
-        f32x2 right = world->terrain_points[i + 1];
-
-        nya_render2d_triangle(window, left, right, (f32x2){ right.x, bottom }, GNY_TERRAIN_FILL);
-        nya_render2d_triangle(window, left, (f32x2){ right.x, bottom }, (f32x2){ left.x, bottom }, GNY_TERRAIN_FILL);
-    }
-
-    // The surface line last, so it sits on top of the fill rather than being half covered by it.
-    nya_render2d_polyline(window, world->terrain_points, world->terrain_point_count, 3.0F, GNY_TERRAIN_SURFACE);
+    nya_terrain2d_draw(world->terrain2d, window);
 }
 
 /*

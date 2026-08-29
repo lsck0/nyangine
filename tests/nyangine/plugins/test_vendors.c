@@ -57,7 +57,7 @@ s32 main(void) {
 
     int version = SDL_GetVersion();
     nya_assert(version > 0, "SDL reported version %d", version);
-    nya_info("SDL %d.%d.%d", SDL_VERSIONNUM_MAJOR(version), SDL_VERSIONNUM_MINOR(version), SDL_VERSIONNUM_MICRO(version));
+    nya_log_info("SDL %d.%d.%d", SDL_VERSIONNUM_MAJOR(version), SDL_VERSIONNUM_MINOR(version), SDL_VERSIONNUM_MICRO(version));
 
     // Each satellite is compiled against SDL's headers, so a version mismatch between them is the
     // failure this catches — they would link and then disagree about struct layouts.
@@ -89,7 +89,7 @@ s32 main(void) {
 
     int version = NET_Version();
     nya_assert(version > 0, "SDL_net reported %d", version);
-    nya_info("SDL_net %d.%d.%d", SDL_VERSIONNUM_MAJOR(version), SDL_VERSIONNUM_MINOR(version), SDL_VERSIONNUM_MICRO(version));
+    nya_log_info("SDL_net %d.%d.%d", SDL_VERSIONNUM_MAJOR(version), SDL_VERSIONNUM_MINOR(version), SDL_VERSIONNUM_MICRO(version));
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -125,7 +125,7 @@ s32 main(void) {
 
     b2Vec2 position = b2Body_GetPosition(body);
     nya_assert(position.y < 100.0F, "the body did not fall, y is %f", (f64)position.y);
-    nya_info("box2d: body fell to y=%.2f after one second", (f64)position.y);
+    nya_log_info("box2d: body fell to y=%.2f after one second", (f64)position.y);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -158,14 +158,14 @@ s32 main(void) {
 
     b3Vec3 position = b3Body_GetPosition(body);
     nya_assert(position.y < 100.0F, "the body did not fall, y is %f", (f64)position.y);
-    nya_info("box3d: body fell to y=%.2f after one second", (f64)position.y);
+    nya_log_info("box3d: body fell to y=%.2f after one second", (f64)position.y);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // VENDOR: lz4 — a compress/decompress round trip
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    nya_info("lz4 %s", LZ4_versionString());
+    nya_log_info("lz4 %s", LZ4_versionString());
     nya_assert(LZ4_versionNumber() > 0);
 
     // Repetitive on purpose, so the result is meaningfully smaller and a compressor that silently
@@ -186,7 +186,7 @@ s32 main(void) {
     nya_assert(restored_size == (int)sizeof(source), "decompressed to %d bytes", restored_size);
     nya_assert(memcmp(source, restored, sizeof(source)) == 0, "the round trip did not preserve the bytes");
 
-    nya_info("lz4: 1024 bytes -> %d -> 1024", compressed_size);
+    nya_log_info("lz4: 1024 bytes -> %d -> 1024", compressed_size);
 
     // The frame API is a separate translation unit inside the same archive, so it is worth touching
     // independently: a partial build would resolve one and not the other.
@@ -211,7 +211,7 @@ s32 main(void) {
     // LUA_RELEASE rather than LUAJIT_VERSION: the latter lives in luajit.h, which LuaJIT's Makefile
     // generates and does not track, so a checkout whose archive came from a cache does not have it.
     // A test that names the library should not be the thing that breaks on that.
-    nya_info("%s (LuaJIT)", LUA_RELEASE);
+    nya_log_info("%s (LuaJIT)", LUA_RELEASE);
 
     int loaded = luaL_dostring(state, "return 6 * 7");
     nya_assert(loaded == 0, "luaL_dostring failed: %s", lua_tostring(state, -1));
@@ -231,12 +231,12 @@ s32 main(void) {
   // VENDOR: SQLite
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    nya_info("SQLite %s", sqlite3_libversion());
+    nya_log_info("SQLite %s", sqlite3_libversion());
     nya_assert(sqlite3_libversion_number() >= 3000000, "SQLite reported %d", sqlite3_libversion_number());
 
     // Threadsafe() reports how the library was compiled, which is the sort of configure time
     // decision that a linked-but-wrong build gets wrong.
-    nya_info("SQLite threadsafe: %d", sqlite3_threadsafe());
+    nya_log_info("SQLite threadsafe: %d", sqlite3_threadsafe());
 
     // The plugin covers real usage; this only proves the library underneath it is the one we built.
     sqlite3* handle = nullptr;
@@ -260,7 +260,7 @@ s32 main(void) {
     nya_assert(nya_sqlean_init(handle, nullptr, nullptr) == SQLITE_OK, "sqlean's entry point is linked but refused to register");
     nya_assert(sqlite3_vec_init(handle, nullptr, nullptr) == SQLITE_OK, "sqlite-vec's entry point is linked but refused to register");
 
-    nya_info("sqlean: linked, sqlite-vec %s: linked", SQLITE_VEC_VERSION);
+    nya_log_info("sqlean: linked, sqlite-vec %s: linked", SQLITE_VEC_VERSION);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -269,7 +269,7 @@ s32 main(void) {
   {
     curl_version_info_data* info = curl_version_info(CURLVERSION_NOW);
     nya_assert(info != nullptr, "curl_version_info returned null");
-    nya_info("libcurl %s, %s", info->version, info->ssl_version != nullptr ? info->ssl_version : "no TLS");
+    nya_log_info("libcurl %s, %s", info->version, info->ssl_version != nullptr ? info->ssl_version : "no TLS");
 
     // TLS is the configure time decision most likely to be silently wrong, and an https request
     // without it fails at runtime with a confusing protocol error rather than at build time.
@@ -304,7 +304,7 @@ s32 main(void) {
     nya_backtrace_capture(&trace, 0);
 
     nya_assert(trace.count > 0, "captured a stack trace with no frames, so libbacktrace is the null backend");
-    nya_info("libbacktrace: captured " FMTu32 " frames", trace.count);
+    nya_log_info("libbacktrace: captured " FMTu32 " frames", trace.count);
   }
 
   printf("PASSED: test_vendors\n");

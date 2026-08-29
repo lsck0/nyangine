@@ -7,12 +7,10 @@
  */
 
 /*
- * The current world, held here rather than on NYA_App.
- *
- * nya_world is reached from inside the entity, physics and sim systems on nearly every call, and
- * going through nya_app_get would put an assertion on `initialized` in front of each of them — which
- * the world does not need and which a test that brings up a world without a full application would
- * fail. NYA_App holds the pointer as well, as the thing that owns it; this is the fast path to it.
+ * The current world, held here rather than on NYA_App: going through nya_app_get would put an
+ * assertion on `initialized` in front of every entity/physics/sim call, which a test that brings up
+ * a world without a full application would fail. NYA_App holds the pointer too, as the owner; this
+ * is the fast path.
  */
 NYA_INTERNAL NYA_World* _nya_world_current = nullptr;
 
@@ -35,17 +33,14 @@ NYA_World* nya_world_create(void) {
     *world           = (NYA_World){ .allocator = allocator };
 
     /*
-     * Made current for the duration of the bring-up, then handed back.
+     * Made current for the duration of the bring-up, then handed back — the three systems below reach
+     * their state through nya_world rather than taking it as a parameter, so building a world that is
+     * not yet current means being current for as long as it takes to build.
      *
-     * The three systems below reach their state through nya_world rather than taking it as a
-     * parameter, because every other function in them does too — a world that had to be threaded
-     * through nya_entity_spawn would be a different design. So creating one that is not current
-     * means being current for as long as it takes to build.
-     *
-     * Physics before entities, and the reverse on the way out. Despawning an entity destroys the
-     * rigid body it carries, so the physics world has to still exist while the entity table is
-     * emptied. That ordering used to live in nya_app_init, where it was one comment away from being
-     * lost; here it cannot be got wrong by a caller at all.
+     * Physics before entities, reversed on the way out: despawning an entity destroys the rigid body
+     * it carries, so the physics world has to still exist while the entity table is emptied. That
+     * ordering used to live in nya_app_init, one comment away from being lost; here it can't be
+     * gotten wrong by a caller at all.
      */
     NYA_World* previous = nya_world_set(world);
 
@@ -62,9 +57,8 @@ NYA_World* nya_world_create(void) {
 void nya_world_destroy(NYA_World* world) {
     if (world == nullptr) return;
 
-    // Current for the teardown, for the reason above and one more: emptying the entity table runs
-    // every entity's on_despawn, which is game code, and game code calls nya_entity_* — which would
-    // otherwise be reading whichever world happened to be current instead of the one being torn down.
+    // Current for the teardown too: on_despawn is game code that calls nya_entity_*, which must read
+    // the world being torn down rather than whatever else happens to be current.
     NYA_World* previous = nya_world_set(world);
 
     nya_system_sim_deinit();
@@ -72,8 +66,8 @@ void nya_world_destroy(NYA_World* world) {
     nya_system_physics3d_deinit();
     nya_system_physics2d_deinit();
 
-    // A world cannot be left current after it is freed. Destroying the one that was already current
-    // therefore leaves none, rather than restoring a pointer to the thing about to be released.
+    // A world cannot be left current after it's freed — destroying the current one leaves none,
+    // rather than restoring a pointer to the thing about to be released.
     (void)nya_world_set(previous == world ? nullptr : previous);
 
     // Last: this frees the NYA_World struct itself, and everything the game hung off user_data.
@@ -109,11 +103,9 @@ NYA_World* nya_world_set(NYA_World* world) {
 
 void* nya_world_user_data(void) {
     /*
-     * Deliberately not asserting that a world exists, unlike nya_world.
-     *
-     * A game reads this to decide whether it is starting fresh or coming back from a hot reload, and
-     * teardown paths read it after the app has already released the world. Both want an answer
-     * rather than an assertion, and null is a truthful one.
+     * Deliberately not asserting that a world exists, unlike nya_world: a game reads this to decide
+     * fresh-start vs. reload, and teardown paths read it after the app has already released the
+     * world. Both want an answer rather than an assertion, and null is a truthful one.
      */
     if (_nya_world_current == nullptr) return nullptr;
     return _nya_world_current->user_data;

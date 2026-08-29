@@ -52,7 +52,7 @@ s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_sql_extensions");
   defer      nya_arena_destroy(arena);
 
-  nya_info("SQLite %s, sqlite-vec %s", nya_sql_version(), nya_sql_vec_version());
+  nya_log_info("SQLite %s, sqlite-vec %s", nya_sql_version(), nya_sql_vec_version());
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: sqlite-vec is linked in, and reports the version the submodule is at

@@ -58,13 +58,13 @@ NYA_API void nya_system_callback_deinit(void);
  */
 
 /*
- * Named callbacks exist for hot reloading: when the game DLL is swapped, a raw function pointer
- * stored before the swap points into the old image, so callbacks are stored by name and re-resolved
- * against the new one. A shipping build never swaps anything, so it stores the pointer directly.
+ * Named callbacks exist for hot reloading: a raw function pointer stored before a DLL swap points into
+ * the old image, so callbacks are stored by name and re-resolved against the new one; a shipping build
+ * never swaps anything and stores the pointer directly.
  *
  * This was `#ifdef NYA_DEBUG`, which is always true — NYA_DEBUG is *defined* in every mode, it just
- * evaluates to 0 in most of them. Shipping builds were therefore paying for the registry, the string
- * names and a lookup per callback, and the direct path below had never been compiled.
+ * evaluates to 0 in most of them — so shipping builds paid for the registry, string names and a lookup
+ * per callback, and the direct path below had never been compiled.
  */
 #if NYA_CODE_HOT_RELOAD
 #define nya_callback(callback) _nya_callback((NYA_Callback){ .name = #callback, .fn = (void*)(callback) })

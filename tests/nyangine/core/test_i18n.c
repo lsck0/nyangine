@@ -18,7 +18,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-#include "assets/strings.h"
+#include "generated/strings.h"
 
 #include "SDL3/SDL_init.h"
 

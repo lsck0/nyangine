@@ -212,7 +212,7 @@ s32 main(void) {
     nya_assert(!nya_entity_is_valid(hit));
   }
 
-  nya_info("PASSED: test_entity_click (0 failures)");
+  nya_log_info("PASSED: test_entity_click (0 failures)");
 
   return EXIT_SUCCESS;
 }

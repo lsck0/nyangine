@@ -1,10 +1,8 @@
 /**
  * @file base_path.h
  *
- * Path manipulation: joining, splitting, normalising.
- *
- * Deliberately pure string work with no syscalls anywhere, which is why it lives in base rather
- * than next to the filesystem calls. Nothing here touches a disk, so none of it can fail for
+ * Path manipulation: joining, splitting, normalising. Pure string work with no syscalls, which is
+ * why it lives in base rather than next to the filesystem calls — none of it can fail for
  * environmental reasons and all of it is testable without a fixture.
  *
  * Separators: '/' is accepted everywhere and is what these functions emit. Windows accepts '\\' on

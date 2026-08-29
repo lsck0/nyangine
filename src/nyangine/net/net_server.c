@@ -14,15 +14,10 @@ typedef struct {
     NYA_NetSnapshot snapshot;
 
     /**
-     * How many entities `snapshot.entities` has room for, as opposed to how many it holds.
-     *
-     * Tracked so a ring slot can *reuse* its allocation. Without it every send cloned a fresh array
-     * into the server's long-lived arena and abandoned whatever the slot held before — and since a
-     * slot is overwritten every NYA_NET_SNAPSHOT_HISTORY ticks, that is one leaked snapshot per peer
-     * per ring wrap. At sixty hertz with a few dozen entities it is on the order of a hundred
-     * kilobytes a second per player, which takes a long-running server down.
-     *
-     * With this, a slot converges on the largest entity count it has seen and then allocates nothing.
+     * How many entities `snapshot.entities` has room for, versus how many it holds — lets a ring slot
+     * reuse its allocation instead of cloning fresh every send. Without it, a slot overwritten every
+     * NYA_NET_SNAPSHOT_HISTORY ticks leaked one snapshot per peer per wrap: on the order of a hundred
+     * kilobytes/sec/player at sixty hertz, enough to take a long-running server down.
      * */
     u32 capacity;
 } _NYA_NetServerBaseline;
@@ -34,11 +29,10 @@ typedef struct {
     NYA_NetTransport* transport;
 
     /**
-     * Snapshots this peer has been sent, newest anywhere in the ring.
-     *
-     * Indexed by `tick % NYA_NET_SNAPSHOT_HISTORY`, so finding the one a peer acknowledged is a
-     * modulo rather than a search — and a tick too old to still be in the ring lands on an entry whose
-     * own tick does not match, which is exactly how "too far behind for a delta" is detected.
+     * Snapshots this peer has been sent, newest anywhere in the ring. Indexed by `tick %
+     * NYA_NET_SNAPSHOT_HISTORY`, so finding the acknowledged one is a modulo, not a search — a tick too
+     * old lands on an entry whose own tick doesn't match, which is how "too far behind for a delta" is
+     * detected.
      * */
     _NYA_NetServerBaseline baselines[NYA_NET_SNAPSHOT_HISTORY];
 
@@ -49,22 +43,18 @@ typedef struct {
     u64 last_command_tick;
 
     /**
-     * The *server* tick during which a command was last applied to this peer.
-     *
-     * Distinct from `last_command_tick`, which is the client's numbering, and the two must not be
-     * compared. A client's command for its tick T is sent after the server has already ticked T, so it
-     * is drained during server tick T+1 — meaning `last_command_tick < tick` is true on the very tick
-     * the command was applied. Using that as the "did anything arrive" test made the repeat below fire
-     * on top of a fresh command and move every player twice per tick.
+     * The *server* tick a command was last applied to this peer — distinct from `last_command_tick`
+     * (the client's numbering); the two must not be compared. A client's command for tick T is drained
+     * during server tick T+1, so `last_command_tick < tick` is true the very tick it was applied — using
+     * that as the "did anything arrive" test made the repeat below fire on a fresh command too, moving
+     * every player twice per tick.
      * */
     u64 last_applied_server_tick;
 
     /**
-     * The command applied most recently.
-     *
-     * Kept so a tick with no command can repeat it. A player mid-stride whose packets stop should keep
-     * walking rather than stopping dead — and their own client is predicting exactly that, so
-     * repeating is also the answer that agrees with the prediction.
+     * The command applied most recently — kept so a tick with no command can repeat it. A player
+     * mid-stride whose packets stop should keep walking, not stop dead, which also agrees with what
+     * their own client is predicting.
      * */
     NYA_NetCommand last_command;
 
@@ -73,11 +63,9 @@ typedef struct {
      */
 
     /**
-     * Bytes this peer may still be sent this second, as a token bucket.
-     *
-     * A bucket rather than a per-tick quota, so a burst — a full snapshot after a reconnect — can spend
-     * what an idle second accumulated. A flat per-tick limit would refuse exactly the snapshot a
-     * recovering peer most needs.
+     * Bytes this peer may still be sent this second, as a token bucket — not a per-tick quota, so a
+     * burst (a full snapshot after a reconnect) can spend what an idle second accumulated. A flat
+     * per-tick limit would refuse exactly the snapshot a recovering peer most needs.
      * */
     s64 budget_bytes;
 
@@ -89,17 +77,15 @@ typedef struct {
      */
 
     /**
-     * Which entities are currently being sent to this peer, one bit per entity slot.
+     * Which entities are currently being sent to this peer, one bit per entity slot — what makes
+     * relevance hysteretic: the *keep* threshold is looser than the *start* threshold, and this answers
+     * "am I already sending it". Without it, relevance is re-decided from scratch every snapshot and
+     * boundary entities flicker.
      *
-     * What makes relevance hysteretic: the threshold to *keep* an entity is looser than the threshold to
-     * *start* sending it, and this is how "am I already sending it" is answered. Without it relevance is
-     * re-decided from scratch every snapshot and anything on the boundary flickers.
-     *
-     * Keyed on the entity's slot index alone, not its generation — a full generation per slot would be
-     * four kilobytes per peer rather than one, for a case whose only consequence is benign. When a slot is
-     * reused, the newcomer inherits the departed entity's bit for exactly one snapshot, so it is judged
-     * against the *leave* radius instead of the *enter* radius and may be sent one tick early. Sent
-     * slightly early is the safe direction, and the next snapshot decides correctly.
+     * Keyed on slot index alone, not generation — a full generation per slot would be four kilobytes per
+     * peer for a benign case: a reused slot's newcomer inherits the departed entity's bit for one
+     * snapshot, judged against the *leave* radius instead of *enter* and possibly sent one tick early,
+     * which is the safe direction.
      * */
     u8 relevant[NYA_ENTITY_MAX / 8];
 } _NYA_NetServerPeerState;
@@ -118,14 +104,11 @@ typedef struct {
     NYA_NetTransport* loopback_server_end;
 
     /**
-     * The other half of that pair, which was handed to the local client.
-     *
-     * Kept so it can be destroyed. The server created the pair, so the server owns both ends — and the
-     * client end was leaking its delivered arena on every session, because nya_net_client_attach does not
-     * take ownership of a transport it did not create and nothing else was holding it.
-     *
-     * A borrowed pointer from the client's point of view: it is destroyed here, after the client has
-     * disconnected. See the ordering note in nya_net_server_stop.
+     * The other half of that pair, handed to the local client — kept here so it can be destroyed. The
+     * server created the pair and owns both ends; the client end used to leak its delivered arena every
+     * session, since nya_net_client_attach doesn't take ownership of a transport it didn't create. A
+     * borrowed pointer from the client's view, destroyed here after the client disconnects; see the
+     * ordering note in nya_net_server_stop.
      * */
     NYA_NetTransport* loopback_client_end;
 
@@ -255,7 +238,7 @@ NYA_Error nya_net_server_start(NYA_NetServerConfig config) {
     // Clamped rather than refused: a game asking for more history than the ring holds is asking for as
     // much as it can have, and failing to start over it would be absurd.
     if (config.lag_history_ticks > NYA_NET_LAG_HISTORY) {
-        nya_warn("lag_history_ticks %u is past the %d the ring holds; using %d.", config.lag_history_ticks, NYA_NET_LAG_HISTORY, NYA_NET_LAG_HISTORY);
+        nya_log_warn("lag_history_ticks %u is past the %d the ring holds; using %d.", config.lag_history_ticks, NYA_NET_LAG_HISTORY, NYA_NET_LAG_HISTORY);
         config.lag_history_ticks = NYA_NET_LAG_HISTORY;
     }
 
@@ -269,7 +252,15 @@ NYA_Error nya_net_server_start(NYA_NetServerConfig config) {
 
     // No socket. That is what makes this the single player path as well as the hosting path: a server
     // with nobody listening simulates a world and sends nothing.
-    nya_info("Server started (replicating flag 0x%llx, up to %u players).", (unsigned long long)config.replicated_flag, config.max_players);
+    nya_log_info("Server started (replicating flag 0x%llx, up to %u players).", (unsigned long long)config.replicated_flag, config.max_players);
+
+    // Guarded so a game (or a test) that starts and stops a server repeatedly in one process does
+    // not add a copy of itself to the ceiling registry on every restart.
+    static b8 ceiling_registered = false;
+    if (!ceiling_registered) {
+        nya_ceiling_register("net_peers", NYA_NET_MAX_PEERS, &_NYA_NET_SERVER.peer_count);
+        ceiling_registered = true;
+    }
 
     return NYA_OK;
 }
@@ -310,7 +301,7 @@ void nya_net_server_stop(void) {
 
     _NYA_NET_SERVER = (_NYA_NetServerState){ 0 };
 
-    nya_info("Server stopped.");
+    nya_log_info("Server stopped.");
 }
 
 b8 nya_net_server_running(void) {
@@ -500,7 +491,7 @@ b8 nya_net_server_rewind_begin(NYA_NetPeerId peer) {
     // Nesting would restore to whatever the inner rewind captured, which is already the past. Refused
     // rather than asserted, because a game calling this from two systems is a plausible mistake.
     if (_NYA_NET_SERVER.rewind_active) {
-        nya_warn("nya_net_server_rewind_begin was called while already rewound; refusing to nest.");
+        nya_log_warn("nya_net_server_rewind_begin was called while already rewound; refusing to nest.");
         return false;
     }
 
@@ -642,7 +633,7 @@ void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick, f32 delta_time
                  * That ordering is what stops an unauthenticated peer costing the server a spawned
                  * entity and a snapshot baseline.
                  */
-                nya_debug("Transport connection from %s.", nya_net_transport_peer_address(transport, event.peer));
+                nya_log_debug("Transport connection from %s.", nya_net_transport_peer_address(transport, event.peer));
             } break;
 
             case NYA_NET_TRANSPORT_EVENT_DISCONNECTED: _nya_net_server_remove(event.peer, event.reason); break;
@@ -693,7 +684,7 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
                  * — a length that does not match, a count past the limit. A well behaved client of any
                  * version cannot produce it, so it is either a broken client or a probe.
                  */
-                nya_warn("Dropping a peer that sent a malformed command: %s", (NYA_ConstCString)decoded.message);
+                nya_log_warn("Dropping a peer that sent a malformed command: %s", (NYA_ConstCString)decoded.message);
                 nya_net_server_kick(peer, NYA_NET_DISCONNECT_PROTOCOL);
                 return;
             }
@@ -761,7 +752,7 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
              * tick it does not hold, but there is no reason to let an impossible number in at all.
              */
             if (acked > _NYA_NET_SERVER.current_tick) {
-                nya_warn("Dropping a peer that acknowledged tick %llu when the server is at %llu.", (unsigned long long)acked,
+                nya_log_warn("Dropping a peer that acknowledged tick %llu when the server is at %llu.", (unsigned long long)acked,
                          (unsigned long long)_NYA_NET_SERVER.current_tick);
                 nya_net_server_kick(peer, NYA_NET_DISCONNECT_PROTOCOL);
                 return;
@@ -777,7 +768,7 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
             NYA_NetServerEventFn on_client_event = nya_callback_get(_NYA_NET_SERVER.config.on_client_event);
 
             if (on_client_event == nullptr) {
-                nya_debug("A client sent a game event and no on_client_event is registered; ignoring it.");
+                nya_log_debug("A client sent a game event and no on_client_event is registered; ignoring it.");
                 break;
             }
 
@@ -795,7 +786,7 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
              * addition to a game's event vocabulary a hard compatibility break.
              */
             if (!nya_net_message_read_object(scratch, body, body_size, &object).ok || object == nullptr) {
-                nya_debug("Ignoring an unreadable game event from '%s'.", state->public_state.name);
+                nya_log_debug("Ignoring an unreadable game event from '%s'.", state->public_state.name);
                 break;
             }
 
@@ -829,7 +820,7 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
      * Checking after parsing is not checking: the parse is the thing being protected against.
      */
     if (size > _NYA_NET_SERVER_MAX_HELLO) {
-        nya_warn("Refusing a %llu byte HELLO; the limit is %d.", (unsigned long long)size, _NYA_NET_SERVER_MAX_HELLO);
+        nya_log_warn("Refusing a %llu byte HELLO; the limit is %d.", (unsigned long long)size, _NYA_NET_SERVER_MAX_HELLO);
         nya_net_transport_disconnect(transport, peer, NYA_NET_DISCONNECT_PROTOCOL);
         return;
     }
@@ -872,7 +863,7 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
 
         (void)nya_net_transport_send(transport, peer, NYA_NET_CHANNEL_RELIABLE, payload->items, payload->length);
 
-        nya_warn("Refused a peer speaking protocol %llu/%llu; this build speaks %d/%d.", (unsigned long long)their_protocol,
+        nya_log_warn("Refused a peer speaking protocol %llu/%llu; this build speaks %d/%d.", (unsigned long long)their_protocol,
                  (unsigned long long)their_snapshot, NYA_NET_PROTOCOL_VERSION, NYA_NET_SNAPSHOT_VERSION);
         return;
     }
@@ -929,7 +920,7 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
 
     _nya_net_server_send(state, NYA_NET_CHANNEL_RELIABLE, welcome);
 
-    nya_info("Player '%s' joined from %s.", state->public_state.name, nya_net_transport_peer_address(transport, peer));
+    nya_log_info("Player '%s' joined from %s.", state->public_state.name, nya_net_transport_peer_address(transport, peer));
 
     _nya_net_server_broadcast_roster(peer, state->public_state.name, true);
 }
@@ -1259,7 +1250,7 @@ void _nya_net_server_remove(NYA_NetPeerId peer, NYA_NetDisconnect reason) {
         // what the barrier exists to make safe.
         if (nya_entity_is_valid(state->public_state.entity)) nya_entity_despawn_deferred(state->public_state.entity);
 
-        nya_info("Player '%s' left (%d).", state->public_state.name, (int)reason);
+        nya_log_info("Player '%s' left (%d).", state->public_state.name, (int)reason);
 
         if (state->public_state.is_local) _NYA_NET_SERVER.local_peer = NYA_NET_PEER_NONE;
         else if (_NYA_NET_SERVER.remote_peer_count > 0) _NYA_NET_SERVER.remote_peer_count--;
@@ -1324,5 +1315,5 @@ void _nya_net_server_send(_NYA_NetServerPeerState* state, NYA_NetChannel channel
 
     // A failed send is not a dead peer — a full buffer, a momentary route problem — so the timeout
     // decides rather than this. Logged at debug because on a bad connection it is not rare.
-    if (!sent.ok) nya_debug("Could not send to '%s': %s", state->public_state.name, (NYA_ConstCString)sent.message);
+    if (!sent.ok) nya_log_debug("Could not send to '%s': %s", state->public_state.name, (NYA_ConstCString)sent.message);
 }

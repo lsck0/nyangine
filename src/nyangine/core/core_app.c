@@ -52,6 +52,215 @@ NYA_INTERNAL void _nya_app_render(void);
  * */
 NYA_INTERNAL bool SDLCALL _nya_app_live_resize_event_watch(void* userdata, SDL_Event* event);
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * SUBSYSTEMS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Registers every engine subsystem with core_system.h's registry, in bring-up order. See
+ * `_nya_app_register_subsystems` below for the table itself and the ordering notes that used to hang
+ * above a `NYA_Subsystem _NYA_SUBSYSTEMS[]` array — the registration calls carry the same comments,
+ * in the same order, now that the array is gone.
+ *
+ * A bring-up that cannot fail returns NYA_OK. There is deliberately no `update` on any of these
+ * entries: the frame loop calls engine systems by name from `_nya_app_frame_step` and a game wants to
+ * interleave its own work between them, which a per-frame tick buried in this table would not allow.
+ * */
+NYA_INTERNAL void _nya_app_register_subsystems(void);
+
+NYA_INTERNAL NYA_Error _nya_app_bring_up_logfile(void) {
+    NYA_Error opened = nya_log_directory_open(NYA_LOG_DIRECTORY, NYA_LOG_RETENTION_DAYS);
+    if (!opened.ok) nya_log_warn("Continuing without a log file: %s", (NYA_ConstCString)opened.message);
+    return NYA_OK;
+}
+
+/*
+ * First, and before the settings it feeds.
+ *
+ * A failure here is not one: it means this machine has no writable home directory, which stops saving
+ * and stops nothing else. The return is deliberately discarded rather than unwinding — refusing to
+ * start a game because it cannot write a settings file is the wrong trade.
+ */
+NYA_INTERNAL NYA_Error _nya_app_bring_up_save(void) { (void)nya_system_save_init(); return NYA_OK; }
+
+/* Cannot fail: it owns no memory, and everything else may want to read a setting while coming up.
+ * Loads whatever the save system found, or the defaults when it found nothing. */
+NYA_INTERNAL NYA_Error _nya_app_bring_up_settings(void) { nya_system_settings_init(); return NYA_OK; }
+
+NYA_INTERNAL NYA_Error _nya_app_bring_up_job(void) { return nya_system_job_init(); }
+NYA_INTERNAL NYA_Error _nya_app_bring_up_callback(void) { nya_system_callback_init(); return NYA_OK; }
+/* After the callback registry, whose handles a tween's on_complete resolves through. */
+NYA_INTERNAL NYA_Error _nya_app_bring_up_tween(void) { nya_system_tween_init(); return NYA_OK; }
+NYA_INTERNAL NYA_Error _nya_app_bring_up_renderer(void) { return nya_system_renderer_init(); }
+NYA_INTERNAL NYA_Error _nya_app_bring_up_window(void) { nya_system_window_init(); return NYA_OK; }
+NYA_INTERNAL NYA_Error _nya_app_bring_up_events(void) { return nya_system_events_init(); }
+NYA_INTERNAL NYA_Error _nya_app_bring_up_input(void) { nya_system_input_init(); return NYA_OK; }
+/* After the event system, whose drain loop hands it the SDL events it consumes. */
+NYA_INTERNAL NYA_Error _nya_app_bring_up_gamepad(void) { nya_system_gamepad_init(); return NYA_OK; }
+NYA_INTERNAL NYA_Error _nya_app_bring_up_asset(void) { nya_system_asset_init(); return NYA_OK; }
+
+/*
+ * After the asset system, because a locale file is an asset: the bytes are read through nya_asset_read
+ * and the file is watched by registering it, both of which need the registry up.
+ *
+ * Loads nothing by itself. A game localises by calling nya_i18n_load with the generated key table, and
+ * one that never does pays a frame hook that returns on its first branch.
+ */
+NYA_INTERNAL NYA_Error _nya_app_bring_up_i18n(void) { nya_system_i18n_init(); return NYA_OK; }
+
+/*
+ * After the asset system, for the same reason i18n is: a config file is read through nya_asset_read
+ * and, under NYA_ASSET_HOT_RELOAD, watched by registering it, both of which need the registry up.
+ *
+ * Loads nothing by itself. A game calls nya_config_load or nya_config_watch with its own struct and
+ * a path, and one that never does pays nothing beyond an arena and, under hot reload, a frame hook
+ * that walks an empty table.
+ */
+NYA_INTERNAL NYA_Error _nya_app_bring_up_config(void) { nya_system_config_init(); return NYA_OK; }
+
+/* After the asset system, which creates the mixer these tracks are made on. */
+NYA_INTERNAL NYA_Error _nya_app_bring_up_audio(void) { return nya_system_audio_init(); }
+
+/*
+ * The world, which is entities, physics and the simulation barrier as one lifetime.
+ *
+ * These used to be three separate bring-ups, in an order that mattered and was explained by a comment:
+ * physics has to outlive entities, because despawning an entity destroys the rigid body it carries.
+ * That ordering now lives inside nya_world_create, where no caller can get it wrong.
+ */
+NYA_INTERNAL NYA_Error _nya_app_bring_up_world(void) {
+    NYA_App* app = nya_app_get();
+    app->world   = nya_world_create();
+    (void)nya_world_set(app->world);
+    return NYA_OK;
+}
+
+NYA_INTERNAL void _nya_app_tear_down_save(void) { nya_system_save_deinit(); }
+
+/* Last, so the teardown of everything above it is in the file. */
+NYA_INTERNAL void _nya_app_tear_down_logfile(void) { nya_log_file_close(); }
+
+/* After settings, which writes its file on the way out into the directory the save system owns. */
+NYA_INTERNAL void _nya_app_tear_down_settings(void) { nya_system_settings_deinit(); }
+
+NYA_INTERNAL void _nya_app_tear_down_job(void) { nya_system_job_deinit(); }
+NYA_INTERNAL void _nya_app_tear_down_callback(void) { nya_system_callback_deinit(); }
+/* Before the callback registry it resolves completion handles through. */
+NYA_INTERNAL void _nya_app_tear_down_tween(void) { nya_system_tween_deinit(); }
+NYA_INTERNAL void _nya_app_tear_down_renderer(void) { nya_system_renderer_deinit(); }
+NYA_INTERNAL void _nya_app_tear_down_window(void) { nya_system_window_deinit(); }
+NYA_INTERNAL void _nya_app_tear_down_events(void) { nya_system_events_deinit(); }
+NYA_INTERNAL void _nya_app_tear_down_input(void) { nya_system_input_deinit(); }
+NYA_INTERNAL void _nya_app_tear_down_asset(void) { nya_system_asset_deinit(); }
+
+/* Before the event system stops feeding it, and before the process ends with a pad still buzzing. */
+NYA_INTERNAL void _nya_app_tear_down_gamepad(void) { nya_system_gamepad_deinit(); }
+
+/* Before the asset system, since its watch hook resolves locale files through the registry. */
+NYA_INTERNAL void _nya_app_tear_down_i18n(void) { nya_system_i18n_deinit(); }
+
+/* Before the asset system, since its watch hook resolves config files through the registry. */
+NYA_INTERNAL void _nya_app_tear_down_config(void) { nya_system_config_deinit(); }
+
+/* Before the asset system destroys the mixer the tracks belong to. */
+NYA_INTERNAL void _nya_app_tear_down_audio(void) { nya_system_audio_deinit(); }
+
+/* Everything the world holds — every entity, every rigid body, and whatever the game hung off
+ * user_data — goes here, in the order nya_world_destroy knows about. */
+NYA_INTERNAL void _nya_app_tear_down_world(void) {
+    NYA_App* app = nya_app_get();
+    (void)nya_world_set(nullptr);
+    nya_world_destroy(app->world);
+    app->world = nullptr;
+}
+
+/**
+ * Registers every engine subsystem, in bring-up order, each chained `after` the one before it so
+ * nya_system_registry_finalize cannot produce anything but this exact order. **Teardown is this order
+ * in reverse** — nya_system_registry_run_deinit's own contract, not something this function arranges.
+ *
+ * That reversal is a constraint on the order rather than a happy accident, and two entries sit where
+ * they do because of it:
+ *
+ * - **`window` is last**, though it only allocates a table and could come up much earlier. Destroying a
+ *   window runs on_destroy for every layer on it — game code, which legitimately reads assets, audio,
+ *   the renderer and the world. Putting it last is what makes it tear down *first*, before any of them.
+ *   This has bitten three separate times: layers reading a freed world, layers reading a zeroed entity
+ *   table, and a render texture leaked because the layer that owned it bailed out on a world that had
+ *   already been destroyed. Teardown runs outside-in, and game code is the outermost layer.
+ *
+ * - **`callback` comes before `job`**, so the workers stop before the registry they resolve function
+ *   pointers through is freed. Neither depends on the other coming up first, so the order is chosen
+ *   entirely by what teardown needs.
+ *
+ * This used to be a `const NYA_Subsystem _NYA_SUBSYSTEMS[]` array, reversed for teardown by iterating
+ * it backwards — a single list specifically so it cannot disagree with itself, unlike an earlier
+ * version with two macro lists and a static_assert cross-checking them, which is exactly how
+ * nya_system_audio_deinit came to never be called. Registering into core_system.h's shared registry
+ * keeps that same one-list guarantee: there is nowhere here to write a deinit order that disagrees
+ * with the init order above it, because there is no second list, only `after`.
+ * */
+void _nya_app_register_subsystems(void) {
+    // First up and last down, so every line another subsystem writes on its way up or down is in the file.
+    nya_system_register((NYA_SystemEntry){ .name = "logfile", .init = _nya_app_bring_up_logfile, .deinit = _nya_app_tear_down_logfile });
+
+    // Before the settings it feeds.
+    nya_system_register((NYA_SystemEntry){ .name = "save", .after = "logfile", .init = _nya_app_bring_up_save, .deinit = _nya_app_tear_down_save });
+    nya_system_register((NYA_SystemEntry){ .name         = "settings",
+                                            .after        = "save",
+                                            .init         = _nya_app_bring_up_settings,
+                                            .deinit       = _nya_app_tear_down_settings });
+
+    // Before job, so the workers stop before the registry they resolve through is freed.
+    nya_system_register((NYA_SystemEntry){ .name         = "callback",
+                                            .after        = "settings",
+                                            .init         = _nya_app_bring_up_callback,
+                                            .deinit       = _nya_app_tear_down_callback });
+    nya_system_register((NYA_SystemEntry){ .name = "job", .after = "callback", .init = _nya_app_bring_up_job, .deinit = _nya_app_tear_down_job });
+
+    // After the callback registry, whose handles a tween's on_complete resolves through.
+    nya_system_register((NYA_SystemEntry){ .name = "tween", .after = "job", .init = _nya_app_bring_up_tween, .deinit = _nya_app_tear_down_tween });
+
+    nya_system_register((NYA_SystemEntry){ .name         = "renderer",
+                                            .after        = "tween",
+                                            .init         = _nya_app_bring_up_renderer,
+                                            .deinit       = _nya_app_tear_down_renderer });
+    nya_system_register((NYA_SystemEntry){ .name = "events", .after = "renderer", .init = _nya_app_bring_up_events, .deinit = _nya_app_tear_down_events });
+    nya_system_register((NYA_SystemEntry){ .name = "input", .after = "events", .init = _nya_app_bring_up_input, .deinit = _nya_app_tear_down_input });
+
+    // After events, whose drain loop hands it the SDL events it consumes.
+    nya_system_register((NYA_SystemEntry){ .name         = "gamepad",
+                                            .after        = "input",
+                                            .init         = _nya_app_bring_up_gamepad,
+                                            .deinit       = _nya_app_tear_down_gamepad });
+
+    nya_system_register((NYA_SystemEntry){ .name = "asset", .after = "gamepad", .init = _nya_app_bring_up_asset, .deinit = _nya_app_tear_down_asset });
+
+    // After the asset system: a locale file is an asset, read and watched through the registry.
+    nya_system_register((NYA_SystemEntry){ .name = "i18n", .after = "asset", .init = _nya_app_bring_up_i18n, .deinit = _nya_app_tear_down_i18n });
+
+    // After the asset system, for the same reason i18n is: a config file is read and, under hot
+    // reload, watched through the registry.
+    nya_system_register((NYA_SystemEntry){ .name = "config", .after = "i18n", .init = _nya_app_bring_up_config, .deinit = _nya_app_tear_down_config });
+
+    // After the asset system, which creates the mixer these tracks are made on — and so torn down
+    // before it destroys that mixer.
+    nya_system_register((NYA_SystemEntry){ .name = "audio", .after = "config", .init = _nya_app_bring_up_audio, .deinit = _nya_app_tear_down_audio });
+
+    nya_system_register((NYA_SystemEntry){ .name = "world", .after = "audio", .init = _nya_app_bring_up_world, .deinit = _nya_app_tear_down_world });
+
+    // Last, so it is the first thing torn down. See the note above.
+    nya_system_register((NYA_SystemEntry){ .name = "window", .after = "world", .init = _nya_app_bring_up_window, .deinit = _nya_app_tear_down_window });
+
+    // A finalize failure here is a typo in one of the .after strings above, in a table only this
+    // function writes — a programmer error to catch at the next boot, not a runtime condition to
+    // recover from, which is why this asserts instead of propagating an NYA_Error to its own caller.
+    NYA_Error finalized = nya_system_registry_finalize();
+    nya_assert(finalized.ok, "engine subsystem registration is broken: %s", (NYA_ConstCString)finalized.message);
+}
+
 /**
  * One frame of update and render, without the parts of the loop that cannot safely run nested.
  *
@@ -105,101 +314,45 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
         .frame_stats.min_frame_time_ns  = 1'000'000'000 / (u64)options.frame_rate_limit,
     };
 
-    nya_info("Nyangine initialized. Initializing subsystems...");
+    nya_log_info("Nyangine initialized. Initializing subsystems...");
 
-    // Brought up in dependency order, and unwound in the reverse of however far we got. The
-    // alternative, returning early and leaving half a world standing, would leave the caller with
-    // nothing safe to do: nya_app_deinit would tear down systems that were never built.
+    _nya_app_register_subsystems();
+
+    // Brought up in registration order and unwound in reverse of however far we got. Returning early
+    // and leaving half a world standing would leave the caller with nothing safe to do: nya_app_deinit
+    // would tear down systems that were never built.
+    //
+    // Deliberately not nya_system_registry_run_init: that stops on the first error too, but this still
+    // needs init_at/deinit_at rather than run_deinit for the unwind, because run_deinit tears down
+    // *everything* registered, not just what actually came up before the failure. See core_system.h's
+    // note on why those two accessors exist.
     NYA_Error result     = NYA_OK;
     u32       brought_up = 0;
 
-#define _NYA_APP_BRING_UP(expression)                                                                                                                \
-    result = (expression);                                                                                                                           \
-    if (!result.ok) goto unwind;                                                                                                  \
-    brought_up++;
-
-    /*
-     * First, and before the settings it feeds.
-     *
-     * A failure here is not one: it means this machine has no writable home directory, which stops
-     * saving and stops nothing else. The return is deliberately discarded rather than unwinding —
-     * refusing to start a game because it cannot write a settings file is the wrong trade.
-     */
-    (void)nya_system_save_init();
-    brought_up++;
-
-    // Second, and cannot fail: it owns no memory, and everything else may want to read a setting
-    // while coming up. Loads whatever the save system found, or the defaults when it found nothing.
-    nya_system_settings_init();
-    brought_up++;
-
-    _NYA_APP_BRING_UP(nya_system_job_init());
-    nya_system_callback_init();
-    brought_up++;
-    _NYA_APP_BRING_UP(nya_system_renderer_init());
-    nya_system_window_init();
-    brought_up++;
-    _NYA_APP_BRING_UP(nya_system_events_init());
-    nya_system_input_init();
-    brought_up++;
-    nya_system_asset_init();
-    brought_up++;
-    /*
-     * After the asset system, because a locale file is an asset: the bytes are read through
-     * nya_asset_read and the file is watched by registering it, both of which need the registry up.
-     *
-     * Loads nothing by itself. A game localises by calling nya_i18n_load with the generated key table,
-     * and one that never does pays a frame hook that returns on its first branch.
-     */
-    nya_system_i18n_init();
-    brought_up++;
-    // After the asset system, which creates the mixer these tracks are made on.
-    _NYA_APP_BRING_UP(nya_system_audio_init());
-    /*
-     * The world, which is entities, physics and the simulation barrier as one lifetime.
-     *
-     * These used to be three separate bring-ups here, in an order that mattered and was explained by
-     * a comment: physics has to outlive entities, because despawning an entity destroys the rigid
-     * body it carries. That ordering now lives inside nya_world_create, where no caller can get it
-     * wrong — including this one's unwind path, which used to have to repeat it backwards.
-     */
-    app->world = nya_world_create();
-    (void)nya_world_set(app->world);
-    brought_up++;
-
-#undef _NYA_APP_BRING_UP
+    for (; brought_up < nya_system_registry_count(); brought_up++) {
+        NYA_SystemInitFn init = nya_system_registry_init_at(brought_up);
+        result                = init != nullptr ? init() : NYA_OK;
+        if (!result.ok) goto unwind;
+    }
 
     // After the renderer and the windows, since the watcher draws. Failing to register it is not
     // fatal: it only costs the frames that would have been produced during a resize drag.
     if (!SDL_AddEventWatch(_nya_app_live_resize_event_watch, nullptr)) {
-        nya_warn("SDL_AddEventWatch() failed, the window will not redraw while being resized: %s", SDL_GetError());
+        nya_log_warn("SDL_AddEventWatch() failed, the window will not redraw while being resized: %s", SDL_GetError());
     }
 
-    nya_info("Subsystems initialized successfully.");
+    nya_log_info("Subsystems initialized successfully.");
     return NYA_OK;
 
 unwind:
-    nya_log_error("Subsystem initialization failed after %u of 11 systems; unwinding. %s", brought_up, (NYA_ConstCString)result.message);
+    nya_log_error("Subsystem initialization failed at '%s'; unwinding. %s", nya_system_registry_name_at(brought_up),
+                  (NYA_ConstCString)result.message);
 
-    // Reverse order, skipping everything that never came up.
-    if (brought_up > 10) {
-        (void)nya_world_set(nullptr);
-        nya_world_destroy(app->world);
-        app->world = nullptr;
+    // Reverse, skipping the one that failed and everything after it.
+    for (u32 i = brought_up; i > 0; i--) {
+        NYA_SystemDeinitFn deinit = nya_system_registry_deinit_at(i - 1);
+        if (deinit != nullptr) deinit();
     }
-    // Before the asset system destroys the mixer the tracks belong to.
-    if (brought_up > 10) nya_system_audio_deinit();
-    // Before the asset system, since its watch hook resolves locale files through the registry.
-    if (brought_up > 9) nya_system_i18n_deinit();
-    if (brought_up > 8) nya_system_asset_deinit();
-    if (brought_up > 7) nya_system_input_deinit();
-    if (brought_up > 6) nya_system_events_deinit();
-    if (brought_up > 5) nya_system_window_deinit();
-    if (brought_up > 4) nya_system_renderer_deinit();
-    if (brought_up > 3) nya_system_callback_deinit();
-    if (brought_up > 2) nya_system_job_deinit();
-    if (brought_up > 1) nya_system_settings_deinit();
-    if (brought_up > 0) nya_system_save_deinit();
 
     nya_arena_destroy(app->frame_allocator);
     nya_arena_destroy(app->live_resize_allocator);
@@ -223,49 +376,17 @@ f64 nya_app_uptime_s(void) {
 void nya_app_deinit(void) {
     NYA_App* app = nya_app_get();
 
-    nya_info("Deinitializing subsystems...");
+    nya_log_info("Deinitializing subsystems...");
 
     // Before the renderer goes away, or a late expose could still ask a dead device to draw.
     SDL_RemoveEventWatch(_nya_app_live_resize_event_watch, nullptr);
 
-    /*
-     * Game code first, engine second. Both of the next two lines run callbacks the game wrote, and
-     * those callbacks expect the engine to still be standing.
-     *
-     * Destroying a window runs on_destroy for every layer on it; emptying the world runs on_despawn
-     * for every entity in it. Both are game code, and both legitimately touch assets, audio, the
-     * renderer and — for the layers — the world itself. So the windows go before the world, and the
-     * world goes before every system either of them might call into.
-     *
-     * This ordering has bitten three separate times: layers reading a freed world, layers reading a
-     * zeroed entity table, and a render texture leaked because the layer that owned it bailed out on
-     * a world that had already been destroyed. The rule that prevents all three is the one written
-     * above — teardown runs outside-in, and game code is the outermost layer.
-     */
-    nya_system_window_deinit();
+    // The registered order in reverse — the same order the unwind path uses, and for the same reasons.
+    // Safe to use run_deinit here unlike in the unwind path: by the time nya_app_deinit runs, every
+    // subsystem came up, so "deinit everything registered" and "deinit everything that came up" agree.
+    nya_system_registry_run_deinit();
 
-    // Everything the world holds — every entity, every rigid body, and whatever the game hung off
-    // user_data — goes here, in the order nya_world_destroy knows about.
-    (void)nya_world_set(nullptr);
-    nya_world_destroy(app->world);
-    app->world = nullptr;
-
-    // Before the asset system, since its watch hook resolves locale files through the registry.
-    nya_system_i18n_deinit();
-    nya_system_asset_deinit();
-    nya_system_input_deinit();
-    nya_system_events_deinit();
-    nya_system_renderer_deinit();
-    nya_system_job_deinit();
-    nya_system_callback_deinit();
-    // Settings before save, because settings writes its file on the way out and the save system owns
-    // the directory it writes into.
-    // base's, not a subsystem — but this is where the process tears down, and a loaded locale is an
-    // arena that should not outlive it.
-    nya_system_settings_deinit();
-    nya_system_save_deinit();
-
-    nya_info("Subsystems deinitialized successfully.");
+    nya_log_info("Subsystems deinitialized successfully.");
 
     nya_arena_destroy(app->frame_allocator);
     nya_arena_destroy(app->live_resize_allocator);
@@ -276,7 +397,7 @@ void nya_app_deinit(void) {
 
     app->initialized = false;
 
-    nya_info("Nyangine deinitialized. Goodbye.");
+    nya_log_info("Nyangine deinitialized. Goodbye.");
 }
 
 void nya_app_run(void) {
@@ -297,6 +418,13 @@ void nya_app_run(void) {
             });
 
             _nya_app_advance_frame_clock();
+
+            // Cheap, and does nothing until the UTC date actually changes. Without it a process that
+            // runs across midnight puts every following day into the file it started in.
+            nya_log_directory_roll();
+
+            // Before events are drained: the edges this clears are set by the events about to arrive.
+            nya_system_gamepad_frame_begin();
         }
 
         // handle events
@@ -451,6 +579,18 @@ void _nya_app_update(void) {
                 on_update_fn(window, app->frame_stats.delta_time_s);
             }
         }
+
+        /*
+         * Tweens after the layers and before the entities, and the ordering is load-bearing in both
+         * directions.
+         *
+         * After the layers, so a tween started this tick takes its first sample from the value the
+         * layer just set rather than from last tick's. Before the entities, because an entity's
+         * interpolated motion *is* a tween writing into NYA_Entity.move_position, and
+         * nya_system_entity_update is what copies that onto the transform — the other order would
+         * apply every move one tick stale. See nya_entity_move_to.
+         */
+        nya_system_tween_update(app->frame_stats.delta_time_s);
 
         // Entities update after the layers, so a layer that spawns something gets it
         // simulated on the same tick rather than a frame late.

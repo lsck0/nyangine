@@ -350,7 +350,7 @@ void nya_nn_neat_network_set_sensor(NYA_NeatNetwork* network, NYA_ConstCString l
         return;
     }
 
-    nya_panic("no sensor named '%s'", label);
+    nya_log_panic("no sensor named '%s'", label);
 }
 
 f64 nya_nn_neat_network_get_output(NYA_NeatNetwork* network, NYA_ConstCString label) {
@@ -364,7 +364,7 @@ f64 nya_nn_neat_network_get_output(NYA_NeatNetwork* network, NYA_ConstCString la
         return node->value;
     }
 
-    nya_panic("no output named '%s'", label);
+    nya_log_panic("no output named '%s'", label);
 }
 
 /*
@@ -1592,7 +1592,7 @@ void _nya_nn_neat_phase_respeciate(NYA_Neat* neat, _NYA_NeatGeneration* generati
         fallback.representative = fallback.members->items[0];
         nya_array_push_back(generation->respeciated, fallback);
 
-        nya_warn("every NEAT species went extinct in generation %u; reseeded from the best genome", neat->generation);
+        nya_log_warn("every NEAT species went extinct in generation %u; reseeded from the best genome", neat->generation);
     }
 
     /*

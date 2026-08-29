@@ -38,7 +38,7 @@ s32 main(void) {
 
   // Refusing the number is a fine outcome. Accepting it and changing it is not.
   if (!result.ok) {
-    nya_info("PASSED: an over long number is rejected rather than truncated");
+    nya_log_info("PASSED: an over long number is rejected rather than truncated");
     nya_arena_destroy(arena);
     return 0;
   }
@@ -57,6 +57,6 @@ s32 main(void) {
 
   nya_arena_destroy(arena);
 
-  nya_info("PASSED: a long JSON number keeps its value");
+  nya_log_info("PASSED: a long JSON number keeps its value");
   return 0;
 }

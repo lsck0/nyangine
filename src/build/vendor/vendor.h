@@ -1,16 +1,12 @@
 /**
  * @file vendor.h
  *
- * Every vendored third party dependency, one NYA_VendorRule per dependency per target.
+ * Every vendored third party dependency, one NYA_VendorRule per dependency per target. A vendor
+ * rule describes how to build it and what a consumer needs to compile/link against it; a build
+ * rule just names it in `.vendors` and the flags get spliced in, so the dependency list can't drift.
  *
- * A vendor rule fully describes one dependency: how to build it, and what a consumer needs in
- * order to compile and link against it. A build rule never spells any of that out, it just names
- * the vendor in its `.vendors` list and the build system splices the flags in. That is what stops
- * a growing dependency list from turning into a growing pile of per-target flag macros.
- *
- * Everything in NYA_VENDORS is built up front by nya_vendor_build_all before any rule runs, so no
- * rule ever has to worry about whether what it links against exists yet. Vendor parts are
- * NYA_BUILD_ONCE, so after the first run this costs a few file existence checks.
+ * NYA_VENDORS is built up front by nya_vendor_build_all before any rule runs; parts are
+ * NYA_BUILD_ONCE so after the first run this is just a few file existence checks.
  * */
 #pragma once
 
@@ -43,18 +39,11 @@
 // clang-format off
 
 /**
- * Everything the project links against, per target.
+ * Everything the project links against, per target. One list per target rather than one per rule,
+ * since the debug/developer/release rules all link the same libraries.
  *
- * One list per target rather than one per rule. Every project rule names the same set — the debug
- * pair, the developer pair and the release executable all link the same libraries — so spelling it
- * out fifteen times only created fifteen places for it to drift apart.
- *
- * These are also what NYA_VENDORS is built from, which is what keeps "built before anything runs"
- * and "spliced into the link line" from ever disagreeing.
- *
- * Order is not alphabetical and is not free: archives are searched left to right, so a dependency
- * that calls into another has to come first. sqlean and sqlvec both call into libsqlite3, which is
- * why they sit ahead of it rather than beside it.
+ * Order is not alphabetical: archives are searched left to right, so a dependency that calls into
+ * another must come first — sqlean and sqlvec both call into libsqlite3, so they sit ahead of it.
  * */
 #define NYA_PROJECT_VENDORS_LINUX_X86_64                                                            \
     &vendor_sdl_linux_x86_64,     &vendor_sdl_image_linux_x86_64,  &vendor_sdl_ttf_linux_x86_64,    \
@@ -73,16 +62,10 @@
 // clang-format on
 
 /*
- * Build order is not link order, and the arrays below are build order.
- *
- * sqlean and sqlvec compile against sqlite3.h, which sqlite's configure step generates, so sqlite has
- * to be *built* before either of them. They also call into libsqlite3.a, so on the link line they
- * have to come *before* it. Both constraints hold at once, and the project lists above are link
- * order because linking is what they are spliced into.
- *
- * So sqlite is named once more here, up front, purely to get it built early. Listing a vendor twice
- * costs a handful of file existence checks and nothing else: every part it has is NYA_BUILD_ONCE or
- * NYA_BUILD_IF_OUTDATED, and nya_build memoizes a rule it has already run this invocation.
+ * Build order is not link order, and the arrays below are build order: sqlean and sqlvec compile
+ * against sqlite3.h, which sqlite's configure step generates, so sqlite must be built before them —
+ * hence it's named again here, up front. Listing it twice costs nothing since its parts are
+ * NYA_BUILD_ONCE/NYA_BUILD_IF_OUTDATED and nya_build memoizes rules already run this invocation.
  */
 
 /** Everything needed to produce a Linux target. */
@@ -102,17 +85,15 @@ NYA_VendorRule* NYA_VENDORS_WINDOWS_X86_64[] = {
 };
 
 /**
- * The vendors the engine compiles and links against, for every target this host builds.
- *
- * This is what gets built before any rule runs, so a clean checkout pays for all of it once —
- * including on `./build stats`, which needs none of it. That is the price of the project rules
- * being able to assume everything they link against already exists.
+ * The vendors the engine compiles and links against, for every target this host builds. Built
+ * before any rule runs (even `./build stats`), so project rules can assume everything they link
+ * against already exists.
  *
  * On a Linux host that means both targets, so a machine without mingw-w64 will fail here; swap in
- * NYA_VENDORS_LINUX_X86_64 if that is not wanted. A Windows host builds Windows only (see build.h),
- * and the Linux rules are left out rather than merely unused: none of them carries a cross
- * compiling toolchain, so on that host they would configure natively and quietly fill
- * build-linux-x86_64/ with Windows artifacts.
+ * NYA_VENDORS_LINUX_X86_64 if that is not wanted. A Windows host builds Windows only (see build.h);
+ * the Linux rules are left out rather than merely unused because none carries a cross compiling
+ * toolchain, so they would configure natively and quietly fill build-linux-x86_64/ with Windows
+ * artifacts.
  * */
 NYA_VendorRule* NYA_VENDORS[] = {
 #if !OS_WINDOWS
@@ -127,14 +108,9 @@ NYA_VendorRule* NYA_VENDORS[] = {
 };
 
 /**
- * Every vendor that has a rule, including ones nothing links against yet.
- *
- * Kept separate from NYA_VENDORS on purpose: these are described but not yet consumed, so building
- * them on every invocation would be a long wait for nothing. `./build vendor` uses this list, so
- * there is still one command that brings the whole tree up.
- *
- * "Whole tree" means whole tree *for this host*: the Linux rules are omitted on Windows for the
- * same reason they are omitted from NYA_VENDORS.
+ * Every vendor that has a rule, including ones nothing links against yet. Kept separate from
+ * NYA_VENDORS so building the unused ones isn't a cost on every invocation; `./build vendor` uses
+ * this list. Linux rules are still omitted on Windows, for the same reason as in NYA_VENDORS.
  * */
 NYA_VendorRule* NYA_VENDORS_ALL[] = {
     // A host tool rather than a target artifact, so it is built on every host.

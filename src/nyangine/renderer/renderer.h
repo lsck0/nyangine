@@ -10,6 +10,9 @@
 // The 3D batch embeds an NYA_Render3DLight and an NYA_Render3DMaterial by value, so their
 // definitions have to be complete here. render3d.h deliberately includes nothing from this file.
 #include "nyangine/renderer/render3d.h"
+// Here rather than beside render_sort.h and render_lod.h at the bottom: the 3D batch holds an
+// NYA_OcclusionBuffer pointer, and a pointer to an undeclared type is not a type.
+#include "nyangine/renderer/render_occlusion.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -65,11 +68,9 @@ enum NYA_Render2DFlushReason {
 };
 
 /**
- * The most uniform bytes a custom shader may be given.
- *
- * Small on purpose. This is per draw call state pushed inline into the command buffer, not a buffer
- * to stream data through — a blur needs a texel size and a direction, which is sixteen bytes. Wanting
- * kilobytes here means wanting a storage buffer instead.
+ * The most uniform bytes a custom shader may be given. Small on purpose: this is per draw call state
+ * pushed inline into the command buffer, not a buffer to stream data through — a blur needs a texel size
+ * and a direction, which is sixteen bytes. Wanting kilobytes here means wanting a storage buffer instead.
  * */
 #ifndef NYA_RENDER2D_MAX_UNIFORM_BYTES
 #define NYA_RENDER2D_MAX_UNIFORM_BYTES 128
@@ -77,23 +78,16 @@ enum NYA_Render2DFlushReason {
 
 
 /**
- * How a texture is sampled when it is not drawn at exactly its own size.
- *
- * A property of the image rather than of the draw, so it is set once on the texture asset: a pixel
- * art tile sheet wants the same answer everywhere it appears, and a photographic background wants
- * the other one everywhere.
- *
- * Lives here rather than in core_asset.h, which is where it is *used*, because that header already
- * includes this one and the reverse would be a cycle.
+ * How a texture is sampled when it is not drawn at exactly its own size. A property of the image rather
+ * than of the draw, so it is set once on the texture asset: a pixel art tile sheet wants the same answer
+ * everywhere it appears, and a photographic background wants the other one everywhere. Lives here rather
+ * than in core_asset.h, which is where it is *used*, because that header already includes this one and
+ * the reverse would be a cycle.
  * */
 enum NYA_TextureFilter {
-    /**
-     * Blends neighbouring texels. Right for photographic art, gradients and scaled up UI.
-     *
-     * The default, and wrong for pixel art in two ways: it blurs, and at a sheet edge it samples
-     * pixels belonging to the *next* tile, which shows up as a seam that appears and disappears as
-     * the camera scrolls to fractional offsets.
-     * */
+    // Blends neighbouring texels. Right for photographic art, gradients and scaled up UI. The default,
+    // and wrong for pixel art in two ways: it blurs, and at a sheet edge it samples pixels belonging to
+    // the *next* tile, a seam that appears and disappears as the camera scrolls to fractional offsets.
     NYA_TEXTURE_FILTER_LINEAR,
 
     /** Nearest texel, no blending. What pixel art and tile sheets want. */
@@ -112,39 +106,31 @@ struct NYA_RenderSystem {
     SDL_GPUDevice* gpu_device;
 
     /**
-     * Owns anything the renderer keeps for the lifetime of the process, which today is the shape
-     * batch's CPU side vertex staging, one buffer per window.
-     *
-     * Its own arena rather than the app's frame allocator: that one is reset every frame, and these
-     * allocations have to outlive the frame that made them. Same shape as the entity, input and
-     * callback systems, which each own one for the same reason.
+     * Owns anything the renderer keeps for the lifetime of the process, which today is the shape batch's
+     * CPU side vertex staging, one buffer per window. Its own arena rather than the app's frame allocator,
+     * since that one is reset every frame and these allocations have to outlive the frame that made them —
+     * same shape as the entity, input and callback systems, which each own one for the same reason.
      * */
     NYA_Arena* allocator;
 
     /**
-     * The samplers textured draws read through, one per NYA_TextureFilter, both clamped to the edge.
-     *
-     * Two rather than one per texture: a sampler says how to read rather than what is being read, so
-     * every texture wanting the same filter can share one. Which of them a draw uses comes off the
-     * texture asset, and a change between draws costs a draw call, because a draw call binds one.
-     *
-     * CLAMP_TO_EDGE on both. REPEAT would wrap a uv that lands a hair outside a sub-rectangle round
-     * to the far side of the texture, which shows up as a stray line of some unrelated tile or glyph
+     * The samplers textured draws read through, one per NYA_TextureFilter, both clamped to the edge. Two
+     * rather than one per texture: a sampler says how to read rather than what is being read, so every
+     * texture wanting the same filter can share one, and a change between draws costs a draw call, since a
+     * draw call binds one. CLAMP_TO_EDGE on both — REPEAT would wrap a uv landing a hair outside a
+     * sub-rectangle round to the far side of the texture, a stray line of some unrelated tile or glyph
      * along an edge.
      * */
     SDL_GPUSampler* samplers[NYA_TEXTURE_FILTER_COUNT];
 
     /**
-     * Samples per pixel, decided once at startup and used by every pipeline and every render target.
-     *
-     * Anti-aliasing for shapes and text: without it a line's edge is a hard staircase, because the
-     * batch rasterizes geometry with no coverage information of its own. Four is the usual sweet
-     * spot; the driver is asked first and this falls back to one when it says no, which is why it is
-     * stored rather than being a constant.
-     *
-     * One value for everything on purpose. A pipeline bakes its sample count in, so a pipeline built
-     * for four samples cannot draw into a single-sampled target — mixing them would mean a second
-     * copy of every pipeline.
+     * Samples per pixel, decided once at startup and used by every pipeline and every render target —
+     * anti-aliasing for shapes and text, without which a line's edge is a hard staircase, since the batch
+     * rasterizes geometry with no coverage information of its own. Four is the usual sweet spot; the
+     * driver is asked first and this falls back to one when it says no, which is why it is stored rather
+     * than a constant. One value for everything on purpose: a pipeline bakes its sample count in, so a
+     * pipeline built for four samples cannot draw into a single-sampled target — mixing them would mean a
+     * second copy of every pipeline.
      * */
     SDL_GPUSampleCount sample_count;
 
@@ -153,21 +139,19 @@ struct NYA_RenderSystem {
 
     /**
      * The depth format every window's depth buffer and every depth-testing pipeline is built at.
-     *
-     * Negotiated once, like the sample count and for the same reason: a pipeline bakes its depth
-     * format in, so two formats would mean two copies of every 3D pipeline. D24_UNORM is asked for
-     * first and D32_FLOAT is the fallback, which every backend has.
+     * Negotiated once, like the sample count and for the same reason: a pipeline bakes its depth format
+     * in, so two formats would mean two copies of every 3D pipeline. D24_UNORM is asked for first,
+     * D32_FLOAT is the fallback that every backend has.
      * */
     SDL_GPUTextureFormat depth_format;
 };
 
 /**
- * An offscreen texture that can be drawn into and then drawn *with*.
- *
- * The engine's counterpart to raylib's RenderTexture2D. Created at the swapchain's own format on
- * purpose: a graphics pipeline is compiled against the format of the target it writes to, so a
- * render texture in some other format would need its own copy of every pipeline that draws into it.
- * Matching the swapchain means one set of pipelines serves both.
+ * An offscreen texture that can be drawn into and then drawn *with*. The engine's counterpart to raylib's
+ * RenderTexture2D. Created at the swapchain's own format on purpose: a graphics pipeline is compiled
+ * against the format of the target it writes to, so a render texture in some other format would need its
+ * own copy of every pipeline that draws into it. Matching the swapchain means one set of pipelines serves
+ * both.
  * */
 struct NYA_RenderTexture {
     /**
@@ -176,21 +160,17 @@ struct NYA_RenderTexture {
     SDL_GPUTexture* texture;
 
     /**
-     * The multisampled surface actually rendered into, resolved onto `texture` when the pass ends.
-     *
-     * Null when the device does not support multisampling, in which case `texture` is drawn into
-     * directly. Every path here has to cope with both, which is why this is checked rather than
-     * assumed.
+     * The multisampled surface actually rendered into, resolved onto `texture` when the pass ends. Null
+     * when the device does not support multisampling, in which case `texture` is drawn into directly —
+     * every path here has to cope with both, which is why this is checked rather than assumed.
      * */
     SDL_GPUTexture* msaa_texture;
 
     /**
-     * The depth buffer for passes that draw into this texture.
-     *
-     * Present for the same reason the window has one and created with it, so that a 3D scene
-     * rendered offscreen — into a bloom or CRT pass, say — occludes itself exactly as it would on
-     * the swapchain. A render texture without one would draw 3D geometry in submission order, which
-     * is a bug that only appears once someone adds a post effect to a scene that already worked.
+     * The depth buffer for passes that draw into this texture. Present for the same reason the window has
+     * one and created with it, so a 3D scene rendered offscreen — into a bloom or CRT pass, say — occludes
+     * itself exactly as it would on the swapchain. Without it, 3D geometry draws in submission order, a
+     * bug that only appears once someone adds a post effect to a scene that already worked.
      * */
     SDL_GPUTexture* depth_texture;
 
@@ -211,15 +191,12 @@ struct NYA_RenderTexture {
 #define NYA_RENDER2D_MAX_RANGES 512
 
 /**
- * One draw call's worth of the batch, recorded rather than issued.
- *
- * The 2D batch used to draw the moment any of pipeline, texture or sampler changed, which made draw
- * order and *declaration* order the same thing. A UI needs them apart: a dropdown is declared inside
- * the panel that owns it and has to paint over the panels declared after it.
- *
- * So a state change now closes a range instead of drawing one, and nya_render2d_flush sorts what has
- * accumulated and issues it. With no layers in play the sort is stable on `sequence` and the output
- * is exactly what it always was — one upload and the same draws, in the same order.
+ * One draw call's worth of the batch, recorded rather than issued. The 2D batch used to draw the moment
+ * any of pipeline, texture or sampler changed, which made draw order and *declaration* order the same
+ * thing — a UI needs them apart, since a dropdown is declared inside the panel that owns it and has to
+ * paint over the panels declared after it. So a state change now closes a range instead of drawing one,
+ * and nya_render2d_flush sorts what has accumulated and issues it; with no layers in play the sort is
+ * stable on `sequence` and the output is exactly what it always was.
  * */
 struct NYA_Render2DDrawRange {
     /** Painted low to high. See nya_render2d_layer_set. */
@@ -238,12 +215,10 @@ struct NYA_Render2DDrawRange {
     SDL_GPUSampler* sampler;
 
     /**
-     * A copy of the custom fragment uniform, not a pointer to the caller's.
-     *
-     * The uniform used to be pushed during the same call that set it, so borrowing it was safe.
-     * Deferring breaks that: the caller's struct is routinely a stack local that is gone by the time
-     * the range is replayed. Copied, therefore, and a uniform larger than this forces an immediate
-     * draw rather than being truncated.
+     * A copy of the custom fragment uniform, not a pointer to the caller's. The uniform used to be pushed
+     * during the same call that set it, so borrowing it was safe; deferring breaks that, since the
+     * caller's struct is routinely a stack local gone by the time the range is replayed. Copied, therefore,
+     * and a uniform larger than this forces an immediate draw rather than being truncated.
      * */
     u8  uniform[NYA_RENDER2D_RANGE_UNIFORM_MAX];
     u32 uniform_size;
@@ -277,11 +252,10 @@ struct NYA_Render2DBatch {
     u32  index_count;
 
     /**
-     * CPU side staging, filled by the draw calls and copied into the transfer buffer on flush.
-     *
-     * Kept separate from the mapped transfer buffer rather than writing straight into it, because a
-     * mapping held open across a frame is a mapping held while the GPU may still be reading last
-     * frame's copy of the same memory.
+     * CPU side staging, filled by the draw calls and copied into the transfer buffer on flush. Kept
+     * separate from the mapped transfer buffer rather than writing straight into it: a mapping held open
+     * across a frame is a mapping held while the GPU may still be reading last frame's copy of the same
+     * memory.
      * */
     NYA_Vertex2D* vertices;
     u32           vertex_count;
@@ -315,11 +289,9 @@ struct NYA_Render2DBatch {
     u32 frame_indices;
 
     /**
-     * Draw calls this frame, broken down by what forced each one.
-     *
-     * A count alone says the frame cost ten draw calls; this says whether they were ten texture
-     * swaps that could have been an atlas, or ten target changes that are structural. Indexed by
-     * NYA_Render2DFlushReason.
+     * Draw calls this frame, broken down by what forced each one. A count alone says the frame cost ten
+     * draw calls; this says whether they were ten texture swaps that could have been an atlas, or ten
+     * target changes that are structural. Indexed by NYA_Render2DFlushReason.
      * */
     u32 frame_flush_reasons[NYA_RENDER2D_FLUSH_REASON_COUNT];
 
@@ -327,21 +299,17 @@ struct NYA_Render2DBatch {
     u32 pending_flush_reason;
 
     /**
-     * The next window pass to open must resolve multisampling onto the swapchain.
-     *
-     * False for every pass but the last of a frame. See _nya_render2d_pass_resume: a frame opens one
-     * pass per flush, and resolving on each of them resolves the whole target once per draw call.
-     * Render texture passes ignore this and always resolve, since they are ended explicitly and
-     * their contents are read immediately afterwards.
+     * The next window pass to open must resolve multisampling onto the swapchain. False for every pass but
+     * the last of a frame — see _nya_render2d_pass_resume: a frame opens one pass per flush, and resolving
+     * on each of them resolves the whole target once per draw call. Render texture passes ignore this and
+     * always resolve, since they are ended explicitly and their contents are read immediately afterwards.
      * */
     b8 resolve_pending;
 
     /**
-     * Draws asked for and not made this frame.
-     *
-     * Every reason a draw silently does nothing — no pipeline loaded yet, no texture, no render
-     * pass, a shape too large for the batch. Silence is right in release and misleading in
-     * development, where "nothing appeared" and "nothing was asked for" look identical.
+     * Draws asked for and not made this frame: every reason a draw silently does nothing — no pipeline
+     * loaded yet, no texture, no render pass, a shape too large for the batch. Silence is right in release
+     * and misleading in development, where "nothing appeared" and "nothing was asked for" look identical.
      * */
     u32 frame_dropped_draws;
 
@@ -355,10 +323,9 @@ struct NYA_Render2DBatch {
      */
 
     /**
-     * The pipeline asset the queued vertices want. Null when nothing is queued.
-     *
-     * NYA_CString rather than NYA_AssetHandle, which is a typedef for exactly that: core_asset.h
-     * includes this file, so naming its typedef here would be a cycle. Same type either way.
+     * The pipeline asset the queued vertices want. Null when nothing is queued. NYA_CString rather than
+     * NYA_AssetHandle, which is a typedef for exactly that: core_asset.h includes this file, so naming its
+     * typedef here would be a cycle. Same type either way.
      * */
     NYA_CString pipeline;
 
@@ -407,11 +374,10 @@ struct NYA_Render2DBatch {
     SDL_GPUTexture* target_msaa;
 
     /**
-     * The depth buffer attached alongside, whichever target is current.
-     *
-     * Tracked on the batch rather than looked up from the window, for the same reason the colour
-     * target is: a render texture has its own, and a pass reopened mid-frame has to reattach the one
-     * belonging to the target it is actually drawing into.
+     * The depth buffer attached alongside, whichever target is current. Tracked on the batch rather than
+     * looked up from the window, for the same reason the colour target is: a render texture has its own,
+     * and a pass reopened mid-frame has to reattach the one belonging to the target it is actually drawing
+     * into.
      * */
     SDL_GPUTexture* target_depth;
 
@@ -426,11 +392,9 @@ struct NYA_Render2DBatch {
      */
 
     /**
-     * The camera the queued vertices are to be seen through.
-     *
-     * Part of the projection, which is a per flush uniform, so changing it flushes. Held rather than
-     * applied to the vertices as they are built, which would bake the camera in and make a mid frame
-     * camera change retroactive.
+     * The camera the queued vertices are to be seen through. Part of the projection, which is a per flush
+     * uniform, so changing it flushes. Held rather than applied to the vertices as they are built, which
+     * would bake the camera in and make a mid frame camera change retroactive.
      * */
     /*
      * ── Scissor ──
@@ -443,38 +407,32 @@ struct NYA_Render2DBatch {
     s32 scissor_x, scissor_y, scissor_width, scissor_height;
 
     /**
-     * The camera the queued vertices are to be seen through, or kind NONE for screen pixels.
-     *
-     * NONE is the common case and the whole UI case — including the UI drawn over a 3D scene — and
-     * the flush skips building and multiplying a view matrix rather than multiplying by identity.
+     * The camera the queued vertices are to be seen through, or kind NONE for screen pixels. NONE is the
+     * common case and the whole UI case — including the UI drawn over a 3D scene — and the flush skips
+     * building and multiplying a view matrix rather than multiplying by identity.
      * */
     NYA_Camera2D camera;
 };
 
 /**
- * The 3D mesh batch for one window. See render3d.h; nothing outside that file touches this.
- *
- * A second batch beside the 2D one rather than a mode on it, because the two carry different
- * vertices — forty-eight bytes against twenty — and are drawn by different pipelines with different
- * depth state. What they share is the render pass and the buffers' lifetime, and that is all they
- * need to share.
+ * The 3D mesh batch for one window. See render3d.h; nothing outside that file touches this. A second batch
+ * beside the 2D one rather than a mode on it, because the two carry different vertices — forty-eight bytes
+ * against twenty — and are drawn by different pipelines with different depth state. What they share is
+ * the render pass and the buffers' lifetime, and that is all they need to share.
  * */
 /**
- * The instances queued for one retained mesh this pass, and the mesh they belong to.
- *
- * A group per distinct mesh rather than a flat list of (mesh, instance) pairs, because the draw call is
- * per mesh: the vertex buffer and the textures are bound once and the instance count is what varies. A
- * flat list would have to be sorted by mesh before it could be drawn, every pass, to recover exactly this.
+ * The instances queued for one retained mesh this pass, and the mesh they belong to. A group per distinct
+ * mesh rather than a flat list of (mesh, instance) pairs, since the draw call is per mesh — vertex buffer
+ * and textures bound once, instance count the only thing that varies. A flat list would have to be sorted
+ * by mesh before it could be drawn, every pass, to recover exactly this.
  * */
 /** One transparent triangle's place in the queue: how far away it is, and where its indices start. */
 struct NYA_Render3DSortKey {
     /**
-     * Squared distance from the eye to the triangle's centroid.
-     *
-     * Squared, because only the ordering matters and a square root would be one per triangle to reach the
-     * same order. The centroid rather than the nearest vertex: a nearest-vertex key sorts two triangles
-     * sharing an edge by whichever happens to own the closer copy of it, which flickers as the camera
-     * moves.
+     * Squared distance from the eye to the triangle's centroid. Squared, since only the ordering matters
+     * and a square root would be one per triangle to reach the same order. The centroid rather than the
+     * nearest vertex: a nearest-vertex key sorts two triangles sharing an edge by whichever happens to own
+     * the closer copy of it, which flickers as the camera moves.
      * */
     f32 depth;
 
@@ -483,15 +441,13 @@ struct NYA_Render3DSortKey {
 };
 
 /**
- * Geometry a caller built itself and handed to the renderer to keep. See nya_render3d_mesh_register.
- *
- * The retained path was reachable only through the asset system, so it served models read off disk and
- * nothing else — while the case that needed it most was generated geometry. A terrain is thousands of
- * triangles that change when a seed does and never between, and pushing it through the immediate path
- * meant transforming and uploading every vertex again for the camera pass and each shadow cascade.
- *
- * One part and no texture, unlike an asset mesh. A caller with several materials registers several
- * meshes, which is the same thing a multi-material model already costs.
+ * Geometry a caller built itself and handed to the renderer to keep. See nya_render3d_mesh_register. The
+ * retained path was reachable only through the asset system, serving models read off disk and nothing
+ * else — while the case that needed it most was generated geometry. A terrain is thousands of triangles
+ * that change when a seed does and never between, and pushing it through the immediate path meant
+ * transforming and uploading every vertex again for the camera pass and each shadow cascade. One part and
+ * no texture, unlike an asset mesh: a caller with several materials registers several meshes, the same
+ * thing a multi-material model already costs.
  * */
 typedef struct NYA_Render3DRegisteredMesh NYA_Render3DRegisteredMesh;
 
@@ -504,11 +460,10 @@ struct NYA_Render3DRegisteredMesh {
 
     /**
      * The staged copy, held until a frame exists to perform it in. Null once the upload has happened.
-     *
      * Registration is a *game* call — a surface is generated when a level loads or a seed changes, not
-     * during rendering — so there is usually no command buffer open, and a GPU copy needs one. Creating
-     * the buffers and filling the staging memory needs none of that, so all of it happens immediately and
-     * only the copy waits for the next draw.
+     * during rendering — so there is usually no command buffer open, and a GPU copy needs one. Creating the
+     * buffers and filling the staging memory needs none of that, so all of it happens immediately and only
+     * the copy waits for the next draw.
      *
      * The first version did the copy at registration regardless. Outside a frame that meant a copy pass
      * begun on a null command buffer, which fails quietly: the buffer existed, was never filled, and drew
@@ -528,12 +483,10 @@ typedef struct NYA_Render3DMeshGroup NYA_Render3DMeshGroup;
 
 struct NYA_Render3DMeshGroup {
     /**
-     * The asset handle, compared by pointer.
-     *
-     * Pointer equality rather than strcmp, and that is sound here rather than a shortcut: asset handles
-     * are interned string literals from the generated asset index, so two draws of the same mesh pass
-     * literally the same pointer. Two *different* pointers holding equal text would merely produce two
-     * groups drawing the same mesh — a wasted draw call, not a wrong picture.
+     * The asset handle, compared by pointer. Pointer equality rather than strcmp is sound here rather than
+     * a shortcut: asset handles are interned string literals from the generated asset index, so two draws
+     * of the same mesh pass literally the same pointer. Two *different* pointers holding equal text would
+     * merely produce two groups drawing the same mesh — a wasted draw call, not a wrong picture.
      * */
     NYA_ConstCString handle;
 
@@ -542,12 +495,10 @@ struct NYA_Render3DMeshGroup {
     u32 instance_count;
 
     /**
-     * Whether this mesh was tinted translucent, and therefore has to be drawn after the opaque ones.
-     *
-     * Per group rather than per instance: an instance's tint is what decides it, and a group only ever
-     * collects consecutive draws of one mesh — a caller alternating a translucent and an opaque tint on
-     * the same model gets a group each, which is the same thing that already happens when they alternate
-     * two different models.
+     * Whether this mesh was tinted translucent, and therefore has to be drawn after the opaque ones. Per
+     * group rather than per instance: an instance's tint is what decides it, and a group only ever collects
+     * consecutive draws of one mesh — a caller alternating a translucent and an opaque tint on the same
+     * model gets a group each, the same thing that already happens when they alternate two different models.
      * */
     b8 transparent;
 
@@ -556,17 +507,13 @@ struct NYA_Render3DMeshGroup {
 };
 
 /**
- * One run of CPU-staged geometry: vertices and the indices into them.
- *
- * There are two of these, and the split is the whole of transparency ordering. Opaque geometry can be
- * drawn in any order because the depth buffer sorts it; translucent geometry cannot, because blending is
- * not commutative — two panes drawn near-then-far give a different colour from far-then-near, and only
- * the second is right.
- *
- * Keeping them in separate streams is what makes sorting possible at all. The alternative is sorting
- * primitives before they are emitted, which fights the batching: the batch's entire value is that
- * consecutive draws sharing state become one draw call, and reordering the calls to fix blending
- * reorders the state changes with them.
+ * One run of CPU-staged geometry: vertices and the indices into them. There are two of these, and the
+ * split is the whole of transparency ordering: opaque geometry can be drawn in any order since the depth
+ * buffer sorts it, while translucent geometry cannot, since blending is not commutative — two panes drawn
+ * near-then-far give a different colour from far-then-near, and only the second is right. Keeping them in
+ * separate streams is what makes sorting possible at all; sorting primitives before they are emitted would
+ * fight the batching, since consecutive draws sharing state become one draw call, and reordering the calls
+ * to fix blending reorders the state changes with them.
  * */
 struct NYA_Render3DStream {
     NYA_Vertex3D* vertices;
@@ -583,51 +530,49 @@ struct NYA_Render3DBatch {
     SDL_GPUTransferBuffer* index_transfer_buffer;
 
     /**
-     * CPU side staging, filled by the draw calls and copied into the transfer buffer on flush.
-     *
-     * The two share one GPU buffer and one capacity: opaque is uploaded at offset zero and transparent
-     * straight after it, so the pair costs no more VRAM than the single stream did.
+     * CPU side staging, filled by the draw calls and copied into the transfer buffer on flush. The two
+     * share one GPU buffer and one capacity: opaque is uploaded at offset zero and transparent straight
+     * after it, so the pair costs no more VRAM than the single stream did.
      * */
     NYA_Render3DStream opaque;
     NYA_Render3DStream transparent;
 
     /**
-     * Which stream the primitives are currently writing into, decided by the colour they were given.
-     *
-     * State rather than a parameter threaded through every emitter: a cube is six quads and a grid is
-     * dozens of lines which are each six quads, so passing it down would mean touching every one of them
-     * to carry a value that never changes within a primitive.
+     * Which stream the primitives are currently writing into, decided by the colour they were given. State
+     * rather than a parameter threaded through every emitter: a cube is six quads and a grid is dozens of
+     * lines which are each six quads, so passing it down would mean touching every one of them to carry a
+     * value that never changes within a primitive.
      * */
     b8 transparent_active;
 
     /**
      * Scratch for sorting the transparent stream: one key per triangle, and the reordered indices.
-     *
-     * Allocated once with the streams rather than per flush. Sorting in place is not possible — a
-     * triangle is three indices that have to move together — so the reordered run is written out beside
-     * the original.
+     * Allocated once with the streams rather than per flush. Sorting in place is not possible — a triangle
+     * is three indices that have to move together — so the reordered run is written out beside the
+     * original.
      * */
     NYA_Render3DSortKey* sort_keys;
     u32*                 sorted_indices;
+
+    /** The radix sort's other half. It ping-pongs between this and `sort_keys`. */
+    NYA_Render3DSortKey* sort_keys_scratch;
 
     /** Scratch for reordering one group's instances back to front. Same reasoning as `sorted_indices`. */
     NYA_Render3DInstance* sorted_instances;
 
     /**
-     * The texture the queued triangles are to be drawn with, or null for the untextured pipeline.
-     *
-     * Batch state exactly like `material` is: it selects the pipeline and the binding, both of which are
-     * per draw call, so a change to it has to flush first. nya_render3d_mesh does that; nothing else
-     * touches it, which is why the primitives never leave it non-null.
+     * The texture the queued triangles are to be drawn with, or null for the untextured pipeline. Batch
+     * state exactly like `material` is: it selects the pipeline and the binding, both per draw call, so a
+     * change to it has to flush first. nya_render3d_mesh does that; nothing else touches it, which is why
+     * the primitives never leave it non-null.
      * */
     SDL_GPUTexture* texture;
     SDL_GPUSampler* sampler;
 
     /**
-     * The frame's point lights. Frame state, like `light` and `material`.
-     *
-     * A fixed array on the batch rather than an allocation, because the count is bounded by what one
-     * uniform block carries and the whole set is copied into that block on every flush anyway.
+     * The frame's point lights. Frame state, like `light` and `material`. A fixed array on the batch
+     * rather than an allocation, since the count is bounded by what one uniform block carries and the
+     * whole set is copied into that block on every flush anyway.
      * */
     NYA_Render3DPointLight point_lights[NYA_RENDER3D_MAX_POINT_LIGHTS];
     u32                    point_light_count;
@@ -637,14 +582,11 @@ struct NYA_Render3DBatch {
      */
 
     /**
-     * Light-space depth, and the depth buffer that decides which surface got written.
-     *
-     * A colour target rather than a sampled depth texture: sampling a depth format needs
-     * SDL_GPU_TEXTUREUSAGE_SAMPLER on it, which backends support unevenly and which fights the
-     * multisampling every other target here uses. R32_FLOAT plus a plain depth buffer for the test uses
-     * only paths the renderer already relies on, and costs one texture.
-     *
-     * Created on the first shadow pass and kept, because the size never changes — it is
+     * Light-space depth, and the depth buffer that decides which surface got written. A colour target
+     * rather than a sampled depth texture: sampling a depth format needs SDL_GPU_TEXTUREUSAGE_SAMPLER on
+     * it, which backends support unevenly and which fights the multisampling every other target here uses.
+     * R32_FLOAT plus a plain depth buffer for the test uses only paths the renderer already relies on, and
+     * costs one texture. Created on the first shadow pass and kept, since the size never changes — it is
      * NYA_RENDER3D_SHADOW_MAP_SIZE, not the window's.
      * */
     SDL_GPUTexture* shadow_color;
@@ -653,10 +595,9 @@ struct NYA_Render3DBatch {
     NYA_Render3DShadow shadow;
 
     /**
-     * One matrix per cascade, and how far each reaches. Filled as each pass runs.
-     *
-     * Kept on the batch rather than rebuilt per flush because a cascade's pass fills one of these and the
-     * *scene* pass reads all of them — the two are separated by every draw call in the frame.
+     * One matrix per cascade, and how far each reaches. Filled as each pass runs. Kept on the batch rather
+     * than rebuilt per flush because a cascade's pass fills one of these and the *scene* pass reads all of
+     * them — the two are separated by every draw call in the frame.
      * */
     f32_4x4 shadow_view_projection[NYA_RENDER3D_SHADOW_CASCADES];
     f32     shadow_cascade_extent[NYA_RENDER3D_SHADOW_CASCADES];
@@ -677,23 +618,20 @@ struct NYA_Render3DBatch {
     b8 active;
 
     /**
-     * Whether a 3D camera has ever been set on this window. Never cleared by nya_render3d_end.
-     *
-     * Separate from `active` because the two answer different questions, and conflating them broke
-     * picking outright: `active` is "are we between begin and end", which is true only during
-     * on_render — while a click arrives during on_event, one phase *earlier*. A ray built then found
-     * `active` false, fell back to a ray at the origin pointing along -z, and quietly hit nothing.
-     *
-     * The camera from the last frame is the right camera to un-project this frame's click through:
-     * it is the one the player was looking through when they clicked.
+     * Whether a 3D camera has ever been set on this window. Never cleared by nya_render3d_end. Separate
+     * from `active` because the two answer different questions, and conflating them broke picking
+     * outright: `active` is "are we between begin and end", true only during on_render, while a click
+     * arrives during on_event, one phase *earlier* — a ray built then found `active` false, fell back to a
+     * ray at the origin pointing along -z, and quietly hit nothing. The camera from the last frame is the
+     * right one to un-project this frame's click through: it is the one the player was looking through
+     * when they clicked.
      * */
     b8 camera_valid;
 
     /**
-     * The camera the queued vertices are seen through, already combined.
-     *
-     * Kept as the finished matrix rather than rebuilt per flush: it depends on the target size, which
-     * cannot change between a begin and an end, so recomputing it would be recomputing a constant.
+     * The camera the queued vertices are seen through, already combined. Kept as the finished matrix
+     * rather than rebuilt per flush: it depends on the target size, which cannot change between a begin
+     * and an end, so recomputing it would be recomputing a constant.
      * */
     f32_4x4 view_projection;
 
@@ -713,18 +651,25 @@ struct NYA_Render3DBatch {
     NYA_Render3DMaterial material;
 
     /**
-     * The six clip planes of `view_projection`, as (a, b, c, d) with the normals pointing inward.
-     *
-     * Rebuilt whenever the matrix is, which is once per pass rather than once per draw — the planes are a
-     * property of the camera, and a scene of ten thousand primitives would otherwise extract them ten
-     * thousand times to answer the same question.
-     *
-     * Correct for the shadow pass without any special case, because the shadow pass installs the *light's*
-     * matrix through the same function. Culling then happens against the light's volume, which is the
-     * right frustum for deciding what casts into the map — and using the camera's there would drop the
+     * The six clip planes of `view_projection`, as (a, b, c, d) with the normals pointing inward. Rebuilt
+     * whenever the matrix is, once per pass rather than once per draw — the planes are a property of the
+     * camera, and a scene of ten thousand primitives would otherwise extract them ten thousand times to
+     * answer the same question. Correct for the shadow pass without any special case, since the shadow
+     * pass installs the *light's* matrix through the same function, so culling happens against the light's
+     * volume — the right frustum for deciding what casts into the map, where the camera's would drop the
      * shadows of everything just off screen.
      * */
     f32x4 frustum[6];
+
+    /**
+     * The occlusion buffer this pass culls against, or null.
+     *
+     * A pointer to something the game owns rather than a buffer of its own: it is tens of kilobytes,
+     * a scene may want one per camera or none at all, and which occluders go into it is a decision
+     * only the game can make. Cleared on every begin like `light` and `material` are, so a buffer
+     * built for last frame's camera cannot silently keep culling against it.
+     * */
+    const NYA_OcclusionBuffer* occlusion;
 
     /*
      * ── The retained mesh path ──
@@ -744,9 +689,8 @@ struct NYA_Render3DBatch {
     u32                   mesh_group_count;
 
     /**
-     * Geometry registered by the game rather than loaded as an asset. See NYA_Render3DRegisteredMesh.
-     *
-     * A flat array rather than a dictionary: the count is small by construction — a scene has a handful of
+     * Geometry registered by the game rather than loaded as an asset. See NYA_Render3DRegisteredMesh. A
+     * flat array rather than a dictionary: the count is small by construction — a scene has a handful of
      * generated meshes, not hundreds — and a linear scan over a few pointers beats hashing a string.
      * */
     NYA_Render3DRegisteredMesh registered_meshes[NYA_RENDER3D_MAX_REGISTERED_MESHES];
@@ -763,11 +707,10 @@ struct NYA_Render3DBatch {
 
     /**
      * A copy of the opaque scene, for refractive glass to sample. See NYA_Render3DMaterial.refraction.
-     *
      * Created on the first frame something asks for refraction and resized when the target does, so a
-     * scene with no glass in it never allocates one. It is a *copy* rather than the target itself because
-     * a shader may not sample the render target it is writing to — which is the whole reason a capture
-     * exists rather than the glass reading the framebuffer directly.
+     * scene with no glass in it never allocates one. It is a *copy* rather than the target itself because a
+     * shader may not sample the render target it is writing to — the whole reason a capture exists rather
+     * than the glass reading the framebuffer directly.
      * */
     SDL_GPUTexture* refraction_capture;
     u32             refraction_width;
@@ -791,6 +734,9 @@ struct NYA_Render3DBatch {
     /** Mesh copies drawn through the retained path this frame, and how many were culled before that. */
     u32 frame_instances;
     u32 frame_culled;
+
+    /** Of those that survived the frustum, how many the occlusion buffer hid. See render_occlusion.h. */
+    u32 frame_occluded;
 };
 
 struct NYA_RenderSystemWindow {
@@ -809,16 +755,12 @@ struct NYA_RenderSystemWindow {
     u32             msaa_height;
 
     /*
-     * The window's depth buffer, and the size it was built for.
-     *
-     * Attached to every window pass, unconditionally, whether or not anything 3D is drawn. That is
-     * what lets 2D and 3D share one render pass: a pass's depth attachment is fixed when it opens,
-     * so making it conditional would mean tearing the pass down and rebuilding it the first time a
-     * frame drew a cube — and the 2D content already in it would be gone.
-     *
-     * Costing a depth buffer on a purely 2D game is the price. It is one texture, it is never
-     * cleared to anything but 1.0, and the 2D pipelines neither test nor write it, so nothing else
-     * about the 2D path changes.
+     * The window's depth buffer, and the size it was built for. Attached to every window pass,
+     * unconditionally, whether or not anything 3D is drawn — what lets 2D and 3D share one render pass: a
+     * pass's depth attachment is fixed when it opens, so making it conditional would mean tearing the pass
+     * down and rebuilding it the first time a frame drew a cube, losing the 2D content already in it. The
+     * price is one texture on a purely 2D game, never cleared to anything but 1.0, and the 2D pipelines
+     * neither test nor write it, so nothing else about the 2D path changes.
      */
     SDL_GPUTexture* depth_texture;
     u32             depth_width;
@@ -842,22 +784,18 @@ struct NYA_Vertex3D {
 };
 
 /**
- * One drawn copy of a retained mesh: where it is, and what colour it is tinted.
- *
- * The per-instance half of NYA_VERTEX_LAYOUT_3D_INSTANCED, and the thing the renderer did not have. Every
- * primitive in the immediate batch is baked into world space on the CPU precisely because there is nowhere
- * to put a per-primitive transform; this is that place, for the one case where it pays — geometry that is
- * uploaded once and drawn many times.
- *
- * Eighty bytes per copy, against a low-poly character's several thousand vertices at sixty-four bytes
- * each. That ratio is the whole argument.
+ * One drawn copy of a retained mesh: where it is, and what colour it is tinted. The per-instance half of
+ * NYA_VERTEX_LAYOUT_3D_INSTANCED, and the thing the renderer did not have: every primitive in the
+ * immediate batch is baked into world space on the CPU precisely because there is nowhere to put a
+ * per-primitive transform, and this is that place, for the one case where it pays — geometry uploaded once
+ * and drawn many times. Eighty bytes per copy, against a low-poly character's several thousand vertices at
+ * sixty-four bytes each. That ratio is the whole argument.
  * */
 struct NYA_Render3DInstance {
     /**
-     * Model to world, column-major to match the engine's matrices and the shader's `mul(m, v)`.
-     *
-     * Read by the vertex shader as four FLOAT4 attributes, because a vertex attribute holds at most four
-     * components and no graphics API has a matrix element format.
+     * Model to world, column-major to match the engine's matrices and the shader's `mul(m, v)`. Read by
+     * the vertex shader as four FLOAT4 attributes, since a vertex attribute holds at most four components
+     * and no graphics API has a matrix element format.
      * */
     f32_4x4 model;
 
@@ -866,30 +804,24 @@ struct NYA_Render3DInstance {
 };
 
 /**
- * The vertex the 2D batch uses. Twenty bytes, against NYA_Vertex3D's sixty-four.
- *
- * A separate type rather than reusing NYA_Vertex3D, because three quarters of that one is dead weight
- * here and the batch is the one place where vertex size is a real cost — it is uploaded in full
- * every frame, so the width of a vertex is bandwidth spent per frame rather than once.
- *
- * Where the sixty-four go: `position` is an f32x3 that occupies sixteen bytes rather than twelve,
- * because a three-wide vector is aligned as if it were four; `normals` is another sixteen that no 2D
- * shader reads; and `color` is four floats where four bytes carry the same information.
- *
- * Plain scalars rather than f32x2 fields, deliberately. An f32x2 is eight-byte aligned, which would
- * pad this to twenty-four; scalars are four-byte aligned and pack to exactly twenty. Attributes stay
- * four-byte aligned either way, which is what the hardware asks for.
+ * The vertex the 2D batch uses. Twenty bytes, against NYA_Vertex3D's sixty-four. A separate type rather
+ * than reusing NYA_Vertex3D, since three quarters of that one is dead weight here and the batch is the one
+ * place where vertex size is a real cost — uploaded in full every frame, so a vertex's width is bandwidth
+ * spent per frame rather than once. Where the sixty-four go: `position` is an f32x3 occupying sixteen
+ * bytes rather than twelve, since a three-wide vector is aligned as if it were four; `normals` is another
+ * sixteen that no 2D shader reads; `color` is four floats where four bytes carry the same information.
+ * Plain scalars rather than f32x2 fields, deliberately — an f32x2 is eight-byte aligned, which would pad
+ * this to twenty-four, while scalars are four-byte aligned and pack to exactly twenty, staying aligned
+ * either way as the hardware asks.
  * */
 struct NYA_Vertex2D {
     f32 x, y;
     f32 u, v;
 
     /**
-     * RGBA bytes, not floats.
-     *
-     * Declared to the pipeline as UBYTE4_NORM, so the input assembler expands each byte to a float in
-     * 0..1 before the shader sees it — the shader still reads a `float4` and nothing in it changes.
-     * Eight bit colour channels are what the swapchain stores anyway.
+     * RGBA bytes, not floats. Declared to the pipeline as UBYTE4_NORM, so the input assembler expands each
+     * byte to a float in 0..1 before the shader sees it — the shader still reads a `float4` and nothing in
+     * it changes. Eight bit colour channels are what the swapchain stores anyway.
      * */
     u8 color[4];
 };
@@ -921,12 +853,19 @@ NYA_API void      nya_system_renderer_set_vsync(b8 enabled);
  */
 
 /**
- * Acquires a swapchain image and opens a render pass on it.
- *
- * Returns false when there is nothing to draw into this frame, which is normal rather than an
- * error: a minimised or occluded window has no swapchain image, and on Wayland that happens
- * routinely. **The caller must not draw when this returns false** — there is no render pass, and
- * the command buffer has already been cancelled.
+ * Acquires a swapchain image and opens a render pass on it. Returns false when there is nothing to draw
+ * into this frame, which is normal rather than an error: a minimised or occluded window has no swapchain
+ * image, and on Wayland that happens routinely. **The caller must not draw when this returns false** —
+ * there is no render pass, and the command buffer has already been cancelled.
  * */
 NYA_API b8   nya_render_begin(NYA_Window* window) __attr_no_discard;
 NYA_API void nya_render_end(NYA_Window* window);
+
+// Last, and after NYA_RenderTexture above: the post chain is built out of a pair of them.
+#include "nyangine/renderer/render_post.h"
+
+// After NYA_Render3DSortKey above, which it sorts.
+#include "nyangine/renderer/render_sort.h"
+#include "nyangine/renderer/render_lod.h"
+#include "nyangine/renderer/render_text.h"
+#include "nyangine/renderer/render_font.h"

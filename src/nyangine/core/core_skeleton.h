@@ -3,15 +3,9 @@
  *
  * Skeletons, baked animation clips, and the pose that drives skinning.
  *
- * ## The one idea
- *
- * A **pose is just an array of local bone transforms**, and nothing here cares where it came from.
- * Sampling a clip writes one. So does a game writing bone rotations itself. So would a ragdoll
- * reading rigid body orientations back out of the physics solver.
- *
- * That is deliberate and it is the whole design. Procedural animation and ragdoll are not features
- * that have to be added later — they are what you get for free by making the pose a plain writable
- * buffer instead of something a clip privately owns:
+ * A pose is a plain writable array of local bone transforms, and nothing here cares where it came
+ * from — a clip, a game writing rotations itself, or a ragdoll reading back from the solver. That is
+ * what makes procedural animation and ragdoll free rather than later features:
  *
  * ```c
  * nya_skeleton_animator_update(&animator, delta_time_s, &pose);   // the clip's opinion
@@ -19,22 +13,12 @@
  * nya_skeleton_palette(skeleton, &pose, palette);                 // whatever it now says
  * ```
  *
- * ## Clips are baked at load, not evaluated
+ * Clips are sampled onto a fixed grid at load and the FBX scene thrown away, so playback is a lerp
+ * between two frames and nothing here mentions FBX. Keeping the parsed scene would put the importer's
+ * memory and curve evaluation in the frame budget forever, for accuracy this art style cannot show.
  *
- * A clip is sampled onto a fixed grid when the model loads and the FBX scene is then thrown away.
- * Playing it is a lerp between two frames.
- *
- * The alternative — keeping the parsed scene and calling into the importer every frame — means the
- * importer's memory and its curve evaluation live in the frame budget forever, in exchange for
- * accuracy nothing in this art style can see. Baking is why nothing in this header mentions FBX.
- *
- * ## Linear blend skinning, four weights
- *
- * The usual approximation, and enough here: the test rig peaks at two influences per vertex, and a
- * low-poly character has no fine deformation for dual quaternion to preserve. What linear blend gets
- * wrong is the volume of a limb twisted along its own axis, which is not a shape this art style has.
- *
- * Weights are normalised at load, which is not optional — the exporter's own weights on the test rig
+ * Linear blend skinning, four weights. It gets the volume of a limb twisted along its own axis wrong,
+ * which is not a shape this art style has. Weights are normalised at load: the exporter's own weights
  * sum to as little as 0.982, and a vertex weighted to 0.982 sits 1.8% of the way toward the origin.
  * */
 #pragma once
@@ -53,10 +37,8 @@
 /**
  * Most bones one skeleton may have.
  *
- * The cap is the shader's, not the loader's: the palette is a vertex uniform and every bone costs
- * forty eight bytes in it whether or not the mesh uses it. Sixty four is three kibibytes, which is
- * comfortable, and is more bones than a low-poly character has any use for — a humanoid game rig is
- * usually in the twenties.
+ * The cap is the shader's, not the loader's: the palette is a vertex uniform costing 48 bytes per
+ * bone used or not, so 64 is three kibibytes — well past what a low-poly humanoid rig needs.
  * */
 #define NYA_SKELETON_MAX_BONES 64
 
@@ -204,6 +186,18 @@ NYA_API void nya_skeleton_pose_rest(const NYA_Skeleton* skeleton, OUT NYA_Skelet
  * */
 NYA_API void nya_skeleton_pose_sample(const NYA_Skeleton* skeleton, const NYA_SkeletonClip* clip, f32 time_s,
                                       OUT NYA_SkeletonPose* out_pose);
+
+/**
+ * One bone's transform in `clip` at `time_s`, without touching the other sixty three.
+ *
+ * Exists for root motion, which asks the same question of the same bone twice per frame and has no
+ * use for the rest of the pose. Sampling everything to read one bone is 64 slerps for one answer.
+ *
+ * Same interpolation and the same clamping as nya_skeleton_pose_sample, so a bone read this way and
+ * a bone read through a pose agree exactly. Returns the rest transform when the clip is empty.
+ * */
+NYA_API NYA_BoneTransform nya_skeleton_clip_bone(const NYA_Skeleton* skeleton, const NYA_SkeletonClip* clip, s32 bone,
+                                                 f32 time_s) __attr_no_discard;
 
 /**
  * Blends `from` toward `to` by `amount`, into `out_pose`.

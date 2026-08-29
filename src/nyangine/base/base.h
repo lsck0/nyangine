@@ -7,6 +7,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_backtrace.h"
 #include "nyangine/base/base_base64.h"
+#include "nyangine/base/base_bench.h"
 #include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_bits.h"
 #include "nyangine/base/base_build.h"

@@ -355,7 +355,7 @@ void _nya_net_client_drain(f32 delta_time_s) {
             case NYA_NET_TRANSPORT_EVENT_DISCONNECTED: {
                 _NYA_NET_CLIENT.disconnect_reason = event.reason;
 
-                nya_info("Disconnected (%d).", (int)event.reason);
+                nya_log_info("Disconnected (%d).", (int)event.reason);
 
                 // The transport is left alone: it belongs to whoever created it, and a disconnect is not
                 // a reason to destroy it — a caller may want to read the reason and then reconnect.
@@ -459,7 +459,7 @@ void _nya_net_client_handle_message(const u8* data, u64 size, f32 delta_time_s) 
 
             b8 joined = kind == NYA_NET_MSG_PEER_JOINED;
 
-            nya_info("Player '%s' %s.", name->as_string, joined ? "joined" : "left");
+            nya_log_info("Player '%s' %s.", name->as_string, joined ? "joined" : "left");
 
             NYA_NetPeerChangeFn on_peer_change = nya_callback_get(_NYA_NET_CLIENT.config.on_peer_change);
 
@@ -528,7 +528,7 @@ void _nya_net_client_handle_welcome(const u8* body, u64 size) {
 
     _NYA_NET_CLIENT.state = NYA_NET_CLIENT_PLAYING;
 
-    nya_info("Joined as peer %u, controlling server entity %u.", _NYA_NET_CLIENT.peer.index, _NYA_NET_CLIENT.entity_remote.index);
+    nya_log_info("Joined as peer %u, controlling server entity %u.", _NYA_NET_CLIENT.peer.index, _NYA_NET_CLIENT.entity_remote.index);
 }
 
 void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s) {
@@ -553,7 +553,7 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
     if (!decoded.ok) {
         // Dropped, not fatal. A malformed snapshot from a peer is data, and the next one arrives in a
         // sixteenth of a second — this is exactly the case an unreliable channel is built for.
-        nya_debug("Discarding a malformed snapshot: %s", (NYA_ConstCString)decoded.message);
+        nya_log_debug("Discarding a malformed snapshot: %s", (NYA_ConstCString)decoded.message);
         return;
     }
 

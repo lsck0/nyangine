@@ -45,7 +45,7 @@
  *
  * while (!nya_ring_is_empty(players)) {
  *   Player* player = nya_ring_pop(players);
- *   nya_info("Player %u: %s", player->id, player->name);
+ *   nya_log_info("Player %u: %s", player->id, player->name);
  * }
  *
  * nya_arena_destroy(arena);

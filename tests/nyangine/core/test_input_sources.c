@@ -376,7 +376,7 @@ s32 main(void) {
     end_frame();
   }
 
-  nya_info("PASSED: test_input_sources (0 failures)");
+  nya_log_info("PASSED: test_input_sources (0 failures)");
 
   return EXIT_SUCCESS;
 }

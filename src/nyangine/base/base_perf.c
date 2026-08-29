@@ -150,7 +150,7 @@ void _nya_perf_frame_begin(void) {
     // permanently raised, and every later span would be recorded one level too deep. A frame is the
     // natural place to notice, since nothing is expected to be open at the top of one.
     if (_nya_perf_depth != 0) {
-        nya_warn("Perf: " FMTu32 " timer(s) still running at the start of frame " FMTu64 ", nesting depth reset.", _nya_perf_depth, _nya_perf_frame);
+        nya_log_warn("Perf: " FMTu32 " timer(s) still running at the start of frame " FMTu64 ", nesting depth reset.", _nya_perf_depth, _nya_perf_frame);
         _nya_perf_depth = 0;
     }
 }
@@ -248,17 +248,17 @@ u32 _nya_perf_frame_spans(u64 frame, NYA_ArrayᐸNYA_PerfSpanᐳ* out_spans) {
 
 void _nya_perf_report(void) {
     if (_nya_perf_measurements == nullptr || _nya_perf_measurements->length == 0) {
-        nya_info("Perf: no timers recorded.");
+        nya_log_info("Perf: no timers recorded.");
         return;
     }
 
-    nya_info("Perf: %-32s %8s %10s %10s %10s %10s", "timer", "runs", "last ms", "min ms", "avg ms", "max ms");
+    nya_log_info("Perf: %-32s %8s %10s %10s %10s %10s", "timer", "runs", "last ms", "min ms", "avg ms", "max ms");
 
     nya_array_foreach (_nya_perf_measurements, measurement) {
         NYA_PerfStats stats = _nya_perf_stats(measurement);
         if (stats.sample_count == 0) continue;
 
-        nya_info(
+        nya_log_info(
             "Perf: %-32s %8" PRIu64 " %10.3f %10.3f %10.3f %10.3f",
             measurement->name,
             measurement->total_runs,
@@ -277,7 +277,7 @@ void _nya_perf_frame_report(u64 frame) {
 
     u32 count = _nya_perf_frame_spans(frame, spans);
     if (count == 0) {
-        nya_info("Perf: frame " FMTu64 " has no recorded spans.", frame);
+        nya_log_info("Perf: frame " FMTu64 " has no recorded spans.", frame);
         return;
     }
 
@@ -287,7 +287,7 @@ void _nya_perf_frame_report(u64 frame) {
         if (span->depth == 0 && span->elapsed_ns > frame_total_ns) frame_total_ns = span->elapsed_ns;
     }
 
-    nya_info("Perf: frame " FMTu64 ", " FMTu32 " spans", frame, count);
+    nya_log_info("Perf: frame " FMTu64 ", " FMTu32 " spans", frame, count);
 
     nya_array_foreach (spans, span) {
         // Indented by nesting depth, which is what makes the output the shape of the frame rather
@@ -300,7 +300,7 @@ void _nya_perf_frame_report(u64 frame) {
 
         f64 share = frame_total_ns > 0 ? (f64)span->elapsed_ns * 100.0 / (f64)frame_total_ns : 0.0;
 
-        nya_info("Perf:   %s%-*s %8.3f ms  %5.1f%%", indent, 30 - (s32)width, span->name, (f64)span->elapsed_ns / 1'000'000.0, share);
+        nya_log_info("Perf:   %s%-*s %8.3f ms  %5.1f%%", indent, 30 - (s32)width, span->name, (f64)span->elapsed_ns / 1'000'000.0, share);
     }
 }
 

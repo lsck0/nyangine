@@ -4,38 +4,26 @@
  * Sprites and sprite atlases: a named region of a texture, drawn with a pivot, a flip and a turn.
  *
  * A thin layer over nya_render2d_texture_ex rather than a second drawing path — that call already takes
- * a source rectangle, a destination, an origin, a rotation, two flips and a tint, which is the whole
- * of what a sprite is. What it does not do is remember any of it, or work out which cell of a sheet
- * frame seven is. That is what these two types add.
+ * a source rect, a destination, an origin, a rotation, two flips and a tint. What it does not do is
+ * *remember* any of it, or work out which cell of a sheet frame seven is.
  *
  * ```c
  * NYA_SpriteAtlas atlas  = nya_sprite_atlas_grid(NYA_ASSET_ART_HERO_PNG, 32, 32);
  * NYA_Sprite      sprite = nya_sprite_from_atlas(&atlas, 3);
  *
- * sprite.flip_x = facing_left;
+ * sprite.flip_x  = facing_left;
+ * sprite.rotation = nya_physics2d_rotation(entity);   // a body's transform is a centre and an angle
  *
  * nya_render2d_sprite(window, &sprite, position);
  * ```
  *
- * ## Drawing something the solver owns
+ * Deliberately **not** a `nya_render2d_sprite_entity` that reads those itself: this file is the renderer
+ * and knows nothing about entities or physics, and reaching into either would invert the layering to
+ * save one line at the call site.
  *
- * A rigid body's transform is a centre and an angle, which is exactly what a sprite wants — so
- * drawing a simulated entity is a copy of two fields:
- *
- * ```c
- * sprite.rotation = nya_physics2d_rotation(entity);
- * nya_render2d_sprite(window, &sprite, (f32x2){ entity->position.x, entity->position.y });
- * ```
- *
- * Deliberately not a `nya_render2d_sprite_entity` that reads those itself. This file is the renderer and
- * knows nothing about entities or physics; a call that reached into either would invert the layering
- * for the sake of saving one line at the call site.
- *
- * ## Pivots are fractions
- *
- * `origin` is in units of the sprite's own size rather than pixels, so `{ 0.5, 0.5 }` is the centre
- * of any frame and `{ 0.5, 1 }` is the middle of its feet whatever the sheet's cell size is. Pixel
- * origins mean editing every sprite when the art is redrawn a little larger.
+ * `origin` is in units of the sprite's own size rather than pixels, so `{ 0.5, 0.5 }` is the centre of
+ * any frame and `{ 0.5, 1 }` the middle of its feet whatever the cell size is. Pixel origins mean
+ * editing every sprite when the art is redrawn a little larger.
  * */
 #pragma once
 
@@ -137,16 +125,12 @@ struct NYA_Sprite {
 /**
  * Frames as separate images, one texture each, instead of cells of one sheet.
  *
- * The other way art arrives: a folder of numbered PNGs, which is what most hand drawn animation and
- * most asset packs are before anyone runs a packer over them. Indexed exactly like an atlas, so
- * swapping between the two is changing which constructor a sprite came from.
+ * The other way art arrives: a folder of numbered PNGs. Indexed exactly like an atlas, so swapping
+ * between the two is changing which constructor a sprite came from.
  *
- * ## What it costs
- *
- * **A draw call per texture change.** One draw call has one texture, so consecutive sprites out of
- * one atlas batch into a single call while consecutive sprites out of a list cost one each — see the
- * batching note in render2d.h. For a handful of animated things that is nothing; for a thousand
- * particles it is the difference between one call and a thousand, and the answer there is an atlas.
+ * ⚠ **A draw call per texture change.** Consecutive sprites out of one atlas batch into a single call;
+ * out of a list they cost one each. Nothing for a handful of animated things, the difference between
+ * one call and a thousand for particles — where the answer is an atlas.
  *
  * The array is borrowed, not copied. Point it at a static table of asset handles — which is what the
  * generated asset index gives you — and it outlives every sprite made from it.

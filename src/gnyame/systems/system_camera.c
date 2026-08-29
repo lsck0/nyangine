@@ -111,49 +111,31 @@ void _gny_camera_render_primary(NYA_Window* window, NYA_Camera2DTopDown camera) 
 
     nya_perf_time_this_scope("gny_bloom_pass");
 
-    gny_scene_target_ensure(window);
-
-    if (world->scene.texture == nullptr) {
+    // Returns false when the window has no size to make a target of; the world still has to be drawn.
+    if (!nya_post_begin(window, &world->post)) {
         gny_world_draw(window, camera);
         return;
     }
 
-    /*
-     * Cleared to transparent, not to a colour.
-     *
-     * The background layer has already drawn into the window underneath, and this target is
-     * composited over it — so anything the world does not cover has to stay see-through. Clearing to
-     * black here would paint a rectangle over the parallax and the sky.
-     */
-    nya_render_texture_begin(window, &world->scene, NYA_COLOR_TRANSPARENT);
     gny_world_draw(window, camera);
-    nya_render_texture_end(window);
 
-    /*
-     * The pass itself: draw the target back over the window through the bloom pipeline.
-     *
-     * The uniform is per draw call, so it is pushed once for the one draw this makes. Texel size
-     * comes from the target rather than the window because they can differ for a frame after a
-     * resize, and a stale texel size makes the kernel step the wrong distance.
-     */
-    nya_render2d_shader_begin(window, GNY_PIPELINE_BLOOM);
-
-    nya_render2d_shader_set_uniform(
-        window,
-        &(NYA_ShaderBloomUniform){
-            // The 2D world's own numbers. The 3D scene composites through the same pipeline with its
-            // own set, because the two scenes are nowhere near equally bright; see GNY_BLOOM_2D_THRESHOLD.
-            .texel_x   = GNY_BLOOM_2D_SPREAD / (f32)world->scene.width,
-            .texel_y   = GNY_BLOOM_2D_SPREAD / (f32)world->scene.height,
-            .threshold = GNY_BLOOM_2D_THRESHOLD,
-            .intensity = GNY_BLOOM_2D_INTENSITY,
+    nya_post_end(
+        window, &world->post,
+        (NYA_PostPass[]){
+            {
+                .pipeline = GNY_PIPELINE_BLOOM,
+                .uniform =
+                    &(NYA_ShaderBloomUniform){
+                        // The 2D world's own numbers. The 3D scene runs the same pipeline with its own
+                        // set, because the two are nowhere near equally bright; see GNY_BLOOM_2D_THRESHOLD.
+                        .texel_x   = GNY_BLOOM_2D_SPREAD / (f32)world->post.width,
+                        .texel_y   = GNY_BLOOM_2D_SPREAD / (f32)world->post.height,
+                        .threshold = GNY_BLOOM_2D_THRESHOLD,
+                        .intensity = GNY_BLOOM_2D_INTENSITY,
+                    },
+                .uniform_size = sizeof(NYA_ShaderBloomUniform),
+            },
         },
-        sizeof(NYA_ShaderBloomUniform)
+        1
     );
-
-    // White, because the shader multiplies its result by the vertex colour and anything else would
-    // tint the whole world.
-    nya_render2d_render_texture(window, &world->scene, 0.0F, 0.0F, (f32)window->screen_width, (f32)window->screen_height, NYA_COLOR_WHITE);
-
-    nya_render2d_shader_end(window);
 }

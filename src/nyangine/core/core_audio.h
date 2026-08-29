@@ -3,11 +3,9 @@
  *
  * Playing sound effects and music, in terms of sound assets.
  *
- * Two kinds of playback, because they want opposite things. A **sound effect** is fire and forget
- * and polyphonic: several can overlap, none is addressable once started, and the same footstep clip
- * playing four times at once is normal. **Music** is a single stream that something wants to stop,
- * pause and swap later, so there is exactly one of it and it is controlled by name rather than by
- * handle.
+ * Two kinds of playback, because they want opposite things. A **sound effect** is fire and forget and
+ * polyphonic: several overlap, none is addressable once started. **Music** is a single stream something
+ * wants to stop, pause and swap later, so there is one of it, controlled by name rather than by handle.
  *
  * ```c
  * // Once, at load time. A sound effect wants predecoding so it starts instantly.
@@ -16,65 +14,31 @@
  * }));
  *
  * nya_audio_play_sound(NYA_ASSET_SFX_JUMP_WAV, 1.0F);
- * // Looping, with no fade in. The third argument is not optional; this example omitted it.
  * nya_audio_play_music(NYA_ASSET_MUSIC_THEME_OGG, true, 0);
  * ```
  *
- * **Predecode sound effects, stream music.** `predecode` on the asset holds the whole clip decoded
- * in memory, which is right for something short that has to start on the frame it is asked for and
- * wrong for a several minute track, where it means holding the entire decoded stream.
+ * **Predecode sound effects, stream music.** Predecoding holds the whole clip decoded, which is right
+ * for something short that must start on the frame it is asked for and wrong for a several minute track.
  *
- * ## Gain
+ * **Gain** is three levels multiplied — master, effects, music — so a player turning music down does not
+ * also turn effects down; the per call gain is a fourth multiplier. They are linear multipliers where
+ * 1.0 is unchanged, not decibels and not percentages, and above 1.0 amplifies and will clip.
  *
- * Three levels, multiplied together: a master, one for effects and one for music. That is the shape
- * an options menu needs — a player turning music down should not also turn the effects down — and it
- * is why gain is not simply a parameter on each call. The per call gain is a fourth multiplier, for
- * a quieter instance of a sound rather than a quieter category.
+ * **Voices.** Effects share a fixed pool, so NYA_AUDIO_VOICES is how many sound at once. Asking for one
+ * more drops the new sound rather than cutting off a playing one: a missing footstep is less noticeable
+ * than a truncated explosion.
  *
- * Gains are linear multipliers where 1.0 is unchanged, not decibels and not a percentage. Values
- * above 1.0 amplify and will clip.
+ * **Variation.** The same clip twice in a row turns into a machine noise, so pitch and level are nudged
+ * per instance — `nya_audio_play_sound_varied`, or spelled out via NYA_SoundParams. Of the two the level
+ * does most of the work. Semitones and decibels rather than linear multipliers, because the ear hears
+ * both logarithmically and a linear range is not symmetric: ±0.06 around 1.0 is a wider step down than
+ * up, so naive jitter drifts a crowd flat and quiet. Rolled once at start, so a looping sound is a
+ * variant rather than something that warbles. It draws from the audio system's own generator, not the
+ * game's, so a seeded run is reproducible however many footsteps it played.
  *
- * ## Voices
- *
- * Effects share a fixed pool of tracks, so NYA_AUDIO_VOICES is how many can sound at once. Asking
- * for one more than that drops the new sound rather than cutting off a playing one, on the grounds
- * that a missing footstep is less noticeable than a truncated explosion.
- *
- * ## Variation
- *
- * The same clip played twice in a row is recognisably the same clip, and a game that fires one every
- * few steps turns it into a machine noise. Nudging the pitch and the level of each instance is what
- * breaks that up, and is cheap enough to be the default for anything repetitive:
- *
- * ```c
- * // ±1 semitone and ±2dB, rolled per instance. No second clip, no extra memory.
- * nya_audio_play_sound_varied(NYA_ASSET_SFX_FOOTSTEP_WAV, 0.8F);
- *
- * // Or spelled out, when the amounts matter or they ride on other parameters.
- * nya_audio_play_sound_with(NYA_ASSET_SFX_HIT_WAV, (NYA_SoundParams){
- *     .gain = 0.9F, .pitch_variation_semitones = 2.5F, .gain_variation_db = 3.0F, .priority = 4,
- * });
- * ```
- *
- * Either can be used without the other, and both are off unless asked for. Of the two, the level is
- * what does most of the work — a run of footsteps reads as mechanical because they are all the same
- * loudness before it reads as mechanical because they are the same pitch.
- *
- * Semitones and decibels rather than linear multipliers, because the ear hears both logarithmically
- * and a linear range is not symmetric: ±0.06 around a pitch of 1.0 is a wider step down than up, so
- * naive jitter drifts a crowd of sounds flat and quiet. An exponent is symmetric by construction.
- *
- * Both are rolled once, when the sound starts, so a looping sound is a variant of the clip rather
- * than something that warbles and breathes.
- *
- * The variation draws from the audio system's own generator, not from any RNG the game holds. A
- * seeded run therefore produces the same world however many footsteps it played, which it would not
- * if sound effects advanced the same stream the simulation reads.
- *
- * ## Effects
- *
- * Playing returns an NYA_SoundVoice, which is what an effect is applied to. Gain, pitch, pan and 3D
- * position can all be changed while the sound is running:
+ * **Effects.** Playing returns an NYA_SoundVoice whose gain, pitch, pan and 3D position can change while
+ * it runs. Music is a voice too — `nya_audio_music_voice()` hands back its handle — which is why there
+ * is no `nya_audio_music_set_pitch`.
  *
  * ```c
  * NYA_SoundVoice engine = nya_audio_play_sound_with(NYA_ASSET_SFX_ENGINE_WAV, (NYA_SoundParams){
@@ -86,52 +50,35 @@
  * nya_audio_voice_set_pan(engine, relative_x);
  * ```
  *
- * Music is a voice too — `nya_audio_music_voice()` hands back its handle — so the same effects apply
- * to it without a second set of functions. That is why there is no `nya_audio_music_set_pitch`.
- *
- * ## Position
- *
- * A sound can be placed in the world rather than panned by hand. Tell the engine where the player
- * hears from, then play sounds at world coordinates:
+ * **Position.** Tell the engine where the player hears from, then play at world coordinates:
  *
  * ```c
- * // Once a frame, from whatever the game considers the ear.
  * nya_audio_listener_set((NYA_AudioListener){ .position = player_position, .reference_distance = 8.0F });
- *
- * // Anywhere, in the same world units.
  * nya_audio_play_sound_at(NYA_ASSET_SFX_ROCKFALL_WAV, rock_position, (NYA_SoundParams){ .gain = 0.9F });
  * ```
  *
- * The mixer's listener cannot be moved off the origin, so this subtracts the listener and maps the
- * remainder onto the axes NYA_AudioPlane names — which is the one thing about the game's world the
- * engine cannot guess, since a side on game wants y to be height and a top down one wants it to be
- * depth.
+ * The mixer's listener cannot leave the origin, so this subtracts the listener and maps the remainder
+ * onto the axes NYA_AudioPlane names — the one thing about the world the engine cannot guess, since a
+ * side on game wants y to be height and a top down one wants it to be depth. Attenuation is
+ * `reference_distance / distance` past the reference and full gain inside it: no rolloff curve, no
+ * cutoff, a far sound is quiet and never silent. No occlusion, reverb or doppler; SDL_mixer has none.
  *
- * Distance attenuation is `reference_distance / distance` past the reference and full gain inside
- * it. There is no rolloff curve to choose and no cutoff: a far away sound is quiet, never silent.
- * Nothing here is occlusion, reverb or doppler; SDL_mixer does not have them.
- *
- * ## Buses and filters
- *
- * Effects and music mix into separate buses, and a bus can carry a filter — which is how everything
- * goes muffled at once without touching any individual sound:
+ * **Buses and filters.** Effects and music mix into separate buses, and a bus can carry a filter, which
+ * is how everything goes muffled at once without touching individual sounds:
  *
  * ```c
  * // The world dulls; music and UI carry on untouched because they are on another bus.
  * nya_audio_bus_filter_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioFilter){ .lowpass_hz = 700.0F, .glide_ms = 120.0F });
  * ```
  *
- * A one pole low pass is the only filter, because it is the one that reads as muffled and because
- * SDL_mixer supplies no DSP at all — this is hand written into its post-mix callback. Dropping the
- * gain instead does not work: quieter sounds quieter, while what the ear identifies as muffled is
- * the missing treble.
+ * A one pole low pass is the only filter: it is what reads as muffled, and SDL_mixer supplies no DSP at
+ * all, so this is hand written into its post-mix callback. Dropping gain instead does not work — that is
+ * quieter, while muffled is the missing treble. It runs on the mixer's thread, so a change lands within
+ * a buffer rather than instantly, and `glide_ms` keeps that transition from clicking.
  *
- * The filtering runs on the mixer's thread, so a change made here reaches the audio within a buffer
- * rather than instantly, and `glide_ms` is what keeps that transition from clicking.
- *
- * A voice handle is **generational**. When a voice finishes, its slot is reused and every handle to
- * the old sound stops resolving, so a stale handle held across frames does nothing rather than
- * quietly retuning whatever sound took its place. Check with nya_audio_voice_valid.
+ * A voice handle is **generational**: when a voice finishes its slot is reused and old handles stop
+ * resolving, so a stale handle does nothing rather than quietly retuning whatever took its place. Check
+ * with nya_audio_voice_valid.
  * */
 #pragma once
 
@@ -231,20 +178,16 @@ struct NYA_SoundParams {
     /**
      * Varies this instance's level by a random offset in ±this many decibels, on top of `gain`.
      *
-     * The other half of breaking up a repeated clip, and the one that matters more: a crowd of
-     * identical footsteps reads as mechanical because they are all the same *loudness* before it
-     * reads as one because they are the same pitch. Off unless asked for, like the pitch variation.
+     * The half of clip variation that matters more: a crowd of footsteps reads as mechanical because
+     * they are all the same *loudness* before it reads as one because they are the same pitch.
+     * Decibels rather than linear, because loudness is heard logarithmically — ±0.2 linear is a much
+     * bigger step down than up.
      *
-     * Decibels rather than a linear fraction, for the reason the pitch is in semitones — loudness is
-     * heard logarithmically, so ±0.2 linear is a much bigger step down than up.
+     * ⚠ **The loud half amplifies**, by about 1.26 at the default ±2dB, and gain above 1.0 clips. Leave
+     * headroom — a base gain of 0.8 rather than 1.0 — on anything played this way at full level.
      *
-     * **The loud half amplifies.** Symmetric in decibels means the top of the range multiplies the
-     * gain, by about 1.26 at the default ±2dB, and gain above 1.0 clips exactly as the note on the
-     * gain functions says. Leave headroom — a base gain of 0.8 rather than 1.0 — on anything played
-     * this way at full level.
-     *
-     * Folded into the voice's remembered gain, so it survives a later master or category change
-     * rather than being lost the first time a slider moves. Rolled once, when the sound starts.
+     * Folded into the voice's remembered gain, so it survives a later master or category change. Rolled
+     * once, when the sound starts.
      * */
     f32 gain_variation_db;
 
@@ -260,16 +203,12 @@ struct NYA_SoundParams {
     /**
      * Detunes this instance by a random offset in ±this many semitones, on top of `pitch`.
      *
-     * Zero plays the clip exactly as authored, which is why it is off unless asked for — a menu
-     * click or a voice line wants to sound identical every time. The point of it is repetition:
-     * footsteps, impacts, gunfire, anything the player hears often enough to notice is one recording.
+     * Off unless asked for: a menu click or a voice line wants to sound identical every time. The point
+     * is repetition — anything heard often enough to notice is one recording.
      *
-     * Twelve is an octave, so the useful range is small. NYA_AUDIO_PITCH_VARIATION_SEMITONES is the
-     * subtle default nya_audio_play_sound_varied uses.
-     *
-     * Applied once, when the sound starts, so a looping sound keeps whatever detune it was given
-     * rather than warbling. Resampling like `pitch`, so a detuned instance is also slightly shorter
-     * or longer than the clip.
+     * Twelve is an octave, so the useful range is small; NYA_AUDIO_PITCH_VARIATION_SEMITONES is the
+     * subtle default. Applied once at start, so a looping sound keeps its detune rather than warbling,
+     * and resampling like `pitch`, so a detuned instance is slightly shorter or longer than the clip.
      * */
     f32 pitch_variation_semitones;
 
@@ -401,17 +340,13 @@ struct NYA_AudioListener {
     /**
      * How far a sound gets before it starts fading, in world units.
      *
-     * Inside this radius a sound plays at full gain; past it the gain falls off as
-     * `reference_distance / distance`, so at twice the reference it is half as loud, and at ten
-     * times a tenth. That is the mixer's whole distance model — OpenAL's inverse-distance-clamped
-     * with a rolloff of one — and there is no cutoff, so a distant sound gets quiet but never
-     * silent. Pair it with `priority` if far away should mean droppable.
+     * Full gain inside this radius; past it gain falls as `reference_distance / distance`, so twice the
+     * reference is half as loud and ten times is a tenth. That is the whole distance model — OpenAL's
+     * inverse-distance-clamped at rolloff one — with **no cutoff**, so a distant sound gets quiet but
+     * never silent. Pair with `priority` if far away should mean droppable.
      *
-     * Sets the scale of the world for audio, so it is worth thinking of in tiles: a value of a few
-     * tiles keeps sound local, and a value of a hundred makes almost everything sound close.
-     *
-     * Zero is read as unspecified and becomes 1.0, which is only sensible if a world unit is already
-     * the intended earshot.
+     * This sets the scale of the world for audio, so think of it in tiles: a few tiles keeps sound
+     * local, a hundred makes almost everything sound close. Zero becomes 1.0.
      * */
     f32 reference_distance;
 
@@ -422,18 +357,14 @@ struct NYA_AudioListener {
 /**
  * The ear in a 3D scene: a point *and* the direction it faces.
  *
- * Separate from NYA_AudioListener rather than an extra field on it, because the two answer different
- * questions. The 2D listener has a position and a plane, and the plane is a fixed statement about which
- * world axis maps to which audio axis — right for a game whose camera never turns, and unable to express
- * one that does. An orbiting camera moves the *whole frame* every mouse drag: a sound to the player's
- * left has to cross to the right as the camera swings past it, and no choice of plane produces that.
+ * Separate from NYA_AudioListener because the two answer different questions. The 2D listener's plane is
+ * a fixed statement about which world axis maps to which audio axis — right for a camera that never
+ * turns, and unable to express one that does. An orbiting camera moves the whole frame every drag: a
+ * sound on the player's left must cross to the right as the camera swings past, and no plane produces that.
  *
- * So this one carries an orientation. Set it every frame from wherever the scene is viewed from; see
- * nya_audio_listener_3d_set for what the two setters do to each other.
- *
- * `forward` and `up` need not be unit vectors and need not be exactly perpendicular — they are
- * orthonormalised on the way in, the way a look-at matrix does it, so handing over a camera's aim
- * direction and a world up works without any preparation.
+ * Set it every frame from wherever the scene is viewed. `forward` and `up` need not be unit or exactly
+ * perpendicular — they are orthonormalised on the way in, as a look-at matrix does, so a camera's aim
+ * direction and a world up work unprepared.
  * */
 struct NYA_AudioListener3D {
     /** Where the ear is, in world units. Usually the camera, in a scene with no avatar to hear from. */
@@ -568,10 +499,8 @@ NYA_API NYA_AudioListener3D nya_audio_listener_3d_get(void) __attr_no_discard;
 /**
  * Plays a sound at a point in the world, heard from wherever the listener is.
  *
- * The positional form of nya_audio_play_sound_with, and identical to it otherwise — same failure
- * modes, same zero-means-default parameters, same variation fields. The placement is applied before
- * the first sample is mixed rather than corrected afterwards, so a sound never starts centred and
- * jumps.
+ * The positional form of nya_audio_play_sound_with and identical otherwise. Placement is applied before
+ * the first sample is mixed rather than corrected after, so a sound never starts centred and jumps.
  *
  * ```c
  * nya_audio_listener_set((NYA_AudioListener){ .position = player_position, .reference_distance = 8.0F });
@@ -581,12 +510,10 @@ NYA_API NYA_AudioListener3D nya_audio_listener_3d_get(void) __attr_no_discard;
  * });
  * ```
  *
- * `params.pan` is ignored here: panning and 3D placement decide the same thing, and this is the one
- * that was asked for.
+ * `params.pan` is ignored: panning and 3D placement decide the same thing, and this is the one asked for.
  *
- * Positional playback is mixed down to mono by SDL_mixer, since a sound coming from somewhere has to
- * be put back across the speakers. A clip whose stereo image is the point of it — most music, some
- * ambience — wants nya_audio_play_sound_with and a pan instead.
+ * ⚠ Positional playback is mixed down to **mono** by SDL_mixer. A clip whose stereo image is the point of
+ * it — most music, some ambience — wants nya_audio_play_sound_with and a pan instead.
  * */
 NYA_API NYA_SoundVoice nya_audio_play_sound_at(NYA_ConstCString sound_handle, f32x2 world_position, NYA_SoundParams params);
 

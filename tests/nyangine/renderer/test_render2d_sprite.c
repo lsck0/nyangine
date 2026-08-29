@@ -61,7 +61,7 @@ s32 main(void) {
     nya_assert(from_list.texture == nullptr, "an out of range frame points at no texture");
   }
 
-  nya_info("PASSED: test_sprite");
+  nya_log_info("PASSED: test_sprite");
 
   return EXIT_SUCCESS;
 }

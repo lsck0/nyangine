@@ -11,29 +11,18 @@
  * NYA_EXPECT(nya_net_server_listen(27015));
  * ```
  *
- * ## What single player costs
+ * **Single player costs one branch per tick**: nya_net_server_tick returns immediately with no remote
+ * peers, so nothing is captured, encoded or kept. That is why single player is a server rather than a
+ * fourth mode — one simulation path, so a bug cannot exist in multiplayer and not in single player.
  *
- * A branch per tick. That is not an aspiration, it is how the code is arranged:
- * nya_net_server_tick returns immediately when there are no remote peers, so no snapshot is captured,
- * nothing is encoded, and no baseline is kept. A game that never calls nya_net_server_listen pays for
- * one comparison per tick and nothing else.
+ * **Per-client baselines.** Each peer's snapshot is delta'd against the newest one *it* acknowledged,
+ * kept in a ring of NYA_NET_SNAPSHOT_HISTORY, so a peer on a bad connection is sent more without
+ * making a good one pay for it. One whose acknowledgement has aged out of the ring gets a full
+ * snapshot — both the join path and the recovery path.
  *
- * This is why single player is a server rather than a fourth mode. There is one simulation path, so a
- * bug cannot exist in multiplayer and not in single player.
- *
- * ## Per-client baselines
- *
- * Each peer gets its snapshot delta'd against the newest one *it* has acknowledged, kept in a ring of
- * NYA_NET_SNAPSHOT_HISTORY. A peer on a bad connection is further behind and is sent more; a peer on
- * a good one is not made to pay for it. A peer whose last acknowledgement has aged out of the ring is
- * sent a full snapshot, which is both the join path and the recovery path.
- *
- * ## The local player on a listen server
- *
- * A listen server's own player is a peer like any other, with a real NYA_NetPeerId — so nothing in
- * the game has to ask "am I the host". It is connected over a loopback transport, which means its
- * snapshots are handed over without serialisation and its commands arrive with no latency. See
- * nya_net_server_local_peer.
+ * **The local player on a listen server** is a peer like any other with a real NYA_NetPeerId, so
+ * nothing in the game has to ask "am I the host". It rides a loopback transport, so its snapshots skip
+ * serialisation and its commands arrive with no latency. See nya_net_server_local_peer.
  * */
 #pragma once
 
@@ -67,12 +56,9 @@ typedef struct NYA_NetServerPeer   NYA_NetServerPeer;
 /**
  * Called when a player joins, to give them something to control.
  *
- * The engine spawns nothing on its own: what a player *is* — a capsule, a ship, a cursor — is the
- * game's decision, and so is where they start. Return NYA_ENTITY_HANDLE_NONE to admit a spectator
- * with no body.
- *
- * The returned entity must carry the config's `replicated_flag`, or the player will control something
- * no client can see.
+ * The engine spawns nothing on its own: what a player *is*, and where they start, is the game's
+ * decision. Return NYA_ENTITY_HANDLE_NONE to admit a spectator with no body. The returned entity must
+ * carry the config's `replicated_flag`, or the player will control something no client can see.
  * */
 typedef NYA_EntityHandle (*NYA_NetSpawnPlayerFn)(NYA_NetPeerId peer, NYA_ConstCString name);
 
@@ -82,33 +68,23 @@ typedef void (*NYA_NetDespawnPlayerFn)(NYA_NetPeerId peer, NYA_EntityHandle enti
 /**
  * Whether `entity` is worth sending to `peer` this tick.
  *
- * The engine's answer to "the world is bigger than the wire". Without one, every client is sent every
- * replicated entity every snapshot — correct for a small shared world, ruinous for a large one, and the
- * cost is quadratic in players since each of them pays for all of it.
+ * The answer to "the world is bigger than the wire". Without one, every client is sent every replicated
+ * entity every snapshot — ruinous for a large world, and quadratic in players since each pays for all
+ * of it. Return false and the entity is absent from that peer's snapshot; the client's own sweep
+ * despawns its copy, which is right — from that player's view it went out of range. It reappears in
+ * full when relevant again, because it will not be in that peer's baseline.
  *
- * Return false and the entity simply does not appear in that peer's snapshot. The client's own sweep
- * then despawns its copy, which is exactly right: from that player's point of view the thing has gone
- * out of range. It reappears in full when it becomes relevant again, because it will not be in that
- * peer's baseline.
+ * `peer_entity` is what that player controls, or null for a spectator; almost every rule is about
+ * distance from it, so it is passed rather than looked up per entity.
  *
- * `peer_entity` is what that player controls, or null for a spectator — almost every relevance rule is
- * about distance from it, so it is passed rather than looked up per entity.
+ * **`currently_relevant` is whether this entity is already being sent, and a rule that ignores it will
+ * make entities on its boundary flicker.** Relevance is re-decided every snapshot, so an entity on the
+ * edge of a sharp test flips several times a second, each flip a spawn and a despawn on the client — a
+ * player near a doorway sees the next room strobe. Make the condition to *stay* looser than the one to
+ * *start*: return true a little further out when it is set. The built-in radius rule does exactly this;
+ * see NYA_NetServerConfig.relevance_hysteresis.
  *
- * ## `currently_relevant`, and why you want it
- *
- * Whether this entity is already being sent to this peer. It is passed so a rule can be **hysteretic**,
- * and a rule that ignores it will make entities on its boundary flicker.
- *
- * The reason: relevance is re-decided every snapshot, and an entity sitting exactly on the edge of a
- * sharp test flips between relevant and not. Each flip is a spawn and a despawn on the client, several
- * times a second, for an object that barely moved. A player near the edge of a room sees everything in
- * the next room strobe.
- *
- * So make the condition to *stay* looser than the condition to *start*: return true a little further out
- * when `currently_relevant` is set. The built-in radius rule does exactly this — see
- * NYA_NetServerConfig.relevance_hysteresis.
- *
- * Called once per replicated entity per peer per snapshot, so it wants to be cheap. Distance-squared,
+ * Called once per replicated entity per peer per snapshot, so it wants to be cheap: distance-squared,
  * not distance. See NYA_NetServerConfig.relevance_radius for the built-in version.
  * */
 typedef b8 (*NYA_NetRelevanceFn)(NYA_NetPeerId peer, const NYA_Entity* peer_entity, const NYA_Entity* entity, b8 currently_relevant);

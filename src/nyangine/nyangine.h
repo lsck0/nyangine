@@ -10,7 +10,7 @@
  * -DNYA_TESTING : Enable crash prevention (nya_expect_crash). TEST BUILDS ONLY, never ship this.
  * -DNYA_ARENA_FORCE_DEBUG : Force arena to use debug mode.
  * -DNYA_ARENA_FORCE_NODEBUG : Force arena to use no-debug mode.
- * -DNYA_ASSET_PREFER_BLOB : Bake assets/assets.c into the binary and look there before the
+ * -DNYA_ASSET_PREFER_BLOB : Bake src/generated/assets.c into the binary and look there before the
  *                    filesystem. Anything the blob does not carry still comes off disk, so this is a
  *                    cache in front of the filesystem rather than a replacement for it.
  *                    (Listed here as -DNYA_ASSET_BLOB until now, which is not the macro any #ifdef

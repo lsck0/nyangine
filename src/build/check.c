@@ -137,7 +137,7 @@ void check_runner(NYA_ArgCommand* command) {
     }
 
     if (rules->length == 0) {
-        nya_warn("Nothing to check: no translation unit matched.");
+        nya_log_warn("Nothing to check: no translation unit matched.");
         return;
     }
 
@@ -148,7 +148,7 @@ void check_runner(NYA_ArgCommand* command) {
      */
     NYA_EXPECT(nya_build_parallel(rules->items, (u32)rules->length, 0), "while running clang-tidy");
 
-    nya_info("Checked " FMTu64 " translation units.", rules->length);
+    nya_log_info("Checked " FMTu64 " translation units.", rules->length);
 }
 
 /*

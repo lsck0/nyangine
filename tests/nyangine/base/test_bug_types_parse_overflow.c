@@ -84,6 +84,6 @@ s32 main(void) {
     nya_assert(value == U64_MAX);
   }
 
-  nya_info("PASSED: nya_type_parse rejects unrepresentable literals instead of wrapping");
+  nya_log_info("PASSED: nya_type_parse rejects unrepresentable literals instead of wrapping");
   return 0;
 }

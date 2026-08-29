@@ -4,6 +4,7 @@
 #include "nyangine/math/math_quaternion.c"
 #include "nyangine/math/math_random.c"
 #include "nyangine/math/math_shapes.c"
+#include "nyangine/math/math_spring.c"
 #include "nyangine/math/math_tween.c"
 #include "nyangine/math/math_uuid.c"
 #include "nyangine/math/math_vector.c"

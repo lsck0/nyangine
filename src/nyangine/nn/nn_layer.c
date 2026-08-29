@@ -56,7 +56,7 @@ NYA_NNTensor* nya_nn_layer_forward(NYA_NNLayer* layer, NYA_NNGraph* graph, NYA_N
         case NYA_NN_LAYER_TANH:   return nya_nn_tanh(graph, input);
 
         case NYA_NN_LAYER_KIND_COUNT:
-        default:                  nya_panic("unknown layer kind %d", (int)layer->kind);
+        default:                  nya_log_panic("unknown layer kind %d", (int)layer->kind);
     }
 }
 

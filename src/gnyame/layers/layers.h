@@ -118,7 +118,7 @@ struct GNY_Cube3DScene {
     NYA_EntityHandle pill;
 
     /** The noise-generated ground everything in this scene stands on. */
-    GNY_Terrain3D terrain;
+    NYA_Terrain3D* terrain;
 
     /**
      * The pile, in a fixed array rather than found by querying for GNY_ENTITY_CUBE3D.
@@ -312,11 +312,11 @@ struct GNY_World {
     /** Owns everything below it, including this struct. Outlives every reload. */
     NYA_Arena* allocator;
 
-    NYA_EntityHandle terrain;
+    /** The 2D ground. Null until gny_terrain_generate first runs. See core_terrain2d.h. */
+    NYA_Terrain2D* terrain2d;
 
-    /** The polyline, in world units. Shared by the collision chain and by the layer that draws it. */
-    f32x2* terrain_points;
-    u32    terrain_point_count;
+    /** The ground body, mirrored from the terrain so existing call sites keep working. */
+    NYA_EntityHandle terrain;
 
     /** Seeds the terrain. Kept so regenerating produces a different shape rather than the same one. */
     u64 terrain_seed;
@@ -379,6 +379,34 @@ struct GNY_World {
     /** The 3D demo's state. Zeroed until its layer is pushed. See GNY_Cube3DScene. */
     GNY_Cube3DScene cube3d;
 
+    /*
+     * ── Scripting ──
+     */
+
+    /**
+     * The Lua VM, or null before the startup script has loaded.
+     *
+     * ⚠ **Here rather than in a static inside a .c**, which is the first of lua.h's two hot-reload
+     * rules: GNY_World lives in the engine world's arena, which lives in the *host* executable, so
+     * this survives the game library being replaced. A pointer in the game's own data would not.
+     *
+     * The second rule does not bite here because nothing in the game registers a binding — the `nya`
+     * table is the engine's and lives in the host too.
+     * */
+    NYA_LuaVM* lua;
+
+    /** Seconds since the script's tick hook last ran. It is a once-a-second hook, not a per-frame one. */
+    f32 lua_tick_timer_s;
+
+    /**
+     * Whether the startup script has been run.
+     *
+     * Assets resolve at the end of a frame, so the script cannot be run from gny_world_create — it
+     * would find nothing loaded. The first tick that finds it loaded runs it, and this stops every
+     * tick after that from running it again.
+     * */
+    b8 lua_started;
+
     /**
      * Sparks thrown off by crate impacts.
      *
@@ -398,7 +426,13 @@ struct GNY_World {
      * game layer: created on demand in its render, destroyed in its on_destroy while the renderer is
      * still standing.
      * */
-    NYA_RenderTexture scene;
+    /**
+     * The post-processing chain the world is composited through.
+     *
+     * Was a single NYA_RenderTexture plus a hand written ensure/begin/pass/end sequence, duplicated
+     * between the 2D camera and the 3D layer. nya_post_* is that sequence, in the engine, once.
+     * */
+    NYA_PostChain post;
 
     /** Toggled with `b`. Off draws the scene straight to the window with no second pass. */
     b8 bloom_enabled;
@@ -441,6 +475,14 @@ void gny_world_clear(void);
  * fixed; a real game would size it to whatever it is inset into.
  * */
 NYA_EntityHandle gny_world_inset_camera(void);
+
+/**
+ * Runs the startup script once it has loaded, then its optional per-second hook.
+ *
+ * Called from the game layer's on_update. Split out of the layer because the VM belongs to the world
+ * rather than to any one screen — see GNY_World.lua.
+ * */
+void gny_world_script_tick(f32 delta_time_s);
 
 /** Releases the arena. Everything reachable from GNY_World is invalid afterwards. */
 void gny_world_destroy(void);
@@ -572,7 +614,6 @@ void gny_world_draw(NYA_Window* window, NYA_Camera2DTopDown camera);
  * */
 void gny_bloom_pipeline_ensure(NYA_Window* window);
 
-void gny_scene_target_ensure(NYA_Window* window);
 
 /**
  * Where a point on screen is in the world, under the game layer's camera.

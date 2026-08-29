@@ -54,7 +54,14 @@ __attr_allow_unused static NYA_ConstCString NYA_FILETYPE_NAME_MAP[NYA_FILE_TYPE_
     [NYA_FILE_TYPE_SYMLINK]   = "SYMLINK",
 };
 
-/** Timestamps are seconds since the unix epoch on both platforms. */
+/**
+ * Timestamps are milliseconds since the unix epoch on both platforms.
+ *
+ * Milliseconds rather than seconds because these are compared, not displayed, and the thing that
+ * compares them is the build system deciding whether an output is older than its input. A second is
+ * long enough for a fast rule to write its output inside the same tick as the edit that triggered
+ * it, at which point the two timestamps are equal and the rule never runs again.
+ * */
 struct NYA_FileInfo {
     NYA_FileType type;
     u64          size;
@@ -104,6 +111,7 @@ NYA_API b8 nya_filesystem_is_directory(NYA_ConstCString path) __attr_no_discard;
 NYA_API NYA_Error nya_filesystem_info(NYA_ConstCString path, OUT NYA_FileInfo* out_info) __attr_no_discard;
 
 NYA_API NYA_Error nya_filesystem_size(NYA_ConstCString path, OUT u64* out_size) __attr_no_discard;
+/** Milliseconds since the unix epoch, the same unit and value as NYA_FileInfo.modified_at. */
 NYA_API NYA_Error nya_filesystem_last_modified(NYA_ConstCString path, OUT u64* out_timestamp) __attr_no_discard;
 
 /** Resolves symlinks and relative segments into an absolute path. */

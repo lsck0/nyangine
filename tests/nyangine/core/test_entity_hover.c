@@ -318,7 +318,7 @@ s32 main(void) {
     nya_assert(call_count == 1, "and no further edge was produced, got %u calls", call_count);
   }
 
-  nya_info("PASSED: test_entity_hover (0 failures)");
+  nya_log_info("PASSED: test_entity_hover (0 failures)");
 
   return EXIT_SUCCESS;
 }

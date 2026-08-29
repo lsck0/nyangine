@@ -61,7 +61,7 @@
  * NYA_ArrayᐸPlayerᐳ* players = nya_array_create(arena, Player);
  *
  * nya_array_add_many(players, (Player){ .id = 1, .name = "Alice" }, (Player){ .id = 2, .name = "Bob" });
- * nya_array_foreach (players, player) nya_info("Player %u: %s", player->id, player->name);
+ * nya_array_foreach (players, player) nya_log_info("Player %u: %s", player->id, player->name);
  *
  * nya_arena_destroy(arena);
  * ```

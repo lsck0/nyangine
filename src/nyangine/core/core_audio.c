@@ -15,12 +15,10 @@ typedef struct NYA_AudioReverbState NYA_AudioReverbState;
  * REVERB
  * ─────────────────────────────────────────────────────────
  *
- * A Schroeder network: four comb filters in parallel, summed, then two allpasses in series. Per channel,
- * with the second channel's delays offset so the two rooms are not the same room.
- *
- * The delay lengths are the classic Freeverb set, in samples at 44.1 kHz. They are mutually prime on
- * purpose — lengths sharing a factor make their echoes land on top of each other, which is heard as a
- * metallic ring rather than as a room.
+ * A Schroeder network: four comb filters in parallel, summed, then two allpasses in series, per channel,
+ * with the second channel's delays offset so the two rooms are not the same room. Delay lengths are the
+ * classic Freeverb set, in samples at 44.1 kHz, and mutually prime — lengths sharing a factor land their
+ * echoes on top of each other, heard as a metallic ring rather than a room.
  */
 
 /** Comb delays at 44.1 kHz, in samples. */
@@ -34,36 +32,26 @@ NYA_INTERNAL const u32 _NYA_AUDIO_REVERB_COMB_LENGTHS[_NYA_AUDIO_REVERB_COMBS] =
 NYA_INTERNAL const u32 _NYA_AUDIO_REVERB_ALLPASS_LENGTHS[_NYA_AUDIO_REVERB_ALLPASSES] = { 556, 441 };
 
 /**
- * How far the right channel's delays are offset from the left's, in samples at 44.1 kHz.
- *
- * Twenty-three, and prime for the same reason the lengths are: an offset sharing a factor with a comb
- * length puts the two channels' echoes back in step at intervals, which is heard as the stereo image
- * pulsing rather than as width.
+ * How far the right channel's delays are offset from the left's, in samples at 44.1 kHz. Twenty-three,
+ * and prime for the same reason the lengths are: an offset sharing a factor with a comb length puts the
+ * echoes back in step at intervals, heard as the stereo image pulsing rather than width.
  * */
 #define _NYA_AUDIO_REVERB_STEREO_SPREAD 23
 
 /**
- * The longest delay any line can need, in samples.
- *
- * The lengths above are at 44.1 kHz and scale with the sample rate: the longest comb plus the stereo
- * offset is 1379 there, so this covers rates up to about 96 kHz. A device running faster than that gets
- * lengths clamped to this, which is a slightly smaller room and inaudible.
- *
- * Fixed rather than allocated because this is touched only from the mixer's thread, where allocating is
- * not allowed at all.
+ * The longest delay any line can need, in samples. Lengths scale with the sample rate: the longest comb
+ * plus the stereo offset is 1379 at 44.1 kHz, so this covers rates up to about 96 kHz; anything faster
+ * gets lengths clamped to this, a slightly smaller room and inaudible. Fixed rather than allocated: this
+ * is touched only from the mixer's thread.
  * */
 #define _NYA_AUDIO_REVERB_MAX_DELAY 3072
 
 /**
- * How many networks are run, regardless of how many speakers there are.
- *
- * Two, always. A reverb tail is a stereo impression rather than a per-speaker signal, and running six
- * independent networks for a 5.1 device would cost three times as much to produce something *less*
- * coherent — six uncorrelated tails do not localise, they smear.
- *
- * So the bus is downmixed into a left and a right feed, the two networks run on those, and the result is
- * added back across every channel by parity. A surround device therefore hears one room from all its
- * speakers, which is what a room is.
+ * How many networks are run, regardless of how many speakers there are. Two, always: a reverb tail is a
+ * stereo impression rather than a per-speaker signal — six independent networks for a 5.1 device would
+ * cost three times as much for something *less* coherent, since uncorrelated tails don't localise, they
+ * smear. The bus is downmixed to a left and right feed, the two networks run on those, and the result is
+ * added back across every channel by parity.
  * */
 #define _NYA_AUDIO_REVERB_NETWORKS 2
 
@@ -85,11 +73,10 @@ typedef struct {
 } NYA_AudioReverbAllpass;
 
 /**
- * One bus's reverb: what the game asked for, and the network the mixer's thread runs.
- *
- * Split exactly like NYA_AudioFilterState, and for the same reason: the atomics are written by whoever
- * calls the setter and read in the callback, and everything below them belongs to the audio thread alone.
- * Nothing is shared in both directions, so there is no lock on the mixing path.
+ * One bus's reverb: what the game asked for, and the network the mixer's thread runs. Split exactly like
+ * NYA_AudioFilterState: the atomics are written by whoever calls the setter and read in the callback,
+ * everything below them belongs to the audio thread alone, and nothing is shared in both directions, so
+ * there is no lock on the mixing path.
  * */
 struct NYA_AudioReverbState {
     /* ── Written by the game, read by the mixer ── */
@@ -110,21 +97,18 @@ struct NYA_AudioReverbState {
 };
 
 /**
- * One bus's filter: what the game asked for, and where the mixer's thread has got to.
- *
- * The split down the middle is the whole design. The two atomics are written by whoever calls
- * nya_audio_bus_filter_set and read by the audio thread; everything below them is touched only by
- * the audio thread, inside the callback. Nothing is shared in both directions, so there is no lock
- * on the mixing path — which there could not be anyway, since blocking in a post-mix callback
- * drops audio.
+ * One bus's filter: what the game asked for, and where the mixer's thread has got to. The split down the
+ * middle is the whole design: the two atomics are written by whoever calls nya_audio_bus_filter_set and
+ * read by the audio thread; everything below them is touched only by the audio thread, inside the
+ * callback. Nothing is shared in both directions, so there is no lock on the mixing path — blocking in a
+ * post-mix callback drops audio.
  * */
 struct NYA_AudioFilterState {
     /*
      * ── Written by the game, read by the mixer ──
      *
-     * Relaxed on both sides: these are two independent scalars with no ordering between them and
-     * nothing else published alongside. The worst a torn pair can do is spend one buffer gliding at
-     * the previous rate, which is inaudible and self correcting on the next.
+     * Relaxed on both sides: two independent scalars with no ordering between them. The worst a torn
+     * pair can do is spend one buffer gliding at the previous rate, which is inaudible and self correcting.
      */
     atomic f32 target_hz;
     atomic f32 glide_ms;
@@ -134,11 +118,9 @@ struct NYA_AudioFilterState {
      */
 
     /**
-     * The one pole's current coefficient, in [0, 1], where 1 is wide open.
-     *
-     * Held rather than recomputed because it is what glides: jumping straight to a new cutoff is the
-     * click that glide_ms exists to avoid. One is the resting value, and it makes the filter an
-     * exact identity rather than a very wide filter.
+     * The one pole's current coefficient, in [0, 1], where 1 is wide open. Held rather than recomputed
+     * because it is what glides — jumping straight to a new cutoff is the click glide_ms exists to avoid.
+     * One is the resting value, an exact identity rather than a wide filter.
      * */
     f32 coefficient;
 
@@ -147,12 +129,10 @@ struct NYA_AudioFilterState {
 };
 
 /**
- * One playable slot.
- *
- * `generation` is what makes a handle safe to hold: it is bumped every time the slot starts a new
- * sound, so a handle from the sound before stops resolving. `base_gain` is remembered rather than
- * pushed straight to the track, so that a later change to the category or master gain can be folded
- * in without losing what the caller asked for.
+ * One playable slot. `generation` is what makes a handle safe to hold: bumped every time the slot starts
+ * a new sound, so a handle from the sound before stops resolving. `base_gain` is remembered rather than
+ * pushed straight to the track, so a later category or master gain change can be folded in without
+ * losing what was asked for.
  * */
 typedef struct {
     MIX_Track* track;
@@ -163,20 +143,16 @@ typedef struct {
     s32 priority;
 
     /**
-     * This voice's own low pass, run on SDL_mixer's per-track hook before it reaches its bus.
-     *
-     * The piece that made occlusion possible. A bus filter muffles everything on the bus, which cannot
-     * express "that one sound is behind a wall" — and there was nowhere else to put a filter, because a
-     * track had no DSP stage of its own until this was hung on one.
+     * This voice's own low pass, run on SDL_mixer's per-track hook before it reaches its bus. What makes
+     * occlusion possible: a bus filter muffles everything on the bus, which cannot express "that one
+     * sound is behind a wall".
      * */
     NYA_AudioFilterState filter;
 
     /**
-     * Where in the world this voice was placed, and whether it was placed at all.
-     *
-     * Remembered because occlusion has to ask about it every frame and the position was previously
-     * pushed straight to the track and forgotten — SDL_mixer stores it listener-relative, so reading it
-     * back would give an answer in the wrong space and one frame out of date.
+     * Where in the world this voice was placed, and whether it was placed at all. Remembered because
+     * occlusion has to ask about it every frame: SDL_mixer stores position listener-relative, so reading
+     * it back off the track would give an answer in the wrong space.
      * */
     f32x3 world_position;
     b8    positional;
@@ -186,19 +162,13 @@ typedef struct {
 } NYA_AudioVoice;
 
 /*
- * Music is the slot past the effect pool rather than a separate field.
+ * Music is the slot past the effect pool rather than a separate field: it behaves identically once
+ * playing, same effects and gain arithmetic, so one lookup path and one set of effect functions serves
+ * both. Never handed out by the free-voice search, which walks only the first NYA_AUDIO_VOICES entries.
  *
- * It behaves identically once playing — same effects, same gain arithmetic — so giving it a slot
- * means one lookup path and one set of effect functions instead of two of each. It is still never
- * handed out by the free-voice search, which only walks the first NYA_AUDIO_VOICES entries.
- */
-/*
- * Two music slots, not one, and that is what makes a crossfade possible.
- *
- * A crossfade needs both pieces sounding at once, so a single track could only ever cut. The pair is
- * used alternately: whichever is not currently playing is the one the next track starts on, and the
- * two swap roles. Neither is ever handed out by the free-voice search, which walks only the first
- * NYA_AUDIO_VOICES entries.
+ * Two music slots, not one, is what makes a crossfade possible: both pieces have to sound at once, so a
+ * single track could only ever cut. Used alternately — whichever is not playing is where the next track
+ * starts.
  */
 #define _NYA_AUDIO_MUSIC_A NYA_AUDIO_VOICES
 #define _NYA_AUDIO_MUSIC_B (NYA_AUDIO_VOICES + 1)
@@ -208,14 +178,12 @@ struct NYA_AudioSystem {
     NYA_AudioVoice slots[_NYA_AUDIO_SLOTS];
 
     /**
-     * Drives per instance pitch variation, and nothing else.
+     * Drives per instance pitch variation, and nothing else. Its own generator rather than one the game
+     * shares: how many sounds played is not something a seeded run should be able to feel, or a footstep
+     * would shift every value after it and the same seed would stop reproducing the same world.
      *
-     * Its own generator rather than one the game shares, because how many sounds played is not
-     * something a seeded run should be able to feel: a footstep drawing from the simulation's stream
-     * would shift every value after it, and the same seed would stop reproducing the same world.
-     *
-     * By value in a static, which is what keeps NYA_RNG's 32 byte alignment satisfied for free —
-     * see nya_rng_create_in for the arena case, where it is not free at all.
+     * By value in a static, which keeps NYA_RNG's 32 byte alignment satisfied for free — see
+     * nya_rng_create_in for the arena case, where it is not free at all.
      * */
     NYA_RNG rng;
 
@@ -234,10 +202,9 @@ struct NYA_AudioSystem {
     NYA_AudioOcclusion   occlusion;
 
     /**
-     * The buses effects and music mix through, indexed by NYA_AudioBus.
-     *
-     * The master entry stays null: it is the mixer itself rather than a group, and its filter hangs
-     * off MIX_SetPostMixCallback instead. Indexing by bus anyway keeps one array and one loop.
+     * The buses effects and music mix through, indexed by NYA_AudioBus. The master entry stays null: it
+     * is the mixer itself rather than a group, and its filter hangs off MIX_SetPostMixCallback instead.
+     * Indexed by bus anyway to keep one array and one loop.
      * */
     MIX_Group* groups[NYA_AUDIO_BUS_COUNT];
 
@@ -273,8 +240,8 @@ NYA_INTERNAL NYA_AudioVoice* _nya_audio_resolve(NYA_SoundVoice voice);
 NYA_INTERNAL void _nya_audio_apply_gain(u32 slot);
 
 /**
- * Everything nya_audio_play_sound_with does, with an optional placement applied before the first
- * sample is mixed. Null plays unplaced, which is the non positional case.
+ * Everything nya_audio_play_sound_with does, with an optional placement applied before the first sample
+ * is mixed. Null plays unplaced.
  * */
 NYA_INTERNAL NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_SoundParams params, const f32x3* position);
 
@@ -282,8 +249,8 @@ NYA_INTERNAL NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_S
 NYA_INTERNAL void _nya_audio_voice_remember_position(NYA_SoundVoice voice, f32x3 world_position);
 
 /**
- * A world point as the mixer wants it: relative to the listener, on the axes its plane names, and
- * scaled so that 1.0 is where attenuation starts.
+ * A world point as the mixer wants it: relative to the listener, on the axes its plane names, scaled so
+ * 1.0 is where attenuation starts.
  * */
 NYA_INTERNAL f32x3 _nya_audio_world_to_audio(f32x2 world_position) __attr_no_discard;
 
@@ -291,12 +258,10 @@ NYA_INTERNAL f32x3 _nya_audio_world_to_audio(f32x2 world_position) __attr_no_dis
 NYA_INTERNAL f32x3 _nya_audio_world_to_audio_3d(f32x3 world_position) __attr_no_discard;
 
 /*
- * Pan and placement against a track rather than a voice handle.
- *
- * Both are needed from inside the play path, where the voice does not exist yet — its generation is
- * bumped only once the sound is actually running, so a handle built there resolves against the
- * *previous* sound and every setter called with it does nothing. That is not hypothetical: it is
- * what silently dropped NYA_SoundParams.pan on the floor before these existed.
+ * Pan and placement against a track rather than a voice handle. Needed from inside the play path, where
+ * the voice does not exist yet — its generation is bumped only once the sound is running, so a handle
+ * built there resolves against the *previous* sound. This is what silently dropped NYA_SoundParams.pan
+ * before these existed.
  */
 NYA_INTERNAL void _nya_audio_track_set_pan(MIX_Track* track, f32 pan);
 NYA_INTERNAL void _nya_audio_track_set_position(MIX_Track* track, f32x3 position);
@@ -305,11 +270,10 @@ NYA_INTERNAL void _nya_audio_track_set_position(MIX_Track* track, f32x3 position
 NYA_INTERNAL void _nya_audio_filter_reset(NYA_AudioFilterState* filter);
 
 /**
- * Rolls `pcm` off in place, gliding toward whatever cutoff was last asked for.
- *
- * **Runs on the mixer's thread.** No allocation, no logging, no locks, and nothing that could block:
- * this is called with a deadline, and overrunning it is a dropout. `samples` counts floats rather
- * than sample frames, which is SDL_mixer's convention and not the obvious reading.
+ * Rolls `pcm` off in place, gliding toward whatever cutoff was last asked for. **Runs on the mixer's
+ * thread.** No allocation, no logging, no locks, nothing that could block: this is called with a
+ * deadline, and overrunning it is a dropout. `samples` counts floats, not sample frames — SDL_mixer's
+ * convention and not the obvious reading.
  * */
 NYA_INTERNAL void _nya_audio_filter_apply(NYA_AudioFilterState* filter, const SDL_AudioSpec* spec, f32* pcm, s32 samples);
 
@@ -317,11 +281,9 @@ NYA_INTERNAL void _nya_audio_filter_apply(NYA_AudioFilterState* filter, const SD
 NYA_INTERNAL void _nya_audio_reverb_configure(NYA_AudioReverbState* reverb, s32 rate);
 
 /**
- * Adds a reverberated copy of `pcm` back into it, in place.
- *
- * **Runs on the mixer's thread**, under the same rules the filter does: no allocation, no logging, no
- * locks, nothing that could block. It is the heavier of the two — six delay lines per channel per frame —
- * which is why it returns immediately when the room size is zero.
+ * Adds a reverberated copy of `pcm` back into it, in place. **Runs on the mixer's thread**, under the
+ * same rules the filter does. The heavier of the two — six delay lines per channel per frame — so it
+ * returns immediately when the room size is zero.
  * */
 NYA_INTERNAL void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* spec, f32* pcm, s32 samples);
 
@@ -334,22 +296,17 @@ NYA_INTERNAL void SDLCALL _nya_audio_post_mix_callback(void* userdata, MIX_Mixer
 NYA_INTERNAL f32 _nya_audio_jitter(f32 half_range) __attr_no_discard;
 
 /**
- * `pitch` detuned by a random offset within ±`semitones`. Returns it unchanged when that is zero.
- *
- * The offset is drawn in semitones and converted, rather than drawn as a ratio, because a ratio
- * range is not symmetric about 1.0: ±0.06 is 1.07 semitones up and 1.14 down, so uniform linear
- * jitter is biased flat and a crowd of sounds detunes downward on average. An exponent keeps the two
- * directions the same musical distance.
+ * `pitch` detuned by a random offset within ±`semitones`. Returns it unchanged when that is zero. Drawn
+ * in semitones and converted, rather than as a ratio directly, because a ratio range is not symmetric
+ * about 1.0: ±0.06 is 1.07 semitones up and 1.14 down, so uniform linear jitter is biased flat and a
+ * crowd of sounds detunes downward on average.
  * */
 NYA_INTERNAL f32 _nya_audio_vary_pitch(f32 pitch, f32 semitones) __attr_no_discard;
 
 /**
- * `gain` moved by a random offset within ±`db`. Returns it unchanged when that is zero.
- *
- * Decibels for the same reason the pitch is in semitones, and with the same shape: an offset drawn
- * uniformly in the exponent, so the two directions are the same perceived step. The result can
- * exceed `gain` — that is what symmetric means — and is not clamped, because a caller who wanted a
- * ceiling would have passed a lower gain.
+ * `gain` moved by a random offset within ±`db`. Returns it unchanged when that is zero. Decibels for the
+ * same reason the pitch is in semitones. The result can exceed `gain` — that is what symmetric means —
+ * and is not clamped, since a caller who wanted a ceiling would pass a lower gain.
  * */
 NYA_INTERNAL f32 _nya_audio_vary_gain(f32 gain, f32 db) __attr_no_discard;
 
@@ -362,14 +319,12 @@ NYA_INTERNAL f32 _nya_audio_vary_gain(f32 gain, f32 db) __attr_no_discard;
 NYA_Error nya_system_audio_init(void) {
     NYA_AudioSystem* system = &_nya_audio_system;
 
-    // Ahead of the mixer check, so the generator is seeded on every path rather than only the one
-    // that has a device. Unseeded it would hand every run the same sequence of detunes, which is the
-    // one thing this is meant to avoid.
+    // Ahead of the mixer check, so the generator is seeded on every path, not only the one with a
+    // device — unseeded it would hand every run the same sequence of detunes.
     system->rng = nya_rng_create();
 
-    // A listener at the origin, hearing one world unit as the falloff distance. Set here rather than
-    // left zeroed because a reference distance of zero is a division by it, and a game is entitled to
-    // play a positional sound before it has said where the player is.
+    // Set here rather than left zeroed: a reference distance of zero is a division by it, and a game
+    // is entitled to play a positional sound before it has said where the player is.
     system->listener = (NYA_AudioListener){ .reference_distance = 1.0F };
 
     // The graphics convention for an unset orientation: looking down -z with +y up, at the origin.
@@ -379,29 +334,21 @@ NYA_Error nya_system_audio_init(void) {
         .reference_distance = 1.0F,
     };
 
-    // Reached through the app rather than an accessor: the mixer belongs to the asset system,
-    // which owns it because a MIX_Audio cannot outlive the mixer that decoded it.
+    // Reached through the app rather than an accessor: the mixer belongs to the asset system, which
+    // owns it because a MIX_Audio cannot outlive the mixer that decoded it.
     MIX_Mixer* mixer = nya_app_get()->asset_system.mixer;
 
-    /*
-     * No mixer means no audio device, which is the normal state in CI, on a headless build, and on a
-     * machine whose sound server is not running. Recoverable rather than fatal: every call below
-     * turns into a no-op and the game runs silently, which is a better outcome than refusing to
-     * start.
-     */
+    // No mixer means no audio device, the normal state in CI, on a headless build, and when the sound
+    // server is not running. Recoverable rather than fatal: every call below becomes a no-op.
     if (mixer == nullptr) {
-        nya_info("Audio system initialized (no mixer: nothing will be heard).");
+        nya_log_info("Audio system initialized (no mixer: nothing will be heard).");
         return NYA_OK;
     }
 
     for (u32 i = 0; i < NYA_AUDIO_BUS_COUNT; i++) _nya_audio_filter_reset(&system->filters[i]);
 
-    /*
-     * The effect and music buses, so a filter can be put on one without the other.
-     *
-     * Master is not among them: it is the mixer itself, and its filter runs from
-     * MIX_SetPostMixCallback below, after every group has been mixed together.
-     */
+    // The effect and music buses, so a filter can be put on one without the other. Master is not
+    // among them: it is the mixer itself, and its filter runs from MIX_SetPostMixCallback below.
     for (u32 bus = 0; bus < NYA_AUDIO_BUS_COUNT; bus++) {
         if (bus == NYA_AUDIO_BUS_MASTER) continue;
 
@@ -421,21 +368,15 @@ NYA_Error nya_system_audio_init(void) {
         system->slots[i] = (NYA_AudioVoice){ .track = MIX_CreateTrack(mixer), .generation = 0, .base_gain = 1.0F };
         if (system->slots[i].track == nullptr) return nya_error(NYA_ERROR_NOT_OK, "MIX_CreateTrack() failed for slot %u: %s", i, SDL_GetError());
 
-        // Which bus a slot belongs to is fixed for the life of the process, since a slot is only
-        // ever an effect voice or one of the two music tracks. A track left unassigned would mix
-        // through SDL_mixer's internal default group, where no callback of ours can reach it.
+        // Fixed for the life of the process. A track left unassigned would mix through SDL_mixer's
+        // internal default group, where no callback of ours can reach it.
         MIX_Group* group = i >= NYA_AUDIO_VOICES ? system->groups[NYA_AUDIO_BUS_MUSIC] : system->groups[NYA_AUDIO_BUS_SOUND];
         if (!MIX_SetTrackGroup(system->slots[i].track, group)) {
             return nya_error(NYA_ERROR_NOT_OK, "MIX_SetTrackGroup() failed for slot %u: %s", i, SDL_GetError());
         }
 
-        /*
-         * Every slot gets a filter, wide open, for the life of the process.
-         *
-         * Attached once rather than when something needs one, because installing a callback on a track
-         * that is already playing races the mixer's thread — and an identity filter costs one multiply
-         * and one add per sample, which is nothing against the decode it follows.
-         */
+        // Attached once, wide open, rather than when something needs one: installing a callback on a
+        // track that is already playing races the mixer's thread, and an identity filter costs nothing.
         _nya_audio_filter_reset(&system->slots[i].filter);
 
         // One, not zero: it is a multiplier, and a zeroed slot would silence every voice. See
@@ -449,7 +390,7 @@ NYA_Error nya_system_audio_init(void) {
 
     system->ready = true;
 
-    nya_info("Audio system initialized (%d voices).", NYA_AUDIO_VOICES);
+    nya_log_info("Audio system initialized (%d voices).", NYA_AUDIO_VOICES);
     return NYA_OK;
 }
 
@@ -457,17 +398,13 @@ void nya_system_audio_deinit(void) {
     NYA_AudioSystem* system = &_nya_audio_system;
 
     if (!system->ready) {
-        nya_info("Audio system deinitialized (no mixer).");
+        nya_log_info("Audio system deinitialized (no mixer).");
         return;
     }
 
-    /*
-     * Callbacks come off first, before anything they point at is torn down.
-     *
-     * They run on the mixer's thread, which is still going at this moment, and every one of them was
-     * handed the address of a filter in this struct. Detaching them first is what makes the rest of
-     * this teardown safe rather than a race against the next buffer.
-     */
+    // Callbacks come off first, before anything they point at is torn down: they run on the mixer's
+    // thread, which is still going, and each was handed the address of a filter in this struct —
+    // detaching them first is what makes the rest of this teardown safe rather than a race.
     MIX_Mixer* mixer = nya_app_get()->asset_system.mixer;
     if (mixer != nullptr) MIX_SetPostMixCallback(mixer, nullptr, nullptr);
 
@@ -475,14 +412,13 @@ void nya_system_audio_deinit(void) {
         if (system->groups[bus] != nullptr) MIX_SetGroupPostMixCallback(system->groups[bus], nullptr, nullptr);
     }
 
-    // Tracks first, then the mixer they belong to — which the asset system destroys, and which is
-    // why this runs before it.
+    // Tracks first, then the mixer they belong to — which the asset system destroys after this runs.
     for (u32 i = 0; i < _NYA_AUDIO_SLOTS; i++) {
         if (system->slots[i].track != nullptr) MIX_DestroyTrack(system->slots[i].track);
         system->slots[i] = (NYA_AudioVoice){ 0 };
     }
 
-    // After the tracks, so nothing is being reassigned to the default group on its way out.
+    // After the tracks, so nothing is reassigned to the default group on its way out.
     for (u32 bus = 0; bus < NYA_AUDIO_BUS_COUNT; bus++) {
         if (system->groups[bus] != nullptr) MIX_DestroyGroup(system->groups[bus]);
         system->groups[bus] = nullptr;
@@ -490,7 +426,7 @@ void nya_system_audio_deinit(void) {
 
     system->ready = false;
 
-    nya_info("Audio system deinitialized.");
+    nya_log_info("Audio system deinitialized.");
 }
 
 /*
@@ -523,17 +459,11 @@ NYA_SoundVoice nya_audio_play_sound_at(NYA_ConstCString sound_handle, f32x2 worl
     f32x3 position = _nya_audio_world_to_audio(world_position);
 
     // Through the same path rather than "play, then place": handing the position down means it is on
-    // the track before MIX_PlayTrack, so the sound cannot be heard centred for the first buffer and
-    // then snap into place.
+    // the track before MIX_PlayTrack, so the sound cannot be heard centred and then snap into place.
     NYA_SoundVoice voice = _nya_audio_play(sound_handle, params, &position);
 
-    /*
-     * The *world* position recorded afterwards, because it does not survive the call.
-     *
-     * What is handed down above is already listener-relative and divided by the reference distance —
-     * which is what the mixer wants and is not a place occlusion can ask about. Recording it here keeps
-     * one source of truth for where the sound actually is.
-     */
+    // The *world* position is recorded afterwards, since what's handed down above is already
+    // listener-relative and scaled — what the mixer wants, not a place occlusion can ask about.
     _nya_audio_voice_remember_position(voice, (f32x3){ world_position.x, world_position.y, 0.0F });
 
     return voice;
@@ -556,8 +486,8 @@ NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_SoundParams pa
     MIX_Audio* audio = _nya_audio_get(sound_handle);
     if (audio == nullptr) return NYA_SOUND_VOICE_NONE;
 
-    // First slot that is not sounding. Linear over sixteen entries, cheaper than maintaining a free
-    // list and not on any hot path — a frame starts a handful of sounds.
+    // First slot that is not sounding. Linear over sixteen entries, cheaper than a free list and not
+    // on any hot path.
     u32 slot = _NYA_AUDIO_SLOTS;
     for (u32 i = 0; i < NYA_AUDIO_VOICES; i++) {
         if (!MIX_TrackPlaying(system->slots[i].track)) {
@@ -566,14 +496,9 @@ NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_SoundParams pa
         }
     }
 
-    /*
-     * Every voice busy, so the lowest priority one is a candidate to be taken.
-     *
-     * Strictly outranked, not merely equal: a crowd of same-priority footsteps then never cuts each
-     * other off, and the pool degrades by dropping new sounds of that rank rather than by chopping
-     * playing ones. Cutting a sound mid-waveform is an audible click, so it is worth doing only when
-     * something genuinely more important needs the voice.
-     */
+    // Every voice busy, so the lowest priority one is a candidate to be taken. Strictly outranked,
+    // not merely equal: a crowd of same-priority footsteps never cuts each other off, and the pool
+    // degrades by dropping new sounds of that rank rather than chopping playing ones.
     if (slot == _NYA_AUDIO_SLOTS) {
         u32 weakest = 0;
         for (u32 i = 1; i < NYA_AUDIO_VOICES; i++) {
@@ -589,51 +514,36 @@ NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_SoundParams pa
     MIX_Track* track = system->slots[slot].track;
     if (!MIX_SetTrackAudio(track, audio)) return NYA_SOUND_VOICE_NONE;
 
-    /*
-     * A reused slot starts un-occluded and unplaced.
-     *
-     * Both are state from whatever this slot last played, and both are wrong for the new sound: a voice
-     * that inherits the previous one's occlusion starts muffled for no reason, and one that inherits
-     * `positional` gets its predecessor's world position raycast against until it is overwritten below.
-     */
+    // A reused slot starts un-occluded and unplaced: both are state from whatever last played here, and
+    // both are wrong for the new sound — a voice that inherits the old occlusion starts muffled for no
+    // reason, and one that inherits `positional` gets raycast against the predecessor's position.
     system->slots[slot].occlusion_gain = 1.0F;
     system->slots[slot].positional     = false;
 
     atomic_store_explicit(&system->slots[slot].filter.target_hz, 0.0F, memory_order_relaxed);
 
 
-    // A zero-initialised NYA_SoundParams means silence at zero speed, which nobody intends. Treated
-    // as "not specified" so the struct can be filled in partially, which is the point of it.
-    //
-    // The variation lands in the remembered gain rather than on the track, so a later master or
-    // category change folds in on top of it instead of resetting this instance to its centre.
+    // A zero-initialised NYA_SoundParams means silence at zero speed, which nobody intends, so zero is
+    // treated as "not specified". The variation lands in the remembered gain rather than on the track,
+    // so a later master or category change folds in on top of it instead of resetting to centre.
     system->slots[slot].base_gain = _nya_audio_vary_gain(params.gain > 0.0F ? params.gain : 1.0F, params.gain_variation_db);
     system->slots[slot].priority  = params.priority;
     _nya_audio_apply_gain(slot);
 
     // Rolled once, here, rather than per frame: a looping sound keeps the detune it started with,
-    // which is a variant of the clip rather than a warble.
+    // a variant of the clip rather than a warble.
     MIX_SetTrackFrequencyRatio(track, _nya_audio_vary_pitch(params.pitch > 0.0F ? params.pitch : 1.0F, params.pitch_variation_semitones));
 
-    /*
-     * Spatialisation is cleared before the new sound, not merely left alone.
-     *
-     * A voice is a reused track, and everything set on it persists. Without this, a slot that was
-     * panned hard left for one sound plays the *next* one hard left too — and since pan cannot be
-     * read back, the only symptom is sounds drifting to one side as the pool cycles. Null disables
-     * placement, which is what both of these mean.
-     */
+    // Spatialisation is cleared before the new sound, not merely left alone: a voice is a reused
+    // track, and everything set on it persists. Without this a slot panned hard left for one sound
+    // plays the *next* one hard left too, and since pan cannot be read back the only symptom is sounds
+    // drifting to one side as the pool cycles.
     MIX_SetTrackStereo(track, nullptr);
     MIX_SetTrack3DPosition(track, nullptr);
 
-    /*
-     * Against the track, not through a voice handle.
-     *
-     * The voice does not exist yet — its generation is bumped below, once the sound is running — so
-     * a handle built here names the *previous* sound in this slot and every setter given it resolves
-     * to nothing. Placement wins over pan rather than combining with it: both decide where the sound
-     * sits, and a caller who passed a world position said which they meant.
-     */
+    // Against the track, not through a voice handle: the voice does not exist yet, its generation is
+    // bumped below once the sound is running. Placement wins over pan rather than combining with it —
+    // both decide where the sound sits, and a caller who passed a world position said which they meant.
     if (position != nullptr) {
         _nya_audio_track_set_position(track, *position);
     } else if (params.pan != 0.0F) {
@@ -649,20 +559,20 @@ NYA_SoundVoice _nya_audio_play(NYA_ConstCString sound_handle, NYA_SoundParams pa
 
     if (!started) return NYA_SOUND_VOICE_NONE;
 
-    // Bumped only once the sound is actually running, so a failed play cannot invalidate the handle
-    // someone is still holding for the previous sound in this slot.
+    // Bumped only once the sound is running, so a failed play cannot invalidate a handle someone still
+    // holds for the previous sound in this slot.
     system->slots[slot].generation++;
 
     return (NYA_SoundVoice){ .index = slot, .generation = system->slots[slot].generation };
 }
 
 void nya_audio_listener_set(NYA_AudioListener listener) {
-    // Same zero-means-unspecified convention the params structs use, so a listener built with only a
-    // position does not silently get a reference distance of zero — which would divide by it.
+    // Zero-means-unspecified, so a listener built with only a position doesn't silently get a
+    // reference distance of zero — which would divide by it.
     if (listener.reference_distance <= 0.0F) listener.reference_distance = 1.0F;
 
-    // Out of range is a caller mistake rather than a state to handle, and the mapping below would
-    // otherwise fall through to its default and quietly behave as side on.
+    // Out of range is a caller mistake, not a state to handle — the mapping below would otherwise
+    // fall through to its default and quietly behave as side on.
     nya_assert(listener.plane < NYA_AUDIO_PLANE_COUNT, "unknown audio plane %d", (s32)listener.plane);
 
     _nya_audio_system.listener = listener;
@@ -673,22 +583,16 @@ NYA_AudioListener nya_audio_listener_get(void) {
 }
 
 void nya_audio_listener_3d_set(NYA_AudioListener3D listener) {
-    // Same zero-means-unspecified convention as everywhere else here, so a listener built with only a
-    // position is a usable listener rather than one with a falloff of zero and no facing.
+    // Same zero-means-unspecified convention as everywhere else here.
     if (listener.reference_distance <= 0.0F) listener.reference_distance = 1.0F;
 
     if (nya_vector_length(listener.forward) < NYA_EPSILON) listener.forward = (f32x3){ 0.0F, 0.0F, -1.0F };
     if (nya_vector_length(listener.up) < NYA_EPSILON) listener.up = (f32x3){ 0.0F, 1.0F, 0.0F };
 
-    /*
-     * Rejected rather than silently repaired.
-     *
-     * A `forward` parallel to `up` has no unique right vector — the cross product is zero — and the
-     * frame built from it collapses, which comes out as every sound arriving dead centre however the
-     * camera turns. Substituting some other up would hide that behind a listener quietly facing
-     * somewhere the caller did not ask for. The camera code has the same degeneracy at the poles and
-     * clamps short of them; see nya_matrix_look_at.
-     */
+    // Rejected rather than silently repaired: a `forward` parallel to `up` has no unique right vector
+    // — the cross product is zero — and the frame built from it collapses, coming out as every sound
+    // arriving dead centre however the camera turns. The camera code has the same degeneracy at the
+    // poles and clamps short of them; see nya_matrix_look_at.
     f32x3 right = nya_vector_cross(listener.forward, listener.up);
 
     if (nya_vector_length(right) < NYA_EPSILON) {
@@ -724,8 +628,7 @@ void nya_audio_crossfade_music(NYA_ConstCString music_handle, NYA_MusicParams pa
     NYA_AudioSystem* system = &_nya_audio_system;
     if (!system->ready) return;
 
-    // Nothing to fade from, so this is simply a fade in. Also the path a game hits on its first
-    // track, which would otherwise sound like a bug the first time and be right ever after.
+    // Nothing to fade from, so this is simply a fade in. Also the path a game hits on its first track.
     if (!MIX_TrackPlaying(system->slots[system->music_slot].track)) {
         params.fade_in_ms = duration_ms;
         nya_audio_play_music_with(music_handle, params);
@@ -738,12 +641,12 @@ void nya_audio_crossfade_music(NYA_ConstCString music_handle, NYA_MusicParams pa
     u32 outgoing = system->music_slot;
     u32 incoming = outgoing == _NYA_AUDIO_MUSIC_A ? _NYA_AUDIO_MUSIC_B : _NYA_AUDIO_MUSIC_A;
 
-    // The incoming slot may still be finishing an earlier crossfade. Stopped outright rather than
-    // faded, because there is nowhere for a third piece to go.
+    // The incoming slot may still be finishing an earlier crossfade. Stopped outright, not faded —
+    // there is nowhere for a third piece to go.
     MIX_StopTrack(system->slots[incoming].track, 0);
 
     if (!MIX_SetTrackAudio(system->slots[incoming].track, audio)) {
-        nya_warn("could not set the music track to '%s': %s", music_handle, SDL_GetError());
+        nya_log_warn("could not set the music track to '%s': %s", music_handle, SDL_GetError());
         return;
     }
 
@@ -759,12 +662,12 @@ void nya_audio_crossfade_music(NYA_ConstCString music_handle, NYA_MusicParams pa
     SDL_DestroyProperties(options);
 
     if (!started) {
-        nya_warn("could not play the music '%s': %s", music_handle, SDL_GetError());
+        nya_log_warn("could not play the music '%s': %s", music_handle, SDL_GetError());
         return;
     }
 
-    // Only once the incoming piece is actually running: fading the old one out first would leave
-    // silence if the new track failed to start.
+    // Only once the incoming piece is running: fading the old one out first would leave silence if
+    // the new track failed to start.
     MIX_StopTrack(system->slots[outgoing].track, (s64)duration_ms);
 
     system->slots[incoming].generation++;
@@ -778,24 +681,21 @@ void nya_audio_play_music_with(NYA_ConstCString music_handle, NYA_MusicParams pa
     MIX_Audio* audio = _nya_audio_get(music_handle);
     if (audio == nullptr) return;
 
-    // A hard cut stops both slots, not just the current one — a crossfade may still be running, and
-    // leaving its outgoing half sounding would layer the old track under the new one.
+    // Stops both slots, not just the current one — a crossfade may still be running, and leaving its
+    // outgoing half sounding would layer the old track under the new one.
     MIX_StopTrack(system->slots[_NYA_AUDIO_MUSIC_A].track, 0);
     MIX_StopTrack(system->slots[_NYA_AUDIO_MUSIC_B].track, 0);
 
     if (!MIX_SetTrackAudio(system->slots[system->music_slot].track, audio)) {
-        nya_warn("could not set the music track to '%s': %s", music_handle, SDL_GetError());
+        nya_log_warn("could not set the music track to '%s': %s", music_handle, SDL_GetError());
         return;
     }
 
     system->slots[system->music_slot].base_gain = params.gain > 0.0F ? params.gain : 1.0F;
     _nya_audio_apply_gain(system->music_slot);
 
-    /*
-     * Options go through a property set rather than parameters, which is how SDL_mixer models
-     * anything optional. Created and destroyed per call: this happens on a track change, not per
-     * frame, so the allocation is not worth caching.
-     */
+    // Options go through a property set, how SDL_mixer models anything optional. Created and destroyed
+    // per call: this happens on a track change, not per frame, so it's not worth caching.
     SDL_PropertiesID options = SDL_CreateProperties();
 
     // -1 is "forever" in SDL_mixer's counting, where the number is how many times to *repeat* after
@@ -808,12 +708,11 @@ void nya_audio_play_music_with(NYA_ConstCString music_handle, NYA_MusicParams pa
     if (params.loop_start_ms > 0) SDL_SetNumberProperty(options, MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER, (s64)params.loop_start_ms);
 
     b8 started = MIX_PlayTrack(system->slots[system->music_slot].track, options);
-    if (!started) nya_warn("could not play the music '%s': %s", music_handle, SDL_GetError());
+    if (!started) nya_log_warn("could not play the music '%s': %s", music_handle, SDL_GetError());
 
     SDL_DestroyProperties(options);
 
-    // A new piece is a new sound in that slot, so handles to the previous one must stop resolving —
-    // otherwise a pan left on the old track would still be steering the new one.
+    // A new piece is a new sound in that slot, so handles to the previous one must stop resolving.
     if (started) system->slots[system->music_slot].generation++;
 }
 
@@ -821,8 +720,8 @@ void nya_audio_stop_music(u32 fade_out_ms) {
     NYA_AudioSystem* system = &_nya_audio_system;
     if (!system->ready) return;
 
-    // Both, because a crossfade in flight has two pieces sounding and stopping only the current one
-    // would leave the outgoing half playing on alone.
+    // Both: a crossfade in flight has two pieces sounding, and stopping only the current one would
+    // leave the outgoing half playing on alone.
     MIX_StopTrack(system->slots[_NYA_AUDIO_MUSIC_A].track, (s64)fade_out_ms);
     MIX_StopTrack(system->slots[_NYA_AUDIO_MUSIC_B].track, (s64)fade_out_ms);
 }
@@ -847,8 +746,8 @@ b8 nya_audio_music_playing(void) {
     NYA_AudioSystem* system = &_nya_audio_system;
     if (!system->ready) return false;
 
-    // Paused counts as not playing, which is what a caller asking "is music sounding" means. A
-    // caller that wants to distinguish the two wants MIX_TrackPaused, which is not exposed yet.
+    // Paused counts as not playing, which is what "is music sounding" means. A caller wanting to
+    // distinguish the two wants MIX_TrackPaused, not exposed yet.
     return MIX_TrackPlaying(system->slots[system->music_slot].track) && !MIX_TrackPaused(system->slots[system->music_slot].track);
 }
 
@@ -870,9 +769,8 @@ b8 nya_audio_voice_valid(NYA_SoundVoice voice) {
 
     if (slot == nullptr) return false;
 
-    // Paused counts. The setters accept a paused voice — they only need the handle to still name
-    // this sound — so reporting it invalid here would make "check then set" behave differently from
-    // "just set", which is the kind of inconsistency that only shows up in a pause menu.
+    // Paused counts. The setters accept a paused voice, so reporting it invalid here would make
+    // "check then set" behave differently from "just set".
     return MIX_TrackPlaying(slot->track) || MIX_TrackPaused(slot->track);
 }
 
@@ -880,8 +778,8 @@ void nya_audio_voice_set_gain(NYA_SoundVoice voice, f32 gain) {
     NYA_AudioVoice* slot = _nya_audio_resolve(voice);
     if (slot == nullptr) return;
 
-    // Remembered rather than pushed straight through, so a later master or category change keeps
-    // this voice's relative level instead of resetting it to full.
+    // Remembered rather than pushed straight through, so a later master or category change keeps this
+    // voice's relative level instead of resetting it to full.
     slot->base_gain = nya_max(0.0F, gain);
     _nya_audio_apply_gain(voice.index);
 }
@@ -890,8 +788,7 @@ void nya_audio_voice_set_pitch(NYA_SoundVoice voice, f32 ratio) {
     NYA_AudioVoice* slot = _nya_audio_resolve(voice);
     if (slot == nullptr) return;
 
-    // A ratio of zero would stop the playhead rather than silence it, and a negative one is not
-    // defined at all, so both are refused rather than passed through.
+    // A ratio of zero would stop the playhead rather than silence it; negative is undefined. Both refused.
     if (ratio <= 0.0F) return;
 
     MIX_SetTrackFrequencyRatio(slot->track, ratio);
@@ -915,13 +812,12 @@ void nya_audio_voice_set_world_position(NYA_SoundVoice voice, f32x2 world_positi
     NYA_AudioVoice* slot = _nya_audio_resolve(voice);
     if (slot == nullptr) return;
 
-    // Remembered as well as pushed, so occlusion has a world position to ask about. SDL_mixer stores it
-    // listener-relative, so reading it back would give an answer in the wrong space.
+    // Remembered as well as pushed, so occlusion has a world position to ask about — SDL_mixer stores
+    // it listener-relative, so reading it back would give an answer in the wrong space.
     slot->world_position = (f32x3){ world_position.x, world_position.y, 0.0F };
     slot->positional     = true;
 
-    // Read fresh rather than remembered from when the sound started, so a listener that moved since
-    // is the one this is measured against.
+    // Read fresh rather than remembered, so a listener that moved since is what this is measured against.
     _nya_audio_track_set_position(slot->track, _nya_audio_world_to_audio(world_position));
 }
 
@@ -932,8 +828,7 @@ void nya_audio_voice_set_world_position_3d(NYA_SoundVoice voice, f32x3 world_pos
     slot->world_position = world_position;
     slot->positional     = true;
 
-    // Read fresh, like the 2D version, so a listener that has orbited since is the one this is measured
-    // against — which for a 3D scene is the whole point: the camera turns far more often than the source
+    // Read fresh, like the 2D version — for a 3D scene the camera turns far more often than the source
     // moves.
     _nya_audio_track_set_position(slot->track, _nya_audio_world_to_audio_3d(world_position));
 }
@@ -955,8 +850,7 @@ void nya_audio_voice_filter_set(NYA_SoundVoice voice, NYA_AudioFilter filter) {
     NYA_AudioVoice* slot = _nya_audio_resolve(voice);
     if (slot == nullptr) return;
 
-    // Two relaxed stores into a struct the mixer's thread reads, exactly as the bus filter does. See
-    // NYA_AudioFilterState for why nothing here needs a lock.
+    // Two relaxed stores into a struct the mixer's thread reads, exactly as the bus filter does.
     atomic_store_explicit(&slot->filter.target_hz, nya_max(0.0F, filter.lowpass_hz), memory_order_relaxed);
     atomic_store_explicit(&slot->filter.glide_ms, nya_max(0.0F, filter.glide_ms), memory_order_relaxed);
 }
@@ -964,8 +858,7 @@ void nya_audio_voice_filter_set(NYA_SoundVoice voice, NYA_AudioFilter filter) {
 void nya_audio_occlusion_set(NYA_AudioOcclusionFn function, void* user_data, NYA_AudioOcclusion occlusion) {
     NYA_AudioSystem* system = &_nya_audio_system;
 
-    // Zero means unspecified, matching every other options struct here. Half gain is about what a solid
-    // wall does before the filtering is taken into account.
+    // Zero means unspecified. Half gain is about what a solid wall does before filtering is added.
     if (occlusion.gain <= 0.0F) occlusion.gain = 0.5F;
     if (occlusion.glide_ms <= 0.0F) occlusion.glide_ms = 80.0F;
 
@@ -973,13 +866,8 @@ void nya_audio_occlusion_set(NYA_AudioOcclusionFn function, void* user_data, NYA
     system->occlusion_user_data = user_data;
     system->occlusion           = occlusion;
 
-    /*
-     * Turning it off clears what it was applying.
-     *
-     * Without this, every voice muffled at the moment occlusion was disabled would stay muffled for as
-     * long as it played — the automatic driver is the only thing that would have cleared it, and it is
-     * exactly what has just been removed.
-     */
+    // Turning it off clears what it was applying: otherwise every voice muffled at the moment occlusion
+    // is disabled would stay muffled for as long as it played.
     if (function != nullptr) return;
 
     for (u32 i = 0; i < _NYA_AUDIO_SLOTS; i++) {
@@ -1005,13 +893,8 @@ void nya_audio_occlusion_update(void) {
 
         if (slot->track == nullptr || !slot->positional) continue;
 
-        /*
-         * Only voices that are actually sounding.
-         *
-         * A finished voice keeps its slot until something reuses it, so without this the callback would
-         * be asked about the position of every sound the scene has ever played — and a raycast is not
-         * something to spend on a voice nobody can hear.
-         */
+        // Only voices actually sounding: a finished voice keeps its slot until reused, so without this
+        // the callback would be asked about the position of every sound the scene has ever played.
         if (!MIX_TrackPlaying(slot->track)) {
             slot->positional = false;
             continue;
@@ -1019,21 +902,15 @@ void nya_audio_occlusion_update(void) {
 
         f32 occlusion = nya_clamp(system->occlusion_function(slot->world_position, system->occlusion_user_data), 0.0F, 1.0F);
 
-        /*
-         * Interpolated from wide open toward the configured cutoff, rather than switched between them.
-         *
-         * A callback that reports a fraction — several rays, some blocked — then gets a proportionally
-         * muffled sound for free, which is what makes a doorway sound like a doorway rather than like a
-         * switch. A callback that only ever answers zero or one loses nothing by this.
-         *
-         * Zero occlusion stores a cutoff of zero, which the filter reads as wide open rather than as
-         * shut. That distinction is the one thing NYA_AudioFilterState's resting value exists for.
-         */
+        // Interpolated from wide open toward the configured cutoff, rather than switched between them: a
+        // callback reporting a fraction — several rays, some blocked — gets a proportionally muffled
+        // sound for free, what makes a doorway sound like a doorway rather than a switch. Zero occlusion
+        // stores a cutoff of zero, which the filter reads as wide open rather than shut.
         f32 cutoff = 0.0F;
 
         if (system->occlusion.lowpass_hz > 0.0F && occlusion > 0.0F) {
-            // From the top of the audible band down toward the configured cutoff, so that partial
-            // occlusion rolls the treble off gradually instead of jumping to the fully blocked value.
+            // From the top of the audible band down toward the configured cutoff, so partial occlusion
+            // rolls the treble off gradually.
             cutoff = nya_lerp(20000.0F, system->occlusion.lowpass_hz, occlusion);
         }
 
@@ -1042,18 +919,12 @@ void nya_audio_occlusion_update(void) {
 
         f32 gain = nya_lerp(1.0F, system->occlusion.gain, occlusion);
 
-        /*
-         * Applied on top of the voice's remembered gain rather than replacing it.
-         *
-         * `base_gain` is what the caller asked for and the category gain is what the settings say; this
-         * is a third multiplier, and folding it into either of the others would lose it the next time a
-         * volume slider moved.
-         */
+        // Applied on top of the voice's remembered gain rather than replacing it: a third multiplier,
+        // folding it into either of the others would lose it the next time a volume slider moved.
         if (fabsf(gain - slot->occlusion_gain) > 0.001F) {
             slot->occlusion_gain = gain;
 
-            // Through the shared formula, so the category and master gains are reapplied with it rather
-            // than being dropped. See _nya_audio_apply_gain.
+            // Through the shared formula, so the category and master gains are reapplied with it.
             _nya_audio_apply_gain(i);
         }
     }
@@ -1072,12 +943,10 @@ void nya_audio_bus_reverb_set(NYA_AudioBus bus, NYA_AudioReverb reverb) {
     if (reverb.width <= 0.0F) reverb.width = 1.0F;
 
     /*
-     * Clamped short of one rather than at it.
-     *
-     * A comb feedback of exactly one does not decay — the tail rings at constant amplitude forever, and
-     * anything above one grows without bound until the buffer is full of infinities. This is the whole
-     * of the stability argument for a Schroeder network, and it is worth enforcing rather than
-     * documenting: the failure is silent for a second and then permanent.
+     * Clamped short of one rather than at it: a comb feedback of exactly one does not decay — the tail
+     * rings at constant amplitude forever, and anything above one grows without bound until the buffer
+     * is full of infinities. This is the whole of the stability argument for a Schroeder network, and it
+     * is worth enforcing rather than documenting: the failure is silent for a second and then permanent.
      */
     atomic_store_explicit(&state->room_size, nya_clamp(reverb.room_size, 0.0F, 0.97F), memory_order_relaxed);
     atomic_store_explicit(&state->damping, nya_clamp(reverb.damping, 0.0F, 1.0F), memory_order_relaxed);
@@ -1192,7 +1061,7 @@ MIX_Audio* _nya_audio_get(NYA_ConstCString handle) {
 
         if (last_warned != handle) {
             last_warned = handle;
-            nya_warn("'%s' is not a sound asset, so it cannot be played", handle);
+            nya_log_warn("'%s' is not a sound asset, so it cannot be played", handle);
         }
 
         return nullptr;
@@ -1345,11 +1214,10 @@ void _nya_audio_filter_reset(NYA_AudioFilterState* filter) {
 
 void _nya_audio_reverb_configure(NYA_AudioReverbState* reverb, s32 rate) {
     /*
-     * The published lengths are for 44.1 kHz, so every other rate scales them.
-     *
-     * Not scaling would make the room shrink as the device's rate rises — the delays are counted in
-     * samples, and the same count is a shorter time at a higher rate. A 96 kHz device would get a room
-     * less than half the size of the one the numbers were chosen for.
+     * The published lengths are for 44.1 kHz, so every other rate scales them. Not scaling would make
+     * the room shrink as the device's rate rises — the delays are counted in samples, and the same count
+     * is a shorter time at a higher rate. A 96 kHz device would get a room less than half the size of
+     * the one the numbers were chosen for.
      */
     f32 scale = (f32)rate / 44100.0F;
 
@@ -1394,12 +1262,11 @@ void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* 
     f32 room_size = atomic_load_explicit(&reverb->room_size, memory_order_relaxed);
 
     /*
-     * No room, no work — and the delay lines are left as they are.
-     *
-     * Not cleared, deliberately. A reverb switched off mid-tail should stop *feeding* the room, and
-     * clearing here would cut the tail dead instead, which is a click. The lines decay to silence on
-     * their own the next time it is switched on, and hold stale samples until then — which is what the
-     * flush at the bottom of the loop keeps from being denormal.
+     * No room, no work — and the delay lines are left as they are. Not cleared, deliberately: a reverb
+     * switched off mid-tail should stop *feeding* the room, and clearing here would cut the tail dead
+     * instead, which is a click. The lines decay to silence on their own the next time it is switched
+     * on, and hold stale samples until then — which is what the flush at the bottom of the loop keeps
+     * from being denormal.
      */
     if (room_size <= 0.0F) return;
 
@@ -1416,11 +1283,9 @@ void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* 
     if (frames <= 0) return;
 
     /*
-     * Fed at a fraction of the input level.
-     *
-     * Four combs in parallel sum their outputs, so an unattenuated feed enters the allpasses at roughly
-     * four times the signal and clips. The constant is the usual one for this network; it is a property
-     * of there being four combs rather than something to tune.
+     * Fed at a fraction of the input level: four combs in parallel sum their outputs, so an unattenuated
+     * feed enters the allpasses at roughly four times the signal and clips. The constant is the usual
+     * one for this network; it is a property of there being four combs rather than something to tune.
      */
     const f32 feed = 0.015F;
 
@@ -1433,12 +1298,11 @@ void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* 
         f32* row = &pcm[frame * channels];
 
         /*
-         * Downmixed into a left and a right feed by channel parity.
-         *
-         * Even channels are the left side of any standard layout and odd ones the right, for stereo and
-         * for every surround arrangement SDL produces. A mono device has one channel, which is even, so
-         * the right feed is silent and the two networks produce the same thing — correct, if wasteful,
-         * and not worth a special case for a device that cannot convey width anyway.
+         * Downmixed into a left and a right feed by channel parity: even channels are the left side of
+         * any standard layout and odd ones the right, for stereo and for every surround arrangement SDL
+         * produces. A mono device has one channel, which is even, so the right feed is silent and the
+         * two networks produce the same thing — correct, if wasteful, and not worth a special case for a
+         * device that cannot convey width anyway.
          */
         f32 feed_left  = 0.0F;
         f32 feed_right = 0.0F;
@@ -1458,12 +1322,10 @@ void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* 
             f32 sum = 0.0F;
 
             /*
-             * The combs, in parallel: each is a delay whose output is fed back through a one-pole.
-             *
-             * The one-pole is the damping. Without it every pass round the loop returns the same
-             * spectrum and the tail rings bright forever; with it the highs lose energy faster than the
-             * lows, which is what every real surface does and what makes the tail sound like a room
-             * rather than like a delay pedal.
+             * The combs, in parallel: each is a delay whose output is fed back through a one-pole — the
+             * damping. Without it every pass round the loop returns the same spectrum and the tail rings
+             * bright forever; with it the highs lose energy faster than the lows, which is what every
+             * real surface does and what makes the tail sound like a room rather than like a delay pedal.
              */
             for (u32 i = 0; i < _NYA_AUDIO_REVERB_COMBS; i++) {
                 NYA_AudioReverbComb* comb = &reverb->combs[network][i];
@@ -1481,9 +1343,8 @@ void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* 
             }
 
             /*
-             * The allpasses, in series: they scatter the echo density without changing the tone.
-             *
-             * Four combs alone give four audible repeats a second — a flutter, not a room. Each allpass
+             * The allpasses, in series: they scatter the echo density without changing the tone. Four
+             * combs alone give four audible repeats a second — a flutter, not a room. Each allpass
              * multiplies the number of echoes without adding colouration of its own, which is the entire
              * reason Schroeder put them after the combs rather than using more combs.
              */
@@ -1504,11 +1365,9 @@ void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* 
         }
 
         /*
-         * Width as a crossfeed between the two tails.
-         *
-         * One is fully separate rooms and zero is the same tail in both ears. Mixing toward the average
-         * rather than toward a mono sum keeps the level constant as the width changes, so the knob does
-         * not double as a volume control.
+         * Width as a crossfeed between the two tails: one is fully separate rooms and zero is the same
+         * tail in both ears. Mixing toward the average rather than toward a mono sum keeps the level
+         * constant as the width changes, so the knob does not double as a volume control.
          */
         f32 average = (output[0] + output[1]) * 0.5F;
 
@@ -1523,23 +1382,20 @@ void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* 
     }
 
     /*
-     * Flush what is left to zero once it stops mattering.
-     *
-     * Same reasoning as the filter's: these decay geometrically and land in denormal territory after the
-     * audio goes quiet, where some CPUs take a large per-operation penalty — on the audio thread, for
-     * values far below anything audible.
+     * Flush what is left to zero once it stops mattering. Same reasoning as the filter's: these decay
+     * geometrically and land in denormal territory after the audio goes quiet, where some CPUs take a
+     * large per-operation penalty — on the audio thread, for values far below anything audible.
      *
      * The comb one-poles were the only thing flushed here, on the reasoning that the delay lines are
-     * written from values that have already been flushed. True of the *combs*, whose buffers take
+     * written from values already flushed. True of the *combs*, whose buffers take
      * `input + damped * room_size` and go to exactly zero once both do. Not true of the **allpasses**: an
      * allpass writes `sum + delayed * 0.5`, so once the combs fall silent it halves its own contents
-     * forever and never reaches zero. A couple of seconds after the last sound the whole network is
+     * forever and never reaches zero — a couple of seconds after the last sound the whole network is
      * denormal and stays that way until something plays again.
      *
-     * One tap per line rather than the whole buffer, at the cursor that is about to be read next. That
-     * walks the line at one sample per buffer, which clears it in well under a second — far faster than
-     * the decay that fills it, and a fixed cost instead of memsetting a hundred kilobytes on the audio
-     * thread.
+     * One tap per line rather than the whole buffer, at the cursor about to be read next: that walks the
+     * line at one sample per buffer, clearing it in well under a second — far faster than the decay that
+     * fills it, and a fixed cost instead of memsetting a hundred kilobytes on the audio thread.
      */
     for (u32 network = 0; network < _NYA_AUDIO_REVERB_NETWORKS; network++) {
         for (u32 i = 0; i < _NYA_AUDIO_REVERB_COMBS; i++) {
@@ -1569,11 +1425,10 @@ void _nya_audio_filter_apply(NYA_AudioFilterState* filter, const SDL_AudioSpec* 
     f32 glide_ms  = atomic_load_explicit(&filter->glide_ms, memory_order_relaxed);
 
     /*
-     * The one pole coefficient for that cutoff: a = 1 - e^(-2π·fc/fs).
-     *
-     * A cutoff of zero is off, and off is a coefficient of exactly one — `y += 1·(x - y)` leaves y
-     * equal to x, so an unfiltered bus is bit for bit what came in rather than something that went
-     * through a very wide filter and came back nearly the same.
+     * The one pole coefficient for that cutoff: a = 1 - e^(-2π·fc/fs). A cutoff of zero is off, and off
+     * is a coefficient of exactly one — `y += 1·(x - y)` leaves y equal to x, so an unfiltered bus is bit
+     * for bit what came in rather than something that went through a very wide filter and came back
+     * nearly the same.
      */
     f32 target = 1.0F;
     if (target_hz > 0.0F) {
@@ -1589,12 +1444,10 @@ void _nya_audio_filter_apply(NYA_AudioFilterState* filter, const SDL_AudioSpec* 
     if (frames <= 0) return;
 
     /*
-     * How far the coefficient may move this buffer.
-     *
-     * glide_ms is the time to cross the whole range, so the limit is the fraction of that range one
-     * buffer represents. Rate limiting rather than interpolating between two endpoints means no
-     * transition state has to be remembered, and a target that changes mid-glide is simply followed
-     * from wherever the coefficient currently is.
+     * How far the coefficient may move this buffer. glide_ms is the time to cross the whole range, so
+     * the limit is the fraction of that range one buffer represents. Rate limiting rather than
+     * interpolating between two endpoints means no transition state has to be remembered, and a target
+     * that changes mid-glide is simply followed from wherever the coefficient currently is.
      */
     f32 end = target;
     if (glide_ms > 0.0F) {
@@ -1612,12 +1465,10 @@ void _nya_audio_filter_apply(NYA_AudioFilterState* filter, const SDL_AudioSpec* 
     } else {
         /*
          * No glide asked for, so the coefficient is already there when the buffer starts rather than
-         * arriving at its far end.
-         *
-         * Without this the sweep below still ramps across one whole buffer, which makes an unglided
-         * filter reach its setting some tens of milliseconds late and sound like a short glide — the
-         * one thing a caller passing zero said they did not want. Stepping the coefficient is safe
-         * on its own; it is the *state* that has to stay continuous, and that is untouched here.
+         * arriving at its far end. Without this the sweep below still ramps across one whole buffer,
+         * which makes an unglided filter reach its setting some tens of milliseconds late and sound like
+         * a short glide — the one thing a caller passing zero said they did not want. Stepping the
+         * coefficient is safe on its own; it is the *state* that has to stay continuous, untouched here.
          */
         filter->coefficient = target;
     }
@@ -1648,11 +1499,10 @@ void _nya_audio_filter_apply(NYA_AudioFilterState* filter, const SDL_AudioSpec* 
     filter->coefficient = end;
 
     /*
-     * Flush what is left to zero once it stops mattering.
-     *
-     * A one pole decays toward its input, so after the audio goes quiet the state keeps halving
-     * forever and lands in denormal territory — where some CPUs take a large penalty per operation,
-     * on the audio thread, for values thousands of times below anything audible.
+     * Flush what is left to zero once it stops mattering. A one pole decays toward its input, so after
+     * the audio goes quiet the state keeps halving forever and lands in denormal territory — where some
+     * CPUs take a large penalty per operation, on the audio thread, for values thousands of times below
+     * anything audible.
      */
     for (s32 channel = 0; channel < channels; channel++) {
         if (fabsf(filter->state[channel]) < 1e-20F) filter->state[channel] = 0.0F;

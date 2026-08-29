@@ -15,23 +15,15 @@
  * NYA_World* gameplay      = nya_world_set(menu_backdrop);      // returns the previous one
  * ```
  *
- * ## Why this is not just fields on NYA_App
- *
- * Those three systems used to sit alongside the renderer and the asset table, which made "restart
- * the level" mean walking the entity table by hand and hoping nothing else held a handle. A world
- * is a unit of lifetime: creating one brings its three systems up in the order they depend on each
- * other, and destroying one takes every entity and every rigid body with it, in the reverse order.
- * That ordering is genuinely subtle — physics has to outlive entities, because despawning an entity
- * destroys the body it carries — and it is now written down in exactly one place instead of being
- * re-derived at each call site.
- *
- * ## Lifetime, and hot reloading
+ * A world is a unit of lifetime: creating one brings its three systems up in the order they depend
+ * on each other, and destroying one takes every entity and every rigid body with it, in reverse order
+ * — physics has to outlive entities, because despawning an entity destroys the body it carries. That
+ * ordering is now written down in exactly one place instead of being re-derived at each call site.
  *
  * The world is allocated from its own arena and reached through NYA_App, which lives in the
- * executable rather than in the game's shared library. That is what lets it survive a reload: the
- * library is closed and reopened and every static in it is reinitialised, while the world is exactly
- * where it was. `user_data` is the game's own root pointer and follows the same rule — allocate it
- * from `allocator` and it outlives the reload too.
+ * executable rather than the game's shared library, so it survives a reload intact while the library
+ * is closed, reopened and reinitialised. `user_data` is the game's own root pointer and follows the
+ * same rule — allocate it from `allocator` and it outlives the reload too.
  * */
 #pragma once
 
@@ -51,12 +43,7 @@
 typedef struct NYA_World NYA_World;
 
 struct NYA_World {
-    /**
-     * Owns this struct and everything the game hangs off `user_data`.
-     *
-     * Destroyed with the world, so anything allocated from it dies at the same moment the entities
-     * do — which is the point of it being here rather than in the game.
-     * */
+    /** Owns this struct and everything the game hangs off `user_data`; destroyed with the world. */
     NYA_Arena* allocator;
 
     NYA_EntitySystem  entity_system;
@@ -65,12 +52,9 @@ struct NYA_World {
     NYA_SimSystem     sim_system;
 
     /**
-     * The game's root pointer for this world. The engine stores it and never looks inside it.
-     *
-     * Same contract as NYA_Entity.user_data and for the same reason: the engine has no business
-     * knowing what a game is. Unlike that one it *is* freed with the world, provided it was
-     * allocated from `allocator` — which is the arrangement to prefer, since it makes "destroy the
-     * world" mean the whole thing rather than the engine's half of it.
+     * The game's root pointer for this world; the engine stores it and never looks inside it. Same
+     * contract as NYA_Entity.user_data, but freed with the world provided it was allocated from
+     * `allocator` — the arrangement to prefer, since "destroy the world" then means the whole thing.
      * */
     void* user_data;
 };

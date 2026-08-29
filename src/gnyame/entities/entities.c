@@ -9,6 +9,7 @@
  */
 #include "gnyame/entities/entity_box.c"
 #include "gnyame/entities/entity_camera.c"
+#include "gnyame/entities/entity_ledge.c"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

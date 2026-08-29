@@ -4,10 +4,9 @@
  * Immediate mode 2D drawing: shapes, textures and text in pixels, batched into as few draw calls as
  * possible, with offscreen render targets and swappable shaders.
  *
- * Coordinates are **pixels, y down, origin at the top left**. `(0, 0)` is the top left corner of
- * whatever is being drawn into — the window, or a render texture. That is the same convention SDL
- * reports mouse positions in, so a hit test against something drawn here is a comparison rather than
- * a conversion. nya_matrix_orthographic turns it into clip space once per flush.
+ * Coordinates are **pixels, y down, origin at the top left** of whatever is being drawn into — the
+ * window or a render texture. The same convention SDL reports mouse positions in, so a hit test
+ * against something drawn here is a comparison rather than a conversion.
  *
  * ```c
  * void layer_on_render(NYA_Window* window) {
@@ -17,25 +16,16 @@
  * }
  * ```
  *
- * Nothing has to be flushed by hand. Vertices accumulate until something forces a draw call, and
- * nya_render_end flushes whatever is left.
+ * Nothing has to be flushed by hand: vertices accumulate until something forces a draw call, and
+ * nya_render_end flushes the rest.
  *
- * ## Batching, and what breaks it
+ * **One flush is one draw call, and a draw call has one pipeline and one texture** — so shapes batch
+ * with shapes, glyphs of one font batch together, and alternating between a shape and a sprite costs
+ * a draw call each time. Later draws land on top; there is no depth test and no sorting, so across
+ * layers, layer order is draw order.
  *
- * One flush is one draw call, and a draw call has one pipeline and one texture. So consecutive draws
- * that agree on both accumulate into a single call, and a draw that disagrees flushes first.
- * In practice: shapes batch with shapes, glyphs of one font batch with each other, and alternating
- * between a shape and a sprite costs a draw call each time. Group by kind when it matters.
- *
- * ## Order
- *
- * Later draws land on top; there is no depth test and no sorting. Across layers that means layer
- * order is draw order.
- *
- * ## Positions are f32
- *
- * Not NYA_Rect, which is s32 and describes window geometry. Snapping draws to whole pixels would put
- * a floor under every animation and make text laid out at fractional advances jitter as it moves.
+ * Positions are f32 rather than NYA_Rect's s32: snapping to whole pixels would put a floor under
+ * every animation and make text at fractional advances jitter as it moves.
  * */
 #pragma once
 
@@ -161,10 +151,9 @@ NYA_API void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 wid
 /**
  * A filled rectangle turned about its own centre.
  *
- * Positioned by the **centre** rather than the top left, unlike nya_render2d_rect, because a rotation
- * needs a pivot and the centre is the only one that does not also move the shape. That also makes it
- * the call a simulated body wants: a rigid body's transform *is* a centre and an angle, so drawing
- * one is this function with the two values read straight off it.
+ * Positioned by the **centre**, unlike nya_render2d_rect, because a rotation needs a pivot and the
+ * centre is the only one that does not also move the shape — which is also what a rigid body hands
+ * you, since its transform *is* a centre and an angle.
  *
  * ```c
  * NYA_Entity* entity = nya_entity_get(crate);
@@ -172,8 +161,7 @@ NYA_API void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 wid
  *                       nya_physics2d_rotation(entity), NYA_COLOR_ORANGE);
  * ```
  *
- * Clockwise, in radians, the same sense as NYA_Render2DTexture.rotation. Batches with every other shape:
- * it is one quad and shares the pipeline.
+ * Clockwise, in radians, the same sense as NYA_Render2DTexture.rotation. Batches with every other shape.
  * */
 NYA_API void nya_render2d_rect_rotated(NYA_Window* window, f32x2 center, f32x2 size, f32 rotation, NYA_Color color);
 
@@ -215,14 +203,12 @@ NYA_API void nya_render2d_circle(NYA_Window* window, f32x2 center, f32 radius, N
 /**
  * Looks at the world from `camera` for everything drawn afterwards.
  *
- * Coordinates passed to the draw calls become **world** coordinates rather than screen ones; the
- * camera decides where in the target they land. Its `position` is the world point that appears at the
- * centre of the target, so scrolling is a matter of moving the camera rather than subtracting an
- * offset at every call site.
+ * Draw coordinates become **world** coordinates. `position` is the world point that appears at the
+ * centre of the target, so scrolling is moving the camera rather than subtracting an offset at every
+ * call site.
  *
- * Anything queued is flushed first, because the camera is part of the projection and the projection
- * is uniform across a draw call. Changing it per shape therefore costs a draw call per shape — set it
- * once for the world, draw the world, reset it, draw the UI.
+ * ⚠ Anything queued is flushed first, because the projection is uniform across a draw call — changing
+ * the camera per shape costs a draw call per shape. Set it once, draw the world, reset, draw the UI.
  *
  * ```c
  * nya_render2d_camera_set(window, (NYA_Camera2DTopDown){ .position = player_position, .zoom = 2.0F });
@@ -234,11 +220,10 @@ NYA_API void nya_render2d_circle(NYA_Window* window, f32x2 center, f32 radius, N
 NYA_API void nya_render2d_camera_set(NYA_Window* window, NYA_Camera2DTopDown camera);
 
 /**
- * The same, through an isometric projection. Coordinates handed to draw calls become **tile space**.
+ * The same, through an isometric projection. Draw coordinates become **tile space**.
  *
- * A separate entry point rather than a mode on the top-down camera, because the two take different
- * numbers: one has a rotation and the other has a tile size, and neither means anything to the
- * other. See NYA_Camera2DIsometric.
+ * A separate entry point rather than a mode, because the two cameras take different numbers: one has a
+ * rotation and the other a tile size, and neither means anything to the other.
  *
  * ```c
  * nya_render2d_camera_isometric_set(window, (NYA_Camera2DIsometric){
@@ -380,13 +365,12 @@ NYA_API void nya_render2d_texture_rect(
 /**
  * A nine-slice: a bordered image stretched to any size without stretching its corners.
  *
- * The thing a UI panel needs and a plain textured quad cannot do. Scaling a rounded panel to twice its
- * width scales its corner radius with it; a nine-slice cuts the image into a three by three grid, draws
- * the four corners at their source size, stretches the four edges along one axis only, and stretches the
- * centre in both. The border stays the width it was authored at whatever size the panel ends up.
+ * Scaling a rounded panel to twice its width scales its corner radius with it. A nine-slice cuts the
+ * image into a three by three grid, draws the corners at source size, stretches the edges along one
+ * axis only and the centre in both — so the border stays the width it was authored at.
  *
- * The borders are in *source* pixels and are measured inward from each side, so a 48x48 image with a
- * 16-pixel round corner is `.left = 16, .right = 16, .top = 16, .bottom = 16`.
+ * Borders are in *source* pixels, inward from each side: a 48x48 image with a 16-pixel round corner is
+ * `.left = 16, .right = 16, .top = 16, .bottom = 16`.
  *
  * ```c
  * nya_render2d_nine_slice(window, NYA_ASSET_UI_PANEL_PNG, (NYA_NineSlice){
@@ -395,8 +379,7 @@ NYA_API void nya_render2d_texture_rect(
  * });
  * ```
  *
- * Nine quads in the same batch as everything else, so a panel is not a draw call — it is nine quads
- * sharing one texture, and a screen of them is still one draw call if they share an atlas.
+ * Nine quads in the ordinary batch, so a screen of panels is still one draw call if they share an atlas.
  * */
 typedef struct NYA_NineSlice NYA_NineSlice;
 
@@ -461,17 +444,17 @@ NYA_API f32 nya_render2d_font_size_get(void) __attr_no_discard;
 /**
  * Draws `text` in the current font, `x`/`y` being the top left of the line box.
  *
- * The pen is the *top* of the line, not the baseline — consistent with every other coordinate here
- * being a top left corner, and what makes stacking lines a matter of adding the line height.
+ * The pen is the *top* of the line, not the baseline — consistent with every other coordinate here, and
+ * what makes stacking lines a matter of adding the line height. A whole line is one draw call, since
+ * every glyph comes out of the same atlas.
  *
- * A whole line is one draw call: every glyph comes out of the same atlas.
+ * ASCII 32 to 126 is baked eagerly; anything beyond is baked on first use, up to
+ * NYA_RENDER2D_GLYPH_CAPACITY cells per atlas. Past that a glyph advances by a space and draws nothing,
+ * which is visible as a gap rather than a crash. The cap is a fixed grid, so CJK is out of scope — that
+ * wants a real packer and eviction rather than a bigger number.
  *
- * **ASCII 32 to 126.** Anything outside that range advances by a space and draws nothing, which is
- * visible as a gap rather than a crash. Full Unicode means an atlas that grows at runtime, which is
- * a different design rather than a bigger loop.
- *
- * Newlines are honoured, using the font's own line advance. There is no wrapping: where lines break
- * is a layout decision, and this draws what it is given.
+ * Newlines are honoured, using the font's own line advance. There is no wrapping: where lines break is
+ * a layout decision, and this draws what it is given.
  * */
 NYA_API void nya_render2d_text(NYA_Window* window, NYA_ConstCString text, f32 x, f32 y, NYA_Color color);
 

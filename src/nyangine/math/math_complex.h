@@ -1,12 +1,9 @@
 /**
  * @file math_complex.h
  *
- * Complex numbers, built on C's native `_Complex` rather than a struct.
- *
- * That choice is what makes the operators work: `a * b` is a complex multiply, not an elementwise
- * one, and `<tgmath.h>` already dispatches `cabs`, `carg`, `cexp`, `csqrt` and friends on the
- * argument type. So there are no nya_complex_add / nya_complex_mul wrappers here for the same
- * reason math_vector.h has none — the language does it, and a wrapper would only hide that.
+ * Complex numbers, built on C's native `_Complex` rather than a struct: operators do complex
+ * arithmetic directly and `<tgmath.h>` dispatches `cabs`/`carg`/`cexp`/`csqrt` on the argument type,
+ * so there are no add/mul wrappers here, same reasoning as math_vector.h.
  *
  * ```c
  * c64 z = nya_complex(3.0, 4.0);
@@ -16,13 +13,12 @@
  * printf(FMTc64 "\n", FMTc64_ARG(w));
  * ```
  *
- * What *is* here is the part the standard library leaves out: consistent `c32`/`c64`/`c128` naming
- * to match `f32`/`f64`/`f128`, printing, assignable component accessors, polar construction, and
- * the comparison and interpolation helpers that need an epsilon and so cannot be one-liners.
+ * Adds what the standard library leaves out: `c32`/`c64`/`c128` naming to match `f32`/`f64`/`f128`,
+ * printing, assignable component accessors, polar construction, and epsilon-based comparison and
+ * interpolation.
  *
- * Note `I` from `<complex.h>` is `_Complex_I` and has type `float _Complex`. Writing `1.0 + 2.0*I`
- * therefore builds a c32 and widens it, losing precision in a c128 expression. nya_complex builds
- * the value at the width you asked for, which is why it exists rather than being an alias for `I`.
+ * `I` from `<complex.h>` is `_Complex_I` (`float _Complex`), so `1.0 + 2.0*I` builds a c32 and widens,
+ * losing precision in a c128 expression; nya_complex builds the value at the requested width instead.
  * */
 #pragma once
 

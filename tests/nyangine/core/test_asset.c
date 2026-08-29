@@ -403,7 +403,7 @@ s32 main(void) {
       nya_assert(predecoded->as_sound.audio != nullptr, "a loaded sound must carry decoded audio");
     } else {
       nya_assert(predecoded->status == NYA_ASSET_STATUS_FAILED, "a sound is either loaded or failed, never left pending");
-      nya_info("no usable mixer, so the sound decode was not exercised (expected in some CI images)");
+      nya_log_info("no usable mixer, so the sound decode was not exercised (expected in some CI images)");
     }
 
     /*

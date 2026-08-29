@@ -15,7 +15,7 @@ NYA_String* nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeF
         case NYA_SERDE_FORMAT_JSON:  return nya_serde_json_serialize(arena, object, flags);
         case NYA_SERDE_FORMAT_JSONC: return nya_serde_jsonc_serialize(arena, object, flags);
 
-        default:                     nya_panic("Unknown serialization format %d.", (int)format);
+        default:                     nya_log_panic("Unknown serialization format %d.", (int)format);
     }
     static_assert(NYA_SERDE_FORMAT_COUNT == 3, "Unhandled NYA_SerdeFormat value.");
 }
@@ -29,7 +29,7 @@ NYA_Error nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeF
         case NYA_SERDE_FORMAT_JSON:  return nya_serde_json_deserialize(arena, data, size, flags, out_object);
         case NYA_SERDE_FORMAT_JSONC: return nya_serde_jsonc_deserialize(arena, data, size, flags, out_object);
 
-        default:                     nya_panic("Unknown serialization format %d.", (int)format);
+        default:                     nya_log_panic("Unknown serialization format %d.", (int)format);
     }
     static_assert(NYA_SERDE_FORMAT_COUNT == 3, "Unhandled NYA_SerdeFormat value.");
 }

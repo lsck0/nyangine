@@ -82,7 +82,7 @@ NYA_Error nya_system_job_init(void) {
         return nya_error(NYA_ERROR_NOT_OK, "SDL_CreateThread() failed for the job scheduler: %s", SDL_GetError());
     }
 
-    nya_info("Job system initialized.");
+    nya_log_info("Job system initialized.");
     return NYA_OK;
 }
 
@@ -117,7 +117,7 @@ void nya_system_job_deinit(void) {
 
     nya_arena_destroy(app->job_system.allocator);
 
-    nya_info("Job system deinitialized.");
+    nya_log_info("Job system deinitialized.");
 }
 
 /*

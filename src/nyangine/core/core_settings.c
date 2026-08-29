@@ -64,13 +64,13 @@ void nya_system_settings_init(void) {
      */
     nya_settings_reset();
 
-    nya_info("Settings system initialized.");
+    nya_log_info("Settings system initialized.");
 }
 
 void nya_system_settings_deinit(void) {
     // Nothing is owned: the volumes are floats and the bindings are a fixed array inside NYA_App.
     // Saving is nya_settings_save and is the game's call, for the reason in nya_system_settings_init.
-    nya_info("Settings system deinitialized.");
+    nya_log_info("Settings system deinitialized.");
 }
 
 /*
@@ -160,7 +160,7 @@ void nya_settings_from_object(const NYA_Object* object) {
      */
     u32 version = nya_save_version(object);
     if (version > NYA_SETTINGS_VERSION) {
-        nya_warn("Settings file is version " FMTu32 ", newer than the " FMTu32 " this build understands; loading what it can.", version,
+        nya_log_warn("Settings file is version " FMTu32 ", newer than the " FMTu32 " this build understands; loading what it can.", version,
                  (u32)NYA_SETTINGS_VERSION);
     }
 
@@ -172,7 +172,7 @@ void nya_settings_from_object(const NYA_Object* object) {
 
             f32 volume = 0.0F;
             if (!_nya_settings_value_as_f32(value, &volume)) {
-                nya_warn("Settings volume '%s' is not a number; leaving it alone.", _NYA_VOLUME_CHANNEL_NAMES[channel]);
+                nya_log_warn("Settings volume '%s' is not a number; leaving it alone.", _NYA_VOLUME_CHANNEL_NAMES[channel]);
                 continue;
             }
 
@@ -191,7 +191,7 @@ void nya_settings_from_object(const NYA_Object* object) {
         if (action == NYA_INPUT_ACTION_NONE) {
             // An action this build does not have. Normal when a settings file outlives a rename, and
             // exactly what skipping unnamed actions on write is meant to keep rare.
-            nya_warn("Settings file binds '%s', which is not an action in this build; ignoring it.", name);
+            nya_log_warn("Settings file binds '%s', which is not an action in this build; ignoring it.", name);
             continue;
         }
 
@@ -217,7 +217,7 @@ void nya_settings_from_object(const NYA_Object* object) {
 
             NYA_InputBinding binding = { 0 };
             if (!_nya_settings_binding_from_string(key->as_string, &binding)) {
-                nya_warn("Settings file binds '%s' to '%s', which names no key; ignoring it.", name, key->as_string);
+                nya_log_warn("Settings file binds '%s' to '%s', which names no key; ignoring it.", name, key->as_string);
                 continue;
             }
 

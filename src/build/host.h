@@ -109,6 +109,10 @@
  * it. lld because mold is a Linux linker, and lld is what this host's other rules already name.
  * */
 #define FLAGS_HOST_NATIVE       "-fuse-ld=lld"
+
+/** The same host flags without the sanitizers. See the Linux definition for why this exists. */
+#define FLAGS_HOST_NATIVE_BENCH "-fuse-ld=lld"
+
 #define BACKTRACE_A_HOST        BACKTRACE_A_WINDOWS_X86_64
 #define BACKTRACE_INCLUDES_HOST BACKTRACE_INCLUDES_WINDOWS_X86_64
 
@@ -117,6 +121,17 @@
 #define BUILD_TOOL_BINARY "build"
 
 #define FLAGS_HOST_NATIVE       FLAGS_DEBUG_LINUX_X86_64, FLAGS_SANITIZE, FLAGS_LINUX_X86_64
+
+/**
+ * The same, minus FLAGS_SANITIZE. What a benchmark is built with.
+ *
+ * FLAGS_HOST_NATIVE bundles the sanitizers, which is right for a test and ruinous for a measurement:
+ * a benchmark built with them measures the instrumentation, unevenly, and the whole reason `run bench`
+ * exists is to produce a number that means something. The first benchmarks written here silently used
+ * FLAGS_HOST_NATIVE and reported sanitized figures.
+ * */
+#define FLAGS_HOST_NATIVE_BENCH FLAGS_DEBUG_LINUX_X86_64, FLAGS_LINUX_X86_64
+
 #define BACKTRACE_A_HOST        BACKTRACE_A_LINUX_X86_64
 #define BACKTRACE_INCLUDES_HOST BACKTRACE_INCLUDES_LINUX_X86_64
 

@@ -29,10 +29,20 @@ NYA_INTERNAL void _gny_ui_trace_draw(NYA_Window* window);
 void gny_layer_ui_on_create(NYA_Window* window) {
     nya_unused(window);
 
-    // Immediate mode state that persists across frames, so it is set once here rather than at the
-    // top of every render. The font is rasterized on first use, not now, so this is safe before the
-    // asset has finished loading.
-    nya_render2d_font_set(GNY_UI_FONT, GNY_UI_FONT_SIZE);
+    /*
+     * The HUD's font, by name.
+     *
+     * Registered by gny_world_create, so what "ui" resolves to is one line there rather than a path
+     * and a point size at every call site — which is what render_font.h exists for. Set as the
+     * immediate-mode current font because most of this file still draws through nya_render2d_text*;
+     * the title below goes through nya_font_draw instead, which takes the font as a value.
+     *
+     * The face is rasterised on first use, not now, so this is safe before the asset has loaded.
+     */
+    NYA_Font ui = nya_font_named("ui");
+
+    if (nya_font_valid(ui)) nya_render2d_font_set(ui.path, ui.point_size);
+    else nya_render2d_font_set(GNY_UI_FONT, GNY_UI_FONT_SIZE);
 }
 
 /*
@@ -99,7 +109,18 @@ void gny_layer_ui_on_render(NYA_Window* window) {
     GNY_World*     world = gny_world();
     NYA_FrameStats stats = nya_app_get()->frame_stats;
 
-    f32 line   = nya_render2d_font_line_height();
+    /*
+     * Falls back to a guessed line height while the "ui" face is still loading.
+     *
+     * nya_render2d_font_line_height() reads the TTF_Font directly and returns 0 until the asset
+     * system resolves it — which is normal for the first frame or two (see the note in on_create).
+     * Every stat line below adds this to advance `y`; left at zero, they all land on the same row
+     * and draw stacked on top of each other until the face finishes loading, which reads exactly
+     * like "positioning is off" even though it self-corrects a frame later.
+     */
+    f32 line = nya_render2d_font_line_height();
+    if (line <= 0.0F) line = GNY_UI_FONT_SIZE * 1.2F;
+
     f32 origin = GNY_UI_MARGIN + GNY_UI_PADDING;
 
     /*
@@ -174,12 +195,30 @@ void gny_layer_ui_on_render(NYA_Window* window) {
     /*
      * Non-ASCII on the HUD, deliberately.
      *
-     * Not decoration: it is the only thing in this build that proves the glyph atlas bakes a
-     * codepoint nobody asked for at startup. Before the atlas grew past ASCII these five words drew
-     * as a row of gaps, which is what every translated string would have done.
+     * Not decoration: it is the only thing in this build that proves the atlas bakes a glyph nobody
+     * asked for at startup. Before the atlas grew past ASCII these five words drew as a row of gaps,
+     * which is what every translated string would have done — and now that the atlas is keyed by
+     * glyph index rather than codepoint, it is also what proves shaping resolved them.
      */
     nya_render2d_text(window, "unicode: Grüße · l'été · años · Ελλάδα · Привет", origin, y, GNY_UI_DIM);
     y += nya_render2d_font_line_height();
+
+    /*
+     * One line drawn through the font API rather than the immediate-mode current font.
+     *
+     * "AVATAR" because the pair AV is the canonical kerned one: shaping draws it visibly tighter than
+     * the sum of the two advances, and the old codepoint walk drew it tighter only for a face that
+     * happened to ship a legacy `kern` table. Measured with the same call the draw uses, so the box
+     * behind it cannot disagree with what lands in it.
+     */
+    NYA_Font title = nya_font_named("title");
+
+    f32x2 kerned = nya_font_measure(title, "AVATAR");
+
+    nya_render2d_rect(window, origin - 2.0F, y, kerned.x + 4.0F, kerned.y, GNY_UI_PANEL);
+    nya_font_draw(window, title, "AVATAR", origin, y, GNY_UI_TEXT);
+
+    y += kerned.y > 0.0F ? kerned.y : line;
 
     nya_render2d_textf(window, origin, y, GNY_UI_DIM, "bodies %u   spawned %u   lost %u", nya_physics2d_body_count(), world->boxes_spawned,
                    world->boxes_lost);

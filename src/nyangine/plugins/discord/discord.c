@@ -262,7 +262,7 @@ void nya_discord_pump(void) {
     // Accepted and then never answered. Without this the module sits in CONNECTING forever, because
     // only DISCONNECTED retries.
     if (_NYA_DISCORD.status == NYA_DISCORD_STATUS_CONNECTING && nya_clock_get_monotonic_ms() > _NYA_DISCORD.handshake_deadline_ms) {
-        nya_warn("Discord: no handshake reply within %d ms; dropping the connection.", _NYA_DISCORD_HANDSHAKE_TIMEOUT_MS);
+        nya_log_warn("Discord: no handshake reply within %d ms; dropping the connection.", _NYA_DISCORD_HANDSHAKE_TIMEOUT_MS);
         _nya_discord_disconnect();
         return;
     }
@@ -676,7 +676,7 @@ b8 _nya_discord_connect(void) {
         DWORD mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
 
         if (!SetNamedPipeHandleState(handle, &mode, nullptr, nullptr)) {
-            nya_warn("Discord: could not put the pipe into non-blocking mode; not connecting.");
+            nya_log_warn("Discord: could not put the pipe into non-blocking mode; not connecting.");
             (void)CloseHandle(handle);
             continue;
         }
@@ -774,7 +774,7 @@ b8 _nya_discord_connect(void) {
                 s32 flags = fcntl(handle, F_GETFL, 0);
 
                 if (flags < 0 || fcntl(handle, F_SETFL, flags | O_NONBLOCK) < 0) {
-                    nya_warn("Discord: could not put the socket into non-blocking mode; not connecting.");
+                    nya_log_warn("Discord: could not put the socket into non-blocking mode; not connecting.");
                     (void)close(handle);
                     continue;
                 }
@@ -874,7 +874,7 @@ void _nya_discord_arm_retry(void) {
 
 b8 _nya_discord_write(u32 opcode, NYA_ConstCString payload, u32 payload_length) {
     if (payload_length + 8 > _NYA_DISCORD_MAX_FRAME) {
-        nya_warn("Discord: refusing to send a %u byte frame; the limit is %d.", payload_length, _NYA_DISCORD_MAX_FRAME);
+        nya_log_warn("Discord: refusing to send a %u byte frame; the limit is %d.", payload_length, _NYA_DISCORD_MAX_FRAME);
         return false;
     }
 
@@ -907,7 +907,7 @@ void _nya_discord_read(void) {
         // length prefix said more than the protocol's own maximum. Dropping the connection is the
         // only move that does not loop forever.
         if (space == 0) {
-            nya_warn("Discord: a frame larger than %d bytes arrived; dropping the connection.", _NYA_DISCORD_MAX_FRAME);
+            nya_log_warn("Discord: a frame larger than %d bytes arrived; dropping the connection.", _NYA_DISCORD_MAX_FRAME);
             _nya_discord_disconnect();
             return;
         }
@@ -933,7 +933,7 @@ void _nya_discord_read(void) {
             // Checked before it is used as a bound. A length past the buffer would otherwise be
             // waited on forever, since it can never arrive.
             if (length > _NYA_DISCORD_MAX_FRAME - 8) {
-                nya_warn("Discord: a frame declared %u bytes, past the %d byte limit; dropping the connection.", length, _NYA_DISCORD_MAX_FRAME);
+                nya_log_warn("Discord: a frame declared %u bytes, past the %d byte limit; dropping the connection.", length, _NYA_DISCORD_MAX_FRAME);
                 _nya_discord_disconnect();
                 return;
             }

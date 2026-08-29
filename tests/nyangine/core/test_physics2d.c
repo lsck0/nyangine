@@ -529,7 +529,7 @@ s32 main(void) {
     nya_physics2d_gravity_set(NYA_PHYSICS2D_GRAVITY_DEFAULT);
   }
 
-  nya_info("PASSED: test_physics");
+  nya_log_info("PASSED: test_physics");
 
   return EXIT_SUCCESS;
 }

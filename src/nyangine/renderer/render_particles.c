@@ -58,6 +58,12 @@ void nya_particles_space_set(NYA_ParticleSystem* system, NYA_ParticleSpace space
     system->space = space;
 }
 
+void nya_particles_casts_shadow_set(NYA_ParticleSystem* system, b8 casts_shadow) {
+    nya_assert(system != nullptr);
+
+    system->casts_shadow = casts_shadow;
+}
+
 void nya_particles_texture_set(NYA_ParticleSystem* system, NYA_ConstCString texture) {
     nya_assert(system != nullptr);
 
@@ -239,6 +245,11 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
 
     // No projection to draw through, so nothing is drawn. Same rule as NYA_ENTITY_VISUAL_CUBE.
     if (system->space == NYA_PARTICLE_SPACE_3D && !nya_render3d_active(window)) return;
+
+    // Opted-out systems skip the shadow pass outright rather than drawing into it: the pass has no
+    // notion of alpha, so a translucent billboard drawn there would cast a solid square. See
+    // NYA_ParticleSystem.casts_shadow.
+    if (system->space == NYA_PARTICLE_SPACE_3D && !system->casts_shadow && nya_render3d_shadow_active(window)) return;
 
     /*
      * The system's texture resolved once, not once per particle.

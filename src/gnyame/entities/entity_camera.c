@@ -68,10 +68,11 @@ void gny_entity_camera_on_update(NYA_Entity* entity, f32 delta_time_s) {
     /*
      * The ear, and only for the primary camera.
      *
-     * Panning and following used to be here and are now gny_system_movement_update, because both are
-     * driven by a flag any entity could carry rather than by anything about being a camera. What is
-     * left is the one thing that genuinely belongs to *this* camera — and only to the one the player
-     * is actually looking through, since a picture-in-picture view is somewhere the ear is not.
+     * Panning and following used to be here and are now the player_input and camera_follow systems in
+     * system_movement.c, because both are driven by a flag any entity could carry rather than by
+     * anything about being a camera. What is left is the one thing that genuinely belongs to *this*
+     * camera — and only to the one the player is actually looking through, since a picture-in-picture
+     * view is somewhere the ear is not.
      *
      * core_audio.h warns that the camera is usually the wrong ear; it is right in this game because
      * there is no player to hear from and the primary camera *is* the point of view.

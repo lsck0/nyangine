@@ -4,34 +4,18 @@
  * Plain 2D shapes and the tests you actually run on them: is this point inside, do these two touch,
  * what is the overlap.
  *
- * ## Why this is not NYA_Rect
+ * Distinct from NYA_Rect (core_window.h): that one is s32 *window geometry* — whole OS pixels, no
+ * such thing as a window 1.5 pixels wide. NYA_Rectf here is f32 *content* — hit targets, viewports,
+ * sprite boxes — anything laid out or animated, where snapping to integers would put a floor under
+ * every animation. They stay separate rather than one converting to the other, so the rounding has
+ * nowhere to silently live.
  *
- * There are two rectangles in the engine and they are not the same thing.
+ * Every containment test is half open: `x <= point < x + width`. Two rectangles laid edge to edge
+ * therefore share no point, so a click on the seam hits exactly one menu item, not both.
  *
- * NYA_Rect, in core_window.h, is s32 and describes *window geometry* — a display's bounds, a safe
- * area. Those come from the operating system as whole pixels and there is no such thing as a window
- * 1.5 pixels wide.
- *
- * NYA_Rectf, here, is f32 and describes *content*: a hit target, a camera viewport, a sprite's box,
- * anything laid out or animated. Snapping those to integers would put a floor under every animation
- * and make a menu item computed from a fractional font advance jitter as the window resizes — which
- * is the same reason render2d takes f32 positions rather than NYA_Rect. See the note in render2d.h.
- *
- * They stay separate rather than one converting to the other, because a conversion is where the
- * rounding would silently live.
- *
- * ## Half open
- *
- * Every containment test here is half open: `x <= point < x + width`. Two rectangles laid edge to
- * edge therefore share no point, so a click on the seam between two menu items hits exactly one of
- * them. A closed test hits both, and which one wins depends on iteration order.
- *
- * ## Negative extents
- *
- * A rectangle with a negative width or height contains nothing and overlaps nothing, which falls out
- * of the half open comparisons rather than being special cased. That is the useful answer: it is
- * what an empty intersection returns, so a chain of intersections stays empty instead of coming back
- * to life.
+ * A rectangle with negative width or height contains nothing and overlaps nothing — it falls out of
+ * the half-open comparisons rather than being special cased, which is why an empty intersection stays
+ * empty through a chain instead of coming back to life.
  * */
 #pragma once
 
@@ -49,12 +33,9 @@ typedef struct NYA_Rectf   NYA_Rectf;
 typedef struct NYA_Circlef NYA_Circlef;
 
 /**
- * An axis aligned rectangle, as a minimum corner and a size.
- *
- * Corner-and-size rather than two corners because that is the form every call site already has:
- * a draw takes an origin and an extent, a layout advances an origin, and a sprite has a position and
- * a size. Storing min/max instead would mean an addition at every one of those and a subtraction at
- * every draw.
+ * An axis aligned rectangle, as a minimum corner and a size — the form every call site already has (a
+ * draw takes an origin and an extent, a sprite has a position and a size); min/max would mean an
+ * addition and a subtraction at every one of those.
  *
  * `x`/`y` are the *minimum* corner, which with the engine's y-down screen space means top left.
  * */
@@ -102,10 +83,8 @@ NYA_API b8 nya_rect_is_empty(NYA_Rectf rect) __attr_no_discard;
 NYA_API f32 nya_rect_area(NYA_Rectf rect) __attr_no_discard;
 
 /**
- * Half open: `x <= point.x < x + width`, and the same on y.
- *
- * This is the menu and button hit test, and the reason it is half open is that menu items are laid
- * out edge to edge — a closed test puts the seam in both of them.
+ * Half open: `x <= point.x < x + width`, and the same on y. This is the menu and button hit test; half
+ * open because menu items are laid out edge to edge — a closed test puts the seam in both of them.
  * */
 NYA_API b8 nya_rect_contains(NYA_Rectf rect, f32x2 point) __attr_no_discard;
 
@@ -119,10 +98,8 @@ NYA_API b8 nya_rect_overlaps(NYA_Rectf a, NYA_Rectf b) __attr_no_discard;
 NYA_API NYA_Rectf nya_rect_intersection(NYA_Rectf a, NYA_Rectf b) __attr_no_discard;
 
 /**
- * The smallest rectangle containing both.
- *
- * An empty operand is ignored rather than folded in, so accumulating a bound over a loop can start
- * from a zeroed rectangle without dragging the origin into the result.
+ * The smallest rectangle containing both. An empty operand is ignored rather than folded in, so
+ * accumulating a bound over a loop can start from a zeroed rectangle without dragging the origin in.
  * */
 NYA_API NYA_Rectf nya_rect_union(NYA_Rectf a, NYA_Rectf b) __attr_no_discard;
 

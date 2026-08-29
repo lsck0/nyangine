@@ -50,6 +50,6 @@ s32 main(void) {
 
   nya_arena_destroy(arena);
 
-  nya_info("PASSED: an array grows correctly from zero capacity");
+  nya_log_info("PASSED: an array grows correctly from zero capacity");
   return 0;
 }

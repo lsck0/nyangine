@@ -98,11 +98,9 @@
 #define NYA_ARG_MAX_CHOICES    64
 
 /**
- * Longest flag name this parser will match, buffer included.
- *
- * Only `--flag=value` needs it: the name has to be split from the value into somewhere, and argv is
- * the caller's memory to leave alone. A flag name anywhere near this is a usability problem long
- * before it is a buffer problem.
+ * Longest flag name this parser will match, buffer included. Only `--flag=value` needs it: the name
+ * must be split from the value somewhere, and argv is the caller's memory to leave alone. A flag
+ * name anywhere near this is a usability problem long before it's a buffer problem.
  * */
 #define NYA_ARG_MAX_NAME       128
 

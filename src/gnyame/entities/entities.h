@@ -73,6 +73,15 @@ enum GNY_EntityKind {
     GNY_ENTITY_TILEMAP,
 
     /**
+     * A one-way platform, and the marker riding on the moving one.
+     *
+     * Both under one kind because the marker has no behaviour of its own — it is a child transform
+     * with an on_render, and giving it its own kind would mean a bitset in the entity index for a
+     * thing there is one of.
+     * */
+    GNY_ENTITY_LEDGE,
+
+    /**
      * A networked player, one per connected peer. See gny_net_spawn_player.
      *
      * Its own kind rather than a crate that happens to be driven, because a player has **no physics
@@ -336,6 +345,35 @@ void gny_entity_camera_zoom_by(f32 factor);
  * arrow keys are two different intentions, and doing both means neither works.
  * */
 void gny_entity_camera_follow(NYA_EntityHandle camera, NYA_EntityHandle target);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * LEDGE
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * A one-way platform: crates land on it from above and rise through it from below.
+ *
+ * A positive `patrol_distance` makes it a **kinematic** platform that slides that far to the right and
+ * back forever, carrying whatever is standing on it, with a marker parented to it that rides along.
+ * Zero makes it a static ledge. See entity_ledge.c for which engine features that exercises.
+ * */
+NYA_EntityHandle gny_entity_ledge_create(f32x2 position, f32x2 size, f32 patrol_distance);
+
+/** Removes every ledge, and with it every marker parented to one. Deferred to the barrier. */
+void gny_entity_ledge_destroy_all(void);
+
+/**
+ * Opens a drop-through window on every crate, so anything resting on a ledge falls off it.
+ *
+ * Returns how many were given one. See nya_physics2d_drop_through for why the window is a duration
+ * rather than a single frame.
+ * */
+u32 gny_entity_ledge_drop_everything_through(f32 seconds);
+
+void gny_entity_ledge_on_render(NYA_Entity* entity, NYA_Window* window);
+void gny_entity_ledge_marker_on_render(NYA_Entity* entity, NYA_Window* window);
 
 /** What `camera` is watching, or NYA_ENTITY_HANDLE_NONE. */
 NYA_EntityHandle gny_entity_camera_target(NYA_EntityHandle camera);

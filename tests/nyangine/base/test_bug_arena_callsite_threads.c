@@ -90,6 +90,6 @@ s32 main(void) {
 
   SDL_Quit();
 
-  nya_info("PASSED: the callsite table survives concurrent recording");
+  nya_log_info("PASSED: the callsite table survives concurrent recording");
   return 0;
 }

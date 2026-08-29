@@ -10,6 +10,13 @@
  */
 
 /** Win32 counts 100ns ticks from 1601; the rest of the engine uses unix seconds. */
+/**
+ * A FILETIME as the milliseconds since the unix epoch NYA_FileInfo documents.
+ *
+ * FILETIME counts 100 nanosecond ticks from 1601, so the conversion is a divide and a shift of the
+ * epoch. Done in ticks before the subtraction rather than after, because the offset is expressed in
+ * seconds and doing it the other way around loses the millisecond this exists to keep.
+ * */
 NYA_INTERNAL u64 _nya_filesystem_time_from_filetime(FILETIME time) {
     ULARGE_INTEGER ticks;
     ticks.LowPart  = time.dwLowDateTime;
@@ -17,7 +24,7 @@ NYA_INTERNAL u64 _nya_filesystem_time_from_filetime(FILETIME time) {
 
     if (ticks.QuadPart == 0) return 0;
 
-    return (ticks.QuadPart / 10000000ULL) - 11644473600ULL;
+    return (ticks.QuadPart / 10000ULL) - 11644473600000ULL;
 }
 
 NYA_INTERNAL NYA_FileType _nya_filesystem_type_from_attributes(DWORD attributes) {

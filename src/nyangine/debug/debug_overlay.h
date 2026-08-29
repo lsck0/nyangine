@@ -8,32 +8,16 @@
  * nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = 16, .y = 16 });
  * ```
  *
- * **Work time is the number to optimise against.** The overlay separates it from wall time: work is
- * update plus render plus present, measured before the frame rate limiter sleeps, so it moves when
- * the game gets faster. Wall time is start of frame to start of the next, including that sleep and
- * the wait for vsync — on a capped run it sits at the cap no matter how little work is done, which
- * makes it the wrong thing to optimise against and the right thing to check deadlines with.
+ * Work time (update + render + present, before the frame limiter's sleep) is what to optimise
+ * against; wall time includes the sleep/vsync wait and sits at the cap regardless of work done, so
+ * it's for checking deadlines instead. Milliseconds are shown before fps, since fps compresses the
+ * part that matters (60→55 fps is 1.5 ms; 20→15 fps is 17 ms). The worst frame in the window is
+ * shown beside the average because a run smooth apart from one 40 ms stall averages fine and feels
+ * broken.
  *
- * **Frame time, not frame rate, is the number to read.** Frames per second compresses exactly the
- * part that matters: the difference between 60 and 55 fps is 1.5 ms, and between 20 and 15 fps is
- * 17 ms, so the same drop in fps means wildly different things depending on where you are. The
- * overlay shows both, with milliseconds first.
- *
- * The **worst** frame in the recent window is shown alongside the average, because an average hides
- * hitches — a run that is smooth apart from one 40 ms stall averages fine and feels broken.
- *
- * ## Sampling
- *
- * History is collected by the draw call itself, so a frame that does not draw the overlay is not in
- * it. That keeps the subsystem free when it is off, at the cost of the graph being a history of
- * *observed* frames rather than of all of them. Turning the overlay on mid-run therefore takes a
- * moment to fill.
- *
- * ## Where this lives
- *
- * `nyangine/debug/` is for things that exist to explain the engine to a developer rather than to
- * run the game: this overlay now, and whatever inspects entities, assets and arenas later. It needs
- * the renderer, so it is excluded from -DNYA_NO_SDL builds along with everything else that draws.
+ * History is sampled by the draw call itself, so a frame that skips drawing the overlay isn't
+ * recorded — keeps the subsystem free when off, at the cost of a moment to fill after enabling it
+ * mid-run.
  * */
 #pragma once
 
@@ -50,19 +34,13 @@ typedef struct NYA_DebugOverlayStyle  NYA_DebugOverlayStyle;
  */
 
 /**
- * Frames of history kept for the average, the worst case and the graph.
- *
- * At 120 fps this is about a second — long enough for the average to be steady, short enough that
- * the worst case still refers to something that just happened rather than to a hitch a minute ago.
+ * Frames of history kept for the average, the worst case and the graph — about a second at
+ * 120 fps: long enough to steady the average, short enough that the worst case is still recent.
  * */
 /**
- * How often the displayed numbers are refreshed, in seconds.
- *
- * Sampling still happens every frame — the average, the worst case and the graph all see everything.
- * Only the *printed* figures are held, because a number that changes two hundred times a second is
- * not a readout, it is a flicker: the eye cannot read it and cannot even tell whether it is drifting.
- *
- * A fifth of a second is slow enough to read and fast enough to feel live.
+ * How often the printed numbers refresh, in seconds. Sampling still happens every frame; only the
+ * displayed figures are held, since a number changing 200 times a second reads as a flicker, not a
+ * readout. A fifth of a second is slow enough to read, fast enough to feel live.
  * */
 #ifndef NYA_DEBUG_OVERLAY_REFRESH_SECONDS
 #define NYA_DEBUG_OVERLAY_REFRESH_SECONDS 0.2F
@@ -73,11 +51,8 @@ typedef struct NYA_DebugOverlayStyle  NYA_DebugOverlayStyle;
 #endif
 
 /**
- * Arenas listed in the memory section, largest first.
- *
- * A cap rather than all of them: the registry holds up to NYA_ARENA_REGISTRY_MAX, most of which are
- * small and unchanging, and a HUD that lists forty arenas is a wall rather than a readout. The
- * biggest few are where growth shows up.
+ * Arenas listed in the memory section, largest first, capped rather than showing all
+ * NYA_ARENA_REGISTRY_MAX entries — a HUD listing forty arenas is a wall, not a readout.
  * */
 #ifndef NYA_DEBUG_OVERLAY_ARENAS
 #define NYA_DEBUG_OVERLAY_ARENAS 6
@@ -102,9 +77,8 @@ struct NYA_DebugOverlayStyle {
     /**
      * The frame time the top of the graph represents, in milliseconds. Zero means 33.3.
      *
-     * A fixed ceiling rather than one scaled to the worst sample, because an auto-scaled graph
-     * rescales itself the instant anything spikes and so never looks any different — the shape is
-     * the information, and a fixed scale is what preserves it.
+     * Fixed rather than auto-scaled to the worst sample: auto-scaling rescales on every spike and
+     * so never looks different — the shape is the information a fixed scale preserves.
      * */
     f32 graph_ceiling_ms;
 
@@ -120,20 +94,16 @@ struct NYA_DebugOverlayStyle {
     b8 hide_draw_stats;
 
     /**
-     * Hides the per arena memory lines.
-     *
-     * One line per named arena, largest first, capped at NYA_DEBUG_OVERLAY_ARENAS. Shown by default
-     * because it is the only view of memory the engine has that is not a process total — and a
-     * process total cannot tell you *which* subsystem is growing, which is the only question worth
-     * asking when it does.
+     * Hides the per-arena memory lines (one per named arena, largest first, capped at
+     * NYA_DEBUG_OVERLAY_ARENAS). Shown by default: it's the only memory view that isn't a process
+     * total, and a total can't say which subsystem is growing.
      * */
     b8 hide_memory;
 
     /**
-     * Adds a line naming what forced the most draw calls this frame, and how many draws were dropped.
-     *
-     * Off by default: it answers "why is the draw call count what it is", which is a question you ask
-     * while optimising and not one you want a line of the panel spent on the rest of the time.
+     * Adds a line naming what forced the most draw calls this frame and how many were dropped. Off
+     * by default — it answers a question worth asking while optimising, not worth a line the rest
+     * of the time.
      * */
     b8 show_batch_breakdown;
 
@@ -160,10 +130,8 @@ NYA_API void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle st
 
 /**
  * Milliseconds of *work* the average observed frame took — update, render and present, without the
- * frame rate limiter's sleep.
- *
- * For a caller that wants the number without the overlay — a headless benchmark, or a log line at
- * shutdown. Zero until the overlay has drawn at least once, since that is what samples.
+ * frame limiter's sleep. For callers without the overlay (a headless benchmark, a shutdown log
+ * line). Zero until the overlay has drawn at least once, since that is what samples.
  * */
 NYA_API f32 nya_debug_frame_time_average_ms(void) __attr_no_discard;
 

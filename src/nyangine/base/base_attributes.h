@@ -125,3 +125,11 @@
 #else
 #error "attribute 'ext_vector_type' not available."
 #endif
+
+/**
+ * Suppresses the unused warning for something that is used in some builds and not others.
+ *
+ * Not a licence to leave dead code around: it is for a definition whose only callers live in a
+ * translation unit the build swapped out — a headless renderer replacing the real one, for instance.
+ * */
+#define __attr_maybe_unused [[maybe_unused]]

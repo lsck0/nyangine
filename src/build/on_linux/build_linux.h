@@ -6,7 +6,7 @@
 #pragma once
 
 // For the asset rules these depend on: build_shaders, index_assets and bundle_assets.
-#include "build/asset.h"
+#include "build/asset_rules.h"
 #include "build/flags.h"
 #include "build/hooks.h"
 #include "build/vendor/vendor.h"

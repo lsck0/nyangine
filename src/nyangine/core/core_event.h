@@ -153,7 +153,7 @@ struct NYA_EventSystem {
  * rather than the number of event types. Five entries were missing: the two lifecycle range
  * sentinels, and — the ones that mattered — JOB_STARTED, JOB_COMPLETED and ASSET_LOAD_FAILED.
  *
- * nya_event_dispatch does `nya_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type])` on
+ * nya_event_dispatch does `nya_log_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type])` on
  * every dispatch, so each of those passed a null pointer to a %s conversion. That is undefined
  * behaviour, and the job events are dispatched on every job start and finish; it survived only
  * because glibc prints "(null)" rather than faulting.

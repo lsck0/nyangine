@@ -347,7 +347,7 @@ NYA_Error nya_args_run_command(NYA_ArgCommand* command) {
     } else if (command->build_rule != nullptr) {
         NYA_TRY(nya_build(command->build_rule));
     } else {
-        nya_panic("Command '%s' has neither a handler nor a build rule.", command->name ? command->name : "root");
+        nya_log_panic("Command '%s' has neither a handler nor a build rule.", command->name ? command->name : "root");
     }
 
     return NYA_OK;
@@ -878,7 +878,7 @@ void _nya_args_validate_command_tree(NYA_ArgCommand* command) {
         nya_assert(param->name);
         if (param->value.type != NYA_TYPE_B8 && param->value.type != NYA_TYPE_S64 && param->value.type != NYA_TYPE_F64 &&
             param->value.type != NYA_TYPE_STRING) {
-            nya_panic("Parameter '%s' in command '%s' has invalid type. Has to be B8, S64, F64 or STRING.", param->name, command->name);
+            nya_log_panic("Parameter '%s' in command '%s' has invalid type. Has to be B8, S64, F64 or STRING.", param->name, command->name);
         }
 
         if (param->kind == NYA_ARG_PARAMETER_KIND_POSITIONAL) {
@@ -888,7 +888,7 @@ void _nya_args_validate_command_tree(NYA_ArgCommand* command) {
             has_positionals = true;
 
             if (variadic_found) {
-                nya_panic(
+                nya_log_panic(
                     "Only the last positional argument in command '%s' can be variadic. "
                     "Parameter '%s' is variadic but is not the last positional argument.",
                     command->name ? command->name : "root",
@@ -903,7 +903,7 @@ void _nya_args_validate_command_tree(NYA_ArgCommand* command) {
             nya_assert(!param->variadic, "Flag cannot be variadic.");
 
             if (param->default_value.type != NYA_TYPE_NULL && param->default_value.type != param->value.type) {
-                nya_panic(
+                nya_log_panic(
                     "Parameter '%s' in command '%s' has mismatched default value type. Expected %s but got %s.",
                     param->name,
                     command->name,
@@ -920,7 +920,7 @@ void _nya_args_validate_command_tree(NYA_ArgCommand* command) {
         if (subcommand == nullptr) break;
 
         if (has_positionals) {
-            nya_panic("Command '%s' cannot have both positional parameters and subcommands.", command->name ? command->name : "root");
+            nya_log_panic("Command '%s' cannot have both positional parameters and subcommands.", command->name ? command->name : "root");
         }
 
         _nya_args_validate_command_tree(subcommand);
@@ -963,7 +963,7 @@ void _nya_args_print_command_path(NYA_ArgParser* parser, NYA_ArgCommand* command
     }
 
     if (is_top_level) {
-        if (!found) nya_panic("Command '%s' not found in parser '%s'.", command->name, parser->name);
+        if (!found) nya_log_panic("Command '%s' not found in parser '%s'.", command->name, parser->name);
         path_length = 0;
         found       = false;
     }

@@ -62,7 +62,7 @@ NYA_Error nya_system_events_init(void) {
     app->event_system.deferred_event_hooks  = nya_hmap_create(app->event_system.allocator, NYA_EventType, NYA_ArrayᐸNYA_EventHookᐳ);
     app->event_system.immediate_event_hooks = nya_hmap_create(app->event_system.allocator, NYA_EventType, NYA_ArrayᐸNYA_EventHookᐳ);
 
-    nya_info("Event system initialized.");
+    nya_log_info("Event system initialized.");
     return NYA_OK;
 }
 
@@ -76,12 +76,21 @@ void nya_system_events_deinit(void) {
 
     nya_arena_destroy(app->event_system.allocator);
 
-    nya_info("Event system deinitialized.");
+    nya_log_info("Event system deinitialized.");
 }
 
 void nya_system_event_drain_sdl_events(void) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+        /*
+         * Gamepad events are consumed here rather than converted into an NYA_Event.
+         *
+         * A pad's state is a table to be sampled, not a stream to be replayed — nothing wants to hear
+         * about every axis motion, and SDL emits one per axis per poll. The input system reads the
+         * table; core_gamepad.h owns it.
+         */
+        if (nya_system_gamepad_handle_sdl_event(&event)) continue;
+
         NYA_Event nya_event = _nya_event_from_sdl_event(event);
         if (nya_event.type == NYA_EVENT_INVALID) continue;
 
@@ -130,7 +139,7 @@ void nya_event_dispatch(NYA_Event event) {
     SDL_UnlockMutex(app->event_system.event_queue_mutex);
 
     if (NYA_EVENT_LIFECYCLE_EVENTS_BEGIN <= event.type && event.type <= NYA_EVENT_LIFECYCLE_EVENTS_END) return;
-    nya_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type]);
+    nya_log_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type]);
 }
 
 void nya_event_hook_register(NYA_EventHook hook) {

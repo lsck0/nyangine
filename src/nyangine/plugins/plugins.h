@@ -13,6 +13,7 @@
  * | NYA_PLUGIN_SQLITE  | plugins/sqlite/sql.h     | libsqlite3, plus the sqlean and sqlite-vec archives |
  * | NYA_PLUGIN_STEAM   | plugins/steam/steam.h    | the Steamworks redistributable, shipped beside the binary |
  * | NYA_PLUGIN_DISCORD | plugins/discord/discord.h | nothing; it speaks Discord's local IPC protocol directly |
+ * | NYA_PLUGIN_LUA     | plugins/lua/lua.h        | LuaJIT, already vendored and built for both targets |
  *
  * The sqlite plugin registers both extension bundles on every connection it opens, so a database
  * gets vector search and sqlean's functions with no further opting in. See sql.h.
@@ -42,4 +43,8 @@
 
 #ifdef NYA_PLUGIN_DISCORD
 #include "nyangine/plugins/discord/discord.h"
+#endif
+
+#ifdef NYA_PLUGIN_LUA
+#include "nyangine/plugins/lua/lua.h"
 #endif

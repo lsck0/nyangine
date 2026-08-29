@@ -7,11 +7,9 @@
  */
 
 /**
- * A ring of recent frame times, in milliseconds.
- *
- * A module global rather than something on NYA_App, because the overlay is a developer tool and its
- * history has no meaning to the engine. It is also per process rather than per window: two windows
- * share a frame loop, so two histories would be two views of the same thing.
+ * A ring of recent frame times, in milliseconds. A module global rather than something on NYA_App,
+ * since the overlay's history has no meaning to the engine; per process rather than per window,
+ * since two windows share a frame loop.
  * */
 NYA_INTERNAL f32 _nya_debug_frame_times_ms[NYA_DEBUG_OVERLAY_HISTORY] = { 0 };
 
@@ -31,10 +29,9 @@ NYA_INTERNAL u32 _nya_debug_sample_count = 0;
 NYA_INTERNAL void _nya_debug_overlay_apply_style_defaults(NYA_DebugOverlayStyle* style);
 
 /**
- * Bytes as a fixed width string, in whichever unit keeps it readable.
- *
- * Returns a pointer into a small ring of static buffers, so several calls can be alive in one
- * snprintf without clobbering each other. Not thread safe, which is correct for a HUD.
+ * Bytes as a fixed width string, in whichever unit keeps it readable. Returns a pointer into a
+ * small ring of static buffers, so several calls can be alive in one snprintf call. Not thread
+ * safe, which is fine for a HUD.
  * */
 NYA_INTERNAL NYA_ConstCString _nya_debug_format_bytes(u64 bytes) __attr_no_discard;
 
@@ -68,23 +65,12 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
     NYA_FrameStats* frame = &nya_app_get()->frame_stats;
 
     /*
-     * Two different numbers, and the distinction is the point of the overlay.
-     *
-     * **Work** is frame_end_time_ns minus frame_start_time_ns: update, render, present. The frame
-     * loop stamps frame_end *before* the frame rate limiter sleeps, so this excludes the sleep and
-     * is the only one of the two that responds to making the game faster.
-     *
-     * **Wall** is elapsed_ns, start of one frame to the start of the next. It includes the limiter
-     * sleep and the wait for vsync, so on a capped run it sits at the cap however little work is
-     * being done — which makes it useless as a cost measure and exactly right as a "are frames
-     * arriving on time" measure.
-     *
-     * Neither is delta_time_s, which is the *fixed simulation step* and reads 16ms forever. Sampling
-     * that produced a graph where current, average and worst were all exactly 16.00 and never moved.
-     *
-     * The work figure is one frame stale: the overlay draws during render, so this frame's end has
-     * not been stamped yet and frame_end still belongs to the previous one. A frame late is the
-     * right trade against measuring only the part of the frame that happens before the overlay.
+     * Work (frame_end - frame_start, stamped before the limiter sleeps) responds to the game
+     * getting faster; wall (elapsed_ns) includes the sleep and vsync wait and sits at the cap
+     * regardless, so it measures "on time" not cost. Neither is delta_time_s, the fixed simulation
+     * step: using it once produced a graph where current, average and worst were all exactly 16.00
+     * and never moved. Work is one frame stale here — the overlay draws during render, before this
+     * frame's end is stamped — which beats measuring only the part of the frame before it runs.
      */
     f32 work_ms = 0.0F;
     if (frame->frame_end_time_ns > frame->prev_frame_time_ns) {
@@ -101,16 +87,9 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     if (_nya_debug_sample_count < NYA_DEBUG_OVERLAY_HISTORY) _nya_debug_sample_count++;
 
-    /*
-     * The printed figures are latched, and only re-read every NYA_DEBUG_OVERLAY_REFRESH_SECONDS.
-     *
-     * Everything above still runs every frame, so the history and the graph lose nothing. What this
-     * fixes is the display: at two hundred frames a second the work figure changed faster than it
-     * could be read, and the whole panel shimmered.
-     *
-     * Latched on the app's uptime rather than by counting frames, so the refresh rate is the same
-     * whatever the frame rate is — which is the entire point.
-     */
+    // Printed figures are latched and re-read only every NYA_DEBUG_OVERLAY_REFRESH_SECONDS; history
+    // and the graph still sample every frame. Latched on uptime rather than frame count, so the
+    // refresh rate doesn't depend on the frame rate.
     static f32 latched_work_ms = 0.0F;
     static f32 latched_wall_ms = 0.0F;
     static f32 latched_fps     = 0.0F;
@@ -137,24 +116,14 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     NYA_Render2DFrameStats draw_stats = nya_render2d_frame_stats(window);
 
-    /*
-     * Laid out from the text metrics rather than from constants, so the panel fits whatever font the
-     * caller set rather than assuming the one this was written against.
-     */
+    // Laid out from text metrics, not constants, so the panel fits whatever font the caller set.
     f32 line_height = nya_render2d_font_line_height();
     if (line_height <= 0.0F) line_height = 16.0F;
 
     f32 padding = 8.0F;
 
-    /*
-     * The arenas worth showing, biggest first.
-     *
-     * Selected here rather than while drawing, because the panel has to be sized before anything is
-     * drawn into it and the count is not known until the registry has been walked. A partial
-     * selection sort over the registry: NYA_DEBUG_OVERLAY_ARENAS passes over at most
-     * NYA_ARENA_REGISTRY_MAX entries, which is cheaper than sorting the whole registry to show six
-     * of it.
-     */
+    // The arenas worth showing, biggest first — selected before drawing since the panel must be
+    // sized first. A partial selection sort, cheaper than sorting the whole registry to show six.
     NYA_ArenaStats memory[NYA_DEBUG_OVERLAY_ARENAS] = { 0 };
 
     u32 memory_count = 0;
@@ -170,8 +139,7 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
             NYA_ArenaStats stats = nya_arena_stats(arena);
             memory_total        += stats.used_bytes;
 
-            // Unnamed arenas are scratch, created and destroyed inside one call. Naming is what
-            // marks an arena as something with a lifetime worth watching.
+            // Unnamed arenas are scratch, created and destroyed inside one call.
             if (stats.name == nullptr) continue;
 
             // Insertion into a list kept in descending order, dropping off the end.
@@ -203,14 +171,8 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
     f32 text_x = style.x + padding;
     f32 text_y = style.y + padding;
 
-    /*
-     * Every number is padded to a fixed width.
-     *
-     * The font is proportional, so a value going from 9.9 to 10.0 changes the string's pixel width
-     * and everything after it slides sideways. At sixty frames a second that is not a readout, it is
-     * a fidget — and the eye tracks the movement instead of the value. Padding to the widest form
-     * each field can take keeps the columns still.
-     */
+    // Every number padded to a fixed width: the font is proportional, so an unpadded value going
+    // from 9.9 to 10.0 would slide everything after it sideways at sixty times a second.
     nya_render2d_textf_with_font(
         window,
         style.font,
@@ -225,8 +187,7 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
     );
     text_y += line_height;
 
-    // The worst frame in the window, beside the average — an average alone hides exactly the hitch
-    // that makes a run feel broken.
+    // Worst beside average — an average alone hides the hitch that makes a run feel broken.
     nya_render2d_textf_with_font(window, style.font, style.font_size, text_x, text_y, style.text_color, "avg %7.2f     worst %7.2f", (f64)average_ms, (f64)worst_ms);
     text_y += line_height;
 
@@ -236,13 +197,8 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
     }
 
     if (style.show_batch_breakdown) {
-        /*
-         * The single largest reason, not all six.
-         *
-         * A breakdown of every reason is a table, and a table does not belong in a HUD. The one that
-         * dominates is the one worth acting on, and the counts behind it are available from
-         * nya_render2d_frame_stats for anyone who wants the rest.
-         */
+        // The single largest reason, not all six — a breakdown is a table, which doesn't belong in
+        // a HUD; the rest is available from nya_render2d_frame_stats for anyone who wants it.
         NYA_Render2DFlushReason worst_reason = NYA_RENDER2D_FLUSH_FRAME_END;
         u32                 worst_count  = 0;
 
@@ -253,8 +209,7 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
             worst_reason = (NYA_Render2DFlushReason)i;
         }
 
-        // Red once anything is being dropped: a draw that produced nothing is the one number here
-        // that is a bug rather than a cost.
+        // Red once anything is dropped: that's a bug, not a cost.
         NYA_Color color = style.text_color;
         if (draw_stats.dropped_draws > 0) color = (NYA_Color){ 0.95F, 0.45F, 0.45F, 1.0F };
 
@@ -278,8 +233,7 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
         text_y += line_height;
 
         for (u32 i = 0; i < memory_count; i++) {
-            // Name left aligned and size right aligned in a fixed field, so the sizes form a column
-            // that can be compared down rather than a ragged edge that has to be read one by one.
+            // Name left, size right in a fixed field, so sizes form a comparable column.
             nya_render2d_textf_with_font(
                 window,
                 style.font,
@@ -302,17 +256,12 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     nya_render2d_rect(window, graph_x, graph_y, style.width, style.height, (NYA_Color){ 0.0F, 0.0F, 0.0F, 0.35F });
 
-    /*
-     * One column per sample, oldest on the left.
-     *
-     * Drawn as bars rather than a line because a line between two samples implies the frame time
-     * passed through the values in between, and it did not — each sample is a whole frame.
-     */
+    // One column per sample, oldest on the left. Bars, not a line: a line would imply the frame
+    // time passed through the values in between, and it did not.
     f32 column_width = style.width / (f32)NYA_DEBUG_OVERLAY_HISTORY;
 
     for (u32 i = 0; i < _nya_debug_sample_count; i++) {
-        // Read back from the cursor so the newest sample is on the right, whatever the ring's
-        // internal rotation happens to be.
+        // Read back from the cursor so the newest sample is on the right regardless of rotation.
         u32 index  = (_nya_debug_frame_cursor + NYA_DEBUG_OVERLAY_HISTORY - _nya_debug_sample_count + i) % NYA_DEBUG_OVERLAY_HISTORY;
         f32 sample = _nya_debug_frame_times_ms[index];
 

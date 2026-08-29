@@ -52,7 +52,7 @@ enum NYA_LogLevel {
 enum NYA_CrashSource {
     /** A failed nya_assert. */
     NYA_CRASH_SOURCE_ASSERT,
-    /** An explicit nya_panic. */
+    /** An explicit nya_log_panic. */
     NYA_CRASH_SOURCE_PANIC,
     /** An NYA_Error that reached NYA_THROW or NYA_EXPECT. */
     NYA_CRASH_SOURCE_ERROR,
@@ -132,7 +132,7 @@ typedef void (*NYA_LogSink)(NYA_LogLevel level, NYA_ConstCString message, u32 le
  * - ERROR  an operation the caller explicitly asked for definitively failed, and the failure is
  *          being swallowed here rather than returned. If it is returned as an NYA_Error instead,
  *          do not also log it: the caller decides how loud it is.
- * - PANIC  nya_panic, which does not return.
+ * - PANIC  nya_log_panic, which does not return.
  *
  * Message wording: capitalised, no trailing period, present tense. Error *messages* are the
  * exception and are deliberately the other way round — lowercase and unpunctuated — because
@@ -140,12 +140,12 @@ typedef void (*NYA_LogSink)(NYA_LogLevel level, NYA_ConstCString message, u32 le
  * and NYA_EXPECT context reads the same way, "while loading the shader".
  */
 // clang-format off
-#define nya_trace(format, ...)     _nya_log_message(NYA_LOG_LEVEL_TRACE, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
-#define nya_debug(format, ...)     _nya_log_message(NYA_LOG_LEVEL_DEBUG, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
-#define nya_info(format, ...)      _nya_log_message(NYA_LOG_LEVEL_INFO, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
-#define nya_warn(format, ...)      _nya_log_message(NYA_LOG_LEVEL_WARN, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
+#define nya_log_trace(format, ...) _nya_log_message(NYA_LOG_LEVEL_TRACE, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
+#define nya_log_debug(format, ...) _nya_log_message(NYA_LOG_LEVEL_DEBUG, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
+#define nya_log_info(format, ...)  _nya_log_message(NYA_LOG_LEVEL_INFO,  __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
+#define nya_log_warn(format, ...)  _nya_log_message(NYA_LOG_LEVEL_WARN,  __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
 #define nya_log_error(format, ...) _nya_log_message(NYA_LOG_LEVEL_ERROR, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
-#define nya_panic(format, ...)     _nya_crash_raise(NYA_CRASH_SOURCE_PANIC, __FUNCTION__, __FILE__, __LINE__, 0, format __VA_OPT__(, __VA_ARGS__))
+#define nya_log_panic(format, ...) _nya_crash_raise(NYA_CRASH_SOURCE_PANIC, __FUNCTION__, __FILE__, __LINE__, 0, format __VA_OPT__(, __VA_ARGS__))
 // clang-format on
 
 NYA_API NYA_LogLevel nya_log_level_get(void);
