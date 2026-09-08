@@ -1088,13 +1088,25 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         .target   = { 0.0F, gny_terrain3d_height_at(0.0F, 0.0F) + GNY_CUBE3D_SIZE, 0.0F },
     };
 
+    /*
+     * The target's aspect, which the fit needs because it measures the camera's frustum.
+     *
+     * The same number nya_render3d_begin derives for the projection, asked for here so the cascades
+     * are fitted to the frustum that will actually be drawn rather than to a guess.
+     */
+    u32 target_width = 0, target_height = 0;
+    nya_render2d_target_size(window, &target_width, &target_height);
+
+    f32 aspect = target_height > 0 ? (f32)target_width / (f32)target_height : 0.0F;
+
     for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
         nya_render3d_shadow_begin(
             window,
             nya_render3d_shadow_for_camera(shadow_camera, sky.direction, cascade,
                                            (NYA_Render3DShadowFit){
-                                               .near_extent = GNY_CUBE3D_SHADOW_EXTENT,
-                                               .strength    = GNY_CUBE3D_SHADOW_STRENGTH,
+                                               .range    = GNY_CUBE3D_SHADOW_RANGE,
+                                               .aspect   = aspect,
+                                               .strength = GNY_CUBE3D_SHADOW_STRENGTH,
                                            })
         );
 

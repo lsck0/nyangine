@@ -526,7 +526,11 @@ void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
     // rather than writing past the end of the arrays.
     u32 cascade = nya_min(shadow.cascade, (u32)(NYA_RENDER3D_SHADOW_CASCADES - 1));
 
-    shadow.extent = nya_render3d_cascade_extent(shadow.extent, cascade);
+    // Taken as given, not widened. `extent` is this cascade's own half-width — nya_render3d_shadow_for_camera
+    // derives it from the frustum slice the cascade covers, so there is no ratio left to apply here.
+    // Applying one was harmless while the fit handed back the *nearest* extent and meant this had to
+    // widen it; now it would simply make every cascade too large. See NYA_Render3DShadowFit.range.
+    if (shadow.extent <= 0.0F) shadow.extent = NYA_RENDER3D_SHADOW_EXTENT;
 
     if (shadow.depth <= 0.0F) shadow.depth = shadow.extent * 4.0F;
     if (shadow.bias <= 0.0F) shadow.bias = NYA_RENDER3D_SHADOW_BIAS;
@@ -543,24 +547,15 @@ void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
 
     if (light_is_unset) light = _nya_render3d_default_light();
 
-    f32x3 direction, right, up;
-    nya_render3d_light_basis(light.direction, &direction, &right, &up);
-
-    nya_unused(right);
-
-    // A directional light has no position, so one is invented: back along the light by half the depth,
-    // far enough that the whole volume is in front of it. `direction` is the way light travels, so
-    // backing off means subtracting it.
-    f32x3 eye = shadow.center - (direction * (shadow.depth * 0.5F));
-
-    // Orthographic, because a directional light's rays are parallel. Aspect one: the map is square.
-    f32_4x4 projection = nya_matrix_orthographic_3d(shadow.extent * 2.0F, 1.0F, 0.01F, shadow.depth);
-    f32_4x4 view       = nya_matrix_look_at(eye, shadow.center, up);
+    // Built by the same function a headless test builds it with, so what the pass rasterises and what
+    // the scene pass samples through cannot drift apart. See nya_render3d_shadow_view_projection.
+    f32x3   eye;
+    f32_4x4 light_view_projection = nya_render3d_shadow_view_projection(shadow.center, light.direction, shadow.extent, shadow.depth, &eye);
 
     batch->shadow          = shadow;
     batch->shadow_cascade  = cascade;
 
-    batch->shadow_view_projection[cascade] = projection * view;
+    batch->shadow_view_projection[cascade] = light_view_projection;
     batch->shadow_cascade_extent[cascade]  = shadow.extent;
 
     // The highest cascade index reached this frame plus one, so a caller running fewer than the maximum
@@ -659,6 +654,12 @@ b8 nya_render3d_shadow_active(NYA_Window* window) {
     nya_assert(window != nullptr);
 
     return window->render_system.mesh_batch.shadow_valid;
+}
+
+b8 nya_render3d_shadow_pass_active(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.mesh_batch.shadow_pass_active;
 }
 
 b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
@@ -1467,11 +1468,11 @@ b8 nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString handle, const
     // A pending copy that never happened, from a registration replaced before it was ever drawn.
     if (slot->pending_upload != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, slot->pending_upload);
 
-    f32x3 min = vertices[0].position;
+    f32x3 min = nya_vertex3d_position(vertices[0]);
     f32x3 max = min;
 
     for (u32 i = 1; i < vertex_count; i++) {
-        f32x3 position = vertices[i].position;
+        f32x3 position = nya_vertex3d_position(vertices[i]);
 
         min = (f32x3){ nya_min(min.x, position.x), nya_min(min.y, position.y), nya_min(min.z, position.z) };
         max = (f32x3){ nya_max(max.x, position.x), nya_max(max.y, position.y), nya_max(max.z, position.z) };
@@ -2086,9 +2087,9 @@ void _nya_render3d_sort_transparent(NYA_Render3DBatch* batch, f32x3 eye) {
     for (u32 i = 0; i < triangles; i++) {
         u32 first = i * 3;
 
-        f32x3 a = stream->vertices[stream->indices[first + 0]].position;
-        f32x3 b = stream->vertices[stream->indices[first + 1]].position;
-        f32x3 c = stream->vertices[stream->indices[first + 2]].position;
+        f32x3 a = nya_vertex3d_position(stream->vertices[stream->indices[first + 0]]);
+        f32x3 b = nya_vertex3d_position(stream->vertices[stream->indices[first + 1]]);
+        f32x3 c = nya_vertex3d_position(stream->vertices[stream->indices[first + 2]]);
 
         f32x3 offset = ((a + b + c) / 3.0F) - eye;
 
@@ -2636,15 +2637,10 @@ b8 _nya_render3d_mesh_upload(NYA_Window* window, NYA_Asset* asset) {
         for (u32 i = 0; i < part->vertex_count; i++) {
             u32 source = part->first_vertex + i;
 
-            staging[source] = (NYA_Vertex3D){
-                .position = asset->as_mesh.positions[source],
-                .color    = part->base_color,
-                .normals  = asset->as_mesh.normals[source],
-
-                // Zero when the model has no UV set, which samples one texel and is the right answer for
-                // a model that was never textured.
-                .uv = asset->as_mesh.uvs != nullptr ? asset->as_mesh.uvs[source] : f32x2_zero,
-            };
+            // Zero uv when the model has no UV set, which samples one texel and is the right answer
+            // for a model that was never textured.
+            staging[source] = nya_vertex3d(asset->as_mesh.positions[source], part->base_color, asset->as_mesh.normals[source],
+                                           asset->as_mesh.uvs != nullptr ? asset->as_mesh.uvs[source] : f32x2_zero);
         }
     }
 
@@ -2897,12 +2893,7 @@ u32 _nya_render3d_vertex(NYA_Render3DBatch* batch, f32x3 position, f32x3 normal,
 
     u32 index = stream->vertex_count;
 
-    stream->vertices[index] = (NYA_Vertex3D){
-        .position = position,
-        .color    = color,
-        .normals  = normal,
-        .uv       = uv,
-    };
+    stream->vertices[index] = nya_vertex3d(position, color, normal, uv);
 
     stream->vertex_count++;
 

@@ -638,8 +638,31 @@ struct NYA_Render3DPointLight {
  * and that is a real thing to ask for.
  * */
 struct NYA_Render3DShadowFit {
-    /** Half-width of the **nearest** cascade, world units. Zero is NYA_RENDER3D_SHADOW_EXTENT. */
-    f32 near_extent;
+    /**
+     * How far from the camera shadows are cast, in world units. Zero is NYA_RENDER3D_SHADOW_EXTENT.
+     *
+     * ⚠ **This is a distance down the view, not a cascade's size.** It used to be the near cascade's
+     * half-width, and that is what made shadows depend on how far the camera was from what it was
+     * looking at: each cascade was a box of a fixed size sitting a fixed distance in front of the
+     * camera, so a camera further away than the near cascade's reach spent that cascade on empty air
+     * and shadowed the whole scene with the coarsest map it had. Moving the camera then moved patches
+     * of ground between cascades of very different resolution, which is what "the shadows change when
+     * I move" was.
+     *
+     * Each cascade's size is now *derived* — it is whatever covers its slice of the camera's frustum —
+     * so the near cascade lands on whatever is nearest the viewer at any distance. See
+     * nya_render3d_shadow_for_camera.
+     * */
+    f32 range;
+
+    /**
+     * The camera's aspect ratio, width over height. Zero is 16:9.
+     *
+     * Needed because the fit measures the frustum itself, and a frustum is as wide as the target it
+     * is drawn to. Being a little wrong here only means a cascade slightly larger or smaller than the
+     * ideal, never a wrong one, which is why it has a default at all.
+     * */
+    f32 aspect;
 
     /** How dark a shadow goes. Zero disables them, so this is the field a caller must set. */
     f32 strength;
@@ -1040,6 +1063,28 @@ NYA_API void nya_render3d_light_basis(f32x3 direction, OUT f32x3* out_forward, O
 /** The half-width of cascade `index`, from the nearest cascade's. Geometric — see the ratio's note. */
 NYA_API f32 nya_render3d_cascade_extent(f32 near_extent, u32 index) __attr_no_discard;
 
+/**
+ * The matrix a shadow pass rasterises with, and the matrix the scene pass samples through.
+ *
+ * One function rather than the pass building its own, because the two have to be the *same* matrix and
+ * for a while they were two copies of the same six lines. It is also what makes the volume's coverage
+ * testable without a device: a fragment is inside cascade `i` exactly when this matrix maps it into
+ * clip space's [-1, 1] box, which is the rule mesh3d_shading.hlsli now selects a cascade by.
+ *
+ * `center`, `extent` and `depth` are already resolved — this applies no cascade ratio and no defaults
+ * beyond a zero `light_direction`, which is read as the default sun rather than normalized into NaN.
+ *
+ * `out_eye` is where the invented directional-light position ended up, which the pass needs for the
+ * view vector it shades with. Null when the caller only wants the matrix.
+ * */
+NYA_API f32_4x4 nya_render3d_shadow_view_projection(
+    f32x3       center,
+    f32x3       light_direction,
+    f32         extent,
+    f32         depth,
+    OUT f32x3*  out_eye
+);
+
 NYA_API NYA_Render3DShadow nya_render3d_shadow_for_camera(
     NYA_Camera3DPerspective camera,
     f32x3                   light_direction,
@@ -1050,8 +1095,26 @@ NYA_API NYA_Render3DShadow nya_render3d_shadow_for_camera(
 /** Ends the shadow pass and restores the previous render target. */
 NYA_API void nya_render3d_shadow_end(NYA_Window* window);
 
-/** Whether a shadow pass has run this frame, and so whether anything is being shadowed. */
+/**
+ * Whether a shadow pass has *already run* this frame, and so whether anything is being shadowed.
+ *
+ * ⚠ **Not "are we inside a shadow pass".** It goes true at nya_render3d_shadow_end and stays true for
+ * the rest of the frame, which is the opposite of what a caller wanting to skip the shadow pass needs.
+ * That caller wants nya_render3d_shadow_pass_active, and reaching for this one instead is a mistake
+ * that has been made: see the note there.
+ * */
 NYA_API b8 nya_render3d_shadow_active(NYA_Window* window) __attr_no_discard;
+
+/**
+ * Whether a shadow pass is running *right now* — between nya_render3d_shadow_begin and its end.
+ *
+ * What something that must not be drawn into a shadow map tests. The distinction matters more than it
+ * reads: `nya_render3d_shadow_active` answers "has one run", which is true for the whole camera pass
+ * and false during the frame's first shadow pass, so using it to mean "am I in a shadow pass" both
+ * draws the thing into the shadow map and hides it from the camera. That is precisely what happened to
+ * particles, which vanished from the 3D scene entirely while still casting shadows.
+ * */
+NYA_API b8 nya_render3d_shadow_pass_active(NYA_Window* window) __attr_no_discard;
 
 /** How many point lights the frame currently has, at most NYA_RENDER3D_MAX_POINT_LIGHTS. */
 NYA_API u32 nya_render3d_point_light_count(NYA_Window* window) __attr_no_discard;

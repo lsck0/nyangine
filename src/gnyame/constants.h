@@ -1017,12 +1017,19 @@
  *  reads as a hole in the floor. */
 #define GNY_CUBE3D_SHADOW_STRENGTH 0.45F
 /**
- * The *nearest* cascade's half-width; the others widen from it by NYA_RENDER3D_SHADOW_CASCADE_RATIO.
- * Much smaller than it was, since it no longer covers the whole terrain alone: three cascades at a
- * ratio of 2.5 reach 0.16, 0.4 and 1.0 of the extent, so the last still covers the rim while the first
- * spends its full resolution on the pile in the middle.
+ * How far down the view shadows are cast, in world units.
+ *
+ * A *distance*, not a cascade size — see NYA_Render3DShadowFit.range. This used to be the near
+ * cascade's half-width at 0.16 of the terrain's extent, which is where the broken shadows came from:
+ * the near cascades were small boxes a fixed distance in front of the camera, and this camera orbits
+ * well outside them, so the whole scene was shadowed by the coarsest cascade and the picture changed
+ * every time the camera moved. The cascades now split the frustum, so what this sets is simply how far
+ * away shadows stop.
+ *
+ * Twice the terrain's extent: far enough that the whole plate is covered from any orbit distance, and
+ * no further, since every metre past what is visible is resolution spent on nothing.
  * */
-#define GNY_CUBE3D_SHADOW_EXTENT   (GNY_TERRAIN3D_EXTENT * 0.16F)
+#define GNY_CUBE3D_SHADOW_RANGE   (GNY_TERRAIN3D_EXTENT * 2.0F)
 
 /** World units per second a networked player moves. See gny_net_apply_command. */
 #define GNY_PLAYER_SPEED 220.0F

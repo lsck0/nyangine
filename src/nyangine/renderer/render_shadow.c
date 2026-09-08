@@ -50,23 +50,80 @@ f32 nya_render3d_cascade_extent(f32 near_extent, u32 index) {
     return near_extent;
 }
 
+f32_4x4 nya_render3d_shadow_view_projection(f32x3 center, f32x3 light_direction, f32 extent, f32 depth, OUT f32x3* out_eye) {
+    b8 light_is_unset = light_direction.x == 0.0F && light_direction.y == 0.0F && light_direction.z == 0.0F;
+    if (light_is_unset) light_direction = NYA_RENDER3D_LIGHT_DIRECTION_DEFAULT;
+
+    f32x3 direction, right, up;
+    nya_render3d_light_basis(light_direction, &direction, &right, &up);
+
+    nya_unused(right);
+
+    // A directional light has no position, so one is invented: back along the light by half the depth,
+    // far enough that the whole volume is in front of it. `direction` is the way light travels, so
+    // backing off means subtracting it.
+    f32x3 eye = center - (direction * (depth * 0.5F));
+
+    if (out_eye != nullptr) *out_eye = eye;
+
+    // Orthographic, because a directional light's rays are parallel. Aspect one: the map is square, and
+    // the height is the full width, so `extent` is the half-width the volume actually covers.
+    f32_4x4 projection = nya_matrix_orthographic_3d(extent * 2.0F, 1.0F, 0.01F, depth);
+    f32_4x4 view       = nya_matrix_look_at(eye, center, up);
+
+    return projection * view;
+}
+
+/**
+ * Where cascade `index`'s slice of the view starts and ends, in world units down the view axis.
+ *
+ * A practical split: the logarithmic ideal, which puts far more resolution close to the viewer than a
+ * uniform one, mixed back toward uniform because pure logarithmic spends a cascade on the first
+ * centimetre in front of the near plane. NYA_RENDER3D_SHADOW_CASCADE_RATIO is no longer what sizes a
+ * cascade — the frustum is — so the split is the only place the distribution is decided.
+ * */
+NYA_INTERNAL void _nya_render3d_cascade_slice(f32 near_plane, f32 range, u32 index, OUT f32* out_near, OUT f32* out_far) {
+    const f32 blend = 0.75F;
+
+    f32 count = (f32)NYA_RENDER3D_SHADOW_CASCADES;
+
+    f32 bounds[NYA_RENDER3D_SHADOW_CASCADES + 1];
+
+    for (u32 i = 0; i <= NYA_RENDER3D_SHADOW_CASCADES; i++) {
+        f32 fraction = (f32)i / count;
+
+        f32 logarithmic = near_plane * powf(range / near_plane, fraction);
+        f32 uniform     = near_plane + ((range - near_plane) * fraction);
+
+        bounds[i] = (logarithmic * blend) + (uniform * (1.0F - blend));
+    }
+
+    *out_near = bounds[index];
+    *out_far  = bounds[index + 1];
+}
+
 NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera, f32x3 light_direction, u32 cascade, NYA_Render3DShadowFit fit) {
     cascade = nya_min(cascade, (u32)(NYA_RENDER3D_SHADOW_CASCADES - 1));
 
     b8 light_is_unset = light_direction.x == 0.0F && light_direction.y == 0.0F && light_direction.z == 0.0F;
     if (light_is_unset) light_direction = NYA_RENDER3D_LIGHT_DIRECTION_DEFAULT;
 
-    f32 extent = nya_render3d_cascade_extent(fit.near_extent, cascade);
+    f32 range  = fit.range > 0.0F ? fit.range : NYA_RENDER3D_SHADOW_EXTENT;
+    f32 aspect = fit.aspect > 0.0F ? fit.aspect : (16.0F / 9.0F);
 
-    /*
-     * The centre, pushed a half-extent ahead of the camera.
-     *
-     * A volume centred on the viewer spends half its resolution behind them, where nothing is drawn.
-     * Pushing it forward by exactly the half-width makes the box run from the camera to twice the
-     * extent ahead, which is the whole of what the camera can see at that range — the cheapest
-     * doubling of effective shadow resolution there is, and it has to be per cascade because each is
-     * a different size.
-     */
+    // The same defaults _nya_render3d_camera_defaults applies, spelled out rather than shared: that
+    // function lives in render3d.c, which the headless build replaces wholesale, and this file is
+    // compiled into both.
+    f32 fov_y      = camera.fov_y > 0.0F ? camera.fov_y : ((f32)M_PI / 3.0F);
+    f32 near_plane = camera.near_plane > 0.0F ? camera.near_plane : 0.1F;
+
+    // A range inside the near plane names no slice. Clamped rather than asserted: a caller ramping the
+    // shadow distance down to nothing should get no shadows, not a crash.
+    if (range <= near_plane) range = near_plane * 1.001F;
+
+    f32 slice_near, slice_far;
+    _nya_render3d_cascade_slice(near_plane, range, cascade, &slice_near, &slice_far);
+
     f32x3 view_direction = camera.target - camera.position;
 
     f32 view_length = sqrtf((view_direction.x * view_direction.x) + (view_direction.y * view_direction.y)
@@ -76,7 +133,40 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
     // but bounded — the alternative is a normalize that divides by zero and fills the matrix with NaN.
     f32x3 forward = view_length > 0.0001F ? view_direction / view_length : (f32x3){ 0.0F, 0.0F, 0.0F };
 
-    f32x3 center = camera.position + (forward * extent);
+    /*
+     * The slice's bounding **sphere**, not its bounding box.
+     *
+     * A sphere is the same size whichever way the camera is pointing, and that is the property the
+     * whole thing rests on: a box fitted to the frustum corners grows and shrinks as the camera turns,
+     * so the shadow map's texels change size every frame and every edge crawls — which no amount of
+     * texel snapping can fix, because snapping assumes a grid of a fixed pitch. With a sphere the
+     * pitch is constant while the camera only rotates, and the snap below does the rest.
+     *
+     * The closed form: `k` is the radius of the frustum's cross-section per unit of depth, and the
+     * sphere either touches both slice caps or, for a short and wide slice, is centred on the far cap.
+     */
+    f32 tan_half = tanf(fov_y * 0.5F);
+    f32 k        = sqrtf(1.0F + (aspect * aspect)) * tan_half;
+
+    f32 center_distance;
+    f32 extent;
+
+    f32 k2 = k * k;
+
+    if ((k2 * k2) >= ((slice_far - slice_near) / (slice_far + slice_near))) {
+        // Wide enough that the far cap's own circle contains the whole slice.
+        center_distance = slice_far;
+        extent          = slice_far * k;
+    } else {
+        center_distance = 0.5F * (slice_far + slice_near) * (1.0F + k2);
+
+        extent = 0.5F
+               * sqrtf(((slice_far - slice_near) * (slice_far - slice_near))
+                       + (2.0F * ((slice_far * slice_far) + (slice_near * slice_near)) * k2)
+                       + (((slice_far + slice_near) * (slice_far + slice_near)) * k2 * k2));
+    }
+
+    f32x3 center = camera.position + (forward * center_distance);
 
     if (!fit.no_texel_snap) {
         /*
@@ -110,13 +200,12 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
     return (NYA_Render3DShadow){
         .center = center,
 
-        // The *nearest* extent, not this cascade's: nya_render3d_shadow_begin applies the ratio itself,
-        // and handing it the already-widened one would apply it twice.
-        .extent   = fit.near_extent,
+        // This cascade's own half-width, already final. nya_render3d_shadow_begin applies no ratio to
+        // it any more: the size comes from the frustum slice, so there is nothing left to widen.
+        .extent   = extent,
         .depth    = fit.depth,
         .strength = fit.strength,
         .bias     = fit.bias,
         .cascade  = cascade,
     };
 }
-

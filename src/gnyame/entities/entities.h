@@ -210,6 +210,13 @@ void gny_entity_box_destroy(NYA_EntityHandle box);
 void gny_entity_box_destroy_all(void);
 
 /** How many crates are in the world, and how many of those the solver still has awake. */
+/**
+ * How many crates there are, and — through `out_awake`, which may be null — how many the solver still
+ * considers awake.
+ *
+ * Null is a real answer to want: the awake count is a physics query per crate and a caller after the
+ * total alone should not have to pay for it or invent a variable to throw away.
+ * */
 u32 gny_entity_box_count(OUT u32* out_awake);
 
 /**

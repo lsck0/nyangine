@@ -372,9 +372,9 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
 
                     NYA_Color color = _nya_terrain3d_shade(terrain, (a.y + b.y + c.y) / 3.0F, cell, half);
 
-                    draw_vertices[emitted++] = (NYA_Vertex3D){ .position = a, .color = color, .normals = normal };
-                    draw_vertices[emitted++] = (NYA_Vertex3D){ .position = b, .color = color, .normals = normal };
-                    draw_vertices[emitted++] = (NYA_Vertex3D){ .position = c, .color = color, .normals = normal };
+                    draw_vertices[emitted++] = nya_vertex3d(a, color, normal, f32x2_zero);
+                    draw_vertices[emitted++] = nya_vertex3d(b, color, normal, f32x2_zero);
+                    draw_vertices[emitted++] = nya_vertex3d(c, color, normal, f32x2_zero);
                 }
             }
         }
@@ -559,9 +559,9 @@ NYA_INTERNAL void _nya_terrain3d_emit_triangle(const NYA_Terrain3D* terrain, NYA
 
     NYA_Color color = _nya_terrain3d_shade(terrain, (a.y + b.y + c.y) / 3.0F, cell, half);
 
-    out[(*count)++] = (NYA_Vertex3D){ .position = a, .color = color, .normals = normal };
-    out[(*count)++] = (NYA_Vertex3D){ .position = b, .color = color, .normals = normal };
-    out[(*count)++] = (NYA_Vertex3D){ .position = c, .color = color, .normals = normal };
+    out[(*count)++] = nya_vertex3d(a, color, normal, f32x2_zero);
+    out[(*count)++] = nya_vertex3d(b, color, normal, f32x2_zero);
+    out[(*count)++] = nya_vertex3d(c, color, normal, f32x2_zero);
 }
 
 /**

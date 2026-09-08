@@ -17,17 +17,23 @@ runs:
         echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' \
           | sudo tee /etc/apt/apt.conf.d/99keep-downloads > /dev/null
 
+    # The version arrives through the environment rather than being pasted into the script. A `${{ }}`
+    # inside a `run:` block is expanded *before* the shell sees the text, so an input carrying a quote
+    # or a semicolon stops being a value and becomes source. It is hardcoded by both workflows today;
+    # the point is that a composite action is reusable and cannot assume its next caller is careful.
     - name: Add apt.llvm.org repository
       shell: bash
+      env:
+        LLVM_VERSION: ${{ inputs.llvm-version }}
       run: |
         codename="$(lsb_release -cs)"
         wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
           | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
-        echo "deb http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${{ inputs.llvm-version }} main" \
+        echo "deb http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${LLVM_VERSION} main" \
           | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
 
     - name: Cache apt packages
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: /var/cache/apt/archives/*.deb
         key: apt-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ hashFiles('.github/ci-packages.txt') }}
@@ -41,6 +47,8 @@ runs:
 
     - name: Select pinned LLVM as the default toolchain
       shell: bash
+      env:
+        LLVM_VERSION: ${{ inputs.llvm-version }}
       run: |
         # /usr/local/bin precedes /usr/bin in PATH, so these shadow the runner
         # image's preinstalled clang without fighting dpkg-owned symlinks.
@@ -51,7 +59,7 @@ runs:
         # a bare name. Leaving them off meant `./build run coverage` could only ever fail on CI,
         # while `./build build assets` silently used whatever clang-format the runner image shipped.
         for tool in clang clang++ clang-format clang-tidy lld ld.lld llvm-ar llvm-cov llvm-profdata llvm-ranlib llvm-strip; do
-          versioned="/usr/bin/${tool}-${{ inputs.llvm-version }}"
+          versioned="/usr/bin/${tool}-${LLVM_VERSION}"
           if [ -x "$versioned" ]; then
             sudo ln -sf "$versioned" "/usr/local/bin/${tool}"
           else
@@ -62,8 +70,8 @@ runs:
         hash -r
         clang --version
         ld.lld --version
-        clang --version | grep -q "clang version ${{ inputs.llvm-version }}\." \
-          || { echo "::error::clang is not LLVM ${{ inputs.llvm-version }}"; exit 1; }
+        clang --version | grep -q "clang version ${LLVM_VERSION}\." \
+          || { echo "::error::clang is not LLVM ${LLVM_VERSION}"; exit 1; }
 
     - name: Compute vendor cache key
       id: vendor
@@ -83,7 +91,7 @@ runs:
         echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
     - name: Cache vendor builds
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         # Every configured build tree, by the convention vendor rules follow — plus the two
         # Makefile vendors that build in tree and park a renamed archive one directory up.

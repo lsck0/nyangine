@@ -196,8 +196,6 @@ void gny_entity_box_on_click(NYA_Entity* entity, f32x3 world_point, u8 button) {
  */
 
 u32 gny_entity_box_count(OUT u32* out_awake) {
-    nya_assert(out_awake != nullptr);
-
     u32 count = 0;
     u32 awake = 0;
 
@@ -211,7 +209,12 @@ u32 gny_entity_box_count(OUT u32* out_awake) {
         if (nya_physics2d_awake(entity)) awake++;
     }
 
-    *out_awake = awake;
+    // Optional, unlike it used to be. The awake count costs a physics query per crate and there is a
+    // real caller — the Lua tick — that wants the total and nothing else; making it pass a variable it
+    // then ignores is the API being awkward, and asserting instead turned that into a crash the moment
+    // the 2D scene ran. See the declaration.
+    if (out_awake != nullptr) *out_awake = awake;
+
     return count;
 }
 

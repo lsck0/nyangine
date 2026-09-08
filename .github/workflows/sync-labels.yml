@@ -6,14 +6,25 @@ on:
     paths:
       - ".github/labels.yml"
 
+# Labels are issue metadata, so this is the one workflow here that legitimately writes through the
+# API. Everything else is denied.
+permissions: {}
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      # To read .github/labels.yml.
+      contents: read
+      # Labels live behind the issues API, which is what label-sync writes through.
+      issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Sync Labels
-        uses: EndBug/label-sync@v2
+        uses: EndBug/label-sync@52074158190acb45f3077f9099fea818aa43f97a # v2.3.3
         with:
           config-file: .github/labels.yml
         env:

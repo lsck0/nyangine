@@ -34,6 +34,12 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_executable_linux = {
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
     .vendors         = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
+    // The codegen every translation unit here reads. The dll rule listed these and the executable did
+    // not, which is the same defect the test rules had: the launcher compiles src/main.c, which pulls in
+    // nyangine.c and therefore src/generated/reflection.c and strings.h, so a new asset or an edited
+    // `@reflect` reached the dll and not the executable beside it. nya_build builds a shared dependency
+    // once per invocation, so naming it on both costs nothing.
+    .dependencies    = { &build_shaders, &index_assets, },
 };
 
 NYA_INTERNAL NYA_BuildRule build_project_debug_dll_linux = {
@@ -129,6 +135,12 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_executable_linux = {
 
     .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
     .vendors         = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
+    // The codegen every translation unit here reads. The dll rule listed these and the executable did
+    // not, which is the same defect the test rules had: the launcher compiles src/main.c, which pulls in
+    // nyangine.c and therefore src/generated/reflection.c and strings.h, so a new asset or an edited
+    // `@reflect` reached the dll and not the executable beside it. nya_build builds a shared dependency
+    // once per invocation, so naming it on both costs nothing.
+    .dependencies    = { &build_shaders, &index_assets, },
 };
 
 NYA_INTERNAL NYA_BuildRule build_project_dev_dll_linux = {

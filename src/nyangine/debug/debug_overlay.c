@@ -157,10 +157,17 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
         }
     }
 
+    // The registry hands its entries back fullest first, so the rows to show are simply the first
+    // few — no selection pass here, unlike the arenas above, which are ordered by nothing.
+    u32 ceiling_count = 0;
+
+    if (!style.hide_ceilings) ceiling_count = nya_min(nya_ceiling_count(), (u32)NYA_DEBUG_OVERLAY_CEILINGS);
+
     u32 line_count = 2;
     if (!style.hide_draw_stats) line_count++;
     if (style.show_batch_breakdown) line_count++;
     if (!style.hide_memory) line_count += memory_count + 1;
+    if (ceiling_count > 0) line_count += ceiling_count + 1;
 
     f32 panel_width  = style.width + (padding * 2.0F);
     f32 panel_height = (line_height * (f32)line_count) + (padding * 2.0F);
@@ -244,6 +251,54 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
                 "  %-20s %9s",
                 memory[i].name,
                 _nya_debug_format_bytes(memory[i].used_bytes)
+            );
+            text_y += line_height;
+        }
+    }
+
+    if (ceiling_count > 0) {
+        nya_render2d_textf_with_font(
+            window,
+            style.font,
+            style.font_size,
+            text_x,
+            text_y,
+            style.text_color,
+            "ceilings %5u tracked",
+            nya_ceiling_count()
+        );
+        text_y += line_height;
+
+        for (u32 i = 0; i < ceiling_count; i++) {
+            u32 capacity = nya_ceiling_capacity_at(i);
+            u32 live     = nya_ceiling_live_at(i);
+
+            f32 fullness = capacity > 0 ? (f32)live / (f32)capacity : 0.0F;
+
+            /*
+             * The same three bands the frame graph uses, and deliberately not the same thresholds as a
+             * warning: a ceiling that is full has already refused something and said so in the log. The
+             * point of the colour is to be amber while there is still time to raise the number.
+             */
+            NYA_Color color = (NYA_Color){ 0.72F, 0.76F, 0.82F, 1.0F };
+
+            if (fullness >= 0.9F) color = (NYA_Color){ 0.95F, 0.45F, 0.45F, 1.0F };
+            else if (fullness >= 0.75F) color = (NYA_Color){ 0.95F, 0.80F, 0.45F, 1.0F };
+
+            // Live and capacity both shown rather than only the percentage: "31/32" says what to change
+            // and by how much, where "97%" only says that something is wrong.
+            nya_render2d_textf_with_font(
+                window,
+                style.font,
+                style.font_size,
+                text_x,
+                text_y,
+                color,
+                "  %-20s %5u/%-5u %3.0f%%",
+                nya_ceiling_name_at(i),
+                live,
+                capacity,
+                (f64)(fullness * 100.0F)
             );
             text_y += line_height;
         }

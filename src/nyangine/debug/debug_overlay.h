@@ -58,6 +58,17 @@ typedef struct NYA_DebugOverlayStyle  NYA_DebugOverlayStyle;
 #define NYA_DEBUG_OVERLAY_ARENAS 6
 #endif
 
+/**
+ * Ceilings listed in the fullness section, fullest first.
+ *
+ * Four rather than the registry's whole NYA_CEILING_REGISTRY_MAX, and for the same reason the arena
+ * list is capped: the question a HUD answers is "is anything close to its limit", and that is the top
+ * of the list. `nya_ceiling_count` and the rows below it give the rest to anyone who wants it.
+ * */
+#ifndef NYA_DEBUG_OVERLAY_CEILINGS
+#define NYA_DEBUG_OVERLAY_CEILINGS 4
+#endif
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -99,6 +110,16 @@ struct NYA_DebugOverlayStyle {
      * total, and a total can't say which subsystem is growing.
      * */
     b8 hide_memory;
+
+    /**
+     * Hides the fixed-capacity fullness lines: the fullest NYA_DEBUG_OVERLAY_CEILINGS ceilings
+     * registered with `nya_ceiling_register`, fullest first.
+     *
+     * Shown by default, because this engine's answer to running out of a fixed array is to warn once
+     * and refuse — which is the right behaviour and is also completely silent from inside the game.
+     * A row that goes amber before that happens is the only warning that arrives in time to act on.
+     * */
+    b8 hide_ceilings;
 
     /**
      * Adds a line naming what forced the most draw calls this frame and how many were dropped. Off

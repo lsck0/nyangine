@@ -36,6 +36,9 @@ typedef enum NYA_TextureFilter        NYA_TextureFilter;
 #define NYA_RENDER2D_PIPELINE_SHAPES   "nya_shape_pipeline"
 #define NYA_RENDER2D_PIPELINE_TEXTURED "nya_shape_textured_pipeline"
 
+/** Text out of a distance-field atlas. Selected per atlas, not per draw; see nya_font_sdf_set. */
+#define NYA_RENDER2D_PIPELINE_TEXT_SDF "nya_text_sdf_pipeline"
+
 typedef enum NYA_Render2DFlushReason      NYA_Render2DFlushReason;
 
 /**
@@ -776,12 +779,66 @@ struct NYA_RenderSystemWindow {
  * ─────────────────────────────────────────────────────────
  */
 
+/**
+ * One vertex of the immediate 3D batch. **Thirty-six bytes, and every field is the narrowest thing
+ * that still says what it meant.**
+ *
+ * It was sixty-four, and about half of that was nothing. `f32x3` is an `ext_vector_type(3)`, which is
+ * *sixteen* bytes rather than twelve — the padding NYA_ShaderMesh3DUniform already documents — so two
+ * of them wasted eight bytes before the four-float colour is counted. A vertex travels a long way:
+ * the batch array on the CPU, the transfer buffer, the upload, the device buffer, and every registered
+ * mesh keeps its own copy. Halving it halves all of that, and `VULKAN_UploadToBuffer` is 2.4% of a
+ * release profile precisely because the scene is emitted once per shadow cascade and then again for
+ * the camera.
+ *
+ * ## Why these formats and not narrower ones
+ *
+ * **Colour is HALF4, not the UBYTE4_NORM the 2D vertex uses.** Eight bits per channel is right for 2D
+ * because that is what the swapchain stores, and wrong here: a vertex colour above one is how an
+ * emissive surface is pushed past the bloom threshold, and gnyame's fire starts at 1.15 red for
+ * exactly that reason. Normalized bytes clamp it to one and the flame stops glowing — a look change
+ * that no test would catch. Halves keep everything up to 65504.
+ *
+ * **Normals stay full floats.** Octahedral in four bytes is the usual packing and would take this to
+ * twenty-eight, but `mesh3d_edge` finds edges by taking `fwidth` of the interpolated normal, and a
+ * derivative of a quantised value is a different thing from a derivative. Worth doing, worth measuring
+ * first; see the TODO.
+ *
+ * Every format here still arrives at the shader as the `float3`/`float4`/`float2` it always did —
+ * UBYTE4_NORM, HALF2 and HALF4 are expanded by the input assembler — so not one line of shader
+ * changed for this. Build one with `nya_vertex3d`, which takes the wide types callers already hold.
+ * */
 struct NYA_Vertex3D {
-    f32x3     position;
-    NYA_Color color;
-    f32x3     normals;
-    f32x2     uv;
+    /** Three plain floats, not an `f32x3`: the vector type would pad this out to sixteen bytes. */
+    f32 position[3];
+
+    /** HALF2. Texture coordinates do not need more than eleven bits of mantissa. */
+    f16 uv[2];
+
+    f32 normals[3];
+
+    /** HALF4, so an emissive vertex colour above one survives to the tonemap. See the note above. */
+    f16 color[4];
 };
+
+static_assert(sizeof(NYA_Vertex3D) == 36, "the 3D vertex layout in core_asset.c describes a 36 byte vertex");
+
+/**
+ * Builds one, from the wide types a caller actually has.
+ *
+ * The narrowing lives here rather than at nine call sites, and it is the only thing that knows the
+ * storage is packed — which is what lets the fields get narrower again later without touching anyone.
+ * */
+NYA_API NYA_Vertex3D nya_vertex3d(f32x3 position, NYA_Color color, f32x3 normal, f32x2 uv) __attr_no_discard;
+
+/**
+ * The position back out as a vector, for the arithmetic that wants one — bounds, face normals, sorting.
+ *
+ * The field is three plain floats so the struct does not carry an `f32x3`'s padding, and a `f32[3]` does
+ * not convert to a vector on its own. One place to widen it, rather than the same three lines wherever a
+ * vertex is read.
+ * */
+NYA_API f32x3 nya_vertex3d_position(NYA_Vertex3D vertex) __attr_no_discard;
 
 /**
  * One drawn copy of a retained mesh: where it is, and what colour it is tinted. The per-instance half of

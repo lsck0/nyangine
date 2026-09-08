@@ -168,6 +168,18 @@ struct NYA_FontAtlas {
 
     /** Set when a glyph is baked and cleared by the upload. See _nya_render2d_atlas_upload. */
     b8 upload_pending;
+
+    /**
+     * Whether the glyphs in here are a distance field rather than coverage.
+     *
+     * Read off the face once, when the atlas is built, rather than asked of the face at draw time. The
+     * two answers can differ: the mode is a property of the *face*, so flipping it after an atlas has
+     * baked leaves this atlas full of whatever it rasterised before — and drawing that through the
+     * pipeline the face currently wants would sample a coverage bitmap as a field, or the reverse.
+     * What is on the texture is what decides how to read it. See nya_font_sdf_set, which is why the
+     * mode is documented as something to set at registration.
+     * */
+    b8 sdf;
 };
 
 /** Appends one vertex with explicit uv. Callers reserve first, so this never checks for space. */
@@ -1202,10 +1214,21 @@ NYA_INTERNAL b8 _nya_render2d_glyph_emit(NYA_Window* window, NYA_FontAtlas* atla
     // six vertices per space out of the batch.
     if (glyph->width <= 0.0F || glyph->height <= 0.0F) return true;
 
-    // Nearest, matching the glyphs' texel-exact baking: linear here blurs text drawn at exactly one
-    // texel per pixel, since a glyph landing on a fractional coordinate samples between texels and
-    // every stem picks up a soft edge on both sides.
-    if (!_nya_render2d_prepare(window, NYA_RENDER2D_PIPELINE_TEXTURED, atlas->texture, _nya_render_sampler_for(NYA_TEXTURE_FILTER_NEAREST), 4, 6)) {
+    /*
+     * Coverage and a distance field are drawn by different pipelines, and sampled differently too.
+     *
+     * Coverage: nearest, matching the glyphs' texel-exact baking — linear blurs text drawn at exactly
+     * one texel per pixel, since a glyph landing on a fractional coordinate samples between texels and
+     * every stem picks up a soft edge on both sides.
+     *
+     * A field is the opposite case. Its value between two texels is *meaningful* — that is what makes
+     * it scale — and point sampling it quantises the edge back to the texel grid, which throws away
+     * the entire reason for storing one. So: linear, and a shader that thresholds what it reads.
+     */
+    NYA_ConstCString pipeline = atlas->sdf ? NYA_RENDER2D_PIPELINE_TEXT_SDF : NYA_RENDER2D_PIPELINE_TEXTURED;
+    NYA_TextureFilter filter  = atlas->sdf ? NYA_TEXTURE_FILTER_LINEAR : NYA_TEXTURE_FILTER_NEAREST;
+
+    if (!_nya_render2d_prepare(window, pipeline, atlas->texture, _nya_render_sampler_for(filter), 4, 6)) {
         return false;
     }
 
@@ -2108,8 +2131,29 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
      * making the font argument a name that meant nothing on its own. Derived here instead: pass
      * NYA_ASSET_FONTS_ALDRICH_TTF and a size, and get that face at that size, loaded on first use.
      */
-    char derived[NYA_RENDER2D_FONT_HANDLE_MAX];
-    (void)snprintf(derived, sizeof(derived), "%s@%.0f", font_path, (f64)point_size);
+    /*
+     * Interned, not built on the stack, and that matters twice.
+     *
+     * The asset system keeps the pointer it is handed, so a handle in a local is a dangling one the
+     * moment this returns — render_text.c's copy of this call passes an interned handle for exactly
+     * that reason. And nya_asset_get slots its memo by the pointer: two sizes drawn every frame, a
+     * menu's title and its items, land in the same stack slot and therefore the same memo slot, so
+     * they evict each other and every lookup falls through to a siphash of the handle. That showed up
+     * as `nya_siphash` at the top of a release profile, above every part of drawing.
+     *
+     * `_nya_text_font_handle_stable` gives each (path, size) pair an address of its own, which fixes
+     * both: a stable pointer to hand over, and a memo slot per font instead of one shared by all of
+     * them.
+     */
+    NYA_ConstCString derived = _nya_text_font_handle_stable(font_path, point_size);
+
+    // Overflow fallback, the pre-intern behaviour. Capacity permitting — the common case — unreachable.
+    char local_derived[NYA_RENDER2D_FONT_HANDLE_MAX];
+
+    if (derived == nullptr) {
+        (void)snprintf(local_derived, sizeof(local_derived), "%s@%.0f", font_path, (f64)point_size);
+        derived = local_derived;
+    }
 
     /*
      * Resolved first, on every call, deliberately: the cache used to answer from a hit without touching
@@ -2120,14 +2164,14 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
      * Cheap regardless: nya_asset_get rate limits its stat, so this is a dictionary hit on all but a
      * handful of calls a second.
      */
-    NYA_Asset* asset = nya_asset_get(derived);
+    NYA_Asset* asset = nya_asset_get((NYA_AssetHandle)derived);
 
     if (asset == nullptr) {
         // Queued, not loaded: the asset system resolves it over the next frames, and every caller
         // here already copes with there being no atlas yet by drawing nothing.
         NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
           .type    = NYA_ASSET_TYPE_FONT,
-          .handle  = derived,
+          .handle  = (NYA_AssetHandle)derived,
           .source  = font_path,
           .as_font = { .point_size = point_size },
       }), "while queueing a font");
@@ -2326,10 +2370,17 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     // never disagree about which face the glyphs came from.
     slot->source_font = font;
 
+    // Latched here, with the face that is about to fill it. See the field's note for why this is not
+    // asked of the face at draw time.
+    slot->sdf = TTF_GetFontSDF(font);
+
     if (font_path == _nya_render2d_current_font && point_size == _nya_render2d_current_font_size) _nya_render2d_current_atlas = slot;
 
-    nya_log_info("Built a glyph atlas for '%s' (%dx%d, %d slots, filled on demand).", derived, atlas_width, atlas_height,
-             NYA_RENDER2D_GLYPH_CAPACITY);
+    // The mode is worth a word here rather than only in the struct: it decides the pipeline the glyphs
+    // are drawn through and it is latched at this moment, so a font whose distance field did not arrive
+    // in time is a thing this line can say and nothing else can.
+    nya_log_info("Built a glyph atlas for '%s' (%dx%d, %d slots, %s, filled on demand).", derived, atlas_width, atlas_height,
+             NYA_RENDER2D_GLYPH_CAPACITY, slot->sdf ? "distance field" : "coverage");
 
     return slot;
 }

@@ -218,7 +218,7 @@ void hook_convert_perf_data_to_plain(NYA_BuildRule* rule) {
      * the build system over a missing file the user is about to be told about anyway.
      */
     if (!nya_filesystem_exists("./perf.data")) {
-        nya_log_warn("There is no ./perf.data to convert; run './build run debug' first.");
+        nya_log_warn("There is no ./perf.data to convert; run './build run profile' first.");
         return;
     }
 

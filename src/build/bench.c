@@ -77,6 +77,11 @@ void bench_runner(NYA_ArgCommand* command) {
             .policy      = NYA_BUILD_ALWAYS,
             .output_file = binary,
 
+            // The codegen the project rules get. A benchmark is a unity build of the engine like a
+            // test is, so it reads the generated strings and reflection tables too; see the longer
+            // note on the same line in test.c.
+            .dependencies = { &build_shaders, &index_assets, },
+
             .command = {
                 .program   = CC,
                 .arguments = {

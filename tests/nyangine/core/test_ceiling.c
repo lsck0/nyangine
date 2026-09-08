@@ -83,10 +83,26 @@ s32 main(void) {
         warning_count = 0;
         nya_log_sink_add(count_warnings, nullptr);
 
-        static u32 live = 0;
+        /*
+         * Filled relative to what is already registered, not from zero.
+         *
+         * The reset empties the registry, but registration is *lazy* across the engine and does not stop
+         * happening just because a test asked for a clean slate — base_logging registers "log_sinks" the
+         * first time anything adds a sink, which is the line directly above. Assuming an empty registry
+         * here meant the loop below overflowed one short of the ceiling and this block failed on its own
+         * setup. Counting first is the fix that survives another module growing a lazy ceiling later.
+         */
+        u32 already   = nya_ceiling_count();
+        u32 remaining = (u32)NYA_CEILING_REGISTRY_MAX - already;
+
+        nya_assert(remaining > 1, "the registry is too full for this test to have room to overflow it");
+
+        // One, not zero: these are the fullest ceilings there are, so they sort ahead of anything a lazy
+        // registration added and the ordering assertion below is about them rather than about it.
+        static u32 live = 1;
 
         u8 names[NYA_CEILING_REGISTRY_MAX + 1][8];
-        for (u32 i = 0; i < NYA_CEILING_REGISTRY_MAX; i++) {
+        for (u32 i = 0; i < remaining; i++) {
             (void)snprintf((char*)names[i], sizeof(names[i]), "c%u", i);
             nya_ceiling_register((NYA_ConstCString)names[i], 1, &live);
         }
@@ -95,8 +111,8 @@ s32 main(void) {
         nya_assert(warning_count == 0, "filling the registry exactly to its own ceiling should not warn");
 
         // One more, past the ceiling.
-        (void)snprintf((char*)names[NYA_CEILING_REGISTRY_MAX], sizeof(names[NYA_CEILING_REGISTRY_MAX]), "c%u", (u32)NYA_CEILING_REGISTRY_MAX);
-        nya_ceiling_register((NYA_ConstCString)names[NYA_CEILING_REGISTRY_MAX], 1, &live);
+        (void)snprintf((char*)names[remaining], sizeof(names[remaining]), "c%u", remaining);
+        nya_ceiling_register((NYA_ConstCString)names[remaining], 1, &live);
 
         nya_assert(nya_ceiling_count() == NYA_CEILING_REGISTRY_MAX, "the count must not grow past the ceiling");
         nya_assert(warning_count == 1, "refusing the extra registration should warn exactly once, warned %u times", warning_count);

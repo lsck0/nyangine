@@ -100,6 +100,22 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
         .policy      = NYA_BUILD_ALWAYS,
         .output_file = test_binary,
 
+        /*
+         * The same codegen the project rules get, and for the same reason.
+         *
+         * A test compiles the engine from source, so it reads src/generated/strings.h and
+         * src/generated/reflection.c exactly as the game does — and without this it read whatever
+         * those files happened to hold from the last `./build build`. Editing assets/i18n/en.json or
+         * an `@reflect` and running the tests then tested the previous generation of them, which is
+         * the one case where a green suite means nothing.
+         *
+         * Named on every rule rather than run once before the loop because that is what the build
+         * system already does with them: nya_build_parallel opens one epoch for the whole batch and
+         * builds a shared dependency once inside it, so a hundred test rules naming index_assets
+         * generate once. See its comment, and build_example, which is written this way already.
+         */
+        .dependencies = { &build_shaders, &index_assets, },
+
         .command = {
             .program   = CC,
             .arguments = {

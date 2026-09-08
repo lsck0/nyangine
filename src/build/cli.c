@@ -132,8 +132,13 @@ NYA_INTERNAL NYA_ArgCommand run = {
     .subcommands = {
         &(NYA_ArgCommand){
             .name        = "debug",
-            .description = "Run the debug build under perf. Sanitized, hot reloading, slow.",
+            .description = "Run the debug build. Sanitized, hot reloading, slow.",
             .build_rule  = &run_debug,
+        },
+        &(NYA_ArgCommand){
+            .name        = "profile",
+            .description = "Run the release build under perf, then './build perf' to read it.",
+            .build_rule  = &run_profile,
         },
         &(NYA_ArgCommand){
             .name        = "dev",

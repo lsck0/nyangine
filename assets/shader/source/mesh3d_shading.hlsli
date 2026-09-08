@@ -103,7 +103,13 @@ cbuffer Uniforms : register(b0, space3) {
   /** One light view-projection per cascade, as used by each shadow pass. Has to match NYA_RENDER3D_SHADOW_CASCADES. */
   float4x4 light_view_projection[MESH3D_SHADOW_CASCADES];
 
-  /** How far each cascade reaches from the volume's centre. A fragment takes the first that covers it. */
+  /**
+   * Each cascade's half-width in world units.
+   *
+   * No longer what picks the cascade — see mesh3d_cascade_for for why that was the bug. It is still
+   * needed to turn a shadow-map texel into a world distance, which is what the normal offset below is
+   * measured in.
+   * */
   float4 cascade_extent;
 
   /** How many cascades ran this frame. Zero means none; the lookup then returns lit. */
@@ -183,6 +189,67 @@ float mesh3d_edge(float3 normal) {
   return smoothstep(EDGE_LO, EDGE_HI, length(fwidth(normal)));
 }
 
+/** How far the percentage-closer kernel reaches from its centre tap, in shadow map texels. */
+static const float MESH3D_SHADOW_PCF_SPREAD = 1.5;
+
+/**
+ * How far a sample is lifted along the surface normal before it is compared, in cascade texels.
+ *
+ * The companion to the depth bias and the reason it can stay small. Acne is a *lateral* sampling error —
+ * the map recorded the depth of a point up to a texel away across the surface — so moving the sample
+ * along the normal by about that texel cancels it at its source, where depth bias can only paper over it
+ * by pushing the whole surface away from the light and detaching it from its own shadow.
+ * */
+static const float MESH3D_SHADOW_NORMAL_OFFSET = 1.25;
+
+/** `cascade_extent` is a float4 for packing, so indexing it costs this. See its declaration. */
+float mesh3d_cascade_extent_at(int index) {
+  return index == 0 ? cascade_extent.x : (index == 1 ? cascade_extent.y : (index == 2 ? cascade_extent.z : cascade_extent.w));
+}
+
+/**
+ * Which cascade covers this point, and where it lands in that cascade's clip space.
+ *
+ * ⚠ **By where the cascade's volume actually is, not by distance from the camera.** Distance was the bug
+ * behind shadows that grew as the camera approached: a cascade is *not* a sphere around the viewer. Its
+ * volume is pushed a half-extent down the view direction — see nya_render3d_shadow_for_camera — so it
+ * runs from the camera to twice the extent ahead, and testing `distance <= extent` therefore rejected
+ * most of what the map had actually recorded. The shadowed region was a sphere of the last cascade's
+ * extent centred on the camera, which swept over the world as the camera moved and let shadows appear,
+ * grow and vanish with nothing in the scene having changed.
+ *
+ * Projecting into each cascade in turn is the exact test and costs three matrix multiplies. Cascades are
+ * ordered smallest first, so the first that contains the point is also the sharpest that does.
+ *
+ * The acceptance is inset by the filter's reach so a fragment near a cascade's edge falls through to the
+ * next one rather than having its kernel clamped against the seam. `shadow_texel` is in UV and clip space
+ * is twice that per unit, hence the doubling.
+ *
+ * Returns the count when nothing covers it — a fragment beyond the last cascade — which the caller reads
+ * as "no shadow information", not as "shadowed".
+ * */
+int mesh3d_cascade_for(float3 world_position, out float3 out_projected) {
+  int count = min((int)cascade_count, MESH3D_SHADOW_CASCADES);
+
+  float limit = 1.0 - (shadow_texel * MESH3D_SHADOW_PCF_SPREAD * 2.0);
+
+  out_projected = float3(0.0, 0.0, 0.0);
+
+  for (int i = 0; i < count; i++) {
+    float4 clip = mul(light_view_projection[i], float4(world_position, 1.0));
+
+    // Orthographic, so w is one and this is a formality — kept so a perspective light needs no edit here.
+    float3 projected = clip.xyz / clip.w;
+
+    if (all(abs(projected.xy) <= limit) && projected.z >= 0.0 && projected.z <= 1.0) {
+      out_projected = projected;
+      return i;
+    }
+  }
+
+  return count;
+}
+
 /**
  * How lit this fragment is by the directional light, in [0, 1]. One is fully lit.
  *
@@ -190,6 +257,9 @@ float mesh3d_edge(float3 normal) {
  * this file: the two pipelines bind a different number of textures, so the shadow map does not sit at the
  * same register in both. The untextured shader has it at t0 and the textured one at t1, and each passes
  * its own binding in here.
+ *
+ * The surface normal is taken whole rather than as a dot product with the light, because the offset below
+ * needs the direction and not only the angle.
  *
  * ## Softness
  *
@@ -199,56 +269,44 @@ float mesh3d_edge(float3 normal) {
  * penumbra a few pixels wide, which reads as an object sitting on a surface, and does not pretend to be
  * an area light.
  *
- * ## Bias, and why it is not optional
+ * ## Bias, and why there are two of them
  *
  * A surface compared against its own depth fails the test on about half its pixels, because the value in
  * the map was rasterised from the light's point of view at a different sample position — the result is
- * "shadow acne", a moiré of dark speckles over every lit face. The bias is the slack that fixes it, and it
- * is scaled by how obliquely the surface faces the light, because that is exactly where the depth error
- * per pixel is largest. Too much and an object floats free of its own shadow, which is the trade being
- * made rather than a bug to fix.
+ * "shadow acne", a moiré of dark speckles over every lit face.
+ *
+ * Depth bias alone fixes that by pushing the comparison away from the light, and pays for it by lifting
+ * every shadow off its caster: enough slack to clear the acne on a steeply lit floor is enough to leave a
+ * visible gap between an object and the shadow it casts. That gap is the thing that stops a scene reading
+ * as physical, whatever else is stylised about it.
+ *
+ * So most of the work is done by the normal offset instead — see MESH3D_SHADOW_NORMAL_OFFSET, which
+ * cancels the error where it comes from — and the depth bias is left as the small remainder that catches
+ * what the offset cannot, still scaled by how obliquely the surface faces the light.
  * */
 /**
- * Which cascade covers this point, and where in the atlas that cascade sits.
+ * One cascade's percentage-closer lookup. Visibility in [0, 1], one being fully lit.
  *
- * Chosen by distance from the *camera*, which is what makes the near cascade dense where the viewer is.
- * Distance rather than the light-space extent it was built from: the cascades are concentric volumes
- * around the same centre, so the first one whose extent reaches the fragment is the smallest that
- * contains it, and the smallest is the sharpest.
- *
- * Returns the count when nothing covers it — a fragment beyond the last cascade — which the caller reads
- * as "no shadow information", not as "shadowed".
+ * Split out of mesh3d_shadow so the cascade boundary can be crossfaded: the blend needs the same
+ * lookup run against two cascades, and a copy of it per cascade is how the seam gets fixed in one and
+ * not the other.
  * */
-int mesh3d_cascade_for(float3 world_position) {
-  float distance_to_camera = length(world_position - camera_position);
+float mesh3d_shadow_in_cascade(Texture2D map, SamplerState smp, int cascade, float3 world_position, float3 normal, float slope) {
+  /*
+   * Re-projected from a point lifted off the surface along its normal.
+   *
+   * The cascade is chosen from the unlifted position — the lift is under two texels and cannot move a
+   * fragment out of the volume the selection's inset already reserved, so choosing first and lifting
+   * after keeps the choice stable along a surface rather than making it depend on which way it faces.
+   */
+  float extent      = mesh3d_cascade_extent_at(cascade);
+  float texel_world = 2.0 * extent * shadow_texel;
 
-  int count = min((int)cascade_count, MESH3D_SHADOW_CASCADES);
+  float3 lifted = world_position + normal * (texel_world * MESH3D_SHADOW_NORMAL_OFFSET * (0.25 + slope));
 
-  for (int i = 0; i < count; i++) {
-    // Indexed off a float4 rather than an array, because HLSL pads array elements to sixteen bytes and
-    // four floats in a vector is the packing that costs nothing. The cost is this switch.
-    float extent = i == 0 ? cascade_extent.x : (i == 1 ? cascade_extent.y : (i == 2 ? cascade_extent.z : cascade_extent.w));
+  float4 lifted_clip = mul(light_view_projection[cascade], float4(lifted, 1.0));
 
-    if (distance_to_camera <= extent) return i;
-  }
-
-  return count;
-}
-
-float mesh3d_shadow(Texture2D map, SamplerState smp, float3 world_position, float normal_dot_light) {
-  if (shadow_strength <= 0.0) return 1.0;
-
-  int cascade = mesh3d_cascade_for(world_position);
-
-  // Past the last cascade there is nothing recorded, and unrecorded is lit — the same answer as being
-  // outside a single map's volume, and for the same reason: a hard dark edge at the limit of the shadow
-  // range is far more obvious than the missing shadows beyond it.
-  if (cascade >= min((int)cascade_count, MESH3D_SHADOW_CASCADES)) return 1.0;
-
-  float4 light_clip = mul(light_view_projection[cascade], float4(world_position, 1.0));
-
-  // Orthographic, so w is one and this is a formality — kept so a perspective light needs no edit here.
-  float3 projected = light_clip.xyz / light_clip.w;
+  float3 projected = lifted_clip.xyz / lifted_clip.w;
 
   /*
    * Clip space is [-1, 1] in x and y and the texture is [0, 1], and y is flipped between them.
@@ -261,28 +319,35 @@ float mesh3d_shadow(Texture2D map, SamplerState smp, float3 world_position, floa
   /*
    * Folded into this cascade's quadrant of the atlas.
    *
-   * Kept in [0, 1] first so the bounds test below is against the cascade's own volume rather than against
-   * the atlas — a fragment outside its cascade has to read as unrecorded, not as whatever is in the
-   * neighbouring quadrant.
+   * Kept in [0, 1] first so the taps are clamped against the cascade's own volume rather than against the
+   * atlas — a fragment at a cascade's edge has to read its own map, not whatever is in the neighbouring
+   * quadrant.
    */
   float2 cascade_origin = float2((float)(cascade % 2), (float)(cascade / 2)) / MESH3D_SHADOW_ATLAS_SPLIT;
 
-  /*
-   * Outside the map is lit, not shadowed.
-   *
-   * The shadow volume covers a bounded region — see NYA_Render3DShadow.extent — and everything beyond it
-   * has no depth recorded. Treating that as shadowed would put a hard dark edge around the covered area,
-   * which is far more obvious than the missing shadows themselves.
-   */
-  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || projected.z > 1.0) return 1.0;
+  // Nothing past the far plane was recorded, and unrecorded is lit. Nor is anything outside the volume,
+  // which the blend below can ask for even though the selection would not have.
+  if (projected.z > 1.0 || projected.z < 0.0) return 1.0;
+  if (any(abs(projected.xy) > 1.0)) return 1.0;
 
-  // Steeper angles need more slack; a surface facing the light square needs almost none.
-  float slope = saturate(1.0 - normal_dot_light);
   float bias = shadow_bias * (1.0 + slope * 4.0);
 
-  float visibility = 0.0;
+  /*
+   * The kernel's reach in *world* units is held constant across cascades, not its reach in texels.
+   *
+   * A fixed texel spread makes the penumbra as wide as the cascade is: the far cascade's texels are
+   * several times the near one's, so the same nine taps blur a shadow several times as much. A patch of
+   * ground that changes cascade — which is what happens whenever the camera turns — then visibly changes
+   * how soft its shadow is, and that is a large part of "the shadows move when I turn".
+   *
+   * Scaled against cascade zero, so the near cascade keeps exactly the contact shadow it was tuned for
+   * and the far ones match it as closely as their resolution allows. Floored at one texel: below that the
+   * nine taps collapse onto the same texel and the filter stops filtering, which trades a soft edge for
+   * an aliased one and is worse than a slightly wide penumbra.
+   */
+  float spread = max(MESH3D_SHADOW_PCF_SPREAD * (cascade_extent.x / max(extent, 1e-4)), 1.0);
 
-  const float spread = 1.5;
+  float visibility = 0.0;
 
   [unroll]
   for (int y = -1; y <= 1; y++) {
@@ -307,6 +372,94 @@ float mesh3d_shadow(Texture2D map, SamplerState smp, float3 world_position, floa
     }
   }
 
+  return visibility / 9.0;
+}
+
+/** How much of a cascade's outer edge is spent fading into the next one, as a fraction of its half-width. */
+static const float MESH3D_SHADOW_CASCADE_FADE = 0.15;
+
+/**
+ * How lit this fragment is by the directional light, in [0, 1]. One is fully lit.
+ *
+ * The texture and sampler are parameters rather than globals, which is the one awkward part of sharing
+ * this file: the two pipelines bind a different number of textures, so the shadow map does not sit at the
+ * same register in both. The untextured shader has it at t0 and the textured one at t1, and each passes
+ * its own binding in here.
+ *
+ * The surface normal is taken whole rather than as a dot product with the light, because the offset in
+ * the lookup needs the direction and not only the angle.
+ *
+ * ## Softness
+ *
+ * A three by three tap, averaged. That is a small percentage-closer filter: each tap is a hard in-or-out
+ * comparison and the *average* is what makes the edge soft. It is deliberately a contact shadow rather
+ * than a long one — nine taps at a couple of texels' spread gives a penumbra a few pixels wide, which
+ * reads as an object sitting on a surface, and does not pretend to be an area light.
+ *
+ * ## The cascade seam
+ *
+ * Cascades tile the view, so a patch of ground changes cascade whenever the camera moves or turns, and
+ * the two cascades either side of that boundary record the same world at very different resolutions.
+ * Switching between them at a hard line makes the shadow jump — a stationary object's shadow visibly
+ * shifts and re-softens as the viewer turns, which is the artefact this crossfade removes. The last
+ * cascade has nothing to fade into, so it keeps its hard outer edge, which is the range limit and is
+ * meant to be there.
+ *
+ * ## Bias, and why there are two of them
+ *
+ * A surface compared against its own depth fails the test on about half its pixels, because the value in
+ * the map was rasterised from the light's point of view at a different sample position — the result is
+ * "shadow acne", a moiré of dark speckles over every lit face.
+ *
+ * Depth bias alone fixes that by pushing the comparison away from the light, and pays for it by lifting
+ * every shadow off its caster: enough slack to clear the acne on a steeply lit floor is enough to leave a
+ * visible gap between an object and the shadow it casts. That gap is the thing that stops a scene reading
+ * as physical, whatever else is stylised about it.
+ *
+ * So most of the work is done by the normal offset instead — see MESH3D_SHADOW_NORMAL_OFFSET, which
+ * cancels the error where it comes from — and the depth bias is left as the small remainder that catches
+ * what the offset cannot, still scaled by how obliquely the surface faces the light.
+ * */
+float mesh3d_shadow(Texture2D map, SamplerState smp, float3 world_position, float3 normal) {
+  if (shadow_strength <= 0.0) return 1.0;
+
+  int count = min((int)cascade_count, MESH3D_SHADOW_CASCADES);
+
+  float3 projected;
+  int cascade = mesh3d_cascade_for(world_position, projected);
+
+  // Past the last cascade there is nothing recorded, and unrecorded is lit — the same answer as being
+  // outside a single map's volume, and for the same reason: a hard dark edge at the limit of the shadow
+  // range is far more obvious than the missing shadows beyond it.
+  if (cascade >= count) return 1.0;
+
+  // Steeper angles need more slack, in both of the ways slack is applied in the lookup; a surface facing
+  // the light square needs almost none.
+  float slope = saturate(1.0 - saturate(dot(normal, light_direction)));
+
+  float visibility = mesh3d_shadow_in_cascade(map, smp, cascade, world_position, normal, slope);
+
+  /*
+   * Faded into the next cascade over the outer edge of this one.
+   *
+   * `edge` is how far out in this cascade's own clip space the fragment sits, one being the boundary. The
+   * fade starts at MESH3D_SHADOW_CASCADE_FADE from that boundary and reaches the next cascade's lookup by
+   * the time it arrives, so nothing changes cascade at a visible line. Consecutive cascades overlap
+   * generously — they are bounding spheres of adjacent frustum slices — so the fragment being faded to is
+   * comfortably inside the next one rather than at *its* edge.
+   */
+  if (cascade + 1 < count) {
+    float edge = max(abs(projected.x), abs(projected.y));
+
+    float blend = smoothstep(1.0 - MESH3D_SHADOW_CASCADE_FADE, 1.0, edge);
+
+    if (blend > 0.0) {
+      float next = mesh3d_shadow_in_cascade(map, smp, cascade + 1, world_position, normal, slope);
+
+      visibility = lerp(visibility, next, blend);
+    }
+  }
+
   /*
    * Raw visibility, with the strength applied by the caller.
    *
@@ -314,7 +467,7 @@ float mesh3d_shadow(Texture2D map, SamplerState smp, float3 world_position, floa
    * caller decide *what* the factor attenuates — see mesh3d_shade, where it turned out to matter a great
    * deal whether the ambient was included.
    */
-  return visibility / 9.0;
+  return visibility;
 }
 
 /**

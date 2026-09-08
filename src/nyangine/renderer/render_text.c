@@ -295,14 +295,22 @@ TTF_Font* nya_text_font_for(NYA_ConstCString path, f32 point_size) {
         handle = local_handle;
     }
 
-    NYA_Asset* asset = nya_asset_get(handle);
+    /*
+     * Cast rather than a const-correct asset API, matching nya_render2d_procedural and every other call
+     * site that has a `const char*` in hand.
+     *
+     * NYA_AssetHandle is `char*` because the asset system stores the pointer it is given and hands it
+     * back; nothing writes through it. Without the cast this warns twice on every build, which is two
+     * more warnings than a build should have for something that is not a bug.
+     */
+    NYA_Asset* asset = nya_asset_get((NYA_AssetHandle)handle);
 
     if (asset == nullptr) {
         // Queued, not loaded: the asset system resolves it over the next frames, and every caller here
         // already copes with there being no face yet.
         NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
           .type    = NYA_ASSET_TYPE_FONT,
-          .handle  = handle,
+          .handle  = (NYA_AssetHandle)handle,
           .source  = path,
           .as_font = { .point_size = point_size },
       }), "while queueing a font");

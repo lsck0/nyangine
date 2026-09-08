@@ -19,12 +19,11 @@
  * arguments, so there was no way to *hold* a font, pass one, or store one in a style struct. This is
  * that type, plus the registry that stops "the UI font" being spelled out at forty call sites.
  *
- * ⚠ **This is not an SDF implementation and does not add one.** Glyphs are still bitmaps baked at a
- * fixed point size, which is right for pixel art and wrong for text magnified past the size it was
- * baked at — scaling one up blurs. `nya_font_sdf_set` turns FreeType's own distance-field rasteriser
- * on for a face, which is the cheap half of the answer; the shader that would sample it as a field
- * rather than as a picture is not written, so the mode is there to be measured rather than shipped.
- * See its own note.
+ * ✅ **Distance fields are a real option, per font.** Glyphs are bitmaps baked at a fixed point size by
+ * default, which is right for pixel art and wrong for text magnified past the size it was baked at —
+ * scaling one up blurs. `nya_font_sdf_set` switches a face to FreeType's distance-field rasteriser and
+ * the atlas is then drawn through a shader that thresholds the field instead of showing it. See its own
+ * note for why this is per face rather than global.
  *
  * ✅ **Shaping is real, through HarfBuzz.** The text path used to walk codepoints and add a kerning
  * correction per adjacent pair, which is shaping done by hand and only for Latin. It now goes through
@@ -171,21 +170,41 @@ NYA_API void nya_font_draw(NYA_Window* window, NYA_Font font, NYA_ConstCString t
  * exist to remove, so a pixel-art HUD wants `false` and a title that scales wants `true`. A global
  * switch would force one answer on both.
  *
- * ⚠ **Half an implementation, deliberately, and the half that answers the question.** The atlas
- * stores whatever the face rasterises, so turning this on stores a distance field — but the text
- * shader still samples it as a picture, which draws a blurry glyph rather than a sharp one. What is
- * missing is a fragment shader that thresholds the field with a screen-space derivative;
- * `vendor/sdl-ttf/examples/testgputext/shaders/shader-sdf.frag.hlsl` is one, in the same register
- * convention as `assets/shader/source/`. Until that is wired up this is a measurement tool.
+ * **Both halves are wired up.** The atlas stores whatever the face rasterises, so turning this on
+ * stores a distance field — and an atlas that holds one is drawn through
+ * NYA_RENDER2D_PIPELINE_TEXT_SDF (`assets/shader/source/text_sdf.frag.hlsl`), which thresholds it with
+ * a screen-space derivative, and sampled with linear filtering rather than the nearest a coverage
+ * atlas wants. The choice is made from what the atlas actually holds, latched when it was built, not
+ * from what the face says now — which is the other reason to set this once.
+ *
+ * ✅ **Callable at registration, which is the only place it makes sense to call it.** The face does not
+ * exist yet at that point — the asset system resolves one over the following frames — so this records
+ * what was asked for and applies it the moment there is something to apply it to, from whichever of
+ * `nya_font_draw`, `nya_font_measure`, `nya_font_metrics` or `nya_font_sdf` gets there first. It used
+ * to answer false and forget, which meant the call every game would naturally write did nothing and
+ * the mode was reachable only by polling for the face. A reload re-applies it too: hot reload replaces
+ * the TTF_Font, and the request is remembered against the face it was pushed onto rather than as a
+ * flag.
  *
  * ⚠ **It changes the face's metrics**, which is the thing to watch: the field extends past the
  * outline, so glyph images come back larger. Shaping is asked after the mode is set, so positions
- * follow — but a face switched *while* text is on screen re-lays it out mid-frame. Set it once, at
- * registration.
+ * follow — but a face switched *while* text is on screen re-lays it out mid-frame. Worse, render2d
+ * bakes a glyph atlas — sized from those metrics, and flagged with the mode it was baked in — the first
+ * time a glyph is drawn from the face, and nothing rebuilds that atlas when the mode changes under it.
+ * So: set it once, at registration, which now works.
  *
- * False when the face has not loaded yet, or when the renderer refused the mode.
+ * False only when `font` names nothing, or when there is no free request slot. Whether the renderer
+ * ultimately accepts the mode is reported by `nya_font_sdf`, not here, because that answer does not
+ * exist yet at the point this is called.
  * */
 NYA_API b8 nya_font_sdf_set(NYA_Font font, b8 enabled);
 
-/** Whether this face is rasterising as a distance field. False until it has loaded. */
+/**
+ * Whether this face is rasterising as a distance field.
+ *
+ * The loaded face when there is one, since that is what an atlas gets baked from. Before it loads,
+ * what `nya_font_sdf_set` last asked for — a caller that has just asked for a distance field being
+ * told it has none is indistinguishable from the request having been dropped, which is what used to
+ * happen.
+ * */
 NYA_API b8 nya_font_sdf(NYA_Font font) __attr_no_discard;

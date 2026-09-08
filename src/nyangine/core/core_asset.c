@@ -99,31 +99,17 @@ void _nya_asset_unloading_process(NYA_Event* event);
 
 NYA_INTERNAL NYA_AssetHandle _nya_asset_pick_correct_compiled_shader(NYA_AssetHandle source_shader, OUT SDL_GPUShaderFormat* out_format);
 
+/*
+ * The immediate 3D layout. Narrower than it looks: colour arrives as four halves and uv as two, and the
+ * input assembler expands both, so the shaders still read a `float4` and a `float2` and nothing in them
+ * changed when NYA_Vertex3D went from sixty-four bytes to thirty-six. See that struct for why colour is
+ * HALF4 rather than the normalized bytes the 2D vertex uses.
+ */
 NYA_INTERNAL SDL_GPUVertexAttribute vertex_attributes[] = {
-    {
-     .location    = 0,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-     .offset      = nya_offsetof(NYA_Vertex3D,           position),
-     .buffer_slot = 0,
-     },
-    {
-     .location    = 1,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-     .offset      = nya_offsetof(NYA_Vertex3D,                                 color),
-     .buffer_slot = 0,
-     },
-    {
-     .location    = 2,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-     .offset      = nya_offsetof(NYA_Vertex3D,                                                normals),
-     .buffer_slot = 0,
-     },
-    {
-     .location    = 3,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-     .offset      = nya_offsetof(NYA_Vertex3D,uv),
-     .buffer_slot = 0,
-     },
+    { .location = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = nya_offsetof(NYA_Vertex3D, position), .buffer_slot = 0 },
+    { .location = 1, .format = SDL_GPU_VERTEXELEMENTFORMAT_HALF4,  .offset = nya_offsetof(NYA_Vertex3D, color),    .buffer_slot = 0 },
+    { .location = 2, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = nya_offsetof(NYA_Vertex3D, normals),  .buffer_slot = 0 },
+    { .location = 3, .format = SDL_GPU_VERTEXELEMENTFORMAT_HALF2,  .offset = nya_offsetof(NYA_Vertex3D, uv),       .buffer_slot = 0 },
 };
 
 NYA_INTERNAL SDL_GPUVertexBufferDescription vertex_buffer_description = {
@@ -144,9 +130,9 @@ NYA_INTERNAL SDL_GPUVertexBufferDescription vertex_buffer_description = {
  */
 NYA_INTERNAL SDL_GPUVertexAttribute vertex_attributes_3d_instanced[] = {
     { .location = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = nya_offsetof(NYA_Vertex3D, position), .buffer_slot = 0 },
-    { .location = 1, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, .offset = nya_offsetof(NYA_Vertex3D, color), .buffer_slot = 0 },
+    { .location = 1, .format = SDL_GPU_VERTEXELEMENTFORMAT_HALF4, .offset = nya_offsetof(NYA_Vertex3D, color), .buffer_slot = 0 },
     { .location = 2, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = nya_offsetof(NYA_Vertex3D, normals), .buffer_slot = 0 },
-    { .location = 3, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2, .offset = nya_offsetof(NYA_Vertex3D, uv), .buffer_slot = 0 },
+    { .location = 3, .format = SDL_GPU_VERTEXELEMENTFORMAT_HALF2, .offset = nya_offsetof(NYA_Vertex3D, uv), .buffer_slot = 0 },
 
     { .location = 4, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, .offset = 0, .buffer_slot = 1 },
     { .location = 5, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4, .offset = 16, .buffer_slot = 1 },
@@ -378,9 +364,27 @@ void nya_system_asset_deinit(void) {
  * Benchmarked: nya_hash_fnv1a over a real asset path is ~44 ns, against ~0.2 ns for an integer, and
  * nya_asset_get plus that hash together were 1.28% of a profile. See bench/bench_core.c.
  * */
+/**
+ * The longest handle the memo will hold a copy of.
+ *
+ * Handles are asset paths — "./assets/fonts/Aldrich.ttf@28" and the like — so this is generous. A
+ * longer one is not an error and is not memoized: it falls through to the dictionary every time, which
+ * is exactly what it cost before the memo existed.
+ * */
+#define _NYA_ASSET_LOOKUP_HANDLE_MAX 128
+
 typedef struct {
     NYA_AssetHandle handle;
     NYA_Asset*      asset;
+
+    /**
+     * What `handle` pointed *at* when this entry was written.
+     *
+     * A copy, and the thing actually compared on a hit. The pointer alone cannot tell whether the bytes
+     * behind it are still the same — see the note in nya_asset_get — and for a handle built into a
+     * caller-owned buffer they very often are not.
+     * */
+    char text[_NYA_ASSET_LOOKUP_HANDLE_MAX];
 
     /** Which generation of the dictionary this was true for. See _nya_asset_lookup_generation. */
     u64 generation;
@@ -415,20 +419,49 @@ NYA_Asset* nya_asset_get(NYA_AssetHandle handle) {
     /*
      * The memo, before the dictionary.
      *
-     * Keyed on the pointer, so this is exact rather than approximate: the same pointer with the
-     * dictionary unchanged is necessarily the same asset. Two different pointers holding identical text
-     * simply miss and fall through, costing what the lookup used to cost anyway.
+     * Slotted by the pointer and confirmed by the *content*, which is not belt and braces — the pointer
+     * alone is unsound and was silently returning the wrong asset.
+     *
+     * "The same pointer with the dictionary unchanged is necessarily the same asset" is true only of
+     * handles that live as long as the memo does, which is what a string literal is and what every
+     * caller was assumed to pass. A handle built into a caller-owned buffer breaks it: a stack slot is
+     * reused, so two different handles hold the same address one after the other and the memo matches on
+     * address alone. render2d builds "path@size" into a local for every font lookup, and the result was
+     * that asking for a face at one size returned the face at whichever size was asked for last — a menu
+     * whose items measured at the title's size, and, once glyph atlases learned to carry a distance-field
+     * flag, an atlas that took the *other* font's mode. render_text.c hit the same thing and worked
+     * around it locally by interning its handles; its note says the real fix belongs here, and this is
+     * it.
+     *
+     * So the entry keeps a *copy* of the text and compares that. Comparing the stored pointer against
+     * the incoming one would be comparing a buffer with itself and always agreeing, which is the whole
+     * failure restated. The slot is still chosen by the pointer — that is only a bucket, and a wrong
+     * bucket costs a miss rather than a wrong answer.
+     *
+     * A strcmp on the hit path costs a fraction of what it saves: the miss path is a hash of the same
+     * string plus a dictionary probe. What it buys is a memo that is correct for callers that *build*
+     * handles rather than only for callers that name them.
      */
+    u64 handle_length = strlen(handle);
+
     _NYA_AssetLookupEntry* entry = &_nya_asset_lookup[((uintptr_t)handle >> 3) & (_NYA_ASSET_LOOKUP_SLOTS - 1)];
+
+    // Too long to hold a copy of, so it cannot be memoized safely. Straight to the dictionary.
+    b8 memoizable = handle_length < _NYA_ASSET_LOOKUP_HANDLE_MAX;
 
     NYA_Asset* asset = nullptr;
 
-    if (entry->handle == handle && entry->generation == _nya_asset_lookup_generation) {
+    if (memoizable && entry->generation == _nya_asset_lookup_generation && nya_string_equals(entry->text, handle)) {
         asset = entry->asset;
     } else {
         asset = nya_dict_get(system->assets, handle);
 
-        *entry = (_NYA_AssetLookupEntry){ .handle = handle, .asset = asset, .generation = _nya_asset_lookup_generation };
+        if (memoizable) {
+            *entry = (_NYA_AssetLookupEntry){ .handle = handle, .asset = asset, .generation = _nya_asset_lookup_generation };
+
+            nya_memcpy(entry->text, handle, handle_length);
+            entry->text[handle_length] = '\0';
+        }
     }
 
 #ifdef NYA_ASSET_HOT_RELOAD

@@ -111,7 +111,7 @@ float4 main(FragInput input) : SV_Target {
 
   float3 behind = refracted_scene(screen_uv, normal);
 
-  float shadow = mesh3d_shadow(shadow_map, shadow_sampler, input.world_position, saturate(dot(normal, light_direction)));
+  float shadow = mesh3d_shadow(shadow_map, shadow_sampler, input.world_position, normal);
 
   /*
    * The glass tints what passes through it, by its own colour and by how opaque it is.

@@ -35,7 +35,7 @@ float4 main(FragInput input) : SV_Target {
   float3 normal = normalize(input.normal);
 
   // Sampled before shading so the factor can attenuate the directional terms inside it.
-  float shadow = mesh3d_shadow(shadow_map, shadow_sampler, input.world_position, saturate(dot(normal, light_direction)));
+  float shadow = mesh3d_shadow(shadow_map, shadow_sampler, input.world_position, normal);
 
   float3 colour = mesh3d_shade(input.color.rgb, normal, input.world_position, shadow);
 

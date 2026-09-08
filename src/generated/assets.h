@@ -1425,6 +1425,7 @@
 #define NYA_ASSET_SHADER_PROCEDURAL_VERT                    "./assets/shader/source/procedural.vert.hlsl"
 #define NYA_ASSET_SHADER_SHAPE_FRAG                         "./assets/shader/source/shape.frag.hlsl"
 #define NYA_ASSET_SHADER_SKY3D_FRAG                         "./assets/shader/source/sky3d.frag.hlsl"
+#define NYA_ASSET_SHADER_TEXT_SDF_FRAG                      "./assets/shader/source/text_sdf.frag.hlsl"
 #define NYA_ASSET_SHADER_TEXTURED_FRAG                      "./assets/shader/source/textured.frag.hlsl"
 #define NYA_ASSET_SOUNDS_HIT_WAV                            "./assets/sounds/hit.wav"
 #define NYA_ASSET_TEXTURES_PUFF_PNG                         "./assets/textures/puff.png"

@@ -191,6 +191,19 @@ void gny_world_create(void) {
     (void)nya_font_register("ui", GNY_UI_FONT, GNY_UI_FONT_SIZE);
     (void)nya_font_register("title", GNY_UI_FONT, GNY_UI_TITLE_FONT_SIZE);
 
+    /*
+     * The title face rasterises as a distance field; the HUD face does not.
+     *
+     * Which is the split nya_font_sdf_set is per font *for* — the HUD is drawn at one texel per pixel
+     * and wants the crisp nearest-sampled bitmap, and the title is the one thing here that gets scaled,
+     * where a bitmap baked at one size blurs and a field does not. It is also the caller that makes the
+     * SDF path something the game exercises rather than something only a shader file claims to do.
+     *
+     * Set here, at registration, and never again: the mode changes the face's metrics, so flipping it
+     * while text is on screen re-lays that text out mid-frame. See nya_font_sdf_set.
+     */
+    (void)nya_font_sdf_set(nya_font_named("title"), true);
+
     nya_font_default_set(nya_font_named("ui"));
 
     /*

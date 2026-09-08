@@ -23,6 +23,36 @@
  */
 
 /*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * VERTICES
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Above the headless split, and outside it: narrowing four floats into halves is arithmetic, and a
+ * headless build builds the same vertices as a real one — it simply never uploads them. Putting these
+ * inside the split would have meant two identical copies, or a link error in whichever build was
+ * forgotten, which is what the first attempt did.
+ */
+
+NYA_Vertex3D nya_vertex3d(f32x3 position, NYA_Color color, f32x3 normal, f32x2 uv) {
+    /*
+     * Colour is *not* clamped on the way in, unlike _nya_render2d_pack_color's, and that is the whole
+     * reason this field is a half rather than a normalized byte: a value above one is meaningful here.
+     * It is what lifts an emissive surface past the bloom threshold — see NYA_Render3DMaterial.emission
+     * and GNY_CUBE3D_FIRE_COLOR_START, which is 1.15 red on purpose.
+     */
+    return (NYA_Vertex3D){
+        .position = { position.x, position.y, position.z },
+        .uv       = { (f16)uv.x, (f16)uv.y },
+        .normals  = { normal.x, normal.y, normal.z },
+        .color    = { (f16)color.r, (f16)color.g, (f16)color.b, (f16)color.a },
+    };
+}
+
+f32x3 nya_vertex3d_position(NYA_Vertex3D vertex) {
+    return (f32x3){ vertex.position[0], vertex.position[1], vertex.position[2] };
+}
+
+/*
  * ─────────────────────────────────────────────────────────
  * HEADLESS
  * ─────────────────────────────────────────────────────────
@@ -370,6 +400,37 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
           .vertex_layout          = NYA_VERTEX_LAYOUT_2D,
       },
   }), "while queueing the textured pipeline");
+
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
+      .handle    = NYA_ASSET_SHADER_TEXT_SDF_FRAG,
+      .as_shader = {
+          // The glyph atlas, same as the textured pipeline reads. Only the interpretation differs.
+          .num_samplers = 1,
+      },
+  }), "while queueing the distance field text fragment shader");
+
+    /*
+     * Queued for every window whether or not a font ever asks for it.
+     *
+     * The alternative is creating it the first time an SDF atlas is drawn, which means loading a
+     * pipeline in the middle of a frame — and a pipeline that is not resolved yet draws nothing, so
+     * the first text after switching a font to SDF would silently vanish instead of arriving blurry.
+     * A queued pipeline nothing draws with costs one shader compile at startup.
+     */
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
+      .handle               = NYA_RENDER2D_PIPELINE_TEXT_SDF,
+      .as_graphics_pipeline = {
+          .window                 = window,
+          .vertex_shader_handle   = NYA_ASSET_SHADER_BATCH2D_VERT,
+          .fragment_shader_handle = NYA_ASSET_SHADER_TEXT_SDF_FRAG,
+          // For the same reason the textured pipeline blends, and more so: a thresholded field is
+          // *entirely* partial alpha at its edge, which is the whole output of this shader.
+          .blend                  = true,
+          .vertex_layout          = NYA_VERTEX_LAYOUT_2D,
+      },
+  }), "while queueing the distance field text pipeline");
 
     batch->vertex_buffer = SDL_CreateGPUBuffer(
         gpu_device,

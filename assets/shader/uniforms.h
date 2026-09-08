@@ -171,9 +171,14 @@ struct NYA_ShaderMesh3DUniform {
     /**
      * How far each cascade reaches from the shadow volume's centre, in world units.
      *
-     * The split scheme, in the only form the shader needs it: a fragment takes the first cascade whose
-     * distance covers it. Stored as a float4 rather than an array of floats because HLSL pads every
-     * cbuffer array element out to sixteen bytes, which would make four floats occupy sixty-four.
+     * ⚠ **Not what selects a cascade.** It was, and that was the bug behind shadows that grew as the
+     * camera approached — a cascade's volume is pushed ahead of the camera rather than centred on it, so
+     * a distance test does not describe where it is. Selection is now by projecting into each cascade in
+     * turn; see mesh3d_cascade_for. What this is still for is converting a shadow map texel into a world
+     * distance, which the normal offset is measured in.
+     *
+     * Stored as a float4 rather than an array of floats because HLSL pads every cbuffer array element out
+     * to sixteen bytes, which would make four floats occupy sixty-four.
      * */
     f32 cascade_extent[4];
 

@@ -110,6 +110,17 @@ b8 nya_render3d_shadow_active(NYA_Window* window) {
     return false;
 }
 
+/*
+ * False, like the one above, and for a stronger reason: there is no pass to be inside. A headless
+ * shadow_begin records the configuration and returns, so nothing is ever between it and its end in the
+ * sense this asks about — and a caller skipping work while a shadow pass runs should skip nothing here.
+ */
+b8 nya_render3d_shadow_pass_active(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return false;
+}
+
 void nya_render3d_point_light_add(NYA_Window* window, NYA_Render3DPointLight light) {
     nya_assert(window != nullptr);
 

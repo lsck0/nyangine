@@ -9,6 +9,10 @@ concurrency:
   group: cd-${{ github.ref }}
   cancel-in-progress: false
 
+# Denied at the top and granted per job, so the release job's `contents: write` is the only write
+# anything in this file has, and it says so where it is used.
+permissions: {}
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -16,13 +20,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: recursive
           lfs: true
+          # Whole history, for the version and commit the build stamps into the binary.
           fetch-depth: 0
+          # Reading git locally needs no credentials, and nothing here pushes — the release job's
+          # write permission is spent through the API, not through the checkout's remote.
+          persist-credentials: false
 
-      - uses: ./.github/actions/setup-linux
+      - uses: $/.github/actions/setup-linux
         with:
           llvm-version: 22
 
