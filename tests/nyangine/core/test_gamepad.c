@@ -53,6 +53,17 @@ s32 main(void) {
         nya_check(!nya_system_gamepad_handle_sdl_event(nullptr), "a null event is not a gamepad event");
     }
 
+    // ── SDL's gamepad subsystem waits for the first frame, then starts exactly once.
+    {
+        nya_check(SDL_WasInit(SDL_INIT_GAMEPAD) == 0, "not started during the first frame");
+
+        nya_system_gamepad_frame_begin();
+        nya_check(SDL_WasInit(SDL_INIT_GAMEPAD) != 0, "started on the second");
+
+        nya_system_gamepad_frame_begin();
+        nya_check(SDL_WasInit(SDL_INIT_GAMEPAD) != 0, "and stays up");
+    }
+
     // ── The deadzone rescales rather than clamping, so a control eases in instead of snapping.
     {
         // _nya_gamepad_normalize is internal, but it is the thing worth pinning: just past the dead

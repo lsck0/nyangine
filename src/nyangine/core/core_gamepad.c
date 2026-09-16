@@ -34,6 +34,9 @@ typedef struct {
 typedef struct {
     _NYA_GamepadSlot slots[NYA_GAMEPAD_MAX];
     b8               ready;
+
+    /** Frames to wait before bringing SDL's gamepad subsystem up. See nya_system_gamepad_init. */
+    u32 frames_until_start;
 } _NYA_GamepadSystem;
 
 NYA_INTERNAL _NYA_GamepadSystem _nya_gamepad_system = { 0 };
@@ -173,25 +176,13 @@ NYA_INTERNAL f32 _nya_gamepad_normalize(s16 raw, f32 deadzone) {
  */
 
 void nya_system_gamepad_init(void) {
-    _nya_gamepad_system = (_NYA_GamepadSystem){ 0 };
+    // SDL_InitSubSystem(SDL_INIT_GAMEPAD) probes every HID device, about 40 ms, which is most of the time
+    // to the first frame. It starts once that frame is on screen; pads already plugged in still arrive
+    // as SDL_EVENT_GAMEPAD_ADDED.
+    _nya_gamepad_system = (_NYA_GamepadSystem){ .frames_until_start = 1 };
 
 #ifndef NYA_NO_SDL
-    /*
-     * Background events before the subsystem comes up, because the hint is read at init.
-     */
-    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
-
-    if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD)) {
-        nya_log_warn("SDL_InitSubSystem(SDL_INIT_GAMEPAD) failed, gamepads are unavailable: %s", SDL_GetError());
-        return;
-    }
-
-    _nya_gamepad_system.ready = true;
-
-    /*
-     * Nothing is enumerated here on purpose.
-     */
-    nya_log_info("Gamepad system initialized (" FMTu32 " slots).", (u32)NYA_GAMEPAD_MAX);
+    nya_log_info("Gamepad system initialized (" FMTu32 " slots, starting after the first frame).", (u32)NYA_GAMEPAD_MAX);
 #else
     nya_log_info("Gamepad system initialized (no SDL; gamepads unavailable).");
 #endif
@@ -216,6 +207,21 @@ void nya_system_gamepad_deinit(void) {
 }
 
 void nya_system_gamepad_frame_begin(void) {
+#ifndef NYA_NO_SDL
+    // U32_MAX once started, so a failed start is not retried every frame.
+    if (_nya_gamepad_system.frames_until_start > 0 && _nya_gamepad_system.frames_until_start != U32_MAX) {
+        _nya_gamepad_system.frames_until_start--;
+    } else if (_nya_gamepad_system.frames_until_start == 0) {
+        _nya_gamepad_system.frames_until_start = U32_MAX;
+
+        // background events before the subsystem comes up, because the hint is read at init.
+        SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+
+        _nya_gamepad_system.ready = SDL_InitSubSystem(SDL_INIT_GAMEPAD);
+        if (!_nya_gamepad_system.ready) nya_log_warn("SDL_InitSubSystem(SDL_INIT_GAMEPAD) failed, gamepads are unavailable: %s", SDL_GetError());
+    }
+#endif
+
     for (u32 i = 0; i < NYA_GAMEPAD_MAX; i++) {
         _NYA_GamepadSlot* slot = &_nya_gamepad_system.slots[i];
         if (!slot->open) continue;

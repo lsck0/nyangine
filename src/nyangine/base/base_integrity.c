@@ -214,7 +214,15 @@ NYA_INTERNAL b8 _nya_integrity_find_sentinel(const u8* data, u64 len, OUT u64* o
 
     if (len < _NYA_INTEGRITY_BLOCK_SIZE) return false;
 
-    for (u64 i = 0; i <= len - _NYA_INTEGRITY_BLOCK_SIZE; i++) {
+    u8  first = _NYA_INTEGRITY_BLOCK.sentinel_begin[0];
+    u64 last  = len - _NYA_INTEGRITY_BLOCK_SIZE;
+
+    for (u64 i = 0; i <= last; i++) {
+        // memchr to the next candidate first: a byte by byte memcmp over a 20 MB executable was most of startup.
+        const u8* candidate = memchr(&data[i], first, last - i + 1);
+        if (candidate == nullptr) return false;
+        i = (u64)(candidate - data);
+
         if (nya_memcmp(&data[i], (void*)_NYA_INTEGRITY_BLOCK.sentinel_begin, _NYA_INTEGRITY_SENTINEL_SIZE) != 0) continue;
 
         u64 end_offset = i + _NYA_INTEGRITY_SENTINEL_SIZE + _NYA_INTEGRITY_HASH_SIZE;

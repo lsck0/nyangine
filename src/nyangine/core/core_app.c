@@ -18,6 +18,9 @@ NYA_INTERNAL NYA_App _NYA_APP_INSTANCE;
 
 NYA_INTERNAL void _nya_app_handle_shutdown_signal(NYA_Signal signal);
 
+/** Runs nya_integrity_assert off the main thread. */
+NYA_INTERNAL int _nya_app_integrity_thread(void* user_data);
+
 /** Samples the clock once for the frame and books the time since the last one against the update debt. */
 NYA_INTERNAL void _nya_app_advance_frame_clock(void);
 
@@ -174,7 +177,16 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     nya_assert(options.frame_rate_limit > 0, "frame_rate_limit must be greater than 0");
     nya_assert(options.max_concurrent_jobs > 0, "max_concurrent_jobs must be greater than 0");
 
-    nya_integrity_assert();
+    // uptime starts here, so it includes the integrity check and SDL_Init below.
+    u64 started_ns = nya_clock_get_monotonic_ns();
+
+    // hashing the whole executable takes about 10 ms, so shipping builds check it beside startup. A mismatch
+    // still crashes the process, a few frames in at most.
+    if (NYA_SHIPPING_BUILD) {
+        SDL_Thread* integrity = SDL_CreateThread(_nya_app_integrity_thread, "integrity", nullptr);
+        if (integrity != nullptr) SDL_DetachThread(integrity);
+        if (integrity == nullptr) nya_integrity_assert();
+    }
 
     // as early as possible: the integrity baseline only means something before anything could hook the process.
     nya_integrity_baseline_capture();
@@ -195,12 +207,12 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
         .options                        = options,
         .frame_allocator                = nya_arena_create(.name = "frame_allocator"),
         .live_resize_allocator          = nya_arena_create(.name = "live_resize_allocator"),
-        .frame_stats.started_ns         = nya_clock_get_monotonic_ns(),
+        .frame_stats.started_ns         = started_ns,
         .frame_stats.prev_frame_time_ns = nya_clock_get_monotonic_ns(),
         .frame_stats.min_frame_time_ns  = 1'000'000'000 / (u64)options.frame_rate_limit,
     };
 
-    nya_log_info("Nyangine initialized. Initializing subsystems...");
+    nya_log_info("Nyangine initialized in %.1f ms. Initializing subsystems...", nya_time_ns_to_ms(nya_clock_get_monotonic_ns() - started_ns));
 
     _nya_app_register_subsystems();
 
@@ -211,9 +223,12 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     u32       brought_up = 0;
 
     for (; brought_up < nya_system_registry_count(); brought_up++) {
-        NYA_SystemInitFn init = nya_system_registry_init_at(brought_up);
-        result                = init != nullptr ? init() : NYA_OK;
+        NYA_SystemInitFn init       = nya_system_registry_init_at(brought_up);
+        u64              init_start = nya_clock_get_monotonic_ns();
+        result                      = init != nullptr ? init() : NYA_OK;
         if (!result.ok) goto unwind;
+
+        nya_log_debug("Brought up '%s' in %.1f ms.", nya_system_registry_name_at(brought_up), nya_time_ns_to_ms(nya_clock_get_monotonic_ns() - init_start));
     }
 
     // after the renderer and windows, since the watcher draws. not fatal: it only costs frames during a resize
@@ -222,7 +237,7 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
         nya_log_warn("SDL_AddEventWatch() failed, the window will not redraw while being resized: %s", SDL_GetError());
     }
 
-    nya_log_info("Subsystems initialized successfully.");
+    nya_log_info("Subsystems initialized after %.1f ms.", nya_time_ns_to_ms(nya_app_uptime_ns()));
     return NYA_OK;
 
 unwind:
@@ -281,6 +296,9 @@ void nya_app_deinit(void) {
 
 void nya_app_run(void) {
     NYA_App* app = nya_app_get();
+
+    // startup time is the number a player feels first, so it is reported once.
+    static b8 first_frame_reported = false;
 
     while (!app->should_quit) {
         // before the frame timer opens, so that timer is the frame's depth 0 span. nya_perf_frame_spans selects on
@@ -358,6 +376,11 @@ void nya_app_run(void) {
             nya_event_dispatch((NYA_Event){
                 .type = NYA_EVENT_FRAME_ENDED,
             });
+
+            if (!first_frame_reported) {
+                first_frame_reported = true;
+                nya_log_info("First frame presented after %.1f ms.", nya_time_ns_to_ms(nya_app_uptime_ns()));
+            }
         }
 
         /* Framerate limiting, against the work this frame did. */
@@ -567,7 +590,14 @@ void nya_app_options_update(NYA_AppOptions options) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_INTERNAL void _nya_app_handle_shutdown_signal(NYA_Signal signal) {
+int _nya_app_integrity_thread(void* user_data) {
+    nya_unused(user_data);
+
+    nya_integrity_assert();
+    return 0;
+}
+
+void _nya_app_handle_shutdown_signal(NYA_Signal signal) {
     nya_unused(signal);
 
     NYA_App* app     = nya_app_get();
