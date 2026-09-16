@@ -88,9 +88,8 @@ struct NYA_Sprite {
 /**
  * Frames as separate images, one texture each, instead of cells of one sheet.
  *
- * ⚠ **A draw call per texture change.** Consecutive sprites out of one atlas batch into a single call;
- * out of a list they cost one each. Nothing for a handful of animated things, the difference between
- * one call and a thousand for particles — where the answer is an atlas.
+ * Costs a draw call per texture change. Sprites from one atlas batch into a single call, list frames
+ * cost one each. Fine for a handful of animated things; use an atlas for particles.
  * */
 struct NYA_SpriteList {
     const NYA_ConstCString* textures;
@@ -331,7 +330,7 @@ NYA_API void nya_sprite_atlas_frame_rect(const NYA_SpriteAtlas* atlas, u32 frame
  * */
 NYA_API NYA_SpriteList nya_sprite_list(const NYA_ConstCString* textures, u32 count) __attr_no_discard;
 
-/** Frames the list holds. Unlike an atlas this is known immediately — no texture has to have loaded. */
+/** Frames the list holds. Known immediately, unlike an atlas, since no texture has to load. */
 NYA_API u32 nya_sprite_list_frame_count(const NYA_SpriteList* list) __attr_no_discard;
 
 /** A sprite showing one image of a list, centred, unflipped and untinted. */

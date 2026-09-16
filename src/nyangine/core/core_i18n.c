@@ -14,7 +14,7 @@ NYA_INTERNAL NYA_I18nSystem* _nya_i18n_system(void);
 /** Resolves a parsed locale's keys into id order. */
 NYA_INTERNAL NYA_Error _nya_i18n_resolve(NYA_Arena* arena, const u8* data, u64 size, const NYA_ConstCString* keys, u32 count, OUT NYA_CString** out);
 
-/** Reads a locale through the asset system — blob first, disk second — and resolves it. */
+/** Reads a locale through the asset system, blob first then disk, and resolves it. */
 NYA_INTERNAL NYA_Error _nya_i18n_read(NYA_Arena* arena, NYA_ConstCString locale, const NYA_ConstCString* keys, u32 count, OUT NYA_CString** out);
 
 /** Commits already-resolved strings, replacing whatever was loaded. Takes ownership of nothing. */
@@ -57,9 +57,8 @@ void nya_system_i18n_init(void) {
 
 #ifdef NYA_ASSET_HOT_RELOAD
     /*
-     * Registered after the asset system's own frame-ended hooks, because init order puts this system
-     * after it — so by the time this runs, a reload queued on an earlier frame has already been
-     * unloaded and re-read, and the modification time it compares against is the settled one.
+     * Registered after the asset system's frame-ended hooks, so a reload queued earlier has already been
+     * re-read and the modification time compared against is settled.
      */
     nya_event_hook_register((NYA_EventHook){
         .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
@@ -137,8 +136,8 @@ NYA_ConstCString _nya_i18n_format(u32 id, ...) {
 
     NYA_ConstCString format = nya_i18n_raw(id);
 
-    // Round robin, so a caller may hold a handful at once — long enough to pass several to one draw
-    // call, and deliberately not long enough to be mistaken for ownership.
+    // round robin, so a caller can hold a few at once, enough for one draw call and not enough to look
+    // like ownership.
     char* buffer = system->formatted[system->next_slot];
 
     system->next_slot = (system->next_slot + 1) % NYA_I18N_FORMAT_SLOTS;
@@ -247,9 +246,8 @@ NYA_Error _nya_i18n_load_locale(NYA_ConstCString locale, const NYA_ConstCString*
     }
 
     /*
-     * The keys are remembered *before* the commit, because the commit is what resets `allocator` — and
-     * on a reload the `keys` being passed in are the previously remembered ones, which live in
-     * `registry` precisely so that reset cannot take them.
+     * Keys are remembered before the commit resets `allocator`. On reload the `keys` passed in are the
+     * remembered ones, which live in `registry` so that reset cannot take them.
      */
     _nya_i18n_remember(locale, keys, count);
 
@@ -389,8 +387,7 @@ NYA_Error _nya_i18n_resolve(NYA_Arena* arena, const u8* data, u64 size, const NY
 
     NYA_Object* root = nullptr;
 
-    // JSONC, so a locale file can carry comments for translators — which is the one kind of file
-    // where a note beside a string is genuinely useful.
+    // JSONC, so translators can leave notes beside strings.
     NYA_TRY(nya_deserialize(arena, data, size, NYA_SERDE_FORMAT_JSONC, NYA_SERDE_NONE, &root));
 
     NYA_CString* strings = nya_arena_alloc(arena, count * sizeof(NYA_CString));
@@ -411,10 +408,9 @@ NYA_Error _nya_i18n_resolve(NYA_Arena* arena, const u8* data, u64 size, const NY
 void _nya_i18n_commit(NYA_ConstCString locale, NYA_CString* strings, NYA_CString* fallback, u32 count) {
     NYA_I18nSystem* system = _nya_i18n_system();
 
-    // The previous locale's arena is emptied and the new strings copied into it. Freed as a whole
-    // rather than destroyed, so switching language does not churn the allocator — and done only now,
-    // after every parse has succeeded, so a failed load leaves the old language intact rather than
-    // half replaced.
+    // the previous locale's arena is emptied and reused rather than destroyed, so switching language
+    // does not churn the allocator. Only after every parse succeeded, so a failed load keeps the old
+    // language intact.
     nya_arena_free_all(system->allocator);
 
     system->strings  = nya_arena_alloc(system->allocator, count * sizeof(NYA_CString));

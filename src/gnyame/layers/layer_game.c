@@ -42,9 +42,8 @@ void gny_layer_game_on_create(NYA_Window* window) {
     gny_bloom_pipeline_ensure(window);
 
 
-    // Guarded, because a hot reload re-resolves this layer's callbacks but does not re-run the
-    // window's on_create — and if it ever does, regenerating the terrain under a settled pile would
-    // leave every crate inside the ground.
+    // guarded, because hot reload re-resolves callbacks without re-running on_create. Regenerating the
+    // terrain under a settled pile would bury every crate.
     GNY_World* world = gny_world();
     if (nya_entity_is_valid(world->terrain)) return;
 
@@ -62,8 +61,7 @@ void gny_layer_game_on_create(NYA_Window* window) {
         (void)nya_error_format(&map_error, message, sizeof(message));
         nya_log_warn("Could not load the demo tilemap: %s", (NYA_CString)message);
     } else {
-        // Placed before anything reads it, because the origin is what every coordinate on the map is
-        // relative to — draw, collision and the conversions all go through it.
+        // placed first: draw, collision and conversions are all relative to the map origin.
         world->tilemap->origin = GNY_TILEMAP_ORIGIN;
 
         // The invisible "collision" layer becomes static bodies. Merged into runs, so the map's three
@@ -160,8 +158,7 @@ void gny_layer_game_on_event(NYA_Window* window, NYA_Event* event) {
 
             f32 factor = wheel->amount_y > 0.0F ? GNY_CAMERA_ZOOM_STEP : (1.0F / GNY_CAMERA_ZOOM_STEP);
 
-            // The wheel is an event rather than a held key, so it cannot be polled in the camera's
-            // own update the way panning is — the layer forwards it instead of owning the zoom.
+            // the wheel is an event, not a held key, so the layer forwards it instead of the camera polling it.
             gny_entity_camera_zoom_by(factor);
             event->was_handled = true;
         } break;
@@ -195,9 +192,8 @@ void gny_layer_game_on_event(NYA_Window* window, NYA_Event* event) {
                 world->bloom_enabled = !world->bloom_enabled;
                 event->was_handled   = true;
             } else if (nya_input_action_matches(GNY_ACTION_DROP_THROUGH, key->key, key->modifier_flags)) {
-                // Every crate, whether or not it is on a ledge — the window is harmless on one that is
-                // not, and asking which are would mean walking contacts. See
-                // gny_entity_ledge_drop_everything_through.
+                // every crate, on a ledge or not. The window is harmless off a ledge, and checking would mean
+                // walking contacts. See gny_entity_ledge_drop_everything_through.
                 (void)gny_entity_ledge_drop_everything_through(GNY_LEDGE_DROP_SECONDS);
                 event->was_handled = true;
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_MUSIC, key->key, key->modifier_flags)) {
@@ -239,8 +235,7 @@ void gny_layer_game_on_update(NYA_Window* window, f32 delta_time_s) {
     // The startup script, and its once-a-second hook. See gny_world_script_tick.
     gny_world_script_tick(delta_time_s);
 
-    // Once a tick, here rather than in on_render — drawing can happen more than once a frame with
-    // several cameras, and advancing them there would age them once per camera.
+    // once per tick here, not in on_render, which runs once per camera and would age them several times.
     nya_particles_update(gny_world()->sparks, delta_time_s);
 }
 
@@ -254,9 +249,8 @@ void gny_layer_game_on_render(NYA_Window* window) {
     /*
      * Smoothing, before anything is drawn.
      */
-    // `elapsed_ns` is the frame *period* — start to start, sleep included — which is exactly the real
-    // time interpolation has to advance by. `delta_time_s` is the fixed tick and would make smoothing
-    // run at the simulation rate, which is the thing it exists to decouple from.
+    // `elapsed_ns` is the frame period, sleep included, which is the real time interpolation advances
+    // by. `delta_time_s` is the fixed tick and would tie smoothing to the simulation rate.
     nya_net_client_interpolate((f32)nya_time_ns_to_s(nya_app_get()->frame_stats.elapsed_ns));
 
     /*

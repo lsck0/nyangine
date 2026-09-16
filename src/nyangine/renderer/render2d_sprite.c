@@ -71,9 +71,8 @@ void nya_sprite_atlas_frame_rect(const NYA_SpriteAtlas* atlas, u32 frame, OUT f3
     *out_width  = 0.0F;
     *out_height = 0.0F;
 
-    // Out of range, or an atlas whose texture has not loaded and so has no grid yet. A zeroed
-    // rectangle means "the whole texture" to the drawing path, which is a visible wrong frame rather
-    // than nothing at all — and being able to see it is the point.
+    // out of range, or the atlas texture has not loaded so there is no grid. A zeroed rectangle draws the
+    // whole texture, a visibly wrong frame rather than nothing.
     u32 columns, rows;
     _nya_sprite_atlas_grid_size(atlas, &columns, &rows);
 
@@ -195,8 +194,7 @@ f32x2 nya_sprite_size(const NYA_Sprite* sprite) {
     f32 width  = sprite->source_width;
     f32 height = sprite->source_height;
 
-    // A zero source means the whole texture, so the size is the texture's — which is only knowable
-    // once it has loaded.
+    // a zero source means the whole texture, whose size is only known once it has loaded.
     if (width <= 0.0F || height <= 0.0F) {
         u32 texture_width, texture_height;
         if (!_nya_sprite_texture_size(sprite->texture, &texture_width, &texture_height)) return f32x2_zero;
@@ -238,9 +236,8 @@ void nya_render2d_sprite(NYA_Window* window, const NYA_Sprite* sprite, f32x2 pos
 
             .rotation = sprite->rotation,
 
-            // The pivot is a fraction of the sprite here and pixels there, so it is scaled on the way
-            // through — which is the whole reason it is a fraction: a sheet redrawn at another cell
-            // size keeps its pivots.
+            // the pivot is a fraction here and pixels there. A fraction survives redrawing the sheet at another
+            // cell size.
             .origin = { sprite->origin.x * size.x, sprite->origin.y * size.y },
 
             .flip_x = sprite->flip_x,
@@ -383,16 +380,13 @@ u32 nya_sprite_animator_advance(OUT NYA_SpriteAnimator* animator, f32 delta_time
 
     animator->frame_elapsed_s += delta_time_s * animator->speed;
 
-    /*
-     * How many whole frames the accumulated time covers, by one divide — and then every one of them
-     * is walked.
-     */
+    /* Whole frames the accumulated time covers, by one divide, then each is walked. */
     u32 pending = (u32)(animator->frame_elapsed_s / seconds_per_frame);
 
     animator->frame_elapsed_s -= (f32)pending * seconds_per_frame;
 
-    // Capped, so a pathological delta — a breakpoint, a stalled window — cannot walk a million
-    // frames. The remainder is already gone, so nothing is owed back.
+    // capped, so a huge delta from a breakpoint or stalled window cannot walk millions of frames. The
+    // remainder is already dropped.
     if (pending > NYA_SPRITE_ANIMATION_MAX_SIGNALS) pending = NYA_SPRITE_ANIMATION_MAX_SIGNALS;
 
     for (u32 steps = 0; steps < pending; steps++) {
@@ -402,8 +396,8 @@ u32 nya_sprite_animator_advance(OUT NYA_SpriteAnimator* animator, f32 delta_time
                 if (animator->frame == 0) {
                     animator->reversing = false;
 
-                    // A completed there-and-back is one loop, and a ping-pong animation that is not
-                    // looping stops here rather than at the far end — the far end is halfway.
+                    // a completed there-and-back is one loop, so a non looping ping-pong stops here. The far end is
+                    // halfway.
                     animator->loops++;
 
                     if (!animation->looping) {

@@ -258,9 +258,7 @@ NYA_NNTensor* nya_nn_matmul(NYA_NNGraph* graph, NYA_NNTensor* a, NYA_NNTensor* b
 
     NYA_NNTensor* out = _nya_nn_op(graph, NYA_NN_SHAPE(m, n), NYA_NN_OP_MATMUL, a, b);
 
-    /*
-     * i, then k, then j — not the textbook i, j, k.
-     */
+    /* i, k, j loop order rather than i, j, k, so the inner loop walks memory in order. */
     for (u32 i = 0; i < m; i++) {
         f32*       out_row = &out->data[(u64)i * n];
         const f32* a_row   = &a->data[(u64)i * k];
@@ -368,8 +366,8 @@ NYA_NNTensor* nya_nn_huber(NYA_NNGraph* graph, NYA_NNTensor* prediction, NYA_NNT
         f32 difference = prediction->data[i] - target->data[i];
         f32 magnitude  = fabsf(difference);
 
-        // Quadratic within delta, linear past it, and the two agree in value and slope at the
-        // boundary — which is what makes the loss smooth rather than merely continuous.
+        // quadratic within delta, linear past it. Value and slope match at the boundary, so the loss is
+        // smooth.
         total += magnitude <= delta ? 0.5F * difference * difference : delta * (magnitude - (0.5F * delta));
     }
 
@@ -559,8 +557,8 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
         } break;
 
         case NYA_NN_OP_MUL: {
-            // Each side's gradient is scaled by the *other* side's value, which is why both forward
-            // values have to still be alive here — the graph arena is not reset until after backward.
+            // each side's gradient is scaled by the other side's value, so both forward values must still be
+            // alive. The graph arena is reset only after backward.
             for (u32 i = 0; i < tensor->count; i++) {
                 if (grad_a) a->grad[i] += tensor->grad[i] * b->data[i];
                 if (grad_b) b->grad[i] += tensor->grad[i] * a->data[i];
@@ -576,9 +574,8 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
             u32 k = a->shape[1];
             u32 n = b->shape[1];
 
-            // dA = dOut * B^T, dB = A^T * dOut. Written as loops over the same memory order as the
-            // forward pass rather than by materialising a transpose, which would allocate during
-            // backward — the one place that must not, since the graph arena is being read not grown.
+            // dA = dOut * B^T, dB = A^T * dOut. Loops in forward memory order instead of materialising a
+            // transpose, because backward must not allocate from the graph arena it is reading.
             for (u32 i = 0; i < m; i++) {
                 const f32* out_row = &tensor->grad[(u64)i * n];
 
@@ -654,8 +651,8 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
 
                 if (grad_a) a->grad[i] += gradient;
 
-                // The target usually requires no gradient, but if it was produced by the network —
-                // as a bootstrapped target is before it is detached — the sign is simply flipped.
+                // the target usually needs no gradient. If the network produced it, as a bootstrapped target before
+                // detaching, the sign flips.
                 if (grad_b) b->grad[i] -= gradient;
             }
         } break;

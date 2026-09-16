@@ -39,18 +39,14 @@ struct NYA_AppOptions {
     u32 frame_rate_limit;
 
     /**
-     * Frames per second to cap at while no window has focus. **Zero leaves the focused cap in force.**
+     * Frames per second to cap at while no window has focus. Zero leaves the focused cap in force.
      *
-     * What a window sitting in the corner of somebody's screen needs: it is unfocused almost all of its
-     * life, and a desktop widget animating at 120fps behind the window somebody is actually working in is
-     * spending a GPU on nothing. Fifteen still reads as alive.
+     * A window left in a corner is unfocused most of its life, and animating it at 120 fps spends a GPU
+     * on nothing. Fifteen still reads as alive.
      *
-     * Applied even with `vsync_enabled`, unlike `frame_rate_limit`: vsync caps at the display's rate and
-     * this is asking for slower than that, so the two do not disagree — the sleep simply lands before the
-     * swap would have blocked.
-     *
-     * An occluded window is a separate and stronger case, already handled: nya_render_begin refuses one,
-     * so a fully covered window draws nothing at all whatever this says.
+     * Applied even with `vsync_enabled`, unlike `frame_rate_limit`: this asks for slower than the display,
+     * so the sleep lands before the swap would have blocked. An occluded window draws nothing regardless,
+     * since nya_render_begin refuses it.
      * */
     u32 unfocused_frame_rate_limit;
 
@@ -68,9 +64,8 @@ struct NYA_FrameStats {
     u64 uptime_ns;
 
     /**
-     * uptime_ns as seconds, ready for a shader uniform without a cast. f32 because that is what lands
-     * in a uniform buffer; loses resolution as the app runs — about a millisecond after three hours —
-     * so drive animation from it, not anything that needs to stay exact. uptime_ns is the precise value.
+     * uptime_ns as seconds, for shader uniforms. f32 loses resolution over time (about a millisecond
+     * after three hours), so use it for animation only. uptime_ns is the precise value.
      * */
     f32 uptime_s;
 
@@ -83,15 +78,14 @@ struct NYA_FrameStats {
     u64 prev_frame_time_ns;
 
     /**
-     * Frame period: start of this frame to start of the last, sleep included. What fps is computed
-     * from. Not a cost — at the default 120 limit it sits at 8.3 ms regardless of frame work, which
-     * reads like a slow frame and isn't one.
+     * Frame period: start of the last frame to start of this one, sleep included. fps is computed from
+     * it. Not a cost: at the default 120 limit it sits at 8.3 ms whatever the frame did.
      * */
     u64 elapsed_ns;
 
     /**
-     * Frame work: what the frame actually spent before the limiter slept. The number to look at when
-     * asking "is this slow" — `elapsed_ns` minus this is the sleep.
+     * Frame work: time spent before the limiter slept. The number to read for "is this slow".
+     * `elapsed_ns` minus this is the sleep.
      * */
     u64 work_ns;
 
@@ -106,8 +100,8 @@ struct NYA_App {
     b8 should_quit;
 
     /**
-     * The world this application created at startup, and destroys on the way out. Owning it is all
-     * NYA_App does with it — everything that operates on a world goes through nya_world instead.
+     * The world created at startup and destroyed on exit. NYA_App only owns it; everything else goes
+     * through nya_world.
      * */
     NYA_World* world;
 
@@ -117,10 +111,8 @@ struct NYA_App {
     NYA_Arena* frame_allocator;
 
     /**
-     * Stands in for frame_allocator while a window is dragged by its edge. Frames produced during a
-     * drag nest inside an outer frame parked in the event pump, so they cannot reset that frame's
-     * arena; emptying this one per nested frame keeps a long drag from growing memory until the mouse
-     * comes up.
+     * Replaces frame_allocator while a window is dragged by its edge. Those frames nest inside an outer
+     * frame parked in the event pump and cannot reset its arena, so this one is emptied per nested frame.
      * */
     NYA_Arena* live_resize_allocator;
 
@@ -161,9 +153,8 @@ NYA_API void     nya_app_run(void);
 NYA_API NYA_App* nya_app_get(void);
 
 /*
- * The game's root pointer moved to nya_world_user_data; see core_world.h. It used to be `void* state`
- * here; now the world owns the arena, so the arena, entities and game state are one lifetime instead
- * of three that had to be unwound in order by hand.
+ * The game's root pointer lives in nya_world_user_data, so the world arena, entities and game state
+ * share one lifetime. See core_world.h.
  */
 
 NYA_API void nya_app_options_update(NYA_AppOptions options);
