@@ -189,6 +189,19 @@ invalidated by the `TTF_Font*` would remove it.
 - `[ ]` GPU allocations should register with the ceiling registry instead of hand computed VRAM figures.
 - `[ ]` RSS has no breakdown by arena anywhere a profile can reach.
 
+## `[ ]` Reports from other machines
+
+- `[ ]` Windows: the 3D demo drew only the models, particles and sky on one machine (terrain, pile, lamps and
+  water missing). Wine with Direct3D 12 and Vulkan both render correctly, so it needs that machine's log:
+  the `Render system initialized (<driver>)` line and any `failed to load`.
+- `[ ]` "No sound" reported; Linux debug writes impact sounds through SDL's disk audio driver in both scenes.
+  Music starts paused by design (`m`). Needs the platform and log.
+- `[ ]` Resident memory differs by machine (300 MB, 150 MB, 50 MB + 150 MB VRAM). Arenas no longer allocate
+  64 MiB regions, which Windows committed up front; the rest is the GPU driver mapping into the process,
+  which on integrated GPUs counts texture memory as RAM. Measure per driver before changing anything.
+- `[ ]` The entity table is `NYA_ENTITY_MAX` (8192) × `sizeof(NYA_Entity)` plus index arrays, about 5.5 MiB,
+  allocated at startup. Either a smaller ceiling for this game or a hot/cold split of NYA_Entity.
+
 ## `[ ]` Startup time
 
 Release on Linux/Wayland reaches the first frame about 65 ms after exec (was 135). Startup logs engine
