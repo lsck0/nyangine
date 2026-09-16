@@ -578,7 +578,7 @@ struct NYA_Render3DBatch {
      * Light-space depth, and the depth buffer that decides which surface got written. A colour target
      * rather than a sampled depth texture: sampling a depth format needs SDL_GPU_TEXTUREUSAGE_SAMPLER on
      * it, which backends support unevenly and which fights the multisampling every other target here uses.
-     * R32_FLOAT plus a plain depth buffer for the test uses only paths the renderer already relies on, and
+     * A single normalized channel plus a plain depth buffer for the test uses only paths the renderer already
      * costs one texture. Created on the first shadow pass and kept, since the size never changes — it is
      * NYA_RENDER3D_SHADOW_MAP_SIZE, not the window's.
      * */

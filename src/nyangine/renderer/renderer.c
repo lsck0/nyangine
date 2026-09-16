@@ -559,9 +559,9 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
           // See the note above: the *front* faces are the ones discarded here.
           .cull_front_faces = true,
 
-          // R32_FLOAT, not the swapchain format. The pipeline has to be told, or it is built against a
+          // The shadow format, not the swapchain's. The pipeline has to be told, or it is built against a
           // target it will never be bound to and the draw is rejected at bind time.
-          .color_format = SDL_GPU_TEXTUREFORMAT_R32_FLOAT,
+          .color_format = NYA_RENDER3D_SHADOW_FORMAT,
 
           // The map is deliberately not multisampled; see single_sampled.
           .single_sampled = true,
@@ -632,7 +632,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
           // Front faces discarded, matching the immediate shadow pipeline. See the note there.
           .cull_front_faces = true,
-          .color_format     = SDL_GPU_TEXTUREFORMAT_R32_FLOAT,
+          .color_format     = NYA_RENDER3D_SHADOW_FORMAT,
           .single_sampled   = true,
       },
   }), "while queueing the instanced shadow pipeline");
@@ -728,8 +728,8 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
           .depth_test             = true,
           .depth_write            = true,
           .cull_front_faces       = true,
-          // R32_FLOAT, matching the shadow pass target rather than the swapchain. See the pipeline above.
-          .color_format = SDL_GPU_TEXTUREFORMAT_R32_FLOAT,
+          // The shadow format, matching the shadow pass target rather than the swapchain. See the pipeline above.
+          .color_format = NYA_RENDER3D_SHADOW_FORMAT,
       },
   }), "while queueing the skinned shadow pipeline");
 

@@ -220,6 +220,18 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
  *
  * Reserved, and nya_render3d_mesh_register refuses it rather than trusting a caller to have read this.
  * */
+/**
+ * The shadow map's colour format: a single normalized 16-bit channel.
+ *
+ * The map stores one depth in [0, 1], so a 32-bit float spent twice the memory on a value that never uses
+ * the exponent — and R16_UNORM spreads its 65536 steps evenly over exactly that range, where a float
+ * crowds them near zero. Halves the atlas's colour target.
+ *
+ * Named once because four places have to agree: the texture, and the three pipelines that render into it.
+ * A pipeline built for a different format than its target is rejected at bind time.
+ * */
+#define NYA_RENDER3D_SHADOW_FORMAT SDL_GPU_TEXTUREFORMAT_R16_UNORM
+
 #define NYA_RENDER3D_MESH_UNIT_SPHERE "nya_unit_sphere"
 
 #ifndef NYA_RENDER3D_SPHERE_SEGMENTS

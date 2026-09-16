@@ -267,7 +267,7 @@ void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky) {
     /*
      * Never into a shadow map — a real bug, not a precaution. A shadow pass sets `active` through the same
      * path the scene pass does, so the sky drew a fullscreen triangle into each cascade through a *2D*
-     * pipeline built for the swapchain's colour format, into an R32_FLOAT depth target: its red channel
+     * pipeline built for the swapchain's colour format, into the shadow map: its red channel
      * landed as depth everywhere uncovered — around 0.3 to 0.9 instead of the 1.0 meaning "nothing here" —
      * so roughly half the scene read as occluded and picked up a shadow nothing cast, three times a frame
      * with three cascades. The sky is the one thing in a scene that is *not* geometry, so the pass-agnostic
@@ -724,7 +724,7 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
         gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
-            .format               = SDL_GPU_TEXTUREFORMAT_R32_FLOAT,
+            .format               = NYA_RENDER3D_SHADOW_FORMAT,
             .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
             .width                = _NYA_RENDER3D_SHADOW_ATLAS_WIDTH,
             .height               = _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT,
