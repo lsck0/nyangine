@@ -189,20 +189,16 @@ NYA_Error nya_serde_nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, 
 }
 
 /*
- * The accumulation below is deliberate wraparound, as in every other hash here, so it is
- * exempted the same way _nya_serde_nya_mix already is. Without this a sanitized build aborts
- * the moment it checksums an object, since FLAGS_SANITIZE pairs unsigned-integer-overflow with
- * -fno-sanitize-recover=all.
- * */
+ * The accumulation wraps on purpose, like every hash here, so it is exempted like _nya_serde_nya_mix.
+ * Sanitized builds abort on unsigned overflow otherwise.
+ */
 __attr_no_sanitize("unsigned-integer-overflow") u64 nya_serde_nya_checksum(const NYA_Object* object) {
     nya_assert(object != nullptr);
 
     u64 checksum = 0;
 
-    // Summed, not XORed. A dict has no order to preserve so the combine must be commutative, but
-    // XOR is commutative *and* self cancelling: under XOR, swapping the values of two keys leaves
-    // the total unchanged, and so does any pair of entries that happen to hash alike. Adding a
-    // mixed key/value pair keeps the order independence without either weakness.
+    // summed, not XORed. A dict needs a commutative combine, but XOR also cancels: swapping two keys'
+    // values, or two entries hashing alike, leaves it unchanged.
     nya_dict_foreach_key (object, key) {
         const NYA_Value* value = nya_object_get(object, *key);
 
@@ -418,7 +414,7 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_members(_NYA_SerdeNyaParser* parser,
     return NYA_OK;
 }
 
-/** Reads `<type> <value>`, `<type>[] [...]`, a bare `[]`, or `null` — everything that can follow a colon. */
+/** Reads `<type> <value>`, `<type>[] [...]`, a bare `[]`, or `null`: everything that can follow a colon. */
 NYA_INTERNAL NYA_Error _nya_serde_nya_parse_typed_value(_NYA_SerdeNyaParser* parser, OUT NYA_Value* out_value) {
     _nya_serde_nya_skip_trivia(parser);
 

@@ -97,9 +97,8 @@ NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTranspo
             .inbox     = nya_array_create(arena, _NYA_NetLoopbackMessage),
             .delivered = nya_arena_create(.name = "net_loopback_delivered"),
 
-            // Both ends report a connection on their first poll. Neither has to be told to connect,
-            // because a pair that exists is already joined — but the layers above still expect to
-            // *learn* that from an event rather than to assume it.
+            // both ends report a connection on their first poll. A pair is joined on creation, but the layers
+            // above expect to learn that from an event.
             .connect_pending = true,
         };
 

@@ -1,12 +1,12 @@
 /**
  * @file vendor.h
  *
- * Every vendored third party dependency, one NYA_VendorRule per dependency per target. A vendor
- * rule describes how to build it and what a consumer needs to compile/link against it; a build
- * rule just names it in `.vendors` and the flags get spliced in, so the dependency list can't drift.
+ * Every vendored dependency, one NYA_VendorRule per dependency per target. A vendor rule says how to
+ * build it and what consumers compile and link with; a build rule names it in `.vendors` and the
+ * flags are spliced in, so the lists cannot drift.
  *
- * NYA_VENDORS is built up front by nya_vendor_build_all before any rule runs; parts are
- * NYA_BUILD_ONCE so after the first run this is just a few file existence checks.
+ * NYA_VENDORS is built by nya_vendor_build_all before any rule runs. Parts are NYA_BUILD_ONCE, so
+ * later runs only check that files exist.
  * */
 #pragma once
 
@@ -39,11 +39,11 @@
 // clang-format off
 
 /**
- * Everything the project links against, per target. One list per target rather than one per rule,
- * since the debug/developer/release rules all link the same libraries.
+ * Everything the project links against, per target. Debug, developer and release link the same
+ * libraries.
  *
- * Order is not alphabetical: archives are searched left to right, so a dependency that calls into
- * another must come first — sqlean and sqlvec both call into libsqlite3, so they sit ahead of it.
+ * Link order, not alphabetical: archives are searched left to right, so sqlean and sqlvec come before
+ * libsqlite3, which they call into.
  * */
 #define NYA_PROJECT_VENDORS_LINUX_X86_64                                                            \
     &vendor_sdl_linux_x86_64,     &vendor_sdl_image_linux_x86_64,  &vendor_sdl_ttf_linux_x86_64,    \
@@ -62,10 +62,9 @@
 // clang-format on
 
 /*
- * Build order is not link order, and the arrays below are build order: sqlean and sqlvec compile
- * against sqlite3.h, which sqlite's configure step generates, so sqlite must be built before them —
- * hence it's named again here, up front. Listing it twice costs nothing since its parts are
- * NYA_BUILD_ONCE/NYA_BUILD_IF_OUTDATED and nya_build memoizes rules already run this invocation.
+ * Build order, which differs from link order: sqlean and sqlvec compile against sqlite3.h, which
+ * sqlite's configure generates, so sqlite is listed again first. Listing it twice is free, since its
+ * parts are ONCE or IF_OUTDATED and nya_build memoizes rules within an invocation.
  */
 
 /** Everything needed to produce a Linux target. */
@@ -85,15 +84,12 @@ NYA_VendorRule* NYA_VENDORS_WINDOWS_X86_64[] = {
 };
 
 /**
- * The vendors the engine compiles and links against, for every target this host builds. Built
- * before any rule runs (even `./build stats`), so project rules can assume everything they link
- * against already exists.
+ * The vendors for every target this host builds, built before any rule runs (even `./build stats`) so
+ * project rules can assume they exist.
  *
- * On a Linux host that means both targets, so a machine without mingw-w64 will fail here; swap in
- * NYA_VENDORS_LINUX_X86_64 if that is not wanted. A Windows host builds Windows only (see build.h);
- * the Linux rules are left out rather than merely unused because none carries a cross compiling
- * toolchain, so they would configure natively and quietly fill build-linux-x86_64/ with Windows
- * artifacts.
+ * A Linux host builds both targets and needs mingw-w64; use NYA_VENDORS_LINUX_X86_64 to avoid that. A
+ * Windows host builds Windows only (see build.h). The Linux rules carry no cross toolchain and would
+ * configure natively, filling build-linux-x86_64/ with Windows artifacts.
  * */
 NYA_VendorRule* NYA_VENDORS[] = {
 #if !OS_WINDOWS

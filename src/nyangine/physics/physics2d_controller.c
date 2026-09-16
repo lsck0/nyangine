@@ -54,10 +54,10 @@ void nya_character2d_update(NYA_CharacterController2D* controller, NYA_EntityHan
     f32x2 velocity = nya_physics2d_velocity(entity);
 
     /*
-     * ── Horizontal ──
+     * Horizontal
      *
-     * Accelerated toward the target rather than assigned, so a character has weight; decelerating
-     * separately is what lets a stop be crisper than a start, which is most of what "tight" means.
+     * Accelerated toward the target rather than assigned, so a character has weight. Separate deceleration
+     * lets a stop be crisper than a start.
      */
     f32 control = grounded ? 1.0F : tuning.air_control;
     f32 target  = nya_clamp(input.move, -1.0F, 1.0F) * tuning.max_speed;
@@ -71,10 +71,9 @@ void nya_character2d_update(NYA_CharacterController2D* controller, NYA_EntityHan
     else if (controller->facing == 0.0F) controller->facing = 1.0F;
 
     /*
-     * ── Jump ──
+     * Jump
      *
-     * Both windows have to be open, and both are consumed on success — leaving either armed lets one
-     * press produce a second jump the instant the character lands.
+     * Both windows must be open and both are consumed, or one press could jump again on landing.
      */
     if (controller->buffer_left_s > 0.0F && controller->coyote_left_s > 0.0F) {
         velocity.y = -tuning.jump_speed;
@@ -99,10 +98,9 @@ void nya_character2d_update(NYA_CharacterController2D* controller, NYA_EntityHan
     if (!rising) controller->jumping = false;
 
     /*
-     * ── Gravity ──
+     * Gravity
      *
-     * Heavier on the way down than on the way up. Honest projectile motion feels floaty, and almost
-     * every platformer worth playing lies about it in exactly this way.
+     * Heavier falling than rising. Honest projectile motion feels floaty.
      */
     f32 gravity = tuning.gravity * (rising ? 1.0F : tuning.fall_gravity_multiplier);
 

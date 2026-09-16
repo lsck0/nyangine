@@ -11,8 +11,8 @@
 #define FLAGS_TARGET_WINDOWS_X86_64 "--target=x86_64-w64-mingw32",
 
 /*
- * There is no FLAGS_TARGET_LINUX_X86_64. Linux is only ever built natively — the Windows host does
- * not target it, see build.h — so there is no host for which that macro would expand to anything.
+ * There is no FLAGS_TARGET_LINUX_X86_64: Linux is only built natively, and the Windows host does not
+ * target it (see build.h).
  */
 
 /** The only resource compiler that exists on a Linux host. */

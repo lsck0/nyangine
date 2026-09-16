@@ -28,9 +28,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/**
- * The longest a chat line may be, in **bytes** including the terminator.
- * */
+/** The longest a chat line may be, in bytes including the terminator. */
 #define NYA_NET_CHAT_TEXT_MAX 256
 
 /**

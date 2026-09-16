@@ -193,9 +193,7 @@
         } else if (((f32)((hset_ptr)->length + 1) / (f32)(hset_ptr)->capacity) > _NYA_HASHSET_LOAD_FACTOR) {                                         \
             nya_hset_resize_and_rehash(hset_ptr, (hset_ptr)->capacity * 2);                                                                          \
         }                                                                                                                                            \
-        /* The probe loop lives in _nya_hset_insert_unchecked and nowhere else. This used to spell                                                   \
-         * out its own copy — same probe, same duplicate check, same "full" message — which is two                                               \
-         * places to keep in step for no gain. nya_hmap_set and nya_dict_set already delegate.  */                                                   \
+        /* The probe loop lives only in _nya_hset_insert_unchecked, as nya_hmap_set and nya_dict_set delegate. */                                    \
         _nya_hset_insert_unchecked(hset_ptr, item);                                                                                                  \
     })
 

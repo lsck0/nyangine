@@ -24,8 +24,8 @@
 #include "nyangine/renderer/render2d_sprite.h"
 #include "nyangine/renderer/render3d.h"
 #include "nyangine/renderer/render_particles.h"
-// The NEAT visualizer needs the renderer, unlike the rest of nn, so it sits with it rather than
-// with the algorithm — the build tool compiles nn with -DNYA_NO_SDL and has no renderer at all.
+// the NEAT visualizer needs the renderer, so it sits with it. The build tool compiles nn with
+// -DNYA_NO_SDL.
 #include "nyangine/nn/nn_draw.h"
 #include "nyangine/nn/nn_neat_draw.h"
 #include "nyangine/debug/debug.h"

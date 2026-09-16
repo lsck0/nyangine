@@ -213,8 +213,7 @@ const NYA_NetChatMessage* nya_net_chat_at(u32 index) {
 void nya_net_chat_append_local(NYA_ConstCString text) {
     char clean[NYA_NET_CHAT_TEXT_MAX] = { 0 };
 
-    // Sanitised even though it never touched a socket. A local notice is often built from something
-    // that *did* — an error string, a name — and the renderer's guarantee should not depend on which.
+    // sanitised even though local: notices are often built from network data such as names or errors.
     if (nya_net_chat_sanitize(text, clean, sizeof(clean)) == 0) return;
 
     NYA_NetChatMessage* message = _nya_net_chat_push();

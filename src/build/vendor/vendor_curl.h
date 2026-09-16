@@ -1,11 +1,10 @@
 /**
  * @file vendor_curl.h
  *
- * libcurl. cmake, static.
+ * libcurl, cmake, static.
  *
- * TLS comes from the platform rather than a vendored copy: schannel on Windows, OpenSSL on Linux.
- * Both are present on any normal system, and neither drags a certificate bundle into the build,
- * since each uses the system trust store.
+ * TLS comes from the platform: schannel on Windows, OpenSSL on Linux. Both use the system trust store,
+ * so no certificate bundle is vendored.
  * */
 #pragma once
 
@@ -25,13 +24,11 @@
 #define CURL_A_WINDOWS_X86_64 CURL_BUILD_WINDOWS_X86_64 "/lib/libcurl.a"
 
 /*
- * Every optional dependency named explicitly, including the ones turned off: cmake auto-detects
- * what it finds on the host, so anything unstated makes the build depend on which -dev packages
- * happen to be installed. nghttp2 and libidn2 were once left off this list, got auto-enabled
- * wherever present, and then failed to link on any machine without them — worked locally, broke CI.
+ * Every optional dependency named explicitly, including disabled ones. cmake auto-detects what the host
+ * has, so anything unstated makes the build depend on installed -dev packages and fails to link
+ * elsewhere.
  *
- * Turning them off costs HTTP/2 and internationalised domain names, neither needed for the JSON
- * REST this is here for.
+ * Disabling them costs HTTP/2 and internationalised domain names, which JSON REST calls do not need.
  */
 #define CURL_CMAKE_COMMON           \
     NYA_CMAKE_STATIC,               \
@@ -59,14 +56,10 @@ NYA_VendorRule vendor_curl_linux_x86_64 = {
     .includes = { "-I./vendor/curl/include/", },
 
     /*
-     * OpenSSL only, because CURL_CMAKE_COMMON turns off everything else that could pull a system
-     * library in. TLS is the one exception the file's header comment already explains: it comes
-     * from the platform rather than being vendored, and OpenSSL is present on any Linux system that
-     * can already browse the web.
+     * OpenSSL only; CURL_CMAKE_COMMON disables every other system library.
      *
-     * Keep this in step with CURL_CMAKE_COMMON above. A dependency enabled there and unnamed here
-     * is a wall of undefined symbols at the final link; named here and disabled there is a library
-     * the linker cannot find. Both have happened.
+     * Keep this in step with CURL_CMAKE_COMMON. Enabled there but not linked here means undefined symbols;
+     * linked here but disabled there means a missing library.
      */
     .linker_flags = { CURL_A_LINUX_X86_64, "-lssl", "-lcrypto", },
 
@@ -99,10 +92,9 @@ NYA_VendorRule vendor_curl_linux_x86_64 = {
 NYA_VendorRule vendor_curl_windows_x86_64 = {
     .name = "curl (windows-x86_64)",
 
-    // CURL_STATICLIB is not optional on Windows. Without it curl.h declares every entry point
-    // __declspec(dllimport), the compiler emits calls through an import thunk, and the link fails
-    // against the static archive with "a relevant symbol is available but cannot be used because it
-    // is not an import library" — which describes the symptom and not the cause.
+    // CURL_STATICLIB is required on Windows. Without it curl.h declares entry points dllimport and linking
+    // the static archive fails with "a relevant symbol is available but cannot be used because it is not
+    // an import library".
     .includes = { "-I./vendor/curl/include/", "-DCURL_STATICLIB", },
 
     // schannel is the Windows TLS stack, so there is no third party crypto to ship at all.

@@ -183,10 +183,8 @@ NYA_Error nya_filesystem_create_directory(NYA_ConstCString path) {
         b8 is_last      = i + 1 == length;
         if (!is_separator && !is_last) continue;
 
-        // Skip the empty component in front of a leading separator, as the POSIX side does. Without
-        // it an absolute path truncated `partial` to "" on the first iteration and handed that to
-        // CreateDirectoryA, which fails with ERROR_PATH_NOT_FOUND rather than ERROR_ALREADY_EXISTS —
-        // so the whole call returned an error for a path that works on Linux.
+        // skip the empty component before a leading separator, as the POSIX side does. Otherwise an absolute
+        // path creates "" first, which fails with ERROR_PATH_NOT_FOUND.
         if (i == 0 && is_separator) continue;
 
         // Do not try to create the bare drive letter in "C:\".
@@ -259,12 +257,10 @@ NYA_INTERNAL NYA_Error
 _nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkCallback callback, void* user_data, u32 depth, OUT b8* out_keep_going) {
     nya_assert(depth < NYA_FILESYSTEM_WALK_DEPTH_MAX, "Maximum directory depth exceeded walking '%s' (symlink loop?).", path);
 
-    // A scratch arena per level, so memory tracks the depth of the tree rather than its total size.
+    // a scratch arena per level, so memory follows tree depth, not size.
     //
-    // Explicitly sized because the default region is a gibibyte, which a sanitized build poisons in
-    // full on creation: a fixed cost per directory that dwarfed the walk itself. A mebibyte holds a
-    // few thousand entries and their joined paths, and a directory larger than that just chains
-    // another region.
+    // Sized explicitly: the default region is a gibibyte, which sanitized builds poison on creation for
+    // every directory. A mebibyte holds a few thousand entries and chains another region beyond that.
     NYA_Arena* scratch = nya_arena_create(.region_size = nya_mebyte_to_byte(1UL));
     defer      nya_arena_destroy(scratch);
 

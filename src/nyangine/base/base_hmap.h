@@ -198,10 +198,8 @@
             iterations++;                                                                                                                            \
         }                                                                                                                                            \
         /*                                                                                                                                           \
-         * Storing and updating both break out early, so a loop that ran to the bound is exactly the                                                 \
-         * one that found no slot. The load factor keeps a quarter of the table free, so reaching                                                    \
-         * here means that invariant is already broken — and returning quietly dropped the entry,                                                  \
-         * which the caller then met as a lookup missing a key it had just set.                                                                      \
+         * Storing and updating break out early, so running to the bound means no slot was found. The load                                           \
+         * factor keeps a quarter free, so this is a broken invariant, not a full table to ignore.                                                   \
          */                                                                                                                                          \
         nya_assert(iterations < (hmap_ptr)->capacity, "Hash map is full; the entry was dropped rather than stored.");                                \
         (void)updated;                                                                                                                               \

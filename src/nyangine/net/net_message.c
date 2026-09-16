@@ -38,8 +38,8 @@ NYA_Error nya_net_message_write_object(NYA_Arena* arena, NYA_String* out, const 
     NYA_String* document = nya_serialize(arena, object, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
     if (document == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not serialize a network message");
 
-    // Length prefixed, so a reader can find the end without parsing — and can skip a document it does
-    // not understand rather than guessing.
+    // length prefixed, so a reader finds the end without parsing and can skip documents it does not
+    // understand.
     u32 length = (u32)document->length;
     for (u32 i = 0; i < 4; i++) nya_string_push_back(out, (u8)((length >> (i * 8)) & 0xFF));
 

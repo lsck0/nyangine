@@ -211,8 +211,7 @@ NYA_Error nya_command_wait(NYA_Command* command) {
                     continue;
                 }
 
-                // The length carrying overload. The cstring one was used here before, which stops at
-                // the first zero byte — so any captured output containing one was silently truncated.
+                // the length carrying overload, so output containing zero bytes is not truncated.
                 nya_string_extend(targets[i], &(NYA_String){ .length = (u64)taken, .items = (u8*)buffer });
                 made_progress = true;
             }

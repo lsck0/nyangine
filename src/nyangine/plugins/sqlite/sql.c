@@ -200,9 +200,8 @@ NYA_Error nya_sql_transaction_rollback(NYA_Database* database) {
 
 void _nya_sql_register_extensions(void) {
     /*
-     * sqlite3_auto_extension takes a `void (*)(void)`, which no entry point actually is — SQLite
-     * calls them back through the real signature. Every project that uses this API casts, upstream's
-     * own documentation included, and there is no version of this that avoids the cast.
+     * sqlite3_auto_extension takes `void (*)(void)` and SQLite calls back through the real signature. The
+     * cast is unavoidable; upstream's documentation does the same.
      */
     static const struct {
         NYA_ConstCString name;
@@ -217,10 +216,8 @@ void _nya_sql_register_extensions(void) {
         nya_memcpy(&as_generic, &extensions[i].entry_point, sizeof(as_generic));
 
         /*
-         * Called on every open rather than guarded by a "have I done this" flag, because SQLite
-         * already does exactly that check: sqlite3_auto_extension scans its list and returns without
-         * appending when the entry point is already there. A flag here would only duplicate it, and
-         * would have to be made thread safe to be correct.
+         * Called on every open: sqlite3_auto_extension already ignores an entry point it has, and a flag here
+         * would need to be thread safe.
          */
         int code = sqlite3_auto_extension(as_generic);
         if (code != SQLITE_OK) {

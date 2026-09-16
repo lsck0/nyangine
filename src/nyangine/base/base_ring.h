@@ -171,13 +171,10 @@
 #define nya_ring_push(ring_ptr, item)                                                                                                                \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (ring_ptr)->items[0]);                                                                                           \
-        /*                                                                                                                                          \
-         * A ring with no slots has nowhere to put this. `items` is null at capacity zero and the    \
-         * wrap below is a modulo by it, so the write went through a null pointer and the wrap was   \
-         * a division by zero. A ring is fixed capacity by construction — a full one overwrites its  \
-         * oldest entry rather than growing — so an empty one is a caller mistake, not a reason to   \
-         * allocate.                                                                                 \
-         */                                                                                         \
+        /*                                                                                                                                           \
+         * A zero capacity ring has null `items` and the wrap is a modulo by capacity. Rings never grow,                                             \
+         * so pushing onto one is a caller mistake.                                                                                                  \
+         */                                                                                                                                          \
         nya_assert((ring_ptr)->capacity > 0, "Cannot push onto a ring buffer with zero capacity.");                                                  \
         (ring_ptr)->items[(ring_ptr)->tail] = item;                                                                                                  \
         (ring_ptr)->tail                    = ((ring_ptr)->tail + 1) % (ring_ptr)->capacity;                                                         \

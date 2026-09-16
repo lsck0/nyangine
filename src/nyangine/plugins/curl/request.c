@@ -96,8 +96,8 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
     curl_easy_setopt(handle, CURLOPT_TIMEOUT_MS, (long)(request.timeout_ms > 0 ? request.timeout_ms : NYA_REQUEST_DEFAULT_TIMEOUT_MS));
     curl_easy_setopt(handle, CURLOPT_NOSIGNAL, 1L);
 
-    // http and https only. Without this a redirect — or a url from a config file — can reach file://
-    // and scp://, which turns "fetch the leaderboard" into an arbitrary local file read.
+    // http and https only. Otherwise a redirect or a configured url could reach file:// or scp:// and read
+    // local files.
     curl_easy_setopt(handle, CURLOPT_PROTOCOLS_STR, "http,https");
     curl_easy_setopt(handle, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
 

@@ -73,7 +73,7 @@ struct NYA_PhysicsHit {
     /** For a sensor event this is the sensor. For an impact the two sides are not ordered. */
     NYA_EntityHandle a;
 
-    /** For a sensor event this is the visitor — what entered or left. */
+    /** For a sensor event, the visitor that entered or left. */
     NYA_EntityHandle b;
 
     /**

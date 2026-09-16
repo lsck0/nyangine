@@ -49,7 +49,7 @@ struct NYA_CharacterTuning2D {
     f32 acceleration;
     f32 deceleration;
 
-    /** Air control as a fraction of ground control. Default 0.65 — less than ground, more than none. */
+    /** Air control as a fraction of ground control. Default 0.65. */
     f32 air_control;
 
     /** Upward speed a jump starts at. Default 520. */

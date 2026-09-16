@@ -82,10 +82,8 @@ void example_runner(NYA_ArgCommand* command) {
                 // or sqlite compiles the plugin away to nothing and appears to do nothing.
                 FLAGS_PLUGINS,
                 LINKER_FLAGS,
-                // FLAGS_DEBUG rather than FLAGS_DEVELOPER: an example is read as documentation and
-                // run to check something works, so unoptimized and assertion-heavy is the right
-                // trade. It does not select the hot reload entry point — that lives in src/main.c,
-                // and an example brings its own main.
+                // FLAGS_DEBUG rather than FLAGS_DEVELOPER: examples are documentation and checks, so unoptimized with
+                // assertions. The hot reload entry point is in src/main.c, and examples bring their own main.
                 FLAGS_DEBUG,
                 // Built to run on this machine right now, so the host set: sanitizers included, which
                 // is what makes an example that leaks or overruns fail loudly rather than pass.
@@ -126,10 +124,8 @@ void example_runner(NYA_ArgCommand* command) {
 
 NYA_ConstCString example_completion_name(u32 index) {
     /*
-     * Listed once and cached, because the completion machinery asks for one name at a time and a
-     * fresh directory listing per index would be quadratic. A file scope static rather than a
-     * parameter: choices_fn takes only an index, and this runs in a short lived process that exits
-     * right after writing the script.
+     * Listed once and cached, since completion asks for one name at a time and relisting per index would be
+     * quadratic. A static because choices_fn only takes an index, in a short lived process.
      */
     static NYA_Arena*            arena    = nullptr;
     static NYA_ArrayᐸNYA_Stringᐳ* examples = nullptr;
@@ -153,8 +149,7 @@ NYA_ConstCString example_completion_name(u32 index) {
 NYA_ArrayᐸNYA_Stringᐳ* _example_discover(NYA_Arena* arena) {
     NYA_ArrayᐸNYA_Stringᐳ* examples = nya_array_create(arena, NYA_String);
 
-    // Missing rather than empty is a normal state — a checkout without examples/ is not broken — so
-    // this reports nothing found rather than failing the command that asked.
+    // a checkout without examples/ is normal, so report nothing found instead of failing.
     if (!nya_filesystem_exists(EXAMPLE_DIRECTORY)) return examples;
 
     NYA_ArrayᐸNYA_DirectoryEntryᐳ* entries = nullptr;

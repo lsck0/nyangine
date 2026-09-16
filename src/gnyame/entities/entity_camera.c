@@ -72,10 +72,7 @@ GNY_CameraView* gny_entity_camera_view(const NYA_Entity* entity) {
 }
 
 NYA_Camera2DTopDown gny_entity_camera_of(const NYA_Entity* entity) {
-    /*
-     * The identity camera when there is none — which is the main menu, where the game layer has not
-     * been pushed and so nothing has created one.
-     */
+    /* The identity camera when there is none, as in the main menu before the game layer creates one. */
     if (entity == nullptr) return (NYA_Camera2DTopDown){ .zoom = 1.0F };
 
     return (NYA_Camera2DTopDown){
@@ -182,8 +179,7 @@ NYA_EntityHandle _gny_entity_camera_spawn(f32x2 position, f32 zoom, u64 flags) {
         .name = "camera",
         .type = GNY_ENTITY_CAMERA,
 
-        // Active so it updates, and deliberately **not** visible: there is nothing to draw, and
-        // leaving the bit set would put it through the render walk every frame for no reason.
+        // active so it updates, but not visible: it draws nothing and would only cost a render walk.
         .state = NYA_ENTITY_STATE_ACTIVE,
 
         .position = { position.x, position.y, 0.0F },

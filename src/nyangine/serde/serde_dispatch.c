@@ -111,6 +111,6 @@ NYA_Error nya_serde_load_file(NYA_Arena* arena, NYA_ConstCString path, NYA_Serde
     NYA_SerdeFormat format = nya_serde_detect_format(contents.items, contents.length);
     if (format == NYA_SERDE_FORMAT_COUNT) return nya_error(NYA_ERROR_CORRUPT, "'%s' is neither the native format nor JSON", path);
 
-    // Into the caller's arena, not the scratch one — the tree is what survives this call.
+    // into the caller's arena, not scratch, since the tree outlives this call.
     return nya_deserialize(arena, contents.items, contents.length, format, flags, out_object);
 }

@@ -83,12 +83,10 @@ struct NYA_FontAtlas {
     f32 descent;
 
     /*
-     * ── The lazily baked glyph table ──
+     * The lazily baked glyph table
      *
-     * Keyed by the face's **glyph index**, not by codepoint, because that is what shaping outputs — see
-     * render_text.h. There is no eager ASCII block any more and there cannot be one: SDL_ttf exposes no
-     * codepoint-to-index mapping, so the only way to learn a glyph's index is to shape text containing
-     * it. Everything is filled in on first use instead, which is what the non-ASCII path always did.
+     * Keyed by glyph index, not codepoint, because shaping outputs indices (see render_text.h). SDL_ttf has
+     * no codepoint to index mapping, so glyphs are baked on first use instead of an eager ASCII block.
      */
 
     NYA_Glyph glyphs[NYA_RENDER2D_GLYPH_CAPACITY];

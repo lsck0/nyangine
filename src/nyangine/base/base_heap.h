@@ -29,11 +29,7 @@
 #pragma once
 
 #include "nyangine/base/base_arena.h"
-// For nya_array_swap and _nya_array_access_guard, which nya_heap_push, nya_heap_pop and
-// nya_heap_peek expand to. This header did not name it, so including base_heap.h on its own and
-// pushing anything failed with "use of undeclared identifier 'nya_array_swap'" — it worked only
-// because base.h happens to include base_array.h first. The same problem build.h's docblock
-// describes, and the reason the build headers were split up.
+// nya_heap_push, nya_heap_pop and nya_heap_peek expand to nya_array_swap and _nya_array_access_guard.
 #include "nyangine/base/base_array.h"
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_memory.h"

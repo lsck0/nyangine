@@ -29,9 +29,7 @@ typedef f64  f64x3 __attr_vector(3);
 typedef f64  f64x4 __attr_vector(4);
 typedef f128 f128x2 __attr_vector(2);
 
-/*
- * ⚠ Four lanes, not three, and that is a compiler workaround rather than a design choice.
- */
+/* Four lanes, not three, as a compiler workaround. */
 typedef f128 f128x3 __attr_vector(4);
 typedef f128 f128x4 __attr_vector(4);
 

@@ -70,8 +70,7 @@ NYA_INTERNAL f32 _nya_nn_draw_slot_y(u32 slot, u32 shown, f32 origin_y, f32 usab
 void nya_nn_draw(NYA_Window* window, NYA_NNSequential* network, NYA_NNGraph* graph, const f32* input, NYA_NNDrawStyle style) {
     nya_assert(window != nullptr);
 
-    // Null is the normal state before anything has been built, so it draws nothing rather than
-    // asserting — a debug overlay must not crash the frame it exists to explain.
+    // null before anything is built, so draw nothing. A debug overlay must not crash the frame.
     if (network == nullptr || graph == nullptr || input == nullptr) return;
     if (network->layer_count == 0) return;
 

@@ -20,10 +20,9 @@ typedef struct {
 
 NYA_INTERNAL const GNY_ActionDefault _GNY_ACTION_DEFAULTS[] = {
     /*
-     * ── The engine's menu actions ──
+     * The engine's menu actions
      *
-     * Bound here rather than by the engine, which ships them unbound on purpose: which keys drive a
-     * menu is a game's decision, and an engine that guessed would be overriding it every startup.
+     * The engine ships them unbound, since which keys drive a menu is the game's decision.
      */
     { .action = NYA_INPUT_ACTION_CONFIRM, .name = "confirm", .primary = NYA_KEY_RETURN, .alternative = NYA_KEY_SPACE },
     { .action = NYA_INPUT_ACTION_CANCEL,  .name = "cancel",  .primary = NYA_KEY_ESCAPE                              },
@@ -34,10 +33,10 @@ NYA_INTERNAL const GNY_ActionDefault _GNY_ACTION_DEFAULTS[] = {
     { .action = NYA_INPUT_ACTION_RIGHT, .name = "menu_right", .primary = NYA_KEY_RIGHT, .alternative = NYA_KEY_D },
 
     /*
-     * ── The game's own ──
+     * The game's own
      *
-     * Movement duplicates the menu's keys and is deliberately a separate action anyway. See
-     * actions.h: sharing one would make "rebind walking without rebinding the menu" unsayable.
+     * Movement uses the menu's keys but is a separate action, so walking can be rebound without the menu.
+     * See actions.h.
      */
     { .action = GNY_ACTION_MOVE_LEFT,  .name = "move_left",  .primary = NYA_KEY_LEFT,  .alternative = NYA_KEY_A },
     { .action = GNY_ACTION_MOVE_RIGHT, .name = "move_right", .primary = NYA_KEY_RIGHT, .alternative = NYA_KEY_D },
@@ -64,9 +63,8 @@ void gny_actions_init(void) {
     for (u32 i = 0; i < nya_carray_length(_GNY_ACTION_DEFAULTS); i++) {
         const GNY_ActionDefault* entry = &_GNY_ACTION_DEFAULTS[i];
 
-        // The engine already named its own seven, and naming two actions the same thing is refused —
-        // so these rows deliberately use different names for the menu directions than the engine's
-        // "up"/"down"/"left"/"right", which is also what a player reading the file wants to see.
+        // the engine already uses "up"/"down"/"left"/"right" and duplicate names are refused, so these rows
+        // use different names for the menu directions.
         nya_input_action_name_set(entry->action, entry->name);
 
         // Rebind rather than bind: this runs again on a hot reload, and binding appends.
@@ -74,8 +72,8 @@ void gny_actions_init(void) {
         if (entry->alternative != NYA_KEY_UNKNOWN) nya_input_action_bind(entry->action, entry->alternative);
     }
 
-    // Music quieter than effects by default, which is a taste the player can now override — and the
-    // override survives, which is the whole point of doing it here rather than in constants.h.
+    // music quieter than effects by default. Set here rather than in constants.h so a player override
+    // persists.
     nya_settings_volume_set(NYA_VOLUME_CHANNEL_MUSIC, GNY_MUSIC_VOLUME_DEFAULT);
 
     /*

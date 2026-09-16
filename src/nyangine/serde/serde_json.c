@@ -320,8 +320,7 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_object(_NYA_SerdeJsonParser* parser
         nya_object_set(object, key, value);
 
         if (_nya_serde_json_accept_symbol(parser, ',')) {
-            // JSONC: a comma may be followed by the closing brace rather than another member. Only
-            // one, and only immediately — "a": 1,, still fails, on the second comma.
+            // JSONC: one trailing comma before the closing brace. `"a": 1,,` still fails on the second comma.
             if (parser->lenient && _nya_serde_json_accept_symbol(parser, '}')) break;
             continue;
         }
@@ -606,10 +605,8 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser
                 }
 
                 /*
-                 * Anything still in the surrogate range did not pair up: a high surrogate with no
-                 * low one after it, or a lone low surrogate. It becomes U+FFFD REPLACEMENT
-                 * CHARACTER, which is what the Unicode standard prescribes and what every other
-                 * reader does.
+                 * Anything still in the surrogate range did not pair up: a high surrogate without a low one, or a
+                 * lone low surrogate. It becomes U+FFFD, as the Unicode standard prescribes.
                  */
                 if (0xD800 <= codepoint && codepoint <= 0xDFFF) codepoint = 0xFFFD;
 

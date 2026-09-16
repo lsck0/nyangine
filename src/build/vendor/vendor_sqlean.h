@@ -1,26 +1,20 @@
 /**
  * @file vendor_sqlean.h
  *
- * sqlean, a set of SQLite extensions. Built into a static archive, one object.
+ * sqlean, a set of SQLite extensions, built into a static archive from one object.
  *
- * sqlean's own Makefile only produces loadable shared extensions (.so / .dll), which is the opposite
- * of how the rest of this tree is linked, so none of it is used. The supported way to use these
- * statically is the way SQLite intends: compile the extension sources into the program and register
- * them with sqlite3_auto_extension rather than loading them at runtime.
+ * sqlean's Makefile only builds loadable shared extensions, so it is not used. The extension sources
+ * are compiled into the program and registered with sqlite3_auto_extension, as SQLite intends for
+ * static use.
  *
- * What gets compiled is src/nyangine/plugins/sqlite/sqlean_extensions.c, a single file in *this*
- * repository that includes the vendored sources it wants and exposes one entry point,
- * `nya_sqlean_init`. Read that file for which extensions are in, which are deliberately out, and
- * why. It is compiled here rather than as part of the engine's translation unit so that third party
- * code is not held to the engine's warning settings, and so that the engine's unity build stays
- * engine code.
+ * The compiled file is src/nyangine/plugins/sqlite/sqlean_extensions.c, which includes the chosen
+ * vendored sources and exposes `nya_sqlean_init`; it lists which extensions are in and why. Built
+ * here, not in the unity build, so third party code is not held to the engine's warnings.
  *
- * The archive is always built and always linked, even when NYA_PLUGIN_SQLITE is off. That costs
- * nothing: an archive member is only pulled into the link if something references it, and with the
- * plugin off nothing references `nya_sqlean_init`.
+ * Always built and linked. With NYA_PLUGIN_SQLITE off nothing references `nya_sqlean_init`, so the
+ * linker pulls in nothing.
  *
- * Link order matters: this archive calls into libsqlite3.a, so it has to appear before it. See the
- * vendor list in vendor.h.
+ * This archive calls into libsqlite3.a, so it must come before it in the link. See vendor.h.
  * */
 #pragma once
 
@@ -51,14 +45,10 @@
 /**
  * What both targets compile the glue with, target flags aside.
  *
- * SQLITE_CORE is the whole point: it tells sqlite3ext.h that this is compiled into the program, so
- * SQLITE_EXTENSION_INIT1 expands to nothing and every sqlite3_* call is a direct one. Without it the
- * extensions would call through a dispatch pointer that only a runtime loader ever sets.
+ * SQLITE_CORE makes SQLITE_EXTENSION_INIT1 expand to nothing so sqlite3_* calls are direct. Without
+ * it they go through a dispatch pointer only a runtime loader sets.
  *
- * -std=c11 rather than the engine's c2y: this is third party code written against an older standard,
- * and there is no reason for it to be dragged forward. Same for the warning level — -w, because
- * these warnings are not actionable here. They belong upstream, and printing them on every clean
- * build only trains everyone to scroll past the build output.
+ * -std=c11 and -w: third party code against an older standard, with warnings that belong upstream.
  * */
 #define SQLEAN_CFLAGS               \
     "-c", "-O2", "-std=c11", "-w",  \
@@ -76,10 +66,8 @@ NYA_VendorRule vendor_sqlean_linux_x86_64 = {
     .parts = {
         &(NYA_BuildRule){
             .name = "vendor_sqlean_linux_x86_64_directory",
-            // ONCE keyed on the directory itself, the way the lz4 and lua metarules are. Without a
-            // policy this falls to NYA_BUILD_ALWAYS, which is the enum's zero, and a metarule short
-            // circuits before any policy is consulted — so it printed a [BUILDING META] line and
-            // re-ran the mkdir on every single ./build, including ones that never touch SQL.
+            // ONCE keyed on the directory, like the lz4 and lua metarules. Without a policy it defaults to
+            // NYA_BUILD_ALWAYS and reruns the mkdir on every ./build.
             .policy      = NYA_BUILD_ONCE,
             .is_metarule = true,
             .output_file = SQLEAN_BUILD_LINUX_X86_64,

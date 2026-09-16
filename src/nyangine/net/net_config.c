@@ -210,7 +210,7 @@ b8 _nya_net_config_matches(NYA_ConstCString argument, NYA_ConstCString name, OUT
         return true;
     }
 
-    // A longer flag that merely starts with this name — `--portable` against `--port`.
+    // a longer flag that starts with this name, like `--portable` against `--port`.
     return false;
 }
 

@@ -287,8 +287,8 @@ NYA_INTERNAL f32 _nya_bezier_solve_x(f32 x1, f32 x2, f32 t) {
     }
 
     /*
-     * Bisection, reached only when Newton did not converge — a flat tangent, or control points that
-     * make x non monotonic and send the iteration oscillating.
+     * Bisection, only when Newton did not converge: a flat tangent, or control points that make x non
+     * monotonic.
      */
     f32 lo = 0.0F, hi = 1.0F;
     for (u32 i = 0; i < 16; i++) {

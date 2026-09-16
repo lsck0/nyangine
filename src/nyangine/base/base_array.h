@@ -160,10 +160,8 @@ nya_derive_array(f128_4x4);
 #define nya_array_resize(arr_ptr, new_capacity)                                                                                                     \
     ({                                                                                                                                              \
         /*                                                                                                                                          \
-         * A first allocation cannot go through nya_arena_realloc, which returns null for a null pointer                                            \
-         * by design — test_arena.c pins that contract. An array created with a capacity of zero, or one                                            \
-         * shrunk to fit while empty, holds exactly that null items pointer, and reallocating it left the                                           \
-         * capacity claiming room that items did not point at.                                                                                      \
+         * A first allocation cannot use nya_arena_realloc, which returns null for a null pointer                                                   \
+         * (test_arena.c pins that). Zero capacity arrays hold a null items pointer.                                                                \
          */                                                                                                                                         \
         (arr_ptr)->items = (arr_ptr)->items == nullptr                                                                                              \
                              ? nya_arena_alloc((arr_ptr)->arena, (new_capacity) * sizeof(*(arr_ptr)->items))                                        \

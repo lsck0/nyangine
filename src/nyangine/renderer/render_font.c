@@ -150,10 +150,8 @@ NYA_Font nya_font_resolve(NYA_Font font) {
 }
 
 b8 nya_font_register(NYA_ConstCString name, NYA_ConstCString path, f32 point_size) {
-    // Registered here rather than at some dedicated init: the registry has none, a zeroed static
-    // array already being a valid empty one, so this call is the first point the count is
-    // meaningful. Guarded so a game (or a test) that registers many fonts over a run does not add
-    // a copy of itself to the ceiling registry on every single call.
+    // registered on first use, since the registry has no init (a zeroed static array is empty). Guarded so
+    // registering many fonts registers the ceiling once.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("fonts", NYA_FONT_REGISTRY_MAX, &_nya_font_registry_count);
@@ -270,8 +268,7 @@ b8 nya_font_sdf_set(NYA_Font font, b8 enabled) {
             return false;
         }
 
-        // The path is held, not copied — the same assumption the name registry makes of its names, and
-        // true of the generated asset handles and string literals every caller actually passes.
+        // the path is held, not copied, like registry names. Callers pass asset handles and string literals.
         *request = (_NYA_FontSdfRequest){ .used = true, .path = font.path, .point_size = font.point_size };
 
         _nya_font_sdf_hook_register();
