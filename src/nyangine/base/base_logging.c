@@ -118,6 +118,26 @@ void nya_log_sink_add(NYA_LogSink sink, void* user_data) {
     _nya_log_sinks[_nya_log_sink_count++] = (_NYA_LogSinkEntry){ .callback = sink, .user_data = user_data };
 }
 
+b8 nya_log_sink_remove(NYA_LogSink sink, void* user_data) {
+    if (sink == nullptr) return false;
+
+    for (u32 i = 0; i < _nya_log_sink_count; i++) {
+        if (_nya_log_sinks[i].callback != sink || _nya_log_sinks[i].user_data != user_data) continue;
+
+        // Shifted down rather than swapped with the last, because sinks are notified in registration
+        // order and a swap would silently reorder the ones that stay. The list is NYA_LOG_SINK_MAX long,
+        // so the move is a handful of entries.
+        for (u32 j = i + 1; j < _nya_log_sink_count; j++) _nya_log_sinks[j - 1] = _nya_log_sinks[j];
+
+        _nya_log_sink_count--;
+        _nya_log_sinks[_nya_log_sink_count] = (_NYA_LogSinkEntry){ 0 };
+
+        return true;
+    }
+
+    return false;
+}
+
 void nya_log_sink_clear(void) {
     _nya_log_sink_count = 0;
 }
@@ -326,6 +346,24 @@ NYA_Error nya_crash_observer_add(NYA_CrashObserver observer, void* user_data) {
 
     _nya_crash_observers[_nya_crash_observer_count++] = (_NYA_CrashObserverEntry){ .callback = observer, .user_data = user_data };
     return NYA_OK;
+}
+
+b8 nya_crash_observer_remove(NYA_CrashObserver observer, void* user_data) {
+    if (observer == nullptr) return false;
+
+    for (u32 i = 0; i < _nya_crash_observer_count; i++) {
+        if (_nya_crash_observers[i].callback != observer || _nya_crash_observers[i].user_data != user_data) continue;
+
+        // Shifted down for the reason nya_log_sink_remove shifts: observers run in registration order.
+        for (u32 j = i + 1; j < _nya_crash_observer_count; j++) _nya_crash_observers[j - 1] = _nya_crash_observers[j];
+
+        _nya_crash_observer_count--;
+        _nya_crash_observers[_nya_crash_observer_count] = (_NYA_CrashObserverEntry){ 0 };
+
+        return true;
+    }
+
+    return false;
 }
 
 void nya_crash_observer_clear(void) {

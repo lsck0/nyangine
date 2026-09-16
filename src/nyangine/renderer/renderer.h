@@ -4,7 +4,6 @@
 
 #include "nyangine/base/base.h"
 #include "nyangine/base/base_types.h"
-#include "nyangine/core/core_event.h"
 #include "nyangine/renderer/render_camera.h"
 #include "nyangine/renderer/render_color.h"
 // The 3D batch embeds an NYA_Render3DLight and an NYA_Render3DMaterial by value, so their

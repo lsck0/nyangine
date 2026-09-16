@@ -174,7 +174,7 @@ NYA_API NYA_Error nya_net_transport_steam_create(NYA_Arena* arena, OUT NYA_NetTr
 
 NYA_API NYA_Error nya_net_transport_listen(NYA_NetTransport* transport, u16 port) __attr_no_discard;
 NYA_API NYA_Error nya_net_transport_connect(NYA_NetTransport* transport, NYA_ConstCString address, u16 port) __attr_no_discard;
-NYA_API NYA_Error nya_net_transport_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size);
+NYA_API NYA_Error nya_net_transport_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size) __attr_no_discard;
 NYA_API b8        nya_net_transport_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event);
 NYA_API void      nya_net_transport_disconnect(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason);
 NYA_API NYA_NetPeerStats nya_net_transport_stats(NYA_NetTransport* transport, NYA_NetPeerId peer) __attr_no_discard;

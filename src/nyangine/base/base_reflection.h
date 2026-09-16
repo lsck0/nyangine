@@ -210,4 +210,4 @@ NYA_API NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflec
 /**
  * The inverse, in place.
  * */
-NYA_API NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance, const NYA_Object* object);
+NYA_API NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance, const NYA_Object* object) __attr_no_discard;

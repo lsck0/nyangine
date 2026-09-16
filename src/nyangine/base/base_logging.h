@@ -113,6 +113,17 @@ NYA_API void         nya_log_level_set(NYA_LogLevel level);
 
 /** Adds a log sink. Sinks are notified in registration order. Silently ignored once full. */
 NYA_API void nya_log_sink_add(NYA_LogSink sink, void* user_data);
+
+/**
+ * Removes the sink registered with exactly this callback and user data. False when it was not there.
+ *
+ * The partner `nya_log_sink_clear` is not: clear drops *everyone's* sink, including the engine's own file
+ * sink, so a caller taking its console window down with clear takes the log file with it. Matching on the
+ * pair rather than the callback alone, because one callback registered twice with different user data is
+ * two sinks.
+ * */
+NYA_API b8 nya_log_sink_remove(NYA_LogSink sink, void* user_data);
+
 NYA_API void nya_log_sink_clear(void);
 
 /*

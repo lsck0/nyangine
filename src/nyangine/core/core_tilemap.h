@@ -375,7 +375,7 @@ NYA_API b8 nya_tilemap_tile_set(NYA_Tilemap* map, u32 layer_index, s32 x, s32 y,
 /**
  * Resizes a tile layer, keeping whatever still fits.
  * */
-NYA_API NYA_Error nya_tilemap_layer_resize(NYA_Tilemap* map, u32 layer_index, u32 width, u32 height);
+NYA_API NYA_Error nya_tilemap_layer_resize(NYA_Tilemap* map, u32 layer_index, u32 width, u32 height) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────
@@ -434,7 +434,7 @@ NYA_API NYA_Error nya_tilemap_autotile_layer(
     u32                 lookup_length,
     NYA_TilemapAutoTile kind,
     b8                  out_of_bounds
-);
+) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -448,4 +448,4 @@ NYA_API NYA_Error nya_tilemap_autotile_layer(
 NYA_API NYA_Object* nya_tilemap_to_object(NYA_Arena* arena, const NYA_Tilemap* map) __attr_no_discard;
 
 /** The same, written to `path`. See nya_tilemap_to_object for what is preserved. */
-NYA_API NYA_Error nya_tilemap_save(const NYA_Tilemap* map, NYA_ConstCString path);
+NYA_API NYA_Error nya_tilemap_save(const NYA_Tilemap* map, NYA_ConstCString path) __attr_no_discard;

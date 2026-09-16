@@ -78,12 +78,12 @@ NYA_API void nya_system_settings_deinit(void);
 /**
  * Writes the settings to NYA_SETTINGS_FILE, atomically.
  * */
-NYA_API NYA_Error nya_settings_save(void);
+NYA_API NYA_Error nya_settings_save(void) __attr_no_discard;
 
 /**
  * Reads NYA_SETTINGS_FILE over the current settings.
  * */
-NYA_API NYA_Error nya_settings_load(void);
+NYA_API NYA_Error nya_settings_load(void) __attr_no_discard;
 
 /** The settings as an object tree, for writing or for showing. Everything comes from `arena`. */
 NYA_API NYA_Object* nya_settings_to_object(NYA_Arena* arena) __attr_no_discard;

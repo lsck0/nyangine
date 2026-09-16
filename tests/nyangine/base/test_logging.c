@@ -7,6 +7,19 @@
 
 static NYA_LogLevel original_level;
 
+static u32 sink_a_hits = 0;
+static u32 sink_b_hits = 0;
+
+static void sink_a(NYA_LogLevel level, NYA_ConstCString message, u32 length, void* user_data) {
+  nya_unused(level, message, length, user_data);
+  sink_a_hits++;
+}
+
+static void sink_b(NYA_LogLevel level, NYA_ConstCString message, u32 length, void* user_data) {
+  nya_unused(level, message, length, user_data);
+  sink_b_hits++;
+}
+
 s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_log_level_get / nya_log_level_set
@@ -142,10 +155,36 @@ s32 main(void) {
   nya_log_info("Long message: %s", cstr);
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: nya_log_sink_remove takes out one sink and leaves the others
+  // ─────────────────────────────────────────────────────────────────────────────
+  nya_log_sink_add(sink_a, nullptr);
+  nya_log_sink_add(sink_b, nullptr);
+
+  sink_a_hits = 0;
+  sink_b_hits = 0;
+  nya_log_info("both sinks");
+  nya_check(sink_a_hits == 1, "sink_a should have seen the line, saw %u", sink_a_hits);
+  nya_check(sink_b_hits == 1, "sink_b should have seen the line, saw %u", sink_b_hits);
+
+  nya_check(nya_log_sink_remove(sink_a, nullptr), "removing a registered sink should report true");
+
+  sink_a_hits = 0;
+  sink_b_hits = 0;
+  nya_log_info("only sink_b");
+  nya_check(sink_a_hits == 0, "sink_a was removed and should see nothing, saw %u", sink_a_hits);
+  nya_check(sink_b_hits == 1, "sink_b should survive the removal, saw %u", sink_b_hits);
+
+  // The same pair twice, and a pair that was never added: both are misses, not failures.
+  nya_check(!nya_log_sink_remove(sink_a, nullptr), "removing a sink twice should report false");
+  nya_check(!nya_log_sink_remove(sink_a, (void*)1), "a different user_data is a different sink");
+
+  nya_log_sink_clear();
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
   // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(original_level);
   nya_arena_destroy(arena);
 
-  return 0;
+  return nya_check_failures() == 0 ? 0 : 1;
 }

@@ -56,4 +56,14 @@ NYA_API void nya_log_file_flush(void);
  * written is not something to discover after the crash.
  * */
 NYA_API NYA_Error nya_crash_observer_add(NYA_CrashObserver observer, void* user_data) __attr_no_discard;
+
+/**
+ * Removes the observer registered with exactly this callback and user data. False when it was not there.
+ *
+ * The partner `nya_crash_observer_clear` is not: clear drops every observer, including whatever the crash
+ * reporter installed at startup, so a caller taking its own overlay down with clear takes the report with
+ * it. Matched on the pair, because one callback registered twice with different user data is two observers.
+ * */
+NYA_API b8 nya_crash_observer_remove(NYA_CrashObserver observer, void* user_data);
+
 NYA_API void      nya_crash_observer_clear(void);

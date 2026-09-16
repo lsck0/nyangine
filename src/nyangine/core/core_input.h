@@ -462,7 +462,7 @@ NYA_API void nya_input_text_area_set(NYA_WindowHandle window, f32 x, f32 y, f32 
 NYA_API NYA_ConstCString nya_clipboard_text(NYA_Arena* arena) __attr_no_discard;
 
 /** Puts `text` on the system clipboard. */
-NYA_API NYA_Error nya_clipboard_text_set(NYA_ConstCString text);
+NYA_API NYA_Error nya_clipboard_text_set(NYA_ConstCString text) __attr_no_discard;
 
 /** Whether the clipboard holds any text. Cheaper than fetching it to find out. */
 NYA_API b8 nya_clipboard_has_text(void) __attr_no_discard;

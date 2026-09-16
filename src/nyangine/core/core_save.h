@@ -71,7 +71,7 @@ struct NYA_SaveSystem {
 /**
  * Resolves the save root and creates it. Called by nya_app_init before the settings system comes up.
  * */
-NYA_API NYA_Error nya_system_save_init(void);
+NYA_API NYA_Error nya_system_save_init(void) __attr_no_discard;
 NYA_API void      nya_system_save_deinit(void);
 
 /*
