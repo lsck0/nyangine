@@ -4,8 +4,9 @@
 #include "nyangine/nyangine.h"
 
 u64 nya_clock_get_timestamp_s(void) {
+    // precise, so a file written a moment ago never reads as newer than now; the plain call ticks every ~15 ms.
     FILETIME ft;
-    GetSystemTimeAsFileTime(&ft);
+    GetSystemTimePreciseAsFileTime(&ft);
 
     // Convert FILETIME to 64-bit
     u64 time = ((u64)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
@@ -17,8 +18,9 @@ u64 nya_clock_get_timestamp_s(void) {
 }
 
 u64 nya_clock_get_timestamp_ms(void) {
+    // precise, so a file written a moment ago never reads as newer than now; the plain call ticks every ~15 ms.
     FILETIME ft;
-    GetSystemTimeAsFileTime(&ft);
+    GetSystemTimePreciseAsFileTime(&ft);
 
     // Convert FILETIME to 64-bit
     u64 time = ((u64)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
@@ -30,8 +32,9 @@ u64 nya_clock_get_timestamp_ms(void) {
 }
 
 u64 nya_clock_get_timestamp_µs(void) {
+    // precise, so a file written a moment ago never reads as newer than now; the plain call ticks every ~15 ms.
     FILETIME ft;
-    GetSystemTimeAsFileTime(&ft);
+    GetSystemTimePreciseAsFileTime(&ft);
 
     // Convert FILETIME to 64-bit
     u64 time = ((u64)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
@@ -43,8 +46,9 @@ u64 nya_clock_get_timestamp_µs(void) {
 }
 
 u64 nya_clock_get_timestamp_ns(void) {
+    // precise, so a file written a moment ago never reads as newer than now; the plain call ticks every ~15 ms.
     FILETIME ft;
-    GetSystemTimeAsFileTime(&ft);
+    GetSystemTimePreciseAsFileTime(&ft);
 
     // Convert FILETIME to 64-bit
     u64 time = ((u64)ft.dwHighDateTime << 32) | ft.dwLowDateTime;

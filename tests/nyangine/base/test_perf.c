@@ -90,12 +90,13 @@ s32 main(void) {
   u64                  first_elapsed       = restart_measurement->last_elapsed_ms;
   nya_assert(first_elapsed >= 4);
 
+  // well past the first, since Windows sleeps in ~15.6 ms steps.
   nya_perf_timer_start("restart_timer");
-  sleep_ms(15);
+  sleep_ms(40);
   nya_perf_timer_stop("restart_timer");
 
   u64 second_elapsed = restart_measurement->last_elapsed_ms;
-  nya_assert(second_elapsed >= 14);
+  nya_assert(second_elapsed >= 39);
   nya_assert(second_elapsed > first_elapsed);
 
   // ─────────────────────────────────────────────────────────────────────────────

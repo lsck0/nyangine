@@ -9,10 +9,21 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Win32 counts 100ns ticks from 1601; the rest of the engine uses unix seconds. */
-/**
- * A FILETIME as the milliseconds since the unix epoch NYA_FileInfo documents.
- * */
+/** GetLastError as an error kind, so callers can tell a missing file from a denied one, as on Linux. */
+NYA_INTERNAL NYA_ErrorKind _nya_filesystem_last_error_kind(void) {
+    switch (GetLastError()) {
+        case ERROR_FILE_NOT_FOUND:
+        case ERROR_PATH_NOT_FOUND:
+        case ERROR_INVALID_DRIVE:  return NYA_ERROR_NOT_FOUND;
+        case ERROR_ACCESS_DENIED:
+        case ERROR_SHARING_VIOLATION: return NYA_ERROR_PERMISSION_DENIED;
+        case ERROR_FILE_EXISTS:
+        case ERROR_ALREADY_EXISTS: return NYA_ERROR_ALREADY_EXISTS;
+        default:                   return NYA_ERROR_IO;
+    }
+}
+
+/** Win32 counts 100ns ticks from 1601; NYA_FileInfo documents milliseconds since the unix epoch. */
 NYA_INTERNAL u64 _nya_filesystem_time_from_filetime(FILETIME time) {
     ULARGE_INTEGER ticks;
     ticks.LowPart  = time.dwLowDateTime;
@@ -141,7 +152,7 @@ NYA_Error nya_filesystem_move(NYA_ConstCString old_path, NYA_ConstCString new_pa
      * MoveFileExA with MOVEFILE_REPLACE_EXISTING matches the behavior of rename() on POSIX.
      */
     if (!MoveFileExA(old_path, new_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED)) {
-        return nya_error(NYA_ERROR_IO, "failed to move '%s' to '%s' (error %lu)", old_path, new_path, GetLastError());
+        return nya_error(_nya_filesystem_last_error_kind(), "failed to move '%s' to '%s' (error %lu)", old_path, new_path, GetLastError());
     }
 
     return NYA_OK;
@@ -151,7 +162,7 @@ NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destinat
     nya_assert(source != nullptr);
     nya_assert(destination != nullptr);
 
-    if (!CopyFileA(source, destination, FALSE)) return nya_error(NYA_ERROR_IO, "failed to copy '%s' to '%s'", source, destination);
+    if (!CopyFileA(source, destination, FALSE)) return nya_error(_nya_filesystem_last_error_kind(), "failed to copy '%s' to '%s'", source, destination);
     return NYA_OK;
 }
 
@@ -160,11 +171,11 @@ NYA_Error nya_filesystem_delete(NYA_ConstCString path) {
 
     // DeleteFileA refuses directories, so the right call depends on what is actually there.
     if (nya_filesystem_is_directory(path)) {
-        if (!RemoveDirectoryA(path)) return nya_error(NYA_ERROR_IO, "failed to delete directory '%s'", path);
+        if (!RemoveDirectoryA(path)) return nya_error(_nya_filesystem_last_error_kind(), "failed to delete directory '%s'", path);
         return NYA_OK;
     }
 
-    if (!DeleteFileA(path)) return nya_error(NYA_ERROR_IO, "failed to delete '%s'", path);
+    if (!DeleteFileA(path)) return nya_error(_nya_filesystem_last_error_kind(), "failed to delete '%s'", path);
     return NYA_OK;
 }
 
@@ -195,7 +206,7 @@ NYA_Error nya_filesystem_create_directory(NYA_ConstCString path) {
         if (truncated) partial[i] = '\0';
 
         if (!CreateDirectoryA(partial, nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) {
-            return nya_error(NYA_ERROR_IO, "failed to create directory '%s'", partial);
+            return nya_error(_nya_filesystem_last_error_kind(), "failed to create directory '%s'", partial);
         }
 
         if (truncated) partial[i] = saved;
@@ -406,7 +417,7 @@ NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file)
     }
 
     HANDLE handle = CreateFileA(path, access, FILE_SHARE_READ, nullptr, creation, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (handle == INVALID_HANDLE_VALUE) return nya_error(NYA_ERROR_IO, "failed to open '%s'", path);
+    if (handle == INVALID_HANDLE_VALUE) return nya_error(_nya_filesystem_last_error_kind(), "failed to open '%s'", path);
 
     *out_file = (NYA_File){ .handle = handle, .is_open = true };
     return NYA_OK;
@@ -522,7 +533,7 @@ NYA_Error nya_filesystem_working_directory(NYA_Arena* arena, OUT NYA_String** ou
 NYA_Error nya_filesystem_working_directory_set(NYA_ConstCString path) {
     nya_assert(path != nullptr);
 
-    if (!SetCurrentDirectoryA(path)) return nya_error(NYA_ERROR_IO, "failed to set the working directory to '%s'", path);
+    if (!SetCurrentDirectoryA(path)) return nya_error(_nya_filesystem_last_error_kind(), "failed to set the working directory to '%s'", path);
     return NYA_OK;
 }
 

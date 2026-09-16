@@ -54,8 +54,11 @@ s32 main(void) {
   // TEST: sentinel block exists in this test binary
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    NYA_String   binary = nya_string_create_on_stack(arena);
-    NYA_Error   r      = nya_file_read("/proc/self/exe", &binary);
+    NYA_String* executable = nullptr;
+    NYA_EXPECT(nya_filesystem_executable_path(arena, &executable));
+
+    NYA_String binary = nya_string_create_on_stack(arena);
+    NYA_Error  r      = nya_file_read(executable, &binary);
     nya_assert(r.ok);
     nya_assert(binary.length > 0);
 
