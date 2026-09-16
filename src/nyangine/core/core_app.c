@@ -28,6 +28,14 @@ NYA_INTERNAL void _nya_app_update(void);
 NYA_INTERNAL void _nya_app_render(void);
 
 /**
+ * Whether any live window holds input focus. Drives the unfocused frame cap.
+ *
+ * Any rather than all: a game with a tool window beside its main one is still being worked in, and
+ * slowing both down because the inspector is the focused one would be the wrong answer.
+ * */
+NYA_INTERNAL b8 _nya_app_any_window_has_focus(void) __attr_no_discard;
+
+/**
  * Renders, and keeps simulating, while the window is being dragged by its edge.
  * */
 NYA_INTERNAL bool SDLCALL _nya_app_live_resize_event_watch(void* userdata, SDL_Event* event);
@@ -424,11 +432,24 @@ void nya_app_run(void) {
         app->frame_stats.work_ns  = app->frame_stats.frame_end_time_ns - app->frame_stats.frame_start_time_ns;
         app->frame_stats.sleep_ns = 0;
 
-        if (!app->options.vsync_enabled && app->options.frame_rate_limit > 0) {
-            if (app->frame_stats.work_ns < app->frame_stats.min_frame_time_ns) { /**/
-                app->frame_stats.sleep_ns = app->frame_stats.min_frame_time_ns - app->frame_stats.work_ns;
-                SDL_DelayNS(app->frame_stats.sleep_ns);
-            }
+        /*
+         * The unfocused cap wins while nothing has focus, and applies even under vsync.
+         *
+         * vsync caps at the display's rate; this asks for slower than that, so sleeping here lands before
+         * the swap would have blocked rather than fighting it. The focused cap keeps its old condition,
+         * because asking for *faster* than vsync is the case the two really do disagree about.
+         */
+        u64 floor_ns = 0;
+
+        if (app->options.unfocused_frame_rate_limit > 0 && !_nya_app_any_window_has_focus()) {
+            floor_ns = 1'000'000'000 / (u64)app->options.unfocused_frame_rate_limit;
+        } else if (!app->options.vsync_enabled && app->options.frame_rate_limit > 0) {
+            floor_ns = app->frame_stats.min_frame_time_ns;
+        }
+
+        if (floor_ns > 0 && app->frame_stats.work_ns < floor_ns) {
+            app->frame_stats.sleep_ns = floor_ns - app->frame_stats.work_ns;
+            SDL_DelayNS(app->frame_stats.sleep_ns);
         }
     }
 }
@@ -517,6 +538,17 @@ void _nya_app_update(void) {
             .type = NYA_EVENT_UPDATING_ENDED,
         });
     }
+}
+
+b8 _nya_app_any_window_has_focus(void) {
+    for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
+        NYA_Window* window = nya_window_at_slot(slot);
+        if (window == nullptr) continue;
+
+        if (nya_window_has_focus(window->handle)) return true;
+    }
+
+    return false;
 }
 
 void _nya_app_render(void) {

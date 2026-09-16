@@ -154,6 +154,14 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/**
+ * Frames per second while the game has no focus. See NYA_AppOptions.unfocused_frame_rate_limit.
+ *
+ * Fifteen: still animating, so alt-tabbing back does not show a frozen scene catching up, at an eighth of
+ * the focused cap's GPU cost. Zero would leave it drawing at full rate behind another window.
+ * */
+#define GNY_UNFOCUSED_FRAME_RATE 15
+
 /** Level the background track sits at, under the master and music gains. */
 #define GNY_MUSIC_GAIN 0.45F
 

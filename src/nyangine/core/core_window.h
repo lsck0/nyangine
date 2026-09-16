@@ -33,6 +33,7 @@ typedef enum NYA_WindowFlags    NYA_WindowFlags;
 typedef enum NYA_FlashOperation NYA_FlashOperation;
 typedef struct NYA_Layer        NYA_Layer;
 typedef enum NYA_CursorShape NYA_CursorShape;
+typedef enum NYA_WindowRegion   NYA_WindowRegion;
 typedef struct NYA_Window       NYA_Window;
 typedef struct NYA_WindowSystem NYA_WindowSystem;
 typedef struct NYA_DisplayMode  NYA_DisplayMode;
@@ -106,6 +107,36 @@ enum NYA_WindowFlags {
     NYA_WINDOW_UTILITY            = SDL_WINDOW_UTILITY,
 };
 
+/**
+ * What a point in a window is, when the window is asked. See nya_window_region_set.
+ *
+ * The values are SDL's, so the two never drift.
+ * */
+enum NYA_WindowRegion {
+    /** Ordinary content: clicks go to the app. */
+    NYA_WINDOW_REGION_NORMAL = SDL_HITTEST_NORMAL,
+
+    /** Dragging here moves the whole window, the way a title bar does. */
+    NYA_WINDOW_REGION_DRAGGABLE = SDL_HITTEST_DRAGGABLE,
+
+    NYA_WINDOW_REGION_RESIZE_TOP_LEFT     = SDL_HITTEST_RESIZE_TOPLEFT,
+    NYA_WINDOW_REGION_RESIZE_TOP          = SDL_HITTEST_RESIZE_TOP,
+    NYA_WINDOW_REGION_RESIZE_TOP_RIGHT    = SDL_HITTEST_RESIZE_TOPRIGHT,
+    NYA_WINDOW_REGION_RESIZE_RIGHT        = SDL_HITTEST_RESIZE_RIGHT,
+    NYA_WINDOW_REGION_RESIZE_BOTTOM_RIGHT = SDL_HITTEST_RESIZE_BOTTOMRIGHT,
+    NYA_WINDOW_REGION_RESIZE_BOTTOM       = SDL_HITTEST_RESIZE_BOTTOM,
+    NYA_WINDOW_REGION_RESIZE_BOTTOM_LEFT  = SDL_HITTEST_RESIZE_BOTTOMLEFT,
+    NYA_WINDOW_REGION_RESIZE_LEFT         = SDL_HITTEST_RESIZE_LEFT,
+};
+
+/**
+ * Asked what the point `x`, `y` in `window` is. Window coordinates, origin at the top left.
+ *
+ * Called by the platform while the pointer moves, not on the frame loop, so it does what a hit test does
+ * and nothing else: no allocation, no drawing, no state a frame also writes.
+ * */
+typedef NYA_WindowRegion (*NYA_WindowRegionFn)(NYA_WindowHandle window, s32 x, s32 y, void* user_data);
+
 enum NYA_FlashOperation {
     NYA_FLASH_CANCEL        = SDL_FLASH_CANCEL,
     NYA_FLASH_BRIEFLY       = SDL_FLASH_BRIEFLY,
@@ -130,6 +161,13 @@ struct NYA_Window {
     u32 screen_height;
 
     NYA_ArrayᐸNYA_Layerᐳ* layer_stack;
+
+    /**
+     * What the platform asks when it wants to know what a point in this window is, and the data it is
+     * handed. Zero until nya_window_region_set installs one. See NYA_WindowRegionFn.
+     * */
+    NYA_CallbackHandle on_region;
+    void*              region_user_data;
 
     NYA_RenderSystemWindow render_system;
 };
@@ -305,6 +343,31 @@ NYA_API void nya_window_set_title(NYA_WindowHandle window, NYA_ConstCString titl
 NYA_API NYA_Error nya_window_set_icon(NYA_WindowHandle window, const u8* data, u64 size) __attr_no_discard;
 NYA_API void nya_window_set_fullscreen(NYA_WindowHandle window, b8 fullscreen);
 NYA_API void nya_window_set_borderless(NYA_WindowHandle window, b8 borderless);
+
+/**
+ * Installs the function the platform asks what a point in the window is. Null removes it.
+ *
+ * ```c
+ * // A borderless widget the whole surface of which drags it around.
+ * NYA_INTERNAL NYA_WindowRegion pet_region(NYA_WindowHandle window, s32 x, s32 y, void* user_data) {
+ *     nya_unused(window, x, y, user_data);
+ *     return NYA_WINDOW_REGION_DRAGGABLE;
+ * }
+ *
+ * nya_window_region_set(window, nya_callback(pet_region), nullptr);
+ * ```
+ *
+ * What a window with NYA_WINDOW_BORDERLESS needs to be movable at all: with no title bar there is nothing
+ * for the window manager to drag, so the app has to say which of its own pixels do that job.
+ *
+ * ⚠ **The platform calls this, not the frame loop.** It runs while the pointer moves, on whatever thread
+ * the window system uses, so it must not allocate, draw, or touch state a frame is also writing. Answer
+ * from geometry the callback already has.
+ *
+ * Through a callback handle rather than a raw pointer, like every other hook here, so it survives a code
+ * hot reload.
+ * */
+NYA_API void nya_window_region_set(NYA_WindowHandle window, NYA_CallbackHandle on_region, void* user_data);
 NYA_API void nya_window_set_resizable(NYA_WindowHandle window, b8 resizable);
 NYA_API void nya_window_set_always_on_top(NYA_WindowHandle window, b8 always_on_top);
 NYA_API void nya_window_set_opacity(NYA_WindowHandle window, f32 opacity);

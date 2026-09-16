@@ -30,11 +30,30 @@ typedef struct NYA_App        NYA_App;
 typedef struct NYA_AppOptions NYA_AppOptions;
 typedef struct NYA_FrameStats NYA_FrameStats;
 
-#define _NYA_APP_DEFAULT_OPTIONS .time_step_ns = nya_time_ms_to_ns(16), .frame_rate_limit = 120, .vsync_enabled = false, .max_concurrent_jobs = 4
+#define _NYA_APP_DEFAULT_OPTIONS                                                                                                             \
+    .time_step_ns = nya_time_ms_to_ns(16), .frame_rate_limit = 120, .unfocused_frame_rate_limit = 0, .vsync_enabled = false,                  \
+    .max_concurrent_jobs = 4
 
 struct NYA_AppOptions {
     u64 time_step_ns;
     u32 frame_rate_limit;
+
+    /**
+     * Frames per second to cap at while no window has focus. **Zero leaves the focused cap in force.**
+     *
+     * What a window sitting in the corner of somebody's screen needs: it is unfocused almost all of its
+     * life, and a desktop widget animating at 120fps behind the window somebody is actually working in is
+     * spending a GPU on nothing. Fifteen still reads as alive.
+     *
+     * Applied even with `vsync_enabled`, unlike `frame_rate_limit`: vsync caps at the display's rate and
+     * this is asking for slower than that, so the two do not disagree — the sleep simply lands before the
+     * swap would have blocked.
+     *
+     * An occluded window is a separate and stronger case, already handled: nya_render_begin refuses one,
+     * so a fully covered window draws nothing at all whatever this says.
+     * */
+    u32 unfocused_frame_rate_limit;
+
     b8  vsync_enabled;
     u8  max_concurrent_jobs;
 };

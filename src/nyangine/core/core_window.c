@@ -461,6 +461,40 @@ void nya_window_set_borderless(NYA_WindowHandle window, b8 borderless) {
     if (target) SDL_SetWindowBordered(target->sdl_window, !borderless);
 }
 
+/**
+ * The trampoline SDL calls, which resolves the handle and hands back the caller's answer.
+ *
+ * Separate from the caller's function because SDL's signature is SDL's: an SDL_Window and an SDL_Point
+ * where the engine speaks handles and two integers. Resolving the callback here rather than storing a
+ * function pointer is what makes the hook survive a code hot reload.
+ * */
+NYA_INTERNAL SDL_HitTestResult SDLCALL _nya_window_hit_test(SDL_Window* sdl_window, const SDL_Point* area, void* data) {
+    NYA_Window* target = data;
+
+    // Defensive rather than asserted: this runs on the window system's thread while the pointer moves, and
+    // a crash there would be reported from a stack the game never entered.
+    if (target == nullptr || area == nullptr || target->sdl_window != sdl_window) return SDL_HITTEST_NORMAL;
+
+    NYA_WindowRegionFn on_region = nya_callback_get(target->on_region);
+    if (on_region == nullptr) return SDL_HITTEST_NORMAL;
+
+    return (SDL_HitTestResult)on_region(target->handle, area->x, area->y, target->region_user_data);
+}
+
+void nya_window_region_set(NYA_WindowHandle window, NYA_CallbackHandle on_region, void* user_data) {
+    NYA_Window* target = _nya_window_require(window, "nya_window_region_set");
+    if (target == nullptr) return;
+
+    target->on_region        = on_region;
+    target->region_user_data = user_data;
+
+    // Null clears it on SDL's side too, so a window that stops answering stops being asked rather than
+    // being asked and always saying NORMAL.
+    b8 ok = SDL_SetWindowHitTest(target->sdl_window, on_region != 0 ? _nya_window_hit_test : nullptr, target);
+
+    if (!ok) nya_log_warn("SDL_SetWindowHitTest() failed for window '%s': %s", target->title, SDL_GetError());
+}
+
 void nya_window_set_resizable(NYA_WindowHandle window, b8 resizable) {
     NYA_Window* target = _nya_window_require(window, "nya_window_set_resizable");
     if (target) SDL_SetWindowResizable(target->sdl_window, resizable);

@@ -45,7 +45,13 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
     // The engine reports rather than panics now, so this is the game deciding what a failed startup
     // means. For a game it means stop: there is no sensible fallback for having no GPU. NYA_EXPECT
     // routes the message and a backtrace through the crash sink on the way out.
-    NYA_EXPECT(nya_app_init(.time_step_ns = time_step_ns), "while starting the engine");
+    // The unfocused cap is set here rather than left at zero so the engine's own feature has a caller:
+    // alt-tabbing away from the game drops it to GNY_UNFOCUSED_FRAME_RATE rather than leaving it drawing
+    // at full rate behind whatever the player switched to.
+    NYA_EXPECT(
+        nya_app_init(.time_step_ns = time_step_ns, .unfocused_frame_rate_limit = GNY_UNFOCUSED_FRAME_RATE),
+        "while starting the engine"
+    );
 
     // Before the window, because a layer's on_create is entitled to ask what a key is bound to — and
     // before anything reads a volume, since this is where the player's settings are loaded.
