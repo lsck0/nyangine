@@ -85,6 +85,11 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
 
     gny_layers_init();
     gny_window_main_create();
+
+    // straight into a scene when asked, so a profile or a smoke run does not have to drive the menu.
+    NYA_ConstCString screen = getenv("GNYAME_SCREEN");
+    if (screen != nullptr && nya_string_equals(screen, "cube3d")) gny_screen_cube3d();
+    if (screen != nullptr && nya_string_equals(screen, "game")) gny_screen_start_game();
 }
 
 /*

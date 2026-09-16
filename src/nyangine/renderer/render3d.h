@@ -214,6 +214,11 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
 #define NYA_RENDER3D_MAX_REGISTERED_MESHES 256
 #endif
 
+/** Longest handle a registered mesh may have, terminator included. The registry keeps its own copy. */
+#ifndef NYA_RENDER3D_MESH_HANDLE_MAX
+#define NYA_RENDER3D_MESH_HANDLE_MAX 128
+#endif
+
 /** Segments around a sphere's equator. Halved for the rings from pole to pole. */
 /**
  * The handle the shared unit sphere is registered under, by the first nya_render3d_sphere of the run.

@@ -1082,7 +1082,8 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
             SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->registered_meshes[i].pending_upload);
         }
 
-        mesh_batch->registered_meshes[i] = (NYA_Render3DRegisteredMesh){ 0 };
+        mesh_batch->registered_meshes[i]    = (NYA_Render3DRegisteredMesh){ 0 };
+        mesh_batch->registered_mesh_keys[i] = 0;
     }
 
     // The refraction capture, created lazily by the first glass draw. Same lifetime rule as the shadow map.

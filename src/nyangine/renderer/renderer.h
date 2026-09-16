@@ -452,8 +452,12 @@ struct NYA_Render3DSortKey {
 typedef struct NYA_Render3DRegisteredMesh NYA_Render3DRegisteredMesh;
 
 struct NYA_Render3DRegisteredMesh {
-    /** Compared by pointer, like a mesh group's. Null means the slot is free. */
-    NYA_ConstCString handle;
+    /**
+     * A copy of the handle, compared by content. A pointer key breaks for a handle built in a caller's
+     * buffer and for every literal in the game DLL after a hot reload, which re-registered the mesh into a
+     * new slot each time and leaked the old one. Empty means the slot is free.
+     * */
+    char handle[NYA_RENDER3D_MESH_HANDLE_MAX];
 
     SDL_GPUBuffer* vertices;
     u32            vertex_count;
@@ -690,6 +694,9 @@ struct NYA_Render3DBatch {
      * generated meshes, not hundreds — and a linear scan over a few pointers beats hashing a string.
      * */
     NYA_Render3DRegisteredMesh registered_meshes[NYA_RENDER3D_MAX_REGISTERED_MESHES];
+
+    /** FNV-1a of each slot's handle, zero for a free slot, scanned apart from the slots so a lookup stays in cache. */
+    u64 registered_mesh_keys[NYA_RENDER3D_MAX_REGISTERED_MESHES];
 
     /** Ink width in world units, and its colour. Zero width switches the outline pass off. */
     f32       outline_thickness;
