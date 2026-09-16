@@ -2768,6 +2768,17 @@ b8 _nya_render3d_visible(const NYA_Render3DBatch* batch, f32x3 center, f32 radiu
      */
     if (batch->occlusion == nullptr) return true;
 
+    /*
+     * Never during a shadow pass.
+     *
+     * The buffer is built for one viewpoint — nya_occlusion_begin takes that camera's view-projection —
+     * and a shadow pass draws from the light. What the camera cannot see still casts a shadow onto ground
+     * the camera can: cull the caster and the shadow disappears from open floor, which reads as shadows
+     * blinking out as a wall passes in front of the thing casting them. The frustum test above stays,
+     * because _nya_render3d_frustum_build rebuilt it from the light's matrix.
+     */
+    if (batch->shadow_pass_active) return true;
+
     if (!nya_occlusion_test(batch->occlusion, center, radius)) return true;
 
     ((NYA_Render3DBatch*)batch)->frame_occluded++;
