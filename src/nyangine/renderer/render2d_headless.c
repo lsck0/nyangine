@@ -1,11 +1,9 @@
 /**
  * @file render2d_headless.c
  *
- * ⚠ **Two things are emphatically not stubbed, because stubbing them was a bug.** The camera and text
- * *measurement* are both computed exactly, by the same code the real renderer runs — see
- * render_camera.c and render_text.h. Neither needs a GPU, and answering zero for them meant a headless
- * caller observed a world the real build would never have handed it. Drawing is still a no-op, which
- * is the one thing a build with no device genuinely cannot do.
+ * Drawing is a no-op. Camera and text measurement are exact, from the same code the real renderer
+ * runs (render_camera.c, render_text.c), because game logic reads them back and tests must see what
+ * the real build sees.
  * */
 #include "nyangine/nyangine.h"
 
@@ -85,11 +83,7 @@ void nya_render2d_circle(NYA_Window* window, f32x2 center, f32 radius, NYA_Color
     nya_unused(window, center, radius, color);
 }
 
-/*
- * The camera is the one piece of state a headless build still has to model, because game logic reads
- * it back and converts through it — and every one of these has to agree with render2d.c exactly, or a
- * test observes a camera the real build would never hand it.
- */
+/* Game logic reads the camera back and converts through it, so this must agree with render2d.c. */
 void nya_render2d_camera_set(NYA_Window* window, NYA_Camera2DTopDown camera) {
     nya_assert(window != nullptr);
 
@@ -175,16 +169,8 @@ void nya_render2d_texture_rect(
 }
 
 /*
- * ── Text ──
- *
- * ⚠ **These used to return zero, and that is what item 4.4 was really about.** A headless build had no
- * text path at all, so nothing under tests/ could reach the layout code — which is how a kerning hash
- * whose multiply wrapped got through 152 tests and two clean builds and then aborted the first frame
- * that drew a character. The same drift as the camera, one layer down and with worse consequences.
- *
- * They answer properly now, and not by reimplementing anything: laying text out needs no GPU, so both
- * builds call the same render_text.c. What a headless build genuinely cannot do is *rasterise*, so the
- * draws below are still stubs while every measurement is exact.
+ * Text. Layout needs no GPU, so both builds call render_text.c and measurements are exact. Only
+ * rasterising is stubbed. Returning zero here once hid a kerning hash overflow from every test.
  */
 
 /** The current font, mirrored so the measurements that take no font can find one. */

@@ -33,9 +33,8 @@ NYA_INTERNAL void      _nya_build_report(NYA_BuildRule* build_rule);
 NYA_Error nya_build(NYA_BuildRule* build_rule) {
     nya_assert(build_rule != nullptr);
 
-    // A new top level build starts a new epoch. Nested calls share it, which is what makes the memo
-    // below scoped to one invocation rather than to the lifetime of the process — NYA_BUILD_ALWAYS
-    // still means always, just not twice for the same graph walk.
+    // a new top level build starts a new epoch and nested calls share it, so the memo below lasts one
+    // invocation. NYA_BUILD_ALWAYS still runs once per graph walk.
     if (_nya_build_depth == 0) _nya_build_epoch++;
 
     if (build_rule->last_built_epoch == _nya_build_epoch) return NYA_OK;
@@ -219,9 +218,8 @@ NYA_Error nya_vendor_build_all(NYA_VendorRule** vendors) {
 /**
  * The newest modification time under `path`, or zero when it cannot be read.
  *
- * Used to decide whether the build tool is stale. A walk rather than one stat, because the tool is
- * compiled from whole trees and NYA_BUILD_IF_OUTDATED compares a single input against a single output —
- * which for this rule would mean watching build.c and missing every header it includes.
+ * Decides whether the build tool is stale. A walk because the tool is compiled from whole trees, and
+ * NYA_BUILD_IF_OUTDATED would only watch build.c and miss its headers.
  * */
 NYA_INTERNAL b8 _nya_build_newest_callback(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     nya_unused(path);
@@ -240,8 +238,7 @@ NYA_INTERNAL u64 _nya_build_newest_under(NYA_ConstCString path) {
     NYA_Arena* arena = nya_arena_create();
     if (arena == nullptr) return 0;
 
-    // Failure reads as "unknown", and the caller treats unknown as stale — so a directory that cannot be
-    // walked rebuilds rather than silently pinning the tool at whatever it last was.
+    // failure reads as unknown, which the caller treats as stale, so an unreadable directory rebuilds.
     NYA_Error error = nya_filesystem_walk(arena, path, _nya_build_newest_callback, &newest);
 
     nya_arena_destroy(arena);
@@ -265,13 +262,11 @@ void nya_rebuild_yourself(s32* argc, NYA_CString* argv, NYA_Command cmd) {
     /*
      * Nothing to do when no source is newer than the tool.
      *
-     * Rebuilding unconditionally costs 1.18s before `./build --help` can print anything, against 0.012s
-     * with --no-rebuild. That is the edit-run loop paying a full compile to answer a question it already
-     * knows the answer to.
+     * An unconditional rebuild costs 1.18 s before `./build --help` prints, against 0.012 s without it.
      *
-     * The trees are the ones FLAGS_BUILD_TOOL actually compiles: build.c itself, the build system, and the
-     * engine base it includes. Deliberately wider than the true include set — a walk is a few hundred
-     * stats and a missed dependency is a stale tool, so the cheap error is to over-walk.
+     * Walks the trees FLAGS_BUILD_TOOL compiles: build.c, the build system and the engine base.
+     * Deliberately wider than the include set, since extra stats are cheap and a missed dependency is a
+     * stale tool.
      */
     u64 tool_modified = 0;
 
@@ -378,15 +373,10 @@ NYA_Error _nya_build_always(NYA_BuildRule* build_rule) {
     // does not accumulate the same vendor flags over and over.
     build_rule->command.arguments[arguments_before_vendors] = nullptr;
 
-    // Post-build hooks, but only if there is a build to post-process.
+    // post-build hooks only when there is an artifact. After a failed command they would bury the real
+    // error under a second one, such as an integrity hook reporting "no such file".
     //
-    // They exist to do something *to the artifact*: stamp a hash into it, move it, bundle it. When
-    // the command failed there is no artifact, so running them turns one clear error into two, and
-    // the second one is louder and points somewhere else entirely — an integrity hook reporting
-    // "no such file" buries the linker error that is the actual problem.
-    //
-    // Note this is deliberately after the un-splice above, which is cleanup and must happen either
-    // way.
+    // After the un-splice above, which is cleanup and runs either way.
     if (!result.ok) return result;
 
     for (u64 i = 0; i < NYA_BUILD_MAX_DEPENDENCIES; i++) {

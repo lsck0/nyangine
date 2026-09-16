@@ -22,20 +22,17 @@ NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
 #define NYA_ASSET_BLOB_INDENT         4
 
 /**
- * How many bytes an entry has to actually save before it is worth storing compressed.
+ * Bytes an entry must save before it is stored compressed.
  *
- * A compressed entry costs an allocation and a decompression pass every time it is loaded, against a
- * verbatim one which is a pointer into `.rodata` and costs neither. Below some saving that trade stops
- * being worth making, and this is where.
+ * A compressed entry costs an allocation and a decompression on every load; a verbatim one is a
+ * pointer into `.rodata`.
  *
- * ⚠ **Absolute bytes, deliberately, and not a percentage.** Measured over this tree's 1506 assets, a
- * ratio floor throws away exactly the wrong entries: `pill.fbx` and `Cubie.fbx` compress by only 5% and
- * 5.1%, which is 19 KB and 18 KB of real bytes, while the 10-20% band is 101 entries that save 67 bytes
- * each. A 10% floor would have cost 36 KB to drop six of the largest savers in the tree.
+ * Absolute bytes, not a ratio. Over this tree's 1506 assets a ratio drops the wrong entries:
+ * `pill.fbx` and `Cubie.fbx` shrink only 5% but save 19 KB and 18 KB, while the 101 entries in the
+ * 10-20% band save 67 bytes each.
  *
- * 128 is the knee of the measured distribution. It leaves 211 small entries stored verbatim and gives up
- * 17.5 KB of 715 KB to do it; the next step up, 256, gives up 103 KB for another 465 entries and is the
- * point where real savings start being thrown away.
+ * 128 is the knee: 211 small entries stay verbatim at a cost of 17.5 KB of 715 KB. 256 would give up
+ * 103 KB for another 465 entries.
  * */
 #define NYA_ASSET_BLOB_MIN_COMPRESSION_SAVING_BYTES 128
 
@@ -95,9 +92,8 @@ void nya_asset_compile_shaders(void) {
                 "-s", "hlsl",
                 "-d", "dxil",
 
-                // So a shader can `#include` a shared `.hlsli`. shadercross compiles from a temporary
-                // whose name is not the source path, so a relative include resolves against nothing
-                // without this — the error is "file not found" on a file sitting right beside the source.
+                // so a shader can `#include` a shared `.hlsli`. shadercross compiles from a temporary file, so
+                // relative includes fail with "file not found" without this.
                 "-I", SHADER_SOURCE_DIRECTORY,
             },
         },
@@ -120,9 +116,8 @@ void nya_asset_compile_shaders(void) {
                 "-s", "hlsl",
                 "-d", "msl",
 
-                // So a shader can `#include` a shared `.hlsli`. shadercross compiles from a temporary
-                // whose name is not the source path, so a relative include resolves against nothing
-                // without this — the error is "file not found" on a file sitting right beside the source.
+                // so a shader can `#include` a shared `.hlsli`. shadercross compiles from a temporary file, so
+                // relative includes fail with "file not found" without this.
                 "-I", SHADER_SOURCE_DIRECTORY,
             },
         },
@@ -145,9 +140,8 @@ void nya_asset_compile_shaders(void) {
                 "-s", "hlsl",
                 "-d", "spirv",
 
-                // So a shader can `#include` a shared `.hlsli`. shadercross compiles from a temporary
-                // whose name is not the source path, so a relative include resolves against nothing
-                // without this — the error is "file not found" on a file sitting right beside the source.
+                // so a shader can `#include` a shared `.hlsli`. shadercross compiles from a temporary file, so
+                // relative includes fail with "file not found" without this.
                 "-I", SHADER_SOURCE_DIRECTORY,
             },
         },
@@ -218,9 +212,8 @@ void nya_asset_bundle(void) {
     NYA_String* header_string       = nya_string_create(arena);
     NYA_String* blob_string         = nya_string_create(arena);
 
-    // The same list nya_asset_index built its handles from, not a second walk that could disagree
-    // with it. A file appearing or vanishing between the two used to yield a handle in assets.h with
-    // no matching entry in the blob, which only ever showed up as a failed load at runtime.
+    // the same list nya_asset_index built its handles from. A second walk could see a file appear or
+    // vanish and emit a handle with no blob entry.
     NYA_ArrayᐸNYA_Stringᐳ* files = _nya_asset_enumerate();
     nya_string_extend(result, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
     nya_string_extend(result, "#include \"nyangine/nyangine.h\"\n\n");
@@ -241,12 +234,10 @@ void nya_asset_bundle(void) {
         NYA_EXPECT(nya_file_read(file, content));
 
         /*
-         * Compressed per entry, and kept only when it actually shrank.
+         * Compressed per entry, kept only when smaller.
          *
-         * Per entry rather than over the whole blob so that a load decompresses one asset instead of all
-         * of them, which is what keeps the resident cost proportional to what the game has touched.
-         * Keeping the smaller of the two means the formats that carry their own compression — PNG, OGG —
-         * stay byte-for-byte and keep the zero-copy load path they had before this existed.
+         * Per entry so a load expands one asset rather than the whole blob. Already compressed formats such
+         * as PNG and OGG stay verbatim and keep the zero copy load path.
          */
         const u8* stored      = content->items;
         u64       stored_size = content->length;

@@ -69,7 +69,7 @@ struct NYA_FontMetrics {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** A font value. No allocation and no validation — the atlas is built on first use. */
+/** A font value. No allocation and no validation; the atlas is built on first use. */
 NYA_API NYA_Font nya_font(NYA_ConstCString path, f32 point_size) __attr_no_discard;
 
 /** Whether it names something: a non-null path and a positive size. */
@@ -124,14 +124,11 @@ NYA_API void nya_font_draw(NYA_Window* window, NYA_Font font, NYA_ConstCString t
  */
 
 /**
- * Rasterises this face as a signed distance field rather than as coverage.
+ * Rasterises this face as a signed distance field instead of coverage.
  *
- * ⚠ **It changes the face's metrics**, which is the thing to watch: the field extends past the
- * outline, so glyph images come back larger. Shaping is asked after the mode is set, so positions
- * follow — but a face switched *while* text is on screen re-lays it out mid-frame. Worse, render2d
- * bakes a glyph atlas — sized from those metrics, and flagged with the mode it was baked in — the first
- * time a glyph is drawn from the face, and nothing rebuilds that atlas when the mode changes under it.
- * So: set it once, at registration, which now works.
+ * Changes the face's metrics: the field extends past the outline, so glyph images grow. render2d
+ * bakes the glyph atlas from those metrics on first draw and does not rebuild it when the mode
+ * changes, so set it once at registration.
  * */
 NYA_API b8 nya_font_sdf_set(NYA_Font font, b8 enabled);
 

@@ -65,8 +65,8 @@ void nya_i18n_generate(void) {
     nya_dict_foreach_key (base, key_slot) {
         NYA_CString key = *key_slot;
 
-        // Keys beginning with an underscore are metadata — the locale's own name, a comment for
-        // translators. Skipped rather than generated, so a file can document itself.
+        // keys starting with an underscore are metadata, such as the locale name or translator notes, and
+        // generate nothing.
         if (key[0] == '_') continue;
 
         NYA_Value* value = nya_object_get(base, key);
@@ -134,12 +134,10 @@ void nya_i18n_generate(void) {
              * Sorted before comparison, so a translation may reorder its arguments positionally.
              */
             /*
-             * Zeroed, not merely assigned into.
+             * Zeroed, not just assigned into.
              *
-             * snprintf terminates what it writes, but _nya_i18n_sort_specifiers walks to the first '\0'
-             * and these are read again by nya_string_equals — so a buffer left holding whatever the stack
-             * had is a comparison against garbage. It showed up as a key with no format specifiers at all
-             * being reported as taking one, intermittently, depending on what the previous call left behind.
+             * _nya_i18n_sort_specifiers walks to the first '\0' and nya_string_equals reads the buffers again, so
+             * leftover stack bytes made keys intermittently report specifiers they did not have.
              */
             char expected[NYA_I18N_MAX_ARGUMENTS + 1] = { 0 };
             char actual[NYA_I18N_MAX_ARGUMENTS + 1]   = { 0 };
@@ -180,7 +178,7 @@ void nya_i18n_generate(void) {
         out,
         "/*\n"
         " * Generated from %s by src/build/i18n.c. One entry and one accessor per key of the base\n"
-        " * locale, with the accessor's parameters read off that string's format specifiers — so a call\n"
+        " * locale, with the accessor's parameters read off that string's format specifiers, so a call\n"
         " * with the wrong argument types is a compile error rather than a crash in one language.\n"
         " */\n\n",
         NYA_I18N_DIRECTORY "/" NYA_I18N_BASE_LOCALE ".json"
@@ -269,9 +267,7 @@ b8 _nya_i18n_parse_specifiers(NYA_ConstCString format, NYA_ConstCString where, N
         if (*cursor == '%') continue;
         if (*cursor == '\0') return false;
 
-        /*
-         * A positional prefix — `2$` — is skipped rather than acted on.
-         */
+        /* A positional prefix such as `2$` is skipped. */
         const char* digits = cursor;
         while (*cursor >= '0' && *cursor <= '9') cursor++;
         if (*cursor == '$') cursor++;
@@ -296,8 +292,7 @@ b8 _nya_i18n_parse_specifiers(NYA_ConstCString format, NYA_ConstCString where, N
             default:  return false;
         }
 
-        // Normalised, so `%i` and `%d` compare equal and `%g` and `%f` do too — a translator writing
-        // one where the base wrote the other is not a bug and should not fail the build.
+        // normalised, so `%i` matches `%d` and `%g` matches `%f`. A translator swapping them is not an error.
         char specifier = *cursor;
         if (specifier == 'i') specifier = 'd';
         if (specifier == 'g') specifier = 'f';

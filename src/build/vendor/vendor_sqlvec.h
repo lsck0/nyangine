@@ -1,36 +1,22 @@
 /**
  * @file vendor_sqlvec.h
  *
- * sqlite-vec, vector search for SQLite. Built into a static archive, one object.
+ * sqlite-vec (asg017/sqlite-vec), vector search for SQLite, built into a static archive from one
+ * object. Adds the `vec0` virtual table and `vec_*` functions: brute force k nearest neighbour over
+ * float, int8 and binary vectors with L2, cosine and hamming distance. Vectors live in the same
+ * database file as the rest of the game's data. Registered by plugins/sqlite/sql.c.
  *
- * Gives SQL a `vec0` virtual table and a set of `vec_*` functions: brute force k nearest neighbour
- * over float, int8 and binary vectors, with L2, cosine and hamming distance. Everything lives in
- * ordinary SQLite tables, so a vector index is part of the same file as the rest of the game's data
- * and needs no second process. Registered by the sqlite plugin, see plugins/sqlite/sql.c.
+ * The header is generated: `sqlite-vec.h.tmpl` has `${VERSION}` placeholders that
+ * `make sqlite-vec.h` fills with envsubst, hence the `gettext` host dependency.
  *
- * Named sqlvec throughout — the submodule directory, the archive and the macros — while the upstream
- * project is `asg017/sqlite-vec` and its source file keeps its own name. The short form is what the
- * rest of this tree calls it.
+ * `SQLITE_VEC_ENABLE_AVX` selects the vectorized distance kernels. Upstream detects AVX from
+ * /proc/cpuinfo; the engine already builds with `-mavx -mavx2`, so it is always on.
  *
- * Two things upstream does that this rule copies rather than invents:
+ * SQLITE_CORE and SQLITE_VEC_STATIC are on `cflags` because consumers of sqlite-vec.h need both.
+ * Without SQLITE_CORE the header pulls in sqlite3ext.h, whose macros route every `sqlite3_*` call
+ * through an unset pointer. SQLITE_VEC_STATIC drops `__declspec(dllexport)`.
  *
- * - **The header is generated.** `sqlite-vec.h.tmpl` carries `${VERSION}` placeholders that
- *   `make sqlite-vec.h` fills in with envsubst, and `sqlite-vec.c` includes the result on its first
- *   line. That is the one build step here that shells out to the submodule's own Makefile, and it is
- *   why `gettext` is a host dependency — envsubst comes from it.
- * - **AVX is opt in.** Upstream greps /proc/cpuinfo to decide. This tree targets x86-64 and already
- *   compiles the engine with `-mavx -mavx2`, so the flag is simply on. `SQLITE_VEC_ENABLE_AVX` is
- *   what selects the vectorized distance kernels; without it the scalar fallbacks are used and
- *   nothing else changes.
- *
- * SQLITE_CORE and SQLITE_VEC_STATIC are on `cflags` rather than only on the build parts, because a
- * consumer that includes sqlite-vec.h needs both: SQLITE_CORE picks sqlite3.h over sqlite3ext.h, and
- * without it the header would drag in the extension dispatch macros that rewrite every `sqlite3_*`
- * call in the including file into an indirect one through a pointer nothing sets. SQLITE_VEC_STATIC
- * turns SQLITE_VEC_API into nothing instead of `__declspec(dllexport)`.
- *
- * Link order matters: this archive calls into libsqlite3.a, so it has to appear before it. See the
- * vendor list in vendor.h.
+ * This archive calls into libsqlite3.a, so it must come before it in the link. See vendor.h.
  * */
 #pragma once
 
@@ -70,10 +56,8 @@
 // clang-format on
 
 /*
- * Generating the header is target independent — one file, no target in it — so both rules below
- * carry the same part and whichever target is built first does the work; the second finds the header
- * newer than VERSION and skips. Spelled out twice rather than shared because NYA_VendorRule has no
- * notion of a part belonging to two vendors.
+ * The header does not depend on the target, so both rules carry the same part and the second finds
+ * the header newer than VERSION and skips. NYA_VendorRule cannot share a part between vendors.
  */
 
 NYA_VendorRule vendor_sqlvec_linux_x86_64 = {
@@ -103,10 +87,8 @@ NYA_VendorRule vendor_sqlvec_linux_x86_64 = {
             .input_file  = SQLVEC_VERSION_FILE,
             .output_file = SQLVEC_HEADER,
 
-            // Upstream's own recipe. It needs envsubst, git and date, all of which the Makefile
-            // calls out to, which is why this shells out instead of substituting the placeholders
-            // here — a reimplementation would silently stop filling in whatever the template gains
-            // next.
+            // upstream's own recipe, which calls envsubst, git and date. Substituting here would silently miss
+            // whatever placeholders the template gains.
             .command = {
                 .working_directory = SQLVEC_SOURCE_DIRECTORY,
                 .program           = "make",

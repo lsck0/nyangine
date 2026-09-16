@@ -445,8 +445,8 @@ f32_4x4 nya_matrix_orthographic(f32 left, f32 right, f32 top, f32 bottom) {
     nya_assert(bottom != top, "an orthographic projection needs a non-zero height");
 
     /*
-     * Clip space here is the Direct3D style one SDL_GPU normalizes every backend to: x and y run
-     * -1 to +1 with y pointing **up**, and z runs 0 to 1 rather than -1 to 1.
+     * Clip space is the Direct3D convention SDL_GPU normalizes every backend to: x and y in -1..+1 with
+     * y up, z in 0..1.
      */
     f32 x_scale = 2.0F / (right - left);
     f32 y_scale = 2.0F / (top - bottom);
@@ -491,8 +491,7 @@ f32_4x4 nya_matrix_orthographic_3d(f32 height, f32 aspect, f32 near_plane, f32 f
     nya_assert(aspect > 0.0F, "an orthographic projection needs a positive aspect ratio, got %f", (f64)aspect);
     nya_assert(far_plane != near_plane, "an orthographic projection needs a non-zero depth range");
 
-    // Half extents, because `height` is what the view covers top to bottom and the scale maps that
-    // onto clip space's -1..+1 — a range of two, hence 2 / height rather than 1 / height.
+    // `height` covers the view top to bottom and maps onto clip space's range of two, hence 2 / height.
     f32 y_scale = 2.0F / height;
     f32 x_scale = y_scale / aspect;
 
@@ -520,8 +519,7 @@ f32_4x4 nya_matrix_look_at(f32x3 eye, f32x3 target, f32x3 up) {
     // reasoning as above: a usable frame beats a matrix of NaNs.
     if (nya_vector_dot(right, right) < 0.5F) return f32_4x4_id;
 
-    // Already unit and already perpendicular to both, being the cross of two orthogonal unit
-    // vectors — so this one is not renormalized, and does not need to be.
+    // the cross of two orthogonal unit vectors is already unit, so no renormalize.
     f32x3 above = nya_vector_cross(right, forward);
 
     /*
@@ -539,10 +537,8 @@ f32_4x4 nya_matrix_look_at(f32x3 eye, f32x3 target, f32x3 up) {
 
 f32_4x4 nya_matrix_transform(f32x3 translation, f32_3x3 rotation, f32x3 scale) {
     /*
-     * Built by rows, which is what nya_matrix_create takes, and is worth stating because the result is
-     * *stored* by columns. The two are not in conflict — one is how the matrix is written down here and
-     * the other is how clang lays a matrix type out in memory — but anything that later reads these
-     * sixteen floats raw is reading columns.
+     * Written by rows, as nya_matrix_create takes them, but stored by columns. Code reading the sixteen
+     * floats raw reads columns.
      */
     return nya_matrix_create(
         (f32x4){ rotation[0][0] * scale.x, rotation[0][1] * scale.y, rotation[0][2] * scale.z, translation.x },

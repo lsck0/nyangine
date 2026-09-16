@@ -59,12 +59,10 @@ NYA_INTERNAL NYA_ConstCString _nya_lua_field_string(const NYA_LuaCall* call, u32
 }
 
 /**
- * An entity handle out of a `{ index =, generation = }` table.
+ * An entity handle from a `{ index =, generation = }` table.
  *
- * ⚠ **Two numbers rather than one**, deliberately. A handle is two u32s and Lua's only number is a
- * double: packing them into one would be exact today at 53 bits of mantissa and would stop being so
- * the moment either field widened, and the failure would be a handle that silently resolves to the
- * wrong entity rather than to none.
+ * Two numbers, because Lua numbers are doubles. Packing both u32s into one fits in 53 bits today but
+ * would silently resolve the wrong entity if either field widened.
  * */
 NYA_INTERNAL NYA_EntityHandle _nya_lua_argument_handle(const NYA_LuaCall* call, u32 index) {
     return (NYA_EntityHandle){
@@ -87,9 +85,6 @@ NYA_INTERNAL NYA_Value _nya_lua_handle_value(NYA_Arena* arena, NYA_EntityHandle 
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * BINDINGS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- *
- * Externally linked and named, not static — the hot reload path re-resolves callbacks by name, and a
- * static one has no name to resolve. See the conventions note in RESEARCH.md §17.
  */
 
 NYA_INTERNAL void nya_lua_binding_log(NYA_LuaCall* call) {
@@ -169,9 +164,7 @@ NYA_INTERNAL void nya_lua_binding_move_to(NYA_LuaCall* call) {
     nya_entity_move_to(entity, target, (f32)_nya_lua_argument_number(call, 4, 0.0), NYA_EASE_CUBIC_OUT);
 }
 
-/*
- * ⚠ **An action is a number, not a name.**
- */
+/* An action is a number, not a name. */
 NYA_INTERNAL void nya_lua_binding_action(NYA_LuaCall* call) {
     NYA_InputAction action = (NYA_InputAction)(u32)_nya_lua_argument_number(call, 0, -1.0);
 
@@ -195,24 +188,21 @@ NYA_INTERNAL void nya_lua_binding_action_pressed(NYA_LuaCall* call) {
 void nya_lua_open_engine(NYA_LuaVM* vm) {
     if (vm == nullptr) return;
 
-    /*
-     * Registered as flat globals and then gathered into a table by a line of Lua.
-     */
+    /* Registered as flat globals, then gathered into a table by a line of Lua. */
     struct {
-        NYA_ConstCString lua_name;
         NYA_ConstCString global;
         NYA_LuaFn        fn;
     } entries[] = {
-        { "log", "_nya_log", nya_lua_binding_log },
-        { "warn", "_nya_warn", nya_lua_binding_warn },
-        { "error", "_nya_error", nya_lua_binding_error },
-        { "time", "_nya_time", nya_lua_binding_time },
-        { "spawn", "_nya_spawn", nya_lua_binding_spawn },
-        { "despawn", "_nya_despawn", nya_lua_binding_despawn },
-        { "position", "_nya_position", nya_lua_binding_position },
-        { "move_to", "_nya_move_to", nya_lua_binding_move_to },
-        { "action", "_nya_action", nya_lua_binding_action },
-        { "action_pressed", "_nya_action_pressed", nya_lua_binding_action_pressed },
+        { "_nya_log", nya_lua_binding_log },
+        { "_nya_warn", nya_lua_binding_warn },
+        { "_nya_error", nya_lua_binding_error },
+        { "_nya_time", nya_lua_binding_time },
+        { "_nya_spawn", nya_lua_binding_spawn },
+        { "_nya_despawn", nya_lua_binding_despawn },
+        { "_nya_position", nya_lua_binding_position },
+        { "_nya_move_to", nya_lua_binding_move_to },
+        { "_nya_action", nya_lua_binding_action },
+        { "_nya_action_pressed", nya_lua_binding_action_pressed },
     };
 
     for (u32 i = 0; i < nya_carray_length(entries); i++) nya_lua_register(vm, entries[i].global, entries[i].fn, nullptr);
@@ -231,7 +221,7 @@ void nya_lua_open_engine(NYA_LuaVM* vm) {
 
     NYA_Error result = nya_lua_run(vm, gather, "nya_lua_open_engine");
 
-    // Not propagated: the string is a literal in this file, so a failure is a mistake here rather
-    // than anything a caller can act on — but it must not be silent, or `nya` is simply missing.
+    // not propagated: the string is a literal in this file, so failure is a bug here. Logged so a missing
+    // `nya` is not silent.
     if (!result.ok) nya_log_error("Could not build the Lua `nya` table: %s", result.message);
 }

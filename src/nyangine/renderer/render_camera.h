@@ -25,7 +25,7 @@ typedef struct NYA_Camera3DOrthographic NYA_Camera3DOrthographic;
  * Straight down at a flat world. The ordinary 2D camera.
  * */
 struct NYA_Camera2DTopDown {
-    /** The world point that appears at the **centre** of the target, not at its corner. */
+    /** The world point at the centre of the target, not its corner. */
     f32x2 position;
 
     /** Pixels per world unit. Above one magnifies; the centre of the view stays put. */
@@ -46,7 +46,7 @@ struct NYA_Camera2DTopDown {
  * ```
  * */
 struct NYA_Camera2DIsometric {
-    /** The **tile** coordinate that appears at the centre of the target. Fractional is fine. */
+    /** The tile coordinate at the centre of the target. Fractional is fine. */
     f32x2 position;
 
     /** Scales the whole projection. One draws tiles at exactly `tile_width` by `tile_height`. */
@@ -61,7 +61,7 @@ struct NYA_Camera2DIsometric {
 
 /** Which of the two 2D projections a camera is. See NYA_Camera2D. */
 enum NYA_Camera2DKind {
-    /** No camera. Drawing lands in screen pixels — the UI case, and the default. */
+    /** No camera. Drawing lands in screen pixels, for UI. The default. */
     NYA_CAMERA2D_KIND_NONE = 0,
 
     NYA_CAMERA2D_KIND_TOP_DOWN,
@@ -94,7 +94,7 @@ struct NYA_Camera3DPerspective {
      * */
     f32x3 up;
 
-    /** Vertical field of view in **radians**. Zero is read as 60 degrees. Above ~2.6 fisheyes. */
+    /** Vertical field of view in radians. Zero means 60 degrees. Above about 2.6 fisheyes. */
     f32 fov_y;
 
     /**
@@ -127,12 +127,8 @@ struct NYA_Camera3DOrthographic {
  * FUNCTIONS AND MACROS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * The 2D camera arithmetic, in the header both renderers already include, because both need it and
- * writing it twice is what let the headless build drift. Everything here is a pure function of a
- * camera and a target size — see render_camera.c for what the drift actually was.
- *
- * There is no 3D counterpart here: the 3D cameras become matrices through math_matrix.h, which is
- * shared already.
+ * The 2D camera arithmetic, shared by both renderers so the headless build cannot drift. Pure
+ * functions of a camera and a target size. 3D cameras go through math_matrix.h.
  */
 
 /**

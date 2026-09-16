@@ -1,13 +1,9 @@
 /**
  * @file render_camera.c
  *
- * ⚠ **This file exists because the two renderers drifted, and the drift was invisible.** Camera
- * defaulting was written twice — once in `render2d.c`, once in `render2d_headless.c` — and the
- * headless copy was missing the zoom correction, so a headless caller that reset the camera and read
- * it back got a zoom of zero where the real build gives one. Nothing failed; game logic dividing by
- * that zoom simply produced infinities in a build nothing looked at. The screen/world conversions
- * had drifted further still: headless returned its argument unchanged, so a test that set a camera
- * and asked where a world point landed was told "wherever it already was".
+ * Camera defaults and screen/world conversion shared by render2d.c and render2d_headless.c. Two
+ * copies had drifted: headless left zoom at zero and returned points unconverted, so tests saw a
+ * camera the real build never produces.
  * */
 #include "nyangine/nyangine.h"
 
@@ -37,10 +33,8 @@ NYA_Camera2DIsometric nya_camera2d_isometric_sanitized(NYA_Camera2DIsometric cam
 }
 
 NYA_Camera2DTopDown nya_camera2d_top_down_or_identity(NYA_Camera2D camera) {
-    // The identity, spelled out, rather than the zeroed struct a batch holds when no camera is set — a
-    // zoom of zero would be a surprising thing to hand back and then pass straight back in. An
-    // isometric camera answers the identity too: it is not a top-down camera and there is no top-down
-    // camera that means the same thing, so the honest answer is "none".
+    // the identity rather than the zeroed struct a batch holds, since zoom zero would be passed straight
+    // back in. An isometric camera also answers the identity: no top-down camera means the same thing.
     if (camera.kind != NYA_CAMERA2D_KIND_TOP_DOWN) return (NYA_Camera2DTopDown){ .zoom = 1.0F };
 
     return camera.as_top_down;
@@ -61,11 +55,8 @@ void nya_camera2d_basis(const NYA_Camera2D* camera, OUT f32* out_a, OUT f32* out
         } break;
 
         case NYA_CAMERA2D_KIND_ISOMETRIC: {
-            // The classic tile-to-screen map, as a matrix: stepping one tile along +x moves half a tile
-            // right and half a tile down, and one along +y moves half a tile *left* and half a tile
-            // down — which is what makes a square grid draw as diamonds, and rows further down the
-            // screen read as further away. Halves because the widths are the full diamond, as the art
-            // is authored.
+            // tile to screen: one tile along +x moves half a tile right and down, along +y half a tile left
+            // and down, so a square grid draws as diamonds. Halves because tile widths are the full diamond.
             f32 half_width  = camera->as_isometric.tile_width * 0.5F * camera->as_isometric.zoom;
             f32 half_height = camera->as_isometric.tile_height * 0.5F * camera->as_isometric.zoom;
 
@@ -107,10 +98,9 @@ f32x2 nya_camera2d_screen_to_world(const NYA_Camera2D* camera, f32x2 screen, u32
     f32 center_x = (f32)target_width * 0.5F;
     f32 center_y = (f32)target_height * 0.5F;
 
-    // Inverting the 2x2 the view matrix applies, written out rather than through a general matrix
-    // inverse. The determinant is the one thing worth naming: zoom squared for a top-down camera, half
-    // the tile area times zoom squared for an isometric one — neither can be zero, since both setters
-    // correct a zero zoom or tile size before storing anything.
+    // the inverse of the view's 2x2, written out. The determinant is zoom squared top-down, or half the
+    // tile area times zoom squared isometric. Neither is zero, since the setters correct zero zoom and
+    // tile size.
     f32 determinant = (a * d) - (b * c);
 
     f32 dx = screen[0] - center_x;

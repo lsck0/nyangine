@@ -6,7 +6,7 @@
 
 /*
  * Generated from ./assets/i18n/en.json by src/build/i18n.c. One entry and one accessor per key of the base
- * locale, with the accessor's parameters read off that string's format specifiers — so a call
+ * locale, with the accessor's parameters read off that string's format specifiers, so a call
  * with the wrong argument types is a compile error rather than a crash in one language.
  */
 
