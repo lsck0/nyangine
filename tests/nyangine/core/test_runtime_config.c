@@ -223,6 +223,39 @@ s32 main(void) {
     // rather than patching one key.
     nya_assert(engine.renderer.shadow_map_size == 1024, "the untouched field survived, got %u", engine.renderer.shadow_map_size);
 
+    // watching the same path again repoints the watch, as a game does after a code reload moved its global.
+    u32              watch_count = nya_app_get()->config_system.watch_count;
+    NYA_ConfigEngine moved       = { 0 };
+    NYA_EXPECT(nya_config_watch(FIXTURE_PATH, nya_reflect_of(NYA_ConfigEngine), &moved));
+
+    nya_assert(moved.physics.sub_steps == 8, "the new instance is loaded, got %u", moved.physics.sub_steps);
+    nya_assert(nya_app_get()->config_system.watch_count == watch_count, "no second watch for one path");
+
+    write_fixture("nya 2 0\n"
+                  "{\n"
+                  "    renderer: object {\n"
+                  "        shadow_bias: f32 0.0015;\n"
+                  "        shadow_cascades: u32 3;\n"
+                  "        shadow_map_size: u32 1024;\n"
+                  "    };\n"
+                  "    physics: object {\n"
+                  "        gravity: f32 9.81;\n"
+                  "        sub_steps: u32 2;\n"
+                  "    };\n"
+                  "}\n");
+
+    reloaded = false;
+
+    for (u32 frame = 0; frame < 40 && !reloaded; frame++) {
+      SDL_Delay(20);
+      end_frame();
+
+      reloaded = moved.physics.sub_steps == 2;
+    }
+
+    nya_assert(reloaded, "the edit lands in the new instance, got %u", moved.physics.sub_steps);
+    nya_assert(engine.physics.sub_steps == 8, "and the old instance is no longer written, got %u", engine.physics.sub_steps);
+
     printf("  PASSED\n");
   }
 

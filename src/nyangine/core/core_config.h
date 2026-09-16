@@ -5,9 +5,8 @@
  * NYA_EXPECT(nya_config_watch("assets/config/engine.nya", nya_reflect_of(NYA_ConfigEngine), &NYA_CONFIG.engine));
  * ```
  *
- * `instance` is not owned or copied. If it points into a hot reloadable game DLL, a code reload can
- * unmap it, and nothing re-registers watches afterwards. Register such watches from code that runs
- * again after a reload, or keep the storage in the engine.
+ * `type` and `instance` are not owned or copied. When they live in a hot reloadable game DLL, call
+ * nya_config_watch again after every code reload; a watch on the same path replaces its pointers.
  * */
 #pragma once
 

@@ -114,14 +114,8 @@ void gny_world_create(void) {
 
     nya_font_default_set(nya_font_named("ui"));
 
-    /*
-     * The runtime config, loaded once and kept in sync with its file under NYA_ASSET_HOT_RELOAD. See
-     * gnyame/config.h for what NYA_CONFIG holds.
-     */
-    NYA_Error config_loaded = nya_config_watch(GNY_CONFIG_FILE, nya_reflect_of(GNY_Config), &NYA_CONFIG);
-
-    // not fatal, like a missing settings file: NYA_CONFIG keeps its zeroed defaults.
-    if (!config_loaded.ok) nya_log_warn("Could not load %s: %s", GNY_CONFIG_FILE, (NYA_ConstCString)config_loaded.message);
+    /* The runtime config, before the systems that may read it. See gnyame/config.h. */
+    gny_config_attach();
 
     // before the game layer's first on_update, and exactly once, unlike a layer's on_create.
     gny_systems_register_all();

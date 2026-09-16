@@ -96,6 +96,9 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
  */
 
 void gnyame_run(void) {
+    // after a code reload this DLL's NYA_CONFIG is zeroed and the watch points into the unloaded one.
+    gny_config_attach();
+
     nya_app_run();
 }
 

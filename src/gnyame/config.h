@@ -6,9 +6,9 @@
  * u32 cascades = NYA_CONFIG.engine.renderer.shadow_cascades;
  * ```
  *
- * Does not survive a code hot reload. NYA_CONFIG is a plain global in this DLL, like GNY_LAUNCH, and
- * main.c's reload loop calls gnyame_run again but never gnyame_init. A code rebuild leaves it zeroed
- * until restart; edits to GNY_CONFIG_FILE are picked up live. See core_config.h.
+ * NYA_CONFIG is a global in this DLL, so a code reload zeroes it and unmaps what the config watch
+ * points at. gnyame_run calls gny_config_attach, which reloads the file into the new global and
+ * repoints the watch.
  * */
 #pragma once
 
@@ -65,3 +65,6 @@ struct GNY_Config {
  * describes: `NYA_CONFIG.engine.renderer.shadow_bias`, `NYA_CONFIG.game.player_speed`.
  * */
 extern GNY_Config NYA_CONFIG;
+
+/** Loads GNY_CONFIG_FILE into NYA_CONFIG and watches it. Once per loaded DLL; later calls do nothing. */
+void gny_config_attach(void);

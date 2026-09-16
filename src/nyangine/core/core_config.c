@@ -96,6 +96,19 @@ NYA_Error nya_config_watch(NYA_ConstCString path, const NYA_TypeReflection* type
         ceiling_registered = true;
     }
 
+    // a second watch on the same path replaces the pointers, which is how a game re-attaches after a code
+    // reload unmapped the old ones.
+    for (u32 i = 0; i < system->watch_count; i++) {
+        NYA_ConfigWatch* existing = &system->watches[i];
+        if (!nya_string_equals(existing->handle, path)) continue;
+
+        existing->type              = type;
+        existing->instance          = instance;
+        existing->modification_time = _nya_config_modification_time(existing->handle);
+
+        return NYA_OK;
+    }
+
     if (system->watch_count >= NYA_CONFIG_WATCH_MAX) {
         // Refused rather than grown. See NYA_CONFIG_WATCH_MAX.
         nya_log_warn("Config watch table is full at " FMTu32 "; '%s' loaded once but will not be hot reloaded.", (u32)NYA_CONFIG_WATCH_MAX,
