@@ -35,9 +35,13 @@
 #define _NYA_NET_UDP_CONNECT_RETRY_MS 500
 
 /**
- * How many recently received message ids to remember per channel, for duplicate suppression.
+ * How many message ids behind the newest one are remembered per channel, for duplicate suppression. An id
+ * further back than this is treated as a duplicate: nothing legitimate arrives that late.
  * */
 #define _NYA_NET_UDP_SEEN_WINDOW 1024
+
+/** Bits per word of the seen window. */
+#define _NYA_NET_UDP_SEEN_WORD_BITS 64
 
 /** How many packets back the ack bitfield reaches. One per bit of a u32. */
 #define _NYA_NET_UDP_ACK_WINDOW 32
@@ -181,8 +185,14 @@ typedef struct {
     /** Next reliable id we will deliver. Reliable messages are held back until this one arrives. */
     u16 next_delivery_id;
 
-    /** Ids already delivered, per channel, as a wrapping bitmap. See _NYA_NET_UDP_SEEN_WINDOW. */
-    u8 seen[NYA_NET_CHANNEL_COUNT][_NYA_NET_UDP_SEEN_WINDOW / 8];
+    /**
+     * Ids already received, per channel, as a window sliding behind the newest id: bit k is `newest - k`.
+     * Relative to the newest rather than indexed by id modulo the window, so an id arriving out of order
+     * cannot clear or alias the mark of one that arrived before it.
+     * */
+    u64 seen[NYA_NET_CHANNEL_COUNT][_NYA_NET_UDP_SEEN_WINDOW / _NYA_NET_UDP_SEEN_WORD_BITS];
+    u16 seen_newest[NYA_NET_CHANNEL_COUNT];
+    b8  seen_any[NYA_NET_CHANNEL_COUNT];
 
     NYA_Arrayᐸ_NYA_NetUdpReliableᐳ* outgoing_reliable;
 
@@ -333,6 +343,9 @@ NYA_INTERNAL b8 _nya_net_udp_is_seen(const _NYA_NetUdpPeer* peer, NYA_NetChannel
 
 /** Records `id` as delivered on `channel`, and clears a little way ahead of it. See _NYA_NET_UDP_SEEN_WINDOW. */
 NYA_INTERNAL void _nya_net_udp_mark_seen(_NYA_NetUdpPeer* peer, NYA_NetChannel channel, u16 message_id);
+
+/** Whether a reliable id is one this peer may still deliver: not yet delivered, and within the reorder window. */
+NYA_INTERNAL b8 _nya_net_udp_reliable_acceptable(const _NYA_NetUdpPeer* peer, u16 message_id) __attr_no_discard;
 
 /** Queues a fully assembled message as a MESSAGE event. Takes ownership of nothing. */
 NYA_INTERNAL void _nya_net_udp_deliver(NYA_NetTransport* transport, u32 peer_index, NYA_NetChannel channel, const u8* data, u64 size);
@@ -1061,7 +1074,10 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, con
         if (total == 1) {
             // The common case, and worth not routing through reassembly: one fragment is the whole
             // message, so there is nothing to assemble and nothing to allocate.
-            if (_nya_net_udp_is_seen(connection, (NYA_NetChannel)channel, message_id)) {
+            // refused before it is marked, so a retransmit of something refused is not taken for a duplicate.
+            b8 refused = channel == NYA_NET_CHANNEL_RELIABLE && !_nya_net_udp_reliable_acceptable(connection, message_id);
+
+            if (refused || _nya_net_udp_is_seen(connection, (NYA_NetChannel)channel, message_id)) {
                 at += length;
                 continue;
             }
@@ -1069,17 +1085,7 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, con
             _nya_net_udp_mark_seen(connection, (NYA_NetChannel)channel, message_id);
 
             if (channel == NYA_NET_CHANNEL_RELIABLE) {
-                /*
-                 * The out-of-order queue is bounded, and a peer that fills it is dropped.
-                 */
-                /*
-                 * An id far beyond the sender's own window is refused before it is queued.
-                 */
-                if (_nya_net_udp_sequence_newer(message_id, (u16)(connection->next_delivery_id + _NYA_NET_UDP_MAX_REORDER))) {
-                    at += length;
-                    continue;
-                }
-
+                // the out-of-order queue is bounded, and a peer that fills it is dropped.
                 if (connection->incoming_reliable->length >= _NYA_NET_UDP_MAX_REORDER) {
                     nya_log_warn("Dropping a peer with %d reliable messages stuck out of order.", _NYA_NET_UDP_MAX_REORDER);
                     _nya_net_udp_remove_peer(transport, peer_index, NYA_NET_DISCONNECT_PROTOCOL, true);
@@ -1098,6 +1104,9 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, con
             }
         } else {
             _nya_net_udp_reassemble(transport, peer_index, (NYA_NetChannel)channel, message_id, index, total, data + at, length);
+
+            // reassembly can drop the peer, and then nothing it held may be touched.
+            if (!connection->occupied) return;
         }
 
         at += length;
@@ -1138,6 +1147,10 @@ void _nya_net_udp_reassemble(
         // a fresh reassembly would deliver it a second time. A *pure* test: marking here is what
         // made the completion check below suppress every fragmented message.
         if (_nya_net_udp_is_seen(connection, channel, message_id)) return;
+
+        // the same window a single fragment reliable message is held to, checked before any memory is
+        // committed to it.
+        if (channel == NYA_NET_CHANNEL_RELIABLE && !_nya_net_udp_reliable_acceptable(connection, message_id)) return;
 
         /*
          * No free slot: the oldest partial message is abandoned.
@@ -1216,9 +1229,13 @@ void _nya_net_udp_reassemble(
         _nya_net_udp_mark_seen(connection, channel, message_id);
 
         if (channel == NYA_NET_CHANNEL_RELIABLE) {
-            /*
-             * Copied out, because the slot's buffer is about to be reusable.
-             */
+            if (connection->incoming_reliable->length >= _NYA_NET_UDP_MAX_REORDER) {
+                nya_log_warn("Dropping a peer with %d reliable messages stuck out of order.", _NYA_NET_UDP_MAX_REORDER);
+                _nya_net_udp_remove_peer(transport, peer_index, NYA_NET_DISCONNECT_PROTOCOL, true);
+                return;
+            }
+
+            // copied out, because the slot's buffer is about to be reusable.
             u8* owned = nya_arena_alloc(state->allocator, slot->size);
             nya_memcpy(owned, slot->data, slot->size);
 
@@ -1645,24 +1662,63 @@ void _nya_net_udp_retire_reliable(_NYA_NetUdpPeer* peer, NYA_Arena* allocator, u
 }
 
 b8 _nya_net_udp_is_seen(const _NYA_NetUdpPeer* peer, NYA_NetChannel channel, u16 message_id) {
-    u32 slot = message_id % _NYA_NET_UDP_SEEN_WINDOW;
+    nya_assert(channel < NYA_NET_CHANNEL_COUNT);
 
-    return (peer->seen[channel][slot / 8] & (u8)(1U << (slot % 8))) != 0;
+    if (!peer->seen_any[channel]) return false;
+
+    u16 newest = peer->seen_newest[channel];
+    if (message_id != newest && _nya_net_udp_sequence_newer(message_id, newest)) return false;
+
+    u16 offset = (u16)(newest - message_id);
+    if (offset >= _NYA_NET_UDP_SEEN_WINDOW) return true;
+
+    return (peer->seen[channel][offset / _NYA_NET_UDP_SEEN_WORD_BITS] >> (offset % _NYA_NET_UDP_SEEN_WORD_BITS)) & 1U;
 }
 
 void _nya_net_udp_mark_seen(_NYA_NetUdpPeer* peer, NYA_NetChannel channel, u16 message_id) {
-    u32 slot = message_id % _NYA_NET_UDP_SEEN_WINDOW;
+    nya_assert(channel < NYA_NET_CHANNEL_COUNT);
 
-    peer->seen[channel][slot / 8] |= (u8)(1U << (slot % 8));
+    u64* window = peer->seen[channel];
+    u32  words  = _NYA_NET_UDP_SEEN_WINDOW / _NYA_NET_UDP_SEEN_WORD_BITS;
 
-    /*
-     * The window is a ring, so the bit for an id 1024 ahead is the same bit. Clearing a little way
-     * ahead of the newest id keeps stale marks from making a fresh message look like a duplicate.
-     */
-    for (u32 i = 1; i <= 64; i++) {
-        u32 ahead = (slot + i) % _NYA_NET_UDP_SEEN_WINDOW;
-        peer->seen[channel][ahead / 8] &= (u8)~(1U << (ahead % 8));
+    if (!peer->seen_any[channel] || _nya_net_udp_sequence_newer(message_id, peer->seen_newest[channel])) {
+        u32 shift = peer->seen_any[channel] ? (u16)(message_id - peer->seen_newest[channel]) : _NYA_NET_UDP_SEEN_WINDOW;
+
+        // slides every mark `shift` places further into the past, dropping what falls off the end.
+        u32 word_shift = shift / _NYA_NET_UDP_SEEN_WORD_BITS;
+        u32 bit_shift  = shift % _NYA_NET_UDP_SEEN_WORD_BITS;
+
+        for (u32 i = words; i > 0; i--) {
+            u32 to   = i - 1;
+            u64 bits = 0;
+
+            if (to >= word_shift) {
+                u32 from = to - word_shift;
+                bits     = window[from] << bit_shift;
+                if (bit_shift != 0 && from > 0) bits |= window[from - 1] >> (_NYA_NET_UDP_SEEN_WORD_BITS - bit_shift);
+            }
+
+            window[to] = bits;
+        }
+
+        peer->seen_newest[channel] = message_id;
+        peer->seen_any[channel]    = true;
     }
+
+    u16 offset = (u16)(peer->seen_newest[channel] - message_id);
+    if (offset < _NYA_NET_UDP_SEEN_WINDOW) window[offset / _NYA_NET_UDP_SEEN_WORD_BITS] |= 1ULL << (offset % _NYA_NET_UDP_SEEN_WORD_BITS);
+
+    nya_assert(_nya_net_udp_is_seen(peer, channel, message_id));
+}
+
+b8 _nya_net_udp_reliable_acceptable(const _NYA_NetUdpPeer* peer, u16 message_id) {
+    u16 next = peer->next_delivery_id;
+
+    // behind next_delivery_id is already delivered, however long ago.
+    if (message_id != next && !_nya_net_udp_sequence_newer(message_id, next)) return false;
+
+    // beyond the sender's own in-flight limit is a peer lying about ids, not a gap to wait for.
+    return (u16)(message_id - next) < _NYA_NET_UDP_MAX_REORDER;
 }
 
 /*

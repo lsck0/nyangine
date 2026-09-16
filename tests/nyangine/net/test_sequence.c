@@ -277,6 +277,36 @@ s32 main(void) {
     }
   }
 
+  printf("TEST: an id arriving out of order does not unmark the ones after it\n");
+  {
+    /*
+     * The window used to be indexed by id modulo its size and cleared 64 bits ahead of every mark, so
+     * receiving 5 after 10 erased 10's mark. A retransmit of 10 then got through as fresh, queued a second
+     * time behind a delivery id already past it, and sat in the reliable queue until it filled.
+     */
+    _NYA_NetUdpPeer peer = { 0 };
+
+    _nya_net_udp_mark_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 10);
+    _nya_net_udp_mark_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 5);
+
+    nya_assert(_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 10), "marking 5 after 10 forgot 10");
+    nya_assert(_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 5), "5 was not recorded");
+    nya_assert(!_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 7), "7 was never received");
+
+    // Across the wrap of the u16 id space, and a jump larger than the whole window.
+    _nya_net_udp_mark_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 65530);
+    nya_assert(_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 65530), "65530 was not recorded");
+    _nya_net_udp_mark_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 3);
+    nya_assert(_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 65530), "the wrap forgot 65530");
+    nya_assert(!_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 1), "1 was never received after the wrap");
+
+    // Reliable ids behind the delivery point or past the reorder window are not acceptable.
+    peer.next_delivery_id = 100;
+    nya_assert(_nya_net_udp_reliable_acceptable(&peer, 100), "the next id is acceptable");
+    nya_assert(!_nya_net_udp_reliable_acceptable(&peer, 99), "an id already delivered is not");
+    nya_assert(!_nya_net_udp_reliable_acceptable(&peer, (u16)(100 + _NYA_NET_UDP_MAX_REORDER)), "an id past the window is not");
+  }
+
   printf("TEST: retransmitted ids are suppressed\n");
   {
     _NYA_NetUdpPeer peer = { 0 };
