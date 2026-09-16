@@ -19,15 +19,12 @@
  * nya_terrain3d_draw(terrain, window);                      // in on_render
  * ```
  *
- * ⚠ **The collider is not chunked and does not change with LOD.** A body falling through a surface
- * because the camera drove away is not a trade anyone wants; the physics mesh stays at full resolution
- * and is built once.
+ * The collider is neither chunked nor level-of-detail: it is built once at full resolution, so nothing falls
+ * through when the camera moves away.
  *
- * ⚠ **Two chunks at different levels do not share their border vertices**, so the seam between them
- * would show as a crack of background. Skirts close it: each chunk's edge drops a vertical flange into
- * the ground, hidden by the neighbouring surface whichever level it is at. Cheaper and far more robust
- * than stitching the border triangles, which needs each chunk to know its neighbours' levels and
- * re-triangulate when any of them changes.
+ * Chunks at different levels do not share border vertices, so each chunk's edge drops a skirt that the
+ * neighbouring surface hides. Simpler and sturdier than stitching borders, which needs every chunk to track its
+ * neighbours' levels.
  * */
 #pragma once
 
@@ -65,12 +62,8 @@ static_assert((1 << (NYA_TERRAIN3D_LOD_LEVELS - 1)) <= NYA_TERRAIN3D_CHUNK_CELLS
               "the coarsest LOD stride has to divide a chunk; lower NYA_TERRAIN3D_LOD_LEVELS or raise NYA_TERRAIN3D_CHUNK_CELLS");
 
 /**
- * How far past a level boundary a chunk has to be before it changes level, as a fraction.
- *
- * ⚠ **Without this a chunk sitting on a boundary rebuilds every few frames**, and a rebuild uploads
- * geometry — seen in the demo as one chunk flipping between 72 and 192 vertices while the camera
- * orbited past it. A tenth is enough that ordinary movement never lands in the dead band for long, and
- * small enough that the level is never more than slightly stale.
+ * How far past a level boundary a chunk has to be before it changes level, as a fraction. Without it a chunk on
+ * a boundary rebuilds every few frames, and a rebuild uploads geometry.
  * */
 #ifndef NYA_TERRAIN3D_LOD_HYSTERESIS
 #define NYA_TERRAIN3D_LOD_HYSTERESIS 0.10F
@@ -103,13 +96,13 @@ struct NYA_Terrain3DChunk {
      * */
     u32 lod;
 
-    /** Owned here because a registered mesh keeps the pointer it was handed. */
+    /** The chunk's mesh handle, which draws and releases name it by. */
     char handle[NYA_TERRAIN3D_CHUNK_HANDLE_MAX];
 };
 
 /**
- * The shape of the surface. Every field has a usable default at zero, so `(NYA_Terrain3DOptions){ 0 }`
- * is a terrain — except `entity_type`, which only the caller knows.
+ * The shape of the surface. Zero means default for every field except `entity_type`, which only the caller
+ * knows.
  * */
 struct NYA_Terrain3DOptions {
     /** Cells per side. The sample grid is one larger in each direction. Default 32. */
@@ -143,9 +136,7 @@ struct NYA_Terrain3DOptions {
     /** Per-triangle brightness jitter, so a band does not read as a flat sheet. Default 0.06. */
     f32 shade_jitter;
 
-    /**
-     * Cut the surface into chunks and pick a detail level per chunk. See the note at the top.
-     * */
+    /** Cut the surface into chunks with a detail level each. See the file header. */
     b8 chunked;
 
     /**
@@ -190,7 +181,7 @@ struct NYA_Terrain3D {
     f32 min_height;
     f32 max_height;
 
-    /* ── chunking, when options.chunked is set ── */
+    /* Chunking, when options.chunked is set. */
 
     NYA_Terrain3DChunk* chunks;
     u32                 chunk_count;
@@ -224,12 +215,8 @@ NYA_API void nya_terrain3d_release(NYA_Terrain3D* terrain, NYA_Window* window);
 NYA_API f32 nya_terrain3d_height_at(const NYA_Terrain3D* terrain, f32 x, f32 z) __attr_no_discard;
 
 /**
- * Re-picks each chunk's detail level from its distance to `viewer`, rebuilding the ones that changed.
- *
- * ⚠ **A rebuild uploads geometry**, so this is not free on the frames where the camera crosses a
- * level boundary — which is why the choice is banded rather than continuous, and why crossing back and
- * forth over one boundary rebuilds one chunk rather than all of them. `chunks_rebuilt` reports how
- * many changed, which is what to watch if a camera path ever makes this stutter.
+ * Re-picks each chunk's detail level from its distance to `viewer`, rebuilding those that changed. A rebuild
+ * uploads geometry, which is why levels are banded with hysteresis. `chunks_rebuilt` reports how many.
  * */
 NYA_API void nya_terrain3d_update(NYA_Terrain3D* terrain, NYA_Window* window, f32x3 viewer);
 
@@ -243,5 +230,5 @@ NYA_API u32 nya_terrain3d_lod_for_distance(const NYA_Terrain3D* terrain, f32 dis
  * */
 NYA_API f32 nya_terrain3d_lod_boundary(const NYA_Terrain3D* terrain, u32 level) __attr_no_discard;
 
-/** Draws the surface — every chunk of it, if chunked. Must be called between nya_render3d_begin and _end. */
+/** Draws the surface, every chunk if chunked. Call between nya_render3d_begin and _end. */
 NYA_API void nya_terrain3d_draw(const NYA_Terrain3D* terrain, NYA_Window* window);

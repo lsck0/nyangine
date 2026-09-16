@@ -1,31 +1,15 @@
 /**
  * @file uniforms.h
  *
- * The C side of every shader's uniform block, in one place.
+ * The C side of every shader's uniform block, kept beside the shaders.
  *
- * A uniform block is a contract between two files that no compiler checks: the `cbuffer` in the
- * HLSL and the struct the caller pushes with nya_render2d_shader_set_uniform have to agree on field
- * order, type and padding, and nothing says so if they drift. Getting it wrong is not a build error
- * and not a validation error — the shader reads whatever the bytes happen to mean.
+ * A cbuffer and the struct pushed for it must agree on field order, type and padding, and no compiler checks
+ * that. Name a block `NYA_Shader<Name>Uniform` and keep the `cbuffer`'s field order. HLSL packs constant
+ * buffers into four-component rows and never splits a member across one, so a `float2` after three floats is
+ * not where C puts it; group scalars in fours or pad.
  *
- * These structs used to be declared inline at each call site, so the same block was written out
- * again wherever it was used and each copy had to be kept in step with the HLSL independently. One
- * declaration per shader, next to the shaders, is the only arrangement where a change to a `cbuffer`
- * has an obvious single place to be mirrored.
- *
- * ## Rules for adding one
- *
- * Name it `NYA_Shader<Name>Uniform` and keep the field order identical to the `cbuffer`. HLSL packs
- * constant buffers into four-component vectors and will not split a member across a boundary, so
- * group scalars in fours or pad deliberately — a `float2` after three floats does not land where a C
- * struct would put it. Every block here is currently four floats or fewer for exactly that reason.
- *
- * ## Why this is not generated
- *
- * It could be parsed out of the HLSL, and that would be one more thing in the build to go wrong for
- * a handful of structs. This file is not compiled *into* the shaders either — it is a header for the
- * C side only, which is why the build excludes it from the asset index rather than treating it as
- * something to load at runtime.
+ * Not generated from the HLSL, which would add build machinery for a handful of structs, and not compiled into
+ * the shaders; the build keeps it out of the asset index.
  * */
 #pragma once
 
@@ -44,7 +28,7 @@ typedef struct NYA_ShaderGlassUniform    NYA_ShaderGlassUniform;
 
 /** effect_blur.frag.hlsl. One directional pass; run it twice, transposed, for a real gaussian. */
 struct NYA_ShaderBlurUniform {
-    /** One texel in uv, so the sample offsets are resolution independent. */
+    /** One texel in uv, so sample offsets are resolution independent. */
     f32 texel_x, texel_y;
 
     /** Which way the kernel steps. {1,0} is horizontal, {0,1} vertical. */
@@ -85,21 +69,16 @@ struct NYA_ShaderCrtUniform {
 };
 
 /**
- * mesh3d.frag.hlsl. The metallic-roughness material and the one light shading it.
+ * mesh3d.frag.hlsl: the material and the light shading it.
  *
- * Field order and padding are load-bearing: HLSL packs a cbuffer into sixteen-byte rows and will not
- * split a float3 across one, so a float3 followed by a float fills a row exactly. The four rows
- * below are that rule obeyed four times; reordering these fields silently reads the wrong ones.
- *
- * Per flush rather than per draw, which is what keeps a batch a batch — and is also how a real
- * renderer sorts, by material. Base colour stays per vertex, so one material can cover many
- * differently coloured objects in a single draw call.
+ * Field order and padding matter: a float3 followed by a float fills one sixteen-byte row, and reordering reads
+ * the wrong fields. Per flush rather than per draw, so a batch stays a batch; base colour is per vertex.
  * */
 struct NYA_ShaderMesh3DUniform {
     /** From the surface toward the light, normalized. See the shader for why this direction. */
     f32 light_direction_x, light_direction_y, light_direction_z;
 
-    /** Stands in for image based lighting. Around 0.25 reads as a lit room; 0 is airless. */
+    /** Brightness of surfaces facing away from the light. Around 0.6 for the cartoon look. */
     f32 ambient;
 
     f32 light_color_r, light_color_g, light_color_b;
@@ -107,13 +86,13 @@ struct NYA_ShaderMesh3DUniform {
     /** Scales the direct term only. One is neutral. */
     f32 intensity;
 
-    /** Where the view is from. A specular highlight is a function of this; a Lambert one is not. */
+    /** Where the view is from, for the highlight and the rim. */
     f32 camera_x, camera_y, camera_z;
 
-    /** 0 dielectric, 1 metal. In between is a blend, not a material. */
+    /** Highlight strength. See NYA_Render3DMaterial.metallic. */
     f32 metallic;
 
-    /** Perceptual roughness in [0, 1]. Squared into the GGX alpha by the shader. */
+    /** Band softness. See NYA_Render3DMaterial.roughness. */
     f32 roughness;
 
     /** Rim strength on the silhouette. See NYA_Render3DMaterial.reflectance. */
@@ -122,23 +101,13 @@ struct NYA_ShaderMesh3DUniform {
     /** How much of the base colour is added regardless of light. See NYA_Render3DMaterial.emission. */
     f32 emission;
 
-    /**
-     * How many of the arrays below are live, as a float.
-     *
-     * A float rather than a u32 because it shares a sixteen byte row with three floats, and HLSL reading
-     * an `int` out of a row of floats is a reinterpretation waiting to be got wrong. It costs a cast in
-     * the shader and removes a packing question.
-     * */
+    /** How many of the arrays below are live, as a float, so it shares a row of floats without a reinterpretation. */
     f32 point_light_count;
 
     /**
-     * Point lights, split across two arrays rather than an array of structs.
-     *
-     * HLSL pads every element of a constant buffer array up to sixteen bytes, so a struct of a float3 and
-     * two floats would occupy thirty-two with four wasted. Two parallel float4 arrays — position with
-     * range, colour with intensity — waste nothing and are what the shader indexes anyway.
-     *
-     * Has to match NYA_RENDER3D_MAX_POINT_LIGHTS and MESH3D_MAX_POINT_LIGHTS in mesh3d_shading.hlsli.
+     * Point lights as two parallel float4 arrays (position and range, colour and intensity). HLSL pads each array
+     * element to sixteen bytes, so a struct array would waste four per light. Must match
+     * NYA_RENDER3D_MAX_POINT_LIGHTS and MESH3D_MAX_POINT_LIGHTS.
      * */
     f32 point_light_position_range[NYA_RENDER3D_MAX_POINT_LIGHTS][4];
     f32 point_light_color_intensity[NYA_RENDER3D_MAX_POINT_LIGHTS][4];
@@ -156,43 +125,25 @@ struct NYA_ShaderMesh3DUniform {
     f32 shadow_bias;
 
     /**
-     * One light view-projection per cascade, matching what each shadow pass rendered with.
-     *
-     * f32_4x4 rather than sixteen floats, and safe for the same reason the vertex stage's
-     * view_projection is pushed as one: the matrix extension's layout is what HLSL reads as a row-major
-     * float4x4, and this is the same value that pass already used.
-     *
-     * An array now rather than one matrix, because a fragment picks its cascade from how far away it is
-     * and then needs *that* cascade's matrix. Unfilled entries are whatever the previous frame left, which
-     * is harmless: `cascade_count` bounds the selection, so nothing indexes past the ones that ran.
+     * One light view-projection per cascade, as each shadow pass rendered with. Entries past `cascade_count` are
+     * stale and never read.
      * */
     f32_4x4 light_view_projection[NYA_RENDER3D_SHADOW_CASCADES];
 
     /**
-     * How far each cascade reaches from the shadow volume's centre, in world units.
-     *
-     * ⚠ **Not what selects a cascade.** It was, and that was the bug behind shadows that grew as the
-     * camera approached — a cascade's volume is pushed ahead of the camera rather than centred on it, so
-     * a distance test does not describe where it is. Selection is now by projecting into each cascade in
-     * turn; see mesh3d_cascade_for. What this is still for is converting a shadow map texel into a world
-     * distance, which the normal offset is measured in.
-     *
-     * Stored as a float4 rather than an array of floats because HLSL pads every cbuffer array element out
-     * to sixteen bytes, which would make four floats occupy sixty-four.
+     * Each cascade's reach from the shadow volume's centre, in world units. Not used for selection (see
+     * mesh3d_cascade_for); it converts a shadow texel to a world distance for the normal offset. A float4, since
+     * HLSL pads array elements to sixteen bytes.
      * */
     f32 cascade_extent[4];
 
     /** How many cascades actually ran this frame. A float, for the reason `point_light_count` is one. */
     f32 cascade_count;
 
-    /** Padding to close the row. HLSL will not split the next member across a sixteen-byte boundary. */
+    /** Padding to close the row. */
     f32 cascade_pad[3];
 
-    /*
-     * ── fog ──
-     *
-     * Two rows, so nothing straddles a sixteen-byte boundary. See NYA_Render3DFog.
-     */
+    /* Fog, two rows. See NYA_Render3DFog. */
 
     f32 fog_color_r, fog_color_g, fog_color_b;
 
@@ -206,14 +157,8 @@ struct NYA_ShaderMesh3DUniform {
 };
 
 /*
- * The cbuffer contract, checked.
- *
- * This file's header says a uniform block is an agreement between two files that no compiler verifies. It
- * can be verified from this side: HLSL packs a constant buffer into sixteen-byte rows and never splits a
- * member across one, so the layout is arithmetic, and these are the rows mesh3d_shading.hlsli declares —
- * four scalar rows, two light arrays, the shadow row, the cascade matrices, the cascade row, and two fog
- * rows. A field inserted anywhere but the end, or a float3 that stops being followed by a float, moves an
- * offset and the shader silently reads the wrong member. That is what these catch.
+ * The cbuffer layout, checked against the rows mesh3d_shading.hlsli declares. Inserting a field or losing a
+ * float3's companion scalar moves an offset, and the shader would silently read the wrong member.
  */
 static_assert(offsetof(struct NYA_ShaderMesh3DUniform, point_light_position_range) == 64, "the four scalar rows come to 64 bytes");
 static_assert(offsetof(struct NYA_ShaderMesh3DUniform, edge) == 192, "the two point light arrays are 64 bytes each");
@@ -227,20 +172,14 @@ static_assert(sizeof(struct NYA_ShaderMesh3DUniform) == offsetof(struct NYA_Shad
 #define NYA_SHADER_LIGHT2D_MAX 16
 
 /**
- * Bones one skinned draw may use. Must equal NYA_SKELETON_MAX_BONES.
- *
- * Declared here as well as in core_skeleton.h because this header is shared with the shaders, which
- * cannot include engine headers. The two are checked against each other at compile time; see the
- * static assertion beside nya_render3d_skinned_mesh.
+ * Bones one skinned draw may use. Must equal NYA_SKELETON_MAX_BONES; the shaders cannot include engine
+ * headers, so the two are checked beside nya_render3d_skinned_mesh.
  * */
 #define NYA_SHADER_SKIN_MAX_BONES 64
 
 /**
- * light2d.frag.hlsl. The 2D light map's lights and its ambient floor.
- *
- * Two parallel arrays rather than an array of structs, because HLSL pads every cbuffer array element
- * out to sixteen bytes — so a struct of a float3 and a float2 would occupy thirty-two and waste half
- * of it. Packed this way the whole block is 544 bytes, which is one uniform push.
+ * light2d.frag.hlsl: the 2D light map's lights and ambient floor. Two parallel arrays, since HLSL pads each
+ * element to sixteen bytes. The block is 544 bytes, one push.
  * */
 struct NYA_ShaderLight2DUniform {
     /** Per light: x, y in target pixels, z radius in the same units, w intensity. */
@@ -262,15 +201,8 @@ struct NYA_ShaderLight2DUniform {
 };
 
 /**
- * sky3d.frag.hlsl. The 3D sky's gradient, sun and camera basis.
- *
- * Every row is a float3 followed by a scalar, which is not a stylistic choice: HLSL packs a constant
- * buffer into four-component vectors and refuses to split a member across one, so a float3 is followed by
- * exactly sixteen bytes' worth of members or by padding. Pairing each direction with the scalar that
- * belongs to it costs nothing and puts the padding to work.
- *
- * Built by nya_render3d_sky_draw, which fills the camera rows from the batch — a caller supplies only the
- * colours and the sun, since the basis is not theirs to get wrong.
+ * sky3d.frag.hlsl: gradient, sun and camera basis. Every row is a float3 and its related scalar, which fills
+ * the row. nya_render3d_sky_draw fills the camera rows from the batch.
  * */
 struct NYA_ShaderSkyUniform {
     /** Camera basis, world space, unit length. */
@@ -306,17 +238,14 @@ struct NYA_ShaderSkyUniform {
     f32 sun_r, sun_g, sun_b;
     f32 sun_intensity;
 
-    /** What is below the horizon. Not a lit surface — the colour the world reads as at a distance. */
+    /** Below the horizon: the colour distant ground reads as, not a lit surface. */
     f32 ground_r, ground_g, ground_b;
     f32 pad;
 };
 
 /**
- * mesh3d_outline.vert.hlsl. The ink's colour and how far the hull is pushed out.
- *
- * Its own block rather than a pair of fields on the mesh uniform, because the outline pipeline runs a
- * fragment shader that reads no light, no material and no shadow map — giving it the scene's block would
- * mean pushing a hundred and fifty bytes of lighting per outline draw for two values.
+ * mesh3d_outline.vert.hlsl: ink colour and hull push. Its own block, since the outline shader reads no light
+ * or material.
  * */
 struct NYA_ShaderOutlineUniform {
     f32 color_r, color_g, color_b, color_a;
@@ -324,16 +253,13 @@ struct NYA_ShaderOutlineUniform {
     /** World units at the model's own scale. See nya_render3d_outline_set. */
     f32 thickness;
 
-    /** HLSL will not split a float3 across a sixteen-byte boundary; this is the rest of the row. */
+    /** Pads the row. */
     f32 pad[3];
 };
 
 /**
- * mesh3d_glass.frag.hlsl. Where the captured scene is, and how far the glass bends and blurs it.
- *
- * A second fragment block at b1, beside the shading block at b0. Separate because the shading block is
- * shared with two pipelines that have no capture to sample — adding these to it would push four bytes of
- * glass state through every ordinary mesh draw in the frame.
+ * mesh3d_glass.frag.hlsl: capture texel size, refraction and blur. A block at b1 so ordinary mesh draws do not
+ * carry glass state.
  * */
 struct NYA_ShaderGlassUniform {
     /** One texel of the capture in uv. Also what converts SV_POSITION into a lookup coordinate. */
@@ -345,26 +271,13 @@ struct NYA_ShaderGlassUniform {
 };
 
 /**
- * mesh3d_skinned.vert.hlsl. The bone palette, as linear blend skinning consumes it.
- *
- * A vertex block at b1, beside the view-projection at b0, for the same reason the outline's is: the
- * shared block is what every mesh pipeline pushes, and three kibibytes of bone matrices have no
- * business travelling with a static prop's draw.
- *
- * **Three rows, not four.** A bone transform is affine, so its last row is always (0, 0, 0, 1) and
- * sending it costs a quarter of the block to say nothing. The shader rebuilds the row it needs. At
- * sixty four bones this is 3 KiB rather than 4.
+ * mesh3d_skinned.vert.hlsl: the bone palette at b1, so static props do not carry it. Three rows per bone,
+ * since the fourth row of an affine transform is always (0, 0, 0, 1); 3 KiB at sixty-four bones.
  * */
 struct NYA_ShaderSkinUniform {
-    /**
-     * Row major, three rows per bone: `bones[i][0..2]` are the rows of bone `i`'s matrix.
-     *
-     * Written by nya_skeleton_palette and copied here, rather than the palette being this shape to
-     * begin with — the palette is composed with full matrix multiplies, and a three-row type would
-     * have to reconstitute the fourth row for every one of them.
-     * */
+    /** Row major, three rows per bone. Copied from nya_skeleton_palette, which works in full matrices. */
     f32 bones[NYA_SHADER_SKIN_MAX_BONES][3][4];
 
-    /** Multiplied into the vertex colour. A float4 of its own, since a cbuffer will not split one. */
+    /** Multiplied into the vertex colour. Its own float4, since a cbuffer will not split one. */
     f32 tint_r, tint_g, tint_b, tint_a;
 };

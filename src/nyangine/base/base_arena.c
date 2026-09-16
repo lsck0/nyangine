@@ -22,20 +22,15 @@ NYA_INTERNAL NYA_ArenaActionCallback _nya_arena_action_callback = nullptr;
  */
 
 /*
- * Fixed table of atomic slots, not a linked list behind a lock — base has no mutex, and adding one
- * for a debugging feature is the wrong trade. Slots are claimed with compare-exchange; a linear scan
- * of 256 pointers costs nothing next to creating an arena.
+ * A fixed table of atomic slots claimed by compare-exchange: base has no mutex, and a linear scan of 256
+ * pointers is nothing next to creating an arena.
  */
 NYA_INTERNAL atomic(NYA_Arena*) _nya_arena_registry[NYA_ARENA_REGISTRY_MAX];
 
-/** Warned once rather than per arena, so overflowing does not bury the log it is trying to help with. */
+/** Warned once, so an overflow does not bury the log. */
 NYA_INTERNAL atomic b8 _nya_arena_registry_overflow_reported = false;
 
-/**
- * Slots currently claimed, kept alongside the CAS table purely so the ceiling registry has a plain
- * counter to point at — nya_arena_registry_count() already answers this by scanning, but scanning
- * on every read is not the shape nya_ceiling_register takes.
- * */
+/** Claimed slots, as a plain counter for the ceiling registry to point at. */
 NYA_INTERNAL atomic u32 _nya_arena_registry_live_count = 0;
 
 NYA_INTERNAL void _nya_arena_registry_add(NYA_Arena* arena);
@@ -48,17 +43,15 @@ NYA_INTERNAL void _nya_arena_registry_remove(NYA_Arena* arena);
  */
 
 /*
- * One row per source location that has touched an arena. Fixed size and never compacted so a row's
- * address is stable while being read and written. Keyed on the file pointer, line and arena name:
- * file/function come from __FILE__/__FUNCTION__, the same literal at a given site, so pointer
- * comparison is correct and cheaper than strcmp on the hot path.
+ * One row per source location that has touched an arena, fixed and never compacted so a row's address is
+ * stable. Keyed by file pointer, line and arena name: __FILE__ is one literal per site, so pointer comparison
+ * is correct and cheap.
  */
 #define _NYA_ARENA_CALLSITE_MAX 1024
 
 /**
- * The stored form of a row. `file_name` doubles as the publication flag: written last with release
- * ordering, so a reader that sees it non-null sees every other field too; null means reserved but
- * not yet filled, and the reader skips it.
+ * The stored form of a row. `file_name` is written last and doubles as the publication flag: a reader seeing
+ * it set sees every field; null means reserved but not filled.
  * */
 typedef struct {
     atomic(const char*) file_name;
@@ -82,7 +75,7 @@ NYA_INTERNAL _NYA_ArenaCallsiteRow* _nya_arena_callsite_for(const char* arena_na
 NYA_INTERNAL void                    _nya_arena_callsite_record_alloc(const char* arena_name, const char* file, u32 line, const char* function, u64 size);
 NYA_INTERNAL void                    _nya_arena_callsite_record_free(const char* arena_name, const char* file, u32 line, const char* function, u64 size);
 
-/** A row as the public API reports it. Fields are read individually; the row may move on under it. */
+/** A row as the public API reports it. Fields are read individually and may move on under it. */
 NYA_INTERNAL NYA_ArenaCallsiteStats _nya_arena_callsite_snapshot(const _NYA_ArenaCallsiteRow* row);
 
 NYA_Arena* nya_arena_global = nullptr;
@@ -110,8 +103,7 @@ NYA_Arena* _nya_arena_nodebug_create_with_options(NYA_ArenaOptions options) {
     NYA_Arena* arena = nya_malloc(sizeof(NYA_Arena));
     *arena           = _nya_arena_nodebug_create_with_options_on_stack(options);
 
-    // Heap arenas only: the on_stack variant returns by value, so there is no stable address to
-    // register at the point it's built, and stack arenas are per-call scratch a report has no use for.
+    // heap arenas only: a stack arena is returned by value and has no stable address to register.
     _nya_arena_registry_add(arena);
 
     return arena;
@@ -121,9 +113,7 @@ NYA_Arena _nya_arena_nodebug_create_with_options_on_stack(NYA_ArenaOptions optio
     nya_assert(options.region_size >= nya_kibyte_to_byte(4), "Region size must be at least 4 KiB.");
     nya_assert(options.region_size % options.alignment == 0, "Region size must be divisible by alignment.");
     nya_assert(options.alignment >= 8, "Alignment must be at least 8 bytes.");
-    // `% 2 == 0` only said "even", which 24 and 40 also satisfy — and the alignment is used as a
-    // mask, `(x + a - 1) & ~(a - 1)`, which is only an alignment operation when `a` is a power of
-    // two. A non-power-of-two got through here and then silently misaligned every allocation.
+    // a power of two, since the alignment is used as a mask.
     nya_assert((options.alignment & (options.alignment - 1)) == 0, "Alignment must be a power of two, got " FMTu8 ".", options.alignment);
     nya_assert(ASAN_PADDING % options.alignment == 0, "ASAN padding must be divisible by alignment.");
 
@@ -162,7 +152,7 @@ void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
             uintptr_t aligned_ptr = ((uintptr_t)ptr + (arena->options.alignment - 1)) & ~(arena->options.alignment - 1);
             u64       padding     = aligned_ptr - (uintptr_t)ptr;
 
-            // enough space after alignment padding too?
+            // enough space after the alignment padding too?
             if (region->capacity - region->used - padding >= size) {
                 ptr           = (u8*)aligned_ptr;
                 region->used += size + padding;
@@ -179,12 +169,9 @@ void* _nya_arena_nodebug_alloc(NYA_Arena* arena, u64 size) __attr_malloc {
 
 skip_search:
     /*
-     * No region had space, or the search was skipped. The region must hold the allocation *plus*
-     * alignment padding; nya_malloc guarantees only max_align_t (16 bytes), so sizing the region to
-     * `size` alone and setting `used = size + initial_padding` put `used` past `capacity` — the
-     * write ran off the malloc'd block and every later `capacity - used` check underflowed. Only
-     * reachable when a single allocation larger than region_size decides the region size, on an
-     * arena whose alignment exceeds malloc's.
+     * No region had space. The new region holds the allocation plus alignment padding: nya_malloc only guarantees
+     * max_align_t, so a region sized to `size` alone could overrun when a large allocation with a large alignment
+     * sets the region size.
      */
     u64              new_region_size   = nya_max(arena->options.region_size, size + arena->options.alignment - 1);
     NYA_ArenaRegion* new_region        = nya_malloc(sizeof(NYA_ArenaRegion));
@@ -210,8 +197,7 @@ skip_search:
 
     asan_unpoison_memory_region(ptr, size - ASAN_PADDING);
 
-    // The tail runs `capacity - initial_padding` bytes from `ptr` (capacity is from `memory`).
-    // Leaving padding out of the subtraction poisoned `initial_padding` bytes past the block's end.
+    // the tail after `ptr` is `capacity - initial_padding` bytes, since capacity counts from `memory`.
     asan_poison_memory_region(ptr + size - ASAN_PADDING, new_region->capacity - initial_padding - size + ASAN_PADDING);
 
     return ptr;
@@ -231,12 +217,12 @@ void* _nya_arena_nodebug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 
     _nya_arena_align_and_pad_size(arena, &new_size);
     u8* old_ptr = (u8*)ptr;
 
-    // realloc to smaller size = partial free
+    // shrinking realloc is a partial free
     if (new_size < old_size) {
-        // use old memory as the asan padding
+        // use the old memory as asan padding
         asan_poison_memory_region(old_ptr + new_size - ASAN_PADDING, ASAN_PADDING);
 
-        // only free the excess if it's larger than ASAN_PADDING
+        // only free the excess past ASAN_PADDING
         if (old_size - new_size > ASAN_PADDING) { /**/
             _nya_arena_nodebug_free(arena, old_ptr + new_size, old_size - new_size - ASAN_PADDING);
         }
@@ -247,9 +233,9 @@ void* _nya_arena_nodebug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 
     nya_dll_foreach (arena, region) {
         if (!(region->memory <= old_ptr && old_ptr < region->memory + region->capacity)) continue;
 
-        // no checking if there is a free slot after in the free list
+        // the free list after it is not checked
 
-        // if its the last allocation in the region, we can maybe just extend it
+        // the last allocation in the region can grow in place
         if (old_ptr + old_size == region->memory + region->used && region->used + (new_size - old_size) <= region->capacity) {
             region->used += new_size - old_size;
 
@@ -258,7 +244,7 @@ void* _nya_arena_nodebug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 
             return old_ptr;
         }
 
-        // allocate new memory and copy, dont double dipp on the padding
+        // allocate and copy, without doubling the padding
         void* new_ptr = _nya_arena_nodebug_alloc(arena, new_size - ASAN_PADDING);
         nya_memmove(new_ptr, old_ptr, old_size - ASAN_PADDING);
         _nya_arena_nodebug_free(arena, old_ptr, old_size - ASAN_PADDING);
@@ -282,13 +268,13 @@ void _nya_arena_nodebug_free(NYA_Arena* arena, void* ptr, u64 size) {
     nya_dll_foreach (arena, region) {
         if (!(region->memory <= casted_ptr && casted_ptr < region->memory + region->capacity)) continue;
 
-        // last allocation, just move the used pointer back
+        // last allocation: move the used pointer back
         if (casted_ptr + size == region->memory + region->used) {
             region->used -= size;
             return;
         }
 
-        // add to free list otherwise
+        // otherwise add to the free list
         _nya_arena_free_list_add(region, ptr, size);
 
         // maybe defragment
@@ -308,7 +294,7 @@ void _nya_arena_nodebug_free_all(NYA_Arena* arena) {
     for (NYA_ArenaRegion* region = arena->head; region != nullptr;) {
         NYA_ArenaRegion* next = region->next;
 
-        // deallocate region if unused long enough
+        // deallocate a region that has been unused long enough
         if (arena->options.defragmentation_enabled && region->used == 0 && region->gc_counter++ >= arena->options.garbage_collection_threshold) {
             _nya_arena_region_destroy(arena, region);
             region = next;
@@ -316,11 +302,8 @@ void _nya_arena_nodebug_free_all(NYA_Arena* arena) {
         }
 
         /*
-         * Poison what was handed out, not the whole region: poisoning the full capacity scales with
-         * region size, not usage, and a region defaults to a gibyte — so resetting an arena holding
-         * a few kilobytes wrote 128 MiB of shadow memory every time, faulting in shadow pages that
-         * are never released and reading as unbounded growth no leak checker attributes to anything.
-         * The tail beyond `used` was never handed out, so only the prefix needs poisoning again.
+         * Poisons what was handed out, not the whole region. A region defaults to a gibibyte, so poisoning its full
+         * capacity on every reset wrote 128 MiB of shadow memory for a few kilobytes of use.
          */
         u64 used_before = region->used;
 
@@ -355,7 +338,7 @@ void _nya_arena_nodebug_garbage_collect(NYA_Arena* arena) {
 void _nya_arena_nodebug_destroy(NYA_Arena* arena) {
     nya_assert(arena != nullptr);
 
-    // Before the memory goes away, so a report racing this never dereferences a freed arena.
+    // before the memory goes, so a concurrent report never reads a freed arena.
     _nya_arena_registry_remove(arena);
 
     _nya_arena_nodebug_destroy_on_stack(arena);
@@ -473,8 +456,7 @@ void* _nya_arena_debug_realloc(NYA_Arena* arena, void* ptr, u64 old_size, u64 ne
     };
     if (_nya_arena_action_callback) _nya_arena_action_callback(action);
 
-    // Booked as a free of the old block plus an alloc of the new one, so live_bytes tracks the delta
-    // — a growing array reallocating repeatedly shows its current size, not the sum of every size.
+    // booked as a free plus an alloc, so live_bytes tracks the current size of a growing array.
     _nya_arena_callsite_record_free(arena->options.name, file, line, function, old_size);
     _nya_arena_callsite_record_alloc(arena->options.name, file, line, function, new_size);
 
@@ -638,8 +620,7 @@ NYA_ArenaStats nya_arena_stats(NYA_Arena* arena) {
         }
     }
 
-    // Zero when nothing is free: an arena with an empty free list is full, not fragmented, and
-    // reporting 1.0 there would send someone looking for a defragmentation bug that is not present.
+    // zero with nothing free: an empty free list means full, not fragmented.
     if (stats.free_list_bytes > 0) {
         stats.fragmentation = 1.0F - ((f32)stats.largest_free_block / (f32)stats.free_list_bytes);
     }
@@ -656,8 +637,7 @@ u32 nya_arena_registry_count(void) {
 }
 
 NYA_Arena* nya_arena_registry_at(u32 index) {
-    // Indexes the occupied slots rather than the raw table, so a caller walking 0..count-1 sees
-    // every arena. The table is sparse: a destroyed arena leaves a hole that the next create fills.
+    // indexes occupied slots, since destroyed arenas leave holes the next create fills.
     u32 seen = 0;
     for (u32 i = 0; i < NYA_ARENA_REGISTRY_MAX; i++) {
         NYA_Arena* arena = atomic_load(&_nya_arena_registry[i]);
@@ -720,9 +700,8 @@ NYA_ArenaCallsiteStats nya_arena_callsite_at(u32 index) {
 }
 
 void nya_arena_callsites_reset(void) {
-    // Field by field rather than nya_memset, which has nothing to say about atomics. Count first, so
-    // a thread recording concurrently reserves from the start of the table rather than writing into
-    // a row this is in the middle of clearing.
+    // field by field, since memset says nothing about atomics. count first, so a concurrent recorder reserves from
+    // the table's start rather than a row being cleared.
     atomic_store(&_nya_arena_callsite_count, 0);
 
     for (u32 i = 0; i < _NYA_ARENA_CALLSITE_MAX; i++) {
@@ -737,7 +716,7 @@ void nya_arena_callsites_reset(void) {
         atomic_store(&row->function_name, nullptr);
         atomic_store(&row->arena_name, nullptr);
 
-        // Last, matching the publication order in _nya_arena_callsite_for.
+        // last, matching the publication order in _nya_arena_callsite_for.
         atomic_store_explicit(&row->file_name, nullptr, memory_order_release);
     }
 
@@ -745,29 +724,26 @@ void nya_arena_callsites_reset(void) {
 }
 
 void nya_arena_callsites_report(u32 limit) {
-    // Sampled once and worked from, rather than re-read: the table can grow underneath a report and
-    // the ordering below has to be against a fixed set of rows.
+    // sampled once, since the table can grow during a report.
     NYA_ArenaCallsiteStats rows[_NYA_ARENA_CALLSITE_MAX];
     u32                    row_count = 0;
 
     for (u32 i = 0; i < nya_arena_callsite_count(); i++) {
         NYA_ArenaCallsiteStats row = _nya_arena_callsite_snapshot(&_nya_arena_callsites[i]);
-        if (row.file_name == nullptr) continue; // reserved but not yet published
+        if (row.file_name == nullptr) continue; // reserved but not published yet
 
         rows[row_count++] = row;
     }
 
     if (row_count == 0) {
-        // Says which, because "no allocations" and "not a debug build" look identical in a log and
-        // only one of them is worth investigating.
+        // says which, since "no allocations" and "not a debug build" look the same in a log.
         nya_log_info("Arena: no callsites recorded (debug builds only).");
         return;
     }
 
     /*
-     * Selection sort over indices, taking only the top `limit`. The snapshot itself is not reordered
-     * — rows are addressed by index through nya_arena_callsite_at, and sorting in place would change
-     * that ordering under a caller between two calls.
+     * Selection sort over indices for the top `limit`. The snapshot keeps its order, since callers address rows by
+     * index.
      */
     u32 count = row_count;
     if (limit == 0 || limit > count) limit = count;
@@ -791,8 +767,7 @@ void nya_arena_callsites_report(u32 limit) {
     for (u32 i = 0; i < limit; i++) {
         const NYA_ArenaCallsiteStats* row = &rows[order[i]];
 
-        // Trimmed to the basename: the full path is the same prefix for every row and pushes the
-        // numbers off the side of a terminal.
+        // basename only: the path prefix is identical for every row.
         const char* file = row->file_name != nullptr ? row->file_name : "?";
         const char* slash = strrchr(file, '/');
         if (slash != nullptr) file = slash + 1;
@@ -825,13 +800,9 @@ void _nya_arena_registry_add(NYA_Arena* arena) {
             atomic_fetch_add(&_nya_arena_registry_live_count, 1);
 
 #ifndef NYA_NO_SDL
-            // Registered once, on the first arena the process ever creates — there is no dedicated
-            // init to hang this on, since a zeroed CAS table is already a valid empty registry. Base
-            // has no ceiling registry of its own — see core_ceiling.h — so this is skipped in a
-            // -DNYA_NO_SDL build, which excludes core entirely (the build tool itself is one).
-            // The cast is safe in practice though not strictly conforming: a lock-free atomic u32
-            // has the same representation as a plain one on every compiler this engine targets, and
-            // the ceiling registry only ever reads through the pointer, never writes.
+            // registered on the first arena created, since a zeroed table needs no init. skipped under -DNYA_NO_SDL, which
+            // has no ceiling registry (the build tool). the atomic is read through a plain pointer, which every supported
+            // compiler represents identically, and the registry only reads.
             static atomic b8 ceiling_registered = false;
             if (!atomic_exchange(&ceiling_registered, true)) {
                 nya_ceiling_register("arenas", NYA_ARENA_REGISTRY_MAX, (const u32*)&_nya_arena_registry_live_count);
@@ -842,8 +813,7 @@ void _nya_arena_registry_add(NYA_Arena* arena) {
         }
     }
 
-    // Not fatal. The arena works; it is simply not listed, and a registry that refused to create
-    // arenas past a limit would turn a debugging aid into a failure mode.
+    // not fatal: the arena works, it is just not listed.
     if (!atomic_exchange(&_nya_arena_registry_overflow_reported, true)) {
         nya_log_warn("Arena registry is full at %d entries, further arenas will not be listed.", NYA_ARENA_REGISTRY_MAX);
     }
@@ -860,8 +830,7 @@ void _nya_arena_registry_remove(NYA_Arena* arena) {
 }
 
 NYA_ArenaCallsiteStats _nya_arena_callsite_snapshot(const _NYA_ArenaCallsiteRow* row) {
-    // Acquire on the publication field, so everything below is the filled row rather than whatever
-    // a reserved-but-unwritten one happens to hold.
+    // acquired on the publication field, so the row below is filled.
     const char* file = atomic_load_explicit(&row->file_name, memory_order_acquire);
     if (file == nullptr) return (NYA_ArenaCallsiteStats){ 0 };
 
@@ -880,9 +849,7 @@ NYA_ArenaCallsiteStats _nya_arena_callsite_snapshot(const _NYA_ArenaCallsiteRow*
 
 _NYA_ArenaCallsiteRow* _nya_arena_callsite_for(const char* arena_name, const char* file, u32 line, const char* function) {
 #ifndef NYA_NO_SDL
-    // Registered once, on the first callsite this process ever records. See _nya_arena_registry_add
-    // for why this cannot hang off a dedicated init instead, why it is skipped under -DNYA_NO_SDL,
-    // and why the counter is read through a plain pointer despite being atomic.
+    // registered on the first callsite recorded; see _nya_arena_registry_add.
     static atomic b8 ceiling_registered = false;
     if (!atomic_exchange(&ceiling_registered, true)) {
         nya_ceiling_register("arena_callsites", _NYA_ARENA_CALLSITE_MAX, (const u32*)&_nya_arena_callsite_count);
@@ -895,14 +862,12 @@ _NYA_ArenaCallsiteRow* _nya_arena_callsite_for(const char* arena_name, const cha
     for (u32 i = 0; i < count; i++) {
         _NYA_ArenaCallsiteRow* row = &_nya_arena_callsites[i];
 
-        // Reserved by another thread but not filled in yet. Skipping it may cost a duplicate row,
-        // which is the trade below.
+        // reserved by another thread and not filled yet. skipping may cost a duplicate row.
         const char* row_file = atomic_load_explicit(&row->file_name, memory_order_acquire);
         if (row_file == nullptr) continue;
 
-        // Pointer comparison on file: both sides come from __FILE__ at the same site, which the
-        // compiler pools into one literal. The arena name is compared by content because two arenas
-        // may be named by different literals and still be the same subsystem.
+        // file by pointer, since __FILE__ at a site is one pooled literal. the arena name by content, since two literals
+        // may name the same subsystem.
         if (atomic_load(&row->line_number) != line) continue;
         if (row_file != file) continue;
 
@@ -913,15 +878,14 @@ _NYA_ArenaCallsiteRow* _nya_arena_callsite_for(const char* arena_name, const cha
     }
 
     /*
-     * A slot reserved outright, not claimed with a compare-exchange against the row: two threads
-     * touching the same site simultaneously can both reserve, leaving two rows whose totals must be
-     * added to read the truth. Accepted cost — the window is only the first allocation from a given
-     * line, and the alternative is a lock on the hot path of every debug-build allocation.
+     * Reserved outright rather than compare-exchanged against the row. Two threads recording the same site at once
+     * may create two rows whose totals add up; the window is only a site's first allocation, and the alternative
+     * is a lock on every debug allocation.
      */
     u32 index = atomic_fetch_add(&_nya_arena_callsite_count, 1);
 
     if (index >= _NYA_ARENA_CALLSITE_MAX) {
-        // Pinned, so a long run does not carry the counter away from the table size and back around.
+        // pinned, so the counter never runs past the table size and wraps.
         atomic_store(&_nya_arena_callsite_count, _NYA_ARENA_CALLSITE_MAX);
 
         if (!atomic_exchange(&_nya_arena_callsite_overflow_reported, true)) {
@@ -941,7 +905,7 @@ _NYA_ArenaCallsiteRow* _nya_arena_callsite_for(const char* arena_name, const cha
     atomic_store(&row->freed_bytes, 0);
     atomic_store(&row->live_bytes, 0);
 
-    // Published last: this is what makes the row visible to a reader, and to the scan above.
+    // published last, which makes the row visible.
     atomic_store_explicit(&row->file_name, file, memory_order_release);
 
     return row;
@@ -1006,7 +970,7 @@ NYA_INTERNAL void* _nya_arena_free_list_find(NYA_ArenaFreeList* free_list, u64 s
             return ptr;
         }
 
-        // free node is bigger than we need
+        // the free node is bigger than needed
         void* ptr = node->ptr;
 
         node->ptr                     = (u8*)node->ptr + size;
@@ -1046,11 +1010,8 @@ NYA_INTERNAL void _nya_arena_free_list_add(NYA_ArenaRegion* region, void* ptr, u
     };
 
     /*
-     * Kept sorted by address — the invariant _nya_arena_free_list_defragment depends on, since it
-     * only merges a node with its immediate successor. The walk below always links *after* the node
-     * it stopped at, so it can't place a block below the current head; that case is what the push
-     * front is for. Freeing a higher block before a lower one hits it, and without this a region
-     * that had just released a contiguous span would refuse to allocate out of it and grow instead.
+     * Kept sorted by address, which _nya_arena_free_list_defragment relies on to merge a node with its successor.
+     * The walk links after the node it stopped at, so a block below the head is pushed at the front.
      */
     if (region->free_list->head == nullptr) {
         region->free_list->head = new_node;
@@ -1061,7 +1022,7 @@ NYA_INTERNAL void _nya_arena_free_list_add(NYA_ArenaRegion* region, void* ptr, u
         nya_dll_foreach (region->free_list, free_node) {
             if (free_node->next && (u8*)free_node->next->ptr < (u8*)new_node->ptr) continue;
 
-            // we are now in the situation free_node < new_node < free_node->next by address
+            // now free_node < new_node < free_node->next by address
             nya_dll_node_link(region->free_list, free_node, new_node, free_node->next);
             break;
         }
@@ -1077,13 +1038,10 @@ NYA_INTERNAL void _nya_arena_free_list_add(NYA_ArenaRegion* region, void* ptr, u
     }
 
     /*
-     * Counts frees since the last defragmentation, compared against the threshold in
-     * _nya_arena_nodebug_free. Previously nothing incremented this, so the comparison was always
-     * 0 >= threshold and defragmentation never ran — adjacent free blocks stayed unmerged and a
-     * region that had released a contiguous span could not satisfy an allocation that size.
-     * Saturating, not wrapping: the counter is a u8, defragmentation can be turned off (so nothing
-     * resets it), and FLAGS_SANITIZE treats unsigned wraparound as an error.
-     * */
+     * Counts frees since the last defragmentation, against the threshold in _nya_arena_nodebug_free. Saturating:
+     * it is a u8, defragmentation can be disabled so nothing resets it, and the sanitizers treat unsigned wrap as
+     * an error.
+     */
     if (region->free_list->defragmentation_counter < U8_MAX) region->free_list->defragmentation_counter++;
 }
 
@@ -1091,12 +1049,12 @@ NYA_INTERNAL void _nya_arena_free_list_defragment(NYA_ArenaFreeList* free_list) 
     nya_assert(free_list != nullptr);
 
     for (NYA_ArenaFreeListNode* node = free_list->head; node != nullptr && node->next != nullptr;) {
-        // check if current node is directly before the next node
+        // is this node directly before the next one?
         if ((u8*)node->ptr + node->size == (u8*)node->next->ptr) {
             NYA_ArenaFreeListNode* next      = node->next;
             u64                    next_size = next->size;
 
-            // merge nodes
+            // merge them
             node->size += next_size;
             nya_dll_node_unlink(free_list, next);
             nya_free(next);
@@ -1110,14 +1068,9 @@ NYA_INTERNAL void _nya_arena_free_list_defragment(NYA_ArenaFreeList* free_list) 
     }
 
     /*
-     * Recomputed rather than adjusted as nodes merge: the incremental form subtracted the absorbed
-     * node's size from the running total, but merging two free blocks releases no bytes — it just
-     * means one node describes what two did. Every merge pushed the average further below the truth,
-     * and since _nya_arena_nodebug_alloc only searches the free list when average_free_size is at
-     * least the requested size, a region that had just coalesced a large span would refuse to
-     * allocate out of it and grow instead. Sixteen freed blocks in a row was enough to see it. The
-     * walk matches the merge loop's order above, so this costs nothing worth saving.
-     * */
+     * Recomputed, not adjusted: merging releases no bytes, so subtracting the absorbed node pushed the average
+     * below the truth, and _nya_arena_nodebug_alloc skips the free list when the average is below the request.
+     */
     u64 total = 0;
     u64 count = 0;
     for (NYA_ArenaFreeListNode* node = free_list->head; node != nullptr; node = node->next) {

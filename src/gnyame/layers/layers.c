@@ -60,9 +60,7 @@ GNY_World* gny_world(void) {
 }
 
 void gny_world_create(void) {
-    /*
-     * From the engine world's arena rather than one of this library's own.
-     */
+    /* From the engine world's arena. */
     NYA_Arena* allocator = nya_world()->allocator;
 
     GNY_World* world = nya_arena_alloc(allocator, sizeof(GNY_World));
@@ -70,23 +68,20 @@ void gny_world_create(void) {
     *world = (GNY_World){
         .allocator           = allocator,
         .terrain             = NYA_ENTITY_HANDLE_NONE,
-        /*
-         * From --seed where one was given, so a server operator can reproduce a world.
-         */
+        /* From --seed when given, so a server operator can reproduce a world. */
         .terrain_seed        = GNY_LAUNCH.world_seed != 0 ? GNY_LAUNCH.world_seed : 1,
 
-        // Allocated once with the world, not per burst: the pool is fixed and emission is allocation
-        // free, which is the whole point of a ceiling rather than a growable list.
+        // allocated once with the world: the pool is fixed and emission never allocates.
         .sparks = nya_particles_create(allocator, GNY_SPARK_POOL),
 
-        // The camera is an entity and does not exist yet — the game layer creates it when it is
-        // pushed. Until then gny_entity_camera_get answers with the identity camera.
+        // the camera entity is created when the game layer is pushed; until then gny_entity_camera_get returns
+        // the identity camera.
         .camera       = NYA_ENTITY_HANDLE_NONE,
         .inset_camera = NYA_ENTITY_HANDLE_NONE,
 
         .bloom_enabled = true,
 
-        // Mid morning, so the first frame of the demo is lit rather than black. See GNY_SKY_START_PHASE.
+        // mid morning, so the first frame is lit. see GNY_SKY_START_PHASE.
         .sky_offset_s = GNY_SKY_START_PHASE * GNY_DAY_LENGTH_S,
     };
 
@@ -97,18 +92,13 @@ void gny_world_create(void) {
      */
     NYA_Error lua = nya_lua_create(allocator, (NYA_LuaOptions){ .engine_api = true }, &world->lua);
 
-    // Not fatal. Scripting is content, and a demo that refuses to start because a VM would not come up
-    // is worse than one that runs without scripts.
+    // not fatal: a demo without scripts beats one that will not start.
     if (!lua.ok) nya_log_warn("Could not create the Lua VM: %s", (NYA_ConstCString)lua.message);
 
     /*
-     * The script itself is queued rather than run: assets resolve at the end of a frame, so the first
-     * tick that finds it loaded is what runs it. See gny_world_script_tick.
-     *
-     * ⚠ **And acquired, or it does not survive to be run.** Nothing else holds a reference to it, so
-     * the unloading sweep takes it back before the game layer's first update — which showed up as the
-     * script silently never running, with one "Unloading asset" line the only evidence. Held for the
-     * world's lifetime rather than released on a screen change; see the note in gny_world_clear.
+     * The script is queued, not run: assets resolve at frame end, and the first tick that finds it loaded runs it
+     * (see gny_world_script_tick). It is acquired too, or the unloading sweep drops it before that tick. The
+     * reference is held for the world's lifetime.
      */
     (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = NYA_ASSET_SCRIPTS_STARTUP_LUA });
     (void)nya_asset_acquire(NYA_ASSET_SCRIPTS_STARTUP_LUA);
@@ -119,27 +109,21 @@ void gny_world_create(void) {
     (void)nya_font_register("ui", GNY_UI_FONT, GNY_UI_FONT_SIZE);
     (void)nya_font_register("title", GNY_UI_FONT, GNY_UI_TITLE_FONT_SIZE);
 
-    /*
-     * The title face rasterises as a distance field; the HUD face does not.
-     */
+    /* The title face is a distance field; the HUD face is not. */
     (void)nya_font_sdf_set(nya_font_named("title"), true);
 
     nya_font_default_set(nya_font_named("ui"));
 
     /*
-     * The runtime config, loaded once here and — with NYA_ASSET_HOT_RELOAD compiled in — kept in sync
-     * with its file from then on. See gnyame/config.h for what NYA_CONFIG holds and why this call does
-     * not repeat on a code reload the way it does on an edit to the file itself.
+     * The runtime config, loaded once and kept in sync with its file under NYA_ASSET_HOT_RELOAD. See
+     * gnyame/config.h for what NYA_CONFIG holds.
      */
     NYA_Error config_loaded = nya_config_watch(GNY_CONFIG_FILE, nya_reflect_of(GNY_Config), &NYA_CONFIG);
 
-    // Not fatal, and treated the same as a missing settings file: NYA_CONFIG keeps whatever it was
-    // already holding (its zero-initialised defaults on a fresh process), so a demo missing its
-    // config file still runs — just with every field at zero rather than the shipped ones.
+    // not fatal, like a missing settings file: NYA_CONFIG keeps its zeroed defaults.
     if (!config_loaded.ok) nya_log_warn("Could not load %s: %s", GNY_CONFIG_FILE, (NYA_ConstCString)config_loaded.message);
 
-    // Before the game layer's first on_update, which is the only requirement the registry has of
-    // whoever calls it — and this runs exactly once, unlike a layer's on_create.
+    // before the game layer's first on_update, and exactly once, unlike a layer's on_create.
     gny_systems_register_all();
 }
 
@@ -147,17 +131,14 @@ void gny_world_script_tick(f32 delta_time_s) {
     GNY_World* world = gny_world();
     if (world == nullptr || world->lua == nullptr) return;
 
-    // The first tick that finds the script loaded runs it. NOT_FOUND while it is still queued, which
-    // is the ordinary state for the first frame or two and not worth reporting.
+    // NOT_FOUND while the script is still queued, the ordinary state for a frame or two.
     if (!world->lua_started) {
         NYA_Error result = nya_lua_run_asset(world->lua, NYA_ASSET_SCRIPTS_STARTUP_LUA);
 
         if (result.ok) {
             world->lua_started = true;
 
-            /*
-             * A value read straight back out of the script.
-             */
+            /* A value read back out of the script. */
             NYA_Value config = { 0 };
 
             if (nya_lua_global_get(world->lua, nya_arena_temp, "gnyame", &config).ok && config.type == NYA_TYPE_OBJECT) {
@@ -168,7 +149,7 @@ void gny_world_script_tick(f32 delta_time_s) {
                 }
             }
         } else if (result.kind != NYA_ERROR_NOT_FOUND) {
-            // A syntax error in the script, which is worth saying once rather than every tick.
+            // a syntax error, said once rather than every tick.
             nya_log_warn("startup.lua: %s", (NYA_ConstCString)result.message);
             world->lua_started = true;
         }
@@ -182,8 +163,7 @@ void gny_world_script_tick(f32 delta_time_s) {
 
     world->lua_tick_timer_s = 0.0F;
 
-    // Optional: a script that does not define it is not an error, which is what NOT_FOUND from
-    // nya_lua_call is for. Asked rather than called-and-ignored so a real failure still reports.
+    // optional: NOT_FOUND means the script does not define it. asked, so a real failure still reports.
     if (!nya_lua_has_function(world->lua, "gnyame_tick")) return;
 
     NYA_Value crates = nya_lua_number((f64)gny_entity_box_count(nullptr));
@@ -202,7 +182,7 @@ NYA_EntityHandle gny_world_inset_camera(void) {
     NYA_Window* window = nya_window_get(GNY_WINDOW_MAIN);
     if (window == nullptr) return NYA_ENTITY_HANDLE_NONE;
 
-    // Bottom right, clear of the stats and bindings panels on the left and the trace panel opposite.
+    // bottom right, clear of the stats and bindings panels and the trace panel.
     NYA_Rectf viewport = {
         .x      = (f32)window->screen_width - GNY_CAMERA_VIEW_WIDTH - GNY_CAMERA_VIEW_MARGIN,
         .y      = (f32)window->screen_height - GNY_CAMERA_VIEW_HEIGHT - GNY_CAMERA_VIEW_MARGIN,
@@ -219,19 +199,12 @@ void gny_world_clear(void) {
     GNY_World* world = gny_world();
     if (world == nullptr) return;
 
-    /*
-     * Immediate rather than deferred, unlike everywhere else in this file.
-     */
+    /* Immediate rather than deferred, unlike the rest of this file. */
     for (u32 slot = 0; slot < nya_entity_slot_count(); slot++) {
         NYA_Entity* entity = nya_entity_at_slot(slot);
 
-        // The map's colliders go with the crates. They are spawned by the game layer and would
-        // otherwise survive a return to the menu — and then be spawned a second time on the next
-        // start, doubling the floor and pushing anything resting on it out hard.
-        // Ledges go with them, and a ledge takes the marker parented to it — which is why this is by
-        // slot: despawning a parent removes its children, so a handle collected earlier in the walk
-        // may already be gone by the time it is reached. nya_entity_despawn on a stale handle is a
-        // no-op, which is what makes that safe rather than merely unlikely.
+        // the map's colliders and ledges go with the crates, or the next start spawns a second floor. by slot, since
+        // despawning a ledge removes its marker; despawning a stale handle is a no-op.
         if (!gny_entity_is(entity, GNY_ENTITY_BOX) && !gny_entity_is(entity, GNY_ENTITY_TILEMAP)
             && !gny_entity_is(entity, GNY_ENTITY_LEDGE)) {
             continue;
@@ -248,27 +221,19 @@ void gny_world_clear(void) {
     world->camera              = NYA_ENTITY_HANDLE_NONE;
     world->inset_camera        = NYA_ENTITY_HANDLE_NONE;
 
-    // The map itself came out of the world's arena and is not freed here — only forgotten, so the
-    // next start loads a fresh one rather than drawing a map whose colliders have just been despawned.
+    // the map came from the world's arena and is only forgotten, so the next start loads a fresh one.
     world->tilemap = nullptr;
 
     /*
-     * The VM and the script's reference both stay.
-     *
-     * ⚠ **Not released here**, which is deliberate and was nearly got wrong: gny_world_create runs
-     * once for the process and this runs on every return to the menu, so a release here would be
-     * unbalanced against a single acquire — and the second visit would drop the count below zero and
-     * unload a script the next start still needs. The reference is held for the world's lifetime,
-     * which is the process's.
+     * The VM and the script's reference stay. gny_world_create runs once per process and this runs on every return
+     * to the menu, so releasing here would unbalance the single acquire and unload a script the next start needs.
      */
     world->lua_started      = false;
     world->lua_tick_timer_s = 0.0F;
 }
 
 void gny_world_destroy(void) {
-    /*
-     * Nothing to free.
-     */
+    /* Nothing to free. */
 }
 
 /*
@@ -281,8 +246,7 @@ void gny_terrain_generate(u64 seed) {
     GNY_World* world = gny_world();
     nya_assert(world != nullptr, "gny_terrain_generate before the world exists.");
 
-    // Created on first use. The shape constants and GNY_ENTITY_TERRAIN are the game's opinion; the
-    // sampling, the chain body and the drawing are nya_terrain2d_*.
+    // created on first use. the shape constants are the game's; sampling, body and drawing are nya_terrain2d_*.
     if (world->terrain2d == nullptr) {
         NYA_EXPECT(
             nya_terrain2d_create(
@@ -387,13 +351,9 @@ b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Eve
         case NYA_EVENT_KEY_DOWN: {
             const NYA_KeyEvent* key = &event->as_key_event;
 
-            /*
-             * The engine's menu actions, not this game's movement ones.
-             */
+            /* The engine's menu actions, not the game's movement. */
             if (nya_input_action_matches(NYA_INPUT_ACTION_UP, key->key, key->modifier_flags)) {
-                // Wrapping, so arrowing up from the top lands on the last item rather than
-                // sticking. Adding item_count - 1 rather than subtracting one keeps it in
-                // unsigned arithmetic, where 0 - 1 is four billion.
+                // wraps from the top to the last item. adding item_count - 1 avoids unsigned 0 - 1.
                 menu->selected = (menu->selected + menu->item_count - 1) % menu->item_count;
                 return true;
             }
@@ -403,8 +363,7 @@ b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Eve
                 return true;
             }
 
-            // Left and right only mean anything on a row that has a value; on an ordinary row they
-            // fall through and are swallowed with everything else.
+            // left and right only act on a row with a value; otherwise they are swallowed.
             if (menu->items[menu->selected].kind == GNY_MENU_ITEM_KIND_VOLUME) {
                 f32 step = 0.0F;
                 if (nya_input_action_matches(NYA_INPUT_ACTION_LEFT, key->key, key->modifier_flags)) step = -GNY_VOLUME_STEP;
@@ -413,33 +372,28 @@ b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Eve
                 if (step != 0.0F) {
                     NYA_VolumeChannel channel = menu->items[menu->selected].channel;
 
-                    // nya_settings_volume_set clamps, so the ends of the range need no handling here.
+                    // nya_settings_volume_set clamps.
                     nya_settings_volume_set(channel, nya_settings_volume(channel) + step);
                     return true;
                 }
             }
 
             if (nya_input_action_matches(NYA_INPUT_ACTION_CONFIRM, key->key, key->modifier_flags)) {
-                // A volume row has nothing to confirm: it is edited in place, so pressing enter on
-                // one should do nothing rather than fire whatever GNY_MENU_ACTION_NONE happens to be.
+                // enter on a volume row does nothing; the value is edited in place.
                 if (menu->items[menu->selected].kind == GNY_MENU_ITEM_KIND_VOLUME) return true;
 
                 *out_action = menu->items[menu->selected].action;
                 return true;
             }
 
-            /*
-             * Everything else is swallowed too, and that is the point of a modal layer.
-             */
+            /* Everything else is swallowed too: the layer is modal. */
             return !nya_input_action_matches(NYA_INPUT_ACTION_CANCEL, key->key, key->modifier_flags);
         }
 
         case NYA_EVENT_MOUSE_MOVED: {
             const NYA_MouseMovedEvent* mouse = &event->as_mouse_moved_event;
 
-            // Hover moves the same `selected` the keys do, so the two never disagree about what is
-            // highlighted — which is what makes a menu jump when a hand brushes the mouse after
-            // arrowing down to something.
+            // hover moves the same `selected` as the keys, so they never disagree.
             for (u32 i = 0; i < menu->item_count; i++) {
                 NYA_Rectf bounds = gny_menu_item_bounds(window, menu, i);
 
@@ -449,8 +403,7 @@ b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Eve
                 break;
             }
 
-            // Not consumed: moving the mouse over a menu should not stop anything underneath from
-            // tracking it, and nothing here is a click.
+            // not consumed: nothing here is a click, and layers below may track the mouse.
             return false;
         }
 
@@ -465,16 +418,14 @@ b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Eve
 
                     menu->selected = i;
 
-                    // Clicking a volume row selects it and leaves the value alone. Dragging a slider
-                    // would be a real widget; this menu is a list, and the keys are how a value moves.
+                    // clicking a volume row selects it; the keys move the value.
                     if (menu->items[i].kind != GNY_MENU_ITEM_KIND_VOLUME) *out_action = menu->items[i].action;
 
                     break;
                 }
             }
 
-            // Consumed whether or not it landed on an item. A click on the empty part of a modal
-            // panel is still a click on the panel, and letting it through drops a crate behind it.
+            // consumed even off an item: a click on the panel must not drop a crate behind it.
             return true;
         }
 
@@ -486,11 +437,10 @@ void gny_menu_draw(NYA_Window* window, const GNY_Menu* menu) {
     f32 width  = (f32)window->screen_width;
     f32 height = (f32)window->screen_height;
 
-    // Over the whole window, so whatever is behind reads as inactive rather than merely covered.
+    // over the whole window, so what is behind reads as inactive.
     nya_render2d_rect(window, 0.0F, 0.0F, width, height, GNY_MENU_SCRIM);
 
-    // The panel is derived from the first item's box rather than recomputed, so the frame and the
-    // hit targets cannot drift apart.
+    // derived from the first item's box, so the frame and the hit targets agree.
     NYA_Rectf first = gny_menu_item_bounds(window, menu, 0);
     NYA_Rectf last  = gny_menu_item_bounds(window, menu, menu->item_count - 1);
 
@@ -525,13 +475,10 @@ void gny_menu_draw(NYA_Window* window, const GNY_Menu* menu) {
 
         b8 highlighted = i == menu->selected;
 
-        // The selected item is a filled bar with dark text on it rather than merely a brighter
-        // label, so which one is selected survives being glanced at.
+        // the selected item is a filled bar with dark text, easy to spot at a glance.
         if (highlighted) nya_render2d_rect(window, bounds.x, bounds.y, bounds.width, bounds.height, GNY_MENU_HIGHLIGHT);
 
-        /*
-         * A volume row draws its value into the label, and the arrows only while it is selected.
-         */
+        /* A volume row draws its value into the label, and arrows while selected. */
         char             row[64];
         NYA_ConstCString label = menu->items[i].label;
 
@@ -556,12 +503,9 @@ void gny_menu_draw(NYA_Window* window, const GNY_Menu* menu) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/**
- * Darkens everything drawn so far, except where a crate is.
- * */
+/** Darkens everything drawn so far, except where a crate glows. */
 NYA_INTERNAL void _gny_lights_apply(NYA_Window* window) {
-    // The visible region, in world units, so a crate whose glow reaches the screen is collected even
-    // when the crate itself is not on it.
+    // the visible region in world units, so glow from an off-screen crate is collected.
     u32 width, height;
     nya_render2d_target_size(window, &width, &height);
 
@@ -579,36 +523,27 @@ NYA_INTERNAL void _gny_lights_apply(NYA_Window* window) {
 void gny_world_draw(NYA_Window* window, NYA_Camera2DTopDown camera) {
     nya_render2d_camera_set(window, camera);
 
-    // Terrain before entities, because there is no depth test: later draws land on top, so draw
-    // order is the only thing deciding what is in front.
+    // terrain first: without a depth test, later draws land on top.
     _gny_terrain_draw(window);
 
-    // After the terrain and before the entities. There is no depth test in 2D, so this ordering is
-    // the only thing putting the map over the ground and the crates over the map.
+    // the map after the terrain and before the entities, for the same reason.
     nya_tilemap_draw(window, gny_world()->tilemap);
 
-    // Every entity that knows how to draw itself, culled to this camera's view by the spatial grid.
+    // every entity that draws itself, culled to this camera.
     nya_system_entity_render(window);
 
-    // After the crates, so a spark thrown off an impact lands in front of the crate that threw it.
-    // There is no depth test in 2D, so this ordering is the only thing that decides.
+    // after the crates, so sparks land in front of them.
     nya_particles_draw(window, gny_world()->sparks);
 
     _gny_lights_apply(window);
 
-    // Back to screen pixels. The caller may be about to composite, and the HUD layer above certainly
-    // is — leaving a camera set would put both somewhere in the world.
+    // back to screen pixels before compositing and the HUD.
     nya_render2d_camera_reset(window);
 }
 
-/*
- * Registered here rather than by whichever screen happens to want it first.
- */
+/* Registered here rather than by whichever screen wants it first. */
 void gny_bloom_pipeline_ensure(NYA_Window* window) {
-    /*
-     * The bloom pass: one fragment shader, and a pipeline pairing it with the batch's own vertex
-     * stage.
-     */
+    /* The bloom pass: one fragment shader, paired with the batch's vertex stage. */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
         .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
         .handle    = NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG,
@@ -623,13 +558,11 @@ void gny_bloom_pipeline_ensure(NYA_Window* window) {
             .vertex_shader_handle   = NYA_ASSET_SHADER_BATCH2D_VERT,
             .fragment_shader_handle = NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG,
 
-            // The halo spreads onto pixels the world left transparent, so it has to blend rather
-            // than overwrite — see the alpha note at the end of the shader.
+            // the halo spreads onto transparent pixels, so it blends.
             .blend = true,
 
-            // Mandatory, and silent if wrong: the default is the wider NYA_Vertex3D layout, and a
-            // mismatch is not an error anywhere. The shader would read the batch's twenty byte
-            // vertices at a sixty-four byte stride and draw the quad somewhere off screen.
+            // required, and silently wrong if missing: the default 3D layout would read twenty-byte vertices at a 36-byte
+            // stride.
             .vertex_layout = NYA_VERTEX_LAYOUT_2D,
         },
     }), "while queueing the bloom pipeline");
@@ -657,8 +590,7 @@ f32 _gny_text_height_with_font(NYA_ConstCString font, f32 size, NYA_ConstCString
 }
 
 void _gny_screen_request(GNY_ScreenChange change) {
-    // Through the simulation barrier rather than applied here. See gny_screen_* in layers.h: the
-    // layer stack is being iterated by whoever called this, and pushing can reallocate it.
+    // through the simulation barrier: the layer stack is being iterated, and pushing can reallocate it.
     nya_sim_defer(_gny_screen_apply, &change, sizeof(change));
 }
 
@@ -667,9 +599,7 @@ b8 _gny_layer_pop_if(void* layer_id) {
     if (window == nullptr) return false;
     if (window->layer_stack->length == 0) return false;
 
-    // nya_layer_pop takes the top of the stack unconditionally, so a change that fires when the
-    // stack is not in the shape it expected would quietly remove somebody else's layer. Checking
-    // first turns that into a no-op.
+    // nya_layer_pop takes the top unconditionally, so check first rather than remove someone else's layer.
     if (window->layer_stack->items[window->layer_stack->length - 1].id != layer_id) return false;
 
     (void)nya_layer_pop(GNY_WINDOW_MAIN);
@@ -685,8 +615,7 @@ void _gny_screen_apply(void* data) {
         case GNY_SCREEN_START_GAME: {
             if (!_gny_layer_pop_if(GNY_LAYER_MAIN_MENU_ID)) return;
 
-            // The game's on_create runs from inside the push, which is what generates the terrain
-            // and queues the audio. Pushing the HUD after it means the HUD draws over it.
+            // the game's on_create runs inside the push (terrain, audio); the HUD pushed after draws over it.
             nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_GAME);
             nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_UI);
         } break;
@@ -709,15 +638,13 @@ void _gny_screen_apply(void* data) {
 
             nya_physics2d_enabled_set(true);
 
-            // Crates first: regenerating under a settled pile leaves anything resting on the old
-            // surface embedded in the new one, and the solver pushes it out hard.
+            // crates first, or a pile resting on the old surface ends up embedded in the new one.
             gny_entity_box_destroy_all();
             gny_terrain_generate(world->terrain_seed + 1);
         } break;
 
         case GNY_SCREEN_MAIN_MENU: {
-            // Coming back from the 3D demo, which is a single layer with no pause menu over it. Its
-            // on_destroy despawns the cube and the ground, so nothing else has to be unwound here.
+            // back from the 3D demo, a single layer whose on_destroy despawns its own entities.
             if (_gny_layer_pop_if(GNY_LAYER_CUBE3D_ID)) {
                 nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU);
                 return;
@@ -725,17 +652,15 @@ void _gny_screen_apply(void* data) {
 
             if (!_gny_layer_pop_if(GNY_LAYER_PAUSE_MENU_ID)) return;
 
-            // Before the layers go, while the entity system is certainly still up. Doing this from
-            // the game layer's on_destroy instead would also run it during nya_app_deinit, which
-            // tears the entity table down before it destroys the windows.
+            // before the layers go, while entities are still up. from on_destroy it would also run during
+            // nya_app_deinit, after the entity table is gone.
             gny_world_clear();
 
-            // Unwound in the order they were pushed, since nya_layer_pop only takes the top.
+            // unwound in push order, since nya_layer_pop only takes the top.
             (void)_gny_layer_pop_if(GNY_LAYER_UI_ID);
             (void)_gny_layer_pop_if(GNY_LAYER_GAME_ID);
 
-            // The solver runs again with nothing in the world, which costs nothing and means the
-            // menu does not have to remember to switch it back on when the game is started again.
+            // the solver keeps running on an empty world, so starting the game again needs no switch.
             nya_physics2d_enabled_set(true);
 
             nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU);
@@ -744,8 +669,7 @@ void _gny_screen_apply(void* data) {
         case GNY_SCREEN_CUBE3D: {
             if (!_gny_layer_pop_if(GNY_LAYER_MAIN_MENU_ID)) return;
 
-            // No HUD layer over it: the demo draws its own text through render2d after
-            // nya_render3d_end, which is the interop it exists to show.
+            // no HUD layer: the demo draws its text through render2d after nya_render3d_end.
             nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_CUBE3D);
         } break;
 
@@ -758,9 +682,8 @@ void _gny_screen_apply(void* data) {
 }
 
 f32x2 gny_screen_to_world(const NYA_Window* window, f32x2 screen) {
-    // The camera's position is the world point at the *centre* of the target, so the offset from
-    // the centre is what scales. Rotation is not handled because this demo's camera never turns;
-    // adding it would be the same inverse nya_render2d_screen_to_world writes out.
+    // the camera position is the world point at the target's centre, so the offset from the centre scales. this
+    // camera never rotates.
     NYA_Camera2DTopDown camera = gny_entity_camera_get();
 
     f32x2 center = { (f32)window->screen_width * 0.5F, (f32)window->screen_height * 0.5F };

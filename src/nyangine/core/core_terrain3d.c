@@ -2,9 +2,6 @@
 
 /** Fixed seed for the per-triangle shade jitter, so a surface looks the same for a given terrain seed. */
 #define _NYA_TERRAIN3D_SHADE_SEED 0x7E44A1
-/**
- * @file system_terrain3d.c
- * */
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -18,7 +15,7 @@ NYA_INTERNAL f32x3 _nya_terrain3d_corner(const NYA_Terrain3D* terrain, u32 i, u3
 /** The flat colour for one triangle, from the height of its centre. */
 NYA_INTERNAL NYA_Color _nya_terrain3d_shade(const NYA_Terrain3D* terrain, f32 height, u32 cell, u32 half);
 
-/** A chunk's bounding sphere, from the height grid over its footprint. See the definition. */
+/** A chunk's bounding sphere, from the height grid over its footprint. */
 NYA_INTERNAL void _nya_terrain3d_chunk_bounds(const NYA_Terrain3D* terrain, NYA_Terrain3DChunk* chunk);
 
 /*
@@ -31,7 +28,7 @@ NYA_INTERNAL void _nya_terrain3d_chunk_bounds(const NYA_Terrain3D* terrain, NYA_
 NYA_Error nya_terrain3d_create(NYA_Arena* arena, NYA_Terrain3DOptions options, OUT NYA_Terrain3D** out_terrain) {
     if (arena == nullptr || out_terrain == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no arena or no out pointer");
 
-    // Zero means "unset" for every field, so a caller can name only what it cares about.
+    // zero means unset for every field.
     if (options.resolution == 0) options.resolution = 32;
     if (options.extent <= 0.0F) options.extent = 16.0F;
     if (options.amplitude <= 0.0F) options.amplitude = 2.5F;
@@ -64,17 +61,11 @@ NYA_Error nya_terrain3d_create(NYA_Arena* arena, NYA_Terrain3DOptions options, O
         .entity     = NYA_ENTITY_HANDLE_NONE,
     };
 
-    // Allocated once and kept across regenerations: the grid never changes size, and an arena does not
-    // hand memory back, so allocating per generation would grow it on every reseed.
+    // allocated once: the grid never changes size, and an arena would grow on every reseed.
     terrain->heights = nya_arena_alloc(arena, (u64)terrain->verts * (u64)terrain->verts * sizeof(f32));
 
     if (options.chunked) {
-        /*
-         * Rounded up, so a resolution that is not a whole number of chunks still covers the surface —
-         * the last chunk in each direction is simply clipped to what is left. Refusing instead would
-         * make the chunk size a constraint on the resolution, which is a surprising thing for a
-         * rendering detail to impose.
-         */
+        /* Rounded up, so a resolution that is not a whole number of chunks is covered by clipping the last chunk. */
         terrain->chunks_x    = (terrain->resolution + NYA_TERRAIN3D_CHUNK_CELLS - 1) / NYA_TERRAIN3D_CHUNK_CELLS;
         terrain->chunks_z    = (terrain->resolution + NYA_TERRAIN3D_CHUNK_CELLS - 1) / NYA_TERRAIN3D_CHUNK_CELLS;
         terrain->chunk_count = terrain->chunks_x * terrain->chunks_z;
@@ -89,7 +80,7 @@ NYA_Error nya_terrain3d_create(NYA_Arena* arena, NYA_Terrain3DOptions options, O
                     .cell_x = cx * NYA_TERRAIN3D_CHUNK_CELLS,
                     .cell_z = cz * NYA_TERRAIN3D_CHUNK_CELLS,
 
-                    // Out of range, so the first update rebuilds every chunk without a separate flag.
+                    // out of range, so the first update builds every chunk.
                     .lod = NYA_TERRAIN3D_LOD_LEVELS,
                 };
 
@@ -112,18 +103,16 @@ NYA_Error nya_terrain3d_create(NYA_Arena* arena, NYA_Terrain3DOptions options, O
 void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed) {
     nya_assert(terrain != nullptr && terrain->heights != nullptr, "the terrain must come from nya_terrain3d_create");
 
-    // The grid was allocated once by nya_terrain3d_create and is rewritten in place here: an arena does
-    // not hand memory back, so allocating per generation would grow it on every reseed.
+    // the grid is rewritten in place; an arena does not hand memory back.
 
-    // Immediate rather than deferred: this runs from the layer's on_create and from a key press, never
-    // from inside an entity iteration, and the new body has to exist before this returns.
+    // immediate: this runs from on_create and a key press, never inside entity iteration, and the body must exist
+    // on return.
     if (nya_entity_is_valid(terrain->entity)) nya_entity_despawn(terrain->entity);
 
     terrain->entity = NYA_ENTITY_HANDLE_NONE;
     terrain->seed   = seed;
 
-    // The RNG takes its seed as an uppercase hex string of at most 64 digits, left padded — not an
-    // arbitrary label. The same trap the 2D terrain generator documents.
+    // the RNG seed is an uppercase hex string of at most 64 digits, left padded, not a label.
     char seed_text[17];
     (void)snprintf(seed_text, sizeof(seed_text), "%016llX", (unsigned long long)seed);
 
@@ -146,26 +135,20 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
             f32 x = -half + ((f32)i * terrain->cell);
             f32 z = -half + ((f32)j * terrain->cell);
 
-            /*
-             * Two terms: free noise in the middle, a rim that rises at the edge.
-             */
+            /* Two terms: free noise in the middle, a rim rising at the edge. */
             f32 height = nya_noise_fbm2(&noise, x * terrain->options.frequency, z * terrain->options.frequency, params);
 
-            /*
-             * The distance to the nearest *edge*, not to the centre.
-             */
+            /* The distance to the nearest edge, not to the centre. */
             f32 radial = nya_max(fabsf(x), fabsf(z)) / half;
 
             /*
-             * Smoothstep by hand, so the rim eases out of the flat middle instead of creasing where it
-             * starts to bite. math_scalar.h has min, max, clamp and lerp and no smoothstep; two lines
-             * here is smaller than an addition to the engine with one caller.
+             * Smoothstep, so the rim eases out of the flat middle without a crease. Written here; the engine has no
+             * smoothstep and this is its only user.
              */
             f32 ramp = nya_clamp((radial - terrain->options.rim_start) / (1.0F - terrain->options.rim_start), 0.0F, 1.0F);
             f32 rim  = ramp * ramp * (3.0F - (2.0F * ramp));
 
-            // The noise fades out exactly as the rim comes up, so the two never fight over the same
-            // ground and the ring is a clean lip rather than a lumpy one.
+            // the noise fades out as the rim comes up, so the lip is clean.
             f32 value = ((height * (1.0F - rim)) + (rim * terrain->options.rim_height)) * terrain->options.amplitude;
 
             terrain->heights[(j * terrain->verts) + i] = value;
@@ -176,21 +159,12 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
     }
 
     /*
-     * The collider is the height grid itself, handed over as a heightfield rather than triangulated.
-     *
-     * The same surface as NYA_PHYSICS3D_SHAPE_MESH but the shape Box3D has a cheaper solver for: a
-     * heightfield finds the cell under a point by arithmetic where a triangle mesh descends a BVH.
-     * b3SolveContacts_Mesh was 4.3% of a release profile with this built as triangles, and the triangles
-     * themselves were a full vertex and index array built and thrown away on every generate.
+     * The collider is the height grid as a Box3D heightfield. It finds the cell under a point by arithmetic
+     * instead of descending a triangle BVH; as a mesh, b3SolveContacts_Mesh was 4.3% of a release profile.
      */
     /*
-     * At the grid's near corner, not at the centre of the surface.
-     *
-     * Box3D lays a heightfield out from the body origin toward +x and +z — see the AABB it computes in
-     * height_field.c — while the drawn surface is centred on the origin and spans [-half, +half]. Placing
-     * the body at the corner is what makes the two coincide. Nothing reads this entity's position for
-     * rendering: the terrain draws registered geometry whose vertices are already world positions, at
-     * f32x3_zero.
+     * At the grid's near corner: Box3D lays a heightfield out toward +x and +z from the body, while the drawn
+     * surface is centred on the origin. Nothing renders from this entity's position.
      */
     terrain->entity = nya_entity_spawn(
         .name     = "terrain3d",
@@ -201,8 +175,7 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
 
     nya_assert(nya_entity_is_valid(terrain->entity), "Failed to spawn the 3D terrain entity.");
 
-    // Row-major with x varying fastest, which is how terrain->heights is already indexed and what Box3D
-    // reads: its column count is countX, so an entry is at (z * countX) + x in both.
+    // row major with x fastest, as terrain->heights and Box3D both index: (z * countX) + x.
     b8 attached = nya_physics3d_body_attach(
         terrain->entity,
         .type             = NYA_PHYSICS_BODY_STATIC,
@@ -215,17 +188,13 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
     );
 
     if (!attached) {
-        // Not fatal, and not silent. The scene still draws; things dropped onto it fall through, which
-        // is confusing enough to be worth a line naming the cause.
+        // not fatal but logged: the scene draws, and things fall through it.
         nya_log_error("The 3D terrain has no collider; anything dropped on it will fall through.");
     }
 
     /*
-     * The draw geometry, built once here and handed to the renderer to keep.
-     *
-     * ⚠ **Skipped entirely for a chunked terrain**, which draws its chunks instead. Building both was
-     * a third of a megabyte of vertices uploaded and then never drawn — visible only as a line in the
-     * mesh registry saying how large it was.
+     * The draw geometry, built once and kept by the renderer. Skipped for a chunked terrain, which draws its
+     * chunks instead.
      */
     if (!terrain->options.chunked) {
 
@@ -246,9 +215,7 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
 
                 u32 cell = (j * terrain->resolution) + i;
 
-                /*
-                 * Two triangles, wound and coloured exactly as the immediate version drew them.
-                 */
+                /* Two triangles, wound and coloured like the immediate version. */
                 f32x3 triangles[2][3] = {
                     { corner_a, corner_c, corner_b },
                     { corner_b, corner_c, corner_d },
@@ -274,20 +241,16 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
 
         nya_arena_free(nya_arena_temp, draw_vertices, draw_bytes);
 
-        // Not fatal either: nya_terrain3d_draw asks the renderer to draw the handle, and a handle that names
-        // nothing draws nothing. A collider with no surface is odd to look at and still simulates.
+        // not fatal: a handle naming nothing draws nothing, and the collider still simulates.
         if (!registered) nya_log_error("The 3D terrain has no drawable geometry; the scene will show a hole.");
     }
 
 
-    /*
-     * The chunk bounds, now that there are heights to measure.
-     */
+    /* The chunk bounds, now that there are heights. */
     for (u32 index = 0; index < terrain->chunk_count; index++) {
         _nya_terrain3d_chunk_bounds(terrain, &terrain->chunks[index]);
 
-        // Unbuilt, so a regeneration rebuilds every chunk against the new surface rather than keeping
-        // geometry cut from the old one.
+        // unbuilt, so a regeneration rebuilds every chunk against the new surface.
         terrain->chunks[index].lod = NYA_TERRAIN3D_LOD_LEVELS;
     }
 
@@ -297,24 +260,19 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
 
 void nya_terrain3d_release(NYA_Terrain3D* terrain, NYA_Window* window) {
 
-    // The geometry goes with the scene. Nothing else would release it: a registered mesh has no asset
-    // behind it whose unload would take it, only the window's teardown as a backstop.
+    // the geometry goes with the scene; a registered mesh has no asset to unload it.
     nya_render3d_mesh_release(window, NYA_TERRAIN3D_MESH);
 
-    // And every chunk's, which is chunk_count more of them. Marked unbuilt as they go, so a terrain
-    // released and regenerated rebuilds rather than drawing handles that name nothing.
+    // and every chunk's, marked unbuilt so a regenerated terrain rebuilds them.
     for (u32 index = 0; index < terrain->chunk_count; index++) {
         nya_render3d_mesh_release(window, terrain->chunks[index].handle);
         terrain->chunks[index].lod = NYA_TERRAIN3D_LOD_LEVELS;
     }
 
-    // Deferred, because this runs from a layer's on_destroy, which can itself be inside the layer
-    // stack's iteration. Despawning takes the physics body — and its triangle mesh — with it.
+    // deferred: on_destroy can run inside the layer stack's iteration. despawning takes the physics body.
     if (nya_entity_is_valid(terrain->entity)) nya_entity_despawn_deferred(terrain->entity);
 
-    /*
-     * The height grid is *not* released and the pointer is kept.
-     */
+    /* The height grid is not released, and the pointer is kept. */
     terrain->entity     = NYA_ENTITY_HANDLE_NONE;
     terrain->seed       = 0;
     terrain->min_height = 0.0F;
@@ -327,24 +285,22 @@ f32 nya_terrain3d_height_at(const NYA_Terrain3D* terrain, f32 x, f32 z) {
 
     f32 half = terrain->options.extent * 0.5F;
 
-    // In grid cells from the low corner. Clamped rather than wrapped: outside the terrain the nearest
-    // edge height is the useful answer, and a caller asking is placing something, not sampling a field.
+    // cells from the low corner. clamped: outside the terrain the nearest edge height is what a caller placing
+    // something wants.
     f32 grid_x = nya_clamp((x + half) / terrain->cell, 0.0F, (f32)terrain->resolution);
     f32 grid_z = nya_clamp((z + half) / terrain->cell, 0.0F, (f32)terrain->resolution);
 
     u32 i = (u32)grid_x;
     u32 j = (u32)grid_z;
 
-    // The far edge lands exactly on the last sample, where the cell to its right does not exist.
+    // the far edge is the last sample; there is no cell beyond it.
     if (i >= terrain->resolution) i = terrain->resolution - 1;
     if (j >= terrain->resolution) j = terrain->resolution - 1;
 
     f32 fraction_x = grid_x - (f32)i;
     f32 fraction_z = grid_z - (f32)j;
 
-    /*
-     * Bilinear, which is not quite the surface.
-     */
+    /* Bilinear, which is close to the surface but not exact. */
     f32 h00 = terrain->heights[(j * terrain->verts) + i];
     f32 h10 = terrain->heights[(j * terrain->verts) + i + 1];
     f32 h01 = terrain->heights[((j + 1) * terrain->verts) + i];
@@ -360,30 +316,22 @@ f32 nya_terrain3d_height_at(const NYA_Terrain3D* terrain, f32 x, f32 z) {
  */
 
 /**
- * How far a chunk's skirt hangs below its edge.
- *
- * ⚠ **The bound that matters is the terrain's height range, not a multiple of the cell.** The skirt
- * only has to cover the largest height two adjacent levels can disagree by at a border, and that is
- * bounded by how far the surface rises at all — it cannot disagree by more than the whole relief.
+ * How far a chunk's skirt hangs below its edge. Bounded by the terrain's height range, since two levels can
+ * never disagree at a border by more than the whole relief.
  * */
 NYA_INTERNAL f32 _nya_terrain3d_skirt_depth(const NYA_Terrain3D* terrain) {
     if (terrain->options.skirt_depth > 0.0F) return terrain->options.skirt_depth;
 
     f32 relief = terrain->max_height - terrain->min_height;
 
-    // One cell as a floor, for a perfectly flat surface — where two levels cannot disagree at all, but
-    // a skirt of literally zero would still leave a hairline seam to floating point.
+    // one cell as a floor: even a flat surface needs a skirt against floating point hairlines.
     return nya_max(relief, terrain->cell);
 }
 
 /**
- * A chunk's bounding sphere, from the height grid over its footprint.
- *
- * ⚠ **Computed here rather than while building the geometry, and that is a fix rather than a
- * preference.** The bounds are what the LOD choice measures distance to, and building them alongside
- * the mesh meant the *first* choice was made against a zeroed centre — every chunk read as sitting at
- * the origin, all picked the same level, and the frame after that they all picked a different one and
- * rebuilt a second time. Caught by the test asserting that standing still rebuilds nothing.
+ * A chunk's bounding sphere, from the height grid over its footprint. Computed before any geometry is built,
+ * because the LOD choice measures distance to it; zeroed bounds made the first choice wrong and every chunk
+ * rebuilt twice.
  * */
 NYA_INTERNAL void _nya_terrain3d_chunk_bounds(const NYA_Terrain3D* terrain, NYA_Terrain3DChunk* chunk) {
     u32 cells_x = nya_min((u32)NYA_TERRAIN3D_CHUNK_CELLS, terrain->resolution - chunk->cell_x);
@@ -413,7 +361,7 @@ NYA_INTERNAL void _nya_terrain3d_chunk_bounds(const NYA_Terrain3D* terrain, NYA_
 
     f32 extent_x = world_width * 0.5F;
 
-    // Plus the skirt, which hangs below everything the surface reaches.
+    // plus the skirt below the surface.
     f32 extent_y = ((highest - lowest) * 0.5F) + skirt;
     f32 extent_z = world_depth * 0.5F;
 
@@ -435,19 +383,15 @@ NYA_INTERNAL void _nya_terrain3d_emit_triangle(const NYA_Terrain3D* terrain, NYA
     out[(*count)++] = nya_vertex3d(c, color, normal, f32x2_zero);
 }
 
-/**
- * Builds one chunk's geometry at `lod` and registers it, replacing whatever was there.
- * */
+/** Builds one chunk's geometry at `lod` and registers it, replacing what was there. */
 NYA_INTERNAL void _nya_terrain3d_chunk_build(NYA_Terrain3D* terrain, NYA_Window* window, NYA_Terrain3DChunk* chunk, u32 lod) {
     u32 stride = 1U << lod;
 
-    // Clipped at the terrain's edge: the last chunk in a row is short when the resolution is not a
-    // whole number of chunks.
+    // clipped at the terrain's edge.
     u32 cells_x = nya_min((u32)NYA_TERRAIN3D_CHUNK_CELLS, terrain->resolution - chunk->cell_x);
     u32 cells_z = nya_min((u32)NYA_TERRAIN3D_CHUNK_CELLS, terrain->resolution - chunk->cell_z);
 
-    // A stride coarser than what is left would step past the chunk entirely and emit nothing, which is
-    // a hole rather than a coarse patch.
+    // a stride coarser than what is left would emit nothing, a hole.
     while (stride > 1 && (cells_x % stride != 0 || cells_z % stride != 0)) stride >>= 1;
 
     u32 steps_x = cells_x / stride;
@@ -455,8 +399,7 @@ NYA_INTERNAL void _nya_terrain3d_chunk_build(NYA_Terrain3D* terrain, NYA_Window*
 
     if (steps_x == 0 || steps_z == 0) return;
 
-    // Surface plus a skirt down each of the four sides. Six vertices per quad throughout, since the
-    // mesh is unshared — see the note on flat shading in this file's header.
+    // surface plus a skirt down each side, six vertices per quad since the mesh is flat shaded.
     u32 quad_count   = (steps_x * steps_z) + (2 * steps_x) + (2 * steps_z);
     u32 vertex_count = quad_count * 6;
 
@@ -477,8 +420,7 @@ NYA_INTERNAL void _nya_terrain3d_chunk_build(NYA_Terrain3D* terrain, NYA_Window*
             f32x3 corner_c = _nya_terrain3d_corner(terrain, i, j + stride);
             f32x3 corner_d = _nya_terrain3d_corner(terrain, i + stride, j + stride);
 
-            // The same cell index the unchunked path uses, so the per-cell shade jitter is identical
-            // and switching a chunk's level does not reshuffle its colours.
+            // the unchunked path's cell index, so shade jitter is identical and changing level keeps the colours.
             u32 cell = (j * terrain->resolution) + i;
 
             _nya_terrain3d_emit_triangle(terrain, vertices, &emitted, corner_a, corner_c, corner_b, cell, 0);
@@ -486,9 +428,7 @@ NYA_INTERNAL void _nya_terrain3d_chunk_build(NYA_Terrain3D* terrain, NYA_Window*
         }
     }
 
-    /*
-     * The skirt: a vertical flange hanging from every edge vertex.
-     */
+    /* The skirt: a vertical flange from every edge vertex. */
     for (u32 side = 0; side < 4; side++) {
         u32 steps = (side < 2) ? steps_x : steps_z;
 
@@ -542,9 +482,7 @@ u32 nya_terrain3d_lod_for_distance(const NYA_Terrain3D* terrain, f32 distance) {
     f32 first = terrain->options.lod_distance > 0.0F ? terrain->options.lod_distance
                                                      : terrain->cell * (f32)NYA_TERRAIN3D_CHUNK_CELLS * 8.0F;
 
-    /*
-     * Banded and doubling, rather than a continuous function of distance.
-     */
+    /* Banded and doubling, not continuous in distance. */
     u32 lod = 0;
 
     while (lod + 1 < NYA_TERRAIN3D_LOD_LEVELS && distance >= first) {
@@ -561,8 +499,7 @@ f32 nya_terrain3d_lod_boundary(const NYA_Terrain3D* terrain, u32 level) {
     f32 boundary = terrain->options.lod_distance > 0.0F ? terrain->options.lod_distance
                                                         : terrain->cell * (f32)NYA_TERRAIN3D_CHUNK_CELLS * 8.0F;
 
-    // Doubling, matching nya_terrain3d_lod_for_distance: level 1 begins at the first distance, level 2
-    // at twice it, level 3 at four times.
+    // doubling, as nya_terrain3d_lod_for_distance: level 1 at the first distance, level 2 at twice it.
     for (u32 i = 1; i < level; i++) boundary *= 2.0F;
 
     return boundary;
@@ -579,13 +516,8 @@ void nya_terrain3d_update(NYA_Terrain3D* terrain, NYA_Window* window, f32x3 view
         NYA_Terrain3DChunk* chunk = &terrain->chunks[index];
 
         /*
-         * Horizontal distance to the chunk's **sphere**, not to its centre.
-         *
-         * ⚠ **To the sphere because a chunk is not a point.** Measuring to the centre makes a chunk
-         * half its own width "away" even when the camera is standing on its near edge, so a chunk the
-         * viewer is *inside* reads as a chunk's-width distant and coarsens. On a terrain whose chunks
-         * are large relative to the view — which is any small scene — that is enough on its own to
-         * strip the detail off everything, which is exactly how it was first noticed.
+         * Horizontal distance to the chunk's sphere, not its centre. Measured to the centre, a chunk the camera
+         * stands in reads as half a chunk away and coarsens, which strips detail off small scenes.
          */
         f32 dx = chunk->center.x - viewer.x;
         f32 dz = chunk->center.z - viewer.z;
@@ -596,18 +528,15 @@ void nya_terrain3d_update(NYA_Terrain3D* terrain, NYA_Window* window, f32x3 view
 
         u32 wanted = nya_terrain3d_lod_for_distance(terrain, distance);
 
-        /*
-         * Hysteresis, but only for a chunk that already has geometry — an unbuilt one takes whatever
-         * the distance says, since there is nothing to keep.
-         */
+        /* Hysteresis only for a chunk that has geometry; an unbuilt one takes the plain answer. */
         if (chunk->lod < NYA_TERRAIN3D_LOD_LEVELS && wanted != chunk->lod) {
             if (wanted > chunk->lod) {
-                // Coarsening: has to be past the boundary it is crossing, plus the margin.
+                // coarsening: past the boundary plus the margin.
                 f32 boundary = nya_terrain3d_lod_boundary(terrain, chunk->lod + 1);
 
                 if (distance < boundary * (1.0F + NYA_TERRAIN3D_LOD_HYSTERESIS)) wanted = chunk->lod;
             } else {
-                // Refining: has to be back under the boundary it came up through, minus the margin.
+                // refining: back under the boundary minus the margin.
                 f32 boundary = nya_terrain3d_lod_boundary(terrain, chunk->lod);
 
                 if (distance > boundary * (1.0F - NYA_TERRAIN3D_LOD_HYSTERESIS)) wanted = chunk->lod;
@@ -627,10 +556,7 @@ void nya_terrain3d_draw(const NYA_Terrain3D* terrain, NYA_Window* window) {
     if (terrain == nullptr) return;
 
     if (terrain->options.chunked && terrain->chunks != nullptr) {
-        /*
-         * One draw per chunk, each with its own bounds — which is the point of chunking, because the
-         * renderer culls per drawn mesh and a single surface is all-or-nothing.
-         */
+        /* One draw per chunk with its own bounds, so the renderer culls per chunk. */
         for (u32 index = 0; index < terrain->chunk_count; index++) {
             const NYA_Terrain3DChunk* chunk = &terrain->chunks[index];
             if (chunk->lod >= NYA_TERRAIN3D_LOD_LEVELS) continue;
@@ -641,9 +567,7 @@ void nya_terrain3d_draw(const NYA_Terrain3D* terrain, NYA_Window* window) {
         return;
     }
 
-    /*
-     * One instanced draw of geometry that was uploaded when the surface was generated.
-     */
+    /* One instanced draw of geometry uploaded at generation. */
     nya_render3d_mesh(window, NYA_TERRAIN3D_MESH, f32x3_zero, (f32x3){ 1.0F, 1.0F, 1.0F }, nya_quaternion_identity, NYA_COLOR_WHITE);
 }
 
@@ -666,8 +590,7 @@ f32x3 _nya_terrain3d_corner(const NYA_Terrain3D* terrain, u32 i, u32 j) {
 NYA_Color _nya_terrain3d_shade(const NYA_Terrain3D* terrain, f32 height, u32 cell, u32 half) {
     f32 range = terrain->max_height - terrain->min_height;
 
-    // A perfectly flat seed is possible in principle and divides by nothing. Everything is then in the
-    // lowest band, which is the right answer for a surface with no relief.
+    // a perfectly flat seed would divide by zero; everything is then the lowest band.
     f32 unit = range > NYA_EPSILON ? (height - terrain->min_height) / range : 0.0F;
 
     NYA_Color color = terrain->options.color_low;
@@ -680,9 +603,7 @@ NYA_Color _nya_terrain3d_shade(const NYA_Terrain3D* terrain, f32 height, u32 cel
         color = terrain->options.color_mid;
     }
 
-    /*
-     * A per-triangle nudge on top of the band.
-     */
+    /* A per-triangle nudge on top of the band. */
     f32 jitter = nya_ihash2((s32)cell, (s32)half, _NYA_TERRAIN3D_SHADE_SEED) * terrain->options.shade_jitter;
 
     return (NYA_Color){
