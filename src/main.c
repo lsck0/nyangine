@@ -30,6 +30,53 @@ s32 main(s32 argc, NYA_CString* argv) {
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * HOT RELOAD, SHARED
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+#if NYA_CODE_HOT_RELOAD
+#include "nyangine/base/base_types.h"
+
+/** How often the watch thread looks at the DLL. */
+#define DLL_WATCH_INTERVAL_MS 50
+
+/**
+ * Polls the modification time has to hold still before a changed DLL is loaded. The linker writes in
+ * bursts, so a single changed reading can be a half written file; three polls is 150 ms of quiet.
+ * */
+#define DLL_SETTLE_POLLS 3
+
+/** How many times a DLL that fails to open is retried, one watch interval apart, before giving up. */
+#define DLL_LOAD_ATTEMPTS 40
+
+/** Where the watch thread is in noticing a new DLL. */
+typedef struct {
+    u64 candidate_modified;
+    u32 stable_polls;
+} DllSettle;
+
+/**
+ * Feeds one modification time reading in. True once a time different from `loaded_modified` has been
+ * read DLL_SETTLE_POLLS times in a row.
+ * */
+NYA_INTERNAL b8 dll_settled(DllSettle* settle, u64 loaded_modified, u64 modified) {
+    if (modified == loaded_modified) {
+        *settle = (DllSettle){ 0 };
+        return false;
+    }
+
+    if (modified != settle->candidate_modified) {
+        *settle = (DllSettle){ .candidate_modified = modified, .stable_polls = 1 };
+        return false;
+    }
+
+    settle->stable_polls++;
+    return settle->stable_polls >= DLL_SETTLE_POLLS;
+}
+#endif // NYA_CODE_HOT_RELOAD
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * LINUX DEBUG ENTRY POINT
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -64,7 +111,7 @@ NYA_INTERNAL atomic u64        gnyame_dll_last_modified            = 0;
 NYA_INTERNAL atomic b8         gnyame_dll_reload_requested         = false;
 NYA_INTERNAL atomic b8         gnyame_dll_watch_thread_should_exit = false;
 
-NYA_INTERNAL void  dll_load(void);
+NYA_INTERNAL b8    dll_load(void) __attr_no_discard;
 NYA_INTERNAL void  dll_unload(void);
 NYA_INTERNAL void* dll_watch_thread_fn(void* arg);
 NYA_INTERNAL void  update_callback_pointers(void);
@@ -79,7 +126,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     nya_symbols = dlopen(nullptr, RTLD_NOW | RTLD_GLOBAL);
     nya_assert(nya_symbols, "Failed to open handle to main executable: %s.", dlerror());
 
-    dll_load();
+    if (!dll_load()) nya_log_panic("Failed to load %s: %s.", DLL_PATH, dlerror());
 
     gnyame_init(argc, argv);
     nya_app = nya_app_get();
@@ -92,18 +139,20 @@ s32 main(s32 argc, NYA_CString* argv) {
     nya_assert(ok, "Failed to create DLL watch thread.");
 
     while (!nya_app->should_quit) {
-        gnyame_run();
+        gnyame_run(); // NOLINT(clang-analyzer-core.CallAndMessage): dll_load has succeeded, which sets every entry point
 
         if (gnyame_dll_reload_requested) {
             dll_unload();
 
-            // give the compiler time to finish writing the new DLL
-            // TODO: can we use the asset systems change detection here to wait until the dll is fully written?
-            struct timespec ts = { 0 };
-            ts.tv_nsec         = 150UL * 1000UL * 1000UL; // 150 ms
-            nanosleep(&ts, nullptr);
+            // the watch thread only asks once the file has stopped changing, but a linker can still leave
+            // it unreadable for a moment, so a failed open is retried rather than fatal.
+            b8 loaded = false;
+            for (u32 attempt = 0; attempt < DLL_LOAD_ATTEMPTS && !loaded; attempt++) {
+                loaded = dll_load();
+                if (!loaded) nanosleep(&(struct timespec){ .tv_nsec = DLL_WATCH_INTERVAL_MS * 1000L * 1000L }, nullptr);
+            }
+            if (!loaded) nya_log_panic("Failed to reload %s after %d attempts: %s.", DLL_PATH, DLL_LOAD_ATTEMPTS, dlerror());
 
-            dll_load();
             update_callback_pointers();
 
             gnyame_dll_reload_requested = false;
@@ -112,7 +161,7 @@ s32 main(s32 argc, NYA_CString* argv) {
         }
     }
 
-    gnyame_deinit();
+    gnyame_deinit(); // NOLINT(clang-analyzer-core.CallAndMessage): dll_load has succeeded, which sets every entry point
 
     gnyame_dll_watch_thread_should_exit = true;
     ok                                  = pthread_join(thread, nullptr) == 0;
@@ -125,18 +174,30 @@ s32 main(s32 argc, NYA_CString* argv) {
     return EXIT_SUCCESS;
 }
 
-void dll_load(void) {
-    u64 gnyame_dll_last_modified_temp;
-    NYA_EXPECT(nya_filesystem_last_modified(DLL_PATH, &gnyame_dll_last_modified_temp));
-    gnyame_dll_last_modified = gnyame_dll_last_modified_temp;
+b8 dll_load(void) {
+    nya_assert(gnyame_dll == nullptr, "dll_load without dll_unload.");
 
-    gnyame_dll = dlopen(DLL_PATH, RTLD_NOW | RTLD_GLOBAL);
-    nya_assert(gnyame_dll, "Failed to load %s: %s.", DLL_PATH, dlerror());
+    u64       modified = 0;
+    NYA_Error result   = nya_filesystem_last_modified(DLL_PATH, &modified);
+    if (!result.ok) return false;
 
-    gnyame_init   = (gnyame_init_fn*)dlsym(gnyame_dll, "gnyame_init");
-    gnyame_run    = (gnyame_run_fn*)dlsym(gnyame_dll, "gnyame_run");
-    gnyame_deinit = (gnyame_deinit_fn*)dlsym(gnyame_dll, "gnyame_deinit");
-    nya_assert(gnyame_init && gnyame_run && gnyame_deinit, "Failed to load symbols from %s: %s.", DLL_PATH, dlerror());
+    void* handle = dlopen(DLL_PATH, RTLD_NOW | RTLD_GLOBAL);
+    if (handle == nullptr) return false;
+
+    gnyame_init_fn*   init   = (gnyame_init_fn*)dlsym(handle, "gnyame_init");
+    gnyame_run_fn*    run    = (gnyame_run_fn*)dlsym(handle, "gnyame_run");
+    gnyame_deinit_fn* deinit = (gnyame_deinit_fn*)dlsym(handle, "gnyame_deinit");
+    if (init == nullptr || run == nullptr || deinit == nullptr) {
+        (void)dlclose(handle);
+        return false;
+    }
+
+    gnyame_dll               = handle;
+    gnyame_init              = init;
+    gnyame_run               = run;
+    gnyame_deinit            = deinit;
+    gnyame_dll_last_modified = modified;
+    return true;
 }
 
 void dll_unload(void) {
@@ -154,22 +215,21 @@ void dll_unload(void) {
 void* dll_watch_thread_fn(void* arg) {
     nya_unused(arg);
 
-    while (!gnyame_dll_watch_thread_should_exit) {
-        u64       last_modified;
-        NYA_Error result = nya_filesystem_last_modified(DLL_PATH, &last_modified);
+    DllSettle settle = { 0 };
 
-        if (result.ok && last_modified != gnyame_dll_last_modified && !gnyame_dll_reload_requested) {
+    while (!gnyame_dll_watch_thread_should_exit) {
+        // a failed build can leave no DLL at all, which is waited out rather than treated as an error.
+        u64       modified = 0;
+        NYA_Error result   = nya_filesystem_last_modified(DLL_PATH, &modified);
+
+        if (result.ok && !gnyame_dll_reload_requested && dll_settled(&settle, gnyame_dll_last_modified, modified)) {
             nya_log_debug("%s was changed, requesting reload.", DLL_PATH);
+            settle                      = (DllSettle){ 0 };
             gnyame_dll_reload_requested = true;
             nya_app->should_quit        = true;
-        } else {
-            // compilation might've failed and the DLL might be gone because of that
-            // dont explode and just wait for a new one to appear
         }
 
-        struct timespec ts = { 0 };
-        ts.tv_nsec         = 50UL * 1000UL * 1000UL; // 50 ms
-        nanosleep(&ts, nullptr);
+        nanosleep(&(struct timespec){ .tv_nsec = DLL_WATCH_INTERVAL_MS * 1000L * 1000L }, nullptr);
     }
 
     return nullptr;
@@ -237,7 +297,7 @@ NYA_INTERNAL atomic u64        gnyame_dll_last_modified            = 0;
 NYA_INTERNAL atomic b8         gnyame_dll_reload_requested         = false;
 NYA_INTERNAL atomic b8         gnyame_dll_watch_thread_should_exit = false;
 
-NYA_INTERNAL void         dll_load(void);
+NYA_INTERNAL b8           dll_load(void) __attr_no_discard;
 NYA_INTERNAL void         dll_unload(void);
 NYA_INTERNAL DWORD WINAPI dll_watch_thread_fn(LPVOID arg);
 NYA_INTERNAL void         update_callback_pointers(void);
@@ -250,7 +310,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     nya_symbols = GetModuleHandleA(nullptr);
     nya_assert(nya_symbols, "Failed to get handle to main executable.");
 
-    dll_load();
+    if (!dll_load()) nya_log_panic("Failed to load %s: error %lu.", DLL_LOADED_PATH, GetLastError());
 
     gnyame_init(argc, argv);
     nya_app = nya_app_get();
@@ -267,10 +327,14 @@ s32 main(s32 argc, NYA_CString* argv) {
         if (gnyame_dll_reload_requested) {
             dll_unload();
 
-            // give the compiler time to finish writing the new DLL
-            Sleep(150);
+            // see the Linux path: a failed open is retried rather than fatal.
+            b8 loaded = false;
+            for (u32 attempt = 0; attempt < DLL_LOAD_ATTEMPTS && !loaded; attempt++) {
+                loaded = dll_load();
+                if (!loaded) Sleep(DLL_WATCH_INTERVAL_MS);
+            }
+            if (!loaded) nya_log_panic("Failed to reload %s after %d attempts: error %lu.", DLL_PATH, DLL_LOAD_ATTEMPTS, GetLastError());
 
-            dll_load();
             update_callback_pointers();
 
             gnyame_dll_reload_requested = false;
@@ -292,21 +356,34 @@ s32 main(s32 argc, NYA_CString* argv) {
     return EXIT_SUCCESS;
 }
 
-void dll_load(void) {
-    u64 gnyame_dll_last_modified_temp;
-    NYA_EXPECT(nya_filesystem_last_modified(DLL_PATH, &gnyame_dll_last_modified_temp));
-    gnyame_dll_last_modified = gnyame_dll_last_modified_temp;
+b8 dll_load(void) {
+    nya_assert(gnyame_dll == nullptr, "dll_load without dll_unload.");
 
-    // Load a copy, so the original stays writable while the game is running.
-    NYA_EXPECT(nya_filesystem_copy(DLL_PATH, DLL_LOADED_PATH), "while copying the game DLL for loading");
+    u64       modified = 0;
+    NYA_Error result   = nya_filesystem_last_modified(DLL_PATH, &modified);
+    if (!result.ok) return false;
 
-    gnyame_dll = LoadLibraryA(DLL_LOADED_PATH);
-    nya_assert(gnyame_dll, "Failed to load %s: error %lu.", DLL_LOADED_PATH, GetLastError());
+    // a copy is loaded, so the original stays writable while the game runs.
+    result = nya_filesystem_copy(DLL_PATH, DLL_LOADED_PATH);
+    if (!result.ok) return false;
 
-    gnyame_init   = (gnyame_init_fn*)(void*)GetProcAddress(gnyame_dll, "gnyame_init");
-    gnyame_run    = (gnyame_run_fn*)(void*)GetProcAddress(gnyame_dll, "gnyame_run");
-    gnyame_deinit = (gnyame_deinit_fn*)(void*)GetProcAddress(gnyame_dll, "gnyame_deinit");
-    nya_assert(gnyame_init && gnyame_run && gnyame_deinit, "Failed to load symbols from %s: error %lu.", DLL_LOADED_PATH, GetLastError());
+    HMODULE handle = LoadLibraryA(DLL_LOADED_PATH);
+    if (handle == nullptr) return false;
+
+    gnyame_init_fn*   init   = (gnyame_init_fn*)(void*)GetProcAddress(handle, "gnyame_init");
+    gnyame_run_fn*    run    = (gnyame_run_fn*)(void*)GetProcAddress(handle, "gnyame_run");
+    gnyame_deinit_fn* deinit = (gnyame_deinit_fn*)(void*)GetProcAddress(handle, "gnyame_deinit");
+    if (init == nullptr || run == nullptr || deinit == nullptr) {
+        (void)FreeLibrary(handle);
+        return false;
+    }
+
+    gnyame_dll               = handle;
+    gnyame_init              = init;
+    gnyame_run               = run;
+    gnyame_deinit            = deinit;
+    gnyame_dll_last_modified = modified;
+    return true;
 }
 
 void dll_unload(void) {
@@ -324,20 +401,20 @@ void dll_unload(void) {
 DWORD WINAPI dll_watch_thread_fn(LPVOID arg) {
     nya_unused(arg);
 
-    while (!gnyame_dll_watch_thread_should_exit) {
-        u64       last_modified;
-        NYA_Error result = nya_filesystem_last_modified(DLL_PATH, &last_modified);
+    DllSettle settle = { 0 };
 
-        if (result.ok && last_modified != gnyame_dll_last_modified && !gnyame_dll_reload_requested) {
+    while (!gnyame_dll_watch_thread_should_exit) {
+        u64       modified = 0;
+        NYA_Error result   = nya_filesystem_last_modified(DLL_PATH, &modified);
+
+        if (result.ok && !gnyame_dll_reload_requested && dll_settled(&settle, gnyame_dll_last_modified, modified)) {
             nya_log_debug("%s was changed, requesting reload.", DLL_PATH);
+            settle                      = (DllSettle){ 0 };
             gnyame_dll_reload_requested = true;
             nya_app->should_quit        = true;
-        } else {
-            // compilation might've failed and the DLL might be gone because of that
-            // dont explode and just wait for a new one to appear
         }
 
-        Sleep(50);
+        Sleep(DLL_WATCH_INTERVAL_MS);
     }
 
     return 0;
