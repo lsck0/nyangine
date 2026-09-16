@@ -118,10 +118,10 @@ NYA_API NYA_Tween nya_tween_f32x3_with_options(f32x3* address, f32x3 to, f32 dur
 NYA_API NYA_Tween nya_tween_f32x4_with_options(f32x4* address, f32x4 to, f32 duration_s, NYA_TweenOptions options);
 
 /**
- * `nya_tween_f32(&x, 10.0F, 0.5F, .ease = NYA_EASE_CUBIC_OUT)` — options are designated initialisers.
+ * `nya_tween_f32(&x, 10.0F, 0.5F, .ease = NYA_EASE_CUBIC_OUT)`. Options are designated initialisers.
  *
- * ⚠ **A vector literal must be parenthesised**, because the preprocessor splits arguments on commas and
- * braces do not protect them — only parentheses do:
+ * A vector literal must be parenthesised, because the preprocessor splits arguments on commas inside
+ * braces:
  *
  * ```c
  * nya_tween_f32x3(&position, ((f32x3){ 1.0F, 2.0F, 3.0F }), 0.5F);   // right

@@ -16,11 +16,7 @@
 typedef struct NYA_Rectf   NYA_Rectf;
 typedef struct NYA_Circlef NYA_Circlef;
 
-/**
- * An axis aligned rectangle, as a minimum corner and a size — the form every call site already has (a
- * draw takes an origin and an extent, a sprite has a position and a size); min/max would mean an
- * addition and a subtraction at every one of those.
- * */
+/** An axis aligned rectangle as minimum corner and size, the form draws and sprites already use. */
 struct NYA_Rectf {
     f32 x, y, width, height;
 };
@@ -46,7 +42,7 @@ struct NYA_Circlef {
 /** From two opposite corners, in either order. Normalized, so the result never has a negative extent. */
 NYA_API NYA_Rectf nya_rect_from_corners(f32x2 a, f32x2 b) __attr_no_discard;
 
-/** From a centre and a full size — not a half size, which is the mistake this exists to prevent. */
+/** From a centre and a full size, not a half size. */
 NYA_API NYA_Rectf nya_rect_from_center(f32x2 center, f32x2 size) __attr_no_discard;
 
 /** The minimum corner: top left, in the engine's y-down screen space. */
@@ -65,8 +61,8 @@ NYA_API b8 nya_rect_is_empty(NYA_Rectf rect) __attr_no_discard;
 NYA_API f32 nya_rect_area(NYA_Rectf rect) __attr_no_discard;
 
 /**
- * Half open: `x <= point.x < x + width`, and the same on y. This is the menu and button hit test; half
- * open because menu items are laid out edge to edge — a closed test puts the seam in both of them.
+ * Half open: `x <= point.x < x + width`, same on y. Menu items are laid out edge to edge, and a closed
+ * test would put the seam in both.
  * */
 NYA_API b8 nya_rect_contains(NYA_Rectf rect, f32x2 point) __attr_no_discard;
 

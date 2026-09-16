@@ -96,7 +96,7 @@ enum NYA_NeatPhase {
 struct NYA_NeatTrace {
     NYA_NeatPhase phase;
 
-    /** The generation being stepped. Not yet incremented — it increments once the step completes. */
+    /** The generation being stepped. Incremented once the step completes. */
     u32 generation;
 
     /** Species and genomes alive as the phase finished. Watching these is how you see a collapse. */
@@ -211,11 +211,10 @@ struct NYA_NeatConfig {
     NYA_ConstCString rng_seed;
 
     /*
-     * ── Speciation ──
+     * Speciation
      *
      * Distance is c1·E/N + c2·D/N + c3·W̄: excess genes, disjoint genes, and the average weight
-     * difference of the genes the two genomes share. Two genomes are the same species when that
-     * comes out below the threshold.
+     * difference of shared genes. Two genomes are one species when it is below the threshold.
      */
     f64 compatibility_threshold;
     f64 compatibility_coefficient_excess;
@@ -232,11 +231,10 @@ struct NYA_NeatConfig {
     f64 mutation_weight_reroll_chance;
 
     /*
-     * ── Structural mutation ──
+     * Structural mutation
      *
-     * Deliberately rarer than weight mutation, and adding a node rarer still: a new node is two new
-     * connections and an immediate fitness drop, so a population that adds them freely never settles
-     * long enough to tune anything.
+     * Rarer than weight mutation, and adding a node rarer still. A new node is two new connections and an
+     * immediate fitness drop, so a population that adds them freely never settles long enough to tune.
      */
     f64 mutation_add_connection_chance;
     f64 mutation_add_node_chance;
@@ -295,9 +293,7 @@ struct NYA_NeatConfig {
      * ── Observation ──
      */
 
-    /**
-     * Called after each phase of every generation. Null — the default — costs nothing.
-     * */
+    /** Called after each phase of every generation. Null by default, and then free. */
     NYA_NeatObserverFunction observer;
 
     /** Passed through to `observer` untouched. */
@@ -352,9 +348,8 @@ NYA_API f64 nya_nn_neat_network_get_output(NYA_NeatNetwork* network, NYA_ConstCS
  */
 
 /*
- * A genome round trips through NYA_Object, so serde already knows how to write it and it lands in the
- * same shape a query row or an HTTP body does — which means an evolved network can go over the curl
- * plugin or into a sqlite column with no extra code.
+ * A genome round trips through NYA_Object, so serde writes it and it can go over the curl plugin or
+ * into a sqlite column with no extra code.
  */
 
 /**

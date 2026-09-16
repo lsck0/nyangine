@@ -6,7 +6,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Whether `bone` is `root` or lies below it. Walks parents, which is short — a rig is a few levels deep. */
+/** Whether `bone` is `root` or below it. Walks parents; rigs are a few levels deep. */
 NYA_INTERNAL b8 _nya_skeleton_is_descendant(const NYA_Skeleton* skeleton, s32 bone, s32 root) {
     for (s32 walk = bone; walk >= 0; walk = skeleton->bones[walk].parent) {
         if (walk == root) return true;
@@ -46,10 +46,9 @@ NYA_INTERNAL NYA_Quaternion _nya_skeleton_parent_rotation(const NYA_Skeleton* sk
 /**
  * The motion from `a` to `b`, in the frame the root had at `a`.
  *
- * Measured against the start of the step rather than in the parent's frame, so a walk that turns reports
- * "forward, then a little left" rather than a world-space vector the caller would have to un-rotate.
- * `rest` puts it back into the character's own axes for a root whose rest pose is itself rotated, as an
- * exporter's armature usually is.
+ * Relative to the start of the step, so a turning walk reports "forward, then a little left" instead
+ * of a world vector the caller must un-rotate. `rest` maps it into the character's axes when the root's
+ * rest pose is rotated, as exported armatures usually are.
  * */
 NYA_INTERNAL NYA_RootMotion _nya_skeleton_root_segment(NYA_Quaternion rest, NYA_BoneTransform a, NYA_BoneTransform b) {
     NYA_Quaternion into_start = nya_quaternion_multiply(rest, nya_quaternion_inverse(a.rotation));
@@ -247,8 +246,8 @@ void nya_skeleton_player_init(NYA_SkeletonPlayer* player, const NYA_Skeleton* sk
 void nya_skeleton_player_play_with_options(NYA_SkeletonPlayer* player, const NYA_SkeletonClip* clip, NYA_SkeletonPlayOptions options) {
     if (player == nullptr || clip == nullptr || player->skeleton == nullptr) return;
 
-    // Already playing this, and not asked to restart. Lets a caller drive this from a state check every
-    // frame — "if running, play the run clip" — without restarting the animation every frame.
+    // already playing and no restart asked, so callers can request the run clip every frame from a state
+    // check.
     if (player->current.clip == clip && !options.restart) return;
 
     if (options.speed == 0.0F) options.speed = 1.0F;
@@ -397,11 +396,10 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
     }
 
     /*
-     * ── Root motion ──
+     * Root motion
      *
-     * Measured from the clocks the update above just moved, so it is the same interval the pose came
-     * from. The pin happens at the very end, after the layers, because a layer is allowed to write
-     * the root too and pinning before that would only be undone.
+     * Measured from the clocks the update above just moved, so it covers the same interval as the pose.
+     * The pin comes last, since layers may write the root too.
      */
     if (extracting) {
         player->root_motion = _nya_skeleton_root_step(player->skeleton, player->current.clip, player->root_motion_bone, before_s,
@@ -409,10 +407,9 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
     }
 
     /*
-     * ── The crossfade ──
+     * The crossfade
      *
-     * The outgoing clip is advanced too, so both are moving during the transition. Blending toward a
-     * pose frozen at the moment of the switch is the cheap version and reads as a stutter.
+     * The outgoing clip keeps advancing. Blending toward a frozen pose reads as a stutter.
      */
     if (player->fading) {
         NYA_SkeletonPose outgoing = { 0 };
@@ -454,10 +451,9 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
     }
 
     /*
-     * ── The layers, in order ──
+     * The layers, in slot order
      *
-     * Each one blends over the result of those below it, so a later layer wins where their masks
-     * overlap. That is what "layers stack" means and it is why the order is the slot order.
+     * Each blends over the result below it, so later layers win where masks overlap.
      */
     for (u32 i = 0; i < NYA_SKELETON_LAYERS; i++) {
         NYA_SkeletonLayer* layer = &player->layers[i];
@@ -473,12 +469,11 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
     }
 
     /*
-     * ── Inertialization, after the layers and before the pin ──
+     * Inertialization, after the layers and before the pin
      *
-     * After the layers because the offset has to be measured against the pose that was actually shown,
-     * layers included — that is what makes a second transition during a first one compose. Before the
-     * pin because the pin *overwrites* the root's extracted axes: an offset added afterwards would put
-     * the character back to drifting, which is the one thing root motion exists to stop.
+     * After the layers, so the offset is measured against the pose actually shown, which lets a second
+     * transition compose with a first. Before the pin, because the pin overwrites the root's extracted
+     * axes and an offset added later would bring back the drift.
      */
     if (player->inertializer != nullptr) {
         if (player->pending_inertial_s > 0.0F) {

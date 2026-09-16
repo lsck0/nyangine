@@ -59,8 +59,8 @@ void nya_skeleton_pose_sample(const NYA_Skeleton* skeleton, const NYA_SkeletonCl
                              OUT NYA_SkeletonPose* out_pose) {
     if (skeleton == nullptr || out_pose == nullptr) return;
 
-    // No clip, or a clip with nothing in it, is the rest pose rather than an empty one — a character
-    // whose animation failed to load should stand there, not collapse into the origin.
+    // no clip, or an empty one, gives the rest pose so a character whose animation failed to load still
+    // stands.
     if (clip == nullptr || clip->frame_count == 0 || clip->frames == nullptr) {
         nya_skeleton_pose_rest(skeleton, out_pose);
         return;
@@ -172,11 +172,9 @@ void nya_skeleton_model_transforms(const NYA_Skeleton* skeleton, const NYA_Skele
     u32 bone_count = skeleton->bone_count < NYA_SKELETON_MAX_BONES ? skeleton->bone_count : NYA_SKELETON_MAX_BONES;
 
     /*
-     * One forward pass, which is only correct because a bone's parent precedes it.
-     *
-     * The importer orders bones parent-first (see _nya_asset_mesh_skeleton), so `model[parent]` is already
-     * final by the time a child reads it. The index test keeps a file that violates that from reading an
-     * entry this loop has not written rather than producing a plausible wrong transform.
+     * One forward pass, correct because the importer orders bones parent first (see
+     * _nya_asset_mesh_skeleton). The index check makes a file breaking that order fail loudly instead of
+     * reading an unwritten entry.
      */
     for (u32 i = 0; i < bone_count; i++) {
         f32_4x4 local = _nya_skeleton_transform_matrix(pose->local[i]);
@@ -192,8 +190,8 @@ void nya_skeleton_palette(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* 
 
     u32 bone_count = skeleton->bone_count < NYA_SKELETON_MAX_BONES ? skeleton->bone_count : NYA_SKELETON_MAX_BONES;
 
-    // Written into the caller's array and then folded in place, so the palette costs no scratch of its own
-    // — the model transform for bone i is not needed once its own palette entry is built.
+    // written into the caller's array and folded in place: bone i's model transform is not needed once
+    // its palette entry is built, so no scratch.
     nya_skeleton_model_transforms(skeleton, pose, out_palette);
 
     for (u32 i = 0; i < bone_count; i++) {
@@ -208,11 +206,8 @@ b8 nya_skeleton_bone_model(const NYA_Skeleton* skeleton, const NYA_SkeletonPose*
     if (bone < 0 || (u32)bone >= skeleton->bone_count || bone >= NYA_SKELETON_MAX_BONES) return false;
 
     /*
-     * The one bone's chain rather than the whole skeleton's.
-     *
-     * A socket asks about a handful of bones — a hand, a head — where nya_skeleton_model_transforms costs
-     * every bone in the rig. Walking up from the bone and composing down is depth multiplications instead
-     * of bone_count, and depth on a humanoid rig is single digits.
+     * Only this bone's chain. A socket asks about a hand or a head, and composing depth transforms beats
+     * computing every bone in the rig.
      */
     s32 chain[NYA_SKELETON_MAX_BONES];
     u32 depth = 0;

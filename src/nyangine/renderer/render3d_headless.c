@@ -14,8 +14,7 @@ void nya_render3d_begin(NYA_Window* window, NYA_Camera3DPerspective camera) {
 
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
-    // The same defaults the real path applies, spelled out rather than shared, because the function
-    // that applies them lives in render3d.c and this file is compiled instead of it — not beside it.
+    // the same defaults as the real path, repeated because render3d.c is compiled instead of this file.
     if (camera.up.x == 0.0F && camera.up.y == 0.0F && camera.up.z == 0.0F) camera.up = (f32x3){ 0.0F, 1.0F, 0.0F };
     if (camera.fov_y <= 0.0F) camera.fov_y = (f32)M_PI / 3.0F;
     if (camera.near_plane <= 0.0F) camera.near_plane = 0.1F;
@@ -100,9 +99,8 @@ b8 nya_render3d_shadow_active(NYA_Window* window) {
 }
 
 /*
- * False, like the one above, and for a stronger reason: there is no pass to be inside. A headless
- * shadow_begin records the configuration and returns, so nothing is ever between it and its end in the
- * sense this asks about — and a caller skipping work while a shadow pass runs should skip nothing here.
+ * False: a headless shadow_begin only records configuration, so there is never a pass to be inside,
+ * and callers that skip work during a shadow pass should skip nothing.
  */
 b8 nya_render3d_shadow_pass_active(NYA_Window* window) {
     nya_assert(window != nullptr);
@@ -304,8 +302,7 @@ NYA_Render3DRay nya_render3d_screen_ray(NYA_Window* window, f32x2 screen) {
 NYA_Render3DFrameStats nya_render3d_frame_stats(NYA_Window* window) {
     nya_assert(window != nullptr);
 
-    // The headless batch still carries the counters, and the flush still counts a drop — so this reports
-    // what actually happened rather than zeroes, which is what makes a test able to assert on it.
+    // the headless batch still counts drops, so tests can assert on real numbers.
     const NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
     return (NYA_Render3DFrameStats){

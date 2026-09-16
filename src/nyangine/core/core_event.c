@@ -528,7 +528,7 @@ NYA_INTERNAL void _nya_event_notify_listeners(NYA_HMapᐸNYA_EventTypeˏNYA_Arra
 
     NYA_App* app = nya_app_get();
 
-    // Read for the early return and the initial count, then deliberately not kept — see below.
+    // read for the early return and initial count, then not kept. See below.
     NYA_ArrayᐸNYA_EventHookᐳ* hook_array = nya_hmap_get(hooks, event->type);
     if (hook_array == nullptr) return;
 
@@ -538,9 +538,8 @@ NYA_INTERNAL void _nya_event_notify_listeners(NYA_HMapᐸNYA_EventTypeˏNYA_Arra
     defer                    nya_array_destroy_on_stack(&finished_oneshot_hooks);
 
     /*
-     * Nothing about this walk may be cached across a handler, because a hook may register another
-     * one from inside the dispatch — the asset system's hot reload path and the job system's
-     * completion handlers both do — and that moves memory in two places.
+     * Nothing may be cached across a handler: a hook can register another from inside dispatch (asset hot
+     * reload and job completion both do), which moves memory.
      */
     for (u64 i = 0; i < hook_count; i++) {
         // Re-read every iteration, and re-checked against the current length: a handler may have

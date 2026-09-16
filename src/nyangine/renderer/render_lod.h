@@ -5,19 +5,19 @@
  * nya_render3d_lod_register(MESH_TREE, (NYA_Render3DLodLevel[]){
  *     { .handle = MESH_TREE,        .max_distance = 30.0F },   // full detail up to 30 units
  *     { .handle = MESH_TREE_MID,    .max_distance = 90.0F },
- *     { .handle = MESH_TREE_FAR,    .max_distance = 250.0F },  // past this it is not drawn at all
+ *     { .handle = MESH_TREE_FAR,    .max_distance = 250.0F },  // not drawn past this
  * }, 3);
  *
- * // Nothing at the call site changes. nya_render3d_mesh resolves the handle itself.
+ * // call sites do not change; nya_render3d_mesh resolves the handle.
  * nya_render3d_mesh(window, MESH_TREE, position, scale, rotation, tint);
  * ```
  *
- * ⚠ **This is not a substitute for frustum culling and does not replace it.** Frustum culling asks "is
- * it on screen"; this asks "is it worth drawing at that size". A scene wants both, and the engine's
- * bounding-sphere frustum test still runs first because it is cheaper and rejects more.
+ * Complements frustum culling rather than replacing it: culling asks whether a mesh is on screen, LOD
+ * whether it is worth drawing at that size. The bounding sphere frustum test runs first since it is
+ * cheaper and rejects more.
  *
- * ⚠ **It does not build the lower-detail meshes.** Those are the asset pipeline's job or the caller's;
- * this only chooses between meshes that already exist.
+ * Only chooses between meshes that exist. Building the lower detail meshes is the asset pipeline's
+ * job.
  * */
 #pragma once
 
@@ -87,7 +87,7 @@ NYA_API b8 nya_render3d_lod_registered(NYA_ConstCString base_handle) __attr_no_d
  * */
 NYA_API NYA_ConstCString nya_render3d_lod_select(NYA_ConstCString base_handle, f32 distance) __attr_no_discard;
 
-/** The same, given a squared distance — what a caller that already has one should use. */
+/** The same, given a squared distance, for callers that already have one. */
 NYA_API NYA_ConstCString nya_render3d_lod_select_squared(NYA_ConstCString base_handle, f32 distance_squared) __attr_no_discard;
 
 /** Which rung `distance` selects, or NYA_RENDER3D_LOD_LEVELS when it is past the last. For debugging. */

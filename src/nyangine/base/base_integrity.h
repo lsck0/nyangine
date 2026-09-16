@@ -57,9 +57,8 @@ NYA_API void nya_integrity_assert(void);
 NYA_API NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) __attr_no_discard;
 
 /**
- * Whether the file at `path` still matches the hash stamped into it — what nya_integrity_assert
- * asks about its own executable. Separate from the assert so a build can check a freshly produced
- * artifact, and so the check is testable without a tampered process running.
+ * Whether the file at `path` still matches the hash stamped into it. Separate from
+ * nya_integrity_assert so a build can check a fresh artifact and tests need no tampered process.
  * */
 NYA_API b8 nya_integrity_verify_file(NYA_ConstCString path) __attr_no_discard;
 
@@ -70,15 +69,14 @@ NYA_API b8 nya_integrity_verify_file(NYA_ConstCString path) __attr_no_discard;
  */
 
 /**
- * Records what the executable's code looks like right now. Call once, as early as possible, before
- * anything has had a chance to hook — every later verification compares against this.
+ * Records the executable's code as it is now. Call once, as early as possible, before anything can
+ * hook. Later verifications compare against this.
  * */
 NYA_API void nya_integrity_baseline_capture(void);
 
 /**
- * Re-hashes the mapped code and compares it against the baseline. Safe to call as often as you
- * like, but reads the whole code region, so a timer or job suits it better than the frame loop.
- * Reports rather than acts — what to do about a modified process is a game policy decision.
+ * Re-hashes the mapped code and compares it with the baseline. Reads the whole code region, so run it
+ * from a timer or job rather than every frame. Only reports; what to do is game policy.
  * */
 NYA_API NYA_IntegrityStatus nya_integrity_verify_code(void) __attr_no_discard;
 

@@ -199,13 +199,9 @@ struct NYA_Layer {
  * GNY_LAYER_PAUSE_MENU = nya_layer_of(gny_layer_pause_menu, GNY_LAYER_PAUSE_MENU_ID);
  * ```
  *
- * The names are derivable from the layer's own, so writing them out is five chances to paste the wrong
- * one — and a layer wired to another layer's `on_update` compiles, runs, and looks like a logic bug in
- * whichever of the two is wrong. Here there is one name and the wiring cannot disagree with it.
- *
- * A layer missing one of the five fails to compile, naming the hook. That is the intended behaviour: the
- * five are what a layer *is*, and an empty one is two lines. A layer that genuinely wants fewer builds
- * the struct by hand, which is still there and still the general case.
+ * Derives the hook names from one prefix, so a layer cannot be wired to another layer's `on_update`
+ * by a paste mistake. A missing hook fails to compile, naming it. A layer that wants fewer hooks
+ * builds the struct by hand.
  * */
 #define nya_layer_of(prefix, layer_id)                                                                                                       \
     ((NYA_Layer){                                                                                                                            \
@@ -332,14 +328,7 @@ NYA_API void nya_window_restore(NYA_WindowHandle window);
 
 NYA_API void nya_window_set_title(NYA_WindowHandle window, NYA_ConstCString title);
 
-/**
- * Sets the window's icon from encoded image bytes — whatever SDL_image reads: PNG, BMP, ICO.
- *
- * ```c
- * NYA_Asset* icon = nya_asset_get(NYA_ASSET_ICON_ICON_BMP);
- * nya_asset_with(icon) NYA_EXPECT(nya_window_set_icon(window, icon->as_text.data, icon->as_text.size));
- * ```
- * */
+/** Sets the window's icon from encoded image bytes in any format SDL_image reads: PNG, BMP, ICO. */
 NYA_API NYA_Error nya_window_set_icon(NYA_WindowHandle window, const u8* data, u64 size) __attr_no_discard;
 NYA_API void nya_window_set_fullscreen(NYA_WindowHandle window, b8 fullscreen);
 NYA_API void nya_window_set_borderless(NYA_WindowHandle window, b8 borderless);
@@ -348,7 +337,7 @@ NYA_API void nya_window_set_borderless(NYA_WindowHandle window, b8 borderless);
  * Installs the function the platform asks what a point in the window is. Null removes it.
  *
  * ```c
- * // A borderless widget the whole surface of which drags it around.
+ * // a borderless widget dragged by its whole surface.
  * NYA_INTERNAL NYA_WindowRegion pet_region(NYA_WindowHandle window, s32 x, s32 y, void* user_data) {
  *     nya_unused(window, x, y, user_data);
  *     return NYA_WINDOW_REGION_DRAGGABLE;
@@ -357,15 +346,12 @@ NYA_API void nya_window_set_borderless(NYA_WindowHandle window, b8 borderless);
  * nya_window_region_set(window, nya_callback(pet_region), nullptr);
  * ```
  *
- * What a window with NYA_WINDOW_BORDERLESS needs to be movable at all: with no title bar there is nothing
- * for the window manager to drag, so the app has to say which of its own pixels do that job.
+ * A NYA_WINDOW_BORDERLESS window has no title bar, so the app says which pixels drag it.
  *
- * ⚠ **The platform calls this, not the frame loop.** It runs while the pointer moves, on whatever thread
- * the window system uses, so it must not allocate, draw, or touch state a frame is also writing. Answer
- * from geometry the callback already has.
+ * The platform calls this while the pointer moves, on the window system's thread, so it must not
+ * allocate, draw or touch frame state. Answer from geometry the callback already has.
  *
- * Through a callback handle rather than a raw pointer, like every other hook here, so it survives a code
- * hot reload.
+ * A callback handle, so it survives a code hot reload.
  * */
 NYA_API void nya_window_region_set(NYA_WindowHandle window, NYA_CallbackHandle on_region, void* user_data);
 NYA_API void nya_window_set_resizable(NYA_WindowHandle window, b8 resizable);

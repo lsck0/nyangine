@@ -382,12 +382,11 @@ NYA_API NYA_Error nya_tilemap_layer_resize(NYA_Tilemap* map, u32 layer_index, u3
  * AUTO-TILING
  * ─────────────────────────────────────────────────────────
  *
- * Choosing which *variant* of a tile to draw from what its neighbours are — the difference between a
- * wall drawn as a row of identical blocks and one that grows corners, ends and junctions on its own.
+ * Picks a tile variant from its neighbours, so walls grow corners, ends and junctions on their own.
  *
- * The input is a boolean per cell ("is this the same material as me") and the output is an index
- * into a lookup the *game* supplies, because which artwork sits at which index is a property of the
- * sheet and not of the algorithm. Nothing here reads a tileset.
+ * The input is a boolean per cell ("same material as me") and the output an index into a lookup the
+ * game supplies, since which artwork sits at which index belongs to the sheet. Nothing here reads a
+ * tileset.
  */
 
 /** How many neighbours an auto-tile rule looks at. Decides the range of nya_tilemap_autotile_mask. */
@@ -397,9 +396,7 @@ enum NYA_TilemapAutoTile {
      * */
     NYA_TILEMAP_AUTOTILE_EDGES = 0,
 
-    /**
-     * All eight, with the corners. **Forty-seven** cases, not 256.
-     * */
+    /** All eight, with the corners. Forty-seven cases, not 256. */
     NYA_TILEMAP_AUTOTILE_BLOB,
 
     NYA_TILEMAP_AUTOTILE_COUNT,
@@ -423,9 +420,8 @@ NYA_API u32 nya_tilemap_autotile_mask(NYA_TilemapAutoTileFilledFn filled, void* 
 /**
  * Auto-tiles a whole layer in place, from what is already in it.
  *
- * ⚠ **Reads a snapshot, not the layer it is writing.** Auto-tiling in place off the live layer would
- * have each cell decided partly by the *new* values of the cells before it, so the same map would
- * come out differently depending on which corner the walk started from.
+ * Reads a snapshot, not the layer being written. Otherwise cells would see their neighbours' new
+ * values and the result would depend on walk order.
  * */
 NYA_API NYA_Error nya_tilemap_autotile_layer(
     NYA_Tilemap*        map,

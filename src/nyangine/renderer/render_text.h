@@ -6,17 +6,16 @@
  * if (nya_text_shape(font, "Wave, AVA.", 0, 0, &run)) {
  *     for (u32 i = 0; i < run.glyph_count; i++) {
  *         const NYA_TextGlyph* glyph = &run.glyphs[i];
- *         // glyph->glyph_index is what the atlas is keyed by; x and y are already kerned.
+ *         // glyph->glyph_index keys the atlas; x and y are already kerned.
  *     }
  * }
  * ```
  *
- * ⚠ **A run is keyed by glyph index, not codepoint, and the two are not interchangeable.** Shaping
- * outputs indices into the face; one codepoint can become several glyphs (a mark cluster) and several
- * codepoints can become one (a ligature). An atlas consuming this has to be keyed the same way.
+ * A run holds glyph indices, not codepoints. One codepoint can shape into several glyphs (a mark
+ * cluster) and several into one (a ligature), so an atlas must be keyed by glyph index too.
  *
- * ⚠ **One `TTF_CreateText` per call, and it allocates.** Fine for the handful of strings a frame
- * draws; not fine per character. Callers shape once per string and walk the run.
+ * Each call does one allocating `TTF_CreateText`. Shape once per string and walk the run, never per
+ * character.
  * */
 #pragma once
 
@@ -129,10 +128,9 @@ NYA_API b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32
 NYA_API f32x2 nya_text_measure_font(TTF_Font* font, NYA_ConstCString text, s32 wrap_width) __attr_no_discard;
 
 /*
- * ── Vertical metrics ──
+ * Vertical metrics
  *
- * Thin wrappers, here rather than at call sites so that a caller holding a TTF_Font never has to
- * remember which of these SDL reports as a negative.
+ * Wrapped so callers never have to remember which of these SDL reports negative.
  */
 
 /** Baseline to baseline: what to advance y by for the next line. */
@@ -141,14 +139,13 @@ NYA_API f32 nya_text_line_height(TTF_Font* font) __attr_no_discard;
 /** Top of the line box to the baseline. */
 NYA_API f32 nya_text_ascent(TTF_Font* font) __attr_no_discard;
 
-/** Baseline to the deepest descender, **positive** — SDL reports it negative, and this flips it. */
+/** Baseline to the deepest descender, positive. SDL reports it negative. */
 NYA_API f32 nya_text_descent(TTF_Font* font) __attr_no_discard;
 
 /*
- * ── Faces through the asset system ──
+ * Faces through the asset system
  *
- * Here rather than in render2d.c because both renderers need a TTF_Font from a path and a size, and
- * the headless one has no atlas to hang the lookup off.
+ * Here rather than in render2d.c because the headless renderer needs faces too and has no atlas.
  */
 
 /**

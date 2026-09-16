@@ -20,11 +20,7 @@
  * been built yet the engine still compiles and runs, it just captures nothing. Define
  * NYA_NO_BACKTRACE to force the null backend.
  * */
-// Spelled 1/0, not true/false: base_basic.h defines those as ((b8)1)/((b8)0), which #if cannot
-// evaluate.
-//
-// NYA_NO_BACKTRACE used to be documented but missing from this condition, so defining it did
-// nothing — the null backend was reachable only by not building libbacktrace at all.
+// spelled 1/0 because base_basic.h defines true/false as ((b8)1)/((b8)0), which #if cannot evaluate.
 #if (OS_LINUX || OS_WINDOWS) && __has_include("backtrace.h") && !defined(NYA_NO_BACKTRACE)
 #define NYA_BACKTRACE_SUPPORTED 1
 #else
@@ -41,8 +37,8 @@ typedef struct NYA_BacktraceFrame NYA_BacktraceFrame;
 typedef struct NYA_Backtrace      NYA_Backtrace;
 
 /**
- * A single resolved stack frame. `function` and `file` point into libbacktrace's own debug-info
- * mapping, which lives as long as the process — never owned by the frame and must not be freed.
+ * A single resolved stack frame. `function` and `file` point into libbacktrace's debug info, which
+ * lives as long as the process. Not owned; never free them.
  * */
 struct NYA_BacktraceFrame {
     u64              address;

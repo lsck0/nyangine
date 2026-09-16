@@ -64,16 +64,13 @@ NYA_API f128_4x4 nya_matrix_create(f128 entries[4][4]) __attr_overloaded;
 NYA_API f32_4x4 nya_matrix_orthographic(f32 left, f32 right, f32 top, f32 bottom);
 
 /*
- * ── 3D projections ──
+ * 3D projections
  *
- * All three target the clip space nya_matrix_orthographic describes: the Direct3D style one SDL_GPU
- * normalizes every backend to, x and y in -1..+1, y pointing **up**, z in **0..1** rather than -1..1.
- * That last detail is the one every piece of OpenGL-era reference material gets differently — a
- * -1..1 depth row here does not look like a sign error, it clips the near half of the frustum and
- * renders as geometry with holes in it.
+ * All three target the clip space described at nya_matrix_orthographic: Direct3D style, as SDL_GPU
+ * normalizes every backend, x and y in -1..+1 with y up, z in 0..1. OpenGL references use -1..1 depth,
+ * which here clips the near half of the frustum.
  *
- * The view convention is right-handed looking down **-z**, matching nya_matrix_look_at and the
- * handedness nya_vector_cross assumes.
+ * The view is right-handed looking down -z, matching nya_matrix_look_at and nya_vector_cross.
  */
 
 /**
@@ -82,10 +79,9 @@ NYA_API f32_4x4 nya_matrix_orthographic(f32 left, f32 right, f32 top, f32 bottom
 NYA_API f32_4x4 nya_matrix_perspective(f32 fov_y, f32 aspect, f32 near_plane, f32 far_plane);
 
 /**
- * An orthographic projection in three dimensions: no vanishing point, size ignores distance. The 3D
- * counterpart of nya_matrix_orthographic (2D, takes a rectangle in pixels); this one takes a
- * half-height and an aspect, matching nya_matrix_perspective so swapping cameras is a change of
- * function, not units.
+ * An orthographic projection in 3D: no vanishing point, size ignores distance. Takes a half-height
+ * and an aspect like nya_matrix_perspective, so switching cameras changes the function, not the
+ * units. nya_matrix_orthographic is the 2D pixel version.
  * */
 NYA_API f32_4x4 nya_matrix_orthographic_3d(f32 height, f32 aspect, f32 near_plane, f32 far_plane);
 
@@ -95,10 +91,8 @@ NYA_API f32_4x4 nya_matrix_orthographic_3d(f32 height, f32 aspect, f32 near_plan
 NYA_API f32_4x4 nya_matrix_look_at(f32x3 eye, f32x3 target, f32x3 up);
 
 /**
- * A model matrix: scale, then rotate, then translate, in that order — not a preference. Scaling after
- * rotating shears anything whose scale isn't uniform (a flattened box turned 45° comes out a
- * parallelogram), and translating before rotating swings the object around the world origin instead
- * of turning it in place.
+ * A model matrix: scale, then rotate, then translate. Scaling after rotating shears non-uniform scale,
+ * and translating before rotating orbits the world origin.
  * */
 NYA_API f32_4x4 nya_matrix_transform(f32x3 translation, f32_3x3 rotation, f32x3 scale) __attr_no_discard;
 
