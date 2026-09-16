@@ -117,8 +117,12 @@ void gny_net_apply_command(NYA_Entity* entity, const NYA_NetCommand* command, f3
     /*
      * Written straight onto the transform rather than through the solver.
      */
-    entity->position.x += direction.x * GNY_PLAYER_SPEED * delta_time_s;
-    entity->position.y += direction.y * GNY_PLAYER_SPEED * delta_time_s;
+    // from the config file, which server and client read alike, so prediction still agrees. Zero is a field the
+    // file left out.
+    f32 speed = NYA_CONFIG.game.player_speed > 0.0F ? NYA_CONFIG.game.player_speed : GNY_PLAYER_SPEED;
+
+    entity->position.x += direction.x * speed * delta_time_s;
+    entity->position.y += direction.y * speed * delta_time_s;
 }
 
 void gny_net_sample_command(OUT NYA_NetCommand* command) {
@@ -138,17 +142,14 @@ void gny_net_sample_command(OUT NYA_NetCommand* command) {
 NYA_EntityHandle gny_net_spawn_player(NYA_NetPeerId peer, NYA_ConstCString name) {
     nya_unused(name);
 
-    /*
-     * No physics body, deliberately.
-     */
+    f32 spacing = NYA_CONFIG.game.player_spawn_spacing > 0.0F ? NYA_CONFIG.game.player_spawn_spacing : GNY_PLAYER_SPAWN_SPACING;
+
+    // no physics body: movement is written by the command function, identically on both sides.
     return nya_entity_spawn(
-        .name = "player",
-        /*
-         * GNY_ENTITY_PLAYER, not GNY_ENTITY_BOX.
-         */
+        .name      = "player",
         .type      = GNY_ENTITY_PLAYER,
         .flags     = GNY_FLAG_REPLICATED | GNY_ENTITY_FLAG_AUDIBLE,
-        .position  = { (f32)peer.index * GNY_PLAYER_SPAWN_SPACING, 0.0F, 0.0F },
+        .position  = { (f32)peer.index * spacing, 0.0F, 0.0F },
         .state     = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_VISIBLE,
         .on_render = nya_callback(gny_net_player_on_render)
     );

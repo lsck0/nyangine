@@ -1,8 +1,7 @@
 /**
  * @file layer_background.c
  *
- * Sky, parallax ridges and motes drawn procedurally behind every screen. Also starts the music once its
- * asset is ready and writes the one-shot perf report, since this layer is always present.
+ * Sky, parallax ridges and motes drawn procedurally behind every screen.
  * */
 #include "gnyame/gnyame.h"
 #include "generated/assets.h"
@@ -12,11 +11,6 @@
  * PRIVATE API DECLARATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
-
-/**
- * Starts the background track on the first tick that finds it loaded.
- * */
-NYA_INTERNAL void _gny_music_start_when_ready(void);
 
 
 /** Vertical bands from the top colour to the bottom one. The one plane that ignores the camera. */
@@ -39,18 +33,6 @@ void gny_layer_background_on_create(NYA_Window* window) {
 
     // nothing to build: every plane below is analytic (a sine and a hash), so no texture to load or keep
     // across a reload.
-
-    // Streamed rather than predecoded, unlike the impact clip. Predecoding a minute of stereo audio
-    // means holding it uncompressed for the whole run to save a decode that only happens once, and
-    // a track that starts a second into the process has nothing to be late for.
-    NYA_Error music = nya_asset_load((NYA_AssetLoadParameters){
-        .type     = NYA_ASSET_TYPE_SOUND,
-        .handle   = NYA_ASSET_MUSIC_BGM_OPUS,
-        .as_sound = { .predecode = false },
-    });
-
-    // Not fatal. A machine with no audio device still runs the demo.
-    if (!music.ok) nya_log_warn("%s", (NYA_ConstCString)music.message);
 }
 
 /*
@@ -86,8 +68,6 @@ void gny_layer_background_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_unused(window, delta_time_s);
 
     // Nothing to advance for the drawing: the motes are a function of uptime, read at render.
-
-    _gny_music_start_when_ready();
 }
 
 /*
@@ -116,46 +96,6 @@ void gny_layer_background_on_render(NYA_Window* window) {
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
-
-void _gny_music_start_when_ready(void) {
-    GNY_World* world = gny_world();
-    if (world->music_started) return;
-
-    NYA_AssetStatus status = nya_asset_status(NYA_ASSET_MUSIC_BGM_OPUS);
-
-    // Still queued. Checked every tick until it resolves, which costs a dictionary lookup on the
-    // handful of frames before the load runs.
-    if (status == NYA_ASSET_STATUS_LOADING || status == NYA_ASSET_STATUS_UNLOADED) return;
-
-    // Latched either way. A track that failed to decode will not decode on the next tick either,
-    // and retrying forever would be a lookup per tick for the life of the process.
-    world->music_started = true;
-
-    if (status != NYA_ASSET_STATUS_LOADED) {
-        nya_log_warn("The background track '%s' could not be loaded; running without music.", NYA_ASSET_MUSIC_BGM_OPUS);
-        return;
-    }
-
-    nya_audio_play_music_with(
-        NYA_ASSET_MUSIC_BGM_OPUS,
-        (NYA_MusicParams){
-            // The track's own level in the mix, scaled by what the player asked for. Effective
-            // rather than raw, so the master slider moves this too.
-            .gain = GNY_MUSIC_GAIN * nya_settings_volume_effective(NYA_VOLUME_CHANNEL_MUSIC),
-            .loop = true,
-
-            // Zero, so the whole piece repeats. A track with an intro would name the millisecond the
-            // loop returns to instead.
-            .loop_start_ms = 0,
-
-            .fade_in_ms = GNY_MUSIC_FADE_IN_MS,
-        }
-    );
-
-    // Started and then stopped, rather than never started: nya_audio_resume_music has nothing to
-    // resume otherwise, and `m` would appear to do nothing until the track had been played once.
-    if (GNY_MUSIC_START_MUTED) nya_audio_pause_music();
-}
 
 void _gny_background_sky_draw(NYA_Window* window) {
     /*

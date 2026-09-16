@@ -39,14 +39,10 @@ typedef struct GNY_Config     GNY_Config;
  * */
 // @reflect
 struct GNY_ConfigGame {
-    /**
-     * World units per second a networked player moves. Not read yet: gny_net_apply_command still uses
-     * GNY_PLAYER_SPEED.
-     * */
+    /** World units per second a networked player moves. Zero falls back to GNY_PLAYER_SPEED. */
     f32 player_speed;
 
-    /** How far apart players spawn, so two joining at once do not start inside each other. See
-     *  GNY_PLAYER_SPAWN_SPACING. */
+    /** How far apart players spawn, so two joining at once do not overlap. Zero falls back to GNY_PLAYER_SPAWN_SPACING. */
     f32 player_spawn_spacing;
 };
 

@@ -5,5 +5,6 @@
  */
 #include "gnyame/systems/system_camera.c"
 #include "gnyame/systems/system_movement.c"
+#include "gnyame/systems/system_music.c"
 #include "gnyame/systems/system_sky.c"
 #include "gnyame/systems/system_terrain3d.c"

@@ -106,5 +106,7 @@ void gny_systems_register_all(void) {
     // entity is now, not on where it was at the start of the tick.
     nya_system_register((NYA_SystemEntry){ .name = "camera_follow", .after = "player_input", .update = gny_system_camera_follow_update });
 
+    nya_system_register((NYA_SystemEntry){ .name = "music", .update = gny_system_music_update });
+
     NYA_EXPECT(nya_system_registry_finalize());
 }

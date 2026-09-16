@@ -30,6 +30,9 @@ void gny_system_camera_follow_update(f32 delta_time_s);
  * */
 void gny_systems_register_all(void);
 
+/** Queues the background track, then starts it once loaded. See system_music.c. */
+void gny_system_music_update(f32 delta_time_s);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * RENDERING
