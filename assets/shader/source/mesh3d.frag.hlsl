@@ -13,9 +13,9 @@
 /*
  * The shadow map, at t0/s0.
  *
- * The register differs between the two pipelines because they bind a different number of textures — this
- * one has no base colour map, so the shadow map is the first and only binding. That is why mesh3d_shadow takes the texture as a
- * parameter instead of reading a global out of the shared include.
+ * The register differs between the two pipelines because they bind a different number of textures: this one
+ * has no base colour map, so the shadow map is the first and only binding. Hence mesh3d_shadow taking the
+ * texture as a parameter instead of reading a global out of the shared include.
  */
 Texture2D shadow_map : register(t0, space2);
 SamplerState shadow_sampler : register(s0, space2);
@@ -42,16 +42,13 @@ float4 main(FragInput input) : SV_Target {
   /*
    * Tonemapped, not clamped.
    *
-   * This said "clamped, not tonemapped" and gave the reason that nothing in the shading model produces a
-   * value far past one. That was wrong about its own model: emission deliberately pushes past one — see
-   * NYA_Render3DMaterial.emission, whose whole job is to lift a surface past the bloom threshold — and
-   * `saturate` then threw that away, mapping an emissive lamp and a lit white wall onto the same number.
+   * Emission deliberately pushes past one — see NYA_Render3DMaterial.emission, whose whole job is to lift a
+   * surface past the bloom threshold — and a `saturate` here would throw that away, mapping an emissive lamp
+   * and a lit white wall onto the same number. mesh3d_tonemap keeps them apart without the flattening a
+   * Reinhard curve would do to authored colour: it is identity below the knee. See its definition.
    *
-   * mesh3d_tonemap is not the Reinhard curve the note was rejecting, and the objection to that curve was
-   * right: it is identity below the knee, so flat authored colour survives untouched. See its definition.
-   *
-   * Alpha passes through untouched: the shading is a multiply on rgb, and folding it into alpha would
-   * make a shaded face transparent as well as dark.
+   * Alpha passes through untouched. The shading is a multiply on rgb, and folding it into alpha would make a
+   * shaded face transparent as well as dark.
    */
   return float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), input.color.a);
 }

@@ -265,9 +265,9 @@ void nya_rebuild_yourself(s32* argc, NYA_CString* argv, NYA_Command cmd) {
     /*
      * Nothing to do when no source is newer than the tool.
      *
-     * This used to be NYA_BUILD_ALWAYS, so every invocation of the tool recompiled it first — 1.18s before
-     * `./build --help` could print anything, against 0.012s with --no-rebuild. That is the edit-run loop
-     * paying a full compile to answer a question it already knew.
+     * Rebuilding unconditionally costs 1.18s before `./build --help` can print anything, against 0.012s
+     * with --no-rebuild. That is the edit-run loop paying a full compile to answer a question it already
+     * knows the answer to.
      *
      * The trees are the ones FLAGS_BUILD_TOOL actually compiles: build.c itself, the build system, and the
      * engine base it includes. Deliberately wider than the true include set — a walk is a few hundred

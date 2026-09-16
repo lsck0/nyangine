@@ -1911,10 +1911,6 @@ void _nya_asset_loading_process(NYA_Event* event) {
                     break;
                 }
 
-                // The requested type, not always the vertex one. This said SHADER_VERTEX
-                // unconditionally, so every fragment shader was recorded as a vertex shader. The
-                // stage handed to SDL above was always right, and every consumer of asset->type
-                // happens to treat the two identically, which is the only reason it did not show.
                 asset->type                      = parameters->type;
                 asset->status                    = NYA_ASSET_STATUS_LOADED;
                 asset->as_shader.compiled_handle = compiled_shader_handle;
@@ -2088,24 +2084,21 @@ void _nya_asset_loading_process(NYA_Event* event) {
           },
           .vertex_input_state.num_vertex_buffers         = buffer_description_count,
           .vertex_input_state.vertex_buffer_descriptions = buffer_descriptions,
-          // Every attribute the chosen layout declares, not a hardcoded count. This used to say two
-          // while NYA_Vertex3D carried four, so a shader reading TEXCOORD0 got whatever was in the
-          // register — no textured or text pipeline could work until it matched.
+          // Every attribute the chosen layout declares. A count short of that leaves a shader reading the
+          // missing register's leftovers, which is a textured pipeline drawing garbage and no diagnostic.
           .vertex_input_state.num_vertex_attributes      = attribute_count,
           .vertex_input_state.vertex_attributes          = attributes,
         };
                 SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(render_system->gpu_device, &pipelineCreateInfo);
 
                 /*
-                 * A failure here is reported, not asserted. This used to be a bare
-                 * `nya_assert(pipeline != nullptr)`, which aborts with neither the pipeline's name nor
-                 * SDL's reason for refusing it — and pipeline creation is exactly where the backends
-                 * disagree: a shader Vulkan accepts can be rejected by D3D12 over a sample count, a
-                 * target format or a vertex layout the other one tolerated, so the failure shows up on
-                 * one machine and one driver with nothing to go on. Failing the asset instead puts the
-                 * handle and SDL_GetError in the log and lets everything else load — what draws through
-                 * this pipeline then draws nothing, a scene missing a pass rather than a program that
-                 * will not start, and the log says which pass.
+                 * A failure here is reported, not asserted.
+                 *
+                 * Pipeline creation is where the backends disagree: a shader Vulkan accepts can be
+                 * rejected by D3D12 over a sample count, a target format or a vertex layout the other
+                 * tolerated, so this fails on one machine and one driver. An assert would abort there with
+                 * neither the pipeline's name nor SDL's reason. Failing the asset puts both in the log and
+                 * lets everything else load — a scene missing a pass, and the log says which.
                  */
                 if (pipeline == nullptr) {
                     NYA_Error refused = nya_error(NYA_ERROR_NOT_OK, "SDL would not create the graphics pipeline: %s", SDL_GetError());

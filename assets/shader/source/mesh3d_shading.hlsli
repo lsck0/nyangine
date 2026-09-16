@@ -19,15 +19,14 @@
 /*
  * No texture is declared here, deliberately.
  *
- * It used to declare the base colour map at t0/space2 on the reasoning that an unused binding is
- * dead-stripped. That was wrong twice over. The untextured shader binds the *shadow* map at t0, so the two
- * declarations collided at the same register; and the sampler counts the pipelines declared no longer
- * matched what the shaders sampled. The result was a shader reading an unbound descriptor — a GPUVM fault
- * and a lost device, not a warning.
+ * The two pipelines that include this file do not agree on what lives at which register: the untextured one
+ * has the shadow map at t0 because it has nothing else, the textured one has it at t1 behind the base colour
+ * map. A shared declaration would have to pick one, collide in the other, and leave the pipeline's sampler
+ * count disagreeing with what the shader samples — which is an unbound descriptor read, so a GPUVM fault and
+ * a lost device rather than a warning.
  *
  * So every texture is declared by the shader that uses it, at a register that shader chooses, and passed
- * into the helpers below. The registers genuinely differ between the two pipelines: the untextured one has
- * the shadow map first because it has nothing else, and the textured one has it second.
+ * into the helpers below.
  */
 
 /** Has to match NYA_RENDER3D_MAX_POINT_LIGHTS and NYA_ShaderMesh3DUniform. */
