@@ -129,8 +129,10 @@ s32 main(void) {
   nya_assert(conc_a != nullptr && conc_b != nullptr);
   nya_assert(conc_a->last_elapsed_ms >= 9); // ran for ~10ms
   nya_assert(conc_b->last_elapsed_ms >= 9); // ran for ~10ms
-  // A started before B, so A should have ended before B finished
-  nya_assert(conc_a->last_elapsed_ms < conc_b->last_elapsed_ms + 5);
+  // overlapping, not nested: a started first and ended first. Compared by timestamp, since sleep lengths vary
+  // by platform timer granularity.
+  nya_assert(conc_a->started_ns[conc_a->current] < conc_b->started_ns[conc_b->current]);
+  nya_assert(conc_a->ended_ns[conc_a->current] < conc_b->ended_ns[conc_b->current]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Timer with zero-duration work
