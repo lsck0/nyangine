@@ -56,9 +56,8 @@ typedef struct GNY_World {
     /** Seconds added to the clock before the day phase is taken from it. */
     f32 sky_offset_s;
 
-    /** The perf span overlay, and whether its one-shot log report has been written. */
-    b8 trace_enabled;
-    b8 trace_logged;
+    /** The engine's debug overlay, toggled with `t` in either scene. */
+    b8 overlay_enabled;
 } GNY_World;
 
 /** Null until gny_world_create has run. */

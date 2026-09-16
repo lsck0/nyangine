@@ -34,7 +34,7 @@ enum {
     GNY_ACTION_TOGGLE_PHYSICS,
     GNY_ACTION_TOGGLE_BLOOM,
     GNY_ACTION_TOGGLE_MUSIC,
-    GNY_ACTION_TOGGLE_TRACE,
+    GNY_ACTION_TOGGLE_OVERLAY,
 
     /** Opens a drop-through window on every crate, so anything on a one-way ledge falls off it. */
     GNY_ACTION_DROP_THROUGH,

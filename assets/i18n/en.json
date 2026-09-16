@@ -22,9 +22,11 @@
   "hud_paused": "PHYSICS PAUSED",
   "hud_greeting": "Hello, %s!",
   "hud_score": "%s scored %d points",
+  "hud_keys": "click drop   right click remove   space burst   c clear   r terrain   p physics   m music   b bloom   t stats   esc menu",
 
   "cube3d_title": "3d demo",
   "cube3d_hint_click": "click the cube",
   "cube3d_hint_drag": "drag the cube to spin it",
-  "cube3d_hint_camera": "right drag orbits, wheel zooms, r resets"
+  "cube3d_hint_camera": "right drag orbits, wheel zooms, r resets",
+  "cube3d_keys": "space drop   c clear   r terrain   b bloom   t stats   esc menu"
 }

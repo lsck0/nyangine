@@ -18,8 +18,6 @@
  * */
 NYA_INTERNAL void _gny_music_start_when_ready(void);
 
-/** Writes one frame's span breakdown to the log, once. See GNY_TRACE_LOG_AFTER_S. */
-NYA_INTERNAL void _gny_trace_log_once(void);
 
 /** Vertical bands from the top colour to the bottom one. The one plane that ignores the camera. */
 NYA_INTERNAL void _gny_background_sky_draw(NYA_Window* window);
@@ -90,7 +88,6 @@ void gny_layer_background_on_update(NYA_Window* window, f32 delta_time_s) {
     // Nothing to advance for the drawing: the motes are a function of uptime, read at render.
 
     _gny_music_start_when_ready();
-    _gny_trace_log_once();
 }
 
 /*
@@ -158,29 +155,6 @@ void _gny_music_start_when_ready(void) {
     // Started and then stopped, rather than never started: nya_audio_resume_music has nothing to
     // resume otherwise, and `m` would appear to do nothing until the track had been played once.
     if (GNY_MUSIC_START_MUTED) nya_audio_pause_music();
-}
-
-void _gny_trace_log_once(void) {
-    GNY_World* world = gny_world();
-    if (world == nullptr || world->trace_logged) return;
-
-    NYA_FrameStats stats = nya_app_get()->frame_stats;
-
-    if (stats.uptime_s < GNY_TRACE_LOG_AFTER_S) return;
-
-    world->trace_logged = true;
-
-    u64 frame = nya_perf_frame_current();
-    if (frame == 0) return;
-
-    /*
-     * Work against period, spelled out, because the two are constantly mistaken for each other.
-     */
-    nya_log_info("Perf: work %.3f ms, slept %.3f ms, period %.3f ms (%.0f fps, limit %u)", nya_time_ns_to_s(stats.work_ns) * 1000.0,
-             nya_time_ns_to_s(stats.sleep_ns) * 1000.0, nya_time_ns_to_s(stats.elapsed_ns) * 1000.0, (f64)stats.fps,
-             nya_app_get()->options.frame_rate_limit);
-
-    nya_perf_frame_report(frame - 1);
 }
 
 void _gny_background_sky_draw(NYA_Window* window) {

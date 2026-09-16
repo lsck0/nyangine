@@ -279,22 +279,9 @@
 #define GNY_UI_DIM     ((NYA_Color){ 0.58F, 0.62F, 0.70F, 1.0F })
 #define GNY_UI_WARNING ((NYA_Color){ 1.0F, 0.72F, 0.30F, 1.0F })
 
-/* Frame trace: the panel `t` opens, listing the previous frame's perf spans by nesting depth. */
-
-/** Widest the trace panel gets. Span names are short and the numbers are right aligned inside it. */
-#define GNY_TRACE_WIDTH 420.0F
-
-/** Pixels of indent per nesting level, so the shape of the frame is readable at a glance. */
-#define GNY_TRACE_INDENT 14.0F
-
-/** Spans drawn at most. */
-#define GNY_TRACE_MAX_SPANS 48
-
-/** A span taking at least this fraction of the frame's work is drawn in the warning colour. */
-#define GNY_TRACE_HOT_FRACTION 0.25F
-
-/** Seconds before the one-shot frame breakdown is logged, late enough to miss startup loads and resizes. */
-#define GNY_TRACE_LOG_AFTER_S 4.0F
+/** The HUD's status panel, and the space kept free at the top right for the debug overlay. */
+#define GNY_UI_PANEL_WIDTH   300.0F
+#define GNY_UI_OVERLAY_WIDTH 340.0F
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

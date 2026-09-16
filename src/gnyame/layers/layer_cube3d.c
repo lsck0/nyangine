@@ -347,11 +347,13 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
                 break;
             }
 
-            // the 2D world's key and flag, so B means the same in both scenes.
+            // the 2D scene's keys and flags, so b and t mean the same in both.
             if (nya_input_action_matches(GNY_ACTION_TOGGLE_BLOOM, key->key, key->modifier_flags)) {
                 gny_world()->bloom_enabled = !gny_world()->bloom_enabled;
-
-                event->was_handled = true;
+                event->was_handled         = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_OVERLAY, key->key, key->modifier_flags)) {
+                gny_world()->overlay_enabled = !gny_world()->overlay_enabled;
+                event->was_handled           = true;
             }
         } break;
 
@@ -901,8 +903,6 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
 void gny_layer_cube3d_on_render(NYA_Window* window) {
     GNY_Cube3DScene* scene = _gny_cube3d_scene();
 
-    NYA_Entity* cube = nya_entity_get(scene->cube);
-
     GNY_World* bloom_world = gny_world();
 
     GNY_SkyState sky = gny_sky_state();
@@ -996,42 +996,24 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     }
 
 
-    // screen pixels over the top in the same pass. render2d has no camera or depth test, and the scene has flushed,
-    // so the HUD lands in front.
+    // the HUD in screen pixels over the flushed scene. render2d has no depth test, so it lands in front.
     nya_render2d_font_set(GNY_UI_FONT, GNY_UI_FONT_SIZE);
 
-    f32 line = GNY_UI_PADDING;
+    f32              line  = nya_render2d_font_line_height();
+    NYA_ConstCString hud[] = {
+        nya_string_cube3d_title(),
+        scene->grabbed_once ? nya_string_cube3d_hint_drag() : nya_string_cube3d_hint_click(),
+        nya_string_cube3d_hint_camera(),
+        nya_string_cube3d_keys(),
+    };
 
-    nya_render2d_text(window, nya_string_cube3d_title(), GNY_UI_PADDING, line, GNY_UI_TEXT);
-    line += nya_render2d_font_line_height();
-
-    nya_render2d_text(window, scene->grabbed_once ? nya_string_cube3d_hint_drag() : nya_string_cube3d_hint_click(), GNY_UI_PADDING, line,
-                      GNY_UI_DIM);
-    line += nya_render2d_font_line_height();
-
-    nya_render2d_text(window, nya_string_cube3d_hint_camera(), GNY_UI_PADDING, line, GNY_UI_DIM);
-    line += nya_render2d_font_line_height();
-
-    // not translated: key letters are the same in every locale.
-    nya_render2d_textf(window, GNY_UI_PADDING, line, GNY_UI_DIM, "space drops cubes, c clears, b bloom %s",
-                       gny_world()->bloom_enabled ? "on" : "off");
-    line += nya_render2d_font_line_height();
-
-    if (cube != nullptr) {
-        nya_render2d_textf(window, GNY_UI_PADDING, line, GNY_UI_DIM, "cube at " FMTf32x3, FMTf32x3_ARG(cube->position));
-        line += nya_render2d_font_line_height();
+    for (u32 i = 0; i < nya_carray_length(hud); i++) {
+        nya_render2d_text(window, hud[i], GNY_UI_PADDING, GNY_UI_PADDING + (line * (f32)i), i == 0 ? GNY_UI_TEXT : GNY_UI_DIM);
     }
 
-    // the seed is how to ask for this landscape again. the recycle count shows cubes falling off the edge.
-    nya_render2d_textf(window, GNY_UI_PADDING, line, GNY_UI_DIM, "terrain seed %llu, %u bodies, %u recycled",
-                       (unsigned long long)gny_terrain3d()->seed, nya_physics3d_body_count(), scene->cubes_recycled);
-    line += nya_render2d_font_line_height();
-
-    // `culled` shows what frustum culling saves. read before nya_render_end clears the counters.
-    NYA_Render3DFrameStats stats = nya_render3d_frame_stats(window);
-
-    nya_render2d_textf(window, GNY_UI_PADDING, line, GNY_UI_DIM, "3d: %u draws, %u verts, %u instances, %u culled", stats.draw_calls,
-                       stats.vertices, stats.instances, stats.culled);
+    if (gny_world()->overlay_enabled) {
+        nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = (f32)window->screen_width - GNY_UI_MARGIN - GNY_UI_OVERLAY_WIDTH, .y = GNY_UI_MARGIN });
+    }
 }
 
 /*

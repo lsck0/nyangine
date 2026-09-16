@@ -1,5 +1,5 @@
 {
-  "_comment": "German. Every key and every format specifier here is checked against en.json at build time — a missing key or a reordered specifier fails the build rather than the frame that draws it.",
+  "_comment": "German. Every key and every format specifier here is checked against en.json at build time: a missing key or a reordered specifier fails the build rather than the frame that draws it.",
   "_locale": "de",
   "_name": "Deutsch",
 
@@ -22,9 +22,11 @@
   "hud_paused": "PHYSIK ANGEHALTEN",
   "hud_greeting": "Hallo, %s!",
   "hud_score": "%s erzielte %d Punkte",
+  "hud_keys": "klick ablegen   rechtsklick entfernen   leertaste schwall   c leeren   r gelände   p physik   m musik   b bloom   t statistik   esc menü",
 
   "cube3d_title": "3d-demo",
   "cube3d_hint_click": "klicke auf den würfel",
   "cube3d_hint_drag": "ziehe den würfel zum drehen",
-  "cube3d_hint_camera": "rechtsziehen dreht, mausrad zoomt, r setzt zurück"
+  "cube3d_hint_camera": "rechtsziehen dreht, mausrad zoomt, r setzt zurück",
+  "cube3d_keys": "leertaste ablegen   c leeren   r gelände   b bloom   t statistik   esc menü"
 }

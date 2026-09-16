@@ -14,11 +14,13 @@ typedef enum {
     NYA_STRING_CUBE3D_HINT_CAMERA,
     NYA_STRING_CUBE3D_HINT_CLICK,
     NYA_STRING_CUBE3D_HINT_DRAG,
+    NYA_STRING_CUBE3D_KEYS,
     NYA_STRING_CUBE3D_TITLE,
     NYA_STRING_HUD_BOXES,
     NYA_STRING_HUD_GREETING,
     NYA_STRING_HUD_HOSTING,
     NYA_STRING_HUD_HOVERING,
+    NYA_STRING_HUD_KEYS,
     NYA_STRING_HUD_OFFLINE,
     NYA_STRING_HUD_PAUSED,
     NYA_STRING_HUD_PLAYERS,
@@ -38,9 +40,9 @@ typedef enum {
 
 /** The JSON key each id came from, in id order. Read by nya_i18n_load. */
 static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unused = {
-    "cube3d_hint_camera", "cube3d_hint_click",  "cube3d_hint_drag",  "cube3d_title", "hud_boxes",    "hud_greeting",  "hud_hosting",
-    "hud_hovering",       "hud_offline",        "hud_paused",        "hud_players",  "hud_score",    "menu_2d_scene", "menu_3d_scene",
-    "menu_main_menu",     "menu_master_volume", "menu_music_volume", "menu_quit",    "menu_restart", "menu_resume",   "menu_start",
+    "cube3d_hint_camera", "cube3d_hint_click",  "cube3d_hint_drag",  "cube3d_keys", "cube3d_title", "hud_boxes",   "hud_greeting",  "hud_hosting",
+    "hud_hovering",       "hud_keys",           "hud_offline",       "hud_paused",  "hud_players",  "hud_score",   "menu_2d_scene", "menu_3d_scene",
+    "menu_main_menu",     "menu_master_volume", "menu_music_volume", "menu_quit",   "menu_restart", "menu_resume", "menu_start",
 };
 
 /** `cube3d_hint_camera` */
@@ -56,6 +58,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_hint_click(
 /** `cube3d_hint_drag` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_hint_drag(void) {
     return _nya_i18n_format(NYA_STRING_CUBE3D_HINT_DRAG);
+}
+
+/** `cube3d_keys` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_keys(void) {
+    return _nya_i18n_format(NYA_STRING_CUBE3D_KEYS);
 }
 
 /** `cube3d_title` */
@@ -81,6 +88,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_hud_hosting(u32 a0
 /** `hud_hovering` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_hud_hovering(NYA_ConstCString a0) {
     return _nya_i18n_format(NYA_STRING_HUD_HOVERING, a0);
+}
+
+/** `hud_keys` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_hud_keys(void) {
+    return _nya_i18n_format(NYA_STRING_HUD_KEYS);
 }
 
 /** `hud_offline` */
