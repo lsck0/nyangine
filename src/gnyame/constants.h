@@ -131,10 +131,10 @@
  */
 
 /**
- * Frames per second without focus. See NYA_AppOptions.unfocused_frame_rate_limit. Fifteen keeps animating, so
- * alt-tabbing back shows no frozen catch-up, at an eighth of the GPU cost.
+ * Frames per second without focus. See NYA_AppOptions.unfocused_frame_rate_limit. Thirty stays smooth in a
+ * corner of the screen at a quarter of the GPU cost.
  * */
-#define GNY_UNFOCUSED_FRAME_RATE 15
+#define GNY_UNFOCUSED_FRAME_RATE 30
 
 /** Level the background track sits at, under the master and music gains. */
 #define GNY_MUSIC_GAIN 0.45F
