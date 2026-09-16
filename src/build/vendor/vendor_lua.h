@@ -31,15 +31,9 @@ NYA_VendorRule vendor_lua_linux_x86_64 = {
 
     .parts = {
         /*
-         * Cleaned first, exactly as the Windows rule below does, and for the same reason.
-         *
-         * LuaJIT builds in tree, so both targets compile into ./vendor/lua/src and only the archive
-         * is renamed afterwards. Its Makefile keys off the object files alone and knows nothing
-         * about which toolchain produced them, so a tree left over from the Windows build is
-         * "up to date" for the Linux one: make relinks those objects and libluajit-linux.a comes
-         * out full of COFF. lld then skips every member with a warning, and because nothing calls
-         * into Lua yet the link still succeeds — a dependency that is silently absent rather than
-         * missing. Whichever target runs second has to start from an empty tree.
+         * Cleaned first, as in the Windows rule. Both targets build in ./vendor/lua/src and the
+         * Makefile only checks object timestamps, so objects left by the other target would be
+         * relinked into the wrong format. CC is passed because the Makefile probes it even to clean.
          */
         &(NYA_BuildRule){
             .name        = "vendor_lua_linux_x86_64_clean",
@@ -48,7 +42,7 @@ NYA_VendorRule vendor_lua_linux_x86_64 = {
 
             .command = {
                 .program   = "make",
-                .arguments = { "-C", LUAJIT_SRC, "clean", },
+                .arguments = { "-C", LUAJIT_SRC, "clean", "CC=" CC, },
             },
         },
         &(NYA_BuildRule){
@@ -89,7 +83,7 @@ NYA_VendorRule vendor_lua_windows_x86_64 = {
 
             .command = {
                 .program   = "make",
-                .arguments = { "-C", LUAJIT_SRC, "clean", },
+                .arguments = { "-C", LUAJIT_SRC, "clean", "CC=" CC, },
             },
         },
         &(NYA_BuildRule){

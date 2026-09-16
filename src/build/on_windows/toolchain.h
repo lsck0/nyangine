@@ -15,8 +15,8 @@
 #define NYA_WINDOWS_CC CC
 #define NYA_WINDOWS_AR "ar"
 
-/** Not cross compiling, so LuaJIT's host compiler is simply the compiler. */
-#define NYA_LUAJIT_CROSS
+/** Not cross compiling, so LuaJIT's host compiler is the compiler. Named, since its Makefile defaults to gcc. */
+#define NYA_LUAJIT_CROSS "CC=" CC,
 
 /** Not cross compiling, so autotools must not be told a host. */
 #define NYA_AUTOTOOLS_WINDOWS_HOST
