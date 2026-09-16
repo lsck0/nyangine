@@ -4,6 +4,7 @@
 #include "nyangine/base/base_base64.c"
 #include "nyangine/base/base_bench.c"
 #include "nyangine/base/base_build.c"
+#include "nyangine/base/base_compress.c"
 #include "nyangine/base/base_crc.c"
 #include "nyangine/base/base_error.c"
 #include "nyangine/base/base_file.c"

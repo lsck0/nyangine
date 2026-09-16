@@ -617,8 +617,42 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
         NYA_AssetBlobHeader asset_header = NYA_ASSET_BLOB_HEADER[asset_header_index];
         if (!nya_string_equals(asset_header.path, path)) continue;
 
-        out_asset->as_text.data = (u8*)NYA_ASSET_BLOB + asset_header.start;
+        const u8* stored = (const u8*)NYA_ASSET_BLOB + asset_header.start;
+
+        // Stored verbatim, which is every entry LZ4 could not shrink. Pointed at directly, so the common
+        // case for the big assets — textures and audio, already compressed by their own formats — costs
+        // no allocation and no copy, exactly as it did before compression existed.
+        if (asset_header.compressed_size == asset_header.size) {
+            out_asset->as_text.data = (u8*)stored;
+            out_asset->as_text.size = asset_header.size;
+            out_asset->raw_owned    = false;
+
+            return NYA_OK;
+        }
+
+        /*
+         * Compressed, so it is expanded into the asset arena and the asset owns the result.
+         *
+         * Into a fresh allocation rather than a shared scratch buffer, because the caller holds these
+         * bytes across a decode that can itself load another asset — a mesh pulling in its texture — and
+         * a shared buffer would be overwritten underneath the outer one.
+         */
+        NYA_App*   app   = nya_app_get();
+        NYA_Arena* arena = app->asset_system.allocator;
+
+        u8* expanded = nya_arena_alloc(arena, asset_header.size);
+        if (expanded == nullptr) {
+            return nya_error(NYA_ERROR_OUT_OF_MEMORY, "could not allocate " FMTu64 " bytes to decompress '%s'", asset_header.size, path);
+        }
+
+        if (!nya_decompress(stored, asset_header.compressed_size, expanded, asset_header.size)) {
+            nya_arena_free(arena, expanded, asset_header.size);
+            return nya_error(NYA_ERROR_CORRUPT, "the embedded blob entry for '%s' did not decompress", path);
+        }
+
+        out_asset->as_text.data = expanded;
         out_asset->as_text.size = asset_header.size;
+        out_asset->raw_owned    = true;
 
         return NYA_OK;
     }
@@ -651,6 +685,9 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_filesystem(NYA_CString path, OUT
 
     out_asset->as_text.data = data;
     out_asset->as_text.size = size;
+
+    // Read into the asset arena above, so this one is freed on unload.
+    out_asset->raw_owned = true;
 
 #ifdef NYA_ASSET_HOT_RELOAD
     out_asset->source_modification_time = modification_time;
@@ -1494,6 +1531,7 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw(NYA_AssetHandle handle, b8 external, 
     nya_assert(out_asset != nullptr);
 
     out_asset->from_blob = false;
+    out_asset->raw_owned = false;
 
     // Takes the handle rather than reading it off the parameters, because a shader loads the
     // *compiled* artifact whose handle is derived from the one that was requested. An external
@@ -1505,6 +1543,8 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw(NYA_AssetHandle handle, b8 external, 
     // The blob is a cache in front of the filesystem rather than a replacement for it. A handle it
     // does not carry is not an error: the asset may have been added since the build, or deliberately
     // shipped loose beside the executable, and either way disk is the answer.
+    // raw_owned is set by the blob loader, which is the only thing that knows whether the entry was
+    // stored verbatim or had to be expanded.
     NYA_Error blob_result = _nya_asset_load_raw_from_blob(handle, out_asset);
     if (blob_result.ok) {
         out_asset->from_blob = true;
@@ -1545,10 +1585,10 @@ NYA_INTERNAL void _nya_asset_cancel_queued_unload(NYA_Asset* asset) {
 NYA_INTERNAL void _nya_asset_unload_raw(NYA_Asset* asset) {
     nya_assert(asset != nullptr);
 
-    // Blob assets point straight into the executable's own data, so there is nothing to free; only
-    // something that was read off disk owns its memory. Which of the two it was is recorded on the
-    // asset, because with a blob present both kinds exist in the same build.
-    if (asset->from_blob) return;
+    // Keyed on ownership, not on where the bytes came from. A blob entry stored verbatim points straight
+    // into the executable's own .rodata and must not be freed, but a *compressed* one was expanded into
+    // the asset arena and must be. from_blob answers a different question; see its note.
+    if (!asset->raw_owned) return;
 
     _nya_asset_unload_raw_from_filesystem(asset);
 }

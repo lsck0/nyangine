@@ -57,7 +57,7 @@ void check_runner(NYA_ArgCommand* command) {
          },
         {
          .source       = "./build.c",
-         .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_BUILD_TOOL },
+         .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_BUILD_TOOL, FLAGS_HOST_LZ4 },
          .uses_vendors = false,
          },
     };

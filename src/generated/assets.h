@@ -1399,7 +1399,7 @@
 #define NYA_ASSET_MODELS_CUBIE_FBX                          "./assets/models/Cubie.fbx"
 #define NYA_ASSET_MODELS_BENDER_FBX                         "./assets/models/bender.fbx"
 #define NYA_ASSET_MODELS_PILL_FBX                           "./assets/models/pill.fbx"
-#define NYA_ASSET_MUSIC_BGM_WAV                             "./assets/music/bgm.wav"
+#define NYA_ASSET_MUSIC_BGM_OPUS                            "./assets/music/bgm.opus"
 #define NYA_ASSET_SCRIPTS_STARTUP_LUA                       "./assets/scripts/startup.lua"
 #define NYA_ASSET_SHADER_BATCH2D_VERT                       "./assets/shader/source/batch2d.vert.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG                  "./assets/shader/source/effect_bloom.frag.hlsl"

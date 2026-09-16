@@ -8,7 +8,7 @@
 
 | Area             | Decision / Rule                                                                                                  |
 | :--------------- | :--------------------------------------------------------------------------------------------------------------- |
-| **Workflow**     | Edit files directly. Agents commit and push as work lands, per Luca's standing "sync to github" instruction.      |
+| **Workflow**     | Edit files directly. GitHub is a backup, nothing else: push to preserve work, never treat it as review or process. |
 | **Comments**     | _Keep the why, cut the essay._ Compress each prose block to its load-bearing claim (1–3 lines).                  |
 | **Gamepad**      | Tagged digital source: `NYA_InputBinding` is a union of key \| gamepad button \| axis-past-threshold.            |
 | **Subsystems**   | Unified registry: `core_system.h` handles engine subsystems and game systems. Old lifecycle/frame split is gone. |

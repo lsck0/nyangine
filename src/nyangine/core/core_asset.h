@@ -106,7 +106,18 @@ struct NYA_AssetSystem {
 struct NYA_AssetBlobHeader {
     NYA_ConstCString path;
     u64              start;
-    u64              size;
+
+    /** The asset's real size, which is what a loader gets however the bytes were stored. */
+    u64 size;
+
+    /**
+     * Bytes actually occupied in the blob. Equal to `size` when the entry is stored verbatim.
+     *
+     * The bundler compresses each entry and keeps the result only when it is smaller, so anything already
+     * compressed — a PNG, an OGG — stays byte-for-byte and keeps the zero-copy load it always had. Only
+     * the entries that shrank pay a decompression, and only on the first load.
+     * */
+    u64 compressed_size;
 };
 
 /** Which vertex struct a graphics pipeline reads. Baked into the pipeline at build time rather than
@@ -432,8 +443,22 @@ struct NYA_Asset {
 
     /**
      * Came out of the embedded blob rather than off disk.
+     *
+     * Asked to decide whether the asset has a file behind it — hot reload watches, and reload scans, are
+     * all gated on this. It does *not* say whether anything has to be freed; see `raw_owned`, which used
+     * to be the same flag and no longer can be.
      * */
     b8 from_blob;
+
+    /**
+     * `as_text.data` is an allocation this asset owns, and `_nya_asset_unload_raw` frees it.
+     *
+     * False for a blob entry stored verbatim, which points straight into the executable's own `.rodata`
+     * and must not be freed. True for anything read off disk, and also true for a *compressed* blob
+     * entry, which is expanded into the asset arena and therefore owns memory despite having no file.
+     * Those two questions were one flag until compression made them disagree.
+     * */
+    b8 raw_owned;
 
 #ifdef NYA_ASSET_HOT_RELOAD
     u64 source_modification_time;

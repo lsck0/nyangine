@@ -213,19 +213,54 @@ void nya_asset_bundle(void) {
 
     NYA_ConstCString HEX = "0123456789ABCDEF";
 
-    u64 cursor  = 0;
-    u64 emitted = 0;
+    u64 cursor           = 0;
+    u64 emitted          = 0;
+    u64 total_raw        = 0;
+    u64 total_stored     = 0;
+    u64 compressed_count = 0;
+
     nya_array_foreach (files, file) {
         NYA_String* content = nya_string_create(arena);
         NYA_EXPECT(nya_file_read(file, content));
 
-        nya_string_extend_sprintf(header_string, "  { \"%.*s\", " FMTu64 ", " FMTu64 " },\n", NYA_FMT_STRING_ARG(file), cursor, content->length);
+        /*
+         * Compressed per entry, and kept only when it actually shrank.
+         *
+         * Per entry rather than over the whole blob so that a load decompresses one asset instead of all
+         * of them, which is what keeps the resident cost proportional to what the game has touched.
+         * Keeping the smaller of the two means the formats that carry their own compression — PNG, OGG —
+         * stay byte-for-byte and keep the zero-copy load path they had before this existed.
+         */
+        const u8* stored      = content->items;
+        u64       stored_size = content->length;
+
+        u64 bound = nya_compress_bound(content->length);
+
+        if (bound > 0) {
+            u8* compressed = nya_arena_alloc(arena, bound);
+            nya_assert(compressed != nullptr, "out of memory compressing '%.*s'", NYA_FMT_STRING_ARG(file));
+
+            u64 written = nya_compress(content->items, content->length, compressed, bound);
+
+            if (written > 0 && written < content->length) {
+                stored      = compressed;
+                stored_size = written;
+                compressed_count++;
+            }
+        }
+
+        total_raw += content->length;
+        total_stored += stored_size;
+
+        nya_string_extend_sprintf(header_string, "  { \"%.*s\", " FMTu64 ", " FMTu64 ", " FMTu64 " },\n", NYA_FMT_STRING_ARG(file), cursor,
+                                  content->length, stored_size);
 
         // A byte costs at most the indent plus "0xAB" plus a separator, so the room for a whole file
         // is known before writing any of it and the buffer grows once rather than per byte.
-        nya_array_reserve(blob_string, blob_string->length + content->length * (NYA_ASSET_BLOB_INDENT + 6) + 1);
+        nya_array_reserve(blob_string, blob_string->length + stored_size * (NYA_ASSET_BLOB_INDENT + 6) + 1);
 
-        nya_array_foreach (content, c) {
+        for (u64 byte_index = 0; byte_index < stored_size; byte_index++) {
+            const u8* c = &stored[byte_index];
             u8* out = blob_string->items + blob_string->length;
 
             if (emitted % NYA_ASSET_BLOB_BYTES_PER_LINE == 0) {
@@ -244,7 +279,7 @@ void nya_asset_bundle(void) {
             emitted++;
         }
 
-        cursor += content->length;
+        cursor += stored_size;
     }
 
     // A blob whose last line was full already ends in a newline. One that did not ends in the
@@ -260,6 +295,9 @@ void nya_asset_bundle(void) {
     nya_string_extend(result, blob_string);
 
     NYA_EXPECT(nya_file_write(output_file, result));
+
+    nya_log_info("Bundled " FMTu64 " assets: " FMTu64 " KB into " FMTu64 " KB (" FMTu64 " compressed, " FMTu64 " stored verbatim).",
+                 files->length, total_raw / 1024, total_stored / 1024, compressed_count, files->length - compressed_count);
 
     /*
      * Deliberately not run through clang-format, which every other generated file here is.

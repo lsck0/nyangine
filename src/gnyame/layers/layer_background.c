@@ -44,7 +44,7 @@ void gny_layer_background_on_create(NYA_Window* window) {
     // a track that starts a second into the process has nothing to be late for.
     NYA_Error music = nya_asset_load((NYA_AssetLoadParameters){
         .type     = NYA_ASSET_TYPE_SOUND,
-        .handle   = NYA_ASSET_MUSIC_BGM_WAV,
+        .handle   = NYA_ASSET_MUSIC_BGM_OPUS,
         .as_sound = { .predecode = false },
     });
 
@@ -122,7 +122,7 @@ void _gny_music_start_when_ready(void) {
     GNY_World* world = gny_world();
     if (world->music_started) return;
 
-    NYA_AssetStatus status = nya_asset_status(NYA_ASSET_MUSIC_BGM_WAV);
+    NYA_AssetStatus status = nya_asset_status(NYA_ASSET_MUSIC_BGM_OPUS);
 
     // Still queued. Checked every tick until it resolves, which costs a dictionary lookup on the
     // handful of frames before the load runs.
@@ -133,12 +133,12 @@ void _gny_music_start_when_ready(void) {
     world->music_started = true;
 
     if (status != NYA_ASSET_STATUS_LOADED) {
-        nya_log_warn("The background track '%s' could not be loaded; running without music.", NYA_ASSET_MUSIC_BGM_WAV);
+        nya_log_warn("The background track '%s' could not be loaded; running without music.", NYA_ASSET_MUSIC_BGM_OPUS);
         return;
     }
 
     nya_audio_play_music_with(
-        NYA_ASSET_MUSIC_BGM_WAV,
+        NYA_ASSET_MUSIC_BGM_OPUS,
         (NYA_MusicParams){
             // The track's own level in the mix, scaled by what the player asked for. Effective
             // rather than raw, so the master slider moves this too.
