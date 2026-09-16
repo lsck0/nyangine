@@ -17,9 +17,16 @@
  * // result.as_string is "hello world"
  * ```
  *
- * ## ⚠ Hot reload
+ * ## Hot reload
  *
- * ## ⚠ Memory
+ * Lua keeps the raw C function pointer of every registered binding. A binding that lives in the game library
+ * points into code a reload unmaps, so register game bindings again after every reload. Engine bindings live in
+ * the executable and survive.
+ *
+ * ## Memory
+ *
+ * The VM's heap is LuaJIT's, not an arena. On x64 LuaJIT's collector needs its heap in the low 2 GB and ships its
+ * own allocator to guarantee that; a custom allocator is unsupported there. The arena only owns the wrapper.
  * */
 #pragma once
 
@@ -76,18 +83,16 @@ struct NYA_LuaCall {
 };
 
 /**
- * A function a script may call.
- *
- * ⚠ **Must be externally linked and named** if it lives in the game rather than the engine — see the
- * hot reload note at the top of this file.
+ * A function a script may call. If it lives in the game library, re-register it after a hot reload; see the
+ * file header.
  * */
 typedef void (*NYA_LuaFn)(NYA_LuaCall* call);
 
 /** Everything optional about a VM. Every field's zero is its default. */
 struct NYA_LuaOptions {
     /**
-     * Open Lua's own standard libraries. Zero is **on**, since a script with no `string` or `math` is
-     * barely a language; set `no_standard_library` to refuse them.
+     * Open Lua's standard libraries. Zero means on, since a script without `string` or `math` is barely a
+     * language; set `no_standard_library` to refuse them.
      * */
     b8 no_standard_library;
 
@@ -114,11 +119,8 @@ struct NYA_LuaOptions {
  */
 
 /**
- * Creates a VM. `arena` owns the wrapper; LuaJIT owns its own heap — see the memory note above.
- *
- * ⚠ **There is a `_destroy` here, unlike most modules in this engine**, and it is not optional:
- * freeing the arena releases the wrapper and leaks the entire Lua heap, which is not the arena's to
- * free.
+ * Creates a VM. `arena` owns the wrapper; LuaJIT owns its heap (see the memory note above). nya_lua_destroy is
+ * required: freeing the arena alone leaks the whole Lua heap.
  * */
 NYA_API NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM** out_vm) __attr_no_discard;
 
@@ -168,9 +170,7 @@ NYA_API NYA_Error nya_lua_global_get(NYA_LuaVM* vm, NYA_Arena* arena, NYA_ConstC
 /** Writes a global. An NYA_Object becomes a table keyed by string; an array becomes one keyed 1..n. */
 NYA_API NYA_Error nya_lua_global_set(NYA_LuaVM* vm, NYA_ConstCString name, const NYA_Value* value) __attr_no_discard;
 
-/*
- * ── Constructors, so a call site does not have to fill an NYA_Value by hand ──
- */
+/* Constructors, so a call site does not fill an NYA_Value by hand. */
 
 NYA_API NYA_Value nya_lua_number(f64 value) __attr_no_discard;
 NYA_API NYA_Value nya_lua_integer(s64 value) __attr_no_discard;
@@ -196,16 +196,13 @@ NYA_API NYA_Value nya_lua_nil(void) __attr_no_discard;
  * nya_lua_register(vm, "score_add", game_score_add, nullptr);
  * ```
  *
- * ⚠ **Re-register after a hot reload** if `fn` lives in the game `.so`. See the note at the top.
+ * Re-register after a hot reload if `fn` lives in the game library.
  * */
 NYA_API void nya_lua_register(NYA_LuaVM* vm, NYA_ConstCString name, NYA_LuaFn fn, void* user_data);
 
 /**
- * Puts the engine's own `nya` table in front of scripts. Called for you by `NYA_LuaOptions.engine_api`.
- *
- * ⚠ **A handle is a value, not a reference.** A script holding one across a despawn gets nil from
- * every call that takes it, exactly as C does — which is the property generational handles exist for
- * and the reason a script is never handed a pointer.
+ * Puts the engine's `nya` table in front of scripts. Called for you by `NYA_LuaOptions.engine_api`. Handles are
+ * values: after a despawn every call taking one returns nil, as in C.
  * */
 NYA_API void nya_lua_open_engine(NYA_LuaVM* vm);
 

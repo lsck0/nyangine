@@ -188,13 +188,7 @@ struct NYA_InputSystem {
     /** The device that produced the most recent key or mouse event. What a "press any button to join" screen reads. */
     NYA_InputSource last_source;
 
-    /*
-     * ── text input ──
-     *
-     * On the system rather than on a NYA_InputState: text has no per-player meaning, since an IME
-     * composes for the one field that has focus. Splitting it per device would ask which keyboard a
-     * candidate window belongs to, which is not a question.
-     */
+    /* Text input, on the system rather than per player: an IME composes for the one focused field. */
 
     /** UTF-8 committed this frame, accumulated across however many events delivered it. */
     char text[NYA_INPUT_TEXT_MAX];
@@ -245,9 +239,8 @@ NYA_API NYA_KeyModFlag nya_input_modifiers(void) __attr_no_discard;
  */
 
 /*
- * Every key and mouse event carries the device it came from — see NYA_InputSource — and the input
- * system can keep a separate view of the world per player. Assign devices to slots and the per-player
- * queries answer for that slot alone:
+ * Every key and mouse event carries its device (NYA_InputSource), and the input system can keep a separate view
+ * per player. Assign devices to slots, and the per-player queries answer for that slot alone:
  *
  * ```c
  * // A join screen: whoever presses a key claims the next slot.
@@ -293,11 +286,8 @@ NYA_API void nya_input_source_release(NYA_InputSource source);
 NYA_API void nya_input_players_reset(void);
 
 /*
- * ── The per player queries ──
- *
- * Each is the plain query with a slot in front. NYA_INPUT_PLAYER_ANY reads the merged view, so
- * `nya_input_key_pressed(k)` and `nya_input_key_pressed_by(NYA_INPUT_PLAYER_ANY, k)` are the same
- * call. An unassigned slot reads as nothing held, keeping a loop over NYA_INPUT_MAX_PLAYERS guard-free.
+ * Per-player queries: the plain query with a slot in front. NYA_INPUT_PLAYER_ANY reads the merged view, and an
+ * unassigned slot reads as nothing held, so a loop over NYA_INPUT_MAX_PLAYERS needs no guard.
  */
 
 NYA_API b8 nya_input_key_just_pressed_by(u32 player, NYA_Keycode key) __attr_no_discard;
@@ -354,19 +344,14 @@ NYA_API void nya_input_action_unbind(NYA_InputAction action);
 NYA_API b8 nya_input_action_bound(NYA_InputAction action) __attr_no_discard;
 
 /*
- * ── Naming actions ──
- *
- * An action is an integer, and an integer is a bad thing to write into a settings file: unreadable to
- * a player, and silently wrong the first time a game inserts an action in the middle of its enum.
+ * Naming actions. An integer in a settings file is unreadable and breaks when the enum changes.
  *
  * ```c
  * nya_input_action_name_set(ACTION_JUMP, "jump");
  * nya_input_action_bind(ACTION_JUMP, NYA_KEY_SPACE);
  * ```
  *
- * Engine actions name themselves at startup. A game's actions do not, and an unnamed action is not
- * persisted at all — see nya_settings_to_object, which skips them rather than inventing a key that
- * would stop matching the day the enum changes.
+ * Engine actions name themselves. An unnamed game action is not persisted (see nya_settings_to_object).
  */
 
 /**

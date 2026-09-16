@@ -7,8 +7,8 @@
  */
 
 /*
- * Deliberately not NYA_INTERNAL: nya_callback resolves it by name with dlsym after every hot reload,
- * and a hidden/static symbol isn't in the dynamic symbol table -rdynamic populates. See core_asset.c.
+ * Not NYA_INTERNAL: nya_callback resolves it by name with dlsym after a hot reload, and a hidden symbol is not
+ * exported by -rdynamic.
  */
 // NOLINTNEXTLINE(misc-use-internal-linkage)
 void _nya_system_event_on_update_ended_hook(NYA_Event* event);
@@ -46,7 +46,7 @@ NYA_INTERNAL void _nya_input_state_deinit(NYA_InputState* state);
 /** Folds one event into one state. Called once for the merged view and once for the routed player. */
 NYA_INTERNAL void _nya_input_state_handle_event(NYA_InputState* state, const NYA_Event* event);
 
-/** Drops the per frame edges — just pressed, just released, and the two deltas. */
+/** Drops the per frame edges: just pressed, just released, and the two deltas. */
 NYA_INTERNAL void _nya_input_state_end_frame(NYA_InputState* state);
 NYA_INTERNAL void _nya_input_text_handle_event(NYA_InputSystem* system, const NYA_Event* event);
 
@@ -76,19 +76,18 @@ void nya_system_input_init(void) {
 
     app->input_system.last_source = NYA_INPUT_SOURCE_NONE;
 
-    // Guarded so bringing the app up and down within one process does not add a copy of itself.
+    // guarded, so restarting the app in one process does not register duplicates.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("input_sources", NYA_INPUT_MAX_SOURCES, &app->input_system.source_count);
         ceiling_registered = true;
     }
 
-    // Slots start unclaimed (no key tables); nya_input_source_assign allocates them lazily, so a
-    // single-player game pays for none of the unused ones.
+    // slots start unclaimed; nya_input_source_assign allocates them, so a single-player game pays for none.
     for (u32 player = 0; player < NYA_INPUT_MAX_PLAYERS; player++) app->input_system.players[player] = (NYA_InputState){ 0 };
 
-    // Named so a settings file can carry a rebound Confirm without the game knowing these exist. A
-    // game's own actions must name themselves too, or they aren't persisted.
+    // named so a settings file can store a rebound Confirm. a game's actions must name themselves too, or they are
+    // not persisted.
     nya_input_action_name_set(NYA_INPUT_ACTION_CONFIRM, "confirm");
     nya_input_action_name_set(NYA_INPUT_ACTION_CANCEL, "cancel");
     nya_input_action_name_set(NYA_INPUT_ACTION_PAUSE, "pause");
@@ -117,7 +116,7 @@ void nya_system_input_deinit(void) {
         _nya_input_state_deinit(&app->input_system.players[player]);
     }
 
-    // The key tables came out of this arena, so whatever the loop above missed goes with it.
+    // the key tables came from this arena.
     nya_arena_destroy(app->input_system.allocator);
 
     nya_log_info("Input system deinitialized.");
@@ -129,9 +128,8 @@ void nya_system_input_handle_event(NYA_Event* event) {
     NYA_InputSystem* system = &nya_app_get()->input_system;
 
     /*
-     * Every event goes to the merged view, and to the routed player's view when there is one. The merged
-     * view is what the whole single-player API and every menu reads, so routing an event away from it
-     * once a device is assigned would silently break the pause menu of a game that adds a second player.
+     * Every event goes to the merged view, and also to the routed player's view if there is one. Menus and the
+     * single-player API read the merged view, so it must keep seeing assigned devices.
      */
     _nya_input_text_handle_event(system, event);
 
@@ -174,9 +172,8 @@ NYA_KeyModFlag nya_input_modifiers(void) {
 }
 
 /*
- * The per player forms, which the six above are the NYA_INPUT_PLAYER_ANY case of. Written this way
- * round so there is one implementation of each question; the single-player spelling stays since most
- * call sites want it and passing a slot they don't have would be noise.
+ * The per-player forms. The single-player queries above are the NYA_INPUT_PLAYER_ANY case, so each question
+ * has one implementation.
  */
 
 b8 nya_input_key_just_pressed_by(u32 player, NYA_Keycode key) {
@@ -235,7 +232,7 @@ NYA_InputSource nya_input_source_at(u32 index) {
 u32 nya_input_source_player(NYA_InputSource source) {
     NYA_InputSourceBinding* binding = _nya_input_source_find(source);
 
-    // A device nobody has seen reads the same as one nobody has assigned — what a join screen wants.
+    // unseen reads the same as unassigned, which a join screen wants.
     if (binding == nullptr) return NYA_INPUT_PLAYER_NONE;
 
     return binding->player;
@@ -248,15 +245,14 @@ void nya_input_source_assign(NYA_InputSource source, u32 player) {
     NYA_InputSourceBinding* binding = _nya_input_source_intern(source);
 
     if (binding == nullptr) {
-        // Roster full: reported not asserted, since device count is outside the game's control and it
-        // still feeds the merged view.
+        // roster full: reported, not asserted, since device count is outside the game's control. the merged view still
+        // gets the events.
         nya_log_warn("Cannot assign input source (kind %d, id %u) to player %u: already tracking %d sources.", (int)source.kind, source.id, player,
                  NYA_INPUT_MAX_SOURCES);
         return;
     }
 
-    // Before the write, so an unclaimable slot leaves the routing alone rather than pointing at
-    // unallocated state.
+    // before the write, so an unclaimable slot leaves routing alone.
     if (_nya_input_player_claim(player) == nullptr) return;
 
     binding->player = player;
@@ -275,10 +271,8 @@ void nya_input_players_reset(void) {
     for (u32 i = 0; i < system->source_count; i++) system->sources[i].player = NYA_INPUT_PLAYER_NONE;
 
     /*
-     * Slots are torn down, not merely unrouted: a leftover held key would carry into whoever reuses the
-     * slot next — a lobby reassigning player 2 would find them already walking left. The device roster
-     * is kept, since they're still plugged in and forgetting them would break nya_input_source_at for a
-     * join screen drawn the next frame.
+     * Slots are torn down, not just unrouted: a held key would carry over to whoever reuses the slot. The roster
+     * is kept, since the devices are still plugged in.
      */
     for (u32 player = 0; player < NYA_INPUT_MAX_PLAYERS; player++) {
         if (system->players[player].keys_pressed == nullptr) continue;
@@ -389,8 +383,7 @@ void nya_input_action_bind(NYA_InputAction action, NYA_Keycode key, NYA_KeyModFl
         return;
     }
 
-    // Full: replacing the last is friendlier than dropping the request; a rebinding UI offering more
-    // alternatives than there are slots is the caller's bug to notice.
+    // full: the last slot is replaced rather than the request dropped.
     nya_log_warn("Action %d already has %d bindings; replacing the last.", (int)action, NYA_INPUT_BINDINGS_PER_ACTION);
     bindings[NYA_INPUT_BINDINGS_PER_ACTION - 1] = (NYA_InputBinding){ .kind = NYA_INPUT_BINDING_KEY, .key = key, .modifiers = modifiers };
 }
@@ -411,7 +404,7 @@ void nya_input_action_set(NYA_InputAction action, u32 slot, NYA_Keycode key, NYA
 
     NYA_InputBinding* bindings = _nya_input_bindings_for(action);
 
-    // A cleared slot must not keep stale modifiers, or rebinding it later would inherit them.
+    // a cleared slot drops its modifiers too.
     bindings[slot] = key == NYA_KEY_UNKNOWN
                          ? (NYA_InputBinding){ 0 }
                          : (NYA_InputBinding){ .kind = NYA_INPUT_BINDING_KEY, .key = key, .modifiers = modifiers };
@@ -432,7 +425,7 @@ void nya_input_action_unbind(NYA_InputAction action) {
 b8 nya_input_action_bound(NYA_InputAction action) {
     NYA_InputBinding* bindings = _nya_input_bindings_for(action);
 
-    // The tag, not the key: an action bound only to a gamepad button has a zero key and is still bound.
+    // the tag, not the key: a gamepad-only binding has a zero key.
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
         if (bindings[i].kind != NYA_INPUT_BINDING_NONE) return true;
     }
@@ -449,14 +442,12 @@ void nya_input_action_name_set(NYA_InputAction action, NYA_ConstCString name) {
 
     NYA_InputAction existing = nya_input_action_from_name(name);
     if (existing != NYA_INPUT_ACTION_NONE && existing != action) {
-        // Refused: the reverse lookup can only answer one of them, and the loser would silently never
-        // load its bindings from a settings file.
+        // refused: the reverse lookup can only answer one, and the other would never load from settings.
         nya_log_error("Action %d cannot be called '%s': action %d already is.", (int)action, name, (int)existing);
         return;
     }
 
-    // Copied, not borrowed. See NYA_InputSystem.action_names — the caller's literal may live in a
-    // shared library that a hot reload is about to unmap.
+    // copied: the literal may live in a library a hot reload unmaps. see NYA_InputSystem.action_names.
     system->action_names[action] = nya_string_to_cstring(system->allocator, nya_string_from(system->allocator, name));
 }
 
@@ -471,8 +462,7 @@ NYA_InputAction nya_input_action_from_name(NYA_ConstCString name) {
 
     NYA_InputSystem* system = &nya_app_get()->input_system;
 
-    // Linear scan over 256 slots, once per action per settings load — a map would cost an allocation
-    // to save a few hundred comparisons.
+    // a linear scan, once per action per settings load; a map would cost an allocation.
     for (u32 action = 1; action < NYA_INPUT_ACTION_MAX; action++) {
         if (system->action_names[action] == nullptr) continue;
         if (nya_string_equals(system->action_names[action], name)) return (NYA_InputAction)action;
@@ -495,8 +485,7 @@ b8 nya_input_action_just_pressed_by(u32 player, NYA_InputAction action) {
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
         if (bindings[i].kind == NYA_INPUT_BINDING_NONE) continue;
 
-        // A gamepad binding is not routed per player yet — every connected pad satisfies it. See
-        // nya_input_binding_gamepad_pressed.
+        // gamepad bindings are not routed per player yet; every connected pad counts.
         if (bindings[i].kind != NYA_INPUT_BINDING_KEY) {
             if (_nya_input_binding_gamepad_edge(bindings[i], _NYA_INPUT_EDGE_JUST_PRESSED)) return true;
             continue;
@@ -504,8 +493,7 @@ b8 nya_input_action_just_pressed_by(u32 player, NYA_InputAction action) {
 
         if (!nya_input_key_just_pressed_by(player, bindings[i].key)) continue;
 
-        // Against this player's own modifiers, not the merged set — player 2's shift must not satisfy
-        // a chord player 1 is halfway through.
+        // this player's own modifiers, so player 2's shift cannot complete player 1's chord.
         if (!_nya_input_modifiers_match_against(bindings[i].modifiers, nya_input_modifiers_by(player))) continue;
 
         return true;
@@ -560,8 +548,7 @@ b8 nya_input_action_just_released_by(u32 player, NYA_InputAction action) {
     for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
         if (bindings[i].key == NYA_KEY_UNKNOWN) continue;
 
-        // No modifier check here on purpose (see core_input.h): releasing Ctrl before the key it
-        // modified is the normal way to end a chord.
+        // no modifier check (see core_input.h): releasing Ctrl before the key is the normal end of a chord.
         if (nya_input_key_just_released_by(player, bindings[i].key)) return true;
     }
 
@@ -614,7 +601,7 @@ f32x2 nya_input_mouse_wheel_scroll_by(u32 player) {
 }
 
 b8 nya_input_mouse_button_just_pressed_by(u32 player, NYA_MouseButton button) {
-    // The caller's index, so it is checked here too rather than only where SDL's is.
+    // the caller's index, checked here as well.
     if (button >= NYA_MOUSE_BUTTON_COUNT) return false;
 
     NYA_InputState* state = _nya_input_state_for(player);
@@ -624,7 +611,7 @@ b8 nya_input_mouse_button_just_pressed_by(u32 player, NYA_MouseButton button) {
 }
 
 b8 nya_input_mouse_button_pressed_by(u32 player, NYA_MouseButton button) {
-    // The caller's index, so it is checked here too rather than only where SDL's is.
+    // the caller's index, checked here as well.
     if (button >= NYA_MOUSE_BUTTON_COUNT) return false;
 
     NYA_InputState* state = _nya_input_state_for(player);
@@ -634,7 +621,7 @@ b8 nya_input_mouse_button_pressed_by(u32 player, NYA_MouseButton button) {
 }
 
 b8 nya_input_mouse_button_just_released_by(u32 player, NYA_MouseButton button) {
-    // The caller's index, so it is checked here too rather than only where SDL's is.
+    // the caller's index, checked here as well.
     if (button >= NYA_MOUSE_BUTTON_COUNT) return false;
 
     NYA_InputState* state = _nya_input_state_for(player);
@@ -658,11 +645,9 @@ NYA_InputBinding* _nya_input_bindings_for(NYA_InputAction action) {
 
 b8 _nya_input_modifiers_match_against(NYA_KeyModFlag required, NYA_KeyModFlag current) {
     /*
-     * Compared a group at a time, so a binding can ask for either Ctrl or specifically left Ctrl. A
-     * group not asked for must not be held (what stops a bare W firing during Ctrl+W); a group asked
-     * for must be held on at least one requested side, so NYA_KEYMOD_CTRL accepts either and
-     * NYA_KEYMOD_LCTRL only the left. Lock keys are excluded — Caps Lock is keyboard state, not part
-     * of a chord.
+     * Compared per modifier group, so a binding can ask for either Ctrl or the left one only. A group not asked for
+     * must not be held (a bare W must not fire during Ctrl+W); a requested group must be held on a requested side.
+     * Lock keys are ignored.
      */
     const NYA_KeyModFlag groups[] = { NYA_KEYMOD_CTRL, NYA_KEYMOD_SHIFT, NYA_KEYMOD_ALT, NYA_KEYMOD_GUI };
 
@@ -673,7 +658,7 @@ b8 _nya_input_modifiers_match_against(NYA_KeyModFlag required, NYA_KeyModFlag cu
         if (wanted == 0) {
             if (held != 0) return false; // a modifier is down that this binding does not want
         } else if ((held & wanted) == 0) {
-            return false; // the side it asked for is not down
+            return false; // the requested side is not down
         }
     }
 
@@ -694,11 +679,7 @@ void _nya_system_event_on_update_ended_hook(NYA_Event* event) {
         _nya_input_state_end_frame(&system->players[player]);
     }
 
-    /*
-     * Typed text is cleared here and the composition is not: text is what arrived this frame, while a
-     * composition persists across frames until the IME commits or cancels it. Clearing it here would
-     * make it flicker for one frame each time it changed.
-     */
+    /* Typed text is cleared every frame; the composition persists until the IME commits or cancels. */
     system->text[0]   = '\0';
     system->text_length = 0;
 }
@@ -714,15 +695,12 @@ NYA_InputState* _nya_input_state_for(u32 player) {
 
     if (player == NYA_INPUT_PLAYER_ANY) return &system->merged;
 
-    // Covers NYA_INPUT_PLAYER_NONE too, which is (u32)-2 and therefore also past the end. Reading
-    // "the player nobody is" as nothing held is what a caller passing the result of
-    // nya_input_source_player straight through deserves, rather than an assertion.
+    // also covers NYA_INPUT_PLAYER_NONE, (u32)-2: the player nobody is holds nothing.
     if (player >= NYA_INPUT_MAX_PLAYERS) return nullptr;
 
     NYA_InputState* state = &system->players[player];
 
-    // No key tables means nobody has claimed this slot. That is the claim flag, rather than a second
-    // bool that could disagree with whether the tables are actually there.
+    // no key tables means unclaimed; the tables are the claim flag.
     if (state->keys_pressed == nullptr) return nullptr;
 
     return state;
@@ -732,8 +710,7 @@ NYA_InputSourceBinding* _nya_input_source_find(NYA_InputSource source) {
     NYA_InputSystem* system = &nya_app_get()->input_system;
 
     for (u32 i = 0; i < system->source_count; i++) {
-        // Both halves. An id is only unique within a kind, so keyboard 1 and mouse 1 are two devices
-        // and matching on the id alone would route one player's mouse into another's keyboard.
+        // kind and id: ids are only unique within a kind.
         if (system->sources[i].source.kind != source.kind) continue;
         if (system->sources[i].source.id != source.id) continue;
 
@@ -749,9 +726,7 @@ NYA_InputSourceBinding* _nya_input_source_intern(NYA_InputSource source) {
 
     NYA_InputSystem* system = &nya_app_get()->input_system;
 
-    /*
-     * Full is not an error, and nothing is evicted.
-     */
+    /* Full is not an error, and nothing is evicted. */
     if (system->source_count >= NYA_INPUT_MAX_SOURCES) return nullptr;
 
     NYA_InputSourceBinding* binding = &system->sources[system->source_count++];
@@ -768,8 +743,7 @@ NYA_InputState* _nya_input_player_claim(u32 player) {
 
     NYA_InputState* state = &system->players[player];
 
-    // Already claimed. The tables are the claim, so this is idempotent and a second device assigned
-    // to the same player joins the state that is there rather than replacing it.
+    // already claimed: idempotent, and a second device joins the existing state.
     if (state->keys_pressed != nullptr) return state;
 
     *state = (NYA_InputState){ 0 };
@@ -782,8 +756,7 @@ void _nya_input_state_init(NYA_InputState* state, NYA_Arena* allocator) {
     nya_assert(state != nullptr);
     nya_assert(allocator != nullptr);
 
-    // 300, which is roughly one slot per keycode a keyboard can produce, so the tables never grow
-    // during play. Unchanged from when there was one set of them.
+    // 300, about one slot per keycode, so the tables never grow during play.
     const u32 capacity = 300;
 
     state->keys_just_pressed  = nya_hmap_create_with_capacity(allocator, NYA_Keycode, b8, capacity);
@@ -798,9 +771,7 @@ void _nya_input_state_deinit(NYA_InputState* state) {
     nya_hmap_destroy(state->keys_pressed);
     nya_hmap_destroy(state->keys_just_released);
 
-    /*
-     * Zeroed, which is also what marks the slot unclaimed again.
-     */
+    /* Zeroed, which marks the slot unclaimed. */
     *state = (NYA_InputState){ 0 };
 }
 
@@ -815,7 +786,7 @@ NYA_InputSource _nya_input_event_source(const NYA_Event* event) {
         case NYA_EVENT_MOUSE_MOVED:       return event->as_mouse_moved_event.source;
         case NYA_EVENT_MOUSE_WHEEL_MOVED: return event->as_mouse_wheel_event.source;
 
-        // Everything else — window events, drops, the frame hooks — has no device behind it.
+        // window events, drops and frame hooks have no device.
         default: return NYA_INPUT_SOURCE_NONE;
     }
 }
@@ -825,9 +796,7 @@ void _nya_input_state_handle_event(NYA_InputState* state, const NYA_Event* event
     nya_assert(event != nullptr);
 
     if (event->type == NYA_EVENT_KEY_DOWN || event->type == NYA_EVENT_KEY_UP) {
-        // Taken from the event rather than derived from which modifier keycodes are down: the
-        // platform already tracks lock states and AltGr, which no amount of watching key presses
-        // reconstructs correctly.
+        // from the event: the platform tracks lock states and AltGr, which key presses cannot reconstruct.
         state->modifier_flags = event->as_key_event.modifier_flags;
 
         NYA_Keycode keycode    = event->as_key_event.key;
@@ -847,9 +816,7 @@ void _nya_input_state_handle_event(NYA_InputState* state, const NYA_Event* event
         NYA_MouseButton button  = event->as_mouse_button_event.button;
         b8              is_down = event->as_mouse_button_event.is_down;
 
-        /*
-         * Bounded, because this index comes from the device.
-         */
+        /* Bounded, since the index comes from the device. */
         if (button >= NYA_MOUSE_BUTTON_COUNT) return;
 
         b8* is_pressed = &state->mouse_buttons_pressed[button];
@@ -902,23 +869,20 @@ void _nya_input_state_end_frame(NYA_InputState* state) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Accumulates committed text and tracks the IME composition. See NYA_InputSystem's text members. */
+/** Accumulates committed text and tracks the IME composition. */
 void _nya_input_text_handle_event(NYA_InputSystem* system, const NYA_Event* event) {
     if (event->type == NYA_EVENT_TEXT_INPUT) {
         NYA_ConstCString text = event->as_text_input_event.text;
 
         if (text == nullptr) return;
 
-        /*
-         * Appended, not replaced.
-         */
+        /* Appended, not replaced. */
         u64 length = strlen(text);
 
         if (system->text_length + length >= sizeof(system->text)) {
             length = sizeof(system->text) - system->text_length - 1;
 
-            // Truncated on a codepoint boundary rather than mid-sequence, so what reaches the field
-            // is always well formed UTF-8. See nya_net_chat_sanitize for the same reasoning.
+            // truncated on a codepoint boundary, so the result is valid UTF-8. see nya_net_chat_sanitize.
             while (length > 0 && ((u8)text[length] & 0xC0) == 0x80) length--;
         }
 
@@ -970,8 +934,7 @@ void nya_input_text_end(void) {
 
     system->text_window = NYA_WINDOW_HANDLE_NONE;
 
-    // The composition goes with it. An IME cancelled mid-phrase would otherwise leave its last
-    // candidate on screen for as long as nothing else was typed.
+    // the composition goes too, or a cancelled IME leaves its candidate on screen.
     system->composition[0]     = '\0';
     system->composition_start  = 0;
     system->composition_length = 0;
@@ -1002,8 +965,7 @@ void nya_input_text_area_set(NYA_WindowHandle window, f32 x, f32 y, f32 width, f
 
     SDL_Rect area = { .x = (s32)x, .y = (s32)y, .w = (s32)width, .h = (s32)height };
 
-    // The cursor offset is the third argument: zero puts the candidate window at the start of the
-    // area, which is what a single line field wants.
+    // cursor offset zero puts the candidate window at the start, right for a single-line field.
     (void)SDL_SetTextInputArea(target->sdl_window, &area, 0);
 }
 
@@ -1018,8 +980,7 @@ NYA_ConstCString nya_clipboard_text(NYA_Arena* arena) {
 
     char* owned = SDL_GetClipboardText();
 
-    // SDL returns an allocation even when there is nothing on the clipboard, and it is the caller's
-    // to free either way — which is the whole reason this copies rather than handing it back.
+    // SDL returns an allocation even when the clipboard is empty, and the caller frees it either way.
     if (owned == nullptr) return "";
 
     u64 length = strlen(owned);

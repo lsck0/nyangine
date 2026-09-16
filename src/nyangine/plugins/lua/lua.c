@@ -27,7 +27,7 @@ typedef struct {
 struct NYA_LuaVM {
     lua_State* state;
 
-    /** The arena the wrapper came from. Not Lua's heap — see the memory note in lua.h. */
+    /** The arena the wrapper came from. Not Lua's heap; see the memory note in lua.h. */
     NYA_Arena* arena;
 
     _NYA_LuaBinding bindings[NYA_LUA_MAX_BINDINGS];
@@ -90,11 +90,8 @@ void _nya_lua_push(lua_State* state, const NYA_Value* value, u32 depth) {
         case NYA_TYPE_B64: lua_pushboolean(state, value->as_b64 != 0); break;
 
         /*
-         * Everything numeric becomes a Lua number, which is a double.
-         *
-         * ⚠ Integers past 2^53 lose their low bits doing so, and there is nowhere else for them to
-         * go: Lua 5.1 — which is what LuaJIT is — has exactly one number type. An entity handle is
-         * two u32s for this reason, passed as a table rather than packed into one number.
+         * Every number becomes a Lua double. Integers past 2^53 lose low bits, since LuaJIT (Lua 5.1) has one number
+         * type; entity handles cross as a table of two u32s for that reason.
          */
         case NYA_TYPE_U8: lua_pushnumber(state, (lua_Number)value->as_u8); break;
         case NYA_TYPE_U16: lua_pushnumber(state, (lua_Number)value->as_u16); break;
@@ -118,11 +115,10 @@ void _nya_lua_push(lua_State* state, const NYA_Value* value, u32 depth) {
         case NYA_TYPE_OBJECT: {
             lua_newtable(state);
 
-            // Cast away const: nya_dict_foreach_key walks a mutable dict, and nothing in the loop
-            // writes to it.
+            // const cast away: nya_dict_foreach_key walks a mutable dict, and the loop only reads.
             NYA_Object* object = (NYA_Object*)&value->as_object;
 
-            // The macro walks the key *slots*, so `key` is a pointer to one.
+            // the macro walks key slots, so `key` points at one.
             nya_dict_foreach_key (object, key) {
                 NYA_Value* entry = nya_object_get(object, *key);
                 if (entry == nullptr) continue;
@@ -135,8 +131,7 @@ void _nya_lua_push(lua_State* state, const NYA_Value* value, u32 depth) {
         case NYA_TYPE_ARRAY: {
             lua_newtable(state);
 
-            // Keyed from one, which is what makes it an array to `#` and to ipairs rather than a
-            // table that happens to have numeric keys.
+            // keyed from one, so `#` and ipairs treat it as an array.
             for (u64 i = 0; i < value->as_array.length; i++) {
                 _nya_lua_push(state, &value->as_array.items[i], depth + 1);
                 lua_rawseti(state, -2, (int)(i + 1));
@@ -148,12 +143,9 @@ void _nya_lua_push(lua_State* state, const NYA_Value* value, u32 depth) {
 }
 
 /**
- * Whether a table is a dense 1..n sequence — which is what decides array against object.
- *
- * ⚠ **`lua_objlen` alone cannot answer this**, and trusting it silently drops values. It returns a
- * *border*: an `n` where `t[n]` is non-nil and `t[n+1]` is nil. For `{ [1]='a', [3]='c' }` that is
- * 1, so a check that only walks 1..length finds every key it looked for, calls the table a sequence,
- * and converts it to a one-element array — losing `[3]` with nothing to say about it.
+ * Whether a table is a dense 1..n sequence, which decides array or object. `lua_objlen` alone returns a
+ * border: for `{ [1]='a', [3]='c' }` it is 1, and trusting it would convert to a one-element array and drop
+ * `[3]`.
  * */
 NYA_INTERNAL b8 _nya_lua_is_sequence(lua_State* state, s32 index) {
     u64 length = (u64)lua_objlen(state, index);
@@ -168,8 +160,7 @@ NYA_INTERNAL b8 _nya_lua_is_sequence(lua_State* state, s32 index) {
         if (!present) return false;
     }
 
-    // Everything the table actually holds, which is the half the border does not tell you. Stops as
-    // soon as it is over, so a large keyed table is not walked in full to be rejected.
+    // counts everything the table holds, stopping as soon as the answer is no.
     u64 entries = 0;
 
     lua_pushnil(state);
@@ -177,12 +168,11 @@ NYA_INTERNAL b8 _nya_lua_is_sequence(lua_State* state, s32 index) {
     while (lua_next(state, index) != 0) {
         entries++;
 
-        // The value; the key stays for the next lua_next.
+        // pops the value; the key stays for the next lua_next.
         lua_pop(state, 1);
 
         if (entries > length) {
-            // Popped explicitly: breaking out of lua_next leaves the key on the stack, and leaving it
-            // there is precisely the imbalance this file's header is about.
+            // popped explicitly: breaking out of lua_next leaves the key on the stack.
             lua_pop(state, 1);
             return false;
         }
@@ -194,8 +184,7 @@ NYA_INTERNAL b8 _nya_lua_is_sequence(lua_State* state, s32 index) {
 void _nya_lua_read(lua_State* state, NYA_Arena* arena, s32 index, u32 depth, OUT NYA_Value* out) {
     *out = (NYA_Value){ .type = NYA_TYPE_NULL };
 
-    // Absolute, because everything below pushes onto the stack and a negative index would then name
-    // something different from what was asked for.
+    // absolute, since the pushes below would change what a negative index names.
     s32 absolute = index < 0 ? lua_gettop(state) + index + 1 : index;
 
     switch (lua_type(state, absolute)) {
@@ -207,16 +196,14 @@ void _nya_lua_read(lua_State* state, NYA_Arena* arena, s32 index, u32 depth, OUT
         case LUA_TNUMBER: *out = (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)lua_tonumber(state, absolute) }; break;
 
         case LUA_TSTRING: {
-            // Copied into the arena: Lua owns its strings and collects them, so the pointer it hands
-            // back is only valid while the value is still on the stack.
+            // copied: Lua's string pointer is only valid while the value is on the stack.
             NYA_ConstCString text = lua_tostring(state, absolute);
 
             *out = (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = _nya_lua_clone_cstring(arena, text) };
         } break;
 
         case LUA_TTABLE: {
-            // Refused rather than followed: a table that contains itself would otherwise recurse
-            // until the stack ran out, and a script can build one in two lines.
+            // refused: a self-referencing table would recurse until the stack runs out.
             if (depth > NYA_LUA_MAX_DEPTH) {
                 *out = (NYA_Value){ .type = NYA_TYPE_NULL };
                 break;
@@ -247,10 +234,8 @@ void _nya_lua_read(lua_State* state, NYA_Arena* arena, s32 index, u32 depth, OUT
 
             while (lua_next(state, absolute) != 0) {
                 /*
-                 * The key is read as a string, and it has to be copied before `lua_tostring` is
-                 * allowed anywhere near it: converting a *number* key to a string in place would
-                 * modify the key still sitting on the stack, and `lua_next` then loses its place and
-                 * walks the table forever. Hence the type check rather than an unconditional convert.
+                 * The key must be a string before `lua_tostring` touches it: converting a number key in place changes the key
+                 * on the stack, and lua_next then loops forever.
                  */
                 if (lua_type(state, -2) == LUA_TSTRING) {
                     NYA_CString key = _nya_lua_clone_cstring(arena, lua_tostring(state, -2));
@@ -268,8 +253,8 @@ void _nya_lua_read(lua_State* state, NYA_Arena* arena, s32 index, u32 depth, OUT
         } break;
 
         default:
-            // A function, a userdata, a thread, a cdata. None of these has an NYA_Value form and
-            // handing one back as a pointer is exactly what this boundary exists to prevent.
+            // functions, userdata, threads and cdata have no NYA_Value form, and passing a pointer out is what this boundary
+            // prevents.
             *out = (NYA_Value){ .type = NYA_TYPE_NULL };
             break;
     }
@@ -284,9 +269,7 @@ int _nya_lua_trampoline(lua_State* state) {
     _NYA_LuaBinding* binding = &vm->bindings[index];
     if (binding->fn == nullptr) return 0;
 
-    /*
-     * A stack arena for the call's values, destroyed the moment it returns.
-     */
+    /* A stack arena for the call's values, destroyed when it returns. */
     NYA_Arena scratch_arena = nya_arena_create_on_stack(.name = "lua_call");
     NYA_Arena* scratch      = &scratch_arena;
 
@@ -308,8 +291,7 @@ int _nya_lua_trampoline(lua_State* state) {
 
     for (u32 i = 0; i < results; i++) _nya_lua_push(state, &call.results[i], 0);
 
-    // After the results are pushed, since they were built in it. Lua has copied everything it needs
-    // onto its own stack by now.
+    // after the results are pushed, since they were built in it.
     nya_arena_destroy_on_stack(scratch);
 
     return (int)results;
@@ -326,9 +308,7 @@ NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM
 
     *out_vm = nullptr;
 
-    /*
-     * luaL_newstate, not lua_newstate with an arena allocator.
-     */
+    /* luaL_newstate, not lua_newstate with an arena allocator; see the memory note in lua.h. */
     lua_State* state = luaL_newstate();
     if (state == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "could not create a Lua state");
 
@@ -337,13 +317,10 @@ NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM
 
         if (options.restricted) {
             /*
-             * Removed after opening rather than opened selectively, because LuaJIT's luaL_openlibs
-             * is a single call and the alternative is naming every library that *should* stay.
+             * Removed after luaL_openlibs rather than opened selectively, since LuaJIT opens them in one call.
              *
-             * ⚠ Not a sandbox, and lua.h says so where a caller will read it. `ffi` alone can call
-             * any function in the process, so leaving it reachable would make every other line here
-             * decorative — but a script that has been *given* a way back in through a binding is
-             * still inside whatever that binding allows.
+             * Not a sandbox: `ffi` alone can call any function in the process, so it has to go, but a script handed a
+             * binding can still do whatever that binding allows.
              */
             NYA_ConstCString removed[] = { "io", "os", "package", "ffi", "debug" };
 
@@ -362,11 +339,8 @@ NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM
 
     *out_vm = vm;
 
-    // Registered against whichever VM is created first. Binding counts are per-VM and a game can
-    // create more than one, but in practice a VM lives as long as the world that owns it — the same
-    // lifetime guarantee the sim and config ceilings lean on — so the common case of one long-lived
-    // VM is exactly what this points at. Guarded so a test creating many short-lived VMs does not
-    // add a copy of itself on every one.
+    // registered against the first VM created, which in practice lives as long as its world. guarded so tests
+    // creating many VMs do not add duplicates.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("lua_bindings", NYA_LUA_MAX_BINDINGS, &vm->binding_count);
@@ -384,8 +358,7 @@ void nya_lua_destroy(NYA_LuaVM* vm) {
 
     lua_close(vm->state);
 
-    // The wrapper itself belongs to the arena and is not freed here; zeroing the state is what makes
-    // a second destroy a no-op rather than a double close.
+    // the wrapper belongs to the arena; zeroing the state makes a second destroy a no-op.
     vm->state         = nullptr;
     vm->binding_count = 0;
 }
@@ -396,8 +369,7 @@ NYA_Error nya_lua_run(NYA_LuaVM* vm, NYA_ConstCString code, NYA_ConstCString chu
 
     NYA_ConstCString name = chunk_name != nullptr ? chunk_name : "chunk";
 
-    // Compiled first, so a syntax error is distinguishable from one raised while running. The two
-    // want different reactions: one is a typo, the other is a bug.
+    // compiled first, so a syntax error is told apart from a runtime error.
     if (luaL_loadbuffer(vm->state, code, strlen(code), name) != 0) {
         return _nya_lua_take_error(vm->state, NYA_ERROR_PARSE, "Lua syntax error");
     }
@@ -415,8 +387,7 @@ NYA_Error nya_lua_run_asset(NYA_LuaVM* vm, NYA_ConstCString asset_handle) {
     NYA_Asset* asset = nya_asset_get((NYA_CString)asset_handle);
 
     if (asset == nullptr) {
-        // Queued rather than failed: this is the first ask, and the asset system resolves it over the
-        // next frames like every other type. A caller re-running on reload asks again then.
+        // queued: the asset system resolves it over the next frames, and a caller retries on reload.
         NYA_TRY(nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = (NYA_CString)asset_handle }));
 
         return nya_error(NYA_ERROR_NOT_FOUND, "script '%s' is still loading", asset_handle);
@@ -467,15 +438,13 @@ NYA_Error nya_lua_call(
     if (!lua_isfunction(vm->state, -1)) {
         lua_pop(vm->state, 1);
 
-        // Distinguished from a call that failed: a name that is not a function is a typo in a script
-        // or an optional hook that was not defined, and neither is an error worth a backtrace.
+        // not a function: a typo or an optional hook left undefined, neither worth a backtrace.
         return nya_error(NYA_ERROR_NOT_FOUND, "'%s' is not a Lua function", function);
     }
 
     for (u32 i = 0; i < argument_count; i++) _nya_lua_push(vm->state, &arguments[i], 0);
 
-    // One result asked for regardless: Lua pads with nil, so a function returning nothing costs one
-    // stack slot rather than a second code path.
+    // one result regardless; Lua pads with nil.
     if (lua_pcall(vm->state, (int)argument_count, 1, 0) != 0) {
         return _nya_lua_take_error(vm->state, NYA_ERROR_NOT_OK, "Lua error");
     }
@@ -542,9 +511,7 @@ void nya_lua_register(NYA_LuaVM* vm, NYA_ConstCString name, NYA_LuaFn fn, void* 
 
     vm->bindings[index] = (_NYA_LuaBinding){ .fn = fn, .user_data = user_data };
 
-    /*
-     * Both upvalues rather than a pointer to the binding.
-     */
+    /* Both upvalues rather than a pointer to the binding. */
     lua_pushlightuserdata(vm->state, vm);
     lua_pushinteger(vm->state, (lua_Integer)index);
     lua_pushcclosure(vm->state, _nya_lua_trampoline, 2);
@@ -554,8 +521,7 @@ void nya_lua_register(NYA_LuaVM* vm, NYA_ConstCString name, NYA_LuaFn fn, void* 
 u64 nya_lua_memory_bytes(const NYA_LuaVM* vm) {
     if (vm == nullptr || vm->state == nullptr) return 0;
 
-    // Kilobytes from Lua, bytes out: every other size in this engine is in bytes, and a unit that
-    // changes at a module boundary is how a memory overlay ends up off by a thousand.
+    // kilobytes from Lua, bytes out, like every other size in the engine.
     return (u64)lua_gc(vm->state, LUA_GCCOUNT, 0) * 1024ULL;
 }
 
