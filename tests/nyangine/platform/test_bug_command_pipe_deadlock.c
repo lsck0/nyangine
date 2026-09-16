@@ -59,7 +59,7 @@ s32 main(void) {
 
     NYA_Command command = {
       .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-      .program   = "/bin/sh",
+      .program   = "sh",
       .arguments = { "-c", nya_string_to_cstring(arena, script) },
       .arena     = arena,
     };
@@ -93,7 +93,7 @@ s32 main(void) {
 
     NYA_Command command = {
       .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-      .program   = "/bin/sh",
+      .program   = "sh",
       .arguments = { "-c", nya_string_to_cstring(arena, script) },
       .arena     = arena,
     };
