@@ -170,6 +170,17 @@ b8 _nya_net_loopback_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent
     _NYA_NetLoopbackMessage message = endpoint->inbox->items[0];
     nya_array_remove(endpoint->inbox, 0);
 
+    // the previous poll's bytes are done with. this one's move out of the long-lived arena, where the copy
+    // made on send would otherwise stay for the life of the connection.
+    nya_arena_free_all(endpoint->delivered);
+
+    if (message.size > 0) {
+        u8* delivered = nya_arena_alloc(endpoint->delivered, message.size);
+        nya_memcpy(delivered, message.data, message.size);
+        nya_arena_free(endpoint->allocator, message.data, message.size);
+        message.data = delivered;
+    }
+
     endpoint->stats.bytes_received += message.size;
     endpoint->stats.packets_received++;
 

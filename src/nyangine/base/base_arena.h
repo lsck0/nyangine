@@ -39,11 +39,13 @@ typedef struct NYA_ArneaAction         NYA_ArenaAction;
 
 /**
  * A region is allocated, not reserved: _nya_arena_nodebug_alloc calls nya_malloc for
- * max(region_size, size). Allocating, freeing and poisoning on reset all scale with the region size
- * whether or not the arena holds anything.
+ * max(region_size, size), and a full arena chains another region. Allocating, freeing and poisoning on
+ * reset all scale with the region size whether or not the arena holds anything, and on Windows the whole
+ * region is committed. One MiB holds most subsystems in one region; 64 MiB committed 1.4 GiB for 13 MiB
+ * of data.
  * */
 #define _NYA_ARENA_DEFAULT_OPTIONS                                                                                                                   \
-    .name = nullptr, .alignment = 16, .region_size = nya_mebyte_to_byte(64), .defragmentation_enabled = true, .defragmentation_threshold = 16,       \
+    .name = nullptr, .alignment = 16, .region_size = nya_mebyte_to_byte(1), .defragmentation_enabled = true, .defragmentation_threshold = 16,        \
     .garbage_collection_enabled = true, .garbage_collection_threshold = 3
 
 /**

@@ -194,6 +194,15 @@ s32 main(void) {
     NYA_NetPeerId nonsense = { .index = 7, .generation = 3 };
     nya_assert(!nya_net_transport_send(a, nonsense, NYA_NET_CHANNEL_RELIABLE, payload, sizeof(payload)).ok);
 
+    // a long session must not grow the arena the pair was created from: polled bytes are released.
+    u64 used_before = nya_arena_stats(arena).used_bytes;
+    for (u32 i = 0; i < 10000; i++) {
+      NYA_EXPECT(nya_net_transport_send(a, ca.last_peer, NYA_NET_CHANNEL_UNRELIABLE, payload, sizeof(payload)));
+      drain(b, &cb);
+    }
+    u64 used_after = nya_arena_stats(arena).used_bytes;
+    nya_assert(used_after <= used_before + sizeof(payload), "the arena grew from " FMTu64 " to " FMTu64 " bytes", used_before, used_after);
+
     nya_net_transport_destroy(a);
     nya_net_transport_destroy(b);
   }
