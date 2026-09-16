@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -25,7 +26,21 @@ NYA_Error nya_command_spawn(NYA_Command* command) {
 
     s32 stdout_pipe[2];
     s32 stderr_pipe[2];
-    if (pipe(stdout_pipe) != 0 || pipe(stderr_pipe) != 0) return nya_error_from_errno();
+    if (pipe(stdout_pipe) != 0) return nya_error_from_errno();
+    if (pipe(stderr_pipe) != 0) {
+        NYA_Error error = nya_error_from_errno();
+        close(stdout_pipe[0]);
+        close(stdout_pipe[1]);
+        return error;
+    }
+
+    // close-on-exec, so a command spawned while another is running does not inherit its pipes. pipe2
+    // would do this atomically but is not declared under _XOPEN_SOURCE, and nothing here forks from two
+    // threads at once.
+    for (u32 i = 0; i < 2; i++) {
+        (void)fcntl(stdout_pipe[i], F_SETFD, FD_CLOEXEC);
+        (void)fcntl(stderr_pipe[i], F_SETFD, FD_CLOEXEC);
+    }
 
     if (nya_flag_check(command->flags, NYA_COMMAND_FLAG_OUTPUT_CAPTURE)) {
         nya_assert(command->arena != nullptr, "Arena must be provided when capturing output.");
@@ -34,10 +49,21 @@ NYA_Error nya_command_spawn(NYA_Command* command) {
     }
 
     pid_t pid = fork();
-    if (pid < 0) return nya_error_from_errno();
+    if (pid < 0) {
+        NYA_Error error = nya_error_from_errno();
+        close(stdout_pipe[0]);
+        close(stdout_pipe[1]);
+        close(stderr_pipe[0]);
+        close(stderr_pipe[1]);
+        return error;
+    }
 
     // CHILD
     if (pid == 0) {
+        // the parent may ignore SIGPIPE (CI runners do), and exec keeps an ignored disposition.
+        // a child like `yes | head` then prints "Broken pipe" instead of dying quietly.
+        (void)signal(SIGPIPE, SIG_DFL);
+
         int devnull_fd = -1;
         if (nya_flag_check(command->flags, NYA_COMMAND_FLAG_OUTPUT_CAPTURE)) {
             // capture output: redirect stdout/stderr to pipe write ends
@@ -62,7 +88,7 @@ NYA_Error nya_command_spawn(NYA_Command* command) {
         if (command->working_directory != nullptr && strlen(command->working_directory) != 0) {
             if (chdir(command->working_directory) != 0) {
                 perror("chdir");
-                exit(1);
+                _exit(127);
             }
         }
 
@@ -79,9 +105,11 @@ NYA_Error nya_command_spawn(NYA_Command* command) {
         argv[nya_carray_length(command->arguments) + 1] = nullptr;
 
         // do the thing
+        // _exit, not exit: exit would run the parent's atexit handlers and flush its stdio buffers a
+        // second time from this copy of the process.
         execvp(command->program, (char* const*)argv);
         perror("execvp");
-        exit(1);
+        _exit(127);
     }
 
     // PARENT

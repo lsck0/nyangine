@@ -375,15 +375,16 @@ NYA_Error nya_file_open(NYA_ConstCString path, NYA_FileMode mode, OUT NYA_File* 
     nya_assert(path != nullptr);
     nya_assert(out_file != nullptr);
 
-    s32 flags = 0;
-    if ((mode & NYA_FILE_MODE_READ) && (mode & NYA_FILE_MODE_WRITE)) {
-        flags = O_RDWR;
-    } else if (mode & NYA_FILE_MODE_WRITE) {
-        flags = O_WRONLY;
-    } else if (mode & NYA_FILE_MODE_APPEND) {
-        flags = O_WRONLY;
+    // append is a kind of write, so READ with APPEND is read-write like READ with WRITE.
+    b8  reads  = (mode & NYA_FILE_MODE_READ) != 0;
+    b8  writes = (mode & (NYA_FILE_MODE_WRITE | NYA_FILE_MODE_APPEND)) != 0;
+    s32 flags  = O_CLOEXEC;
+    if (reads && writes) {
+        flags |= O_RDWR;
+    } else if (writes) {
+        flags |= O_WRONLY;
     } else {
-        flags = O_RDONLY;
+        flags |= O_RDONLY;
     }
 
     if (mode & NYA_FILE_MODE_APPEND) flags |= O_APPEND;
