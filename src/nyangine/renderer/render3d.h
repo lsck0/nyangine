@@ -159,7 +159,7 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 #endif
 
 static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES <= 4,
-              "the shadow atlas is two by two, so it holds between one and four cascades");
+              "MESH3D_SHADOW_CASCADES and the uniform's matrix array are sized for at most four");
 
 /**
  * The default sun's direction: upper front left, the one that makes a cube read as a cube by lighting
@@ -474,13 +474,11 @@ struct NYA_Render3DShadowFit {
     /**
      * How far from the camera shadows are cast, in world units. Zero is NYA_RENDER3D_SHADOW_EXTENT.
      *
-     * ⚠ **This is a distance down the view, not a cascade's size.** It used to be the near cascade's
-     * half-width, and that is what made shadows depend on how far the camera was from what it was
-     * looking at: each cascade was a box of a fixed size sitting a fixed distance in front of the
-     * camera, so a camera further away than the near cascade's reach spent that cascade on empty air
-     * and shadowed the whole scene with the coarsest map it had. Moving the camera then moved patches
-     * of ground between cascades of very different resolution, which is what "the shadows change when
-     * I move" was.
+     * ⚠ **This is a distance down the view, not a cascade's size.** The cascades divide this range
+     * between them; none of them is a fixed-size box sitting a fixed distance ahead of the camera. Size
+     * a cascade instead of the range and a camera standing further off than the near cascade reaches
+     * spends that cascade on empty air, shadowing the scene with the coarsest map it has — and moving
+     * the camera then slides patches of ground between cascades of very different resolution.
      * */
     f32 range;
 

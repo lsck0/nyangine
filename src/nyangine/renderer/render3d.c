@@ -621,8 +621,15 @@ void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
 
             // Cleared every cascade, unlike the colour: a cascade's depth test is only ever against its
             // own geometry, and keeping the previous cascade's depths would reject everything behind them.
-            .load_op          = SDL_GPU_LOADOP_CLEAR,
-            .store_op         = SDL_GPU_STOREOP_DONT_CARE,
+            .load_op = SDL_GPU_LOADOP_CLEAR,
+
+            /*
+             * Stored, not DONT_CARE, because a cascade does not run start to finish: it takes a dozen draws
+             * and every flush between them closes the pass to run a copy. DONT_CARE lets the driver discard
+             * the depths at each suspend, and _nya_render2d_pass_resume LOADs them back, so everything after
+             * the first flush depth-tests against garbage. The colour target stores for the same reason.
+             */
+            .store_op = SDL_GPU_STOREOP_STORE,
             .stencil_load_op  = SDL_GPU_LOADOP_DONT_CARE,
             .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
         }
@@ -1911,22 +1918,17 @@ void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMe
 
     if (opaque->index_count == 0 && transparent->index_count == 0) return;
 
-    // Sorted before the upload, since the sort rewrites the indices about to be copied. The eye is the
-    // camera's during a scene pass and the light's during a shadow pass, which is what
-    // _nya_render3d_begin_with installed — the light's is the right one there because a shadow map is a
-    // depth buffer, and depth buffers do not care about blend order. Wasted work in that pass, not wrong;
-    // skipping it is a nicety not worth the branch.
+    // Sorted before the upload, since the sort rewrites the indices about to be copied.
     f32x3 eye = batch->camera_is_ortho ? batch->camera_orthographic.position : batch->camera.position;
 
-    // Additive geometry is not sorted, because addition does not care: the order two additive surfaces
-    // draw in cannot change the result, the whole reason they need no depth write either. Sorting them
-    // would be a qsort over every particle in the system, twice a frame per pass, for an ordering nothing
-    // can observe.
     /*
-     * Skipped during a shadow pass, which writes depth and does not blend — so the order it draws in cannot
-     * matter. The note that used to be here called this "wasted work, not wrong; skipping it is a nicety not
-     * worth the branch", which the profile disagreed with: nya_render3d_sort_keys was 1.0% of a release
-     * frame, and three quarters of those sorts were for the three shadow cascades.
+     * Two cases need no sort at all.
+     *
+     * Additive, because addition does not care: the order two additive surfaces draw in cannot change the
+     * result, the same reason they need no depth write. And a shadow pass, which writes depth and does not
+     * blend, so its draw order is equally unobservable. The shadow case is worth the branch rather than
+     * being left as harmless wasted work — nya_render3d_sort_keys was 1.0% of a release frame, three
+     * quarters of it sorting for the three cascades.
      */
     if (batch->blend != NYA_RENDER3D_BLEND_ADDITIVE && !batch->shadow_pass_active) _nya_render3d_sort_transparent(batch, eye);
 
