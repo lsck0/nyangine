@@ -11,7 +11,7 @@
  */
 
 /*
- * Every datagram is one packet header followed by one or more message fragments:
+ * Every datagram is one packet header followed by zero or more message fragments.
  */
 
 #define _NYA_NET_UDP_PROTOCOL 0x6E796105U /* "nya" + version 5 */

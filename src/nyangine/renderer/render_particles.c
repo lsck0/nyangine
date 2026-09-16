@@ -38,10 +38,7 @@ NYA_ParticleSystem* nya_particles_create(NYA_Arena* arena, u32 capacity) {
         .space     = NYA_PARTICLE_SPACE_2D,
         .capacity  = capacity,
         .particles = nya_arena_alloc(arena, capacity * sizeof(NYA_Particle)),
-        /*
-         * A fixed seed rather than the clock, so two runs of the same game produce the same sparks
-         * unless something asks otherwise. See nya_particles_seed.
-         */
+        /* A fixed seed, so runs produce the same sparks unless asked otherwise. See nya_particles_seed. */
         .rng = nya_rng_create_in(arena, "0FEEDFACE0C0FFEE"),
     };
 
@@ -76,8 +73,7 @@ void nya_particles_on_update_set(NYA_ParticleSystem* system, NYA_ParticleUpdateF
 void nya_particles_seed(NYA_ParticleSystem* system, u64 seed) {
     nya_assert(system != nullptr);
 
-    // Through the hex spelling, because that is the seed form nya_rng_create_in takes and going via
-    // it means one seeding path rather than two that could diverge.
+    // through the hex spelling nya_rng_create_in takes, so there is one seeding path.
     char text[32];
     (void)snprintf(text, sizeof(text), "%016llX", (unsigned long long)seed);
 
@@ -92,15 +88,13 @@ u32 nya_particles_emit(NYA_ParticleSystem* system, NYA_ParticleBurst burst) {
     u32 room  = system->capacity - system->count;
     u32 spawn = nya_min(burst.count, room);
 
-    // Counted rather than raised. An effect that loses a few particles under load is working
-    // correctly, and a burst that failed would be an error nobody could act on mid frame.
+    // counted, not raised: losing a few particles under load is correct behaviour.
     if (spawn < burst.count) system->dropped += burst.count - spawn;
 
-    // Zero is a field nobody filled in rather than a value anyone means, for every one of these.
+    // zero means unset for all of these.
     f32x3 axis = burst.direction;
     if (axis.x == 0.0F && axis.y == 0.0F && axis.z == 0.0F) {
-        // Up, in whichever sense the space means it: negative y on a y-down screen, positive y in a
-        // 3D scene. The two worlds genuinely disagree about which way up is, so this has to ask.
+        // up in the space's sense: negative y on a y-down screen, positive in 3D.
         axis = system->space == NYA_PARTICLE_SPACE_3D ? (f32x3){ 0.0F, 1.0F, 0.0F } : (f32x3){ 0.0F, -1.0F, 0.0F };
     }
 
@@ -117,13 +111,11 @@ u32 nya_particles_emit(NYA_ParticleSystem* system, NYA_ParticleBurst burst) {
 
         switch (burst.shape) {
             case NYA_PARTICLE_SHAPE_SPHERE: {
-                // The direction is picked first and the offset lies along it, so a particle starting
-                // near the rim is already moving outward — which is what makes an explosion read as
-                // one rather than as a ball that expands uniformly.
+                // direction first, offset along it, so particles near the rim already move outward and it reads as an
+                // explosion.
                 direction = _nya_particles_direction(system);
 
-                // Cube rooted, so the points are uniform through the volume rather than crowded at
-                // the centre, which is what a plain uniform radius gives.
+                // cube rooted, so points are uniform through the volume instead of crowding the centre.
                 offset = direction * (burst.radius * cbrtf(_nya_particles_unit(system)));
             } break;
 
@@ -146,8 +138,7 @@ u32 nya_particles_emit(NYA_ParticleSystem* system, NYA_ParticleBurst burst) {
             } break;
         }
 
-        // Flattened for a 2D system, so a sphere becomes a disc and a cone a fan. Without this a
-        // point burst on screen loses most of its particles into a z nothing draws.
+        // flattened in 2D, so a sphere becomes a disc; otherwise most particles move in an undrawn z.
         if (system->space == NYA_PARTICLE_SPACE_2D) {
             direction.z = 0.0F;
             offset.z    = 0.0F;
@@ -164,8 +155,7 @@ u32 nya_particles_emit(NYA_ParticleSystem* system, NYA_ParticleBurst burst) {
             .acceleration = burst.gravity,
             .lifetime_s   = _nya_particles_range(system, burst.lifetime_s, (f32x2){ 0.5F, 1.0F }),
             .size_start   = size_start,
-            // Defaults to the start size, so a burst that says nothing about the end does not shrink
-            // every particle to nothing.
+            // defaults to the start size, so particles do not shrink to nothing.
             .size_end         = burst.size_end.y > 0.0F ? _nya_particles_range(system, burst.size_end, burst.size_end) : size_start,
             .color_start      = color_start,
             .color_end        = burst.color_end,
@@ -196,17 +186,14 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
         particle->age_s += delta_time_s;
 
         if (particle->age_s >= particle->lifetime_s) {
-            // Not advancing `i`: the kill moved the last live particle into this slot, and that one
-            // has not been updated yet.
+            // `i` stays: the kill moved an un-updated particle into this slot.
             _nya_particles_kill(system, i);
             continue;
         }
 
         particle->velocity += particle->acceleration * delta_time_s;
 
-        /*
-         * Damping as an exponential rather than a subtraction.
-         */
+        /* Damping as an exponential, not a subtraction, so it is frame-rate independent and never overshoots zero. */
         if (particle->damping > 0.0F) particle->velocity *= expf(-particle->damping * delta_time_s);
 
         particle->position += particle->velocity * delta_time_s;
@@ -215,9 +202,7 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
         if (system->on_update != nullptr) {
             system->on_update(particle, particle->age_s / particle->lifetime_s, delta_time_s, system->on_update_user_data);
 
-            // The callback is allowed to end a particle by ageing it past its lifetime, which is the
-            // only way it has to say so — checked here rather than next tick, so the particle does
-            // not get one more frame of drawing after it asked to stop.
+            // a callback ends a particle by ageing it past its lifetime; checked now, so it is not drawn another frame.
             if (particle->age_s >= particle->lifetime_s) {
                 _nya_particles_kill(system, i);
                 continue;
@@ -235,25 +220,17 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
 
     if (system == nullptr || system->count == 0) return;
 
-    // No projection to draw through, so nothing is drawn. Same rule as NYA_ENTITY_VISUAL_CUBE.
+    // no projection, nothing to draw. same rule as NYA_ENTITY_VISUAL_CUBE.
     if (system->space == NYA_PARTICLE_SPACE_3D && !nya_render3d_active(window)) return;
 
     /*
-     * Opted-out systems skip the shadow pass outright rather than drawing into it: the pass has no
-     * notion of alpha, so a translucent billboard drawn there would cast a solid square. See
-     * NYA_ParticleSystem.casts_shadow.
-     *
-     * ⚠ `shadow_pass_active`, not `shadow_active`. The two read alike and mean opposite things here:
-     * `nya_render3d_shadow_active` is "a shadow pass has run this frame", which is false during the
-     * frame's first shadow pass and true for the whole camera pass after it. Testing that one skipped
-     * every opted-out system in the pass that draws to the screen, and drew it into the first cascade —
-     * so particles cast shadows and were themselves invisible.
+     * Systems that opt out skip the shadow pass: it has no alpha, so a translucent billboard would cast a solid
+     * square. See NYA_ParticleSystem.casts_shadow. `shadow_pass_active`, not `shadow_active`, which means a pass has
+     * already run and is true during the camera pass.
      */
     if (system->space == NYA_PARTICLE_SPACE_3D && !system->casts_shadow && nya_render3d_shadow_pass_active(window)) return;
 
-    /*
-     * The system's texture resolved once, not once per particle.
-     */
+    /* The system's texture, resolved once. */
     NYA_Render3DTextureBinding texture = system->space == NYA_PARTICLE_SPACE_3D ? nya_render3d_texture_resolve(system->texture)
                                                                                : (NYA_Render3DTextureBinding){ 0 };
 
@@ -273,12 +250,8 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
         };
 
         if (system->space == NYA_PARTICLE_SPACE_3D) {
-            /*
-             * A billboard, which is what a particle is.
-             */
-            /*
-             * The system's texture, which the 3D path used to drop on the floor.
-             */
+            /* A billboard. */
+            /* With the system's texture. */
             nya_render3d_billboard_resolved(window, texture, particle->position, (f32x2){ size, size }, particle->rotation, color);
             continue;
         }
@@ -294,8 +267,7 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
                     .width    = size,
                     .height   = size,
                     .rotation = particle->rotation,
-                    // Half, so the quad turns about its middle rather than its corner — a particle
-                    // rotating about a corner orbits instead of spinning.
+                    // half, so the quad spins about its middle.
                     .origin = { 0.5F, 0.5F },
                     .tint   = color,
                 }
@@ -311,7 +283,7 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
 void nya_particles_clear(NYA_ParticleSystem* system) {
     nya_assert(system != nullptr);
 
-    // Just the count. The pool keeps whatever was in it, and nothing reads past `count`.
+    // just the count; nothing reads past it.
     system->count   = 0;
     system->dropped = 0;
 }
@@ -333,8 +305,7 @@ f32 _nya_particles_unit(NYA_ParticleSystem* system) {
 }
 
 f32 _nya_particles_range(NYA_ParticleSystem* system, f32x2 range, f32x2 fallback) {
-    // The maximum is what decides whether a range was filled in, not the minimum — a range of
-    // { 0, 0.6 } is a perfectly ordinary "up to 0.6 seconds" and must not be read as absent.
+    // the maximum decides whether a range is set: { 0, 0.6 } means up to 0.6.
     f32x2 chosen = range.y > 0.0F ? range : fallback;
 
     if (chosen.y <= chosen.x) return chosen.x;
@@ -343,9 +314,7 @@ f32 _nya_particles_range(NYA_ParticleSystem* system, f32x2 range, f32x2 fallback
 }
 
 f32x3 _nya_particles_direction(NYA_ParticleSystem* system) {
-    /*
-     * Uniform on the sphere, which is not what picking three uniform components gives.
-     */
+    /* Uniform on the sphere, which three uniform components are not. */
     f32 z         = (_nya_particles_unit(system) * 2.0F) - 1.0F;
     f32 azimuth   = _nya_particles_unit(system) * 2.0F * (f32)M_PI;
     f32 planar    = sqrtf(nya_max(1.0F - (z * z), 0.0F));
@@ -356,14 +325,12 @@ f32x3 _nya_particles_direction(NYA_ParticleSystem* system) {
 f32x3 _nya_particles_cone(NYA_ParticleSystem* system, f32x3 axis, f32 spread) {
     if (spread <= 0.0F) return axis;
 
-    // Uniform over the cap rather than over the angle, for the same reason as above: uniform in the
-    // angle piles particles up along the axis and thins them at the rim.
+    // uniform over the cap, not the angle, which would crowd the axis.
     f32 cosine  = 1.0F - (_nya_particles_unit(system) * (1.0F - cosf(spread)));
     f32 sine    = sqrtf(nya_max(1.0F - (cosine * cosine), 0.0F));
     f32 azimuth = _nya_particles_unit(system) * 2.0F * (f32)M_PI;
 
-    // A basis around the axis. Crossed against whichever world axis it is least aligned with, so the
-    // cross product cannot collapse — the same trap nya_render3d_line documents.
+    // a basis around the axis, crossed against the least aligned world axis. see nya_render3d_line.
     f32x3 reference = fabsf(axis.y) < 0.9F ? (f32x3){ 0.0F, 1.0F, 0.0F } : (f32x3){ 1.0F, 0.0F, 0.0F };
 
     f32x3 right = nya_vector_normalize(nya_vector_cross(axis, reference));
@@ -375,8 +342,7 @@ f32x3 _nya_particles_cone(NYA_ParticleSystem* system, f32x3 axis, f32 spread) {
 void _nya_particles_kill(NYA_ParticleSystem* system, u32 index) {
     system->count--;
 
-    // Swap with the last live one rather than shifting everything down, which keeps the pool packed
-    // in constant time. Nothing may hold a pointer to a particle across an update because of this,
-    // and nothing needs to: a particle has no identity to hold on to.
+    // swap with the last live particle, so the pool stays packed in constant time. particles have no identity, so
+    // nothing holds a pointer to one.
     if (index != system->count) system->particles[index] = system->particles[system->count];
 }

@@ -35,15 +35,13 @@
 #define NYA_NEAT_DRAW_DEFAULT_HEIGHT 300.0F
 #define NYA_NEAT_DRAW_DEFAULT_RADIUS 24.0F
 
-/**
- * Clear space between two adjacent circles, as a fraction of a diameter.
- * */
+/** Clear space between adjacent circles, as a fraction of a diameter. */
 #define NYA_NEAT_DRAW_NODE_GAP 0.3F
 
-/** The radius fit will not go below this. Past it the picture is dots, and dots are still readable. */
+/** The smallest radius the fit uses. Below it the picture is dots, still readable. */
 #define NYA_NEAT_DRAW_MIN_RADIUS 3.0F
 
-/** Values are dropped below this radius: four glyphs in a circle this small is a smudge, not a number. */
+/** Below this radius values are dropped: four glyphs in a tiny circle are a smudge. */
 #define NYA_NEAT_DRAW_MIN_VALUE_RADIUS 11.0F
 
 /** Where a lone column sits, and the midpoint used when a column holds a single node. */
@@ -58,9 +56,7 @@ typedef struct {
 /** Fills anything the caller left at zero with a sensible default. */
 NYA_INTERNAL void _nya_nn_neat_draw_apply_style_defaults(NYA_NeatDrawStyle* style);
 
-/**
- * Assigns every node a column.
- * */
+/** Assigns every node a column. */
 NYA_INTERNAL u32 _nya_nn_neat_draw_layer_nodes(const NYA_NeatNetwork* network, u32* out_layers);
 
 /*
@@ -72,8 +68,7 @@ NYA_INTERNAL u32 _nya_nn_neat_draw_layer_nodes(const NYA_NeatNetwork* network, u
 void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_NeatDrawStyle style) {
     nya_assert(window != nullptr);
 
-    // Null is the normal state before the first generation has been evaluated, so it draws nothing
-    // rather than asserting — a debug overlay should not crash the frame it is meant to explain.
+    // null before the first generation is evaluated: draws nothing, since a debug overlay must not crash its frame.
     if (network == nullptr) return;
     if (network->nodes == nullptr || network->nodes->length == 0) return;
 
@@ -198,10 +193,8 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
         f32 column_t = layer_count > 1 ? (f32)layer / (f32)(layer_count - 1) : NYA_NEAT_DRAW_CENTERED;
 
         /*
-         * Vertical position within a column carries no meaning — the nodes in a column are a set,
-         * not a sequence — so the column fills the height it has. That makes the ends of the network
-         * line up: three inputs and two outputs both spanning the full height read as a network,
-         * where two stacks centred on each other at different pitches read as an accident.
+         * Position within a column carries no meaning, so each column fills the height and both ends of the network
+         * line up.
          */
         f32 row_t = column_totals[layer] > 1 ? (f32)column_placed[layer] / (f32)(column_totals[layer] - 1) : NYA_NEAT_DRAW_CENTERED;
 
@@ -216,18 +209,12 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
         column_placed[layer]++;
     }
 
-    /*
-     * Connections first, so the nodes sit on top of them rather than being crossed out by every line
-     * that passes through.
-     */
+    /* Connections first, so nodes sit on top of them. */
     f64 heaviest = 0.0;
     nya_array_foreach (network->connections, connection) heaviest = nya_max(heaviest, fabs(connection->weight));
     if (heaviest <= 0.0) heaviest = 1.0;
 
-    /*
-     * Weight labels are collected here and drawn after every line, rather than beside the line they
-     * belong to.
-     */
+    /* Weight labels are drawn after every line. */
     typedef struct {
         f32x2     position;
         NYA_Color color;
@@ -245,24 +232,20 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
         if (!connection->enabled && !style.show_disabled) continue;
         if (connection->in >= node_count || connection->out >= node_count) continue;
 
-        // Thickness carries magnitude and colour carries sign, so a glance says which connections
-        // matter and which way they push. Floored, or a near-zero weight draws nothing at all and
-        // the topology looks sparser than it is.
+        // thickness shows magnitude and colour shows sign. floored, or near-zero weights vanish and the topology looks
+        // sparser than it is.
         f32 strength  = (f32)(fabs(connection->weight) / heaviest);
-        // Scaled with everything else, or a shrunk network turns into a solid mat of full width
-        // lines with the nodes lost inside it.
+        // scaled with the fit, or a shrunk network becomes a mat of wide lines.
         f32 thickness = (NYA_NEAT_DRAW_LINE_MIN_THICKNESS + (strength * NYA_NEAT_DRAW_LINE_THICKNESS_RANGE)) * nya_max(scale, 0.35F);
 
         NYA_Color color = connection->weight >= 0.0 ? style.color_positive : style.color_negative;
 
         if (!connection->enabled) {
-            // Disabled genes are still genes — dimmed rather than recoloured, so they read as
-            // "present but off" rather than as a third kind of connection.
+            // disabled genes are dimmed, reading as present but off.
             color.a   *= NYA_NEAT_DRAW_DISABLED_ALPHA;
             thickness  = NYA_NEAT_DRAW_LINE_MIN_THICKNESS * nya_max(scale, 0.35F);
         } else {
-            // Weak connections fade as well as thin, which separates the structure that is doing the
-            // work from the structure that is merely wired up.
+            // weak connections fade as well as thin.
             color.a *= NYA_NEAT_DRAW_LINE_MIN_ALPHA + (strength * NYA_NEAT_DRAW_LINE_ALPHA_RANGE);
         }
 
@@ -270,8 +253,7 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
 
         if (!style.show_weights || weight_labels == nullptr) continue;
 
-        // At the midpoint, which for a recurrent edge is still between its endpoints and so still
-        // unambiguous about which line it belongs to.
+        // at the midpoint, still between the endpoints for a recurrent edge.
         f32x2 midpoint = (layout[connection->in].position + layout[connection->out].position) * NYA_NEAT_DRAW_CENTERED;
 
         _NYA_NeatWeightLabel* label = &weight_labels[weight_label_count++];
@@ -299,9 +281,7 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
         );
     }
 
-    /*
-     * Every circle first, then every label — not a circle and its label per node.
-     */
+    /* Every circle first, then every label, so the labels share one draw call. */
     for (u32 i = 0; i < node_count; i++) {
         const NYA_NeatNode* node = &network->nodes->items[i];
 
@@ -319,21 +299,19 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
         nya_render2d_circle(window, layout[i].position, radius, fill);
     }
 
-    // The text pass. Same loop, second time round, so every glyph shares one draw call.
+    // the text pass: same loop again, so glyphs share one draw call.
     for (u32 i = 0; i < node_count; i++) {
         const NYA_NeatNode* node = &network->nodes->items[i];
 
-        // Dropped once the fit has shrunk the circles past legibility, rather than drawn as a smear
-        // across the node and its neighbours.
+        // dropped once circles are too small to read.
         if (!style.hide_values && radius >= NYA_NEAT_DRAW_MIN_VALUE_RADIUS) {
-            // One decimal, not two: at any radius that keeps a network of a dozen nodes on screen,
-            // four glyphs do not fit inside the circle and spill over its edge.
+            // one decimal: two do not fit inside the circle at usual sizes.
             char value_text[16];
             (void)snprintf(value_text, sizeof(value_text), "%.1f", node->value);
 
             f32x2 size = nya_render2d_text_measure_with_font(style.font, style.font_size, value_text);
 
-            // Black on the node, because every default fill is light enough for dark text to read.
+            // black on the node: every default fill is light.
             nya_render2d_text_with_font(
                 window,
                 style.font,
@@ -345,16 +323,14 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
             );
         }
 
-        // Labels outside the circle rather than inside it: the value is already in there, and a
-        // hidden node has no label at all.
+        // labels outside the circle, which holds the value; hidden nodes have none.
         if (style.hide_labels || node->label == nullptr) continue;
 
         f32x2 label_size = nya_render2d_text_measure_with_font(style.font, style.font_size, node->label);
 
         /*
-         * Beside the column, in the margin reserved for it above — left of the inputs, right of the
-         * outputs. A label on any other column has no margin to sit in and falls back to under its
-         * circle, which is safe there because the middle columns are the sparse ones.
+         * Beside the input and output columns, in the margin reserved above. Middle columns are sparse, so their labels
+         * sit under the circle.
          */
         f32 label_x = layout[i].position[0] - (label_size[0] * NYA_NEAT_DRAW_CENTERED);
         f32 label_y = layout[i].position[1] + radius + NYA_NEAT_DRAW_LABEL_GAP;
@@ -378,8 +354,7 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
  */
 
 void _nya_nn_neat_draw_apply_style_defaults(NYA_NeatDrawStyle* style) {
-    // Null means the current font, which is exactly what nya_render2d_font_get hands back — so the
-    // _with_font calls below need no special case for it.
+    // null means the current font, which is what nya_render2d_font_get returns.
     if (style->font == nullptr) style->font = nya_render2d_font_get();
     if (style->font_size <= 0.0F) style->font_size = nya_render2d_font_size_get();
 
@@ -388,8 +363,7 @@ void _nya_nn_neat_draw_apply_style_defaults(NYA_NeatDrawStyle* style) {
     // Wide enough for a one decimal value at the default font size, with a little margin.
     if (style->node_radius <= 0.0F) style->node_radius = NYA_NEAT_DRAW_DEFAULT_RADIUS;
 
-    // A fully transparent colour is what a zeroed struct gives, and it is never something a caller
-    // asks for on purpose — it would draw nothing. Treated as unspecified.
+    // a fully transparent colour is a zeroed struct, never a request, and would draw nothing.
     if (style->color_bias.a == 0.0F) style->color_bias = (NYA_Color){ 0.72F, 0.74F, 0.78F, 1.0F };
     if (style->color_sensor.a == 0.0F) style->color_sensor = (NYA_Color){ 0.45F, 0.85F, 0.55F, 1.0F };
     if (style->color_hidden.a == 0.0F) style->color_hidden = (NYA_Color){ 0.45F, 0.65F, 0.95F, 1.0F };
@@ -404,10 +378,7 @@ u32 _nya_nn_neat_draw_layer_nodes(const NYA_NeatNetwork* network, u32* out_layer
 
     for (u32 i = 0; i < node_count; i++) out_layers[i] = 0;
 
-    /*
-     * Relaxation rather than a topological sort, because a NEAT network may be cyclic and a
-     * topological sort has nothing to say about a cycle.
-     */
+    /* Relaxation, not a topological sort, since a NEAT network may be cyclic. */
     for (u32 pass = 0; pass < node_count; pass++) {
         b8 changed = false;
 
@@ -417,8 +388,7 @@ u32 _nya_nn_neat_draw_layer_nodes(const NYA_NeatNetwork* network, u32* out_layer
 
             const NYA_NeatNode* out_node = &network->nodes->items[connection->out];
 
-            // Inputs are pinned to column zero: something feeding a sensor is a recurrent edge, and
-            // moving the sensor rightwards for it would put the network's inputs in the middle.
+            // inputs stay in column zero: something feeding a sensor is recurrent.
             if (out_node->kind == NYA_NEAT_NODE_SENSOR || out_node->kind == NYA_NEAT_NODE_BIAS) continue;
 
             u32 candidate = out_layers[connection->in] + 1;
@@ -431,10 +401,7 @@ u32 _nya_nn_neat_draw_layer_nodes(const NYA_NeatNetwork* network, u32* out_layer
         if (!changed) break;
     }
 
-    /*
-     * Outputs get a column past everything else, so they line up on the right edge instead of
-     * scattering by how deep the path that happened to reach them was.
-     */
+    /* Outputs get a column past everything, so they line up on the right edge. */
     u32 deepest_non_output = 0;
     for (u32 i = 0; i < node_count; i++) {
         if (network->nodes->items[i].kind == NYA_NEAT_NODE_OUTPUT) continue;
