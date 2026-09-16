@@ -44,6 +44,13 @@ jobs:
           mkdir -p dist
           cp gnyame.*.linux-x86_64 gnyame.*.windows-x86_64.exe dist/
 
+          # The Linux binary again as an archive with its desktop entry, icon and a per-user installer.
+          linux="$(ls gnyame.*.linux-x86_64)"
+          mkdir -p "stage/gnyame"
+          cp "${linux}" stage/gnyame/gnyame
+          cp packaging/linux/gnyame.desktop packaging/linux/gnyame.png packaging/linux/install.sh stage/gnyame/
+          tar -C stage -czf "dist/${linux}.tar.gz" gnyame
+
           # Checksums over the files as published. Generated next to them rather than by a later step,
           # so nothing can be swapped in between hashing and upload.
           (cd dist && sha256sum ./* > SHA256SUMS)

@@ -52,6 +52,12 @@ struct NYA_AppOptions {
 
     b8  vsync_enabled;
     u8  max_concurrent_jobs;
+
+    /**
+     * Reverse-DNS or plain application id, such as "gnyame". Null leaves SDL's default. On Wayland this
+     * is the app_id a desktop file is matched by, which is where the window's icon and name come from.
+     * */
+    NYA_ConstCString app_id;
 };
 
 struct NYA_FrameStats {

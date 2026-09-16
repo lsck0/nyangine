@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=gnyame
+Comment=A physics sandbox built on nyangine
+Exec=gnyame
+Icon=gnyame
+Terminal=false
+Categories=Game;
+StartupWMClass=gnyame

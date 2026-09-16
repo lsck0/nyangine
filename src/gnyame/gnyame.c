@@ -54,7 +54,7 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
     // Alt-tabbing away drops to GNY_UNFOCUSED_FRAME_RATE instead of drawing at full rate in the
     // background.
     NYA_EXPECT(
-        nya_app_init(.time_step_ns = time_step_ns, .unfocused_frame_rate_limit = GNY_UNFOCUSED_FRAME_RATE),
+        nya_app_init(.time_step_ns = time_step_ns, .unfocused_frame_rate_limit = GNY_UNFOCUSED_FRAME_RATE, .app_id = "gnyame"),
         "while starting the engine"
     );
 
