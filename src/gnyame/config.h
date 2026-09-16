@@ -61,8 +61,7 @@ struct GNY_Config {
 };
 
 /**
- * The single instance, reached with dotted field access the way the task that added this file
- * describes: `NYA_CONFIG.engine.renderer.shadow_bias`, `NYA_CONFIG.game.player_speed`.
+ * The single instance: `NYA_CONFIG.engine.renderer.shadow_bias`, `NYA_CONFIG.game.player_speed`.
  * */
 extern GNY_Config NYA_CONFIG;
 

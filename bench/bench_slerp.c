@@ -1,6 +1,6 @@
 /**
- * Slerp variants, because `nya_quaternion_slerp` measured at 125.8 ns/item — 22x the multiply that
- * prompt.md asked about — and it is what nya_skeleton_pose_blend calls per bone per blend.
+ * Slerp variants. `nya_quaternion_slerp` measured 125.8 ns/item, 22x a quaternion multiply, and
+ * nya_skeleton_pose_blend calls it per bone per blend.
  **/
 
 #include "nyangine/nyangine.c"

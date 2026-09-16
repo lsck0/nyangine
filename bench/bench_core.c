@@ -84,10 +84,8 @@ s32 main(void) {
 
     // ── The lookup the memo actually sits in front of ──
     {
-        /*
-         * ⚠ These two numbers do NOT demonstrate the memo, and are kept only to show the call is cheap.
-         */
-        nya_bench_begin("asset lookup (empty dictionary — see the note in the source)");
+        /* These two numbers do not demonstrate the memo; they only show the call is cheap. */
+        nya_bench_begin("asset lookup (empty dictionary, see the note in the source)");
 
         // The common case: the same generated #define, so the same pointer, every frame.
         nya_bench("nya_asset_get x1024, same handles", HASHES, {

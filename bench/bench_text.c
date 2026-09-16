@@ -41,7 +41,7 @@ static NYA_ConstCString hud_lines[] = {
     "position 128.0, 64.0   velocity 0.0, -9.81",
 };
 
-/** A paragraph, for the wrapped case — the shaper does the line breaking, which is not free. */
+/** A paragraph, for the wrapped case. The shaper does the line breaking, which is not free. */
 #define PARAGRAPH                                                                                                                                  \
     "Human negligence made the machines take over. You go back down for what is left: ore, power "                                                  \
     "cells, and whatever the last expedition did not carry out with them."
@@ -82,9 +82,8 @@ s32 main(void) {
         }
     });
 
-    // One short line on its own, which is what a call site actually asks for. The difference between
-    // this times twenty and the figure above is whatever the shaper amortises across a frame — if the
-    // two agree, there is nothing to gain from batching and the only lever left is memoising.
+    // one short line, what a call site asks for. If twenty of these match the figure above, batching
+    // gains nothing and only memoising is left.
     nya_bench("one hud line", nya_utf8_count(hud_lines[0]), {
         nya_bench_keep(nya_text_shape(hud, hud_lines[0], 0, 0, &run));
     });

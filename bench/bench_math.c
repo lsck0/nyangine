@@ -36,7 +36,7 @@ s32 main(void) {
 
     nya_bench_begin("quaternions (4096 per iteration)");
 
-    // The one prompt.md asked about. Kept first so everything else reads relative to it.
+    // first, so everything else reads relative to it.
     nya_bench("multiply", COUNT, {
         for (u32 i = 0; i < COUNT; i++) out_q[i] = nya_quaternion_multiply(quats[i], quats_b[i]);
         nya_bench_keep(out_q[0].x);
@@ -54,8 +54,7 @@ s32 main(void) {
         nya_bench_keep(out_m[0][0][0]);
     });
 
-    // What pose blending calls, once per bone per blend — the operation that would become hot if the
-    // skeletal work in 3.2 lands.
+    // what pose blending calls, once per bone per blend.
     nya_bench("slerp", COUNT, {
         for (u32 i = 0; i < COUNT; i++) out_q[i] = nya_quaternion_slerp(quats[i], quats_b[i], 0.35F);
         nya_bench_keep(out_q[0].x);
