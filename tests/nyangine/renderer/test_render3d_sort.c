@@ -1,10 +1,5 @@
 /**
  * The transparent depth sort, which stopped being a qsort and became a radix pass.
- *
- * A profile put qsort at 7.9% of frame time — 3.4% of it in the comparator alone, the signature of an
- * indirect call that cannot be inlined. Replacing a sort is exactly the kind of change that silently
- * reorders one triangle in one scene, so what this asserts is not "it is sorted" but **"it produces the
- * same order the comparison sort did"**, checked against a reference qsort over the same input.
  **/
 
 #include "nyangine/nyangine.c"

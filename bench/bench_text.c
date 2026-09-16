@@ -1,19 +1,5 @@
 /**
  * Shaping: what a frame of text costs now that every string is laid out from scratch.
- *
- * The text path used to memoise a glyph lookup per codepoint and add a kerning correction between
- * pairs. That is gone — `nya_text_shape` calls `TTF_CreateText`, which runs HarfBuzz over the whole
- * string, once per string per draw — and the trade was made for correctness (ligatures, marks,
- * reordering, and kerning for faces with no legacy table) without anyone pricing it. This is the
- * price.
- *
- * The unit that matters is a **HUD's worth of strings**, not one string: a debug overlay draws about
- * twenty short lines a frame and a menu a handful of long ones, and a per-string cost only becomes a
- * budget question when multiplied by that. So the headline number here is one frame of a HUD.
- *
- * Headless, and it has to be: shaping needs no device — see render_text.h — which is exactly what
- * makes it measurable here at all. The face is opened directly rather than through the asset system,
- * for the same reason test_render_text.c does it.
  **/
 
 #include "nyangine/nyangine.c"
@@ -31,9 +17,6 @@
 
 /**
  * One frame of a debug overlay, copied in shape from debug_overlay.c and layer_ui.c.
- *
- * Real strings rather than a repeated one: shaping cost follows glyph count and cluster complexity, and
- * a benchmark over "aaaa" would price the best case a HUD never hits.
  * */
 static NYA_ConstCString hud_lines[] = {
     "  12.40 ms work    16.67 wall    60 fps",
@@ -92,9 +75,6 @@ s32 main(void) {
 
     /*
      * The headline: one frame of a HUD, shaped from nothing.
-     *
-     * Priced per *glyph* rather than per line, so the number can be compared against a string of a
-     * different length — a per-line figure over these twenty lines only describes these twenty lines.
      */
     nya_bench("hud frame, 20 lines", hud_glyphs, {
         for (u32 i = 0; i < hud_line_count; i++) {

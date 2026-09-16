@@ -1,10 +1,5 @@
 /**
  * Structural invariants of every genome, across a real evolutionary run.
- *
- * The trial function is called once per genome per generation, which makes it the place to inspect
- * the whole population. _nya_nn_neat_distance and _nya_nn_neat_crossover both walk two gene lists
- * as a linear merge and are only correct if those lists are sorted by innovation number, so that
- * ordering is an invariant of the data structure rather than an internal detail of one function.
  */
 
 #include "nyangine/nyangine.c"

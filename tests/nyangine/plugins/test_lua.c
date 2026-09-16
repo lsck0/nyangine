@@ -1,16 +1,5 @@
 /**
  * The LuaJIT plugin: running scripts, and moving values across the boundary in both directions.
- *
- * Nearly all of the risk in a binding layer is stack discipline — a path that pops one fewer than it
- * pushed is invisible until the hundredth call and then it is a stack overflow inside a script. So
- * the marshalling cases here are run in a loop rather than once, and `lua_gettop` is checked at the
- * end: an imbalance shows up as a growing stack rather than as a wrong answer.
- *
- * The other thing worth testing is the boundary's refusals. A script can build a table containing
- * itself in two lines, and a converter that follows it recurses until the process dies.
- *
- * Headless: nothing here needs a window, and the engine `nya` table is not opened — that half needs
- * an app and a world, and is covered where those exist.
  **/
 
 #include "nyangine/nyangine.c"

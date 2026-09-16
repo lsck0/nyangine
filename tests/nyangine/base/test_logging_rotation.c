@@ -1,9 +1,5 @@
 /**
  * Daily log files and the retention sweep: nya_log_directory_open / nya_log_directory_roll.
- *
- * The sweep deletes files, so most of what is tested here is what it refuses to touch. A retention
- * pass that went by modification time rather than by name would delete whatever else happened to be
- * in the directory, and that is the failure worth having a test for.
  * */
 
 #include "nyangine/nyangine.c"

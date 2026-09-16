@@ -115,6 +115,15 @@ cbuffer Uniforms : register(b0, space3) {
   /** How many cascades ran this frame. Zero means none; the lookup then returns lit. */
   float cascade_count;
   float3 cascade_pad;
+
+  // Fog. Two rows, matching NYA_ShaderMesh3DUniform exactly. See NYA_Render3DFog.
+  float3 fog_color;
+  float fog_density;
+
+  float fog_height_falloff;
+  float fog_height_base;
+  float fog_sun_amount;
+  float fog_pad;
 };
 
 /*
@@ -510,6 +519,42 @@ float mesh3d_shoulder_channel(float x) {
 
 float3 mesh3d_tonemap(float3 colour) {
   return float3(mesh3d_shoulder_channel(colour.r), mesh3d_shoulder_channel(colour.g), mesh3d_shoulder_channel(colour.b));
+}
+
+/*
+ * Distance and height fog. See NYA_Render3DFog.
+ *
+ * Called after mesh3d_tonemap: the curve is identity below its knee so authored colour survives it, and
+ * fog colour is authored. The shadow pass does not call it — a depth map has no colour to fog, and
+ * fogging the depth it writes would move every occluder.
+ */
+float3 mesh3d_fog(float3 colour, float3 world_position) {
+  // The whole cost of fog for a scene that does not use it: one compare, no length and no exp.
+  if (fog_density <= 0.0) return colour;
+
+  float3 to_camera = camera_position - world_position;
+
+  /*
+   * Height thins fog above `fog_height_base` and never thickens it below — clamped at zero, because the
+   * exponential would otherwise run away under the base plane, and core_terrain3d.c builds a basin that
+   * puts real geometry there.
+   *
+   * Sampled at the fragment rather than integrated along the view ray: that differs only for a ray
+   * crossing a lot of altitude, and costs one exp instead of a loop.
+   */
+  float above = max(world_position.y - fog_height_base, 0.0);
+  float amount = saturate(1.0 - exp(-fog_density * length(to_camera) * exp(-fog_height_falloff * above)));
+
+  /*
+   * Aerial perspective: air scatters toward the light's colour when you look into it. `light_direction`
+   * points from the surface toward the light and the view runs from the camera to this fragment, so
+   * looking at the sun makes the two agree. Squared, so the warmth stays near the sun rather than washing
+   * the whole horizon — the same shape NYA_Render3DSky.sun_halo uses.
+   */
+  float alignment = saturate(dot(-normalize(to_camera), light_direction));
+  float3 tint = lerp(fog_color, light_color, fog_sun_amount * alignment * alignment);
+
+  return lerp(colour, tint, amount);
 }
 
 /**

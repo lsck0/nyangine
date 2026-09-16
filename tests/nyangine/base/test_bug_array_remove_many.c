@@ -1,12 +1,5 @@
 /**
  * Regression test for the memmove size in nya_array_remove_many (base_array.h).
- *
- * The shift is sized
- *
- *     (arr_ptr)->length * sizeof(*items) - (start_index) - (count)
- *
- * instead of ((length - start_index - count) * sizeof(*items)). Unlike the insert variants this
- * reads as well as writes past the end, since the source is items + start_index + count.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

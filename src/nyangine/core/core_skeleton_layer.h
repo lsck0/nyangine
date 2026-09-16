@@ -1,9 +1,6 @@
 /**
  * @file core_skeleton_layer.h
  *
- * What makes a 3D character stop looking terrible: crossfades, layers with bone masks, animation
- * events, and two-bone IK.
- *
  * ```c
  * // A player that owns the transition rather than snapping between clips.
  * nya_skeleton_player_play(&player, skeleton, run_clip, .looping = true, .fade_s = 0.2F);
@@ -18,27 +15,6 @@
  * nya_skeleton_ik_two_bone(skeleton, &pose, shoulder, elbow, hand, target, pole);
  * nya_skeleton_palette(skeleton, &pose, palette);
  * ```
- *
- * **Everything here writes into `NYA_SkeletonPose`, which is a plain array of local bone transforms.**
- * That is core_skeleton.h's one design idea and this is what it was for: a layer, a mask and an IK
- * solver are all "write some bones after the clip did", and none of them needed the clip system to know
- * they existed.
- *
- * **Crossfade, not a state machine.** A player holds an outgoing clip and an incoming one and blends
- * between them over a fade. Two clips are evaluated during a transition and one the rest of the time,
- * which is the honest cost. `nya_skeleton_player_inertial` swaps that for the technique that evaluates
- * one throughout — see core_skeleton_inertial.h — which is what a game with several transitions a
- * second wants. Both are here because they are not the same thing: a crossfade is still right when the
- * two clips are genuinely both happening.
- *
- * **A mask is a weight per bone, not a set.** Partial weights are what let a layer taper out along the
- * spine instead of ending at one joint, and a hard 0/1 mask makes the seam between an aiming torso and
- * a running pelvis visible as a crease.
- *
- * **Root motion is extracted at playback, not baked.** Clips are already sampled onto a fixed grid, so
- * the distance a clip moves its root over one step is two reads and a subtraction — no importer change,
- * and it stays a per-character decision rather than a property of the asset. See
- * nya_skeleton_player_root_motion.
  * */
 #pragma once
 
@@ -81,10 +57,6 @@ typedef struct NYA_RootMotion          NYA_RootMotion;
 
 /**
  * How far the root bone moved this update, in the character's own space.
- *
- * What the game applies to whatever actually owns the character's position — a physics body, an
- * entity transform, a controller. The animation decides how far a step goes; the game decides
- * whether the wall in front stops it. That division is the whole point of extracting it.
  * */
 struct NYA_RootMotion {
     f32x3          translation;
@@ -93,9 +65,6 @@ struct NYA_RootMotion {
 
 /**
  * A weight per bone, in [0, 1]. Zero means the layer does not touch that bone at all.
- *
- * Weights rather than a bitmask so a layer can *taper*: an aiming layer at full strength on the chest
- * and half on the waist bends the whole torso, where a hard cutoff creases at one joint.
  * */
 struct NYA_SkeletonMask {
     f32 weights[NYA_SKELETON_MAX_BONES];
@@ -179,10 +148,6 @@ struct NYA_SkeletonPlayer {
 
     /**
      * Set by `play` and consumed by the next `update`, which is where the transition is captured.
-     *
-     * Deferred because capturing needs the destination's velocity, and that needs a frame delta —
-     * which `play` does not have and `update` does. Nothing is lost by waiting: the transition begins
-     * on the frame the new clip first appears either way.
      * */
     f32 pending_inertial_s;
 
@@ -190,10 +155,6 @@ struct NYA_SkeletonPlayer {
 
     /*
      * Events are attached to the player rather than to the clip.
-     *
-     * A clip is baked asset data shared by every character playing it, and its event list is a game's
-     * annotation — two characters can want different markers on the same walk. Keeping them here also
-     * means adding events needs no change to the asset pipeline.
      */
     const NYA_SkeletonEvent* events;
     u32                      event_count;
@@ -214,10 +175,6 @@ struct NYA_SkeletonPlayer {
 
     /**
      * Which translation axes to take, one per component, normally { 1, 0, 1 }.
-     *
-     * Per axis rather than all or nothing because vertical is usually not movement: a walk cycle's
-     * root bobs up and down, and handing that bob to the game as displacement makes the character
-     * hop. A jump clip is the case that wants { 1, 1, 1 }.
      * */
     f32x3 root_motion_axes;
 
@@ -239,10 +196,6 @@ NYA_API void nya_skeleton_mask_fill(const NYA_Skeleton* skeleton, f32 weight, OU
 
 /**
  * A mask covering `root` and everything below it, at full weight, and nothing else.
- *
- * The usual way to build an upper-body mask: name the spine, get the spine and every arm, hand and head
- * hanging off it. Returns false when the bone does not exist, rather than producing an empty mask that
- * would silently make the layer do nothing.
  * */
 NYA_API b8 nya_skeleton_mask_from_bone(const NYA_Skeleton* skeleton, NYA_ConstCString root, OUT NYA_SkeletonMask* out_mask);
 
@@ -251,9 +204,6 @@ NYA_API void nya_skeleton_mask_set(const NYA_Skeleton* skeleton, NYA_SkeletonMas
 
 /**
  * Blends `to` over `from` per bone, scaled by `mask`. A null mask is every bone at full weight.
- *
- * The masked counterpart of nya_skeleton_pose_blend, which mixes every bone by one scalar and so cannot
- * express a layer.
  * */
 NYA_API void nya_skeleton_pose_blend_masked(const NYA_SkeletonPose* from, const NYA_SkeletonPose* to, f32 amount,
                                             const NYA_SkeletonMask* mask, OUT NYA_SkeletonPose* out_pose);
@@ -263,9 +213,6 @@ NYA_API void nya_skeleton_player_init(NYA_SkeletonPlayer* player, const NYA_Skel
 
 /**
  * Plays `clip`, crossfading from whatever was playing.
- *
- * Playing the clip that is already current is a no-op unless `.restart` is set, so a caller can drive
- * this from a state check every frame without restarting the animation every frame.
  * */
 NYA_API void nya_skeleton_player_play_with_options(NYA_SkeletonPlayer* player, const NYA_SkeletonClip* clip,
                                                    NYA_SkeletonPlayOptions options);
@@ -288,28 +235,11 @@ NYA_API void nya_skeleton_player_layer_weight(NYA_SkeletonPlayer* player, u32 sl
 
 /**
  * Turns root motion on for `bone`, or off when `bone` is null.
- *
- * From here on each update reports how far that bone moved and then pins it, so the character
- * animates in place and the *game* is what moves it. Both halves matter: reporting without pinning
- * moves it twice, and pinning without reporting leaves it running on the spot.
- *
- * `translation_axes` is a per component multiplier — { 1, 0, 1 } is the usual one, taking the
- * horizontal travel and leaving the vertical bob in the pose. `rotation` takes the root's turn as
- * well, which turn-in-place clips need and strafing clips do not.
- *
- * Returns false when the bone does not exist, rather than silently leaving it off.
- *
- * Pinning restores the bone's *rest* transform on the extracted axes. Not the clip's first frame:
- * during a crossfade there are two first frames and no reason to prefer either, and the rest pose is
- * the one thing both clips are expressed relative to.
  * */
 NYA_API b8 nya_skeleton_player_root_motion(NYA_SkeletonPlayer* player, NYA_ConstCString bone, f32x3 translation_axes, b8 rotation);
 
 /**
  * What the last update extracted. Zero when root motion is off or nothing is playing.
- *
- * Blended across a crossfade by the same curve as the pose, so a character transitioning from walk
- * to run accelerates rather than stepping between two speeds.
  * */
 NYA_API NYA_RootMotion nya_skeleton_player_root_delta(const NYA_SkeletonPlayer* player) __attr_no_discard;
 
@@ -318,13 +248,6 @@ NYA_API void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_ti
 
 /**
  * Transitions through `inertializer` instead of crossfading. Null restores the crossfade.
- *
- * `.fade_s` keeps meaning the same thing — how long the transition takes — but the mechanism changes:
- * the outgoing clip stops being evaluated the moment the new one starts, and the difference between
- * them is decayed instead. See core_skeleton_inertial.h for why that is usually the better trade.
- *
- * The inertializer is not copied and must outlive the player. Attaching one mid-transition is fine;
- * the crossfade in flight finishes first, because it is still what is producing the pose.
  * */
 NYA_API void nya_skeleton_player_inertial(NYA_SkeletonPlayer* player, NYA_SkeletonInertializer* inertializer);
 
@@ -333,15 +256,6 @@ NYA_API b8 nya_skeleton_player_fading(const NYA_SkeletonPlayer* player) __attr_n
 
 /**
  * Bends a two-bone chain so `end` reaches `target`, writing rotations into `pose`.
- *
- * Analytic rather than iterative: two bones and a target is a triangle, and the law of cosines gives the
- * answer exactly, in constant time, with no convergence to tune. FABRIK is for chains longer than this.
- *
- * `pole` decides which way the joint bends — the direction the elbow or knee should point. Without one a
- * solution exists but the limb is free to spin around the line from shoulder to hand, and it will.
- *
- * Returns false when the bones are not a chain or the pose is not for this skeleton. An unreachable
- * target is *not* a failure: the limb straightens toward it, which is what a real arm does.
  * */
 NYA_API b8 nya_skeleton_ik_two_bone(const NYA_Skeleton* skeleton, NYA_SkeletonPose* pose, s32 root_bone, s32 mid_bone, s32 end_bone,
                                     f32x3 target, f32x3 pole);

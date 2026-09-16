@@ -15,14 +15,6 @@ s32 main(void) {
 #if NYA_CODE_HOT_RELOAD
   /*
    * The named callback registry is compiled out of a test build.
-   *
-   * _nya_callback exists only under NYA_CODE_HOT_RELOAD (debug and developer). Elsewhere
-   * nya_callback carries the function pointer directly and the registry is not linked in,
-   * so this file compiled but failed to link with 'undefined symbol: _nya_callback'.
-   *
-   * Guarded rather than deleted: the body is still correct against the current API and
-   * compiles under a mode that has the subsystem. In NYA_EXECUTION_MODE=4 this test
-   * therefore asserts nothing, which is a real coverage gap, not a passing test.
    */
 
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };

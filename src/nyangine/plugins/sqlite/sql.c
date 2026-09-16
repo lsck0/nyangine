@@ -21,10 +21,6 @@ struct NYA_Database {
 
 /**
  * The sqlean bundle's entry point, defined in sqlean_extensions.c.
- *
- * Declared here rather than included from a header because that file has none: it is not part of
- * this translation unit, or of any header's interface — it is one object in libsqlean.a whose entire
- * public surface is this function.
  * */
 extern int nya_sqlean_init(sqlite3* db, char** error_message, const sqlite3_api_routines* api);
 
@@ -97,16 +93,6 @@ void nya_sql_close(NYA_Database* database) {
 
     /*
      * close_v2 rather than close, which refuses outright while any statement is still open.
-     *
-     * That refusal used to be a useful signal: every statement this module creates is finalized on
-     * the way out of the call that made it, so a busy connection meant a leak. It stopped being one
-     * when the extensions arrived. sqlean's `define` caches a prepared statement per user defined
-     * function on the connection, so a database that has ever run `define(...)` cannot be closed
-     * with sqlite3_close at all, and the error names unfinalized statements that no caller here has
-     * any way to reach.
-     *
-     * close_v2 marks the connection as closed and releases it once the last statement finalizes,
-     * which is the behaviour a caller wants and which the sanitizer builds confirm actually frees.
      */
     int code = sqlite3_close_v2(database->handle);
     if (code != SQLITE_OK) nya_log_error("could not close '%s': %s", database->path, sqlite3_errmsg(database->handle));
@@ -217,10 +203,6 @@ void _nya_sql_register_extensions(void) {
      * sqlite3_auto_extension takes a `void (*)(void)`, which no entry point actually is — SQLite
      * calls them back through the real signature. Every project that uses this API casts, upstream's
      * own documentation included, and there is no version of this that avoids the cast.
-     *
-     * Through a void* rather than directly between function pointer types because clang's
-     * -Wcast-function-type-strict rejects the direct form, and the two step cast is what the C
-     * standard's own footnote on this API amounts to anyway.
      */
     static const struct {
         NYA_ConstCString name;
@@ -318,10 +300,6 @@ NYA_Object* _nya_sql_row_to_object(sqlite3_stmt* statement, NYA_Arena* arena) {
 
             /*
              * Blobs come back base64 encoded rather than as bytes.
-             *
-             * NYA_Value has no byte array, and inventing one here would mean every consumer of a row
-             * — serde included — needing to learn about it. Base64 keeps a row a plain object that
-             * serializes to JSON unchanged, at the cost of a decode on the way out.
              */
             case SQLITE_BLOB: {
                 const u8* data = sqlite3_column_blob(statement, i);

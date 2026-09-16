@@ -14,24 +14,12 @@ struct NYA_Neat {
 
     /*
      * Two generation arenas, used alternately.
-     *
-     * A generation allocates a whole population of networks and throws the previous one away, so a
-     * single arena would grow without bound over a run. The next generation is built into the arena
-     * the current one is *not* in, and then the old one is reset — which is why both exist rather
-     * than one being reset in place while it is still being read from.
      */
     NYA_Arena* generation_allocators[2];
     u32        generation_allocator_index;
 
     /**
      * Holds nothing but the current best genome, and is reset before each new one is written.
-     *
-     * `best` used to be cloned straight into `allocator`, which is never reset — so every time
-     * fitness improved, another whole genome was allocated and the previous one leaked. Over a long
-     * run that is thousands of dead clones, and because arena allocation walks the region list it
-     * gets *slower* as it grows: a demo left running for eight minutes crawled from 200fps to 1.
-     *
-     * One arena holding one genome is bounded by construction.
      * */
     NYA_Arena* best_allocator;
 
@@ -39,9 +27,6 @@ struct NYA_Neat {
 
     /**
      * A pointer, and aligned by hand — see nya_nn_neat_create.
-     *
-     * NYA_RNG carries u64x4 vectors and so needs 32 byte alignment, which arena memory does not
-     * promise. Held inline it lands misaligned and the first AVX store into its state faults.
      * */
     NYA_RNG* rng;
 
@@ -52,11 +37,6 @@ struct NYA_Neat {
 
     /**
      * The innovations created this generation, cleared at the start of the next.
-     *
-     * The whole point of innovation numbers: the same structural change made independently by two
-     * genomes in one generation has to get the same number, or crossover cannot line them up. Only
-     * within a generation, because across generations the same change is genuinely a different
-     * event.
      * */
     NYA_ArrayᐸNYA_NeatConnectionᐳ* current_innovations;
     u32                            innovation_counter;
@@ -79,10 +59,6 @@ NYA_INTERNAL u32 _nya_nn_neat_index(NYA_RNG* rng, u32 count);
 
 /**
  * The innovation number for a connection between `in` and `out`.
- *
- * Reuses the number if that exact change already happened this generation, and mints a new one
- * otherwise. Both halves matter: reusing is what makes crossover work, and minting is what makes a
- * genuinely new structure distinguishable.
  * */
 NYA_INTERNAL u32 _nya_nn_neat_innovation_for(NYA_Neat* neat, u32 in, u32 out);
 
@@ -93,10 +69,6 @@ NYA_INTERNAL void _nya_nn_neat_mutate_add_node(NYA_Neat* neat, NYA_NeatNetwork* 
 /** A child of two parents, allocated from `arena`. Genes come from the fitter parent where they disagree. */
 /**
  * Working state for one generation, threaded through the five phases.
- *
- * Explicit rather than a pile of locals in one long function: every one of these is a value produced
- * by one phase and consumed by a later one, and naming them is what makes it possible to see which.
- * Lives on nya_nn_neat_step's stack and does not outlive it.
  * */
 typedef struct _NYA_NeatGeneration {
     /** The arena next generation is built in. The one the current population lives in is the other. */
@@ -143,11 +115,6 @@ NYA_INTERNAL NYA_NeatNetwork* _nya_nn_neat_crossover(NYA_Neat* neat, NYA_Arena* 
 
 /**
  * Sorts a genome's connections by innovation number.
- *
- * Kept as an invariant so _nya_nn_neat_distance can walk two genomes as a linear merge instead of
- * scanning one for every gene of the other. Innovation numbers mostly arrive in order already —
- * appends carry increasing numbers — but a mutation that *reuses* a number minted earlier in the
- * same generation can land out of order, so the invariant has to be restored rather than assumed.
  * */
 NYA_INTERNAL void _nya_nn_neat_sort_connections(NYA_NeatNetwork* network);
 
@@ -236,36 +203,15 @@ void nya_nn_neat_network_run(NYA_NeatNetwork* network) {
 
     /*
      * Double buffered, and that is not an optimization.
-     *
-     * Every node has to see the *previous* step's values, so updating in place would let a node read
-     * a neighbour that already advanced this step — which quietly turns a fixed number of steps into
-     * a depth dependent one, and makes the result depend on the order nodes happen to sit in.
      */
     /*
      * A fixed stack array, not an arena and not an unbounded alloca.
-     *
-     * This is the hottest function in the module — one call per genome per trial per generation — so
-     * an arena here cost more than the network evaluation itself, about eighteen milliseconds a run.
-     * But sizing an alloca by the node count is worse than slow: genomes grow without limit, so a
-     * long run eventually overflows the stack somewhere with no diagnostic at all. The cap makes the
-     * size known, and NYA_NEAT_MAX_NODES enforces it at the only place nodes are added.
      */
     f64 next[NYA_NEAT_MAX_NODES];
 
     /*
      * Incoming weight sums, gathered by one pass over the connections rather than by rescanning them
      * for every node.
-     *
-     * The obvious shape — for each node, walk every connection and keep the ones pointing at it — is
-     * O(nodes × connections) per step, and it re-reads the whole connection list once per node to
-     * use a handful of entries. Scattering into this array instead visits each connection once, for
-     * O(nodes + connections). On a mid-run genome of 61 nodes and 400 connections that is where
-     * almost all of the evaluation time went.
-     *
-     * The arithmetic is unchanged, not merely equivalent: connections are visited in array order
-     * either way, so the ones landing on a given node accumulate in the same order and the sums come
-     * out bit for bit identical. That matters because a run is reproducible from its seed, and a
-     * reassociated sum would quietly fork every evolution from the same seed onto a new path.
      */
     f64 sums[NYA_NEAT_MAX_NODES];
 
@@ -277,12 +223,6 @@ void nya_nn_neat_network_run(NYA_NeatNetwork* network) {
 
             /*
              * A gene naming a node this genome does not have is skipped rather than followed.
-             *
-             * The per-node version got this for free: an `out` past the end simply never matched a
-             * node index, so the gene was ignored. Indexing by it directly does not, and a stale
-             * index — from a loaded genome, or a crossover against a genome with fewer nodes — would
-             * be a write past the end of this array. `in` is checked for the same reason, where the
-             * old shape would have read out of bounds instead.
              */
             if (connection->in >= node_count || connection->out >= node_count) continue;
 
@@ -375,14 +315,6 @@ f64 nya_nn_neat_network_get_output(NYA_NeatNetwork* network, NYA_ConstCString la
 
 /*
  * Reading a number back out of a value, whatever numeric type it arrived as.
- *
- * The native format is lossless, so a file this engine wrote comes back with the types it wrote. JSON
- * is not: it carries no width or signedness, so an integer written as a u32 returns as an s64 and
- * checking for the exact type would reject the file the writer just produced. These accept anything
- * numeric, which covers JSON, hand edited files, and anything else that lands here.
- *
- * Returning success separately from the value, rather than a sentinel, because zero is a legitimate
- * node index, weight and innovation number.
  */
 NYA_INTERNAL b8 _nya_nn_neat_value_u32(const NYA_Value* value, OUT u32* out) {
     if (value == nullptr) return false;
@@ -449,10 +381,6 @@ NYA_Object* nya_nn_neat_network_to_object(NYA_Arena* arena, const NYA_NeatNetwor
 
     /*
      * A version tag, first.
-     *
-     * The format will change — an activation per node, or a recurrence flag, are both plausible —
-     * and a loader that can say "this is version 2, I understand 1" is the difference between a
-     * clear error and misreading old data as new.
      */
     nya_object_set(root, "version", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 1 });
     nya_object_set(root, "activation_steps", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = network->activation_steps });
@@ -573,10 +501,6 @@ NYA_Error nya_nn_neat_network_from_object(
 
         /*
          * Endpoints are checked against the node list rather than trusted.
-         *
-         * A connection naming a node that does not exist is an out of bounds read on every
-         * evaluation afterwards — and a save file is data from outside the program, so it has to be
-         * treated as capable of saying anything.
          */
         if (in >= node_count || out >= node_count) {
             return nya_error(NYA_ERROR_CORRUPT, "connection %llu refers to node %u/%u, but there are %u", (unsigned long long)i, in, out, node_count);
@@ -626,9 +550,6 @@ NYA_Error nya_nn_neat_network_load(
 
     /*
      * The object is parsed into the scratch arena; the network is built into the caller's.
-     *
-     * nya_serde_load_file detects the format from the bytes rather than the extension, so a genome
-     * loads whatever it was saved as and whatever it has since been renamed to.
      */
     NYA_Object* object = nullptr;
     NYA_TRY(nya_serde_load_file(&scratch, path, NYA_SERDE_NONE, &object));
@@ -651,14 +572,6 @@ NYA_Neat* nya_nn_neat_create(NYA_NeatConfig config) {
 
     /*
      * Region sizes stated rather than defaulted.
-     *
-     * The default is a gibyte, which is meant for an arena that lives as long as the process and
-     * would rather never grow. These do not qualify: the two generation arenas are reset every
-     * generation, ten times a second at the default pace, and the reset cost and the regions'
-     * eventual release both scale with how big the region is rather than with the population in it.
-     *
-     * Four mebibytes holds a default population comfortably. A larger one still works — a region is
-     * a floor, not a limit — it simply grows in four mebibyte steps.
      */
     const u64 neat_region_size = nya_mebyte_to_byte(4UL);
 
@@ -674,12 +587,6 @@ NYA_Neat* nya_nn_neat_create(NYA_NeatConfig config) {
 
     /*
      * The RNG, over-allocated and aligned up.
-     *
-     * nya_arena_alloc guarantees sixteen byte alignment; NYA_RNG needs thirty-two because of the
-     * u64x4 state it refills its buffer through. Storing it inline in this struct put it on a
-     * sixteen byte boundary half the time, and the fault then arrived not at creation but at the
-     * first buffer refill a thousand bytes of randomness later — which reads as a crash in the
-     * middle of evolution rather than as an alignment mistake at setup.
      */
     neat->rng = nya_rng_create_in(allocator, config.rng_seed);
 
@@ -693,10 +600,6 @@ NYA_Neat* nya_nn_neat_create(NYA_NeatConfig config) {
 
     /*
      * One species holding the whole population, all copies of the seed.
-     *
-     * They are identical, so they are trivially the same species; the first nya_nn_neat_step will
-     * split them apart as soon as mutation has made them different. Copies rather than references,
-     * because each has to mutate independently.
      */
     NYA_NeatSpecies initial = {
         .members = nya_array_create(generation, NYA_NeatNetwork),
@@ -762,10 +665,6 @@ NYA_NeatNetwork* nya_nn_neat_best(NYA_Neat* neat) {
 void _nya_nn_neat_apply_config_defaults(NYA_NeatConfig* config) {
     /*
      * Zero means unspecified throughout, and the values below are the ones from the paper.
-     *
-     * A zeroed NYA_NeatConfig would otherwise be a population of zero genomes with every mutation
-     * chance at zero, which does not fail — it runs, evolves nothing, and looks like NEAT not
-     * working rather than like a config that was never filled in.
      */
     if (config->population_size == 0) config->population_size = 150;
     if (config->activation_steps == 0) config->activation_steps = 3;
@@ -793,10 +692,6 @@ void _nya_nn_neat_apply_config_defaults(NYA_NeatConfig* config) {
 
     /*
      * Ten generations a second, and one per call.
-     *
-     * Zero used to mean "unlimited", which is the wrong default in a codebase where zero means "give
-     * me the sensible value" everywhere else — a config that simply did not mention pacing ran eight
-     * full generations every frame and hung the window. Ask for speed explicitly instead.
      */
     if (config->generations_per_second <= 0.0F) config->generations_per_second = 10.0F;
     if (config->max_steps_per_frame == 0) config->max_steps_per_frame = 1;
@@ -854,11 +749,6 @@ u32 _nya_nn_neat_innovation_for(NYA_Neat* neat, u32 in, u32 out) {
 
     /*
      * A fresh number, from the counter rather than from the length of the innovation list.
-     *
-     * The original took it from the list length and then pushed, incrementing the length a second
-     * time — so numbers advanced by two per innovation and the list grew holes. Since the numbers
-     * are the only thing lining genomes up during crossover, that quietly made crossover compare
-     * genes that were not the same gene.
      */
     u32 number = neat->innovation_counter++;
 
@@ -892,10 +782,6 @@ void _nya_nn_neat_mutate_add_connection(NYA_Neat* neat, NYA_NeatNetwork* network
     for (u32 attempt = 0; attempt < 32; attempt++) {
         /*
          * Indices over the *nodes*.
-         *
-         * The original drew these from connection_count, which is a different number entirely — on a
-         * seed genome with no connections that is a range of zero, so every candidate was node zero
-         * and no connection was ever added. It is the reason the topology never grew.
          */
         u32 in_index  = _nya_nn_neat_index(neat->rng, node_count);
         u32 out_index = _nya_nn_neat_index(neat->rng, node_count);
@@ -960,10 +846,6 @@ void _nya_nn_neat_mutate_add_node(NYA_Neat* neat, NYA_NeatNetwork* network) {
 
     /*
      * Weight one into the new node, the old weight out of it.
-     *
-     * That makes the split behave almost exactly like the connection it replaced at the moment it
-     * appears, so the genome is not immediately punished for having grown — which is the whole
-     * reason a new structure gets a chance to be tuned.
      */
     nya_array_push_back(
         network->connections,
@@ -1003,16 +885,6 @@ NYA_NeatNetwork* _nya_nn_neat_crossover(NYA_Neat* neat, NYA_Arena* arena, NYA_Ne
 
     /*
      * A linear merge over two innovation-sorted gene lists, the same walk _nya_nn_neat_distance does.
-     *
-     * This used to rescan the whole of `other` for every gene of `fitter`, which is O(n²) per child
-     * and runs once per member of every generation — the second of the two quadratic scans in the
-     * hot path. Both parents come out of a generation sorted (mutation is the only thing that can
-     * break the order, and the breeding loop re-sorts each child immediately after mutating it), so
-     * the merge is sound without sorting anything here.
-     *
-     * The walk only advances `other` and only *emits* from `fitter`: unmatched genes belong to the
-     * child when the fitter parent has them and are dropped when only the other parent does, which
-     * is the paper's rule for disjoint and excess.
      */
     u32 other_index = 0;
     u32 other_count = other->connections->length;
@@ -1076,18 +948,6 @@ f64 _nya_nn_neat_distance(const NYA_Neat* neat, const NYA_NeatNetwork* a, const 
 
     /*
      * A linear merge over two innovation-sorted gene lists.
-     *
-     * This used to scan every gene of one genome against every gene of the other, which is O(n²) —
-     * and it is called for every member against every species representative every generation, so it
-     * dominated the whole run. Sorting once per genome per generation and walking both lists in step
-     * is O(n) here and O(n log n) there, which is strictly cheaper as soon as a genome has more than
-     * a handful of genes.
-     *
-     * Excess and disjoint fall out of the merge rather than being tested for. A gene the walk steps
-     * over while both lists still have entries is disjoint, because it sits below a gene the other
-     * genome holds and is therefore inside the overlapping range. A gene left after one list runs
-     * out is excess, because it is past everything the other genome has. Neither needs the other
-     * genome's highest innovation number, which is why it is not computed.
      */
     u32 a_count = (u32)a->connections->length;
     u32 b_count = (u32)b->connections->length;
@@ -1115,14 +975,6 @@ f64 _nya_nn_neat_distance(const NYA_Neat* neat, const NYA_NeatNetwork* a, const 
         /*
          * Whichever side is behind holds a gene the other does not have at all, and inside the loop
          * that gene is always disjoint rather than excess.
-         *
-         * Both lists are innovation sorted, so the side that is behind sits below a gene the other
-         * genome does hold — which puts it inside the overlapping range by definition. There used to
-         * be a test on each arm sorting excess from disjoint here against the other genome's highest
-         * innovation number; neither arm could ever take the excess branch, since `ga < gb <=
-         * b_highest` on one and the mirror of it on the other.
-         *
-         * Excess is what is left over once one list runs out, and that is counted after the loop.
          */
         disjoint += 1.0;
 
@@ -1135,10 +987,6 @@ f64 _nya_nn_neat_distance(const NYA_Neat* neat, const NYA_NeatNetwork* a, const 
 
     /*
      * N is the longer genome, but one for small ones.
-     *
-     * The paper normalizes by genome size so a difference of two genes means less in a large network
-     * than a small one — but below about twenty genes that division makes every genome look
-     * compatible with every other, and the population collapses to a single species.
      */
     f64 n = (f64)nya_max(a_count, b_count);
     if (n < 20.0) n = 1.0;
@@ -1181,9 +1029,6 @@ u32 nya_nn_neat_step_for(NYA_Neat* neat, f32 delta_time_s) {
      * The generation count is a budget on how many, not on how long. See max_step_milliseconds:
      * evaluate scales with the population's total connection count, so the cost of one generation is
      * not a constant and a count alone stops bounding the frame the moment the population bloats.
-     *
-     * Checked between generations, so the first one always runs — a budget that can decline to make
-     * any progress is a budget that stalls evolution completely on a slow machine.
      */
     u64 started_ns  = nya_clock_get_monotonic_ns();
     u64 budget_ns   = (u64)(neat->config.max_step_milliseconds * 1'000'000.0);
@@ -1218,12 +1063,6 @@ void nya_nn_neat_step(NYA_Neat* neat) {
 
     /*
      * A generation is five phases over one piece of shared working state.
-     *
-     * Written as one 290 line function with a single log line in it, which made every failure mode
-     * — extinction, a species count that will not fall, offspring counts flooring to zero — a
-     * bisect through a wall of code with nothing to attach a breakpoint or a print to. Each phase is
-     * now its own function against an explicit _NYA_NeatGeneration, and the observer fires between
-     * them, so "where did the population go" is answerable without editing this file.
      */
     _NYA_NeatGeneration generation = {
         // Into the *other* arena, so the population being read from stays valid until the swap at
@@ -1327,11 +1166,6 @@ void _nya_nn_neat_phase_evaluate(NYA_Neat* neat, _NYA_NeatGeneration* generation
         /*
          * Snapshotted, because the population arena this lives in is about to be reset and the
          * caller may hold this pointer for the rest of the run.
-         *
-         * Into its own arena, reset first. Cloning into the context arena instead leaked a genome per
-         * improvement — see NYA_Neat.best_allocator. Resetting invalidates the previous best, which
-         * is correct: a caller is holding "the best network", not "the network that was best at some
-         * particular moment", and it was already going to change under them.
          */
         nya_arena_free_all(neat->best_allocator);
 
@@ -1392,13 +1226,6 @@ void _nya_nn_neat_phase_cull(NYA_Neat* neat, _NYA_NeatGeneration* generation) {
 
     /*
      * Stagnation culling, with the last species always spared.
-     *
-     * A species that stops improving is barred from breeding — but once the population has converged
-     * to a single species, and that species has found the answer and therefore *cannot* improve, the
-     * rule culls the only thing left and wipes the population out. Not hypothetical: on XOR it fired
-     * every twenty generations or so, and only ever once the problem was already solved.
-     *
-     * So the filter is counted first, and if it would leave nothing, the best species is spared.
      */
     u32 survivors = 0;
     nya_array_foreach (neat->species, species) {
@@ -1443,16 +1270,6 @@ NYA_NeatSpecies _nya_nn_neat_breed_species(NYA_Neat* neat, _NYA_NeatGeneration* 
     /*
      * Offspring in proportion to the species' share of the total adjusted fitness — floored at one,
      * which is the part that matters.
-     *
-     * Truncating the share outright is a population killer: fitness sharing drives every share down
-     * as the species count rises, so past roughly a dozen species *every* share floors to zero,
-     * nothing breeds, and the whole population goes extinct in one step. That showed up as the
-     * extinction guard firing every twenty generations or so and the average fitness never
-     * recovering, while the best genome looked fine because it was being preserved separately.
-     *
-     * A surviving species therefore always gets at least one child. That can overshoot
-     * population_size slightly, which is harmless — the next generation's shares are computed from
-     * whatever is actually there.
      */
     f64 share = generation->adjusted_grand_total > 0.0
                     ? species->fitness_adjusted_total / generation->adjusted_grand_total
@@ -1460,18 +1277,6 @@ NYA_NeatSpecies _nya_nn_neat_breed_species(NYA_Neat* neat, _NYA_NeatGeneration* 
 
     /*
      * Clamped before the cast, because a trial function is allowed to return a negative fitness.
-     *
-     * Fitness sharing divides by the total across species, and if some of those totals are negative
-     * the quotient can be negative or wildly greater than one. Casting either to u32 is undefined
-     * behaviour, and it is not theoretical: an agent scored on "reward collected minus a cost per
-     * step" goes negative the moment it collects nothing, and this crashed with
-     * "-22.3209 is outside the range of representable values of type 'unsigned int'".
-     *
-     * A negative share means the species is worse than nothing relative to the rest, and the honest
-     * translation of that is the smallest allocation there is — which the floor below gives it.
-     * Clamping here rather than demanding non-negative fitness from the caller: the caller's scale
-     * is their business, and a library that corrupts memory when handed a negative number is the
-     * library's bug.
      */
     share = nya_clamp(share, 0.0, 1.0);
 
@@ -1569,10 +1374,6 @@ void _nya_nn_neat_phase_respeciate(NYA_Neat* neat, _NYA_NeatGeneration* generati
 
     /*
      * Extinction guard.
-     *
-     * Every species stagnant at once, or a population size small enough that every share rounded to
-     * zero, leaves nothing to breed from next generation. Carrying the best genome forward is the
-     * difference between a stalled run and one that cannot continue at all.
      */
     if (generation->respeciated->length == 0 && neat->best != nullptr) {
         NYA_NeatSpecies fallback = { .members = nya_array_create(generation->next_arena, NYA_NeatNetwork) };
@@ -1597,27 +1398,11 @@ void _nya_nn_neat_phase_respeciate(NYA_Neat* neat, _NYA_NeatGeneration* generati
 
     /*
      * The compatibility threshold is retuned against the species count this generation produced.
-     *
-     * A proportional controller with a fixed step rather than anything cleverer: the measurement is
-     * an integer that moves in ones, so the loop only ever needs to know which side of the target it
-     * landed on. Too few species means genomes that ought to be distinct are being pooled, so the
-     * threshold comes down; too many means it is splitting on noise, so it goes up.
-     *
-     * Nudged after respeciation rather than before it, so a generation is speciated by the threshold
-     * that was in force when its offspring were bred, and the correction lands on the next one.
-     *
-     * Off unless target_species_count is set, because a caller that tuned a fixed threshold by hand
-     * for a specific problem should keep getting exactly that threshold.
      */
     if (config->target_species_count == 0) return;
 
     /*
      * Proportional to the relative error, not a fixed step in whichever direction.
-     *
-     * A fixed step is bang-bang control and it hunts: at twelve generations a second the threshold
-     * moves 3.6 units per second regardless of how close it already is, so the species count swung
-     * between 1 and 23 and never settled at the target between them. Scaling by error/target makes a
-     * large miss correct quickly and a near miss barely move, which is what damps the oscillation.
      */
     u32 count = (u32)generation->respeciated->length;
     f64 error = ((f64)count - (f64)config->target_species_count) / (f64)config->target_species_count;

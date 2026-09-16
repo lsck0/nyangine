@@ -1,34 +1,5 @@
 /**
  * @file nn_simd.h
- *
- * The handful of float32 kernels every tensor op is built out of, vectorized.
- *
- * ## Why these and not a library
- *
- * Every op in nn_tensor.c reduces to one of five shapes: an elementwise pass over two arrays, a
- * scaled accumulate (`y += a·x`), a dot product, a horizontal sum, and a masked accumulate for
- * ReLU's backward. Writing those five once here is what lets matmul, bias, add, sub, mul, scale,
- * sum, mean, MSE and Huber all get wider without any of them containing an intrinsic.
- *
- * ## Why AVX2 rather than SDL's GPU compute
- *
- * nn is compiled into the build tool, which builds with -DNYA_NO_SDL and therefore has no SDL to
- * call — nyangine.c includes nn.c outside the `#ifndef NYA_NO_SDL` guard, which is the same reason
- * nn_draw.c and nn_neat_draw.c live with the renderer instead of here. Beyond the layering, the
- * shapes involved are small: a DQN batch is 64 rows through 96-wide layers, and the result is needed
- * by the very next act() call. Per-dispatch latency and readback would cost more than the arithmetic
- * saved.
- *
- * ## Accumulation order
- *
- * The reductions here sum four or eight partial lanes and combine them at the end, so they do not
- * produce the same bits as a sequential scalar loop — floating point addition is not associative.
- * The result is not *less* accurate (pairwise summation over lanes is typically better than a single
- * running total), but it is different, so a test asserting on exact equality with a scalar reference
- * will need a tolerance.
- *
- * The scalar fallback below is not dead code: CFLAGS names -mavx2, which is x86 only, so an ARM or
- * WASM target compiles the plain loops and still gets correct answers.
  * */
 #pragma once
 
@@ -44,14 +15,6 @@
 
 /*
  * Fused multiply-add, or the two instructions it replaces.
- *
- * AVX2 and FMA3 are separate feature bits and -mavx2 does not imply -mfma, even though every part
- * that shipped with one has the other. CFLAGS names both, so the fused form is what actually gets
- * compiled here; the fallback exists so this header stays correct under any flag set rather than
- * failing to build, which is what it did before the flag was added.
- *
- * Not merely a speed difference: the fused form rounds once instead of twice, so the two paths can
- * disagree in the last bit. Nothing here depends on which one it got.
  */
 #if _NYA_NN_SIMD && defined(__FMA__)
 #define _nya_nn_fmadd(a, b, c) _mm256_fmadd_ps(a, b, c)
@@ -186,10 +149,6 @@ __attr_allow_unused NYA_INTERNAL inline void nya_nn_simd_relu(f32* out, const f3
 
 /**
  * `grad[i] += upstream[i]` wherever `gate[i] > 0`. ReLU's backward.
- *
- * Branchless: the comparison produces a lane mask of all ones or all zeros, and ANDing the upstream
- * gradient with it adds zero where the unit was dead. A per element branch here would mispredict on
- * roughly half the lanes of a typical activation.
  * */
 __attr_allow_unused NYA_INTERNAL inline void nya_nn_simd_relu_backward(f32* grad, const f32* gate, const f32* upstream, u32 count) {
     u32 i = 0;

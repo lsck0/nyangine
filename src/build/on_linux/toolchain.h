@@ -1,13 +1,5 @@
 /**
  * @file toolchain.h
- *
- * Which tools a Linux host uses to produce each target.
- *
- * Everything here answers "what is doing the building", never "what is being built". Keeping it in
- * one file per host is what lets the vendor rules and the project rules stay declarative: a rule
- * names a toolchain macro and never has to ask which machine it is running on.
- *
- * Producing Windows binaries from here means cross compiling with mingw-w64.
  * */
 #pragma once
 
@@ -15,9 +7,6 @@
 
 /*
  * Cross compiling to Windows, so clang has to be pointed at the target explicitly.
- *
- * The trailing comma belongs to the macro, not to the use site, because the other host defines this
- * empty and `FLAGS, , FLAGS` is not an expression. Same convention as NYA_LUAJIT_CROSS below.
  * */
 #define FLAGS_TARGET_WINDOWS_X86_64 "--target=x86_64-w64-mingw32",
 

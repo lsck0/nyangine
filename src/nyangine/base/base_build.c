@@ -65,11 +65,6 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
 
     /*
      * Preparation is sequential; only the commands overlap.
-     *
-     * Dependencies and vendors are shared between these rules by construction — twenty test binaries
-     * all want the same SDL — so preparing them concurrently would be twenty processes racing to
-     * write the same artifact. Doing it here, in order, is both correct and nearly free: it is the
-     * compile that takes the time, not the bookkeeping.
      */
     for (u32 i = 0; i < count; i++) {
         NYA_BuildRule* rule = build_rules[i];
@@ -99,16 +94,6 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
 
     /*
      * Spawned in batches of max_jobs, each batch drained before the next starts.
-     *
-     * The obvious shape — refill a slot as soon as one frees — needs a "wait for whichever of these
-     * finishes first" primitive, and neither waitpid nor WaitForSingleObject gives that portably.
-     * Written without one, the reaper refills a slot and then immediately blocks on the rule it just
-     * started, while the rules spawned a second earlier sit finished and unreaped: the pipeline
-     * degenerates to serial after the first batch, which measured as an eight percent improvement
-     * where it should have been eightfold.
-     *
-     * Batching gives up only the tail of each batch, and these commands are near enough the same
-     * length — every test compiles the same engine — that the tail is small.
      */
     for (u32 batch_start = 0; batch_start < count && result.ok; batch_start += max_jobs) {
         u32 batch_end = nya_min(batch_start + max_jobs, count);
@@ -231,26 +216,73 @@ NYA_Error nya_vendor_build_all(NYA_VendorRule** vendors) {
     return NYA_OK;
 }
 
+/**
+ * The newest modification time under `path`, or zero when it cannot be read.
+ *
+ * Used to decide whether the build tool is stale. A walk rather than one stat, because the tool is
+ * compiled from whole trees and NYA_BUILD_IF_OUTDATED compares a single input against a single output —
+ * which for this rule would mean watching build.c and missing every header it includes.
+ * */
+NYA_INTERNAL b8 _nya_build_newest_callback(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
+    nya_unused(path);
+
+    if (entry->type == NYA_FILE_TYPE_FILE) {
+        u64* newest = user_data;
+        if (entry->modified_at > *newest) *newest = entry->modified_at;
+    }
+
+    return true;
+}
+
+NYA_INTERNAL u64 _nya_build_newest_under(NYA_ConstCString path) {
+    u64 newest = 0;
+
+    NYA_Arena* arena = nya_arena_create();
+    if (arena == nullptr) return 0;
+
+    // Failure reads as "unknown", and the caller treats unknown as stale — so a directory that cannot be
+    // walked rebuilds rather than silently pinning the tool at whatever it last was.
+    NYA_Error error = nya_filesystem_walk(arena, path, _nya_build_newest_callback, &newest);
+
+    nya_arena_destroy(arena);
+
+    return error.ok ? newest : 0;
+}
+
 void nya_rebuild_yourself(s32* argc, NYA_CString* argv, NYA_Command cmd) {
     NYA_CString marker = "--no-rebuild"; // appended to argv
 
     /*
      * The whole argument list is scanned, not only the last slot.
-     *
-     * This marker doubles as a documented user flag — see cli.c, "Don't rebuild the build system
-     * before executing the command" — and the parser accepts flags in any position. Matching only
-     * the tail meant `./build --no-rebuild run test` rebuilt and re-exec'd anyway, which is the one
-     * thing it was asked not to do; it happened to work only when the flag landed last.
-     *
-     * The trailing occurrence is dropped because that is where the re-exec below appends it, and the
-     * parser should not see an argument the user did not type. Dropping a user's own trailing copy
-     * costs nothing: skipping the rebuild is the flag's entire effect, and it has already happened.
      */
     for (s32 i = 1; i < *argc; i++) {
         if (!nya_string_equals(argv[i], marker)) continue;
 
         if (i == *argc - 1) *argc -= 1;
         return;
+    }
+
+    /*
+     * Nothing to do when no source is newer than the tool.
+     *
+     * This used to be NYA_BUILD_ALWAYS, so every invocation of the tool recompiled it first — 1.18s before
+     * `./build --help` could print anything, against 0.012s with --no-rebuild. That is the edit-run loop
+     * paying a full compile to answer a question it already knew.
+     *
+     * The trees are the ones FLAGS_BUILD_TOOL actually compiles: build.c itself, the build system, and the
+     * engine base it includes. Deliberately wider than the true include set — a walk is a few hundred
+     * stats and a missed dependency is a stale tool, so the cheap error is to over-walk.
+     */
+    u64 tool_modified = 0;
+
+    if (nya_filesystem_last_modified(argv[0], &tool_modified).ok && tool_modified > 0) {
+        u64 newest = _nya_build_newest_under("src");
+
+        u64 entry_modified = 0;
+        if (nya_filesystem_last_modified("build.c", &entry_modified).ok && entry_modified > newest) newest = entry_modified;
+
+        // Zero means a walk failed, which is read as stale rather than as up to date.
+        if (newest > 0 && newest <= tool_modified) return;
     }
 
     NYA_BuildRule rule = {
@@ -368,11 +400,6 @@ NYA_Error _nya_build_always(NYA_BuildRule* build_rule) {
 
 /**
  * Runs a rule's command and reports what happened.
- *
- * Split out from _nya_build_always so that the caller's cleanup, undoing the vendor flag splice and
- * running the post-build hooks, cannot be jumped over. This used to be inline behind a `goto
- * skip_build`, which meant any NYA_TRY added here would silently skip the un-splice and leave the
- * rule accumulating duplicate flags on every subsequent build.
  * */
 NYA_INTERNAL NYA_Error _nya_build_run(NYA_BuildRule* build_rule) {
     if (build_rule->is_metarule) {
@@ -407,12 +434,6 @@ NYA_INTERNAL void _nya_build_report(NYA_BuildRule* build_rule) {
 
     /*
      * A failure goes to stderr, and stdout is flushed first.
-     *
-     * Both matter because the caller's next move is to throw, and throwing ends the process without
-     * unwinding. stdout is block buffered when the build is piped to a file or a CI log, so a
-     * compiler diagnostic printed to it is simply lost — the log showed the thrown error and a stack
-     * trace with no hint of what the compiler actually said. stderr is unbuffered, and flushing
-     * stdout first keeps the [BUILDING] line above its own failure rather than after it.
      */
     fflush(stdout);
 
@@ -449,10 +470,6 @@ NYA_INTERNAL u32 _nya_build_append_flags(NYA_BuildRule* build_rule, u32 at, NYA_
 /**
  * Appends every listed vendor's includes, cflags and linker flags to the command, and returns the
  * argument count from before, so the caller can restore it afterwards.
- *
- * Includes and cflags for all vendors go first, then the linker flags for all vendors. Archives
- * and -l flags have to sit after the sources they resolve symbols for, and grouping them keeps the
- * order predictable when one vendor needs symbols from another.
  * */
 NYA_INTERNAL u32 _nya_build_apply_vendors(NYA_BuildRule* build_rule) {
     u32 original_count = _nya_build_argument_count(&build_rule->command);

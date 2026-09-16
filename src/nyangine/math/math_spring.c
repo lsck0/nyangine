@@ -8,14 +8,6 @@
 
 /**
  * The coefficients of one implicit integration step, shared by every spring below.
- *
- * Implicit rather than explicit or semi-implicit Euler, because only this one is *unconditionally*
- * stable. The others have a step limit around `omega * dt < 2`, and both an overdamped spring and a
- * stiff one cross it at an ordinary sixty hertz — a damping ratio of 3 at 4 Hz, or 20 Hz at any
- * damping, produce NaN within a few frames. Solving the step implicitly has no such limit: a huge
- * step lands on the target instead of diverging, which is the behaviour a stall should have anyway.
- *
- * This is the formulation Erin Catto uses for soft constraints, rearranged for one degree of freedom.
  */
 typedef struct {
     f32 det_inv;

@@ -1,24 +1,5 @@
 /**
  * The Discord presence payload, and the frame it travels in.
- *
- * There is no Discord client in CI, so what can be tested is everything up to the socket: the JSON
- * that would be sent, the framing around it, and the change detection that decides whether to send
- * at all. That is where the bugs are — a malformed frame is answered by the client closing the
- * connection with no diagnostic, so "it produced valid JSON" is the whole safety net.
- *
- * Two behaviours in particular are load bearing.
- *
- * **Escaping.** A player's party name reaches this code. An unescaped quote in it produces a frame
- * that ends the connection, and a control character produces JSON no parser accepts.
- *
- * **Change detection by content, not by pointer.** A caller formatting its details line into a
- * stack buffer hands over a different pointer every frame with identical bytes behind it. Comparing
- * pointers would report a change every frame and write to the socket every frame, which is exactly
- * what the rate limiter exists to prevent.
- *
- * Reaches the module's internals directly. That is what a unity build is for, and the alternative —
- * exposing a payload builder publicly so a test can call it — would widen the API for the test's
- * sake.
  **/
 
 #include "nyangine/nyangine.c"
@@ -70,11 +51,6 @@ s32 main(void) {
 
     /*
      * Pumping is safe whether or not a client is there, and that is all this can assert.
-     *
-     * Whether it connects depends on the machine — a developer's desktop has Discord running and CI
-     * does not — so pinning the status to DISCONNECTED would be a test that passes only where
-     * nobody uses the feature. What must hold everywhere is that the pump never faults and never
-     * puts the module back to OFF, which is deinit's answer and nothing else's.
      */
     for (u32 i = 0; i < 8; i++) nya_discord_pump();
 
@@ -348,16 +324,6 @@ s32 main(void) {
   {
     /*
      * The reconnect storm, found by pointing the plugin at a real Discord client.
-     *
-     * Discord answers an unrecognised application id by *accepting* the socket and then replying
-     * `{"code":4000,"message":"Invalid Client ID"}` with a CLOSE frame. That path armed no backoff —
-     * only a failed connect() did — so the next pump reconnected at once, and a game shipped with
-     * the wrong id opened a socket, wrote a handshake and was hung up on sixty times a second for
-     * as long as it ran. Measured against the live client: 180 connect attempts in three seconds
-     * before the fix, two after.
-     *
-     * The backoff is also no longer reset by a successful connect, because opening the socket is not
-     * success — the client has not yet said whether it will talk to us. Only READY resets it.
      */
     nya_discord_deinit();
     nya_assert(nya_discord_init(123456789012345678ULL).ok);
@@ -381,9 +347,6 @@ s32 main(void) {
 
     /*
      * And the pump respects it: with the retry armed into the future, nothing reconnects.
-     *
-     * This is the assertion that actually catches a regression, because it holds whether or not a
-     * Discord client is running — the module is in DISCONNECTED with a future deadline either way.
      */
     for (u32 i = 0; i < 16; i++) nya_discord_pump();
     nya_assert(nya_discord_status() == NYA_DISCORD_STATUS_DISCONNECTED, "pumping inside the backoff window does not reconnect");

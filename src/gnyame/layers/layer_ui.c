@@ -1,11 +1,5 @@
 /**
  * @file layer_ui.c
- *
- * The HUD: what the world costs, and what the keys do.
- *
- * Pushed last, so it draws over everything, and drawn entirely in screen pixels — the game layer
- * resets the camera at the end of its own render precisely so this one does not have to know a
- * camera exists.
  * */
 #include "gnyame/gnyame.h"
 
@@ -31,13 +25,6 @@ void gny_layer_ui_on_create(NYA_Window* window) {
 
     /*
      * The HUD's font, by name.
-     *
-     * Registered by gny_world_create, so what "ui" resolves to is one line there rather than a path
-     * and a point size at every call site — which is what render_font.h exists for. Set as the
-     * immediate-mode current font because most of this file still draws through nya_render2d_text*;
-     * the title below goes through nya_font_draw instead, which takes the font as a value.
-     *
-     * The face is rasterised on first use, not now, so this is safe before the asset has loaded.
      */
     NYA_Font ui = nya_font_named("ui");
 
@@ -66,11 +53,6 @@ void gny_layer_ui_on_event(NYA_Window* window, NYA_Event* event) {
 
     /*
      * Escape opens the pause menu. The only input this layer takes.
-     *
-     * It belongs here rather than in the game layer because it is about the application rather than
-     * the world, and it has to live on a layer that is *below* the pause menu — once that menu is
-     * pushed it sits above this one and answers the next escape itself, which is what makes one key
-     * both open and close it.
      */
     if (event->type != NYA_EVENT_KEY_DOWN) return;
     if (event->as_key_event.is_repeat) return;
@@ -111,12 +93,6 @@ void gny_layer_ui_on_render(NYA_Window* window) {
 
     /*
      * Falls back to a guessed line height while the "ui" face is still loading.
-     *
-     * nya_render2d_font_line_height() reads the TTF_Font directly and returns 0 until the asset
-     * system resolves it — which is normal for the first frame or two (see the note in on_create).
-     * Every stat line below adds this to advance `y`; left at zero, they all land on the same row
-     * and draw stacked on top of each other until the face finishes loading, which reads exactly
-     * like "positioning is off" even though it self-corrects a frame later.
      */
     f32 line = nya_render2d_font_line_height();
     if (line <= 0.0F) line = GNY_UI_FONT_SIZE * 1.2F;
@@ -135,10 +111,6 @@ void gny_layer_ui_on_render(NYA_Window* window) {
 
     /*
      * Work and period, not one number called "ms/frame".
-     *
-     * The period is what fps is computed from and is held at 8.3 ms by the 120 fps limiter however
-     * little the frame did — which reads as a slow frame and is the opposite. The work is what the
-     * frame actually cost, and on this demo it is a fraction of a millisecond. See NYA_FrameStats.
      */
     nya_render2d_textf(window, origin, y, GNY_UI_TEXT, "%.0f fps   work %.2f ms   period %.2f ms", (f64)stats.fps,
                    nya_time_ns_to_s(stats.work_ns) * 1000.0, nya_time_ns_to_s(stats.elapsed_ns) * 1000.0);
@@ -149,12 +121,6 @@ void gny_layer_ui_on_render(NYA_Window* window) {
 
     /*
      * Through the generated accessor rather than a literal.
-     *
-     * Awake beside the total because that is the number that costs: a settled pile is nearly free and
-     * a pile that never sleeps is a bug you cannot see any other way. The reason it is translated is
-     * narrower — `hud_boxes` is `"boxes %u (%u awake)"` and its German form reorders nothing, but the
-     * build checks that it *could not*, and a HUD that never used a translated format string would
-     * leave that check with nothing to check.
      */
     nya_render2d_text(window, nya_string_hud_boxes(boxes, awake), origin, y, GNY_UI_TEXT);
     y += line;
@@ -164,11 +130,6 @@ void gny_layer_ui_on_render(NYA_Window* window) {
 
     /*
      * What the network is doing, which on this demo is always something.
-     *
-     * Single player is a server with no remote peers rather than a mode with the networking switched
-     * off — see net.h — so there is always a peer count and it is always at least one. Showing it is
-     * the cheapest way to make that architecture visible instead of merely true: open a second copy
-     * with --connect and this number goes to two.
      */
     nya_render2d_text(window, nya_string_hud_players(nya_net_server_peer_count()), origin, y, GNY_UI_TEXT);
     y += line;
@@ -182,10 +143,6 @@ void gny_layer_ui_on_render(NYA_Window* window) {
 
     /*
      * What the cursor is on, which is the entity hover feeding back.
-     *
-     * A highlight would be the prettier demonstration and a worse one: a number that changes as the
-     * pointer crosses a crate shows that on_hover fired, while a colour change could equally be a
-     * shader doing something clever.
      */
     NYA_Entity* hovered = nya_entity_get(nya_entity_hovered());
 
@@ -194,22 +151,12 @@ void gny_layer_ui_on_render(NYA_Window* window) {
 
     /*
      * Non-ASCII on the HUD, deliberately.
-     *
-     * Not decoration: it is the only thing in this build that proves the atlas bakes a glyph nobody
-     * asked for at startup. Before the atlas grew past ASCII these five words drew as a row of gaps,
-     * which is what every translated string would have done — and now that the atlas is keyed by
-     * glyph index rather than codepoint, it is also what proves shaping resolved them.
      */
     nya_render2d_text(window, "unicode: Grüße · l'été · años · Ελλάδα · Привет", origin, y, GNY_UI_DIM);
     y += nya_render2d_font_line_height();
 
     /*
      * One line drawn through the font API rather than the immediate-mode current font.
-     *
-     * "AVATAR" because the pair AV is the canonical kerned one: shaping draws it visibly tighter than
-     * the sum of the two advances, and the old codepoint walk drew it tighter only for a face that
-     * happened to ship a legacy `kern` table. Measured with the same call the draw uses, so the box
-     * behind it cannot disagree with what lands in it.
      */
     NYA_Font title = nya_font_named("title");
 
@@ -244,10 +191,6 @@ void gny_layer_ui_on_render(NYA_Window* window) {
 
     /*
      * Three states, not two.
-     *
-     * "paused" and "never started" both read as silence, and telling them apart is the difference
-     * between a key that did not register and a track that failed to decode. The track is streamed,
-     * so a decode failure surfaces at play time rather than at load.
      */
     NYA_ConstCString music = !world->music_started ? "loading" : (nya_audio_music_playing() ? "playing" : "paused");
 
@@ -315,10 +258,6 @@ void _gny_ui_trace_draw(NYA_Window* window) {
 
     /*
      * The frame *before* this one, because this one has not finished.
-     *
-     * A span is only collectable once it has closed, and the outermost "frame" span closes after the
-     * render that is drawing this panel. Asking for the previous frame is the difference between a
-     * complete breakdown and one missing everything that encloses it.
      */
     u64 frame = nya_perf_frame_current();
     if (frame == 0) return;
@@ -346,11 +285,6 @@ void _gny_ui_trace_draw(NYA_Window* window) {
 
     /*
      * Percentages are against the frame's *work*, not against the outermost span.
-     *
-     * The "frame" span encloses the limiter's SDL_DelayNS, so at a 120 fps cap it reads 8.4 ms while
-     * everything inside it sums to a fifth of a millisecond — dividing by it made every real cost
-     * show as one or two percent and hid which of them actually dominated. Work is the number those
-     * spans are competing for.
      */
     NYA_FrameStats frame_stats = nya_app_get()->frame_stats;
 

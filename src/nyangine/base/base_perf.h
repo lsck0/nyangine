@@ -1,8 +1,6 @@
 /**
  * @file base_perf.h
  *
- * Debug performance measuring.
- *
  * Example:
  * ```c
  * nya_perf_timer_start("My Timer");
@@ -36,16 +34,6 @@
 
 /**
  * Whether the timers are compiled in.
- *
- * Development builds by default, and forcible either way, exactly as base_arena.h does for its own
- * proxies. Without the force flag the module could only ever be exercised in a development build,
- * which is why tests/nyangine/base/test_perf.c is one large #if that reports a pass while asserting
- * nothing — a test suite cannot cover a subsystem it has no way to switch on.
- *
- * NYA_DEVELOPMENT_BUILD rather than NYA_DEBUG, so the developer build carries the timers too. That
- * is the build worth profiling: debug is -O0 under four sanitizers, where the numbers describe the
- * instrumentation more than the code, while developer is -O2 with hot reloading and no sanitizers.
- * Measuring only the configuration nobody plays was the wrong default.
  * */
 #if (NYA_DEVELOPMENT_BUILD || defined(NYA_PERF_FORCE_DEBUG)) && !defined(NYA_PERF_FORCE_NODEBUG)
 #define NYA_PERF_ENABLED 1
@@ -69,11 +57,6 @@ nya_derive_array(NYA_PerfSpan);
 
 /**
  * NYA_PerfMeasurement
- *
- * The measurements are stored in a ring buffer, so to print in order:
- * for (u64 i = measurement->current + 1; i != measurement->current; i = (i + 1) % NYA_PERF_MEASUREMENT_SAMPLES) {}
- *
- * Alternatively, just access the last_elapsed_* members.
  */
 struct NYA_PerfMeasurement {
     NYA_ConstCString name;
@@ -93,20 +76,11 @@ struct NYA_PerfMeasurement {
 
     /**
      * Which frame each sample belongs to, as counted by nya_perf_frame_begin.
-     *
-     * Without this a sample is a pair of timestamps with nothing tying it to the frame it came
-     * from, so "what did frame 412 consist of" can only be answered by guessing at boundaries from
-     * the timestamps themselves. See nya_perf_frame_spans.
      * */
     u64 frame[NYA_PERF_MEASUREMENT_SAMPLES];
 
     /**
      * How many timers were already running when this sample started.
-     *
-     * Zero for a top level scope, one for something inside it, and so on. This is what turns a flat
-     * list of names into the shape of a frame: the update timer at depth 1 inside the frame timer
-     * at depth 0 is the nesting, and inferring it from timestamp containment afterwards guesses
-     * wrong the moment two scopes start on the same nanosecond.
      * */
     u32 depth[NYA_PERF_MEASUREMENT_SAMPLES];
 
@@ -121,9 +95,6 @@ struct NYA_PerfMeasurement {
 
 /**
  * One completed scope, as a frame breakdown sees it.
- *
- * A flattened view of one sample from one measurement, so a caller laying out a frame does not have
- * to hold a measurement pointer and an index and work out which of its parallel arrays to read.
  * */
 struct NYA_PerfSpan {
     NYA_ConstCString name;
@@ -141,9 +112,6 @@ struct NYA_PerfSpan {
 
 /**
  * Aggregates over a measurement's ring, so nobody hand writes the loop this header used to document.
- *
- * Covers the samples still in the ring — up to NYA_PERF_MEASUREMENT_SAMPLES of them — not the whole
- * history. total_runs on the measurement is the count that is not windowed.
  * */
 struct NYA_PerfStats {
     u64 sample_count;
@@ -167,15 +135,6 @@ struct NYA_PerfStats {
 
 /*
  * With the module compiled out, the readers return nothing rather than panicking.
- *
- * They used to panic, which made the whole API viral: anything that so much as looked at a timer
- * had to wrap itself in #if NYA_DEBUG or take the process down in a release build. tests/base/
- * test_perf.c is the proof — it is one large guard, and in NYA_EXECUTION_MODE=4 it therefore
- * asserts nothing at all while still reporting a pass.
- *
- * A null measurement and an empty span list are answers a caller can act on: "there is no timing
- * data here" is exactly true in a build with no timers, and a debug overlay that draws nothing is
- * the correct behaviour rather than a crash.
  */
 // clang-format off
 #if NYA_PERF_ENABLED
@@ -223,10 +182,6 @@ NYA_API NYA_ArrayᐸNYA_PerfMeasurementᐳ* _nya_perf_timer_get_all(void);
 
 /**
  * Starts a new frame for the purposes of timing, and returns nothing.
- *
- * Everything measured from here until the next call is tagged with the same frame number, which is
- * what nya_perf_frame_spans selects on. Call it once at the top of the frame loop; calling it more
- * often simply produces more, smaller frames, and never calling it leaves everything in frame 0.
  * */
 NYA_API void _nya_perf_frame_begin(void);
 
@@ -235,14 +190,6 @@ NYA_API u64 _nya_perf_frame_current(void) __attr_no_discard;
 
 /**
  * Collects every completed span belonging to `frame` into `out_spans`, ordered by start time.
- *
- * This is the frame breakdown: the spans come back in the order they began and each carries its
- * nesting depth, so printing them with `depth` levels of indent is the shape of the frame. Returns
- * how many were appended.
- *
- * Only spans still in their timer's ring can be returned, so asking about a frame more than
- * NYA_PERF_MEASUREMENT_SAMPLES ago gets a partial answer for the timers that ran most often. The
- * frame that just ended is always complete.
  * */
 NYA_API u32 _nya_perf_frame_spans(u64 frame, NYA_ArrayᐸNYA_PerfSpanᐳ* out_spans);
 

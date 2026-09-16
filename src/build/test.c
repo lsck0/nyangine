@@ -15,10 +15,6 @@ NYA_INTERNAL s32 _test_compare_paths(const NYA_String* a, const NYA_String* b);
 
 /**
  * Finds, builds and runs the tests, optionally under coverage instrumentation.
- *
- * One function for both because the two differ in three places — extra compile flags, an environment
- * variable naming the profile, and whether the binary is deleted afterwards — and everything else,
- * discovery and filtering and the parallel compile, is the same work. Two copies of it would drift.
  * */
 NYA_INTERNAL void _test_run_all(NYA_ArgCommand* command, b8 coverage);
 
@@ -54,15 +50,6 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
 
     /*
      * Two phases: compile everything at once, then run the binaries one at a time.
-     *
-     * Compiling is where the time goes — every test is a unity build of the whole engine at -O0 with
-     * four sanitizers, and doing them in sequence leaves every core but one idle for the length of
-     * the run. Running is cheap by comparison and stays serial on purpose: sanitizer reports go to
-     * stderr unbuffered, so concurrent failures would interleave into something unreadable, and a
-     * test that binds a port or touches a file would start racing its siblings.
-     *
-     * The rules are heap allocated because nya_build_parallel holds them across the whole batch,
-     * where the serial version only needed them for one iteration.
      */
     NYA_ArrayᐸNYA_BuildRulePointerᐳ* build_rules = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
     NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules   = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
@@ -102,17 +89,6 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
 
         /*
          * The same codegen the project rules get, and for the same reason.
-         *
-         * A test compiles the engine from source, so it reads src/generated/strings.h and
-         * src/generated/reflection.c exactly as the game does — and without this it read whatever
-         * those files happened to hold from the last `./build build`. Editing assets/i18n/en.json or
-         * an `@reflect` and running the tests then tested the previous generation of them, which is
-         * the one case where a green suite means nothing.
-         *
-         * Named on every rule rather than run once before the loop because that is what the build
-         * system already does with them: nya_build_parallel opens one epoch for the whole batch and
-         * builds a shared dependency once inside it, so a hundred test rules naming index_assets
-         * generate once. See its comment, and build_example, which is written this way already.
          */
         .dependencies = { &build_shaders, &index_assets, },
 
@@ -194,10 +170,6 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
 
             /*
              * One raw profile per test, named after it.
-             *
-             * The default is `default.profraw` in the working directory, which every test would
-             * write in turn — so the merge would see one test's counters and report everything else
-             * as dead. Naming them individually is what makes the merge mean anything.
              */
             u32 env_count = 0;
             while (env_count < NYA_COMMAND_MAX_ENV_VARS && run_test_rule->command.environment[env_count] != nullptr) env_count++;
@@ -257,10 +229,6 @@ void _test_report_coverage(NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules) {
 
     /*
      * Every test contributes a profile and a binary.
-     *
-     * llvm-cov wants one executable as its positional argument and the rest as -object, because a
-     * unity build compiles the whole engine into each test — the union across all of them is the
-     * coverage, and any single binary alone would report most of the tree as dead.
      */
     b8 first_object = true;
 

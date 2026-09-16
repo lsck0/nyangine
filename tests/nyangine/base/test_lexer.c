@@ -355,9 +355,6 @@ s32 main(void) {
 
   /*
    * Separated by a space, so not an opener.
-   *
-   * This is what the deserializers used to have to check by comparing source offsets, since they saw
-   * two symbol tokens and could not otherwise tell whether anything sat between them.
    */
   {
     NYA_Lexer spaced_lexer = nya_lexer_create("a / * b");

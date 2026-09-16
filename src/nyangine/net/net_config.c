@@ -8,20 +8,11 @@
 
 /**
  * Whether `argument` is `--name` or `--name=value`, and where the value is.
- *
- * Both spellings, because both are what people type — and because the attached form is the only one
- * that is unambiguous next to a positional. The same reasoning as base_args.c, which had a live bug
- * from supporting only the separated form.
- *
- * `out_attached` is the value when it was attached, and null when the value is the next argv entry.
  * */
 NYA_INTERNAL b8 _nya_net_config_matches(NYA_ConstCString argument, NYA_ConstCString name, OUT NYA_ConstCString* out_attached) __attr_no_discard;
 
 /**
  * The value for a flag: attached if there was one, otherwise the next argv entry.
- *
- * Advances `at` past a consumed entry. Null when there is no value, which every caller treats as "keep
- * the default" rather than as an error.
  * */
 NYA_INTERNAL NYA_ConstCString _nya_net_config_value(s32 argc, NYA_CString* argv, s32* at, NYA_ConstCString attached) __attr_no_discard;
 
@@ -139,19 +130,12 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
 
         /*
          * Anything else is ignored, at debug rather than warn.
-         *
-         * This is a shipped game's command line: Steam adds its own arguments, a launcher adds more,
-         * and a player's stale launch option must not cost them their game. A tool that wants to
-         * refuse unknown input uses base_args.h, which does exactly that.
          */
         nya_log_debug("Ignoring unrecognised launch argument '%s'.", argument);
     }
 
     /*
      * Contradictory. The server wins.
-     *
-     * A launch script naming both more likely meant to host — and the alternative, refusing to start,
-     * is the worst of the three outcomes for whoever wrote it.
      */
     if (wants_server && wants_connect) {
         nya_log_warn("Both --server and --connect were given; running as a server and ignoring --connect.");
@@ -240,9 +224,6 @@ NYA_ConstCString _nya_net_config_value(s32 argc, NYA_CString* argv, s32* at, NYA
 
     /*
      * The next entry is only a value if it does not itself look like a flag.
-     *
-     * The same trap base_args.c had: consuming it unconditionally means `--port --server` swallows
-     * `--server` and then complains that it is not a number, while the mode silently does not change.
      */
     if (argv[*at + 1][0] == '-' && argv[*at + 1][1] == '-') return nullptr;
 

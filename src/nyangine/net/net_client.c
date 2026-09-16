@@ -10,12 +10,6 @@
 
 /**
  * How far a prediction may be wrong before it is corrected, when the config does not say.
- *
- * Not zero. The server and the client run the same movement function in floating point, possibly on
- * different hardware with different rounding of the same expression, so tiny disagreements are
- * constant. Correcting for them would replay every command every tick for no visible benefit.
- *
- * A hundredth of a world unit: far below anything a player can see, far above float noise.
  * */
 #define _NYA_NET_CLIENT_DEFAULT_THRESHOLD 0.01F
 
@@ -43,26 +37,16 @@ typedef struct {
 
     /**
      * What this client controls, as the *server* names it. What WELCOME carried.
-     *
-     * The only name the two processes agree on, and therefore what a snapshot has to be matched
-     * against. Not usable with nya_entity_get: it indexes the server's table, not this one.
      * */
     NYA_EntityHandle entity_remote;
 
     /**
      * The same entity, as *this* process names it.
-     *
-     * Resolved through the replica map once the first snapshot has spawned it, so it is
-     * NYA_ENTITY_HANDLE_NONE for a tick or two after WELCOME. On a listen server the two handles are
-     * the same, because there is one table.
      * */
     NYA_EntityHandle entity_local;
 
     /**
      * Which local entity stands for which server entity. See NYA_NetReplicaMap.
-     *
-     * Unused on a listen server, where the client shares the server's world and applies no snapshots
-     * at all.
      * */
     NYA_NetReplicaMap replicas;
 
@@ -89,9 +73,6 @@ typedef struct {
 
     /**
      * Commands sent but not yet confirmed, by tick.
-     *
-     * A ring indexed by `tick % NYA_NET_COMMAND_HISTORY`, so finding the command for a tick is a
-     * modulo. Replayed after a correction, oldest first.
      * */
     NYA_NetCommand history[NYA_NET_COMMAND_HISTORY];
 
@@ -190,10 +171,6 @@ NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString na
 
         /*
          * Two arenas for the baseline, used alternately.
-         *
-         * Decoding a delta *reads* the current baseline and *produces* the next one. With one arena
-         * the reset that frees the old would invalidate what the decode is reading. Alternating means
-         * the previous baseline stays intact for exactly as long as it is needed.
          */
         .baseline_arena = nya_arena_create(.name = "net_client_baseline_a"),
         .baseline_spare = nya_arena_create(.name = "net_client_baseline_b"),
@@ -241,10 +218,6 @@ void nya_net_client_tick(u64 tick, f32 delta_time_s) {
 NYA_EntityHandle nya_net_client_entity(void) {
     /*
      * The *local* handle, because that is the one a caller can do anything with.
-     *
-     * The server's handle is on the wire and is what snapshots are matched against, but handing it to
-     * nya_entity_get would index this process's table with the server's number and return whatever
-     * happened to be in that slot. See nya_net_client_entity_remote.
      */
     return _NYA_NET_CLIENT.entity_local;
 }
@@ -302,11 +275,6 @@ void nya_net_client_interpolate(f32 delta_time_s) {
 
     /*
      * The interval is measured rather than configured.
-     *
-     * The server's snapshot rate is its own business and may change — it is a field on
-     * NYA_NetServerConfig and nothing sends it over. What the client *can* see is how far apart the
-     * ticks of the last two snapshots it received were, which is the same number and is correct even if
-     * the server changes its mind.
      */
     u64 tick_gap = 1;
 
@@ -322,9 +290,6 @@ void nya_net_client_interpolate(f32 delta_time_s) {
 
     /*
      * The tick length, from the app rather than assumed.
-     *
-     * Zero before the app is up, which a test can reach — treated as no smoothing rather than as a
-     * division by zero.
      */
     f64 tick_seconds = nya_time_ns_to_s(nya_app_get()->options.time_step_ns);
     if (tick_seconds <= 0.0) return;
@@ -371,13 +336,6 @@ void _nya_net_client_drain(f32 delta_time_s) {
 
                 /*
                  * A message can end the connection, and the loop must stop when it does.
-                 *
-                 * REJECT tears the client down through _nya_net_client_reset, which nulls the transport —
-                 * so continuing to poll dereferences it. Reachable from any server that refuses a
-                 * connection, which is the ordinary version-mismatch path rather than an exotic one.
-                 *
-                 * Checked after every message rather than only after REJECT, because "handling a message
-                 * may have disconnected us" is a property of the handler, not of one message kind.
                  */
                 if (!_NYA_NET_CLIENT.active) return;
             } break;
@@ -508,19 +466,12 @@ void _nya_net_client_handle_welcome(const u8* body, u64 size) {
 
         /*
          * On a listen server the two handle spaces are one, so the local name is known immediately.
-         *
-         * A remote client has to wait for the first snapshot to spawn the entity before it has a local
-         * handle at all — which is why nya_net_client_entity can be NONE for a tick or two after the
-         * handshake, and why a game must not assume otherwise.
          */
         if (nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) _NYA_NET_CLIENT.entity_local = _NYA_NET_CLIENT.entity_remote;
     }
 
     /*
      * The server's replicated flag wins over the config's.
-     *
-     * They should agree, and a mismatch is a game's bug — but if they disagree, the server is the one
-     * whose snapshots are being applied, so its answer is the one that makes them apply correctly.
      */
     if (replicated_flag != nullptr && replicated_flag->type == NYA_TYPE_U64) {
         _NYA_NET_CLIENT.config.replicated_flag = replicated_flag->as_u64;
@@ -540,9 +491,6 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
 
     /*
      * Decoded into the *spare* arena, never the one holding the current baseline.
-     *
-     * The decode reads the baseline to fill in unchanged fields while producing the snapshot that will
-     * become the next baseline. Into one arena, resetting first would free what it is about to read.
      */
     nya_arena_free_all(_NYA_NET_CLIENT.baseline_spare);
 
@@ -559,35 +507,17 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
 
     /*
      * Older than what has already been applied. Discarded.
-     *
-     * Snapshots travel unreliably and therefore out of order. Applying an older one over a newer one
-     * would move the whole world backwards for a tick — and its delta was computed against a baseline
-     * this client may have already replaced, so its unchanged fields are not even the right ones.
      */
     if (_NYA_NET_CLIENT.has_baseline && snapshot.tick <= _NYA_NET_CLIENT.server_tick) return;
 
     /*
      * A listen server applies nothing.
-     *
-     * The client and the server share one entity table and one world here — the snapshot describes what
-     * the server has *already written*, to entities that already exist. Applying it would be at best a
-     * no-op and at worst a duplicate spawn: the replica map has never seen these handles, so every
-     * entity in the first snapshot would be spawned a second time and the world would double every
-     * tick.
-     *
-     * The tick is still tracked and acknowledged below, because the server's baseline bookkeeping runs
-     * the same way for every peer and a local one that never acknowledged would be sent full snapshots
-     * forever.
      */
     if (!nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) {
         nya_net_snapshot_apply(&snapshot, _NYA_NET_CLIENT.config.replicated_flag, &_NYA_NET_CLIENT.replicas, _NYA_NET_CLIENT.entity_remote);
 
         /*
          * The local name for the player, now that a snapshot may have spawned it.
-         *
-         * WELCOME gave the server's handle, which this process cannot use. Resolved every snapshot
-         * rather than once, because the entity is spawned by whichever snapshot first mentions it — and
-         * because a despawn and respawn on the server produces a new pairing.
          */
         _NYA_NET_CLIENT.entity_local = nya_net_replica_local(&_NYA_NET_CLIENT.replicas, _NYA_NET_CLIENT.entity_remote);
     }
@@ -617,10 +547,6 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
 void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s) {
     /*
      * On a listen server there is nothing to reconcile.
-     *
-     * The client's world *is* the server's world — the same entity table, written by the same
-     * simulation — so the snapshot describes what already happened. There is no latency to hide and no
-     * prediction that could disagree.
      */
     if (nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) return;
 
@@ -638,10 +564,6 @@ void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s
 
     /*
      * How far the prediction was wrong.
-     *
-     * Compared as a squared distance against a squared threshold, so there is no square root on a path
-     * that runs every snapshot. Position only: it is what a player sees, and a rotation or velocity
-     * disagreement that does not move anything is not worth replaying for.
      */
     f32x3 error = entity->position - authoritative->position;
 
@@ -654,14 +576,6 @@ void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s
 
     /*
      * Snap to the server's answer, then replay everything since.
-     *
-     * The correction is applied to the *past* — to the tick the snapshot describes — and the player's
-     * current position is then recomputed by re-running every command from there to now. Without the
-     * replay the player would be yanked back to where they were a round trip ago and would have to
-     * walk the distance again, every time a correction happened.
-     *
-     * This is the entire reason commands are kept in a ring: the client has to be able to answer "what
-     * was I trying to do at tick T" for every T between the server's answer and the present.
      */
     nya_net_entity_state_apply(entity, authoritative);
 
@@ -695,9 +609,6 @@ void _nya_net_client_send_command(u64 tick, f32 delta_time_s) {
 
     /*
      * A handle that no longer resolves is a reload that renamed or removed the game's sampler.
-     *
-     * Returning rather than asserting: the client is otherwise healthy, and the honest behaviour is a
-     * player who stops moving until the next reload fixes it, not a crash that takes the session down.
      */
     if (sample_command == nullptr) {
         nya_log_error("The client's on_sample_command no longer resolves; sending no commands.");
@@ -714,9 +625,6 @@ void _nya_net_client_send_command(u64 tick, f32 delta_time_s) {
 
     /*
      * Applied locally before it is sent, which is what prediction *is*.
-     *
-     * Skipped on a listen server: the server applies this same command to this same entity a moment
-     * later, and doing it here as well would move the player twice per tick.
      */
     if (!nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) {
         NYA_Entity* entity = nya_entity_get(_NYA_NET_CLIENT.entity_local);
@@ -731,10 +639,6 @@ void _nya_net_client_send_command(u64 tick, f32 delta_time_s) {
 
     /*
      * The last several ticks go out together.
-     *
-     * Redundancy instead of reliability: a command is only useful for its own tick, so a retransmit
-     * would arrive after the server had simulated past it. Sending four means one lost packet costs
-     * nothing at all.
      */
     NYA_NetCommand run[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
     u32            count                          = 0;
@@ -763,13 +667,6 @@ void _nya_net_client_send_command(u64 tick, f32 delta_time_s) {
 void _nya_net_client_reset(void) {
     /*
      * The replicated world goes with the connection.
-     *
-     * These entities exist only because a server said so, and no server is saying so any more. Leaving
-     * them would show a player a frozen snapshot of a session that has ended — and on reconnect the map
-     * would be empty, so every one of them would be spawned a second time.
-     *
-     * Only on a remote connection: a listen server's client never populated the map, and the entities
-     * in question are the server's own.
      */
     if (!nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) nya_net_replica_map_despawn_all(&_NYA_NET_CLIENT.replicas);
 

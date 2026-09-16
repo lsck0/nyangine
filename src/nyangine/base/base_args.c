@@ -17,10 +17,6 @@ NYA_INTERNAL void _nya_args_print_command_path(NYA_ArgParser* parser, NYA_ArgCom
 
 /**
  * The recursive half of nya_args_walk_commands.
- *
- * `visit` is one buffer reused down the whole walk rather than a copy per node: the path and flag
- * arrays are large and a command tree is deep enough that copying them per node would be the most
- * expensive thing about generating a completion script.
  * */
 NYA_INTERNAL void _nya_args_walk_command(NYA_ArgCommand* command, NYA_ArgCommandVisit* visit, NYA_ArgCommandVisitFn visit_fn);
 
@@ -37,9 +33,6 @@ NYA_INTERNAL void _nya_args_zsh_generate(NYA_ArgParser* parser, NYA_ConstCString
 
 /**
  * Every shell that can be generated for.
- *
- * To add one: write a generate function in its own block below, following the zsh one, and add a
- * row here. Nothing else in the codebase names a shell.
  * */
 NYA_INTERNAL const NYA_ArgShell _NYA_ARGS_SHELLS[] = {
     {
@@ -120,13 +113,6 @@ subcommand_matching:
 
             /*
              * `--flag=value`, split here so the lookup below sees the name alone.
-             *
-             * Supported for every type, not only booleans, because it is the spelling that has no
-             * ambiguity: the value is attached to the flag rather than being whatever token happens
-             * to come next. That distinction is what the boolean handling below depends on.
-             *
-             * Copied into a buffer rather than written into argv, which belongs to the caller — and
-             * on some platforms to the loader. Bounded by the longest flag name a parser may declare.
              */
             char        flag_name_buffer[NYA_ARG_MAX_NAME] = { 0 };
             NYA_CString inline_value                       = nullptr;
@@ -170,14 +156,6 @@ subcommand_matching:
 
             /*
              * A boolean flag is its own value. It never reaches for the next token.
-             *
-             * It used to: anything after it that did not itself start with `--` was taken as the
-             * flag's value, so `./build check --strict src/main.c` consumed the filename and then
-             * failed to parse it as a boolean. Every "flag followed by a positional" invocation was
-             * broken, and the error message blamed the positional.
-             *
-             * `--flag=false` is how a boolean is written explicitly, which is unambiguous because the
-             * value is attached rather than adjacent.
              */
             if (param->value.type == NYA_TYPE_B8) {
                 if (inline_value == nullptr) {
@@ -245,13 +223,6 @@ subcommand_matching:
                      * from being longer than it. It was not, so the two hundred and fifty seventh
                      * value and everything after it landed past the end — and NYA_Value is a large
                      * struct, so it walked a long way into whatever followed the parameter.
-                     *
-                     * The input is argv, which makes it reachable from the command line of anything
-                     * built on this parser, the build tool's own `run test <names...>` included.
-                     *
-                     * Refused rather than truncated: quietly dropping the excess is how a command
-                     * asked to act on four hundred files acts on two hundred and fifty six of them
-                     * and reports success.
                      */
                     if (param->values_count >= nya_carray_length(param->values)) {
                         return nya_error(
@@ -625,11 +596,6 @@ void _nya_args_walk_command(NYA_ArgCommand* command, NYA_ArgCommandVisit* visit,
 
 /**
  * Writes `text` as the inside of a zsh single quoted word.
- *
- * `escape_brackets` is the difference between the two places a description can land: _arguments
- * parses its specs, so a bracket or a colon in there has to be escaped or it terminates the
- * description early, while a _describe entry is plain text past the first colon and would show the
- * backslashes verbatim.
  * */
 NYA_INTERNAL void _nya_args_zsh_print_escaped(FILE* stream, NYA_ConstCString text, b8 escape_brackets) {
     if (text == nullptr) return;

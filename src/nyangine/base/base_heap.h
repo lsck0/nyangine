@@ -1,19 +1,6 @@
 /**
  * @file base_heap.h
  *
- * API Overview:
- * - nya_heap_create(arena_ptr, item_type, compare_fn)
- * - nya_heap_create_with_capacity(arena_ptr, item_type, compare_fn, initial_capacity
- * - nya_heap_from_carray(arena_ptr, item_type, carray, carray_length, compare_fn)
- * - nya_heap_resize(heap_ptr, new_capacity)
- * - nya_heap_reserve(heap_ptr, min_capacity)
- * - nya_heap_clear(heap_ptr)
- * - nya_heap_destroy(heap_ptr)
- * - nya_heap_peek(heap_ptr)
- * - nya_heap_push(heap_ptr, item)
- * - nya_heap_pop(heap_ptr)
- * - nya_heap_length(heap_ptr)
- *
  * Example:
  * ```c
  * typedef struct {
@@ -157,15 +144,6 @@
 
 /*
  * Note this takes the heap by value, where nya_heap_destroy takes a pointer.
- *
- * The on-stack destructors are not consistent with each other across base, and the split is: heap
- * and hmap take a value, array, ring and hset take a pointer. This note used to put hset on the
- * by-value side, which is the wrong half. Left as they are rather than changed underneath a caller.
- *
- * The capacity and the length are reset alongside `items`. Clearing only the pointer left the heap
- * claiming to own a block it no longer had, so a second destroy handed the arena a null pointer with
- * a non-zero size, and a push onto the destroyed heap saw length < capacity and wrote through null
- * rather than reallocating.
  */
 #define nya_heap_destroy_on_stack(heap_ptr)                                                                                                          \
     ({                                                                                                                                               \

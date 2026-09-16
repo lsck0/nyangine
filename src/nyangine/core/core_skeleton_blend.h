@@ -1,8 +1,6 @@
 /**
  * @file core_skeleton_blend.h
  *
- * Blend trees: many clips mixed by continuous parameters, instead of one clip chosen by a state.
- *
  * ```c
  * nya_blend_tree_init(&tree, skeleton);
  *
@@ -19,27 +17,6 @@
  * nya_blend_tree_parameter(&tree, NYA_BLEND_SPEED, character_speed);
  * nya_blend_tree_update(&tree, delta_time_s, &pose);
  * ```
- *
- * **Why this instead of a crossfade.** A crossfade answers "I was doing that, now I am doing this".
- * A blend tree answers "I am doing this *much* of it" — a character moving at 2.3 m/s is not walking
- * or running, it is 82% walk and 18% run, and it has to still be that on the next frame when the
- * number moves slightly. Fading between the two every time the speed crosses a threshold produces a
- * character that lurches at exactly the speed it spends most of its time near.
- *
- * **One clock for the whole tree, and that is the point.** Every clip is sampled at the same
- * normalised phase, and the phase advances at the rate of the weighted average duration. That is what
- * keeps the feet together: a walk is 1.2 s and a run 0.8 s, and running them off their own clocks
- * puts them out of step within a second, at which point the blend is one foot averaged against the
- * other and the character skates. The cost of the rule is that a tree is for clips that *are* phases
- * of the same motion. A reload animation does not belong in one; that is a layer.
- *
- * **Weights.** 1D interpolates between the two children bracketing the parameter, so exactly two clips
- * are ever sampled. 2D uses gradient band interpolation, which is the standard answer and behaves
- * where inverse distance weighting does not: it gives a sample full weight when the parameter sits on
- * it, falls to zero at its neighbours, and does not care that the samples are unevenly spread.
- *
- * Fixed size and allocation free, like everything else here. A tree is a value; put one in whatever
- * owns the character.
  * */
 #pragma once
 
@@ -69,9 +46,6 @@
 
 /**
  * How deep a tree may nest.
- *
- * A bound rather than a guess: evaluation recurses, and a tree built with a cycle in it would
- * otherwise recurse until the stack runs out. Four is already a 2D blend of 1D blends of clips.
  * */
 #ifndef NYA_BLEND_MAX_DEPTH
 #define NYA_BLEND_MAX_DEPTH 4
@@ -114,10 +88,6 @@ struct NYA_BlendNode {
 
     /**
      * Where each child sits in parameter space. 1D uses only `.x`.
-     *
-     * In the parameter's own units — metres per second, degrees — rather than normalised, because the
-     * thing setting the parameter is the game's own speed and asking it to normalise first is asking
-     * it to duplicate the thresholds.
      * */
     f32x2 positions[NYA_BLEND_MAX_CHILDREN];
 
@@ -137,9 +107,6 @@ struct NYA_BlendTree {
 
     /**
      * Where the whole tree is in its cycle, in [0, 1).
-     *
-     * One phase, not one clock per clip. See the note at the top of this file — this field is the
-     * mechanism the "feet stay together" argument is about.
      * */
     f32 phase;
 
@@ -175,10 +142,6 @@ NYA_API s32 nya_blend_tree_2d(NYA_BlendTree* tree, u32 parameter_x, u32 paramete
 
 /**
  * Hangs `child` under `parent` at `position` in parameter space.
- *
- * 1D children are kept sorted by `position.x` as they are added, so they may be given in any order and
- * the bracketing search stays a scan. Returns false when either index is bad, the parent is a clip, or
- * it is full.
  * */
 NYA_API b8 nya_blend_tree_child(NYA_BlendTree* tree, s32 parent, s32 child, f32x2 position);
 
@@ -200,15 +163,5 @@ NYA_API void nya_blend_tree_update(NYA_BlendTree* tree, f32 delta_time_s, OUT NY
 
 /**
  * The weights a 2D blend node would give, by gradient band interpolation.
- *
- * Public because it is the piece worth testing directly, and because it is useful on its own for
- * anything that mixes N things by a 2D parameter — a footstep sound set, a facial expression.
- *
- * For each sample, the weight is one minus how far the parameter has travelled from it toward its
- * nearest-influencing neighbour, taken as the minimum over every other sample and clamped at zero.
- * That is what gives a sample full weight when the parameter is on it, zero when it reaches any
- * neighbour, and a sensible gradient in between regardless of how unevenly the samples are spread.
- * Weights are normalised to sum to one; when every one of them lands at zero the nearest sample takes
- * everything, which is what happens when the parameter sits well outside the samples' hull.
  * */
 NYA_API void nya_blend_gradient_band(const f32x2* positions, u32 count, f32x2 parameter, OUT f32* out_weights);

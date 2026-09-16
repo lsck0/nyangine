@@ -1,14 +1,5 @@
 /**
  * Regression test for _nya_serde_nya_parse_number silently truncating an over-long literal.
- *
- * The digits were copied into a 192 byte scratch buffer and clamped to whatever fit, so a number
- * longer than that was parsed from its prefix — a value orders of magnitude from what the document
- * said, returned as a success.
- *
- * tests/nyangine/serde/test_bug_json_number.c pins the same fix for the JSON reader, whose comment
- * spells out why clamping is the one indefensible option. This is the .nya reader, where it matters
- * more: it is the save format, and the checksum is computed over the object that was parsed, so a
- * truncated number produces a file that verifies clean and holds the wrong value.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
@@ -43,10 +34,6 @@ s32 main(void) {
 
     /*
      * NYA_SERDE_NO_CHECKSUM, so the number parser is what decides.
-     *
-     * Splicing a literal into a finished document invalidates the header checksum, and verification
-     * happens first — so without this the document is rejected for the wrong reason and the test
-     * passes whether the truncation is fixed or not. It did exactly that on the first attempt.
      */
     NYA_Object* parsed = nullptr;
     NYA_Error   error  = nya_serde_nya_deserialize(arena, patched->items, patched->length, NYA_SERDE_NO_CHECKSUM, &parsed);

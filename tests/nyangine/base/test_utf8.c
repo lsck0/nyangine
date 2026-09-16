@@ -1,10 +1,5 @@
 /**
  * UTF-8 decoding, which is what stands between the text renderer and every language but English.
- *
- * The decoder is tested rather than the atlas because the atlas needs a GPU and this does not. What
- * it has to get right is not the happy path — it is the malformed input, because a decoder that
- * consumes zero bytes on a bad sequence spins forever, and one that consumes the length a truncated
- * lead byte *claimed* reads off the end of the buffer.
  **/
 
 #include "nyangine/nyangine.c"

@@ -19,11 +19,6 @@ typedef struct {
 
 /*
  * Must survive -O3 -flto.
- *
- * The only reads of this are memcmps against a copy of the executable's own bytes, which the
- * optimizer is happy to constant fold — at which point the object has no remaining use and is
- * dropped, and the sentinel this whole scheme searches for is not in the binary. volatile alone did
- * not save it; `used` and `retain` are what pin the storage.
  */
 NYA_INTERNAL volatile NYA_IntegrityBlock _NYA_INTEGRITY_BLOCK __attr_used __attr_retain = {
     .sentinel_begin = { 0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE },
@@ -37,11 +32,6 @@ NYA_INTERNAL b8  _nya_integrity_code_region(OUT const u8** out_start, OUT u64* o
 
 /*
  * The MAC key.
- *
- * Split across two constants and combined at use rather than written as one literal, so that
- * grepping the binary for an obvious 16 byte blob does not immediately find it. That is
- * inconvenience, not secrecy: the key ships inside the executable and anyone who reverses the check
- * can read it. See the note in the header about what this does and does not buy.
  * */
 #define _NYA_INTEGRITY_KEY_LOW  (0x9E3779B97F4A7C15ULL ^ 0x517CC1B727220A95ULL)
 #define _NYA_INTEGRITY_KEY_HIGH (0xBF58476D1CE4E5B9ULL ^ 0x94D049BB133111EBULL)
@@ -139,20 +129,6 @@ NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) {
 void nya_integrity_baseline_capture(void) {
     /*
      * Not under ASan, where this read is a false positive by construction.
-     *
-     * The region below spans .rodata as well as .text — deliberately, since read-only data is worth
-     * covering and it sits before etext. ASan gives every instrumented global a poisoned redzone,
-     * and those redzones are interleaved through .rodata, so hashing the region as one contiguous
-     * range walks straight into them. It reported a global-buffer-overflow in nya_siphash and, with
-     * -fno-sanitize-recover=all, took the process with it: every sanitized build aborted inside
-     * nya_app_init, which is why no test could bring the app up.
-     *
-     * Skipping rather than exempting the read. The alternative is no_sanitize("address") on
-     * nya_siphash, which would blind a hash function used all over the engine to genuine overruns
-     * for the benefit of one caller. Nothing is lost here: this exists to notice a *shipped* binary
-     * being patched at runtime, and a shipping build has no sanitizers — FLAGS_RELEASE compiles
-     * none in. nya_integrity_assert already declines to run outside a shipping build for the same
-     * class of reason.
      */
     if (ASAN_ENABLED) {
         nya_log_debug("Runtime integrity baseline skipped: ASan instrumentation makes the code region unhashable.");
@@ -194,9 +170,6 @@ u64 nya_integrity_code_size(void) {
 
 /**
  * Locates the executable's own code in memory.
- *
- * This is the mapped image, not the file: it already has relocations applied and any hook already
- * written into it, which is the entire point of checking it separately from the file on disk.
  * */
 NYA_INTERNAL b8 _nya_integrity_code_region(OUT const u8** out_start, OUT u64* out_size) {
 #if OS_WINDOWS
@@ -260,17 +233,6 @@ NYA_INTERNAL b8 _nya_integrity_find_sentinel(const u8* data, u64 len, OUT u64* o
 
 /**
  * Narrows a PE down to the part of it that Authenticode signing cannot move.
- *
- * A signed executable is the same file with a certificate appended, the security data directory
- * pointed at it, and the header checksum recomputed. Hashing any of those would mean the stamp
- * written before signing never matches the file that ships, so the region hashed stops at the end
- * of the last section and the two mutable header fields are reported for zeroing.
- *
- * The end of the last section rather than the certificate's own offset, because signing pads the
- * file to an eight byte boundary first, and those pad bytes exist in the signed file and not in the
- * unsigned one.
- *
- * Returns false for anything that is not a PE, which is how ELF keeps being hashed whole.
  * */
 NYA_INTERNAL b8 _nya_integrity_pe_regions(const u8* data, u64 len, OUT u64* out_len, OUT u64* out_checksum_offset, OUT u64* out_security_offset) {
     if (len < 0x40 || data[0] != 'M' || data[1] != 'Z') return false;

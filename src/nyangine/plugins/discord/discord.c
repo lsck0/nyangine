@@ -19,13 +19,6 @@
 
 /*
  * Every message is a header and a body written as one buffer:
- *
- *     struct { u32 opcode; u32 length; } header;   // little endian, both
- *     char json[length];                           // not null terminated
- *
- * Written in one call rather than two, because the client treats a header not immediately followed
- * by its body as a broken stream and closes the connection. That is the single easiest thing to get
- * wrong here, and it fails intermittently rather than always — a short write splits the two.
  */
 
 #define _NYA_DISCORD_OPCODE_HANDSHAKE 0
@@ -42,11 +35,6 @@
 
 /**
  * Discord accepts one presence update per fifteen seconds per client and silently drops the rest.
- *
- * Enforced here rather than left to the caller, because the failure mode is invisible: an update
- * sent too soon does not error, it just never appears, and the presence card then shows whatever
- * happened to land inside the window. Holding the newest and sending it when the window opens is
- * the behaviour a caller would have to write anyway.
  * */
 #define _NYA_DISCORD_UPDATE_INTERVAL_MS 15000
 
@@ -78,10 +66,6 @@ typedef struct {
 
     /**
      * What was most recently asked for, and what was most recently sent.
-     *
-     * Two copies rather than one plus a dirty flag: comparing them is how a repeated call with an
-     * unchanged activity is dropped, and it is also what lets a reconnect re-send whatever is
-     * current without the caller knowing a reconnect happened.
      * */
     NYA_DiscordActivity pending;
     NYA_DiscordActivity sent;
@@ -97,10 +81,6 @@ typedef struct {
 
     /**
      * When to give up waiting for the handshake reply.
-     *
-     * A client can accept the socket and then never answer — it is starting up, or it is wedged. With
-     * no deadline the module sits in CONNECTING forever: the pump only retries from DISCONNECTED, so
-     * nothing would ever try again and presence would be dead for the rest of the session.
      * */
     u64 handshake_deadline_ms;
 
@@ -109,10 +89,6 @@ typedef struct {
 
     /**
      * Partial frame carried between pumps.
-     *
-     * The socket is non-blocking, so a read can stop in the middle of a header or a body. Without
-     * somewhere to keep the fragment the next pump would read the remainder and interpret its first
-     * four bytes as an opcode.
      * */
     u8  read_buffer[_NYA_DISCORD_MAX_FRAME];
     u32 read_length;
@@ -120,10 +96,6 @@ typedef struct {
 
 /**
  * The one system, as a file scope static.
- *
- * Like nya_arena_global and the i18n system: a plugin cannot hang state off NYA_App, because core is
- * above plugins and a headless tool compiles the plugin without an app at all. Safe across a hot
- * reload for the same reason — this is compiled into the executable, not into the game's library.
  * */
 NYA_INTERNAL _NYA_DiscordSystem _NYA_DISCORD = { 0 };
 
@@ -132,10 +104,6 @@ NYA_INTERNAL b8 _nya_discord_connect(void);
 
 /**
  * Drops the connection and arms the retry backoff.
- *
- * Everything that notices the connection is gone goes through here, so the backoff cannot be armed
- * on one path and forgotten on another — which is exactly what happened when only a failed *connect*
- * armed it. See the note in the implementation.
  * */
 NYA_INTERNAL void _nya_discord_disconnect(void);
 
@@ -168,10 +136,6 @@ NYA_INTERNAL b8 _nya_discord_activity_equals(const NYA_DiscordActivity* a, const
 
 /**
  * nya_string_equals, but null is a value rather than an assertion.
- *
- * Every field of NYA_DiscordActivity is optional and therefore routinely null, so the comparison
- * this module needs is "are these the same text", where two absent strings are the same and an
- * absent one differs from any present one. nya_string_equals asserts on either argument being null.
  * */
 NYA_INTERNAL b8 _nya_discord_text_equals(NYA_ConstCString a, NYA_ConstCString b) __attr_no_discard;
 
@@ -234,12 +198,6 @@ void nya_discord_pump(void) {
 
         /*
          * The backoff is *not* reset here.
-         *
-         * Opening the socket is not success — Discord accepts it before deciding whether it likes
-         * the application id. Resetting on connect meant a client that hung up immediately reset the
-         * delay to its minimum every time, so the backoff never actually grew and the retry loop
-         * stayed hot. It is reset when the handshake is answered, in _nya_discord_handle_frame,
-         * which is the first moment anything has actually worked.
          */
         _NYA_DISCORD.status                = NYA_DISCORD_STATUS_CONNECTING;
         _NYA_DISCORD.handshake_deadline_ms = now_ms + _NYA_DISCORD_HANDSHAKE_TIMEOUT_MS;
@@ -338,11 +296,6 @@ void _nya_discord_flush_activity(void) {
     // out on the pump after the window opens, so the card ends up correct rather than stale.
     /*
      * Compared with the subtraction the right way round, so it cannot wrap.
-     *
-     * `last_update_ms` can be the *later* of the two reads — it is set by code that samples the clock
-     * itself, after this function's caller already did. Unsigned, that wraps to something near U64_MAX,
-     * which this comparison would read as "ages have passed" and the rate limit would let everything
-     * through. Testing `now_ms > last` first makes the subtraction safe by construction.
      */
     if (_NYA_DISCORD.last_update_ms != 0) {
         u64 elapsed_ms = now_ms > _NYA_DISCORD.last_update_ms ? now_ms - _NYA_DISCORD.last_update_ms : 0;
@@ -382,11 +335,6 @@ b8 _nya_discord_activity_equals(const NYA_DiscordActivity* a, const NYA_DiscordA
 
     /*
      * Field by field, comparing strings by content.
-     *
-     * Not nya_memcmp over the structs, which would compare *pointers* — a caller formatting its
-     * details line into a stack buffer produces a different pointer every frame with identical
-     * bytes behind it, so a pointer comparison would report a change every frame and send a socket
-     * write every frame, which is precisely what this exists to avoid.
      */
     if (!_nya_discord_text_equals(a->details, b->details)) return false;
     if (!_nya_discord_text_equals(a->state, b->state)) return false;
@@ -415,10 +363,6 @@ NYA_String* _nya_discord_activity_payload(NYA_Arena* arena, const NYA_DiscordAct
 
     /*
      * The nonce is required and must differ between commands on one connection.
-     *
-     * Discord echoes it back on the reply, which is how a caller matches replies to requests.
-     * Nothing here waits on a reply, so a counter is enough — and it only has to be unique *within a
-     * connection*, which is why it does not need to survive a restart and does not need an RNG.
      */
     static u64 nonce = 0;
     nonce++;
@@ -489,10 +433,6 @@ NYA_String* _nya_discord_activity_payload(NYA_Arena* arena, const NYA_DiscordAct
 
     /*
      * Buttons, and only when there are no secrets.
-     *
-     * Discord refuses an activity carrying both and the refusal is silent — the card simply does not
-     * update. Dropping the buttons rather than the secrets, because a join secret is functional and
-     * a button is decorative.
      */
     b8 has_secrets = activity->join_secret != nullptr || activity->spectate_secret != nullptr;
     b8 has_buttons = false;
@@ -538,16 +478,6 @@ void _nya_discord_append_escaped(NYA_String* out, NYA_ConstCString value) {
 
     /*
      * Escaped by hand rather than through serde.
-     *
-     * This is the only JSON this module writes and it is a fixed shape, so building an NYA_Object to
-     * serialize would cost an allocation per field to produce a string this loop produces directly.
-     * What must not be skipped is the escaping itself: a player's party name reaches this, and an
-     * unescaped quote in it produces a malformed frame that the client answers by closing the
-     * connection.
-     *
-     * Truncated at NYA_DISCORD_MAX_TEXT, which is above Discord's own 128 byte limit, so a longer
-     * string is already going to be cut — better here, where the frame stays valid, than by a peer
-     * that rejects the whole activity.
      */
     u64 written = 0;
 
@@ -619,11 +549,6 @@ void _nya_discord_handle_frame(u32 opcode, const u8* payload, u32 length) {
 
     /*
      * The handshake is where a reconnect re-sends the presence.
-     *
-     * Clearing `has_sent` is what does it: the flush then sees pending differing from nothing and
-     * writes it. And clearing `last_update_ms` reopens the rate limit window, because the limit is
-     * per connection and the new client has seen no updates from us at all — without that, a
-     * reconnect inside fifteen seconds of the last update would come up with no presence.
      */
     _NYA_DISCORD.has_sent       = false;
     _NYA_DISCORD.last_update_ms = 0;
@@ -668,10 +593,6 @@ b8 _nya_discord_connect(void) {
 
         /*
          * Non-blocking, and the connection is refused if it cannot be made so.
-         *
-         * Not decoration: nya_discord_pump runs inside the frame, and a blocking handle turns a read
-         * with nothing behind it into a stall of unbounded length — a frame hitch caused by Discord
-         * being busy. Better to have no presence than a game that pauses for it.
          */
         DWORD mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
 
@@ -724,19 +645,12 @@ NYA_INTERNAL s64 _nya_discord_read_bytes(u8* out, u32 capacity) {
 b8 _nya_discord_connect(void) {
     /*
      * The socket lives under the runtime directory, and which one that is depends on the platform.
-     *
-     * XDG_RUNTIME_DIR is the correct answer on a modern Linux desktop; the TMPDIR family is the
-     * fallback and what macOS uses. /tmp last, because it is right often enough to be worth trying
-     * and wrong to rely on.
      */
     const char* prefixes[] = { getenv("XDG_RUNTIME_DIR"), getenv("TMPDIR"), getenv("TMP"), getenv("TEMP"), "/tmp" };
 
     /*
      * Discord installed from a Snap or a Flatpak puts its socket inside that sandbox's own
      * directory rather than at the top of the runtime directory.
-     *
-     * Both are common enough on Linux that omitting them means "rich presence does not work" for a
-     * large share of players, with nothing to see: the connect simply never succeeds.
      */
     const char* subdirectories[] = { "", "snap.discord/", "app/com.discordapp.Discord/", "app/dev.vencord.Vesktop/" };
 
@@ -764,12 +678,6 @@ b8 _nya_discord_connect(void) {
                 /*
                  * Non-blocking only after connecting, so the connect itself is a simple success or
                  * failure rather than an EINPROGRESS to poll. A local socket connects immediately.
-                 *
-                 * Both calls are checked and the socket is dropped if either fails. This used to
-                 * ignore the result, which meant a socket that stayed blocking was still reported as
-                 * connected — and then nya_discord_pump, which runs inside the frame, would block in
-                 * recv for as long as Discord took to say anything. A frame hitch is a worse outcome
-                 * than no presence at all.
                  */
                 s32 flags = fcntl(handle, F_GETFL, 0);
 
@@ -851,15 +759,6 @@ void _nya_discord_disconnect(void) {
 
     /*
      * Arming the backoff *here* rather than only where a connect fails.
-     *
-     * Only the failed-connect path used to arm it, and a connection that is accepted and then closed
-     * takes neither of those branches — so `next_retry_ms` stayed where it was and the next pump
-     * reconnected immediately. Discord answers an unrecognised application id by accepting the
-     * socket and replying `{"code":4000,"message":"Invalid Client ID"}` with a CLOSE, which is
-     * precisely that shape: a game shipped with the wrong id opened a socket, wrote a handshake and
-     * was hung up on sixty times a second for as long as it ran.
-     *
-     * A client shutting down normally is the same shape and the same fix.
      */
     _nya_discord_arm_retry();
 }

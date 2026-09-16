@@ -1,13 +1,5 @@
 /**
  * @file base_backtrace.h
- *
- * Stack capture and hardware fault interception. Backed by libbacktrace on Linux and Windows;
- * platforms without a backend (WASM, unknown) get a null implementation that captures nothing, so
- * every call site stays valid.
- *
- * `nya_backtrace_init` must run before anything else in the process — it installs an alternate
- * signal stack and hooks the fault signals, forwarding every fault it catches to the central crash
- * sink in base_logging.h.
  * */
 #pragma once
 

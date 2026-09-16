@@ -1,10 +1,5 @@
 /**
  * Gamepads with no gamepad attached: the queries every game makes before anyone plugs one in.
- *
- * A CI machine has no controller, so what is testable here is the half that must be right anyway —
- * that every query on an absent pad answers rather than crashing, that the deadzone maths is correct,
- * and that a gamepad binding is a first-class binding rather than a special case. Those are also the
- * paths a real pad never exercises, so they are exactly the ones a test has to cover.
  **/
 
 #include "nyangine/nyangine.c"

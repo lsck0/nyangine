@@ -125,10 +125,6 @@ void bench_runner(NYA_ArgCommand* command) {
 
         /*
          * Built and run one at a time, deliberately.
-         *
-         * The test runner compiles in parallel because a test's result does not depend on timing. A
-         * benchmark's does: two running at once contend for cache, memory bandwidth and cores, and both
-         * report numbers that mean nothing.
          */
         NYA_EXPECT(nya_build(build_rule));
         NYA_EXPECT(nya_build(run_rule));

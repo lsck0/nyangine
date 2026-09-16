@@ -1,15 +1,5 @@
 /**
  * Inertialization: the quintic's endpoint conditions, continuity across a switch, and composition.
- *
- * The properties asserted here are deliberately **scale invariant** — the seam jump as a fraction of
- * the cut it replaces, rather than an absolute tolerance. That is not a convenience. Bollo's curve
- * has a large initial acceleration by construction (a₀ is what stops it overshooting), so over one
- * 16 ms frame of a 200 ms transition the offset has already curved measurably, and a finite difference
- * across that frame does *not* recover x'(0). Measured on this rig: the true v₀ is -4.0 and the
- * one-frame difference reads -36.5, converging only as the step shrinks, and still 30% out at 0.5 ms.
- * An absolute tolerance on a one-frame velocity would therefore be asserting the sampling interval,
- * not the maths. What can be checked exactly is that the offset **reaches zero and stays there**, that
- * it **never crosses zero on the way**, and that the seam is a **small fraction of the pop it replaces**.
  **/
 
 #include "nyangine/nyangine.c"

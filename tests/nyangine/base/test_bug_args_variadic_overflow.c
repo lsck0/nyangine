@@ -1,20 +1,5 @@
 /**
  * Regression test for the unbounded variadic parameter in nya_args_parse (base_args.c).
- *
- * A variadic positional collects into `NYA_ArgParameter.values`, which is a fixed
- * `NYA_Value values[NYA_ARG_MAX_PARAMETERS]` — 256 entries. The collecting loop wrote
- *
- *     NYA_Value* slot = &param->values[param->values_count];
- *     ...
- *     param->values_count++;
- *
- * with nothing comparing values_count against that bound, so argument 257 and everything after it
- * landed past the end of the array. NYA_Value is a large struct, so this walks a long way into
- * whatever follows the parameter.
- *
- * The input is argv, which makes it reachable from the command line of anything using this parser —
- * including the build tool's own `./build run test <names...>`, whose test-name parameter is exactly
- * this shape.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

@@ -81,11 +81,6 @@ typedef struct {
      * relevance hysteretic: the *keep* threshold is looser than the *start* threshold, and this answers
      * "am I already sending it". Without it, relevance is re-decided from scratch every snapshot and
      * boundary entities flicker.
-     *
-     * Keyed on slot index alone, not generation — a full generation per slot would be four kilobytes per
-     * peer for a benign case: a reused slot's newcomer inherits the departed entity's bit for one
-     * snapshot, judged against the *leave* radius instead of *enter* and possibly sent one tick early,
-     * which is the safe direction.
      * */
     u8 relevant[NYA_ENTITY_MAX / 8];
 } _NYA_NetServerPeerState;
@@ -118,9 +113,6 @@ typedef struct {
 
     /**
      * How many peers are connected on a transport that is not the loopback.
-     *
-     * The number nya_net_server_tick branches on. Counted rather than derived, because it is read
-     * every tick and deriving it would mean walking the peer table to decide whether to do nothing.
      * */
     u32 remote_peer_count;
 
@@ -132,22 +124,11 @@ typedef struct {
 
     /**
      * The world at each of the last NYA_NET_LAG_HISTORY ticks, for rewinding.
-     *
-     * Indexed by `tick % lag_history_ticks`, so finding a tick is a modulo and a tick too old lands on
-     * an entry whose own tick no longer matches — which is how "further back than the history reaches"
-     * is detected without tracking it separately.
-     *
-     * One ring for the whole server rather than per peer: everyone is rewound against the same history,
-     * so this is a fixed cost.
      * */
     _NYA_NetServerBaseline history[NYA_NET_LAG_HISTORY];
 
     /**
      * Where every rewound entity actually was, so nya_net_server_rewind_end can put it back.
-     *
-     * Captured at rewind_begin from the *live* world rather than reconstructed from history, because the
-     * present is the thing that has to be restored exactly — history is only an approximation of the
-     * past and would quietly become the present if it were used to restore.
      * */
     NYA_NetSnapshot rewind_restore;
     u32             rewind_restore_capacity;
@@ -157,29 +138,17 @@ typedef struct {
 
     /**
      * The tick nya_net_server_tick was last called with.
-     *
-     * Not read from nya_world()->sim_system.tick, even though the app loop passes exactly that. The tick
-     * is a *parameter*, so a caller driving the server itself — a test, a replay tool, a game with its own
-     * loop — can pass whatever it likes, and reaching for the world's counter instead would silently
-     * disagree with it. That made nya_net_server_rewind_ticks report zero for a genuine rewind.
      * */
     u64 current_tick;
 
     /**
      * Scratch for one tick's snapshot and its encodings.
-     *
-     * Reset at the top of every tick rather than freed piecemeal: a snapshot plus one encoded payload
-     * per peer is a dozen allocations a tick, and an arena reset is one operation for all of them.
      * */
     NYA_Arena* tick_arena;
 } _NYA_NetServerState;
 
 /**
  * The one server, as a file scope static.
- *
- * Not on NYA_App, for the reason the i18n system is not: net sits above core in the include order but
- * is not owned by it, and a headless tool compiles core without ever starting a server. Safe across a
- * hot reload because this is compiled into the executable rather than the game's library.
  * */
 NYA_INTERNAL _NYA_NetServerState _NYA_NET_SERVER = { 0 };
 
@@ -192,9 +161,6 @@ NYA_INTERNAL void _nya_net_server_send_snapshots(u64 tick);
 
 /**
  * The subset of `snapshot` that `peer` is entitled to see, in `arena`.
- *
- * A subset of a sorted list is sorted, so the result feeds the delta encoder unchanged. Returns the
- * snapshot itself when nothing filters, which is the common case and costs no copy.
  * */
 NYA_INTERNAL NYA_NetSnapshot _nya_net_server_relevant(
     NYA_Arena* arena, const NYA_NetSnapshot* snapshot, _NYA_NetServerPeerState* state
@@ -284,14 +250,6 @@ void nya_net_server_stop(void) {
 
     /*
      * Both halves of the loopback pair, because this server created both.
-     *
-     * The client end was handed to nya_net_client_attach, which deliberately does not take ownership of a
-     * transport it did not create — so without this its delivered arena leaked once per session. Whoever
-     * makes a pair destroys a pair.
-     *
-     * Safe in this order because a client is expected to have disconnected first; a loopback destroy
-     * unhooks the far end before freeing anything, so even out of order it reports a dead peer rather than
-     * touching freed memory.
      */
     nya_net_transport_destroy(_NYA_NET_SERVER.loopback_server_end);
     nya_net_transport_destroy(_NYA_NET_SERVER.loopback_client_end);
@@ -367,10 +325,6 @@ void nya_net_server_tick(u64 tick, f32 delta_time_s) {
 
     /*
      * The single player fast path, and the reason the architecture is arranged this way.
-     *
-     * With no transports there is nothing to drain, nothing to apply and nobody to send to — so no
-     * snapshot is captured, nothing is encoded, and no baseline is kept. A game that never opens to
-     * the LAN pays for these two comparisons per tick and nothing else.
      */
     if (_NYA_NET_SERVER.udp == nullptr && _NYA_NET_SERVER.loopback_server_end == nullptr) return;
 
@@ -383,11 +337,6 @@ void nya_net_server_tick(u64 tick, f32 delta_time_s) {
 
     /*
      * A tick with no command from a peer repeats its last one.
-     *
-     * Done after draining, so a command that did arrive wins. What this covers is the gap: several
-     * consecutive lost packets, or a client whose frame ran long. The alternative — applying nothing —
-     * stops the player dead for a tick and then resumes, which is both visibly wrong and disagrees
-     * with what that client is predicting.
      */
     // Resolved once for the whole loop rather than per peer: under hot reload this is a registry
     // lookup, and it cannot change part way through a tick.
@@ -500,11 +449,6 @@ b8 nya_net_server_rewind_begin(NYA_NetPeerId peer) {
 
     /*
      * The tick this peer had actually applied.
-     *
-     * Its own acknowledgement, not an estimate from the round trip — the client says which snapshot it
-     * is standing on, and that is a better answer than anything derived from a smoothed RTT. It is also
-     * a number the client controls, which is why nya_net_server_rewind_ticks exists for a game that
-     * wants to refuse an implausible one.
      */
     if (state->acknowledged_tick == 0) return false;
 
@@ -519,10 +463,6 @@ b8 nya_net_server_rewind_begin(NYA_NetPeerId peer) {
 
     /*
      * Where everything is *now*, captured from the live world.
-     *
-     * From the world rather than from the newest history entry, because this is what has to be restored
-     * exactly. History is a per-snapshot sample and the world has moved on within the tick since — using
-     * it to restore would quietly make an approximation of the past into the present.
      */
     if (_NYA_NET_SERVER.rewind_restore_capacity < past->snapshot.entity_count) {
         if (_NYA_NET_SERVER.rewind_restore.entities != nullptr) {
@@ -542,10 +482,6 @@ b8 nya_net_server_rewind_begin(NYA_NetPeerId peer) {
 
         /*
          * The shooter is not moved.
-         *
-         * They predicted themselves and are already where they believe they are; rewinding them would
-         * resolve the shot from where they used to stand, which is the one position the client did *not*
-         * aim from.
          */
         if (historical->handle.index == state->public_state.entity.index
             && historical->handle.generation == state->public_state.entity.generation) {
@@ -557,11 +493,6 @@ b8 nya_net_server_rewind_begin(NYA_NetPeerId peer) {
 
         /*
          * Anything the solver owns is left alone.
-         *
-         * A body's transform is rewritten every step from the solver's own state, so moving the entity
-         * here would be undone — and moving the *body* would corrupt the simulation for everyone else.
-         * See the note in net_server.h; a game that needs its players compensated must not give them
-         * bodies.
          */
         if (nya_physics2d_body_attached(entity) || nya_physics3d_body_attached(entity)) continue;
 
@@ -629,9 +560,6 @@ void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick, f32 delta_time
                  * Nothing is admitted here. A transport-level connection is not a player yet — the
                  * peer has to say HELLO and pass the version check first, and until it does it gets
                  * no entity, no snapshots and no place in the roster.
-                 *
-                 * That ordering is what stops an unauthenticated peer costing the server a spawned
-                 * entity and a snapshot baseline.
                  */
                 nya_log_debug("Transport connection from %s.", nya_net_transport_peer_address(transport, event.peer));
             } break;
@@ -679,10 +607,6 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
             if (!decoded.ok) {
                 /*
                  * Malformed. The peer is dropped rather than the message ignored.
-                 *
-                 * Unlike an unknown message kind, this is a payload claiming to be something it is not
-                 * — a length that does not match, a count past the limit. A well behaved client of any
-                 * version cannot produce it, so it is either a broken client or a probe.
                  */
                 nya_log_warn("Dropping a peer that sent a malformed command: %s", (NYA_ConstCString)decoded.message);
                 nya_net_server_kick(peer, NYA_NET_DISCONNECT_PROTOCOL);
@@ -693,24 +617,12 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
 
             /*
              * How far ahead of the server a command may legitimately claim to be.
-             *
-             * A client runs ahead by roughly its own latency, and the redundancy window adds a few more —
-             * so a couple of hundred ticks is generous at any playable ping. Beyond that the number is
-             * not a clock skew, it is wrong.
              */
             const u64 command_slack = 256;
 
             for (u32 i = 0; i < count; i++) {
                 /*
                  * A command from the far future is discarded rather than recorded.
-                 *
-                 * `tick` is an unvalidated u64. One command claiming U64_MAX sets `last_command_tick` to
-                 * it, and every subsequent command from that client is then discarded by the comparison
-                 * below — while the repeat pass keeps re-applying the frozen last one forever. The player
-                 * is stuck walking in one direction and it looks like a server bug.
-                 *
-                 * Self-inflicted, so it is dropped rather than a disconnection: a client with a broken
-                 * clock deserves to be ignored, not kicked.
                  */
                 if (commands[i].tick > tick + command_slack) continue;
 
@@ -740,16 +652,6 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
 
             /*
              * A client cannot have applied a snapshot that has not been sent yet.
-             *
-             * The field is a u64 the client chooses. Taken at face value, a single message naming
-             * U64_MAX sets `acknowledged_tick` permanently — and because the assignment below is
-             * monotonic, no baseline ever matches again, so that peer is sent a **full** snapshot every
-             * tick for the rest of the session. A per-peer bandwidth multiplier the client picks, times
-             * however many peers it can occupy.
-             *
-             * It also feeds lag compensation, where a client claiming to be further behind than it is
-             * has its shots resolved against a staler world. The ring lookup there already refuses a
-             * tick it does not hold, but there is no reason to let an impossible number in at all.
              */
             if (acked > _NYA_NET_SERVER.current_tick) {
                 nya_log_warn("Dropping a peer that acknowledged tick %llu when the server is at %llu.", (unsigned long long)acked,
@@ -779,11 +681,6 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
 
             /*
              * A malformed event is ignored rather than fatal to the peer.
-             *
-             * Unlike a malformed *command*, which cannot be produced by a well behaved client of any
-             * version, a game event is a game-defined document — a newer client may send one shaped in a
-             * way this build's serde cannot read. Dropping the connection over that would make every
-             * addition to a game's event vocabulary a hard compatibility break.
              */
             if (!nya_net_message_read_object(scratch, body, body_size, &object).ok || object == nullptr) {
                 nya_log_debug("Ignoring an unreadable game event from '%s'.", state->public_state.name);
@@ -801,15 +698,6 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
 
 /**
  * The most a HELLO may be, in bytes.
- *
- * A HELLO carries three fields and is dispatched *before* the peer is accepted, so it is the one message
- * an unauthenticated address can put in front of the deserializer. A reassembled reliable message can be
- * hundreds of kilobytes, which would make the whole nya parser reachable from an unverified source with
- * a large block of chosen input — the biggest untrusted surface in the process, for a message that needs
- * a couple of hundred bytes.
- *
- * Generous enough for a long player name and a few added fields later; small enough that whatever the
- * parser allocates per byte of nesting cannot matter.
  * */
 #define _NYA_NET_SERVER_MAX_HELLO 512
 
@@ -844,10 +732,6 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
 
     /*
      * Refused before any state is exchanged.
-     *
-     * A peer that misparses a snapshot does not fail cleanly — it plays a subtly different game, and
-     * neither side can tell. Refusing a connection a player can understand beats allowing one nobody
-     * can debug.
      */
     if (their_protocol != NYA_NET_PROTOCOL_VERSION || their_snapshot != NYA_NET_SNAPSHOT_VERSION) {
         NYA_String* payload = nya_string_create(scratch);
@@ -937,10 +821,6 @@ void _nya_net_server_send_snapshots(u64 tick) {
 
     /*
      * The unfiltered world goes into the history ring, before anything is filtered for anyone.
-     *
-     * Lag compensation rewinds to what a client *saw*, and what it saw is a subset — but the rewind has
-     * to place entities the shooter could see and the shot might hit, which is not the same set and can
-     * be larger. Storing the whole world means a rewind is never limited by somebody's interest radius.
      */
     if (_NYA_NET_SERVER.config.lag_history_ticks > 0) {
         _nya_net_server_store(&_NYA_NET_SERVER.history[tick % _NYA_NET_SERVER.config.lag_history_ticks], &snapshot);
@@ -952,11 +832,6 @@ void _nya_net_server_send_snapshots(u64 tick) {
 
         /*
          * The baseline is whatever *this* peer has acknowledged, and only if it is still in the ring.
-         *
-         * A peer that has acknowledged nothing, or that has fallen further behind than
-         * NYA_NET_SNAPSHOT_HISTORY ticks, gets a full snapshot. The ring index is a modulo, so a tick
-         * too old lands on an entry whose own tick no longer matches — which is how "too far behind"
-         * is detected without tracking it separately.
          */
         const NYA_NetSnapshot* baseline = nullptr;
 
@@ -978,14 +853,6 @@ void _nya_net_server_send_snapshots(u64 tick) {
 
         /*
          * Skipped rather than queued when it does not fit the peer's budget.
-         *
-         * The next snapshot supersedes this one, so dropping it costs a little staleness — where queueing
-         * would build a backlog that only grows for a peer already unable to keep up, and deliver every
-         * one of those snapshots late.
-         *
-         * Crucially the baseline is **not** updated either. Recording a snapshot the peer never received
-         * as its baseline would have every subsequent delta computed against a state it does not have,
-         * and the client would apply changes on top of the wrong world with nothing detecting it.
          */
         if (!_nya_net_server_afford(state, payload->length)) continue;
 
@@ -993,13 +860,6 @@ void _nya_net_server_send_snapshots(u64 tick) {
 
         /*
          * Kept as a possible future baseline — and it is the *filtered* snapshot that is kept.
-         *
-         * The baseline must be what the peer actually received. Storing the unfiltered world would have
-         * a delta claim "unchanged" about entities that peer has never been sent, so they would never
-         * arrive at all.
-         *
-         * In the server's long-lived arena rather than the tick arena, since a baseline has to survive
-         * until the peer acknowledges it.
          */
         _nya_net_server_store(&state->baselines[tick % NYA_NET_SNAPSHOT_HISTORY], &relevant);
     }
@@ -1017,10 +877,6 @@ NYA_NetSnapshot _nya_net_server_relevant(NYA_Arena* arena, const NYA_NetSnapshot
 
     /*
      * A spectator is sent everything.
-     *
-     * There is no centre to measure a radius from, and a game's own rule is welcome to decide otherwise —
-     * but the built-in one showing a bodiless observer nothing at all would be a worse default than
-     * showing them too much.
      */
     if (peer_entity == nullptr && !has_callback) return *snapshot;
 
@@ -1029,10 +885,6 @@ NYA_NetSnapshot _nya_net_server_relevant(NYA_Arena* arena, const NYA_NetSnapshot
 
     /*
      * Two thresholds, not one: enter at the radius, leave only past the radius plus the band.
-     *
-     * With one threshold an entity sitting on it flips every snapshot, and each flip is a spawn and a
-     * despawn on the client. The band is what stops that, and zero means the default fraction rather than
-     * none — see NYA_NetServerConfig.relevance_hysteresis.
      */
     f32 band = _NYA_NET_SERVER.config.relevance_hysteresis > 0.0F
                  ? _NYA_NET_SERVER.config.relevance_hysteresis
@@ -1054,10 +906,6 @@ NYA_NetSnapshot _nya_net_server_relevant(NYA_Arena* arena, const NYA_NetSnapshot
 
         /*
          * The peer's own entity is always relevant.
-         *
-         * It is what they are predicting, and reconciliation needs the server's answer for it every
-         * snapshot. A radius centred on it would include it anyway; a game's own rule might not, and
-         * excluding it would leave that player unable to be corrected.
          */
         b8 is_own = candidate->handle.index == state->public_state.entity.index
                  && candidate->handle.generation == state->public_state.entity.generation;
@@ -1116,25 +964,12 @@ b8 _nya_net_server_afford(_NYA_NetServerPeerState* state, u64 bytes) {
 
         /*
          * The bucket holds at most one second's worth.
-         *
-         * Without a ceiling an idle peer accumulates an unbounded allowance and then spends it all in one
-         * frame the moment something happens — which is a burst the connection cannot absorb and is
-         * exactly the shape of traffic a cap exists to prevent.
          */
         if (state->budget_bytes > (s64)limit) state->budget_bytes = (s64)limit;
     }
 
     /*
      * The gate is "is there anything left", not "does this fit".
-     *
-     * Requiring it to fit means a snapshot larger than one second's budget can **never** be sent, because
-     * the bucket is capped at exactly that — so the peer is starved of state permanently and silently.
-     * A 40-entity world at a modest cap reaches this immediately, which is not an exotic configuration.
-     *
-     * So a send is allowed whenever the bucket is not empty, and the cost is taken even if it goes
-     * negative. The debt is then paid off by the refill above before anything else goes out, which makes
-     * the *average* rate exactly the cap while guaranteeing forward progress. That is the difference
-     * between a rate limit and a mute button.
      */
     if (state->budget_bytes <= 0) return false;
 
@@ -1142,10 +977,6 @@ b8 _nya_net_server_afford(_NYA_NetServerPeerState* state, u64 bytes) {
 
     /*
      * The debt is bounded, so one enormous snapshot cannot silence a peer for minutes.
-     *
-     * Without a floor, a burst leaves a deficit that takes proportionally long to clear — and the peer
-     * receives nothing at all in the meantime, which is the starvation this whole branch exists to avoid.
-     * One second of debt means the worst case is one second of silence.
      */
     if (state->budget_bytes < -(s64)limit) state->budget_bytes = -(s64)limit;
 
@@ -1158,12 +989,6 @@ void _nya_net_server_store(_NYA_NetServerBaseline* slot, const NYA_NetSnapshot* 
 
     /*
      * The slot's buffer is reused unless it is too small.
-     *
-     * nya_net_snapshot_clone allocates a fresh array every time, and a ring slot is overwritten every
-     * time it comes round — so cloning leaked one snapshot per wrap per peer. At sixty hertz that is on
-     * the order of a hundred kilobytes a second per player, which takes a long-running server down.
-     *
-     * Reusing means a slot converges on the largest count it has seen and then allocates nothing.
      */
     if (slot->capacity < snapshot->entity_count) {
         _nya_net_server_release(slot);
@@ -1209,15 +1034,6 @@ _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_
 
     /*
      * The transport's peer index is reused as the server's slot.
-     *
-     * They are bounded by the same constant and the transport already guarantees uniqueness among live
-     * peers, so a second independent allocation would be a second thing to keep in step. The catch is
-     * that a listen server has *two* transports whose indices both start at zero — which is why the
-     * loopback peer occupies a slot the UDP transport can also hand out.
-     *
-     * Handled by refusing the collision: the loopback player connects first, at start-up, so the slot
-     * is taken before any remote peer can arrive. A remote peer landing on it is turned away and
-     * reconnects onto another index.
      */
     _NYA_NetServerPeerState* state = &_NYA_NET_SERVER.peers[peer.index];
 
@@ -1260,10 +1076,6 @@ void _nya_net_server_remove(NYA_NetPeerId peer, NYA_NetDisconnect reason) {
 
     /*
      * The peer's snapshot ring goes back to the arena.
-     *
-     * These live in the server's long-lived allocator because a baseline has to outlive the tick that
-     * produced it, so nothing else would ever reclaim them — and a server that players join and leave
-     * all day would accumulate one full ring per departure.
      */
     for (u32 i = 0; i < NYA_NET_SNAPSHOT_HISTORY; i++) _nya_net_server_release(&state->baselines[i]);
 

@@ -27,9 +27,6 @@ typedef struct {
 
     /**
      * The texture handle the entity's visual draws with, or null.
-     *
-     * Compared by address, not content: asset handles are interned literals, so two sprites out of one
-     * sheet share the identical pointer and comparing bytes would be strcmp inside a sort comparator.
      * */
     NYA_ConstCString texture;
 } NYA_EntityDrawEntry;
@@ -57,9 +54,6 @@ NYA_INTERNAL u32 _nya_entity_grid_bucket(s32 cell_x, s32 cell_y);
 
 /**
  * The shared body of every query: walks the cells covering a rectangle and emits what is really in it.
- *
- * `type_filter` is applied only when `filter_by_type` is set, so "any kind" and "kind zero" stay
- * distinguishable.
  * */
 NYA_INTERNAL u32 _nya_entity_query(f32x2 min, f32x2 max, b8 filter_by_type, u32 type_filter, b8 filter_by_flags, u64 flag_filter,
                                    OUT NYA_EntityHandle* out, u32 capacity);
@@ -73,9 +67,6 @@ NYA_INTERNAL NYA_EntityHandle _nya_entity_click_deliver(NYA_EntityHandle hit, f3
 
 /**
  * Moves the hover to `hit`, running the two callbacks the move implies.
- *
- * Shared by both nya_entity_hover overloads and by nya_entity_hover_clear, which is the same operation
- * with nothing under the cursor — so the "left" edge is produced in one place rather than three.
  * */
 NYA_INTERNAL NYA_EntityHandle _nya_entity_hover_move(NYA_EntityHandle hit);
 
@@ -389,11 +380,6 @@ void nya_system_entity_transforms_update(void) {
 
     /*
      * From the roots down, so a chain resolves in one pass.
-     *
-     * A root here is any entity with children and no parent. Walking every slot to find them is the
-     * same linear scan the update loop already does, and the alternative — a maintained root list —
-     * is more state to keep in step for a saving that only shows up in a world that is almost
-     * entirely hierarchy.
      */
     nya_entity_foreach (entity) {
         if (entity->first_child.generation == 0) continue;
@@ -511,10 +497,6 @@ void _nya_entity_target_step(NYA_Entity* entity, f32 delta_time_s) {
      * A move is over when its handle stops resolving, and the handle is cleared here rather than by
      * the tween — so a non-zero handle that no longer resolves is exactly "arrived this tick", which
      * is the tick the final value still has to be applied on.
-     *
-     * This reads the value the tween wrote earlier in the frame; nya_system_tween_update runs before
-     * nya_system_entity_update in the fixed loop, and the ordering is what makes one indirection
-     * enough. See core_app.c.
      */
     if (entity->move_tween.generation == 0) {
         /*
@@ -569,9 +551,6 @@ void nya_system_entity_render(NYA_Window* window) {
     /*
      * All four corners, not two: under camera rotation, two opposite screen corners don't bound the view
      * — the other two stick out. The extent of all four bounds the visible region regardless.
-     *
-     * With no camera set nya_render2d_screen_to_world is the identity, so this degenerates to the target
-     * in screen pixels — right for a layer drawing screen space entities.
      */
     f32x2 corners[4] = {
         nya_render2d_screen_to_world(window, (f32x2){ 0.0F, 0.0F }),
@@ -609,7 +588,16 @@ void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 max) {
      * neither spatial nor stable across a rebuild, so two sprites could otherwise swap depth because one
      * moved into a different cell. Sorting is what makes NYA_EntityVisual.z_order mean anything.
      */
-    static NYA_EntityDrawEntry entries[NYA_ENTITY_MAX];
+    /*
+     * From the frame arena, not a function static. As a static this was 192 kB resident for the life of the
+     * process holding one frame's working set, and sized by NYA_ENTITY_MAX rather than by what is on screen.
+     * The arena is reset every frame, which is exactly this buffer's lifetime.
+     */
+    NYA_EntityDrawEntry* entries = nya_arena_alloc(nya_app_get()->frame_allocator, count * sizeof(NYA_EntityDrawEntry));
+
+    // A count of zero allocates nothing and there is nothing to draw, so leaving early is also what keeps
+    // `entries` from being a null nobody checks.
+    if (entries == nullptr) return;
 
     u32 entry_count = 0;
 
@@ -627,8 +615,8 @@ void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 max) {
         };
     }
 
-    // Plain qsort rather than nya_array_sort (a macro over NYA_Array): this list is a fixed stack buffer
-    // precisely so drawing allocates nothing.
+    // Plain qsort rather than nya_array_sort, which is a macro over NYA_Array and would want a container
+    // this never builds.
     qsort(entries, entry_count, sizeof(NYA_EntityDrawEntry), _nya_entity_draw_entry_compare);
 
     for (u32 i = 0; i < entry_count; i++) {
@@ -755,9 +743,6 @@ NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button) __at
      * The point on the struck surface, not the ray's origin — it decides which face was hit, where to
      * put a decal, which end of a lever was pulled. Handing the camera position instead would make
      * every click on an object report the same coordinates.
-     *
-     * Left zeroed when nothing was hit; _nya_entity_click_deliver never reads it in that case, since an
-     * invalid handle returns before the callback.
      */
     return _nya_entity_click_deliver(hit, point, button);
 }
@@ -806,10 +791,6 @@ NYA_EntityHandle nya_entity_spawn_with_options(NYA_EntitySpawnOptions options) {
 
         /*
          * A root, with an identity local transform.
-         *
-         * Spelled out rather than left to the zero: a zeroed handle *is* NONE and a zeroed quaternion
-         * is not the identity, and a parenting operation composing against it would collapse the child
-         * to nothing. Written here so the entity is coherent the instant it exists.
          */
         .parent       = NYA_ENTITY_HANDLE_NONE,
         .first_child  = NYA_ENTITY_HANDLE_NONE,
@@ -846,10 +827,6 @@ void nya_entity_despawn(NYA_EntityHandle entity) {
      * Both solvers, after on_despawn (which may still want to read a velocity or overlap off the body)
      * and before the slot is cleared. Skipping either leaves that body behind: still colliding, still
      * costing a step, and unreachable to destroy once the handle stops resolving.
-     *
-     * Both are called unconditionally rather than picking by which looks attached — each is a no-op for
-     * an entity without that kind of body, and asking "which one" is how the second gets forgotten. It
-     * did: only the 2D detach was here, so every 3D body ever spawned leaked into its world.
      */
     nya_physics2d_body_detach(entity);
     nya_physics3d_body_detach(entity);
@@ -865,9 +842,6 @@ void nya_entity_despawn(NYA_EntityHandle entity) {
      * ⚠ **Despawning a parent despawns its children**, recursively, and that is a decision rather
      * than a consequence — a turret whose tank is gone is not something a game wants left floating at
      * the last place the tank was. Call nya_entity_parent_clear on a child first to keep it.
-     *
-     * The children are collected before any of them is despawned: despawning unlinks, which rewrites
-     * the sibling list this would otherwise be walking.
      */
     while (nya_entity_is_valid(target->first_child)) {
         NYA_EntityHandle child = target->first_child;
@@ -1185,8 +1159,6 @@ NYA_EntityIter _nya_entity_iter_flags(u64 flags) {
      * Walk the first requested bit's set, checking the rest per entity. Intersecting every requested
      * bitset would yield strictly fewer candidates but need a scratch buffer, for a query that is nearly
      * always one flag and where the extra check is one AND against a word already in a register.
-     *
-     * No flags at all means "everything", which is the live set.
      */
     iter.bits = flags != 0 ? &index->flags[(u64)nya_bits_ctz_u64(flags) * NYA_ENTITY_BITSET_WORDS] : index->live;
 
@@ -1251,9 +1223,6 @@ int _nya_entity_draw_entry_compare(const void* left, const void* right) {
      * Ties broken by texture: a draw call holds one texture, so sorting purely by depth would interleave
      * a hundred sprites sharing a sheet with sprites from another, turning one draw call into a hundred.
      * Grouping equal-depth entities by texture puts the batching back.
-     *
-     * Compared by address, since asset handles are interned literals — comparing the strings would be
-     * strcmp inside a sort.
      */
     if ((uintptr_t)a->texture < (uintptr_t)b->texture) return -1;
     if ((uintptr_t)a->texture > (uintptr_t)b->texture) return 1;
@@ -1354,7 +1323,13 @@ u32 nya_system_entity_lights(f32x2 min, f32x2 max, OUT NYA_Light2D* out, OUT f32
      * radius in the world (which nothing tracks) or by a guess. Lights are rare enough that walking is
      * honest and cheap.
      */
-    static NYA_EntityLightEntry candidates[NYA_ENTITY_MAX];
+    /*
+     * From the frame arena, for the reason the draw list above is: 384 kB of function static held for the
+     * process to hold one frame's candidates. Sized by the ceiling because the walk below is over the whole
+     * table and nothing bounds how many entities carry a light.
+     */
+    NYA_EntityLightEntry* candidates = nya_arena_alloc(nya_app_get()->frame_allocator, NYA_ENTITY_MAX * sizeof(NYA_EntityLightEntry));
+    if (candidates == nullptr) return 0;
 
     u32 found = 0;
 
@@ -1407,21 +1382,11 @@ NYA_EntityHandle _nya_entity_hover_move(NYA_EntityHandle hit) {
 
     /*
      * Committed before either callback runs.
-     *
-     * Both callbacks are game code and either may call back into the entity system — a tooltip that
-     * spawns, a highlight that despawns something. If the stored handle were still the old one at that
-     * point, a callback asking nya_entity_hovered would be told the cursor is somewhere it has already
-     * left, and one that called nya_entity_hover_clear would produce a second "left" for the same
-     * entity.
      */
     system->hovered = hit;
 
     /*
      * Left first, then entered.
-     *
-     * A game whose leave handler clears a highlight and whose enter handler sets one would otherwise
-     * clear the highlight it had just set, every time the cursor moved between two entities. Doing it
-     * in this order makes the pair of callbacks compose without either knowing about the other.
      */
     NYA_Entity* left = nya_entity_get(previous);
 
@@ -1464,14 +1429,6 @@ NYA_EntityHandle _nya_entity_click_deliver(NYA_EntityHandle hit, f32x3 world_poi
 
 /**
  * The three-dimensional counterpart to _nya_entity_query.
- *
- * A separate walk rather than a z test bolted onto that one: the 2D queries are what a top-down game
- * uses every tick and are on a hot path, and widening their signature to carry a z range they would
- * always pass would cost every one of those callers for a case they do not have.
- *
- * Brute force over the slot table, which is what the editor case wants — a marquee select happens on
- * a click, not per tick, and a spatial index that had to be kept current every frame would cost more
- * than it saves.
  * */
 NYA_INTERNAL u32 _nya_entity_query_box(f32x3 min, f32x3 max, b8 filter_type, u32 type, b8 filter_flags, u64 flags,
                                        OUT NYA_EntityHandle* out, u32 capacity) {
@@ -1577,9 +1534,6 @@ NYA_EntityHandle nya_entity_query_ray(f32x3 origin, f32x3 direction, f32 radius,
 
         /*
          * The projection of the entity onto the ray, then its perpendicular distance from it.
-         *
-         * `along` behind the origin means the entity is behind the camera, which is never a hit — a
-         * click must not select something out of view.
          */
         f32 along = (to_entity.x * unit.x) + (to_entity.y * unit.y) + (to_entity.z * unit.z);
 

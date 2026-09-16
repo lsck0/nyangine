@@ -1,16 +1,10 @@
 /**
  * Fonts as values: the handle, the name registry, default resolution, and metrics.
  *
- * The property leaned on hardest is that NYA_FONT_NONE resolves to the default, because that is what
- * lets a UI pass a font through everything without every widget checking whether one was set.
- *
  * ⚠ **Metrics used to be untestable here, and are not any more.** Measuring answered zero headless,
  * so this file could only test bookkeeping; laying text out needs no GPU, so it now goes through the
  * same code the real renderer uses and the numbers are real. That costs this test an app instance and
  * an asset system, which is what the setup below is for — measuring resolves a face through it.
- *
- * FACE is the one font in the tree. FACE2 names a file that does not exist, deliberately: it is only
- * ever used as "a different font" for the equality and registry cases, never measured.
  **/
 
 #include "nyangine/nyangine.c"
@@ -35,9 +29,6 @@ s32 main(void) {
     /*
      * Measuring resolves the face through the asset system, which is what makes a font a font rather
      * than a path and a number.
-     *
-     * The callback and event systems come with it: loading is performed by the frame-ended hook the
-     * asset system registers, so without them a queued face would stay queued forever.
      */
     nya_system_callback_init();
     NYA_EXPECT(nya_system_events_init());
@@ -219,10 +210,6 @@ s32 main(void) {
 
         /*
          * Measuring a named font must not leave it current.
-         *
-         * nya_font_metrics reads through the renderer's current-font state, so it makes its argument
-         * current for the duration and restores it afterwards — a HUD that measures a title font once
-         * must not start drawing in it.
          */
         nya_font_default_set(ui);
         (void)nya_font_metrics(nya_font(FACE, 48.0F));

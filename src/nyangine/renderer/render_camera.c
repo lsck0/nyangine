@@ -1,8 +1,6 @@
 /**
  * @file render_camera.c
  *
- * The 2D camera arithmetic, shared by the real renderer and the headless one.
- *
  * ⚠ **This file exists because the two renderers drifted, and the drift was invisible.** Camera
  * defaulting was written twice — once in `render2d.c`, once in `render2d_headless.c` — and the
  * headless copy was missing the zoom correction, so a headless caller that reset the camera and read
@@ -10,11 +8,6 @@
  * that zoom simply produced infinities in a build nothing looked at. The screen/world conversions
  * had drifted further still: headless returned its argument unchanged, so a test that set a camera
  * and asked where a world point landed was told "wherever it already was".
- *
- * Everything here is a pure function of a camera and a target size. There is no GPU state in the
- * camera path at all — the projection is applied at flush, from these same four numbers — so both
- * builds can and now do call exactly this code. `render2d.c` and `render2d_headless.c` are left
- * holding only the parts that genuinely differ: closing a draw range, and having one to close.
  * */
 #include "nyangine/nyangine.h"
 

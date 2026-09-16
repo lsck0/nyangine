@@ -1,23 +1,6 @@
 /**
  * @file base_hset.h
  *
- * API Overview:
- * - nya_hset_create(arena_ptr, item_type)
- * - nya_hset_create_with_capacity(arena_ptr, item_type, initial_capacity)
- * - nya_hset_clear(hset_ptr)
- * - nya_hset_destroy(hset_ptr)
- * - nya_hset_resize_and_rehash(hset_ptr, new_capacity)
- * - nya_hset_contains(hset_ptr, item)
- * - nya_hset_insert(hset_ptr, item)
- * - nya_hset_remove(hset_ptr, item)
- * - nya_hset_union(dest_hset_ptr, src_hset_ptr)
- * - nya_hset_intersection(dest_hset_ptr, src_hset_ptr)
- * - nya_hset_difference(dest_hset_ptr, src_hset_ptr)
- * - nya_hset_symmetric_difference(dest_hset_ptr, src_hset_ptr)
- * - nya_hset_copy(hset_ptr)
- * - nya_hset_move(hset_ptr, new_arena_ptr)
- * - nya_hset_foreach(hset_ptr, item_name)
- *
  * Example:
  * ```c
  * typedef struct {
@@ -251,24 +234,6 @@
  * All four set operations walk one set and mutate another, and every one of them has to tolerate
  * being handed the *same* set twice — `nya_hset_union(a, a)`, `a \ a`, `a △ a` and `a ∩ a` are all
  * things a caller writes, and test_hset.c writes them.
- *
- * Iterating a table while mutating it does not work here, for two separate reasons:
- *
- *  - nya_hset_remove is a backward shift deletion. After clearing a slot it reinserts the rest of
- *    the probe chain at the first free slot from each entry's own hash, frequently an index *below*
- *    the cursor. An entry moved there is never looked at again, so it survives an operation that
- *    should have removed it. Nine keys in a table of sixteen is enough to see it.
- *  - nya_hset_insert checks the load factor before it knows whether the item is a duplicate, so it
- *    can call nya_hset_resize_and_rehash, which frees `items` and `occupied`. A loop reading those
- *    is then reading freed memory — which is how an aliased union, a no-op by definition, can fault.
- *
- * So each operation resolves its input to a flat array first and iterates that. `_nya_hset_snapshot`
- * takes a copy of the source's items; nya_hset_intersection instead collects the doomed subset of
- * the destination, since it is the one operation whose predicate is evaluated against the source
- * while the destination is what shrinks.
- *
- * Cost is one arena allocation per call, freed before returning. The +1 keeps an empty set from
- * asking the arena for nothing.
  */
 #define _nya_hset_snapshot(src_hset_ptr, items_name, count_name, bytes_name)                                                                         \
     u64                               bytes_name = ((src_hset_ptr)->length + 1) * sizeof(*(src_hset_ptr)->items);                                    \

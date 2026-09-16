@@ -1,20 +1,6 @@
 /**
  * @file render2d_headless.c
  *
- * The 2D batch, for builds with no renderer.
- *
- * Every public function of render2d.h, doing nothing. Callers do not guard their draw calls, so
- * a headless build needs the symbols to exist — a test that runs a whole frame of game logic still
- * runs the code that would have drawn it.
- *
- * Kept apart from render2d.c because the two used to live in one file behind a single #if, which
- * meant every function in the subsystem was written twice, seventeen hundred lines apart, and a
- * signature could be changed on one side only. Two files with the same public surface still have
- * that hazard; at least now each is readable on its own, and nyangine.c picks one.
- *
- * Anything with no headless meaning returns a zeroed value: nya_render2d_frame_stats reports an empty
- * frame. Nothing asserts — refusing to draw is the correct behaviour here, not an error.
- *
  * ⚠ **Two things are emphatically not stubbed, because stubbing them was a bug.** The camera and text
  * *measurement* are both computed exactly, by the same code the real renderer runs — see
  * render_camera.c and render_text.h. Neither needs a GPU, and answering zero for them meant a headless
@@ -103,17 +89,6 @@ void nya_render2d_circle(NYA_Window* window, f32x2 center, f32 radius, NYA_Color
  * The camera is the one piece of state a headless build still has to model, because game logic reads
  * it back and converts through it — and every one of these has to agree with render2d.c exactly, or a
  * test observes a camera the real build would never hand it.
- *
- * They did not, twice over. Reset zeroed the struct and get returned it raw, so a headless caller that
- * reset and then read got a zoom of zero where the real build gives one — the very value render2d.c
- * documents refusing to hand back, since it goes straight into a divide on the way to world space.
- * And the two conversions were the identity, so a headless caller that set a camera and asked where a
- * world point landed was told "wherever it already was". This is the drift the note at the top of this
- * file warns about, found twice in the file that warns about it.
- *
- * Fixed by not writing it twice: the arithmetic lives in render_camera.c and both builds call it. What
- * is left below is only what genuinely differs — the real renderer closes a draw range first, and a
- * headless build has no range to close.
  */
 void nya_render2d_camera_set(NYA_Window* window, NYA_Camera2DTopDown camera) {
     nya_assert(window != nullptr);
@@ -235,9 +210,6 @@ void nya_render2d_nine_slice(NYA_Window* window, NYA_ConstCString texture_handle
 
 /**
  * The size the box would occupy, measured exactly. Nothing is drawn.
- *
- * `line_spacing` and `max_lines` are applied here the same way the real layout applies them, so a
- * caller sizing a panel headless gets the number the panel would have.
  * */
 f32x2 nya_render2d_text_box_measure(NYA_ConstCString text, NYA_Render2DTextBox params) {
     if (text == nullptr || text[0] == '\0') return f32x2_zero;

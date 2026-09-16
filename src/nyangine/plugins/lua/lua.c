@@ -1,12 +1,5 @@
 /**
  * @file lua.c
- *
- * The LuaJIT binding. See lua.h for the surface and for the two hot-reload rules.
- *
- * The whole file is a translation between Lua's stack and NYA_Value, plus the bookkeeping that keeps
- * the stack balanced across it. Nothing here is clever; the care is all in making sure that every
- * path — including every failure path — pops exactly what it pushed, because a leaked stack slot is
- * invisible until the hundredth call and then it is a stack overflow inside a script.
  * */
 #include "nyangine/nyangine.h"
 
@@ -49,9 +42,6 @@ struct NYA_LuaVM {
 
 /**
  * A NUL-terminated copy of `text` in `arena`.
- *
- * base_string works in NYA_String, and everything crossing this boundary is a C string — going
- * through NYA_String to copy one would allocate twice and convert twice.
  * */
 NYA_INTERNAL NYA_CString _nya_lua_clone_cstring(NYA_Arena* arena, NYA_ConstCString text) {
     if (text == nullptr) return nullptr;
@@ -164,9 +154,6 @@ void _nya_lua_push(lua_State* state, const NYA_Value* value, u32 depth) {
  * *border*: an `n` where `t[n]` is non-nil and `t[n+1]` is nil. For `{ [1]='a', [3]='c' }` that is
  * 1, so a check that only walks 1..length finds every key it looked for, calls the table a sequence,
  * and converts it to a one-element array — losing `[3]` with nothing to say about it.
- *
- * So the entries are counted as well. A table is a sequence when it has a positive border, every key
- * from 1 to it is present, **and it holds nothing else**.
  * */
 NYA_INTERNAL b8 _nya_lua_is_sequence(lua_State* state, s32 index) {
     u64 length = (u64)lua_objlen(state, index);
@@ -299,11 +286,6 @@ int _nya_lua_trampoline(lua_State* state) {
 
     /*
      * A stack arena for the call's values, destroyed the moment it returns.
-     *
-     * Not the VM's arena: a binding called sixty times a second for an hour would otherwise grow it
-     * without bound, since an arena frees all at once or not at all. A stack arena is exactly the
-     * right lifetime — everything a binding is handed dies with the call, which is what lua.h says
-     * about NYA_LuaCall.arena.
      */
     NYA_Arena scratch_arena = nya_arena_create_on_stack(.name = "lua_call");
     NYA_Arena* scratch      = &scratch_arena;
@@ -346,11 +328,6 @@ NYA_Error nya_lua_create(NYA_Arena* arena, NYA_LuaOptions options, OUT NYA_LuaVM
 
     /*
      * luaL_newstate, not lua_newstate with an arena allocator.
-     *
-     * On x64 LuaJIT's collector needs its heap in the low two gigabytes of the address space and
-     * ships its own mmap-based allocator to guarantee that; a custom allocator there is documented
-     * upstream as unsupported and fails at runtime rather than at build time. See the memory note in
-     * lua.h — this is the one place in the engine that is not arena-backed, and it is not a choice.
      */
     lua_State* state = luaL_newstate();
     if (state == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "could not create a Lua state");
@@ -567,10 +544,6 @@ void nya_lua_register(NYA_LuaVM* vm, NYA_ConstCString name, NYA_LuaFn fn, void* 
 
     /*
      * Both upvalues rather than a pointer to the binding.
-     *
-     * An index into the VM's table survives the table being written to; a captured pointer into it
-     * would not if the array ever moved. It does not today — it is fixed size — and the index costs
-     * nothing, so this is the version that stays correct if that changes.
      */
     lua_pushlightuserdata(vm->state, vm);
     lua_pushinteger(vm->state, (lua_Integer)index);

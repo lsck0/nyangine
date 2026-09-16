@@ -36,3 +36,56 @@ jobs:
 
       - name: Build release targets
         run: ./build build release
+
+      # `release` on this host cross compiles the Windows target too, so both artifacts exist here and
+      # there is no second job to collect from. Named with the version, so the glob is the manifest.
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          cp gnyame.*.linux-x86_64 gnyame.*.windows-x86_64.exe dist/
+
+          # Checksums over the files as published. Generated next to them rather than by a later step,
+          # so nothing can be swapped in between hashing and upload.
+          (cd dist && sha256sum ./* > SHA256SUMS)
+
+          ls -l dist
+
+      # Notes come from the commits since the previous tag. Hand written notes go stale against the
+      # history they claim to describe; generated ones cannot.
+      - name: Generate release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          previous="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+
+          {
+            echo "## ${TAG}"
+            echo
+            if [ -n "${previous}" ]; then
+              echo "Changes since ${previous}:"
+              echo
+              git log --no-merges --pretty='- %s' "${previous}..${TAG}"
+            else
+              echo "First tagged release."
+            fi
+            echo
+            echo '## Checksums'
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+          } > release-notes.md
+
+          cat release-notes.md
+
+      # The gh CLI rather than a marketplace action: it ships on the runner, so this adds no third
+      # party dependency to pin, and the same command runs locally against the same API.
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file release-notes.md \
+            dist/*

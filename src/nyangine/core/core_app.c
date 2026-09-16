@@ -13,16 +13,6 @@ NYA_INTERNAL NYA_App _NYA_APP_INSTANCE;
 
 /**
  * Most fixed timestep ticks one frame is allowed to run to catch up.
- *
- * Without a ceiling the update debt is a positive feedback loop: a tick that costs more wall time
- * than it simulates leaves the frame further behind than it started, so the next frame runs more
- * ticks, which puts it further behind still. The application stops responding while the loop chases
- * a debt it can never pay — the classic spiral of death.
- *
- * Five ticks is 80 ms at the default 16 ms step, which absorbs an ordinary hitch (an asset load, a
- * window drag, a scheduler stall) without letting one become permanent. Past that the simulation
- * accepts that it has lost time and carries on from the present rather than replaying the gap;
- * running in slow motion is a better failure than not running at all.
  * */
 #define _NYA_APP_MAX_CATCH_UP_TICKS 5
 
@@ -39,16 +29,6 @@ NYA_INTERNAL void _nya_app_render(void);
 
 /**
  * Renders, and keeps simulating, while the window is being dragged by its edge.
- *
- * Windows runs its own message loop for the duration of a resize or move, and does not return from
- * it until the mouse is released. The main loop is parked inside SDL_PollEvent for that whole time,
- * so nothing updates, nothing draws, and the desktop compositor stretches the last frame over the
- * new window rectangle. SDL documents the problem on its SDL3/AppFreezeDuringDrag wiki page.
- *
- * An event watcher is the way out, because SDL calls watchers from inside its window procedure and
- * so they still run while that modal loop owns the thread. SDL_EVENT_WINDOW_EXPOSED with data1 set
- * to 1 is the live resize repaint, which is exactly the moment to produce a frame; its
- * documentation says as much, that it "can be redrawn directly from event watchers".
  * */
 NYA_INTERNAL bool SDLCALL _nya_app_live_resize_event_watch(void* userdata, SDL_Event* event);
 
@@ -63,10 +43,6 @@ NYA_INTERNAL bool SDLCALL _nya_app_live_resize_event_watch(void* userdata, SDL_E
  * `_nya_app_register_subsystems` below for the table itself and the ordering notes that used to hang
  * above a `NYA_Subsystem _NYA_SUBSYSTEMS[]` array — the registration calls carry the same comments,
  * in the same order, now that the array is gone.
- *
- * A bring-up that cannot fail returns NYA_OK. There is deliberately no `update` on any of these
- * entries: the frame loop calls engine systems by name from `_nya_app_frame_step` and a game wants to
- * interleave its own work between them, which a per-frame tick buried in this table would not allow.
  * */
 NYA_INTERNAL void _nya_app_register_subsystems(void);
 
@@ -78,10 +54,6 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_logfile(void) {
 
 /*
  * First, and before the settings it feeds.
- *
- * A failure here is not one: it means this machine has no writable home directory, which stops saving
- * and stops nothing else. The return is deliberately discarded rather than unwinding — refusing to
- * start a game because it cannot write a settings file is the wrong trade.
  */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_save(void) { (void)nya_system_save_init(); return NYA_OK; }
 
@@ -104,19 +76,12 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_asset(void) { nya_system_asset_init(); 
 /*
  * After the asset system, because a locale file is an asset: the bytes are read through nya_asset_read
  * and the file is watched by registering it, both of which need the registry up.
- *
- * Loads nothing by itself. A game localises by calling nya_i18n_load with the generated key table, and
- * one that never does pays a frame hook that returns on its first branch.
  */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_i18n(void) { nya_system_i18n_init(); return NYA_OK; }
 
 /*
  * After the asset system, for the same reason i18n is: a config file is read through nya_asset_read
  * and, under NYA_ASSET_HOT_RELOAD, watched by registering it, both of which need the registry up.
- *
- * Loads nothing by itself. A game calls nya_config_load or nya_config_watch with its own struct and
- * a path, and one that never does pays nothing beyond an arena and, under hot reload, a frame hook
- * that walks an empty table.
  */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_config(void) { nya_system_config_init(); return NYA_OK; }
 
@@ -125,10 +90,6 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_audio(void) { return nya_system_audio_i
 
 /*
  * The world, which is entities, physics and the simulation barrier as one lifetime.
- *
- * These used to be three separate bring-ups, in an order that mattered and was explained by a comment:
- * physics has to outlive entities, because despawning an entity destroys the rigid body it carries.
- * That ordering now lives inside nya_world_create, where no caller can get it wrong.
  */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_world(void) {
     NYA_App* app = nya_app_get();
@@ -180,27 +141,6 @@ NYA_INTERNAL void _nya_app_tear_down_world(void) {
  * Registers every engine subsystem, in bring-up order, each chained `after` the one before it so
  * nya_system_registry_finalize cannot produce anything but this exact order. **Teardown is this order
  * in reverse** — nya_system_registry_run_deinit's own contract, not something this function arranges.
- *
- * That reversal is a constraint on the order rather than a happy accident, and two entries sit where
- * they do because of it:
- *
- * - **`window` is last**, though it only allocates a table and could come up much earlier. Destroying a
- *   window runs on_destroy for every layer on it — game code, which legitimately reads assets, audio,
- *   the renderer and the world. Putting it last is what makes it tear down *first*, before any of them.
- *   This has bitten three separate times: layers reading a freed world, layers reading a zeroed entity
- *   table, and a render texture leaked because the layer that owned it bailed out on a world that had
- *   already been destroyed. Teardown runs outside-in, and game code is the outermost layer.
- *
- * - **`callback` comes before `job`**, so the workers stop before the registry they resolve function
- *   pointers through is freed. Neither depends on the other coming up first, so the order is chosen
- *   entirely by what teardown needs.
- *
- * This used to be a `const NYA_Subsystem _NYA_SUBSYSTEMS[]` array, reversed for teardown by iterating
- * it backwards — a single list specifically so it cannot disagree with itself, unlike an earlier
- * version with two macro lists and a static_assert cross-checking them, which is exactly how
- * nya_system_audio_deinit came to never be called. Registering into core_system.h's shared registry
- * keeps that same one-list guarantee: there is nowhere here to write a deinit order that disagrees
- * with the init order above it, because there is no second list, only `after`.
  * */
 void _nya_app_register_subsystems(void) {
     // First up and last down, so every line another subsystem writes on its way up or down is in the file.
@@ -263,16 +203,6 @@ void _nya_app_register_subsystems(void) {
 
 /**
  * One frame of update and render, without the parts of the loop that cannot safely run nested.
- *
- * The watcher fires from inside the main loop's own event drain, so a step started there is a frame
- * inside a frame. Three things are therefore left to the outer loop alone: draining SDL's queue,
- * which would eat events the outer loop has not read yet; resetting the frame allocator, which
- * would free memory the outer frame is still holding; and dispatching the frame lifecycle events,
- * which observers expect once per real frame.
- *
- * `live_resize` swaps in a separate arena for the duration, so a drag that lasts thirty seconds
- * reclaims its per frame allocations as it goes instead of growing the frame allocator until the
- * mouse comes up.
  * */
 NYA_INTERNAL void _nya_app_frame_step(b8 live_resize);
 
@@ -488,18 +418,6 @@ void nya_app_run(void) {
 
         /*
          * Framerate limiting, against the work *this* frame did.
-         *
-         * elapsed_ns is the period of the frame before this one, so sleeping by it decided the
-         * current frame's delay from the previous frame's cost. That is an oscillator: one expensive
-         * frame leaves elapsed_ns above the minimum, so the next frame does not sleep at all and
-         * completes in a fraction of a millisecond, which leaves elapsed_ns tiny, so the frame after
-         * that sleeps the full budget regardless of what it cost. Measured on the NEAT demo, the
-         * frame period alternated between 0.2 ms and 190 ms while averaging something reasonable, and
-         * frame_stats.fps — computed from the same stale value — reported 5453 on a loop capped at
-         * 120.
-         *
-         * frame_end_time_ns - frame_start_time_ns is what this frame actually spent, which is the
-         * quantity the sleep has to complement.
          */
         // Recorded rather than computed and dropped. "What did this frame cost" is the first question
         // anyone asks of a profiler, and the limiter is the only place that already knows.
@@ -547,15 +465,6 @@ void _nya_app_update(void) {
 
         /*
          * The solver runs at the top of the tick, before anything reads the world.
-         *
-         * It writes each body's transform onto its entity, so a layer's on_update and an entity's
-         * own on_update both see this tick's positions rather than last tick's. Stepping after them
-         * instead would mean every read in a callback was one tick stale, which is the difference
-         * between a projectile's collision check firing where it is and where it was.
-         *
-         * The fixed step is what goes in: Box2D's solver is only stable at a constant timestep, and
-         * handing it a variable frame time makes the same stack of crates behave differently at
-         * different frame rates.
          */
         nya_system_physics2d_update(app->frame_stats.delta_time_s);
 
@@ -583,12 +492,6 @@ void _nya_app_update(void) {
         /*
          * Tweens after the layers and before the entities, and the ordering is load-bearing in both
          * directions.
-         *
-         * After the layers, so a tween started this tick takes its first sample from the value the
-         * layer just set rather than from last tick's. Before the entities, because an entity's
-         * interpolated motion *is* a tween writing into NYA_Entity.move_position, and
-         * nya_system_entity_update is what copies that onto the transform — the other order would
-         * apply every move one tick stale. See nya_entity_move_to.
          */
         nya_system_tween_update(app->frame_stats.delta_time_s);
 
@@ -599,17 +502,6 @@ void _nya_app_update(void) {
 #ifndef NYA_NO_SDL
         /*
          * Networking, after everything that changes the world and before the barrier.
-         *
-         * After, because a snapshot has to describe the world as it ends the tick — capturing before
-         * the layers ran would send every client a world one tick stale, on top of the latency they
-         * already have. Before the barrier, because a command that spawns or despawns something has to
-         * go through the same deferred queue every other mutation does.
-         *
-         * Here rather than in a layer, because a dedicated server has no window and therefore no
-         * layers, and the whole point of one executable is that the server runs this same loop.
-         *
-         * Both calls return immediately when the thing they drive is not running, so a game with no
-         * networking pays two comparisons per tick. See net_server.h.
          */
         nya_net_server_tick(nya_world()->sim_system.tick, app->frame_stats.delta_time_s);
         nya_net_client_tick(nya_world()->sim_system.tick, app->frame_stats.delta_time_s);

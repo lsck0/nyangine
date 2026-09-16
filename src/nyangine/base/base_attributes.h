@@ -1,8 +1,5 @@
 /**
  * @file base_attributes.h
- *
- * Convenience macros around compiler attributes.
- * This should be synced to `.clang-format`.
  * */
 #pragma once
 
@@ -92,9 +89,6 @@
 
 /**
  * Forces the symbol into the binary even when nothing appears to need its storage.
- *
- * Without it the optimizer is free to constant fold every read of a static and drop the object,
- * which is fine until something searches the binary image for those exact bytes.
  * */
 #if __has_attribute(used)
 #define __attr_used __attribute__((used))
@@ -104,9 +98,6 @@
 
 /**
  * Additionally survives linker section garbage collection.
- *
- * `used` only binds the compiler; --gc-sections happens later and would still drop an otherwise
- * unreferenced section. Optional because it needs a linker that understands SHF_GNU_RETAIN.
  * */
 #if __has_attribute(retain)
 #define __attr_retain __attribute__((retain))
@@ -128,8 +119,5 @@
 
 /**
  * Suppresses the unused warning for something that is used in some builds and not others.
- *
- * Not a licence to leave dead code around: it is for a definition whose only callers live in a
- * translation unit the build swapped out — a headless renderer replacing the real one, for instance.
  * */
 #define __attr_maybe_unused [[maybe_unused]]

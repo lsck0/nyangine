@@ -1,24 +1,5 @@
 /**
  * Where a cascaded shadow volume goes: the frustum fit, the split, and the texel snap.
- *
- * Testable at all because the placement is pure math and lives in render_shadow.c rather than inside
- * the pass — the same separation render_camera.c exists for. Nothing here rasterises anything.
- *
- * ## What broke, and what these assert
- *
- * The fit used to size each cascade from a constant and put it a fixed distance in front of the
- * camera. That is only right when the camera is close to what it is looking at: an orbit camera well
- * outside the near cascade's reach spent that cascade on empty air, so the whole scene was shadowed by
- * the coarsest map, and moving the camera moved patches of ground between cascades of very different
- * resolution. On screen that read as shadows growing, shrinking and changing quality with nothing in
- * the scene having moved.
- *
- * A cascade is now fitted to its slice of the camera's own frustum, so the properties worth asserting
- * are the ones that failed before: that the cascades tile the view rather than nest, that the near one
- * covers what is near *whatever the camera's distance from its subject*, and that the fit depends on
- * the camera's shape rather than its position or heading.
- *
- * Headless: this is arithmetic over a camera and a light direction.
  **/
 
 #include "nyangine/nyangine.c"

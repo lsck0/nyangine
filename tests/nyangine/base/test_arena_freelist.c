@@ -1,10 +1,5 @@
 /**
  * Arena free list behaviour.
- *
- * test_arena.c covers allocation, reallocation and destruction. What it does not reach is what
- * happens to the free list over many alloc/free cycles: whether freed blocks come back, whether
- * adjacent free blocks coalesce, and whether the arena can serve an allocation the size of the
- * space it has released. That is where an allocator quietly leaks address space.
  **/
 
 #include "nyangine/nyangine.c"

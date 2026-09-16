@@ -24,10 +24,6 @@ NYA_INTERNAL void _nya_blend_weights_1d(const NYA_BlendNode* node, f32 parameter
 
 /**
  * Adds `clip` at `weight` to the mix, merging a clip that is already in it.
- *
- * The merge matters: the same clip can be reached twice through a tree — an idle at the centre of a
- * 2D strafe space is the obvious one — and two entries for it would sample and blend it against
- * itself, which is wasted work and, worse, wrong once the weights are normalised.
  * */
 NYA_INTERNAL void _nya_blend_contribute(_NYA_BlendMix* mix, const NYA_SkeletonClip* clip, f32 weight) {
     if (clip == nullptr || weight <= 0.0F) return;
@@ -101,11 +97,6 @@ b8 nya_blend_tree_child(NYA_BlendTree* tree, s32 parent, s32 child, f32x2 positi
 
     /*
      * Inserted in order of position.x rather than appended.
-     *
-     * The 1D weighting walks the children looking for the pair that brackets the parameter, and that
-     * only means anything if they are sorted. Doing it here rather than asking the caller to add them
-     * in order is the difference between a wrong tree failing loudly and a wrong tree animating
-     * slightly incorrectly.
      */
     u32 at = node->child_count;
     while (at > 0 && node->positions[at - 1].x > position.x) {
@@ -145,11 +136,6 @@ void nya_blend_tree_evaluate(NYA_BlendTree* tree) {
 
     /*
      * The duration the phase runs against, and the reason the whole tree shares one.
-     *
-     * Weighted by the same weights the pose is: at 82% walk the cycle is 82% of the way from the
-     * walk's length to the run's, so the transition through the middle is continuous in *time* as
-     * well as in pose. Taking the dominant clip's duration instead makes the cadence jump the moment
-     * the majority changes hands.
      */
     f32 duration = 0.0F;
     for (u32 i = 0; i < mix.clip_count; i++) {
@@ -199,11 +185,6 @@ void nya_blend_tree_update(NYA_BlendTree* tree, f32 delta_time_s, OUT NYA_Skelet
 
     /*
      * Mixed by successive blends rather than by averaging every bone at once.
-     *
-     * `running` is the weight already folded in, so blending the next contribution at
-     * `weight / (running + weight)` leaves the result correctly proportioned after each step. Doing
-     * it this way means the whole thing is built out of nya_skeleton_pose_blend, which slerps — an
-     * N-way component-wise average of quaternions does not, and shrinks rotations toward the centre.
      */
     f32 running = 0.0F;
 
@@ -266,10 +247,6 @@ void nya_blend_gradient_band(const f32x2* positions, u32 count, f32x2 parameter,
     /*
      * Every weight zero, which happens when the parameter is outside the samples' hull far enough
      * that each of them is past somebody else's neighbour.
-     *
-     * The nearest sample takes all of it. Leaving the weights at zero would produce no pose at all,
-     * and a character that stops animating because a speed went slightly negative is worse than one
-     * that plays its slowest clip.
      */
     u32 nearest          = 0;
     f32 nearest_distance = 0.0F;

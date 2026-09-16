@@ -1,17 +1,11 @@
 /**
  * @file math_vector.h
  *
- * Short vector types built on clang's ext_vector_type, so the usual operators work elementwise and
- * `.x` / `.y` / `.z` / `.w` and swizzles are available:
- *
  * ```c
  * f32x3 a = { 1, 2, 3 };
  * f32x3 b = a * 2.0F + f32x3_unit_y;
  * f32   y = b.y;
  * ```
- *
- * There are deliberately no nya_vector_add style wrappers: the operators already do it, elementwise,
- * and a wrapper would only hide that.
  * */
 #pragma once
 
@@ -37,33 +31,12 @@ typedef f128 f128x2 __attr_vector(2);
 
 /*
  * ⚠ Four lanes, not three, and that is a compiler workaround rather than a design choice.
- *
- * f128 is x87 long double: 10 bytes of value that clang's frontend reports as 16, and that LLVM
- * packs at 10 in a vector. For a three-lane vector those two answers disagree — the stack slot is
- * sized from the packed <3 x x86_fp80> (32 bytes) while every store to it is emitted as the padded
- * four-lane form (40 bytes), so the last eight bytes land outside the object. AddressSanitizer
- * catches it as a 40-byte stack-buffer-overflow on the plain initialization `(f128x3){ 1, 2, 3 }`;
- * two and four lanes are both fine, and no other element type has a non-power-of-two store size, so
- * f128x3 is the only member of the grid that hits it. Verified on clang 22.1.8.
- *
- * Declaring the fourth lane makes the slot and the store agree. sizeof is unchanged (the frontend
- * already said 64), `.x`/`.y`/`.z` are unchanged, and the extra lane is never read: every f128x3
- * value in the tree is built by a compound literal, which zero-fills it. The cost is that f128x3
- * and f128x4 are now the same type — checked, and nothing overloads or _Generic-dispatches on them
- * against each other, since the vector products are f32-only.
  */
 typedef f128 f128x3 __attr_vector(4);
 typedef f128 f128x4 __attr_vector(4);
 
 /*
  * Integer lanes, for code that works on a whole register at once rather than on a point in space.
- *
- * The same mechanism and the same operators, but not the same idea: these are lanes, so they get no
- * `.x` / `.y` / `.z` / `.w` and no swizzles. Index them, or move lanes with __builtin_shufflevector.
- *
- * Only the widths something uses. math_random works on 256 bit registers as four 64 bit lanes, and
- * shuffles them as eight 32 bit ones; add others here when they are actually needed rather than
- * filling in the grid on spec.
  * */
 typedef u32 u32x8 __attr_vector(8);
 typedef u64 u64x4 __attr_vector(4);
@@ -89,10 +62,6 @@ NYA_API f32 nya_vector_dot(f32x3 a, f32x3 b) __attr_overloaded __attr_no_discard
 
 /**
  * The vector perpendicular to both, right-handed.
- *
- * Right-handed because that is what the view and projection matrices in math_matrix.h assume, and a
- * cross product with the other handedness turns a look-at matrix inside out — which renders as a
- * scene that is mirrored and back-face culled rather than as anything that looks like a sign error.
  * */
 NYA_API f32x3 nya_vector_cross(f32x3 a, f32x3 b) __attr_no_discard;
 
@@ -101,10 +70,6 @@ NYA_API f32 nya_vector_length(f32x3 vector) __attr_overloaded __attr_no_discard;
 
 /**
  * The same direction, length one. A zero vector comes back zero rather than as NaN.
- *
- * Zero rather than an assert, because the input is routinely computed — `target - position` for a
- * camera that has not been placed yet — and a frame drawn from the origin is a far better failure
- * than a frame of NaNs, which propagate into the projection and blank the whole window.
  * */
 NYA_API f32x2 nya_vector_normalize(f32x2 vector) __attr_overloaded __attr_no_discard;
 NYA_API f32x3 nya_vector_normalize(f32x3 vector) __attr_overloaded __attr_no_discard;

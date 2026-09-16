@@ -20,7 +20,7 @@ NYA_INTERNAL NYA_Physics3DBody* _nya_physics3d_body_of(const NYA_Entity* entity,
 
 /** Builds and attaches the shape described by `options`. False when the dimensions are nonsense. */
 NYA_INTERNAL b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NYA_Physics3DBodyOptions* options,
-                                            OUT b3MeshData** out_mesh);
+                                            OUT b3MeshData** out_mesh, OUT b3HeightFieldData** out_height_field);
 
 /** Copies the step's hit events out of Box3D's transient buffer, in world units and entity handles. */
 NYA_INTERNAL void _nya_physics3d_collect_hits(NYA_Physics3DSystem* system);
@@ -98,10 +98,6 @@ void nya_system_physics3d_update(f32 delta_time_s) {
 
     /*
      * Cheap when nothing is in it, which is the common case.
-     *
-     * Both worlds step every tick and most games use one. Stepping an empty solver is a handful of
-     * nanoseconds — but it is not free, and skipping it here keeps a purely 2D game from paying for
-     * a 3D world it never touched.
      */
     if (system->body_count == 0) return;
 
@@ -234,9 +230,10 @@ b8 nya_physics3d_body_attach_with_options(NYA_EntityHandle handle, NYA_Physics3D
 
     b3BodyId body = b3CreateBody(system->world, &body_def);
 
-    b3MeshData* mesh = nullptr;
+    b3MeshData*        mesh         = nullptr;
+    b3HeightFieldData* height_field = nullptr;
 
-    if (!_nya_physics3d_shape_create(body, entity, &options, &mesh)) {
+    if (!_nya_physics3d_shape_create(body, entity, &options, &mesh, &height_field)) {
         // The body exists and has no shape, which is a body that falls through the world forever.
         // Destroyed rather than left behind, so a rejected attach leaves nothing at all.
         b3DestroyBody(body);
@@ -252,7 +249,8 @@ b8 nya_physics3d_body_attach_with_options(NYA_EntityHandle handle, NYA_Physics3D
         .size     = options.size,
         .radius   = options.radius,
         .length   = options.length,
-        .mesh     = mesh,
+        .mesh         = mesh,
+        .height_field = height_field,
         .attached = true,
     };
 
@@ -269,12 +267,9 @@ void nya_physics3d_body_detach(NYA_EntityHandle handle) {
 
     /*
      * The mesh first, and outside the check on the system below.
-     *
-     * A MESH body owns a b3MeshData that b3DestroyWorld does not free — it was created beside the world
-     * rather than inside it. Entity teardown at shutdown runs after nya_system_physics3d_deinit, so
-     * returning early on a dead system would leak exactly the largest allocation a body can hold.
      */
     if (entity->physics3d.mesh != nullptr) b3DestroyMesh((b3MeshData*)entity->physics3d.mesh);
+    if (entity->physics3d.height_field != nullptr) b3DestroyHeightField((b3HeightFieldData*)entity->physics3d.height_field);
 
     // The body id belongs to a world that no longer exists once the system is down, and handing it back
     // is a use after free rather than a no-op.
@@ -520,10 +515,11 @@ NYA_Physics3DBody* _nya_physics3d_body_of(const NYA_Entity* entity, NYA_ConstCSt
 }
 
 b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NYA_Physics3DBodyOptions* options,
-                               OUT b3MeshData** out_mesh) {
+                               OUT b3MeshData** out_mesh, OUT b3HeightFieldData** out_height_field) {
     NYA_ConstCString name = entity->name ? entity->name : "(unnamed)";
 
-    *out_mesh = nullptr;
+    *out_mesh         = nullptr;
+    *out_height_field = nullptr;
 
     b3ShapeDef shape_def = b3DefaultShapeDef();
 
@@ -606,11 +602,6 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
 
             /*
              * Rejected rather than quietly made static.
-             *
-             * A dynamic body with no inertia tensor is not a body the solver can integrate, and Box3D's
-             * answer to being given one is undefined rather than an error. Saying so here is the
-             * difference between a message naming the entity and a scene where one object behaves
-             * strangely.
              */
             if (options->type != NYA_PHYSICS_BODY_STATIC) {
                 nya_log_error("Entity '%s' asked for a 3D mesh body that is not static; a triangle mesh has no volume to give it mass.",
@@ -620,14 +611,6 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
 
             /*
              * Converted into a scratch array rather than passed straight through.
-             *
-             * The vertices arrive in world units and Box3D wants metres, and _nya_physics3d_to_meters is
-             * the same conversion every other shape here goes through. It also changes the type — f32x3
-             * in, b3Vec3 out — so there is no arrangement in which the caller's array could be handed
-             * over untouched.
-             *
-             * The temp arena, because this is a frame's worth of temporary — the mesh Box3D builds below
-             * is the copy that lives on.
              */
             u64 point_bytes = (u64)options->vertex_count * sizeof(b3Vec3);
             u64 index_bytes = (u64)options->index_count * sizeof(s32);
@@ -655,10 +638,6 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
 
             /*
              * Degenerate triangles reported rather than collected.
-             *
-             * Passing null for the array asks Box3D to skip them silently, which is the wrong default for
-             * generated geometry: a heightmap with two equal neighbouring samples produces them, and they
-             * are worth a line in the log rather than a shape that is quietly missing triangles.
              */
             s32 degenerate[8]  = { 0 };
             s32 degenerate_max = (s32)(sizeof(degenerate) / sizeof(degenerate[0]));
@@ -680,6 +659,82 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
             (void)b3CreateMeshShape(body, &shape_def, mesh, (b3Vec3){ 1.0F, 1.0F, 1.0F });
 
             *out_mesh = mesh;
+            return true;
+        }
+
+        case NYA_PHYSICS3D_SHAPE_HEIGHTFIELD: {
+            if (options->heights == nullptr || options->height_count_x < 2 || options->height_count_z < 2) {
+                nya_log_error("Entity '%s' asked for a 3D heightfield of %ux%u; it needs at least two grid points on each axis.",
+                              name, options->height_count_x, options->height_count_z);
+                return false;
+            }
+
+            if (options->height_cell_size.x <= 0.0F || options->height_cell_size.y <= 0.0F) {
+                nya_log_error("Entity '%s' asked for a 3D heightfield with a cell size of %fx%f; both must be positive.", name,
+                              (f64)options->height_cell_size.x, (f64)options->height_cell_size.y);
+                return false;
+            }
+
+            // Rejected rather than quietly made static, exactly as the mesh case is: a heightfield is a
+            // surface and has no volume to give a body mass.
+            if (options->type != NYA_PHYSICS_BODY_STATIC) {
+                nya_log_error("Entity '%s' asked for a 3D heightfield body that is not static; a surface has no volume.", name);
+                return false;
+            }
+
+            u32 point_count = options->height_count_x * options->height_count_z;
+
+            /*
+             * Converted into a scratch array, because the engine's heights are in world units and Box3D
+             * wants metres — the same conversion the mesh case does per vertex.
+             */
+            u64  height_bytes = (u64)point_count * sizeof(f32);
+            f32* heights      = nya_arena_alloc(nya_arena_temp, height_bytes);
+
+            f32 lowest  = _nya_physics3d_scalar_to_meters(options->heights[0]);
+            f32 highest = lowest;
+
+            for (u32 i = 0; i < point_count; i++) {
+                heights[i] = _nya_physics3d_scalar_to_meters(options->heights[i]);
+
+                lowest  = nya_min(lowest, heights[i]);
+                highest = nya_max(highest, heights[i]);
+            }
+
+            /*
+             * The quantisation range, from the data rather than guessed.
+             *
+             * Box3D stores heights as uint16_t between these two, so a range wider than the terrain wastes
+             * precision and a narrower one clamps real geometry flat. Widened by a hair when the surface is
+             * perfectly level, because a zero range is a division by it.
+             */
+            if (highest - lowest < 1e-4F) highest = lowest + 1e-4F;
+
+            b3HeightFieldDef height_def = {
+                .heights = heights,
+                .scale   = { _nya_physics3d_scalar_to_meters(options->height_cell_size.x), 1.0F,
+                             _nya_physics3d_scalar_to_meters(options->height_cell_size.y) },
+
+                .countX = (int)options->height_count_x,
+                .countZ = (int)options->height_count_z,
+
+                .globalMinimumHeight = lowest,
+                .globalMaximumHeight = highest,
+            };
+
+            b3HeightFieldData* height_field = b3CreateHeightField(&height_def);
+
+            nya_arena_free(nya_arena_temp, heights, height_bytes);
+
+            if (height_field == nullptr) {
+                nya_log_error("Entity '%s' asked for a %ux%u 3D heightfield that Box3D would not build.", name,
+                              options->height_count_x, options->height_count_z);
+                return false;
+            }
+
+            (void)b3CreateHeightFieldShape(body, &shape_def, height_field);
+
+            *out_height_field = height_field;
             return true;
         }
 

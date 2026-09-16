@@ -1,11 +1,5 @@
 /**
  * @file render_text.c
- *
- * Shaping, through SDL3_ttf and therefore through HarfBuzz. See render_text.h for why.
- *
- * The whole file is one translation of `TTF_Text` into NYA_TextRun. Nothing here rasterises, opens a
- * device or knows what a window is, which is deliberate — it is what lets the headless build measure
- * text the same way the real one lays it out.
  * */
 #include "nyangine/nyangine.h"
 
@@ -17,20 +11,12 @@
 
 /**
  * The largest glyph_count/line_count any single run built this process has needed.
- *
- * NYA_TEXT_RUN_GLYPHS_MAX/_LINES_MAX cap one NYA_TextRun, and a run is a stack value built fresh
- * per call rather than a persistent object — there is no one run to point the ceiling registry at,
- * so this tracks the closest any run has come instead. Same trade as _nya_render2d_glyph_count_worst.
  * */
 NYA_INTERNAL u32 _nya_text_run_glyph_count_worst = 0;
 NYA_INTERNAL u32 _nya_text_run_line_count_worst  = 0;
 
 /**
  * Fills in the run's per-line boxes from the laid-out text.
- *
- * The lines come from SDL_ttf rather than from counting newlines here, because with a wrap width it
- * is the shaper that decided where the breaks went — and even without one, an embedded newline is
- * only one of the things that can start a line.
  * */
 NYA_INTERNAL void _nya_text_collect_lines(TTF_Text* text, OUT NYA_TextRun* run) {
     s32 line_count = text->num_lines > 0 ? text->num_lines : 1;
@@ -64,10 +50,6 @@ NYA_INTERNAL void _nya_text_collect_lines(TTF_Text* text, OUT NYA_TextRun* run) 
 
 /**
  * Which line a glyph belongs to, by the line box its top edge falls in.
- *
- * Geometric rather than looked up through the cluster table: a copy operation carries a byte offset
- * into the text, but so does every other glyph in its cluster, and mapping offsets back to lines
- * would mean a search per glyph. Its `y` already came from the line it was laid out on.
  * */
 NYA_INTERNAL u32 _nya_text_line_of(const NYA_TextRun* run, s32 y) {
     for (u32 line = 0; line < run->line_count; line++) {
@@ -177,10 +159,6 @@ b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_wi
 
     /*
      * The per-line glyph ranges, in a second pass.
-     *
-     * Counted rather than tracked while appending because the operations are not guaranteed to be
-     * emitted in line order — they are in practice, and a range built on that assumption would be
-     * silently wrong the day they are not. Two passes over at most a thousand glyphs costs nothing.
      */
     for (u32 line = 0; line < out_run->line_count; line++) {
         out_run->lines[line].first_glyph = out_run->glyph_count;
@@ -298,10 +276,6 @@ TTF_Font* nya_text_font_for(NYA_ConstCString path, f32 point_size) {
     /*
      * Cast rather than a const-correct asset API, matching nya_render2d_procedural and every other call
      * site that has a `const char*` in hand.
-     *
-     * NYA_AssetHandle is `char*` because the asset system stores the pointer it is given and hands it
-     * back; nothing writes through it. Without the cast this warns twice on every build, which is two
-     * more warnings than a build should have for something that is not a bug.
      */
     NYA_Asset* asset = nya_asset_get((NYA_AssetHandle)handle);
 

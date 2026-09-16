@@ -29,16 +29,6 @@ extern b8                  SteamAPI_RestartAppIfNecessary(u32 unOwnAppID);
 
 /*
  * `err_msg_capacity` is not optional, and the result is always terminated.
- *
- * This took a bare NYA_CString and copied up to 1024 bytes into it with no idea how big it was, so
- * the only safe call was one passing a buffer of exactly SteamErrMsg's size — which the header did
- * not say and could not enforce. It also stopped at the source's NUL without ever writing one, so a
- * caller whose buffer was not already zeroed got an unterminated string back and the next thing to
- * read it ran off the end.
- *
- * Not reachable today: steam.c is in no translation unit — nyangine.c does not include it — so none
- * of this has ever been compiled. Fixed rather than left, because the file is here to be switched
- * on later and a buffer bug is a poor thing to hand the person who does it.
  */
 NYA_SteamInitResult nya_system_steam_init(OUT NYA_CString err_msg, u64 err_msg_capacity) {
     SteamErrMsg         raw_err = { 0 };

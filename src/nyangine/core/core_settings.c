@@ -10,10 +10,6 @@
 
 /**
  * What each volume channel is called in the settings file.
- *
- * Names rather than array indices, for the same reason bindings are keyed by action name: an index
- * is unreadable to the player editing the file, and it changes meaning the day a channel is inserted
- * in the middle of the enum. A name that no longer exists is simply ignored on load.
  * */
 NYA_INTERNAL NYA_ConstCString _NYA_VOLUME_CHANNEL_NAMES[NYA_VOLUME_CHANNEL_COUNT] = {
     [NYA_VOLUME_CHANNEL_MASTER] = "master",
@@ -25,10 +21,6 @@ NYA_INTERNAL NYA_ConstCString _NYA_VOLUME_CHANNEL_NAMES[NYA_VOLUME_CHANNEL_COUNT
 
 /**
  * A binding as one editable string: `"Space"`, `"Ctrl+S"`, `"Shift+Left Alt+F1"`.
- *
- * Names rather than numbers throughout, and SDL's own names specifically, because SDL_GetKeyName and
- * SDL_GetKeyFromName round-trip — which nya_keycode_to_cstring does not, since that one returns what
- * a key *types* (`" "` for space, `"\t"` for tab) rather than what it is called.
  * */
 NYA_INTERNAL NYA_String* _nya_settings_binding_to_string(NYA_Arena* arena, NYA_InputBinding binding);
 
@@ -53,14 +45,6 @@ NYA_INTERNAL b8 _nya_settings_value_as_f32(const NYA_Value* value, OUT f32* out_
 void nya_system_settings_init(void) {
     /*
      * Defaults only. Loading is nya_settings_load, and the game calls it.
-     *
-     * Not because loading is optional, but because of *when* it can happen: a settings file addresses
-     * bindings by action name, and a game's actions are named after nya_app_init returns. Loading
-     * here would find nothing to attach the game's bindings to and would drop them silently — and
-     * saving on the way out would then write that emptied file back over the player's.
-     *
-     * So both ends are explicit, and neither can quietly destroy a settings file it did not
-     * understand. See core_settings.h.
      */
     nya_settings_reset();
 
@@ -118,11 +102,6 @@ NYA_Object* nya_settings_to_object(NYA_Arena* arena) {
     for (u32 action = 1; action < NYA_INPUT_ACTION_MAX; action++) {
         /*
          * Unnamed actions are skipped rather than written under their number.
-         *
-         * A number is not a stable name: a game that inserts an action in the middle of its enum
-         * renumbers everything after it, and a settings file keyed by number would then hand every
-         * one of those players the wrong keys. Skipping loses the binding for an action the game
-         * never named, which is a smaller and much more findable problem.
          */
         NYA_ConstCString name = nya_input_action_name((NYA_InputAction)action);
         if (name == nullptr) continue;
@@ -153,10 +132,6 @@ void nya_settings_from_object(const NYA_Object* object) {
 
     /*
      * The version is read and, today, not acted on.
-     *
-     * There is exactly one version, so there is nothing to migrate between — but reading it here is
-     * what makes the *next* version's migration possible, and a file written by a future build is
-     * worth a warning rather than a silent partial load.
      */
     u32 version = nya_save_version(object);
     if (version > NYA_SETTINGS_VERSION) {
@@ -201,12 +176,6 @@ void nya_settings_from_object(const NYA_Object* object) {
         /*
          * Cleared before the first slot is written, and only once the file has actually offered
          * something for this action.
-         *
-         * Replacing rather than adding, because nya_input_action_bind appends and a file loaded
-         * twice would otherwise fill both slots with the same key. Clearing lazily, because an
-         * action the file mentions with an empty list should keep its defaults rather than end up
-         * unbound — an empty list is much more likely to be a hand-editing accident than an
-         * instruction.
          */
         b8 cleared = false;
         u32 slot   = 0;
@@ -278,11 +247,6 @@ void nya_settings_reset(void) {
 
 /**
  * The modifiers a binding string may name, in the order they are written.
- *
- * Only the side-agnostic ones, and only the chording ones. Writing `Ctrl` rather than `Left Ctrl` is
- * what a player expects to see and to type, and it is also what the matcher actually tests — a
- * binding asking for NYA_KEYMOD_CTRL is satisfied by either physical key. The lock keys are state
- * rather than chords and are never part of a binding, so they have no spelling here.
  * */
 NYA_INTERNAL const struct {
     NYA_ConstCString name;
@@ -329,10 +293,6 @@ b8 _nya_settings_binding_from_string(NYA_ConstCString text, OUT NYA_InputBinding
 
     /*
      * Scanned from the front, one `Name+` prefix at a time, rather than split on every `+`.
-     *
-     * Because `+` is also a key. Splitting `Ctrl++` on separators gives three empty-ish pieces and
-     * loses the key entirely; consuming known modifier prefixes leaves whatever is left as the key
-     * name, and what is left there is exactly `+`.
      */
     NYA_ConstCString cursor = text;
 
@@ -366,11 +326,6 @@ b8 _nya_settings_value_as_f32(const NYA_Value* value, OUT f32* out_number) {
 
     /*
      * Every numeric type, not just F32.
-     *
-     * A volume written as 1.0 comes back as an F32 from the native format and an F64 from JSON, and
-     * a volume a player hand-edited to a bare `1` comes back as an integer from both. All three mean
-     * the same thing, and a loader that only accepted its own output would silently ignore the one
-     * spelling a human is most likely to type.
      */
     switch (value->type) {
         case NYA_TYPE_F32: *out_number = value->as_f32; return true;

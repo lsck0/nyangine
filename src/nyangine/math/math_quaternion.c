@@ -305,11 +305,6 @@ NYA_Quaternion nya_quaternion_slerp_unit(NYA_Quaternion a, NYA_Quaternion b, f32
 
     /*
      * Nearly parallel: nlerp instead.
-     *
-     * Not only for precision — though sin θ approaching zero does destroy the division below — but
-     * because this is the *common* case and nlerp is an order of magnitude cheaper. The bound on how
-     * far the two curves diverge is on NYA_QUATERNION_NLERP_THRESHOLD, and it is small enough that
-     * nothing downstream can represent the difference.
      */
     if (cosine > NYA_QUATERNION_NLERP_THRESHOLD) return nya_quaternion_nlerp(a, b, t);
 

@@ -1,14 +1,5 @@
 /**
  * @file layer_pause_menu.c
- *
- * The pause menu, pushed on top of a running game and popped to resume.
- *
- * Pushed above the HUD rather than in place of it, so the counters stay readable while the world is
- * stopped — which is most of what pausing a demo like this is for. The solver is stopped by the
- * screen change in layers.c, not here, so "paused" cannot come to mean two different things.
- *
- * Escape both opens and closes it: the HUD layer turns escape into gny_screen_pause while playing,
- * and this layer sits above the HUD once it is up, so it sees the next escape first.
  * */
 #include "gnyame/gnyame.h"
 
@@ -24,10 +15,6 @@ NYA_INTERNAL GNY_MenuItem _gny_pause_menu_items[] = {
 
     /*
      * The options screen, such as it is.
-     *
-     * Two rows rather than a submenu, because two settings do not justify one — and because a volume
-     * a player cannot hear while they set it is a volume they set twice. Edited with left and right;
-     * nya_settings_volume_set writes straight through, and gny_actions_deinit persists the result.
      */
     { .kind = GNY_MENU_ITEM_KIND_VOLUME, .channel = NYA_VOLUME_CHANNEL_MASTER },
     { .kind = GNY_MENU_ITEM_KIND_VOLUME, .channel = NYA_VOLUME_CHANNEL_MUSIC  },

@@ -1,8 +1,6 @@
 /**
  * @file base_template.h
  *
- * Filthy unicode abuse to make derived types look like templates.
- *
  * Example:
  * ```c
  * #define _nya_derive_hashmap_name(key_type, value_type) nya_template(HashMap, key_type, value_type)

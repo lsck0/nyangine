@@ -1,15 +1,5 @@
 /**
  * Arena and perf introspection: the four things a debugging session actually asks for.
- *
- * - which subsystem is holding memory        NYA_ArenaStats + the registry
- * - which line of it                         the callsite table
- * - how long each timer takes                NYA_PerfStats
- * - how a single frame was put together      nya_perf_frame_spans
- *
- * Built in debug mode, unlike the rest of the suite: the callsite table and every perf entry point
- * are compiled out otherwise, and a test that asserted nothing in the mode it runs under would be
- * test_perf's problem all over again. The disabled-build behaviour is asserted at the bottom, from
- * the same file, by checking what the macros collapse to.
  **/
 
 // Both subsystems are debug gated and the suite builds in mode 4, so they are switched on here

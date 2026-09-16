@@ -1,10 +1,6 @@
 /**
  * @file math_complex.h
  *
- * Complex numbers, built on C's native `_Complex` rather than a struct: operators do complex
- * arithmetic directly and `<tgmath.h>` dispatches `cabs`/`carg`/`cexp`/`csqrt` on the argument type,
- * so there are no add/mul wrappers here, same reasoning as math_vector.h.
- *
  * ```c
  * c64 z = nya_complex(3.0, 4.0);
  * c64 w = z * z + 1.0;
@@ -12,13 +8,6 @@
  * nya_complex_imag(z) = 0.0;          // the accessors are assignable
  * printf(FMTc64 "\n", FMTc64_ARG(w));
  * ```
- *
- * Adds what the standard library leaves out: `c32`/`c64`/`c128` naming to match `f32`/`f64`/`f128`,
- * printing, assignable component accessors, polar construction, and epsilon-based comparison and
- * interpolation.
- *
- * `I` from `<complex.h>` is `_Complex_I` (`float _Complex`), so `1.0 + 2.0*I` builds a c32 and widens,
- * losing precision in a c128 expression; nya_complex builds the value at the requested width instead.
  * */
 #pragma once
 
@@ -98,10 +87,6 @@
 
 /**
  * Builds a complex number from its components, at the width of the arguments.
- *
- * Dispatches on the argument type, so nya_complex(1.0F, 2.0F) is a c32 and nya_complex(1.0, 2.0) a
- * c64. Use the explicit nya_complex_f32 / _f64 / _f128 forms when the width has to be pinned
- * regardless of what the arguments happen to be.
  * */
 #define nya_complex(real, imaginary)                                                                                                                 \
     _Generic((real) + (imaginary), f32: nya_complex_f32, f128: nya_complex_f128, default: nya_complex_f64)((real), (imaginary))
@@ -117,9 +102,6 @@ NYA_API c128 nya_complex_from_polar(f128 magnitude, f128 radians) __attr_overloa
 
 /**
  * The unit complex number at `radians`, that is e^(i·θ).
- *
- * Multiplying by one of these rotates in the plane, which is the 2D counterpart of what a unit
- * quaternion does in 3D.
  * */
 NYA_API c32  nya_complex_unit(f32 radians) __attr_overloaded __attr_no_discard;
 NYA_API c64  nya_complex_unit(f64 radians) __attr_overloaded __attr_no_discard;
@@ -150,9 +132,6 @@ NYA_API c64 nya_complex_lerp(c64 a, c64 b, f64 t) __attr_overloaded __attr_no_di
 
 /**
  * Interpolates along the arc: magnitude and angle move independently.
- *
- * Takes the shortest way round, so slerping from just under a half turn to just over it does not
- * sweep the long way. Falls back to a plain lerp when either endpoint is zero and has no angle.
  * */
 NYA_API c32 nya_complex_slerp(c32 a, c32 b, f32 t) __attr_overloaded __attr_no_discard;
 NYA_API c64 nya_complex_slerp(c64 a, c64 b, f64 t) __attr_overloaded __attr_no_discard;

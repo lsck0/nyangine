@@ -253,10 +253,6 @@ NYA_INTERNAL void _nya_serde_json_write_value(NYA_String* out, const NYA_Value* 
 
 /**
  * Writes a real number as a valid JSON number.
- *
- * JSON has no way to spell NaN or infinity. Emitting them anyway produces a document that strict
- * parsers reject, so they become null, which every parser accepts and no one mistakes for a
- * measurement.
  * */
 NYA_INTERNAL void _nya_serde_json_write_real(NYA_String* out, f64 number, NYA_ConstCString format) {
     if (isnan(number) || isinf(number)) {
@@ -454,10 +450,6 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_value(_NYA_SerdeJsonParser* parser,
 
 /**
  * Reads a JSON number.
- *
- * An integer literal becomes s64 and anything with a fraction or an exponent becomes f64. JSON
- * cannot say which was meant, so this is the guess documented in the header. An integer too large
- * for s64 falls back to f64 rather than failing, matching what every other JSON reader does.
  * */
 NYA_INTERNAL NYA_Error _nya_serde_json_parse_number(_NYA_SerdeJsonParser* parser, OUT NYA_Value* out_value) {
     NYA_Token* token    = _nya_serde_json_peek(parser);
@@ -487,14 +479,6 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_number(_NYA_SerdeJsonParser* parser
 
     /*
      * Refused rather than clamped.
-     *
-     * The digits used to be truncated to whatever fit, silently, so a number longer than this buffer
-     * was parsed from its prefix and the document round tripped to a value orders of magnitude away
-     * from what it said. Either rejecting it or carrying it exactly would be defensible; quietly
-     * returning a different number is not.
-     *
-     * The bound is generous by a wide margin: f64 saturates to infinity around 309 digits and the
-     * widest integer this can produce is 39, so nothing representable is being turned away.
      */
     u64 digits_length = token->length;
     if (digits_length > sizeof(text) - length - 1) {
@@ -626,15 +610,6 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser
                  * low one after it, or a lone low surrogate. It becomes U+FFFD REPLACEMENT
                  * CHARACTER, which is what the Unicode standard prescribes and what every other
                  * reader does.
-                 *
-                 * Encoding it as it stands instead produced a three byte sequence in the D800..DFFF
-                 * range, which is CESU-8 and not valid UTF-8 — so a document with one unpaired
-                 * escape yielded a string that no downstream consumer could decode. Rejecting the
-                 * document is the other defensible answer; substituting keeps one bad escape from
-                 * costing a whole save file.
-                 *
-                 * U+FFFD is three bytes and the escape it replaces is at least six characters of
-                 * source, so the buffer sizing above still holds.
                  */
                 if (0xD800 <= codepoint && codepoint <= 0xDFFF) codepoint = 0xFFFD;
 
@@ -671,14 +646,6 @@ NYA_INTERNAL NYA_Token* _nya_serde_json_peek(_NYA_SerdeJsonParser* parser) {
 
 /*
  * Steps over comments, for JSONC only.
- *
- * One token type now, since the lexer recognises a comment itself — this used to reassemble one from
- * the two adjacent symbol tokens it arrived as, comparing source offsets so that a slash and a star
- * divided across a line were not mistaken for an opener.
- *
- * Strict JSON deliberately does not call this. Leaving the comment token in the stream is what makes
- * it an error: every caller reaches the grammar through _nya_serde_json_peek, which then reports an
- * unexpected token exactly as it did when a comment arrived as a stray '/' symbol.
  */
 NYA_INTERNAL void _nya_serde_json_skip_comments(_NYA_SerdeJsonParser* parser) {
     while (parser->index < parser->lexer->tokens->length &&

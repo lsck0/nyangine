@@ -1,8 +1,6 @@
 /**
  * @file nn_optim.h
  *
- * Optimizers: what turns accumulated gradients into a weight update.
- *
  * ```c
  * NYA_NNOptimizer* optimizer = nya_nn_optimizer_adam(arena, (NYA_NNOptimizerConfig){ .learning_rate = 1e-3F });
  * nya_nn_optimizer_add_sequential(optimizer, network);
@@ -17,10 +15,6 @@
  *     nya_nn_graph_reset(graph);
  * }
  * ```
- *
- * The order matters and is the same every time: zero, forward, backward, step, reset. Gradients
- * accumulate by design — that is what lets one parameter be used twice in a pass — so a run that
- * forgets to zero them does not fail, it just trains on the sum of every step so far and diverges.
  * */
 #pragma once
 
@@ -44,11 +38,6 @@ enum NYA_NNOptimizerKind {
 
     /**
      * Adam: per parameter step sizes from running estimates of the gradient's mean and variance.
-     *
-     * The default choice for DQN, and not only out of habit. The gradient scale of a value network
-     * changes by orders of magnitude over a run as rewards are discovered and targets shift, and a
-     * single global learning rate that suits the start is wrong later. Adam normalises each
-     * parameter's step by its own recent gradient magnitude, which absorbs most of that.
      * */
     NYA_NN_OPTIMIZER_ADAM,
 
@@ -73,20 +62,11 @@ struct NYA_NNOptimizerConfig {
 
     /**
      * L2 penalty, applied to the gradient. Zero disables it.
-     *
-     * Off by default: it is a regulariser for supervised learning on a fixed dataset, and in
-     * reinforcement learning it pulls value estimates towards zero, which is a bias the returns did
-     * not ask for.
      * */
     f32 weight_decay;
 
     /**
      * Gradients are clipped to this magnitude before the step. Zero disables it.
-     *
-     * Worth having on for DQN. A bootstrapped target can occasionally be very wrong, and one huge
-     * gradient can undo a long run's worth of learning in a single step. Huber loss bounds the
-     * gradient of the loss itself; this bounds what reaches the weights after backprop through the
-     * layers, which is not the same thing.
      * */
     f32 gradient_clip;
 };

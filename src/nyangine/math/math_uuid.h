@@ -1,8 +1,6 @@
 /**
  * @file math_uuid.h
  *
- * UUID v4 (random) and v7 (time-ordered) generation and parsing.
- *
  * Example:
  * ```c
  * NYA_RNG rng = nya_rng_create();

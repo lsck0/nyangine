@@ -1,8 +1,6 @@
 /**
  * @file base_args.h
  *
- * CLI Argument parsing with integration into the build system.
- *
  * Example:
  * ```c
  *  NYA_ArgParameter help_flag = {
@@ -77,8 +75,6 @@
  *   return EXIT_SUCCESS;
  * }
  * ```
- *
- * For an more complete example see build.c.
  * */
 #pragma once
 
@@ -121,10 +117,6 @@ enum NYA_ArgParameterKind {
 
 /**
  * What an argument can be, described in terms of the argument rather than of any one shell.
- *
- * Every shell expresses these differently — zsh has _files, bash has compgen and a helper that may
- * not be installed — so a parameter says what it wants and each backend says how. Anything phrased
- * as shell source here would be a completion script for one shell hiding in the parser.
  * */
 enum NYA_ArgCompletionKind {
     /** Guessed from the parameter's type: strings complete paths, numbers complete nothing. */
@@ -150,24 +142,12 @@ struct NYA_ArgCompletion {
 
     /**
      * CHOICES: a set that is only known at runtime. Returns nullptr past the last entry.
-     *
-     * Takes precedence over `choices`. Exists so a list the program already owns does not have to
-     * be restated as a literal that can fall out of date — nya_args_completion_shell_name is one.
      * */
     NYA_ConstCString (*choices_fn)(u32 index);
 };
 
 /**
  * NYA_ArgParameter
- *
- * Parameters have to follow these rules:
- * - Name is required.
- * - Description is optional.
- * - Types can be B8, S64, F64 or STRING.
- * - Flags can have default values, positionals cannot.
- * - Only the last positional parameter can be variadic.
- *
- * For more details, see `_nya_args_validate_parser` in base_args.c.
  * */
 struct NYA_ArgParameter {
     NYA_ArgParameterKind kind;
@@ -179,9 +159,6 @@ struct NYA_ArgParameter {
 
     /**
      * What shell completion should offer for this parameter. Ignored by the parser itself.
-     *
-     * Only the caller knows what a given argument can be, and a generator would otherwise fall back
-     * to completing paths in the working directory, which is wrong for anything that is not one.
      * */
     NYA_ArgCompletion completion;
 
@@ -199,15 +176,6 @@ struct NYA_ArgParameter {
 
 /**
  * NYA_ArgCommand
- *
- * Commands have to follow these rules:
- * - Root command cannot have a name or description.
- * - Non-root commands must have a name.
- * - Description is optional.
- * - Commands can either have positional parameters or subcommands, not both.
- * - Commands with positional parameters must have either a handler or a build rule.
- *
- * For more details, see `_nya_args_validate_parser` in base_args.c.
  * */
 struct NYA_ArgCommand {
     b8 is_root;
@@ -229,19 +197,6 @@ struct NYA_ArgCommand {
 
 /**
  * NYA_ArgParser
- *
- * The main parser has to follow these rules:
- * - Name is required.
- * - Version, author and description are optional.
- * - Executable name is optional, if provided argv[0] must match it.
- *
- * For more details, see `_nya_args_validate_parser` in base_args.c.
- *
- * Special cases:
- * - If bad positiona arguments are provided, the flags will still be parsed if possible. The returned command
- *   will be marked incomplete.
- * - If "--help" flag is registered and provided, then no parameter validation will be done. The returned command
- *   will be marked incomplete.
  * */
 struct NYA_ArgParser {
     NYA_ConstCString name;
@@ -255,10 +210,6 @@ struct NYA_ArgParser {
 
 /**
  * One command as a completion backend sees it: the node, how it was reached, and what flags apply.
- *
- * The flags are the reason this is not just a command pointer. nya_args_parse matches a flag against
- * every command on the path, so a backend that only looked at command->parameters would complete
- * less than the parser accepts, and every backend would have to rediscover that independently.
  * */
 struct NYA_ArgCommandVisit {
     NYA_ArgCommand* command;
@@ -278,10 +229,6 @@ typedef void (*NYA_ArgCommandVisitFn)(const NYA_ArgCommandVisit* visit);
 
 /**
  * A completion script generator for one shell.
- *
- * Adding a shell is writing `generate` and adding an entry to the table in base_args.c. Nothing
- * outside that file needs to learn the new name: the CLI takes the shell as an argument and looks
- * it up, and nya_args_completion_shell_name feeds the list back to completion itself.
  * */
 struct NYA_ArgShell {
     NYA_ConstCString name;
@@ -303,15 +250,6 @@ NYA_API void      nya_args_print_usage(NYA_ArgParser* parser, NYA_ArgCommand* co
 
 /**
  * Writes a completion script for `shell` covering the whole command tree to stdout.
- *
- * Generated rather than hand written, so a subcommand added to the parser is completable without
- * anyone remembering to touch a second file. Descriptions come along wherever the shell can show
- * them.
- *
- * `binary_name` is what the user types, which is not parser->executable_name: that one is a path
- * like "./build" and a completion script wants the bare word.
- *
- * Fails, rather than writing a partial script, if no backend is registered under that name.
  * */
 NYA_API NYA_Error nya_args_print_completions(NYA_ArgParser* parser, NYA_ConstCString binary_name, NYA_ConstCString shell) __attr_no_discard;
 
@@ -324,17 +262,11 @@ NYA_API NYA_ConstCString nya_args_completion_shell_name(u32 index);
 
 /**
  * Calls `visit_fn` for the root command and then, depth first, for every command under it.
- *
- * The shared half of generating completions: walking the tree and working out which flags are in
- * scope is the same job for every shell, and only what gets printed per command differs.
  * */
 NYA_API void nya_args_walk_commands(NYA_ArgParser* parser, NYA_ArgCommandVisitFn visit_fn, void* userdata);
 
 /**
  * Joins a visited command's path into `buffer`, e.g. "_build_run_debug" or "build run debug".
- *
- * Shells name things per command — a function, a case label — and all of them need a unique, stable
- * string per node. The unnamed root contributes `prefix` alone.
  * */
 NYA_API void
 nya_args_command_path_join(const NYA_ArgCommandVisit* visit, NYA_ConstCString prefix, NYA_ConstCString separator, OUT char* buffer, u64 buffer_size);

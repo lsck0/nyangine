@@ -1,17 +1,5 @@
 /**
  * Regression test for nya_command_wait deadlocking on a child that fills the stderr pipe.
- *
- * The capture path drained the two pipes in sequence: stdout to EOF, then stderr. A pipe holds
- * about sixty four kibibytes, so a child writing more than that to stderr blocks on the write. It
- * therefore never exits, never closes its stdout end, and the parent's stdout read never sees EOF.
- * Both sides wait on the other forever.
- *
- * Reachable from the build system itself, which is the main user of this API and captures output
- * from clang — a compile with a few hundred diagnostics clears sixty four kibibytes of stderr
- * easily, and that is exactly the run where hanging is least welcome.
- *
- * **Watchdog, not an assertion.** On the unfixed code this hangs rather than failing, so a plain
- * test would stall the suite instead of reporting. The watchdog turns it into a clean non-zero exit.
  **/
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

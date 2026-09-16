@@ -1,13 +1,5 @@
 /**
  * Particles: the pool, the emission shapes, and the swap-with-last that keeps it packed.
- *
- * Two things here are worth testing and the rest follows from them. The pool: a particle has no
- * identity, dies by being overwritten with the last live one, and the loop that does it must not skip
- * the particle it just moved into the slot. And the sampling: uniform over a sphere is not what three
- * uniform components give, and a burst that gets it wrong is diamond shaped in a way that is obvious
- * on screen and invisible in a debugger.
- *
- * Headless: drawing is stubbed, integration is not.
  **/
 
 #include "nyangine/nyangine.c"
@@ -80,11 +72,6 @@ s32 main(void) {
 
     /*
      * The regression this exists for.
-     *
-     * Killing swaps the last live particle into the dead one's slot, so the loop must not advance
-     * past it — the moved particle has not been updated and, if it is also dead, would survive.
-     * Twenty short-lived particles interleaved with twenty long-lived ones is exactly the shape that
-     * catches an off-by-one there.
      */
     nya_assert(nya_particles_count(system) == 20, "the short lived ones are gone, got " FMTu32, nya_particles_count(system));
 
@@ -122,10 +109,6 @@ s32 main(void) {
 
     /*
      * Damping as an exponential, not a subtraction.
-     *
-     * `v -= v * damping * dt` reverses direction the moment `damping * dt` exceeds one, so a heavily
-     * damped particle at a low frame rate springs backwards. A damping of 10 over a tenth of a second
-     * is exactly that case: the naive form would land on zero, and anything larger would overshoot.
      */
     (void)nya_particles_emit(system, (NYA_ParticleBurst){
       .count      = 1,
@@ -186,10 +169,6 @@ s32 main(void) {
 
     /*
      * Uniform on the sphere, which three uniform components normalised is not.
-     *
-     * That fills a cube and normalises it, crowding the corners and thinning the axes — an explosion
-     * that is visibly diamond shaped. The check is that each axis carries roughly a third of the
-     * total squared length, which is what uniformity means and what the cube version fails.
      */
     f32x3 squared = f32x3_zero;
     for (u32 i = 0; i < nya_particles_count(system); i++) {

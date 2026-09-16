@@ -58,10 +58,6 @@ NYA_INTERNAL void _nya_rng_fill_buffer(NYA_RNG* rng) {
 
     /*
      * One 64-bit lane vector shuffled as eight 32-bit lanes, then read back as 64-bit lanes.
-     *
-     * The casts reinterpret rather than convert — for vector types that is what a cast means, where
-     * __builtin_convertvector would be the conversion. __builtin_shufflevector takes two sources and
-     * picks between them; passing the same one twice makes it a single register permute.
      * */
 #define _nya_rng_shuffle(vector, ...) ((u64x4)__builtin_shufflevector((u32x8)(vector), (u32x8)(vector), __VA_ARGS__))
 
@@ -143,11 +139,6 @@ NYA_RNG* nya_rng_create_in(NYA_Arena* arena, NYA_ConstCString seed) {
     /*
      * An arena configured with `.alignment = alignof(NYA_RNG)` or better already hands back what is
      * needed, so nothing is wasted in the case a caller has set up deliberately.
-     *
-     * Otherwise the block is over-allocated by one alignment and rounded up. That costs at most
-     * thirty-two bytes, once, and is the only way to get a stricter alignment out of an arena whose
-     * other allocations should stay at sixteen — raising the whole arena's alignment to suit one
-     * object pads every allocation in it.
      */
     if (arena->options.alignment >= alignof(NYA_RNG)) {
         NYA_RNG* rng = nya_arena_alloc(arena, sizeof(NYA_RNG));

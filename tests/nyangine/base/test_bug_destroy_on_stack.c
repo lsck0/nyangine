@@ -1,27 +1,5 @@
 /**
  * @file test_bug_destroy_on_stack.c
- *
- * The on-stack destructors have to leave a container that is genuinely empty, not one that merely
- * lost its pointers.
- *
- * base_heap.h had already been fixed for this, and its comment says why: clearing only the pointer
- * left the heap "claiming to own a block it no longer had, so a second destroy handed the arena a
- * null pointer with a non-zero size, and a push onto the destroyed heap saw length < capacity and
- * wrote through null rather than reallocating". The same defect was still in two of its siblings.
- *
- * - nya_hmap_destroy_on_stack nulled keys, values and occupied but left length and capacity, so a
- *   set afterwards skipped the resize and indexed `occupied` through null. UBSan reports it as
- *   "applying non-zero offset to null pointer".
- * - nya_array_destroy_on_stack zeroed length and capacity but left `items` dangling. nya_array_resize
- *   picks alloc-vs-realloc by testing `items == nullptr`, so the next push reallocated a block the
- *   arena had already reclaimed. That one usually appeared to work, because the free list hands the
- *   same block straight back — which is the worst way for it to behave.
- *
- * Reusing a destroyed container is not something callers should do, but "destroy then destroy again"
- * happens whenever a cleanup path runs twice, and that has to be safe.
- *
- * Note the argument conventions differ: heap and hmap take a value, array, ring and hset take a
- * pointer. That inconsistency is deliberate-by-now and documented in base_heap.h.
  * */
 
 #include "nyangine/nyangine.c"

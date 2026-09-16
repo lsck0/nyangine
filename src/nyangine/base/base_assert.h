@@ -1,9 +1,6 @@
 // clang-format off
 /**
  * @file base_assert.h
- *
- * Assertions. Every failure routes into the central crash sink in base_logging.h, so an assertion
- * is observable by telemetry and a crash window exactly like a panic or a fault is.
  * */
 #pragma once
 
@@ -18,9 +15,6 @@
  * nya_assert(condition, message)
  * nya_assert(condition, format, ...) with a max. of 10 format arguments
  * ```
- *
- * Always compiled in, shipping included — base_basic.h rejects -DNYA_NO_ASSERT with an #error, so
- * keep side effects out of the condition.
  * */
 #define nya_assert(...)             _NYA_ASSERT_ENABLED(__VA_ARGS__)
 

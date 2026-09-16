@@ -1,19 +1,5 @@
 /**
  * The launch configuration parser: one executable, four modes, decided from argv.
- *
- * This runs in a shipped game's startup path, and the input is not entirely under anyone's control —
- * Steam appends its own arguments, launchers append more, and a player's saved launch options outlive the
- * build that understood them. So the contract is unusual for a parser: it must **never fail and never
- * exit**. An unrecognised argument is ignored and a malformed value falls back to a default, because the
- * alternative is a player staring at a usage message they cannot see.
- *
- * That makes the interesting cases the degenerate ones. A parser that handles `--port 27015` is easy; the
- * failures are `--port` with nothing after it, `--port --server` where the next token is another flag,
- * `--port 99999` which is not a port, and `--port 99999999999999999999` which does not fit a u64.
- *
- * The other half is the mode logic. Single player, listen server, dedicated server and client are one
- * process distinguished by these fields, and getting the precedence wrong means a launch script that says
- * one thing does another.
  **/
 
 #include "nyangine/nyangine.c"
@@ -144,9 +130,6 @@ s32 main(void) {
     /*
      * The trap base_args.c fell into: consuming the next token unconditionally means `--port --server`
      * takes `--server` as the port, complains it is not a number, and silently does not change the mode.
-     *
-     * Here the next token is only a value if it does not itself look like a flag — so the port keeps its
-     * default and, crucially, `--server` still takes effect.
      */
     NYA_NetLaunchConfig config = PARSE("--port", "--server");
 
@@ -180,9 +163,6 @@ s32 main(void) {
 
     /*
      * Past what a u64 holds.
-     *
-     * Reported rather than wrapped: a wrapped port number is a port nobody asked for, and it would look
-     * like the parser had accepted the value.
      */
     nya_assert(PARSE("--port", "99999999999999999999999").port == NYA_NET_DEFAULT_PORT, "an overflowing number falls back");
 

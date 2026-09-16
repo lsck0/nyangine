@@ -1,21 +1,5 @@
 /**
  * Snapshots: capture, delta encode, decode, apply.
- *
- * The dangerous property of this layer is that its bugs are quiet. A transport bug drops a
- * connection; a snapshot bug produces a world that is subtly wrong — an entity a few units off, a
- * rotation that never updates, a crate that should have been removed and was not. So most of what is
- * checked here is round-trip fidelity, field by field, and the specific cases where a delta can lie.
- *
- * The ones that matter most:
- *
- * - **An unchanged field must come from the baseline, not from zero.** Getting this wrong makes every
- *   stationary entity snap to the origin with an identity rotation, which is the single most likely
- *   mistake in a delta encoder.
- * - **A reused entity slot is a different entity.** Handles are generational, and a baseline whose
- *   generation differs must not be delta'd against — otherwise one entity's state is applied to
- *   another that merely inherited its index.
- * - **A decoder fed nonsense must fail rather than allocate or read out of bounds.** These bytes come
- *   from an untrusted peer; the count on the wire is a number somebody else chose.
  **/
 
 #include "nyangine/nyangine.c"
@@ -125,10 +109,6 @@ s32 main(void) {
 
     /*
      * Exact equality, not a tolerance.
-     *
-     * Floats cross the wire as their bit pattern rather than through a decimal form, so a round trip
-     * is lossless and anything less than exact means a field was written or read wrongly. Values
-     * above were chosen to be exactly representable so this assertion is about the codec.
      */
     nya_assert(states_equal(&snapshot.entities[0], &decoded.entities[0]), "a full snapshot round trip lost or changed a field");
 
@@ -176,20 +156,11 @@ s32 main(void) {
 
     /*
      * And the decode still produces the *full* state, not the empty delta.
-     *
-     * This is the assertion that catches "unchanged means zero": every field must have come back out
-     * of the baseline. Getting it wrong puts all sixteen entities at the origin, which a byte-count
-     * assertion alone would happily accept.
      */
     nya_assert(decoded.entity_count == 16);
 
     /*
      * Looked up by handle, not by position in the array.
-     *
-     * A snapshot is ordered by handle *index*, and the entity table hands freed slots back in LIFO
-     * order — so after any test that despawned something, the sixteenth entity spawned may well sit
-     * first. Indexing `decoded.entities[i]` and expecting the i-th spawn is a test that passes only on
-     * a table that has never been reused.
      */
     for (u32 i = 0; i < 16; i++) {
       const NYA_NetEntityState* got = nya_net_snapshot_find(&decoded, handles[i]);
@@ -265,11 +236,6 @@ s32 main(void) {
 
     /*
      * The newcomer must arrive whole.
-     *
-     * Delta-ing it against the old occupant would emit a mask saying "position unchanged" — the two
-     * differ, so in practice position would be sent, but `type`, `flags` and `scale` match and would
-     * be omitted. The client, which has never seen this entity, would then fill them from a baseline
-     * describing something else. Comparing the generation is what prevents it.
      */
     nya_assert(decoded.entities[0].handle.generation == second.generation);
     nya_assert(decoded.entities[0].position.x == -1.0F, "the new occupant's own position arrived");
@@ -315,11 +281,6 @@ s32 main(void) {
 
     /*
      * An entity this process spawned itself, marked replicated, that the snapshot does not mention.
-     *
-     * It must **survive**. The sweep removes what the server has stopped mentioning — which means what
-     * the map knows about — and this was never mapped, so the server has never said anything about it
-     * either way. Sweeping by flag instead would have a client destroy its own entities the moment it
-     * connected to anything, which is why the map is the authority here rather than the flag.
      */
     NYA_EntityHandle local_only = nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 0.0F, 0.0F, 0.0F });
 
@@ -359,10 +320,6 @@ s32 main(void) {
 
     /*
      * The map is what makes applying twice idempotent.
-     *
-     * This is the case the replica map exists for: the local handles are not the server's, so without
-     * a translation the second apply cannot tell "I already have this" from "this is new" and spawns a
-     * duplicate of everything. Every tick. Forever.
      */
     u32 after_first = 0;
     nya_entity_foreach (entity) {
@@ -433,11 +390,6 @@ s32 main(void) {
 
     /*
      * A count the payload cannot possibly hold.
-     *
-     * This is the one that matters: the count is a number the peer chose, and a decoder that
-     * allocated from it before validating would turn a twelve byte datagram into a request for
-     * gigabytes. Both bounds are checked — against NYA_NET_MAX_REPLICATED and against the payload's
-     * own length.
      */
     NYA_String* lying = nya_string_create(arena);
     for (u32 i = 0; i < 8; i++) nya_string_push_back(lying, 0); // tick
@@ -476,12 +428,6 @@ s32 main(void) {
 
     /*
      * Entities out of ascending handle order.
-     *
-     * The encoder and the decoder both pair an entity against its baseline by walking two sorted lists in
-     * step, with the baseline cursor only ever moving forward. A peer that sends them out of order walks
-     * that cursor past the matching baseline, so entities get decoded against the *wrong* one and their
-     * unnamed fields are filled in from a different entity's state. That is not a crash — it is a client
-     * quietly shown a wrong world, which is why the order is checked rather than assumed.
      */
     {
       NYA_String* unsorted = nya_string_create(arena);
@@ -535,10 +481,6 @@ s32 main(void) {
 
     /*
      * A generation of zero names nothing.
-     *
-     * Refused because a replica map records a pairing keyed on the remote handle, and a zero generation is
-     * indistinguishable from an empty slot — so such an entity could be spawned and then never found
-     * again, spawning another copy on every snapshot.
      */
     {
       NYA_String* zero_generation = nya_string_create(arena);

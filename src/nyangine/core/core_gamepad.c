@@ -178,9 +178,6 @@ void nya_system_gamepad_init(void) {
 #ifndef NYA_NO_SDL
     /*
      * Background events before the subsystem comes up, because the hint is read at init.
-     *
-     * A pad held while the window is not focused is otherwise silent, which matters for a game being
-     * streamed and for anyone playing on a TV with the window not quite focused.
      */
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
 
@@ -193,9 +190,6 @@ void nya_system_gamepad_init(void) {
 
     /*
      * Nothing is enumerated here on purpose.
-     *
-     * SDL_EVENT_GAMEPAD_ADDED is posted for every already-connected pad as well as for later ones, so
-     * opening on that event alone is the whole story. Enumerating here too opens each one twice.
      */
     nya_log_info("Gamepad system initialized (" FMTu32 " slots).", (u32)NYA_GAMEPAD_MAX);
 #else
@@ -361,10 +355,6 @@ f32x2 nya_gamepad_stick(NYA_GamepadId pad, b8 right_stick) {
 
     /*
      * Radial, not per axis.
-     *
-     * Deadzoning each axis on its own leaves a cross-shaped live region: a diagonal registers once
-     * either component clears the threshold, so a diagonal is easier to trigger than a cardinal and the
-     * stick feels square.
      */
     f32 magnitude = nya_vector_length(raw);
     if (magnitude < NYA_GAMEPAD_STICK_DEADZONE) return f32x2_zero;

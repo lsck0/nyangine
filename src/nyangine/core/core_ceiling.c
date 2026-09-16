@@ -35,10 +35,6 @@ NYA_INTERNAL f32 _nya_ceiling_fullness(u32 index);
 
 /**
  * Fills `order[0..count)` with indices into `_nya_ceiling_registry.entries`, fullest fullness first.
- *
- * Recomputed on every call rather than cached — see the file comment. A stable insertion sort: with
- * at most NYA_CEILING_REGISTRY_MAX entries, quadratic is not a concern, and stability keeps equally
- * full ceilings in registration order instead of shuffling on every call for no reason.
  * */
 NYA_INTERNAL void _nya_ceiling_order(OUT u32 order[NYA_CEILING_REGISTRY_MAX]);
 

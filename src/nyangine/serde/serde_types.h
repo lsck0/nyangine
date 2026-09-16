@@ -1,8 +1,5 @@
 /**
  * @file serde_types.h
- *
- * The format and flag enums, split out so serde.h, serde_nya.h and serde_json.h can all name them
- * without including each other.
  * */
 #pragma once
 
@@ -27,10 +24,6 @@ enum NYA_SerdeFormat {
 
     /**
      * JSON with comments and trailing commas, as editors and config files use it.
-     *
-     * A read-side dialect. Writing it produces ordinary JSON — nothing here invents comments — so a
-     * document written as JSONC is byte for byte what JSON would have written, and stays readable by
-     * anything that only speaks strict JSON.
      * */
     NYA_SERDE_FORMAT_JSONC,
 
@@ -52,10 +45,6 @@ enum NYA_SerdeFlags {
     /**
      * Base64 the output and XOR it with a fixed key, so it is not casually editable in a text
      * editor. nya format only.
-     *
-     * This is obfuscation, not encryption. The key is in the binary. It stops a player from
-     * editing a save file with notepad and nothing more; do not use it to protect anything that
-     * matters. Conflicts with NYA_SERDE_PRETTY.
      * */
     NYA_SERDE_OBFUSCATE = 1 << 1,
 

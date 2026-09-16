@@ -135,7 +135,16 @@ float4 main(FragInput input) : SV_Target {
 
   float3 colour = tinted + max(lit - flat_surface, 0.0);
 
-  // Opaque, and tonemapped like every other surface. See the note at the top for why the alpha is one
-  // rather than the glass's own.
-  return float4(mesh3d_tonemap(colour), 1.0);
+  /*
+   * Opaque, and tonemapped like every other surface. See the note at the top for why the alpha is one
+   * rather than the glass's own.
+   *
+   * Fogged at the *pane's* distance, which slightly over-fogs what shows through it: `behind` was
+   * captured from the opaque pass and already carries fog from the camera to whatever is back there, so
+   * the air between the camera and the pane is counted twice for that part. The alternative — leaving
+   * glass unfogged — puts a pane at full contrast in a scene that has faded around it, which is far more
+   * obviously wrong than a pane that is a little hazier than it should be. Unpicking it properly needs
+   * the backdrop's depth, which this single capture does not carry.
+   */
+  return float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), 1.0);
 }

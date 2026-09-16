@@ -8,11 +8,6 @@
 
 /**
  * Cost of one orthogonal and one diagonal step, in tenths.
- *
- * Integer arithmetic, so the whole search is exact and reproducible — a float g-score makes two runs
- * over the same grid disagree on ties, and a path that flickers between two equal routes reads as a
- * unit that cannot make up its mind. 14 is 10·√2 rounded, which keeps a diagonal honestly more
- * expensive than an orthogonal without ever being cheaper than two of them.
  */
 #define _NYA_NAV_STEP_ORTHOGONAL 10
 #define _NYA_NAV_STEP_DIAGONAL   14
@@ -40,9 +35,6 @@ NYA_INTERNAL u32 _nya_nav_heuristic(NYA_NavPoint a, NYA_NavPoint b, b8 diagonal)
 
 /*
  * A binary min-heap over cell indices, keyed by `open_score`.
- *
- * Written here rather than derived from base_heap.h because the comparison is against a *separate*
- * array indexed by the item, which a compare-two-items interface cannot express without a global.
  */
 NYA_INTERNAL void _nya_nav_heap_push(NYA_NavGrid* grid, u32* length, u32 cell, u32 score) {
     grid->open_score[cell] = score;
@@ -222,9 +214,6 @@ u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_
 
             /*
              * A diagonal past two blocked orthogonals is refused unless asked for.
-             *
-             * A unit with any width cutting that corner clips the wall, which is the most common way
-             * grid pathing looks broken even though the path is technically valid.
              */
             if (is_diagonal && !options.cut_corners) {
                 if (!nya_nav_walkable(grid, cx + offsets[n][0], cy) && !nya_nav_walkable(grid, cx, cy + offsets[n][1])) continue;
@@ -301,10 +290,6 @@ void nya_nav_flow_build(NYA_NavFlow* flow, NYA_NavPoint goal) {
 
     /*
      * A uniform-cost sweep outward from the goal.
-     *
-     * A plain FIFO rather than a priority queue, which is only correct because every step costs the
-     * same *class* of amount — cell cost multiplies the step, so a weighted grid wants the heap version.
-     * Re-relaxing a cell pushes it again, which is what keeps it correct at the cost of some churn.
      */
     u32 head = 0;
     u32 tail = 0;

@@ -1,15 +1,5 @@
 /**
  * The DQN agent, judged on whether it learns to act — not on whether the loss goes down.
- *
- * A falling loss proves nothing here. A Q-network that collapses to predicting the same value for
- * every action has a very low temporal difference loss and a policy no better than random, and that
- * is the *usual* failure mode, not an exotic one. So the tests below measure the return the agent
- * actually collects, against what a random policy collects on the same task.
- *
- * The task is a corridor: the agent starts in the middle of a line and must reach the right end. It
- * is deliberately the smallest thing that is not trivial — the reward is delayed, so a bandit-style
- * agent that only credits the immediately rewarded action cannot solve it, and it requires the
- * discounting and bootstrapping that are the point of Q-learning.
  **/
 
 #include "nyangine/nyangine.c"
@@ -28,9 +18,6 @@ static void corridor_state(u32 position, f32* out_state) {
 
 /**
  * Runs one episode. `agent` may be null, which plays uniformly at random.
- *
- * Returns the undiscounted return. Reaching the right end is worth 1 and ends the episode; every
- * other step costs a little, so dithering is worse than committing.
  * */
 static f32 corridor_episode(NYA_NNDQN* agent, NYA_RNG* rng, b8 training, b8 greedy) {
   f32 state[TEST_DQN_CORRIDOR];
@@ -210,10 +197,6 @@ int main(void) {
 
     /*
      * The optimum is three steps right from the middle: 1.0 - 2 * 0.02 = 0.96.
-     *
-     * Asserted well below that, because the point is to catch a policy that did not learn, not to
-     * pin the exact optimum — and a run that reaches the end at all, reliably, has learned the thing
-     * the task tests. A random walk on this corridor averages well under half of it.
      */
     nya_assert(learned_return > 0.8F, "the agent returned %f, expected better than 0.8", (f64)learned_return);
     nya_assert(learned_return > random_return + 0.5F, "the agent (%f) did not clearly beat random (%f)", (f64)learned_return, (f64)random_return);
@@ -264,12 +247,6 @@ int main(void) {
     /*
      * The disable_double_q branch existed and nothing ran it, which for a flag that changes the
      * learning rule is a whole algorithm going untested.
-     *
-     * It has to still solve the task — it is a valid algorithm, just a biased one — so the assertion
-     * is that it learns, not that it matches. Whether it overestimates more is measured and printed
-     * rather than asserted: the bias is real and well documented, but on a task this small and this
-     * deterministic it is not large enough to be a reliable test signal, and asserting on it would
-     * be asserting on noise.
      */
     NYA_NNDQNConfig config = {
       .state_size   = TEST_DQN_CORRIDOR,

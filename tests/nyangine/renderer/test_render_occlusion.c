@@ -1,10 +1,5 @@
 /**
  * Software occlusion culling: what the depth buffer hides, and everything it refuses to.
- *
- * Most of these assert the *negative*. The whole design of render_occlusion.h is that every
- * approximation errs toward "visible", so the interesting cases are the ones where it could plausibly
- * hide something and must not: a sphere poking out from behind the wall, an occluder straddling the
- * near plane, a query running off the edge of the buffer.
  **/
 
 #include "nyangine/nyangine.c"

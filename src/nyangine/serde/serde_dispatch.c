@@ -48,12 +48,6 @@ NYA_SerdeFormat nya_serde_detect_format(const u8* data, u64 size) {
 
     /*
      * A leading comment can only be JSONC: strict JSON has nowhere to put one.
-     *
-     * The reverse is not decidable from the first bytes. A document opening with '{' is reported as
-     * JSON even if a comment appears three lines down, because scanning the whole input to find out
-     * would make detection cost as much as parsing. A caller reading a file a person may have edited
-     * should ask for NYA_SERDE_FORMAT_JSONC outright rather than detect — JSONC reads everything
-     * JSON does, so nothing is given up by doing so.
      */
     if (data[cursor] == '/' && cursor + 1 < size && (data[cursor + 1] == '/' || data[cursor + 1] == '*')) return NYA_SERDE_FORMAT_JSONC;
 
@@ -95,12 +89,6 @@ NYA_Error nya_serde_save_file(const NYA_Object* object, NYA_ConstCString path, N
 
     /*
      * The length carrying overload, not the cstring one.
-     *
-     * An obfuscated nya document is base64 XORed against a repeating key, so a zero byte appears
-     * wherever the key happens to match the encoded character — and nya_serde_detect_format keys off
-     * the leading 0xA7 precisely because that output is binary rather than text. Converting to a
-     * cstring made nya_file_write measure it with strlen, which truncated the file at the first such
-     * byte and produced a save that would not load back.
      */
     return nya_file_write(path, text);
 }

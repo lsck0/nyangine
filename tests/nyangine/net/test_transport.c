@@ -1,19 +1,5 @@
 /**
  * The transport layer: loopback in one process, and UDP over a real localhost socket.
- *
- * This is wire code, so almost everything here is about the cases that only happen on a network.
- * The contract at the top of net_transport.h is what is being checked, clause by clause:
- *
- * - a reliable message arrives, in order, exactly once, or the peer is dropped
- * - an unreliable message may vanish or arrive late, but is never duplicated and never truncated
- * - a message of any size may be sent, and the transport splits it to fit the path
- * - nothing blocks
- *
- * The interesting half is driven by SDL_net's own packet loss simulation, because the failures that
- * matter cannot be provoked on a loopback interface that never drops anything. A retransmit that
- * fires when it should not, an out-of-order reliable message handed up early, a fragmented message
- * reassembled with a hole in it — none of those are reachable on a perfect link, and all of them are
- * ordinary on a real one.
  **/
 
 #include "nyangine/nyangine.c"
@@ -178,10 +164,6 @@ s32 main(void) {
 
     /*
      * The sender's buffer is overwritten before the receiver polls.
-     *
-     * This is the case that made the loopback transport copy into the *receiver's* arena rather than
-     * hand back a pointer to the sender's: a snapshot is built into a scratch buffer that is reused
-     * every tick, so pointing at it would deliver whatever happened to be there at poll time.
      */
     fill(payload, sizeof(payload), 0x00);
 
@@ -277,10 +259,6 @@ s32 main(void) {
     {
       /*
        * Well past NYA_NET_MAX_DATAGRAM, so this is split into fragments the transport tracks itself.
-       *
-       * That is the whole reason it fragments rather than letting IP do it: an IP fragment lost
-       * anywhere costs the entire datagram, while a fragment lost here costs one retransmit on the
-       * reliable channel.
        */
       u64 size    = 30000;
       u8* payload = nya_arena_alloc(arena, size);
@@ -390,11 +368,6 @@ s32 main(void) {
   {
     /*
      * The test the perfect loopback link cannot provide.
-     *
-     * SDL_net drops a third of the datagrams in both directions, so retransmits fire, fragments go
-     * missing, acknowledgements vanish and messages arrive out of order — every path in the
-     * reliability layer that a working network never exercises. What must still hold is the
-     * contract: every reliable message, exactly once, in order.
      */
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
@@ -476,10 +449,6 @@ s32 main(void) {
   {
     /*
      * The error paths, reached by moving the clock rather than by waiting.
-     *
-     * A peer timeout is ten seconds and a keepalive is one, so a test that waited would take longer than the
-     * whole suite. The timestamps are written directly instead — which is honest about what is being tested:
-     * the *decision*, not the clock.
      */
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
@@ -567,10 +536,6 @@ s32 main(void) {
   {
     /*
      * Unreliable fragmentation, which is what a large snapshot actually is.
-     *
-     * The reliable path is covered above; this one has no retransmit behind it, so every fragment has to
-     * arrive on the first attempt or the message is simply gone. On loopback it does, which is what makes
-     * this a test of the encoding rather than of the recovery.
      */
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
@@ -698,9 +663,6 @@ s32 main(void) {
      * A stub, and covered anyway — because "reports itself unsupported" is a contract a game relies on to
      * grey out a menu item, and a stub that asserted or returned a broken transport instead would be found by
      * a player rather than here.
-     *
-     * The Steamworks SDK is not on the link line, so the implementation cannot exist yet. See net_steam.c for
-     * why the seam is written regardless.
      */
     NYA_NetTransport* steam = nullptr;
 

@@ -1,9 +1,5 @@
 /**
  * How long a kind query costs, and what it scales with.
- *
- * Not a correctness test — test_entity covers that. This exists to keep an honest number attached to
- * the index: the whole reason it replaced a linear scan was cost, and a claim about cost that nobody
- * ever measures is a claim that quietly stops being true.
  **/
 
 #include "nyangine/nyangine.c"

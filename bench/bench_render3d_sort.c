@@ -1,9 +1,5 @@
 /**
  * The transparent depth sort: the radix pass against the qsort it replaced.
- *
- * This exists because the claim it checks came from a *sanitizer* profile, where the sort measured 7.9%
- * of frame time. That number was inflated, so the speedup had to be re-established somewhere the
- * measurement means something. Built with FLAGS_BENCH — optimised, no sanitizers.
  **/
 
 #include "nyangine/nyangine.c"

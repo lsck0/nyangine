@@ -25,9 +25,6 @@ NYA_INTERNAL NYA_CString _nya_i18n_handle(NYA_Arena* arena, NYA_ConstCString loc
 
 /**
  * Copies the keys and the two handles into `registry`, and registers both files with the asset system.
- *
- * The registration is what makes the files watchable: reload detection lives in nya_asset_get, so a
- * file nothing has ever loaded as an asset is a file nothing will ever notice changing.
  * */
 NYA_INTERNAL void _nya_i18n_remember(NYA_ConstCString locale, const NYA_ConstCString* keys, u32 count);
 
@@ -40,19 +37,6 @@ NYA_INTERNAL u64 _nya_i18n_modification_time(NYA_CString handle);
 
 /**
  * Puts a locale asset that has died back into a state where it can be watched again.
- *
- * The asset system only stats an asset while it is LOADED, so any other resting state means the file
- * has stopped being watched: a load that could not open its file leaves it FAILED, and a file that
- * vanished between the unload and the load of a reload leaves it UNLOADED. Neither recovers on its own,
- * and neither is distinguishable from "nothing has changed" by looking at timestamps.
- *
- * It is worth recovering from because the ordinary way an editor saves a file produces it: writing to a
- * temporary and renaming over the target means the path briefly does not exist, and a stat that lands
- * in that window fails. Without this, a translator using such an editor would get exactly one reload
- * and then silence until the game restarted.
- *
- * Unloading first is what makes the reload possible: the unload pass moves it to UNLOADED, which is the
- * one status nya_asset_load will accept for a handle it already knows.
  * */
 NYA_INTERNAL void _nya_i18n_rearm(void);
 #endif // NYA_ASSET_HOT_RELOAD
@@ -123,10 +107,6 @@ NYA_Error nya_i18n_load_bytes(NYA_ConstCString locale, const u8* data, u64 size,
 
     /*
      * No fallback and nothing watched.
-     *
-     * These bytes were handed over rather than read, so there is no second file to fetch and no path
-     * to stat. A caller wanting a fallback loads the base locale through here first — see the note in
-     * core_i18n.h on why this entry point still exists now that the asset system can read the blob.
      */
     _nya_i18n_commit(locale, strings, nullptr, count);
 
@@ -145,10 +125,6 @@ NYA_ConstCString nya_i18n_raw(u32 id) {
 
     /*
      * A visible placeholder rather than an empty string.
-     *
-     * An empty string is indistinguishable from a label that is meant to be blank, so a missing
-     * translation would show as a gap nobody investigates. A bracketed id shows up on screen, is
-     * obviously wrong, and says which key to go and add.
      */
     static char missing[32];
     (void)snprintf(missing, sizeof(missing), "[string %u]", id);
@@ -173,11 +149,6 @@ NYA_ConstCString _nya_i18n_format(u32 id, ...) {
     /*
      * The one place a runtime format string is unavoidable, and the reason everything above exists to
      * constrain it.
-     *
-     * The string comes from a translator and the arguments come from a generated signature built off
-     * the *base* locale — so the two agree only because src/build/i18n.c refuses to build a
-     * translation whose specifiers differ. Without that check this call is a format string
-     * vulnerability with a language selector attached.
      */
     (void)vsnprintf(buffer, NYA_I18N_FORMAT_MAX, format, arguments);
 
@@ -198,11 +169,6 @@ void _nya_i18n_watch(NYA_Event* event) {
 
     /*
      * The two nya_asset_get calls are the point of this function, not the comparison below them.
-     *
-     * Reload detection lives inside nya_asset_get: it stats the file at most once per stat interval
-     * and queues the asset when the timestamp moved. Nothing else in the engine ever resolves a locale
-     * as an asset — the strings are read out of this system's own table — so without these two calls
-     * the files would be registered and never looked at again.
      */
     (void)nya_asset_get(system->handle);
     if (system->fallback_handle != nullptr) (void)nya_asset_get(system->fallback_handle);
@@ -218,20 +184,9 @@ void _nya_i18n_watch(NYA_Event* event) {
 
     /*
      * Re-read from scratch rather than from the reloaded asset's bytes.
-     *
-     * The asset system moves an asset's timestamp forward before its new bytes have landed — that is
-     * how it recognises a file still being written — so the bytes behind the handle at this instant
-     * may still be the old ones. Reading the file again through nya_asset_read sidesteps the whole
-     * question: a locale caught half written fails to parse, _nya_i18n_load_locale changes nothing,
-     * and because the recorded timestamps are only advanced on success the next frame tries again.
      */
     /*
      * The locale code is copied out before the reload, because the reload writes it back.
-     *
-     * _nya_i18n_commit ends with an snprintf of the locale into system->locale, so handing it
-     * system->locale directly makes source and destination the same buffer — which is undefined, and
-     * in practice produced an empty locale: the reload worked, every string was correct, and
-     * nya_i18n_locale() answered "". A test that only checked the strings would have missed it.
      */
     char locale[NYA_I18N_LOCALE_MAX];
     (void)snprintf(locale, sizeof(locale), "%s", system->locale);
@@ -256,9 +211,6 @@ NYA_I18nSystem* _nya_i18n_system(void) {
     /*
      * Created on first use as well as by the init, so reading a string before the system is up answers
      * a placeholder instead of faulting.
-     *
-     * That is not hypothetical: nya_i18n_raw is reachable from a crash handler drawing a message, and
-     * from a test that brings up nothing at all.
      */
     if (system->allocator == nullptr) system->allocator = nya_arena_create(.name = "i18n_system_allocator");
     if (system->registry == nullptr) system->registry = nya_arena_create(.name = "i18n_system_registry");
@@ -272,10 +224,6 @@ NYA_Error _nya_i18n_load_locale(NYA_ConstCString locale, const NYA_ConstCString*
 
     /*
      * Read into a scratch arena first, and only commit once it has parsed.
-     *
-     * A locale that fails halfway would otherwise leave the game with half of one language and half
-     * of another, which is worse than either — and worse than simply keeping what was already
-     * loaded, which is what a failure here does.
      */
     NYA_Arena* scratch = nya_arena_create(.name = "i18n_load_scratch");
     defer      nya_arena_destroy(scratch);
@@ -330,13 +278,6 @@ void _nya_i18n_remember(NYA_ConstCString locale, const NYA_ConstCString* keys, u
 
     /*
      * Emptied and rebuilt rather than appended to.
-     *
-     * Switching language changes the handles, and a game that switches back and forth would otherwise
-     * grow this arena by two paths and a key table every time. The keys are re-copied along with them,
-     * which costs a few hundred short strings on an operation a player performs from a menu.
-     *
-     * Copied out *before* the reset, because on a reload `keys` is the very array being freed here —
-     * resetting first would hand _nya_i18n_read a table of dangling pointers.
      */
     NYA_Arena* staging = nya_arena_create(.name = "i18n_remember_staging");
     defer      nya_arena_destroy(staging);
@@ -360,11 +301,6 @@ void _nya_i18n_remember(NYA_ConstCString locale, const NYA_ConstCString* keys, u
 
     /*
      * Registered as text assets so the file is watched from here on.
-     *
-     * The queued load is redundant with the synchronous read that already happened — it re-reads a few
-     * kilobytes of JSON at the end of this frame — and it is what gives the asset a registry entry and
-     * a modification time for nya_asset_get to compare against. A failure is ignored: a locale that
-     * came out of the blob has no file to watch, and one that failed to register is still loaded.
      */
     (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = system->handle });
 
@@ -386,15 +322,6 @@ void _nya_i18n_rearm(void) {
 
         /*
          * Both terminal states, not just FAILED.
-         *
-         * FAILED is the obvious dead end. UNLOADED is the surprising one and is what a file that
-         * disappears actually produces: the reload pass unloads the asset, the load that should have
-         * followed finds no file, and what is left is an entry the asset system will neither stat (it
-         * only stats a LOADED asset) nor reload. It looks idle rather than broken, which is exactly why
-         * it went unnoticed until a test deleted a locale and watched reloading stop for good.
-         *
-         * LOADING and a queued unload are deliberately not included: those are in motion on their own,
-         * and re-arming them would fight the queues instead of waiting a frame for them to finish.
          */
         b8 stuck = asset == nullptr || asset->status == NYA_ASSET_STATUS_FAILED || asset->status == NYA_ASSET_STATUS_UNLOADED;
 
@@ -412,10 +339,6 @@ void _nya_i18n_rearm(void) {
 
         /*
          * The recorded timestamp is cleared so the strings are re-resolved once the file is back.
-         *
-         * Not doing this would leave the recovered asset reporting the same timestamp the last good
-         * load recorded — nothing would look changed, and a locale deleted and restored with different
-         * contents would keep showing the old strings.
          */
         if (i == 0) system->modification_time = 0;
         else system->fallback_modification_time = 0;
@@ -432,15 +355,6 @@ u64 _nya_i18n_modification_time(NYA_CString handle) {
 
     /*
      * The asset's own timestamp once it has one, and the file's until then.
-     *
-     * The gap is real and is not an edge case: nya_i18n_load reads the locale synchronously and only
-     * *queues* the asset, so for the rest of that frame the asset is LOADING with a zero timestamp.
-     * Recording that zero meant the first watch after the load saw a difference against nothing and
-     * re-resolved a file that had not changed — every launch logged "Reloaded locale", which is
-     * exactly the message that should mean a translator just saved something.
-     *
-     * Falling back to a direct stat closes it: the value recorded at load is the one the asset will
-     * report a frame later, so the two agree and the first genuine edit is the first reload.
      */
     if (asset != nullptr && asset->status == NYA_ASSET_STATUS_LOADED) return asset->source_modification_time;
 
@@ -459,11 +373,6 @@ NYA_Error _nya_i18n_read(NYA_Arena* arena, NYA_ConstCString locale, const NYA_Co
 
     /*
      * Through the asset system rather than nya_file_read.
-     *
-     * That is the whole reason this moved out of base: nya_asset_read looks in the embedded blob first
-     * and on disk second, so a shipped build and a development build read the same bytes through the
-     * same call. The old base version could only read files, which is why it needed a second public
-     * entry point for baked builds to hand it bytes it could not fetch itself.
      */
     u8* data = nullptr;
     u64 size = 0;

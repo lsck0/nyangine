@@ -1,23 +1,5 @@
 /**
  * @file test_bug_hash_zero_capacity.c
- *
- * A hash container created with capacity 0 could never be written to.
- *
- * nya_hmap_set, nya_dict_set and nya_hset_insert all began by comparing the load factor —
- * `(length + 1) / capacity` — against 0.75, and then doubled the capacity if it was exceeded. At
- * capacity zero that is a divide by zero producing inf, which exceeds any load factor, followed by
- * `0 * 2` growing the table to zero again. The probe loop then took a hash modulo zero.
- *
- * So the sequence was: a float divide by zero, an integer divide by zero, and either a hang or a
- * write through a zero length allocation. The engine builds with -fsanitize=float-divide-by-zero and
- * -fno-sanitize-recover=all, so in practice the first one aborts the process.
- *
- * base_array.h and base_heap.h had already been fixed for exactly this — `capacity == 0 ? 1 : 2 *
- * capacity` appears in both — and the three hash containers had not. They now jump straight to the
- * default capacity, which is what a table with no slots wants anyway.
- *
- * Each case below aborts on the unfixed code rather than failing an assertion, which is why they are
- * ordered one per container: the first to break is the one that gets reported.
  * */
 
 #include "nyangine/nyangine.c"

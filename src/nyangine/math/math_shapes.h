@@ -1,21 +1,5 @@
 /**
  * @file math_shapes.h
- *
- * Plain 2D shapes and the tests you actually run on them: is this point inside, do these two touch,
- * what is the overlap.
- *
- * Distinct from NYA_Rect (core_window.h): that one is s32 *window geometry* — whole OS pixels, no
- * such thing as a window 1.5 pixels wide. NYA_Rectf here is f32 *content* — hit targets, viewports,
- * sprite boxes — anything laid out or animated, where snapping to integers would put a floor under
- * every animation. They stay separate rather than one converting to the other, so the rounding has
- * nowhere to silently live.
- *
- * Every containment test is half open: `x <= point < x + width`. Two rectangles laid edge to edge
- * therefore share no point, so a click on the seam hits exactly one menu item, not both.
- *
- * A rectangle with negative width or height contains nothing and overlaps nothing — it falls out of
- * the half-open comparisons rather than being special cased, which is why an empty intersection stays
- * empty through a chain instead of coming back to life.
  * */
 #pragma once
 
@@ -36,8 +20,6 @@ typedef struct NYA_Circlef NYA_Circlef;
  * An axis aligned rectangle, as a minimum corner and a size — the form every call site already has (a
  * draw takes an origin and an extent, a sprite has a position and a size); min/max would mean an
  * addition and a subtraction at every one of those.
- *
- * `x`/`y` are the *minimum* corner, which with the engine's y-down screen space means top left.
  * */
 struct NYA_Rectf {
     f32 x, y, width, height;

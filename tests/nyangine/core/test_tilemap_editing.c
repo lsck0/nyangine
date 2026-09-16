@@ -1,11 +1,5 @@
 /**
  * The tilemap's editing and writing half: tile_set, layer_resize, to_object and save.
- *
- * tests/nyangine/core/test_tilemap.c covers loading and the two projections. This covers the API an
- * editor drives, which was the untested half — and the one assertion worth making about it is that a
- * map survives a save/load round trip, because that is the whole claim nya_tilemap_to_object makes.
- *
- * Headless: nothing here draws.
  **/
 
 #include "nyangine/nyangine.c"

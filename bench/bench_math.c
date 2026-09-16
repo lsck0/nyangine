@@ -1,14 +1,5 @@
 /**
  * The math primitives, and the quaternion question in particular.
- *
- * `prompt.md` asked whether quaternion multiplication could be made faster. Static analysis said it was
- * called from two places and never from skinning; `perf.data` measured it at 0.07% of cycles. This is
- * the third answer: what it actually costs, next to the operations around it, so the comparison is a
- * number rather than an argument.
- *
- * Every case works over an array rather than one value, because a single scalar operation is shorter
- * than the clock call that would time it — the harness batches, but a realistic access pattern also
- * matters, and the engine uses these over arrays of entities and bones.
  **/
 
 #include "nyangine/nyangine.c"

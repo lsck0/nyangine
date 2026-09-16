@@ -22,11 +22,6 @@ NYA_NetMessageKind nya_net_message_kind(const u8* data, u64 size, OUT u64* out_b
 
     /*
      * An unknown kind is reported as COUNT rather than refused.
-     *
-     * A newer peer may send something this build has never heard of, and the right answer is to
-     * ignore that one message. Dropping the connection instead would make every protocol addition a
-     * hard compatibility break even where the two versions could otherwise coexist — and the
-     * handshake already refuses a genuinely incompatible peer before it gets this far.
      */
     if (kind == 0 || kind >= NYA_NET_MSG_COUNT) return NYA_NET_MSG_COUNT;
 
@@ -66,12 +61,6 @@ NYA_Error nya_net_message_read_object(NYA_Arena* arena, const u8* data, u64 size
 
     /*
      * The prefix is checked against what actually arrived, not trusted.
-     *
-     * It is a number a peer chose. Handing it to the deserializer unchecked would have it read past
-     * the end of the datagram — and this is reached from a HELLO, which is the very first thing an
-     * unauthenticated peer sends.
-     *
-     * Written as a subtraction because `4 + length` can overflow and then compare as fitting.
      */
     if (length > size - 4) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a message claiming %u bytes of document in %llu bytes", length, (unsigned long long)size);

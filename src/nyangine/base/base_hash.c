@@ -56,9 +56,6 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 nya_hash_fnv1a(NYA_String st
 /*
  * SipHash-2-4, the reference construction. Two compression rounds per 8 byte block and four
  * finalization rounds, which is where the name comes from.
- *
- * Wrapping addition is the algorithm, not an accident, so it opts out of the unsigned overflow
- * check the same way the other hashes here do.
  */
 
 #define _NYA_SIPROUND(a, b, c, d)                                                                                                                    \

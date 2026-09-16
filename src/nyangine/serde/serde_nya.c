@@ -21,9 +21,6 @@ typedef struct _NYA_SerdeNyaParser _NYA_SerdeNyaParser;
 
 /**
  * Parse state.
- *
- * Bundled rather than passed as separate arguments because every recursive step needs all of it,
- * and because `depth` has to be shared: a per call local would not bound anything.
  * */
 struct _NYA_SerdeNyaParser {
     NYA_Arena* arena;
@@ -303,20 +300,6 @@ NYA_INTERNAL void _nya_serde_nya_write_value(NYA_String* out, const NYA_Value* v
 
         /*
          * Hexadecimal, so a float survives the round trip bit for bit.
-         *
-         * Decimal only round trips if both the writing and the reading are correctly rounded, and
-         * enough digits is not on its own enough: the reader accumulates digits and divides, and the
-         * error from that division has nowhere to go for an f128. Measured before this change, 92 of
-         * 300 random f128 values came back altered — and because the format checksums its values
-         * rather than its text, an altered value fails the checksum and the document is rejected as
-         * corrupt rather than merely being slightly wrong.
-         *
-         * A hex float has no such gap. Four bits per digit, an exponent that scales by two, so both
-         * directions are exact by construction. It is also what C itself writes with %a, so the text
-         * is readable by strtod and by a person who knows the format.
-         *
-         * JSON keeps its decimal form. Hex floats are not valid JSON, and that format's whole reason
-         * for existing is being readable by things that are not this engine.
          * */
         case NYA_TYPE_F16:    nya_string_extend_sprintf(out, "%a", (f64)value->as_f16); break;
         case NYA_TYPE_F32:    nya_string_extend_sprintf(out, "%a", (f64)value->as_f32); break;
@@ -633,10 +616,6 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_value(_NYA_SerdeNyaParser* parser, N
 
 /**
  * Reads a numeric literal, stitching a leading minus back on.
- *
- * The lexer emits '-' as its own symbol, deliberately: folding it into the number would turn
- * `a - b` into `a` and `-b` for every other user of the lexer. So the sign is reattached here,
- * where a minus in front of a number is unambiguous.
  * */
 NYA_INTERNAL NYA_Error _nya_serde_nya_parse_number(_NYA_SerdeNyaParser* parser, NYA_Type type, OUT NYA_Value* out_value) {
     NYA_Token* token    = _nya_serde_nya_peek(parser);
@@ -668,14 +647,6 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_number(_NYA_SerdeNyaParser* parser, 
 
     /*
      * Refused rather than clamped, matching _nya_serde_json_parse_number.
-     *
-     * The digits were truncated to whatever fit, silently, so a literal longer than this buffer was
-     * parsed from its prefix and came back orders of magnitude from what the document said. That is
-     * worse here than it was in JSON: this is the save format, so a number that does not survive a
-     * round trip is a corrupted save rather than a misread response — and the checksum is computed
-     * over the object that was parsed, so it agrees with the wrong value.
-     *
-     * The bound is generous by a wide margin: an f128 in decimal is nowhere near it.
      */
     u64 digits_length = token->length;
     if (digits_length > sizeof(text) - length - 1) {
@@ -711,11 +682,6 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_number(_NYA_SerdeNyaParser* parser, 
 
 /**
  * Skips comments.
- *
- * One token type now, since the lexer recognises a comment itself. This used to reassemble one from
- * the two adjacent symbol tokens it arrived as, checking source offsets so that a slash and a star
- * with a space between them were not mistaken for an opener — all of which the lexer does better,
- * because it is looking at characters rather than at tokens that have already lost their spacing.
  * */
 NYA_INTERNAL void _nya_serde_nya_skip_trivia(_NYA_SerdeNyaParser* parser) {
     while (parser->index < parser->lexer->tokens->length &&

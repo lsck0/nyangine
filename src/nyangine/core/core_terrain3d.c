@@ -4,49 +4,6 @@
 #define _NYA_TERRAIN3D_SHADE_SEED 0x7E44A1
 /**
  * @file system_terrain3d.c
- *
- * The 3D scene's ground: a heightmap from fBm noise, drawn as flat triangles and collided against as a
- * static triangle mesh.
- *
- * ## Why this replaced a plane
- *
- * The scene used to stand on nya_render3d_plane over a static box, which was honest about what it was —
- * a backdrop — and useless as a test. A cube landing on a flat floor exercises one contact normal, never
- * rolls, and settles in the first second. Nothing about that tells you whether the solver, the batching
- * or the shading works on anything harder.
- *
- * A heightmap is the smallest thing that does. It gives the renderer thousands of triangles with normals
- * pointing everywhere, the shadow pass a receiver with real relief on it, and the solver a surface where
- * a cube lands on a slope, tips, rolls, and comes to rest somewhere different every seed.
- *
- * ## The two representations, and why they differ
- *
- * The heights are stored once, as a grid of samples. Everything else is derived from them, twice, in two
- * shapes that genuinely cannot be shared:
- *
- * - **The collider** wants a *shared* vertex grid: one vertex per sample, indexed by the triangles that
- *   meet there. Duplicating them would give Box3D coincident vertices on every edge and a BVH twice the
- *   size it needs. Built once, at generation, and handed to the solver, which copies it.
- *
- * - **The draw** wants *unshared* vertices: three per triangle, so each carries its own face normal and
- *   its own flat colour. That is the low-poly look, and it is not achievable with a shared grid — a
- *   shared vertex has one normal, which is the definition of smooth shading.
- *
- * Both are built once, here, and neither is rebuilt per frame. The draw side used to be: the surface went
- * through the immediate batch, so all 6144 of its vertices were transformed and uploaded again for the
- * camera pass and for each shadow cascade — around four hundred kilobytes, four times a frame, for
- * geometry that changes only when the seed does. It is registered with the renderer instead and drawn as
- * one instance; see nya_render3d_mesh_register.
- *
- * What that trades away is per-triangle frustum culling: the surface is now culled as a single bounding
- * sphere, so a cascade covering any part of it processes all of it. That is the right trade here and at
- * any realistic size — a few thousand vertices the GPU discards cost far less than the CPU writing and
- * uploading them, which is what the per-triangle version was paying to avoid.
- *
- * ## What is deliberately missing
- *
- * No LOD, no chunking, no frustum culling: the whole surface is sixteen metres across and always fully
- * in view. A landscape that scrolled would need all three, and none of them would live here.
  * */
 
 /*
@@ -191,33 +148,11 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
 
             /*
              * Two terms: free noise in the middle, a rim that rises at the edge.
-             *
-             * fBm alone gives hills of the same character everywhere including hard against the
-             * boundary, and the boundary is where the surface stops existing. The first version damped
-             * the noise toward zero out there, on the reasoning that a flat beach is a gentle edge —
-             * which was wrong in a way only the running scene showed: damping toward zero around a
-             * middle that happens to be high makes the whole terrain a *dome*, and every cube dropped on
-             * it rolls outward and off. A third of the pile had gone over the edge within a minute.
-             *
-             * Lifting the rim instead makes it a basin. The noise still has the middle to itself, the
-             * boundary is a ring of hills a cube rolls back down from rather than over, and nothing has
-             * to fence the scene in with invisible walls.
-             *
-             * Radial rather than per axis: a per-axis rim leaves the corners low, which reads as four
-             * gaps in the ring — exactly where things would then escape.
              */
             f32 height = nya_noise_fbm2(&noise, x * terrain->options.frequency, z * terrain->options.frequency, params);
 
             /*
              * The distance to the nearest *edge*, not to the centre.
-             *
-             * A Euclidean radius describes a circle inscribed in a square terrain, so everything outside
-             * that circle — the four corners, which is a fifth of the area — is past the end of the ramp
-             * and sits at a flat plateau of rim height. On screen that is a large dead tabletop around a
-             * small bowl, and it was the first thing wrong with the picture.
-             *
-             * The max-norm makes the level sets squares, so the rim follows the boundary it actually has
-             * and reaches full height exactly at it. No plateau, and the whole surface is terrain.
              */
             f32 radial = nya_max(fabsf(x), fabsf(z)) / half;
 
@@ -241,77 +176,43 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
     }
 
     /*
-     * The collider, from a scratch copy of the same samples.
+     * The collider is the height grid itself, handed over as a heightfield rather than triangulated.
      *
-     * Temporary because nya_physics3d_body_attach copies what it is given into Box3D's own structure —
-     * see NYA_PHYSICS3D_SHAPE_MESH — so nothing here has to outlive the call.
+     * The same surface as NYA_PHYSICS3D_SHAPE_MESH but the shape Box3D has a cheaper solver for: a
+     * heightfield finds the cell under a point by arithmetic where a triangle mesh descends a BVH.
+     * b3SolveContacts_Mesh was 4.3% of a release profile with this built as triangles, and the triangles
+     * themselves were a full vertex and index array built and thrown away on every generate.
      */
-    u32 vertex_count = terrain->verts * terrain->verts;
-    u32 index_count  = terrain->resolution * terrain->resolution * 6;
-
-    u64 vertex_bytes = (u64)vertex_count * sizeof(f32x3);
-    u64 index_bytes  = (u64)index_count * sizeof(u32);
-
-    f32x3* vertices = nya_arena_alloc(nya_arena_temp, vertex_bytes);
-    u32*   indices  = nya_arena_alloc(nya_arena_temp, index_bytes);
-
-    for (u32 j = 0; j < terrain->verts; j++) {
-        for (u32 i = 0; i < terrain->verts; i++) {
-            vertices[(j * terrain->verts) + i] = _nya_terrain3d_corner(terrain, i, j);
-        }
-    }
-
-    u32 written = 0;
-
-    for (u32 j = 0; j < terrain->resolution; j++) {
-        for (u32 i = 0; i < terrain->resolution; i++) {
-            u32 a = (j * terrain->verts) + i;
-            u32 b = a + 1;
-            u32 c = a + terrain->verts;
-            u32 d = c + 1;
-
-            /*
-             * Wound so the face normal points up, which for a collider decides which side a body is
-             * pushed out toward rather than whether the triangle is visible.
-             *
-             * Getting it backwards in the renderer makes a surface disappear, which is obvious. Getting
-             * it backwards here makes bodies fall through the ground while it still draws perfectly,
-             * which is not — so the draw below deliberately walks the same corners in the same order.
-             */
-            indices[written++] = a;
-            indices[written++] = c;
-            indices[written++] = b;
-
-            indices[written++] = b;
-            indices[written++] = c;
-            indices[written++] = d;
-        }
-    }
-
+    /*
+     * At the grid's near corner, not at the centre of the surface.
+     *
+     * Box3D lays a heightfield out from the body origin toward +x and +z — see the AABB it computes in
+     * height_field.c — while the drawn surface is centred on the origin and spans [-half, +half]. Placing
+     * the body at the corner is what makes the two coincide. Nothing reads this entity's position for
+     * rendering: the terrain draws registered geometry whose vertices are already world positions, at
+     * f32x3_zero.
+     */
     terrain->entity = nya_entity_spawn(
-        .name  = "terrain3d",
-        .type  = terrain->options.entity_type,
-        .state = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_VISIBLE | NYA_ENTITY_STATE_STATIC
+        .name     = "terrain3d",
+        .type     = terrain->options.entity_type,
+        .position = { -half, 0.0F, -half },
+        .state    = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_VISIBLE | NYA_ENTITY_STATE_STATIC
     );
 
     nya_assert(nya_entity_is_valid(terrain->entity), "Failed to spawn the 3D terrain entity.");
 
-    // The vertices are already world positions and the entity sits at the origin, so they are its body
-    // frame unchanged — the same arrangement the 2D chain uses.
+    // Row-major with x varying fastest, which is how terrain->heights is already indexed and what Box3D
+    // reads: its column count is countX, so an entry is at (z * countX) + x in both.
     b8 attached = nya_physics3d_body_attach(
         terrain->entity,
-        .type         = NYA_PHYSICS_BODY_STATIC,
-        .shape        = NYA_PHYSICS3D_SHAPE_MESH,
-        .vertices     = vertices,
-        .indices      = indices,
-        .vertex_count = vertex_count,
-        .index_count  = index_count,
-        .friction     = terrain->options.friction
+        .type             = NYA_PHYSICS_BODY_STATIC,
+        .shape            = NYA_PHYSICS3D_SHAPE_HEIGHTFIELD,
+        .heights          = terrain->heights,
+        .height_count_x   = terrain->verts,
+        .height_count_z   = terrain->verts,
+        .height_cell_size = { terrain->cell, terrain->cell },
+        .friction         = terrain->options.friction
     );
-
-    // Reverse order, so the temp arena can actually reclaim both rather than only the last one.
-    nya_arena_free(nya_arena_temp, indices, index_bytes);
-    nya_arena_free(nya_arena_temp, vertices, vertex_bytes);
 
     if (!attached) {
         // Not fatal, and not silent. The scene still draws; things dropped onto it fall through, which
@@ -321,12 +222,6 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
 
     /*
      * The draw geometry, built once here and handed to the renderer to keep.
-     *
-     * Unshared vertices — three per triangle — so each face carries its own normal and its own flat
-     * colour. That is the whole low-poly look and it is why this cannot reuse the collider's shared grid.
-     *
-     * Temporary, like the collider's arrays: nya_render3d_mesh_register copies to the GPU and keeps
-     * nothing on the CPU.
      *
      * ⚠ **Skipped entirely for a chunked terrain**, which draws its chunks instead. Building both was
      * a third of a megabyte of vertices uploaded and then never drawn — visible only as a line in the
@@ -353,10 +248,6 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
 
                 /*
                  * Two triangles, wound and coloured exactly as the immediate version drew them.
-                 *
-                 * Same corners in the same order as the collider above, so the surface that is drawn is the
-                 * surface that is hit — and the normal is the face normal, computed here once instead of by
-                 * the renderer on every frame.
                  */
                 f32x3 triangles[2][3] = {
                     { corner_a, corner_c, corner_b },
@@ -391,9 +282,6 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
 
     /*
      * The chunk bounds, now that there are heights to measure.
-     *
-     * Before the first nya_terrain3d_update rather than during it, because the update measures
-     * distance to these — see the note on _nya_terrain3d_chunk_bounds.
      */
     for (u32 index = 0; index < terrain->chunk_count; index++) {
         _nya_terrain3d_chunk_bounds(terrain, &terrain->chunks[index]);
@@ -403,8 +291,8 @@ void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed
         terrain->chunks[index].lod = NYA_TERRAIN3D_LOD_LEVELS;
     }
 
-    nya_log_info("3D terrain generated from seed %llu (%u triangles, height %.2f to %.2f).", (unsigned long long)seed, index_count / 3,
-             (f64)terrain->min_height, (f64)terrain->max_height);
+    nya_log_info("3D terrain generated from seed %llu (%ux%u heightfield, height %.2f to %.2f).", (unsigned long long)seed,
+                 terrain->verts, terrain->verts, (f64)terrain->min_height, (f64)terrain->max_height);
 }
 
 void nya_terrain3d_release(NYA_Terrain3D* terrain, NYA_Window* window) {
@@ -426,10 +314,6 @@ void nya_terrain3d_release(NYA_Terrain3D* terrain, NYA_Window* window) {
 
     /*
      * The height grid is *not* released and the pointer is kept.
-     *
-     * It came from the world's arena, which frees as a whole when the world does, and holding the
-     * pointer is what lets a scene that is left and re-entered reuse the same block instead of taking
-     * another one. Everything else here is reset, because it names an entity that is going away.
      */
     terrain->entity     = NYA_ENTITY_HANDLE_NONE;
     terrain->seed       = 0;
@@ -460,11 +344,6 @@ f32 nya_terrain3d_height_at(const NYA_Terrain3D* terrain, f32 x, f32 z) {
 
     /*
      * Bilinear, which is not quite the surface.
-     *
-     * The mesh is two triangles per cell, so the true height is *piecewise* linear over one of them and
-     * a bilinear patch is a smooth approximation that differs by a few centimetres in the middle of a
-     * steep cell. That is well inside what this is used for — deciding where above the ground to start a
-     * falling cube — and a triangle test here would be exact for no visible gain.
      */
     f32 h00 = terrain->heights[(j * terrain->verts) + i];
     f32 h10 = terrain->heights[(j * terrain->verts) + i + 1];
@@ -486,11 +365,6 @@ f32 nya_terrain3d_height_at(const NYA_Terrain3D* terrain, f32 x, f32 z) {
  * ⚠ **The bound that matters is the terrain's height range, not a multiple of the cell.** The skirt
  * only has to cover the largest height two adjacent levels can disagree by at a border, and that is
  * bounded by how far the surface rises at all — it cannot disagree by more than the whole relief.
- *
- * This used to be `cell * 2^LOD_LEVELS`, sixteen cells deep, which on a small terrain is deeper than
- * the terrain is wide. That went straight into every chunk's bounding radius, which is what the LOD
- * measures distance against, and the result was chunks reading as far away while the camera sat on
- * top of them.
  * */
 NYA_INTERNAL f32 _nya_terrain3d_skirt_depth(const NYA_Terrain3D* terrain) {
     if (terrain->options.skirt_depth > 0.0F) return terrain->options.skirt_depth;
@@ -510,9 +384,6 @@ NYA_INTERNAL f32 _nya_terrain3d_skirt_depth(const NYA_Terrain3D* terrain) {
  * the mesh meant the *first* choice was made against a zeroed centre — every chunk read as sitting at
  * the origin, all picked the same level, and the frame after that they all picked a different one and
  * rebuilt a second time. Caught by the test asserting that standing still rebuilds nothing.
- *
- * At full resolution, not at the chunk's current level: the sphere has to contain the surface however
- * coarsely it happens to be drawn, and a coarse sampling can only ever miss a peak, never invent one.
  * */
 NYA_INTERNAL void _nya_terrain3d_chunk_bounds(const NYA_Terrain3D* terrain, NYA_Terrain3DChunk* chunk) {
     u32 cells_x = nya_min((u32)NYA_TERRAIN3D_CHUNK_CELLS, terrain->resolution - chunk->cell_x);
@@ -566,11 +437,6 @@ NYA_INTERNAL void _nya_terrain3d_emit_triangle(const NYA_Terrain3D* terrain, NYA
 
 /**
  * Builds one chunk's geometry at `lod` and registers it, replacing whatever was there.
- *
- * The stride is the whole of GeoMipMapping: at level `n` the chunk's grid is sampled every `1 << n`
- * vertices, so the surface keeps its shape and loses its detail. Everything else here — the winding,
- * the flat normal, the colour bands — is exactly what the unchunked path does, because a chunked
- * surface has to look like the same terrain.
  * */
 NYA_INTERNAL void _nya_terrain3d_chunk_build(NYA_Terrain3D* terrain, NYA_Window* window, NYA_Terrain3DChunk* chunk, u32 lod) {
     u32 stride = 1u << lod;
@@ -622,14 +488,6 @@ NYA_INTERNAL void _nya_terrain3d_chunk_build(NYA_Terrain3D* terrain, NYA_Window*
 
     /*
      * The skirt: a vertical flange hanging from every edge vertex.
-     *
-     * Two chunks at different levels sample their shared border at different points, so their edges do
-     * not meet — the gap between them is a crack straight through to the background, and it is the one
-     * artifact that makes GeoMipMapping look broken rather than merely coarse. The flange fills that
-     * gap with terrain-coloured geometry, which the neighbour's own surface then covers whichever level
-     * it is at. Never seen, unless it is too short.
-     *
-     * Wound so each side faces outward — a skirt culled away is a skirt that is not there.
      */
     for (u32 side = 0; side < 4; side++) {
         u32 steps = (side < 2) ? steps_x : steps_z;
@@ -686,11 +544,6 @@ u32 nya_terrain3d_lod_for_distance(const NYA_Terrain3D* terrain, f32 distance) {
 
     /*
      * Banded and doubling, rather than a continuous function of distance.
-     *
-     * The level has to be a small integer anyway, and a band is what makes crossing a boundary rebuild
-     * one chunk rather than every chunk edging over a threshold at once. Doubling matches the stride
-     * doubling: each level covers twice the ground at half the density, so the triangles a chunk
-     * contributes stay roughly constant with distance, which is the whole idea.
      */
     u32 lod = 0;
 
@@ -728,10 +581,6 @@ void nya_terrain3d_update(NYA_Terrain3D* terrain, NYA_Window* window, f32x3 view
         /*
          * Horizontal distance to the chunk's **sphere**, not to its centre.
          *
-         * Horizontal because a camera high above a landscape is far from every chunk by the
-         * straight-line measure, so everything would drop to the coarsest level the moment it climbed —
-         * the opposite of what a viewer looking down at the ground wants.
-         *
          * ⚠ **To the sphere because a chunk is not a point.** Measuring to the centre makes a chunk
          * half its own width "away" even when the camera is standing on its near edge, so a chunk the
          * viewer is *inside* reads as a chunk's-width distant and coarsens. On a terrain whose chunks
@@ -750,11 +599,6 @@ void nya_terrain3d_update(NYA_Terrain3D* terrain, NYA_Window* window, f32x3 view
         /*
          * Hysteresis, but only for a chunk that already has geometry — an unbuilt one takes whatever
          * the distance says, since there is nothing to keep.
-         *
-         * A chunk sitting on a band boundary otherwise changes level every few frames as the viewer
-         * drifts back and forth across it, and every change is a geometry upload. Widening each
-         * boundary into a dead band costs a slightly stale level and turns a continuous stutter into
-         * nothing at all. See NYA_TERRAIN3D_LOD_HYSTERESIS.
          */
         if (chunk->lod < NYA_TERRAIN3D_LOD_LEVELS && wanted != chunk->lod) {
             if (wanted > chunk->lod) {
@@ -786,10 +630,6 @@ void nya_terrain3d_draw(const NYA_Terrain3D* terrain, NYA_Window* window) {
         /*
          * One draw per chunk, each with its own bounds — which is the point of chunking, because the
          * renderer culls per drawn mesh and a single surface is all-or-nothing.
-         *
-         * A chunk whose geometry has never been built is skipped rather than drawn: it has no mesh
-         * registered under its handle, and asking for one draws nothing anyway. Skipping it here keeps
-         * the draw call count honest.
          */
         for (u32 index = 0; index < terrain->chunk_count; index++) {
             const NYA_Terrain3DChunk* chunk = &terrain->chunks[index];
@@ -803,14 +643,6 @@ void nya_terrain3d_draw(const NYA_Terrain3D* terrain, NYA_Window* window) {
 
     /*
      * One instanced draw of geometry that was uploaded when the surface was generated.
-     *
-     * This used to walk 1024 cells and emit 2048 triangles through nya_render3d_triangle, every pass —
-     * so 6144 vertices were transformed and uploaded for the camera and again for each shadow cascade.
-     * The surface does not change between generations, which makes all of that work to produce the same
-     * bytes four times a frame.
-     *
-     * White, because the colours are already in the vertices: the tint multiplies them, and anything but
-     * white would wash the height bands toward it.
      */
     nya_render3d_mesh(window, NYA_TERRAIN3D_MESH, f32x3_zero, (f32x3){ 1.0F, 1.0F, 1.0F }, nya_quaternion_identity, NYA_COLOR_WHITE);
 }
@@ -850,16 +682,6 @@ NYA_Color _nya_terrain3d_shade(const NYA_Terrain3D* terrain, f32 height, u32 cel
 
     /*
      * A per-triangle nudge on top of the band.
-     *
-     * Without it a band is a flat sheet of one colour and the facets vanish into it — which defeats the
-     * whole reason for unshared vertices. The engine's integer hash rather than a multiplicative one
-     * written here; a hand-rolled version does not survive a sanitized
-     * build.
-     *
-     * Keyed on the cell *and* which half of it, so the two triangles of a cell differ from each other.
-     * Keyed on the index rather than the position, so it is stable while the camera moves and identical
-     * between the shadow pass and the camera pass — a jitter that differed between them would put noise
-     * in the shadows.
      */
     f32 jitter = nya_ihash2((s32)cell, (s32)half, _NYA_TERRAIN3D_SHADE_SEED) * terrain->options.shade_jitter;
 

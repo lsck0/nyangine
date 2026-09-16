@@ -39,10 +39,6 @@ typedef long double f128;
 
 /*
  * Named for their component width, matching the f types above: a c64 is two f64s, not 64 bits.
- *
- * Spelled with the builtin keywords rather than reusing f32/f64/f128, because _Complex is only
- * valid next to a real type *keyword* — `f32 _Complex` does not compile. The assertions keep the
- * two definitions from drifting apart.
  */
 typedef float _Complex c32;
 typedef double _Complex c64;
@@ -269,15 +265,6 @@ __attr_allow_unused static const char* NYA_TYPE_NAME_MAP[NYA_TYPE_COUNT] = {
 
 /*
  * A negative value is rejected on its own, before the range comparison.
- *
- * `val >= U32_MIN && val <= U32_MAX` cannot see a negative: the usual arithmetic conversions turn
- * the signed operand unsigned before either comparison runs, so -1 becomes the largest value of the
- * target type and satisfies both halves. nya_cast_to_u32(-1) therefore asserted nothing and handed
- * back 4294967295, which is the exact accident this macro exists to prevent. Only u8 and u16
- * escaped it, and only because they promote to int first.
- *
- * The value is also bound to a temporary, so an argument with a side effect happens once rather
- * than once per mention.
  * */
 
 /** True when `val` is a signed type holding a value below zero. Always false for unsigned types. */

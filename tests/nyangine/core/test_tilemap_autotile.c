@@ -1,15 +1,5 @@
 /**
  * Animated tiles and auto-tiling: the two things a tile layer does that a static grid cannot.
- *
- * Both are pure functions of what is already loaded, so this writes its own `.tmj` fixture rather
- * than adding to the generated maps under assets/maps — a fixture that exists to carry one animated
- * tile and one blob of wall is clearer beside the assertions than three directories away.
- *
- * The blob case is where the real risk is. Its 47 pieces come from collapsing 256 raw neighbour
- * combinations, the collapse is four lines, and nothing about the result is checkable by eye — so
- * most of the auto-tiling half is properties of the collapse rather than specific indices.
- *
- * Headless: nothing here draws.
  **/
 
 #include "nyangine/nyangine.c"
@@ -21,9 +11,6 @@
 
 /**
  * A four-by-four map with one tile layer, plus a tileset whose tile 0 animates over three frames.
- *
- * Written out rather than embedded as a byte array so the JSON is readable: everything asserted
- * below is visible here, including the frame durations.
  * */
 static NYA_ConstCString FIXTURE_JSON =
     "{"

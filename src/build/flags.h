@@ -1,15 +1,5 @@
 /**
  * @file flags.h
- *
- * Project names, output paths and compiler flag sets shared by every build rule.
- *
- * Flags are split three ways:
- * - portable ones that apply everywhere (CFLAGS, WARNINGS, FLAGS_DEBUG, FLAGS_RELEASE),
- * - per target ones for the platform being produced (FLAGS_LINUX_X86_64, FLAGS_WINDOWS_X86_64),
- * - per host ones, in on_linux/toolchain.h and on_windows/toolchain.h, for the tools themselves.
- *
- * Nothing about a third party dependency belongs here. Include paths, cflags and link flags for
- * those live on their NYA_VendorRule, so adding a dependency never widens this file.
  * */
 #pragma once
 
@@ -49,14 +39,6 @@
 
 /*
  * Which optional plugins the *project* compiles. See src/nyangine/plugins/plugins.h.
- *
- * On the project rules rather than in CFLAGS, because CFLAGS is also what the build tool compiles
- * itself with — and the build tool is what builds libcurl and libsqlite3, so on a fresh checkout it
- * cannot link against either. Naming them here keeps that asymmetry in one visible place instead of
- * as a negative flag the bootstrap has to remember.
- *
- * The matching vendors must be in the target's NYA_PROJECT_VENDORS_* list, or the plugin compiles
- * and then fails to link.
  */
 #define FLAGS_PLUGINS "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_SQLITE", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA"
 
@@ -64,10 +46,6 @@
  * Every mode names its NYA_EXECUTION_MODE explicitly. The macro defaults to 0, so leaving it off
  * does not mean "unset", it means "debug" — which is how release binaries ended up compiling the
  * hot reload entry point and skipping their own integrity check.
- *
- * Assets are not a backend choice any more. The filesystem is always available; NYA_ASSET_PREFER_BLOB adds
- * the baked copy in front of it and NYA_ASSET_HOT_RELOAD watches whatever still comes off disk. A
- * mode naming neither reads assets from disk and does not watch them, which is what a test wants.
  */
 #define FLAGS_DEBUG     "-DNYA_EXECUTION_MODE=0", "-DDEBUG=true", "-O0", "-DNYA_ASSET_HOT_RELOAD"
 
@@ -81,24 +59,9 @@
 
 /**
  * Source based coverage instrumentation, for `./build run coverage`.
- *
- * Both flags are needed and both go on the one clang invocation: -fprofile-instr-generate links the
- * runtime that writes the raw profile, and -fcoverage-mapping embeds the table mapping counters back
- * to source ranges. Without the second, llvm-cov has counts it cannot attribute to any line.
- *
- * Coexists with FLAGS_SANITIZE, so a coverage run is still a sanitized run and cannot report a line
- * as covered that only "worked" by reading uninitialised memory.
  * */
 /**
  * What a benchmark is compiled with: optimised, headless, and *without* sanitizers.
- *
- * The absence is the point. FLAGS_TEST is -O0 under four sanitizers, and a benchmark built that way
- * measures the instrumentation rather than the code — unevenly, too, because the overhead lands hardest
- * on memory-heavy work. The engine's reverb profiled at 5.52% of frame time under ASAN and measured at
- * 0.22% of a core without it.
- *
- * Not FLAGS_RELEASE either: -flto makes every benchmark relink the world, and the hardening flags are
- * about shipping rather than about measuring.
  * */
 #define FLAGS_BENCH     "-DNYA_EXECUTION_MODE=2", "-O2", "-DNYA_HEADLESS", "-fno-omit-frame-pointer"
 
@@ -131,17 +94,6 @@
 /*
  * Steam is release plus the Steam runtime. Same deploy shape, different execution mode, so the mode
  * can gate overlay and achievements without a second set of build rules.
- *
- * Unlike the other plugins this one has no NYA_VendorRule to carry its link flags: the Steamworks
- * SDK is a prebuilt redistributable checked into vendor/steam rather than something the build
- * system compiles, so there is nothing for a vendor rule to build and the flags are spelled out.
- *
- * -Wl,-rpath,$ORIGIN, not a path into vendor/: the .so ships *beside* the executable, so pointing
- * the rpath at the checkout would produce a binary that runs on this machine and on no other.
- * Copying libsteam_api.so next to the binary is part of using this, and there is no build rule that
- * does it yet — see plugins/steam/steam.h.
- *
- * Named by no rule today, which is why NYA_EXECUTION_MODE=3 is still unreachable.
  */
 #define FLAGS_STEAM_LINUX_X86_64                                                                                                                     \
     "-DNYA_EXECUTION_MODE=3", "-DNYA_PLUGIN_STEAM", "-L./vendor/steam/redistributable_bin/linux64/", "-Wl,-rpath,$ORIGIN", "-lsteam_api"
@@ -166,15 +118,6 @@
 
 /*
  * Authenticode signing of the shipped .exe. See hook_sign_windows_executable.
- *
- * The checked in certificate is self signed, which no operating system trusts: it does not satisfy
- * SmartScreen and it is not a credential. It exists so the signing path is exercised by every
- * release build rather than discovered to be broken on release day, and because an unsigned
- * download draws harsher treatment from browsers than a signed one with an unknown publisher.
- * Its password is published here for the same reason it can be: the key protects nothing.
- *
- * A real certificate is never checked in. Point the three environment variables below at it
- * instead, from a secret store, and leave this file alone. See the README.
  */
 // Deliberately not under assets/: that tree is walked by the asset indexer and embedded into
 // assets.c, which would put the private key inside the shipped binary.

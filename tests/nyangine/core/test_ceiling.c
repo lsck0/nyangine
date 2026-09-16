@@ -1,9 +1,6 @@
 /**
  * The ceiling registry: registering a pointer to an existing counter, reading it back sorted by
  * fullness, and the registry's own overflow.
- *
- * No SDL, no app instance — same as test_system.c, and for the same reason: this is a plain array
- * with no dependency on anything else in core.
  **/
 
 #include "nyangine/nyangine.c"
@@ -85,12 +82,6 @@ s32 main(void) {
 
         /*
          * Filled relative to what is already registered, not from zero.
-         *
-         * The reset empties the registry, but registration is *lazy* across the engine and does not stop
-         * happening just because a test asked for a clean slate — base_logging registers "log_sinks" the
-         * first time anything adds a sink, which is the line directly above. Assuming an empty registry
-         * here meant the loop below overflowed one short of the ceiling and this block failed on its own
-         * setup. Counting first is the fix that survives another module growing a lazy ceiling later.
          */
         u32 already   = nya_ceiling_count();
         u32 remaining = (u32)NYA_CEILING_REGISTRY_MAX - already;

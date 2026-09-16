@@ -1,9 +1,5 @@
 /**
  * Blend trees: 1D bracketing, 2D gradient bands, the shared phase, and nesting.
- *
- * The rig carries one bone whose x translation is the clip's own identity — clip A holds x at 1, B at
- * 2, C at 3 — so the *pose* reads back as the weighted average of whichever clips are mixed. That is
- * what lets a blend be asserted on directly rather than inferred from the weights that produced it.
  **/
 
 #include "nyangine/nyangine.c"

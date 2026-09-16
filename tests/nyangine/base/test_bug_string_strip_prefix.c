@@ -1,16 +1,5 @@
 /**
  * Regression test for the missing length guard in nya_string_strip_prefix (base_string.c).
- *
- * It compares strlen(prefix) bytes against the string without first checking that the string is at
- * least that long:
- *
- *     if (nya_memcmp(str->items, prefix, prefix_length) == 0) { ... }
- *
- * Its sibling nya_string_strip_suffix does check, and returns early. The prefix below is long
- * enough to reach past the arena's alignment padding, which is what hides a shorter one.
- *
- * src/build/asset.c calls this on paths produced by a filesystem walk, so the input is not always
- * known to be longer than the prefix.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

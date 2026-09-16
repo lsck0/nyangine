@@ -1,11 +1,5 @@
 /**
  * The post-processing chain's own bookkeeping: target lifetime, the ping-pong, and the fallbacks.
- *
- * Headless, so nothing is actually rasterised — nya_render_texture_create returns a stub. What is
- * testable here is everything around the draw: that a chain sizes itself to the window, that it
- * recreates rather than leaks on a resize, that begin refuses a zero-sized window instead of
- * asserting, and that destroy is safe to call twice. Those are the parts that had been hand written
- * twice in the game and were the ones that went wrong.
  **/
 
 #include "nyangine/nyangine.c"

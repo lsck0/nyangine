@@ -118,10 +118,6 @@ NYA_NNDQN* nya_nn_dqn_create(NYA_Arena* arena, NYA_NNDQNConfig config) {
 
     /*
      * Two networks of identical architecture, then synchronised.
-     *
-     * Built independently and copied rather than constructed identically: the copy is the operation
-     * that has to be right for the rest of training to mean anything, so it runs once at startup
-     * where a mistake is obvious rather than only after the first soft update.
      */
     dqn->online = nya_nn_sequential_create(arena);
     _nya_nn_dqn_build_sequential(dqn, dqn->online);
@@ -219,9 +215,6 @@ f32 nya_nn_dqn_train_step(NYA_NNDQN* dqn) {
 
     /*
      * Sampled with replacement.
-     *
-     * A duplicate in a batch is harmless — it weights that transition twice — and rejecting them
-     * would need a set membership test per draw for a benefit that does not exist at these sizes.
      */
     for (u32 i = 0; i < batch; i++) {
         u32 index = _nya_nn_dqn_index(dqn, dqn->replay_count);
@@ -239,10 +232,6 @@ f32 nya_nn_dqn_train_step(NYA_NNDQN* dqn) {
 
     /*
      * The online pass, which is the only part that records a tape.
-     *
-     * Q(s, a) for the action actually taken — nya_nn_gather is what picks it, and its backward is
-     * what confines the gradient to that one action's output. The values of the actions not taken
-     * are not evidence about anything and must not move.
      */
     nya_nn_optimizer_zero_grad(dqn->optimizer);
 
@@ -280,10 +269,6 @@ f32 nya_nn_dqn_train_for(NYA_NNDQN* dqn, f32 delta_time_s) {
 
     /*
      * A rate and a debt, not a per-frame count.
-     *
-     * Stepping once per frame would train at more than twice the speed on a 144Hz monitor as on a
-     * 60Hz one, which makes a run unreproducible for reasons that have nothing to do with the
-     * algorithm. Carrying the fraction means a rate below one step per frame works too.
      */
     dqn->train_step_debt += delta_time_s * dqn->config.train_steps_per_second;
 
@@ -301,9 +286,6 @@ f32 nya_nn_dqn_train_for(NYA_NNDQN* dqn, f32 delta_time_s) {
 
     /*
      * The step count bounds how many, this bounds how long. See NYA_NNDQNConfig.max_step_milliseconds.
-     *
-     * Checked after each step rather than before, so the first one always runs and training never
-     * stalls completely on a machine that cannot afford even one step per frame.
      */
     u64 started_ns = nya_clock_get_monotonic_ns();
     u64 budget_ns  = (u64)(dqn->config.max_step_milliseconds * 1'000'000.0);
@@ -437,10 +419,6 @@ void _nya_nn_dqn_build_sequential(NYA_NNDQN* dqn, NYA_NNSequential* sequential) 
 NYA_NNTensor* _nya_nn_dqn_evaluate(NYA_NNDQN* dqn, const f32* state) {
     /*
      * Acting does not need a backward pass, so it records nothing.
-     *
-     * Without this every call would push five tensors onto a tape nobody reads and allocate a
-     * gradient buffer for each — and acting happens every frame where training happens rarely, so it
-     * is the call that would dominate.
      */
     nya_nn_graph_reset(dqn->graph);
     nya_nn_graph_grad_begin(dqn->graph);
@@ -469,11 +447,6 @@ void _nya_nn_dqn_build_targets(NYA_NNDQN* dqn) {
 
     /*
      * The whole target computation is outside the tape.
-     *
-     * A target is a number, not a function of the weights being trained. Letting a gradient flow
-     * back through it would be optimising the target to match the prediction as much as the other
-     * way round, and the pair converges happily to something meaningless. This is the "detach" that
-     * every DQN implementation has and that is silently catastrophic to omit.
      */
     nya_nn_graph_grad_begin(dqn->graph);
 

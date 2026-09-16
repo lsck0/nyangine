@@ -1,16 +1,10 @@
 /**
  * @file config.h
  *
- * gnyame's own half of the runtime config, and NYA_CONFIG — the global both halves hang off.
- *
  * ```c
  * f32 speed = NYA_CONFIG.game.player_speed;
  * u32 cascades = NYA_CONFIG.engine.renderer.shadow_cascades;
  * ```
- *
- * Loaded once by gny_world_create from GNY_CONFIG_FILE and, under NYA_ASSET_HOT_RELOAD, kept in sync
- * with it from then on — see nya_config_watch in core_config.h for the mechanism, and
- * assets/config/engine.nya for the file itself.
  *
  * ⚠ **Does not survive a code hot reload.** NYA_CONFIG is a plain global in this DLL, exactly like
  * GNY_LAUNCH above, and gny_world_create runs exactly once regardless of how many times the DLL is
@@ -72,10 +66,5 @@ struct GNY_Config {
 /**
  * The single instance, reached with dotted field access the way the task that added this file
  * describes: `NYA_CONFIG.engine.renderer.shadow_bias`, `NYA_CONFIG.game.player_speed`.
- *
- * A plain global rather than something behind an accessor, for the same reason GNY_LAUNCH is: both
- * are read from ordinary game code all over gnyame, and a getter would only hide that this is
- * process-wide state, not make it any less so. See the file header for what does and does not survive
- * a reload.
  * */
 extern GNY_Config NYA_CONFIG;

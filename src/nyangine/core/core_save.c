@@ -10,11 +10,6 @@ NYA_INTERNAL NYA_SaveSystem* _nya_save_system(void);
 
 /**
  * Whether `relative` stays inside the save root.
- *
- * Rejected rather than normalised. A `..` in a save path is either a bug or a name that came from
- * outside the program, and the useful response to both is the same: refuse it. Normalising instead
- * would mean the API silently supports writing wherever the caller pointed, which is not a feature
- * anything asked for and is one that Steam Auto-Cloud would then silently not sync.
  * */
 NYA_INTERNAL b8 _nya_save_relative_is_safe(NYA_ConstCString relative);
 
@@ -130,10 +125,6 @@ NYA_Error nya_save_write(NYA_ConstCString relative, const NYA_Object* object, NY
 
     /*
      * Beside the target, not in the temp directory.
-     *
-     * A rename is only atomic within one filesystem, and $TMPDIR is routinely a different one — on
-     * Linux it is frequently a tmpfs. Renaming across that boundary is a copy and a delete, which is
-     * exactly the non-atomic write this exists to avoid, and it fails outright on some systems.
      */
     NYA_String* temporary_path = nya_string_sprintf(scratch, "%s.tmp", path_cstring);
     NYA_CString temporary      = nya_string_to_cstring(scratch, temporary_path);
@@ -237,10 +228,6 @@ u32 nya_save_version(const NYA_Object* object) {
 
     /*
      * Both widths, because JSON has one number type and reads every integer back as an S64.
-     *
-     * A version written as a u32 into a `.json` save comes back as something else entirely, and a
-     * loader that only accepted the width it wrote would treat every JSON save as unversioned — then
-     * refuse to migrate it, or migrate it twice.
      */
     switch (value->type) {
         case NYA_TYPE_U32: return value->as_u32;

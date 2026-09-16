@@ -1,14 +1,5 @@
 /**
  * Shaping: a string and a face become positioned glyph indices, headless.
- *
- * This test is the point of render_text.c existing. Text layout used to live entirely inside
- * render2d.c behind a GPU device, so nothing under tests/ ever reached it — which is how a kerning
- * hash whose multiply wrapped got through 152 tests and two clean builds and then aborted the first
- * frame that drew a character. Shaping needs no device, so all of it is reachable from here now.
- *
- * The properties asserted are the ones that would break silently: that shaping happens at all, that
- * it is kerning (which is what HarfBuzz is in the link line for), and that measuring agrees with
- * laying out — the two used to be separate loops.
  **/
 
 #include "nyangine/nyangine.c"

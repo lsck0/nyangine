@@ -1,18 +1,5 @@
 /**
  * Regression test for concurrent updates to the arena callsite table (base_arena.c).
- *
- * An arena is not thread safe and is not shared here — each thread creates its own. The callsite
- * table behind them is process wide though, so every one of those threads records into it, and the
- * row count and the per row totals used to be plain u32/u64 incremented with no ordering at all.
- * Lost updates are the visible symptom: the totals come out below what was actually allocated.
- *
- * Every thread allocates from the same source line through the helper below, so all the traffic
- * lands on one site. Two threads that first reach an unseen site together may each reserve a row for
- * it — that is documented and deliberate — so the assertion is over the sum across every row for
- * that site rather than over a single row.
- *
- * NYA_ARENA_FORCE_DEBUG because the recording lives in the debug proxies, and a test build is
- * NYA_EXECUTION_MODE=4, which would otherwise compile all of this out and report zero rows.
  * */
 #define NYA_ARENA_FORCE_DEBUG
 

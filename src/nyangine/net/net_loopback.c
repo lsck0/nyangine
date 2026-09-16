@@ -8,14 +8,6 @@
 
 /**
  * One queued message, waiting for the far end to poll for it.
- *
- * The bytes live in the *receiving* endpoint's arena rather than the sender's. That is the one
- * subtlety here: the transport contract says a received message is valid until the next poll, and
- * the sender is free to reuse its scratch buffer the moment send returns. Pointing at the sender's
- * memory would be correct only until it did.
- *
- * Still one copy rather than two — nothing is serialised, framed, or parsed — which is what makes
- * single player cost what it costs.
  * */
 typedef struct {
     u8*            data;
@@ -35,19 +27,11 @@ struct _NYA_NetLoopbackEndpoint {
 
     /**
      * Messages this endpoint has been sent and has not yet polled.
-     *
-     * Written by the *other* endpoint's send and drained by this one's poll. There is no lock: both
-     * ends live in one process and, by construction, on one thread — the whole point of a loopback
-     * pair is a listen server talking to its own client inside the frame loop.
      * */
     NYA_Arrayᐸ_NYA_NetLoopbackMessageᐳ* inbox;
 
     /**
      * Bytes handed out by the last poll, freed by the next one.
-     *
-     * A message must stay valid until the caller polls again, and it must not stay valid forever, so
-     * something has to own it for exactly one poll. This arena is that owner: it is reset at the top
-     * of every poll, which frees everything the previous poll returned in one operation.
      * */
     NYA_Arena* delivered;
 
@@ -67,9 +51,6 @@ NYA_INTERNAL void      _nya_net_loopback_destroy(NYA_NetTransport* transport);
 
 /**
  * The one peer a loopback endpoint ever has.
- *
- * Index zero, generation one. Generation one rather than zero because zero is NYA_NET_PEER_NONE and
- * nya_net_peer_is_set reads the generation — a peer with generation zero would report as unset.
  * */
 #define _NYA_NET_LOOPBACK_PEER ((NYA_NetPeerId){ .index = 0, .generation = 1 })
 
@@ -161,11 +142,6 @@ NYA_Error _nya_net_loopback_send(NYA_NetTransport* transport, NYA_NetPeerId peer
 
     /*
      * Copied into the *receiver's* arena, not the sender's.
-     *
-     * See the note on _NYA_NetLoopbackMessage: the contract is that a received message stays valid
-     * until the receiver's next poll, and the sender may reuse its buffer as soon as this returns.
-     * A snapshot is built into a scratch buffer that is reused every tick, so pointing at it would
-     * hand the client last tick's bytes about a third of the time.
      */
     u8* copy = nya_arena_alloc(other->allocator, size);
     nya_memcpy(copy, data, size);

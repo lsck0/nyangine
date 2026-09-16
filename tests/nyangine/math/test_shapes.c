@@ -1,15 +1,5 @@
 /**
  * Rectangles and circles, and the two rules the whole module hangs on.
- *
- * The first is that containment is **half open**: `x <= point < x + width`. Menu items are laid out
- * edge to edge, so a closed test puts the seam in both of them and which one wins depends on
- * iteration order. Most of what is checked below is that boundary, on every edge, in both shapes.
- *
- * The second is that an **empty rectangle is inert** — it contains nothing, overlaps nothing, and
- * survives a union without dragging the origin into the result. That is what lets a bound be
- * accumulated over a loop starting from a zeroed rectangle, which is how anyone actually writes it.
- *
- * No app, no world, no clock: this is arithmetic.
  **/
 
 #include "nyangine/nyangine.c"
@@ -135,9 +125,6 @@ s32 main(void) {
 
     /*
      * Disjoint boxes intersect to something empty with *zero* extents, not negative ones.
-     *
-     * A negative extent would carry the distance between them, and feeding that into a union or an
-     * expand conjures a rectangle out of two that never touched.
      */
     NYA_Rectf none = nya_rect_intersection(a, c);
     nya_assert(nya_rect_is_empty(none));
@@ -219,10 +206,6 @@ s32 main(void) {
 
     /*
      * A circle against a rectangle, including the case the naive test gets wrong.
-     *
-     * "Is the centre inside, or is any corner within the radius" reports a hit for a circle sitting
-     * diagonally off a corner at a distance where nothing actually touches. Comparing against the
-     * closest point on the box handles the corner and the edge with the same comparison.
      */
     NYA_Rectf box = { 20.0F, 20.0F, 20.0F, 20.0F };
 

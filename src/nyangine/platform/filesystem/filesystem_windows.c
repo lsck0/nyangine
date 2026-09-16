@@ -12,10 +12,6 @@
 /** Win32 counts 100ns ticks from 1601; the rest of the engine uses unix seconds. */
 /**
  * A FILETIME as the milliseconds since the unix epoch NYA_FileInfo documents.
- *
- * FILETIME counts 100 nanosecond ticks from 1601, so the conversion is a divide and a shift of the
- * epoch. Done in ticks before the subtraction rather than after, because the offset is expressed in
- * seconds and doing it the other way around loses the millisecond this exists to keep.
  * */
 NYA_INTERNAL u64 _nya_filesystem_time_from_filetime(FILETIME time) {
     ULARGE_INTEGER ticks;
@@ -143,10 +139,6 @@ NYA_Error nya_filesystem_move(NYA_ConstCString old_path, NYA_ConstCString new_pa
 
     /*
      * MoveFileExA with MOVEFILE_REPLACE_EXISTING matches the behavior of rename() on POSIX.
-     *
-     * Without it, moving a file over an existing one fails with ERROR_ALREADY_EXISTS. This is
-     * exactly what happens when the build system tries to restore its backup after a failed
-     * rebuild: the compiler may have already created a (broken) executable at the destination.
      */
     if (!MoveFileExA(old_path, new_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED)) {
         return nya_error(NYA_ERROR_IO, "failed to move '%s' to '%s' (error %lu)", old_path, new_path, GetLastError());
@@ -315,11 +307,6 @@ NYA_Error nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkC
 
 /**
  * Deletes one entry, remembering the first failure.
- *
- * The walk keeps going after a failure so that as much as can be removed is removed, but the error
- * has to survive: without it the only symptom is the parent rmdir failing with "directory not
- * empty", which points at the wrong path and hides the real reason (a permission denied on one
- * file, say).
  * */
 NYA_INTERNAL b8 _nya_filesystem_delete_walk(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     nya_unused(entry);

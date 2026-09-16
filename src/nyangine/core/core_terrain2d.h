@@ -1,9 +1,6 @@
 /**
  * @file core_terrain2d.h
  *
- * A 2D height field: 1D fBm noise sampled at a fixed spacing, drawn as filled ground and collided
- * against as a static chain.
- *
  * ```c
  * NYA_Terrain2D* terrain = nullptr;
  * NYA_EXPECT(nya_terrain2d_create(arena, (NYA_Terrain2DOptions){ .entity_type = MY_ENTITY_TERRAIN }, &terrain));
@@ -11,16 +8,6 @@
  * nya_terrain2d_generate(terrain, seed);
  * nya_terrain2d_draw(terrain, window);   // each frame, with the world camera set
  * ```
- *
- * **A height field, not an arbitrary polyline.** Samples are taken left to right at a fixed spacing so
- * x is strictly increasing, which is what makes it impossible for a segment to double back and trap
- * something inside the ground.
- *
- * The collider is a `NYA_PHYSICS2D_SHAPE_CHAIN` static body at the origin, and the points are already
- * in world units, so they are its body frame unchanged.
- *
- * Everything comes from the arena passed to nya_terrain2d_create, so there is no destroy — freeing the
- * arena frees the terrain. nya_terrain2d_release exists only for the physics body.
  * */
 #pragma once
 
@@ -79,9 +66,6 @@ struct NYA_Terrain2D {
 
     /**
      * The profile, left to right, in world units. `point_count` of them.
-     *
-     * Allocated once and rewritten in place on regeneration: an arena does not hand memory back, so
-     * allocating per generation would grow it on every reseed.
      * */
     f32x2* points;
     u32    point_count;
@@ -109,9 +93,6 @@ NYA_API NYA_Error nya_terrain2d_create(NYA_Arena* arena, NYA_Terrain2DOptions op
 
 /**
  * Samples the profile and spawns the static chain body carrying it.
- *
- * Despawns the previous body first, so calling this again with another seed replaces the ground rather
- * than stacking a second one on top of it.
  * */
 NYA_API void nya_terrain2d_generate(NYA_Terrain2D* terrain, u64 seed);
 

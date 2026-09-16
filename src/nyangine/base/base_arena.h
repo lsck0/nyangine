@@ -1,37 +1,12 @@
 /**
  * @file base_arena.h
  *
- * This is the memory allocator used across everything.
- *
  * Example:
  * ```c
  * NYA_Arena* arena = nya_arena_create(.name = "my_arena", .alignment = 16, ...);
  * defer nya_arena_destroy(arena);
  * u8* data  = nya_arena_alloc(arena, 256);
  * ```
- *
- * In debug, or when forced, all arena functions are proxied and logged. Register a callback with
- * `nya_arena_actions_set_callback` to receive them.
- *
- * For the question that callback does not answer — "what does this arena look like right now" —
- * see NYA_ArenaStats and nya_arena_stats, and nya_arena_registry_* for walking every live arena at
- * once.
- *
- * ## An arena is not thread safe
- *
- * There is no lock anywhere in here. Allocating, freeing, resetting or destroying one arena from two
- * threads at once corrupts its region list, and nothing detects it — the region walk simply follows
- * a pointer another thread is in the middle of changing. That is the deliberate trade: an arena is a
- * bump allocator and a lock would be most of its cost.
- *
- * So give a thread its own arena. `nya_arena_global` and `nya_arena_temp` belong to the main thread,
- * and a job that wants scratch memory creates one, uses it and destroys it inside the job. See
- * tests/nyangine/core/test_job.c, which does exactly that and says why.
- *
- * The things that *are* safe to touch from anywhere are the process wide tables rather than any
- * arena: the registry behind nya_arena_registry_count / nya_arena_registry_at, and the callsite table
- * behind nya_arena_callsite_count / nya_arena_callsite_at. Both are built out of atomics, because
- * arenas on different threads all record into them.
  * */
 #pragma once
 
@@ -67,15 +42,6 @@ typedef struct NYA_ArneaAction         NYA_ArenaAction;
  * max(region_size, size). The region size is therefore real memory the moment it is touched, not
  * address space, and every cost that scales with it — allocating it, freeing it, poisoning it on
  * reset — is paid whether or not the arena holds anything.
- *
- * Sixty-four mebibytes, down from a gibyte. The gibyte was chosen as "an arena should never have to
- * grow", but measured against the engine actually running, the largest live arena holds a little
- * over one mebibyte: it bought nothing and cost a gibyte-sized malloc per arena, a gibyte-sized
- * free whenever garbage collection reclaimed a region, and — until that was fixed — a gibyte of
- * sanitizer shadow written on every reset.
- *
- * This is a floor, not a limit. A single allocation larger than a region gets a region of its own,
- * so nothing breaks if a subsystem outgrows it; it simply grows in sixty-four mebibyte steps.
  * */
 #define _NYA_ARENA_DEFAULT_OPTIONS                                                                                                                   \
     .name = nullptr, .alignment = 16, .region_size = nya_mebyte_to_byte(64UL), .defragmentation_enabled = true, .defragmentation_threshold = 16,     \
@@ -83,17 +49,6 @@ typedef struct NYA_ArneaAction         NYA_ArenaAction;
 
 /**
  * The same, for a stack arena, whose region is sized for scratch rather than for a subsystem.
- *
- * A stack arena is per-call scratch by construction — it is returned by value, it cannot be
- * registered, and it is destroyed before the function returns. Sharing the heap default meant every
- * one of them malloc'd a gibyte on its first allocation and freed it moments later. In a per-frame
- * caller that is a gibyte allocated and freed sixty times a second: under AddressSanitizer, whose
- * secondary allocator quarantines large freed blocks rather than returning them, it read as a
- * runaway memory leak that no leak checker would report, because nothing was actually leaked.
- *
- * Sixty-four kibibytes covers the scratch use — a few arrays sized by node or field count — and
- * anything larger still works: a single allocation bigger than the region gets a region of its own,
- * because the region size is a floor rather than a limit.
  * */
 #define _NYA_ARENA_DEFAULT_OPTIONS_ON_STACK                                                                                                          \
     .name = nullptr, .alignment = 16, .region_size = nya_kibyte_to_byte(64UL), .defragmentation_enabled = true, .defragmentation_threshold = 16,     \
@@ -271,15 +226,6 @@ NYA_API u64 nya_arena_memory_usage_bytes(NYA_Arena* arena);
 
 /**
  * What an arena looks like right now, in one struct.
- *
- * nya_arena_memory_usage_bytes answers only "how many bytes are handed out", which is not enough to
- * act on: an arena that has handed out 4 MiB might hold one region or forty, and might have nothing
- * free or a free list so chopped up that the next allocation still grows the arena. The difference
- * between those decides whether the fix is a bigger region_size, a defragmentation pass, or nothing.
- *
- * Computed by walking the arena, so nothing is tracked on the hot path and this is as accurate in a
- * release build as in a debug one. Cost is proportional to regions plus free list nodes; do not put
- * it in an inner loop.
  * */
 struct NYA_ArenaStats {
     /** From the arena's options, so a report can name it. Null when the arena was created unnamed. */
@@ -303,13 +249,6 @@ struct NYA_ArenaStats {
 
     /**
      * How broken up the free space is, from 0 to 1.
-     *
-     * 1 - largest_free_block / free_list_bytes. Zero means every free byte is in one block, so the
-     * free list is as useful as it can be. Approaching one means the same total is scattered across
-     * many small blocks and most allocations will grow the arena anyway.
-     *
-     * Zero when nothing is free, which is the honest answer: an arena with no free list is not
-     * fragmented, it is simply full.
      * */
     f32 fragmentation;
 };
@@ -324,19 +263,6 @@ NYA_API NYA_ArenaStats nya_arena_stats(NYA_Arena* arena) __attr_no_discard;
 
 /**
  * Every arena alive right now.
- *
- * Exists for the question a single arena cannot answer: memory is climbing, and which of the twenty
- * arenas in the process is responsible. Without this the only way to find out is to already hold a
- * pointer to the guilty one, which is precisely what you do not have.
- *
- * Arenas add themselves on create and remove themselves on destroy, heap and stack variants alike.
- * The table is fixed size and slots are claimed atomically, so this is safe to call while other
- * threads are creating arenas — what it cannot promise is that an arena is not destroyed between
- * nya_arena_registry_at handing it back and the caller dereferencing it. Registered arenas outlive
- * that window in every current use, and a registry that owned lifetimes would be a different thing.
- *
- * Overflowing NYA_ARENA_REGISTRY_MAX is not fatal: the arena works, it is simply not listed, and a
- * warning says so once.
  * */
 #define NYA_ARENA_REGISTRY_MAX 256
 
@@ -354,16 +280,6 @@ NYA_API void nya_arena_stats_report(void);
 
 /**
  * Allocation totals per source location, which is the drill down the per arena view cannot give.
- *
- * The registry answers "the asset system is holding 40 MiB". This answers the next question — which
- * line of the asset system — by aggregating every alloc, realloc and free the debug proxies already
- * see into one row per file, line and arena.
- *
- * `live_bytes` is the column to sort by. Total allocated is dominated by whatever runs every frame
- * and frees immediately; what has been allocated and *not* given back is what grows a process.
- *
- * Debug builds only, because the numbers come from the same proxies that record NYA_ArenaAction and
- * those are compiled out otherwise. A release build reports zero rows rather than wrong ones.
  * */
 struct NYA_ArenaCallsiteStats {
     const char* file_name;
@@ -381,10 +297,6 @@ struct NYA_ArenaCallsiteStats {
 
     /**
      * allocated_bytes - freed_bytes: what this line is still holding.
-     *
-     * Signed, and permitted to go negative rather than clamped. A line that frees what another line
-     * allocated is a real pattern, and hiding it behind a floor of zero would turn a legitimate
-     * "this is the release site" into a silent zero.
      * */
     s64 live_bytes;
 };

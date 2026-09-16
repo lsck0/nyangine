@@ -16,10 +16,6 @@ __attr_allow_unused NYA_INTERNAL u64 _nya_perf_frame = 0;
 
 /**
  * Timers currently running, which is the nesting depth the next sample is recorded at.
- *
- * A plain counter rather than a stack of names: what a span needs to know is how deep it sits, and
- * a timer started inside another is by definition one level below it. Incremented on start and
- * decremented on stop, so a scope timer brackets it exactly.
  * */
 __attr_allow_unused NYA_INTERNAL u32 _nya_perf_depth = 0;
 
@@ -39,17 +35,6 @@ NYA_PerfMeasurement* _nya_perf_timer_get(NYA_ConstCString name) {
 
     /*
      * Pointer first, contents only as a fallback. The same trick _nya_arena_callsite_for uses.
-     *
-     * This runs on every timer start *and* every stop, so a scope timer pays for it twice, and it
-     * was a strcmp against every registered timer both times — the profiler's own lookup being the
-     * most expensive thing in the profiler. Nearly every name reaching here is __FUNCTION__ or a
-     * string literal, and the compiler pools those, so the pointer matches on the first comparison
-     * for a timer that has run before.
-     *
-     * The contents comparison stays because it has to: a name assembled at runtime, or two
-     * translation units that did not get a pooled literal, are both still the same timer by name.
-     * Pointer equality only ever short circuits a match the strcmp would also have found, so this
-     * changes speed and nothing else.
      */
     nya_array_foreach (_nya_perf_measurements, measurement) {
         if (measurement->name == name) return measurement;
@@ -168,10 +153,6 @@ NYA_PerfStats _nya_perf_stats(const NYA_PerfMeasurement* measurement) {
 
     /*
      * Walked backwards from the newest sample, `sample_count` of them.
-     *
-     * The ring is written at `current` and wraps, so the valid entries are the last sample_count
-     * slots ending at current — not the first sample_count slots of the array. Reading it forwards
-     * would average whatever a wrapped ring left in the gap.
      */
     for (u64 i = 0; i < measurement->sample_count; i++) {
         u64 index = (measurement->current + NYA_PERF_MEASUREMENT_SAMPLES - i) % NYA_PERF_MEASUREMENT_SAMPLES;
@@ -228,10 +209,6 @@ u32 _nya_perf_frame_spans(u64 frame, NYA_ArrayᐸNYA_PerfSpanᐳ* out_spans) {
 
     /*
      * Sorted by start, which is what makes the result a timeline rather than a bag.
-     *
-     * Insertion sort because a frame holds a handful of spans and the array is nearly ordered
-     * already — measurements are walked in creation order, which for scope timers is roughly the
-     * order they first ran.
      */
     for (u64 i = 1; i < out_spans->length; i++) {
         NYA_PerfSpan key = out_spans->items[i];

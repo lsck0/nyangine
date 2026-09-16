@@ -1,11 +1,6 @@
 /**
  * @file serde_nya.h
  *
- * The native serialization format.
- *
- * Every value carries its type, so a round trip is lossless in a way JSON cannot be: a u8 written
- * is a u8 read back, not a widened integer that has to be narrowed again by hand.
- *
  * ```
  * nya 2 14018299633108934951
  * {
@@ -23,23 +18,6 @@
  *     mixed: any[] [s32 1, string "two", b8 true];
  * }
  * ```
- *
- * **Header.** `nya <version> <checksum>`. The magic makes the format identifiable and stops a JSON
- * document being fed to this parser by accident. The checksum covers the object tree, not the
- * bytes, so reformatting or re-indenting a file by hand does not invalidate it.
- *
- * **Values.** `key: <type> <value>;`. The type is one of the names in NYA_TYPE_NAME_MAP. `b8`
- * through `b128` are written as `true` / `false`. `null` is written bare, with no type name.
- *
- * **Arrays.** `key: <element type>[] [a, b, c]`. Every element shares the header's type, so the
- * type is written once rather than per element. An array whose elements are not all the same type
- * uses the element type `any`, and then each element carries its own type name. Arrays nest: the
- * element type may itself be an array. An empty array is `[]` with no element type.
- *
- * **Strings.** Double quoted, with the escapes for quote, backslash, newline, tab, carriage return
- * and nul.
- *
- * **Comments.** Both block comments and line comments, anywhere whitespace is allowed.
  * */
 #pragma once
 
@@ -73,8 +51,5 @@ NYA_API NYA_Error nya_serde_nya_deserialize(NYA_Arena* arena, const u8* data, u6
 
 /**
  * Checksum of an object tree.
- *
- * Order independent, because a dict has no order to preserve, but unlike a plain XOR of per entry
- * hashes it does not cancel: swapping two keys' values changes the result.
  * */
 NYA_API u64 nya_serde_nya_checksum(const NYA_Object* object) __attr_no_discard;

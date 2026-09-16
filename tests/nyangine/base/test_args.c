@@ -105,13 +105,6 @@ s32 main(void) {
   {
     /*
      * This used to read `{ "app", "--debug", "true" }`, and that spelling is gone on purpose.
-     *
-     * Letting a boolean take the *next token* makes every positional after a flag ambiguous, and the
-     * parser resolved the ambiguity in the flag's favour — so `./build check --strict src/main.c`
-     * consumed the filename and failed, and `--strict 0` consumed the positional silently. A boolean
-     * flag now never reaches forward, and `--debug=false` is how one is written explicitly.
-     *
-     * See test_bug_args_boolean_flag_greed.c for the full case.
      */
     NYA_ArgParameter flag = {
       .kind       = NYA_ARG_PARAMETER_KIND_FLAG,

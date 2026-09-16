@@ -1,15 +1,5 @@
 /**
  * The application frame: the clock, the fixed timestep accumulator, and the nested frame step.
- *
- * nya_app_init is not what runs here. A full init opens a window and brings up the GPU, so these
- * tests stand up only the systems the frame loop actually touches and then drive the loop's own
- * pieces — _nya_app_advance_frame_clock, _nya_app_update, _nya_app_frame_step — directly. That is
- * also what makes them deterministic: the accumulator is fed a number rather than a stopwatch, so
- * "three ticks and a remainder" is asserted rather than hoped for.
- *
- * Headless, the renderer's stubs make _nya_app_render a pair of events and nothing else, and with
- * no windows open the per window loops have no bodies. What is left is the arithmetic, which is
- * the part that decides whether the simulation runs at the right rate.
  **/
 
 #include "nyangine/nyangine.c"
@@ -27,12 +17,6 @@ static u64 arena_used(NYA_Arena* arena) {
 s32 main(void) {
   /*
    * The subsystems the frame loop reaches into, and nothing more.
-   *
-   * _nya_app_update dispatches events and drives the entity and sim systems; _nya_app_render
-   * dispatches two more. Both walk the window table, so the window system has to be up even with
-   * no window in it — its slot array is heap allocated, and walking it before init reads through a
-   * null pointer. The renderer and the asset system are never reached with nothing to draw into,
-   * so they stay down.
    */
   _NYA_APP_INSTANCE = (NYA_App){
     .initialized                    = true,
@@ -255,13 +239,6 @@ s32 main(void) {
     /*
      * The pointer a game parks so its state survives a hot reload. What can be tested in process is
      * the contract around it — the reload itself needs two dlopens and a running game.
-     *
-     * It lives on the world rather than on the app now, which is the same seam moved: the world is
-     * what owns the arena the state is allocated from, so the two share one lifetime.
-     *
-     * The property that carries the weight is "null until set": that is what lets a game answer
-     * "am I starting fresh or coming back from a reload" without tracking it separately, and it is
-     * the branch a reloaded library takes.
      */
     nya_world_user_data_set(nullptr);
     nya_assert(nya_world_user_data() == nullptr, "an unset seam must read as null, not as anything else");

@@ -155,9 +155,6 @@ NYA_Error nya_command_spawn(NYA_Command* command) {
 
     /*
      * Handed to nya_command_wait, which drains and closes them.
-     *
-     * The environment block is freed here rather than there: CreateProcessA has already copied it
-     * into the child, so nothing after this point needs it.
      */
     if (env) FreeEnvironmentStringsA((LPCH)env);
 
@@ -180,17 +177,6 @@ NYA_Error nya_command_wait(NYA_Command* command) {
 
     /*
      * Both pipes drained together, whichever has bytes waiting.
-     *
-     * Reading stdout to the end and only then starting on stderr deadlocks any child that fills the
-     * stderr pipe: past the pipe's capacity the child blocks on the write, so it never exits, never
-     * closes its stdout end, and this side waits on an end-of-file that cannot arrive. The same bug
-     * was in the Linux path, where tests/nyangine/platform/test_bug_command_pipe_deadlock.c
-     * reproduces it — that test cannot run here, so this is the Linux fix transposed rather than one
-     * verified on target.
-     *
-     * PeekNamedPipe rather than overlapped I/O: a blocking ReadFile on an empty pipe is exactly the
-     * wait that must not happen, and asking first is much less machinery than restructuring both
-     * pipes to be asynchronous.
      */
     if (nya_flag_check(command->flags, NYA_COMMAND_FLAG_OUTPUT_CAPTURE)) {
         HANDLE      handles[2]   = { stdout_read, stderr_read };

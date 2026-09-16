@@ -1,21 +1,5 @@
 /**
  * The distance-field mode survives being asked for before the face exists.
- *
- * This is a regression test for a bug that shipped working-looking code: `nya_font_sdf_set` needed a
- * loaded `TTF_Font`, answered false and forgot when there was none, and there never is one at the point
- * a game registers its fonts — the asset system resolves a face over the frames *after* it is first
- * named. So the one call a game would naturally write did nothing at all, and the title font it was
- * meant to switch stayed a bitmap. Nothing caught it because the call's return value was ignored, which
- * is exactly what a `(void)`-ed setter invites.
- *
- * What is asserted is the ordering that matters: the request outlives the frames before the face
- * arrives, and by the time anything could bake an atlas from that face the mode is on it. An atlas is
- * sized from the face's metrics and flagged with the mode it was baked in, and a distance field has
- * larger metrics than coverage — so applying the mode late is not "late", it is wrong.
- *
- * Headless. The asset system's loading pass runs on NYA_EVENT_FRAME_ENDED and a test can dispatch that
- * by hand, which is what test_asset.c does and why a font can be brought all the way up with no GPU.
- * The atlas itself needs a device and is out of reach here; see the findings on the glyph atlas.
  **/
 
 #include "nyangine/nyangine.c"

@@ -1,32 +1,5 @@
 /**
  * Regression test for a boolean flag swallowing the positional after it (base_args.c).
- *
- * A boolean flag was allowed to take a value from the *next argv entry*:
- *
- *     NYA_CString flag_value_str = (arg_index + 1 < argc) ? argv[arg_index + 1] : nullptr;
- *
- *     if (!flag_value_str || nya_string_starts_with(flag_value_str, "--")) param->value.as_b8 = true;
- *     else if (_nya_args_parse_value(&param->value, flag_value_str))       arg_index++;
- *     else                                                                 return error;
- *
- * So anything following the flag that did not itself begin with `--` was taken as the flag's value.
- * A filename is not a boolean, so the parse failed and the whole command was rejected — with an
- * error naming the *positional* as bad input:
- *
- *     $ ./build check --strict src/main.c
- *     Error: failed to parse boolean value for flag '--strict': 'src/main.c'
- *
- * That is every "flag then positional" invocation, which is the ordinary way anyone types a command
- * line. It hid in this repository because the two commands with both a boolean flag and a positional
- * were usually run with one or the other.
- *
- * Worse than the rejection is the case that does *not* error: a positional whose text happens to
- * parse as a boolean is consumed silently. `--strict 0` leaves the flag false and the command with no
- * sources, which is a command that appears to succeed while checking nothing.
- *
- * A boolean flag is now its own value and never reaches forward. `--flag=false` is the explicit
- * spelling, which is unambiguous because the value is attached rather than adjacent — and that form
- * now works for every parameter type, not only booleans.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

@@ -1,16 +1,5 @@
 /**
  * The 3D solver, and the contract between it and the entity table.
- *
- * Box3D's simulation is not what this tests. What is tested is the seam, and specifically the four
- * places it differs from the 2D one — each of which is somewhere a 2D habit gives the wrong answer:
- *
- * - gravity is **negative** y, because a 3D scene puts up where the screen puts down;
- * - the readback writes a whole quaternion, not a roll extracted from one;
- * - the default scale is one unit per metre, not thirty-two;
- * - `entity->physics3d` is a separate field from `entity->physics2d`, and despawning has to destroy
- *   whichever is attached.
- *
- * Headless: the solver needs an arena and a clock and nothing else.
  **/
 
 #include "nyangine/nyangine.c"
@@ -214,10 +203,6 @@ s32 main(void) {
 
     /*
      * The player is an ordinary dynamic body with nothing sensor-shaped about it.
-     *
-     * This is the half Box3D wants enableSensorEvents on too — and defaults it off on — so a coin
-     * with the flag and a player without produces no events at all, which looks exactly like a coin
-     * the player never reached. Every shape this API creates enables it for that reason.
      */
     NYA_EntityHandle player = nya_entity_spawn(.name = "player", .position = { 0.0F, 6.0F, 0.0F });
     nya_assert(nya_physics3d_body_attach(player, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 0.5F, 0.5F, 0.5F }));

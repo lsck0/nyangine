@@ -55,9 +55,6 @@ NYA_INTERNAL void _nya_nn_draw_apply_style_defaults(NYA_NNDrawStyle* style);
 
 /**
  * Which real unit the `slot`th drawn circle stands for.
- *
- * Evenly spaced across the layer rather than the first N, so a sampled column is representative of
- * the whole layer instead of one end of it.
  * */
 NYA_INTERNAL u32 _nya_nn_draw_unit_for_slot(u32 slot, u32 shown, u32 total) __attr_no_discard;
 
@@ -82,11 +79,6 @@ void nya_nn_draw(NYA_Window* window, NYA_NNSequential* network, NYA_NNGraph* gra
 
     /*
      * The forward pass happens here, under no_grad.
-     *
-     * Drawing needs the activations and only the caller knows the input, so taking the input and
-     * running it is the arrangement with the fewest ways to be wrong — the alternative is the caller
-     * running the network, holding the result across whatever else it does, and hoping nothing reset
-     * the graph in between.
      */
     nya_nn_graph_reset(graph);
     nya_nn_graph_grad_begin(graph);
@@ -109,10 +101,6 @@ void nya_nn_draw(NYA_Window* window, NYA_NNSequential* network, NYA_NNGraph* gra
 
     /*
      * A column per *linear* layer, plus the input.
-     *
-     * Activations are not columns of their own: a ReLU has exactly as many units as the layer before
-     * it and drawing both would double the picture's width to say the same thing twice. The column
-     * shows the value after the activation, which is what the next layer actually receives.
      */
     _NYA_NNDrawColumn columns[NYA_NN_SEQUENTIAL_MAX_LAYERS + 1];
     u32               column_count = 0;
@@ -143,9 +131,6 @@ void nya_nn_draw(NYA_Window* window, NYA_NNSequential* network, NYA_NNGraph* gra
 
     /*
      * Radius fitted to whichever axis is tighter, then columns spread edge to edge.
-     *
-     * The same arrangement nn_neat_draw arrived at, and for the same reason: the ends of the network
-     * must not move as the picture changes, or the eye tracks the movement instead of the values.
      */
     u32 busiest = 1;
     for (u32 i = 0; i < column_count; i++) busiest = nya_max(busiest, columns[i].shown);
@@ -200,11 +185,6 @@ void nya_nn_draw(NYA_Window* window, NYA_NNSequential* network, NYA_NNGraph* gra
 
     /*
      * Connections first, so the circles sit on top of them.
-     *
-     * Only between drawn units, and only the ones carrying real weight. A layer's weights are
-     * compared against that layer's own largest rather than a global maximum, because the scale of
-     * an early layer and a late one have nothing to do with each other and a global threshold would
-     * simply hide whichever layer happens to be smaller.
      */
     u32 linear_index = 0;
     for (u32 i = 0; i < network->layer_count; i++) {
@@ -247,9 +227,6 @@ void nya_nn_draw(NYA_Window* window, NYA_NNSequential* network, NYA_NNGraph* gra
 
     /*
      * Circles, brightness by activation.
-     *
-     * The point of the picture: a unit at zero is drawn dark, so a dead ReLU layer reads as a column
-     * of dark circles at a glance rather than as numbers that have to be looked at one by one.
      */
     for (u32 i = 0; i < column_count; i++) {
         const _NYA_NNDrawColumn* column = &columns[i];
@@ -280,9 +257,6 @@ void nya_nn_draw(NYA_Window* window, NYA_NNSequential* network, NYA_NNGraph* gra
 
     /*
      * Labels, beside the outermost columns.
-     *
-     * Right aligned against the input circles and left aligned against the outputs, so the text
-     * always reads outwards from the network and never crosses it.
      */
     for (u32 side = 0; side < 2; side++) {
         const _NYA_NNDrawColumn* column = side == 0 ? &columns[0] : &columns[column_count - 1];

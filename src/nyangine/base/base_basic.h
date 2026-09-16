@@ -29,12 +29,6 @@
 #include <string.h>
 /*
  * Before <tgmath.h>, and only on Windows.
- *
- * tgmath.h turns abs, ceil and friends into type generic *macros*. mingw's intrin.h then declares
- * those same names as functions, and the macros eat the declarations: "expected expression" from a
- * header nobody in this project includes directly. Pulling intrin.h in first means its include
- * guard is already set by the time SDL_assert.h asks for it, so it is never parsed with the macros
- * in scope.
  */
 #if defined(_WIN32) || defined(__CYGWIN__)
 #include <intrin.h>
@@ -71,26 +65,6 @@
 
 /*
  * The five execution modes, and what each is for.
- *
- * | mode      | for                 | hot reload | sanitizers | arena debug | assets     |
- * |-----------|---------------------|------------|------------|-------------|------------|
- * | DEBUG     | finding bugs        | yes        | yes        | yes         | filesystem |
- * | DEVELOPER | playing while build |
- * |           | ing it              | yes        | no         | no          | filesystem |
- * | RELEASE   | shipping            | no         | no         | no          | blob       |
- * | STEAM     | shipping on Steam   | no         | no         | no          | blob       |
- * | TEST      | the test harness    | no         | yes        | yes         | filesystem |
- *
- * DEBUG and DEVELOPER are both development builds and both hot reload; DEBUG additionally carries
- * ASan and the arena's own memory debugging, which is what makes it slow enough to want DEVELOPER.
- *
- * RELEASE and STEAM are both deploy ready and differ only in that STEAM expects the Steam runtime
- * and links the Steam SDK.
- *
- * **Assertions are enabled in every mode, including the shipping ones.** A wrong assumption in a
- * player's hands is worth catching loudly rather than continuing into undefined behaviour, and the
- * crash sink turns it into a report. Nothing in the build defines NYA_NO_ASSERT; the static assert
- * below keeps it that way.
  */
 #define NYA_DEBUG     (NYA_EXECUTION_MODE == 0)
 #define NYA_DEVELOPER (NYA_EXECUTION_MODE == 1)
@@ -110,25 +84,11 @@
 
 /*
  * Whether the game is loaded from a shared library that can be swapped while it runs.
- *
- * Debug and developer builds both want it; release and steam must not have it, since it costs an
- * indirection on every entry point and means shipping the game as a loose DLL beside the exe.
- * main.c keys its entry point off this rather than off NYA_DEBUG, which is what previously made
- * developer builds silently fall into the release path.
  */
 #define NYA_CODE_HOT_RELOAD NYA_DEVELOPMENT_BUILD
 
 /*
  * Headless: the engine runs, but nothing is drawn.
- *
- * Everything else stays live — events, jobs, assets, the simulation and its barriers — so a test
- * exercises the same code paths it would in a real frame. Only the GPU work is skipped, which is
- * what makes this usable on a CI machine that has no device to create and no display to present to.
- *
- * Distinct from NYA_NO_SDL, which compiles the renderer and core out entirely for host tools. This
- * keeps them compiled and callable, and makes the drawing a no-op.
- *
- * Spelled 1/0 rather than true/false because `true` is `((b8)1)` here, which #if cannot evaluate.
  */
 #ifdef NYA_HEADLESS
 #define NYA_HEADLESS_ENABLED 1
@@ -144,10 +104,6 @@ typedef enum {
 
     /**
      * Built to be run by the test harness.
-     *
-     * Distinct from DEBUG because a test is not an interactive session: it compiles in
-     * nya_expect_crash so a deliberate assertion can be survived, and it is the mode that pairs
-     * with NYA_HEADLESS on a machine with no GPU.
      * */
     NYA_EXECUTION_MODE_TEST = 4,
 

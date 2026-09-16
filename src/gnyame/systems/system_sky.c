@@ -2,22 +2,6 @@
 
 /*
  * The sky, and the sun that lights the world, from one number.
- *
- * The point of this file is that there is exactly one phase and everything is derived from it: the
- * gradient behind the 2D world, the disc arcing across it, how many stars show through, and the
- * direction and colour of the 3D scene's directional light. A demo where the sky reddens at dusk while
- * the shadows keep pointing north is worse than one with no cycle at all, and that is what two
- * independent sources of time produce.
- *
- * ## Why the sky is 2D
- *
- * It is drawn by the background layer, which sits behind both scenes — so a 2D backdrop serves the 3D
- * scene too, and a cube-mapped skybox would serve only one of them. For a flat cartoon look that is not
- * a compromise: the reference art for this style is bands of flat colour, which is what the gradient
- * already is.
- *
- * The honest limit: it does not rotate with a 3D camera. Orbiting the cube turns the world and leaves the
- * sky where it was. A real skybox is the fix and would be a 3D pass of its own.
  */
 
 /*
@@ -28,9 +12,6 @@
 
 /**
  * One keyframe of the day.
- *
- * A table rather than a formula. A formula that produced believable dawn colours would be longer than
- * this and impossible to art-direct; four keys and a lerp is how the look gets tuned by eye.
  * */
 typedef struct {
     /** Where in the day this key sits, in [0, 1]. Must ascend. */
@@ -53,9 +34,6 @@ typedef struct {
 
 /*
  * Midnight, dawn, noon, dusk, and midnight again.
- *
- * The last key repeats the first so the interpolation can run to 1.0 without wrapping — a wrap would be
- * one branch and one chance to get the direction wrong, and a duplicated row costs nothing.
  */
 NYA_INTERNAL const GNY_SkyKey _GNY_SKY_KEYS[] = {
     {
@@ -121,10 +99,6 @@ f32 gny_sky_phase(void) {
 
     /*
      * Wall-clock uptime rather than the simulation tick.
-     *
-     * The sky keeps moving while the physics is paused, which is the behaviour that makes pausing to look
-     * at something not also freeze the light. It also means the cycle is the same length regardless of
-     * tickrate, which a tick count would not be.
      */
     f32 seconds = nya_app_uptime_s() + world->sky_offset_s;
 
@@ -157,10 +131,6 @@ GNY_SkyState gny_sky_state(void) {
 
     /*
      * Smoothed rather than linear.
-     *
-     * A linear blend between keys changes fastest exactly at the keys, which puts a visible crease in the
-     * sky at dawn and dusk — the two moments anyone is looking at it. Smoothstep flattens the ends so the
-     * transition reads as continuous.
      */
     f32 eased = t * t * (3.0F - (2.0F * t));
 
@@ -178,9 +148,6 @@ GNY_SkyState gny_sky_state(void) {
 
     /*
      * The disc rises in the east at 0.25 and sets in the west at 0.75, and the moon takes the other half.
-     *
-     * Written as one arc over half a day so both bodies use the same path: `arc` runs 0 to 1 across
-     * whichever of them is up, which is all the drawing and the light direction need.
      */
     f32 arc = state.is_night ? fmodf(phase + 0.25F, 1.0F) * 2.0F : (phase - 0.25F) * 2.0F;
 
@@ -188,11 +155,6 @@ GNY_SkyState gny_sky_state(void) {
 
     /*
      * The light direction, from the same arc.
-     *
-     * `direction` is the way light *travels*, so a body low in the east sends light toward the west and
-     * downward. The z component is a constant tilt rather than derived: the arc is drawn as a
-     * two-dimensional path across a 2D sky, and a light with no z at all lands exactly along one axis of
-     * the 3D scene and makes a cube read as two faces instead of three.
      */
     f32 angle = state.arc * (f32)M_PI;
 
@@ -217,12 +179,6 @@ void gny_sky_draw(NYA_Window* window) {
 
     /*
      * A stack of flat bands rather than a real gradient.
-     *
-     * The batch's vertices carry a colour, so a two triangle quad with different colours at top and
-     * bottom would interpolate properly and cost one draw call — but nya_render2d_rect takes a single
-     * colour, and reaching past it into the batch is exactly what a layer must not do. Forty eight bands
-     * is under a millisecond, batches into one call anyway, and is invisible as banding at this contrast.
-     * A `nya_render2d_rect_gradient` primitive would replace all of this.
      */
     f32 band_height = height / (f32)GNY_SKY_BANDS;
 
@@ -250,25 +206,6 @@ void gny_sky_draw(NYA_Window* window) {
 
 /**
  * A deterministic value in roughly 0 to 1 from an index, a channel, and a seed.
- *
- * Not NYA_RNG, deliberately. That takes a hex string seed and a distribution struct, and a zeroed
- * distribution asks for uniform(0, 0) and answers zero every time — a trap worth avoiding on a path where
- * the failure looks like every star landing in the corner. What is wanted here is not a random *sequence*
- * but a pure function: star seven has to be in the same place on every frame, in every run, and in a
- * screenshot taken from another build. A hash of the index gives exactly that with no state to carry.
- *
- * The hash is the engine's nya_ihash2 rather than the multiplicative one that used to be written out here.
- * That version aborted the sanitized build on the first frame: `index * 0x9E3779B1U` wraps, and while
- * unsigned wraparound is perfectly defined C, -fsanitize=unsigned-integer-overflow flags it because it is
- * far more often an accident than an intention. nya_ihash2 is the same idea already written, already
- * tested, and already carrying the __attr_no_sanitize that says the wrapping inside it is deliberate.
- *
- * `channel` rather than the seed offsets the callers used to pass: nya_ihash2 mixes y with a stride of 57,
- * so the four values one star needs stay independent. Offsetting the seed by one instead makes star i's
- * y-channel the same number as star i+1's x-channel, and stars lined up along a diagonal is what that
- * looks like on screen.
- *
- * nya_ihash2 returns roughly -1 to 1, like the noise functions beside it, so this maps to 0..1.
  * */
 NYA_INTERNAL f32 _gny_sky_random(u32 index, s32 channel, u32 seed) {
     return (nya_ihash2((s32)index, channel, seed) * 0.5F) + 0.5F;
@@ -280,10 +217,6 @@ void _gny_sky_stars_draw(NYA_Window* window, GNY_SkyState sky) {
 
     /*
      * Positions from a fixed seed, so the stars are in the same place every frame and every run.
-     *
-     * Generated rather than stored because sixty-four points is cheaper to recompute than to keep, and
-     * because a fixed seed makes the sky reproducible in a screenshot — which matters more than it sounds
-     * when comparing two builds.
      */
     for (u32 i = 0; i < GNY_SKY_STAR_COUNT; i++) {
         f32 x = _gny_sky_random(i, 0, GNY_SKY_STAR_SEED) * width;
@@ -297,9 +230,6 @@ void _gny_sky_stars_draw(NYA_Window* window, GNY_SkyState sky) {
 
         /*
          * Twinkling as a brightness wobble, not a size change.
-         *
-         * A star that changes size pops between whole pixels and reads as flickering rather than
-         * twinkling. Modulating alpha keeps it smooth at any size.
          */
         f32 twinkle = 0.65F + (0.35F * sinf((nya_app_uptime_s() * GNY_SKY_TWINKLE_SPEED) + twinkle_phase));
 
@@ -316,10 +246,6 @@ void _gny_sky_disc_draw(NYA_Window* window, GNY_SkyState sky) {
 
     /*
      * A half circle path across the sky, flattened so the body stays in the upper portion.
-     *
-     * The horizontal position is the arc directly and the vertical is a sine of it, which puts the body
-     * at its highest at the middle of its half of the day. Nothing here is astronomical: it is the shape
-     * a cartoon sun moves along.
      */
     f32 x = sky.arc * width;
     f32 y = height * (GNY_SKY_DISC_HORIZON - (sinf(sky.arc * (f32)M_PI) * GNY_SKY_DISC_RISE));
@@ -328,10 +254,6 @@ void _gny_sky_disc_draw(NYA_Window* window, GNY_SkyState sky) {
 
     /*
      * A halo of two flat rings under the disc, not a blur.
-     *
-     * Concentric translucent circles are the cartoon idiom — the glow has an edge, which is the whole
-     * point of the style — and they cost two more circles rather than a second pass. The bloom pass will
-     * find the disc as well, since it is the brightest thing on screen.
      */
     NYA_Color halo = sky.disc;
 
@@ -349,18 +271,6 @@ void _gny_sky_disc_draw(NYA_Window* window, GNY_SkyState sky) {
 
     /*
      * Craters, not a crescent.
-     *
-     * A crescent was the first attempt and it cannot be done this way. The trick is to punch a bite out of
-     * the disc with a second circle in the background colour — but the two halo rings are already down
-     * underneath, so "the background colour" is sky *plus* halo, and an opaque sky-coloured bite both fails
-     * to match and cuts a visible hole in the glow. Reproducing what is behind it would mean reproducing
-     * the halo, at which point drawing a mask is the cheaper answer.
-     *
-     * Flat darker circles inside the disc need no knowledge of what is behind them at all, because they
-     * never cross its edge. They also happen to be the more cartoon-idiomatic moon.
-     *
-     * A real crescent wants either a stencil, or a small texture with an alpha channel, or a shader — all
-     * of which are a bigger change than the shape is worth here.
      */
     if (sky.is_night) {
         NYA_Color crater = sky.disc;
@@ -371,9 +281,6 @@ void _gny_sky_disc_draw(NYA_Window* window, GNY_SkyState sky) {
 
         /*
          * Fixed offsets, in units of the radius, chosen so none of them reaches the edge.
-         *
-         * Hard-coded rather than hashed: there are three of them and their arrangement is the whole look, so
-         * a table that can be nudged by eye beats a seed that has to be searched.
          */
         static const f32x2 craters[] = {
             { -0.34F, -0.22F },
@@ -400,10 +307,6 @@ void _gny_sky_clouds_draw(NYA_Window* window, GNY_SkyState sky) {
 
     /*
      * Each cloud is a row of overlapping circles with a flat bottom.
-     *
-     * Which is what makes it read as a cartoon cloud rather than as fog: hard edges, no gradient, and a
-     * straight underside. Three circles and a rectangle per cloud, so the whole sky costs a couple of
-     * dozen primitives in one draw call.
      */
     for (u32 i = 0; i < GNY_SKY_CLOUD_COUNT; i++) {
         f32 base_x = _gny_sky_random(i, 0, GNY_SKY_CLOUD_SEED) * width;
@@ -417,10 +320,6 @@ void _gny_sky_clouds_draw(NYA_Window* window, GNY_SkyState sky) {
 
         /*
          * Tinted by the sky rather than white.
-         *
-         * A white cloud at dusk is the one thing that gives away a static backdrop, because everything
-         * around it has gone orange. Mixing toward the horizon colour costs nothing and ties the clouds to
-         * the cycle.
          */
         NYA_Color color = nya_color_mix(GNY_SKY_CLOUD_COLOR, sky.bottom, GNY_SKY_CLOUD_TINT);
         color.a         = GNY_SKY_CLOUD_ALPHA;

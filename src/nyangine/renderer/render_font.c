@@ -18,15 +18,6 @@ NYA_INTERNAL NYA_Font       _nya_font_default                         = { 0 };
 
 /**
  * A distance-field mode somebody asked for, and the face it was last pushed onto.
- *
- * Kept because the request almost always arrives before there is anything to apply it to. A face is
- * loaded by the asset system over the frames *after* it is first named, and fonts are registered at
- * startup, so `nya_font_sdf_set` at the natural call site had no `TTF_Font` and used to answer false
- * and forget — which made the mode reachable only by a caller willing to poll for the face.
- *
- * Keyed by path and size rather than by registry name: `nya_font_sdf_set` takes an NYA_Font, which is
- * that pair and not a name, and a font never registered under any name is still a legitimate thing to
- * ask about.
  * */
 typedef struct {
     b8               used;
@@ -38,10 +29,6 @@ typedef struct {
 
     /**
      * The face this was last pushed onto, or null while it has never been pushed.
-     *
-     * A pointer rather than a flag, so a *reload* re-applies: hot reload replaces the asset's TTF_Font
-     * with a new one built from the new file, and a mode set on the old face does not come with it.
-     * The same comparison NYA_FontAtlas.source_font makes, for the same reason.
      * */
     TTF_Font* applied_to;
 } _NYA_FontSdfRequest;
@@ -64,34 +51,11 @@ NYA_INTERNAL _NYA_FontSdfRequest* _nya_font_sdf_find(NYA_Font font) {
 
 /**
  * Pushes every outstanding request onto its face, for the ones whose faces exist yet.
- *
- * Called from each entry point that is about to reach a face, which is what makes the deferral
- * invisible to a caller. It has to run *before* the draw or the measurement it precedes, and that
- * ordering is the whole point: the mode changes the face's metrics and what its glyphs rasterise to,
- * and render2d bakes an atlas — sized from those metrics — the first time a glyph is drawn from it.
- * Applying afterwards would leave an atlas full of coverage bitmaps flagged as a distance field.
- *
- * Cheap: NYA_FONT_REGISTRY_MAX is 32, almost every slot is unused, and a slot already applied to the
- * face it resolves to does nothing at all.
  * */
 void _nya_font_sdf_apply_pending(void);
 
 /**
  * Applies outstanding requests at the end of every frame, so one lands the moment its face resolves.
- *
- * The entry points below apply them too, and that alone is not enough: it makes the mode depend on
- * *who reaches the face first*. A face resolved by the immediate-mode text API, or by anything else
- * holding a path and a size, would be baked into an atlas with no mode on it — and the atlas latches
- * what it was baked from, so nothing later would put it right. A frame hook makes the request land
- * against the clock instead of against a call order nobody controls.
- *
- * After the asset system's own frame-ended pass, which is what registration order gets us: the asset
- * system is brought up long before any font is registered, so its hook runs first and a face queued
- * this frame is already resolved by the time this runs.
- *
- * Not static, for the same reason `_nya_config_watch_tick` is not: a registered callback is
- * re-resolved by name through dlsym after a code hot reload, and a symbol with internal linkage
- * cannot be found again.
  * */
 // NOLINTNEXTLINE(misc-use-internal-linkage)
 void _nya_font_sdf_tick(NYA_Event* event) {
@@ -269,10 +233,6 @@ NYA_FontMetrics nya_font_metrics(NYA_Font font) {
 
     /*
      * Read through the current-font state and restored afterwards.
-     *
-     * render2d exposes line height, ascent and descent for whichever font is current and for no other,
-     * so asking about a named one means making it current for the duration. Restoring is what keeps
-     * this a *query*: a caller measuring a title font must not silently leave the HUD drawing in it.
      */
     NYA_ConstCString previous_path = nya_render2d_font_get();
     f32              previous_size = nya_render2d_font_size_get();

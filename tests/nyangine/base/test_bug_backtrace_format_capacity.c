@@ -1,17 +1,5 @@
 /**
  * Regression test for nya_backtrace_format overrunning its documented return contract.
- *
- * The header promises "the number of bytes written, excluding the terminator". The empty-backtrace
- * path returned snprintf's value instead, which is what it *would* have written — so any capacity
- * below the length of "  <no stack trace available>\n" came back as 28 regardless of how much of it
- * actually fit. A caller that adds the result to an offset then indexes outside its own buffer.
- *
- * _nya_crash_report is the only caller in the tree and has around ten kibibytes of slack, so this
- * was a latent break rather than a live overflow — but the function is NYA_API and the next caller
- * has no reason to expect it.
- *
- * The guard bytes below are what makes this a memory test rather than an arithmetic one: they catch
- * a write past the capacity even when the returned length happens to look sane.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

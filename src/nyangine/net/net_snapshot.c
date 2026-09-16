@@ -10,32 +10,6 @@
 
 /*
  * A snapshot payload is:
- *
- *     u64 tick
- *     u32 entity_count
- *     then, per entity, in handle-index order:
- *         u32 handle_index
- *         u32 handle_generation
- *         u16 field_mask          which of the fields below follow. Zero means "same as baseline".
- *         then only the fields the mask names, in the fixed order of NYA_NetField:
- *             position          3 × f32
- *             rotation          4 × f32
- *             scale             3 × f32
- *             velocity          3 × f32
- *             angular_velocity  3 × f32
- *             state             u32
- *             type              u32
- *             flags             u64
- *
- * Little endian throughout, written byte by byte, so a big endian host produces identical bytes
- * rather than a stream only its own kind can read. Floats go over as their bit pattern: IEEE 754 is
- * what every platform this targets uses, and reinterpreting is exact where a decimal round trip is
- * not.
- *
- * The handle's *generation* is on the wire, not just its index. An entity despawned and another
- * spawned into the same slot is a different entity, and a receiver that compared only indices would
- * apply the newcomer's state to a stale local copy — which looks like an entity teleporting into
- * somebody else's position rather than like a bug.
  */
 
 #define _NYA_NET_SNAPSHOT_HEADER_SIZE 12
@@ -52,19 +26,11 @@ NYA_INTERNAL s32 _nya_net_state_compare(const NYA_NetEntityState* a, const NYA_N
 
 /**
  * Whether two entity handles name the same entity.
- *
- * Local because core_entity.h offers no such thing — only nya_entity_is_valid, which asks a different
- * question. Both halves are compared: the generation is what distinguishes an entity from whoever
- * next occupies its slot, and comparing indices alone is the bug this exists to avoid.
  * */
 NYA_INTERNAL b8 _nya_net_handle_equals(NYA_EntityHandle a, NYA_EntityHandle b) __attr_no_discard;
 
 /**
  * Whether a handle names anything at all.
- *
- * The generation, not the index: slot zero is a perfectly ordinary entity, and only generation zero
- * means "never assigned". Same rule as nya_net_peer_is_set, on the other handle type — which is why
- * this exists rather than reaching for that one with a cast.
  * */
 NYA_INTERNAL b8 _nya_net_handle_is_set(NYA_EntityHandle handle) __attr_no_discard;
 
@@ -92,10 +58,6 @@ NYA_Error nya_net_snapshot_capture(NYA_Arena* arena, u64 flag, u64 tick, OUT NYA
 
         /*
          * A despawning entity is captured as gone rather than as present-but-dying.
-         *
-         * NYA_ENTITY_STATE_DESPAWNING means the barrier will remove it at the end of the tick. Sending
-         * it would have every client spawn a copy and then despawn it a tick later — a flicker for
-         * something that was never really there.
          */
         if ((entity->state & NYA_ENTITY_STATE_DESPAWNING) != 0) continue;
 
@@ -122,12 +84,6 @@ NYA_Error nya_net_snapshot_capture(NYA_Arena* arena, u64 flag, u64 tick, OUT NYA
 
     /*
      * Sorted by handle index.
-     *
-     * The iterator is already deterministic — it walks an occupancy bitset low bit first — so this is
-     * very nearly sorted already. It is done explicitly anyway because the delta encoder pairs
-     * entities against a baseline by walking two lists in step, and that is only correct if both are
-     * ordered by the same key. Relying on the iterator's order would make the encoder quietly wrong
-     * the day the iterator changed.
      */
     for (u32 i = 1; i < count; i++) {
         NYA_NetEntityState current = entities[i];
@@ -158,9 +114,6 @@ NYA_Error nya_net_snapshot_encode(NYA_Arena* arena, const NYA_NetSnapshot* snaps
 
     /*
      * Both lists are in handle order, so one pass over each finds every pairing.
-     *
-     * `baseline_at` only ever moves forward: an entity in the baseline that the snapshot no longer
-     * has is skipped past, and one the snapshot has that the baseline does not gets a full mask.
      */
     u32 baseline_at = 0;
 
@@ -225,10 +178,6 @@ NYA_Error nya_net_snapshot_decode(NYA_Arena* arena, const u8* data, u64 size, co
 
     /*
      * The count is checked before it is used to allocate.
-     *
-     * It came off the wire, so a peer can claim four billion entities. Allocating from it first and
-     * validating second is how a malformed packet becomes an out-of-memory abort — and this is the
-     * one decoder in the engine reading bytes an untrusted peer chose.
      */
     if (count > NYA_NET_MAX_REPLICATED) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a snapshot claiming %u entities, past the %d limit", count, NYA_NET_MAX_REPLICATED);
@@ -246,18 +195,6 @@ NYA_Error nya_net_snapshot_decode(NYA_Arena* arena, const u8* data, u64 size, co
 
     /*
      * The order the entities must arrive in, and why it is checked rather than assumed.
-     *
-     * Both the encoder and this decoder pair an entity against its baseline by walking two sorted lists
-     * in step, and `baseline_at` only ever moves *forward*. That is linear rather than quadratic, and it
-     * is correct only if the wire order really is ascending by handle index.
-     *
-     * The encoder guarantees it. A peer is not the encoder. An out-of-order entity would walk
-     * `baseline_at` past its own baseline, so it would silently be decoded against the wrong one — or
-     * against none — and its unnamed fields would be filled in from a different entity's state. That is
-     * not a crash; it is a client quietly shown a wrong world, which is worse.
-     *
-     * So the order is validated, and a snapshot that breaks it is rejected. Strictly increasing, since
-     * one index cannot hold two entities at one instant.
      */
     u32 previous_index = 0;
     b8  have_previous  = false;
@@ -285,10 +222,6 @@ NYA_Error nya_net_snapshot_decode(NYA_Arena* arena, const u8* data, u64 size, co
 
         /*
          * Unnamed fields come from the baseline, which is the whole point of a delta.
-         *
-         * A zeroed start rather than the baseline's values would make "unchanged" mean "reset to
-         * origin" — every entity that did not move would snap to (0,0,0) with an identity rotation
-         * and a scale of nothing.
          */
         NYA_NetEntityState state = { .handle = { .index = index, .generation = generation } };
 
@@ -355,11 +288,6 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
 
         /*
          * Prediction is spared, and is matched in the *server's* handle space.
-         *
-         * `predicted_remote` is what WELCOME carried, which is the only name the client and server
-         * agree on for this entity. Comparing against the local handle instead would never match,
-         * because the two tables number things differently — and the client's own player would be
-         * overwritten by a snapshot a round trip old on every single tick.
          */
         b8 is_predicted = _nya_net_handle_equals(state->handle, predicted_remote);
 
@@ -372,9 +300,6 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
 
             /*
              * Mapped, but the local entity is gone — despawned locally, or its slot reused.
-             *
-             * The mapping is dropped and the entity re-spawned below, rather than trusting a stale
-             * handle. Reachable whenever a client despawns something the server still has.
              */
             if (entity == nullptr) {
                 replica->remote  = NYA_ENTITY_HANDLE_NONE;
@@ -383,11 +308,6 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
             } else {
                 /*
                  * The previous target becomes the new origin, and the snapshot becomes the new target.
-                 *
-                 * Recorded before the state is applied, because `to_*` still holds where the last
-                 * snapshot put this entity — which is exactly where the interpolation should start from.
-                 * Reading the *entity* instead would start from wherever interpolation had got to, which
-                 * compounds the lag a little more with every snapshot.
                  */
                 replica->from_position = replica->to_position;
                 replica->from_rotation = replica->to_rotation;
@@ -445,10 +365,6 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
 
         /*
          * A newly spawned replica has one transform, so it cannot be interpolated yet.
-         *
-         * Both ends are set to where it is, and `can_interpolate` stays false until a second snapshot
-         * gives it somewhere to move to. Interpolating from a zeroed origin would have every entity fly
-         * in from the world origin on the frame it appeared.
          */
         *slot = (NYA_NetReplica){
             .remote = state->handle,
@@ -469,10 +385,6 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
 
     /*
      * Whatever the snapshot did not mention is gone.
-     *
-     * A snapshot is a complete statement, so absence is the server saying so. Deferred, because this
-     * runs from inside the client's message drain and the barrier is what makes a despawn during
-     * iteration safe.
      */
     for (u32 i = 0; i < map->count; i++) {
         NYA_NetReplica* replica = &map->entries[i];
@@ -529,10 +441,6 @@ void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f32 delta_time_s, f32 s
 
         /*
          * Advanced by however much of a snapshot interval this frame was.
-         *
-         * Clamped at one, so a frame that ran long stops at the target rather than overshooting it — an
-         * entity that flies past where the server said it was and then snaps back is worse than one that
-         * arrives slightly early and waits.
          */
         replica->alpha += delta_time_s / snapshot_interval_s;
         if (replica->alpha > 1.0F) replica->alpha = 1.0F;
@@ -648,14 +556,6 @@ void nya_net_entity_state_apply(NYA_Entity* entity, const NYA_NetEntityState* st
 
     /*
      * A bodied entity is moved through the solver, not by assignment.
-     *
-     * While a body is attached it owns the entity's transform and rewrites it every step, so writing
-     * `position` directly is overwritten within the tick — the same footgun the physics headers
-     * document at length. nya_physics2d_teleport moves the body, which then moves the entity.
-     *
-     * Only 2D has a teleport today. A 3D bodied entity therefore replicates its transform but cannot
-     * have it forced, which is honest rather than silently broken: on a client the 3D solver would
-     * fight the snapshot. The matching nya_physics3d_teleport is the fix and belongs in physics3d.
      */
     if (nya_physics2d_body_attached(entity)) {
         // Yaw only: a 2D body has one rotational degree of freedom, and the quaternion's z/w carry it.
@@ -668,10 +568,6 @@ void nya_net_entity_state_apply(NYA_Entity* entity, const NYA_NetEntityState* st
 
         /*
          * `roll`, not `yaw`, for a 2D body.
-         *
-         * The 2D world is the z = 0 plane and a body rotates *about* z — which nya_quaternion_to_euler
-         * calls roll, since it names its angles for a 3D convention where yaw is about y. Reading the
-         * yaw here would feed the solver an angle that is zero for every rotation a 2D body can have.
          */
         nya_physics2d_teleport(entity, (f32x2){ state->position.x, state->position.y }, roll);
         nya_physics2d_velocity_set(entity, (f32x2){ state->velocity.x, state->velocity.y });
@@ -691,25 +587,9 @@ u16 nya_net_entity_state_diff(const NYA_NetEntityState* from, const NYA_NetEntit
 
     /*
      * Compared exactly, not within a tolerance.
-     *
-     * A tolerance here would be a lossy channel with no way to recover: an entity drifting by less
-     * than epsilon per tick would never be sent, and the client's copy would diverge without bound
-     * because each snapshot is delta'd against the *last sent* state rather than against the truth.
-     * Quantising the values themselves is the right way to spend fewer bytes, and it belongs in the
-     * encoder where the loss is visible.
      */
     /*
      * Compared component by component, never with memcmp over the vector type.
-     *
-     * `sizeof(f32x3)` is **sixteen**, not twelve: it is an ext_vector_type(3), which x86-64 pads to
-     * the next power of two. So a memcmp over it compares four bytes of padding that no code sets and
-     * nothing means. Capture copies the whole 16 bytes out of the entity, padding included, while the
-     * decoder builds its vectors from three floats with the padding zeroed — so two states holding
-     * identical coordinates compared as different, and every entity was sent in full every tick with
-     * the delta compression silently doing nothing.
-     *
-     * It failed in the direction that merely wastes bandwidth. The same comparison in a de-duplicating
-     * cache would have failed the other way.
      */
     if (from->position.x != to->position.x || from->position.y != to->position.y || from->position.z != to->position.z) {
         mask |= NYA_NET_FIELD_POSITION;

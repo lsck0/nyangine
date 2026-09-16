@@ -1,19 +1,5 @@
 /**
  * A whole session: server, clients, handshake, snapshots, commands, prediction, reconciliation.
- *
- * This is the test that says the architecture works rather than that its pieces do. What it defends,
- * in order of how badly a regression would hurt:
- *
- * - **Single player costs nothing.** With nobody listening, a tick must capture no snapshot and
- *   allocate nothing. That is the claim net_server.h makes and the one most easily broken by a later
- *   change that moves work above the early return.
- * - **A listen server's host plays through the client code.** Not a special case — the same
- *   nya_net_client_tick a remote player runs, over a loopback transport.
- * - **A real client over UDP joins, receives the world, and is refused if its version differs.**
- * - **Prediction moves the player immediately, and a correction replays rather than yanks.**
- *
- * The movement function is shared between server and client here exactly as a game must share it,
- * because that sharing is the only reason a prediction can agree with authority.
  **/
 
 #include "nyangine/nyangine.c"
@@ -135,10 +121,6 @@ s32 main(void) {
 
     /*
      * The claim being tested: with nobody listening, a tick does no networking at all.
-     *
-     * Measured by the tick arena's allocation, because that is where a captured snapshot and its
-     * encodings would land. If a later change moves work above nya_net_server_tick's early return,
-     * this is what notices.
      */
     run_ticks(&tick, 120, false);
 
@@ -211,10 +193,6 @@ s32 main(void) {
 
     /*
      * Moved exactly once per tick, not twice.
-     *
-     * On a listen server the client must *not* predict: the server applies the same command to the
-     * same entity a moment later, so predicting as well would double every movement. Thirty ticks at
-     * SPEED is 50 units; double would be 100.
      */
     f32 expected = start_x + (SPEED * TICK_SECONDS * 30.0F);
     f32 drift    = entity->position.x - expected;
@@ -261,9 +239,6 @@ s32 main(void) {
 
     /*
      * The world the client is about to be told about.
-     *
-     * Two crates it did not create, which is what makes "the client received the world" a real
-     * assertion rather than a restatement of its own spawn.
      */
     (void)nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 300.0F, 0.0F, 0.0F });
     (void)nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 400.0F, 0.0F, 0.0F });
@@ -276,11 +251,6 @@ s32 main(void) {
 
     /*
      * Server and client are in one process here, so they share one entity table.
-     *
-     * That makes "the client applied the snapshot" awkward to assert directly — the entities are
-     * already there. What can be asserted is the protocol: the handshake completed, the server spawned
-     * a player, and snapshots are flowing and being acknowledged. A genuinely separate world needs two
-     * processes, which is what the remaining work note calls for.
      */
     HELD_ACTIONS = 0;
 
@@ -391,10 +361,6 @@ s32 main(void) {
      * Prediction is checked against a transport that is *not* local, but without a real server on the
      * other end — so nothing ever corrects it. That isolates the property being tested: the client
      * applies its own command immediately rather than waiting a round trip.
-     *
-     * A loopback pair whose far end is never polled gives exactly that: the client believes it is
-     * connected, sends into a queue nobody drains, and predicts. It reports itself local, though, so
-     * this uses a UDP transport pointed at a port with nothing behind it.
      */
     NYA_Arena* arena = nya_arena_create(.name = "test_session_predict");
     defer      nya_arena_destroy(arena);
@@ -443,10 +409,6 @@ s32 main(void) {
 
     /*
      * One tick, holding right, and the player has already moved.
-     *
-     * The server and client share an entity table here, so both apply the command — which is not the
-     * arrangement a real client has, but it does establish that the client's own apply ran. Without
-     * prediction the client's tick would move nothing at all and only the server's would.
      */
     HELD_ACTIONS = 1ULL << ACTION_RIGHT;
 

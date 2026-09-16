@@ -1,26 +1,5 @@
 /**
  * Regression test for unchecked accumulation in _nya_type_try_parse_u128 (base_types.c).
- *
- * The decimal and hex loops accumulate with no overflow check:
- *
- *     *out_value = (*out_value * 10) + digit;
- *
- * so a literal with more digits than u128 can hold wraps. Two consequences, and the second is the
- * worse one:
- *
- *   - Under FLAGS_SANITIZE the build names unsigned-integer-overflow together with
- *     -fno-sanitize-recover=all, so this aborts the process rather than returning false.
- *   - Without sanitizers it wraps silently. The range check the integer cases apply afterwards
- *     ("if (value < S64_MIN || value > S64_MAX) return false") runs on the *wrapped* value, so a
- *     wrapped result that happens to land inside the target's range is accepted as a completely
- *     different number.
- *
- * nya_type_parse is the parse primitive behind command line arguments (base_args.c:774), JSON
- * numbers (serde_json.c:499) and the .nya save format (serde_nya.c:678), so the input is attacker
- * or user supplied on all three paths.
- *
- * The contract the callers already assume is the one asserted below: an unrepresentable literal is
- * a parse failure, not a wrap.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

@@ -1,18 +1,5 @@
 /**
  * The extensions every connection gets for free: sqlite-vec and the sqlean bundle.
- *
- * Registration is what is really under test here. Both are statically linked archives whose entry
- * points are handed to sqlite3_auto_extension inside nya_sql_open, and the failure mode when any
- * link of that chain breaks — an archive not built, a vendor listed after libsqlite3, an entry point
- * never registered — is identical and quiet: SQLite reports "no such function" and the caller cannot
- * tell it from a typo. So each block below calls something that only exists if the extension is
- * there, and asserts on the value rather than only on the call succeeding.
- *
- * Everything runs against ":memory:". None of these functions touches the filesystem.
- *
- * The three extensions deliberately left out of the sqlean bundle are asserted absent at the bottom,
- * so that switching one on is a decision someone makes here rather than something that happens by
- * accident.
  **/
 
 #include "nyangine/nyangine.c"

@@ -1,18 +1,5 @@
 /**
  * Skinning, from the FBX on disk to the matrix palette a shader would multiply by.
- *
- * Driven by assets/models/bender.fbx, a two-bone cylinder that swings its upper half through 75° and
- * back. Two bones because the first skinned draw either bends in the middle or it does not, and a
- * third bone would only make it harder to tell which one was wrong.
- *
- * What it defends, in order of how badly a regression would hurt:
- *
- * - **The rest palette is identity.** If composing the hierarchy and folding in the inverse bind do
- *   not cancel at rest, every skinned model is deformed before it is even animated — and that is the
- *   failure that looks like a broken importer rather than broken maths.
- * - **Weights are normalised.** The exporter's own weights on this rig sum to as little as 0.982.
- * - **A skinned mesh is not pre-transformed by its node**, which would apply the placement twice.
- * - **The clip actually moves something**, and moves it back by the end.
  **/
 
 #include "nyangine/nyangine.c"
@@ -157,10 +144,6 @@ s32 main(void) {
 
     /*
      * The single most load-bearing assertion here.
-     *
-     * At rest, walking the hierarchy must undo exactly what the inverse bind matrices did, so every
-     * vertex lands where it was authored. Any error here is a model that is deformed before a single
-     * frame of animation has played.
      */
     for (u32 i = 0; i < skeleton->bone_count; i++) {
       f32 error = identity_error(palette[i]);

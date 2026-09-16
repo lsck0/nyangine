@@ -1,20 +1,5 @@
 /**
  * Per-device input routing: several people on one machine.
- *
- * Two things are being defended here.
- *
- * The first is that adding players changed nothing for a game that has none. The merged view is fed
- * by every device unconditionally, so `nya_input_key_pressed` answers exactly what it always did —
- * including after a device has been assigned to a player, which is the case a naive "route the event
- * to the player instead" implementation breaks, silently, in every menu.
- *
- * The second is that two players do not leak into each other: player 1's keys, mouse buttons,
- * modifiers and action chords must be player 1's alone, and an unclaimed slot must read as nothing
- * held rather than as whatever the last claimant left behind.
- *
- * Events are synthesised rather than pumped from SDL. That is the point — SDL only fills its device
- * id in where the platform supports it, so a test driven by real events would be testing the
- * platform, not the routing.
  **/
 
 #include "nyangine/nyangine.c"
@@ -218,9 +203,6 @@ s32 main(void) {
 
     /*
      * The whole reason modifiers are stored per player.
-     *
-     * Reading the merged modifier set here would have player two's ctrl completing player one's
-     * chord — a player firing because somebody else on the couch was holding a key.
      */
     nya_assert(!nya_input_action_pressed_by(PLAYER_ONE, ACTION_FIRE), "player two's ctrl does not complete player one's chord");
 
@@ -294,9 +276,6 @@ s32 main(void) {
 
     /*
      * A reset must tear the slots down, not merely unroute them.
-     *
-     * Player two is holding B when the lobby is returned to. If the state survived, the next person
-     * assigned to slot two would start already holding it — walking left the moment they joined.
      */
     press(keyboard(2), NYA_KEY_B, NYA_KEYMOD_NONE);
     nya_assert(nya_input_key_pressed_by(PLAYER_TWO, NYA_KEY_B));
@@ -341,14 +320,6 @@ s32 main(void) {
   {
     /*
      * Claim, use, reset, repeat.
-     *
-     * Player states were arena-allocated pointers, and an arena has no per-allocation free — so a
-     * reset destroyed a slot's key tables and left the struct behind, and the next claim allocated
-     * another. Every trip back to the lobby grew the input arena a little more, forever.
-     *
-     * The states are inline now, so there is nothing to accumulate. What this checks is the
-     * behaviour that would have degraded: a slot claimed for the fiftieth time works exactly like
-     * one claimed for the first, and carries nothing over from the last occupant.
      */
     for (u32 cycle = 0; cycle < 50; cycle++) {
       nya_input_source_assign(keyboard(1), PLAYER_ONE);

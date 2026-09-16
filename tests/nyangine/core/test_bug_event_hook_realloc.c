@@ -1,14 +1,5 @@
 /**
  * Regression test for iterating the hook array while a hook grows it (core_event.c).
- *
- * _nya_event_notify_listeners walks the array with nya_array_foreach, which holds a pointer into
- * items. A hook that calls nya_event_hook_register for the event type currently being dispatched
- * pushes into that same array; once it is full the push reallocates, the old block is freed back to
- * the arena, and the loop's pointer is dangling for the rest of the dispatch.
- *
- * The array below is filled to exactly its capacity first, so the very first hook's registration is
- * the push that grows it. Registering from inside a handler is not exotic: the asset system's hot
- * reload path and the job system's completion handlers both do it.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

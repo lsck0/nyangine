@@ -17,16 +17,6 @@ NYA_INTERNAL NYA_Event        _nya_event_from_sdl_event(SDL_Event sdl_event);
 
 /**
  * Copies a string SDL owns into memory that outlives the event queue.
- *
- * The dropped path and the text input strings are SDL's "temporary memory": SDL_PumpEvents frees
- * everything handed out before it, and SDL_PollEvent pumps. nya_system_event_drain_sdl_events polls
- * SDL's whole queue before nya_system_event_poll hands any of it to the layers, so storing SDL's
- * pointer meant every one of those strings was already freed by the time anything read it — a use
- * after free on any drag and drop or any text field.
- *
- * The frame allocator, because that is exactly the lifetime wanted: the event is consumed later in
- * the same frame, and the arena is reset once the frame ends. Anything that needs a dropped path
- * beyond the frame it arrived in has to copy it, which was already true.
  * */
 NYA_INTERNAL NYA_ConstCString _nya_event_copy_transient_string(NYA_ConstCString text);
 NYA_INTERNAL void             _nya_event_notify_deferred_listeners(NYA_Event* event);
@@ -84,10 +74,6 @@ void nya_system_event_drain_sdl_events(void) {
     while (SDL_PollEvent(&event)) {
         /*
          * Gamepad events are consumed here rather than converted into an NYA_Event.
-         *
-         * A pad's state is a table to be sampled, not a stream to be replayed — nothing wants to hear
-         * about every axis motion, and SDL emits one per axis per poll. The input system reads the
-         * table; core_gamepad.h owns it.
          */
         if (nya_system_gamepad_handle_sdl_event(&event)) continue;
 
@@ -227,11 +213,6 @@ NYA_INTERNAL NYA_ConstCString _nya_event_copy_transient_string(NYA_ConstCString 
 NYA_InputSource _nya_event_source_from_sdl(NYA_InputDeviceKind kind, u32 which) {
     /*
      * Carried through untouched, zero included.
-     *
-     * Zero is what SDL reports when it cannot separate devices — every keyboard on a platform
-     * without per-device keyboard support, and every mouse outside relative mode. It is the ordinary
-     * single-player reading rather than an error, and it routes like any other source, so there is
-     * nothing here to normalise or reject. See NYA_InputSource.
      */
     return (NYA_InputSource){ .kind = kind, .id = which };
 }
@@ -541,14 +522,6 @@ NYA_INTERNAL NYA_Event _nya_event_from_sdl_event(SDL_Event sdl_event) {
 
 /**
  * Runs every hook registered for the event, dropping the one shots that fired.
- *
- * The deferred and immediate paths differ only in which map they read, so they share this. They
- * were duplicated line for line, which is how the two came to disagree in the first place.
- *
- * A one shot is collected while iterating and removed afterwards rather than in place, because
- * removing from the array being walked would shuffle the elements out from under the loop. It is
- * only collected when its function actually ran, so a condition that rejects an event does not
- * spend the hook.
  * */
 NYA_INTERNAL void _nya_event_notify_listeners(NYA_HMapᐸNYA_EventTypeˏNYA_ArrayᐸNYA_EventHookᐳᐳ* hooks, NYA_Event* event) {
     nya_assert(event != nullptr);
@@ -568,18 +541,6 @@ NYA_INTERNAL void _nya_event_notify_listeners(NYA_HMapᐸNYA_EventTypeˏNYA_Arra
      * Nothing about this walk may be cached across a handler, because a hook may register another
      * one from inside the dispatch — the asset system's hot reload path and the job system's
      * completion handlers both do — and that moves memory in two places.
-     *
-     * The hook array is one: a push into a full one reallocates `items` and hands the old block back
-     * to the arena. The hash map is the other, and the one that is easy to miss — `hook_array` points
-     * *into* the map's `values` block, and registering for an event type nothing has hooked yet is an
-     * insert, so crossing the load factor reallocates that block and frees the old one. The map starts
-     * at capacity 64 against 63 event types, so the threshold of 48 is inside what an application
-     * registers. Re-reading costs a hash and a probe per hook, nothing beside the handler about to
-     * run, and it covers the array case as a side effect.
-     *
-     * The count is sampled once, so a hook registered during this dispatch runs on the next matching
-     * event rather than the one that created it — which is also what stops a hook that registers
-     * itself from running forever.
      */
     for (u64 i = 0; i < hook_count; i++) {
         // Re-read every iteration, and re-checked against the current length: a handler may have

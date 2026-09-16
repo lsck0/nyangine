@@ -52,13 +52,6 @@ NYA_INTERNAL void _nya_arena_registry_remove(NYA_Arena* arena);
  * address is stable while being read and written. Keyed on the file pointer, line and arena name:
  * file/function come from __FILE__/__FUNCTION__, the same literal at a given site, so pointer
  * comparison is correct and cheaper than strcmp on the hot path.
- *
- * Every field is atomic: the table is global, and two threads allocating from different arenas land
- * on the same row, incrementing counts and totals with nothing ordering them. Same trade as the
- * registry — atomics, not a mutex, since base has none.
- *
- * NYA_ArenaCallsiteStats stays a plain struct because it is returned by value and an _Atomic member
- * cannot be copied that way; readers assemble a snapshot from a row instead.
  */
 #define _NYA_ARENA_CALLSITE_MAX 1024
 

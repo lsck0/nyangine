@@ -2,14 +2,6 @@
 
 /**
  * A depth's sortable bit pattern.
- *
- * `depth` is a squared distance, so it is non-negative — and for non-negative IEEE-754 floats the bit
- * pattern compares in the same order as the value does. That is what lets the sort below be a radix
- * pass over integers rather than a comparison sort, and it is only true because of the sign: a
- * negative float's pattern orders backwards, so this would be wrong for a signed key.
- *
- * A NaN would order arbitrarily here, exactly as it did under qsort, and means a NaN vertex position
- * upstream rather than anything this can fix.
  */
 NYA_INTERNAL u32 _nya_render3d_sort_bits(f32 depth) {
     u32 bits = 0;
@@ -20,13 +12,6 @@ NYA_INTERNAL u32 _nya_render3d_sort_bits(f32 depth) {
 
 /**
  * Ascending radix sort over the depth bits: four passes of eight, ping-ponging between the two arrays.
- *
- * Replaced qsort, which measured at 7.9% of frame time in a profile — 3.4% of that in the comparator
- * alone, which is the signature of an indirect call that cannot be inlined. This does no comparisons
- * and makes exactly four passes whatever the distribution.
- *
- * Four passes of eight rather than three of eleven: 256 counters stay in L1, and the extra pass costs
- * less than the cache pressure of 2048 counters does.
  */
 void nya_render3d_sort_keys(NYA_Render3DSortKey* keys, NYA_Render3DSortKey* scratch, u32 count) {
     NYA_Render3DSortKey* source      = keys;

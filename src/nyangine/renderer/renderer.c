@@ -33,6 +33,18 @@
  * forgotten, which is what the first attempt did.
  */
 
+void nya_render_clear_color_set(NYA_Window* window, NYA_Color color) {
+    nya_assert(window != nullptr);
+
+    window->render_system.clear_color = color;
+}
+
+NYA_Color nya_render_clear_color(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.clear_color;
+}
+
 NYA_Vertex3D nya_vertex3d(f32x3 position, NYA_Color color, f32x3 normal, f32x2 uv) {
     /*
      * Colour is *not* clamped on the way in, unlike _nya_render2d_pack_color's, and that is the whole
@@ -63,12 +75,6 @@ f32x3 nya_vertex3d_position(NYA_Vertex3D vertex) {
 /*
  * No GPU device is created, so there is nothing to claim a window for, nothing to present, and
  * nothing to wait on at shutdown.
- *
- * The whole surface is stubbed here rather than sprinkling `#if NYA_HEADLESS_ENABLED` through the
- * real implementations: the two versions then cannot drift, and the frame loop needs no knowledge
- * of the mode at all. nya_render_begin returning false is the one that matters — that is the same
- * "nothing to draw into" answer an occluded window gives, so the loop already skips the layers
- * without a special case.
  */
 
 NYA_Error nya_system_renderer_init(void) {
@@ -82,12 +88,16 @@ void nya_system_renderer_deinit(void) {
 
 void nya_system_renderer_for_window_init(NYA_Window* window) {
     nya_assert(window != nullptr);
-    window->render_system = (NYA_RenderSystemWindow){ 0 };
+    // Opaque black rather than the zeroed struct's transparent. See NYA_RenderSystemWindow.clear_color.
+    window->render_system             = (NYA_RenderSystemWindow){ 0 };
+    window->render_system.clear_color = NYA_COLOR_BLACK;
 }
 
 void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     nya_assert(window != nullptr);
-    window->render_system = (NYA_RenderSystemWindow){ 0 };
+    // Opaque black rather than the zeroed struct's transparent. See NYA_RenderSystemWindow.clear_color.
+    window->render_system             = (NYA_RenderSystemWindow){ 0 };
+    window->render_system.clear_color = NYA_COLOR_BLACK;
 }
 
 void nya_system_renderer_set_vsync(b8 enabled) {
@@ -127,10 +137,6 @@ NYA_Error nya_system_renderer_init(void) {
 
     /*
      * Linear filtering, clamped to the edge. See NYA_RenderSystem.sampler for why there is one.
-     *
-     * CLAMP_TO_EDGE rather than REPEAT matters for the glyph atlas and for sprite sheets: a uv that
-     * lands a hair outside a sub-rectangle wraps to the far side of the texture under REPEAT, which
-     * shows up as a stray line of some unrelated glyph along an edge.
      */
     const SDL_GPUFilter filters[NYA_TEXTURE_FILTER_COUNT] = {
         [NYA_TEXTURE_FILTER_LINEAR]  = SDL_GPU_FILTER_LINEAR,
@@ -156,10 +162,6 @@ NYA_Error nya_system_renderer_init(void) {
 
     /*
      * The sample count is settled when the first window is claimed, not here.
-     *
-     * It depends on the swapchain's texture format, and a swapchain belongs to a window — at this
-     * point there is none, and asking with a null window returns INVALID, which silently disabled
-     * multisampling altogether.
      */
     app->render_system.sample_count = SDL_GPU_SAMPLECOUNT_1;
 
@@ -192,15 +194,9 @@ void nya_system_renderer_deinit(void) {
 
 /**
  * Rebuilds the window's multisampled colour buffer if the swapchain has changed size.
- *
- * Lazy rather than done on a resize event: the swapchain's real dimensions are only known once a
- * texture has been acquired, and on a scaled display they are not the window size.
  * */
 /**
  * Builds or rebuilds the window's depth buffer for a swapchain of this size.
- *
- * Unconditional, unlike the MSAA one, which returns early when multisampling is off. There is no
- * "depth is disabled" state: the pass always has a depth attachment so that 2D and 3D can share it.
  * */
 NYA_INTERNAL void _nya_renderer_ensure_depth_texture(NYA_Window* window, u32 width, u32 height);
 
@@ -278,16 +274,13 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     b8 ok = SDL_ClaimWindowForGPUDevice(app->render_system.gpu_device, window->sdl_window);
     nya_assert(ok, "SDL_ClaimWindowForGPUDevice() failed: %s", SDL_GetError());
 
-    window->render_system = (NYA_RenderSystemWindow){ 0 };
+    // Opaque black rather than the zeroed struct's transparent. See NYA_RenderSystemWindow.clear_color.
+    window->render_system             = (NYA_RenderSystemWindow){ 0 };
+    window->render_system.clear_color = NYA_COLOR_BLACK;
 
     /*
      * Four samples if the device will take them, one otherwise — decided on the first window, whose
      * swapchain format is what everything ultimately resolves onto.
-     *
-     * Asked rather than assumed: multisampling is optional, and a pipeline built for a count the
-     * device does not support fails to create, which would take out every draw rather than only the
-     * anti-aliasing. Decided once and never revisited, because a pipeline bakes the count in and a
-     * second window changing it would invalidate every pipeline the first one built.
      */
     if (!app->render_system.sample_count_decided) {
         SDL_GPUTextureFormat swapchain_format = SDL_GetGPUSwapchainTextureFormat(app->render_system.gpu_device, window->sdl_window);
@@ -300,11 +293,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
         /*
          * The depth format, decided in the same breath and for the same reason: a pipeline bakes it
          * in, so it has to be settled before any pipeline is built.
-         *
-         * D24_UNORM_S8_UINT first because it is the cheapest thing every desktop backend has, and
-         * D32_FLOAT as the fallback because it is the one guaranteed everywhere. Asked with the
-         * sample count that was just chosen, since a format can be supported single-sampled and not
-         * multisampled.
          */
         app->render_system.depth_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
 
@@ -326,15 +314,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     /*
      * The window's 2D batch, set up here rather than behind a nya_render2d_for_window_init.
-     *
-     * That function was public API that no game could correctly call and nothing but this line ever
-     * did — two entry points for one thing, with the real one hidden behind the decorative one.
-     * NYA_Render2DBatch is declared in renderer.h and belongs to the render system, so it is set up
-     * where the rest of the render system is.
-     *
-     * Before the swapchain tuning below, which returns early whenever the driver refuses a
-     * parameter. Placed after it, that early return would leave the window with no batch and every
-     * draw call into it silently doing nothing.
      */
 
     NYA_Render2DBatch* batch       = &window->render_system.draw_batch;
@@ -347,9 +326,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
      * Queued, not loaded. The asset system resolves these over the following frames, and a flush
      * whose pipeline is not loaded yet draws nothing — so the first frames are blank rather than
      * dereferencing a pipeline that does not exist.
-     *
-     * Queueing the same handles for a second window is harmless: the asset system keys on the
-     * handle, so the shaders and pipelines are shared rather than rebuilt.
      */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
@@ -412,11 +388,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     /*
      * Queued for every window whether or not a font ever asks for it.
-     *
-     * The alternative is creating it the first time an SDF atlas is drawn, which means loading a
-     * pipeline in the middle of a frame — and a pipeline that is not resolved yet draws nothing, so
-     * the first text after switching a font to SDF would silently vanish instead of arriving blurry.
-     * A queued pipeline nothing draws with costs one shader compile at startup.
      */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
@@ -505,11 +476,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
           /*
            * One, for the shadow map — even though this is the *untextured* pipeline.
-           *
-           * SDL validates this against what the compiled shader actually samples, and a count lower than
-           * the truth is not caught here: the shader reads a descriptor nothing bound, which on this
-           * driver is a GPUVM fault and a lost device rather than a message. It was zero for exactly as
-           * long as the shader sampled nothing.
            */
           .num_samplers = 1,
       },
@@ -563,12 +529,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     /*
      * The shadow pass: depth only, and the one 3D pipeline that culls *front* faces.
-     *
-     * Culling the front is the cheapest fix for the acne the bias also fights. The surface recorded in the
-     * map becomes the far side of each object rather than the side facing the light, which moves the
-     * recorded depth away from the surface being tested by the thickness of the object — so a lit face is
-     * nowhere near its own occluder. The cost is that it is wrong for open geometry with no back side; a
-     * single-sided ground plane casts nothing, which is exactly what a floor should do anyway.
      */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
@@ -591,8 +551,11 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
           // No blending: the map holds the nearest depth, and blending two depths averages them into a
           // distance that describes neither surface.
-          .blend         = false,
-          .vertex_layout = NYA_VERTEX_LAYOUT_3D,
+          .blend = false,
+
+          // Position alone. The immediate batch compacts its vertices down to this on the way to the GPU;
+          // see _nya_render3d_flush_immediate and NYA_VERTEX_LAYOUT_3D_DEPTH.
+          .vertex_layout = NYA_VERTEX_LAYOUT_3D_DEPTH,
           .depth_test    = true,
           .depth_write   = true,
 
@@ -711,16 +674,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     /*
      * The sky, after the light pipeline and not before it, which is not a matter of taste.
-     *
-     * It is built on procedural.vert, and that shader is queued as part of the light2d block above. The
-     * loading queue is processed in order, so registering this pipeline earlier asked the asset system to
-     * assemble it from a shader that had not been read yet — which failed, named the shader, and left the
-     * scene compositing through a pipeline that would never exist.
-     *
-     * No depth test and no depth write, which is what makes it a background rather than geometry: it is
-     * drawn first and everything afterwards covers it, with nothing in the depth buffer to argue about.
-     * A skybox drawn *last* at maximum depth is the other standard arrangement and needs a LESS_OR_EQUAL
-     * comparison this renderer's pipelines do not expose.
      */
 
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
@@ -747,24 +700,9 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     /*
      * The outline, as an inverted hull: the mesh again, expanded along its normals with the *front* faces
      * discarded so only the part poking past the silhouette survives.
-     *
-     * Culling the front is what makes this work at all rather than being a decorative flag. Without it the
-     * expanded shell is drawn over the model and hides it entirely.
-     *
-     * It writes depth as well as testing it, so a nearer object's ink still occludes a further object —
-     * an outline that did not write depth would show through everything in front of it.
      */
     /*
      * The skinned mesh pipeline.
-     *
-     * Two uniform buffers, like the outline: the view-projection at b0 and the bone palette at b1.
-     * Declaring one would be the bloom pipeline's bug again — Vulkan tolerates a shader reading a slot
-     * the registration never mentioned and D3D12 refuses outright, so it would work here and fail on
-     * Windows only.
-     *
-     * It reuses the ordinary mesh fragment stage. Nothing about lighting changes because a vertex was
-     * moved by a bone rather than by the CPU, which is the point of doing the skinning in the vertex
-     * stage at all.
      */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
@@ -780,10 +718,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     /*
      * The depth-only skinned pipeline, so a character casts a shadow.
-     *
-     * It reuses the ordinary shadow fragment stage, and cull_front_faces for the reason that stage's
-     * own registration gives at length: recording the far side of an object rather than the lit side
-     * moves the stored depth away from the surface being tested, which is most of what fights acne.
      */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
@@ -844,16 +778,9 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     /*
      * The transparent pass: four pipelines that are the four above with depth writing switched off.
-     *
-     * Written out rather than generated in a loop because each names its own pair of shaders, and a loop
-     * over a table of four entries to save twenty lines of struct literal would hide which shader goes
-     * with which pipeline — the exact thing that is worth being able to read at a glance here.
      */
     /*
      * The overlay pass: the transparent pipeline with depth *testing* off as well.
-     *
-     * One pipeline rather than four, because a gizmo is flat colour by definition — there is no
-     * textured or additive gizmo, and the outline pipeline already covers the one other case.
      */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
@@ -888,19 +815,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
           /*
            * Both sides, unlike the opaque pass, and this is what makes a translucent *solid* work.
-           *
-           * Back-face culling exists because you cannot see the inside of an opaque object. You can see
-           * the inside of a glass one — its far walls are visible through its near ones, and that is most
-           * of what reads as glass. Culling them leaves a shape you see *through* into nothing, which
-           * looks like a hole rather than like a solid.
-           *
-           * It is only correct because the transparent pass sorts per *triangle*: six faces of a cube
-           * arriving in arbitrary order would blend wrongly, and sorting them back to front is exactly
-           * what puts the far wall behind the near one. A renderer sorting per object could not turn this
-           * on.
-           *
-           * The cost is that a closed translucent shape shades twice the fragments. That is the price of
-           * it being a solid rather than a shell.
            */
           .cull_back_faces = false,
       },
@@ -956,10 +870,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     /*
      * The additive pass: what fire, sparks and glow go through.
-     *
-     * The same shaders again, with the blend switched from "over" to "plus". No depth write, for the
-     * reason the transparent pass has none — and no sorting needed either, because addition does not care
-     * what order it happens in, which is the other reason additive geometry is worth separating out.
      */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
@@ -996,18 +906,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     /*
      * Refractive glass.
-     *
-     * Blending is *off* and depth writing is on, unlike the rest of the transparent pass — because this is
-     * not a translucent surface. It samples what is behind it, tints that, and writes the result opaque;
-     * blending a sample of the destination back over the destination would count it twice. See the note at
-     * the top of mesh3d_glass.frag.hlsl.
-     *
-     * Depth *is* written, which follows from the same fact: an opaque surface occludes. That also means
-     * glass drawn in front of glass hides it rather than compounding with it, which is the honest limit of
-     * a single capture.
-     *
-     * Two samplers — the capture and the shadow map — so num_samplers is two, and two uniform blocks,
-     * because the glass parameters are their own.
      */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
@@ -1055,12 +953,26 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     nya_assert(mesh_batch->index_transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for the 3D batch's indices: %s", SDL_GetError());
 
     /*
-     * Two staging streams, each sized for the whole batch, sharing one GPU buffer.
+     * The shadow pass's own vertex buffer, a third the width.
      *
-     * Sized for the whole rather than half each because the split between them is decided by what a frame
-     * happens to draw: a scene with no transparency would waste half its capacity, and one that is all
-     * glass would flush twice as often. _nya_render3d_reserve checks the *combined* total against the
-     * buffer, so the CPU side is generous and the GPU side is exactly what it was.
+     * A second buffer rather than a prefix of the wide one: a vertex buffer has one pitch, and the pitch is
+     * what the input assembler strides by. Its own indices are not needed — a shadow pass draws the same
+     * triangles in the same order, so it binds the index buffer the camera pass already filled.
+     */
+    u32 mesh_depth_buffer_size = (u32)(NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3DDepth));
+
+    mesh_batch->depth_vertex_buffer =
+        SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = mesh_depth_buffer_size });
+    nya_assert(mesh_batch->depth_vertex_buffer != nullptr, "SDL_CreateGPUBuffer() failed for the 3D shadow batch: %s", SDL_GetError());
+
+    mesh_batch->depth_transfer_buffer = SDL_CreateGPUTransferBuffer(
+        gpu_device,
+        &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = mesh_depth_buffer_size }
+    );
+    nya_assert(mesh_batch->depth_transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for the 3D shadow batch: %s", SDL_GetError());
+
+    /*
+     * Two staging streams, each sized for the whole batch, sharing one GPU buffer.
      */
     mesh_batch->opaque.vertices = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
     mesh_batch->opaque.indices  = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INDICES * sizeof(u32));
@@ -1078,10 +990,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     /*
      * The instance buffer for the retained mesh path.
-     *
-     * A vertex buffer as far as SDL is concerned — an instance stream is bound with
-     * SDL_BindGPUVertexBuffers like any other, at slot 1, and only the pipeline's input rate makes it
-     * per-instance. There is no separate usage flag for it.
      */
     u32 instance_buffer_size = (u32)(NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
 
@@ -1101,11 +1009,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     /*
      * Claiming the window already installed a working swapchain. Everything below is an attempt to
      * improve on it, so a driver that refuses is a reason to keep the default, not to stop.
-     *
-     * Both parameters have to be asked about first: not every backend supports every combination,
-     * and SDL_SetGPUSwapchainParameters rejects the whole call if either half is unsupported. This
-     * asserted on the result, which is a hard crash on any driver that says no — observed on D3D12
-     * under Wine, where SDR composition is unavailable.
      */
     SDL_GPUSwapchainComposition composition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
     if (!SDL_WindowSupportsGPUSwapchainComposition(app->render_system.gpu_device, window->sdl_window, composition)) {
@@ -1212,15 +1115,6 @@ void nya_system_renderer_set_vsync(b8 enabled) {
     if (app->options.vsync_enabled != enabled) {
         /*
          * The option is updated here, not left to the caller.
-         *
-         * This reads app->options.vsync_enabled as "what is currently applied" but used to never
-         * write it, so it was only correct because its one caller — nya_app_options_update —
-         * assigns the whole options struct immediately afterwards. It is NYA_API, and a direct
-         * caller got the field and the real present mode disagreeing: the software frame limiter in
-         * core_app.c keys off the same field, and the next call in the opposite direction saw no
-         * change and did nothing, so vsync could not be turned back off.
-         *
-         * Written before the loop, since the loop only reports failures and does not roll back.
          */
         app->options.vsync_enabled = enabled;
 
@@ -1339,29 +1233,23 @@ b8 nya_render_begin(NYA_Window* window) {
     /*
      * With multisampling the pass draws into the MSAA buffer and resolves onto the swapchain as it
      * ends; without it the swapchain is drawn into directly.
-     *
-     * RESOLVE_AND_STORE rather than RESOLVE, because the pass is suspended and reopened whenever the
-     * batch has to upload — a plain RESOLVE is allowed to discard the multisample contents, and
-     * everything drawn before the suspend would be lost.
      */
     SDL_GPUColorTargetInfo target_info = {
         .texture          = msaa != nullptr ? msaa : swapchain_texture,
         .resolve_texture  = msaa != nullptr ? swapchain_texture : nullptr,
-        // Opaque black. `(SDL_FColor){ 0 }` looks like "clear to black" but sets a = 0 too, which
-        // clears to *transparent*: the compositor then blends the desktop through every pixel the
-        // frame does not draw over. It reads as the window rendering in the wrong place, because
-        // what you are seeing is whatever sits behind it.
-        .clear_color = (SDL_FColor){ .r = 0.0F, .g = 0.0F, .b = 0.0F, .a = 1.0F },
+        // Opaque black unless the window asked for otherwise. `(SDL_FColor){ 0 }` looks like "clear to
+        // black" but sets a = 0 too, which clears to *transparent* — the compositor then blends the desktop
+        // through every pixel the frame does not draw over, which reads as the window rendering in the
+        // wrong place. That is why the default is opaque and why alpha here is a deliberate choice rather
+        // than a zeroed field. See nya_render_clear_color_set.
+        .clear_color = (SDL_FColor){ .r = window->render_system.clear_color.r,
+                                     .g = window->render_system.clear_color.g,
+                                     .b = window->render_system.clear_color.b,
+                                     .a = window->render_system.clear_color.a },
         .load_op          = SDL_GPU_LOADOP_CLEAR,
         /*
          * The opening pass resolves; every pass the batch reopens after it does not, until the last
          * one. See _nya_render2d_pass_resume.
-         *
-         * Two resolves a frame rather than the ideal one, and that second is deliberate insurance.
-         * The final resolve rides on the last flush, and a flush that finds its pipeline still
-         * loading returns without opening a pass at all — so during the first frames of a run there
-         * may be no last pass to carry it. Resolving here means those frames show their clear colour
-         * instead of whatever the swapchain happened to hold.
          */
         .store_op         = msaa != nullptr ? SDL_GPU_STOREOP_RESOLVE_AND_STORE : SDL_GPU_STOREOP_STORE,
     };
@@ -1370,9 +1258,6 @@ b8 nya_render_begin(NYA_Window* window) {
      * Cleared to the far plane every frame, and stored, because the pass is suspended and reopened
      * whenever the batch has to upload — a DONT_CARE store would throw the depth away mid-frame and
      * the geometry drawn after the suspend would not occlude the geometry drawn before it.
-     *
-     * Attached unconditionally. See NYA_RenderSystemWindow.depth_texture: the attachment is fixed
-     * when a pass opens, so a frame cannot decide it wants depth after it has already drawn.
      */
     SDL_GPUDepthStencilTargetInfo depth_info = {
         .texture          = window->render_system.depth_texture,
@@ -1393,10 +1278,6 @@ b8 nya_render_begin(NYA_Window* window) {
     /*
      * The batch draws into the swapchain until something says otherwise, and its projection comes
      * from whatever is set here — so this is what makes drawing land at window coordinates.
-     *
-     * Reset every frame rather than once at init: the swapchain texture is a different one each
-     * frame, and target_is_texture has to come back to false even if a layer left a render texture
-     * open, which would otherwise strand every later frame drawing into it.
      */
     // Counters are per frame, so they reset with it rather than accumulating for the process.
     window->render_system.draw_batch.frame_flushes       = 0;
@@ -1412,10 +1293,6 @@ b8 nya_render_begin(NYA_Window* window) {
 
     /*
      * The 3D batch's counters too, which were never reset.
-     *
-     * They were incremented on every draw, never cleared and never read — three write-only numbers
-     * growing for the life of the window, under a comment saying they were per frame. See
-     * nya_render3d_frame_stats, which is what reads them now.
      */
     window->render_system.mesh_batch.frame_draw_calls    = 0;
     window->render_system.mesh_batch.frame_vertices      = 0;
@@ -1453,15 +1330,6 @@ void nya_render_end(NYA_Window* window) {
     /*
      * The frame's one multisample resolve, arranged so that the pass carrying it always has a draw
      * in it.
-     *
-     * Every pass before this one stored its multisample contents without resolving, so nothing has
-     * reached the swapchain yet. Setting the flag makes the pass that the flush below reopens the
-     * resolving one — and that pass is guaranteed non-empty, because the flush only reopens a pass
-     * when it has something to draw.
-     *
-     * The exception is a frame that queued nothing at all, or whose last flush emptied the batch.
-     * One fully transparent pixel gives the flush something to do, which costs a quad and avoids the
-     * empty-resolving-pass shape that segfaults the AMD Vulkan driver.
      */
     if (batch->target_msaa != nullptr) {
         batch->resolve_pending = true;

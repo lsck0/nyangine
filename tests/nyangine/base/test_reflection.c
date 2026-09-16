@@ -1,19 +1,5 @@
 /**
  * The reflection runtime, driven by hand written tables.
- *
- * Hand written on purpose. src/build/reflection.c has to emit exactly this shape, so writing it out
- * once by hand says what the generator's target *is* — and it means the runtime is proven before the
- * generator exists rather than the two being debugged against each other.
- *
- * What it defends:
- *
- * - **A walk ends at primitives.** A struct inside a struct inside a vector resolves all the way
- *   down, which is the whole premise.
- * - **Offsets come from the compiler.** Every table below uses nya_offsetof and sizeof, so this also
- *   checks that a padded struct is described correctly without anyone modelling padding.
- * - **Round tripping is lossless** for everything the design says it covers, and leaves alone
- *   everything it says it does not.
- * - **Enums survive renumbering**, because they are written as names.
  **/
 
 #include "nyangine/nyangine.c"

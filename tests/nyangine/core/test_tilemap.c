@@ -1,15 +1,5 @@
 /**
  * Tilemaps: reading Tiled's own JSON, and the two projections it can be in.
- *
- * The maps under assets/maps are the fixtures. They are generated rather than hand written, so what
- * this asserts about them is checkable against the generator — a twenty by twelve map, grass
- * everywhere, a pond, a wall along the bottom, and two objects with properties.
- *
- * The isometric half is where the real risk is: the diamond projection and its inverse are four
- * lines each and neither is verifiable by eye, so most of this file is round trips through them.
- *
- * Headless throughout. Drawing is stubbed, but loading, projecting and collision are not — the
- * collision half spawns real bodies into a real Box2D world.
  **/
 
 #include "nyangine/nyangine.c"
@@ -202,9 +192,6 @@ s32 main(void) {
 
     /*
      * The solid rows are three full-width rows: the shelf and two rows of wall.
-     *
-     * Merged, that is three bodies. One per tile would be sixty — and, worse, fifty-seven internal
-     * edges for a sliding body to catch on, which is the reason the merge exists at all.
      */
     nya_assert(built == 3, "three merged runs, got " FMTu32, built);
     nya_assert(nya_physics2d_body_count() == 3, "and three bodies in the solver");

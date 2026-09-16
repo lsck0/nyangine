@@ -1,11 +1,6 @@
 /**
  * @file math_noise.h
  *
- * Coherent noise functions for procedural generation: Perlin, simplex, value noise,
- * and fractal Brownian motion (FBM) layering. All functions return values in [-1, 1].
- *
- * Noise is seeded via an NYA_RNG, so the same seed always produces the same pattern.
- *
  * Example:
  * ```c
  * NYA_RNG   rng   = nya_rng_create(.seed = "my_world_seed");

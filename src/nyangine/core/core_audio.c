@@ -165,10 +165,6 @@ typedef struct {
  * Music is the slot past the effect pool rather than a separate field: it behaves identically once
  * playing, same effects and gain arithmetic, so one lookup path and one set of effect functions serves
  * both. Never handed out by the free-voice search, which walks only the first NYA_AUDIO_VOICES entries.
- *
- * Two music slots, not one, is what makes a crossfade possible: both pieces have to sound at once, so a
- * single track could only ever cut. Used alternately — whichever is not playing is where the next track
- * starts.
  */
 #define _NYA_AUDIO_MUSIC_A NYA_AUDIO_VOICES
 #define _NYA_AUDIO_MUSIC_B (NYA_AUDIO_VOICES + 1)
@@ -181,9 +177,6 @@ struct NYA_AudioSystem {
      * Drives per instance pitch variation, and nothing else. Its own generator rather than one the game
      * shares: how many sounds played is not something a seeded run should be able to feel, or a footstep
      * would shift every value after it and the same seed would stop reproducing the same world.
-     *
-     * By value in a static, which keeps NYA_RNG's 32 byte alignment satisfied for free — see
-     * nya_rng_create_in for the arena case, where it is not free at all.
      * */
     NYA_RNG rng;
 
@@ -220,12 +213,10 @@ struct NYA_AudioSystem {
     b8 ready;
 };
 
-NYA_INTERNAL NYA_AudioSystem _nya_audio_system = {
-    .music_slot  = _NYA_AUDIO_MUSIC_A,
-    .master_gain = 1.0F,
-    .sound_gain  = 1.0F,
-    .music_gain  = 1.0F,
-};
+/*
+ * Zero-initialized, and the non-zero defaults are set in nya_system_audio_init instead.
+ */
+NYA_INTERNAL NYA_AudioSystem _nya_audio_system;
 
 /** The sound asset behind a handle, or null when it is missing, failed or still loading. */
 NYA_INTERNAL MIX_Audio* _nya_audio_get(NYA_ConstCString handle);
@@ -318,6 +309,13 @@ NYA_INTERNAL f32 _nya_audio_vary_gain(f32 gain, f32 db) __attr_no_discard;
 
 NYA_Error nya_system_audio_init(void) {
     NYA_AudioSystem* system = &_nya_audio_system;
+
+    // The defaults that used to be static initializers. See the note on _nya_audio_system: a gain of
+    // zero rather than one is the failure this replaces, so they are set before anything else runs.
+    system->music_slot  = _NYA_AUDIO_MUSIC_A;
+    system->master_gain = 1.0F;
+    system->sound_gain  = 1.0F;
+    system->music_gain  = 1.0F;
 
     // Ahead of the mixer check, so the generator is seeded on every path, not only the one with a
     // device — unseeded it would hand every run the same sequence of detunes.
@@ -1000,11 +998,6 @@ void nya_audio_set_master_gain(f32 gain) {
 
     /*
      * Music is updated now; effects are not.
-     *
-     * A voice's gain is set when it starts, so a change here reaches the next sound rather than the
-     * ones already sounding. That is the right behaviour for something a fraction of a second long,
-     * and fixing it would mean walking the pool on every slider movement. Music is a stream that may
-     * run for minutes, so it has to follow the slider immediately.
      */
     _nya_audio_apply_music_gain();
 }
@@ -1051,11 +1044,6 @@ MIX_Audio* _nya_audio_get(NYA_ConstCString handle) {
     if (asset->type != NYA_ASSET_TYPE_SOUND) {
         /*
          * Said once per handle, not once per call.
-         *
-         * This is a programming mistake rather than a transient state, so it has to be reported —
-         * but the call that makes it is usually in a per-frame path, and an unthrottled warning
-         * there buries every other line in the log. Remembering the last one caught covers the
-         * realistic case of one wrong handle being hammered.
          */
         NYA_INTERNAL NYA_ConstCString last_warned = nullptr;
 
@@ -1104,12 +1092,6 @@ void _nya_audio_apply_gain(u32 slot) {
 
     /*
      * Occlusion is a fourth multiplier here rather than a separate MIX_SetTrackGain elsewhere.
-     *
-     * There is one formula for a voice's gain and it has to stay one. An occlusion driver writing the
-     * track gain directly would be overwritten by the next volume slider, and a volume slider would
-     * un-muffle every occluded sound — each correct on its own and wrong together.
-     *
-     * One at rest, so a voice nothing is occluding multiplies by one.
      */
     f32 occlusion = system->slots[slot].occlusion_gain > 0.0F ? system->slots[slot].occlusion_gain : 1.0F;
 
@@ -1121,11 +1103,6 @@ void _nya_audio_track_set_pan(MIX_Track* track, f32 pan) {
 
     /*
      * Equal power, not linear.
-     *
-     * Mapping pan onto a quarter turn and taking cosine and sine keeps left² + right² at one across
-     * the sweep, which is what the ear tracks. A linear crossfade holds left + right constant
-     * instead, and that dips audibly in the middle — two channels at half gain carry less power than
-     * one at full.
      */
     f32 angle = (pan + 1.0F) * 0.25F * (f32)M_PI;
 
@@ -1148,9 +1125,6 @@ f32x3 _nya_audio_world_to_audio(f32x2 world_position) {
     /*
      * The mixer's space is right handed with y up and z back, while the renderer's world is y down.
      * Which axis y belongs on is the thing the engine cannot infer, so NYA_AudioPlane carries it.
-     *
-     * The default is not a fallback for an unknown plane — nya_audio_listener_set rejects those — it
-     * is here because the build compiles with -Wswitch-default.
      */
     switch (listener.plane) {
         case NYA_AUDIO_PLANE_TOP_DOWN:
@@ -1176,11 +1150,6 @@ f32x3 _nya_audio_world_to_audio_3d(f32x3 world_position) {
 
     /*
      * An orthonormal frame from the listener's facing, built the way a look-at matrix builds one.
-     *
-     * `up` is only used to decide which way around the forward axis the ear is rolled; the actual up
-     * vector is recomputed across the other two, so a caller can hand over a world up together with a
-     * forward that is not perpendicular to it and get a correct frame anyway. The degenerate case —
-     * forward parallel to up — cannot arrive here, because nya_audio_listener_3d_set refuses it.
      */
     f32x3 forward = nya_vector_normalize(listener.forward);
     f32x3 right   = nya_vector_normalize(nya_vector_cross(forward, listener.up));
@@ -1188,11 +1157,6 @@ f32x3 _nya_audio_world_to_audio_3d(f32x3 world_position) {
 
     /*
      * Projected onto that frame, with forward becoming *negative* z.
-     *
-     * SDL_mixer's space is right handed like OpenGL and OpenAL, where the viewer looks down -z. Getting
-     * this sign wrong is the classic positional audio bug and it is not obvious from a speaker test: left
-     * and right stay correct, and only front and back are swapped — which on a stereo pair is nearly
-     * inaudible and on a surround setup is completely wrong.
      */
     return (f32x3){
         nya_vector_dot(offset, right),
@@ -1385,17 +1349,6 @@ void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* 
      * Flush what is left to zero once it stops mattering. Same reasoning as the filter's: these decay
      * geometrically and land in denormal territory after the audio goes quiet, where some CPUs take a
      * large per-operation penalty — on the audio thread, for values far below anything audible.
-     *
-     * The comb one-poles were the only thing flushed here, on the reasoning that the delay lines are
-     * written from values already flushed. True of the *combs*, whose buffers take
-     * `input + damped * room_size` and go to exactly zero once both do. Not true of the **allpasses**: an
-     * allpass writes `sum + delayed * 0.5`, so once the combs fall silent it halves its own contents
-     * forever and never reaches zero — a couple of seconds after the last sound the whole network is
-     * denormal and stays that way until something plays again.
-     *
-     * One tap per line rather than the whole buffer, at the cursor about to be read next: that walks the
-     * line at one sample per buffer, clearing it in well under a second — far faster than the decay that
-     * fills it, and a fixed cost instead of memsetting a hundred kilobytes on the audio thread.
      */
     for (u32 network = 0; network < _NYA_AUDIO_REVERB_NETWORKS; network++) {
         for (u32 i = 0; i < _NYA_AUDIO_REVERB_COMBS; i++) {
@@ -1514,11 +1467,6 @@ void SDLCALL _nya_audio_track_mix_callback(void* userdata, MIX_Track* track, con
 
     /*
      * The *cooked* hook, not the raw one.
-     *
-     * Cooked runs after SDL_mixer has resampled the track and placed it across the speakers, so the
-     * buffer here is in the mixer's own format and channel count — which is what _nya_audio_filter_apply
-     * assumes, and what makes one filter implementation serve a track, a bus and the master alike.
-     * The raw hook would hand over the clip's native format, which varies per asset.
      */
     _nya_audio_filter_apply((NYA_AudioFilterState*)userdata, spec, pcm, samples);
 }
@@ -1530,11 +1478,6 @@ void SDLCALL _nya_audio_group_mix_callback(void* userdata, MIX_Group* group, con
 
     /*
      * Filter first, then reverb, and the order is audible.
-     *
-     * The filter stands in for the air and the walls between the source and the ear; the reverb is what
-     * those walls send back. Reverberating first and filtering afterwards muffles the *tail* as well,
-     * which is what a room heard through a door sounds like — a different effect, and not the one either
-     * setting is named after.
      */
     _nya_audio_filter_apply(filter, spec, pcm, samples);
 

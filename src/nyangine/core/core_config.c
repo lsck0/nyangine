@@ -109,10 +109,6 @@ NYA_Error nya_config_watch(NYA_ConstCString path, const NYA_TypeReflection* type
 
     /*
      * Registered as a text asset so the file is watched from here on, mirroring _nya_i18n_remember.
-     *
-     * The load is redundant with the synchronous read nya_config_load just did — it re-reads the same
-     * few bytes at the end of this frame — and it is what gives the asset a registry entry and a
-     * modification time for nya_asset_get to compare against.
      */
     (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = handle });
 

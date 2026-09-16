@@ -1,8 +1,5 @@
 /**
  * The heightmap terrain: defaults, sampling, and the guarantees nya_terrain3d_height_at makes.
- *
- * Headless, so no mesh is uploaded and no body is drawn — but the sampling, the rim shaping and the
- * bilinear lookup are all plain arithmetic over the grid and are exactly what is worth pinning.
  **/
 
 #include "nyangine/nyangine.c"

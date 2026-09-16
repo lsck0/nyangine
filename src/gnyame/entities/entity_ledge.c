@@ -1,20 +1,5 @@
 /**
  * @file entity_ledge.c
- *
- * The one-way ledge: a platform crates fall onto from above and rise through from below.
- *
- * Three engine features meet in this one kind, which is why it exists at all — the demo had nothing
- * driving any of them:
- *
- * - **One-way surfaces** (`nya_physics2d_one_way_set`), which is what a ledge *is*.
- * - **Interpolated motion over the tween system** (`nya_entity_move_to_with_options`), which is how
- *   the moving ledge patrols: a repeating yoyo move on a kinematic body, so it carries what stands on
- *   it rather than passing through.
- * - **The transform hierarchy** (`nya_entity_parent_set`), which is how the marker on the moving ledge
- *   rides along without anything updating its position.
- *
- * A ledge is static or kinematic, never dynamic: it is scenery that things land on, and a dynamic
- * platform would be pushed down by whatever it was carrying.
  * */
 #include "gnyame/gnyame.h"
 
@@ -40,10 +25,6 @@ NYA_EntityHandle gny_entity_ledge_create(f32x2 position, f32x2 size, f32 patrol_
 
     /*
      * Kinematic when it patrols, static when it does not.
-     *
-     * A kinematic body is moved by being told how fast it is going rather than where it is, which is
-     * what makes it sweep through the tick and push whatever is standing on it. A static one that
-     * teleported would pass straight through a resting crate instead.
      */
     nya_physics2d_body_attach(
         ledge,
@@ -60,10 +41,6 @@ NYA_EntityHandle gny_entity_ledge_create(f32x2 position, f32x2 size, f32 patrol_
 
     /*
      * The patrol, as one repeating tween rather than as state advanced in an on_update.
-     *
-     * `.yoyo` is what makes it a patrol instead of a snap-back loop: without it every repetition would
-     * restart from the left end, and the ledge would teleport back across the gap each time it
-     * arrived. Forever, because nothing ever asks it to stop.
      */
     nya_entity_move_to_with_options(
         nya_entity_get(ledge), (f32x3){ position.x + patrol_distance, position.y, 0.0F }, GNY_LEDGE_PATROL_SECONDS,
@@ -76,11 +53,6 @@ NYA_EntityHandle gny_entity_ledge_create(f32x2 position, f32x2 size, f32 patrol_
 
     /*
      * A marker riding on it, parented rather than moved.
-     *
-     * Nothing updates this entity: the hierarchy pass writes its transform from the ledge's every
-     * tick, so it follows a body being driven by the solver through a tween without any of the three
-     * knowing about the others. That is the whole point of it being here — the demo had no parented
-     * entity at all, so the propagation was engine code with no caller.
      */
     NYA_EntityHandle marker = nya_entity_spawn(
         .name      = "ledge_marker",
@@ -107,10 +79,6 @@ u32 gny_entity_ledge_drop_everything_through(f32 seconds) {
 
     /*
      * Every crate, not the ones known to be standing on a ledge.
-     *
-     * Asking which are resting on what would mean walking contacts; the window is harmless on a crate
-     * that is not on a ledge — it lets it through one-way surfaces it is not touching — and it expires
-     * on its own. The cheap answer is the right one.
      */
     nya_entity_foreach_kind (GNY_ENTITY_BOX, entity) {
         if (!entity->physics2d.attached) continue;
@@ -139,10 +107,6 @@ void gny_entity_ledge_on_render(NYA_Entity* entity, NYA_Window* window) {
 
     /*
      * A line along the top edge only.
-     *
-     * Which side is solid is the one thing about a one-way platform that is not obvious from looking
-     * at it, and a crate passing up through a rectangle with a full outline reads as a bug. The single
-     * edge says which way it works.
      */
     f32 half_width  = entity->physics2d.size.x * 0.5F;
     f32 half_height = entity->physics2d.size.y * 0.5F;

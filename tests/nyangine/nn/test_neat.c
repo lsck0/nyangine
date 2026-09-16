@@ -1,16 +1,5 @@
 /**
  * NEAT: the network primitives, and whether evolution actually works.
- *
- * The second half is the one that matters. Every part of NEAT can be individually plausible and the
- * whole still fail to learn — a wrong innovation number, a dropped gene in crossover, a distance
- * function that collapses every genome into one species, all of them produce a population that
- * evolves *something* and never gets better. So the acceptance test is behavioural: solve XOR.
- *
- * XOR is the standard one because it is not linearly separable. A network with no hidden nodes
- * cannot do it at all, so a run that succeeds has necessarily grown its own topology — which is the
- * entire point of the algorithm and the thing a weights-only optimiser cannot fake.
- *
- * The RNG is seeded fixed, so a failure here is a real regression rather than an unlucky run.
  **/
 
 #include "nyangine/nyangine.c"
@@ -120,12 +109,6 @@ s32 main(void) {
   {
     /*
      * Reachable from a loaded genome, or from a crossover against one with fewer nodes.
-     *
-     * The evaluation used to compare every connection's `out` against each node index in turn, so an
-     * index past the end simply never matched and the gene fell out for free — while `in` was read
-     * straight out of the node array and was an out of bounds read nobody noticed. Gathering the
-     * sums by indexing on `out` makes that a *write* past the end of a stack array, so both ends are
-     * now bounds checked. This is the test for that, since no evolution run produces such a gene.
      */
     NYA_NeatNetwork* network = nya_nn_neat_network_create(arena);
     nya_nn_neat_network_push_sensor(network, "in");
@@ -211,16 +194,6 @@ s32 main(void) {
   {
     /*
      * Several seeds, and a majority must solve — not one seed that must.
-     *
-     * NEAT is stochastic, and a single pinned seed tests whether that one run happens to work rather
-     * than whether the algorithm does. This test was pinned that way and it lied twice over: it
-     * passed while the compatibility distance was miscounting excess genes, and then failed the
-     * moment that was fixed, purely because the corrected metric sent that one run down a different
-     * path. Measured across seeds the fix is plainly an improvement; measured on one it looked like a
-     * regression.
-     *
-     * A majority rather than all of them, because an unlucky run is a real property of the algorithm
-     * and not a defect. Failing every seed is the signal worth catching.
      */
     NYA_ConstCString seeds[] = { "6E79616E67696E65", "1234567890ABCDEF", "FEDCBA0987654321" };
 

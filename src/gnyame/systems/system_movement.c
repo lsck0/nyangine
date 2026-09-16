@@ -1,11 +1,5 @@
 /**
  * @file system_movement.c
- *
- * Two systems: what the player drives, and what the camera chases.
- *
- * Both are queries over a flag rather than anything that knows what a camera or a crate is. Between
- * them they are the whole of "things move because someone wanted them to" — gravity and collisions
- * are the solver's, and an entity moving under its own logic is that entity's on_update.
  * */
 #include "gnyame/gnyame.h"
 
@@ -42,11 +36,6 @@ void gny_system_player_input_update(f32 delta_time_s) {
         if (entity->physics2d.attached) {
             /*
              * Velocity, not position.
-             *
-             * Writing a rigid body's transform every tick fights the solver: it resolves the contact,
-             * this puts the body back, and the result shivers against whatever it is resting on. The
-             * vertical component is deliberately left alone so gravity still owns it — driving y
-             * directly would make a crate fly.
              */
             if (idle) continue;
 
@@ -97,13 +86,6 @@ void gny_system_camera_follow_update(f32 delta_time_s) {
 
         /*
          * Exponential easing toward the target rather than a constant chase speed.
-         *
-         * It starts fast when the gap is large and settles without overshoot, and it never needs to
-         * know how fast the target is moving — which matters here because the target is a rigid body
-         * whose speed is the solver's business.
-         *
-         * Framerate dependent in the strict sense, and deliberately so: this runs on the fixed
-         * timestep, where the tick length is a constant, so the per tick fraction is stable.
          */
         camera->position.x += (target->position.x - camera->position.x) * GNY_CAMERA_FOLLOW_EASING;
         camera->position.y += (target->position.y - camera->position.y) * GNY_CAMERA_FOLLOW_EASING;

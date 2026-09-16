@@ -1,19 +1,6 @@
 /**
  * Interest management, bandwidth caps and lag compensation — the three things that decide whether a
  * server scales past a demo.
- *
- * Each is tested for the property that makes it worth having, and for the way it most plausibly goes
- * wrong:
- *
- * - **Interest management** must shrink what a peer is sent, must always include that peer's own
- *   entity, and must record the *filtered* snapshot as the baseline. Getting that last one wrong is the
- *   subtle failure: a delta computed against the unfiltered world claims "unchanged" about entities the
- *   peer has never been sent, so they never arrive at all.
- * - **A bandwidth cap** must skip snapshots rather than queue them, and must not advance the baseline
- *   for a snapshot it skipped — otherwise every later delta is built against a state the client does
- *   not have.
- * - **Lag compensation** must move other entities to where the shooter saw them, must not move the
- *   shooter, and must put everything back exactly.
  **/
 
 #include "nyangine/nyangine.c"
@@ -55,10 +42,6 @@ static b8  RELEVANCE_SAW_CURRENT = false;
 
 /**
  * A game's own relevance rule: only one kind of entity, whatever the distance.
- *
- * Deliberately not distance based, because that is the case the engine's built-in rule cannot express and
- * the callback exists for — a room, a team, a fog of war. It records whether it was ever told an entity was
- * already being sent, which is the parameter a hysteretic rule needs.
  * */
 static b8 relevance_by_type(NYA_NetPeerId peer, const NYA_Entity* peer_entity, const NYA_Entity* entity, b8 currently_relevant) {
   nya_unused(peer, peer_entity);
@@ -188,9 +171,6 @@ s32 main(void) {
 
     /*
      * The peer's own entity is always sent, whatever the rule says.
-     *
-     * It is what they predict, and reconciliation needs the server's answer for it every snapshot —
-     * a filter that excluded it would leave that player unable to be corrected at all.
      */
     {
       NYA_Entity* player = nya_entity_get(SPAWNED[peer.index]);
@@ -219,13 +199,6 @@ s32 main(void) {
   {
     /*
      * The failure this exists to prevent.
-     *
-     * Relevance is re-decided every snapshot. With a single threshold, an entity sitting exactly on it
-     * flips between relevant and not on almost every one — and each flip is a spawn and a despawn on the
-     * client, several times a second, for something that barely moved.
-     *
-     * The band makes entering and leaving different questions: in at the radius, out only past the radius
-     * plus the band. So an entity jittering by less than the band crosses neither threshold twice.
      */
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ .relevance_radius = 100.0F, .relevance_hysteresis = 50.0F }, &tick);
 
@@ -253,9 +226,6 @@ s32 main(void) {
 
     /*
      * And now it stays in at 120, where it was refused before.
-     *
-     * That asymmetry *is* the hysteresis: the same position gives a different answer depending on whether
-     * the entity is already being sent. Without it, this is the position that would flicker.
      */
     nya_entity_get(wanderer)->position.x = 120.0F;
     nya_net_server_tick(tick, TICK_SECONDS);
@@ -272,9 +242,6 @@ s32 main(void) {
 
     /*
      * The measurement that matters: jitter across the enter threshold produces no transitions at all.
-     *
-     * Walk it in, then oscillate either side of 100 by less than the band. With one threshold this would
-     * flip on roughly every snapshot; with the band it must flip exactly zero times.
      */
     nya_entity_get(wanderer)->position.x = 50.0F;
     nya_net_server_tick(tick, TICK_SECONDS);
@@ -317,9 +284,6 @@ s32 main(void) {
 
     /*
      * 110 is outside the radius and inside the default band, so it must stay.
-     *
-     * A hysteresis of zero meaning "no hysteresis" is the trap this checks: it would be a default that
-     * produces flicker, which is a bug rather than a configuration.
      */
     nya_entity_get(edge)->position.x = 110.0F;
     nya_net_server_tick(tick, TICK_SECONDS);
@@ -344,10 +308,6 @@ s32 main(void) {
   {
     /*
      * The subtle half of interest management.
-     *
-     * If the baseline recorded the unfiltered world, a delta against it would claim "unchanged" about
-     * entities this peer has never been sent — so they would never arrive at all, and a crate that came
-     * into range would stay invisible for as long as it did not move.
      */
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ .relevance_radius = 250.0F }, &tick);
 
@@ -380,11 +340,6 @@ s32 main(void) {
   {
     /*
      * A cap that a snapshot of this world genuinely brushes against, exercised in real time.
-     *
-     * The bucket refills from the monotonic clock, so a loop that runs in microseconds sees no refill at
-     * all and would only ever show the one send the initial bucket paid for. Sleeping between ticks is
-     * what makes the refill real and both branches reachable — this is a rate limiter, and a rate needs
-     * time to mean anything.
      */
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ .bandwidth_bytes_per_second = 40000 }, &tick);
 
@@ -418,21 +373,11 @@ s32 main(void) {
 
     /*
      * Progress is guaranteed, which is the property that took a design fix to get.
-     *
-     * The bucket gates on "is there anything left" rather than "does this fit", because a snapshot larger
-     * than one second's budget can never fit — and requiring it to would starve this peer of state
-     * permanently and silently. With debt allowed, the first snapshot goes out and the average settles at
-     * the cap.
      */
     nya_assert(sent > 0, "the cap starved the peer completely; it must always make progress");
 
     /*
      * A skipped snapshot must not become the baseline.
-     *
-     * Recording one the peer never received would have every later delta computed against a state it
-     * does not have — the client would apply changes on top of the wrong world, and nothing would detect
-     * it. That is what `baseline_entity_count` returning zero for a skipped tick is checking, and the loop
-     * above counts a tick as skipped exactly when no baseline was written.
      */
 
     stop_everything();
@@ -497,18 +442,11 @@ s32 main(void) {
 
     /*
      * The target really moved back.
-     *
-     * A rewind that did nothing would pass every other assertion here — this is the one that says the
-     * world is actually in the past between begin and end.
      */
     nya_assert(past < present, "the target was not rewound (%f vs %f)", (f64)past, (f64)present);
 
     /*
      * How far back it went, which has to be a real number rather than zero.
-     *
-     * It reads the tick the *server* was last driven with, not the world's own counter — a caller running
-     * its own loop passes whatever tick it likes, and reaching for the world's instead reported zero for a
-     * rewind that genuinely happened. A game refusing implausibly old shots would then refuse none.
      */
     nya_assert(nya_net_server_rewind_ticks() > 0, "a rewind that moved the world reported going back zero ticks");
 

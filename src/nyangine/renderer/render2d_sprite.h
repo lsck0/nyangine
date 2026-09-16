@@ -1,12 +1,6 @@
 /**
  * @file render2d_sprite.h
  *
- * Sprites and sprite atlases: a named region of a texture, drawn with a pivot, a flip and a turn.
- *
- * A thin layer over nya_render2d_texture_ex rather than a second drawing path — that call already takes
- * a source rect, a destination, an origin, a rotation, two flips and a tint. What it does not do is
- * *remember* any of it, or work out which cell of a sheet frame seven is.
- *
  * ```c
  * NYA_SpriteAtlas atlas  = nya_sprite_atlas_grid(NYA_ASSET_ART_HERO_PNG, 32, 32);
  * NYA_Sprite      sprite = nya_sprite_from_atlas(&atlas, 3);
@@ -16,14 +10,6 @@
  *
  * nya_render2d_sprite(window, &sprite, position);
  * ```
- *
- * Deliberately **not** a `nya_render2d_sprite_entity` that reads those itself: this file is the renderer
- * and knows nothing about entities or physics, and reaching into either would invert the layering to
- * save one line at the call site.
- *
- * `origin` is in units of the sprite's own size rather than pixels, so `{ 0.5, 0.5 }` is the centre of
- * any frame and `{ 0.5, 1 }` the middle of its feet whatever the cell size is. Pixel origins mean
- * editing every sprite when the art is redrawn a little larger.
  * */
 #pragma once
 
@@ -47,13 +33,6 @@ typedef struct NYA_Sprite      NYA_Sprite;
 
 /**
  * A texture cut into a uniform grid of frames, numbered left to right and then top to bottom.
- *
- * Uniform on purpose. A packed atlas with per frame rectangles is what a build time packer produces
- * and wants a generated table to go with it; a grid is what hand drawn sheets are, needs four
- * numbers, and is the case that comes up first. The two are not exclusive — nya_sprite_from_rect
- * takes an arbitrary rectangle and skips this entirely.
- *
- * Plain data with no allocation and no handle: copy it, put it in a constant, hold it by value.
  * */
 struct NYA_SpriteAtlas {
     /** The texture asset every frame is cut from. */
@@ -65,10 +44,6 @@ struct NYA_SpriteAtlas {
 
     /**
      * Cells across and down.
-     *
-     * Derived by nya_sprite_atlas_grid from the loaded texture's size, so a sheet that is re-exported
-     * with another row of frames needs no code change. Zero until the texture has finished loading,
-     * which is why nya_sprite_atlas_frame_count can answer zero.
      * */
     u32 columns;
     u32 rows;
@@ -82,11 +57,6 @@ struct NYA_SpriteAtlas {
 
 /**
  * One drawable thing: where in a texture it is, and how it should be put on screen.
- *
- * Everything except the position, because a sprite is usually drawn at somewhere that changes every
- * frame while the rest of it does not. Zero initialising is meaningful — an all-zero `tint` is white
- * rather than invisible, and an all-zero `scale` is one — so
- * `(NYA_Sprite){ .texture = handle }` is a complete sprite.
  * */
 struct NYA_Sprite {
     /** The texture. Set by the constructors; set it directly for a sprite that is a whole image. */
@@ -94,18 +64,11 @@ struct NYA_Sprite {
 
     /**
      * The part of the texture to draw, in its pixels. A zero width or height means the whole thing.
-     *
-     * Already resolved from the atlas and frame by the time it is here, so drawing does not need the
-     * atlas to still be around — which is what lets an atlas be a local that goes out of scope.
      * */
     f32 source_x, source_y, source_width, source_height;
 
     /**
      * Where the pivot sits within the sprite, as a fraction of its size.
-     *
-     * `{ 0.5, 0.5 }` is the centre and is what a rotating thing almost always wants; `{ 0, 0 }` is
-     * the top left, which is what every other draw call in the renderer positions by. Zero therefore
-     * means the top left, matching nya_render2d_rect rather than nya_render2d_rect_rotated.
      * */
     f32x2 origin;
 
@@ -125,15 +88,9 @@ struct NYA_Sprite {
 /**
  * Frames as separate images, one texture each, instead of cells of one sheet.
  *
- * The other way art arrives: a folder of numbered PNGs. Indexed exactly like an atlas, so swapping
- * between the two is changing which constructor a sprite came from.
- *
  * ⚠ **A draw call per texture change.** Consecutive sprites out of one atlas batch into a single call;
  * out of a list they cost one each. Nothing for a handful of animated things, the difference between
  * one call and a thousand for particles — where the answer is an atlas.
- *
- * The array is borrowed, not copied. Point it at a static table of asset handles — which is what the
- * generated asset index gives you — and it outlives every sprite made from it.
  * */
 struct NYA_SpriteList {
     const NYA_ConstCString* textures;
@@ -184,10 +141,6 @@ typedef struct NYA_SpriteAnimator          NYA_SpriteAnimator;
 
 /**
  * Signals one advance can produce. A tick that crosses several frames produces several.
- *
- * Capped by NYA_SPRITE_ANIMATION_MAX_SIGNALS, which is why a very slow frame with a very fast
- * animation drops some rather than growing a buffer — the alternative is a hitch turning into an
- * allocation.
  * */
 #ifndef NYA_SPRITE_ANIMATION_MAX_SIGNALS
 #define NYA_SPRITE_ANIMATION_MAX_SIGNALS 16
@@ -204,10 +157,6 @@ enum NYA_SpriteAnimationSignalKind {
 
     /**
      * A frame carrying an NYA_SpriteAnimationEvent was reached. `id` is the game's.
-     *
-     * Fires once per entry into the frame, so a looping animation fires it once per loop, and a tick
-     * long enough to skip past the frame entirely still fires it — a hit that only lands when the
-     * frame rate is good is worse than no hit at all.
      * */
     NYA_SPRITE_ANIMATION_EVENT,
 
@@ -234,9 +183,6 @@ struct NYA_SpriteAnimationEvent {
 
 /**
  * A span of frames and how fast to play them. Constant; share one between everything playing it.
- *
- * Frames are indices into whichever atlas or list the animator is drawn from, so an animation does
- * not name a texture — which is what lets one walk cycle drive four differently coloured sheets.
  * */
 struct NYA_SpriteAnimation {
     /** Where in the atlas the animation starts. */
@@ -253,10 +199,6 @@ struct NYA_SpriteAnimation {
 
     /**
      * Plays forward then backward rather than snapping back to the start.
-     *
-     * For a cycle whose ends meet — a torch flicker, an idle breath. Wrong for a walk, where the
-     * last frame's foot is already where the first frame's foot goes. The reversed half emits frame
-     * events again, because a marker means "this frame is showing" and it is.
      * */
     b8 ping_pong;
 
@@ -298,10 +240,6 @@ struct NYA_SpriteAnimator {
 
     /**
      * Multiplies the rate. Zero pauses without clearing the animation.
-     *
-     * Positive only. Negative would have to run every loop, marker and finish rule backwards, which
-     * is twice the logic for something no caller has wanted — a rewind is a ping-pong animation, or
-     * a second animation authored in reverse.
      * */
     f32 speed;
 
@@ -322,9 +260,6 @@ struct NYA_SpriteAnimator {
 
 /**
  * Starts `animation` from its first frame. Restarts it if it is already playing.
- *
- * Restarting rather than resuming is what "play the attack" means every time it is said — an attack
- * interrupted and re-triggered starts over. Use nya_sprite_animator_resume to continue.
  * */
 NYA_API void nya_sprite_animator_play(OUT NYA_SpriteAnimator* animator, const NYA_SpriteAnimation* animation);
 
@@ -337,9 +272,6 @@ NYA_API void nya_sprite_animator_stop(OUT NYA_SpriteAnimator* animator);
 
 /**
  * Advances by `delta_time_s` and writes what happened into `out_signals`.
- *
- * Returns how many signals were written, capped at `capacity`. Passing null and zero advances
- * without reporting, which is what a purely visual animation wants.
  *
  * ```c
  * NYA_SpriteAnimationSignal signals[NYA_SPRITE_ANIMATION_MAX_SIGNALS];
@@ -366,9 +298,6 @@ NYA_API void nya_sprite_animator_apply(const NYA_SpriteAnimator* animator, const
 
 /**
  * Describes a texture as a grid of `frame_width` by `frame_height` cells.
- *
- * The row and column counts come from the texture's own size, so this can be called before the asset
- * has loaded — it simply reports zero frames until it has, and recomputing is one call.
  * */
 NYA_API NYA_SpriteAtlas nya_sprite_atlas_grid(NYA_ConstCString texture, u32 frame_width, u32 frame_height) __attr_no_discard;
 
@@ -398,8 +327,6 @@ NYA_API void nya_sprite_atlas_frame_rect(const NYA_SpriteAtlas* atlas, u32 frame
  * NYA_SpriteList frames = nya_sprite_list(walk, 2);
  * NYA_Sprite     sprite = nya_sprite_from_list(&frames, 0);
  * ```
- *
- * `textures` is borrowed rather than copied, so it has to outlive the list.
  * */
 NYA_API NYA_SpriteList nya_sprite_list(const NYA_ConstCString* textures, u32 count) __attr_no_discard;
 
@@ -420,9 +347,6 @@ NYA_API void nya_sprite_set_frame_from_list(OUT NYA_Sprite* sprite, const NYA_Sp
 
 /**
  * A sprite showing one frame of an atlas, centred, unflipped and untinted.
- *
- * The frame is resolved now rather than remembered, so the atlas does not have to outlive the sprite.
- * Changing frame is another call — animation is a frame index and a timer, and neither belongs here.
  * */
 NYA_API NYA_Sprite nya_sprite_from_atlas(const NYA_SpriteAtlas* atlas, u32 frame) __attr_no_discard;
 
@@ -437,8 +361,5 @@ NYA_API f32x2 nya_sprite_size(const NYA_Sprite* sprite) __attr_no_discard;
 
 /**
  * Draws the sprite with its pivot at `position`.
- *
- * A missing or still loading texture draws nothing rather than failing — assets load asynchronously,
- * so the first frames after a load legitimately have nothing to show.
  * */
 NYA_API void nya_render2d_sprite(NYA_Window* window, const NYA_Sprite* sprite, f32x2 position);

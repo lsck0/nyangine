@@ -4,11 +4,10 @@
 // Nothing else about the batch changes, which is the point: the game draws its scene twice with the same
 // calls, and only the matrix in this uniform differs between the two.
 
+// Position alone: this pass writes depth and reads nothing else, so the vertex buffer feeding it carries
+// nothing else either. See NYA_VERTEX_LAYOUT_3D_DEPTH.
 struct VertInput {
   float3 position : POSITION;
-  float4 color : COLOR0;
-  float3 normal : NORMAL;
-  float2 uv : TEXCOORD0;
 };
 
 cbuffer Uniforms : register(b0, space1) {

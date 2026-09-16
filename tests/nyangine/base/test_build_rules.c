@@ -1,15 +1,5 @@
 /**
  * The build rule engine: policies, metarules, hooks, dependencies and failure.
- *
- * test_build.c covers the flag macros; nothing covered nya_build itself, which is why base_build.c
- * sat at zero branch coverage while being the thing every target in the tree goes through.
- *
- * Everything here runs `true` or `false` rather than a compiler. What is being tested is *whether a
- * rule runs and how often*, not what its command produces, so the cheapest possible command is the
- * honest one — and a hook counting invocations is a more direct answer than inspecting artifacts.
- *
- * Files are created and stamped by hand because the outdated policy is defined in terms of
- * modification times, and the only way to test "input newer than output" is to make it so.
  **/
 
 #include "nyangine/nyangine.c"
@@ -138,10 +128,6 @@ s32 main(void) {
 
     /*
      * A directory counts as an existing output.
-     *
-     * Not incidental: every vendor's build-directory rule is exactly this shape, and the sqlean and
-     * sqlvec ones were missing their policy entirely, so they re-ran their mkdir on every single
-     * ./build. This is the behaviour that fix relies on.
      */
     reset_hooks();
 
@@ -196,10 +182,6 @@ s32 main(void) {
 
     /*
      * Equal timestamps must count as up to date rather than as outdated.
-     *
-     * A filesystem with coarse timestamps gives an artifact the same second as its source all the
-     * time, and treating that as stale means a build that never reaches a fixed point — every run
-     * rebuilds everything, forever, on that machine only.
      */
     stamp_file(INPUT_PATH, -50);
     stamp_file(OUTPUT_PATH, -50);
@@ -216,10 +198,6 @@ s32 main(void) {
      * A metarule short circuits before the command is ever spawned, which is what makes it safe to
      * leave `command` empty. What it does *not* skip is the policy — that is decided one level up,
      * before the rule is run at all.
-     *
-     * Worth pinning precisely, because leaving the policy off a metarule silently means
-     * NYA_BUILD_ALWAYS: it is the enum's zero value, and the symptom is a rule quietly re-running
-     * its hooks on every build rather than anything failing.
      */
     reset_hooks();
 

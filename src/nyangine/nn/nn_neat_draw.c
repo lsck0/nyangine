@@ -37,11 +37,6 @@
 
 /**
  * Clear space between two adjacent circles, as a fraction of a diameter.
- *
- * The layout spreads a column across the whole height whatever it holds, so spacing falls as the
- * network grows and eventually goes below a diameter — which is what made nodes overlap. The radius
- * is now fitted to the spacing instead, and this is how much room is left between neighbours when
- * it is.
  * */
 #define NYA_NEAT_DRAW_NODE_GAP 0.3F
 
@@ -65,9 +60,6 @@ NYA_INTERNAL void _nya_nn_neat_draw_apply_style_defaults(NYA_NeatDrawStyle* styl
 
 /**
  * Assigns every node a column.
- *
- * Sensors and the bias are column zero, outputs are the last column, and a hidden node sits one past
- * the deepest thing feeding it.
  * */
 NYA_INTERNAL u32 _nya_nn_neat_draw_layer_nodes(const NYA_NeatNetwork* network, u32* out_layers);
 
@@ -99,10 +91,6 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
 
     /*
      * Positions: x from the column, y spread evenly down it.
-     *
-     * Counted twice — once to learn how many nodes share each column, once to place them — because
-     * a node's vertical position depends on how many siblings it has, which is not known until every
-     * node has a column.
      */
     u32* column_totals = nya_arena_alloc(&scratch, layer_count * sizeof(u32));
     u32* column_placed = nya_arena_alloc(&scratch, layer_count * sizeof(u32));
@@ -116,14 +104,6 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
 
     /*
      * Empty columns removed, and the rest renumbered consecutively.
-     *
-     * A node's column is its longest path from an input, so a network with one deep chain in it
-     * produces as many columns as that chain is long while every other node sits at a handful of
-     * depths — twenty columns of which four hold anything. Spacing them evenly then wastes most of
-     * the width on nothing and squeezes the network into a corner of its own region, which is
-     * exactly what it looked like: three inputs on the left, a knot on the right, empty in between.
-     *
-     * Only occupancy is dropped, never order, so the left to right reading of depth survives.
      */
     u32* column_remap  = nya_arena_alloc(&scratch, layer_count * sizeof(u32));
     u32  occupied_count = 0;
@@ -147,10 +127,6 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
 
     /*
      * Draw order within a column: everything else first, the bias last.
-     *
-     * The bias is pushed first because it is node zero, which would put it at the top of the input
-     * column above the actual inputs — and it is not one. Sitting at the bottom it reads as what it
-     * is: a constant hanging off the side rather than a signal coming in.
      */
     u32* order = nya_arena_alloc(&scratch, node_count * sizeof(u32));
 
@@ -166,11 +142,6 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
 
     /*
      * Labels move outside the columns, so the drawing area has to give them room.
-     *
-     * They used to sit under their circle, which collides with the node below as soon as a column is
-     * at all full — and the input and output columns are exactly the ones that are. Beside the
-     * outermost columns there is nothing to collide with, and it reads better besides: a name to the
-     * left of the input it names, a name to the right of the output.
      */
     f32 label_margin_left  = 0.0F;
     f32 label_margin_right = 0.0F;
@@ -192,15 +163,6 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
 
     /*
      * The radius is fitted to the region; the columns then span it edge to edge.
-     *
-     * Inputs sit hard against the left of the region and outputs hard against the right, and neither
-     * moves when the network grows a layer — only the columns between them redistribute. A layout
-     * with a fixed column pitch centred in the region does the opposite: every new hidden layer
-     * widens the drawing and shoves both ends outwards, so the whole picture jitters sideways every
-     * time evolution deepens the topology, which is exactly when you are watching it.
-     *
-     * Solved rather than iterated. Along one axis, n nodes with a gap of g diameters between them
-     * span 2r·[(1+g)(n-1) + 1], and setting that equal to the available length gives r.
      */
     f32 available_width = nya_max(style.width - label_margin_left - label_margin_right, 1.0F);
 
@@ -265,15 +227,6 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
     /*
      * Weight labels are collected here and drawn after every line, rather than beside the line they
      * belong to.
-     *
-     * Same reason the circles and their labels below are drawn as two passes: a line goes through
-     * the shape pipeline and text through the textured one, so alternating them forces the batch to
-     * flush at every switch. Interleaved, a network with show_weights cost two draw calls per
-     * connection — measured on the demo, 32 of its 39 draw calls in a frame were pipeline switches,
-     * and almost all of them came from this loop.
-     *
-     * Only the placement is deferred. The colour is the line's own, computed below, so a label still
-     * matches the connection it names.
      */
     typedef struct {
         f32x2     position;
@@ -329,9 +282,6 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
 
     /*
      * The labels, once every line is down.
-     *
-     * Measured only now because centring needs the rendered width, and nya_render2d_textf cannot do it —
-     * it formats and draws in one step, with nothing in between to measure.
      */
     for (u32 i = 0; i < weight_label_count; i++) {
         const _NYA_NeatWeightLabel* label = &weight_labels[i];
@@ -351,11 +301,6 @@ void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_Ne
 
     /*
      * Every circle first, then every label — not a circle and its label per node.
-     *
-     * A circle draws with the shape pipeline and text with the textured one, so interleaving them
-     * costs a draw call at each switch: measured on an eight node network, drawing per node cost
-     * sixteen draw calls where drawing per kind costs two. The batch can only merge consecutive
-     * draws that agree on pipeline, texture and sampler, so grouping by kind is the whole technique.
      */
     for (u32 i = 0; i < node_count; i++) {
         const NYA_NeatNode* node = &network->nodes->items[i];
@@ -462,11 +407,6 @@ u32 _nya_nn_neat_draw_layer_nodes(const NYA_NeatNetwork* network, u32* out_layer
     /*
      * Relaxation rather than a topological sort, because a NEAT network may be cyclic and a
      * topological sort has nothing to say about a cycle.
-     *
-     * Each pass pushes a node one column past the deepest thing feeding it. A feed forward network
-     * settles in as many passes as it is deep; a cyclic one would never settle, so the pass count is
-     * capped at the node count — beyond which any further change is the cycle going round again
-     * rather than new depth being discovered.
      */
     for (u32 pass = 0; pass < node_count; pass++) {
         b8 changed = false;
@@ -494,11 +434,6 @@ u32 _nya_nn_neat_draw_layer_nodes(const NYA_NeatNetwork* network, u32* out_layer
     /*
      * Outputs get a column past everything else, so they line up on the right edge instead of
      * scattering by how deep the path that happened to reach them was.
-     *
-     * Measured against the deepest *non-output* node specifically. Seeding it from the deepest node
-     * of any kind meant that a hidden node as deep as the network goes left the outputs at that same
-     * depth, and they were drawn stacked in the same column as it — hidden nodes sitting directly
-     * under the output, with the edge between them running vertically.
      */
     u32 deepest_non_output = 0;
     for (u32 i = 0; i < node_count; i++) {

@@ -1,12 +1,5 @@
 /**
  * Regression test for the memmove size in nya_array_insert_many (base_array.h).
- *
- * Same defect as nya_array_insert: the shift is sized
- *
- *     (arr_ptr)->length * sizeof(*items) - (start_index)
- *
- * instead of ((length - start_index) * sizeof(*items)). Capacity is preallocated to exactly what
- * the reserve would ask for, so no growth happens and the memmove is the only writer past the end.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

@@ -1,11 +1,6 @@
 /**
  * Level of detail: chain registration, selection, and the inertness that makes it safe to route every
  * draw through.
- *
- * The property that matters most is the last one — a mesh with no chain must come back *unchanged*, so
- * `nya_render3d_mesh` can resolve unconditionally without every call site knowing whether LOD is in use.
- * The second is that a badly ordered chain is refused rather than sorted, because sorting would hide the
- * mistake instead of fixing it.
  **/
 
 #include "nyangine/nyangine.c"

@@ -1,13 +1,5 @@
 /**
  * Regression test for unpaired surrogate escapes in the JSON parser (serde_json.c).
- *
- * A \\uD800..\\uDFFF escape with no partner is not a character. Encoding it as written produced a
- * three byte sequence in that range, which is CESU-8 rather than UTF-8, so one bad escape yielded a
- * string no downstream consumer could decode. Unicode prescribes U+FFFD REPLACEMENT CHARACTER, and
- * that is what is asserted here.
- *
- * Properly paired surrogates must still combine, which the last case covers — the substitution must
- * not be applied before the pairing gets its chance.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

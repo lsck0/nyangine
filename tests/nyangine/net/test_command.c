@@ -1,17 +1,5 @@
 /**
  * Input commands: what a client tells the server it is trying to do.
- *
- * A command is the one thing a client is allowed to originate, so its encoding is the narrowest and most
- * frequently exercised untrusted surface in the protocol — sent every tick by every player, decoded into a
- * fixed-size array on the server's stack.
- *
- * The cases that matter are the boundaries rather than the round trip:
- *
- * - **A count past the redundancy limit** would write past the caller's four-entry array. That array is one
- *   call away from a socket.
- * - **A bit index past 63** is an undefined shift, not a large number.
- * - **The encoder's clamp** exists so a caller can hand over its whole ring and ask for "as many as fit"
- *   rather than having to remember the limit itself.
  **/
 
 #include "nyangine/nyangine.c"
@@ -196,10 +184,6 @@ s32 main(void) {
 
     /*
      * Past the width of the word.
-     *
-     * `1ULL << 64` is undefined, not zero — so this is bounded rather than left to produce whatever the
-     * hardware does with an over-wide shift. A game that has run out of action bits has a real problem, so
-     * setting warns rather than failing silently, and querying answers false.
      */
     u64 before = command.actions;
 

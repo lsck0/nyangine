@@ -1,20 +1,5 @@
 /**
  * @file render3d_headless.c
- *
- * The 3D mesh batch, for builds with no renderer.
- *
- * Every public function of render3d.h, doing nothing. Same contract and same reasoning as
- * render2d_headless.c: callers do not guard their draw calls, so a headless build needs the symbols
- * to exist, and a test that runs a whole frame of game logic still runs the code that would have
- * drawn it.
- *
- * Two pieces of state are modelled rather than stubbed, because game logic reads them back:
- *
- * - `active`, so nya_render3d_active answers truthfully and a layer that branches on it behaves the
- *   same headless as it does on a GPU.
- * - the camera, so nya_render3d_screen_ray produces a real ray. That one matters: picking is game
- *   logic, it is exactly the kind of thing a headless test wants to exercise, and a stub returning
- *   zero would make every such test pass against nothing.
  * */
 #include "nyangine/nyangine.h"
 
@@ -80,19 +65,23 @@ NYA_Render3DLight nya_render3d_light(NYA_Window* window) {
     return window->render_system.mesh_batch.light;
 }
 
+void nya_render3d_fog_set(NYA_Window* window, NYA_Render3DFog fog) {
+    nya_assert(window != nullptr);
+
+    window->render_system.mesh_batch.fog = fog;
+}
+
+NYA_Render3DFog nya_render3d_fog(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.mesh_batch.fog;
+}
+
 /*
  * The point lights are *stored* rather than ignored, like the light and the material above.
- *
- * Headless does not draw, but a test is entitled to set state and read it back, and a stub that dropped
- * what it was given would make nya_render3d_point_light_count answer zero forever — a test asserting the
- * budget is enforced would then pass by testing nothing.
  */
 /*
  * The shadow pass records its configuration and nothing else.
- *
- * There is no target to render into and no map to fill, so `shadow_valid` stays false and
- * nya_render3d_shadow_active answers honestly. A headless caller can still bracket its draw calls with
- * these, which is the point: the same game code runs on a dedicated server.
  */
 void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
     nya_assert(window != nullptr);
@@ -160,11 +149,6 @@ NYA_Render3DMaterial nya_render3d_material(NYA_Window* window) {
 
 /*
  * Draws nothing, and there was no stub here at all until now.
- *
- * Nothing headless called it, so it linked — but that is a property of the current callers rather than of
- * the surface, and the first test to draw a model would have failed to link for a reason that looks like
- * a build problem. The asset side of a mesh is testable headless and covered by test_asset_mesh; this is
- * the half that needs a GPU.
  */
 void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center, f32x3 scale, NYA_Quaternion rotation, NYA_Color color) {
     nya_assert(window != nullptr);
@@ -253,10 +237,6 @@ void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky) {
 
 /**
  * False, always: a headless build never loads a mesh, so there are never bounds to report.
- *
- * The outputs are left untouched rather than zeroed, which is the contract the real one documents — a
- * caller has to check the return before reading them either way, and zeroing would make a caller that
- * does not check appear to work here and not on a real device.
  * */
 b8 nya_render3d_mesh_bounds(NYA_Window* window, NYA_ConstCString handle, OUT f32x3* out_min, OUT f32x3* out_max) {
     nya_unused(window, handle, out_min, out_max);
@@ -266,9 +246,6 @@ b8 nya_render3d_mesh_bounds(NYA_Window* window, NYA_ConstCString handle, OUT f32
 
 /**
  * False, always: there is no device to upload to.
- *
- * Reported rather than silently accepted, because a caller that believes a mesh is registered will draw it
- * every frame and see nothing — and headless is where a test would ask.
  * */
 b8 nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString handle, const NYA_Vertex3D* vertices, u32 vertex_count) {
     nya_unused(window, handle, vertices, vertex_count);
@@ -295,11 +272,6 @@ NYA_Render3DRay nya_render3d_screen_ray(NYA_Window* window, f32x2 screen) {
 
     /*
      * The real arithmetic, not a stub.
-     *
-     * This has to agree with render3d.c exactly or a headless test observes a ray the real build
-     * would never produce — the drift render2d_headless.c warns about at length, and the camera
-     * functions there are where it was actually found. Picking is game logic and is precisely what a
-     * headless test is for, so a zeroed answer here would be worse than no answer.
      */
     f32x3 eye     = batch->camera_is_ortho ? batch->camera_orthographic.position : batch->camera.position;
     f32x3 target  = batch->camera_is_ortho ? batch->camera_orthographic.target : batch->camera.target;

@@ -1,9 +1,6 @@
 /**
  * @file lua.h
  *
- * LuaJIT, in terms of NYA_Object — so a value crossing the boundary is the same type a JSON body or
- * a database row is, and any of the three can go through serde without a conversion step.
- *
  * ```c
  * NYA_Arena* arena = nya_arena_create(.name = "scripts");
  * defer      nya_arena_destroy(arena);
@@ -20,37 +17,9 @@
  * // result.as_string is "hello world"
  * ```
  *
- * A plugin: nothing here is compiled unless `-DNYA_PLUGIN_LUA` is set. See plugins.h for why these
- * are not part of base.
- *
- * ## What the engine puts in front of a script
- *
- * A global table `nya`, holding the parts of the engine that make sense to drive from data — logging,
- * spawning and moving entities, reading an input action, asking the time. Deliberately small:
- * everything in it is a function whose failure mode is "nothing happens", and none of it can hand a
- * script a pointer. See `nya_lua_open_engine`, which `NYA_LuaOptions.engine_api` calls for you.
- *
- * A game adds its own with `nya_lua_register`.
- *
  * ## ⚠ Hot reload
  *
- * Two rules, both from the same fact: the game is a `.so` that is unloaded and replaced while the
- * host keeps running (see the hot reload notes in `core_entity.h` and `src/main.c`).
- *
- * 1. **Keep the `NYA_LuaVM*` in host-owned state** — the world, or an engine arena — not in a static
- *    inside the game. A pointer stored in the `.so`'s own data does not survive the reload.
- * 2. **Anything registered with `nya_lua_register` from the game must be registered again after a
- *    reload.** A `lua_CFunction` is an address inside the `.so`, and calling one after the library
- *    has been replaced jumps into an unmapped page. The engine's own bindings live in the host
- *    binary, which is not reloaded, so `nya.*` is unaffected.
- *
  * ## ⚠ Memory
- *
- * LuaJIT allocates through its own allocator rather than through an arena, which is a departure from
- * the rest of the engine and is not a choice: on x64 LuaJIT's garbage collector requires its heap in
- * the low two gigabytes of the address space and provides its own mmap-based allocator to guarantee
- * it. Handing it an arena is documented upstream as unsupported there. Everything on *this* side of
- * the boundary — every NYA_Value handed back — comes from the arena the caller passes.
  * */
 #pragma once
 
@@ -68,9 +37,6 @@
 
 /**
  * Arguments one call may pass, and values one may return.
- *
- * A ceiling rather than a growable list because both directions are stack traffic: Lua's own stack
- * has to be grown to hold them, and a call wanting more than this is passing a table.
  * */
 #ifndef NYA_LUA_MAX_ARGUMENTS
 #define NYA_LUA_MAX_ARGUMENTS 16
@@ -93,9 +59,6 @@ typedef struct NYA_LuaCall    NYA_LuaCall;
 
 /**
  * What a bound C function receives and answers with.
- *
- * Values rather than a Lua stack, so a binding never has to know Lua's API and cannot leave the
- * stack unbalanced — which is the failure mode that makes hand-written bindings hard to trust.
  * */
 struct NYA_LuaCall {
     /** Where to allocate anything handed back. Lives as long as the call, not longer. */
@@ -131,12 +94,6 @@ struct NYA_LuaOptions {
     /**
      * Refuse the libraries that reach outside the process: `io`, `os`, `package`, `ffi` and
      * `debug`.
-     *
-     * What to set for a script that came from somewhere other than the game's own assets — a mod, a
-     * level shared between players. It is not a sandbox in the security sense and is not offered as
-     * one; LuaJIT's `ffi` alone can call any function in the process, so leaving it reachable makes
-     * every other restriction decorative. Removing them raises the floor from "trivially" to
-     * "deliberately".
      * */
     b8 restricted;
 
@@ -176,29 +133,16 @@ NYA_API void nya_lua_destroy(NYA_LuaVM* vm);
 
 /**
  * Compiles and runs `code`. `chunk_name` is what appears in an error message; null becomes "chunk".
- *
- * Returns NYA_ERROR_PARSE for a syntax error and NYA_ERROR_NOT_OK for one raised while running, each
- * carrying Lua's own message — which names the line, so it is worth propagating rather than summarising.
  * */
 NYA_API NYA_Error nya_lua_run(NYA_LuaVM* vm, NYA_ConstCString code, NYA_ConstCString chunk_name) __attr_no_discard;
 
 /**
  * The same, for a script that came through the asset system.
- *
- * Which is how a script gets hot reload: the asset system already watches the file, so re-running
- * this when it changes is the whole of it.
  * */
 NYA_API NYA_Error nya_lua_run_asset(NYA_LuaVM* vm, NYA_ConstCString asset_handle) __attr_no_discard;
 
 /**
  * Calls a global function by name.
- *
- * Everything handed back is allocated from `arena`. `out_result` may be null for a call whose value
- * is not wanted; a function returning nothing leaves it a zeroed NYA_Value, which reads as
- * NYA_TYPE_NONE.
- *
- * NYA_ERROR_NOT_FOUND when the name is not a function, which is worth distinguishing from a call
- * that failed — a typo in a script and a bug inside one want different reactions.
  * */
 NYA_API NYA_Error nya_lua_call(
     NYA_LuaVM*       vm,
@@ -258,17 +202,6 @@ NYA_API void nya_lua_register(NYA_LuaVM* vm, NYA_ConstCString name, NYA_LuaFn fn
 
 /**
  * Puts the engine's own `nya` table in front of scripts. Called for you by `NYA_LuaOptions.engine_api`.
- *
- * | Lua | Does |
- * | --- | --- |
- * | `nya.log(text)` · `nya.warn(text)` · `nya.error(text)` | writes through the engine's logger, so a script's output lands in `logs/` with everything else |
- * | `nya.time()` | seconds since the app started |
- * | `nya.spawn{ name=, x=, y=, z=, type= }` | spawns an entity, returning its handle as two numbers packed into a table `{ index=, generation= }` |
- * | `nya.despawn(handle)` | despawns one, deferred to the simulation barrier |
- * | `nya.position(handle)` | `{ x=, y=, z= }`, or nil for a handle that no longer resolves |
- * | `nya.move_to(handle, x, y, z, duration)` | an eased move, through core_tween |
- * | `nya.action(name)` | whether an input action is held |
- * | `nya.action_pressed(name)` | whether it went down this frame |
  *
  * ⚠ **A handle is a value, not a reference.** A script holding one across a despawn gets nil from
  * every call that takes it, exactly as C does — which is the property generational handles exist for

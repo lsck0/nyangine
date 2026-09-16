@@ -86,13 +86,6 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     /*
      * Started after nya_app exists, not before.
-     *
-     * The watch thread writes nya_app->should_quit the moment it sees the DLL change, and it used to
-     * be created ahead of gnyame_init — which opens windows and queues assets and is not quick. Any
-     * rebuild finishing inside that window found nya_app still null and dereferenced it, and a
-     * rebuild while the game is starting is precisely what this whole path is for.
-     *
-     * Nothing between the load above and here needs watching: the DLL was just read.
      */
     pthread_t thread;
     ok = pthread_create(&thread, nullptr, dll_watch_thread_fn, nullptr) == 0;

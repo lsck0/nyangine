@@ -1,8 +1,6 @@
 /**
  * @file core_tilemap.h
  *
- * Tiled maps: load a `.tmj`, draw it, collide with it, read what the designer put in it.
- *
  * ```c
  * NYA_Tilemap* map = nullptr;
  * NYA_EXPECT(nya_tilemap_load(world->allocator, NYA_ASSET_MAPS_DEMO_TOPDOWN_TMJ, &map));
@@ -15,20 +13,6 @@
  * // ... inside a layer's on_render, with the camera set ...
  * nya_tilemap_draw(window, map);
  * ```
- *
- * `.tmj` is Tiled's own JSON export, read as-is — no import step, no intermediate format. Files go in
- * `assets/maps` and are picked up by the asset index automatically, giving an `NYA_ASSET_MAPS_*` handle.
- *
- * Reads finite orthogonal and isometric maps, tile layers with plain integer data, object groups with
- * their custom properties, and embedded tilesets. Not read, and fails loudly rather than half-working:
- * infinite maps, external `.tsx` tilesets, base64 or compressed layer data, hexagonal or staggered
- * orientations — a map using one fails to load with a message naming it.
- *
- * Everything is in world pixels, including isometric maps: `nya_tilemap_draw` does the diamond
- * projection itself, so an isometric map is drawn through a plain NYA_Camera2DTopDown and an entity on
- * it uses the same units as the physics solver. NYA_Camera2DIsometric is the other way to do this — the
- * camera projects instead, and everything upstream, entities included, lives in tile coordinates. Pick
- * one per game; mixing them double-projects. See render_camera.h.
  * */
 #pragma once
 
@@ -50,10 +34,6 @@ typedef struct NYA_Window NYA_Window;
 
 /**
  * The bits Tiled packs into a tile's global id above the index itself.
- *
- * A `.tmj` stores each cell as one integer: low twenty-nine bits are the tile, top three say how it
- * was flipped. Unmasked, a flipped tile reads as a number in the billions — looks like corruption
- * rather than a missed mask.
  * */
 #define NYA_TILEMAP_FLIP_HORIZONTAL 0x80000000u
 #define NYA_TILEMAP_FLIP_VERTICAL   0x40000000u
@@ -103,10 +83,6 @@ enum NYA_TilemapOrientation {
 
     /**
      * The same grid seen along a diagonal, so each tile draws as a diamond.
-     *
-     * Tile (x, y) sits at ((x - y) * tile_width / 2, (x + y) * tile_height / 2), which is what makes
-     * a row further down the screen read as further away. `tile_height` is the diamond's full height,
-     * usually half its width.
      * */
     NYA_TILEMAP_ISOMETRIC,
 
@@ -125,10 +101,6 @@ enum NYA_TilemapLayerKind {
 
 /**
  * One sheet the map draws from, and the range of global ids that come out of it.
- *
- * A map may use several; which one a tile belongs to is decided by `first_gid` — the tileset with the
- * largest `first_gid` not greater than the id owns it, and the local index is the difference. Why tile
- * ids in a `.tmj` are not simply frame numbers.
  * */
 struct NYA_TilemapTileset {
     /** The lowest global id this tileset provides. Ids below it belong to an earlier one. */
@@ -138,9 +110,6 @@ struct NYA_TilemapTileset {
 
     /**
      * The texture asset handle, resolved against the map's own directory.
-     *
-     * Tiled writes the image path relative to the `.tmj`, so `tileset.png` in a map under `assets/maps`
-     * becomes the handle `./assets/maps/tileset.png`. Queued for loading by nya_tilemap_load.
      * */
     NYA_ConstCString texture;
 
@@ -171,11 +140,6 @@ struct NYA_TilemapAnimationFrame {
 
 /**
  * An animation attached to one tile of a tileset.
- *
- * Tiled hangs these off the tileset rather than off the map, and so does this: the animation is a
- * property of the *artwork*, so every placement of that tile animates without the map saying so.
- * That is why a map with animated water needs no per-cell state at all — the cell still holds one
- * global id, and what it resolves to depends only on the clock.
  * */
 struct NYA_TilemapAnimation {
     /** The tileset-local id this animation belongs to: the id a map cell actually holds. */
@@ -194,9 +158,6 @@ struct NYA_TilemapProperty {
 
     /**
      * The value, as every type it could be read as.
-     *
-     * All four are filled from whatever the file held, so `1` reads correctly through both `as_integer`
-     * and `as_real` — Tiled writes a float of one as `1` and there is no telling it from an int after.
      * */
     s64              as_integer;
     f64              as_real;
@@ -206,9 +167,6 @@ struct NYA_TilemapProperty {
 
 /**
  * A placed object: a spawn point, a trigger volume, a region.
- *
- * The half of a map that is not tiles, and usually the half a game actually reads. Positions are in
- * world pixels, already projected for an isometric map.
  * */
 struct NYA_TilemapObject {
     u32 id;
@@ -239,9 +197,6 @@ struct NYA_TilemapLayer {
 
     /**
      * Whether the editor had this layer's eye open.
-     *
-     * nya_tilemap_draw skips a hidden layer — what makes a collision layer work: authored as tiles,
-     * marked invisible, and read by nya_tilemap_collision_build rather than drawn.
      * */
     b8 visible;
 
@@ -255,9 +210,6 @@ struct NYA_TilemapLayer {
 
     /**
      * `width * height` global ids, row major from the top left. Zero means no tile.
-     *
-     * Still carries the flip bits — see NYA_TILEMAP_GID_MASK. nya_tilemap_tile_at masks them off;
-     * reading this array directly must do so itself.
      * */
     const u32* tiles;
 
@@ -273,11 +225,6 @@ struct NYA_Tilemap {
 
     /**
      * Where the map's tile (0, 0) sits in the world, in world units. Zero until something sets it.
-     *
-     * Lives on the map rather than as a parameter to every call, so drawing, collision and coordinate
-     * conversions can't disagree about it — passing it separately is how a map ends up drawn in one
-     * place and collided with in another. Set it straight after loading; nya_tilemap_tile_to_world and
-     * everything built on it honours this.
      * */
     f32x2 origin;
 
@@ -299,11 +246,6 @@ struct NYA_Tilemap {
 
     /**
      * Seconds the map's tile animations have been running. Advanced by nya_tilemap_animate.
-     *
-     * One clock for the whole map rather than one per cell, which is what makes animated tiles free:
-     * every placement of the same tile shows the same frame, so a lake of two hundred water tiles
-     * costs one modulo at draw time and no state at all. A map that wants tiles out of phase with
-     * each other wants two tiles, not two clocks.
      * */
     f32 animation_time_s;
 };
@@ -322,14 +264,6 @@ struct NYA_Tilemap {
 
 /**
  * Reads a `.tmj` and queues every tileset texture it names.
- *
- * Everything comes from `arena` — freeing the map is freeing the arena, so pass the world's and it
- * dies with the level. Textures are queued rather than loaded, so the first frames after a load draw
- * nothing before the map appears.
- *
- * Returns NYA_ERROR_INVALID_ARGUMENT, naming the feature, for anything this does not read: an infinite
- * map, an external tileset, compressed layer data, a hexagonal orientation — rather than a silent
- * partial load missing half its tiles.
  * */
 NYA_API NYA_Error nya_tilemap_load(NYA_Arena* arena, NYA_ConstCString asset_handle, OUT NYA_Tilemap** out_map) __attr_no_discard;
 
@@ -341,21 +275,11 @@ NYA_API NYA_Error nya_tilemap_load(NYA_Arena* arena, NYA_ConstCString asset_hand
 
 /**
  * Draws every visible layer, in order, culled to what the camera can see.
- *
- * Called from a layer's on_render with the camera already set. Only tiles inside the view are emitted
- * — a thousand by thousand map costs the same as a screenful, which is what makes a large map viable
- * without chunking it.
- *
- * One draw call per tileset per layer; a map drawn from one sheet is one call however many tiles are
- * on screen.
  * */
 NYA_API void nya_tilemap_draw(NYA_Window* window, const NYA_Tilemap* map);
 
 /**
  * One layer, whether or not it is visible.
- *
- * For drawing something *between* two layers — entities between the ground and the treetops. Ignoring
- * `visible` is deliberate: a caller naming a layer has already decided it wants it.
  * */
 NYA_API void nya_tilemap_layer_draw(NYA_Window* window, const NYA_Tilemap* map, u32 layer_index);
 
@@ -375,22 +299,11 @@ NYA_API u32 nya_tilemap_layer_find(const NYA_Tilemap* map, NYA_ConstCString name
  * nya_tilemap_animate(map, delta_time_s);   // in on_update
  * nya_tilemap_draw(window, map);            // in on_render
  * ```
- *
- * The whole of what animated tiles cost per frame. Nothing is stored per cell and nothing is
- * rebuilt — drawing resolves each tile's frame from this clock, so a lake of two hundred water tiles
- * and a lake of one cost the same.
- *
- * Safe to skip: a map that is never animated draws its tiles' first frames, which is what the editor
- * shows and what a static map holds anyway.
  * */
 NYA_API void nya_tilemap_animate(NYA_Tilemap* map, f32 delta_time_s);
 
 /**
  * The global id `gid` currently resolves to, following its animation if it has one.
- *
- * The identity for a tile with no animation, which is almost all of them — so this is what drawing
- * calls unconditionally rather than branching on whether the map animates. Flip bits are preserved:
- * a flipped animated tile stays flipped through every frame.
  * */
 NYA_API u32 nya_tilemap_tile_frame(const NYA_Tilemap* map, u32 gid) __attr_no_discard;
 
@@ -408,28 +321,16 @@ NYA_API const NYA_TilemapAnimation* nya_tilemap_animation_for(const NYA_Tilemap*
 
 /**
  * Where a tile coordinate sits in the world, in pixels. Fractional coordinates work.
- *
- * The orthogonal answer is a multiply; the isometric one is the diamond projection — the function that
- * makes an isometric map usable with an ordinary camera, see the file header. Returns the tile's top
- * left for an orthogonal map and the top corner of its diamond for an isometric one, matching where
- * each is drawn from. Includes NYA_Tilemap.origin, so a map placed away from the world origin needs
- * nothing else.
  * */
 NYA_API f32x2 nya_tilemap_tile_to_world(const NYA_Tilemap* map, f32x2 tile) __attr_no_discard;
 
 /**
  * The inverse: which tile a world point falls in. Fractional, so floor it for an index.
- *
- * What a mouse needs. For an isometric map this is the inverse of the diamond projection — not obvious
- * by eye, which is why it's a function rather than a comment.
  * */
 NYA_API f32x2 nya_tilemap_world_to_tile(const NYA_Tilemap* map, f32x2 world) __attr_no_discard;
 
 /**
  * The tile at a cell of a layer, with the flip bits already masked off. Zero for empty or off the map.
- *
- * Negative and out-of-range coordinates answer zero rather than asserting: a query around a position
- * routinely runs off the edge, and a caller should not have to clamp first.
  * */
 NYA_API u32 nya_tilemap_tile_at(const NYA_Tilemap* map, u32 layer_index, s32 x, s32 y) __attr_no_discard;
 
@@ -454,24 +355,9 @@ NYA_API const NYA_TilemapProperty* nya_tilemap_object_property(const NYA_Tilemap
 /**
  * Spawns a static 2D body for every non-zero cell of a tile layer. Returns how many were made.
  *
- * The layer is read for *presence*, not for which tile it holds — a collision layer is authored by
- * painting any tile wherever the map should be solid, and marked invisible so it is not drawn.
- *
  * ```c
  * u32 solid = nya_tilemap_collision_build(map, "collision");
  * ```
- *
- * Runs of adjacent solid cells along a row are merged into one wide box rather than one body per tile.
- * Not a micro-optimisation: a twenty by twelve map has two hundred and forty cells, and a hundred
- * separate one-tile boxes gives the solver a hundred bodies and a hundred internal edges for a sliding
- * body to catch on. Merging leaves a handful of long ones.
- *
- * Orthogonal maps only. An isometric map's cells are diamonds, not boxes, and boxing them is wrong in
- * a way that is not visible until something walks into a corner — that wants a polygon per cell or a
- * hand-authored object layer, and gets a log rather than a bad answer.
- *
- * The bodies are entities: `nya_entity_despawn` removes them, destroying the world takes them all, and
- * they are spawned with `type` set to `entity_type` so a game can find them again.
  * */
 NYA_API u32 nya_tilemap_collision_build(const NYA_Tilemap* map, NYA_ConstCString layer_name, u32 entity_type);
 
@@ -483,21 +369,11 @@ NYA_API u32 nya_tilemap_collision_build(const NYA_Tilemap* map, NYA_ConstCString
 
 /**
  * Writes one tile. Zero clears it.
- *
- * `gid` keeps the flip bits — see NYA_TILEMAP_GID_MASK — so a value passed straight back from
- * nya_tilemap_tile_at round trips, flips and all, which is what an editor's copy and paste needs.
- *
- * Off the map does nothing rather than asserting, matching nya_tilemap_tile_at: a brush dragged past
- * the edge is ordinary. Returns whether anything was written, so an editor can tell an ignored stroke
- * from an applied one.
  * */
 NYA_API b8 nya_tilemap_tile_set(NYA_Tilemap* map, u32 layer_index, s32 x, s32 y, u32 gid);
 
 /**
  * Resizes a tile layer, keeping whatever still fits.
- *
- * Anchored at the top left, so tiles keep their coordinates and growing only adds empty space —
- * reanchoring on the centre would move every existing tile, which is rarely what "make it bigger" means.
  * */
 NYA_API NYA_Error nya_tilemap_layer_resize(NYA_Tilemap* map, u32 layer_index, u32 width, u32 height);
 
@@ -518,19 +394,11 @@ NYA_API NYA_Error nya_tilemap_layer_resize(NYA_Tilemap* map, u32 layer_index, u3
 enum NYA_TilemapAutoTile {
     /**
      * The four edge neighbours: north, east, south, west. Sixteen cases.
-     *
-     * Bit 0 north, bit 1 east, bit 2 south, bit 3 west — so a cell with neighbours above and to the
-     * right is 0b0011 = 3. The usual choice, and the one a 16-tile "blob" sheet is drawn for.
      * */
     NYA_TILEMAP_AUTOTILE_EDGES = 0,
 
     /**
      * All eight, with the corners. **Forty-seven** cases, not 256.
-     *
-     * A corner only matters when both edges beside it are filled — otherwise the corner is hidden
-     * behind the gap that edge leaves — so the 256 raw combinations collapse to 47 distinct pieces.
-     * `nya_tilemap_autotile_mask` returns the collapsed index directly, in the standard order a
-     * 47-tile sheet is drawn in, so a lookup table has 47 entries rather than 256.
      * */
     NYA_TILEMAP_AUTOTILE_BLOB,
 
@@ -548,25 +416,12 @@ typedef b8 (*NYA_TilemapAutoTileFilledFn)(s32 x, s32 y, void* user_data);
  * u32 variant = nya_tilemap_autotile_mask(is_wall, world, x, y, NYA_TILEMAP_AUTOTILE_EDGES);
  * nya_tilemap_tile_set(map, walls, x, y, wall_first_gid + variant);
  * ```
- *
- * Below `16` for `EDGES` and below `47` for `BLOB`. Cells outside the map are whatever `filled`
- * says about them — which is the caller's choice to make, and the reason it takes a predicate rather
- * than a layer: a map whose edges should look walled answers true out of bounds, and one that should
- * look open answers false.
  * */
 NYA_API u32 nya_tilemap_autotile_mask(NYA_TilemapAutoTileFilledFn filled, void* user_data, s32 x, s32 y, NYA_TilemapAutoTile kind)
     __attr_no_discard;
 
 /**
  * Auto-tiles a whole layer in place, from what is already in it.
- *
- * A cell counts as filled when it is non-zero. Every non-zero cell is replaced by
- * `lookup[nya_tilemap_autotile_mask(...)]`, and empty cells are left empty — so this turns a layer
- * painted as a solid blob into one drawn with its corners and ends.
- *
- * `lookup` is global ids, `lookup_length` entries: 16 for `EDGES`, 47 for `BLOB`. A shorter table is
- * refused rather than read past. `out_of_bounds` decides what the world outside the map looks like —
- * true for a map whose edges should read as solid.
  *
  * ⚠ **Reads a snapshot, not the layer it is writing.** Auto-tiling in place off the live layer would
  * have each cell decided partly by the *new* values of the cells before it, so the same map would
@@ -589,16 +444,6 @@ NYA_API NYA_Error nya_tilemap_autotile_layer(
 
 /**
  * The map as a document, in the Tiled JSON shape nya_tilemap_load reads.
- *
- * Round trips through nya_tilemap_load — an editor saves, the game loads, no second format needed.
- *
- * **Tile layers only. Object layers are read by the loader and are not written back**, so saving a map
- * that had one loses it. That is deliberate — writing out a half understood layer is worse than plainly
- * omitting it — but it means this is not yet a lossless editor save for a map with spawn markers on it.
- *
- * Also does not round trip what the loader ignores: editor state, custom layer properties and per-tile
- * animation, all dropped on load. Safe for maps this engine authored; an editor opening someone else's
- * `.tmj` and saving it will quietly simplify it.
  * */
 NYA_API NYA_Object* nya_tilemap_to_object(NYA_Arena* arena, const NYA_Tilemap* map) __attr_no_discard;
 

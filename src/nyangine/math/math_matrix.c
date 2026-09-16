@@ -447,13 +447,6 @@ f32_4x4 nya_matrix_orthographic(f32 left, f32 right, f32 top, f32 bottom) {
     /*
      * Clip space here is the Direct3D style one SDL_GPU normalizes every backend to: x and y run
      * -1 to +1 with y pointing **up**, and z runs 0 to 1 rather than -1 to 1.
-     *
-     * The y flip that turns a y-down input into that is not a separate step, it falls out of the
-     * scale being negative whenever `bottom` is greater than `top`. So the same expression serves
-     * both conventions and there is no branch deciding which one is in play.
-     *
-     * Getting this wrong renders the whole scene mirrored vertically, which reads as broken geometry
-     * rather than a broken projection — hence spelling out which convention is assumed.
      */
     f32 x_scale = 2.0F / (right - left);
     f32 y_scale = 2.0F / (top - bottom);
@@ -484,11 +477,6 @@ f32_4x4 nya_matrix_perspective(f32 fov_y, f32 aspect, f32 near_plane, f32 far_pl
 
     /*
      * The z row maps view depth onto 0..1, not -1..1.
-     *
-     * At view z = -near it gives far * -near / (near - far) + near * far / (near - far), which is
-     * zero, over a w of near. At view z = -far it gives far, over a w of far, which is one. The
-     * fourth row is -1 rather than +1 because the view looks down -z, and that minus is what makes w
-     * positive for anything in front of the camera.
      */
     return nya_matrix_create(
         (f32x4){ focal / aspect, 0.0F, 0.0F, 0.0F },
@@ -540,9 +528,6 @@ f32_4x4 nya_matrix_look_at(f32x3 eye, f32x3 target, f32x3 up) {
      * The rotation is the transpose of the camera's basis, because a view matrix moves the *world*
      * into the camera's frame rather than moving the camera. The translation is the negated
      * projection of the eye onto each axis, which is the same statement applied to the origin.
-     *
-     * The third row is negated: the basis points along the view direction and clip space wants
-     * depth increasing away down -z.
      */
     return nya_matrix_create(
         (f32x4){ right.x, right.y, right.z, -nya_vector_dot(right, eye) },
@@ -558,11 +543,6 @@ f32_4x4 nya_matrix_transform(f32x3 translation, f32_3x3 rotation, f32x3 scale) {
      * *stored* by columns. The two are not in conflict — one is how the matrix is written down here and
      * the other is how clang lays a matrix type out in memory — but anything that later reads these
      * sixteen floats raw is reading columns.
-     *
-     * The rotation columns are scaled rather than the rows. Scaling a column scales the axis that basis
-     * vector maps *from*, which is the object's own x, y and z — a scale in model space, applied before
-     * the rotation. Scaling the rows would scale the world axes it maps *to*, which is a scale applied
-     * after, and is the version that shears.
      */
     return nya_matrix_create(
         (f32x4){ rotation[0][0] * scale.x, rotation[0][1] * scale.y, rotation[0][2] * scale.z, translation.x },

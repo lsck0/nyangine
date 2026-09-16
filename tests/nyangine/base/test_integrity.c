@@ -296,10 +296,6 @@ s32 main(void) {
     /*
      * A minimal PE, only as real as the fields the hashing looks at: the e_lfanew pointer, the PE
      * magic, one section header, and a PE32+ optional header long enough to hold a data directory.
-     *
-     * The point is what Authenticode does to a file after it has been stamped — pad, append a
-     * certificate, fill in the security directory, rewrite the checksum — and that none of it
-     * changes what the integrity MAC covers.
      */
     const u64 pe_offset       = 0x80;
     const u64 optional_offset = pe_offset + 24;

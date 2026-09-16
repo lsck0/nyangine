@@ -1,21 +1,5 @@
 /**
  * Regression test for the insertion order in _nya_arena_free_list_add (base_arena.c).
- *
- * The free list is meant to be sorted by address, which is the invariant
- * _nya_arena_free_list_defragment relies on: it only merges a node with its immediate successor in
- * the list, so two adjacent blocks that are out of order are never coalesced.
- *
- * The insertion walk is
- *
- *     if (free_node->next && (u8*)free_node->next->ptr < (u8*)new_node->ptr) continue;
- *     nya_dll_node_link(free_list, free_node, new_node, free_node->next);
- *
- * which always links *after* the node it stopped at. A block whose address is below the current
- * head therefore lands second rather than first, and the list stops being sorted.
- *
- * Freeing the higher block first is what puts it at the head, so the lower one hits that path.
- * defragmentation_threshold is 1 so the merge runs on every free and the check below does not
- * depend on when the default threshold of 16 happens to fire.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

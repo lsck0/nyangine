@@ -148,20 +148,6 @@ struct NYA_EventSystem {
 
 /*
  * Sized to NYA_EVENT_COUNT, not left for the initialisers to size.
- *
- * It was declared `[]`, which makes the length one past the highest index anyone happened to write
- * rather than the number of event types. Five entries were missing: the two lifecycle range
- * sentinels, and — the ones that mattered — JOB_STARTED, JOB_COMPLETED and ASSET_LOAD_FAILED.
- *
- * nya_event_dispatch does `nya_log_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type])` on
- * every dispatch, so each of those passed a null pointer to a %s conversion. That is undefined
- * behaviour, and the job events are dispatched on every job start and finish; it survived only
- * because glibc prints "(null)" rather than faulting.
- *
- * The explicit size is what stops the next omission being an out of bounds read instead of a null,
- * and tests/nyangine/core/test_bug_event_name_map.c fails on any entry left empty. Every other name
- * map in the tree — NYA_INTEGRITY_STATUS_NAME_MAP, NYA_FILETYPE_NAME_MAP — was already spelled this
- * way; this one was the exception.
  */
 __attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[NYA_EVENT_COUNT] = {
     [NYA_EVENT_INVALID] = "INVALID",
@@ -298,11 +284,6 @@ struct NYA_KeyEvent {
 
     /**
      * Which keyboard produced this. See NYA_InputSource.
-     *
-     * Zero-id and NYA_INPUT_DEVICE_KIND_KEYBOARD on any platform that does not separate keyboards,
-     * which is most of them — that is the ordinary case, not a failure. It is what lets two players
-     * on one machine, or several remote players over Steam Remote Play Together, be told apart when
-     * the platform can tell them apart.
      * */
     NYA_InputSource source;
 
@@ -451,10 +432,6 @@ struct NYA_EventHook {
 
     /**
      * Removes itself after it runs once.
-     *
-     * "Runs" means the hook's function was actually called, so a one shot with a condition waits
-     * for the first event that *passes* the condition rather than being spent on the first event
-     * that merely has the right type.
      * */
     b64 one_shot;
 };
@@ -488,10 +465,6 @@ NYA_API void nya_event_hook_register(NYA_EventHook hook);
 /**
  * Registers a hook that fires on the next matching event and then unregisters itself.
  *
- * For the "wait for the next X, then do Y" shape: the first frame after an asset finishes loading,
- * the next keypress, the next time a window is resized. Without it every such case grows a static
- * bool that the hook checks and sets, which is the same logic written badly once per site.
- *
  * ```c
  * nya_event_hook_register_once((NYA_EventHook){
  *     .event_type = NYA_EVENT_WINDOW_RESIZED,
@@ -499,10 +472,6 @@ NYA_API void nya_event_hook_register(NYA_EventHook hook);
  *     .fn         = nya_callback(on_first_resize),
  * });
  * ```
- *
- * Sets one_shot for you; anything already passing `.one_shot = true` to nya_event_hook_register
- * behaves identically. A one shot that never sees its event is never removed, so it costs one array
- * slot until the event system is torn down.
  * */
 NYA_API void nya_event_hook_register_once(NYA_EventHook hook);
 

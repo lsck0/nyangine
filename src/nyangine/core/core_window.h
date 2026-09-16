@@ -1,19 +1,5 @@
 /**
  * @file core_window.h
- *
- * Windows, and the layer stacks that live on them.
- *
- * **Windows are addressed by handle, not by pointer.** NYA_Window lives in a fixed slot table, so a
- * pointer stays valid for as long as that window exists, but it says nothing about whether the
- * window still exists. A handle carries a generation, so a lookup after the window closed returns
- * null instead of a live pointer to whatever took the slot. Hold handles; borrow pointers.
- *
- * **Geometry belongs to the compositor, not to the app.** Under Wayland a client cannot set its own
- * size or position at all; it is *told* what it got and must draw to that. The setters here are
- * therefore named `request` and return whether the platform even entertains the idea. The
- * authoritative size is the one that arrives on NYA_EVENT_WINDOW_RESIZED, and the one
- * nya_window_size reads back. Anything that computes layout from a size it asked for rather than
- * the size it was given will be wrong on half the systems it runs on.
  * */
 #pragma once
 
@@ -34,9 +20,6 @@
 
 /**
  * Window slots.
- *
- * Fixed rather than growable on purpose: a growable array reallocates, and every NYA_Window* handed
- * to a layer or held across a frame would dangle the moment a second window opened.
  * */
 #define NYA_WINDOW_MAX 16
 
@@ -93,9 +76,6 @@ struct NYA_WindowSystem {
 
     /**
      * Whether this platform lets a client choose its own size and position.
-     *
-     * False under Wayland, where the compositor decides and the app is informed. Queried once at
-     * init rather than per call, since it cannot change while the process runs.
      * */
     b8 client_controlled_geometry;
 };
@@ -139,18 +119,12 @@ struct NYA_Window {
 
     /**
      * Size in logical units, as last reported by the platform.
-     *
-     * Not what was asked for at creation. Updated from NYA_EVENT_WINDOW_RESIZED, which is the only
-     * source that is right everywhere.
      * */
     u32 width;
     u32 height;
 
     /**
      * Size of the swapchain image, in pixels.
-     *
-     * Differs from width/height whenever the display is scaled, and it is this pair that a viewport
-     * or a projection matrix wants.
      * */
     u32 screen_width;
     u32 screen_height;
@@ -179,6 +153,32 @@ struct NYA_Layer {
     /** Set by nya_layer_push. */
     NYA_WindowHandle window;
 };
+
+/**
+ * A layer whose five hooks are `prefix##_on_create` and friends, enabled, identified by `layer_id`.
+ *
+ * ```c
+ * GNY_LAYER_PAUSE_MENU = nya_layer_of(gny_layer_pause_menu, GNY_LAYER_PAUSE_MENU_ID);
+ * ```
+ *
+ * The names are derivable from the layer's own, so writing them out is five chances to paste the wrong
+ * one — and a layer wired to another layer's `on_update` compiles, runs, and looks like a logic bug in
+ * whichever of the two is wrong. Here there is one name and the wiring cannot disagree with it.
+ *
+ * A layer missing one of the five fails to compile, naming the hook. That is the intended behaviour: the
+ * five are what a layer *is*, and an empty one is two lines. A layer that genuinely wants fewer builds
+ * the struct by hand, which is still there and still the general case.
+ * */
+#define nya_layer_of(prefix, layer_id)                                                                                                       \
+    ((NYA_Layer){                                                                                                                            \
+        .id         = (layer_id),                                                                                                            \
+        .enabled    = true,                                                                                                                  \
+        .on_create  = nya_callback(prefix##_on_create),                                                                                       \
+        .on_destroy = nya_callback(prefix##_on_destroy),                                                                                      \
+        .on_event   = nya_callback(prefix##_on_event),                                                                                        \
+        .on_update  = nya_callback(prefix##_on_update),                                                                                       \
+        .on_render  = nya_callback(prefix##_on_render),                                                                                       \
+    })
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -262,10 +262,6 @@ NYA_API b8 nya_window_is_always_on_top(NYA_WindowHandle window) __attr_no_discar
 
 /**
  * True when the platform lets a client choose its own size and position.
- *
- * False under Wayland. Branch on this rather than assuming the requests below did anything: they
- * are hints, and a compositor is free to ignore them or, as observed, to react to them in ways that
- * are worse than being ignored.
  * */
 NYA_API b8 nya_window_geometry_is_client_controlled(void) __attr_no_discard;
 
@@ -276,10 +272,6 @@ NYA_API b8 nya_window_request_position(NYA_WindowHandle window, s32 x, s32 y);
 
 /**
  * A floor and a ceiling for the window manager to enforce.
- *
- * Setting a minimum right after creating a window has been observed to make a tiling Wayland
- * compositor collapse the surface to exactly that minimum and maximize the frame around it. Clamp in
- * a NYA_EVENT_WINDOW_RESIZED handler instead if the floor actually matters.
  * */
 NYA_API b8 nya_window_request_minimum_size(NYA_WindowHandle window, u32 min_width, u32 min_height);
 NYA_API b8 nya_window_request_maximum_size(NYA_WindowHandle window, u32 max_width, u32 max_height);
@@ -305,21 +297,10 @@ NYA_API void nya_window_set_title(NYA_WindowHandle window, NYA_ConstCString titl
 /**
  * Sets the window's icon from encoded image bytes — whatever SDL_image reads: PNG, BMP, ICO.
  *
- * Bytes rather than an asset handle because the window system sits below the asset system, so it
- * cannot ask it for anything. Load the image as NYA_ASSET_TYPE_TEXT and hand over what it read:
- *
  * ```c
  * NYA_Asset* icon = nya_asset_get(NYA_ASSET_ICON_ICON_BMP);
  * nya_asset_with(icon) NYA_EXPECT(nya_window_set_icon(window, icon->as_text.data, icon->as_text.size));
  * ```
- *
- * SDL converts the image into its own surface, so the bytes are only needed for the call and the
- * asset can be released straight after.
- *
- * Returns an error rather than asserting, because failing is not a programming mistake: on Wayland
- * this needs the compositor to support xdg_toplevel_icon_v1, and one that does not will refuse.
- * Windows, X11 and macOS set it directly. Note that on Windows the icon shown before the process
- * starts comes from the resource the build compiles into the executable, not from this.
  * */
 NYA_API NYA_Error nya_window_set_icon(NYA_WindowHandle window, const u8* data, u64 size) __attr_no_discard;
 NYA_API void nya_window_set_fullscreen(NYA_WindowHandle window, b8 fullscreen);
@@ -382,14 +363,6 @@ NYA_API NYA_Layer  nya_layer_pop(NYA_WindowHandle window);
 
 /**
  * Which shape the pointer takes.
- *
- * A named set rather than an image, because these are the OS's own cursors: the user has themes,
- * accessibility sizes and a DPI, and a game that draws its own arrow gets none of that and a visibly
- * wrong pointer on a scaled display.
- *
- * The list is what a UI actually reaches for. It is deliberately shorter than the platform's — the
- * eight directional resize cursors collapse to the four axes, because a panel splitter only ever
- * needs the axis it splits on.
  * */
 enum NYA_CursorShape {
     NYA_CURSOR_DEFAULT,
@@ -415,12 +388,6 @@ enum NYA_CursorShape {
 
 /**
  * Sets the pointer's shape. Cheap to call every frame with the same value.
- *
- * An immediate mode UI decides what is under the pointer while it draws, so this is written every
- * frame from whatever the hovered widget wants — which only works because setting the shape it
- * already has does nothing at all.
- *
- * Cursors are created once, on first use, and released with the window system.
  * */
 NYA_API void nya_cursor_set(NYA_CursorShape shape);
 

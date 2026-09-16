@@ -67,10 +67,6 @@ NYA_API void                   nya_string_extend_front_sprintf(NYA_String* str, 
 NYA_API void                   nya_string_extend_sprintf(NYA_String* str, NYA_ConstCString fmt, ...) __attr_fmt_printf(2, 3);
 /**
  * Appends one byte.
- *
- * NYA_String is an NYA_Arrayᐸu8ᐳ, so nya_array_push_back would also work; this exists so character
- * at a time building reads like the rest of the string API, and so callers stop reaching for
- * nya_string_extend with a two character buffer to append one character.
  * */
 NYA_API void                   nya_string_push_back(NYA_String* str, u8 character);
 NYA_API void                   nya_string_print(const NYA_String* str);
@@ -116,14 +112,6 @@ NYA_API u32 nya_utf8_length(NYA_ConstCString cursor) __attr_no_discard;
 /**
  * Decodes one sequence into `out_codepoint` and answers how many bytes it consumed. Never zero.
  *
- * Malformed input decodes as U+FFFD and consumes exactly one byte. That is not a detail: consuming
- * zero spins forever, and consuming the length a truncated lead byte *claimed* reads past the end of
- * the buffer. One byte is the only answer that both makes progress and stays in bounds.
- *
- * Overlong encodings and surrogates are rejected the same way. Both are ways of spelling something
- * that has a shorter or no legal encoding, and accepting them is how a decoder becomes a security
- * problem — a filter checking for a literal NUL never sees the two-byte spelling of one.
- *
  * ```c
  * for (NYA_ConstCString cursor = text; *cursor != '\0';) {
  *     u32 codepoint = 0;
@@ -136,8 +124,5 @@ NYA_API u32 nya_utf8_next(NYA_ConstCString cursor, OUT u32* out_codepoint);
 
 /**
  * How many codepoints a NUL terminated string holds, which is not how many bytes it holds.
- *
- * The difference is the whole reason this exists: `"Grüße"` is five characters and seven bytes, and
- * anything that lays text out or truncates it by byte count gets both wrong.
  * */
 NYA_API u64 nya_utf8_count(NYA_ConstCString text) __attr_no_discard;

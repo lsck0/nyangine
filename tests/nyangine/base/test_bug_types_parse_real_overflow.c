@@ -1,19 +1,5 @@
 /**
  * Regression test for the unchecked u128 accumulator in the real number parser (base_types.c).
- *
- * _nya_type_accumulate_digit exists because the integer paths used to accumulate unchecked, and
- * test_bug_types_parse_overflow.c pins that fix. The decimal branch of _nya_type_try_parse_f128
- * did not get the same treatment: it accumulated `integer_part`, `fractional_part` and
- * `fractional_divisor` straight into u128, and a literal with more than 38 significant digits
- * overflowed all three.
- *
- * FLAGS_SANITIZE names unsigned-integer-overflow together with -fno-sanitize-recover=all, so under
- * a sanitized build that aborted the process. Without sanitizers it wrapped, and the wrapped value
- * was returned as the parsed number — the same silent corruption the integer fix was for.
- *
- * This is not an exotic input. nya_serde_json accepts number tokens up to 191 characters and says
- * so deliberately ("f64 saturates to infinity around 309 digits ... nothing representable is being
- * turned away"), so every literal between 39 and 191 digits reaches here from any JSON document.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

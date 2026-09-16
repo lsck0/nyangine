@@ -1,13 +1,5 @@
 /**
  * The serde dispatch layer, the JSON format, and format detection.
- *
- * test_object covers the nya format through nya_serialize/nya_deserialize already. Everything here
- * is what that misses: the JSON reader and writer, which had no coverage at all, and the format
- * guesser that decides which of the two a caller gets.
- *
- * Round trips through JSON are lossy on purpose — the format has one number type and no type
- * annotations — so the assertions below expect the documented mapping in serde_json.h rather than
- * the types that went in.
  **/
 
 #include "nyangine/nyangine.c"

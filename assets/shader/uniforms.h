@@ -187,6 +187,22 @@ struct NYA_ShaderMesh3DUniform {
 
     /** Padding to close the row. HLSL will not split the next member across a sixteen-byte boundary. */
     f32 cascade_pad[3];
+
+    /*
+     * ── fog ──
+     *
+     * Two rows, so nothing straddles a sixteen-byte boundary. See NYA_Render3DFog.
+     */
+
+    f32 fog_color_r, fog_color_g, fog_color_b;
+
+    /** Zero means no fog, and the shader returns before touching anything else here. */
+    f32 fog_density;
+
+    f32 fog_height_falloff;
+    f32 fog_height_base;
+    f32 fog_sun_amount;
+    f32 fog_pad;
 };
 
 /** Lights one nya_render2d_lights_apply may pass. Matches MAX_LIGHTS in light2d.frag.hlsl. */

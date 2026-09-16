@@ -11,11 +11,6 @@
 
 /**
  * How far into an oversized line the sanitiser will read before giving up, in bytes.
- *
- * The output is capped at NYA_NET_CHAT_TEXT_MAX, so a long line already stops costing anything once
- * the buffer fills — except when what it holds is *droppable*. A megabyte of spaces, or of bidi
- * overrides, never fills the output and would be walked to the end. Eight times the output bounds
- * that at a size no real line comes close to.
  * */
 #define _NYA_NET_CHAT_SCAN_MAX (NYA_NET_CHAT_TEXT_MAX * 8)
 
@@ -58,11 +53,6 @@ NYA_INTERNAL NYA_NetChatMessage* _nya_net_chat_push(void);
 
 /**
  * Whether a codepoint is stripped rather than displayed.
- *
- * Each range is here for a reason and none of them is "it looked odd"; see the list in net_chat.h.
- * Everything else is let through deliberately, including scripts this build has no font for — a
- * missing glyph is the font's problem and shows as a box, which is a far better failure than a
- * filter that decides which languages are allowed.
  * */
 NYA_INTERNAL b8 _nya_net_chat_is_removed(u32 codepoint) {
     // C0 and DEL. Newline and tab are in here, which is intended: a chat line is one line.
@@ -88,10 +78,6 @@ NYA_INTERNAL b8 _nya_net_chat_is_removed(u32 codepoint) {
 
 /**
  * Whether a codepoint collapses into a single space.
- *
- * Only the space characters that survive _nya_net_chat_is_removed, so tab and newline are absent —
- * they are already gone. U+00A0 and U+3000 are here because they *render* as blank width, and a line
- * padded with a hundred of them is the same abuse as one padded with spaces.
  * */
 NYA_INTERNAL b8 _nya_net_chat_is_space(u32 codepoint) {
     return codepoint == 0x20 || codepoint == 0x00A0 || codepoint == 0x3000;
@@ -99,11 +85,6 @@ NYA_INTERNAL b8 _nya_net_chat_is_space(u32 codepoint) {
 
 /**
  * Writes one codepoint as UTF-8 into `out`, which must hold four bytes, and answers how many it used.
- *
- * The counterpart to nya_utf8_next, and the reason sanitising *re-encodes* rather than copying the
- * input's bytes: whatever arrives, what leaves here is well formed by construction. A malformed
- * sequence decodes to U+FFFD and is written as the three bytes of U+FFFD, so it displays as one
- * replacement glyph instead of being passed along for the text renderer's decoder to trip over.
  * */
 NYA_INTERNAL u32 _nya_net_chat_encode(u32 codepoint, OUT char* out) {
     if (codepoint < 0x80) {
@@ -146,11 +127,6 @@ u64 nya_net_chat_sanitize(NYA_ConstCString input, OUT char* out, u64 capacity) {
 
     /*
      * A space is held back until something printable follows it.
-     *
-     * That one flag does all three whitespace jobs at once: a leading run never commits because
-     * nothing has been written yet, an interior run commits exactly once, and a trailing run is still
-     * pending when the loop ends and is simply never written. The alternative is a trim pass over the
-     * result, which would have to be a second walk.
      */
     b8 pending_space = false;
 
@@ -177,10 +153,6 @@ u64 nya_net_chat_sanitize(NYA_ConstCString input, OUT char* out, u64 capacity) {
 
         /*
          * The line ends here rather than being cut to fit.
-         *
-         * `+ 1` leaves room for the terminator. Stopping on the whole codepoint is the point: writing
-         * as many of its bytes as fit would leave a truncated sequence in the output, which is exactly
-         * the malformed input this function exists to remove.
          */
         if (written + needed + 1 > capacity) break;
 
@@ -278,10 +250,6 @@ NYA_INTERNAL b8 _nya_net_chat_allow(NYA_NetPeerId peer) {
 
     /*
      * A slot occupied by a different connection than last time starts full.
-     *
-     * Peer slots are reused, so without this a reconnecting player either inherits the previous
-     * occupant's exhausted budget or, worse, a flooder gets a fresh one by reconnecting. Keying on the
-     * whole id — index *and* generation — makes both impossible.
      */
     if (!nya_net_peer_equals(bucket->peer, peer)) {
         *bucket = (_NYA_NetChatBucket){ .peer = peer, .tokens = (f32)NYA_NET_CHAT_BURST, .last_ms = now_ms };
@@ -364,9 +332,6 @@ b8 nya_net_chat_server_consume(NYA_NetPeerId peer, const NYA_Object* event) {
 
     /*
      * Refused *before* the text is looked at.
-     *
-     * Deliberate ordering: sanitising is the expensive part of handling a line, so a peer that floods
-     * should not get that work done on its behalf. The cost of a refused line is a bucket lookup.
      */
     if (!_nya_net_chat_allow(peer)) return true;
 
@@ -380,10 +345,6 @@ b8 nya_net_chat_server_consume(NYA_NetPeerId peer, const NYA_Object* event) {
 
     /*
      * The sender's name comes from the server's peer table, never from the message.
-     *
-     * This is the whole impersonation defence and it is one lookup: the server already knows which
-     * connection the packet arrived on, so a "name" field in the event has nothing to add and is not
-     * read. A peer that has not completed the handshake has no entry and is dropped here.
      */
     const NYA_NetServerPeer* sender = nya_net_server_peer(peer);
 
@@ -445,10 +406,6 @@ b8 nya_net_chat_client_consume(const NYA_Object* event) {
 
     /*
      * The name is sanitised too, into its own smaller buffer.
-     *
-     * A name reaches this process through the same untrusted path a line does — the server copied it
-     * from a HELLO — and it is drawn next to the line. Nothing else validates it on the way, so this
-     * is where it happens.
      */
     if (name != nullptr && name->type == NYA_TYPE_STRING && name->as_string != nullptr) {
         (void)nya_net_chat_sanitize((NYA_ConstCString)name->as_string, message->name, sizeof(message->name));

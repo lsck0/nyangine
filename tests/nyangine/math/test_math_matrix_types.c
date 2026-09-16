@@ -1,12 +1,5 @@
 /**
  * The matrix overloads the existing tests never reach, and nya_matrix_transform, which nothing did.
- *
- * `nya_matrix_create` and `nya_matrix_times_vector` are overloaded across four element types and three
- * sizes — twenty-four functions — and coverage showed 26 of the module's 41 never called. Exercising the
- * non-f32 ones is not busywork: they are generated from the same macro, so a mistake in it is invisible
- * until something instantiates the type that has it, and the overload set is exactly what would break.
- *
- * `nya_matrix_transform` is the one with real logic here, and it had no test at all.
  **/
 
 #include "nyangine/nyangine.c"

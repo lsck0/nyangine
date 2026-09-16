@@ -1,19 +1,5 @@
 /**
  * @file asset_rules.h
- *
- * The asset pipeline expressed as build rules: what `./build build assets` actually runs, and in
- * what order.
- *
- * Separate from build/pp/asset.h, which holds the pipeline itself. This file is orchestration — it
- * knows when things run and what they depend on; it does none of the work.
- *
- * A header rather than a .c, the way every other rule in the build system is defined in a header:
- * on_linux/build_linux.h, misc.h, rebuild.h and each vendor_*.h all do the same. A rule is a static
- * initialiser and nothing else, so there is no implementation to separate from.
- *
- * In its own header rather than in build.h so that on_linux/build_linux.h and its siblings can
- * include what they use. Otherwise those files compile only in build.h's include order, and opening
- * one on its own reports build_shaders and index_assets as undeclared.
  * */
 #pragma once
 
@@ -34,15 +20,6 @@
 
 /*
  * The asset pipeline expressed as build rules.
- *
- * Defined here rather than in asset.c, the way every other rule in the build system is defined in a
- * header: on_linux/build_linux.h, misc.h, rebuild.h and each vendor_*.h all do the same. A rule is
- * a static initialiser and nothing else, so there is no implementation to separate from, and a
- * reader looking for what `./build build assets` runs finds it beside the pipeline it drives.
- *
- * In this header specifically, rather than in build.h, so that on_linux/build_linux.h and its
- * siblings can include what they use. Otherwise those files compile only in build.h's include
- * order, and opening one on its own reports build_shaders and index_assets as undeclared.
  */
 
 // Only the two rules below depend on this one.
@@ -71,9 +48,6 @@ NYA_INTERNAL NYA_BuildRule build_shaders = {
 
 /**
  * Generates src/generated/strings.h from the locale files.
- *
- * Before index_assets, and that ordering is load bearing for the same reason the shader rule's is:
- * the generated header lands in assets/, and the index has to see the tree as it will finally be.
  * */
 NYA_INTERNAL NYA_BuildRule generate_strings = {
     .name             = "generate_strings",
@@ -84,10 +58,6 @@ NYA_INTERNAL NYA_BuildRule generate_strings = {
 
 /**
  * Regenerates the reflection tables from the @reflect annotations in the tree.
- *
- * Its own rule rather than a hook on a compile rule, because its output is *source* that those rules
- * then compile — so it has to have finished before any of them starts, which is what a dependency
- * expresses and an ordering convention does not.
  * */
 NYA_INTERNAL NYA_BuildRule generate_reflection = {
     .name             = "generate_reflection",
@@ -108,11 +78,6 @@ NYA_INTERNAL NYA_BuildRule index_assets = {
 
 /*
  * Depends on index_assets, and the order is the point.
- *
- * Indexing writes src/generated/assets.h, one handle per file; bundling writes src/generated/assets.c, the bytes
- * behind those handles. Conceptually you enumerate first and embed second, and both read the same
- * memoised listing, so the handle set and the blob cannot disagree — but only if indexing is what
- * populates that memo, which this ordering is what guarantees.
  */
 NYA_INTERNAL NYA_BuildRule bundle_assets = {
     .name             = "bundle_assets",

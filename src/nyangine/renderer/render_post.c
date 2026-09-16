@@ -8,9 +8,6 @@
 
 /**
  * Rebuilds both targets if the window size changed. False when there is nothing usable to draw into.
- *
- * Recreated rather than resized, because a GPU texture has no resize, and the old one is destroyed
- * first — a window dragged to a new size produces one of these per frame.
  */
 NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chain) {
     const u32 width  = window->screen_width;
@@ -22,11 +19,6 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
 
     /*
      * Keyed on the recorded size, not on targets[0].texture.
-     *
-     * A headless build has no GPU texture but does report an honest width and height, because that is
-     * state game logic reads back. Testing the pointer would make every chain permanently unusable
-     * there — and in a real build the pointer tells us nothing anyway, since nya_render_texture_create
-     * asserts rather than returning a null texture.
      */
     if (chain->width == width && chain->height == height) return true;
 
@@ -92,11 +84,6 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
     /*
      * A pass whose pipeline has not finished loading is skipped rather than drawn.
-     *
-     * render2d silently drops a batch whose pipeline is not loaded, so drawing one anyway means the
-     * scene goes into a target that is never blitted and the window shows nothing. That is not
-     * hypothetical — it is what happened on Windows, where the asset load lands a frame later than on
-     * Linux. Counting first means the last *surviving* pass is the one that reaches the window.
      */
     // Cast because the asset API takes a mutable handle while only reading it; every call site in the
     // tree does the same. See nya_render2d_texture.

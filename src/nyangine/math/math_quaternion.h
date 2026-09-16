@@ -1,14 +1,6 @@
 /**
  * @file math_quaternion.h
  *
- * Unit quaternions for 3D rotation: no gimbal lock, cheap to compose, shortest-arc interpolation.
- * Euler conversions exist for editor input. f32 only, unlike the rest of math/ — rotation is the one
- * thing quaternions are for, so the f16/f128 overloads the vector and matrix headers carry would be
- * dead weight here.
- *
- * Functions documented as taking a rotation expect a *unit* quaternion; composing many rotations
- * drifts off the unit sphere, so re-normalize periodically:
- *
  * ```c
  * NYA_Quaternion yaw   = nya_quaternion_from_axis_angle(f32x3_unit_y, angle);
  * orientation          = nya_quaternion_normalize(nya_quaternion_multiply(yaw, orientation));
@@ -144,25 +136,6 @@ NYA_API NYA_Quaternion nya_quaternion_nlerp(NYA_Quaternion a, NYA_Quaternion b, 
 /** Spherical linear interpolation: constant angular velocity, shortest arc, more expensive. Use when the path itself matters, like a camera sweeping to a target. */
 /**
  * How parallel two rotations must be before slerp falls back to nlerp, as a cosine.
- *
- * The two curves are not the same, so this is a claim about *how far apart* they are. Measured, worst
- * case over t, as the separation grows:
- *
- *     cos      angle    worst angular error
- *     0.9999   0.81°    0.000003°
- *     0.9989   2.63°    0.000088°
- *     0.9939   6.34°    0.001248°
- *     0.9890   8.51°    0.003018°
- *     0.9643  15.36°    0.017755°
- *
- * At 0.99 the arc is at most 8.1° and the error at most ~0.0026° — a four-hundredth of a degree, which
- * over a one metre bone is five hundredths of a micron. Nothing downstream resolves that: the palette
- * is f32, and the bake it came from quantised the pose harder than this does.
- *
- * It matters because the case is the common one. Sampling a clip interpolates *adjacent baked frames*,
- * which are a few degrees apart at most, so this path is taken almost every time a pose is built.
- * A crossfade between two unrelated clips is far apart and takes the exact path, which is correct —
- * that is where the difference would be visible.
  * */
 #define NYA_QUATERNION_NLERP_THRESHOLD 0.99F
 
@@ -170,10 +143,6 @@ NYA_API NYA_Quaternion nya_quaternion_slerp(NYA_Quaternion a, NYA_Quaternion b, 
 
 /**
  * The same, for rotations already known to be unit length.
- *
- * Skips the two normalizations, which are two square roots and eight multiplies of pure waste when the
- * caller already knows — as skeletal animation does, since baked clip frames and blended poses are unit
- * by construction. Measurably faster; see bench/bench_slerp.c.
  *
  * ⚠ Undefined for non-unit input, in the ordinary way: the result will not be a rotation. Use
  * nya_quaternion_slerp when the input came from arithmetic that could have drifted.

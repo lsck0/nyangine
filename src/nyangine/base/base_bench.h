@@ -1,8 +1,6 @@
 /**
  * @file base_bench.h
  *
- * Microbenchmarks: measuring whether a change helped, as opposed to finding what is slow.
- *
  * ```c
  * s32 main(void) {
  *     nya_bench_begin("render3d sort");
@@ -14,20 +12,10 @@
  * }
  * ```
  *
- * **This is the other half of `perf`, not a replacement for it.** A profile answers "where does the
- * time go" over a whole frame; it cannot answer "is this version faster than that one", because the
- * difference is usually smaller than the noise between two runs of a game. This answers the second
- * question and is useless for the first.
- *
  * ⚠ **Built without sanitizers and at -O2, unlike a test.** That is the entire point. A sanitizer build
  * distorts unevenly — it lands hardest on code with a high ratio of memory accesses to arithmetic — and
  * a benchmark run under one measures the sanitizer. The engine's own reverb was profiled at 5.52% of
  * frame time under ASAN and measured at 0.22% of a core without it, a factor of twenty-five.
- *
- * **Each case is run many times and the *best* is reported, not the mean.** A benchmark competes with
- * every other process on the machine, so slow samples are contamination and fast ones are not: the
- * minimum is the closest thing to the number the code would produce alone. The spread is printed
- * alongside so a suspiciously wide one is visible rather than hidden in an average.
  * */
 #pragma once
 
@@ -46,9 +34,6 @@
 
 /**
  * How many timed rounds each case runs. The best is reported and the median printed beside it.
- *
- * More than one because a single round can be lucky or unlucky; reporting both is what makes a case
- * where they disagree — the machine was busy — visible instead of silently believed.
  * */
 #ifndef NYA_BENCH_ROUNDS
 #define NYA_BENCH_ROUNDS 9
@@ -56,10 +41,6 @@
 
 /**
  * The shortest a timed sample may be, in nanoseconds. The batch size is calibrated to reach it.
- *
- * `nya_clock_get_monotonic_ns` costs tens of nanoseconds to call, so timing a single execution of
- * something that takes twenty measures the clock. Running the body enough times that the sample lasts
- * a hundred microseconds pushes that overhead below a thousandth of the result.
  * */
 #ifndef NYA_BENCH_MIN_SAMPLE_NS
 #define NYA_BENCH_MIN_SAMPLE_NS 100'000
@@ -91,16 +72,6 @@ NYA_API void nya_bench_report(NYA_ConstCString name, f64* samples, u32 sample_co
 
 /**
  * Times `body`, reporting nanoseconds per iteration and, when `items` is non-zero, per item.
- *
- * `items` is what one iteration processes — triangles, samples, entities — so two cases over different
- * input sizes stay comparable. Pass 0 when there is no natural unit.
- *
- * The body is variadic rather than a single parameter, so it may contain commas — a braced initialiser
- * or a multi-argument call inside it would otherwise be split into separate macro arguments.
- *
- * The body runs inside a loop the compiler cannot hoist it out of, because `nya_bench_keep` forces the
- * result to be observable. Without that, an optimiser deletes a pure computation whose value is unused
- * and the benchmark measures an empty loop — which reads as an enormous and entirely fictional speedup.
  * */
 #define nya_bench(name_, items_, ...)                                                                                                              \
     do {                                                                                                                                             \
@@ -134,18 +105,10 @@ NYA_API void nya_bench_report(NYA_ConstCString name, f64* samples, u32 sample_co
 
 /**
  * Makes a value observable, so the optimiser cannot delete the work that produced it.
- *
- * An empty asm block that claims to read the value and to clobber memory. The compiler has to
- * materialise it and cannot assume anything survived across the barrier, which is exactly enough to
- * stop a benchmark measuring nothing.
  * */
 #if defined(__clang__) || defined(__GNUC__)
 /*
  * Copied into a local first, then constrained as memory.
- *
- * The value is often a vector-extension element — `v[0].x` — which cannot satisfy a register
- * constraint directly, and a plain "m" on the original would demand it be addressable. A local is
- * both, and the copy costs nothing the barrier was not already going to cost.
  */
 #define nya_bench_keep(value_)                                                                                                                       \
     do {                                                                                                                                             \

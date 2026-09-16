@@ -1,23 +1,10 @@
 /**
  * @file debug_overlay.h
  *
- * The on-screen developer readout: frame time, frame rate, and what the frame cost to draw.
- *
  * ```c
  * nya_render2d_font_set(NYA_ASSET_FONTS_ALDRICH_TTF, 24.0F);
  * nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = 16, .y = 16 });
  * ```
- *
- * Work time (update + render + present, before the frame limiter's sleep) is what to optimise
- * against; wall time includes the sleep/vsync wait and sits at the cap regardless of work done, so
- * it's for checking deadlines instead. Milliseconds are shown before fps, since fps compresses the
- * part that matters (60→55 fps is 1.5 ms; 20→15 fps is 17 ms). The worst frame in the window is
- * shown beside the average because a run smooth apart from one 40 ms stall averages fine and feels
- * broken.
- *
- * History is sampled by the draw call itself, so a frame that skips drawing the overlay isn't
- * recorded — keeps the subsystem free when off, at the cost of a moment to fill after enabling it
- * mid-run.
  * */
 #pragma once
 
@@ -60,10 +47,6 @@ typedef struct NYA_DebugOverlayStyle  NYA_DebugOverlayStyle;
 
 /**
  * Ceilings listed in the fullness section, fullest first.
- *
- * Four rather than the registry's whole NYA_CEILING_REGISTRY_MAX, and for the same reason the arena
- * list is capped: the question a HUD answers is "is anything close to its limit", and that is the top
- * of the list. `nya_ceiling_count` and the rows below it give the rest to anyone who wants it.
  * */
 #ifndef NYA_DEBUG_OVERLAY_CEILINGS
 #define NYA_DEBUG_OVERLAY_CEILINGS 4
@@ -87,9 +70,6 @@ struct NYA_DebugOverlayStyle {
 
     /**
      * The frame time the top of the graph represents, in milliseconds. Zero means 33.3.
-     *
-     * Fixed rather than auto-scaled to the worst sample: auto-scaling rescales on every spike and
-     * so never looks different — the shape is the information a fixed scale preserves.
      * */
     f32 graph_ceiling_ms;
 
@@ -114,10 +94,6 @@ struct NYA_DebugOverlayStyle {
     /**
      * Hides the fixed-capacity fullness lines: the fullest NYA_DEBUG_OVERLAY_CEILINGS ceilings
      * registered with `nya_ceiling_register`, fullest first.
-     *
-     * Shown by default, because this engine's answer to running out of a fixed array is to warn once
-     * and refuse — which is the right behaviour and is also completely silent from inside the game.
-     * A row that goes amber before that happens is the only warning that arrives in time to act on.
      * */
     b8 hide_ceilings;
 
@@ -143,9 +119,6 @@ struct NYA_DebugOverlayStyle {
 
 /**
  * Samples this frame and draws the readout.
- *
- * Call it once per frame, last, so the draw call count it reports includes everything before it —
- * everything except its own.
  * */
 NYA_API void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style);
 

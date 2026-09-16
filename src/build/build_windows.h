@@ -1,19 +1,5 @@
 /**
  * @file build_windows.h
- *
- * Producing Windows binaries, from either host.
- *
- * Not under on_linux/ or on_windows/ because nothing in it is per host. There were two copies of
- * this file, one in each host directory, and they were byte identical below their docblocks — the
- * on_windows one even said so, claiming "only the tooling below differs" when there was no tooling
- * below it at all. Every difference between a native Windows build and a mingw-w64 cross compile is
- * already absorbed by the toolchain macros: CC, WINDRES, NYA_WINDOWS_CC and
- * FLAGS_TARGET_WINDOWS_X86_64, which expands to the target triple on Linux and to nothing on
- * Windows. So the two copies had nothing left to disagree about except by accident, which is the
- * hazard render2d_headless.c's docblock describes from the other side.
- *
- * on_linux/build_linux.h stays where it is: only a Linux host produces Linux binaries, so that one
- * really is per host. See host.h for why the reverse is not supported.
  * */
 #pragma once
 
@@ -27,8 +13,6 @@
  * The Windows debug pair. Unlike ELF, a PE DLL cannot reach back into the executable that loaded
  * it, so the executable exports its symbols into an import library and the game DLL links against
  * that. Everything else mirrors the Linux pair.
- *
- * No sanitizers here: asan on mingw is not usable in the same way it is on Linux.
  */
 
 NYA_INTERNAL NYA_BuildRule build_project_debug_executable_windows = {

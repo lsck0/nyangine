@@ -1,11 +1,5 @@
 /**
  * @file entity_box.c
- *
- * The crate: a dynamic rigid body that falls, lands, tumbles and eventually goes to sleep.
- *
- * Everything about one lives here — what it is spawned as, what it does per tick, what colour it
- * draws in, and how it is counted. Its update is registered by name, so the whole kind survives a
- * hot reload without the layer that spawned it knowing anything about it.
  * */
 #include "gnyame/gnyame.h"
 
@@ -21,14 +15,6 @@ NYA_EntityHandle gny_entity_box_create(f32x2 position, GNY_EntityFlags flags) {
 
     /*
      * Size and initial spin come out of the spawn counter rather than an RNG.
-     *
-     * Deterministic, so the same sequence of clicks produces the same pile — which is what makes a
-     * physics bug reproducible instead of a story about something that happened once.
-     *
-     * nya_ihash2 rather than a multiplicative hash written here. The hand-rolled version wrapped on
-     * the *second* crate, which aborts a sanitized build: -fsanitize=unsigned-integer-overflow treats
-     * wraparound as the accident it usually is, and the engine's hash already carries the
-     * __attr_no_sanitize that says the wrapping inside it is deliberate.
      */
     f32 t    = (nya_ihash2((s32)world->boxes_spawned, 0, GNY_BOX_SEED) * 0.5F) + 0.5F;
     f32 size = nya_lerp(GNY_BOX_MIN_SIZE, GNY_BOX_MAX_SIZE, t);
@@ -47,14 +33,6 @@ NYA_EntityHandle gny_entity_box_create(f32x2 position, GNY_EntityFlags flags) {
 
         /*
          * Sorted by where it sits rather than by a fixed layer.
-         *
-         * A pile of crates has no meaningful draw order otherwise — the entity index answers in grid
-         * bucket order, so two overlapping crates can swap which is in front whenever one of them
-         * moves between cells, which reads as flickering. Taking the order from `position.y` makes the
-         * lower crate the nearer one and keeps it stable while nothing moves.
-         *
-         * No anchor: a crate is drawn from its centre and its body is square, so its centre is as good
-         * a stand-in for where it rests as its lowest corner, and the corner moves as it tumbles.
          * */
         .visual = { .y_sorted = true },
 
@@ -140,10 +118,6 @@ void gny_entity_box_on_collision(NYA_Entity* entity, NYA_Entity* other, const NY
 
     /*
      * Once per collision, not once per side.
-     *
-     * Both entities in a hit get this callback, so two crates striking each other would record the
-     * same impact twice. Acting only for the lower handle index picks exactly one of the pair, and
-     * still fires when `other` is the terrain, which has no on_collision of its own.
      */
     if (other != nullptr && other->handle.index < entity->handle.index) return;
 
@@ -175,10 +149,6 @@ void gny_entity_box_on_click(NYA_Entity* entity, f32x3 world_point, u8 button) {
 
     /*
      * Middle click hands it the camera.
-     *
-     * Clicking the one already being followed stops the follow, which is what makes the key both
-     * take and release control rather than needing a second way to let go. The camera then finds its
-     * GNY_ENTITY_FLAG_PLAYER_CONTROLLED again and the arrow keys work.
      */
     if (button == NYA_MOUSE_BUTTON_MIDDLE) {
         b8 already = gny_entity_flag_check(entity, GNY_ENTITY_FLAG_CAMERA_TARGET);
@@ -229,10 +199,6 @@ NYA_Color gny_entity_box_color(const NYA_Entity* entity) {
      * Keyed on the slot, so a crate keeps its colour for its whole life and neighbouring spawns are
      * far apart on the wheel. Recomputed per frame rather than stored: it is a multiply and a
      * modulo, against a pointer the entity would otherwise have to own and free.
-     *
-     * Widened to u64 before the multiply. 47 and 360 are coprime, which is the point of the
-     * arithmetic; it cannot overflow at the current NYA_ENTITY_MAX but would past ~91 million, and
-     * the sanitized build is where that would surface rather than anywhere useful.
      */
     f32 hue = (f32)(((u64)entity->handle.index * 47U) % 360U);
 
@@ -243,10 +209,6 @@ void gny_entity_box_on_render(NYA_Entity* entity, NYA_Window* window) {
     /*
      * One crate, not the whole pile. nya_system_entity_render does the walking and the visibility
      * check, so a kind only has to say what one of it looks like.
-     *
-     * That is the difference between this and the loop it replaced: adding a second drawable kind
-     * used to mean another loop and another call in the layer's on_render, and now means a second
-     * on_render and nothing else.
      */
     f32x2 center   = { entity->position.x, entity->position.y };
     f32   rotation = nya_physics2d_rotation(entity);

@@ -1,16 +1,5 @@
 /**
  * The audio system: voices, generational handles, effects and gain.
- *
- * There is no sound asset in the repository, so this synthesizes a WAV, writes it next to the test
- * and loads it as an external asset. That is deliberately the whole path — decode, voice
- * acquisition, playback, effects — rather than a mock, because the parts worth testing are the ones
- * that talk to SDL_mixer.
- *
- * **Runs with or without an audio device.** A machine with no sound server, which is every CI
- * container, gets no mixer, and the audio system then reports itself unready and every call becomes
- * a no-op. The assertions below are written so both outcomes pass: anything device dependent is
- * guarded on whether the first play produced a voice, and the handle arithmetic that does not need a
- * device is asserted unconditionally.
  **/
 
 #include "nyangine/nyangine.c"
@@ -25,11 +14,6 @@ static void end_frame(void) {
 
 /**
  * Checks one of the variation helpers: in range, actually varying, and unbiased.
- *
- * Both have the same shape — a uniform offset in ±range, applied as an exponent — so they get the
- * same three assertions rather than two copies of them. `units_per_doubling` is what turns a
- * returned ratio back into the units the range is expressed in, which is the only thing that differs
- * between a detune and a level change.
  * */
 static void check_variation(NYA_ConstCString name, f32 (*vary)(f32, f32), f32 range, f32 units_per_doubling, NYA_ConstCString unit) {
   // Nothing asked for, nothing changed, and bit exact rather than nearly — a sound the game did not
@@ -44,12 +28,6 @@ static void check_variation(NYA_ConstCString name, f32 (*vary)(f32, f32), f32 ra
 
   /*
    * The bounds the range promises, as a ratio, with a hair of slack.
-   *
-   * The slack is not laziness: this reconstructs the bound through exp2f, while the gain helper
-   * reaches it through powf(10, x/20). The two agree to a few ULP rather than exactly, so an extreme
-   * draw could sit one bit outside a bound computed the other way. A relative 1e-5 is far below
-   * anything this assertion is meant to catch — a range off by a factor, or by the 20-versus-10
-   * decibel mistake — and far above float noise.
    */
   f32 slack = 1.0F + 1e-5F;
   f32 low   = exp2f(-range / units_per_doubling) / slack;
@@ -76,17 +54,6 @@ static void check_variation(NYA_ConstCString name, f32 (*vary)(f32, f32), f32 ra
 
   /*
    * Centred, which is what a symmetric range means.
-   *
-   * Uniform over ±range has standard deviation range/√3, so the mean of `draws` of them has standard
-   * error range/(√3·√draws) — about range/111 here. Ten of those is the tolerance, which is loose
-   * enough that the assertion effectively never trips by chance. What it catches is a one sided or
-   * sign-flipped draw, where the mean lands half a range out and misses by a factor of five.
-   *
-   * It does *not* catch drawing linearly in the ratio instead of in the exponent: that biases by
-   * only about 2% of the range, well inside this. The bounds above are what catch that one — a
-   * linear ±v range reaches below 2^(-range/12) on the quiet side and trips the range assertion on
-   * the first extreme draw. The same goes for confusing amplitude decibels with power decibels,
-   * which widens the ratio range by a factor rather than shifting its centre.
    */
   f64 mean      = sum / (f64)draws;
   f64 tolerance = (f64)range / 11.0;
@@ -116,10 +83,6 @@ static f64 tail_rms(const f32* pcm, s32 frames) {
 
 /**
  * What fraction of a sine at `hz` survives the filter.
- *
- * Measured rather than derived, so it checks the code rather than restating it: the buffer goes in
- * as a known tone and the ratio of what comes out is compared against the one pole's textbook
- * response. A unit sine has an RMS of 1/√2, which is what the ratio is taken against.
  * */
 static f64 filter_response(f32 cutoff_hz, f32 hz) {
   static f32 pcm[FILTER_FRAMES];
@@ -197,10 +160,6 @@ s32 main(void) {
    * The dummy audio driver, for the reason test_asset.c gives: opening a real device on a machine
    * without one leaks ALSA's configuration tree and fails the leak sanitizer over memory no engine
    * code touched.
-   *
-   * Unlike that test, this one wants the mixer to actually come up — the dummy driver provides a
-   * playback device that decodes and mixes normally and simply discards the output, so every path
-   * below is the real one.
    */
   SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 
@@ -301,9 +260,6 @@ s32 main(void) {
     /*
      * Side on: the screen is a wall, so world y becomes height and is negated on the way in — the
      * renderer's y counts downward while the mixer's counts up. Nothing reaches z.
-     *
-     * World (14, 28) is 4 right and 8 below a listener at (10, 20); over a reference distance of 4
-     * that is 1 right and 2 down, so 2 *below* in the mixer's terms.
      */
     f32x3 side = _nya_audio_world_to_audio((f32x2){ 14.0F, 28.0F });
     nya_assert(side[0] == 1.0F, "side on: x is unchanged, got %f", (f64)side[0]);
@@ -321,9 +277,6 @@ s32 main(void) {
 
     /*
      * The reference distance is a divisor, which is the whole reason it sets the scale of the world.
-     *
-     * Doubling it halves every distance, so a sound that was at the edge of the falloff is now well
-     * inside it. A version that added or multiplied instead would pass every assertion above.
      */
     nya_audio_listener_set((NYA_AudioListener){ .position = { 10.0F, 20.0F }, .reference_distance = 8.0F, .plane = NYA_AUDIO_PLANE_SIDE });
 
@@ -466,10 +419,6 @@ s32 main(void) {
 
     /*
      * Everything below is guarded on there being a device.
-     *
-     * Without a mixer the asset fails to decode and every play returns the null voice, which is the
-     * documented behaviour rather than a failure — so the test asserts that shape instead of
-     * skipping, and only checks the playing behaviour where there is something to play it.
      */
     NYA_SoundVoice voice = nya_audio_play_sound(TEST_WAV_PATH, 1.0F);
 

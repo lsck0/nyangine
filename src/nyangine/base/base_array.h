@@ -1,54 +1,6 @@
 /**
  * @file base_array.h
  *
- * Typesafe dynamic arrays.
- *
- * API Overview:
- * - nya_array_create(arena_ptr, item_type)
- * - nya_array_create_with_capacity(arena_ptr, item_type, initial_capacity)
- * - nya_array_from_argv(arena_ptr, argc, argv)
- * - nya_array_resize(arr_ptr, new_capacity)
- * - nya_array_reserve(arr_ptr, min_capacity)
- * - nya_array_shrink_to_fit(arr_ptr)
- * - nya_array_clear(arr_ptr)
- * - nya_array_destroy(arr_ptr)
- * - nya_array_get(arr_ptr, index)
- * - nya_array_set(arr_ptr, index, item)
- * - nya_array_first(arr_ptr)
- * - nya_array_last(arr_ptr)
- * - nya_array_add(arr_ptr, item)
- * - nya_array_add_many(arr_ptr, ...)
- * - nya_array_extend(arr_ptr, other_arr_ptr)
- * - nya_array_insert(arr_ptr, item, index)
- * - nya_array_insert_many(arr_ptr, start_index, ...)
- * - nya_array_remove(arr_ptr, index)
- * - nya_array_remove_many(arr_ptr, start_index, count)
- * - nya_array_remove_item(arr_ptr, item)
- * - nya_array_push_back(arr_ptr, item)
- * - nya_array_push_back_many(arr_ptr, ...)
- * - nya_array_push_front(arr_ptr, item)
- * - nya_array_push_front_many(arr_ptr, ...)
- * - nya_array_pop_back(arr_ptr)
- * - nya_array_pop_back_many(arr_ptr, count)
- * - nya_array_pop_front(arr_ptr)
- * - nya_array_pop_front_many(arr_ptr, count)
- * - nya_array_contains(arr_ptr, item)
- * - nya_array_find(arr_ptr, item)
- * - nya_array_sort(arr_ptr, compare_fn)
- * - nya_array_equals(arr1_ptr, arr2_ptr)
- * - nya_carray_length(carray)
- * - nya_array_length(arr_ptr)
- * - nya_array_swap(arr_ptr, index_a, index_b)
- * - nya_array_reverse(arr_ptr)
- * - nya_array_copy(arr_ptr)
- * - nya_array_move(arr_ptr, new_arena_ptr)
- * - nya_array_slice_excld(arr_ptr, start, end)
- * - nya_array_slice_incld(arr_ptr, start, end)
- * - nya_array_for(arr_ptr, index_name)
- * - nya_array_for_reverse(arr_ptr, index_name)
- * - nya_array_foreach(arr_ptr, item_name)
- * - nya_array_foreach_reverse(arr_ptr, item_name)
- *
  * Example:
  * ```c
  * typedef struct {
@@ -193,15 +145,6 @@ nya_derive_array(f128_4x4);
 
 /*
  * Never compiled until someone tried to call it, and then it did not.
- *
- * Three separate errors, all of the kind a macro hides until it is expanded: `s32(0)` is a function
- * style cast and not C at all; nya_string_from returns an NYA_String*, while the array holds
- * NYA_String by value, so both the type assert and the add were wrong. It has been in the API
- * overview at the top of this file the whole time.
- *
- * `argc` is cast rather than asserted, because main's argc is s32 in this tree but plain int
- * elsewhere and the two need not be the same type to mean the same thing. A negative argc would
- * make the capacity enormous, so it is clamped to zero first.
  */
 #define nya_array_from_argv(arena_ptr, argc, argv)                                                                                                   \
     ({                                                                                                                                               \
@@ -300,11 +243,6 @@ nya_derive_array(f128_4x4);
 
 /*
  * Doubling, with a floor.
- *
- * `2 * capacity` is zero at capacity zero, so the resize was a no-op and the element was then
- * written through the null items pointer that nya_array_create_with_capacity_on_stack leaves behind
- * for an initial capacity of zero. Two ways in: asking for zero outright, and nya_array_shrink_to_fit
- * on an empty array, which is what nya_string_shrink_to_fit does to an empty string.
  */
 #define _NYA_ARRAY_GROWN_CAPACITY(arr_ptr) nya_cast_to_u64(nya_max((u64)1, (u64)2 * (arr_ptr)->capacity))
 
@@ -339,11 +277,6 @@ nya_derive_array(f128_4x4);
 
 /*
  * The shift is sized in elements and converted to bytes once, at the end.
- *
- * It used to read `length * sizeof(*items) - index`, with the subtraction outside the multiply, so
- * it moved `index * (sizeof - 1)` bytes too many and wrote past the allocation. Invisible for a one
- * byte element type, where the two expressions coincide — which is every NYA_String — and invisible
- * for a small array, where the arena's padding absorbs the overrun.
  */
 #define nya_array_insert(arr_ptr, item, index)                                                                                                       \
     ({                                                                                                                                               \

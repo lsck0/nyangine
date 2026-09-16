@@ -249,10 +249,6 @@ s32 main(void) {
   {
     /*
      * The one thing about these matrices that is easy to get wrong and impossible to see.
-     *
-     * Every OpenGL-era reference derives them for a -1..1 depth range; SDL_GPU normalizes every
-     * backend to Direct3D's 0..1. A matrix built for the wrong one does not look like a sign error —
-     * it clips everything in the near half of the frustum, and renders as geometry with holes in it.
      */
     f32     near_plane = 0.5F;
     f32     far_plane  = 100.0F;

@@ -1,8 +1,6 @@
 /**
  * @file nn_dqn.h
  *
- * Deep Q-learning: an agent that learns which action is worth taking, from reward alone.
- *
  * ```c
  * NYA_NNDQN* agent = nya_nn_dqn_create(arena, (NYA_NNDQNConfig){
  *     .state_size = 4, .action_count = 2,
@@ -19,34 +17,6 @@
  * nya_nn_dqn_observe(agent, state, action, reward, next_state, episode_over);
  * nya_nn_dqn_train_for(agent, delta_time_s);
  * ```
- *
- * ## Running live
- *
- * `nya_nn_dqn_train_for` is paced in gradient steps per second and takes a delta, exactly as
- * nya_nn_neat_step_for does for NEAT — so a run looks the same on a 60Hz monitor and a 144Hz one,
- * and a frame that stalls does not try to make up the whole gap at once.
- *
- * Acting and training are deliberately separate calls. A game wants to act every frame and train
- * far less often, and the two costs are nothing alike: acting is one forward pass over a single
- * state with no tape, training is a forward and backward pass over a whole batch.
- *
- * ## Why the pieces are here
- *
- * Q-learning on a neural network diverges if implemented literally, and the three things that fix it
- * are all in this file rather than left to the caller:
- *
- * **Replay.** Consecutive frames are almost the same state, and training on them in order means
- * every batch is highly correlated — the network chases the last few seconds and forgets everything
- * else. Transitions go into a ring buffer and batches are drawn uniformly from it.
- *
- * **A target network.** The regression target contains the network's own output, so updating the
- * network moves the target it is being fitted to. A second, slowly synchronised copy supplies the
- * target instead, which turns a moving goalpost into a stationary one for a while.
- *
- * **Double Q-learning.** `max` over a noisy estimate is biased upwards, and that bias compounds
- * through bootstrapping until values run away. Choosing the action with the online network and
- * evaluating it with the target network removes most of it, for the cost of one extra forward pass.
- * See NYA_NNDQNConfig.disable_double_q for the argument against turning it off.
  * */
 #pragma once
 
@@ -79,9 +49,6 @@ struct NYA_NNDQNConfig {
 
     /**
      * Hidden layers, in order.
-     *
-     * A linear layer uses `units`; activations ignore it. The output layer is appended
-     * automatically as a final linear layer to `action_count`.
      */
     NYA_NNDQNLayerConfig layers[NYA_NN_DQN_MAX_LAYERS];
 
@@ -96,10 +63,6 @@ struct NYA_NNDQNConfig {
 
     /**
      * Discount on future reward, in [0, 1). Zero means 0.99.
-     *
-     * How far ahead the agent looks. At 0.99 a reward is still worth a third of its value a hundred
-     * steps later; at 0.9 it is worth almost nothing after fifty. Too high on a task with short
-     * episodes makes the value estimate mostly noise about a distant future that never arrives.
      * */
     f32 discount;
 
@@ -134,9 +97,6 @@ struct NYA_NNDQNConfig {
 
     /**
      * Fraction of the online network mixed into the target each step. Zero means 0.005.
-     *
-     * A soft update every step rather than a hard copy every N. Both work; this one has no
-     * discontinuity, so the loss does not jump every time the targets are replaced.
      * */
     f32 target_tau;
 
@@ -152,28 +112,11 @@ struct NYA_NNDQNConfig {
 
     /**
      * Wall clock ceiling on one nya_nn_dqn_train_for, in milliseconds. Zero means no limit.
-     *
-     * The same distinction NYA_NeatConfig.max_step_milliseconds draws, and for the same reason: a
-     * step count is a budget on how many, not on how long. One gradient step costs a forward and a
-     * backward pass over `batch_size` rows through the whole hidden stack, so its price scales with
-     * the network — and a count that was reasonable for a small net silently becomes a frame killer
-     * for a larger one.
-     *
-     * Measured on the gnyame demo, which asks for 800 steps per second with a cap of twelve: at
-     * 62.5 FPS that is 12.8 steps owed per frame, so it ran the full twelve every single frame and
-     * spent 3.7 ms of a 16 ms timestep on training alone, every frame, forever.
-     *
-     * Checked between steps, so the first one always runs. That bounds the overshoot to a single
-     * step rather than eliminating it, exactly as NEAT does — a budget that can decline to make any
-     * progress is a budget that stops the agent learning on a slow machine.
      * */
     f64 max_step_milliseconds;
 
     /**
      * Transitions that must exist before training starts. Zero means four batches' worth.
-     *
-     * Training on the first few transitions means training on a batch that is mostly the same
-     * moment repeated, which is the correlation replay exists to remove.
      * */
     u32 learning_starts;
 
@@ -182,10 +125,6 @@ struct NYA_NNDQNConfig {
 
     /**
      * Turns off double Q-learning, using the target network for both the choice and the value.
-     *
-     * Here to be measured against, not because it is ever the better default. Plain DQN
-     * systematically overestimates — `max` over noisy estimates is biased upward, and bootstrapping
-     * feeds that bias back in — and on anything with stochastic reward it will eventually run away.
      * */
     b8 disable_double_q;
 };
@@ -201,9 +140,6 @@ NYA_API NYA_NNDQN* nya_nn_dqn_create(NYA_Arena* arena, NYA_NNDQNConfig config) _
 
 /**
  * Chooses an action for `state`, exploring according to the current epsilon.
- *
- * `state` holds `state_size` values. One forward pass over a single row, with no tape recorded, so
- * this is cheap enough to call every frame.
  * */
 NYA_API u32 nya_nn_dqn_act(NYA_NNDQN* dqn, const f32* state) __attr_no_discard;
 
@@ -215,10 +151,6 @@ NYA_API void nya_nn_dqn_action_values(NYA_NNDQN* dqn, const f32* state, f32* out
 
 /**
  * Records one transition. `next_state` is ignored when `terminal` is true.
- *
- * `terminal` must mean the episode genuinely ended, not that it was cut off at a time limit — a
- * terminal transition tells the agent there is no future reward at all, and saying that about a run
- * that was merely interrupted teaches it that the cutoff is a cliff.
  * */
 NYA_API void nya_nn_dqn_observe(NYA_NNDQN* dqn, const f32* state, u32 action, f32 reward, const f32* next_state, b8 terminal);
 

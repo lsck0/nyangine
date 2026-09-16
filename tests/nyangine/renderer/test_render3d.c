@@ -1,16 +1,5 @@
 /**
  * 3D picking: the path a click actually takes, end to end.
- *
- * A click goes screen pixel → nya_render3d_screen_ray → nya_physics3d_raycast → entity, and every
- * one of those steps is arithmetic nobody can check by eye. This walks it with a camera in a known
- * place and a cube at a known point, which is the only way the answer is verifiable.
- *
- * The regression it exists for: screen_ray used to require nya_render3d_begin to be *currently* open.
- * A click arrives during on_event and a camera is set during on_render, one phase later — so the ray
- * fell back to the origin pointing along -z, hit nothing, and clicking the cube silently did nothing.
- *
- * Headless: render3d_headless.c does the ray arithmetic for real, precisely so this test means
- * something. Only the drawing is stubbed.
  **/
 
 #include "nyangine/nyangine.c"
@@ -122,10 +111,6 @@ s32 main(void) {
      * Standing at +z looking at the origin with +y up, the world's +x is on your right — the camera
      * basis is `right = forward x up`, and forward here is (0, 0, -1), which crosses with (0, 1, 0)
      * to give (1, 0, 0).
-     *
-     * Worth signing by hand rather than assuming, because a transposed basis mirrors picking about
-     * the screen centre and looks almost right: the cube is still selectable, and everything either
-     * side of it selects its neighbour.
      */
     NYA_Render3DRay right = nya_render3d_screen_ray(window, (f32x2){ 700.0F, 300.0F });
     nya_assert(right.direction.x > 0.0F, "right of centre aims along +x from this camera, got %f", (f64)right.direction.x);

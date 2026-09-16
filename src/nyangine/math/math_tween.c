@@ -264,15 +264,6 @@ NYA_INTERNAL f32 _nya_bezier_solve_x(f32 x1, f32 x2, f32 t) {
 
     /*
      * Newton first, and it returns the moment it has the answer.
-     *
-     * Both loops used to run unconditionally and the closer of the two results was taken, so every
-     * call paid for eight Newton iterations *and* sixteen bisection steps regardless — about three
-     * times the arithmetic actually needed, on a function an animation calls per tweened property
-     * per frame. Newton lands inside the tolerance below in two or three iterations for any ordinary
-     * pair of control points.
-     *
-     * The tolerance is on x, which is what is being solved for, and 1e-6 is finer than an f32 can
-     * meaningfully distinguish once the result is fed back through the y curve.
      */
     for (u32 i = 0; i < 8; i++) {
         f32 s2   = s * s;
@@ -298,8 +289,6 @@ NYA_INTERNAL f32 _nya_bezier_solve_x(f32 x1, f32 x2, f32 t) {
     /*
      * Bisection, reached only when Newton did not converge — a flat tangent, or control points that
      * make x non monotonic and send the iteration oscillating.
-     *
-     * Always converges here: x(0) is 0 and x(1) is 1 by construction, so the target is bracketed.
      */
     f32 lo = 0.0F, hi = 1.0F;
     for (u32 i = 0; i < 16; i++) {

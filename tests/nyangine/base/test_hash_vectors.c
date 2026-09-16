@@ -1,15 +1,5 @@
 /**
  * Known-answer vectors for FNV-1a and SipHash-2-4.
- *
- * test_crc.c already pins CRC-8/16/32/64 against the standard "123456789" check values. Neither
- * FNV-1a nor SipHash had the same treatment, and SipHash is the one that matters most: it is what
- * base_integrity.c computes its code baseline and its binary MAC with, so an implementation that is
- * merely *a* hash rather than *the* hash would still look fine to every test in the tree while
- * failing to be the primitive the integrity check claims.
- *
- * SipHash-2-4 reference vectors: key 000102...0f, input the byte sequence 00 01 02 ... of the given
- * length. The reference implementation supplies the key as bytes; this API takes two u64 halves, so
- * the key is the little-endian reading of those sixteen bytes.
  */
 
 #include "nyangine/nyangine.c"

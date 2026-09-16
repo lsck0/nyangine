@@ -1,16 +1,5 @@
 /**
  * The job system: submission, completion, and the concurrency limit.
- *
- * This is the only genuinely concurrent thing in core, so it is also the only test here that can
- * fail intermittently. Everything below is written to avoid that: a job signals completion through
- * an atomic, waiting is done with nya_job_wait rather than a sleep, and no assertion depends on two
- * threads reaching a point in a particular order. An assertion that only holds "usually" is worse
- * than no assertion, because it teaches everyone to re-run the suite.
- *
- * **No thread sanitizer.** The suite compiles with address and leak sanitizers, and TSan cannot be
- * combined with those, so a data race in the queue or the slot pool will not fail this build — it
- * has to be found by reading the code. Do not treat a pass here as evidence that the job system is
- * race free. It is evidence that the observable behaviour is right on this machine, this time.
  **/
 
 #include "nyangine/nyangine.c"
@@ -34,12 +23,6 @@ static int job_noop(NYA_Job* job) {
 
 /**
  * Reads its input and writes a result, so the data plumbing is observable.
- *
- * Writes into storage the *submitter* owns, reached through out_data, rather than allocating its
- * own. This used to call nya_arena_alloc(nya_arena_global, ...), which has no locking — with one job
- * in flight that was invisible, and with several running at once two of them got the same pointer
- * back and overwrote each other's answers. A job function is the wrong place to touch a shared
- * allocator, and this is the example anyone writing one will copy.
  * */
 static int job_double(NYA_Job* job) {
   s32 input = *(s32*)job->in_data;
@@ -93,11 +76,6 @@ s32 main(void) {
 
   /*
    * Torn down job system first, which means declaring its defer last.
-   *
-   * defer is LIFO, so the last declaration runs first. The scheduler owns a thread that dispatches
-   * a completion event, and that thread has to be joined while the event system it dispatches into
-   * still exists — otherwise it pushes onto a freed queue and UBSan reports a null member access in
-   * core_event, intermittently, depending on how the threads interleave.
    */
   defer nya_system_callback_deinit();
   defer nya_system_events_deinit();
@@ -179,11 +157,6 @@ s32 main(void) {
 
     /*
      * Deliberately not asserting execution *order*.
-     *
-     * The queue is a priority heap, so a higher priority job is dequeued first — but with several
-     * jobs running concurrently, "dequeued first" does not mean "finished first", and asserting on
-     * completion order would be a test that passes on this machine and fails on a busier one. What
-     * is checked is that no priority is silently dropped.
      */
     NYA_JobHandle low    = nya_job_submit((NYA_Job){ .priority = NYA_JOB_PRIORITY_LOW, .function = nya_callback(job_noop) });
     NYA_JobHandle normal = nya_job_submit((NYA_Job){ .priority = NYA_JOB_PRIORITY_NORMAL, .function = nya_callback(job_noop) });
@@ -254,10 +227,6 @@ s32 main(void) {
      * the same arguments were indistinguishable — and that is the ordinary case, not a corner one.
      * nya_job_is_done can only answer for the first match it finds, so waiting on any handle in a
      * batch of identical work returned as soon as *one* of them finished.
-     *
-     * Asserted on the handles directly rather than only through completion counts, because the
-     * counting version of this test passed for as long as the scheduler was slow enough that
-     * everything had finished before anything got around to waiting.
      */
     enum { COUNT = 4 };
 
@@ -281,10 +250,6 @@ s32 main(void) {
 
     /*
      * And the same property once the slots have been recycled.
-     *
-     * A reaped slot is handed to the next job, so an identity derived from *where* a job ran would
-     * start describing somebody else. Submitting another full round and re-checking the first batch
-     * is what catches that; the counter is what makes it hold.
      */
     NYA_JobHandle recycled[COUNT];
     for (u32 i = 0; i < COUNT; i++) {
@@ -304,15 +269,6 @@ s32 main(void) {
   {
     /*
      * nya_job_wait has to be a synchronisation edge, not merely a liveness check.
-     *
-     * It used to report a job done as soon as its thread reached SDL_THREAD_COMPLETE, which is a
-     * state query with no happens-before behind it — so reading out_data afterwards had no guarantee
-     * of seeing the job's stores. A job is now done only once the scheduler has *joined* it, under
-     * the same mutex this observes through.
-     *
-     * A plain read cannot prove ordering on x86, where it would have worked either way. What this
-     * does assert is the part that is testable: every job in a batch has genuinely published its
-     * result by the time its wait returns, with no second pass and no retry.
      */
     enum { COUNT = 8 };
 

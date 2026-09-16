@@ -1,9 +1,5 @@
 /**
  * Core systems: the tween pool, string hashing, and arena allocation.
- *
- * Hashing is here because `perf.data` put `nya_hash_fnv1a` at 0.62% and `nya_asset_get` at 0.66% —
- * every asset lookup hashes a string handle. Whether that is worth replacing with integer ids emitted
- * by the asset codegen is an open question, and this is the number the answer depends on.
  **/
 
 #include "nyangine/nyangine.c"
@@ -30,11 +26,6 @@ s32 main(void) {
 
     /*
      * Brought up once for the whole file.
-     *
-     * An earlier version re-initialised the callback system inside the asset section while the outer
-     * one was still up, and tore it down there as well — so the outer teardown ran against a registry
-     * that had already been freed, and the process died with SIGSEGV after main returned. Nested
-     * lifetimes of a process-wide system are not a thing; one bring-up, one teardown.
      */
     nya_system_callback_init();
     NYA_EXPECT(nya_system_events_init());
@@ -95,15 +86,6 @@ s32 main(void) {
     {
         /*
          * ⚠ These two numbers do NOT demonstrate the memo, and are kept only to show the call is cheap.
-         *
-         * Nothing is loaded here, so the dictionary is empty and nya_dict_get short-circuits before it
-         * hashes anything — which makes the "miss" case as fast as the hit and the comparison
-         * meaningless. Populating it needs real asset loads, which are queued and land at end of frame,
-         * so a bench with no frame loop cannot do it.
-         *
-         * What the memo is worth is argued from the hash it removes: nya_hash_fnv1a over a real asset
-         * path measures ~63 ns above, against ~0.3 ns for an integer compare. That is the cost a
-         * populated dictionary pays per lookup and the memo does not.
          */
         nya_bench_begin("asset lookup (empty dictionary — see the note in the source)");
 

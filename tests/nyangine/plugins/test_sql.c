@@ -1,13 +1,5 @@
 /**
  * The SQLite plugin: rows as NYA_Object, bound parameters, transactions.
- *
- * Everything runs against ":memory:", so the suite touches no disk and two tests cannot see each
- * other's tables. The one exception is the file backed test at the bottom, which exists because
- * "opens a path and creates it" is the behaviour a save file depends on and an in memory database
- * cannot exercise it.
- *
- * The plugin flags come from FLAGS_PLUGINS on the test build rule, the same ones the project
- * compiles with. Without them this file would compile to nothing and report a pass.
  **/
 
 #include "nyangine/nyangine.c"

@@ -1,17 +1,5 @@
 /**
  * Regression test for growth from a zero capacity array (base_array.h).
- *
- * nya_array_add grows with
- *
- *     if (length == capacity) nya_array_resize(arr_ptr, 2UL * capacity);
- *
- * which is a no-op at capacity zero, and the element is then written through a null items pointer —
- * nya_array_create_with_capacity_on_stack leaves it null when the initial capacity is zero.
- *
- * Two ways in, both exercised below: asking for a zero capacity outright, and shrinking an empty
- * array to fit, which is what nya_string_shrink_to_fit does to an empty string.
- *
- * nya_array_insert grows the same way and has the same hole.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

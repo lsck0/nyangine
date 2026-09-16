@@ -1,11 +1,5 @@
 /**
  * The entity system: slots, generations, and the two ways to despawn.
- *
- * The generation counter is what most of this is about. A handle is a slot plus a generation, and
- * the generation is what makes a handle to a despawned entity stay invalid after the slot is reused
- * — without it, holding a handle across a despawn silently addresses whoever moved in.
- *
- * Headless throughout: entities are plain data and the system needs nothing but an arena.
  **/
 
 #include "nyangine/nyangine.c"
@@ -21,10 +15,6 @@ static b8 close_enough(f32 a, f32 b) {
 
 /**
  * One tick of the two systems interpolated motion needs, in the order core_app.c runs them.
- *
- * A move is a core_tween.h tween writing into NYA_Entity.move_position, which
- * nya_system_entity_update then applies to the transform — so stepping only the entity system
- * advances nothing, and stepping it first applies every move a tick late.
  * */
 static void tick(f32 delta_time_s) {
   nya_system_tween_update(delta_time_s);
@@ -370,10 +360,6 @@ s32 main(void) {
 
     /*
      * Immediately, with no rebuild in between.
-     *
-     * This is the property that made the index incremental rather than rebuilt once a tick like the
-     * spatial grid: a stale index does not give a slightly wrong answer, it silently omits an entity,
-     * and a system that misses something for one frame is miserable to track down.
      */
     u32 count = 0;
     nya_entity_foreach_kind (KIND_A, entity) {
@@ -422,10 +408,6 @@ s32 main(void) {
 
     /*
      * Slot reuse is where a stale bit would show.
-     *
-     * The free list hands back the most recently freed slot, so this new entity lands in exactly the
-     * one a2 occupied. If despawn had cleared only `live` and left the kind and flag bits set, this
-     * would appear in KIND_A and under FLAG_X despite being neither.
      */
     NYA_EntityHandle reused = nya_entity_spawn(.name = "reused", .type = KIND_B);
     nya_assert(reused.index == a2.index, "expected the freed slot back, so the test means something");

@@ -30,10 +30,6 @@ enum NYA_CommandFlags {
 
 /**
  * NYA_Command
- *
- * Commands have to follow these rules:
- * - If NYA_COMMAND_FLAG_OUTPUT_CAPTURE is set, an arena must be provided and stdout_content and stderr_content
- *   will be set after execution.
  * */
 struct NYA_Command {
     NYA_CommandFlags flags;
@@ -83,15 +79,6 @@ NYA_API NYA_Error nya_command_run(NYA_Command* command) __attr_no_discard;
 
 /**
  * Starts `command` and returns without waiting for it.
- *
- * The half of nya_command_run that does not block. Pair every spawn with exactly one
- * nya_command_wait — the child stays a zombie until something reaps it, and its pipes stay open.
- *
- * For running independent commands at once. Compiling the test suite is the case that motivated it:
- * every test binary rebuilds the whole engine, and doing that one at a time leaves every core but
- * one idle.
- *
- * `exit_code`, `execution_time_ms` and the captured output are only valid after the wait.
  * */
 NYA_API NYA_Error nya_command_spawn(NYA_Command* command) __attr_no_discard;
 

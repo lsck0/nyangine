@@ -63,3 +63,9 @@ docs/doxygen/
 # Benchmark binaries, built next to their source by `./build run bench`.
 bench/*
 !bench/*.c
+
+# Compiled test binaries. `./build run test` builds tests/**/test_foo next to tests/**/test_foo.c, so
+# these are artifacts sitting in the source tree rather than beside it — the negation is what keeps the
+# sources, since git cannot match "has no extension".
+tests/**/test_*
+!tests/**/test_*.c

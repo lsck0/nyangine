@@ -1,15 +1,5 @@
 /**
  * @file filesystem.h
- *
- * Filesystem access: metadata, directory traversal, and the mutating operations a file manager
- * needs (copy, move, delete, including recursively).
- *
- * Listing returns metadata per entry rather than just names, because the alternative is a stat
- * syscall per row, which is what makes naive directory listings slow.
- *
- * Path *manipulation* is deliberately not here. Joining, splitting and normalising paths is pure
- * string work with no syscalls behind it, so it lives in base_path.h where it can be tested
- * without touching a disk.
  * */
 #pragma once
 
@@ -56,11 +46,6 @@ __attr_allow_unused static NYA_ConstCString NYA_FILETYPE_NAME_MAP[NYA_FILE_TYPE_
 
 /**
  * Timestamps are milliseconds since the unix epoch on both platforms.
- *
- * Milliseconds rather than seconds because these are compared, not displayed, and the thing that
- * compares them is the build system deciding whether an output is older than its input. A second is
- * long enough for a fast rule to write its output inside the same tick as the edit that triggered
- * it, at which point the two timestamps are equal and the rule never runs again.
  * */
 struct NYA_FileInfo {
     NYA_FileType type;
@@ -84,8 +69,6 @@ nya_derive_array(NYA_DirectoryEntry);
 /**
  * Called once per entry while walking. Return false to stop the walk early, which is what makes it
  * usable for "find the first match" without listing everything.
- *
- * `path` is the full path of the entry, `entry` its metadata.
  * */
 typedef b8 (*NYA_WalkCallback)(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 
@@ -144,9 +127,6 @@ NYA_API NYA_Error nya_filesystem_copy_recursive(NYA_ConstCString source, NYA_Con
 
 /**
  * Lists one directory level, metadata included. `.` and `..` are omitted.
- *
- * Order is whatever the filesystem hands back, which is not sorted; sorting is the caller's
- * business since a browser wants to choose the key.
  * */
 NYA_API NYA_Error nya_filesystem_list(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_ArrayᐸNYA_DirectoryEntryᐳ** out_entries) __attr_no_discard;
 
@@ -161,9 +141,6 @@ NYA_API NYA_Error nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, N
 
 /**
  * An open file.
- *
- * Opaque and by value rather than a raw descriptor: POSIX hands back an int and Windows a HANDLE,
- * and the old nya_fd_* functions took an `s32 fd` directly, which quietly made them Linux only.
  * */
 typedef struct NYA_File NYA_File;
 

@@ -1,27 +1,6 @@
 /**
  * @file base_dict.h
  *
- * Hashmap but with string keys. The essential difference is, that a nya_derive_hmap(NYA_CString, T) would
- * compare the strings by pointer equality not value equality. Hence this mostly wraps base_hmap.
- *
- * API Overview:
- * - nya_dict_create(arena_ptr, value_type)
- * - nya_dict_create_with_capacity(arena_ptr, value_type, initial_capacity)
- * - nya_dict_create_on_stack(arena_ptr, value_type)
- * - nya_dict_create_with_capacity_on_stack(arena_ptr, value_type, initial_capacity)
- * - nya_dict_clear(dict_ptr)
- * - nya_dict_destroy(dict_ptr)
- * - nya_dict_destroy_on_stack(dict_ptr)
- * - nya_dict_resize_and_rehash(dict_ptr, new_capacity)
- * - nya_dict_contains(dict_ptr, key)
- * - nya_dict_get(dict_ptr, key)
- * - nya_dict_set(dict_ptr, key, value)
- * - nya_dict_remove(dict_ptr, key)
- * - nya_dict_copy(dict_ptr)
- * - nya_dict_move(dict_ptr, new_arena_ptr)
- * - nya_dict_foreach_key(dict_ptr, key_name)
- * - nya_dict_foreach_value(dict_ptr, value_name)
- *
  * Example:
  * ```c
  * typedef struct {

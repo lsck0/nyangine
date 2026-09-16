@@ -1,22 +1,5 @@
 /**
  * The client's message handling, driven from the other end of a loopback pair.
- *
- * Every other net test reaches the client through a real server, which only ever sends it well-formed
- * messages in the expected order. That leaves most of the client untested: the rejection path, the
- * disconnect reasons, the two hooks a game registers, and what happens when snapshots arrive out of order
- * or before the handshake.
- *
- * So this holds the *server* end of a loopback pair directly and writes whatever it likes down it. From the
- * client's point of view that is indistinguishable from a server — which is the point, because a client
- * cannot assume the thing it connected to is well behaved either.
- *
- * ## The saturating clock helper
- *
- * Also covered here, because the bug it fixes was a handshake-breaking race that no in-process test caught.
- * Timers in net/ subtract two monotonic reads, and the earlier one can be recorded by a function that
- * samples the clock *after* its caller did. Unsigned, one millisecond of skew wraps to near U64_MAX, which
- * every timer reads as "ages have passed" — so a freshly added peer was declared timed out and removed
- * immediately, and a client dropped its server in the same call that added it.
  **/
 
 #include "nyangine/nyangine.c"
@@ -133,10 +116,6 @@ s32 main(void) {
 
     /*
      * The case that broke the handshake.
-     *
-     * One millisecond of skew, which is what a timestamp recorded after `now` was sampled produces. Wrapped
-     * this is 18446744073709551615, and every timer in net/ compares that against a few thousand — so a
-     * peer added a moment ago was immediately declared timed out.
      */
     nya_assert(_nya_net_elapsed_ms(1000, 1001) == 0, "a later `then` saturates to zero rather than wrapping");
     nya_assert(_nya_net_elapsed_ms(0, U64_MAX) == 0, "and so does the extreme of it");
@@ -166,10 +145,6 @@ s32 main(void) {
 
     /*
      * The server's handle for its entity, which is not usable locally.
-     *
-     * On a loopback the two handle spaces are one, so the local handle is set immediately — a remote client
-     * waits for the first snapshot to spawn it. Both names are exposed because only one of them can be
-     * handed to nya_entity_get.
      */
     nya_assert(nya_net_client_entity_remote().index == 7, "the client learned the server's handle for its entity");
 
@@ -202,9 +177,6 @@ s32 main(void) {
 
     /*
      * The reason survives the reset.
-     *
-     * A player shown "connection lost" when the truth is "this server runs a different version" cannot act
-     * on it, so the reason is deliberately preserved across the teardown that clears everything else.
      */
     nya_assert(nya_net_client_disconnect_reason() == NYA_NET_DISCONNECT_VERSION, "the rejection reason was lost");
 
@@ -373,9 +345,6 @@ s32 main(void) {
 
     /*
      * On a loopback the client applies nothing — it shares the server's world.
-     *
-     * The tick is still tracked and acknowledged, because the server's baseline bookkeeping runs the same
-     * way for every peer and a local one that never acknowledged would be sent full snapshots forever.
      */
     send_as_server(server_end, SNAPSHOT(60, 20.0F));
     nya_net_client_tick(3, TICK_SECONDS);

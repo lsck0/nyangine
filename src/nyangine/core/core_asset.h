@@ -142,8 +142,18 @@ enum NYA_VertexLayout {
      * should be the default. */
     NYA_VERTEX_LAYOUT_2D,
 
-    /** NYA_Vertex3D: position, colour, normal, uv, all floats. Sixty-four bytes. */
+    /** NYA_Vertex3D: position, colour, normal, uv. Thirty-six bytes; see that struct for the packing. */
     NYA_VERTEX_LAYOUT_3D,
+
+    /**
+     * NYA_Vertex3DDepth: position alone. Twelve bytes, and what the immediate shadow pass uploads.
+     *
+     * A shadow pass writes depth and reads nothing else, so the uv, normal and colour it was being handed
+     * were twenty-four bytes per vertex uploaded across PCIe and discarded by the input assembler — three
+     * times over, once per cascade. Only the *immediate* shadow pipeline uses it: the instanced one draws
+     * out of a buffer uploaded once at registration, which the camera pass reads too and so must stay wide.
+     * */
+    NYA_VERTEX_LAYOUT_3D_DEPTH,
 
     /** NYA_Vertex3D in buffer 0, NYA_Render3DInstance in buffer 1, stepped per *instance*. What the
      * retained mesh path draws with — buffer 1 carries a model matrix and tint, letting one upload of a
@@ -275,40 +285,17 @@ struct NYA_AssetLoadParameters {
         struct {
             /**
              * How this image is sampled. Defaults to linear; pixel art wants nearest.
-             *
-             * See NYA_TextureFilter. A batch draws with one sampler at a time, so mixing filters
-             * across consecutive sprites costs a draw call at each change — group by filter the way
-             * you would group by texture.
              * */
             NYA_TextureFilter filter;
 
             /**
              * Rasterize a vector image at this size instead of its natural one.
-             *
-             * Only meaningful for SVG, and the whole reason to use one: a vector icon has a size
-             * written into the file, and loading it at that size throws away the only advantage it
-             * has over a PNG. Ask for the size you will draw it at and it is sharp there.
-             *
-             * Zero on either axis means the file's own size. A raster format ignores both.
              * */
             u32 width;
             u32 height;
 
             /**
              * What `currentColor` rasterises to, for an SVG that uses it.
-             *
-             * Most icon sets stroke with `currentColor`, which is a CSS inheritance keyword — with
-             * no document around the file there is nothing to inherit from, and the rasteriser
-             * resolves it to black. A black icon cannot be recoloured afterwards either, because a
-             * draw tint is a multiply and anything times zero is zero. It could only be made visible
-             * by putting something light behind it.
-             *
-             * Substituted in the source before rasterising, so the texture comes out in this colour
-             * and the alpha channel still carries the shape. All-zero means white, which is the
-             * useful default: white multiplied by a draw tint is the tint, so a white icon is one
-             * that can be drawn in any colour.
-             *
-             * Ignored by every raster format, and by an SVG that names its own colours.
              * */
             NYA_Color svg_color;
         } as_texture_load;
@@ -316,10 +303,6 @@ struct NYA_AssetLoadParameters {
         struct {
             /**
              * How the model's embedded texture is filtered. Zero is NYA_TEXTURE_FILTER_LINEAR.
-             *
-             * A load parameter rather than something read out of the FBX, because the file does not say:
-             * FBX has no notion of the sampling a renderer should use. A gradient atlas wants linear and
-             * a pixel-art atlas wants nearest, and only the game knows which it authored.
              * */
             NYA_TextureFilter filter;
         } as_mesh_load;
@@ -332,9 +315,6 @@ struct NYA_AssetLoadParameters {
         struct {
             /**
              * Decode the whole thing up front rather than streaming it.
-             *
-             * Right for a sound effect that has to start instantly and will play many times; wrong
-             * for a music track, where it means holding the entire decoded stream in memory.
              * */
             b8 predecode;
         } as_sound;
@@ -382,13 +362,6 @@ struct NYA_Asset {
 
         /**
          * Triangles, flattened and de-indexed by ufbx into one array per attribute.
-         *
-         * Positions and normals are parallel: `positions[i]` has `normals[i]`, and `indices` selects
-         * into both. Normals come from the file rather than being computed per face, so a model
-         * exported with smooth shading arrives smooth — which is the one thing the batch's own
-         * primitives cannot express, since _nya_render3d_quad derives a flat normal per quad.
-         *
-         * All three live in the asset system's arena and are freed together on unload.
          * */
         struct {
             f32x3* positions;
@@ -399,53 +372,22 @@ struct NYA_Asset {
 
             /**
              * How many vertices the three arrays hold.
-             *
-             * There is no index array. The mesh is de-indexed — one vertex per triangle corner — so an
-             * index buffer here would be the identity permutation, four bytes a vertex to say that vertex
-             * `i` is vertex `i`. There was one, briefly, and nothing ever read it: nya_render3d_mesh
-             * writes the batch's indices as `base + i` because that is all they can be.
-             *
-             * The cost of de-indexing is duplicated positions at shared corners, which is the trade
-             * described above the arrays. Welding would make a real index buffer worth having again.
              * */
             u32 vertex_count;
 
             /**
              * How many elements each array was allocated for, which is not always how many were written.
-             *
-             * The arena tracks the size of every allocation and keeps a free list keyed on it, so freeing
-             * a different extent than was reserved corrupts that list rather than merely leaking. The
-             * counts above come from what the triangulator actually produced and the reservation comes
-             * from what ufbx said it would produce; those agree for a well formed file and there is no
-             * reason to make a mesh's teardown depend on them agreeing.
              * */
             u32 allocated;
 
             /**
              * One entry per material, each naming a contiguous run of `indices`.
-             *
-             * A model is drawn part by part, and a part is the unit that has a texture — which is what
-             * makes a multi-material model draw correctly rather than entirely in its first material.
-             * There is always at least one, even for a file that names no material at all.
              * */
             NYA_MeshPart* parts;
             u32           part_count;
 
             /**
              * The same vertices on the GPU, uploaded once and kept.
-             *
-             * This is what makes a model cost a *draw call* rather than its vertex count. The immediate
-             * batch re-uploads every vertex of every mesh on every flush — twice a frame once a shadow
-             * pass exists — and that is the correct behaviour for geometry generated fresh each frame and
-             * badly wrong for a model that has not changed since it was read off disk.
-             *
-             * Null until something draws the mesh. Created lazily by the renderer rather than by this
-             * loader, because it needs a GPU copy pass and the loader has no frame to hang one on; see
-             * _nya_render3d_mesh_upload. Released here on unload, beside the textures, which is what keeps
-             * a hot reload from leaking one buffer per reload.
-             *
-             * The parts' `base_color` is *baked into* these vertices' colour, so a part needs no uniform
-             * of its own and the instance tint is a plain multiply on top.
              * */
             SDL_GPUBuffer* gpu_vertices;
 
@@ -454,12 +396,6 @@ struct NYA_Asset {
 
             /**
              * The model's axis-aligned bounds, computed once on first request. See nya_render3d_mesh_bounds.
-             *
-             * Cached rather than recomputed because frustum culling asks for them once per drawn copy per
-             * pass. Walking a few thousand vertices is nothing when something is being fitted to the model;
-             * it is the whole saving back again when it happens twice a frame per instance.
-             *
-             * Zeroed by the load, so a hot reload recomputes them rather than keeping the old model's.
              * */
             f32x3 bounds_min;
             f32x3 bounds_max;
@@ -467,23 +403,11 @@ struct NYA_Asset {
 
             /**
              * How many parts were reserved, which is at least `part_count`.
-             *
-             * Empty runs are dropped as they are found, so fewer parts can survive than were counted. The
-             * arena frees by extent, so the reservation is what teardown needs. Same reasoning as
-             * `allocated`.
              * */
             u32 part_capacity;
 
             /**
              * Every distinct texture the parts refer to, owned by this asset.
-             *
-             * Separate from the parts, and referred to by index, so that ownership is exact: two
-             * materials in one file routinely point at the same image, and parts holding raw pointers
-             * would release the same GPU texture twice on unload.
-             *
-             * Owned here rather than registered as NYA_ASSET_TYPE_TEXTURE assets because an FBX usually
-             * carries its images *inside itself* as embedded blobs — both models in this tree do — so
-             * there is no path to key a registry entry on without inventing one.
              * */
             SDL_GPUTexture** textures;
             u32              texture_count;
@@ -512,19 +436,11 @@ struct NYA_Asset {
 
     /**
      * Already sitting in the unloading queue.
-     *
-     * Without it a second unload request before the queue is processed enqueues the asset twice,
-     * and the second pass releases GPU handles that were freed on the first.
      * */
     b8 queued_for_unload;
 
     /**
      * Came out of the embedded blob rather than off disk.
-     *
-     * Recorded per asset rather than inferred from the build, because with NYA_ASSET_PREFER_BLOB the two
-     * sources coexist: the blob is consulted first and anything missing from it still comes off
-     * disk. It decides both whether the bytes are owned (blob bytes live in the executable and must
-     * not be freed) and whether the file is worth watching for changes.
      * */
     b8 from_blob;
 
@@ -570,29 +486,11 @@ NYA_API NYA_Asset* nya_asset_get(NYA_AssetHandle handle);
 
 /**
  * Reads an asset's raw bytes into `arena`, right now, without registering it.
- *
- * The synchronous escape hatch from an otherwise asynchronous system, and it exists for the files
- * that are *parsed* rather than uploaded: a tilemap, a dialogue table, a level description. Those are
- * read once at a load boundary and turned into something else immediately, so queueing them would
- * mean a caller polling for a frame or two before it could do the one thing it wanted.
- *
- * Looks in the embedded blob first and the filesystem second, the same order a queued load does, so a
- * shipped build and a development build read the same bytes.
- *
- * The copy is the caller's and lives in `arena`. Nothing is added to the asset registry and nothing
- * is reference counted, which is why this is only right for something consumed on the spot — a
- * texture read this way would be re-read on every call.
- *
- * NYA_ERROR_NOT_FOUND when the handle names nothing, which for a path typed by hand is the usual
- * failure and is worth reporting rather than asserting.
  * */
 NYA_API NYA_Error nya_asset_read(NYA_Arena* arena, NYA_AssetHandle handle, OUT u8** out_data, OUT u64* out_size) __attr_no_discard;
 
 /*
  * Reference counting.
- *
- * An asset is unloaded when the last holder releases it, not when someone decides it is time. Every
- * acquire must be matched by exactly one release; both are safe to call from any thread.
  */
 
 /** Errors rather than asserting if the handle is unknown: a typo'd handle should not end the process. */
@@ -605,35 +503,16 @@ NYA_API u64 nya_asset_reference_count(NYA_AssetHandle handle) __attr_no_discard;
 
 /**
  * Queues an asset for loading. The load itself happens at the end of the frame.
- *
- * Only the queueing is reported here; whether the bytes are actually readable is not known until
- * the load runs. Watch NYA_EVENT_ASSET_LOAD_FAILED, or check nya_asset_status, for that.
  * */
 NYA_API NYA_Error nya_asset_load(NYA_AssetLoadParameters parameters) __attr_no_discard;
 
 /**
  * Queues an asset for unloading, but only if nothing holds a reference to it.
- *
- * Returns false when it is still referenced, which is a normal answer rather than a failure: it
- * means somebody else is still using the thing you were done with. This used to assert on a
- * non-zero count, which turned "two systems share a texture" into a crash — and since assertions
- * are enabled in shipping builds, a crash in a player's hands.
  * */
 NYA_API b8 nya_asset_unload(NYA_AssetHandle handle);
 
 /**
  * Sets a window's icon from an asset, without the asset system taking it on.
- *
- * The bytes are read the same way any asset is — out of the blob when there is one, off disk
- * otherwise — handed to SDL, and released immediately. Nothing is registered, reference counted or
- * watched, because there is nothing to manage: SDL converts the image into its own surface and the
- * decoded copy belongs to the window from then on.
- *
- * Synchronous, unlike nya_asset_load, so it can be called right after nya_window_create rather than
- * waiting a frame for a queue to drain.
- *
- * Lives here rather than in core_window because the window system sits below the asset system and
- * cannot ask it for bytes.
  * */
 NYA_API NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHandle handle) __attr_no_discard;
 
@@ -648,17 +527,6 @@ NYA_API NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) __attr_no_disca
 
 /**
  * Every asset path, optionally filtered by suffix, sorted.
- *
- * What an editor's "pick a model" list is built from. `suffix` is matched on the end of the path, so
- * ".png" gives the textures and "/props/" does not — this is a suffix test, not a glob.
- *
- * **The source depends on the build**, deliberately. A build with NYA_ASSET_PREFER_BLOB reads the
- * baked index; every other build walks `./assets` on disk. That is the right way round for an editor:
- * a developer build sees a file the moment it is dropped into the folder, with no rebuild, and a
- * shipped build sees exactly what was baked into it and cannot be made to enumerate the player's
- * filesystem.
- *
- * Allocated in `arena`, which the caller owns. Never null; empty when nothing matches.
  * */
 NYA_API NYA_ArrayᐸNYA_Stringᐳ* nya_asset_enumerate(NYA_Arena* arena, NYA_ConstCString suffix) __attr_no_discard;
 

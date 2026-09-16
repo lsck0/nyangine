@@ -1,33 +1,5 @@
 /**
  * Chat end to end: one server, two clients, three processes, real UDP.
- *
- * ## Why this test forks
- *
- * A client is a process singleton — one _NYA_NET_CLIENT, one connection, one chat history. So "two
- * players talking" cannot be written in one process without testing something other than what ships:
- * the two clients would share the history they are each supposed to receive independently, which is
- * exactly the thing worth checking.
- *
- * So the parent is the server and each client is a forked child with its own copy of everything. The
- * fork happens **before** the server binds, so no child inherits the listening socket — a duplicated
- * UDP descriptor refers to the same open file description, and a child reading from it would steal
- * datagrams meant for the server. The children learn the port through a pipe instead, which also
- * removes the race where a client connects before there is anything listening.
- *
- * What it defends:
- *
- * - **A line reaches every client, including the one that sent it.** The sender sees its own words
- *   only when the server says so, which is what makes what you see what everyone else saw.
- * - **A client cannot choose its own name.** A message carrying `"name": "alice"` from bob's socket
- *   arrives everywhere attributed to bob.
- * - **Hostile text is neutralised before it is stored.** Control characters, a bidirectional override
- *   and an invalid byte go in; a clean, well formed line comes out — on every receiver.
- * - **Flooding is bounded.** Twenty lines sent as fast as the socket takes them arrive as at most
- *   NYA_NET_CHAT_BURST.
- * - **System lines are attributed to nobody**, and are not rate limited.
- *
- * The phases are driven by the server broadcasting a system line rather than by sleeping, so the two
- * children stay in step without either guessing how long the other needs.
  **/
 
 #include "nyangine/nyangine.c"
@@ -167,10 +139,6 @@ static b8 wait_for_system(NYA_ConstCString text) {
 
 /**
  * What alice says: a line built to be nasty rather than to be read.
- *
- * Leading and trailing spaces, an interior run of them, two C0 controls, a right-to-left override and
- * a byte that is not UTF-8 at all. Written as escapes so it survives an editor that would helpfully
- * normalise it.
  * */
 #define MESSY_INPUT  "  hi\x01\x02  there  \xE2\x80\xAE\xFF  "
 
@@ -199,10 +167,6 @@ static void send_spoofed_line(void) {
 
 /**
  * Whether sanitising `input` produced nothing but U+FFFD.
- *
- * Written as "every three bytes are EF BF BD" rather than as an expected string, because how many
- * replacements a malformed run collapses to is nya_utf8_next's business — what this asserts is that
- * none of the original bytes came through, which is the property that matters.
  * */
 static b8 all_replacement(NYA_ConstCString input) {
   char out[NYA_NET_CHAT_TEXT_MAX] = { 0 };
@@ -258,9 +222,6 @@ static s32 child_main(u32 index, s32 port_pipe) {
 
   /*
    * The system line itself, checked here rather than in a phase of its own.
-   *
-   * It is the one message in this test nobody sent, so its sender must be unset — a system line that
-   * arrived attributed to a peer would be indistinguishable from that peer saying it.
    */
   {
     const NYA_NetChatMessage* system_line = find_line("go");
@@ -309,9 +270,6 @@ static s32 child_main(u32 index, s32 port_pipe) {
 
     /*
      * And he does not get to be the server either.
-     *
-     * The spoofed event set "system": true, which the relay never copies — a client that could set it
-     * would be able to put words in the server's mouth, which is worse than impersonating a player.
      */
     nya_assert(!line->is_system, "[%s] a client made itself the server", name);
   }
@@ -449,9 +407,6 @@ s32 main(void) {
 
   /*
    * Forked before the server binds anything.
-   *
-   * See the note at the top: a child that inherited the listening socket would compete with the
-   * server for datagrams on it. Forking first means there is nothing to inherit.
    */
   s32 pipes[2][2] = { 0 };
   pid_t children[2] = { 0 };
@@ -476,10 +431,6 @@ s32 main(void) {
 
       /*
        * _exit rather than exit or a return.
-       *
-       * A child holds a copy of everything the parent had allocated before the fork and did not
-       * allocate any of it, so running the parent's atexit handlers here would free it twice in the
-       * accounting and report leaks that belong to a process that is still using them.
        */
       _exit(status);
     }
@@ -547,9 +498,6 @@ s32 main(void) {
 
   /*
    * A beat before the next phase, so both relays are on the wire before the flood starts.
-   *
-   * Deliberately short: every millisecond here refills bob's bucket, and the flood assertion is
-   * tightest when it does not.
    */
   for (u32 i = 0; i < 30; i++) {
     nya_net_server_tick(tick, TICK_SECONDS);
@@ -574,9 +522,6 @@ s32 main(void) {
 
   /*
    * The server was *handed* every flooded line — the limit is not a transport that dropped them.
-   *
-   * Worth asserting separately: if the packets had never arrived, the receipts on the client side
-   * would look identical to a working rate limit, and the test would pass for the wrong reason.
    */
   u32 delivered = SERVER_CHAT_SEEN - before_flood;
 

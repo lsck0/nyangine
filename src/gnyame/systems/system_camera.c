@@ -1,17 +1,5 @@
 /**
  * @file system_camera.c
- *
- * Drawing the world once per camera, and putting the results where they belong.
- *
- * Order matters and is the whole of what this file decides:
- *
- * 1. every secondary camera renders the world into its own texture,
- * 2. the primary camera renders the world into the window, through the bloom pass,
- * 3. every secondary texture is composited into its viewport, on top.
- *
- * Secondaries go first because a render texture cannot be bound while the window's pass is open —
- * beginning one mid-frame ends the pass the primary was drawing into. Doing them all up front means
- * one target switch each rather than one per composite.
  * */
 #include "gnyame/gnyame.h"
 

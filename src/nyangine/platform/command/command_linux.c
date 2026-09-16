@@ -108,18 +108,6 @@ NYA_Error nya_command_wait(NYA_Command* command) {
 
     /*
      * Both pipes drained together, whichever has bytes ready.
-     *
-     * Reading stdout to EOF and only then starting on stderr deadlocks any child that fills the
-     * stderr pipe. A pipe holds about sixty four kibibytes, so past that the child blocks on the
-     * write — which means it never exits, never closes its stdout end, and the parent waits on an
-     * EOF that cannot arrive while the child waits on a reader that will not come.
-     *
-     * Not a corner case for this API: the build system is its main user and captures the compiler's
-     * output, and a compile with a few hundred diagnostics clears that bound on stderr alone.
-     *
-     * This is also why the read is spelled out here rather than reusing nya_file_read_string as it
-     * did before — that reads one descriptor to the end, which is precisely the thing that cannot
-     * be done to either of these two in isolation.
      */
     if (nya_flag_check(command->flags, NYA_COMMAND_FLAG_OUTPUT_CAPTURE)) {
         struct pollfd fds[2] = {

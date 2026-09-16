@@ -74,9 +74,6 @@ void nya_terrain2d_generate(NYA_Terrain2D* terrain, u64 seed) {
      * Sampled left to right at a fixed spacing, which is what makes this a height field rather than an
      * arbitrary polyline: x strictly increases, so no segment can double back and trap something inside
      * the ground.
-     *
-     * fbm returns roughly [-1, 1]; the low frequency term gives the hills their shape and the higher
-     * octaves the small bumps something visibly tumbles over.
      */
     terrain->min_height = FLT_MAX;
     terrain->max_height = -FLT_MAX;
@@ -143,11 +140,6 @@ void nya_terrain2d_draw(const NYA_Terrain2D* terrain, NYA_Window* window) {
 
     /*
      * Filled as one quad per sample interval, from the surface down to a flat bottom well below the view.
-     *
-     * Not a triangle fan from a single centre: this is a wide, shallow height field, so a fan would
-     * produce long thin slivers whose shared vertex is off screen, and any concavity in the profile
-     * would fold the fan back over itself. A quad per interval has neither problem and is the same two
-     * triangles the batch is built for.
      */
     f32 bottom = terrain->max_height + 2000.0F;
 

@@ -23,6 +23,7 @@
 typedef struct NYA_RenderSystem       NYA_RenderSystem;
 typedef struct NYA_RenderSystemWindow NYA_RenderSystemWindow;
 typedef struct NYA_Vertex3D             NYA_Vertex3D;
+typedef struct NYA_Vertex3DDepth        NYA_Vertex3DDepth;
 typedef struct NYA_Render3DInstance     NYA_Render3DInstance;
 typedef struct NYA_Render3DSortKey      NYA_Render3DSortKey;
 typedef struct NYA_Render3DStream        NYA_Render3DStream;
@@ -43,10 +44,6 @@ typedef enum NYA_Render2DFlushReason      NYA_Render2DFlushReason;
 
 /**
  * What forced a draw call.
- *
- * The batch merges consecutive draws that agree on pipeline, texture, sampler and target; anything
- * that disagrees ends the run. Knowing *which* turns "this frame costs ten draw calls" into a thing
- * you can act on — texture swaps mean reach for an atlas, target changes mean restructure the frame.
  * */
 enum NYA_Render2DFlushReason {
     /** A different pipeline: shapes to textured, or in and out of a custom shader. */
@@ -183,9 +180,6 @@ struct NYA_RenderTexture {
 
 /**
  * The 2D shape batch for one window. See render2d.h; nothing outside that file touches this.
- *
- * Per window rather than per renderer because the pipeline is built against a specific swapchain
- * format and the vertex buffer is filled and drained inside one window's frame.
  * */
 /** Bytes of custom fragment uniform a deferred range can carry inline. See NYA_Render2DDrawRange.uniform. */
 #define NYA_RENDER2D_RANGE_UNIFORM_MAX 256
@@ -370,9 +364,6 @@ struct NYA_Render2DBatch {
 
     /**
      * What the render pass actually draws into, when multisampling is on.
-     *
-     * Null means no multisampling and `target_texture` is drawn into directly. When it is set, the
-     * pass renders here and resolves onto `target_texture` as it ends.
      * */
     SDL_GPUTexture* target_msaa;
 
@@ -467,10 +458,6 @@ struct NYA_Render3DRegisteredMesh {
      * during rendering — so there is usually no command buffer open, and a GPU copy needs one. Creating the
      * buffers and filling the staging memory needs none of that, so all of it happens immediately and only
      * the copy waits for the next draw.
-     *
-     * The first version did the copy at registration regardless. Outside a frame that meant a copy pass
-     * begun on a null command buffer, which fails quietly: the buffer existed, was never filled, and drew
-     * as nothing at all.
      * */
     SDL_GPUTransferBuffer* pending_upload;
 
@@ -533,6 +520,15 @@ struct NYA_Render3DBatch {
     SDL_GPUTransferBuffer* index_transfer_buffer;
 
     /**
+     * The same vertices with everything but the position dropped, for the immediate shadow pass.
+     *
+     * Its own pair rather than a region of the wide buffer, because a vertex buffer has one pitch. No index
+     * pair: a shadow pass draws the same triangles in the same order and binds the index buffer above.
+     * */
+    SDL_GPUBuffer*         depth_vertex_buffer;
+    SDL_GPUTransferBuffer* depth_transfer_buffer;
+
+    /**
      * CPU side staging, filled by the draw calls and copied into the transfer buffer on flush. The two
      * share one GPU buffer and one capacity: opaque is uploaded at offset zero and transparent straight
      * after it, so the pair costs no more VRAM than the single stream did.
@@ -579,6 +575,11 @@ struct NYA_Render3DBatch {
      * */
     NYA_Render3DPointLight point_lights[NYA_RENDER3D_MAX_POINT_LIGHTS];
     u32                    point_light_count;
+
+    /**
+     * The frame's fog. Frame state like `light`, and for the same reason: it is a fragment uniform.
+     * */
+    NYA_Render3DFog fog;
 
     /*
      * ── the shadow pass ──
@@ -666,11 +667,6 @@ struct NYA_Render3DBatch {
 
     /**
      * The occlusion buffer this pass culls against, or null.
-     *
-     * A pointer to something the game owns rather than a buffer of its own: it is tens of kilobytes,
-     * a scene may want one per camera or none at all, and which occluders go into it is a decision
-     * only the game can make. Cleared on every begin like `light` and `material` are, so a buffer
-     * built for last frame's camera cannot silently keep culling against it.
      * */
     const NYA_OcclusionBuffer* occlusion;
 
@@ -743,15 +739,22 @@ struct NYA_Render3DBatch {
 };
 
 struct NYA_RenderSystemWindow {
+    /**
+     * What the window's colour target is cleared to at the start of each frame. Opaque black by default.
+     *
+     * Per window rather than global, and settable, because alpha here is what a compositor reads: a window
+     * created with NYA_WINDOW_TRANSPARENT and cleared to an alpha of zero shows the desktop through every
+     * pixel the frame did not draw over, which is how a borderless always-on-top widget is shaped like its
+     * contents rather than like a rectangle. See nya_render_clear_color_set.
+     * */
+    NYA_Color clear_color;
+
     SDL_GPURenderPass*    render_pass;
     SDL_GPUCommandBuffer* render_commands;
     SDL_GPUTexture*       swapchain_texture;
 
     /*
      * The window's multisampled colour buffer, and the size it was built for.
-     *
-     * Rebuilt whenever the swapchain changes size, which is the only thing that invalidates it — a
-     * resize otherwise leaves the pass rendering into a buffer of the wrong dimensions.
      */
     SDL_GPUTexture* msaa_texture;
     u32             msaa_width;
@@ -782,31 +785,6 @@ struct NYA_RenderSystemWindow {
 /**
  * One vertex of the immediate 3D batch. **Thirty-six bytes, and every field is the narrowest thing
  * that still says what it meant.**
- *
- * It was sixty-four, and about half of that was nothing. `f32x3` is an `ext_vector_type(3)`, which is
- * *sixteen* bytes rather than twelve — the padding NYA_ShaderMesh3DUniform already documents — so two
- * of them wasted eight bytes before the four-float colour is counted. A vertex travels a long way:
- * the batch array on the CPU, the transfer buffer, the upload, the device buffer, and every registered
- * mesh keeps its own copy. Halving it halves all of that, and `VULKAN_UploadToBuffer` is 2.4% of a
- * release profile precisely because the scene is emitted once per shadow cascade and then again for
- * the camera.
- *
- * ## Why these formats and not narrower ones
- *
- * **Colour is HALF4, not the UBYTE4_NORM the 2D vertex uses.** Eight bits per channel is right for 2D
- * because that is what the swapchain stores, and wrong here: a vertex colour above one is how an
- * emissive surface is pushed past the bloom threshold, and gnyame's fire starts at 1.15 red for
- * exactly that reason. Normalized bytes clamp it to one and the flame stops glowing — a look change
- * that no test would catch. Halves keep everything up to 65504.
- *
- * **Normals stay full floats.** Octahedral in four bytes is the usual packing and would take this to
- * twenty-eight, but `mesh3d_edge` finds edges by taking `fwidth` of the interpolated normal, and a
- * derivative of a quantised value is a different thing from a derivative. Worth doing, worth measuring
- * first; see the TODO.
- *
- * Every format here still arrives at the shader as the `float3`/`float4`/`float2` it always did —
- * UBYTE4_NORM, HALF2 and HALF4 are expanded by the input assembler — so not one line of shader
- * changed for this. Build one with `nya_vertex3d`, which takes the wide types callers already hold.
  * */
 struct NYA_Vertex3D {
     /** Three plain floats, not an `f32x3`: the vector type would pad this out to sixteen bytes. */
@@ -824,19 +802,42 @@ struct NYA_Vertex3D {
 static_assert(sizeof(NYA_Vertex3D) == 36, "the 3D vertex layout in core_asset.c describes a 36 byte vertex");
 
 /**
- * Builds one, from the wide types a caller actually has.
+ * What the immediate shadow pass uploads: the position and nothing else. See NYA_VERTEX_LAYOUT_3D_DEPTH.
  *
- * The narrowing lives here rather than at nine call sites, and it is the only thing that knows the
- * storage is packed — which is what lets the fields get narrower again later without touching anyone.
+ * Three plain floats rather than an `f32x3`, for the reason NYA_Vertex3D says: the vector type is sixteen
+ * bytes and would give back a third of what this exists to save.
+ * */
+struct NYA_Vertex3DDepth {
+    f32 position[3];
+};
+
+static_assert(sizeof(NYA_Vertex3DDepth) == 12, "the depth-only shadow vertex is three floats and no padding");
+
+/**
+ * Builds one, from the wide types a caller actually has.
  * */
 NYA_API NYA_Vertex3D nya_vertex3d(f32x3 position, NYA_Color color, f32x3 normal, f32x2 uv) __attr_no_discard;
 
 /**
- * The position back out as a vector, for the arithmetic that wants one — bounds, face normals, sorting.
+ * Sets what this window's colour target is cleared to each frame. Defaults to opaque black.
  *
- * The field is three plain floats so the struct does not carry an `f32x3`'s padding, and a `f32[3]` does
- * not convert to a vector on its own. One place to widen it, rather than the same three lines wherever a
- * vertex is read.
+ * ```c
+ * // A desktop widget: shaped like what it draws, not like its window.
+ * NYA_WindowHandle w = nya_window_create("pet", 240, 240, NYA_WINDOW_TRANSPARENT | NYA_WINDOW_BORDERLESS | NYA_WINDOW_ALWAYS_ON_TOP);
+ * nya_render_clear_color_set(nya_window_get(w), (NYA_Color){ 0.0F, 0.0F, 0.0F, 0.0F });
+ * ```
+ *
+ * ⚠ **Alpha is not decoration.** A zero alpha on a window *without* NYA_WINDOW_TRANSPARENT clears to
+ * whatever the compositor has behind it, which reads as the frame rendering in the wrong place — that is a
+ * bug this default exists to avoid, not a look. Set it to zero only alongside that flag.
+ * */
+NYA_API void nya_render_clear_color_set(NYA_Window* window, NYA_Color color);
+
+/** What this window clears to. See nya_render_clear_color_set. */
+NYA_API NYA_Color nya_render_clear_color(NYA_Window* window) __attr_no_discard;
+
+/**
+ * The position back out as a vector, for the arithmetic that wants one — bounds, face normals, sorting.
  * */
 NYA_API f32x3 nya_vertex3d_position(NYA_Vertex3D vertex) __attr_no_discard;
 

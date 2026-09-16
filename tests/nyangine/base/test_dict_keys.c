@@ -1,14 +1,5 @@
 /**
  * Dict key semantics.
- *
- * A dict is an NYA_CString keyed hmap created with string hashing and string equality rather than
- * the byte-wise defaults, and that substitution is the entire point of the specialisation: the
- * default would hash and compare the char* itself, so two equal strings at different addresses
- * would be different keys.
- *
- * test_dict.c only ever uses string literals, which a compiler is free to pool into one address —
- * so every one of its lookups would still pass if the hash were on the pointer. This uses keys
- * built at runtime, where the addresses genuinely differ.
  **/
 
 #include "nyangine/nyangine.c"

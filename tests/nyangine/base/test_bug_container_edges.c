@@ -1,16 +1,5 @@
 /**
  * Regression tests for the container and arena edge cases found alongside the three larger bugs.
- *
- * Each section pins one of them:
- *
- *  - nya_heap_from_carray did not compile at all, so nothing could have called it.
- *  - nya_heap_resize could not grow a heap whose capacity started at zero, because
- *    nya_arena_realloc returns null for a null pointer by design.
- *  - nya_heap_destroy_on_stack cleared `items` but left `capacity` and `length` claiming it.
- *  - nya_ring_pop_many re-read its bound every iteration, so draining a ring with its own length
- *    stopped half way.
- *  - The arena's alignment check only tested for evenness, and an oversized allocation on an arena
- *    aligned beyond malloc's guarantee ran off the end of its region.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

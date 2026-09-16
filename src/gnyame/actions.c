@@ -8,9 +8,6 @@
 
 /**
  * One action's name and up to two default keys, in one row.
- *
- * A table rather than twenty-odd lines of paired calls, because the two things that must not drift
- * apart — the name a settings file writes and the key it defaults to — are then physically adjacent.
  * */
 typedef struct {
     NYA_InputAction  action;
@@ -83,10 +80,6 @@ void gny_actions_init(void) {
 
     /*
      * Over the top of the defaults, and not fatal when there is nothing there.
-     *
-     * NOT_FOUND is the first run, which is the common case and wants exactly what just happened. Any
-     * other failure is a settings file that exists and did not parse, which is worth saying out loud
-     * — the player is about to lose their bindings and should be able to find out why.
      */
     NYA_Error loaded = nya_settings_load();
     if (!loaded.ok && loaded.kind != NYA_ERROR_NOT_FOUND) {

@@ -1,9 +1,5 @@
 /**
  * Complex numbers.
- *
- * The arithmetic itself is the compiler's (_Complex), and cabs/carg/conj come from <tgmath.h>, so
- * what is worth testing is the engine's own additions and the contracts math_complex.h states about
- * them: the zero cases that would otherwise divide by zero, and the shortest-arc rule in slerp.
  **/
 
 #include "nyangine/nyangine.c"

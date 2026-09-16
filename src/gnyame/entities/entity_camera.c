@@ -1,23 +1,5 @@
 /**
  * @file entity_camera.c
- *
- * Cameras: where the world is looked at from, and where it is heard from.
- *
- * Entities rather than fields on the world, because everything a camera does is what an entity does.
- * One has a position and a scale, it wants a slice of every tick, and it is a thing in the world that
- * other things can follow — or that can follow them.
- *
- * ## Its state is its transform, plus a view
- *
- * Position is `entity->position` and zoom is `entity->scale.x` — not a trick, that is what scale
- * means for a camera. Everything that is *not* a transform (the render target, where it is drawn,
- * what it is following) lives in a GNY_CameraView on `user_data`.
- *
- * ## One primary, any number of the rest
- *
- * The camera carrying GNY_ENTITY_FLAG_CAMERA_PRIMARY draws straight into the window. Every other one
- * renders into its own texture and is composited into its viewport afterwards — a minimap, a rear
- * view, a window onto something happening elsewhere. gny_system_camera_render does the ordering.
  * */
 #include "gnyame/gnyame.h"
 
@@ -67,18 +49,6 @@ void gny_entity_camera_on_update(NYA_Entity* entity, f32 delta_time_s) {
 
     /*
      * The ear, and only for the primary camera.
-     *
-     * Panning and following used to be here and are now the player_input and camera_follow systems in
-     * system_movement.c, because both are driven by a flag any entity could carry rather than by
-     * anything about being a camera. What is left is the one thing that genuinely belongs to *this*
-     * camera — and only to the one the player is actually looking through, since a picture-in-picture
-     * view is somewhere the ear is not.
-     *
-     * core_audio.h warns that the camera is usually the wrong ear; it is right in this game because
-     * there is no player to hear from and the primary camera *is* the point of view.
-     *
-     * Side on, because the screen is a wall: a crate landing below the camera should sound below it
-     * rather than behind it.
      */
     if (!gny_entity_flag_check(entity, GNY_ENTITY_FLAG_CAMERA_PRIMARY)) return;
 
@@ -105,9 +75,6 @@ NYA_Camera2DTopDown gny_entity_camera_of(const NYA_Entity* entity) {
     /*
      * The identity camera when there is none — which is the main menu, where the game layer has not
      * been pushed and so nothing has created one.
-     *
-     * A zoom of zero would be the natural zero value and is the one thing this must never hand back:
-     * it goes straight into a divide on the way to world space.
      */
     if (entity == nullptr) return (NYA_Camera2DTopDown){ .zoom = 1.0F };
 
@@ -171,11 +138,6 @@ void gny_entity_camera_follow(NYA_EntityHandle camera, NYA_EntityHandle target) 
 
     /*
      * Both halves written here, and only here.
-     *
-     * The camera's handle is what the follow system reads — it is the only one that can say *which*
-     * camera is watching what. The flag on the entity is the cheap "is anything watching this"
-     * answer, which a query can ask without walking every camera. Keeping both writes in one function
-     * is what stops them disagreeing.
      */
     NYA_Entity* previous = nya_entity_get(view->follow);
 

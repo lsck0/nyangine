@@ -1,9 +1,5 @@
 /**
  * The 2D height field: defaults, the strictly-increasing-x guarantee, and clamped sampling.
- *
- * The one property worth pinning hardest is that x strictly increases. That is what makes this a
- * height field rather than a polyline, and it is what stops a chain body doubling back and trapping
- * something inside the ground.
  **/
 
 #include "nyangine/nyangine.c"

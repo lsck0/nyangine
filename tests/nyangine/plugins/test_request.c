@@ -1,16 +1,6 @@
 /**
  * The curl plugin: argument validation, error mapping, and the one transport failure that can be
  * produced without a network.
- *
- * **Nothing here reaches the internet.** A test that resolved a hostname would fail in CI for
- * reasons having nothing to do with this code, and would fail differently depending on whose
- * machine it ran on. What is left is still most of the module: every early return, the method
- * table, the status classifier, and a connection refused against a closed port on loopback — which
- * needs no DNS, no route and no server, and always fails immediately.
- *
- * What is deliberately *not* covered: a successful 2xx round trip, and therefore the JSON parsing
- * of a response body. That needs a server. The parsing itself is serde_json's, which test_serde
- * covers; what is untested here is the wiring between them.
  **/
 
 #include "nyangine/nyangine.c"
@@ -18,10 +8,6 @@
 
 /**
  * A port on loopback that nothing is listening on.
- *
- * Port 1 is reserved and never bound by anything on a normal machine, and connecting to loopback
- * needs neither DNS nor a route, so this fails with "connection refused" in microseconds on every
- * platform rather than hanging for a timeout.
  */
 #define CLOSED_PORT_URL "http://127.0.0.1:1/"
 

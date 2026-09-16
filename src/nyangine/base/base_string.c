@@ -447,9 +447,6 @@ void nya_string_extend_front_sprintf(NYA_String* str, NYA_ConstCString fmt, ...)
      * That terminator lands on str->items[length], which is precisely where the first byte of the
      * shifted content now lives, so it has to be put back afterwards. Prepending "hello " to
      * "world" otherwise produced "hello \0orld": the right length, with the 'w' eaten.
-     *
-     * Writing the formatted text somewhere else and copying it in would avoid the dance, at the
-     * cost of a second buffer on every call.
      */
     u8 overwritten = str->length > 0 ? str->items[length] : 0;
 
@@ -624,13 +621,6 @@ s32 nya_string_sscanf(NYA_String* str, NYA_ConstCString fmt, ...) __attr_fmt_sca
 
     /*
      * Scanned from a terminated copy, not from the string's own bytes.
-     *
-     * NYA_String is length counted and carries no terminator, so handing items straight to vsscanf
-     * let it read past the end — as far as the next zero byte in the arena, which on a string whose
-     * capacity exactly equals its length is somebody else's memory.
-     *
-     * The temp arena rather than nya_alloca, because the length here is the caller's and an alloca
-     * of it would trip NYA_ALLOCA_MAX on any string over 64 KiB.
      */
     NYA_CString terminated = nya_string_to_cstring(nya_arena_temp, str);
     defer       nya_arena_free(nya_arena_temp, terminated, str->length + 1);
@@ -751,11 +741,6 @@ u32 nya_utf8_next(NYA_ConstCString cursor, OUT u32* out_codepoint) {
 
     /*
      * Length from the lead byte, then the continuation bytes checked rather than assumed.
-     *
-     * A truncated or malformed sequence decodes as U+FFFD and consumes exactly one byte. Consuming
-     * the length the lead byte *claimed* would walk past the terminator on a truncated string, which
-     * is a read off the end of the buffer — and consuming zero would spin forever. One byte is the
-     * only choice that is both safe and guaranteed to make progress.
      */
     u32 length    = 0;
     u32 codepoint = 0;
@@ -786,10 +771,6 @@ u32 nya_utf8_next(NYA_ConstCString cursor, OUT u32* out_codepoint) {
 
     /*
      * Overlong encodings and surrogates rejected.
-     *
-     * Both are ways of spelling something that has a shorter or no legal encoding, and accepting
-     * them is how a decoder becomes a security problem: C0 80 is a two byte NUL, and a filter that
-     * checked for a literal 0x00 never sees it.
      */
     if (codepoint >= 0xD800 && codepoint <= 0xDFFF) codepoint = 0xFFFD;
     if (length == 2 && codepoint < 0x80) codepoint = 0xFFFD;

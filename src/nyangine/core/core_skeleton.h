@@ -1,25 +1,11 @@
 /**
  * @file core_skeleton.h
  *
- * Skeletons, baked animation clips, and the pose that drives skinning.
- *
- * A pose is a plain writable array of local bone transforms, and nothing here cares where it came
- * from — a clip, a game writing rotations itself, or a ragdoll reading back from the solver. That is
- * what makes procedural animation and ragdoll free rather than later features:
- *
  * ```c
  * nya_skeleton_animator_update(&animator, delta_time_s, &pose);   // the clip's opinion
  * pose.local[head].rotation = look_at_rotation;                   // yours, layered on top
  * nya_skeleton_palette(skeleton, &pose, palette);                 // whatever it now says
  * ```
- *
- * Clips are sampled onto a fixed grid at load and the FBX scene thrown away, so playback is a lerp
- * between two frames and nothing here mentions FBX. Keeping the parsed scene would put the importer's
- * memory and curve evaluation in the frame budget forever, for accuracy this art style cannot show.
- *
- * Linear blend skinning, four weights. It gets the volume of a limb twisted along its own axis wrong,
- * which is not a shape this art style has. Weights are normalised at load: the exporter's own weights
- * sum to as little as 0.982, and a vertex weighted to 0.982 sits 1.8% of the way toward the origin.
  * */
 #pragma once
 
@@ -36,18 +22,11 @@
 
 /**
  * Most bones one skeleton may have.
- *
- * The cap is the shader's, not the loader's: the palette is a vertex uniform costing 48 bytes per
- * bone used or not, so 64 is three kibibytes — well past what a low-poly humanoid rig needs.
  * */
 #define NYA_SKELETON_MAX_BONES 64
 
 /**
  * Influences kept per vertex, largest first.
- *
- * Four is the standard cap and it is generous here. The importer sorts weights by descending
- * influence, so dropping the tail is dropping the least important — and the test rig never exceeds
- * two, so nothing is being dropped at all yet.
  * */
 #define NYA_SKELETON_WEIGHTS_PER_VERTEX 4
 
@@ -69,10 +48,6 @@ typedef struct NYA_SkeletonAnimator NYA_SkeletonAnimator;
 
 /**
  * One bone's transform relative to its parent.
- *
- * Kept as translation, rotation and scale rather than as a matrix because that is what can be
- * *interpolated*: blending two matrices component-wise shears them, while blending a quaternion is
- * a rotation the whole way through. The matrix is built once at the end, in nya_skeleton_palette.
  * */
 struct NYA_BoneTransform {
     f32x3          translation;
@@ -85,18 +60,11 @@ struct NYA_SkeletonBone {
 
     /**
      * Index of this bone's parent, or -1 for a root.
-     *
-     * Bones are stored so that a parent always comes before its children, which is what lets
-     * nya_skeleton_palette compose the hierarchy in one forward pass instead of recursing.
      * */
     s32 parent;
 
     /**
      * Model space to bone space at bind time — the inverse bind matrix.
-     *
-     * This is what makes skinning work: a vertex is authored in model space, this takes it into the
-     * bone's space, and the bone's animated world transform takes it back out to wherever the bone
-     * has moved to. Straight from the importer's cluster; it is not derived from the rest pose.
      * */
     f32_4x4 inverse_bind;
 
@@ -117,9 +85,6 @@ struct NYA_SkeletonClip {
 
     /**
      * `frame_count * bone_count` transforms, frame major.
-     *
-     * Frame major because sampling reads *every bone of two adjacent frames*, so this is the layout
-     * where those two reads are each one contiguous run.
      * */
     NYA_BoneTransform* frames;
 };
@@ -134,10 +99,6 @@ struct NYA_Skeleton {
 
 /**
  * A skeleton's current local transforms. Plain data, and writable on purpose.
- *
- * See the header note: this being an ordinary array is what makes procedural animation and ragdoll
- * possible without either being a feature. Anything that can decide where a bone should be can write
- * here, and nya_skeleton_palette does not ask who did.
  * */
 struct NYA_SkeletonPose {
     NYA_BoneTransform local[NYA_SKELETON_MAX_BONES];
@@ -179,31 +140,18 @@ NYA_API void nya_skeleton_pose_rest(const NYA_Skeleton* skeleton, OUT NYA_Skelet
 
 /**
  * Samples `clip` at `time_s` into `out_pose`, interpolating between baked frames.
- *
- * Rotations blend as quaternions and the rest linearly. Time outside the clip clamps rather than
- * wrapping — looping is the animator's decision, not the sampler's, so that a game driving the clock
- * itself gets exactly the frame it asked for.
  * */
 NYA_API void nya_skeleton_pose_sample(const NYA_Skeleton* skeleton, const NYA_SkeletonClip* clip, f32 time_s,
                                       OUT NYA_SkeletonPose* out_pose);
 
 /**
  * One bone's transform in `clip` at `time_s`, without touching the other sixty three.
- *
- * Exists for root motion, which asks the same question of the same bone twice per frame and has no
- * use for the rest of the pose. Sampling everything to read one bone is 64 slerps for one answer.
- *
- * Same interpolation and the same clamping as nya_skeleton_pose_sample, so a bone read this way and
- * a bone read through a pose agree exactly. Returns the rest transform when the clip is empty.
  * */
 NYA_API NYA_BoneTransform nya_skeleton_clip_bone(const NYA_Skeleton* skeleton, const NYA_SkeletonClip* clip, s32 bone,
                                                  f32 time_s) __attr_no_discard;
 
 /**
  * Blends `from` toward `to` by `amount`, into `out_pose`.
- *
- * The whole of transitioning between animations, and the piece procedural work leans on hardest: a
- * hand-authored pose blended over a walk cycle at 0.3 is a character that is mostly walking.
  * */
 NYA_API void nya_skeleton_pose_blend(const NYA_SkeletonPose* from, const NYA_SkeletonPose* to, f32 amount,
                                      OUT NYA_SkeletonPose* out_pose);
@@ -217,10 +165,5 @@ NYA_API void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 de
 
 /**
  * Composes `pose` down the hierarchy and folds in each bone's inverse bind, into `out_palette`.
- *
- * The result is what a skinning shader multiplies a vertex by: model space in, model space out, with
- * the bone's movement applied in between. `out_palette` must hold at least the skeleton's bone count.
- *
- * One forward pass, no recursion, because bones are ordered parents first. See NYA_SkeletonBone.parent.
  * */
 NYA_API void nya_skeleton_palette(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_palette);

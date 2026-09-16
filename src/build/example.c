@@ -8,10 +8,6 @@
 
 /**
  * Every directory under EXAMPLE_DIRECTORY that holds an EXAMPLE_ENTRY_POINT, sorted by name.
- *
- * A directory without a `main.c` is not an example — it is a shared asset folder, an editor's
- * scratch directory, or a half-started one — and offering it as a choice would only produce a
- * compile error naming a file that was never there.
  * */
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _example_discover(NYA_Arena* arena);
 
@@ -46,11 +42,6 @@ void example_runner(NYA_ArgCommand* command) {
 
     /*
      * The name is a directory component, not a path.
-     *
-     * It is pasted into both a source path and an output filename, so a name containing a separator
-     * would compile `examples/../src/main.c` into a binary written wherever the rest of the string
-     * pointed. Rejected rather than sanitised: there is no example whose name legitimately contains
-     * one, so the only thing sanitising would do is silently accept a typo.
      */
     if (name[0] == '\0' || nya_string_contains(name, "/") || nya_string_contains(name, "\\") || nya_string_equals(name, "..")) {
         (void)fprintf(stderr, "Error: '%s' is not a valid example name; it must be a single directory name.\n", name);

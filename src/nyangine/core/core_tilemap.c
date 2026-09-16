@@ -8,9 +8,6 @@
 
 /**
  * An integer out of a bare JSON value, whatever width the parser chose for it.
- *
- * Separate from the keyed reader below because a tile layer's `data` is an array of numbers with no
- * keys at all, and it is by far the hottest thing here — one call per cell of the map.
  * */
 NYA_INTERNAL s64 _nya_tilemap_integer_value(const NYA_Value* value);
 
@@ -30,10 +27,6 @@ NYA_INTERNAL NYA_Error _nya_tilemap_parse_tilesets(NYA_Tilemap* map, const NYA_O
 
 /**
  * Reads a tileset's `tiles[]` array for the ones carrying an `animation`.
- *
- * Silent about everything else in there — a tile entry also carries per-tile properties, a type and
- * collision shapes, none of which this module reads. A tileset with no animations leaves the
- * tileset's pointer null, which is the common case and costs nothing.
  * */
 NYA_INTERNAL void _nya_tilemap_parse_animations(NYA_Tilemap* map, const NYA_Object* tileset_object, OUT NYA_TilemapTileset* out_tileset);
 NYA_INTERNAL NYA_Error _nya_tilemap_parse_layers(NYA_Tilemap* map, const NYA_Object* root);
@@ -86,11 +79,6 @@ NYA_Error nya_tilemap_load(NYA_Arena* arena, NYA_ConstCString asset_handle, OUT 
 
     /*
      * The unsupported cases are refused by name rather than half-read.
-     *
-     * Each of these produces a map that loads and is wrong: an infinite map has no `data` array and
-     * comes out empty, an external tileset leaves every tile unresolvable, and compressed data parses
-     * as a base64 string where an array was expected. A blank screen with no message is a far worse
-     * afternoon than a refusal that says which feature to turn off in Tiled.
      */
     if (_nya_tilemap_boolean(root, "infinite", false)) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "tilemap '%s' is infinite; save it as a fixed size map", asset_handle);
@@ -153,10 +141,6 @@ void nya_tilemap_layer_draw(NYA_Window* window, const NYA_Tilemap* map, u32 laye
 
     /*
      * The visible rectangle, from the camera, exactly the way nya_system_entity_render derives it.
-     *
-     * All four corners rather than two, because a rotated camera's view is not bounded by the world
-     * points behind two opposite screen corners. With no camera this degenerates to the target in
-     * screen pixels, which is right for a map drawn in screen space.
      */
     u32 target_width, target_height;
     nya_render2d_target_size(window, &target_width, &target_height);
@@ -273,10 +257,6 @@ f32x2 nya_tilemap_world_to_tile(const NYA_Tilemap* map, f32x2 world) {
     if (map->orientation == NYA_TILEMAP_ISOMETRIC) {
         /*
          * The inverse of the diamond projection, written out.
-         *
-         * Solving the two equations above for x and y: adding them cancels y and subtracting cancels
-         * x, which is why both terms appear in both results. Not obvious by eye, which is precisely
-         * why this is a function and not a comment at a call site.
          */
         f32 half_width  = tile_width * 0.5F;
         f32 half_height = tile_height * 0.5F;
@@ -366,11 +346,6 @@ u32 nya_tilemap_collision_build(const NYA_Tilemap* map, NYA_ConstCString layer_n
 
     /*
      * Runs along a row are merged into one wide box.
-     *
-     * Not a micro-optimisation. One body per solid tile gives the solver hundreds of bodies for a
-     * small map, and — worse — hundreds of internal edges between them, which a body sliding along
-     * the floor catches on. Box2D calls this the ghost vertex problem, and merging is the cheap
-     * two-thirds of the fix; the rest would be a chain shape per contour.
      */
     for (u32 y = 0; y < layer->height; y++) {
         u32 run_start = 0;
@@ -430,10 +405,6 @@ u32 nya_tilemap_collision_build(const NYA_Tilemap* map, NYA_ConstCString layer_n
 s64 _nya_tilemap_integer_value(const NYA_Value* value) {
     /*
      * Every numeric type, because JSON has one and the parser picks a C type for it.
-     *
-     * A tile width of 32 comes back as an S64 and an opacity of 1 comes back as an S64 too, while a
-     * hand-edited 1.0 comes back as an F64. A reader that accepted only its own idea of the type
-     * would silently take the fallback for the other spelling.
      */
     switch (value->type) {
         case NYA_TYPE_S64: return value->as_s64;
@@ -506,11 +477,6 @@ void nya_tilemap_animate(NYA_Tilemap* map, f32 delta_time_s) {
 
     /*
      * Wrapped, rather than left to grow.
-     *
-     * An f32 clock that only ever increases loses its fractional resolution: past about four hours
-     * of running time the smallest step it can represent is longer than an animation frame, and
-     * every animated tile freezes. Wrapping at an hour is far enough out that no animation's period
-     * divides it awkwardly and near enough in that the precision never degrades.
      */
     if (map->animation_time_s > 3600.0F) map->animation_time_s -= 3600.0F;
 }
@@ -567,14 +533,6 @@ u32 nya_tilemap_tile_frame(const NYA_Tilemap* map, u32 gid) {
 
 /**
  * The 47 distinct blob cases, indexed by the raw 8-bit neighbour mask.
- *
- * 256 combinations collapse to 47 because a corner only matters when both edges beside it are
- * filled — with either edge empty the corner is hidden behind the gap that edge leaves, so the two
- * combinations are the same picture. The table is the standard order a 47-tile blob sheet is drawn
- * in, so a game's lookup has 47 entries and matches the sheet it bought.
- *
- * Built once at first use rather than written out: the collapse rule is four lines and the table is
- * 256 numbers, and a hand-written table is 256 chances to mistype one.
  * */
 NYA_INTERNAL u8 _nya_tilemap_blob_case[256];
 NYA_INTERNAL b8 _nya_tilemap_blob_case_built = false;
@@ -697,10 +655,6 @@ NYA_Error nya_tilemap_autotile_layer(
 
     /*
      * A snapshot of the layer, because the walk both reads and writes it.
-     *
-     * Deciding a cell from the layer being written would have every cell after the first partly
-     * decided by its neighbours' *new* values, so the same map would come out differently depending
-     * on which corner the walk started from. From the temp arena: it lives for one call.
      */
     NYA_Arena scratch    = nya_arena_create_on_stack(.name = "tilemap_autotile");
     defer     nya_arena_destroy_on_stack(&scratch);
@@ -759,14 +713,6 @@ NYA_Error _nya_tilemap_parse_tilesets(NYA_Tilemap* map, const NYA_Object* root, 
 
     /*
      * The map's own directory, kept byte for byte as the asset handle spelled it.
-     *
-     * Tiled writes the image path relative to the `.tmj`, and the handle for the result has to match
-     * the one the asset index generated — which starts `./assets/`. nya_path_join normalises that
-     * leading `./` away, and the resulting handle then matches nothing in the blob, so the tileset
-     * silently never loads and the map draws blank.
-     *
-     * So this is a truncation at the last separator rather than a path operation. The handle is not
-     * really a path; it is a key that happens to look like one.
      */
     u64 directory_length = 0;
 
@@ -812,11 +758,6 @@ NYA_Error _nya_tilemap_parse_tilesets(NYA_Tilemap* map, const NYA_Object* root, 
 
         /*
          * Queued here rather than left to the caller.
-         *
-         * A map names its own textures and nothing else knows which they are, so making the caller
-         * queue them would mean making the caller parse the file first. NEAREST because tile art is
-         * pixel art: linear filtering samples across the cell boundary and pulls in a sliver of the
-         * neighbouring tile, which shows up as a seam that flickers as the camera scrolls.
          */
         NYA_TRY(nya_asset_load((NYA_AssetLoadParameters){
             .type             = NYA_ASSET_TYPE_TEXTURE,
@@ -1059,10 +1000,6 @@ void _nya_tilemap_visible_range(const NYA_Tilemap* map, const NYA_TilemapLayer* 
     if (map->orientation == NYA_TILEMAP_ISOMETRIC) {
         /*
          * The four screen corners, each turned back into a tile coordinate.
-         *
-         * An axis-aligned rectangle in world space is a *diamond* in tile space, so its tile bounds
-         * are not the corners' min and max taken pairwise — they are the extent over all four. This
-         * is the same reason the camera cull transforms four corners rather than two.
          */
         f32x2 tiles[4] = {
             nya_tilemap_world_to_tile(map, (f32x2){ min.x, min.y }),
@@ -1112,11 +1049,6 @@ b8 nya_tilemap_tile_set(NYA_Tilemap* map, u32 layer_index, s32 x, s32 y, u32 gid
 
     /*
      * The cast is the one place this file writes through `const`.
-     *
-     * The layer array is declared const because reading a map is overwhelmingly what happens to one,
-     * and a game holding a NYA_Tilemap* should not be able to scribble on it by accident. The map
-     * owns this memory — it was allocated out of `map->allocator` by the loader — so an editor
-     * writing to it is writing to its own arena, not to something borrowed.
      */
     NYA_TilemapLayer* layer = (NYA_TilemapLayer*)&map->layers[layer_index];
 
@@ -1153,9 +1085,6 @@ NYA_Error nya_tilemap_layer_resize(NYA_Tilemap* map, u32 layer_index, u32 width,
 
     /*
      * The old array is not freed, because an arena has no per-allocation free.
-     *
-     * Resizing repeatedly therefore grows the map's arena. That is acceptable for an editor, where a
-     * resize is a deliberate act a person performs, and would not be for anything doing it per frame.
      */
     layer->tiles  = tiles;
     layer->width  = width;
@@ -1268,14 +1197,6 @@ NYA_Error nya_tilemap_save(const NYA_Tilemap* map, NYA_ConstCString path) {
 
     /*
      * JSON explicitly, not nya_serde_save_file.
-     *
-     * That helper picks the format from the extension and gives anything that is not `.json` the
-     * native format — so a `.tmj`, which is Tiled's JSON map and the extension every map here uses,
-     * was silently written as native and could not be read back by nya_tilemap_load, which only ever
-     * parses JSONC. The round trip this function documents did not happen.
-     *
-     * Pretty, because a map file is something a person opens in a text editor and a diff has to be
-     * readable — a tile layer on one line is a diff nobody can review.
      */
     NYA_String* text = nya_serialize(scratch, root, NYA_SERDE_FORMAT_JSON, NYA_SERDE_PRETTY);
     if (text == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not serialize the map for '%s'", path);

@@ -1,8 +1,5 @@
 /**
  * @file base_bits.h
- *
- * Convenience macros for named bits and bitmasks.
- * Bit and flag macros are supposed to be used with the bit defines only.
  * */
 #pragma once
 
@@ -167,15 +164,6 @@
 
 /*
  * Leading and trailing zero counts. **Undefined for zero.**
- *
- * There is no bit to count from in a zero word, and the underlying builtins say so: the result is
- * undefined rather than 32 or 64. In practice it is whatever the instruction leaves behind, which
- * differs between machines and between optimisation levels, so a caller that can see zero has to
- * check first.
- *
- * Left as the bare builtins deliberately. Adding an assertion would make the trap loud, but
- * assertions are compiled into shipping builds here, and these are single instructions meant for
- * hot code. Nothing in the engine calls them yet; whoever first does should decide.
  * */
 #define nya_bits_clz_u32(val)            (__builtin_clz(val))
 #define nya_bits_clz_u64(val)            (__builtin_clzll(val))

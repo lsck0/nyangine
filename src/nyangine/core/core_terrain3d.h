@@ -1,9 +1,6 @@
 /**
  * @file core_terrain3d.h
  *
- * A heightmap ground: fBm noise sampled onto a grid, drawn as flat triangles and collided against as a
- * static triangle mesh.
- *
  * ```c
  * NYA_Terrain3D* terrain = nullptr;
  * NYA_EXPECT(nya_terrain3d_create(arena, (NYA_Terrain3DOptions){ .entity_type = MY_ENTITY_TERRAIN }, &terrain));
@@ -13,22 +10,6 @@
  * // Each frame, between nya_render3d_begin and _end.
  * nya_terrain3d_draw(terrain, window);
  * ```
- *
- * **The collider and the drawn surface are separate geometry built from the same samples.** The collider
- * shares vertices between triangles, because Box3D builds a BVH over them and duplicating vertices
- * doubles it. The drawn mesh does not, because flat shading needs one normal per triangle and a shared
- * vertex can only carry one normal. Neither representation can serve both jobs.
- *
- * ## Chunking and GeoMipMapping
- *
- * By default the surface is one mesh with one bounding sphere: frustum culling asks about it once and
- * the answer is all-or-nothing, which is right for something a few dozen metres across and wrong for a
- * landscape.
- *
- * `.chunked` changes that. The surface is cut into squares of NYA_TERRAIN3D_CHUNK_CELLS, each its own
- * registered mesh with its own bounds, and each drawn at one of NYA_TERRAIN3D_LOD_LEVELS detail levels
- * chosen by its distance from the camera — GeoMipMapping, which is simply "sample this chunk's grid
- * every stride-th vertex" with stride doubling per level.
  *
  * ```c
  * nya_terrain3d_create(arena, (NYA_Terrain3DOptions){ .resolution = 128, .extent = 256.0F, .chunked = true, ... }, &terrain);
@@ -47,10 +28,6 @@
  * the ground, hidden by the neighbouring surface whichever level it is at. Cheaper and far more robust
  * than stitching the border triangles, which needs each chunk to know its neighbours' levels and
  * re-triangulate when any of them changes.
- *
- * Everything comes from the arena passed to nya_terrain3d_create, so there is no destroy — freeing the
- * arena frees the terrain. nya_terrain3d_release exists only for the GPU mesh and the physics body,
- * which are not the arena's to reclaim.
  * */
 #pragma once
 
@@ -70,10 +47,6 @@
 
 /**
  * Cells across one chunk.
- *
- * A power of two, because every LOD stride has to divide it exactly — a chunk that does not tile
- * evenly at some level leaves a strip of cells with nowhere to go. Sixteen is the usual size: large
- * enough that the per-chunk overhead is amortised, small enough that culling one is worth something.
  * */
 #ifndef NYA_TERRAIN3D_CHUNK_CELLS
 #define NYA_TERRAIN3D_CHUNK_CELLS 16
@@ -83,10 +56,6 @@ static_assert((NYA_TERRAIN3D_CHUNK_CELLS & (NYA_TERRAIN3D_CHUNK_CELLS - 1)) == 0
 
 /**
  * Detail levels a chunk may be drawn at. Level `n` samples every `1 << n`-th vertex.
- *
- * Four levels means the coarsest chunk has an eighth of the edge resolution and a sixty-fourth of the
- * triangles. Bounded by the chunk size: at NYA_TERRAIN3D_CHUNK_CELLS of sixteen, level four would be
- * a single quad and level five would have nothing left to halve.
  * */
 #ifndef NYA_TERRAIN3D_LOD_LEVELS
 #define NYA_TERRAIN3D_LOD_LEVELS 4
@@ -131,9 +100,6 @@ struct NYA_Terrain3DChunk {
 
     /**
      * The level its geometry is currently built at, or NYA_TERRAIN3D_LOD_LEVELS for "not built yet".
-     *
-     * The out-of-range value rather than a separate flag: it makes the first update rebuild every
-     * chunk without a special case, since no level it could choose can equal it.
      * */
     u32 lod;
 
@@ -179,36 +145,21 @@ struct NYA_Terrain3DOptions {
 
     /**
      * Cut the surface into chunks and pick a detail level per chunk. See the note at the top.
-     *
-     * Off by default, because it is not free: a chunked surface is `chunk_count` registered meshes
-     * rather than one, and it needs nya_terrain3d_update called with the camera each frame. For a
-     * surface that fits on screen the unchunked path is strictly better.
      * */
     b8 chunked;
 
     /**
      * World distance at which a chunk drops to the next detail level, doubling per level.
-     *
-     * So level 1 begins at this distance, level 2 at twice it, level 3 at four times. Zero is read as
-     * eight times a chunk's width, which keeps full detail out to a comfortable middle distance.
      * */
     f32 lod_distance;
 
     /**
      * How far a chunk's skirt hangs below its edge, world units. Zero is read from the cell size.
-     *
-     * It only has to be deep enough to cover the largest height difference two adjacent levels can
-     * disagree by at a border, which is bounded by how much the surface can rise across one coarse
-     * cell. Too deep costs nothing visually — the skirt is inside the ground — and a little too
-     * shallow shows as a flickering hairline crack.
      * */
     f32 skirt_depth;
 
     /**
      * What the static body is spawned as, in the caller's own entity-type enum.
-     *
-     * A parameter rather than an engine constant, the same way nya_tilemap_collision_build takes one:
-     * the engine has no opinion about what a game calls its terrain.
      * */
     u32 entity_type;
 };
@@ -226,9 +177,6 @@ struct NYA_Terrain3D {
 
     /**
      * `verts * verts` samples, row major in z then x.
-     *
-     * Kept across a regeneration: the grid never changes size, and an arena does not hand memory back,
-     * so allocating per generation would grow the arena on every reseed.
      * */
     f32* heights;
 
@@ -264,9 +212,6 @@ NYA_API NYA_Error nya_terrain3d_create(NYA_Arena* arena, NYA_Terrain3DOptions op
 
 /**
  * Samples the heightmap, builds the collider and spawns the static body carrying it.
- *
- * Releases the previous body first, so calling this again with another seed replaces the surface rather
- * than stacking a second one on top of it.
  * */
 NYA_API void nya_terrain3d_generate(NYA_Terrain3D* terrain, NYA_Window* window, u64 seed);
 
@@ -275,18 +220,11 @@ NYA_API void nya_terrain3d_release(NYA_Terrain3D* terrain, NYA_Window* window);
 
 /**
  * The ground height at a world xz, bilinear between the four samples around it.
- *
- * Clamped to the terrain rather than extrapolated, and approximate by a few centimetres in the middle of
- * a steep cell — this places things above the ground, it does not resolve contacts. Zero before the
- * first generation.
  * */
 NYA_API f32 nya_terrain3d_height_at(const NYA_Terrain3D* terrain, f32 x, f32 z) __attr_no_discard;
 
 /**
  * Re-picks each chunk's detail level from its distance to `viewer`, rebuilding the ones that changed.
- *
- * Call once per frame for a chunked terrain, with the camera's position. A no-op for an unchunked one,
- * so a caller that may be handed either does not have to ask.
  *
  * ⚠ **A rebuild uploads geometry**, so this is not free on the frames where the camera crosses a
  * level boundary — which is why the choice is banded rather than continuous, and why crossing back and
@@ -297,18 +235,11 @@ NYA_API void nya_terrain3d_update(NYA_Terrain3D* terrain, NYA_Window* window, f3
 
 /**
  * The detail level a chunk at `distance` from the viewer is drawn at.
- *
- * Exposed because it is the whole of the LOD policy and worth being able to reason about from
- * outside — and because a test can check the bands without a device.
  * */
 NYA_API u32 nya_terrain3d_lod_for_distance(const NYA_Terrain3D* terrain, f32 distance) __attr_no_discard;
 
 /**
  * The distance at which `level` begins. Zero for level zero, which begins at the camera.
- *
- * The boundaries the level bands are cut at, exposed because the hysteresis in nya_terrain3d_update
- * is defined against them — and because a game tuning `lod_distance` wants to be able to ask where
- * the bands actually landed rather than rederiving the doubling.
  * */
 NYA_API f32 nya_terrain3d_lod_boundary(const NYA_Terrain3D* terrain, u32 level) __attr_no_discard;
 

@@ -45,9 +45,6 @@ struct NYA_FrameStats {
 
     /**
      * How long the app has been running, as of the start of the current frame.
-     *
-     * Sampled once per frame rather than read from the clock on demand, so everything within a frame
-     * agrees on what time it is. Use nya_app_uptime_ns for the live value.
      * */
     u64 uptime_ns;
 
@@ -92,11 +89,6 @@ struct NYA_App {
     /**
      * The world this application created at startup, and destroys on the way out. Owning it is all
      * NYA_App does with it — everything that operates on a world goes through nya_world instead.
-     *
-     * Also what makes hot reloading work. The game is a shared library that gets closed and reopened,
-     * so every file scope variable in it reinitialises on each reload; a game keeping state in a
-     * static loses it every reload. NYA_App lives in the executable and outlives reloads, so
-     * `nya_world()->user_data` is still there on the other side.
      * */
     NYA_World* world;
 
@@ -138,9 +130,6 @@ struct NYA_App {
  * Brings up SDL and every subsystem. Returns an error rather than panicking, because what fails here
  * is environmental rather than programmer error: no GPU backend, no display, out of handles. Whether
  * that means quit or fall back to something else is the caller's decision.
- *
- * On failure nothing is left standing — whatever came up before the failure is torn back down — so
- * the caller must not follow a failed init with nya_app_deinit.
  * */
 #define nya_app_init(...) nya_app_init_with_options((NYA_AppOptions){ _NYA_APP_DEFAULT_OPTIONS, __VA_ARGS__ })
 NYA_API NYA_Error nya_app_init_with_options(NYA_AppOptions options) __attr_no_discard;

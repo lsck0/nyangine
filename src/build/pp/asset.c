@@ -17,9 +17,6 @@ NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
 
 /**
  * How the byte blob in assets.c is laid out.
- *
- * These are what clang-format used to produce, kept because the generator emits the final shape
- * itself now; see the note at the end of nya_asset_bundle for why it no longer runs.
  * */
 #define NYA_ASSET_BLOB_BYTES_PER_LINE 24
 #define NYA_ASSET_BLOB_INDENT         4
@@ -34,12 +31,6 @@ void nya_asset_compile_shaders(void) {
 
     /*
      * When a shared `.hlsli` last changed, which no per shader rule can see.
-     *
-     * A rule compares its one input file against its one output file, and shadercross resolves the
-     * `#include` itself, so editing mesh3d_shading.hlsli left every shader that includes it
-     * "up to date" against a stale object. The include set is not tracked per shader — that would
-     * mean parsing the sources — so any change here recompiles everything. There is one `.hlsli`
-     * and twenty five shaders, and a full recompile is a couple of seconds.
      */
     NYA_ConstCString include_roots[] = { SHADER_SOURCE_DIRECTORY, nullptr };
     u64              newest_include  = nya_pp_newest(include_roots, ".hlsli");
@@ -272,11 +263,6 @@ void nya_asset_bundle(void) {
 
     /*
      * Deliberately not run through clang-format, which every other generated file here is.
-     *
-     * This one is seven megabytes of hex, and formatting it took nine seconds — by a wide margin the
-     * single most expensive step in a build, and spent entirely on the wrapping the loop above now
-     * emits directly. The header table loses clang-format's column alignment as a result, which
-     * costs nothing: the file says it is generated and nobody reads it.
      * */
 }
 
@@ -288,14 +274,6 @@ void nya_asset_bundle(void) {
 
 /**
  * Every asset file under ./assets/, walked once per build tool invocation and memoised.
- *
- * Both the index and the bundle describe the same set of files — one as handles, one as bytes — so
- * they must agree, and the cheapest way to guarantee that is to only ever ask the filesystem once.
- *
- * The memo is populated on first call, which the build graph arranges to be after
- * nya_asset_compile_shaders has written ./assets/shader/compiled/. That ordering is load bearing:
- * bundle_assets depends on index_assets which depends on build_shaders. Calling this before the
- * shaders are compiled would cache a list that is missing them.
  * */
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_enumerate(void) {
     if (_NYA_ASSET_FILES != nullptr) return _NYA_ASSET_FILES;
@@ -306,14 +284,6 @@ NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_enumerate(void) {
 
 /**
  * Collects every regular file under `directory`, sorted.
- *
- * This used to shell out to `find`, which is a problem on Windows off msys2: CreateProcessA resolves
- * `find` against PATH and Windows ships its own unrelated find.exe, a text search tool that would
- * take these arguments and produce nonsense rather than fail. Walking the directory ourselves has no
- * such ambiguity, and drops a subprocess per invocation.
- *
- * Sorted because the resulting order is baked into generated source: the walk returns whatever order
- * the filesystem feels like, which would make assets.c differ between machines for no reason.
  * */
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_walk(NYA_ConstCString directory) {
     nya_assert(directory != nullptr);
@@ -340,12 +310,6 @@ NYA_INTERNAL b8 _nya_asset_collect(NYA_ConstCString path, const NYA_DirectoryEnt
     /*
      * assets.c and assets.h are the generated output of this very walk, and .keep only exists to
      * keep an empty directory in git. None of the three is an asset.
-     *
-     * The .h rule also covers assets/shader/uniforms.h, which is the C side of the shaders' constant
-     * buffers — a header the engine includes at compile time rather than bytes anything loads at
-     * runtime. It lives under assets/ because it belongs beside the shaders it mirrors, and it is
-     * correctly invisible to both the index and the bundle: there is no loader that could do
-     * anything with a C header, and shipping one inside the blob would be pure waste.
      */
     if (nya_string_ends_with(file, ".c")) return true;
     if (nya_string_ends_with(file, ".h")) return true;
@@ -366,9 +330,6 @@ NYA_INTERNAL s32 _nya_asset_path_compare(const NYA_String* a, const NYA_String* 
 
 /**
  * NYA_BUILD_ALWAYS when a shared include is newer than `target`, NYA_BUILD_IF_OUTDATED otherwise.
- *
- * Not a missing-file check: IF_OUTDATED already rebuilds an output that is not there, and so does a
- * target whose timestamp cannot be read, which is the same case.
  * */
 NYA_INTERNAL NYA_BuildRulePolicy _nya_asset_shader_policy(u64 newest_include, NYA_ConstCString target) {
     nya_assert(target != nullptr);

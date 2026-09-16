@@ -119,14 +119,6 @@ u32 nya_window_count(void) {
 
 /*
  * Copies a window title into the window system's own memory.
- *
- * Titles arrive as string literals from whoever called, and for this engine that caller is usually
- * the hot reloaded game DLL. Reloading dlcloses it and unmaps the .rodata the literal lives in, so a
- * borrowed title is a dangling pointer from the next reload onward — which showed up as a fault
- * inside the logging call in nya_system_renderer_for_window_deinit, printing a title that no longer
- * existed.
- *
- * The window system outlives every DLL that creates a window through it.
  * */
 NYA_INTERNAL NYA_ConstCString _nya_window_intern_title(NYA_ConstCString title) {
     if (title == nullptr) return nullptr;
@@ -635,10 +627,6 @@ NYA_Layer nya_layer_pop(NYA_WindowHandle window) {
 
 /**
  * Resolves a handle, complaining if it does not.
- *
- * A stale handle is a bug in the caller, but not one worth killing the process over: the window was
- * closed and something still refers to it. Warning and returning null degrades to a no-op, which is
- * what almost every caller here wants.
  * */
 NYA_INTERNAL NYA_Window* _nya_window_require(NYA_WindowHandle window, NYA_ConstCString caller) {
     NYA_Window* target = nya_window_get(window);
@@ -664,10 +652,6 @@ NYA_INTERNAL NYA_Rect _nya_rect_from_sdl(SDL_Rect rect) {
 
 /**
  * One platform cursor per shape, created on first use.
- *
- * Cached because creating one is a round trip to the window system, and an immediate mode UI sets the
- * shape every frame. File scope rather than on the window system's struct: the platform's cursor is
- * global state, not a property of any one window.
  * */
 NYA_INTERNAL SDL_Cursor*     _NYA_CURSORS[NYA_CURSOR_COUNT] = { 0 };
 NYA_INTERNAL NYA_CursorShape _NYA_CURSOR_CURRENT            = NYA_CURSOR_DEFAULT;

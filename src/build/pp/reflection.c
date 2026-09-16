@@ -106,9 +106,6 @@ void nya_reflection_generate(void) {
 
     /*
      * Sources are collected and sorted before any of them is read.
-     *
-     * The filesystem walks in whatever order it likes, and a generated file that reorders itself
-     * between machines is a diff nobody can review and a rebuild nobody asked for.
      */
     NYA_ArrayᐸNYA_Stringᐳ* sources = nya_array_create(arena, NYA_String);
 
@@ -259,12 +256,6 @@ b8 _nya_reflect_comment_has(const NYA_Lexer* lexer, u32 index, NYA_ConstCString 
 
     /*
      * Searched, but only at the start of a line within the comment.
-     *
-     * Searching anywhere would make this file's own documentation an annotation — base_reflection.h
-     * explains what `@reflect` is, and a prose mention of it is not a declaration of one. Requiring
-     * the marker to open its line separates "this type is annotated" from "this paragraph is about
-     * annotations", while still letting the marker sit inside a doc comment that already says other
-     * things on other lines.
      */
     for (u64 i = 0; i + marker_length <= token.length; i++) {
         if (nya_memcmp(lexer->source + token.source_location + i, marker, marker_length) != 0) continue;
@@ -344,10 +335,6 @@ NYA_ConstCString _nya_reflect_hint_from_comment(const NYA_Lexer* lexer, u32 inde
 
 /**
  * The reflection symbol for a builtin spelling, or null if it is not one.
- *
- * The vectors are here rather than synthesised because they are typedefs of a clang attribute rather
- * than of a struct — nothing in the source says "three floats" in a form a parser could read, so the
- * list is written out once. See NYA_REFLECT_VECTOR on why their size is not three times four.
  * */
 NYA_ConstCString _nya_reflect_builtin_symbol(NYA_ConstCString spelling) {
     static const struct {
@@ -422,13 +409,6 @@ void _nya_reflect_emit_builtins(NYA_String* out) {
 
 /**
  * Reads one member declaration, from `start` up to its terminating semicolon.
- *
- * Handles the four shapes that actually appear: `T name;`, `T* name;`, `T name[N];` and the
- * multi-declarator `f32 r, g, b, a;` that NYA_Color is written with. The base type is every token
- * before the first identifier that is followed by `,`, `;` or `[` — which is what separates
- * `const char* text` from `NYA_Color color` without knowing what either name means.
- *
- * Answers the index just past the semicolon.
  * */
 u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexer, u32 start, NYA_ConstCString path) {
     u32 index = start;
@@ -511,10 +491,6 @@ u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexe
 
             /*
              * The extent is copied as *source text*, spaces and all.
-             *
-             * `char name[NYA_NET_MAX_NAME]` must not require this generator to know what that macro
-             * expands to. Emitting the text lets the compiler answer, which is the same trick the
-             * offsets use.
              */
             if (index > extent_start) {
                 NYA_Token first = lexer->tokens->items[extent_start];
@@ -716,10 +692,6 @@ void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
 
         /*
          * An explicit underlying type, as in `enum GNY_EntityFlags : u64 {`.
-         *
-         * C23 spelling, which this codebase uses for any flag set that needs more than an int. It is
-         * stepped over rather than recorded: the width still comes from sizeof in the emitted table,
-         * which stays correct even for an enum that does not say.
          */
         if (cursor < lexer.tokens->length && lexer.tokens->items[cursor].type == NYA_TOKEN_SYMBOL &&
             lexer.tokens->items[cursor].symbol == ':') {
@@ -847,11 +819,6 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
                                   "    .alignment = alignof(%s),\n"
                                   /*
                                    * The underlying integer is chosen by size, as a constant expression.
-                                   *
-                                   * C lets the implementation pick the width of an enum, and a set of
-                                   * flags written with 1ULL is a different width from a plain one. A
-                                   * ternary over sizeof is constant folded, so the compiler answers a
-                                   * question the generator cannot.
                                    */
                                   "    .primitive = (sizeof(%s) == 8 ? NYA_TYPE_S64\n"
                                   "                : sizeof(%s) == 2 ? NYA_TYPE_S16\n"
@@ -869,10 +836,6 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
 
     /*
      * Array wrappers are synthesised per field rather than deduplicated.
-     *
-     * Two fields of type `char[32]` produce two identical descriptions, which costs a few dozen bytes
-     * of read only data and saves the generator a uniquing pass over spellings that would have to
-     * agree textually to be merged anyway.
      */
     for (u32 i = 0; i < decl->field_count; i++) {
         const _NYA_ReflectFieldDecl* field = &decl->fields[i];

@@ -1,32 +1,5 @@
 /**
  * The networking layer against a hostile peer.
- *
- * Every case here is something a remote attacker can actually send. They are written as the attack rather
- * than as the fix, because a hardening test that only exercises the guard it was written beside stops
- * being a test the moment the guard moves.
- *
- * The transport-level cases go through a **raw socket** rather than through NYA_NetTransport, because the
- * transport is what is being attacked — asking it to produce a malformed packet is asking the wrong
- * component. Everything below builds datagrams by hand, exactly as an attacker would.
- *
- * The decoder cases go straight at the parsers with garbage, truncation and lies about length. Those are
- * the functions that read bytes somebody else chose, and the requirement is not that they succeed: it is
- * that they refuse without faulting, without allocating from a number on the wire, and without reading
- * past what arrived.
- *
- * ## What each case defends
- *
- * - **An oversized datagram.** SDL_net receives into a 64 kB buffer and reports whatever arrived, so
- *   `buflen` is *not* bounded by NYA_NET_MAX_DATAGRAM. Every "the wire cannot claim more than a datagram
- *   holds" assumption in the fragment path was written as though it were.
- * - **An over-length fragment.** The reassembly buffer is sized `total * usable` and a fragment is copied
- *   to `index * usable`, so a fragment claiming more than `usable` wrote past the end — up to 58 kB of
- *   chosen bytes at a chosen offset. That was a remote heap overflow.
- * - **A spoofed CONNECT flood.** Without address validation, one attacker filled every peer slot with
- *   addresses that were never there, at one packet per slot.
- * - **A forged DISCONNECT.** Seventeen bytes evicted any player, with the reason chosen too.
- * - **An impossible acknowledgement.** A client naming a tick the server has not reached got full
- *   snapshots forever; a command from the far future wedged that client's own input.
  **/
 
 #include "nyangine/nyangine.c"
@@ -42,9 +15,6 @@
 
 /*
  * The wire layout, restated here rather than shared with the implementation.
- *
- * An attacker does not include net_udp.c. Writing these out means the test breaks if the format changes
- * — which is the point: a format change is exactly when these bounds want re-checking.
  */
 #define PROTOCOL        0x6E796105U
 #define HEADER_SIZE     15
@@ -100,16 +70,6 @@ static void pump(NYA_NetTransport* transport, u32 times) {
 
 /**
  * Completes a real handshake on a raw socket, so the attacker is a legitimate peer.
- *
- * This matters more than it looks. With address validation in place a CONNECT allocates nothing, so an
- * attacker that has not completed the handshake never reaches the fragment path at all — and a test that
- * skips it is testing the challenge rather than the thing it claims to.
- *
- * That was exactly the failure: the over-length fragment case passed with its guards deliberately removed,
- * because the packet was being discarded as coming from a stranger long before anything parsed it.
- *
- * The realistic threat model is a player who joined properly and then started lying, which is what this
- * builds. Returns false when the handshake did not complete.
  * */
 static b8 raw_handshake(NET_DatagramSocket* socket, NET_Address* target, u16 port, NYA_NetTransport* server) {
   u8  connect[HEADER_SIZE + 1 + 8] = { 0 };
@@ -216,13 +176,6 @@ s32 main(void) {
     /*
      * The critical case. `buflen` can be up to 65507 because SDL_net's receive buffer is 64 kB, so the
      * fragment path below was reachable with a length no datagram was assumed able to carry.
-     *
-     * One fragment of a two-fragment message claiming sixty thousand bytes: the reassembly buffer is
-     * 2 * 1176 = 2352 bytes and the copy lands at offset 1176. That wrote ~58 kB of chosen bytes past the
-     * end of an arena block, over the arena's own bookkeeping and other peers' buffers.
-     *
-     * ASan is the assertion here. If the guard is ever removed this test does not fail politely — it
-     * aborts with a heap-buffer-overflow, which is the correct volume for this bug.
      */
     u64 total_size = HEADER_SIZE + FRAGMENT_HEADER + 60000;
     u8* packet     = nya_arena_alloc(arena, total_size);
@@ -243,9 +196,6 @@ s32 main(void) {
 
     /*
      * A completed handshake first, so this reaches the fragment path.
-     *
-     * Without it the packet is discarded as coming from a stranger and the case proves nothing — verified
-     * by removing the guards and watching it pass anyway.
      */
     nya_assert(raw_handshake(attacker, target, port, server), "the attacker could not join to mount the attack");
 
@@ -259,10 +209,6 @@ s32 main(void) {
   {
     /*
      * The same overflow, kept under NYA_NET_MAX_DATAGRAM so the datagram-size guard does not catch it.
-     *
-     * This is what makes the second check necessary: a 1200 byte datagram is perfectly legal, and a
-     * fragment inside it claiming 1180 bytes of a two-fragment message still writes past a buffer sized
-     * for 1176 per fragment. The reassembler must bound its own input rather than trusting the caller.
      */
     u8  packet[NYA_NET_MAX_DATAGRAM] = { 0 };
     u64 at                           = write_header(packet, 2, 1);
@@ -291,14 +237,6 @@ s32 main(void) {
   {
     /*
      * Address validation, which is the difference between a peer table and a free-for-all.
-     *
-     * A CONNECT is answered with a challenge and **nothing is allocated**. Only a response echoing a
-     * cookie derived from the claimed address earns a slot — which a spoofer cannot produce, because the
-     * challenge goes to the address they claimed rather than to them.
-     *
-     * The source address cannot actually be spoofed from userspace here, so this sends many CONNECTs from
-     * one address instead. That is the weaker version of the attack and it is the one that still proves
-     * the property: a CONNECT does not become a peer.
      */
     u32 before = peer_count(server);
 
@@ -343,12 +281,6 @@ s32 main(void) {
   {
     /*
      * The control channel, which was seventeen forgeable bytes.
-     *
-     * A real client is connected first, then the attacker sends a DISCONNECT naming it. Since the
-     * attacker's own address differs, the packet is attributed to the *attacker's* peer rather than the
-     * victim's — but that peer does not exist yet, so what this actually proves is the narrower and more
-     * important half: an unauthenticated DISCONNECT from an address that is not the connection's does
-     * nothing, and one from an address that *is* still needs the token.
      */
     NYA_NetTransport* client = nullptr;
     NYA_EXPECT(nya_net_transport_udp_create(arena, &client));
@@ -399,14 +331,6 @@ s32 main(void) {
   {
     /*
      * The memory-amplification bound.
-     *
-     * A reassembly slot is sized from the wire-claimed fragment count on the *first* fragment, so a handful
-     * of tiny datagrams asked the receiver to allocate hundreds of kilobytes each. The per-message cap
-     * bounds one of them; this budget bounds the set, which is the quantity an attacker actually controls —
-     * they choose how many message ids to start and never finish.
-     *
-     * Refusal rather than eviction is the deliberate part. Evicting is what an attacker would want: a
-     * trickle of new message ids would keep destroying whatever a legitimate transfer was assembling.
      */
     NET_DatagramSocket* hoarder = NET_CreateDatagramSocket(nullptr, 0, 0);
     nya_assert(hoarder != nullptr);
@@ -451,9 +375,6 @@ s32 main(void) {
 
     /*
      * The bound is the engine's, not the attacker's.
-     *
-     * Without it this would be eight slots times the per-message cap. With it, the peer cannot exceed the
-     * budget however many messages it starts.
      */
     nya_assert(held <= _NYA_NET_UDP_MAX_REASSEMBLY_BYTES, "a peer held %llu bytes of reassembly against a %d byte cap",
                (unsigned long long)held, _NYA_NET_UDP_MAX_REASSEMBLY_BYTES);
@@ -467,10 +388,6 @@ s32 main(void) {
      * Ordered delivery holds an early arrival until the gap ahead of it is filled, and an attacker turns
      * that into unbounded memory: send ids 1, 2, 3… and never the one the receiver is waiting for, and
      * nothing is ever delivered or freed.
-     *
-     * Two bounds catch it. An id further ahead than the sender's own in-flight window is refused outright,
-     * and a queue that reaches the window depth drops the peer — because a correct sender cannot produce
-     * either situation.
      */
     NET_DatagramSocket* staller = NET_CreateDatagramSocket(nullptr, 0, 0);
     nya_assert(staller != nullptr);
@@ -484,8 +401,6 @@ s32 main(void) {
      * Dense: many message ids in one datagram, because `fragment_count` is a byte and a fragment may carry
      * a single payload byte. That is the cheap version of the attack — a few packets build a queue that a
      * naive implementation keeps forever.
-     *
-     * Never id zero, which is what the receiver is waiting for.
      */
     for (u32 round = 0; round < 6; round++) {
       u8  packet[NYA_NET_MAX_DATAGRAM] = { 0 };
@@ -540,10 +455,6 @@ s32 main(void) {
     /*
      * The catch-all. Every guard above was added because a specific shape got through; this looks for the
      * shapes nobody thought of.
-     *
-     * Half the packets carry the right magic word so they reach the parsing paths rather than being
-     * discarded at the door — random bytes are almost never a valid protocol header, and a fuzz case that
-     * never gets past the first check is not fuzzing anything.
      */
     NYA_RNG             rng     = nya_rng_create(.seed = "A77ACC");
     NYA_RNGDistribution uniform = { .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { .min = 0.0, .max = 255.0 } };
@@ -629,8 +540,6 @@ s32 main(void) {
     /*
      * Truncation specifically, because it is the shape a real network produces and the shape a
      * bounds-checked reader gets wrong: a payload that is valid up to the point where it stops.
-     *
-     * Built by encoding something real and then handing over every prefix of it.
      */
     NYA_NetEntityState entities[3] = {
       { .handle = { .index = 1, .generation = 1 }, .position = { 1.0F, 2.0F, 3.0F }, .scale = { 1.0F, 1.0F, 1.0F } },
@@ -670,9 +579,6 @@ s32 main(void) {
    * These go through a loopback pair rather than a socket, because the target is the *server's* message
    * handling rather than the transport's framing. A loopback lets a payload be handed over exactly as
    * written, which is what an attacker who has already joined effectively has.
-   *
-   * Everything below is something a legitimate client can send at any time. Being a peer is not being
-   * trusted.
    */
   nya_system_callback_init();
 
@@ -772,9 +678,6 @@ s32 main(void) {
      * `tick` is unvalidated. One command claiming U64_MAX set `last_command_tick` to it, and every later
      * command from that client was then discarded as stale — while the repeat pass kept re-applying the
      * frozen one. The player is stuck walking in one direction and it looks like a server bug.
-     *
-     * Self-inflicted, so the command is dropped rather than the peer, and the check is that a *subsequent*
-     * honest command still lands.
      */
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1 }));
 

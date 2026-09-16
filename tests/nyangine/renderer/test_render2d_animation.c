@@ -1,12 +1,5 @@
 /**
  * Sprite animation: frames, loops, and the events that make a hit land on the right one.
- *
- * The frame walk is what most of this is about. Advancing by dividing the elapsed time is faster and
- * skips every frame in between — so a long tick swallows the marker an attack hangs off, and the
- * attack works at sixty frames a second and not at twenty. Several tests below are long ticks for
- * exactly that reason.
- *
- * Headless throughout: an animator is a frame index and a timer, and neither needs a GPU.
  **/
 
 #include "nyangine/nyangine.c"
@@ -109,10 +102,6 @@ s32 main(void) {
 
     /*
      * Half a second at ten frames a second is five frames in one tick, straight past frame three.
-     *
-     * This is the case the frame-by-frame walk exists for: a divide would land on frame five and
-     * report nothing in between, so the hit would silently not happen on a slow frame. Both markers
-     * on frame three have to come out, because two things happening on one frame is ordinary.
      */
     u32 count = nya_sprite_animator_advance(&animator, 0.5F, signals, nya_carray_length(signals));
 

@@ -1,24 +1,5 @@
 /**
  * Regression test for nya_hset_intersection removing while iterating (base_hset.h).
- *
- * The macro walks dest's slots from 0 upward and calls nya_hset_remove on any item the source does
- * not hold. nya_hset_remove is a backward shift deletion: after clearing a slot it walks the rest of
- * the probe chain and reinserts each entry at the first free slot from its own hash, which is often
- * a *lower* index than where it was. An entry moved below the cursor is never looked at again, so it
- * survives an intersection it should not be in.
- *
- * The set below holds nine u32 keys in a table of sixteen and is intersected with the empty set, so
- * the correct answer is unambiguous: nothing survives. One item does.
- *
- * The other three operations had the same hazard in a form that only shows when the two arguments
- * are the *same set*: they iterate the source, which is fine until the source is also the thing
- * being mutated. `a \ a` and `a △ a` walk a table nya_hset_remove is shifting; `a ∪ a` is a no-op by
- * definition but can still trip nya_hset_insert's load factor check, and the rehash that follows
- * frees the `items` and `occupied` the loop is reading.
- *
- * test_hset.c already calls all four aliased forms and passes, but with two items in a table of
- * sixty four — too sparse for anything to collide, shift or resize. The aliased section here uses
- * the same nine-in-sixteen density as the case above, which is what makes the difference visible.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

@@ -1,9 +1,5 @@
 /**
  * Finite-difference gradient check over every op in the autograd graph.
- *
- * For each op, builds loss = f(params), runs backward, and compares each parameter's analytic
- * gradient against (f(x+h) - f(x-h)) / 2h. A wrong backward rule shows up immediately and nothing
- * else does.
  */
 
 #include "nyangine/nyangine.c"

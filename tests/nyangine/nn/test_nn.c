@@ -1,14 +1,5 @@
 /**
  * Tensors, autograd, layers and optimizers.
- *
- * The gradient check is the test that matters. Every other part of this library is checkable by
- * inspection — a matmul either produces the right numbers or it does not — but a backward pass can
- * be wrong in ways that still train: a factor of two on one branch, a missing accumulation on a
- * shared parameter, a sign error on a term that is usually small. All of those produce a network
- * that learns *something*, more slowly, and none of them show up as a failure anywhere else.
- *
- * So the derivatives are compared against finite differences of the forward pass. That treats the
- * forward pass as the specification, which is right: it is the half that is obviously correct.
  **/
 
 #include "nyangine/nyangine.c"
@@ -19,10 +10,6 @@
 
 /**
  * How far to nudge a parameter when estimating its derivative numerically.
- *
- * A compromise. Too small and the difference of two nearly equal f32 losses is dominated by rounding;
- * too large and the secant stops approximating the tangent. 1e-3 sits in the flat part of that curve
- * for the value ranges a small network produces.
  * */
 #define TEST_NN_EPSILON 1e-3F
 
@@ -39,10 +26,6 @@ struct GradientCheckContext {
 
 /**
  * The loss as a pure function of the network's current weights.
- *
- * Rerun from scratch each time, graph reset included, because the numeric estimate has to see the
- * effect of a nudged weight on the *whole* pass — reusing any cached activation would measure a
- * different function than the one the analytic gradient describes.
  * */
 static f32 gradient_check_forward(struct GradientCheckContext* context) {
   nya_nn_graph_reset(context->graph);
@@ -357,9 +340,6 @@ int main(void) {
 
       /*
        * Sampled from step ten on, so the first passes' growth is not mistaken for a leak.
-       *
-       * The arena reuses its regions after a reset, so once the largest pass has been seen the
-       * figure stops moving entirely. Anything after that is a genuine per-step allocation.
        */
       if (step < 10) continue;
 
@@ -381,10 +361,6 @@ int main(void) {
   {
     /*
      * A regression test for a bug that was in this library and produced no symptom.
-     *
-     * Backward sweeps the whole tape, so a second call walked the first loss's nodes while they were
-     * still holding gradients from the first call and propagated them again. dw came out as 11 where
-     * the correct total was 7 — a wrong answer that still trains, just towards the wrong thing.
      */
     NYA_NNGraph*  graph = nya_nn_graph_create(arena);
     NYA_NNTensor* w     = nya_nn_tensor_create(arena, NYA_NN_SHAPE(1, 1), true);
@@ -596,10 +572,6 @@ int main(void) {
 
     /*
      * Labels, including every way a caller gets the count wrong.
-     *
-     * They are indexed by unit, so a count shorter than the layer, a null entry, and a count longer
-     * than the layer all have to be tolerated rather than read past — an overlay builds these from
-     * whatever it happens to know and will get it wrong.
      */
     NYA_ConstCString input_labels[]  = { "x", nullptr, "z" };
     NYA_ConstCString output_labels[] = { "a", "b" };

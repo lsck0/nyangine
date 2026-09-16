@@ -1,18 +1,5 @@
 /**
  * Localization: loading a locale, falling back, and formatting through the generated accessors.
- *
- * The generated header is the point of the exercise, so this includes it and calls the accessors
- * rather than going through nya_i18n_raw — which means the test would fail to *compile* if the
- * generator ever emitted the wrong signature. That is the check that matters most and the only one
- * a runtime assertion could not make.
- *
- * The build-time validation is not tested here for the same reason: it is a build failure, and a
- * test that asserts the build fails would have to run the build. It is exercised every time
- * `./build build assets` runs against the locales in the tree.
- *
- * The asset system has to be up, which is why this brings up three systems rather than none: locale
- * files are read through nya_asset_read now, so that a shipped build resolves them against the
- * embedded blob through the same call a development build reads them off disk with.
  **/
 
 #include "nyangine/nyangine.c"
@@ -76,11 +63,6 @@ s32 main(void) {
 
     /*
      * The typed accessors, which is the whole design.
-     *
-     * `nya_string_hud_score` takes exactly an NYA_ConstCString and an s32 because `"%s scored %d
-     * points"` says so — the signature was generated from the string. Passing them the other way
-     * round does not compile, which is the failure this system exists to turn into a compile error
-     * rather than a crash in whichever language nobody on the team reads.
      */
     nya_assert(nya_string_equals(nya_string_hud_greeting("Ada"), "Hello, Ada!"), "got '%s'", nya_string_hud_greeting("Ada"));
     nya_assert(nya_string_equals(nya_string_hud_score("Ada", 4200), "Ada scored 4200 points"), "got '%s'", nya_string_hud_score("Ada", 4200));

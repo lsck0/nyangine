@@ -1,18 +1,5 @@
 /**
  * Every vendored dependency the project links, exercised rather than merely linked.
- *
- * Linking proves a symbol resolved. It does not prove the library was built for the right platform,
- * configured with the feature you need, or usable at all — libluajit-linux.a spent a while full of
- * COFF objects that the linker silently skipped, and nothing noticed because nothing called into
- * Lua. This file calls into each one and checks the answer.
- *
- * Deliberately shallow. One round trip, one version string, one object created and destroyed: the
- * question is "is this library alive and correct for this platform", not "does it work", which is
- * its own maintainers' job. Anything deeper would be testing box2d rather than testing our build.
- *
- * **Nothing here touches the network.** The curl check builds a handle and reads its version; it
- * never resolves a host. A test that needed the internet would fail in CI for reasons that have
- * nothing to do with the code.
  **/
 
 #include "nyangine/nyangine.c"

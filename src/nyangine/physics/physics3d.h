@@ -1,13 +1,6 @@
 /**
  * @file physics3d.h
  *
- * 3D rigid body physics, as a property an entity can have.
- *
- * Box3D owns the simulation; this owns exactly one world and the mapping between it and the entity
- * table. Deliberately the same shape as physics2d.h, function for function, because the two are
- * the same idea over a different number of axes and a game moving between them should not have to
- * relearn anything:
- *
  * ```c
  * NYA_EntityHandle cube = nya_entity_spawn(.name = "cube", .position = { 0, 4, 0 });
  * nya_physics3d_body_attach(cube, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 1, 1, 1 });
@@ -16,32 +9,6 @@
  * NYA_Entity* entity = nya_entity_get(cube);
  * nya_render3d_cube(window, entity->position, entity->physics3d.size, entity->rotation, colour);
  * ```
- *
- * ## The differences that are real
- *
- * **Rotation is a quaternion, not an angle.** A 2D body has one angular degree of freedom and this
- * one has three, so `entity->rotation` is written in full rather than rebuilt from a roll — and
- * nya_physics3d_angular_velocity is an f32x3 rather than a scalar. That is the whole of why there is
- * no nya_physics3d_rotation returning a float: there is no single number to return.
- *
- * **Y is up, and gravity is negative.** The 2D world is the screen, where y grows downward because
- * that is what pixels, texture rows and mouse coordinates do. A 3D scene has no such constraint and
- * every 3D convention, Box3D's included, puts y up — so NYA_PHYSICS3D_GRAVITY_DEFAULT points along
- * negative y. The two worlds genuinely disagree about which way is down, which is fine because
- * nothing is ever simulated in both.
- *
- * **The default scale is one.** A 2D world is measured in pixels and has to convert, at 32 units per
- * metre. A 3D scene has no pixel size at all — the camera decides how big a metre looks — so the
- * natural unit *is* the metre and nya_physics3d_units_per_meter defaults to 1. The knob exists
- * anyway, because a game whose art is authored at some other scale should change one number rather
- * than every dimension it passes in.
- *
- * ## The step is the engine's, not the game's
- *
- * nya_system_physics3d_update runs once per fixed tick, from the same loop that updates entities and
- * steps the 2D world, and writes each body's transform back onto its entity before any callback
- * runs. Both worlds step every tick; a scene that only uses one is paying for an empty solver, which
- * is a handful of nanoseconds.
  * */
 #pragma once
 
@@ -66,10 +33,6 @@ typedef struct NYA_Entity NYA_Entity;
 
 /**
  * World units per metre. One, unlike the 2D world's thirty-two.
- *
- * See the file header: a 3D scene has no pixel scale to convert through, so the natural unit is the
- * metre and the conversion is the identity. Changing it is for art authored at some other scale, and
- * only sensibly before anything is created — existing bodies keep the size they were built at.
  * */
 #ifndef NYA_PHYSICS3D_UNITS_PER_METER
 #define NYA_PHYSICS3D_UNITS_PER_METER 1.0F
@@ -90,9 +53,6 @@ typedef struct NYA_Entity NYA_Entity;
 
 /**
  * How fast two things have to be closing before a contact counts as a hit, in world units per second.
- *
- * Four metres per second, the same speed as the 2D world's threshold — which is a different *number*
- * only because the two scales differ. A body that has fallen roughly a metre.
  * */
 #ifndef NYA_PHYSICS3D_HIT_THRESHOLD
 #define NYA_PHYSICS3D_HIT_THRESHOLD (4.0F * NYA_PHYSICS3D_UNITS_PER_METER)
@@ -100,9 +60,6 @@ typedef struct NYA_Entity NYA_Entity;
 
 /**
  * How close to straight up a contact normal must point to count as ground, as a dot product with up.
- *
- * The same forty-five degrees the 2D world uses, against a different up vector: positive y here,
- * negative y there.
  * */
 #ifndef NYA_PHYSICS3D_GROUND_NORMAL_MIN
 #define NYA_PHYSICS3D_GROUND_NORMAL_MIN 0.7F
@@ -132,9 +89,6 @@ typedef struct NYA_Physics3DSystem      NYA_Physics3DSystem;
 enum NYA_Physics3DShape {
     /**
      * An axis aligned box in the body's own frame, `size` being its full extents.
-     *
-     * Built as a convex hull, which is what Box3D calls a box — there is no separate box primitive,
-     * and a hull of eight points is what one is.
      * */
     NYA_PHYSICS3D_SHAPE_BOX = 0,
 
@@ -142,31 +96,27 @@ enum NYA_Physics3DShape {
 
     /**
      * Two hemispheres joined by a cylinder, upright in the body's own frame.
-     *
-     * `radius` wide, `length` between the cap centres — the same parameterisation the 2D capsule
-     * uses, and upright for the same reason: a capsule is nearly always a character.
      * */
     NYA_PHYSICS3D_SHAPE_CAPSULE,
 
     /**
      * An arbitrary triangle mesh, from `vertices` and `indices`. **Static bodies only.**
-     *
-     * The 3D counterpart of the 2D chain, and it exists for the same reason: a landscape is not a box,
-     * and approximating one with boxes gives a staircase that a crate visibly catches on. Box3D builds a
-     * BVH over the triangles, so a mesh of a few thousand is a normal thing to collide against.
-     *
-     * Static only, and not by choice here — a triangle soup has no interior, so it has no volume and no
-     * inertia tensor, and there is nothing for a dynamic body to be. Every solver draws this line;
-     * a dynamic concave shape is a compound of convex hulls instead.
-     *
-     * Wound counter-clockwise seen from the side a body should be pushed out toward, which for ground is
-     * from above. Backwards winding does not make the surface invisible the way it does in the renderer;
-     * it makes bodies fall through it, which is a great deal harder to see.
-     *
-     * The arrays are read during the attach and not kept — Box3D copies them into a structure of its own,
-     * which the body owns and releases when it is detached. A caller can build them in scratch memory.
      * */
     NYA_PHYSICS3D_SHAPE_MESH,
+
+    /**
+     * A regular grid of heights on the xz plane, from `heights`. **Static bodies only.**
+     *
+     * What a terrain actually is, and Box3D has a cheaper solver for it than for the same surface handed
+     * over as triangles: a heightfield knows which cell a point is over without descending a BVH, so a
+     * contact is a lookup rather than a tree walk. `b3SolveContacts_Mesh` was 4.3% of a release profile
+     * with the terrain as NYA_PHYSICS3D_SHAPE_MESH.
+     *
+     * Heights are in world units, row-major with x varying fastest, `height_count_x * height_count_z` of
+     * them. `height_scale` is the world size of one cell on x and z; the y component is unused because the
+     * heights are already absolute.
+     * */
+    NYA_PHYSICS3D_SHAPE_HEIGHTFIELD,
 
     NYA_PHYSICS3D_SHAPE_COUNT,
 };
@@ -225,13 +175,16 @@ struct NYA_Physics3DBody {
 
     /**
      * Box3D's copy of a MESH shape's triangles, owned by this body. Null for every other shape.
-     *
-     * Held here because it is the one shape whose data outlives the attach call and is not freed by
-     * b3DestroyBody — b3CreateMeshShape takes a pointer to it and keeps it. Released by
-     * nya_physics3d_body_detach, which is also why that function has to do its work even when the
-     * solver has already been shut down underneath it.
      * */
     void* mesh;
+
+    /**
+     * Box3D's quantised copy of a HEIGHTFIELD shape's grid, owned by this body. Null for every other shape.
+     *
+     * Its own field rather than sharing `mesh`: the two need different destructors, and one pointer plus a
+     * tag saying which is a sentinel with extra steps.
+     * */
+    void* height_field;
 
     b8 attached;
 
@@ -247,10 +200,6 @@ struct NYA_Physics3DBody {
 
 /**
  * What a body is created as. Everything except the shape's dimensions has a usable default.
- *
- * `density` is per cubic metre here, where the 2D world's is per square metre — the one place the
- * two option structs mean genuinely different things by the same field name, and unavoidable, since
- * a 2D body has an area and a 3D body has a volume.
  * */
 struct NYA_Physics3DBodyOptions {
     NYA_PhysicsBodyType type;
@@ -276,6 +225,21 @@ struct NYA_Physics3DBodyOptions {
     /** MESH: three times the triangle count, not the triangle count. */
     u32 index_count;
 
+    /**
+     * HEIGHTFIELD: one height per grid point, world units, row-major with x varying fastest.
+     *
+     * Not copied or owned — Box3D quantises them into its own storage at creation, so the caller's array
+     * can go away as soon as nya_physics3d_body_attach returns.
+     * */
+    const f32* heights;
+
+    /** HEIGHTFIELD: grid points along each axis. Cells are one fewer on each. */
+    u32 height_count_x;
+    u32 height_count_z;
+
+    /** HEIGHTFIELD: world size of one cell, on x and z. Both must be positive. */
+    f32x2 height_cell_size;
+
     /** Kilograms per cubic metre. Ignored on a static or kinematic body, which have no mass. */
     f32 density;
 
@@ -290,11 +254,6 @@ struct NYA_Physics3DBodyOptions {
 
     /**
      * Stops the body from turning at all, on every axis.
-     *
-     * The 3D counterpart of the 2D body's `lock_rotation`, and a blunter instrument: Box3D can lock
-     * each axis separately, which is what an upright character actually wants (free yaw, locked
-     * pitch and roll). That finer control is deliberately not exposed yet — three booleans on this
-     * struct with no caller is three booleans to get wrong.
      * */
     b8 lock_rotation;
 
@@ -363,13 +322,6 @@ NYA_API f32 nya_physics3d_last_step_time_s(void) __attr_no_discard;
 
 /**
  * Gives an entity a 3D rigid body, built at the transform the entity already has.
- *
- * The entity's `position` and `rotation` seed the body and its `velocity` seeds the linear velocity,
- * exactly as in 2D. From here on the body owns the transform and nya_system_entity_update stops
- * integrating this entity's velocity.
- *
- * False when the entity handle does not resolve, when it already has a 3D body, or when the shape's
- * dimensions do not describe anything — all logged.
  * */
 #define nya_physics3d_body_attach(entity, ...)                                                                                                       \
     nya_physics3d_body_attach_with_options(entity, (NYA_Physics3DBodyOptions){ _NYA_PHYSICS3D_BODY_DEFAULT_OPTIONS, __VA_ARGS__ })
@@ -408,9 +360,6 @@ NYA_API void nya_physics3d_teleport(NYA_Entity* entity, f32x3 position, NYA_Quat
 
 /**
  * Whether the body is resting on something that could hold it up.
- *
- * True when any contact's normal points up within NYA_PHYSICS3D_GROUND_NORMAL_MIN. False, without
- * complaint, for an entity with no 3D body.
  * */
 NYA_API b8 nya_physics3d_grounded(const NYA_Entity* entity) __attr_no_discard;
 
@@ -425,12 +374,6 @@ NYA_API void nya_physics3d_wake(NYA_Entity* entity);
 
 /**
  * The 3D hits from the step just taken, and how many there are.
- *
- * Separate from nya_physics2d_hits, because they are separate worlds and a caller reacting to one
- * has no business being handed the other's. Every entry has `dimension` set to NYA_PHYSICS_3D, so
- * code that merges the two lists can still tell them apart afterwards.
- *
- * **Read it during the tick that produced it.** Never null; `count` is zero on a quiet tick.
  * */
 NYA_API const NYA_PhysicsHit* nya_physics3d_hits(OUT u32* out_count) __attr_no_discard;
 
@@ -445,14 +388,5 @@ NYA_API f32  nya_physics3d_hit_threshold(void) __attr_no_discard;
 
 /**
  * The first entity a ray strikes, or NYA_ENTITY_HANDLE_NONE.
- *
- * What a click on a 3D scene is, and the 3D counterpart of nya_physics2d_entity_at — which takes a
- * point, because in 2D the screen *is* the world plane and a click already names a world position.
- * In 3D it names a line, so this takes one.
- *
- * `direction` need not be normalised; its length is how far the ray reaches. `out_point` and
- * `out_normal` are optional and are left alone when nothing is hit.
- *
- * Closest hit, not first reported, so a cube behind another cube cannot win.
  * */
 NYA_API NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, OUT f32x3* out_point, OUT f32x3* out_normal) __attr_no_discard;

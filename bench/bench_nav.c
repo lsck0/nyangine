@@ -1,9 +1,5 @@
 /**
  * Navigation: A* against the flow field, which is the design claim in 3.3 stated as a measurement.
- *
- * The claim was "A* is cheaper for one agent, a flow field is cheaper from roughly the tenth onward".
- * That is a crossover, and a crossover is exactly the kind of thing that should be measured rather than
- * asserted — so this measures a single query against a field build, and then per-agent costs at scale.
  **/
 
 #include "nyangine/nyangine.c"

@@ -41,10 +41,6 @@ NYA_ParticleSystem* nya_particles_create(NYA_Arena* arena, u32 capacity) {
         /*
          * A fixed seed rather than the clock, so two runs of the same game produce the same sparks
          * unless something asks otherwise. See nya_particles_seed.
-         *
-         * Uppercase hex because that is the only spelling nya_rng_create_in accepts — it panics on
-         * anything else rather than hashing it, so a descriptive seed like "particles" is not an
-         * option however much it would read better here.
          */
         .rng = nya_rng_create_in(arena, "0FEEDFACE0C0FFEE"),
     };
@@ -210,10 +206,6 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
 
         /*
          * Damping as an exponential rather than a subtraction.
-         *
-         * `v -= v * damping * dt` is the obvious form and reverses direction the moment
-         * `damping * dt` exceeds one — so a heavily damped particle at a low frame rate visibly
-         * springs backwards. The exponential cannot, whatever the timestep.
          */
         if (particle->damping > 0.0F) particle->velocity *= expf(-particle->damping * delta_time_s);
 
@@ -261,13 +253,6 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
 
     /*
      * The system's texture resolved once, not once per particle.
-     *
-     * It was inside the loop, which is a dictionary lookup and a string hash per particle per pass — for
-     * a plume of a couple of hundred, drawn once for the camera and once per shadow cascade, that is over
-     * a thousand lookups a frame all returning the same answer.
-     *
-     * Only valid for this call, which is why it is not stored on the system: a hot reload replaces the
-     * GPU texture behind the handle, and a cached binding would outlive it.
      */
     NYA_Render3DTextureBinding texture = system->space == NYA_PARTICLE_SPACE_3D ? nya_render3d_texture_resolve(system->texture)
                                                                                : (NYA_Render3DTextureBinding){ 0 };
@@ -290,24 +275,9 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
         if (system->space == NYA_PARTICLE_SPACE_3D) {
             /*
              * A billboard, which is what a particle is.
-             *
-             * This drew a small *cube* until there was a billboard primitive to call, and said so: a
-             * screen-facing quad needs the camera's right and up vectors to build its corners, and
-             * render3d did not expose them. A cube reads correctly from every angle and is the wrong
-             * shape for everything a particle system is for — smoke, fire, a spark, a glow are all a flat
-             * image that always faces the viewer.
-             *
-             * The rotation is the particle's own, applied in the view plane. It is what stops a crowd of
-             * identical puffs looking stamped from one die, and it is the reason a cube could not simply
-             * be made small enough to pass.
              */
             /*
              * The system's texture, which the 3D path used to drop on the floor.
-             *
-             * nya_particles_texture_set is documented as the texture *every* particle draws with, and this
-             * branch ignored it — so a 3D system with a sprite drew flat squares and said nothing. That is
-             * the difference between a plume and a stack of quads, since an untextured billboard is a hard
-             * edged square by construction.
              */
             nya_render3d_billboard_resolved(window, texture, particle->position, (f32x2){ size, size }, particle->rotation, color);
             continue;
@@ -375,10 +345,6 @@ f32 _nya_particles_range(NYA_ParticleSystem* system, f32x2 range, f32x2 fallback
 f32x3 _nya_particles_direction(NYA_ParticleSystem* system) {
     /*
      * Uniform on the sphere, which is not what picking three uniform components gives.
-     *
-     * That produces points in a cube, normalised — which crowds the corners and leaves the axes
-     * sparse, visible as an explosion that is slightly diamond shaped. Sampling z uniformly and the
-     * azimuth uniformly is Archimedes' theorem and is exactly uniform.
      */
     f32 z         = (_nya_particles_unit(system) * 2.0F) - 1.0F;
     f32 azimuth   = _nya_particles_unit(system) * 2.0F * (f32)M_PI;

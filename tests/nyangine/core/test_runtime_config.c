@@ -1,16 +1,5 @@
 /**
  * Runtime config: a reflected struct loaded from a .nya file, and kept in sync with it live.
- *
- * Named test_runtime_config rather than test_config: tests/nyangine/net/test_config.c already exists
- * for an unrelated networking config, and the two would otherwise both match a `test_config` filter.
- *
- * NYA_ASSET_HOT_RELOAD is defined here rather than relied upon, for the same reason
- * test_i18n_reload.c defines it: FLAGS_TEST does not set it, so without this the watch and everything
- * it compares would be compiled out and the reload test would pass by testing nothing.
- *
- * Includes gnyame's own translation unit, not just the engine's, because GNY_Config is what the
- * generated reflection table describes for a game struct — see test_reflection_generated.c, which
- * does the same and explains why in its own header.
  **/
 
 // Before the engine, so the watch and the fields it reads are compiled in. See the note above.

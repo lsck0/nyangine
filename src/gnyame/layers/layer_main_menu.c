@@ -1,14 +1,5 @@
 /**
  * @file layer_main_menu.c
- *
- * The title screen, and the only thing over the background when the process starts.
- *
- * There is no world behind it. gny_window_main_create pushes the background and this, and "start"
- * pops this and pushes the game and the HUD in its place — so the terrain, the crates and the audio
- * do not exist until they are asked for, and going back to the menu takes them away again.
- *
- * The menu itself is the shared widget in layers.c. This file is the item list and what choosing one
- * means, which is all a menu layer should be.
  * */
 #include "gnyame/gnyame.h"
 
@@ -20,15 +11,6 @@
 
 /*
  * Three items: the two scenes and the way out.
- *
- * Not const, and the labels are not here, because they are translated — nya_string_menu_2d_scene() is
- * a function call and a static initialiser cannot contain one. They are filled in on_create, which
- * already rebuilds this array on every push for an unrelated reason and is therefore also the point at
- * which a language change is picked up.
- *
- * The volume rows that used to sit between these moved out entirely. They are still on the pause menu,
- * where a player who is actually listening to something can reach them; having them here as well made
- * the title screen a settings screen with two scenes attached.
  */
 NYA_INTERNAL GNY_MenuItem _gny_main_menu_items[] = {
     { .action = GNY_MENU_ACTION_START  },
@@ -49,18 +31,9 @@ void gny_layer_main_menu_on_create(NYA_Window* window) {
 
     /*
      * Rebuilt on every push rather than once at startup.
-     *
-     * The item array is a pointer into this shared library, and a hot reload replaces the library —
-     * so a pointer stored before the reload aims into an unmapped page afterwards. GNY_World lives
-     * in the executable and survives, which is exactly what makes the stale pointer possible.
-     * Re-pointing it here costs nothing and removes the whole class of problem.
      */
     /*
      * The labels, every time the menu is pushed.
-     *
-     * A no-argument accessor answers a pointer into the locale's own table, which is stable until the
-     * language changes or the file is hot reloaded — and both of those replace the table, which is what
-     * makes re-reading them here rather than caching them the correct thing to do.
      */
     _gny_main_menu_items[0].label = nya_string_menu_2d_scene();
     _gny_main_menu_items[1].label = nya_string_menu_3d_scene();

@@ -1,14 +1,5 @@
 /**
  * @file base_logging.h
- *
- * Logging and the central crash sink.
- *
- * Every abort path in the engine, an assertion, a panic, a thrown error or a hardware fault, ends
- * up in `_nya_crash_raise`. That single funnel is what makes telemetry, a crash report writer or an
- * in game crash overlay possible: register an `NYA_CrashObserver` and it sees all four.
- *
- * Observers cannot stop a crash. Preventing one is a testing facility only and lives in
- * base_test.h, compiled in exclusively when NYA_TESTING is defined.
  * */
 #pragma once
 
@@ -81,11 +72,6 @@ struct NYA_CrashInfo {
 
     /**
      * True when running in async signal context, which is to say NYA_CRASH_SOURCE_FAULT.
-     *
-     * An observer seeing this MUST restrict itself to preallocated memory and write(2). No malloc,
-     * no stdio, no windowing, no networking: the faulting thread may well hold the allocator lock,
-     * and taking it again deadlocks the crash handler. Queue the report to a preopened file and
-     * upload it on the next launch instead.
      * */
     b8 fault_path;
 
@@ -96,11 +82,6 @@ struct NYA_CrashInfo {
 /**
  * Receives every crash, whatever its source. Registered observers are notified in registration
  * order, just before the process dies.
- *
- * Returns void on purpose. Observers report, they never veto: letting production code swallow a
- * failed assertion would mean continuing on state already known to be corrupt.
- *
- * Must respect `info->fault_path`.
  * */
 typedef void (*NYA_CrashObserver)(const NYA_CrashInfo* info, void* user_data);
 
@@ -117,27 +98,6 @@ typedef void (*NYA_LogSink)(NYA_LogLevel level, NYA_ConstCString message, u32 le
 
 /*
  * Which level to use, and how to word it.
- *
- * The levels only mean something if they are applied the same way everywhere. A log where INFO
- * carries per asset chatter is a log nobody reads, and one where a hard failure arrives as a
- * warning is a log that hides the thing it was written to surface.
- *
- * - TRACE  every occurrence of something that happens constantly. Off outside deep debugging.
- * - DEBUG  per item detail: one line per asset, per entity, per request. Useful while working on
- *          that subsystem, noise otherwise.
- * - INFO   events a reader wants without asking. Subsystem boundaries, mode changes, one-per-run
- *          milestones. If it can fire more than a few times a second it is DEBUG.
- * - WARN   degraded, but continuing as designed. An optional capability is unavailable, a fallback
- *          was taken, a limit was reached. Nothing the caller asked for was lost.
- * - ERROR  an operation the caller explicitly asked for definitively failed, and the failure is
- *          being swallowed here rather than returned. If it is returned as an NYA_Error instead,
- *          do not also log it: the caller decides how loud it is.
- * - PANIC  nya_log_panic, which does not return.
- *
- * Message wording: capitalised, no trailing period, present tense. Error *messages* are the
- * exception and are deliberately the other way round — lowercase and unpunctuated — because
- * nya_error_format renders them as a clause after the kind, "NOT_FOUND, asset not found on disk",
- * and NYA_EXPECT context reads the same way, "while loading the shader".
  */
 // clang-format off
 #define nya_log_trace(format, ...) _nya_log_message(NYA_LOG_LEVEL_TRACE, __FUNCTION__, __FILE__, __LINE__, format __VA_OPT__(, __VA_ARGS__))
@@ -174,9 +134,6 @@ _nya_crash_raise(NYA_CrashSource source, NYA_ConstCString function, NYA_ConstCSt
 
 /**
  * Same, but reports `backtrace` instead of capturing one here.
- *
- * A thrown NYA_Error already carries the stack from where it was created, which is far more useful
- * than the stack of whatever finally threw it. Pass nullptr to capture at the call site as usual.
  * */
 NYA_API void _nya_crash_raise_with_backtrace(
     NYA_CrashSource      source,

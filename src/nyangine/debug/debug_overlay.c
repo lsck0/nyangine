@@ -325,9 +325,6 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
         /*
          * Green up to half the ceiling, amber to three quarters, red past it.
-         *
-         * Colour rather than a threshold line, because the question a glance asks is "is this frame
-         * fine", and a bar's height alone does not answer it without reading the scale.
          */
         NYA_Color color = (NYA_Color){ 0.35F, 0.85F, 0.45F, 0.9F };
         if (fraction > 0.75F) color = (NYA_Color){ 0.95F, 0.35F, 0.35F, 0.9F };

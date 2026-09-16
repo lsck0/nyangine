@@ -24,10 +24,6 @@
 void gnyame_init(s32 argc, NYA_CString* argv) {
     /*
      * The command line is read first, because it decides what to bring up.
-     *
-     * A dedicated server must not create a window, and the window is created at the bottom of this
-     * function — so the mode has to be known before any of it runs. See net_config.h for why this does
-     * not use base_args.h.
      */
     GNY_LAUNCH = nya_net_config_from_args(argc, argv);
 
@@ -35,14 +31,6 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
 
     /*
      * The tick rate, from the command line where one was given.
-     *
-     * A dedicated server operator has a real reason to change it — a lower rate costs every player less
-     * bandwidth and CPU, a higher one costs more and feels better — and it has to be set here because
-     * the fixed timestep is fixed at init.
-     *
-     * Clamped to something a simulation can actually run at. One tick a second is a legal thing to ask
-     * for and produces a game nobody can play; a thousand is a busy loop. Refusing outright would be
-     * worse than clamping, since this is a shipped binary's command line.
      */
     u64 time_step_ns = nya_time_ms_to_ns(16);
 
@@ -65,14 +53,6 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
 
     /*
      * The base locale, and only the base locale.
-     *
-     * There is no language setting to read yet, so this is not "the player's language" — it is the one
-     * locale the build guarantees exists. Adding a persisted preference means adding the setting and a
-     * menu to change it, which is its own piece of work; loading nothing at all in the meantime would
-     * leave every generated accessor answering `[string 4]`.
-     *
-     * Not fatal on failure. A missing or malformed locale file is a broken install of the text, not of
-     * the game, and refusing to start over it would be a worse trade than showing key names.
      */
     NYA_Error localized = nya_i18n_load(NYA_I18N_BASE_LOCALE, NYA_STRING_KEYS, NYA_STRING_COUNT);
 
@@ -91,11 +71,6 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
 
     /*
      * A dedicated server stops here: no layers, no window.
-     *
-     * The layers are the game's *presentation* — a HUD, a menu, a 3D scene — and a server has nobody
-     * to present to. It still runs the whole frame loop, the whole simulation and the whole physics
-     * step; it simply draws none of it. That is what NYA_HEADLESS does for a test, and what --server
-     * does for a shipped binary.
      */
     if (nya_net_server_is_dedicated()) {
         nya_log_info("Running headless; no window will be created.");
@@ -125,13 +100,6 @@ void gnyame_run(void) {
 void gnyame_deinit(void) {
     /*
      * The engine first, the world after it.
-     *
-     * nya_app_deinit destroys the windows, and destroying a window runs on_destroy for every layer
-     * still on it — which is game code, and game code reads GNY_World. Freeing the world first left
-     * the game layer's teardown dereferencing a null pointer, as a segfault at address 0x8 inside
-     * nya_window_destroy: the offset of `terrain` in the struct.
-     *
-     * Nothing in gny_world_destroy needs the engine, so this order costs nothing.
      */
     // Before the engine goes down, because writing the settings file needs the save system that
     // nya_app_deinit tears down — and because a crash during teardown should not be the thing that

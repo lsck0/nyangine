@@ -1,9 +1,5 @@
 /**
  * Grid navigation: A*, the flow field, and the corner rule that keeps a path off the walls.
- *
- * The properties worth pinning are optimality on a known grid, that a blocked goal fails rather than
- * returning something plausible, that corner cutting is off unless asked for, and that A* and the flow
- * field agree — they are two implementations of the same question and a disagreement is a bug in one.
  **/
 
 #include "nyangine/nyangine.c"

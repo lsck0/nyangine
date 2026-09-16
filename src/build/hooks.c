@@ -21,9 +21,6 @@ void hook_create_build_directory(NYA_BuildRule* rule) {
 
 /**
  * Moves input_file to output_file.
- *
- * Exists so rules do not have to shell out to `mv`, which does not exist on Windows. Vendors that
- * build in tree use this to move an archive aside so the other target can build into the same path.
  * */
 /** Reads the value of a `KEY:TYPE=VALUE` line out of a CMakeCache.txt. */
 NYA_INTERNAL NYA_CString cmake_cache_value(NYA_Arena* arena, const NYA_String* cache, NYA_ConstCString key) {
@@ -94,11 +91,6 @@ void hook_move_file(NYA_BuildRule* rule) {
 
 /**
  * Rewrites a relative -DCMAKE_PREFIX_PATH= argument into an absolute one.
- *
- * cmake resolves a relative CMAKE_PREFIX_PATH against the build directory rather than the working
- * directory, so a vendor pointing at another vendor's output with "./vendor/..." silently fails to
- * find it. When that happens during a cross compile the consequences are confusing rather than
- * loud: find_package falls back to the host's copy and glibc headers end up in a mingw compile.
  * */
 void hook_absolutize_cmake_prefix_path(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
@@ -125,10 +117,6 @@ void hook_absolutize_cmake_prefix_path(NYA_BuildRule* rule) {
 
 /**
  * Expands the token %CWD% in any argument to the absolute working directory.
- *
- * Several tools resolve relative paths against something other than where the build was invoked
- * from, cmake being the usual offender, so an argument that has to be absolute can be written with
- * this marker instead of being hardcoded.
  * */
 void hook_expand_cwd(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
@@ -154,10 +142,6 @@ void hook_expand_cwd(NYA_BuildRule* rule) {
 
 /**
  * Copies input_file to output_file.
- *
- * Where hook_move_file would be wrong: lz4 leaves lib/liblz4.a as a *relative* symlink into its
- * cachedObjs directory, so moving it one level up succeeds and silently leaves a dangling link.
- * Copying follows the link and produces a real archive.
  * */
 void hook_copy_file(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
@@ -212,10 +196,6 @@ void hook_convert_perf_data_to_plain(NYA_BuildRule* rule) {
 
     /*
      * Nothing recorded yet is not a failure.
-     *
-     * This runs both after a profiled run and before the viewer opens, and the second of those can be
-     * reached with no perf.data at all — `./build perf` on a clean checkout. Asserting there would abort
-     * the build system over a missing file the user is about to be told about anyway.
      */
     if (!nya_filesystem_exists("./perf.data")) {
         nya_log_warn("There is no ./perf.data to convert; run './build run profile' first.");

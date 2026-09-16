@@ -1,9 +1,5 @@
 /**
  * Crossfades, bone masks, animation events and two-bone IK.
- *
- * Built on a synthetic rig rather than a loaded model, so every expected result is arithmetic rather
- * than "whatever the artist exported": a three-bone arm of known lengths lying along +x, where the IK's
- * answer can be checked against the triangle it is supposed to have solved.
  **/
 
 #include "nyangine/nyangine.c"

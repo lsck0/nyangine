@@ -42,11 +42,6 @@ NYA_INTERNAL NYA_Quaternion _nya_skeleton_parent_rotation(const NYA_Skeleton* sk
 
 /**
  * How far `bone` moved in `clip` between two clock readings, following a loop across the seam.
- *
- * The seam is the whole difficulty. Playback went from `from_s` to the end and reappeared at zero,
- * so the naive `to - from` is the *negative* of a whole cycle: a walk cycle that loops once a second
- * teleports the character backwards once a second. Splitting the step at the seam and adding the two
- * halves is what makes a looping clip accumulate distance instead of oscillating.
  * */
 NYA_INTERNAL NYA_RootMotion _nya_skeleton_root_step(const NYA_Skeleton* skeleton, const NYA_SkeletonClip* clip, s32 bone, f32 from_s, f32 to_s,
                                                     b8 wrapped, b8 forward) {
@@ -108,10 +103,6 @@ NYA_INTERNAL void _nya_skeleton_collect_events(NYA_SkeletonPlayer* player, f32 f
 
         /*
          * A loop splits the step into two intervals rather than one.
-         *
-         * Playback went from `from_s` to the end and then from zero to `to_s`, so an event between them
-         * is in neither if the interval is treated as [from, to] — which is how a footstep near the end
-         * of a walk cycle silently stops firing once the clip loops.
          */
         b8 crossed = looped ? (event->time_s > from_s && event->time_s <= duration_s) || (event->time_s >= 0.0F && event->time_s <= to_s)
                             : (event->time_s > from_s && event->time_s <= to_s);
@@ -220,11 +211,6 @@ void nya_skeleton_player_play_with_options(NYA_SkeletonPlayer* player, const NYA
     if (player->inertializer != nullptr && player->current.clip != nullptr && options.fade_s > 0.0F) {
         /*
          * The outgoing clip is dropped here and now, which is the whole saving.
-         *
-         * A crossfade would keep it and evaluate it for the length of the transition; the inertializer
-         * only needs the pose that was already on screen, and it has been recording that itself. What
-         * it cannot do yet is measure the destination's velocity, so the capture waits for the update
-         * that knows the frame delta. See NYA_SkeletonPlayer.pending_inertial_s.
          */
         player->pending_inertial_s = options.fade_s;
         player->fading             = false;
@@ -396,10 +382,6 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
 
         /*
          * The outgoing clip's travel, mixed in by the same curve as the pose.
-         *
-         * Without this a walk-to-run transition steps between two speeds on the frame the clip
-         * changes, while the *pose* eases across the whole fade — the character's feet and its
-         * position disagree for as long as the transition lasts, which is what foot sliding is.
          */
         if (extracting) {
             b8 previous_forward = player->previous.speed >= 0.0F;
@@ -454,11 +436,6 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
              * The destination one frame back, so the capture can tell how fast the *new* clip is
              * already moving. Without it a switch between two clips that swing a limb the same way
              * arrives carrying the sum of both velocities rather than the difference.
-             *
-             * The base clip rather than the fully composed pose: recomposing the layers at t - Δ would
-             * cost exactly the second evaluation this technique exists to avoid, and the base clip is
-             * what a transition changes. A layer's own motion goes unaccounted for, which shows up as
-             * a slightly early arrival on the bones that layer owns.
              */
             f32 previous_time_s = player->current.time_s - (delta_time_s * player->current.speed);
 
@@ -481,10 +458,6 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
     /*
      * Last, because everything above is allowed to write the root and this is what decides it does
      * not get to keep it. See nya_skeleton_player_root_motion for why the rest pose is the target.
-     *
-     * The report is masked by the same axes as the pin, and for the same reason. What is not
-     * extracted stays in the pose, so reporting it as well would hand the caller a displacement the
-     * animation is still applying — a walk cycle's vertical bob turned into a character that hops.
      */
     if (extracting) {
         player->root_motion.translation *= player->root_motion_axes;
@@ -521,11 +494,6 @@ b8 nya_skeleton_ik_two_bone(const NYA_Skeleton* skeleton, NYA_SkeletonPose* pose
 
     /*
      * Clamped just inside full extension.
-     *
-     * At exactly `upper + lower` the triangle is degenerate and the joint's bend direction is undefined,
-     * so a limb reaching for something barely too far flickers between bending each way. Stopping a
-     * hair short keeps the plane defined, and the visible result — an almost straight limb — is what a
-     * real one does anyway.
      */
     f32 clamped = nya_min(reach, (upper + lower) * 0.999F);
 
@@ -537,10 +505,6 @@ b8 nya_skeleton_ik_two_bone(const NYA_Skeleton* skeleton, NYA_SkeletonPose* pose
 
     /*
      * The bend plane, from the pole.
-     *
-     * Without a pole the solution is a circle of valid elbow positions around the root-to-target line,
-     * and nothing chooses between them — the limb spins. The pole names the direction the joint should
-     * point, and the component of it perpendicular to the target line is the plane's second axis.
      */
     f32x3 pole_direction = pole - root;
     f32x3 perpendicular  = pole_direction - (direction * nya_vector_dot(pole_direction, direction));
@@ -559,9 +523,6 @@ b8 nya_skeleton_ik_two_bone(const NYA_Skeleton* skeleton, NYA_SkeletonPose* pose
 
     /*
      * Turned into local rotations by rotating each bone from where it points to where it should.
-     *
-     * A rotation between two directions rather than a constructed basis: the bone's roll around its own
-     * axis is whatever the animation set, and rebuilding a basis here would discard it.
      */
     NYA_Quaternion root_parent = _nya_skeleton_parent_rotation(skeleton, pose, root_bone);
     NYA_Quaternion swing_root  = nya_quaternion_from_to(nya_vector_normalize(mid - root), nya_vector_normalize(mid_target - root));

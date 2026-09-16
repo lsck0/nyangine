@@ -1,8 +1,5 @@
 /**
  * @file math_tween.h
- *
- * Easing functions that map t ∈ [0, 1] → [0, 1] such that f(0) = 0 and f(1) = 1.
- * Used for animations etc..
  * */
 #pragma once
 

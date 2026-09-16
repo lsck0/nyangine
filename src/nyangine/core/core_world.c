@@ -36,11 +36,6 @@ NYA_World* nya_world_create(void) {
      * Made current for the duration of the bring-up, then handed back — the three systems below reach
      * their state through nya_world rather than taking it as a parameter, so building a world that is
      * not yet current means being current for as long as it takes to build.
-     *
-     * Physics before entities, reversed on the way out: despawning an entity destroys the rigid body
-     * it carries, so the physics world has to still exist while the entity table is emptied. That
-     * ordering used to live in nya_app_init, one comment away from being lost; here it can't be
-     * gotten wrong by a caller at all.
      */
     NYA_World* previous = nya_world_set(world);
 

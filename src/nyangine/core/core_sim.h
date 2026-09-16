@@ -1,24 +1,11 @@
 /**
  * @file core_sim.h
  *
- * The simulation barrier: what happened this frame, and what should change because of it.
- *
- * Two problems, one mechanism. Mutating the world while it is being iterated — a projectile's update
- * killing the entity it hit invalidates whatever the caller was walking — is avoided by queuing
- * mutations with nya_sim_defer and applying them at a barrier, after every update for the tick has
- * run. Telling anyone what happened (a damage number, an achievement, a combat log, a replay stream,
- * telemetry) without wiring each into the code that does the hitting is solved by recording facts
- * with nya_sim_record and reading them back at frame end by observers, which know nothing of each other.
- *
  * ```c
  * // in the projectile's update
  * nya_sim_record(GNY_SIM_DAMAGE_DEALT, &(GNY_DamageDealt){ .target = id, .amount = 12 }, sizeof(GNY_DamageDealt));
  * if (health <= 0) nya_sim_defer(gny_kill_entity, &id, sizeof(id));
  * ```
- *
- * Records are cleared at the end of every frame, so an observer sees exactly the frame it is being
- * notified about; anything that must outlive the frame is the observer's to copy somewhere durable.
- * `type` is a plain u32 the game defines — core does not interpret it.
  * */
 #pragma once
 
@@ -39,9 +26,6 @@
 
 /**
  * How many times the command queue may refill while draining before it is called a runaway.
- *
- * A deferred command may defer more work — death → drop loot → trigger pickup — so a cycle would
- * otherwise spin forever; the drain gives up loudly instead.
  * */
 #define NYA_SIM_COMMAND_DRAIN_MAX 64
 
@@ -82,9 +66,6 @@ nya_derive_array(NYA_SimCommand);
 
 /**
  * Notified once per frame with everything recorded during it.
- *
- * `records` is empty on a frame where nothing happened; observers are still called, so one that
- * needs to see "nothing happened" can.
  * */
 typedef void (*NYA_SimObserverFn)(const NYA_ArrayᐸNYA_SimRecordᐳ* records, void* user_data);
 
@@ -155,9 +136,6 @@ NYA_API void nya_sim_record(u32 type, const void* data, u64 size);
 
 /**
  * Queues a mutation to apply at the next barrier. `data` is copied.
- *
- * Called from inside a barrier, the new command joins the same drain rather than running
- * immediately, so ordering stays predictable.
  * */
 NYA_API void nya_sim_defer(NYA_SimCommandFn apply, const void* data, u64 size);
 
@@ -174,8 +152,6 @@ NYA_API u64 nya_sim_tick(void) __attr_no_discard;
  * ```c
  * NYA_EXPECT(nya_sim_observer_add(nya_callback(gny_sim_observe), nullptr));
  * ```
- *
- * Must be exported, not NYA_INTERNAL, since the handle is resolved by name.
  * */
 NYA_API NYA_Error nya_sim_observer_add(NYA_CallbackHandle observer, void* user_data) __attr_no_discard;
 

@@ -28,10 +28,6 @@ void gny_sim_observe(const NYA_ArrayᐸNYA_SimRecordᐳ* records, void* user_dat
 
     /*
      * The loudest few impacts of the whole frame, kept as a small sorted array.
-     *
-     * Insertion into a six element list is a handful of comparisons and needs no allocation, which
-     * matters because a collapsing stack can put dozens of records through here in one frame. Sorting
-     * the whole record array to take the top six would be the obvious version and the wrong one.
      */
     GNY_SimImpact loudest[GNY_HIT_VOICES_PER_FRAME];
     u32           loudest_count = 0;
@@ -82,19 +78,12 @@ void gny_sim_observe(const NYA_ArrayᐸNYA_SimRecordᐳ* records, void* user_dat
 void _gny_sim_impact_play(const GNY_SimImpact* impact) {
     /*
      * Loudness from how hard it was, normalised against the quietest impact that can appear at all.
-     *
-     * Linear rather than anything cleverer: the range between "just qualified" and "dropped from the
-     * top of the screen" is about one to six, small enough that a curve would be inventing detail
-     * nobody can hear.
      */
     f32 threshold = nya_physics2d_hit_threshold();
     f32 strength  = nya_clamp((impact->approach_speed / threshold - 1.0F) / (GNY_HIT_LOUDEST_AT - 1.0F), 0.0F, 1.0F);
 
     /*
      * Sparks scaled by the same `strength` the sound is.
-     *
-     * One number driving both is what makes a hard landing read as hard rather than as two unrelated
-     * effects that happen to coincide — a loud thump with a polite puff is worse than either alone.
      */
     (void)nya_particles_emit(
         gny_world()->sparks,

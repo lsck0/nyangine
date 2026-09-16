@@ -1,9 +1,5 @@
 /**
  * The tween system: interpolation, delay, repeat, yoyo, sequences, cancellation and handle staleness.
- *
- * The two behaviours worth pinning hardest are that `from` is read when the tween *begins* rather than
- * when it is created — which is what makes a sequence work at all — and that a stale handle resolves to
- * nothing rather than to whatever reused its slot.
  **/
 
 #include "nyangine/nyangine.c"

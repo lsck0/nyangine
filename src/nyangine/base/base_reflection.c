@@ -8,11 +8,6 @@
 
 /**
  * Reads any integer-shaped primitive as a signed 64 bit value.
- *
- * Enums and the bool family go through here too: what an enum *is* at runtime is its underlying
- * integer, and treating it as anything else would need a second copy of this switch.
- *
- * Fails rather than truncating for the 128 bit types, which do not fit and have no honest answer.
  * */
 NYA_INTERNAL b8 _nya_reflect_read_integer(NYA_Type primitive, const void* instance, OUT s64* out_value);
 NYA_INTERNAL b8 _nya_reflect_write_integer(NYA_Type primitive, void* instance, s64 value);
@@ -59,10 +54,6 @@ const NYA_ReflectField* nya_reflect_path(const NYA_TypeReflection* type, NYA_Con
     for (NYA_ConstCString segment = path; *segment != '\0';) {
         /*
          * The segment is compared in place rather than copied out.
-         *
-         * A path is walked once per field per frame by an inspector, so the copy would be the only
-         * allocation in an otherwise allocation free lookup — and the comparison is the same length
-         * either way.
          */
         u64 length = 0;
         while (segment[length] != '\0' && segment[length] != '.') length++;
@@ -163,9 +154,6 @@ NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance)
 
         /*
          * A string field is a pointer the struct does not own, and it is copied as that pointer.
-         *
-         * Whoever serialises the result has to finish before the owner frees it, which is true of
-         * every string in an NYA_Object and is why they are arena allocated together.
          */
         case NYA_TYPE_STRING: return (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = *(char* const*)instance };
 
@@ -187,10 +175,6 @@ b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value v
 
     /*
      * Coerced rather than matched exactly.
-     *
-     * A number that went through a file comes back as whatever the reader decided it was — 1 is an
-     * integer and 1.0 is a float, and neither knows the field it is about to land in. Requiring an
-     * exact type match would make a hand edited "scale": 1 fail to load into an f32.
      */
     switch (type->primitive) {
         case NYA_TYPE_STRING: {
@@ -274,11 +258,6 @@ NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* ty
 
             /*
              * An enum is written as its variant *name*.
-             *
-             * Same reasoning nya_settings_to_object gives for writing input action names rather than
-             * their indices: a number is not a stable identity, and a game that inserts a variant in
-             * the middle of an enum renumbers everything after it. A saved file keyed by number would
-             * then load as the wrong thing, silently.
              */
             case NYA_REFLECT_ENUM: {
                 s64 raw = 0;
@@ -358,11 +337,6 @@ NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* ty
 
             /*
              * Pointers are not followed.
-             *
-             * A pointer to a struct says nothing about who owns it, whether it is one object or an
-             * array, or whether it is still alive. Following one would be guessing, and a wrong guess
-             * here is a crash rather than a bad file. A game that wants the pointee described gives
-             * the field its own accessor.
              */
             case NYA_REFLECT_POINTER: break;
 
@@ -492,10 +466,6 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
 
     /*
      * The hook runs last, once every plain field is in place.
-     *
-     * It exists because some of what a type needs on load is not a value to write but a thing to do —
-     * creating a physics body from the shape and size that were just restored, say. See
-     * NYA_TypeReflection.on_apply.
      */
     if (type->on_apply != nullptr) return type->on_apply(instance);
 

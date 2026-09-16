@@ -8,13 +8,6 @@
 
 /**
  * Whether `character` may begin or continue an identifier.
- *
- * Split in two because a digit continues a name but cannot start one, which is the only difference
- * between them and the reason `0x` lexes as a number rather than as an identifier.
- *
- * Bytes at or above 0x80 are accepted under NYA_LEXER_UTF8_IDENTS without being decoded. A UTF-8
- * continuation byte is in that range too, so every byte of a multi-byte character is swallowed by the
- * same test and the name stays in one piece — which is all this needs to do. See the flag's note.
  * */
 NYA_INTERNAL b8 _nya_lexer_is_ident_start(u8 character, NYA_LexerFlags flags);
 NYA_INTERNAL b8 _nya_lexer_is_ident_continue(u8 character, NYA_LexerFlags flags);
@@ -81,10 +74,6 @@ void nya_lexer_run(NYA_Lexer* lexer) {
 
         /*
          * lex comment
-         *
-         * Before the symbol case, since a comment is made of characters that are otherwise symbols.
-         * A '/' that opens nothing falls through to that case unchanged, so division and a path
-         * separator still lex the way they always did.
          */
         if (current_char == '/' && (lexer->source[lexer->cursor + 1] == '/' || lexer->source[lexer->cursor + 1] == '*')) {
             b8 is_block = lexer->source[lexer->cursor + 1] == '*';
@@ -253,9 +242,6 @@ void nya_lexer_run(NYA_Lexer* lexer) {
             /*
              * A hex literal takes its exponent with 'p' rather than 'e', because 'e' is a hex digit.
              * The exponent itself is decimal and scales by a power of two: 0x1.8p+1 is 3.
-             *
-             * Required rather than optional after a hex fraction — 0x1.8 alone is not a C hexadecimal
-             * float — but accepted after a hex integer too, so 0x1p4 lexes as one number.
              */
             if (is_hex) {
                 char exponent_char = lexer->source[lexer->cursor];

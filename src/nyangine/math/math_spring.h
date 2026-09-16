@@ -1,8 +1,6 @@
 /**
  * @file math_spring.h
  *
- * Damped springs: the interruptible half of animation, next to the easing curves that are not.
- *
  * ```c
  * static NYA_SpringF32 zoom = { .value = 1.0F, .frequency = 4.0F, .damping = 1.0F };
  *
@@ -11,24 +9,9 @@
  * camera.zoom = zoom.value;
  * ```
  *
- * **Why this exists next to nya_ease.** An ease is a function of `t` over a fixed duration: retarget it
- * halfway and the value jumps, because nothing carries the velocity it had. A spring carries velocity,
- * so a new target bends the motion instead of restarting it. Anything a player can interrupt — a camera
- * chasing, a menu item under a moving cursor, a value that tracks input — wants a spring; a scripted
- * beat with a known duration wants an ease.
- *
  * ⚠ `nya_ease_spring` in math_tween.h is *not* this. It is a closed-form damped cosine evaluated from
  * `t` alone, with no state, so it is a shaped curve and cannot survive interruption. This is the
  * integrator.
- *
- * **Integrated implicitly, which is unconditionally stable.** Explicit and semi-implicit Euler both have
- * a step limit near `omega * dt < 2`, and ordinary parameters cross it at sixty hertz — a damping ratio
- * of 3 at 4 Hz, or 20 Hz at any damping, give NaN within a few frames. Solving the step implicitly has
- * no such limit; a huge step lands on the target rather than diverging. The step is still clamped, but
- * for what a stall *means* rather than for stability.
- *
- * `damping` is a ratio: 1 is critically damped and settles as fast as it can without overshoot, below 1
- * overshoots and rings, above 1 crawls in. 1 is almost always what you want; 0.5 is a bouncy UI.
  * */
 #pragma once
 
@@ -43,9 +26,6 @@
 
 /**
  * The largest step a spring will integrate at once, in seconds.
- *
- * A frame that took longer than this is a stall, not motion, and integrating it whole throws the spring
- * across the screen. Clamping is the same choice a fixed-timestep loop makes for the same reason.
  * */
 #define NYA_SPRING_MAX_STEP 0.1F
 
@@ -61,9 +41,6 @@ typedef struct NYA_SpringF32x3 NYA_SpringF32x3;
 
 /**
  * A scalar spring. Zero-initialise it and set `frequency`; the rest have usable defaults.
- *
- * `frequency` is in oscillations per second and is the one number that matters: it is how fast the
- * thing wants to arrive. 1 is a slow drift, 4 is a responsive UI, 20 snaps.
  * */
 struct NYA_SpringF32 {
     f32 value;

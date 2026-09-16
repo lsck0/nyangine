@@ -1,16 +1,5 @@
 /**
  * Picking, in both dimensions.
- *
- * `on_click` is a field on every entity, and until recently only half of them could ever receive it:
- * nya_entity_click took an f32x2 and asked nya_physics2d_entity_at, so a 3D entity's callback was
- * unreachable — the 3D scene in gnyame did its own raycast and never ran it. Nothing failed loudly;
- * the callback simply never fired.
- *
- * So what is checked here is mostly that both paths reach the same place: the same callback type,
- * the same "no callback means not clickable" rule, and a world point that means something in each
- * case — the clicked position in 2D, the struck surface in 3D.
- *
- * Headless: both solvers need an arena and a clock and nothing else.
  **/
 
 #include "nyangine/nyangine.c"
@@ -131,10 +120,6 @@ s32 main(void) {
 
     /*
      * The point is on the struck surface, not the ray's origin.
-     *
-     * Handing back the origin would make every click on an object report the camera's position,
-     * which is the same value for every click and therefore useless for deciding which face was hit.
-     * The cube is two units across at the origin, so its near face is at z = 1.
      */
     nya_assert(last_point.z > 0.5F && last_point.z < 1.5F, "the hit point is on the near_plane face, not at the ray origin");
     nya_assert(last_point.z < 10.0F, "and is certainly not where the ray started");

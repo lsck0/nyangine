@@ -1,10 +1,5 @@
 /**
  * Settings, and the input actions that read their bindings out of it.
- *
- * The binding table and the volume mix are plain data, so both are testable without a window. The
- * key *state* behind an action query is not — it comes from platform events — so the tests below
- * drive the input system by handing it NYA_Events directly, which is exactly what the platform
- * layer does.
  **/
 
 #include "nyangine/nyangine.c"
@@ -38,10 +33,6 @@ static void end_frame(void) {
 s32 main(void) {
   /*
    * The systems this needs, rather than nya_app_init.
-   *
-   * A full init opens a window and captures the integrity baseline, neither of which a headless
-   * test can do — the same reason test_input and test_event build up by hand. Settings depends on
-   * nothing and input needs the event and callback systems for its end-of-update hook.
    */
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
   b8 sdl_ok         = SDL_Init(0);

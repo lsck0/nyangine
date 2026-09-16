@@ -1,21 +1,6 @@
 /**
  * @file base_hmap.h
  *
- * API Overview:
- * - nya_hmap_create(arena_ptr, key_type, value_type)
- * - nya_hmap_create_with_capacity(arena_ptr, key_type, value_type, initial
- * - nya_hmap_clear(hmap_ptr)
- * - nya_hmap_destroy(hmap_ptr)
- * - nya_hmap_resize_and_rehash(hmap_ptr, new_capacity)
- * - nya_hmap_contains(hmap_ptr, key)
- * - nya_hmap_get(hmap_ptr, key)
- * - nya_hmap_set(hmap_ptr, key, value)
- * - nya_hmap_remove(hmap_ptr, key)
- * - nya_hmap_copy(hmap_ptr)
- * - nya_hmap_move(hmap_ptr, new_arena_ptr)
- * - nya_hmap_foreach_key(hmap_ptr, key_name)
- * - nya_hmap_foreach_value(hmap_ptr, value_name)
- *
  * Example:
  * ```c
  * typedef struct {
@@ -166,17 +151,6 @@
 
 /*
  * The length and the capacity are reset alongside the three pointers.
- *
- * Exactly the bug nya_heap_destroy_on_stack's comment describes having fixed, still present here.
- * Nulling only the pointers left the map claiming 64 slots and one entry while owning nothing: a set
- * afterwards saw length < capacity, skipped the resize that would have reallocated, and indexed
- * `occupied` through null — "applying non-zero offset to null pointer" under UBSan. Destroying twice
- * handed the arena a null pointer with a non-zero size for the same reason.
- *
- * Note this takes the map by value while nya_hmap_destroy takes a pointer, and that
- * nya_hset_destroy_on_stack and nya_array_destroy_on_stack take pointers. The on-stack destructors
- * are not consistent with each other across base; left as they are rather than changed underneath a
- * caller. base_heap.h's note on this got the hset one backwards.
  */
 #define nya_hmap_destroy_on_stack(hmap_ptr)                                                                                                          \
     ({                                                                                                                                               \

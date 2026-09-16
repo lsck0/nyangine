@@ -376,9 +376,6 @@ s32 main(void) {
      * a pop lands the last element at the root of a heap that is *still being pushed into* — the
      * shape a job queue is in continuously, and the one where an off-by-one in the child indices
      * hides, because a heap that is merely almost correct still pops its smallest element first.
-     *
-     * Driven by the engine's RNG with a fixed seed, so a failure is reproducible rather than a
-     * sequence nobody can get back.
      */
     NYA_Heapᐸs32ᐳ* churn = nya_heap_create(arena, s32, compare_s32_asc);
     NYA_RNG        rng   = nya_rng_create(.seed = "5EED");

@@ -1,15 +1,5 @@
 /**
  * The orthographic projection the 2D renderer draws through.
- *
- * Worth its own file because this is the one piece of the shape batch that can be checked without a
- * GPU, and because getting it wrong is close to undebuggable by eye: a sign flip renders the whole
- * frame mirrored, which reads as broken geometry rather than a broken matrix, and an off-by-one in
- * the translate puts everything half a screen away with no error anywhere.
- *
- * Every assertion below is a corner of the screen mapped to the clip space corner it must land on.
- * Clip space here is the Direct3D style one SDL_GPU normalizes to: x and y run -1 to +1 with **y
- * pointing up**, so a y-down input has to come out inverted. That inversion is the point of the
- * matrix, and it is what the middle block pins down.
  **/
 
 #include "nyangine/nyangine.c"

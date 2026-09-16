@@ -53,5 +53,5 @@ float4 main(FragInput input) : SV_Target {
    * Alpha passes through untouched: the shading is a multiply on rgb, and folding it into alpha would
    * make a shaded face transparent as well as dark.
    */
-  return float4(mesh3d_tonemap(colour), input.color.a);
+  return float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), input.color.a);
 }

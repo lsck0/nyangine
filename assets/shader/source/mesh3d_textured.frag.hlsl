@@ -50,5 +50,5 @@ float4 main(FragInput input) : SV_Target {
 
   float3 colour = mesh3d_shade(input.color.rgb * sampled.rgb, normal, input.world_position, shadow);
 
-  return float4(mesh3d_tonemap(colour), input.color.a * sampled.a);
+  return float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), input.color.a * sampled.a);
 }

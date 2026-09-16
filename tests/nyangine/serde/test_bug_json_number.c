@@ -1,21 +1,5 @@
 /**
  * Regression test for silent number truncation in _nya_serde_json_parse_number (serde_json.c).
- *
- * The token is copied into a 192 byte buffer and clamped to fit:
- *
- *     if (digits_length > sizeof(text) - length - 1) digits_length = sizeof(text) - length - 1;
- *
- * Nothing reports the clamp. A number with more digits than that is parsed from its prefix, so the
- * document round trips to a value that is wrong by orders of magnitude rather than failing to
- * parse. Either answer would be defensible; silently returning a different number is not.
- *
- * JSON puts no limit on the number of digits, and a big integer written out by another producer is
- * the ordinary way to hit this.
- *
- * Note that this currently fails earlier and harder than the truncation it was written for: the
- * clamped digits are handed to nya_type_parse, whose accumulator wraps without a check. See
- * tests/nyangine/base/test_bug_types_parse_overflow.c. Fixing that one first will change what this
- * test reports, and it should then be the truncation that shows.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

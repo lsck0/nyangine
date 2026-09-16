@@ -1,20 +1,5 @@
 /**
  * Hot reloading a locale: editing a translation while the game runs replaces the strings.
- *
- * This is the reason i18n moved out of base and onto the asset system. A locale file is registered as
- * a text asset, so nya_asset_get stats it on a throttle and queues it when it changes, and the i18n
- * system's frame hook re-resolves once the timestamp settles.
- *
- * NYA_ASSET_HOT_RELOAD is defined here rather than relied upon, because FLAGS_TEST does not set it —
- * the watch and everything it compares are compiled out of an ordinary test binary, so without this
- * the test would pass by testing nothing. It is defined before the engine is included, which is what
- * makes this the one translation unit in the suite where the reload machinery exists at all.
- *
- * The fixture is generated from NYA_STRING_KEYS and the base locale's own strings rather than written
- * by hand. That is not fastidiousness: the build validates every locale in assets/i18n against the
- * base and fails if one is missing a key or disagrees about a format specifier, so a fixture that
- * outlived a crashing test would otherwise break the next `./build build assets`. Built this way it is
- * a valid locale even if it is left behind.
  **/
 
 // Before the engine, so the watch and the fields it reads are compiled in. See the note above.
@@ -39,9 +24,6 @@
 
 /**
  * Writes a complete locale: every key of the base, with `MOVED_KEY` set to `moved`.
- *
- * Every *other* value is copied from whatever is loaded right now, which the caller has arranged to be
- * the base locale — so the specifiers match the base by construction rather than by being retyped.
  * */
 static void write_fixture(NYA_ConstCString moved) {
   NYA_Arena*  arena = nya_arena_create(.name = "fixture");
@@ -73,12 +55,6 @@ static void write_fixture(NYA_ConstCString moved) {
 
 /**
  * One frame's worth of the end-of-frame work, which is where both reload passes live.
- *
- * The clock has to be advanced as well as the event dispatched. nya_asset_get throttles its `stat` on
- * `frame_stats.uptime_ns`, which only the real frame loop writes — leave it at zero and the first
- * lookup sets a deadline a hundred milliseconds into a future that never arrives, so exactly one stat
- * ever happens and every later edit goes unnoticed. A test that dispatched the event alone would show
- * the first reload working and quietly prove nothing about any after it.
  * */
 static void end_frame(void) {
   nya_app_get()->frame_stats.uptime_ns = nya_clock_get_monotonic_ns();
@@ -127,12 +103,6 @@ s32 main(void) {
 
     /*
      * Driven rather than waited on, and it takes more than one frame by design.
-     *
-     * nya_asset_get stats at most once per _NYA_ASSET_STAT_INTERVAL_NS, so the delay is what lets a
-     * stat happen at all; _NYA_ASSET_RELOAD_GRACE_FRAMES then postpones the reload, and the reload
-     * pass postpones again until it sees the same timestamp twice — which is how it avoids reading a
-     * file an editor is still writing. Several frames with a delay between them is the shortest thing
-     * that exercises the real path instead of a shortcut through it.
      */
     b8 reloaded = false;
 
@@ -167,9 +137,6 @@ s32 main(void) {
 
     /*
      * Truncated JSON, which is what an editor writing a file looks like for a few milliseconds.
-     *
-     * The parse fails, and the point of the test is what happens next: the strings already loaded stay
-     * loaded. A system that committed as it parsed would leave the game with half a language here.
      */
     NYA_Arena*  arena = nya_arena_create(.name = "half");
     defer       nya_arena_destroy(arena);
@@ -219,10 +186,6 @@ s32 main(void) {
     /*
      * Deleting the file is how an editor that saves atomically looks from the outside: it writes a
      * temporary and renames it over the target, so for an instant the path is not there.
-     *
-     * That instant used to be terminal. A load that cannot open its file leaves the asset FAILED, and
-     * the asset system neither stats nor reloads a FAILED asset — so one unlucky save meant no further
-     * reload for the rest of the session. _nya_i18n_rearm is what this case exists to hold in place.
      */
     (void)remove(FIXTURE_PATH);
 

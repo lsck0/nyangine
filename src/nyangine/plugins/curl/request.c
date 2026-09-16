@@ -24,11 +24,6 @@ NYA_INTERNAL NYA_ErrorKind _nya_request_kind_from_status(u32 status);
 
 /*
  * curl_global_init exactly once per process, before any handle exists.
- *
- * A constructor rather than an init function the caller must remember: this module has no other
- * setup, and requiring nya_request_init would put a trap in front of the one thing it does. The
- * matching cleanup is a destructor for symmetry — it releases the global TLS and DNS state that
- * would otherwise be reported as a leak on exit.
  */
 NYA_INTERNAL b8 _nya_request_global_ready = false;
 
@@ -124,10 +119,6 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
 
     /*
      * The body, serialized compactly.
-     *
-     * Skipped for GET, which has no body in any REST API worth talking to. Held in `payload` rather
-     * than passed inline because CURLOPT_POSTFIELDS does not copy — curl reads the pointer during
-     * the transfer, so the string has to outlive the setopt call.
      */
     NYA_CString payload = nullptr;
     if (request.body != nullptr && request.method != NYA_REQUEST_METHOD_GET) {
@@ -186,10 +177,6 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
 
     /*
      * Parsed only when it looks like JSON, and a parse failure is not fatal on its own.
-     *
-     * An error page is very often HTML, and a 204 has no body at all. Neither is a reason to lose
-     * the status the caller came for, so `body` simply stays null and `raw_body` keeps what
-     * arrived.
      */
     if (out_response->raw_body->length > 0) {
         b8 looks_like_json = out_response->content_type == nullptr ||
@@ -250,21 +237,9 @@ u64 _nya_request_header_callback(char* data, u64 size, u64 count, void* user_dat
 
     /*
      * Only Content-Type is kept, and only its value.
-     *
-     * curl delivers one header per call including the status line and the blank terminator, so this
-     * runs for everything and picks out the one header the response struct exposes. Matched case
-     * insensitively because header names are, and servers disagree about the capitalisation.
      */
     /*
      * A status line starts a new response, so anything collected so far belonged to a previous one.
-     *
-     * With CURLOPT_FOLLOWLOCATION curl delivers the headers of *every* hop, not just the final one,
-     * and this appended unconditionally — so a request that redirected came back with the content
-     * types of each response concatenated ("text/htmlapplication/json"). Clearing here keeps the
-     * last response's value, which is the one the body actually came with.
-     *
-     * Reasoned from curl's documented callback behaviour rather than reproduced: the test suite has
-     * no redirecting server to point at.
      */
     if (bytes >= 5 && strncmp(data, "HTTP/", 5) == 0) {
         nya_string_clear(sink->string);

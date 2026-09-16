@@ -1,11 +1,5 @@
 /**
  * The simulation: the command barrier, the record log, and observers.
- *
- * Both halves exist for the same reason — mutating the world while something is iterating it is how
- * a frame corrupts itself. A command is queued during the update and applied at the barrier, once
- * nothing is mid-iteration; a record is a copy of something that happened, handed to observers
- * after the fact. Neither is allowed to take effect the moment it is asked for, and that is what
- * this file checks.
  **/
 
 #include "nyangine/nyangine.c"

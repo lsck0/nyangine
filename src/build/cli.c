@@ -8,9 +8,6 @@
 
 /**
  * Builds every vendored dependency, not just the ones the engine currently links against.
- *
- * NYA_VENDORS is already built before any command runs, so this exists to bring the rest of the
- * tree up in one go, which is what you want on a fresh checkout or after adding a dependency.
  * */
 NYA_INTERNAL void vendor_runner(NYA_ArgCommand* command) {
     nya_unused(command);

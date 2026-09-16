@@ -1,23 +1,5 @@
 /**
  * Two separate worlds, one wire: the case in-process tests cannot reach.
- *
- * Every other net test runs the server and the client over one entity table, so a server handle and a
- * client handle happen to be the same number and a bug in translating between them is invisible. That
- * is not how a real client works, and it hid the largest gap in the netcode: a client spawned snapshot
- * entities into its own table, so its handles never matched the server's, and the second snapshot
- * could not tell "I already have this" from "this is new".
- *
- * This test builds two worlds — nya_world_create twice, swapped with nya_world_set — and moves
- * snapshots between them by hand. The client world's table is deliberately *pre-polluted* so its free
- * list hands out different indices than the server's, which is what makes the handle spaces genuinely
- * disagree rather than coincidentally agree.
- *
- * What it defends:
- *
- * - Applying the same snapshot twice does not duplicate anything.
- * - The two handle spaces really are different, and the map bridges them.
- * - An entity the server removes is removed locally; one the client owns itself is not.
- * - Reconnecting does not leave the previous session's entities standing.
  **/
 
 #include "nyangine/nyangine.c"
@@ -57,9 +39,6 @@ s32 main(void) {
 
   /*
    * Two worlds. Each owns its own entity table, which is the whole point.
-   *
-   * nya_world_set swaps which one the entity API talks to, so "the server does X" and "the client does
-   * Y" below are literally two different tables being written.
    */
   NYA_World* server_world = nya_world_create();
   NYA_World* client_world = nya_world_create();
@@ -71,10 +50,6 @@ s32 main(void) {
 
   /*
    * The client's table is pushed out of step with the server's before anything is replicated.
-   *
-   * Spawning and despawning leaves the free list in a different order, so the client's next slot is not
-   * the server's next slot. Without this the two would hand out 0, 1, 2… in the same order and the test
-   * would pass even with no translation at all — which is exactly how the bug survived.
    */
   (void)nya_world_set(client_world);
   {
@@ -128,9 +103,6 @@ s32 main(void) {
 
     /*
      * The assertion the whole file exists for.
-     *
-     * If these matched, the two tables would be in step and nothing here would be testing translation.
-     * The pre-pollution above is what guarantees they do not.
      */
     b8 differs = local_a.index != server_a.index || local_b.index != server_b.index;
     nya_assert(differs, "the two worlds handed out the same indices; this test is not testing anything");
@@ -244,10 +216,6 @@ s32 main(void) {
 
     /*
      * What reconnecting depends on.
-     *
-     * The sweep in apply only removes what the server stopped mentioning, so nothing removes a replica
-     * once the snapshots stop coming. Without this, a reconnect would find the map empty, spawn a second
-     * copy of everything, and leave the first standing forever.
      */
     nya_assert(!nya_entity_is_valid(survivor), "a torn down map left its entities behind");
     nya_assert(!nya_entity_is_valid(nya_net_replica_local(&map, server_a)), "and left its mappings behind");
@@ -362,9 +330,6 @@ s32 main(void) {
 
     /*
      * One snapshot is not motion, so nothing is interpolated yet.
-     *
-     * Interpolating from a zeroed origin here is what would make every entity fly in from the world
-     * origin on the frame it appeared.
      */
     {
       (void)nya_world_set(client_world);
@@ -422,9 +387,6 @@ s32 main(void) {
 
     /*
      * A frame far longer than the snapshot interval clamps rather than flying past.
-     *
-     * A stall — a loading hitch, a debugger breakpoint — produces exactly this, and an entity that
-     * overshoots and then snaps back is more visible than one that simply arrives early.
      */
     (void)nya_world_set(server_world);
     nya_entity_get(mover)->position = (f32x3){ 200.0F, 0.0F, 0.0F };
@@ -465,10 +427,6 @@ s32 main(void) {
     /*
      * The non-destructive counterpart to nya_net_replica_map_despawn_all, for a caller that is about to
      * destroy the world anyway.
-     *
-     * The distinction matters: a client that intends to keep playing wants the entities gone, and one that is
-     * shutting down wants the cheapest possible teardown. Using the wrong one leaves either orphans in a live
-     * world or a despawn pass over a world about to be freed.
      */
     (void)nya_world_set(client_world);
 

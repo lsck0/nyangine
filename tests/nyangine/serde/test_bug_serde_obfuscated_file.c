@@ -1,16 +1,5 @@
 /**
  * Regression test for nya_serde_save_file truncating an obfuscated document.
- *
- * The obfuscated nya format is base64 XORed against a repeating key, so a zero byte appears wherever
- * the key matches the encoded character. nya_serde_detect_format identifies the format by its
- * leading 0xA7 for exactly that reason — the payload is binary, not text.
- *
- * The save path converted the document to a C string before writing, which made nya_file_write
- * measure it with strlen. Everything past the first zero byte was dropped, and the resulting file
- * failed to load.
- *
- * Written with enough fields that some encoded byte lands on the key: a short document may contain
- * no zero at all, which is why this loops over sizes rather than testing one.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

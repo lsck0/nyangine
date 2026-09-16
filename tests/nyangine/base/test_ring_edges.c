@@ -1,10 +1,5 @@
 /**
  * Ring buffer edge cases.
- *
- * test_ring.c exercises the ordinary path. The interesting states for a ring are the ones where
- * head has moved past tail in the backing array, where the buffer is exactly full, and where a
- * resize has to reconstruct a wrapped layout — none of which the existing tests reach, because they
- * only ever push a couple of items into a fresh buffer.
  **/
 
 #include "nyangine/nyangine.c"

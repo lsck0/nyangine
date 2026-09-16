@@ -1,13 +1,6 @@
 /**
  * Slerp variants, because `nya_quaternion_slerp` measured at 125.8 ns/item — 22x the multiply that
  * prompt.md asked about — and it is what nya_skeleton_pose_blend calls per bone per blend.
- *
- * Five candidates, so the choice is measured rather than argued:
- *   1. current            two normalizes, acosf, three sinf
- *   2. no-normalize       same, assuming unit inputs (which baked clip frames are)
- *   3. sqrt-identity      sin(acos(x)) == sqrt(1-x^2), replacing one sinf with a sqrt
- *   4. both               no-normalize + sqrt identity
- *   5. nlerp              the floor: what it costs if the curve is allowed to change
  **/
 
 #include "nyangine/nyangine.c"

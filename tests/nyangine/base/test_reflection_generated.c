@@ -1,18 +1,5 @@
 /**
  * The generated reflection tables, against the real types they describe.
- *
- * test_reflection.c proves the runtime with hand written tables. This proves the other half: that
- * src/build/reflection.c emits tables which agree with the structs the compiler actually laid out.
- *
- * The two failures it exists to catch are the ones no amount of runtime testing would find:
- *
- * - **A field parsed wrong.** `f32 r, g, b, a;` is one declaration and four fields, and a parser that
- *   got that wrong would produce a table that still compiles.
- * - **An offset that does not match the struct.** Emitting `nya_offsetof` is supposed to make that
- *   impossible, so this checks the guarantee rather than trusting it.
- *
- * It includes the game translation unit because that is where the generated tables live — they name
- * GNY_EntityFlags, which the engine cannot see. See the note in gnyame.h.
  **/
 
 #include "nyangine/nyangine.h"

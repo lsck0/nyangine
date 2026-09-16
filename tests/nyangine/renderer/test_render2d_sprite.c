@@ -1,10 +1,5 @@
 /**
  * Sprites, atlases and image lists.
- *
- * The arithmetic only. No texture is loaded here, which is itself worth asserting: an atlas over a
- * texture that has not arrived reports no frames rather than inventing a grid, and a sprite over one
- * has no size rather than a wrong one — both states a real game passes through on its first frames,
- * since assets resolve asynchronously.
  **/
 
 #include "nyangine/nyangine.c"

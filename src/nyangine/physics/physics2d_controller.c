@@ -43,9 +43,6 @@ void nya_character2d_update(NYA_CharacterController2D* controller, NYA_EntityHan
 
     /*
      * Coyote time is refilled while grounded and runs down once airborne.
-     *
-     * Refilled rather than started on leaving, so it is correct however the character left the ground —
-     * walking off a ledge, being pushed off, or a platform vanishing all behave the same.
      */
     if (grounded) controller->coyote_left_s = tuning.coyote_time_s;
     else controller->coyote_left_s = nya_max(0.0F, controller->coyote_left_s - delta_time_s);

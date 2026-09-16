@@ -10,22 +10,6 @@
 
 /*
  * A command run is:
- *
- *     u8 count
- *     then, per command, oldest first:
- *         u64 tick
- *         u64 actions
- *         f32 aim_x
- *         f32 aim_y
- *         f32 analog
- *
- * Twenty-eight bytes per command. Not delta'd against the previous one: at four commands per packet
- * the header for a delta mask would cost more than the bytes it saved, and a command is mostly a
- * bitfield that either changed or did not.
- *
- * Ticks are absolute rather than relative to the newest. A relative encoding would be two bytes
- * shorter and would make a packet uninterpretable on its own, which matters here precisely because
- * these packets are the ones expected to arrive out of order.
  */
 
 #define _NYA_NET_COMMAND_SIZE 28
@@ -72,10 +56,6 @@ NYA_Error nya_net_command_decode(const u8* data, u64 size, OUT NYA_NetCommand* o
 
     /*
      * Both bounds checked before a single command is read.
-     *
-     * `count` is a byte a peer chose, and `out_commands` holds exactly NYA_NET_COMMAND_REDUNDANCY —
-     * so a peer claiming 255 commands would write past the caller's array. That array is on the
-     * server's stack, one call away from a socket.
      */
     if (count > NYA_NET_COMMAND_REDUNDANCY) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a command run of %u, past the %d limit", count, NYA_NET_COMMAND_REDUNDANCY);

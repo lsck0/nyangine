@@ -27,14 +27,6 @@ void gny_window_main_create(void) {
 
     /*
      * The background and the title screen, and nothing else.
-     *
-     * The game and the HUD are pushed by "start" and popped again by "main menu", so the world does
-     * not exist until it is asked for. Push order is draw order and there is no depth test, so the
-     * background goes first; it is also the layer that is never popped, which is why the music lives
-     * on it rather than on the game.
-     *
-     * Event order is the reverse of this, so the menu on top sees input first and can be modal
-     * without anything underneath having to check whether a menu is open.
      */
     nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_BACKGROUND);
     nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU);

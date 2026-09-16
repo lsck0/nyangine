@@ -1,17 +1,5 @@
 /**
  * Regression test for the memmove size in nya_array_insert (base_array.h).
- *
- * The macro computes the number of bytes to shift as
- *
- *     (arr_ptr)->length * sizeof(*items) - (index)
- *
- * where the correct expression is ((length - index) * sizeof(*items)). The `- index` sits outside
- * the multiply, so the shift copies `index * (sizeof - 1)` bytes too many.
- *
- * It is invisible for a one byte element type, where the two expressions coincide — which is every
- * NYA_String — and invisible for a small array, where the arena's padding absorbs the overrun. The
- * capacity below is deliberately exactly one above the length so the growth path does not run and
- * the memmove is the only thing that can write past the end.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

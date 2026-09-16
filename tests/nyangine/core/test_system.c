@@ -1,9 +1,6 @@
 /**
  * The system registry: ordering by `after`, and the loud failures that stand in for the compile
  * time check C does not have.
- *
- * No SDL, no app instance, nothing else brought up first — the registry is a plain array with no
- * dependency on anything else in core, so this is the rare core test that can start straight in.
  **/
 
 #include "nyangine/nyangine.c"

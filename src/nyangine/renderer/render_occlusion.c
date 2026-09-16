@@ -16,11 +16,6 @@ typedef struct {
 
 /**
  * World space to buffer pixels.
- *
- * `behind` covers everything at or past the eye plane, where the projective divide is meaningless and
- * the result would be a point mirrored through the camera. Every caller treats it as "give up", which
- * is the conservative direction for both halves of this file: an occluder that straddles the near
- * plane is dropped, and a query that does is answered visible.
  * */
 NYA_INTERNAL _NYA_OcclusionPoint _nya_occlusion_project(const NYA_OcclusionBuffer* buffer, f32x3 point) {
     f32x4 clip = nya_matrix_times_vector(buffer->view_projection, (f32x4){ point.x, point.y, point.z, 1.0F });
@@ -44,23 +39,6 @@ NYA_INTERNAL f32 _nya_occlusion_edge(f32 ax, f32 ay, f32 bx, f32 by, f32 px, f32
 
 /**
  * Rasterises one convex polygon, writing the depth of every pixel it *fully* covers.
- *
- * Full coverage rather than the usual pixel-centre rule, and that is the whole difference between a
- * conservative occlusion buffer and a rendering one. A half covered pixel is half a claim, and half a
- * claim used as a whole one hides geometry visible through the gap. So all four corners of the pixel
- * have to be inside every edge.
- *
- * A polygon and not a pair of triangles, and that is a consequence of the rule above rather than a
- * convenience. Split a quad along its diagonal and the pixels the diagonal passes through are fully
- * covered by neither half, so the buffer comes out with a one pixel slit down the middle of every
- * wall — and one unwritten pixel anywhere in a query's rectangle is enough to answer "visible". The
- * first version of this file did exactly that and occluded nothing at all.
- *
- * The depth written is the *largest* of the four pixel corners' — the farthest the occluder gets
- * anywhere in that pixel — for the same conservative reason. Depth is affine in screen space after
- * the divide (which is what a hardware depth buffer relies on too), so three of the polygon's
- * vertices determine it everywhere, including outside the triangle they form, and evaluating it at
- * the pixel's corners bounds it over the square.
  * */
 NYA_INTERNAL b8 _nya_occlusion_convex(NYA_OcclusionBuffer* buffer, _NYA_OcclusionPoint* points, u32 count) {
     if (count < 3) return false;
@@ -83,10 +61,6 @@ NYA_INTERNAL b8 _nya_occlusion_convex(NYA_OcclusionBuffer* buffer, _NYA_Occlusio
 
     /*
      * Three vertices that actually span a triangle, for the depth plane.
-     *
-     * Not always the first three: a quad may have a degenerate corner while still enclosing area, and
-     * a zero area triple would divide the interpolation by nothing. Whichever triple is found spans
-     * the same plane as any other, because the polygon is planar.
      */
     u32 a = 0;
     u32 b = 0;
@@ -207,11 +181,6 @@ b8 nya_occlusion_quad(NYA_OcclusionBuffer* buffer, f32x3 a, f32x3 b, f32x3 c, f3
 
     /*
      * One vertex behind the eye drops the whole quad, rather than clipping it.
-     *
-     * Clipping a polygon against the near plane is a page of code that exists to recover an occluder
-     * the camera is standing inside — which is the case where it occludes the least anyway, because
-     * whatever is behind it is off screen too. Dropping it costs nothing real and keeps the only
-     * failure mode in this file "hides less than it could".
      */
     for (u32 i = 0; i < 4; i++) {
         if (points[i].behind) return false;
@@ -289,12 +258,6 @@ b8 nya_occlusion_test(const NYA_OcclusionBuffer* buffer, f32x3 center, f32 radiu
 
     /*
      * The sphere is tested as the box that contains it, by projecting the box's eight corners.
-     *
-     * Bigger than the sphere in every direction, so its screen rectangle covers the sphere's and its
-     * nearest corner is nearer than the sphere's nearest point. Both make the answer "hidden" harder
-     * to reach, which is the direction this file errs in everywhere. The alternative — projecting the
-     * centre and scaling the radius by the perspective divide — is only correct for a sphere on the
-     * view axis and quietly wrong at the edges of a wide field of view.
      */
     for (u32 i = 0; i < 8; i++) {
         f32x3 point = {

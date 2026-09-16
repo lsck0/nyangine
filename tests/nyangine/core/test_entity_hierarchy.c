@@ -1,17 +1,5 @@
 /**
  * The scene graph over the flat entity table: parenting, propagation, and what despawn does to it.
- *
- * The design decision everything here checks is that `position`/`rotation`/`scale` stay the **world**
- * transform. Physics writes them and every query reads them, so parenting cannot make them local —
- * instead a child keeps its offset and the propagation pass writes them from the parent's. The
- * consequences are what is asserted: parenting never moves anything, moving a parent carries its
- * children, and moving a child does not disturb its parent.
- *
- * The two cases that would be silent failures rather than wrong pictures are the cycle refusal —
- * which would make the propagation walk recurse until the stack ran out — and despawn leaving a
- * sibling list naming a slot that has been reused.
- *
- * Headless: entities are plain data.
  **/
 
 #include "nyangine/nyangine.c"

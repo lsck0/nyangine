@@ -12,34 +12,6 @@
 
 /*
  * Every datagram is one packet header followed by one or more message fragments:
- *
- *     u32 protocol      magic, so a stray datagram on a reused port is discarded rather than parsed
- *     u16 sequence      this packet's number, per sender, wrapping
- *     u16 ack           the newest packet sequence we have received from the peer
- *     u32 ack_bits      which of the 32 packets before `ack` we also received
- *     u16 reliable_ack  every reliable message id below this has been delivered
- *     u8  fragment_count
- *     then, per fragment:
- *         u8  channel
- *         u16 message_id      per channel, wrapping. Orders reliable messages and de-duplicates both.
- *         u16 fragment_index
- *         u16 fragment_total
- *         u16 fragment_size
- *         u8  payload[fragment_size]
- *
- * Acknowledgements ride on the packet because every packet carries them for free: `ack` plus
- * `ack_bits` reports 33 packets in six bytes, so one is lost only if 33 consecutive packets are.
- * (Glenn Fiedler's scheme, used essentially unchanged by every game that rolls its own UDP.)
- *
- * Reliability is per *message*, not per packet: a lost packet is never retransmitted, its reliable
- * messages are, in a later packet alongside newer ones. That is what lets unreliable state keep
- * flowing at full rate — retransmitting whole packets would drag the stale snapshots along too.
- *
- * Reliable messages are acknowledged separately because `ack`/`ack_bits` answer a different question.
- * A message split across four fragments rides in four packets, and three being acknowledged says
- * nothing about whether it was assembled; retiring it then would stop retransmitting something the
- * peer never received. `reliable_ack` is cumulative and ordered, so "everything below N delivered" is
- * complete in two bytes and losing one costs nothing — the next packet carries a number at least as high.
  */
 
 #define _NYA_NET_UDP_PROTOCOL 0x6E796105U /* "nya" + version 5 */
@@ -64,11 +36,6 @@
 
 /**
  * How many recently received message ids to remember per channel, for duplicate suppression.
- *
- * The transport promises a message is never delivered twice, and retransmits make duplicates ordinary:
- * a reliable message resent after a lost acknowledgement arrives perfectly intact a second time. A
- * bitmap of the last 1024 ids is far more history than a retransmit window needs, at 128 bytes per
- * channel per peer.
  * */
 #define _NYA_NET_UDP_SEEN_WINDOW 1024
 
@@ -77,14 +44,6 @@
 
 /**
  * The most datagrams one poll will drain before returning.
- *
- * The loop used to run until the socket was empty, which an attacker need never allow: a flood above
- * the drain rate means `nya_net_server_tick` never returns and the process stops simulating and
- * drawing. That is a hang, not a slowdown. The rest waits in the OS buffer or is dropped by the
- * kernel — dropping datagrams under load is correct for UDP, never finishing a tick is not.
- *
- * 512 is far above any legitimate frame (thirty-two peers at sixty hertz is a handful each), so this
- * engages only under attack or a genuinely broken network.
  * */
 #define _NYA_NET_UDP_MAX_RECEIVE_PER_POLL 512
 
@@ -119,10 +78,6 @@
 
 /**
  * How long a cookie stays valid, in milliseconds.
- *
- * The previous bucket is accepted too, so the real window is one to two of these — which is what stops
- * a client whose response crosses a bucket boundary being refused. Short enough that a captured cookie
- * is not a lasting credential, long enough to survive a slow link and a couple of retries.
  * */
 #define _NYA_NET_UDP_COOKIE_WINDOW_MS 20000
 
@@ -164,9 +119,6 @@ typedef struct {
 
     /**
      * Which fragments have arrived, so a duplicate does not count twice.
-     *
-     * Without it, two copies of fragment 3 would take `fragments_received` to the total while
-     * fragment 4 was still missing, and the message would be delivered with a hole in it.
      * */
     u8 received[64];
 
@@ -175,11 +127,6 @@ typedef struct {
 
     /**
      * How large `data` actually is, as opposed to how much of it this message uses.
-     *
-     * Tracked so a slot can reuse its buffer. Without it every reassembly allocated a fresh one and
-     * abandoned the last, and since the arena has no garbage collector a session receiving fragmented
-     * messages grew forever. Now a slot allocates only when handed something bigger than it has ever
-     * held, so steady state allocates nothing.
      * */
     u64 capacity;
 
@@ -195,36 +142,16 @@ typedef struct {
 
 /**
  * The largest message this transport will reassemble, in bytes.
- *
- * A bound on bytes, not just fragments: the fragment count is what an attacker states, the byte count is
- * what it costs. At 512 fragments of ~1176 usable bytes one packet could ask for 600 kB, and eight
- * concurrent reassemblies per peer across a full server is 154 MB — from datagrams that fit in one
- * Ethernet frame, an amplification of roughly ten thousand to one.
- *
- * 256 kB is comfortably above anything legitimate: the largest is a full snapshot, bounded by
- * NYA_NET_MAX_REPLICATED entities at about a hundred bytes each.
  * */
 #define _NYA_NET_UDP_MAX_MESSAGE (256 * 1024)
 
 /**
  * The most one peer may have tied up in partial reassemblies at once.
- *
- * The per-message cap bounds one message; this bounds the set, which is what an attacker controls — they
- * choose how many message ids to start and never finish. Half a megabyte per peer, so a full server is
- * bounded at sixteen megabytes however hostile its clients.
  * */
 #define _NYA_NET_UDP_MAX_REASSEMBLY_BYTES (512 * 1024)
 
 /**
  * How many reliable messages may wait out of order before a peer is dropped.
- *
- * Reliable delivery is ordered, so a message that arrives early is held until the gap ahead of it is
- * filled. An attacker exploits that directly: send ids 1000, 1001, 1002… and never send the one the
- * receiver is waiting for, and every message queues forever. Each could be up to the message cap.
- *
- * A well behaved peer never has more than a retransmit window out of order, so a queue this deep means
- * the peer is either broken or hostile. Matching NYA_NET_MAX_RELIABLE_IN_FLIGHT, since that is the most a
- * correct sender can have unacknowledged.
  * */
 #define _NYA_NET_UDP_MAX_REORDER NYA_NET_MAX_RELIABLE_IN_FLIGHT
 
@@ -240,17 +167,6 @@ typedef struct {
 
     /**
      * A secret shared by exactly these two endpoints, minted when the connection is accepted.
-     *
-     * Control packets carry it and are ignored without it. Before that a `DISCONNECT` was seventeen
-     * unauthenticated bytes: spoof a player's address and the server evicts them, with the reason nibble
-     * attacker-chosen so the victim saw a plausible message. Any player, at will, off-path.
-     *
-     * Distinct from the connect cookie, which only proves an address can receive: the cookie is derived
-     * from the address and is the same for anyone who can observe one, while this is never sent to anyone
-     * else, so it proves the sender completed *this* handshake.
-     *
-     * Not a session key and no protection for the data channel — it closes the control channel, which is
-     * where one forged packet has an outsized effect.
      * */
     u64 session_token;
 
@@ -272,9 +188,6 @@ typedef struct {
 
     /**
      * Reliable messages that arrived out of order, held until the gap ahead of them is filled.
-     *
-     * The channel promises *ordered* delivery, so a message that arrives early cannot be handed up
-     * yet. Same array type as the outgoing queue because the shape is identical: an id and bytes.
      * */
     NYA_Arrayᐸ_NYA_NetUdpReliableᐳ* incoming_reliable;
 
@@ -282,10 +195,6 @@ typedef struct {
 
     /**
      * How many bytes this peer currently has allocated across its reassembly slots.
-     *
-     * Tracked so _NYA_NET_UDP_MAX_REASSEMBLY_BYTES can be enforced. Counted rather than derived, because
-     * it is checked on every fragment of every message and summing the slots each time would make the
-     * check itself part of the attack.
      * */
     u64 reassembly_bytes;
 
@@ -328,26 +237,17 @@ typedef struct {
 
     /**
      * The key the connect cookies are derived from, generated once at startup.
-     *
-     * Never sent. A cookie is `siphash(address, port, epoch)` under this key, so a client can echo one it
-     * was given and cannot invent one for an address it cannot receive at — which is the whole point.
      * */
     u64 cookie_key_low;
     u64 cookie_key_high;
 
     /**
      * Bumped for every session token minted, so two connections never share one.
-     *
-     * The token is `siphash(counter, key)` under the same secret the cookies use — unpredictable to
-     * anyone without the key, which is everyone but this process.
      * */
     u64 session_counter;
 
     /**
      * The cookie the server challenged this client with, while connecting out.
-     *
-     * Zero until a CHALLENGE arrives. A client has exactly one connection attempt in flight, so one
-     * slot rather than a table.
      * */
     u64 pending_cookie;
 
@@ -364,9 +264,6 @@ typedef struct {
 
     /**
      * Bytes handed out by the last poll, freed by the next.
-     *
-     * Same arrangement as the loopback transport: a delivered message must outlive the poll that
-     * returned it and must not outlive the next one, so an arena reset per poll owns exactly that.
      * */
     NYA_Arena* delivered;
 
@@ -398,17 +295,11 @@ NYA_INTERNAL void _nya_net_udp_flush(NYA_NetTransport* transport, u32 peer_index
 
 /**
  * Sends one management packet, which carries no fragments and an optional cookie.
- *
- * The cookie is always on the wire even when it is zero, so the layout is fixed and a receiver never has
- * to guess whether one is present.
  * */
 NYA_INTERNAL void _nya_net_udp_send_control(NYA_NetTransport* transport, NET_Address* address, u16 port, u8 kind, u8 reason, u64 cookie);
 
 /**
  * The cookie an address must echo to be allowed a peer slot. See the note on the connect challenge.
- *
- * `epoch_offset` is 0 for the current time bucket and 1 for the previous one — both are accepted, so a
- * response that crosses a bucket boundary is not refused.
  * */
 NYA_INTERNAL u64 _nya_net_udp_cookie(_NYA_NetUdpState* state, NET_Address* address, u16 port, u64 epoch_offset) __attr_no_discard;
 
@@ -437,11 +328,6 @@ NYA_INTERNAL void _nya_net_udp_retire_reliable(_NYA_NetUdpPeer* peer, NYA_Arena*
 
 /**
  * Whether `id` has already been delivered on `channel`. Pure: asking does not record anything.
- *
- * Split from the marking half deliberately. Fragment reassembly has to ask this *twice* — once to
- * decide whether a newly arriving fragment belongs to something already delivered, and again when
- * the last fragment lands — and a test that marked as a side effect made the second ask always say
- * yes. Every fragmented message was reassembled correctly and then silently dropped.
  * */
 NYA_INTERNAL b8 _nya_net_udp_is_seen(const _NYA_NetUdpPeer* peer, NYA_NetChannel channel, u16 message_id) __attr_no_discard;
 
@@ -473,10 +359,6 @@ NYA_INTERNAL u32  _nya_net_udp_read_u32(const u8* in) __attr_no_discard;
 
 /**
  * How many transports have SDL_net up.
- *
- * NET_Init is reference counted by SDL_net itself, but the count has to be *balanced*, and a
- * transport that failed halfway through creation must not leave one behind. Tracked here so the
- * pairing is visible in one file.
  * */
 NYA_INTERNAL u32 _NYA_NET_UDP_INIT_COUNT = 0;
 
@@ -520,19 +402,11 @@ NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, OUT NYA_NetTransport** 
 
     /*
      * The cookie key, from an unseeded RNG so it differs every run.
-     *
-     * A fixed key would let an attacker compute valid cookies for any address offline and defeat the
-     * challenge entirely — the secret is the only thing making the cookie unforgeable. An unseeded
-     * NYA_RNG takes its seed from the platform, which is exactly what is wanted here.
      */
     NYA_RNG rng = nya_rng_create();
 
     /*
      * The range is stated explicitly, because a zeroed NYA_RNGDistribution is uniform(0, 0).
-     *
-     * Which returns zero. A zero key makes every cookie computable by anyone and defeats the challenge
-     * completely — and it would do so silently, since the handshake would still work perfectly for
-     * honest clients. Exactly the kind of default that turns a mitigation into decoration.
      */
     NYA_RNGDistribution uniform = { .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { .min = 0.0, .max = (f64)U64_MAX } };
 
@@ -598,11 +472,6 @@ NYA_Error _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString add
 
     /*
      * Resolution is asynchronous in SDL_net, and this waits for it.
-     *
-     * The one blocking call in the transport, and it is deliberate: connecting is a menu action with
-     * a spinner on it, not something inside the frame loop. Making it asynchronous would mean a
-     * connect state machine with a resolution phase in front of the handshake phase, for a wait
-     * that a hostname in a lobby list has already paid.
      */
     if (NET_WaitUntilResolved(resolved, _NYA_NET_UDP_CONNECT_TIMEOUT_MS) != 1) {
         NET_UnrefAddress(resolved);
@@ -718,9 +587,6 @@ NYA_Error _nya_net_udp_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA
 
     /*
      * Unreliable goes out immediately and is never kept.
-     *
-     * No queue at all: if it does not fit on the wire right now it is gone, which is the correct
-     * behaviour for state that is restated next tick. Buffering it would deliver stale truth late.
      */
     u64 offset = 0;
 
@@ -885,10 +751,6 @@ void _nya_net_udp_send_control(NYA_NetTransport* transport, NET_Address* address
 u64 _nya_net_udp_cookie(_NYA_NetUdpState* state, NET_Address* address, u16 port, u64 epoch_offset) {
     /*
      * Derived, never stored.
-     *
-     * That is the whole trick: the server keeps no state for an address that has not proved itself, so a
-     * flood of spoofed CONNECTs costs it nothing but the packets it answers. The cookie is recomputed when
-     * the response arrives and compared.
      */
     int         address_size  = 0;
     const void* address_bytes = NET_GetAddressBytes(address, &address_size);
@@ -897,10 +759,6 @@ u64 _nya_net_udp_cookie(_NYA_NetUdpState* state, NET_Address* address, u16 port,
 
     /*
      * Address, port and epoch, all under the secret key.
-     *
-     * The port is in it as well as the address, because two clients behind one NAT share an address and
-     * must not be able to use each other's cookies — which would let one of them fill slots on behalf of
-     * the other.
      */
     u8  material[64] = { 0 };
     u64 at           = 0;
@@ -996,15 +854,6 @@ void _nya_net_udp_receive(NYA_NetTransport* transport) {
         // normal — a stale packet from a previous session, a port scan, another program's broadcast.
         /*
          * An oversized datagram is dropped before anything reads it.
-         *
-         * `buflen` is **not** bounded by NYA_NET_MAX_DATAGRAM. SDL_net receives into a 64 kB buffer and
-         * reports whatever arrived, so a peer can hand this code a 65507 byte datagram — and every
-         * "the wire cannot claim more than a datagram holds" assumption in the fragment path below was
-         * written as though it could not.
-         *
-         * This engine never sends more than NYA_NET_MAX_DATAGRAM, so nothing legitimate is lost, and this
-         * one comparison closes a remote heap overflow on its own. The fragment path is bounded again
-         * independently anyway, because a reassembler must not trust its caller.
          */
         if (datagram->buflen > (int)NYA_NET_MAX_DATAGRAM) {
             nya_log_debug("Dropping a %d byte datagram; the limit is %d.", datagram->buflen, NYA_NET_MAX_DATAGRAM);
@@ -1017,14 +866,6 @@ void _nya_net_udp_receive(NYA_NetTransport* transport) {
 
             /*
              * The kind byte sits one past the header, and a packet is allowed to end at the header.
-             *
-             * A keepalive is exactly _NYA_NET_UDP_HEADER_SIZE bytes — header, zero fragments, nothing
-             * after it — so reading the kind unconditionally walked one byte off the end of every
-             * keepalive that arrived. The guard above only establishes that the header itself fits.
-             *
-             * Remotely reachable, since the length comes off the wire: any peer, or anything else
-             * that happened to send a datagram to this port with the right first four bytes, could
-             * provoke it. Found by ASan on the first run of tests/nyangine/net/test_transport.c.
              */
             b8 has_kind = datagram->buflen > (int)_NYA_NET_UDP_HEADER_SIZE;
             u8 kind     = has_kind ? datagram->buf[_NYA_NET_UDP_HEADER_SIZE] >> 4 : (u8)_NYA_NET_UDP_KIND_DATA;
@@ -1038,15 +879,6 @@ void _nya_net_udp_receive(NYA_NetTransport* transport) {
                 if (state->listening && has_kind) {
                     /*
                      * A CONNECT gets a challenge and **no peer slot**.
-                     *
-                     * This is the address validation. The cookie is derived from the claimed address, so a
-                     * spoofer never sees it and cannot echo it — and until it comes back this server has
-                     * spent one small packet and stored nothing at all. That is what turns a flood of
-                     * forged CONNECTs into a waste of the attacker's bandwidth rather than of the peer
-                     * table.
-                     *
-                     * Before this, one attacker filled every slot with addresses that were never there,
-                     * at one packet per slot, and no real player could join.
                      */
                     if (kind == _NYA_NET_UDP_KIND_CONNECT) {
                         u64 cookie = _nya_net_udp_cookie(state, datagram->addr, datagram->port, 0);
@@ -1139,10 +971,6 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, con
 
         /*
          * A challenge, while connecting out. Echoed straight back.
-         *
-         * The client does not interpret the cookie and could not: it is a keyed hash of the client's own
-         * address under a secret only the server holds. Its only job is to prove it received it, which is
-         * exactly the thing a spoofed source address cannot do.
          */
         if (kind == _NYA_NET_UDP_KIND_CHALLENGE && state->connecting) {
             u64 cookie = payload;
@@ -1176,13 +1004,6 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, con
         if (kind == _NYA_NET_UDP_KIND_DISCONNECT) {
             /*
              * Only from the endpoint that completed this handshake.
-             *
-             * Without the token this was seventeen forgeable bytes that evicted any player — spoof the
-             * address, pick the reason nibble, and the victim is removed with a plausible message. The
-             * token is never sent to anyone else, so an off-path attacker cannot supply it.
-             *
-             * A mismatch is ignored rather than answered. Replying would tell a prober that the address
-             * and port it guessed are a live connection, which is the one thing it was trying to learn.
              */
             if (connection->session_token != 0 && payload != connection->session_token) {
                 nya_log_debug("Ignoring a disconnect for '%s' with the wrong session token.", connection->address_text);
@@ -1227,10 +1048,6 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, con
 
         /*
          * The declared *size* is bounded, not just the fragment count.
-         *
-         * `total` is a number the sender chose, and the receiver allocates `total * usable` from it. A
-         * single small datagram claiming 512 fragments asks for six hundred kilobytes. Checked here, before
-         * anything is allocated, because checking afterwards is not checking.
          */
         u64 usable_per_fragment = NYA_NET_MAX_DATAGRAM - _NYA_NET_UDP_HEADER_SIZE - _NYA_NET_UDP_FRAGMENT_HEADER_SIZE;
 
@@ -1238,13 +1055,6 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, con
 
         /*
          * A fragment of a multi-fragment message may not be longer than a fragment.
-         *
-         * The reassembly buffer is sized `total * usable`, and a fragment is copied to `index * usable`.
-         * So a fragment claiming more than `usable` writes past the end — by up to 58 kB of chosen bytes
-         * at a chosen offset, which is heap corruption rather than a dropped packet.
-         *
-         * Only the *last* fragment is legitimately short; none is ever legitimately long. A single
-         * fragment message is exempt because it is not copied into a slot at all.
          */
         if (total > 1 && length > usable_per_fragment) return;
 
@@ -1261,19 +1071,9 @@ void _nya_net_udp_handle_packet(NYA_NetTransport* transport, u32 peer_index, con
             if (channel == NYA_NET_CHANNEL_RELIABLE) {
                 /*
                  * The out-of-order queue is bounded, and a peer that fills it is dropped.
-                 *
-                 * Ordered delivery means a message that arrives early waits for the gap ahead of it. An
-                 * attacker turns that into unbounded memory: send ids 1000, 1001, 1002… and never send the
-                 * one the receiver wants, and nothing is ever delivered or freed. A correct sender cannot
-                 * exceed its own in-flight window, so reaching this is proof the peer is broken or hostile.
                  */
                 /*
                  * An id far beyond the sender's own window is refused before it is queued.
-                 *
-                 * A correct sender never has more than NYA_NET_MAX_RELIABLE_IN_FLIGHT outstanding, so an id
-                 * further ahead than that cannot be legitimate — and accepting them is what let an attacker
-                 * fill the reorder queue with sparse ids rather than dense ones, which is both cheaper for
-                 * them and worse for the O(n) drain below.
                  */
                 if (_nya_net_udp_sequence_newer(message_id, (u16)(connection->next_delivery_id + _NYA_NET_UDP_MAX_REORDER))) {
                     at += length;
@@ -1341,11 +1141,6 @@ void _nya_net_udp_reassemble(
 
         /*
          * No free slot: the oldest partial message is abandoned.
-         *
-         * Its remaining fragments will never arrive — if they were going to, it would not be the
-         * oldest — and holding it forever would mean a single lost fragment permanently costs a
-         * reassembly slot. On the reliable channel the sender will retransmit the whole message
-         * anyway, so nothing is actually lost.
          */
         slot = free_slot != nullptr ? free_slot : oldest;
         if (slot == nullptr) return;
@@ -1354,22 +1149,9 @@ void _nya_net_udp_reassemble(
 
         /*
          * The slot's existing buffer is reused when it is big enough.
-         *
-         * Reallocating unconditionally leaked the old one every time: this arena lives as long as the
-         * transport and nothing ever handed the previous buffer back, so a peer sending fragmented
-         * messages grew the arena by the size of each. Since a game's messages are of a handful of
-         * sizes, a slot converges on the largest it has seen and then allocates nothing.
-         *
-         * Grown rather than resized exactly, so a message one byte larger than the last does not
-         * reallocate. Freed first, so the arena's free list can hand the same block back.
          */
         /*
          * The per-peer budget, checked against what this slot would grow *to*.
-         *
-         * An attacker starts a message on every slot and finishes none. The per-message cap bounds each
-         * one; this bounds the set, which is the quantity they actually control. Refused rather than
-         * evicting something, because evicting is what they would want — it would let a trickle of new
-         * message ids keep destroying whatever a legitimate transfer was assembling.
          */
         u64 would_hold = connection->reassembly_bytes - slot->capacity + needed;
 
@@ -1414,10 +1196,6 @@ void _nya_net_udp_reassemble(
 
     /*
      * The invariant, enforced where it is relied upon rather than only where it is established.
-     *
-     * Both callers above bound `length` and `index`, so this cannot fail today. It is checked anyway
-     * because this is the line that corrupts the heap if either of those checks is ever weakened, and a
-     * dropped fragment is a far cheaper failure than a controlled out-of-bounds write.
      */
     if ((u64)index * usable + size > slot->capacity) {
         nya_log_warn("Refusing a fragment that would write %llu bytes past a %llu byte reassembly buffer.",
@@ -1440,10 +1218,6 @@ void _nya_net_udp_reassemble(
         if (channel == NYA_NET_CHANNEL_RELIABLE) {
             /*
              * Copied out, because the slot's buffer is about to be reusable.
-             *
-             * The ordered queue holds a message until every earlier id has been delivered, which may be
-             * several packets away — and by then this slot will have been handed to another message.
-             * Pointing at it would deliver whatever that one reassembled.
              */
             u8* owned = nya_arena_alloc(state->allocator, slot->size);
             nya_memcpy(owned, slot->data, slot->size);
@@ -1475,12 +1249,6 @@ void _nya_net_udp_drain_ordered(NYA_NetTransport* transport, u32 peer_index) {
      * Reliable messages are handed up strictly in order: one arriving early waits in
      * `incoming_reliable` until every id before it has been delivered. That is why a lost reliable
      * message stalls the ones behind it, and why snapshots do not use it.
-     *
-     * The scan is bounded rather than restarted. The inner loop used to rescan from zero every pass, so
-     * filling the queue and sending the missing id last was quadratic — tens of thousands of comparisons
-     * plus a memmove per delivery in one tick, and billions before the queue was capped, which stopped
-     * the frame loop for seconds. The scan now stops at the first pass that delivers nothing, so a
-     * message arriving in order with an empty queue costs one comparison.
      */
     for (;;) {
         b8 delivered_any = false;
@@ -1495,10 +1263,6 @@ void _nya_net_udp_drain_ordered(NYA_NetTransport* transport, u32 peer_index) {
             /*
              * Freed once delivered. _nya_net_udp_deliver copies into the delivered arena, so nothing
              * points at these bytes any more.
-             *
-             * The arena outlives the transport and has no garbage collector, so a queue that only ever
-             * allocated grew by every reliable message the peer ever sent. On a busy connection that is
-             * megabytes an hour for nothing.
              */
             if (message->data != nullptr) nya_arena_free(state->allocator, message->data, message->size);
 
@@ -1553,10 +1317,6 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
         } else if (_nya_net_elapsed_ms(now_ms, state->connect_last_sent_ms) >= _NYA_NET_UDP_CONNECT_RETRY_MS) {
             /*
              * The request is repeated rather than sent once.
-             *
-             * It is a single UDP datagram, so the first one being lost is ordinary — and a connect
-             * that silently never completes is the worst failure a player can be shown. The peer is
-             * added locally on the first attempt so the accept has somewhere to land.
              */
             if (_nya_net_udp_find_peer(state, state->connect_address, state->connect_port) >= NYA_NET_MAX_PEERS) {
                 (void)_nya_net_udp_add_peer(state, state->connect_address, state->connect_port);
@@ -1564,10 +1324,6 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
 
             /*
              * Whichever stage the handshake has reached.
-             *
-             * Once a challenge has arrived, repeating the CONNECT only earns another challenge and wastes a
-             * round trip. The response is the packet whose loss actually stalls the connection, so that is
-             * the one worth repeating.
              */
             if (state->pending_cookie != 0) {
                 _nya_net_udp_send_control(transport, state->connect_address, state->connect_port, _NYA_NET_UDP_KIND_RESPONSE, 0,
@@ -1594,11 +1350,6 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
 
         /*
          * A keepalive when there is nothing else to say.
-         *
-         * A connection with no traffic is indistinguishable from a dead one, and a server with a
-         * player standing still in a menu would drop them after the timeout. This is an empty data
-         * packet whose only content is the acknowledgement in its header — which is also what keeps
-         * the other end's round trip estimate fresh.
          */
         if (_nya_net_elapsed_ms(now_ms, connection->last_sent_ms) >= _NYA_NET_UDP_KEEPALIVE_MS) {
             u8  buffer[_NYA_NET_UDP_HEADER_SIZE];
@@ -1625,10 +1376,6 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
 
             /*
              * Counted, like every other packet.
-             *
-             * A keepalive is real traffic — on an idle connection it is *all* the traffic — so leaving it out
-             * made a bandwidth readout under-report exactly when it was most misleading: a server that looks
-             * to be sending nothing while it holds thirty-two quiet players.
              */
             connection->stats.bytes_sent += at;
             connection->stats.packets_sent++;
@@ -1685,13 +1432,6 @@ u32 _nya_net_udp_add_peer(_NYA_NetUdpState* state, NET_Address* address, u16 por
 
         /*
          * A fresh token for this connection.
-         *
-         * Minted here for both roles: a listening server hands it to the client in ACCEPT, and a
-         * connecting client overwrites this one with what the server sends. Generating it
-         * unconditionally means neither path can forget to.
-         *
-         * Never zero — zero is what an absent payload reads as, so a token of zero would make every
-         * control packet with no token at all appear authentic.
          */
         state->session_counter++;
 
@@ -1715,10 +1455,6 @@ void _nya_net_udp_remove_peer(NYA_NetTransport* transport, u32 peer_index, NYA_N
 
     /*
      * Everything this peer still holds goes back to the arena.
-     *
-     * Queued reliable messages both ways, and the reassembly buffers. A peer that leaves mid-transfer is
-     * the ordinary case — a timeout, a crash, a player quitting — and without this every disconnection
-     * cost the server whatever that peer had in flight, permanently.
      */
     nya_array_foreach (connection->outgoing_reliable, pending) {
         if (pending->data != nullptr) nya_arena_free(state->allocator, pending->data, pending->size);
@@ -1869,11 +1605,6 @@ void _nya_net_udp_apply_acks(_NYA_NetUdpPeer* peer, u16 ack, u32 ack_bits, u64 n
 
         /*
          * An exponential moving average, not a running mean.
-         *
-         * The round trip is used to size a jitter buffer and to place the client's clock, and both
-         * want "what the connection is doing now" rather than "what it has averaged since it
-         * opened". A tenth weight settles in roughly thirty packets, which at any sane send rate is
-         * well under a second.
          */
         peer->jitter_ms = peer->rtt_ms == 0.0F ? 0.0F : (peer->jitter_ms * 0.9F) + (fabsf(sample - peer->rtt_ms) * 0.1F);
         peer->rtt_ms    = peer->rtt_ms == 0.0F ? sample : (peer->rtt_ms * 0.9F) + (sample * 0.1F);
@@ -1887,15 +1618,6 @@ void _nya_net_udp_apply_acks(_NYA_NetUdpPeer* peer, u16 ack, u32 ack_bits, u64 n
 void _nya_net_udp_retire_reliable(_NYA_NetUdpPeer* peer, NYA_Arena* allocator, u16 reliable_ack) {
     /*
      * An acknowledgement further ahead than anything could be outstanding is refused.
-     *
-     * The field is not authenticated — a spoofed data packet carries whatever it likes — and taking it at
-     * face value lets one forged datagram retire the *entire* reliable queue. Retransmission then stops
-     * for messages the peer never received: the handshake, the roster, every game event in flight, all
-     * dropped with nothing reporting it. Silent failure of the one channel that promises not to fail.
-     *
-     * The sender knows what it has outstanding, so it knows what an honest acknowledgement can name. This
-     * does not make the field trustworthy; it limits a forger to retiring messages that were about to be
-     * retired anyway. Authenticating the packet is the real fix and belongs with the session token.
      */
     if (peer->outgoing_reliable->length > 0) {
         u16 oldest = peer->outgoing_reliable->items[0].message_id;
@@ -1908,10 +1630,6 @@ void _nya_net_udp_retire_reliable(_NYA_NetUdpPeer* peer, NYA_Arena* allocator, u
 
     /*
      * Everything the peer says it has delivered stops being retransmitted.
-     *
-     * Backwards, so removing an entry does not skip the one that slides into its place. The
-     * comparison wraps: `reliable_ack` is "the next id I expect", so a message is done when its id
-     * is strictly older than that.
      */
     for (u64 i = peer->outgoing_reliable->length; i > 0; i--) {
         _NYA_NetUdpReliable* message = &peer->outgoing_reliable->items[i - 1];
@@ -1940,8 +1658,6 @@ void _nya_net_udp_mark_seen(_NYA_NetUdpPeer* peer, NYA_NetChannel channel, u16 m
     /*
      * The window is a ring, so the bit for an id 1024 ahead is the same bit. Clearing a little way
      * ahead of the newest id keeps stale marks from making a fresh message look like a duplicate.
-     *
-     * Sixty-four ids of clearance: far more than a retransmit window and far less than the ring.
      */
     for (u32 i = 1; i <= 64; i++) {
         u32 ahead = (slot + i) % _NYA_NET_UDP_SEEN_WINDOW;

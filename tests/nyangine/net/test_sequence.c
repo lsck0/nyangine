@@ -1,21 +1,5 @@
 /**
  * The sequence and acknowledgement arithmetic, at unit level.
- *
- * This is the part of the transport whose bugs are invisible on a working network and permanent on a bad
- * one. Every number here is sixteen bits and wraps, so "newer" is not a comparison and "how far back" is not
- * a subtraction — and the code that gets those wrong still passes every end-to-end test, because a localhost
- * session never sends 65536 packets.
- *
- * Driven directly rather than through a socket. The end-to-end tests establish that the scheme works; these
- * establish that it works at the boundaries a session would have to run for hours to reach.
- *
- * ## What is being checked
- *
- * - **Wraparound.** 0 is newer than 65535, and the half-space threshold is where that stops being true.
- * - **The ack bitfield.** Thirty-three packets reported in six bytes, including when the sequence jumps
- *   further than the window holds — where a naive shift is undefined rather than merely wrong.
- * - **Duplicate suppression.** A ring of 1024 message ids that must not report a fresh message as a
- *   duplicate, nor a duplicate as fresh.
  **/
 
 #include "nyangine/nyangine.c"
@@ -59,9 +43,6 @@ s32 main(void) {
 
     /*
      * The threshold, at exactly half the space.
-     *
-     * Half is the largest window in which "newer" is unambiguous. Either side of it the answer flips, and
-     * getting the boundary off by one is the kind of mistake that only shows after an hour of play.
      */
     nya_assert(_nya_net_udp_sequence_newer(32768, 0), "half the space ahead is still newer");
     nya_assert(!_nya_net_udp_sequence_newer(32769, 0), "just past half is read as older");
@@ -162,10 +143,6 @@ s32 main(void) {
   {
     /*
      * The undefined-behaviour case.
-     *
-     * A shift of 32 or more on a u32 is undefined in C, not zero — and a peer that jumps a long way forward
-     * reaches it easily: after a stall, or from a sequence chosen to provoke exactly this. Everything in the
-     * old window is out of range anyway, so the field is cleared instead.
      */
     _NYA_NetUdpPeer peer = { 0 };
 
@@ -188,14 +165,6 @@ s32 main(void) {
 
     /*
      * A jump *past* half the space is read as older, and that is correct rather than a limitation.
-     *
-     * Half is the largest window in which the direction of travel is knowable, so beyond it the scheme cannot
-     * distinguish "jumped a long way forward" from "wrapped and is a long way behind". It resolves to older,
-     * which is the safe reading: a sequence that is actually ahead will be believed as soon as it is within
-     * the window, whereas trusting it immediately would let one packet drag the window somewhere no real
-     * packet is and stall every acknowledgement until the sender caught up.
-     *
-     * Worth asserting because a hostile peer can pick exactly this number.
      */
     _nya_net_udp_record_ack(&peer, (u16)(20000 + 40000));
     nya_assert(peer.remote_sequence == 20000, "a jump past half the sequence space moved the window");
@@ -272,9 +241,6 @@ s32 main(void) {
      * The transport promises a message is never delivered twice, and retransmits make duplicates ordinary
      * rather than exotic — a reliable message resent because its acknowledgement was lost arrives perfectly
      * intact for the second time.
-     *
-     * The window is a ring of 1024 ids, so the danger is at both ends: reporting a fresh message as a
-     * duplicate because a stale mark 1024 ids ago is still set, or reporting a duplicate as fresh.
      */
     _NYA_NetUdpPeer peer = { 0 };
 
@@ -331,10 +297,6 @@ s32 main(void) {
     /*
      * `reliable_ack` is "the next id I expect", so everything strictly older is done with. Cumulative, so
      * losing one of these costs nothing — the next carries a number at least as high.
-     *
-     * It exists because per-*packet* acknowledgement cannot answer the question: a message split across four
-     * fragments rides in four packets, and three of them arriving says nothing about whether the message was
-     * assembled.
      */
     NYA_Arena* arena = nya_arena_create(.name = "test_sequence");
     defer      nya_arena_destroy(arena);
@@ -362,10 +324,6 @@ s32 main(void) {
 
     /*
      * An ack further ahead than anything could be outstanding is refused.
-     *
-     * The field is not authenticated, so one forged packet claiming a huge number would otherwise retire the
-     * whole queue — and retransmission would stop for messages the peer never received. The handshake, the
-     * roster and every game event in flight, dropped with nothing reporting it.
      */
     u64 before = peer.outgoing_reliable->length;
 

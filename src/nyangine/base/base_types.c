@@ -208,19 +208,6 @@ NYA_INTERNAL b8 _nya_type_try_parse_bool(const u8* data, u64 length, OUT u128* o
 
 /**
  * `*accumulator = *accumulator * base + digit`, or false if that would not fit in a u128.
- *
- * The three loops below used to accumulate unchecked, which is wrong twice over. Under
- * FLAGS_SANITIZE the build names unsigned-integer-overflow together with -fno-sanitize-recover=all,
- * so an over long literal aborted the process; without sanitizers it wrapped, and the range check
- * the integer cases in nya_type_parse apply afterwards then ran on the wrapped value. A literal that
- * wrapped back into the target's range was therefore *accepted* as a completely different number —
- * `nya_type_parse(NYA_TYPE_S64, "340282366920938463463374607431768211499")` returned true with 43.
- *
- * That matters because this is the parse primitive behind command line arguments, JSON numbers and
- * the .nya save format, so the input is user supplied on every path into it.
- *
- * The predicate is written as a division rather than as a multiply that is checked afterwards,
- * because the multiply is the thing that must not happen.
  * */
 NYA_INTERNAL b8 _nya_type_accumulate_digit(u128* accumulator, u128 base, u8 digit) {
     if (*accumulator > (U128_MAX - digit) / base) return false;
@@ -300,11 +287,6 @@ NYA_INTERNAL b8 _nya_type_try_parse_s128(const u8* data, u64 length, OUT s128* o
 
     /*
      * Bounded before the conversion, not after.
-     *
-     * A magnitude above S128_MAX has no value in s128 to be range checked, and negating S128_MIN
-     * afterwards is signed overflow — which FLAGS_SANITIZE names, so it aborts rather than wrapping.
-     * The negative side is allowed one more than the positive one, which is what lets S128_MIN
-     * itself parse.
      */
     u128 limit = is_negative ? (u128)S128_MAX + 1 : (u128)S128_MAX;
     if (magnitude > limit) return false;
@@ -336,14 +318,6 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
 
     /*
      * A hexadecimal float, which is what the nya format writes: 0x1.91eb86p+1.
-     *
-     * Exact in both directions, and that is the whole point. Every part of it is a power of two — a
-     * hex digit is four bits and the exponent scales by two — so the mantissa accumulates into an
-     * integer with no rounding and the scaling is a shift rather than a division. The decimal path
-     * below cannot promise that: it accumulates digits and then divides, and the error from the
-     * division lands in the result. For f32 and f64 the f128 intermediate absorbs it, but for f128
-     * there is no headroom and nearly a third of values came back changed — enough to fail the
-     * document's own checksum on the next read.
      * */
     if (length > 2 && data[0] == '0' && (data[1] == 'x' || data[1] == 'X')) {
         u128 mantissa            = 0;
@@ -410,12 +384,6 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
 
     /*
      * One mantissa and a decimal exponent, rather than an integer part over a fractional divisor.
-     *
-     * The pair form accumulated into u128 unchecked — the mistake _nya_type_accumulate_digit above
-     * documents and fixes for the integer paths, and that the real path was simply missed by.
-     *
-     * Digits past what the accumulator holds are counted rather than accumulated, which is what a
-     * strtod does and costs nothing: an f128 carries 113 bits of significand either way.
      * */
     u128 mantissa            = 0;
     s64  decimal_exponent    = 0;
@@ -492,14 +460,6 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
 
     /*
      * Zero is left alone, because scaling it would not leave it zero.
-     *
-     * `exponent` is clamped at six digits, so powl saturates to infinity long before the end of that
-     * range, and 0.0 * infinity is NaN. NaN then passes the range checks in nya_type_parse, which
-     * compare with < and >, so "0e999999" came back as a successfully parsed NaN.
-     *
-     * Scaling by a positive power and dividing, rather than by a negative one and multiplying, so a
-     * fraction is divided by the exact 10^k it was accumulated over — which is what the fractional
-     * divisor did before and what keeps the round trip through the nya format exact.
      * */
     if (mantissa != 0 && decimal_exponent != 0) {
         // Bounded before negating, so the magnitude below cannot overflow and powl is asked for

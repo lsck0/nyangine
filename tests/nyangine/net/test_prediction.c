@@ -1,24 +1,5 @@
 /**
  * Prediction and reconciliation, over a real socket against a real server.
- *
- * These paths are unreachable on a loopback, and deliberately so: a listen server's client shares the
- * server's world, there is no latency to hide, and reconciliation is a no-op. So every in-process test
- * covers the *decision* to skip it and none of them covers what it does when it runs.
- *
- * Which leaves the interesting half untested — the correction, the replay, and the baseline arena swap that
- * lets a delta be decoded against the snapshot it is about to replace.
- *
- * So this runs a UDP server and a UDP client in one process but over two sockets, with **two separate
- * worlds**: the server's and the client's replica. `nya_world_set` swaps which one the entity API talks to,
- * so every tick has to say which side it is running. That is fiddly and it is the only arrangement in which
- * reconciliation is real.
- *
- * ## Forcing a correction
- *
- * The two sides run *deliberately different* movement functions. That is exactly what the contract forbids —
- * NYA_NetApplyCommandFn must be deterministic and shared — and breaking it on purpose is the cleanest way to
- * make the server disagree with the prediction on every tick. What is being tested is the machinery's
- * response to disagreement, not the disagreement.
  **/
 
 #include "nyangine/nyangine.c"
@@ -51,9 +32,6 @@ static void sleep_ms(u32 milliseconds) {
 
 /**
  * Moves an entity, differently on each side.
- *
- * One function rather than two, because both sides are handed the same pointer and the *point* is that they
- * disagree — two functions would be two contracts and the test would prove less.
  * */
 static void apply_movement(NYA_Entity* entity, const NYA_NetCommand* command, f32 delta_time_s) {
   if (entity == nullptr) return;
@@ -115,10 +93,6 @@ s32 main(void) {
 
   /*
    * The client's table is pushed out of step with the server's before anything is replicated.
-   *
-   * Otherwise both are fresh and hand out the same indices, so the handle translation would be exercised
-   * only coincidentally — the server's entity 0 and the client's entity 0 would be the same number and a
-   * missing translation would look correct.
    */
   (void)nya_world_set(CLIENT_WORLD);
   {
@@ -176,10 +150,6 @@ s32 main(void) {
     /*
      * The world is set before the entity is asked about, because every entity query is against whichever
      * world is *current* — and the loop above left that as the client's.
-     *
-     * This assertion passed by accident until the client's table was pushed out of step: with both worlds
-     * fresh, the server's handle happened to name a live entity in the client's world too. Which is precisely
-     * the confusion the two-handle-space design exists to prevent, reproduced in the test that tests it.
      */
     (void)nya_world_set(SERVER_WORLD);
     nya_assert(nya_entity_is_valid(SERVER_PLAYER), "the server spawned no player");
@@ -192,10 +162,6 @@ s32 main(void) {
   {
     /*
      * The property that makes everything below meaningful.
-     *
-     * With two worlds the client has to spawn the server's entities into its own table, translate handles,
-     * and reconcile against a state that is genuinely a round trip old. On a shared table none of that
-     * happens and none of it is tested.
      */
     u64 deadline = nya_clock_get_monotonic_ms() + 5000;
 
@@ -216,9 +182,6 @@ s32 main(void) {
 
     /*
      * The two really are different numbers, which is what says the translation happened.
-     *
-     * If they matched, a client with no handle translation at all would pass every assertion here — which is
-     * exactly how that bug survived until tests/nyangine/net/test_replica.c forced them apart.
      */
     nya_assert(local.index != SERVER_PLAYER.index, "the two worlds handed out the same index; the translation is untested");
 
@@ -264,11 +227,6 @@ s32 main(void) {
   {
     /*
      * The whole point of the file.
-     *
-     * The two movement functions disagree by DIVERGENCE per tick, so every snapshot the client applies
-     * contradicts what it predicted. Reconciliation must notice, snap to the server's answer for the tick the
-     * snapshot describes, and replay every command since — so the player ends up *recomputed* rather than
-     * yanked back to where they were a round trip ago.
      */
     u64 corrections_before = nya_net_client_correction_count();
 
@@ -290,10 +248,6 @@ s32 main(void) {
 
     /*
      * And the client is still ahead of where the server said it was, because the replay put it back.
-     *
-     * Without the replay the correction would leave the player exactly at the server's position — a round
-     * trip in the past — and they would have to walk the distance again on every correction. Being *ahead* of
-     * the authoritative position is the evidence that the commands since were re-applied.
      */
     (void)nya_world_set(SERVER_WORLD);
     NYA_Entity* authoritative = nya_entity_get(SERVER_PLAYER);
@@ -313,10 +267,6 @@ s32 main(void) {
   {
     /*
      * The baseline arena swap, which is only exercised by a client that actually applies deltas.
-     *
-     * Decoding a delta reads the current baseline while producing the next one, so the two live in arenas used
-     * alternately — with one, the reset that frees the old would invalidate what the decode is reading. Many
-     * snapshots in a row is what walks that swap repeatedly.
      */
     u64 before = nya_net_client_server_tick();
 
@@ -383,10 +333,6 @@ s32 main(void) {
 
     /*
      * And the replicated world went with the connection.
-     *
-     * These entities existed only because a server said so, and no server is saying so any more. Leaving them
-     * would show a frozen snapshot of an ended session — and on reconnect the map would be empty, so every
-     * one of them would be spawned a second time.
      */
     (void)nya_world_set(CLIENT_WORLD);
     nya_system_sim_apply_commands();

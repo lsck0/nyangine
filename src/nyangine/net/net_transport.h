@@ -1,35 +1,5 @@
 /**
  * @file net_transport.h
- *
- * How bytes get from one process to another, behind one interface with three implementations.
- *
- * The server and the client above this file know about peers, ticks and snapshots. They do not know
- * whether a peer is across the room, across the internet, or in the same process — and that is the
- * point. "Open to LAN" changes which transport the server holds and nothing else; a Steam lobby is a
- * fourth line in a switch rather than a second netcode.
- *
- * ## The three
- *
- * - **Loopback** (net_loopback.c) hands buffers between two endpoints in one process. Never drops,
- *   never reorders, zero latency. What a listen server's own local client uses, and what every test
- *   in tests/nyangine/net uses to exercise the layers above without a socket.
- * - **UDP** (net_udp.c) over SDL_net datagrams, with the reliability, ordering and fragmentation
- *   this file's contract promises built on top. LAN and internet alike.
- * - **Steam** (net_steam.c) over Steam's relayed peer-to-peer sockets, which is how a player behind
- *   a NAT is reachable without port forwarding. Behind NYA_PLUGIN_STEAM, and presently a stub that
- *   reports itself unavailable — the interface exists so the rest of the engine is already written
- *   against it.
- *
- * ## What a transport must guarantee
- *
- * - `NYA_NET_CHANNEL_RELIABLE` messages arrive, in order, exactly once, or the peer is disconnected.
- * - `NYA_NET_CHANNEL_UNRELIABLE` messages may be dropped or reordered, but never *duplicated* and
- *   never *truncated*: a message that arrives is the whole message. Duplicate suppression matters
- *   because a snapshot applied twice is harmless while a command applied twice is a double jump.
- * - A message of any size may be sent. Splitting it to fit the path is the transport's problem.
- * - Nothing blocks. Every call returns immediately; `nya_net_transport_poll` is where work happens.
- *
- * A transport does *not* interpret payloads. It does not know what a snapshot is.
  * */
 #pragma once
 
@@ -77,11 +47,6 @@ enum NYA_NetTransportEventKind {
 
 /**
  * One thing that happened, drained by nya_net_transport_poll.
- *
- * A queue rather than callbacks, because the layers above run inside a fixed tick and want to
- * process everything that arrived *between* ticks at a known point — not at whatever moment a
- * datagram landed. It also means a transport never calls into game code, which is what keeps a
- * malformed packet from unwinding through a callback into the middle of a simulation step.
  * */
 struct NYA_NetTransportEvent {
     NYA_NetTransportEventKind kind;
@@ -89,10 +54,6 @@ struct NYA_NetTransportEvent {
 
     /**
      * The message, for a MESSAGE event.
-     *
-     * Owned by the transport and valid only until the next nya_net_transport_poll — copy anything
-     * that has to outlive the call. The loopback transport in particular hands back a pointer into
-     * the sender's own buffer, which is exactly why single player costs no copy.
      * */
     const u8* data;
     u64       size;
@@ -125,10 +86,6 @@ struct NYA_NetPeerStats {
 
 /**
  * What every transport implements. See the contract at the top of this file.
- *
- * A vtable rather than a compile-time switch, because a listen server holds *two at once*: a
- * loopback for its own player and a UDP socket for everyone else. Selecting one at build time would
- * make hosting and playing mutually exclusive.
  * */
 struct NYA_NetTransportVTable {
     NYA_ConstCString name;
@@ -145,9 +102,6 @@ struct NYA_NetTransportVTable {
 
     /**
      * Drains one event. False when there are none left.
-     *
-     * Also where a transport does its own work — retransmits, timeouts, fragment reassembly — so it
-     * must be called every frame even when nothing is expected.
      * */
     b8 (*poll)(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event);
 
@@ -161,9 +115,6 @@ struct NYA_NetTransportVTable {
 
     /**
      * Drops `percent` of outgoing datagrams on purpose. Null for a transport that cannot lie.
-     *
-     * For tests and for a "bad connection" developer toggle. The reliability layer's whole job is
-     * only exercised by loss, and a loopback interface never provides any.
      * */
     void (*simulate_packet_loss)(NYA_NetTransport* transport, u32 percent);
 
@@ -172,9 +123,6 @@ struct NYA_NetTransportVTable {
 
 /**
  * One transport instance.
- *
- * The vtable plus an implementation-owned pointer, rather than an inheritance hierarchy: there are
- * three of these and they share no state, so a base struct would be a base struct with nothing in it.
  * */
 struct NYA_NetTransport {
     const NYA_NetTransportVTable* vtable;
@@ -199,30 +147,16 @@ struct NYA_NetTransport {
 
 /**
  * A transport that carries messages between two endpoints in the same process.
- *
- * Returns the pair already joined: `out_a` and `out_b` are each other's only peer, and each sees the
- * other as peer index zero. That is what a listen server's local client is — the server holds one
- * end and the client the other, and neither knows the difference from a socket.
- *
- * Nothing is serialised twice and nothing is copied: a send hands the receiving end a pointer into
- * the sender's arena. This is the whole reason single player costs what it costs.
  * */
 NYA_API NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTransport** out_a, OUT NYA_NetTransport** out_b) __attr_no_discard;
 
 /**
  * A transport over UDP datagrams, with reliability and fragmentation on top. See net_udp.c.
- *
- * Created unbound: call listen or connect. SDL_net is brought up on first use and taken down with
- * the last transport, so nothing else has to know it exists.
  * */
 NYA_API NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, OUT NYA_NetTransport** out_transport) __attr_no_discard;
 
 /**
  * A transport over Steam's relayed peer-to-peer sockets.
- *
- * NYA_ERROR_NOT_SUPPORTED when the Steam plugin is not compiled in, which is the default — see
- * plugins/steam/steam.h. Presently a stub even when it is; the interface exists so the server and
- * the client are already written against it.
  * */
 NYA_API NYA_Error nya_net_transport_steam_create(NYA_Arena* arena, OUT NYA_NetTransport** out_transport) __attr_no_discard;
 
@@ -249,17 +183,10 @@ NYA_API void      nya_net_transport_destroy(NYA_NetTransport* transport);
 
 /**
  * Deliberately drops `percent` of outgoing datagrams, 0..100.
- *
- * Does nothing on a transport with no wire to lose packets on, which is the loopback pair. Not a
- * debug-only function: shipping it means a developer can reproduce a player's bad connection without
- * a special build, and the reliability layer is only ever exercised by loss.
  * */
 NYA_API void nya_net_simulate_packet_loss(NYA_NetTransport* transport, u32 percent);
 
 /**
  * Whether this transport's peers are in the same process.
- *
- * What lets the client skip prediction entirely on a listen server: there is no latency to hide, so
- * predicting and reconciling would be pure cost for an answer that is already exact.
  * */
 NYA_API b8 nya_net_transport_is_local(const NYA_NetTransport* transport) __attr_no_discard;

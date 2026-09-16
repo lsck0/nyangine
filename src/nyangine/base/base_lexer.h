@@ -1,11 +1,6 @@
 /**
  * @file base_lexer.h
  *
- * Simple lexer/tokenizer. Supports identifiers, integers (decimal, hex 0x, binary 0b),
- * floats, symbols, and double-quoted string literals with escape sequences.
- *
- * Supported string escape sequences: \", \\, \n, \t, \r
- *
  * Example:
  * ```c
  * NYA_Lexer lexer = nya_lexer_create("name = \"hello world\";");
@@ -15,21 +10,6 @@
  *
  * nya_lexer_destroy(&lexer);
  * ```
- *
- * ## Comments
- *
- * `//` and slash-star comments lex as a single NYA_TOKEN_COMMENT. A parser that does not want them
- * skips that one token type; a parser that must *reject* them, as strict JSON does, leaves them in
- * place and lets its usual "unexpected token" path fire.
- *
- * This is not conditional. Both deserializers used to reassemble a comment from the two adjacent
- * symbol tokens it arrived as, with the same twenty lines written twice, and the lexer knowing what a
- * comment is deletes both copies rather than adding a third way to spell it.
- *
- * ## Dialects
- *
- * NYA_LEXER_UTF8_IDENTS is opt in, because it changes bytes that are currently invalid into part of
- * an identifier, and the deserializers rely on them being rejected.
  *
  * ```c
  * NYA_Lexer lexer = nya_lexer_create(source, NYA_LEXER_UTF8_IDENTS);
@@ -65,9 +45,6 @@ enum NYA_TokenType {
 
     /**
      * A line or block comment. `source_location` and `length` cover the *body*, not the delimiters.
-     *
-     * Appended rather than inserted next to the other content tokens: renumbering NYA_TOKEN_STRING
-     * under an existing value would be a silent change to anything comparing a stored token type.
      * */
     NYA_TOKEN_COMMENT,
 
@@ -80,11 +57,6 @@ enum NYA_LexerFlags {
 
     /**
      * Let bytes at or above 0x80 start and continue an identifier.
-     *
-     * For lexing this codebase's own source: the derived container types mangle their names with
-     * non-ASCII brackets, so `NYA_ArrayᐸNYA_Valueᐳ` otherwise lexes as two identifiers with invalid
-     * tokens between them. No attempt is made to validate UTF-8 or to exclude codepoints that are not
-     * letters — the job here is to keep a name in one piece, not to implement UAX #31.
      * */
     NYA_LEXER_UTF8_IDENTS = 1u << 0,
 };
@@ -102,10 +74,6 @@ struct NYA_Token {
 
         /**
          * only present if type == NYA_TOKEN_COMMENT: true for slash-star, false for `//`.
-         *
-         * Worth having because the two associate with a declaration differently — a block comment
-         * above one and a line comment trailing it are both common, and only the block form can span
-         * lines, so `line_number` alone does not separate them.
          * */
         b8 is_block_comment;
     };

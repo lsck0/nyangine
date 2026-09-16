@@ -22,17 +22,11 @@ NYA_INTERNAL bool _nya_physics2d_point_query_callback(b2ShapeId shape, void* con
 
 /**
  * b2PreSolveFcn: discards the contact when one side is a one-way surface being passed the right way.
- *
- * Runs inside b2World_Step, after a contact is found and before it is solved. Read-only — see
- * nya_physics2d_one_way_set for why that matters and why it is safe here.
  * */
 NYA_INTERNAL bool _nya_physics2d_pre_solve(b2ShapeId shape_a, b2ShapeId shape_b, b2Pos point, b2Vec2 normal, void* context);
 
 /**
  * Whether a contact between `surface` and `mover` should be solved.
- *
- * `normal` points from the surface's body toward the mover's, in metres. Both callers hand it in
- * that orientation, which is what lets one function answer for either ordering of the pair.
  * */
 NYA_INTERNAL b8 _nya_physics2d_one_way_admits(const NYA_Entity* surface, const NYA_Entity* mover, b2Vec2 normal);
 
@@ -41,11 +35,6 @@ NYA_INTERNAL void _nya_physics2d_collect_hits(NYA_Physics2DSystem* system);
 
 /**
  * Appends this step's sensor begin and end overlaps to the hit list.
- *
- * Separate from the contact events because Box2D reports them separately and they carry different
- * information — a sensor overlap has no point, no normal and no speed, so nothing about the impact
- * path applies to it. They share the list because everything downstream wants one walk over "what
- * happened this tick" rather than two.
  * */
 NYA_INTERNAL void _nya_physics2d_collect_sensor_events(NYA_Physics2DSystem* system);
 
@@ -93,12 +82,6 @@ void nya_system_physics2d_init(void) {
 
     /*
      * Single threaded on purpose.
-     *
-     * b2WorldDef carries enqueueTask/finishTask hooks that would hand the solver's islands to the
-     * job system, and that is the right thing to do once there is enough in the world to pay for
-     * the handoff. It is not free: the callbacks run on the stepping thread's critical path, and a
-     * world of a few hundred bodies spends more time dispatching than solving. Left for when a
-     * profile says otherwise, rather than wired up speculatively.
      */
     world_def.workerCount = 1;
 
@@ -146,10 +129,6 @@ void nya_system_physics2d_update(f32 delta_time_s) {
 
     /*
      * The drop-through windows, before the step rather than after it.
-     *
-     * The pre-solve callback reads them during the step, so decrementing afterwards would give every
-     * window one extra step — and at a 0.25 s window and a 60 Hz step that is a 7% error nobody
-     * would ever trace.
      */
     u32 dropping = 0;
 
@@ -180,10 +159,6 @@ void nya_system_physics2d_update(f32 delta_time_s) {
 
     /*
      * The solver is authoritative, so its result is copied out rather than blended with anything.
-     *
-     * Only bodies that are awake are read back: a sleeping body has not moved, and the entity
-     * already holds the transform it went to sleep at. That turns a world of settled crates from a
-     * per tick copy of every transform into a check of a flag.
      */
     nya_entity_foreach (entity) {
         if (!entity->physics2d.attached) continue;
@@ -682,24 +657,11 @@ b8 _nya_physics2d_shape_create(b2BodyId body, const NYA_Entity* entity, const NY
      * and the pair is what gets the callback, so a one-way ledge whose *visitor* has not opted in is
      * simply solid. Enabling it only for shapes declared one-way would therefore not work at all:
      * the ledge is static and the thing passing through is what has to ask.
-     *
-     * On for every dynamic shape, then, which is the same trade nya_physics2d_body_attach already
-     * makes for sensor events one comment down — a feature that silently does nothing on the one
-     * body somebody forgot to flag is worse than the cost of the check.
      */
     shape_def.enablePreSolveEvents = options->type == NYA_PHYSICS_BODY_DYNAMIC;
 
     /*
      * On for every shape, not just for the sensors.
-     *
-     * Box2D wants this set on *both* sides of a pair before it will report the overlap, and defaults
-     * it off on both. A coin created with is_sensor and a player created without it therefore
-     * produced no events whatsoever — which looks precisely like a coin the player never reached,
-     * and is the one failure mode a trigger volume must not have.
-     *
-     * The cost is a flag on shapes that no sensor will ever touch. The solver still only does the
-     * work for pairs where a sensor is actually involved, so what this buys is that a game never has
-     * to know in advance which of its bodies might one day walk through a trigger.
      */
     shape_def.enableSensorEvents = true;
 
@@ -852,11 +814,6 @@ void _nya_physics2d_collect_sensor_events(NYA_Physics2DSystem* system) {
 
     /*
      * Counted rather than derived from what was written.
-     *
-     * An event can go unreported for two unrelated reasons — the list was full, or the pair was one
-     * of the destroyed shapes an end event is allowed to name — and only the first is worth telling
-     * anyone about. Subtracting what was appended from what arrived conflates them, and reports a
-     * perfectly ordinary despawn inside a trigger as a dropped event.
      */
     u32 dropped = 0;
 
@@ -910,11 +867,6 @@ b8 _nya_physics2d_sensor_hit_write(NYA_Physics2DSystem* system, NYA_PhysicsHitKi
 
     /*
      * The midpoint of the two bodies.
-     *
-     * Box2D reports no geometry for a sensor overlap — only that it happened, and between which two
-     * shapes. The honest options are "nowhere" and "somewhere between them", and the second is what a
-     * pickup effect actually needs. It is deliberately not either body's own position: privileging
-     * one would make the point jump depending on which side of the pair a caller happened to be.
      */
     f32x2 sensor_position  = sensor != nullptr ? sensor->position.xy : f32x2_zero;
     f32x2 visitor_position = visitor != nullptr ? visitor->position.xy : f32x2_zero;
@@ -949,10 +901,6 @@ void _nya_physics2d_dispatch_collisions(const NYA_Physics2DSystem* system) {
 
         /*
          * Both sides, each told about the other, and each resolved immediately before it is called.
-         *
-         * A callback may despawn either entity — that is the ordinary reaction to a hard enough
-         * impact — so the second lookup cannot reuse the first's pointer. Handles are what make that
-         * checkable rather than a use after free.
          */
         for (u32 side = 0; side < 2; side++) {
             NYA_EntityHandle self_handle  = side == 0 ? hit->a : hit->b;
@@ -974,10 +922,6 @@ void _nya_physics2d_dispatch_collisions(const NYA_Physics2DSystem* system) {
 
 /**
  * The axis a one-way direction admits passage along, in **Box2D** coordinates.
- *
- * Box2D's y grows the way the world's does — the wrapper hands it screen-space vectors unchanged and
- * gravity is positive y — so "up the screen" is negative y here too, and no flip is needed. Written
- * out rather than derived so that the day the scale gains a sign, this is the one place to change.
  * */
 NYA_INTERNAL b2Vec2 _nya_physics2d_one_way_axis(NYA_Physics2DOneWay direction) {
     switch (direction) {
@@ -1004,12 +948,6 @@ b8 _nya_physics2d_one_way_admits(const NYA_Entity* surface, const NYA_Entity* mo
 
     /*
      * The sign of the mover's velocity along the passable axis decides, not its position.
-     *
-     * A position test needs a skin thickness — "is it far enough above the surface to count as
-     * landing on it" — and a character standing exactly on a ledge then sits on the boundary and
-     * flickers between solid and passable, which reads as the floor vibrating. Velocity has no such
-     * boundary: something moving up through an UP surface is going through, and something moving
-     * down onto it is landing, and a body at rest is landing by default.
      */
     f32 approach = (velocity.x * axis.x) + (velocity.y * axis.y);
 
@@ -1019,14 +957,6 @@ b8 _nya_physics2d_one_way_admits(const NYA_Entity* surface, const NYA_Entity* mo
 
     /*
      * Which side of the surface the mover is on, which decides the resting case.
-     *
-     * `normal` points from the surface toward the mover, and `axis` is the direction of passage — so
-     * a mover on the passable side (under an UP ledge) has a normal opposing the axis, and one that
-     * has already come through and is standing on top has a normal along it.
-     *
-     * Needed as well as the velocity test, not instead of it: velocity alone lets a body sit under a
-     * ledge with a horizontal shove and be stopped by its underside, and the side test alone snaps a
-     * rising body onto the platform the instant its centre crosses.
      */
     f32 side = (normal.x * axis.x) + (normal.y * axis.y);
 

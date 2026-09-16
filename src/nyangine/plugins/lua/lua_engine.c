@@ -1,19 +1,5 @@
 /**
  * @file lua_engine.c
- *
- * The `nya` table a script sees. See `nya_lua_open_engine` in lua.h for the list.
- *
- * **What is in here and what is not is the whole design.** Every binding below is a function whose
- * worst outcome is that nothing happens: a bad handle answers nil, a missing argument is a default,
- * an unknown action is not held. None of them hands a script a pointer, and none of them can leave
- * the engine in a state C did not ask for.
- *
- * That rules out the obvious conveniences. There is no `entity(handle)` returning something a script
- * can write fields on, because that is a pointer with extra steps and it would outlive the entity.
- * A script reads a position and asks for a move; it does not hold an entity.
- *
- * These live in the **host** binary rather than in the game `.so`, which is why `nya.*` survives a
- * hot reload while a game's own bindings do not — see the note in lua.h.
  * */
 #include "nyangine/nyangine.h"
 
@@ -129,10 +115,6 @@ void nya_lua_binding_time(NYA_LuaCall* call) {
 void nya_lua_binding_spawn(NYA_LuaCall* call) {
     /*
      * A table, not positional arguments.
-     *
-     * `nya.spawn{ name = "coin", x = 40, y = 12 }` reads at the call site the way
-     * nya_entity_spawn's designated initialisers read in C, and it means adding a field here never
-     * changes what an existing script means.
      */
     NYA_EntityHandle handle = nya_entity_spawn(
         .name     = _nya_lua_field_string(call, 0, "name"),
@@ -189,11 +171,6 @@ void nya_lua_binding_move_to(NYA_LuaCall* call) {
 
 /*
  * ⚠ **An action is a number, not a name.**
- *
- * NYA_InputAction is an enum the *game* defines — GNY_ACTION_JUMP and the rest — so there is no name
- * table to look one up in, and inventing one here would mean the engine holding a registry that
- * exists only for scripts. A game that wants names in its scripts exposes its own enum to Lua as a
- * table, which is one line of generated Lua and keeps the two definitions in one place.
  */
 void nya_lua_binding_action(NYA_LuaCall* call) {
     NYA_InputAction action = (NYA_InputAction)(u32)_nya_lua_argument_number(call, 0, -1.0);
@@ -220,11 +197,6 @@ void nya_lua_open_engine(NYA_LuaVM* vm) {
 
     /*
      * Registered as flat globals and then gathered into a table by a line of Lua.
-     *
-     * nya_lua_register sets a global, which is the only shape the binding trampoline supports — and
-     * building the table in Lua rather than teaching the trampoline about tables keeps that one
-     * mechanism instead of two. The temporary globals are cleared afterwards, so a script sees only
-     * `nya`.
      */
     struct {
         NYA_ConstCString lua_name;

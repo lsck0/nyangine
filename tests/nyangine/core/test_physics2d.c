@@ -1,13 +1,5 @@
 /**
  * Rigid bodies, and the contract between them and the entity table.
- *
- * The simulation itself is Box2D's and is not what this tests. What is tested is the seam: that a
- * body attaches to an entity and takes its transform over, that the entity's own integration steps
- * aside while it does, that units cross the world/metre boundary in both directions, and that
- * despawning an entity destroys the body rather than leaking it into the world.
- *
- * Headless throughout: the physics world needs an arena and a clock and nothing else, so none of
- * this touches a GPU.
  **/
 
 #include "nyangine/nyangine.c"
@@ -514,11 +506,6 @@ s32 main(void) {
 
     /*
      * The case the b2Shape_IsValid guard exists for.
-     *
-     * Destroying a body inside a sensor produces an end event whose visitor shape is already gone.
-     * Anything counting what is currently inside a volume needs that event or it leaks one per
-     * despawn; anything dereferencing it without checking crashes. Neither happens here: the pair is
-     * skipped, so the count is what the *entities* say rather than what the shapes did.
      */
     nya_entity_despawn(player);
     step(1);

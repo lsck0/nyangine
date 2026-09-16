@@ -1,8 +1,6 @@
 /**
  * @file physics2d_controller.h
  *
- * A 2D platformer character controller: the game-feel layer over a dynamic body.
- *
  * ```c
  * static NYA_CharacterController2D player = { 0 };
  *
@@ -11,24 +9,6 @@
  *     .move = axis, .jump_held = held, .jump_pressed = pressed,
  * }, delta_time_s);
  * ```
- *
- * **Everything here is forgiveness, and forgiveness is what platformers are made of.** None of it
- * changes what is possible; all of it changes whether a player believes the game is fair.
- *
- * - **Coyote time**: a jump still works for a moment after walking off a ledge. Players press jump
- *   *as* they leave, not before, and without this every ledge feels like it grabbed them.
- * - **Jump buffering**: a jump pressed just before landing fires on touchdown instead of being
- *   swallowed. Same input, opposite edge of the same problem.
- * - **Variable height**: releasing early cuts the rise, so a tap is a hop and a hold is a leap.
- * - **Asymmetric gravity**: heavier on the way down. Real projectile motion feels floaty, and almost
- *   every platformer worth playing lies about it.
- *
- * **The controller owns velocity, not position.** It writes through `nya_physics2d_velocity_set` and
- * lets the solver own the rest — writing position every tick fights the solver, which is the mistake
- * `system_movement.c` documents.
- *
- * Grounding comes from `nya_physics2d_grounded`, which is contact-normal based and cached per tick, so
- * a slope counts as ground and a wall does not.
  * */
 #pragma once
 
@@ -77,9 +57,6 @@ struct NYA_CharacterTuning2D {
 
     /**
      * How long after leaving the ground a jump still works, in seconds. Default 0.1.
-     *
-     * Six frames at sixty. Long enough to catch the press that felt on time, short enough that nobody
-     * notices it is there — which is the point.
      * */
     f32 coyote_time_s;
 
@@ -117,10 +94,6 @@ struct NYA_CharacterController2D {
 
     /*
      * The two forgiveness timers, counting down.
-     *
-     * Timers rather than frame counters so the feel does not change with the tick rate — the whole
-     * point is a window measured in how long it *feels*, and sixty milliseconds is sixty milliseconds
-     * whether that is three ticks or six.
      */
     f32 coyote_left_s;
     f32 buffer_left_s;
@@ -137,9 +110,6 @@ NYA_API NYA_CharacterTuning2D nya_character2d_tuning_defaults(NYA_CharacterTunin
 
 /**
  * Advances the controller one fixed tick and writes the body's velocity.
- *
- * The entity must carry a dynamic 2D body. Does nothing if it does not, rather than asserting — a
- * character whose body has not been attached yet is an ordinary startup ordering, not a bug.
  * */
 NYA_API void nya_character2d_update(NYA_CharacterController2D* controller, NYA_EntityHandle entity, NYA_CharacterInput2D input,
                                     f32 delta_time_s);

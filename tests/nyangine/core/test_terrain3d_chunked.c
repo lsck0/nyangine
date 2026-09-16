@@ -1,12 +1,6 @@
 /**
  * Chunked terrain and GeoMipMapping: the chunk grid, the LOD bands, and what an update rebuilds.
  *
- * Headless, so no mesh is uploaded — which leaves exactly the parts worth pinning. The geometry a
- * chunk emits is a `nya_render3d_mesh_register` call away and that call is stubbed here; what decides
- * whether a landscape looks right is the *policy* around it, and all of that is arithmetic: how the
- * surface is cut up, which level a chunk lands in, and — the one with a real cost — that an update
- * rebuilds only what actually changed.
- *
  * ⚠ The distance measure is deliberately horizontal. A camera high above a landscape is far from
  * every chunk in a straight line, so a 3D distance would drop the whole surface to its coarsest level
  * the moment the viewer climbed, which is the opposite of what looking down at the ground wants.

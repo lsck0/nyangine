@@ -1,16 +1,5 @@
 /**
  * @file render_shadow.c
- *
- * Where a cascaded shadow volume goes: the arithmetic, with no GPU in it.
- *
- * **Compiled into both builds, and that is the point.** Fitting a cascade to a camera and snapping it
- * to the shadow map's texel grid is pure math over a camera, a light direction and two constants — it
- * neither reads nor writes anything on a device. Leaving it inside render3d.c would have made it
- * unreachable from a headless build and therefore untestable, which is exactly the drift render_camera.c
- * exists to have stopped happening. See its file comment.
- *
- * The pass itself — rasterising the map, the atlas viewport, the depth pipeline — stays in render3d.c,
- * because all of that genuinely needs a device.
  * */
 #include "nyangine/nyangine.h"
 
@@ -22,10 +11,6 @@
 
 /**
  * The light's own axes: where it points, and an up that is not parallel to it.
- *
- * Shared by the shadow pass and by nya_render3d_shadow_for_camera, because the two have to agree
- * exactly — the fit snaps a position onto the grid that the pass's view matrix then rasterises, and a
- * basis that differed by a hair would put the snap on a grid the map does not use.
  * */
 void nya_render3d_light_basis(f32x3 direction, OUT f32x3* out_forward, OUT f32x3* out_right, OUT f32x3* out_up) {
     f32x3 forward = nya_vector_normalize(direction);
@@ -39,15 +24,6 @@ void nya_render3d_light_basis(f32x3 direction, OUT f32x3* out_forward, OUT f32x3
     *out_forward = forward;
     *out_right   = right;
     *out_up      = nya_vector_cross(forward, right);
-}
-
-/** The half-width of cascade `index`, from the nearest cascade's. Geometric — see the ratio's note. */
-f32 nya_render3d_cascade_extent(f32 near_extent, u32 index) {
-    if (near_extent <= 0.0F) near_extent = NYA_RENDER3D_SHADOW_EXTENT;
-
-    for (u32 i = 0; i < index; i++) near_extent *= NYA_RENDER3D_SHADOW_CASCADE_RATIO;
-
-    return near_extent;
 }
 
 f32_4x4 nya_render3d_shadow_view_projection(f32x3 center, f32x3 light_direction, f32 extent, f32 depth, OUT f32x3* out_eye) {
@@ -76,11 +52,6 @@ f32_4x4 nya_render3d_shadow_view_projection(f32x3 center, f32x3 light_direction,
 
 /**
  * Where cascade `index`'s slice of the view starts and ends, in world units down the view axis.
- *
- * A practical split: the logarithmic ideal, which puts far more resolution close to the viewer than a
- * uniform one, mixed back toward uniform because pure logarithmic spends a cascade on the first
- * centimetre in front of the near plane. NYA_RENDER3D_SHADOW_CASCADE_RATIO is no longer what sizes a
- * cascade — the frustum is — so the split is the only place the distribution is decided.
  * */
 NYA_INTERNAL void _nya_render3d_cascade_slice(f32 near_plane, f32 range, u32 index, OUT f32* out_near, OUT f32* out_far) {
     const f32 blend = 0.75F;
@@ -135,15 +106,6 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
 
     /*
      * The slice's bounding **sphere**, not its bounding box.
-     *
-     * A sphere is the same size whichever way the camera is pointing, and that is the property the
-     * whole thing rests on: a box fitted to the frustum corners grows and shrinks as the camera turns,
-     * so the shadow map's texels change size every frame and every edge crawls — which no amount of
-     * texel snapping can fix, because snapping assumes a grid of a fixed pitch. With a sphere the
-     * pitch is constant while the camera only rotates, and the snap below does the rest.
-     *
-     * The closed form: `k` is the radius of the frustum's cross-section per unit of depth, and the
-     * sphere either touches both slice caps or, for a short and wide slice, is centred on the far cap.
      */
     f32 tan_half = tanf(fov_y * 0.5F);
     f32 k        = sqrtf(1.0F + (aspect * aspect)) * tan_half;
@@ -171,17 +133,6 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
     if (!fit.no_texel_snap) {
         /*
          * Snapped to whole shadow-map texels, in the light's own frame.
-         *
-         * Unsnapped, the volume slides continuously as the camera moves: every texel covers a slightly
-         * different patch of world each frame, so the boundary between lit and shadowed lands on a
-         * different sample each time and every shadow edge crawls and fizzes. It reads as a filtering
-         * problem and is a placement one.
-         *
-         * The fix is to let the volume move only in whole-texel steps. The centre is projected onto
-         * the light's right and up axes, each coordinate rounded to a multiple of one texel's world
-         * size, and the difference put back — so a static shadow edge stays on the same texels while
-         * the camera moves through it. The light-ward axis is deliberately not snapped: depth is not
-         * quantised by the map's resolution, and rounding it would only add bias.
          */
         f32x3 light_forward, light_right, light_up;
         nya_render3d_light_basis(light_direction, &light_forward, &light_right, &light_up);

@@ -1,19 +1,5 @@
 /**
  * @file base_dll.h
- *
- * To use those macros:
- * - the dll structure needs to have 'head' and 'tail' pointers
- * - the node structure needs to have 'prev' and 'next' pointers
- *
- * API Overview:
- * - nya_dll_node_link(dll_ptr, prev_ptr, node_ptr, next_ptr)
- * - nya_dll_node_unlink(dll_ptr, node_ptr)
- * - nya_dll_node_push_back(dll_ptr, node_ptr)
- * - nya_dll_node_pop_back(dll_ptr)
- * - nya_dll_node_push_front(dll_ptr, node_ptr)
- * - nya_dll_node_pop_front(dll_ptr)
- * - nya_dll_foreach(dll_ptr, node_name)
- * - nya_dll_foreach_reverse(dll_ptr, node_name)
  * */
 #pragma once
 

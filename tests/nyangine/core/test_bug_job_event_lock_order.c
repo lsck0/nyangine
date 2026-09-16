@@ -1,27 +1,5 @@
 /**
  * Regression test for the lock order inversion between the job and event systems (core_job.c).
- *
- * Two orders used to exist:
- *
- *   - _nya_job_scheduler took job_active_mutex then job_queue_mutex, and dispatched
- *     NYA_EVENT_JOB_STARTED and NYA_EVENT_JOB_COMPLETED from inside that critical section.
- *     nya_event_dispatch takes event_queue_mutex, so the scheduler's order was
- *     job_active -> job_queue -> event_queue.
- *   - nya_event_dispatch holds event_queue_mutex across every immediate hook. A hook that calls
- *     nya_job_submit takes job_queue_mutex, so any other thread's order was
- *     event_queue -> job_queue.
- *
- * Together those deadlock: the scheduler waits on event_queue holding job_queue, while the thread
- * dispatching waits on job_queue holding event_queue.
- *
- * The fix collects what a scheduler pass reaped and started, releases both job mutexes, and only
- * then dispatches.
- *
- * **This test is a race, and it is a watchdog rather than an assertion.** It cannot prove the
- * absence of a deadlock; it drives the two threads into their respective windows as hard as it can
- * and fails loudly if they lock up. On the unfixed code it hangs within a second or so, which is
- * why the watchdog exists — a hung test is worse than a failing one, so the watchdog turns it into
- * a clean non-zero exit.
  **/
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
@@ -47,9 +25,6 @@ static int job_noop(NYA_Job* job) {
 
 /**
  * Submits a job from inside an immediate hook, which is the second half of the inversion.
- *
- * Immediate hooks run with event_queue_mutex held, so this is the thread that wants job_queue_mutex
- * while holding event_queue_mutex.
  * */
 void hook_submits_a_job(NYA_Event* event);
 void hook_submits_a_job(NYA_Event* event) {

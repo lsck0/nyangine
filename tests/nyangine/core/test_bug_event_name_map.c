@@ -1,30 +1,5 @@
 /**
  * @file test_bug_event_name_map.c
- *
- * NYA_EVENT_NAME_MAP has to have an entry for every event type.
- *
- * It is declared `NYA_EVENT_NAME_MAP[]` — no explicit size — and filled with designated
- * initialisers. That makes its length "one past the highest index anyone wrote", not
- * NYA_EVENT_COUNT, so an event type nobody added an entry for is either a null pointer inside the
- * array or off the end of it entirely, depending only on where it sits in the enum.
- *
- * Three real event types were missing: NYA_EVENT_JOB_STARTED, NYA_EVENT_JOB_COMPLETED and
- * NYA_EVENT_ASSET_LOAD_FAILED. core_event.c's dispatch does
- *
- *     nya_log_trace("Event dispatched: %s", NYA_EVENT_NAME_MAP[event.type]);
- *
- * on every single dispatch, so dispatching any of those three passed a null pointer to a %s
- * conversion. That is undefined behaviour; glibc happens to print "(null)" instead of faulting,
- * which is exactly why it went unnoticed — and the job events are dispatched by the job system on
- * every job start and finish.
- *
- * The sibling maps in this codebase are all spelled with an explicit size —
- * NYA_INTEGRITY_STATUS_NAME_MAP[NYA_INTEGRITY_STATUS_COUNT],
- * NYA_FILETYPE_NAME_MAP[NYA_FILE_TYPE_COUNT] — which is what makes a missing entry a null to find
- * rather than a short array. This one was the exception.
- *
- * The static assert below is the real fix: it makes a future event type added without a name a
- * compile error rather than something to discover in a trace log.
  * */
 
 #include "nyangine/nyangine.c"

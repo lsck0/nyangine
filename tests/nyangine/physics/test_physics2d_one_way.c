@@ -1,10 +1,6 @@
 /**
  * One-way surfaces: jump up through a ledge, land on it, then drop off it.
  *
- * The feature is a Box2D pre-solve callback returning false, so what is testable is the predicate
- * that decides — and the cases that matter are the ones a platformer hits every second: rising
- * through, landing on, resting, and deliberately letting go.
- *
  * ⚠ Positions are screen-space: y grows **downward**, so "up" is negative y and a falling body's
  * velocity is positive. Every sign below reads backwards if that is forgotten.
  *
@@ -14,8 +10,6 @@
  * what the first version of this file did. And the drop window has to be long enough for a free fall
  * to **clear the whole ledge**, or the window closes with the body still inside it, the contact
  * turns solid again, and it is pushed back out on top.
- *
- * Headless: the physics world needs an arena and a clock and nothing else.
  **/
 
 #include "nyangine/nyangine.c"

@@ -1,21 +1,5 @@
 /**
  * @file base_integrity.h
- *
- * Tamper detection for the executable: two independent checks, catching different things.
- *
- * On disk, at startup: `nya_integrity_assert` hashes the executable file against a value the build
- * stamped into it, catching a patched binary, a corrupted download, or anything injected into the
- * file itself.
- *
- * In memory, while running: `nya_integrity_verify_code` hashes the mapped executable pages against
- * a baseline taken at startup, catching inline hooks, trampolines and patched-out branches — all of
- * which happen after the file check has already run and are how cheats actually work. Cheap enough
- * to run on a timer.
- *
- * Both use SipHash with a key rather than a plain checksum, which anyone could recompute. The key
- * ships inside the binary, so a determined reverse engineer can extract it and re-stamp — this
- * raises the cost of tampering, it does not prevent it against an attacker who owns the machine.
- * Anything that must not be forged needs a server that does not trust the client.
  * */
 #pragma once
 

@@ -1,10 +1,5 @@
 /**
  * THIS FILE WAS CLANKER WANKED !!!
- *
- * Rewritten from NYA_CLEANUP_WITH / NYA_DEFINE_CLEANUP_FN, which base_clean.h no longer defines.
- * Scope exit cleanup is now C2y `defer` (via <stddefer.h>, enabled by -fdefer-ts), so the property
- * under test is unchanged and only the spelling moved: a statement attached to a scope runs when
- * control leaves it, once per scope, innermost first.
  **/
 
 #include "nyangine/nyangine.c"

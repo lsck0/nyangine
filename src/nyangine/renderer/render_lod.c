@@ -29,9 +29,6 @@ NYA_INTERNAL u32           _nya_lod_count                           = 0;
 
 /**
  * The chain for `base`, or null.
- *
- * Compared by string rather than by pointer: an asset handle is usually a generated `#define`, so two
- * call sites naming the same asset may well hold two different pointers to identical text.
  */
 NYA_INTERNAL _NYA_LodChain* _nya_lod_find(NYA_ConstCString base) {
     if (base == nullptr) return nullptr;
@@ -66,10 +63,6 @@ b8 nya_render3d_lod_register(NYA_ConstCString base_handle, const NYA_Render3DLod
 
     /*
      * Refused rather than sorted.
-     *
-     * Levels out of order would select the wrong rung silently, and a caller that wrote them in the
-     * wrong order has almost certainly also got the distances wrong — sorting would hide the mistake
-     * rather than fix it.
      */
     f32 previous = 0.0F;
     for (u32 i = 0; i < level_count; i++) {

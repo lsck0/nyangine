@@ -52,11 +52,6 @@ void nya_bench_report(NYA_ConstCString name, f64* samples, u32 sample_count, u64
 
     /*
      * The best sample is the result, and the median is printed beside it.
-     *
-     * A benchmark competes with every other process on the machine, so a slow sample is contamination
-     * and a fast one is not — the minimum is the closest thing to what the code would do alone. The
-     * median is there so a case where the two disagree, which means the machine was busy, is visible
-     * rather than quietly believed.
      */
     f64 best   = samples[0];
     f64 median = samples[sample_count / 2];

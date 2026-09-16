@@ -1,10 +1,5 @@
 /**
  * base_string edge cases.
- *
- * test_string.c covers the ordinary path of most of these. This file is deliberately adversarial:
- * empty strings, single characters, needles longer than the haystack, matches at the very start and
- * very end, overlapping occurrences, and the growth boundary where a buffer has to reallocate.
- * Those are where string code goes wrong, and none of them were exercised.
  **/
 
 #include "nyangine/nyangine.c"
@@ -438,9 +433,6 @@ s32 main(void) {
      * a null terminated form of it. The length comes from the caller, so a long enough needle used
      * to run off the end of the stack — a fault at whatever address the next frame would have
      * touched, with nothing pointing back at the split that caused it.
-     *
-     * nya_alloca is bounded now, so the same call dies at a named limit with the size in the
-     * message. That is the behaviour being pinned here: predictable and attributable, not survival.
      */
     NYA_String* haystack = nya_string_from(arena, "the quick brown fox");
 

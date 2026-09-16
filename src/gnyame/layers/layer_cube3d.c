@@ -1,22 +1,5 @@
 /**
  * @file layer_cube3d.c
- *
- * The 3D scene: noise-generated terrain, a pile of falling cubes, and one you can click and spin. It
- * is the example that exercises what is new in three dimensions versus a 2D layer:
- *
- * - **NYA_Camera3DPerspective** instead of position and zoom: placed and aimed, so orbiting is
- *   spherical coordinates rather than a pan.
- * - **nya_physics3d_body_attach**: bodies carry a full quaternion, read straight off the entity, with
- *   no angle to pick out of it.
- * - **nya_render3d_cube**, batched with a PBR material — ground and cube are two draw calls because
- *   they are two *materials*, not two objects.
- * - **A ray, not a point**: a 3D click names a line, so picking goes through
- *   nya_render3d_screen_ray into nya_physics3d_raycast.
- * - **render2d over the top**, same frame and render pass, no camera needed for the HUD.
- *
- * The ground is a heightmap rather than a flat plane: a flat floor exercises one contact normal and
- * settles in the first second, saying nothing about the solver, batching or shading under load. See
- * system_terrain3d.c.
  * */
 #include "gnyame/gnyame.h"
 
@@ -633,11 +616,6 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
 
     /*
      * The terrain's detail levels, from where the camera is.
-     *
-     * In on_update rather than on_render because re-levelling a chunk *uploads geometry*, and the
-     * render is called once per pass — the shadow cascades alone would run it four times a frame and
-     * three of those would find nothing to do. The camera position is derived from the orbit the same
-     * way the draw derives it.
      */
     gny_terrain3d_update(_gny_cube3d_camera_position(scene));
 
@@ -789,13 +767,6 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
      * The sky, drawn first from the same GNY_SkyState the light above uses — shaded from a view ray so it
      * turns with the camera (system_sky.c's 2D backdrop stays put and used to leave the sun in the corner
      * on orbit).
-     *
-     * `sun_direction` is the *negation* of the light's direction: GNY_SkyState.direction is the way light
-     * travels, this wants the way to look — passing it unnegated puts the sun opposite where the scene is
-     * lit from, the one mistake this API can make.
-     *
-     * The disc is drawn several times life-size — half a degree reads as a dot, but this is a cartoon sky
-     * and the sun in it is a shape.
      */
     nya_render3d_sky_draw(
         window,
@@ -817,6 +788,18 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
 
             .horizon_softness = GNY_SKY3D_HORIZON_SOFTNESS,
             .ground_blend     = GNY_SKY3D_GROUND_BLEND,
+        }
+    );
+
+    // Fog in the sky's own horizon colour, so the terrain's far rim dissolves into the sky rather than
+    // into a band that plainly is not it. Tinted toward the light, which at dawn is most of the effect.
+    nya_render3d_fog_set(
+        window,
+        (NYA_Render3DFog){
+            .color          = sky.bottom,
+            .density        = GNY_SKY3D_FOG_DENSITY,
+            .height_falloff = GNY_SKY3D_FOG_HEIGHT_FALLOFF,
+            .sun_amount     = GNY_SKY3D_FOG_SUN_AMOUNT,
         }
     );
 
@@ -882,9 +865,6 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
      * why there are three discrete levels rather than a continuous range. Run order doesn't affect
      * blending correctness (the renderer sorts the transparent stream by alpha); grouping only saves draw
      * calls.
-     *
-     * `refraction` is what turns these into glass rather than tinted panes: the surface samples the scene
-     * instead of blending over it. See NYA_Render3DMaterial.refraction for its limits.
      */
     static const f32 glass_blurs[] = GNY_CUBE3D_GLASS_BLURS;
 
@@ -1072,16 +1052,6 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
      * map, once from the camera sampling it) because the batch flushes as it fills and keeps no geometry
      * to replay — why _gny_cube3d_draw_scene must be callable twice with no state of its own. See
      * nya_render3d_shadow_begin.
-     *
-     * The cascade loop is here, not in the engine, because cascades just mean drawing the scene three or
-     * four times instead of two, and only the caller can draw its own scene.
-     *
-     * ⭐ **Fitted to the camera rather than centred on the origin.** This used to pin every cascade at
-     * the world origin, which is correct for a fixed ground plane and wastes most of the near map the
-     * moment the camera orbits away from the middle. nya_render3d_shadow_for_camera pushes each
-     * cascade's volume a half-extent down the view direction and snaps it to the shadow map's texel
-     * grid — the second of which is what stops shadow edges crawling while the camera orbits, which
-     * this scene does continuously.
      */
     NYA_Camera3DPerspective shadow_camera = {
         .position = _gny_cube3d_camera_position(scene),
@@ -1090,9 +1060,6 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     /*
      * The target's aspect, which the fit needs because it measures the camera's frustum.
-     *
-     * The same number nya_render3d_begin derives for the projection, asked for here so the cascades
-     * are fitted to the frustum that will actually be drawn rather than to a guess.
      */
     u32 target_width = 0, target_height = 0;
     nya_render2d_target_size(window, &target_width, &target_height);
@@ -1120,14 +1087,6 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
      * arrangement and shared target _gny_camera_render_primary uses for the 2D world (the two screens are
      * never up at once). Emission is why it's worth it here: the lamps' beads are drawn past the bloom
      * threshold on purpose, and without this pass they're just small bright spheres.
-     *
-     * The `bloom` *available* check is not defensive padding: render2d silently drops a batch whose
-     * pipeline isn't loaded (the ordinary case for the first frame or two), so if that pipeline instead
-     * fails *permanently*, the cost isn't the glow — it's the entire scene, rendered into a texture that
-     * is then never blitted back, showing nothing at all. That is exactly what happened on Windows, where
-     * the bloom pipeline was rejected by D3D12 and the 3D scene simply did not appear with nothing in the
-     * frame saying why. The underlying cause is fixed in gny_bloom_pipeline_ensure; this guard is what
-     * keeps the next backend disagreement from being invisible.
      */
     if (!bloom_world->bloom_enabled) {
         _gny_cube3d_draw_scene(window);

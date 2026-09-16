@@ -29,10 +29,6 @@ struct NYA_NNOptimizer {
 
     /**
      * Steps taken, for Adam's bias correction.
-     *
-     * Adam's moment estimates start at zero, so early on they are biased towards it and the first
-     * steps would be far too small without correcting for how few samples they average. Counting
-     * from one is part of the algorithm, not bookkeeping.
      * */
     u64 step_count;
 };
@@ -47,9 +43,6 @@ NYA_INTERNAL NYA_NNOptimizer* _nya_nn_optimizer_create(NYA_Arena* arena, NYA_NNO
 
 /**
  * The gradient for one element, after weight decay and clipping.
- *
- * Shared, so both optimizers see exactly the same gradient and the difference between them is only
- * what they do with it.
  * */
 NYA_INTERNAL f32 _nya_nn_optimizer_gradient(const NYA_NNOptimizer* optimizer, const NYA_NNTensor* parameter, u32 index) __attr_no_discard;
 
@@ -116,11 +109,6 @@ void nya_nn_optimizer_step(NYA_NNOptimizer* optimizer) {
 
     /*
      * Adam's bias correction, computed once per step rather than per element.
-     *
-     * The textbook form divides each moment by (1 - beta^t) separately. Folding both into the
-     * learning rate is algebraically the same and takes two pow calls per step instead of two per
-     * parameter element, which on a network of any size is the difference between a rounding error
-     * and a measurable cost.
      */
     f32 corrected_rate = learning_rate;
     if (optimizer->kind == NYA_NN_OPTIMIZER_ADAM) {

@@ -1,21 +1,5 @@
 /**
  * Regression test for the hook map rehashing during a dispatch (core_event.c).
- *
- * test_bug_event_hook_realloc.c covers the case where a hook grows the *array* it is being walked
- * from. This is the other allocation in that walk: the array itself lives by value inside
- * `immediate_event_hooks`, and _nya_event_notify_listeners holds a pointer into that map's `values`
- * block across every hook call.
- *
- * nya_hmap_set rehashes when (length + 1) / capacity crosses 0.75, which allocates a new keys,
- * values and occupied triple and frees the old one back to the arena. So a hook that registers
- * another hook for an event type *nothing has hooked yet* — an insert rather than an update — can
- * free the block the walk is reading, and the next `hook_array->length` in the loop condition is a
- * use after free.
- *
- * Reachable rather than theoretical: the map starts at capacity 64 and NYA_EVENT_COUNT is 63, so
- * the threshold of 48 distinct hooked event types is inside what an application registers. The asset
- * system's hot reload path and the job system's completion handlers both register from inside a
- * handler, which is the other half of what this needs.
  * */
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"

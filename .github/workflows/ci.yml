@@ -17,6 +17,38 @@ concurrency:
 permissions: {}
 
 jobs:
+  # The fast half, so a formatting or lint failure lands before the 60 minute vendor builds do.
+  check-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          submodules: recursive
+          lfs: true
+          # The token is only needed to clone. Left in .git/config it travels into anything that
+          # archives the workspace, and nothing here pushes.
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-linux
+        with:
+          llvm-version: 22
+
+      # No clang-format gate yet: the tree does not satisfy its own .clang-format today, so turning this
+      # on means one reformatting commit across every source file first. Worth doing, not worth hiding
+      # inside an unrelated change.
+      - name: Static analysis
+        run: ./build check --strict
+
+      # Committed submodule SHAs only. A submodule whose recorded commit is not reachable from its
+      # remote is either force-pushed history or a local commit nobody else can check out.
+      - name: Submodule pins are reachable
+        run: |
+          git submodule foreach --quiet --recursive \
+            'git cat-file -e "$sha1" || { echo "::error::$name pin $sha1 is unreachable"; exit 1; }'
+
   test-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 60

@@ -59,14 +59,6 @@ NYA_CallbackHandle _nya_callback(NYA_Callback callback) {
 
     /*
      * The name is copied into the registry's own arena rather than kept as the caller's pointer.
-     *
-     * nya_callback stringifies its argument, so for anything the game registers the name is a literal
-     * living in the hot reloaded DLL's .rodata. Reloading dlcloses it, unmapping that page, and the
-     * dangling pointer held here is exactly what update_callback_pointers hands to dlsym to find the
-     * symbol again — so the first reload faulted with SIGSEGV inside dlsym. The engine's own callbacks
-     * survived because they are compiled into the executable.
-     *
-     * The registry outlives every DLL it points into, so the string has to as well.
      * */
     if (callback.name != nullptr) {
         NYA_String* owned = nya_string_from(app->callback_system.allocator, callback.name);

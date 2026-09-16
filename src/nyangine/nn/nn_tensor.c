@@ -11,10 +11,6 @@
 struct NYA_NNGraph {
     /**
      * Where activations live. Reset wholesale, never freed piecewise.
-     *
-     * Its own arena rather than the caller's, because the whole point is that one call throws away
-     * everything a forward pass produced. Sharing the caller's arena would mean a reset also threw
-     * away the parameters.
      * */
     NYA_Arena* allocator;
 
@@ -37,10 +33,6 @@ NYA_INTERNAL NYA_NNTensor* _nya_nn_tensor_alloc(NYA_Arena* arena, NYA_NNShape sh
 
 /**
  * Allocates an op's result against the graph and records it.
- *
- * Requires a gradient exactly when an input does, which is what stops a network run under
- * nya_nn_graph_grad_begin — or one whose inputs are all constants — from allocating gradient buffers
- * nothing will ever read.
  * */
 NYA_INTERNAL NYA_NNTensor* _nya_nn_op(NYA_NNGraph* graph, NYA_NNShape shape, NYA_NNOp op, NYA_NNTensor* a, NYA_NNTensor* b) __attr_no_discard;
 
@@ -268,10 +260,6 @@ NYA_NNTensor* nya_nn_matmul(NYA_NNGraph* graph, NYA_NNTensor* a, NYA_NNTensor* b
 
     /*
      * i, then k, then j — not the textbook i, j, k.
-     *
-     * The inner loop walks `b` and `out` along consecutive addresses, so each pass streams two rows
-     * rather than striding down a column. Same arithmetic, same result, and several times faster on
-     * anything with a cache once the layers are wider than a few dozen units.
      */
     for (u32 i = 0; i < m; i++) {
         f32*       out_row = &out->data[i * n];
@@ -449,19 +437,6 @@ void nya_nn_backward(NYA_NNGraph* graph, NYA_NNTensor* loss) {
 
     /*
      * Every activation gradient on the tape is cleared before the sweep.
-     *
-     * Backward may be called more than once against one tape — two loss terms, or an auxiliary loss
-     * — and each call must compute the derivative of *its own* loss. Without this, the first call
-     * leaves every node it touched holding a gradient, and the second call's reverse sweep walks
-     * those same nodes and propagates the stale values a second time.
-     *
-     * Measured, not theorised: with w used by two independent losses on one tape, dw came out as 11
-     * where the correct total is 7. The first loss's contribution of 2 was counted, then re-counted
-     * with its own leftover gradient compounding it.
-     *
-     * Only tape tensors are cleared. Parameters are not on the tape, so their gradients survive and
-     * still accumulate across calls — which is exactly the distinction that makes two backward calls
-     * sum to dtotal/dparam.
      */
     for (u32 i = 0; i < graph->tape_count; i++) nya_nn_tensor_zero_grad(graph->tape[i]);
 
@@ -470,11 +445,6 @@ void nya_nn_backward(NYA_NNGraph* graph, NYA_NNTensor* loss) {
 
     /*
      * Reverse tape order, which is a valid topological order by construction.
-     *
-     * A tensor is appended only after its inputs exist, so every consumer sits later in the tape than
-     * everything it consumes. Walking backwards therefore visits a node only once every gradient
-     * flowing into it has already been accumulated — no ordering pass, no visited set, no recursion
-     * to blow a stack on a deep network.
      */
     for (u32 i = graph->tape_count; i > 0; i--) {
         NYA_NNTensor* tensor = graph->tape[i - 1];
@@ -525,10 +495,6 @@ NYA_NNTensor* _nya_nn_op(NYA_NNGraph* graph, NYA_NNShape shape, NYA_NNOp op, NYA
 
     /*
      * A result needs a gradient exactly when one of its inputs does, and not when grad is off.
-     *
-     * Without the input check, every activation in a network whose inputs are all constants would
-     * carry a gradient buffer that backward writes and nothing reads. With it, a forward pass under
-     * grad_begin allocates half as much and records nothing.
      */
     b8 requires_grad = graph->no_grad_depth == 0 && ((a != nullptr && a->requires_grad) || (b != nullptr && b->requires_grad));
 

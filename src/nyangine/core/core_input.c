@@ -15,10 +15,6 @@ void _nya_system_event_on_update_ended_hook(NYA_Event* event);
 
 /**
  * Whether the modifiers a binding asks for are exactly the ones in `current`.
- *
- * Takes the held set rather than reading it: a slow frame can deliver a key event after the player
- * already released a modifier, and a per-player query must compare against that player's own
- * modifiers, not the merged one.
  * */
 NYA_INTERNAL b8 _nya_input_modifiers_match_against(NYA_KeyModFlag required, NYA_KeyModFlag current) __attr_no_discard;
 
@@ -27,9 +23,6 @@ NYA_INTERNAL NYA_InputBinding* _nya_input_bindings_for(NYA_InputAction action) _
 
 /**
  * The state a query should read, or null when the slot is unclaimed.
- *
- * NYA_INPUT_PLAYER_ANY is the merged view; an unclaimed slot reads as nothing held, so a loop over
- * NYA_INPUT_MAX_PLAYERS runs without a guard.
  * */
 NYA_INTERNAL NYA_InputState* _nya_input_state_for(u32 player) __attr_no_discard;
 
@@ -38,9 +31,6 @@ NYA_INTERNAL NYA_InputSourceBinding* _nya_input_source_find(NYA_InputSource sour
 
 /**
  * The roster entry for `source`, adding it as unclaimed if this is the first time it is seen.
- *
- * Null once the roster is full — not a failure: past NYA_INPUT_MAX_SOURCES a device still feeds the
- * merged view, it just can't be assigned to a player.
  * */
 NYA_INTERNAL NYA_InputSourceBinding* _nya_input_source_intern(NYA_InputSource source) __attr_no_discard;
 
@@ -312,10 +302,6 @@ typedef enum {
 
 /**
  * Whether any connected pad satisfies `binding` at `edge`.
- *
- * Any pad, not a specific one: a binding says *what* triggers an action, and *who* is asking is the
- * player routing. Binding to one controller instance would make a rebinding screen wrong the moment a
- * player swapped pads or one reconnected with a new instance id.
  */
 NYA_INTERNAL b8 _nya_input_binding_gamepad_edge(NYA_InputBinding binding, _NYA_InputEdge edge) {
     for (u32 i = 0; i < nya_gamepad_count(); i++) {
@@ -765,10 +751,6 @@ NYA_InputSourceBinding* _nya_input_source_intern(NYA_InputSource source) {
 
     /*
      * Full is not an error, and nothing is evicted.
-     *
-     * Evicting would unassign whichever player happened to be least recently seen — mid-game, on
-     * nothing more than someone plugging in a sixteenth device. A device past the cap simply cannot
-     * be assigned to a slot; it still feeds the merged view, so it still moves the menu.
      */
     if (system->source_count >= NYA_INPUT_MAX_SOURCES) return nullptr;
 
@@ -818,11 +800,6 @@ void _nya_input_state_deinit(NYA_InputState* state) {
 
     /*
      * Zeroed, which is also what marks the slot unclaimed again.
-     *
-     * The tables are destroyed and the pointers must not survive them: nya_input_players_reset frees
-     * a slot while the arena it came from lives on, so a stale pointer here would outlast what it
-     * points at — and _nya_input_state_for reads exactly that pointer to decide whether the slot is
-     * claimed.
      */
     *state = (NYA_InputState){ 0 };
 }
@@ -872,15 +849,6 @@ void _nya_input_state_handle_event(NYA_InputState* state, const NYA_Event* event
 
         /*
          * Bounded, because this index comes from the device.
-         *
-         * SDL reports the platform's button number in a Uint8, and the five named here are only the
-         * ones every mouse has — anything with side buttons, a tilt wheel or a thumb cluster reports
-         * six and upward. The three tables are NYA_MOUSE_BUTTON_COUNT wide and sit next to each
-         * other inside NYA_InputState, so an unbounded write walked straight from one into the next
-         * on nothing more exotic than a gaming mouse.
-         *
-         * Ignored rather than clamped: folding button nine onto button five would report a press the
-         * user did not make, which is worse than not seeing it at all.
          */
         if (button >= NYA_MOUSE_BUTTON_COUNT) return;
 
@@ -943,10 +911,6 @@ void _nya_input_text_handle_event(NYA_InputSystem* system, const NYA_Event* even
 
         /*
          * Appended, not replaced.
-         *
-         * More than one of these can arrive between two frames — a paste, a fast typist, a key
-         * repeat — and taking only the last would silently drop characters in exactly the case a
-         * text field is being stress tested.
          */
         u64 length = strlen(text);
 

@@ -173,11 +173,6 @@ void nya_log_file_close(void) {
 
 /*
  * Civil date from a day count, after Howard Hinnant's chrono algorithms.
- *
- * Not localtime/gmtime: those read a global timezone, are not reentrant in the form that returns a
- * pointer, and this has to be usable from the crash path. This is a dozen integer operations with no
- * state behind them. Shifts the era so that the leap day lands at the end of a 400 year cycle, which
- * is what makes the month arithmetic below branchless.
  */
 NYA_INTERNAL void _nya_log_civil_from_days(s64 days, OUT s32* out_year, OUT u32* out_month, OUT u32* out_day) {
     days += 719'468;
@@ -213,9 +208,6 @@ NYA_INTERNAL void _nya_log_path_for_day(OUT char* buffer, u32 size, s64 day) {
 
 /**
  * Parses `YYYY-MM-DD.log` back to a day count, or returns false for anything else.
- *
- * Deliberately strict. This decides what the retention sweep is allowed to delete, so a name it does
- * not fully understand has to be a name it leaves alone.
  */
 NYA_INTERNAL b8 _nya_log_day_from_name(NYA_ConstCString name, OUT s64* out_day) {
     s32 year  = 0;

@@ -283,11 +283,6 @@ NYA_Error nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkC
 
 /**
  * Deletes one entry, remembering the first failure.
- *
- * The walk keeps going after a failure so that as much as can be removed is removed, but the error
- * has to survive: without it the only symptom is the parent rmdir failing with "directory not
- * empty", which points at the wrong path and hides the real reason (a permission denied on one
- * file, say).
  * */
 NYA_INTERNAL b8 _nya_filesystem_delete_walk(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     nya_unused(entry);

@@ -1,9 +1,5 @@
 /**
  * Path manipulation. Purely textual: nothing here touches the filesystem.
- *
- * Every expectation below is taken from the contract documented in base_path.h rather than from
- * whatever the implementation happens to do, so a behaviour change has to be a deliberate edit here
- * too.
  **/
 
 #include "nyangine/nyangine.c"

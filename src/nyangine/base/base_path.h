@@ -1,13 +1,5 @@
 /**
  * @file base_path.h
- *
- * Path manipulation: joining, splitting, normalising. Pure string work with no syscalls, which is
- * why it lives in base rather than next to the filesystem calls — none of it can fail for
- * environmental reasons and all of it is testable without a fixture.
- *
- * Separators: '/' is accepted everywhere and is what these functions emit. Windows accepts '\\' on
- * input and nya_path_normalize converts it, so paths that come back from the OS behave the same as
- * paths written in source.
  * */
 #pragma once
 
@@ -39,9 +31,6 @@
 
 /**
  * Joins two path segments with exactly one separator, however many the inputs had.
- *
- * An absolute `tail` replaces `head` entirely, matching what every other path library does and
- * avoiding the "/home/user" + "/etc" = "/home/user/etc" surprise.
  * */
 NYA_API NYA_String* nya_path_join(NYA_Arena* arena, NYA_ConstCString head, NYA_ConstCString tail) __attr_no_discard;
 
@@ -63,9 +52,6 @@ NYA_API NYA_String* nya_path_stem(NYA_Arena* arena, NYA_ConstCString path) __att
 
 /**
  * Collapses separators, resolves "." and "..", and converts '\\' to '/'.
- *
- * Purely textual: it never asks the filesystem anything, so a ".." is removed even if the segment
- * before it is a symlink pointing elsewhere. Use nya_filesystem_absolute when that matters.
  * */
 NYA_API NYA_String* nya_path_normalize(NYA_Arena* arena, NYA_ConstCString path) __attr_no_discard;
 

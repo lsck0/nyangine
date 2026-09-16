@@ -1,9 +1,5 @@
 /**
  * The nya_cast_to_* range checks.
- *
- * test_types.c checks that in-range values survive a cast. This checks the part that matters: that
- * out-of-range values are caught, that the widest types are not a hole in the check, and that a
- * macro taking an expression evaluates it once.
  **/
 
 #include "nyangine/nyangine.c"

@@ -1,22 +1,5 @@
 /**
  * @file layer_background.c
- *
- * Everything behind the world: sky, parallax ridges, drifting motes.
- *
- * The slot a skybox, a static backdrop or a scrolling set of planes goes in. It is pushed first, so
- * it draws first, and everything drawn later lands on top of it — which is the whole contract, since
- * there is no depth test and layer order is draw order.
- *
- * ## Why this draws in screen space
- *
- * Parallax *is* drawing the same scene at a fraction of the camera's motion, so a background plane
- * cannot use the world camera: under it every plane would move at exactly the camera's speed, which
- * is the one thing a parallax background must not do. Each plane instead subtracts the camera's
- * position scaled by its own depth factor, and draws in the window's pixels. A factor of 0 is
- * painted onto the window and never moves; 1 would be pinned to the world and move with it.
- *
- * That also means this layer costs nothing when the window is not moving and needs no camera state
- * of its own — it reads the camera the game layer owns and never writes it.
  * */
 #include "gnyame/gnyame.h"
 #include "generated/assets.h"
@@ -29,10 +12,6 @@
 
 /**
  * Starts the background track on the first tick that finds it loaded.
- *
- * Here rather than with the game, which is where it used to be, because this is the only layer that
- * is never popped. The game layer does not exist until "start" is chosen, so a track owned by it
- * left the main menu silent and restarted itself every time the world was rebuilt.
  * */
 NYA_INTERNAL void _gny_music_start_when_ready(void);
 
@@ -126,11 +105,6 @@ void gny_layer_background_on_render(NYA_Window* window) {
 
     /*
      * Back to front. Each plane covers the one behind it, which is the only ordering there is.
-     *
-     * The two horizons sit above where the terrain surface draws, not level with it — a ridge behind
-     * the ground is a ridge nobody ever sees. The terrain varies around world y 260 and the camera
-     * looks at y 60, so it lands a little past halfway down the window; 0.42 and 0.55 put both
-     * ridges clear of it while still reading as being behind it.
      */
     _gny_background_sky_draw(window);
     _gny_background_motes_draw(window, camera);
@@ -199,10 +173,6 @@ void _gny_trace_log_once(void) {
 
     /*
      * Work against period, spelled out, because the two are constantly mistaken for each other.
-     *
-     * At the default 120 frame rate limit the period is pinned near 8.3 ms no matter how little the
-     * frame did — the loop sleeps the remainder. Reading that as the cost of a frame is the single
-     * most common way to conclude an idle demo is slow.
      */
     nya_log_info("Perf: work %.3f ms, slept %.3f ms, period %.3f ms (%.0f fps, limit %u)", nya_time_ns_to_s(stats.work_ns) * 1000.0,
              nya_time_ns_to_s(stats.sleep_ns) * 1000.0, nya_time_ns_to_s(stats.elapsed_ns) * 1000.0, (f64)stats.fps,
@@ -214,10 +184,6 @@ void _gny_trace_log_once(void) {
 void _gny_background_sky_draw(NYA_Window* window) {
     /*
      * Handed to the sky system, which owns the time of day.
-     *
-     * This used to draw a static gradient from two constants. The gradient still exists and still works the
-     * same way; what moved is *which* two colours it runs between, because those now come from the same
-     * phase that aims the 3D scene's sun. See system_sky.c.
      */
     gny_sky_draw(window);
 }
@@ -267,15 +233,6 @@ void _gny_background_motes_draw(NYA_Window* window, f32x2 camera) {
         /*
          * The engine's integer hash, so each mote gets a stable position without an array to store
          * one in and without an RNG that would have to be seeded somewhere that survives a reload.
-         *
-         * This was a hand-rolled multiplicative hash until it aborted the debug build on the very
-         * first frame: `i * 2654435761U` wraps, and while unsigned wraparound is perfectly defined C,
-         * the sanitized build turns it on with -fsanitize=unsigned-integer-overflow precisely because
-         * it is far more often an accident than an intention. nya_ihash2 is the same idea already
-         * written, already tested, and already carrying the __attr_no_sanitize that says the wrapping
-         * inside it is deliberate.
-         *
-         * It returns roughly -1 to 1, like the noise functions beside it, so this maps to 0..1.
          */
         f32 unit_x = (nya_ihash2((s32)i, 0, GNY_MOTE_SEED) * 0.5F) + 0.5F;
         f32 unit_y = (nya_ihash2((s32)i, 1, GNY_MOTE_SEED) * 0.5F) + 0.5F;

@@ -8,24 +8,6 @@
 
 /**
  * Solves the decay curve for one channel, given where the offset starts and how fast it is moving.
- *
- * The polynomial is the one from Bollo's GDC 2016 talk: fifth order, pinned so that x, x' and x'' are
- * all zero at t₁, which is what makes the transition *end* rather than fade out forever. Its three
- * free coefficients follow from those three conditions; the remaining three are the initial value,
- * velocity and acceleration.
- *
- * Two choices in here are the ones that keep it from misbehaving, and both are Bollo's:
- *
- * - **a₀ is not free.** Setting it to `(-8v₀t₁ - 20x₀) / t₁²` is what stops the curve crossing zero
- *   before t₁ and coming back — an offset that overshoots is a limb that swings past where it was
- *   going and returns, which reads worse than the pop the transition existed to remove.
- * - **t₁ is shortened when the offset is already closing.** If v₀ is negative the gap is shrinking on
- *   its own and will reach zero before the requested duration; `-5x₀/v₀` is where, and running the
- *   curve past that point would mean pulling the offset back open to spend the rest of the budget.
- *
- * Measured over v₀t₁/x₀ from -5 to 16, the curve never goes below zero and peaks at 2.1× x₀ at the top
- * of that range. It only rises at all when the two poses are actively separating, which is exactly
- * when matching velocity requires it.
  * */
 NYA_INTERNAL void _nya_inertial_solve(NYA_InertialChannel* channel, f32x3 direction, f32 x0, f32 v0, f32 duration_s) {
     *channel = (NYA_InertialChannel){ .direction = direction };
@@ -70,11 +52,6 @@ NYA_INTERNAL f32 _nya_inertial_evaluate(const NYA_InertialChannel* channel, f32 
 
 /*
  * There is deliberately no "velocity of the decay curve" helper here.
- *
- * A transition that fires while one is still running would seem to need it, to carry the offset's
- * current rate of change into the new curve. It does not: the history the capture reads is the pose
- * *after* the offset was added, so the offset's velocity is already inside the difference between the
- * last two frames. Differentiating the polynomial as well would count it twice.
  */
 
 /** A rotation as the axis-angle vector `axis * angle`, which is what can be differenced and scaled. */
@@ -102,10 +79,6 @@ NYA_INTERNAL f32 _nya_inertial_capture_vector(NYA_InertialChannel* channel, f32x
 
     /*
      * The offset's velocity, projected onto the direction it will decay along.
-     *
-     * Both halves matter. The source's velocity alone would leave the destination's own motion
-     * unaccounted for, so a character switching between two clips that move a limb the same way would
-     * arrive carrying the sum of both. The difference is what the seam actually has to be continuous in.
      */
     f32 v0 = 0.0F;
     if (delta_s > NYA_EPSILON) {
@@ -171,10 +144,6 @@ void nya_skeleton_inertializer_transition(NYA_SkeletonInertializer* inertializer
 
     /*
      * Nothing has been shown yet, so there is nothing to transition *from*.
-     *
-     * Silently doing nothing rather than capturing an offset against a zeroed pose: the first frame of
-     * a character's life is a cut, and inventing a difference against an empty history would throw the
-     * whole rig at the origin and then decay it back over the transition.
      */
     if (inertializer->history_frames == 0) return;
 

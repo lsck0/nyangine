@@ -4,15 +4,6 @@
 
 /*
  * Switches the profiler on for this translation unit, before the engine is included.
- *
- * base_perf.h compiles the timers into development builds only, and a test build is mode 4. This
- * file used to be one `#if NYA_DEBUG` wrapping its entire body, so in the only mode it ever runs in
- * it asserted nothing whatsoever and still reported a pass — the coverage gap base_perf.h's own
- * docblock complains about, which is why NYA_PERF_FORCE_DEBUG was added in the first place. Nothing
- * had picked it up.
- *
- * Defined here rather than added to FLAGS_TEST, so the rest of the suite keeps measuring a build
- * shaped like the one it is testing.
  */
 #define NYA_PERF_FORCE_DEBUG
 

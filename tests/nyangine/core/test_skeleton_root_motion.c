@@ -1,9 +1,5 @@
 /**
  * Root motion: extracting a clip's travel, pinning the bone that carried it, and surviving the loop.
- *
- * The rig is synthetic and the clips are linear ramps, so every expectation here is arithmetic. A
- * clip that moves its root four metres along +x over one second means a quarter second of it is
- * exactly one metre, and anything else is a bug rather than an art asset.
  **/
 
 #include "nyangine/nyangine.c"

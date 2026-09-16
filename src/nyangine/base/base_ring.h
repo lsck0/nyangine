@@ -1,34 +1,6 @@
 /**
  * @file base_ring.h
  *
- * Ring buffer.
- *
- * API Overview:
- * - nya_ring_create(arena_ptr, item_type)
- * - nya_ring_create_with_capacity(arena_ptr, item_type, capacity)
- * - nya_ring_create_on_stack(arena_ptr, item_type)
- * - nya_ring_create_with_capacity_on_stack(arena_ptr, item_type, capacity)
- * - nya_ring_resize(ring_ptr, new_capacity)
- * - nya_ring_clear(ring_ptr)
- * - nya_ring_destroy(ring_ptr)
- * - nya_ring_destroy_on_stack(ring_ptr)
- * - nya_ring_push(ring_ptr, item)
- * - nya_ring_pop(ring_ptr)
- * - nya_ring_push_many(ring_ptr, ...)
- * - nya_ring_pop_many(ring_ptr, count)
- * - nya_ring_front(ring_ptr)
- * - nya_ring_back(ring_ptr)
- * - nya_ring_at(ring_ptr, index)
- * - nya_ring_is_empty(ring_ptr)
- * - nya_ring_length(ring_ptr)
- * - nya_ring_capacity(ring_ptr)
- * - nya_ring_available_space(ring_ptr)
- * - nya_ring_peek(ring_ptr, offset)
- * - nya_ring_copy(ring_ptr)
- * - nya_ring_move(ring_ptr, new_arena_ptr)
- * - nya_ring_foreach(ring_ptr, item_name)
- * - nya_ring_foreach_reverse(ring_ptr, item_name)
- *
  * Example:
  * ```c
  * typedef struct {
@@ -236,10 +208,6 @@
 
 /*
  * The count is read once, before anything is popped.
- *
- * Popping is exactly what shrinks `length`, and the bound was re-read every iteration — so
- * `nya_ring_pop_many(ring, nya_ring_length(ring))`, which is the obvious way to drain one, stopped
- * at the half way point where the shrinking length met the climbing index.
  * */
 #define nya_ring_pop_many(ring_ptr, count)                                                                                                           \
     ({                                                                                                                                               \
@@ -260,10 +228,6 @@
 
 /**
  * Slots that can be pushed before the ring starts overwriting its oldest entry.
- *
- * Listed in the API overview at the top of this file since it was written, and never defined, so
- * anything following that list got an implicit function declaration rather than a macro. Zero means
- * the next push evicts, not that the push fails — a ring is fixed capacity and overwrites.
  * */
 #define nya_ring_available_space(ring_ptr) ((ring_ptr)->capacity - (ring_ptr)->length)
 

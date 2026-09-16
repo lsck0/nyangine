@@ -1,16 +1,5 @@
 /**
  * @file constants.h
- *
- * Every tunable number and colour in gnyame, in one place, grouped by what it affects rather than by
- * which file used to hold it. Belongs here: anything a person would change to make the game feel or
- * look different. Not here: anything the code derives or depends on structurally — layer ids, for
- * instance, are string-literal pointers, not constants, and stay with the layers they name.
- *
- * A deliberate deviation from nyangine's own arrangement, where each tunable sits `#ifndef`-guarded
- * beside the mechanism it governs for a `-D` override — right for a library, where a constant is part
- * of the module's contract. A game is tuned as a whole, numbers adjusted against each other in one
- * sitting, so they live here instead; the section comments below are what keep a name three hundred
- * lines from its use legible.
  * */
 #pragma once
 
@@ -391,8 +380,6 @@
 #define GNY_CUBE3D_DROP_HEIGHT 4.0F
 
 #define GNY_CUBE3D_GROUND_SIZE      16.0F
-#define GNY_CUBE3D_GROUND_THICKNESS 0.5F
-
 /** Where the orbit starts: yaw and pitch in radians, range in metres. The range was seven, putting the
  *  camera *inside* a sixteen metre landscape; twenty is roughly the far corner, so the whole basin is
  *  in shot at the start. */
@@ -421,9 +408,6 @@
  */
 #define GNY_CUBE3D_COLOR        ((NYA_Color){ 0.95F, 0.52F, 0.24F, 1.0F })
 #define GNY_CUBE3D_HELD_COLOR   ((NYA_Color){ 0.99F, 0.82F, 0.34F, 1.0F })
-#define GNY_CUBE3D_GROUND_COLOR ((NYA_Color){ 0.74F, 0.78F, 0.71F, 1.0F })
-#define GNY_CUBE3D_GRID_COLOR   ((NYA_Color){ 0.60F, 0.64F, 0.58F, 1.0F })
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TERRAIN 3D
@@ -455,14 +439,8 @@
  * camera was already two or three levels down and the whole surface drew at its coarsest. The scale
  * that decides when a cell stops being worth resolving is the size of a chunk against the viewing
  * distance; the extent of the world has nothing to do with it.
- *
- * Four chunk widths keeps the whole basin at full detail at the default orbit and only coarsens once
- * the camera is pulled well out, which is where there is something to save.
  * */
 #define GNY_TERRAIN3D_LOD_DISTANCE (GNY_TERRAIN3D_CELL * (f32)NYA_TERRAIN3D_CHUNK_CELLS * 4.0F)
-
-/** Samples along one edge of the vertex grid. */
-#define GNY_TERRAIN3D_VERTS (GNY_TERRAIN3D_RES + 1)
 
 /**
  * Metres from lowest point to highest, roughly — fBm isn't bounded to its nominal range, so a seed's
@@ -634,6 +612,19 @@
 /** How wide the fade into the ground half is, in sine-of-elevation units — wide enough to read as haze,
  *  not a drawn line; a narrow band gives a hard horizon, wrong for a world that simply stops. */
 #define GNY_SKY3D_GROUND_BLEND 0.14F
+
+/**
+ * Fog density, per metre. The terrain is GNY_TERRAIN3D_EXTENT across, so this fogs the far rim to about a
+ * third and leaves anything at the viewer's feet untouched — enough to read as depth on a scene this
+ * small, where a density tuned for a real landscape would be invisible across sixteen metres.
+ * */
+#define GNY_SKY3D_FOG_DENSITY 0.022F
+
+/** Thins with altitude, so fog pools in the basin the rim encloses and clears off the hilltops. */
+#define GNY_SKY3D_FOG_HEIGHT_FALLOFF 0.10F
+
+/** Tint toward the light. High enough to see at dawn, low enough that midday does not look filtered. */
+#define GNY_SKY3D_FOG_SUN_AMOUNT 0.45F
 
 /** Ink width around the loaded models, in world units. See nya_render3d_outline_set. Small: the hull
  *  expands by this in *world* space, so a line thicker than a model's features closes up its concavities. */
@@ -898,10 +889,6 @@
 
 /**
  * How long a drop-through window stays open, seconds.
- *
- * Long enough for a free fall to clear the ledge's thickness several times over — a window that
- * closes with the crate still inside the platform turns the contact solid again and pops it back out
- * on top, which reads as the key not working.
  * */
 #define GNY_LEDGE_DROP_SECONDS 0.45F
 
@@ -946,9 +933,6 @@
  *  lowest vertex is a unit below that — half of it would be under the floor otherwise. */
 #define GNY_CUBE3D_MODEL_LIFT 1.0F
 
-/** Radians per second about the world's up axis, so every side of it is visible without being dragged. */
-#define GNY_CUBE3D_MODEL_SPIN 0.6F
-
 #define GNY_CUBE3D_MODEL_COLOR ((NYA_Color){ 0.42F, 0.63F, 0.88F, 1.0F })
 
 /*
@@ -970,9 +954,6 @@
  * Lifting it by one, as the other model is, put its lower third through the floor.
  */
 #define GNY_CUBE3D_PILL_LIFT 1.75F
-
-/** Turned the other way, so the two are visibly independent rather than looking like one object. */
-#define GNY_CUBE3D_PILL_SPIN (-0.45F)
 
 #define GNY_CUBE3D_PILL_COLOR ((NYA_Color){ 0.96F, 0.56F, 0.52F, 1.0F })
 
@@ -1018,16 +999,6 @@
 #define GNY_CUBE3D_SHADOW_STRENGTH 0.45F
 /**
  * How far down the view shadows are cast, in world units.
- *
- * A *distance*, not a cascade size — see NYA_Render3DShadowFit.range. This used to be the near
- * cascade's half-width at 0.16 of the terrain's extent, which is where the broken shadows came from:
- * the near cascades were small boxes a fixed distance in front of the camera, and this camera orbits
- * well outside them, so the whole scene was shadowed by the coarsest cascade and the picture changed
- * every time the camera moved. The cascades now split the frustum, so what this sets is simply how far
- * away shadows stop.
- *
- * Twice the terrain's extent: far enough that the whole plate is covered from any orbit distance, and
- * no further, since every metre past what is visible is resolution spent on nothing.
  * */
 #define GNY_CUBE3D_SHADOW_RANGE   (GNY_TERRAIN3D_EXTENT * 2.0F)
 

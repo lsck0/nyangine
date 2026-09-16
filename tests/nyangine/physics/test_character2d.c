@@ -1,10 +1,5 @@
 /**
  * The 2D character controller: the forgiveness windows, and the jump behaviours built on them.
- *
- * Coyote time and jump buffering are the two things here that are pure feel, and both are invisible
- * when they work — which is exactly why they need a test. The one worth pinning hardest is that a
- * single press cannot produce two jumps: both windows must be consumed on success, and leaving either
- * armed gives a free second jump the instant the character lands.
  **/
 
 #include "nyangine/nyangine.c"

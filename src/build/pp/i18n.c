@@ -16,9 +16,6 @@ typedef struct {
 
     /**
      * The specifiers in the order they appear, one character each: 's', 'd', 'u', 'f'.
-     *
-     * Sorted before comparison, so a translation that reorders its arguments positionally still
-     * matches. See the note on reordering in i18n.h.
      * */
     char specifiers[NYA_I18N_MAX_ARGUMENTS + 1];
 } NYA_I18nKey;
@@ -89,11 +86,6 @@ void nya_i18n_generate(void) {
 
     /*
      * Sorted, because the enum's values are its output.
-     *
-     * The keys come out of a hash map, so their order depends on the hash and would differ between
-     * runs — which would renumber NYA_StringId on every build. Anything that stored an id, or any
-     * object file not rebuilt in the same pass, would then be reading a different string. Sorting
-     * makes the generated header a function of the JSON and nothing else.
      */
     for (u32 i = 1; i < key_count; i++) {
         NYA_I18nKey current = keys[i];
@@ -140,11 +132,6 @@ void nya_i18n_generate(void) {
 
             /*
              * Sorted before comparison, so a translation may reorder its arguments positionally.
-             *
-             * That is the one case where a different order is correct rather than a bug, and it is
-             * common enough — German and Japanese both need it constantly — that refusing it would
-             * make the whole system unusable. What must not differ is the *set*: `"%s scored %d"`
-             * translated with two `%s` reads an integer as a pointer, in exactly one language.
              */
             char expected[NYA_I18N_MAX_ARGUMENTS + 1];
             char actual[NYA_I18N_MAX_ARGUMENTS + 1];
@@ -221,15 +208,6 @@ void nya_i18n_generate(void) {
         nya_string_extend_sprintf(out, "/** `%s` */\n", keys[i].key);
         /*
          * __attr_allow_unused, on every accessor.
-         *
-         * There is one of these per key and this header is included wholesale, so any translation
-         * unit that uses a single string still defines the other few hundred. `static inline` is
-         * exempt from -Wunused-function in a normal build, but clangd and clang-tidy both analyse a
-         * header as its own translation unit and report every accessor the file itself does not
-         * call — "Unused function 'nya_string_hud_score'", several hundred times, in the editor.
-         *
-         * Marking them silences that at the definition rather than asking every consumer to disable
-         * a warning, which is what a generated header should do.
          */
         nya_string_extend_sprintf(out, "static inline __attr_allow_unused NYA_ConstCString nya_string_%s(", keys[i].key);
 
@@ -285,11 +263,6 @@ b8 _nya_i18n_parse_specifiers(NYA_ConstCString format, NYA_ConstCString where, N
 
         /*
          * A positional prefix — `2$` — is skipped rather than acted on.
-         *
-         * It changes which argument a specifier consumes, not how many there are or what types they
-         * have, and the caller's signature comes from the base locale where positions are not used.
-         * A translation using them still has to name the same set, which is what the sorted
-         * comparison checks.
          */
         const char* digits = cursor;
         while (*cursor >= '0' && *cursor <= '9') cursor++;
@@ -304,10 +277,6 @@ b8 _nya_i18n_parse_specifiers(NYA_ConstCString format, NYA_ConstCString where, N
 
         /*
          * Only four kinds, deliberately.
-         *
-         * Every extra conversion is a type a translator can get wrong and a signature a caller has to
-         * match, and none of the ones left out — `%p`, `%c`, the length modifiers — belongs in text a
-         * player reads. A string that wants one of those wants formatting done before it gets here.
          */
         switch (*cursor) {
             case 's': out_key->argument_types[count] = "NYA_ConstCString"; break;

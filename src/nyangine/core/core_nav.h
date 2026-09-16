@@ -1,8 +1,6 @@
 /**
  * @file core_nav.h
  *
- * Grid navigation: a cost field, A* over it, and a flow field for when many agents share one goal.
- *
  * ```c
  * NYA_NavGrid* grid = nullptr;
  * NYA_EXPECT(nya_nav_grid_from_tilemap(arena, map, "collision", &grid));
@@ -10,19 +8,6 @@
  * NYA_NavPoint path[128];
  * u32 length = nya_nav_path(grid, (NYA_NavPoint){ 1, 1 }, (NYA_NavPoint){ 30, 20 }, path, 128, (NYA_NavOptions){ .diagonal = true });
  * ```
- *
- * **The cost field belongs here, not to the tilemap.** A tilemap cell is one `u32` of tile id and
- * nothing else, and what counts as passable is a game's question — a door is solid to one creature and
- * not another. `nya_nav_grid_from_tilemap` derives a grid from a layer once; after that the two are
- * independent, which is also what makes a destructible world cheap: punch a hole, set one cost.
- *
- * **A\* for one agent to one goal; a flow field for many agents to the same goal.** A* is cheaper for a
- * single query and a flow field is cheaper from the tenth agent onward, because it pays Dijkstra once
- * over the whole grid and then every agent is an O(1) lookup. Neither is right for both.
- *
- * Cost is a `u8` per cell where **0 means blocked** and 1 is ordinary ground; higher is passable but
- * expensive, which is how mud, or "prefer the road", is expressed. Capping at 255 rather than using a
- * float keeps the grid one byte per cell, so a 512×512 world is 256 kB and fits in cache.
  * */
 #pragma once
 
@@ -68,17 +53,11 @@ struct NYA_NavOptions {
 
     /**
      * Whether a diagonal may pass between two blocked orthogonal neighbours.
-     *
-     * Off by default, and off is almost always right: a unit with any width cutting that corner clips
-     * the wall, which is the single most common way grid pathing looks broken.
      * */
     b8 cut_corners;
 
     /**
      * The most cells to expand before giving up. Zero means the whole grid.
-     *
-     * A budget rather than a limit of the algorithm: an unreachable goal on a large open map expands
-     * every cell before it can say so, and a frame is not the place to discover that.
      * */
     u32 max_nodes;
 };
@@ -93,10 +72,6 @@ struct NYA_NavGrid {
 
     /*
      * Search scratch, sized with the grid and reused.
-     *
-     * Kept here rather than allocated per query because the point of A* on a grid is that a hundred
-     * agents can each ask once a frame, and an arena does not hand memory back — allocating per query
-     * would grow it without bound.
      */
     u32* g_score;
     u32* came_from;
@@ -131,9 +106,6 @@ NYA_API NYA_Error nya_nav_grid_create(NYA_Arena* arena, u32 width, u32 height, O
 
 /**
  * A grid derived from a tilemap layer: any non-empty tile on `solid_layer` is blocked.
- *
- * The same rule nya_tilemap_collision_build uses, so what an agent cannot walk through is what a body
- * cannot pass through. Fails if the layer does not exist, rather than quietly producing an open field.
  * */
 NYA_API NYA_Error nya_nav_grid_from_tilemap(NYA_Arena* arena, const NYA_Tilemap* map, NYA_ConstCString solid_layer,
                                             OUT NYA_NavGrid** out_grid) __attr_no_discard;
@@ -147,10 +119,6 @@ NYA_API void nya_nav_fill(NYA_NavGrid* grid, u8 cost);
 
 /**
  * Finds a path from `from` to `to`, writing it into `out_path` including both ends.
- *
- * Returns the number of points written, or 0 when there is no path, either end is blocked or off the
- * grid, or the budget ran out. A path longer than `capacity` is refused rather than truncated: half a
- * path leads somewhere nobody asked to go.
  * */
 NYA_API u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_NavPoint* out_path, u32 capacity,
                          NYA_NavOptions options);

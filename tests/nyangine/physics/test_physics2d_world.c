@@ -1,12 +1,5 @@
 /**
  * The 2D physics world's own controls, as opposed to the entity seam.
- *
- * tests/nyangine/core/test_physics2d.c covers the seam between a body and the entity carrying it.
- * This covers what that one leaves alone: the world's tunables, the force and velocity API, teleport,
- * sleep, the hit threshold and the point query. Box2D's solver is still not what is being tested —
- * every assertion here is about the engine's own layer over it.
- *
- * Headless: the physics world needs an arena and a clock and nothing else.
  **/
 
 #include "nyangine/nyangine.c"

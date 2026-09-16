@@ -14,10 +14,6 @@ NYA_INTERNAL NYA_BoneTransform _nya_skeleton_transform_blend(NYA_BoneTransform a
 
 /**
  * Which two baked frames `time_s` falls between, and how far.
- *
- * Shared by the two samplers rather than written twice. They have to agree to the bit: root motion
- * differences the root bone across a step while the pose interpolates every bone across the same
- * one, and a rounding difference between them is a character sliding against its own feet.
  * */
 NYA_INTERNAL void _nya_skeleton_frame_pair(const NYA_SkeletonClip* clip, f32 time_s, OUT u32* out_frame, OUT u32* out_next, OUT f32* out_blend);
 
@@ -175,10 +171,6 @@ void nya_skeleton_palette(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* 
 
     /*
      * Model space transforms, built in one forward pass.
-     *
-     * Bones are ordered parents first — see NYA_SkeletonBone.parent — so a bone's parent is always
-     * already finished by the time it is read. That is what turns what is naturally a recursion over
-     * a tree into a loop over an array.
      */
     f32_4x4 model[NYA_SKELETON_MAX_BONES];
 

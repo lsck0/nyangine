@@ -1,15 +1,5 @@
 /**
  * The unicode name mangling that stands in for templates.
- *
- * `nya_template(Base, A, B)` pastes together the identifier `BaseᐸAˏBᐳ`, which is what every derived
- * container in the engine is actually called — NYA_ArrayᐸNYA_Jobᐳ and friends. It is a token paste
- * and nothing more, so what can go wrong is entirely about *which* identifier comes out: an arity
- * dispatched to the wrong arm, or two different parameter lists colliding on one name, would make
- * two unrelated containers silently the same type.
- *
- * The assertions here are therefore mostly compile time. A name that resolved wrongly would not
- * produce a failing run, it would fail to build — so static_assert and deliberate type mismatches
- * are the tools, and the runtime part only exists to prove the types are usable.
  **/
 
 #include "nyangine/nyangine.c"

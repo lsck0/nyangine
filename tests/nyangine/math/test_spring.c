@@ -1,9 +1,5 @@
 /**
  * Damped springs: convergence, the damping ratio's effect, and stability under a bad timestep.
- *
- * The property that matters most is the one an ease cannot give: retargeting mid-flight bends the
- * motion instead of restarting it, because the velocity carries. The stability check is the other —
- * explicit Euler on these parameters diverges, and the point of the semi-implicit step is that it does not.
  **/
 
 #include "nyangine/nyangine.c"

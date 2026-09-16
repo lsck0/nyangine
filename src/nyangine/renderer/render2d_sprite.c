@@ -11,11 +11,6 @@ NYA_INTERNAL b8 _nya_sprite_texture_size(NYA_ConstCString texture, OUT u32* out_
 
 /*
  * Compiled in both the real and the headless build, unlike render_draw.
- *
- * Everything here resolves to a nya_render2d_texture_ex, which the headless build already stubs — so a
- * second copy of this file would be a second copy of the arithmetic, kept in step by hand, to reach
- * a call that does nothing either way. The only thing it touches besides that is the asset table,
- * which a headless build has.
  */
 
 /*
@@ -140,10 +135,6 @@ void nya_sprite_set_frame_from_list(OUT NYA_Sprite* sprite, const NYA_SpriteList
 
     /*
      * Zeroed, which the drawing path reads as "the whole texture".
-     *
-     * That is the difference between a list and an atlas: an atlas frame is a rectangle inside one
-     * image, and a list frame *is* an image. Leaving a previous atlas frame's rectangle here would
-     * crop the new image to the old cell.
      */
     sprite->source_x      = 0.0F;
     sprite->source_y      = 0.0F;
@@ -380,15 +371,6 @@ u32 nya_sprite_animator_advance(OUT NYA_SpriteAnimator* animator, f32 delta_time
     /*
      * How many whole frames the accumulated time covers, by one divide — and then every one of them
      * is walked.
-     *
-     * Both halves matter. Walking is what makes a long tick still *visit* each frame, so a marker
-     * between here and the destination still fires; a plain divide-and-jump silently swallows the hit
-     * event, and the attack then works at sixty frames a second and not at twenty.
-     *
-     * But the subtraction has to happen once, not once per step. Subtracting a frame's worth in a
-     * loop accumulates float error, and it is not small: eight subtractions of 1/10 from 0.8 leave
-     * 0.09999998, which is under the threshold — so the eighth frame never happens and a ten frame
-     * animation loses one every 0.8 seconds. That drift is what this arithmetic is shaped to avoid.
      */
     u32 pending = (u32)(animator->frame_elapsed_s / seconds_per_frame);
 

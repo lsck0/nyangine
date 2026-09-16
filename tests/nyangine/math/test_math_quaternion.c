@@ -1,10 +1,5 @@
 /**
  * Quaternions.
- *
- * Mostly written as algebraic identities rather than as literal expected components: a quaternion
- * and its negation are the same rotation, so comparing raw x/y/z/w pins an implementation detail
- * instead of the behaviour. Where a component is checked directly it is because the contract in
- * math_quaternion.h names it.
  **/
 
 #include "nyangine/nyangine.c"

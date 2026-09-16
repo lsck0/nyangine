@@ -1,18 +1,5 @@
 /**
  * Hovering: the edges, their order, and who is holding the hover.
- *
- * `on_hover` is edge triggered — once with `entered` true when the cursor arrives, once with false when
- * it leaves — so almost everything worth checking here is about *transitions* rather than about hit
- * testing. The hit testing is nya_entity_click's, already covered by test_entity_click.c; what is new is
- * that a single stored handle has to turn a stream of per-frame positions into exactly the right pairs
- * of calls.
- *
- * The order within a move is the part a game actually depends on. A highlight is normally cleared on
- * leaving and set on entering, so moving the cursor straight from one entity to another must deliver
- * the leave *before* the enter or the new highlight is cleared by the old entity's handler. That is
- * asserted by recording the calls in sequence rather than by counting them.
- *
- * Headless: both solvers need an arena and a clock and nothing else.
  **/
 
 #include "nyangine/nyangine.c"
@@ -108,10 +95,6 @@ s32 main(void) {
 
     /*
      * The point of edge triggering, and the reason this is cheap to call unconditionally.
-     *
-     * A cursor rests on one thing for many frames, and a game calling this every frame must not get a
-     * callback every frame — otherwise every user of it would have to track the previous state itself,
-     * which is exactly the work being centralised here.
      */
     for (u32 frame = 0; frame < 10; frame++) (void)nya_entity_hover((f32x2){ 100.0F + (f32)frame, 100.0F });
 
@@ -159,10 +142,6 @@ s32 main(void) {
 
     /*
      * This ordering is the contract.
-     *
-     * A game that clears a highlight on leaving and sets one on entering composes correctly only in
-     * this order. Reversed, the leave handler would run last and clear the highlight the enter handler
-     * had just set, so the cursor would move between two entities and light up neither.
      */
     nya_assert(call_was(1, left, false), "the entity being left is told first");
     nya_assert(call_was(2, right, true), "and the entity being entered second");
@@ -183,10 +162,6 @@ s32 main(void) {
 
     /*
      * Deliberately unlike nya_entity_click, which answers NONE for an entity that declines.
-     *
-     * A click asks "did anything react"; a hover asks "what is under the cursor", and the terrain being
-     * under it is a true and useful answer even though the terrain does not care. A caller wanting the
-     * other question compares against its own entities.
      */
     nya_assert(hit.index == terrain.index && hit.generation == terrain.generation, "the handle is reported anyway");
     nya_assert(nya_entity_hovered().index == terrain.index, "and it holds the hover");
@@ -237,10 +212,6 @@ s32 main(void) {
 
     /*
      * No leave, and the hover is dropped in the same call.
-     *
-     * on_despawn has already run by then, so telling the entity the cursor left would be a callback
-     * into something half torn down for no benefit. What must not survive is the stored handle: leaving
-     * it would make nya_entity_hovered report a despawned entity until the cursor next moved.
      */
     nya_assert(call_count == 1, "despawning does not fire the leave edge, got %u calls", call_count);
     nya_assert(!nya_entity_is_valid(nya_entity_hovered()), "and the hover is released immediately");
@@ -294,11 +265,6 @@ s32 main(void) {
 
     /*
      * The awkward case, and the reason the stored handle is committed before either callback runs.
-     *
-     * Both callbacks are game code and either may call back into the entity system. If the handle were
-     * written after them, a handler asking nya_entity_hovered would be told the cursor is somewhere it
-     * has already left — and the despawn below, which clears the hover, would then be overwritten by
-     * the stale value on the way out.
      */
     NYA_EntityHandle crate = spawn_2d("crate", (f32x2){ 100.0F, 100.0F }, true);
 

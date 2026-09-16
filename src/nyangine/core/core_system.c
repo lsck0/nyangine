@@ -12,10 +12,6 @@ typedef struct {
 
     /**
      * Whether `entries` is in run order yet.
-     *
-     * Sorted in place rather than into a second array: run_init/update/deinit want a plain forward
-     * (or reverse) walk with no indirection, and there is no case where both the registration order
-     * and the run order are needed at once.
      * */
     b8 finalized;
 } _NYA_SystemRegistry;

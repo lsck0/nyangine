@@ -30,10 +30,6 @@ NYA_INTERNAL void _gny_terrain_draw(NYA_Window* window);
 
 /*
  * One axis of nya_render2d_text_measure_with_font.
- *
- * The engine has nya_render2d_text_width and nya_render2d_text_height for the *current* font, and only the
- * combined measure for a named one. The menu names its font on every call so it never disturbs the
- * font the HUD set, which leaves it doing `.x` and `.y` on a vector at a dozen call sites.
  */
 NYA_INTERNAL f32 _gny_text_width_with_font(NYA_ConstCString font, f32 size, NYA_ConstCString text);
 NYA_INTERNAL f32 _gny_text_height_with_font(NYA_ConstCString font, f32 size, NYA_ConstCString text);
@@ -45,65 +41,12 @@ NYA_INTERNAL f32 _gny_text_height_with_font(NYA_ConstCString font, f32 size, NYA
  */
 
 void gny_layers_init(void) {
-    GNY_LAYER_MAIN_MENU = (NYA_Layer){
-        .id         = GNY_LAYER_MAIN_MENU_ID,
-        .enabled    = true,
-        .on_create  = nya_callback(gny_layer_main_menu_on_create),
-        .on_destroy = nya_callback(gny_layer_main_menu_on_destroy),
-        .on_event   = nya_callback(gny_layer_main_menu_on_event),
-        .on_update  = nya_callback(gny_layer_main_menu_on_update),
-        .on_render  = nya_callback(gny_layer_main_menu_on_render),
-    };
-
-    GNY_LAYER_PAUSE_MENU = (NYA_Layer){
-        .id         = GNY_LAYER_PAUSE_MENU_ID,
-        .enabled    = true,
-        .on_create  = nya_callback(gny_layer_pause_menu_on_create),
-        .on_destroy = nya_callback(gny_layer_pause_menu_on_destroy),
-        .on_event   = nya_callback(gny_layer_pause_menu_on_event),
-        .on_update  = nya_callback(gny_layer_pause_menu_on_update),
-        .on_render  = nya_callback(gny_layer_pause_menu_on_render),
-    };
-
-    GNY_LAYER_CUBE3D = (NYA_Layer){
-        .id         = GNY_LAYER_CUBE3D_ID,
-        .enabled    = true,
-        .on_create  = nya_callback(gny_layer_cube3d_on_create),
-        .on_destroy = nya_callback(gny_layer_cube3d_on_destroy),
-        .on_event   = nya_callback(gny_layer_cube3d_on_event),
-        .on_update  = nya_callback(gny_layer_cube3d_on_update),
-        .on_render  = nya_callback(gny_layer_cube3d_on_render),
-    };
-
-    GNY_LAYER_BACKGROUND = (NYA_Layer){
-        .id         = GNY_LAYER_BACKGROUND_ID,
-        .enabled    = true,
-        .on_create  = nya_callback(gny_layer_background_on_create),
-        .on_destroy = nya_callback(gny_layer_background_on_destroy),
-        .on_event   = nya_callback(gny_layer_background_on_event),
-        .on_update  = nya_callback(gny_layer_background_on_update),
-        .on_render  = nya_callback(gny_layer_background_on_render),
-    };
-
-    GNY_LAYER_GAME = (NYA_Layer){
-        .id         = GNY_LAYER_GAME_ID,
-        .enabled    = true,
-        .on_create  = nya_callback(gny_layer_game_on_create),
-        .on_destroy = nya_callback(gny_layer_game_on_destroy),
-        .on_event   = nya_callback(gny_layer_game_on_event),
-        .on_update  = nya_callback(gny_layer_game_on_update),
-        .on_render  = nya_callback(gny_layer_game_on_render),
-    };
-
-    GNY_LAYER_UI = (NYA_Layer){
-        .id         = GNY_LAYER_UI_ID,
-        .enabled    = true,
-        .on_create  = nya_callback(gny_layer_ui_on_create),
-        .on_destroy = nya_callback(gny_layer_ui_on_destroy),
-        .on_event   = nya_callback(gny_layer_ui_on_event),
-        .on_update  = nya_callback(gny_layer_ui_on_update),
-        .on_render  = nya_callback(gny_layer_ui_on_render),
-    };
+    GNY_LAYER_MAIN_MENU = nya_layer_of(gny_layer_main_menu, GNY_LAYER_MAIN_MENU_ID);
+    GNY_LAYER_PAUSE_MENU = nya_layer_of(gny_layer_pause_menu, GNY_LAYER_PAUSE_MENU_ID);
+    GNY_LAYER_CUBE3D = nya_layer_of(gny_layer_cube3d, GNY_LAYER_CUBE3D_ID);
+    GNY_LAYER_BACKGROUND = nya_layer_of(gny_layer_background, GNY_LAYER_BACKGROUND_ID);
+    GNY_LAYER_GAME = nya_layer_of(gny_layer_game, GNY_LAYER_GAME_ID);
+    GNY_LAYER_UI = nya_layer_of(gny_layer_ui, GNY_LAYER_UI_ID);
 }
 
 /*
@@ -119,10 +62,6 @@ GNY_World* gny_world(void) {
 void gny_world_create(void) {
     /*
      * From the engine world's arena rather than one of this library's own.
-     *
-     * It has to outlive both a frame and a hot reload, and the engine world already provides exactly
-     * that — it lives in the executable and is freed when the world is. Owning a second arena here
-     * meant two lifetimes to unwind in the right order; now there is one.
      */
     NYA_Arena* allocator = nya_world()->allocator;
 
@@ -133,10 +72,6 @@ void gny_world_create(void) {
         .terrain             = NYA_ENTITY_HANDLE_NONE,
         /*
          * From --seed where one was given, so a server operator can reproduce a world.
-         *
-         * One rather than zero as the fallback, because the terrain generator treats a seed as a seed and
-         * zero is a perfectly ordinary one — but a default of zero would be indistinguishable from
-         * "nobody chose", which is the ambiguity the launch config avoids by using zero for exactly that.
          */
         .terrain_seed        = GNY_LAUNCH.world_seed != 0 ? GNY_LAUNCH.world_seed : 1,
 
@@ -159,9 +94,6 @@ void gny_world_create(void) {
 
     /*
      * The scripting VM, and the fonts.
-     *
-     * Both here rather than in a layer's on_create: they belong to the world's lifetime rather than to
-     * any one screen, and creating them per screen change would leak a VM per visit to the menu.
      */
     NYA_Error lua = nya_lua_create(allocator, (NYA_LuaOptions){ .engine_api = true }, &world->lua);
 
@@ -183,24 +115,12 @@ void gny_world_create(void) {
 
     /*
      * The named fonts.
-     *
-     * The HUD used to spell the path and the point size out at every call site, which is exactly what
-     * render_font.h exists to stop — "the UI font" is now a name, and changing which face that is
-     * became one line here rather than a search.
      */
     (void)nya_font_register("ui", GNY_UI_FONT, GNY_UI_FONT_SIZE);
     (void)nya_font_register("title", GNY_UI_FONT, GNY_UI_TITLE_FONT_SIZE);
 
     /*
      * The title face rasterises as a distance field; the HUD face does not.
-     *
-     * Which is the split nya_font_sdf_set is per font *for* — the HUD is drawn at one texel per pixel
-     * and wants the crisp nearest-sampled bitmap, and the title is the one thing here that gets scaled,
-     * where a bitmap baked at one size blurs and a field does not. It is also the caller that makes the
-     * SDF path something the game exercises rather than something only a shader file claims to do.
-     *
-     * Set here, at registration, and never again: the mode changes the face's metrics, so flipping it
-     * while text is on screen re-lays that text out mid-frame. See nya_font_sdf_set.
      */
     (void)nya_font_sdf_set(nya_font_named("title"), true);
 
@@ -237,10 +157,6 @@ void gny_world_script_tick(f32 delta_time_s) {
 
             /*
              * A value read straight back out of the script.
-             *
-             * Not for anything — it is the smallest end-to-end demonstration that a Lua table arrives
-             * on this side as an NYA_Object, which is what makes a script and a JSON body and a
-             * database row the same type here.
              */
             NYA_Value config = { 0 };
 
@@ -305,14 +221,6 @@ void gny_world_clear(void) {
 
     /*
      * Immediate rather than deferred, unlike everywhere else in this file.
-     *
-     * This runs from the simulation barrier inside a screen change, which is already past the point
-     * where anything is walking the entity table — and a deferred despawn queued here would be
-     * applied a tick later, with the layer that owned these entities already gone.
-     *
-     * By slot rather than through nya_entity_foreach, which is what nya_entity_clear does and for
-     * the same reason: despawning is the one thing that macro is not safe under. Each despawn takes
-     * the entity's physics body with it, which is the point of the body living on the entity.
      */
     for (u32 slot = 0; slot < nya_entity_slot_count(); slot++) {
         NYA_Entity* entity = nya_entity_at_slot(slot);
@@ -352,10 +260,6 @@ void gny_world_clear(void) {
      * unbalanced against a single acquire — and the second visit would drop the count below zero and
      * unload a script the next start still needs. The reference is held for the world's lifetime,
      * which is the process's.
-     *
-     * `lua_started` is cleared so the next start re-runs the script against whatever is on disk,
-     * which is how a script hot reloads. The VM itself keeps whatever globals the last run left,
-     * which is what lets a script carry state across a return to the menu.
      */
     world->lua_started      = false;
     world->lua_tick_timer_s = 0.0F;
@@ -364,15 +268,6 @@ void gny_world_clear(void) {
 void gny_world_destroy(void) {
     /*
      * Nothing to free.
-     *
-     * This struct and everything hanging off it come out of the engine world's arena, so
-     * nya_world_destroy releases the lot — and it runs inside nya_app_deinit, after the entity table
-     * has been emptied. Freeing the arena here instead would pull the ground out from under the
-     * despawn callbacks that have not run yet.
-     *
-     * Kept as a named no-op rather than deleted so gnyame_deinit still reads as a pair with
-     * gny_world_create, and so there is somewhere obvious to put teardown that is genuinely this
-     * library's own.
      */
 }
 
@@ -494,13 +389,6 @@ b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Eve
 
             /*
              * The engine's menu actions, not this game's movement ones.
-             *
-             * Both default to the same keys and they are deliberately separate: a player who rebinds
-             * "walk left" has not asked for the menu cursor to move with it. See actions.h.
-             *
-             * Auto repeat is kept here rather than dropped, unlike in the game layer — holding down
-             * to run a cursor along a list or a volume to the end of its range is what a menu is
-             * expected to do.
              */
             if (nya_input_action_matches(NYA_INPUT_ACTION_UP, key->key, key->modifier_flags)) {
                 // Wrapping, so arrowing up from the top lands on the last item rather than
@@ -542,13 +430,6 @@ b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Eve
 
             /*
              * Everything else is swallowed too, and that is the point of a modal layer.
-             *
-             * The keys underneath are live: the game layer spawns a burst on space and clears the
-             * world on `c`, and the HUD quits on escape. Letting an unrecognised key through means
-             * typing at the pause menu quietly rearranges the world behind it.
-             *
-             * The one exception is cancel, which each menu answers for itself — "back" means
-             * something different at the root than it does one level down.
              */
             return !nya_input_action_matches(NYA_INPUT_ACTION_CANCEL, key->key, key->modifier_flags);
         }
@@ -650,10 +531,6 @@ void gny_menu_draw(NYA_Window* window, const GNY_Menu* menu) {
 
         /*
          * A volume row draws its value into the label, and the arrows only while it is selected.
-         *
-         * Arrows on every row at once reads as four sliders competing for attention; on the selected
-         * one it reads as an instruction. The buffer is a frame-local stack array because the string
-         * is consumed by the very next call.
          */
         char             row[64];
         NYA_ConstCString label = menu->items[i].label;
@@ -681,11 +558,6 @@ void gny_menu_draw(NYA_Window* window, const GNY_Menu* menu) {
 
 /**
  * Darkens everything drawn so far, except where a crate is.
- *
- * Between the world and the camera reset, deliberately: the lights are in world coordinates and the
- * pass converts them through whatever camera is currently set, so it has to run while that camera is
- * still in effect — and *before* the HUD, which is drawn in screen space and should not be dimmed by
- * a torch being somewhere else.
  * */
 NYA_INTERNAL void _gny_lights_apply(NYA_Window* window) {
     // The visible region, in world units, so a crate whose glow reaches the screen is collected even
@@ -731,31 +603,11 @@ void gny_world_draw(NYA_Window* window, NYA_Camera2DTopDown camera) {
 
 /*
  * Registered here rather than by whichever screen happens to want it first.
- *
- * Both the 2D world and the 3D scene composite through this one pipeline, and asset loads are keyed on
- * the handle — so a second registration is a no-op and the danger is not duplication but drift: two
- * copies of the shader and vertex layout that have to agree, in files that have no reason to be read
- * together. One function, called from both on_create paths.
  */
 void gny_bloom_pipeline_ensure(NYA_Window* window) {
     /*
      * The bloom pass: one fragment shader, and a pipeline pairing it with the batch's own vertex
      * stage.
-     *
-     * Neither count is inferred — SDL is told what the shader binds and validates nothing against the
-     * compiled binary. effect_bloom.frag.hlsl declares a sampler at t0/space2 and a cbuffer at
-     * b0/space3, so both have to be named here.
-     *
-     * `num_uniform_buffers` was missing, and the way that failed is worth writing down. On Vulkan it
-     * worked perfectly: the descriptor set layout SDL builds is permissive enough that a shader reading
-     * a uniform block nobody declared still binds. On D3D12 the declared counts *are* the root
-     * signature, so a shader reading a CBV that is not in it is a pipeline the driver refuses to
-     * create — "Could not create graphics pipeline state, 0x80004005", with no mention of a uniform
-     * buffer anywhere in it.
-     *
-     * The visible symptom was worse than a missing glow: both scenes composite *through* this pipeline,
-     * so the whole world drew into an offscreen target and was never blitted back. The 3D scene simply
-     * did not appear on Windows.
      */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
         .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,

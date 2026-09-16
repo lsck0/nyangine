@@ -1,12 +1,5 @@
 /**
  * @file math_matrix.h
- *
- * Small dense matrix types built on clang's matrix_type (-fenable-matrix, see CFLAGS in
- * src/build/flags.h). Arithmetic operators work directly, including matrix times matrix, so only
- * what the extension doesn't provide lives here.
- *
- * Indexing is `m[row][column]` and constructors take rows, so nya_matrix_create(a, b) puts `a` in
- * row 0 — matching how a matrix is written down, not OpenGL's column-major API convention.
  * */
 #pragma once
 
@@ -67,15 +60,6 @@ NYA_API f128_4x4 nya_matrix_create(f128 entries[4][4]) __attr_overloaded;
 
 /**
  * Orthographic projection onto the GPU's clip space, for 2D drawing in pixels.
- *
- * Maps the rectangle (`left`, `top`)-(`right`, `bottom`) onto clip space, so a caller works in
- * whatever units it passes and never writes a normalized coordinate by hand. For screen space:
- * `nya_matrix_orthographic(0, width, 0, height)` — x grows right, y grows **down** from the top edge
- * (screens, texture rows, SDL mouse coords and UI layout all use this convention; the conversion to
- * the GPU's own happens here, once). Pass `top` greater than `bottom` for the y-up world-camera form.
- *
- * Depth is fixed at the range clip space wants and is not a parameter: nothing drawn through this is
- * depth tested, and z is carried only so a 2D vertex can reuse the 3D vertex layout.
  * */
 NYA_API f32_4x4 nya_matrix_orthographic(f32 left, f32 right, f32 top, f32 bottom);
 
@@ -94,14 +78,6 @@ NYA_API f32_4x4 nya_matrix_orthographic(f32 left, f32 right, f32 top, f32 bottom
 
 /**
  * A perspective projection: parallel lines converge, and distance shrinks things.
- *
- * `aspect` is width over height of the target. `fov_y` is the **vertical** field of view in radians —
- * vertical because horizontal then follows from aspect; the other way round, a window resize would
- * change how much of the world is visible above and below.
- *
- * `near_plane` is the number worth tuning: depth precision concentrates close to the camera, so
- * pushing it toward zero leaves distant geometry fighting over the few values left — that is what
- * z-fighting on a far wall actually is. Raise it as far as the scene allows.
  * */
 NYA_API f32_4x4 nya_matrix_perspective(f32 fov_y, f32 aspect, f32 near_plane, f32 far_plane);
 
@@ -115,11 +91,6 @@ NYA_API f32_4x4 nya_matrix_orthographic_3d(f32 height, f32 aspect, f32 near_plan
 
 /**
  * The view matrix for a camera at `eye` aimed at `target`.
- *
- * `up` only has to be roughly up: it's made perpendicular to the view direction on the way through, so
- * a camera looking slightly downward needs no adjustment. It must not be *parallel* to the view
- * direction — no unique roll then, and the cross product collapses to zero — that case returns the
- * identity rather than a matrix of NaNs.
  * */
 NYA_API f32_4x4 nya_matrix_look_at(f32x3 eye, f32x3 target, f32x3 up);
 
@@ -128,12 +99,6 @@ NYA_API f32_4x4 nya_matrix_look_at(f32x3 eye, f32x3 target, f32x3 up);
  * rotating shears anything whose scale isn't uniform (a flattened box turned 45° comes out a
  * parallelogram), and translating before rotating swings the object around the world origin instead
  * of turning it in place.
- *
- * `rotation` is a 3x3 so this needs nothing from math_quaternion; callers holding a quaternion pass
- * nya_quaternion_to_matrix3.
- *
- * Reading the result as raw floats (vertex attribute, uniform): storage is column-major, so the first
- * four floats are the first *column*, not the first row.
  * */
 NYA_API f32_4x4 nya_matrix_transform(f32x3 translation, f32_3x3 rotation, f32x3 scale) __attr_no_discard;
 

@@ -1,14 +1,5 @@
 /**
  * The asset system: the handle registry, reference counting, and the two queues.
- *
- * Everything here runs without a GPU. Loading is queued from the caller's thread and drained on
- * NYA_EVENT_FRAME_ENDED, so a test can dispatch that event by hand and watch a load actually happen
- * — which is what separates these from tests that only check the queue got longer.
- *
- * NYA_ASSET_TYPE_TEXT is the type used throughout because it is the only one that touches neither
- * the GPU nor a decoder: _nya_asset_flush_uploads returns immediately when nothing was staged, so
- * the whole loading pass is reachable headless. The GPU backed types share every step of that path
- * up to the decode, so what is exercised here is the machinery, not just the text case.
  **/
 
 #include "nyangine/nyangine.c"
@@ -81,22 +72,9 @@ static void write_test_wav(void) {
 s32 main(void) {
   /*
    * The systems the asset system needs, rather than nya_app_init.
-   *
-   * A full init opens a window and brings up the renderer, neither of which a headless test can do.
-   * The asset system itself needs only an arena and somewhere to register its two frame-ended
-   * hooks, which is the event system, which in turn needs the callback system.
    */
   /*
    * No real audio device, ever.
-   *
-   * nya_system_asset_init brings up SDL_mixer, which opens the default playback device. On a
-   * machine without a sound card — a CI container above all — ALSA leaks its configuration tree
-   * while failing to open one, around 66 KB across 2000 allocations, and the leak sanitizer fails
-   * the test over memory no nyangine code ever touched.
-   *
-   * The dummy driver is the honest fix rather than a suppression: this test asserts things about
-   * the asset registry and the load queues, none of which involve playing a sound, so probing the
-   * host's hardware was never something it needed to do.
    */
   SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 
@@ -372,9 +350,6 @@ s32 main(void) {
      * The first type here other than text, and the reason that matters: the loading pass is a
      * dispatch over NYA_AssetType, and a suite that only ever loads text leaves every other arm of
      * it unexecuted. Sound is the one that reaches a real decoder without a GPU.
-     *
-     * The dummy audio driver still produces a mixer, so this is the true decode path rather than a
-     * stub — MIX_LoadAudio actually parses the RIFF header written above.
      */
     write_test_wav();
     defer (void)remove(SOUND_FIXTURE);
@@ -392,10 +367,6 @@ s32 main(void) {
 
     /*
      * Guarded on the decode having worked, not asserted outright.
-     *
-     * A machine with no usable mixer fails the load, and that is the documented behaviour rather
-     * than a bug — the same shape test_audio uses. What is unconditional is that the asset exists
-     * and carries the type it was asked for.
      */
     nya_assert(predecoded->type == NYA_ASSET_TYPE_SOUND, "the asset came back as the wrong type");
 
@@ -408,10 +379,6 @@ s32 main(void) {
 
     /*
      * The same file again, streamed rather than predecoded, under its own handle.
-     *
-     * `source` is what makes that possible: the handle is the identity and the source is the file,
-     * so one file can back two assets with different load parameters. That is the case the field
-     * was added for — a font at two point sizes — and nothing tested it.
      */
     char streamed_handle[] = "sound:streamed";
 

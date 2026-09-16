@@ -1,29 +1,5 @@
 /**
  * @file base_error.h
- *
- * Error handling and missing values. The convention is:
- * - Functions that can fail or not succeed return `NYA_Error` and use out-parameters for other return values.
- * - Functions that would return a simple success bool return either NYA_OK or NYA_NOT_OK.
- *
- * An error carries two different traces, and they answer different questions:
- * - the *error trace* is the propagation chain, one frame pushed per NYA_TRY. It shows how the
- *   error bubbled up, costs almost nothing, and works in release without debug info.
- * - the *stack trace* is where the failure physically happened, captured by libbacktrace when the
- *   error is created. Deep and precise, but it needs symbols and is only captured in debug and
- *   developer builds.
- *
- * `NYA_Error` is returned by value, which is fine for I/O shaped calls and wrong for hot loops. Hot
- * paths that can fail should return `b8` or a `Maybe` instead.
- *
- * Its size depends on NYA_ERROR_CAPTURE_STACK: 2520 bytes in debug and developer builds, 464 in
- * shipping ones, where the stack trace is compiled out rather than left empty. Note that a success
- * costs the same as a failure — NYA_OK is a compound literal of the entire struct, so returning it
- * zeroes all of that, and NYA_TRY copies it again into the caller's frame.
- *
- * Both figures are eight bytes larger than they were before `ok` was added, not one: it sits between
- * two four byte fields, so it brings three bytes of padding with it, and pushing `message` along by
- * four costs another four to realign the `error_trace` array behind it. Worth knowing before adding
- * another small field — there is room for three more bools beside this one for free.
  * */
 
 #pragma once
@@ -89,16 +65,6 @@ struct NYA_Error {
 
     /**
      * `kind == NYA_ERROR_NONE`, precomputed, so success reads as `if (!result.ok)`.
-     *
-     * Exactly the same question as comparing `kind` against NYA_ERROR_NONE, and both spellings stay
-     * correct — this exists because the comparison is the overwhelmingly common thing to want and
-     * spelling it out at every call site buries the interesting half of the line.
-     *
-     * **Never set this by hand.** It is redundant state, and the only thing keeping it honest is
-     * that every NYA_Error in the tree is born in one of three places: NYA_OK, NYA_NOT_OK and
-     * _nya_error_create. An error assembled with a designated initializer would come out `.ok =
-     * false` regardless of its kind, because that is what zero means — which is why there is no
-     * fourth place, and why `kind` rather than this is what the formatting and throwing paths read.
      * */
     b8 ok;
 
@@ -113,19 +79,6 @@ struct NYA_Error {
 #if NYA_ERROR_CAPTURE_STACK
     /**
      * Where the error was created.
-     *
-     * Compiled out entirely rather than merely left empty when the capture is off, because it is
-     * 2056 of the struct's bytes and every NYA_Error is returned by value. A shipping build was
-     * moving that field on every single error return, and zeroing it on every *success* return too,
-     * since NYA_OK is a compound literal of the whole struct — for a field guaranteed to stay zero
-     * in that mode.
-     *
-     * This is what makes the size note at the top of the file true: 2512 bytes with the capture on,
-     * 456 without. It had said "around half a kilobyte" unconditionally, which described neither.
-     *
-     * The mode is uniform across an executable and the game DLL it loads — both come from the same
-     * flag set, and only debug and developer builds hot reload at all — so the two never disagree
-     * about this struct's layout.
      * */
     NYA_Backtrace stack_trace;
 #endif // NYA_ERROR_CAPTURE_STACK
@@ -219,9 +172,6 @@ nya_derive_maybe(f128);
 
 /**
  * Propagates a failure to the caller, recording one error trace frame on the way out.
- *
- * Only valid inside a function that itself returns NYA_Error. Evaluates `expr` exactly once, and
- * returns only when it actually failed.
  * */
 #define NYA_TRY(expr)                                                                                                                                \
     do {                                                                                                                                             \
@@ -246,8 +196,6 @@ nya_derive_maybe(f128);
 
 /**
  * Unwrap or die. Use where a failure means the program has no sensible way to continue.
- *
- * Usage:
  *
  * ```c
  * NYA_EXPECT(expr)
