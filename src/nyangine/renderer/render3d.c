@@ -37,20 +37,17 @@ NYA_INTERNAL void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_proj
 /** Creates the shadow map and its depth buffer if they are not there yet. False when the GPU refused. */
 NYA_INTERNAL b8 _nya_render3d_shadow_ensure(NYA_Window* window);
 
-/**
- * The shadow texture's side, holding the cascades as a two-by-two atlas, always twice the per-cascade
- * size regardless of cascade count — one cascade wastes three quarters of the texture (four megabytes at
- * the default size), the price of the count being a compile-time knob rather than a resized texture.
- * An atlas rather than a texture array: one binding, one sampler, no array-texture support needed across
- * backends. The cost is a cascade's filter kernel reaching into its neighbour at a quadrant edge, which
- * the inset in mesh3d_shadow guards against.
- * */
+/** nya_render3d_mesh_register without the reserved-handle check, so the renderer can fill its own slots. */
+NYA_INTERNAL b8 _nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString handle, const NYA_Vertex3D* vertices, u32 vertex_count);
+
 /*
- * The atlas is a strip: one cascade wide per cascade, one tall.
+ * The shadow atlas is a strip: one cascade wide per cascade, one tall.
  *
- * A two-by-two square wasted whatever a power of two did not divide — three cascades left a whole quadrant
- * unused, four megabytes of colour and depth for nothing. A strip is never worse and is better at every
- * count below four: one cascade costs a quarter of what the square did, two a half, three three quarters.
+ * An atlas rather than a texture array, for one binding, one sampler and no array-texture support needed
+ * across backends. A strip rather than a square, because a square wastes whatever a power of two does not
+ * divide — three cascades leave a whole quadrant unused, four megabytes of colour and depth for nothing.
+ * The cost either way is a cascade's filter kernel reaching into its neighbour at an edge, which the inset
+ * in mesh3d_shadow guards against.
  */
 #define _NYA_RENDER3D_SHADOW_ATLAS_WIDTH  (NYA_RENDER3D_SHADOW_MAP_SIZE * NYA_RENDER3D_SHADOW_CASCADES)
 #define _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT (NYA_RENDER3D_SHADOW_MAP_SIZE)
@@ -968,7 +965,7 @@ NYA_INTERNAL b8 _nya_render3d_unit_sphere_ensure(NYA_Window* window) {
 
     nya_assert(at == vertex_count, "the unit sphere emitted %u vertices, not the %u it sized for", at, vertex_count);
 
-    return nya_render3d_mesh_register(window, NYA_RENDER3D_MESH_UNIT_SPHERE, vertices, vertex_count);
+    return _nya_render3d_mesh_register(window, NYA_RENDER3D_MESH_UNIT_SPHERE, vertices, vertex_count);
 }
 
 void nya_render3d_sphere(NYA_Window* window, f32x3 center, f32 radius, NYA_Color color) {
@@ -1467,6 +1464,19 @@ void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center
 }
 
 b8 nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString handle, const NYA_Vertex3D* vertices, u32 vertex_count) {
+    // The unit sphere's slot is the renderer's, not a caller's. Taking it would leave every later
+    // nya_render3d_sphere drawing whatever was registered instead, with nothing to connect the two —
+    // refused here rather than left as a sentence in the header nobody reads at the call site. The check
+    // is on this entry point alone, because _nya_render3d_unit_sphere_ensure is what fills that slot.
+    if (handle != nullptr && nya_string_equals(handle, NYA_RENDER3D_MESH_UNIT_SPHERE)) {
+        nya_log_error("'%s' is reserved for nya_render3d_sphere's shared geometry; pick another handle.", handle);
+        return false;
+    }
+
+    return _nya_render3d_mesh_register(window, handle, vertices, vertex_count);
+}
+
+NYA_INTERNAL b8 _nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString handle, const NYA_Vertex3D* vertices, u32 vertex_count) {
     nya_assert(window != nullptr);
 
     if (handle == nullptr || vertices == nullptr || vertex_count == 0) {
@@ -1476,14 +1486,6 @@ b8 nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString handle, const
 
     if (vertex_count % 3 != 0) {
         nya_log_error("'%s' has %u vertices, which is not a whole number of triangles.", handle, vertex_count);
-        return false;
-    }
-
-    // The unit sphere's slot is the renderer's, not a caller's. Taking it would leave every later
-    // nya_render3d_sphere drawing whatever was registered instead, with nothing to connect the two —
-    // refused here rather than left as a sentence in the header nobody reads at the call site.
-    if (nya_string_equals(handle, NYA_RENDER3D_MESH_UNIT_SPHERE)) {
-        nya_log_error("'%s' is reserved for nya_render3d_sphere's shared geometry; pick another handle.", handle);
         return false;
     }
 
@@ -2815,6 +2817,16 @@ void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection, f32x3
     nya_unused(eye);
 
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    /*
+     * Caught here rather than let through to draw wrong.
+     *
+     * Every 3D pipeline but the overlay depth-tests, so it declares a depth-stencil target and cannot be
+     * bound in a pass that has none. Without this the symptom is geometry in submission order or a driver
+     * validation error a long way from the create call that chose it.
+     */
+    nya_assert(window->render_system.draw_batch.target_depth != nullptr,
+               "the current render target has no depth buffer; it was created NYA_RENDER_TEXTURE_DEPTH_NONE, which only render2d may draw into");
 
     // Everything render2d has queued belongs behind the scene, so it is drawn before the scene is.
     // This is the whole of the ordering contract described in render3d.h.
