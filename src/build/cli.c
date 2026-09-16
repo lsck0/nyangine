@@ -62,9 +62,9 @@ NYA_INTERNAL NYA_ArgParameter example_name = {
     .value.type  = NYA_TYPE_STRING,
     .name        = "example",
     .description = "Which example to build and run. The directory name under examples/.",
-    // Straight from the directory listing, so an example added by creating a folder is offered here
-    // without this file knowing its name. Not KIND_FILE: the argument is a directory component, not
-    // a path, and completing paths would offer examples/hello_world/main.c — which is not accepted.
+    // straight from the directory listing, so a new example folder is offered without being named here.
+    // Not KIND_FILE: the argument is a directory name, and path completion would offer
+    // examples/hello_world/main.c, which is not accepted.
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &example_completion_name, },
 };
 

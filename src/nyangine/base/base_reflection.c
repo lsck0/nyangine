@@ -392,8 +392,8 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
                     break;
                 }
 
-                // Written as a name, so read as one — falling back to the number for the unnamed case
-                // to_object emits, and for a file written by hand.
+                // written as a name, so read as one, falling back to the number for unnamed values and hand written
+                // files.
                 if (value->type == NYA_TYPE_STRING && value->as_string != nullptr) {
                     s64 named = 0;
 

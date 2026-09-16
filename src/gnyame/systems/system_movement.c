@@ -78,9 +78,8 @@ void gny_system_camera_follow_update(f32 delta_time_s) {
     nya_unused(delta_time_s);
 
     nya_entity_foreach_kind (GNY_ENTITY_CAMERA, camera) {
-        // Per camera, so an inset can be chasing a crate while the main view is still on the keys.
-        // Nothing being followed is what leaves that camera to the keys — not an error, and not a
-        // state anyone has to clear, since an entity that despawns takes the link with it.
+        // per camera, so an inset can chase a crate while the main view follows the keys. A despawned
+        // target clears the link itself.
         NYA_Entity* target = nya_entity_get(gny_entity_camera_target(camera->handle));
         if (target == nullptr) continue;
 

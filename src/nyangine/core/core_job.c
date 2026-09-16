@@ -135,9 +135,7 @@ b8 nya_job_is_done(NYA_JobHandle job_handle) {
     SDL_LockMutex(job_system->job_active_mutex);
     SDL_LockMutex(job_system->job_queue_mutex);
     {
-        /*
-         * Holding a slot means not done — the thread state is deliberately not consulted.
-         */
+        /* Holding a slot means not done; the thread state is not consulted. */
         for (u32 slot = 0; slot < _NYA_JOB_MAX_ACTIVE; slot++) {
             if (!job_system->job_slot_used[slot]) continue;
             if (job_system->job_slots[slot].job_handle != job_handle) continue;

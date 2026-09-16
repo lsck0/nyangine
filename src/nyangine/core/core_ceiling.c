@@ -28,9 +28,10 @@ NYA_INTERNAL _NYA_CeilingRegistry _nya_ceiling_registry = { 0 };
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** live/capacity for `index` into `entries`, not into the sorted order. Zero for a zero capacity
- *  rather than dividing by it — a ceiling of zero should never be registered, but a HUD row is not
- *  the place to assert that. */
+/**
+ * live/capacity for `index` into `entries`, not the sorted order. Zero for a zero capacity rather than
+ * dividing; a HUD row is not the place to assert.
+ * */
 NYA_INTERNAL f32 _nya_ceiling_fullness(u32 index);
 
 /**

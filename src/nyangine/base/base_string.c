@@ -214,9 +214,8 @@ NYA_String* nya_string_sprintf(NYA_Arena* arena, NYA_ConstCString fmt, ...) __at
     va_list args;
     va_start(args, fmt);
 
-    // Signed, then checked. vsnprintf returns a negative int on an encoding error, and storing that
-    // straight into a u64 turned it into roughly 2^64 — which is then asked of the arena as a
-    // capacity. An empty string is the honest answer to "this could not be formatted".
+    // signed, then checked: vsnprintf returns a negative int on an encoding error, which as a u64 would be
+    // a capacity near 2^64. An unformattable string becomes empty.
     s32 measured = vsnprintf(nullptr, 0, fmt, args);
     va_end(args);
 

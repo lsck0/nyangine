@@ -70,9 +70,8 @@ b8 nya_rect_contains(NYA_Rectf rect, f32x2 point) {
 }
 
 b8 nya_rect_contains_rect(NYA_Rectf outer, NYA_Rectf inner) {
-    // An empty inner rectangle contains no points, so "every point of it is in outer" is vacuously
-    // true — and useless. Answering false keeps a containment test from reporting that a collapsed
-    // box is inside something it is nowhere near.
+    // an empty inner rectangle is vacuously contained anywhere. Answering false keeps a collapsed box
+    // from reporting as inside something far away.
     if (nya_rect_is_empty(inner)) return false;
 
     if (inner.x < outer.x || inner.y < outer.y) return false;

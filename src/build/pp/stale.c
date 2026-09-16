@@ -82,8 +82,8 @@ b8 nya_pp_is_current(NYA_ConstCString pass, NYA_ConstCString* inputs, NYA_ConstC
 NYA_INTERNAL b8 _nya_pp_collect_newest(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     _NYA_PPNewest* state = (_NYA_PPNewest*)user_data;
 
-    // A directory always counts, whatever the filter says. Its mtime is the only record that a file
-    // matching the filter used to be there and no longer is.
+    // a directory always counts, whatever the filter. Its mtime is the only record that a matching file
+    // was removed.
     if (entry->type != NYA_FILE_TYPE_DIRECTORY && !_nya_pp_has_extension(path, state->extension)) return true;
 
     if (entry->modified_at > state->newest) state->newest = entry->modified_at;

@@ -174,8 +174,8 @@ void gny_layer_ui_on_render(NYA_Window* window) {
     nya_render2d_textf(window, origin, y, GNY_UI_DIM, "solver %.2f ms   hits %u", (f64)nya_physics2d_last_step_time_s() * 1000.0, world->hits);
     y += line;
 
-    // Draw calls rather than vertices: a draw call is the number that can be acted on, and this
-    // scene is built to stay in single digits — every crate is the same pipeline and no texture.
+    // draw calls rather than vertices, since that is the number to act on. The scene stays in single
+    // digits: every crate shares a pipeline and has no texture.
     NYA_Render2DFrameStats draw_stats = nya_render2d_frame_stats(window);
     nya_render2d_textf(window, origin, y, GNY_UI_DIM, "draw calls %u   verts %u", draw_stats.draw_calls, draw_stats.vertices);
     y += line;

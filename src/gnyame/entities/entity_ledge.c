@@ -99,8 +99,7 @@ u32 gny_entity_ledge_drop_everything_through(f32 seconds) {
 void gny_entity_ledge_on_render(NYA_Entity* entity, NYA_Window* window) {
     f32x2 center = { entity->position.x, entity->position.y };
 
-    // Brighter while it is moving, so which ledge is the kinematic one is visible without reading the
-    // code — the two are otherwise identical rectangles.
+    // brighter while moving, so the kinematic ledge is distinguishable from the static one.
     NYA_Color color = nya_entity_moving(entity) ? GNY_LEDGE_COLOR_MOVING : GNY_LEDGE_COLOR;
 
     nya_render2d_rect_rotated(window, center, entity->physics2d.size, 0.0F, color);

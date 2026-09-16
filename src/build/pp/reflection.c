@@ -797,7 +797,7 @@ NYA_ConstCString _nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NY
 }
 
 void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _NYA_ReflectTypeDecl* decl) {
-    nya_string_extend_sprintf(out, "/* %s — %s */\n\n", decl->name, decl->source_file);
+    nya_string_extend_sprintf(out, "/* %s, %s */\n\n", decl->name, decl->source_file);
 
     if (decl->kind == _NYA_REFLECT_DECL_ENUM) {
         nya_string_extend_sprintf(out, "static const NYA_ReflectVariant _NYA_REFLECT_%s_VARIANTS[] = {\n", decl->name);

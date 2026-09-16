@@ -49,8 +49,8 @@ void nya_system_callback_deinit(void) {
  */
 
 /*
- * Only hot reloading builds have a registry — in a shipping build these are macros carrying the
- * function pointer directly, so defining them here would collide with the macro of the same name.
+ * Only hot reloading builds have a registry. Shipping builds define these as macros carrying the
+ * function pointer, which would collide with definitions here.
  */
 #if NYA_CODE_HOT_RELOAD
 

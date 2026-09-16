@@ -26,9 +26,7 @@ nya_derive_array(SDL_ThreadPtr);
 
 typedef int (*NYA_JobFn)(NYA_Job* job);
 
-/**
- * Jobs that can be running at once, ever — the pool size for their records.
- * */
+/** Jobs that can be running at once, which sizes the record pool. */
 #define _NYA_JOB_MAX_ACTIVE 256
 
 /*

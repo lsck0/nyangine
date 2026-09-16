@@ -76,10 +76,9 @@
 #define BUILD_TOOL_BINARY "build.exe"
 
 /*
- * No sanitizers on a Windows host. -fsanitize=leak has no Windows implementation at all, and asan
- * under mingw is not usable the way it is on Linux — the same reason the Windows project rules skip
- * it. lld because mold is a Linux linker, and lld is what this host's other rules already name.
- * */
+ * No sanitizers on a Windows host: -fsanitize=leak has no Windows implementation and asan under mingw
+ * is not usable. lld because mold is Linux only.
+ */
 #define FLAGS_HOST_NATIVE       "-fuse-ld=lld"
 
 /** The same host flags without the sanitizers. See the Linux definition for why this exists. */

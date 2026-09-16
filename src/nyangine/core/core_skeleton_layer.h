@@ -104,7 +104,7 @@ struct NYA_SkeletonEvent {
     /** Seconds into the clip. Fired when playback crosses it. */
     f32 time_s;
 
-    /** The game's own identifier — a footstep, a hit frame, a sound. */
+    /** The game's own identifier, such as a footstep, a hit frame or a sound. */
     u32 id;
 };
 

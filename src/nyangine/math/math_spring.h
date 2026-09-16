@@ -4,14 +4,13 @@
  * ```c
  * static NYA_SpringF32 zoom = { .value = 1.0F, .frequency = 4.0F, .damping = 1.0F };
  *
- * // Every frame. The target may change at any moment; the spring absorbs it.
+ * // every frame. The target may change at any moment; the spring absorbs it.
  * nya_spring_f32(&zoom, target_zoom, delta_time_s);
  * camera.zoom = zoom.value;
  * ```
  *
- * ⚠ `nya_ease_spring` in math_tween.h is *not* this. It is a closed-form damped cosine evaluated from
- * `t` alone, with no state, so it is a shaped curve and cannot survive interruption. This is the
- * integrator.
+ * Not `nya_ease_spring` from math_tween.h, which is a stateless damped cosine of `t` and cannot survive
+ * interruption. This is the integrator.
  * */
 #pragma once
 

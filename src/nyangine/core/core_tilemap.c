@@ -758,7 +758,7 @@ void _nya_tilemap_parse_animations(NYA_Tilemap* map, const NYA_Object* tileset_o
     if (animated == 0) return;
 
     if (animated > NYA_TILEMAP_MAX_ANIMATIONS) {
-        nya_log_warn("tileset '%s' defines %u animated tiles; only %d are kept — raise NYA_TILEMAP_MAX_ANIMATIONS",
+        nya_log_warn("tileset '%s' defines %u animated tiles; only %d are kept; raise NYA_TILEMAP_MAX_ANIMATIONS",
                      out_tileset->name != nullptr ? out_tileset->name : "(unnamed)", animated, NYA_TILEMAP_MAX_ANIMATIONS);
         animated = NYA_TILEMAP_MAX_ANIMATIONS;
     }

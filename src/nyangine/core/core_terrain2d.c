@@ -56,8 +56,8 @@ void nya_terrain2d_generate(NYA_Terrain2D* terrain, u64 seed) {
 
     terrain->seed = seed;
 
-    // The RNG takes its seed as an uppercase hex string of at most 64 digits, left padded — not an
-    // arbitrary label. A descriptive one like "terrain-1" is rejected at the first letter.
+    // the RNG seed is an uppercase hex string of at most 64 digits, left padded. A label like "terrain-1"
+    // is rejected at the first letter.
     char seed_text[17];
     (void)snprintf(seed_text, sizeof(seed_text), "%016llX", (unsigned long long)seed);
 

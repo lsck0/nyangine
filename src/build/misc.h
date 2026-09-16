@@ -61,10 +61,9 @@ NYA_INTERNAL NYA_BuildRule run_debug = {
 /**
  * The release build under perf. The profile worth acting on.
  *
- * ⚠ **A release build is not built to be read.** Inlining and tail calls mean some frames belong to
- * whichever function survived rather than the one in the source, and a symbol that vanished entirely
- * shows up inside its caller. That is the trade for measuring the real thing; dwarf call graphs
- * recover most of the structure, which is why the unwinding is worth its cost here.
+ * Inlining and tail calls attribute some frames to the surviving function, and vanished symbols show up
+ * inside their callers. Dwarf call graphs recover most of the structure, which is why the unwinding is
+ * worth its cost.
  * */
 NYA_INTERNAL NYA_BuildRule run_profile = {
     .name   = "run_profile",

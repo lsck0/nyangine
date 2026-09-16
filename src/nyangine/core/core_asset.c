@@ -74,13 +74,11 @@ NYA_INTERNAL NYA_AssetHandle _nya_asset_intern(NYA_AssetHandle handle) __attr_no
 NYA_INTERNAL b8 _nya_asset_get_modification_time(NYA_Asset* asset, OUT u64* out_modification_time);
 
 /*
- * ── Deliberately not NYA_INTERNAL ──
+ * Not NYA_INTERNAL
  *
- * Registered as callbacks with nya_callback, which stores the symbol *name*: update_callback_pointers
- * in main.c re-resolves each with dlsym after a hot reload, out of the executable's dynamic symbol
- * table. NYA_INTERNAL is `visibility("hidden") static`, which -rdynamic does not export, so making
- * these static builds fine and dies on the first reload's `nya_assert(callback->fn, "Could not find
- * symbol %s ...")`. clang-tidy's misc-use-internal-linkage flags all three — do not take its fix.
+ * Registered with nya_callback, which stores the symbol name; main.c re-resolves it with dlsym after a
+ * hot reload. NYA_INTERNAL is hidden and static, which -rdynamic does not export, so the first reload
+ * would assert "Could not find symbol". Ignore clang-tidy's misc-use-internal-linkage here.
  */
 // NOLINTNEXTLINE(misc-use-internal-linkage)
 void _nya_asset_reload_process(NYA_Event* event);

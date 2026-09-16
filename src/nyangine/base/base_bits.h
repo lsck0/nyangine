@@ -162,9 +162,7 @@
 #define nya_bits_count_u32(val)          (__builtin_popcount(val))
 #define nya_bits_count_u64(val)          (__builtin_popcountll(val))
 
-/*
- * Leading and trailing zero counts. **Undefined for zero.**
- * */
+/* Leading and trailing zero counts. Undefined for zero. */
 #define nya_bits_clz_u32(val)            (__builtin_clz(val))
 #define nya_bits_clz_u64(val)            (__builtin_clzll(val))
 #define nya_bits_ctz_u32(val)            (__builtin_ctz(val))

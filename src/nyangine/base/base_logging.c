@@ -100,11 +100,9 @@ void nya_log_level_set(NYA_LogLevel level) {
 
 void nya_log_sink_add(NYA_LogSink sink, void* user_data) {
 #ifndef NYA_NO_SDL
-    // Registered here rather than at some dedicated init: logging has none, coming up before
-    // anything else does, and this is the first point the count means anything. Guarded because a
-    // test file adding and clearing sinks in a loop should not add a copy of itself each time. Base
-    // has no ceiling registry of its own — see core_ceiling.h — so this is skipped under
-    // -DNYA_NO_SDL, which excludes core entirely (the build tool itself is one such build).
+    // registered on first use, since logging has no init and comes up before everything. Guarded so
+    // tests adding and clearing sinks in a loop register once. Skipped under -DNYA_NO_SDL, which excludes
+    // core and its ceiling registry (the build tool is such a build).
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("log_sinks", NYA_LOG_SINK_MAX, &_nya_log_sink_count);

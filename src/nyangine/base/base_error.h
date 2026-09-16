@@ -58,9 +58,7 @@ enum NYA_ErrorKind {
 };
 
 struct NYA_Error {
-    /**
-     * What went wrong. **The authoritative field**; `ok` is derived from it.
-     * */
+    /** What went wrong. The authoritative field; `ok` is derived from it. */
     NYA_ErrorKind kind;
 
     /**

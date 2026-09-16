@@ -47,12 +47,9 @@ void gny_terrain3d_generate(NYA_Window* window, NYA_Arena* arena, u64 seed) {
                      * Chunked, so the surface is culled and detailed per square rather than
                      * all-or-nothing.
                      *
-                     * ⚠ This scene is small enough that chunking buys it little on its own — at
-                     * GNY_TERRAIN3D_RES the whole surface is a handful of chunks and most of them are
-                     * on screen. It is on because the *shadow* pass draws the terrain once per cascade
-                     * on top of the camera pass, so a coarse level for the far cascades is four draws
-                     * a frame of geometry nobody can resolve. And because a feature nothing in the game
-                     * exercises is a feature nobody finds the bugs in.
+                     * On this small scene the camera pass gains little, but the shadow pass draws
+                     * the terrain once per cascade, and coarse far levels save those draws. It also
+                     * keeps the chunking path exercised.
                      */
                     .chunked      = true,
                     .lod_distance = GNY_TERRAIN3D_LOD_DISTANCE,

@@ -51,11 +51,9 @@ enum NYA_InputDeviceKind {
 };
 
 /**
- * Which physical (or virtual) device an input event came from — the engine's answer to "several
- * people are playing on one machine". Steam Remote Play Together is the motivating case: the host
- * streams the game out and every remote player's keyboard and mouse arrive back as ordinary input
- * events on the host, so without a source on the event, four players pressing W are indistinguishable
- * from one player pressing W four times.
+ * Which physical or virtual device an input event came from, so several people can play on one
+ * machine. With Steam Remote Play Together every remote player's input arrives as ordinary events on
+ * the host, and without a source four players pressing W look like one.
  * */
 struct NYA_InputSource {
     NYA_InputDeviceKind kind;

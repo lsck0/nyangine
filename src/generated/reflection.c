@@ -33,7 +33,7 @@ const NYA_TypeReflection _NYA_REFLECT_f32x2 = { .name = "f32x2", .kind = NYA_REF
 const NYA_TypeReflection _NYA_REFLECT_f32x3 = { .name = "f32x3", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x3), .alignment = alignof(f32x3), .element = &_NYA_REFLECT_f32, .element_count = 3 };
 const NYA_TypeReflection _NYA_REFLECT_f32x4 = { .name = "f32x4", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x4), .alignment = alignof(f32x4), .element = &_NYA_REFLECT_f32, .element_count = 4 };
 
-/* GNY_ConfigGame — src/gnyame/config.h */
+/* GNY_ConfigGame, src/gnyame/config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_GNY_ConfigGame_FIELDS[] = {
     { .name = "player_speed", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, player_speed), .hint = NYA_HINT_NONE },
@@ -49,7 +49,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame = {
     .field_count = 2,
 };
 
-/* GNY_Config — src/gnyame/config.h */
+/* GNY_Config, src/gnyame/config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_GNY_Config_FIELDS[] = {
     { .name = "engine", .type = &_NYA_REFLECT_NYA_ConfigEngine, .offset = nya_offsetof(GNY_Config, engine), .hint = NYA_HINT_NONE },
@@ -65,7 +65,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_Config = {
     .field_count = 2,
 };
 
-/* GNY_EntityKind — src/gnyame/entities/entities.h */
+/* GNY_EntityKind, src/gnyame/entities/entities.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_GNY_EntityKind_VARIANTS[] = {
     { .name = "GNY_ENTITY_NONE", .value = (s64)(GNY_ENTITY_NONE) },
@@ -93,7 +93,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_EntityKind = {
     .is_bitflags = false,
 };
 
-/* GNY_EntityFlags — src/gnyame/entities/entities.h */
+/* GNY_EntityFlags, src/gnyame/entities/entities.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_GNY_EntityFlags_VARIANTS[] = {
     { .name = "GNY_ENTITY_FLAG_NONE", .value = (s64)(GNY_ENTITY_FLAG_NONE) },
@@ -118,7 +118,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_EntityFlags = {
     .is_bitflags = true,
 };
 
-/* NYA_ConfigEngineRenderer — src/nyangine/core/core_config.h */
+/* NYA_ConfigEngineRenderer, src/nyangine/core/core_config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
     { .name = "shadow_bias", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_bias), .hint = NYA_HINT_NONE },
@@ -135,7 +135,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .field_count = 3,
 };
 
-/* NYA_ConfigEnginePhysics — src/nyangine/core/core_config.h */
+/* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEnginePhysics_FIELDS[] = {
     { .name = "gravity", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_ConfigEnginePhysics, gravity), .hint = NYA_HINT_NONE },
@@ -151,7 +151,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEnginePhysics = {
     .field_count = 2,
 };
 
-/* NYA_ConfigEngine — src/nyangine/core/core_config.h */
+/* NYA_ConfigEngine, src/nyangine/core/core_config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngine_FIELDS[] = {
     { .name = "renderer", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer, .offset = nya_offsetof(NYA_ConfigEngine, renderer), .hint = NYA_HINT_NONE },
@@ -167,7 +167,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
     .field_count = 2,
 };
 
-/* NYA_NetChatMessage — src/nyangine/net/net_chat.h */
+/* NYA_NetChatMessage, src/nyangine/net/net_chat.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage_name_ARRAY = {
     .name = "char[]", .kind = NYA_REFLECT_ARRAY,
@@ -200,7 +200,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage = {
     .field_count = 5,
 };
 
-/* NYA_NetPeerId — src/nyangine/net/net_types.h */
+/* NYA_NetPeerId, src/nyangine/net/net_types.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_NetPeerId_FIELDS[] = {
     { .name = "index", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_NetPeerId, index), .hint = NYA_HINT_NONE },
@@ -216,7 +216,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_NetPeerId = {
     .field_count = 2,
 };
 
-/* NYA_Color — src/nyangine/renderer/render_color.h */
+/* NYA_Color, src/nyangine/renderer/render_color.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_Color_FIELDS[] = {
     { .name = "r", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_Color, r), .hint = NYA_HINT_NONE },
