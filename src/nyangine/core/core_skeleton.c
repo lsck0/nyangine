@@ -164,27 +164,71 @@ void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 delta_time
     nya_skeleton_pose_sample(animator->skeleton, animator->clip, animator->time_s, out_pose);
 }
 
-void nya_skeleton_palette(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_palette) {
-    if (skeleton == nullptr || pose == nullptr || out_palette == nullptr) return;
+void nya_skeleton_model_transforms(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_model) {
+    if (skeleton == nullptr || pose == nullptr || out_model == nullptr) return;
 
     u32 bone_count = skeleton->bone_count < NYA_SKELETON_MAX_BONES ? skeleton->bone_count : NYA_SKELETON_MAX_BONES;
 
     /*
-     * Model space transforms, built in one forward pass.
+     * One forward pass, which is only correct because a bone's parent precedes it.
+     *
+     * The importer orders bones parent-first (see _nya_asset_mesh_skeleton), so `model[parent]` is already
+     * final by the time a child reads it. The index test keeps a file that violates that from reading an
+     * entry this loop has not written rather than producing a plausible wrong transform.
      */
-    f32_4x4 model[NYA_SKELETON_MAX_BONES];
-
     for (u32 i = 0; i < bone_count; i++) {
         f32_4x4 local = _nya_skeleton_transform_matrix(pose->local[i]);
 
         s32 parent = skeleton->bones[i].parent;
 
-        model[i] = parent >= 0 && (u32)parent < i ? model[parent] * local : local;
+        out_model[i] = parent >= 0 && (u32)parent < i ? out_model[parent] * local : local;
+    }
+}
 
+void nya_skeleton_palette(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_palette) {
+    if (skeleton == nullptr || pose == nullptr || out_palette == nullptr) return;
+
+    u32 bone_count = skeleton->bone_count < NYA_SKELETON_MAX_BONES ? skeleton->bone_count : NYA_SKELETON_MAX_BONES;
+
+    // Written into the caller's array and then folded in place, so the palette costs no scratch of its own
+    // — the model transform for bone i is not needed once its own palette entry is built.
+    nya_skeleton_model_transforms(skeleton, pose, out_palette);
+
+    for (u32 i = 0; i < bone_count; i++) {
         // The bind pose undone, then the animated pose applied. A bone that has not moved leaves the
         // vertex exactly where it was authored, which is the identity this must produce.
-        out_palette[i] = model[i] * skeleton->bones[i].inverse_bind;
+        out_palette[i] = out_palette[i] * skeleton->bones[i].inverse_bind;
     }
+}
+
+b8 nya_skeleton_bone_model(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, s32 bone, OUT f32_4x4* out_transform) {
+    if (skeleton == nullptr || pose == nullptr || out_transform == nullptr) return false;
+    if (bone < 0 || (u32)bone >= skeleton->bone_count || bone >= NYA_SKELETON_MAX_BONES) return false;
+
+    /*
+     * The one bone's chain rather than the whole skeleton's.
+     *
+     * A socket asks about a handful of bones — a hand, a head — where nya_skeleton_model_transforms costs
+     * every bone in the rig. Walking up from the bone and composing down is depth multiplications instead
+     * of bone_count, and depth on a humanoid rig is single digits.
+     */
+    s32 chain[NYA_SKELETON_MAX_BONES];
+    u32 depth = 0;
+
+    for (s32 at = bone; at >= 0 && depth < NYA_SKELETON_MAX_BONES; at = skeleton->bones[at].parent) {
+        chain[depth++] = at;
+    }
+
+    nya_assert(depth > 0, "a bone that resolved has at least itself in its parent chain");
+
+    f32_4x4 model = _nya_skeleton_transform_matrix(pose->local[chain[depth - 1]]);
+
+    // Root first, which is the order the chain was collected in reverse.
+    for (u32 i = depth - 1; i > 0; i--) model = model * _nya_skeleton_transform_matrix(pose->local[chain[i - 1]]);
+
+    *out_transform = model;
+
+    return true;
 }
 
 /*

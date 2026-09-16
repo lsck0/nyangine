@@ -240,6 +240,43 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: nya_skeleton_bone_model agrees with nya_skeleton_model_transforms
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    printf("TEST: the one-bone socket walk matches the whole-rig pass\n");
+
+    NYA_SkeletonPose pose;
+    nya_skeleton_pose_rest(skeleton, &pose);
+
+    // Moved, so the comparison is not two identities agreeing with each other.
+    pose.local[upper].translation = (f32x3){ 0.3F, 1.1F, -0.4F };
+    pose.local[upper].rotation    = nya_quaternion_from_axis_angle((f32x3){ 0.0F, 1.0F, 0.0F }, 0.7F);
+
+    f32_4x4 model[NYA_SKELETON_MAX_BONES];
+    nya_skeleton_model_transforms(skeleton, &pose, model);
+
+    for (u32 bone = 0; bone < skeleton->bone_count; bone++) {
+      f32_4x4 one;
+      nya_assert(nya_skeleton_bone_model(skeleton, &pose, (s32)bone, &one), "bone %u should resolve", bone);
+
+      for (u32 row = 0; row < 4; row++) {
+        for (u32 column = 0; column < 4; column++) {
+          f32 difference = fabsf(one[row][column] - model[bone][row][column]);
+          nya_assert(difference < 0.0005F, "bone %u disagreed at [%u][%u] by %f", bone, row, column, (f64)difference);
+        }
+      }
+    }
+
+    // A bone that does not exist is refused rather than answered with whatever was in the slot.
+    f32_4x4 untouched = model[0];
+    f32_4x4 refused   = untouched;
+    nya_assert(!nya_skeleton_bone_model(skeleton, &pose, -1, &refused), "a negative bone index should be refused");
+    nya_assert(!nya_skeleton_bone_model(skeleton, &pose, (s32)skeleton->bone_count, &refused), "a bone past the end should be refused");
+
+    printf("  PASSED\n");
+  }
+
   printf("PASSED: test_skeleton\n");
 
   return 0;
