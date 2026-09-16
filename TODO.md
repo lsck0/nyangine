@@ -52,7 +52,6 @@ depth target was `DONT_CARE` while resume `LOAD`ed it.
   because `NYA_CONFIG` is a global in the game DLL (`gnyame/config.h`) that no engine module can read.
   The same is why `shadow_bias`, `shadow_cascades` and `shadow_map_size` are loaded and read by nothing.
   Either the engine owns the config instance or these stay macros.
-- `[ ]` `NYA_CONFIG.game.player_speed` is not read; `gny_net_apply_command` uses `GNY_PLAYER_SPEED`.
 
 ## `[~]` SDF text: works, looks unconfirmed
 
@@ -228,8 +227,6 @@ init, subsystems and first frame; each subsystem's bring-up time is at debug lev
 
 ## `[ ]` gnyame
 
-- `[ ]` layer_background.c also starts the music and writes the perf report, because it is the one layer
-  always present. Both belong in a system.
 - `[ ]` The menu widget has no test; screens.c is only exercised by hand.
 
 ## `[ ]` The game side has no tests

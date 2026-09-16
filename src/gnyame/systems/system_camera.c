@@ -93,16 +93,11 @@ b8 _gny_camera_target_ensure(NYA_Window* window, GNY_CameraView* view) {
 void _gny_camera_render_primary(NYA_Window* window, NYA_Camera2DTopDown camera) {
     GNY_World* world = gny_world();
 
-    if (!world->bloom_enabled) {
-        // Straight to the window, no second pass and no offscreen target. What this did before there
-        // was a post process, and the fallback if the pipeline failed to build.
-        gny_world_draw(window, camera);
-        return;
-    }
+    nya_perf_time_this_scope("gny_world_pass");
 
-    nya_perf_time_this_scope("gny_bloom_pass");
-
-    // Returns false when the window has no size to make a target of; the world still has to be drawn.
+    // always through the offscreen target, bloom or not: the light pass multiplies whatever is in the target, and
+    // drawing straight to the window would darken the background layer behind the world too, so toggling bloom
+    // changed the brightness of the whole screen. Only fails without a target size, and the world still draws.
     if (!nya_post_begin(window, &world->post)) {
         gny_world_draw(window, camera);
         return;
@@ -110,23 +105,19 @@ void _gny_camera_render_primary(NYA_Window* window, NYA_Camera2DTopDown camera) 
 
     gny_world_draw(window, camera);
 
-    nya_post_end(
-        window, &world->post,
-        (NYA_PostPass[]){
-            {
-                .pipeline = GNY_PIPELINE_BLOOM,
-                .uniform =
-                    &(NYA_ShaderBloomUniform){
-                        // The 2D world's own numbers. The 3D scene runs the same pipeline with its own
-                        // set, because the two are nowhere near equally bright; see GNY_BLOOM_2D_THRESHOLD.
-                        .texel_x   = GNY_BLOOM_2D_SPREAD / (f32)world->post.width,
-                        .texel_y   = GNY_BLOOM_2D_SPREAD / (f32)world->post.height,
-                        .threshold = GNY_BLOOM_2D_THRESHOLD,
-                        .intensity = GNY_BLOOM_2D_INTENSITY,
-                    },
-                .uniform_size = sizeof(NYA_ShaderBloomUniform),
+    NYA_PostPass bloom = {
+        .pipeline = GNY_PIPELINE_BLOOM,
+        .uniform =
+            &(NYA_ShaderBloomUniform){
+                // the 2D world's numbers; the 3D scene runs the same pipeline with its own. See GNY_BLOOM_2D_THRESHOLD.
+                .texel_x   = GNY_BLOOM_2D_SPREAD / (f32)world->post.width,
+                .texel_y   = GNY_BLOOM_2D_SPREAD / (f32)world->post.height,
+                .threshold = GNY_BLOOM_2D_THRESHOLD,
+                .intensity = GNY_BLOOM_2D_INTENSITY,
             },
-        },
-        1
-    );
+        .uniform_size = sizeof(NYA_ShaderBloomUniform),
+    };
+
+    // zero passes puts the captured world back on the window unchanged.
+    nya_post_end(window, &world->post, &bloom, world->bloom_enabled ? 1 : 0);
 }
