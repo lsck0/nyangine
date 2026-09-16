@@ -1,11 +1,9 @@
 /**
  * Fonts as values: the handle, the name registry, default resolution, and metrics.
  *
- * ⚠ **Metrics used to be untestable here, and are not any more.** Measuring answered zero headless,
- * so this file could only test bookkeeping; laying text out needs no GPU, so it now goes through the
- * same code the real renderer uses and the numbers are real. That costs this test an app instance and
- * an asset system, which is what the setup below is for — measuring resolves a face through it.
- **/
+ * Metrics are real headless, since layout needs no GPU and uses the renderer's own code. That needs an
+ * app instance and an asset system to resolve faces, set up below.
+ * */
 
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
@@ -16,9 +14,8 @@
 #define FACE2 "./assets/fonts/mono.ttf"
 
 s32 main(void) {
-    // No real audio device, ever: nya_system_asset_init brings up SDL_mixer, and on a machine without
-    // a sound card ALSA leaks its configuration tree while failing to open one — which the leak
-    // sanitizer then fails this test over. The same hint test_asset.c sets, for the same reason.
+    // no real audio device: nya_system_asset_init brings up SDL_mixer, and without a sound card ALSA leaks
+    // its configuration tree while failing to open one. Same hint as test_asset.c.
     SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
@@ -157,7 +154,7 @@ s32 main(void) {
         nya_check(registered == NYA_FONT_REGISTRY_MAX, "exactly the table's worth should register, got %u", registered);
         nya_check(nya_font_count() == NYA_FONT_REGISTRY_MAX, "and the count should agree");
 
-        // The first entry must still be intact — overflow must not have recycled a slot.
+        // the first entry must be intact; overflow must not recycle a slot.
         nya_check(nya_font_equals(nya_font_named("font_0"), nya_font(FACE, 8.0F)), "the first entry must survive overflow");
     }
 
@@ -178,11 +175,10 @@ s32 main(void) {
     }
 
     /*
-     * ── Real metrics and real measurement, headless.
+     * Real metrics and measurement, headless.
      *
-     * The face is loaded asynchronously, so the first ask queues it and answers zero — which is
-     * correct and is what every caller already copes with. Pumped until it lands rather than asserted
-     * on the first call.
+     * Faces load asynchronously, so the first ask queues and answers zero, as callers expect. Pumped until
+     * it lands.
      */
     {
         NYA_Font ui = nya_font(FACE, 24.0F);

@@ -65,9 +65,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a key whose buffer is later overwritten
   //
-  // The dict stores the pointer it was given. Nothing copies the bytes, so mutating the caller's
-  // buffer afterwards changes what that entry's key reads as — worth pinning, because it is the
-  // difference between a dict that owns its keys and one that borrows them.
+  // The dict stores the pointer it was given and copies no bytes, so mutating the caller's buffer
+  // changes the key. Pins that the dict borrows its keys.
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: keys are borrowed, not copied\n");
   {

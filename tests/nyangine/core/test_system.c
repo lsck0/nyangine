@@ -79,7 +79,7 @@ static void count_warnings(NYA_LogLevel level, NYA_ConstCString message, u32 len
 
 s32 main(void) {
     // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: no `after` anywhere — init, update and deinit follow registration order,
+    // TEST: no `after` anywhere: init, update and deinit follow registration order,
     // and deinit is exactly that order reversed.
     // ─────────────────────────────────────────────────────────────────────────────
     {
@@ -111,7 +111,7 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        // Registered third, first, second — finalize has to reorder this, not just trust the list.
+        // registered third, first, second, so finalize has to reorder.
         nya_system_register((NYA_SystemEntry){ .name = "c", .after = "b", .init = c_init });
         nya_system_register((NYA_SystemEntry){ .name = "a", .init = a_init });
         nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .init = b_init });
@@ -185,15 +185,15 @@ s32 main(void) {
         nya_assert(nya_system_registry_count() == NYA_SYSTEM_REGISTRY_MAX, "the count must not grow past the ceiling");
         nya_assert(warning_count == 1, "refusing the extra registration should warn exactly once, warned %u times", warning_count);
 
-        // Finalize still succeeds over exactly-at-the-ceiling data — the refusal did not corrupt it.
+        // finalize still succeeds with data exactly at the ceiling; the refusal did not corrupt it.
         nya_assert(nya_system_registry_finalize().ok);
 
         nya_log_sink_clear();
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: init_at/deinit_at, for a caller unwinding only as far as it actually got
-    // (core_app.c's own bring-up, which run_init/run_deinit do not fit — see their doc).
+    // TEST: init_at/deinit_at, for a caller unwinding only as far as it got
+    // (core_app.c's own bring-up, which run_init/run_deinit do not fit; see their doc).
     // ─────────────────────────────────────────────────────────────────────────────
     {
         _nya_system_registry_reset_for_test();

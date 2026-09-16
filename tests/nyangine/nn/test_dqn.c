@@ -1,6 +1,4 @@
-/**
- * The DQN agent, judged on whether it learns to act — not on whether the loss goes down.
- **/
+/** The DQN agent, judged on whether it learns to act, not on whether the loss falls. */
 
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
@@ -128,7 +126,7 @@ int main(void) {
 
     for (u32 i = 0; i < 32; i++) nya_nn_dqn_observe(agent, (f32[]){ 0.0F, 1.0F }, i % 2, 0.1F, (f32[]){ 1.0F, 0.0F }, false);
 
-    // One second at ten steps a second, delivered as sixty frames, is ten steps — not sixty.
+    // one second at ten steps a second, delivered as sixty frames, is ten steps.
     for (u32 frame = 0; frame < 60; frame++) (void)nya_nn_dqn_train_for(agent, 1.0F / 60.0F);
 
     u64 steps = nya_nn_dqn_train_step_count(agent);
@@ -183,8 +181,8 @@ int main(void) {
     for (u32 episode = 0; episode < 600; episode++) {
       (void)corridor_episode(agent, &rng, true, false);
 
-      // Trained between episodes rather than inside the step loop, which keeps the environment and
-      // the optimizer independent — and is how nya_nn_dqn_train_for would be used from a game loop.
+      // trained between episodes, so the environment and optimizer stay independent, as a game loop would
+      // use nya_nn_dqn_train_for.
       for (u32 i = 0; i < 10; i++) (void)nya_nn_dqn_train_step(agent);
     }
 

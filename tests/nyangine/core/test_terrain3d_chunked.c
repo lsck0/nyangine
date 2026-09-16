@@ -1,10 +1,9 @@
 /**
  * Chunked terrain and GeoMipMapping: the chunk grid, the LOD bands, and what an update rebuilds.
  *
- * ⚠ The distance measure is deliberately horizontal. A camera high above a landscape is far from
- * every chunk in a straight line, so a 3D distance would drop the whole surface to its coarsest level
- * the moment the viewer climbed, which is the opposite of what looking down at the ground wants.
- **/
+ * The distance is horizontal. A camera high above the landscape is far from every chunk in 3D, which
+ * would drop the whole surface to its coarsest level exactly when looking down at it.
+ * */
 
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
@@ -60,8 +59,8 @@ s32 main(void) {
         nya_check(terrain->chunk_count == expected * expected, "and " FMTu32 " in total, got " FMTu32, expected * expected,
                   terrain->chunk_count);
 
-        // Every chunk starts unbuilt, which is what makes the first update rebuild all of them with no
-        // special case — no level it could pick can equal the out-of-range marker.
+        // every chunk starts unbuilt, so the first update rebuilds all without a special case: no level can
+        // equal the out-of-range marker.
         for (u32 i = 0; i < terrain->chunk_count; i++) {
             nya_check(terrain->chunks[i].lod == NYA_TERRAIN3D_LOD_LEVELS, "chunk " FMTu32 " should start unbuilt", i);
             nya_check(terrain->chunks[i].handle[0] != '\0', "and carry its own mesh handle");
@@ -164,7 +163,7 @@ s32 main(void) {
         nya_terrain3d_update(terrain, &window, (f32x3){ 0.5F, 0.0F, 0.5F });
         nya_check(terrain->chunks_rebuilt == 0, "a small move rebuilds nothing, got " FMTu32, terrain->chunks_rebuilt);
 
-        // A large one crosses bands, and rebuilds *some* — not all, or the banding is doing nothing.
+        // a large move crosses bands and rebuilds some chunks, not all.
         nya_terrain3d_update(terrain, &window, (f32x3){ 220.0F, 0.0F, 220.0F });
         nya_check(terrain->chunks_rebuilt > 0, "crossing the map should re-level some chunks");
         nya_check(terrain->chunks_rebuilt <= terrain->chunk_count, "and never more than there are");

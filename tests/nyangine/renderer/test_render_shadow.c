@@ -49,12 +49,10 @@ s32 main(void) {
     NYA_Render3DShadowFit unsnapped = { .range = RANGE, .strength = 0.45F, .aspect = 16.0F / 9.0F, .no_texel_snap = true };
 
     /*
-     * ── The cascades tile the view, and each is wider than the last.
+     * The cascades tile the view, each wider than the last.
      *
-     * Nesting is what the old fit did — every cascade was a box starting at the camera, so the near
-     * ones were entirely inside the far ones and covered nothing the far ones did not. Tiling is the
-     * point of having cascades at all: each takes a slice of the view and spends its whole resolution
-     * on that slice.
+     * Each cascade spends its whole resolution on its own slice of the view. Nested boxes starting at the
+     * camera would cover nothing the far cascades do not.
      */
     {
         NYA_Camera3DPerspective camera = camera_at(0.0F);
@@ -84,13 +82,11 @@ s32 main(void) {
     }
 
     /*
-     * ── ⭐ The fit does not depend on how far the camera is from what it is looking at.
+     * The fit does not depend on how far the camera is from what it looks at.
      *
-     * This is the regression test for the whole bug. The old fit derived nothing from the frustum, so
-     * a camera that orbited outward left its near cascades behind in empty space and the scene fell
-     * through to the coarsest map — which is why the shadows changed as the camera moved. Two cameras
-     * with the same shape pointed the same way must produce the same cascade sizes whatever they are
-     * looking at and from how far.
+     * A fit that ignored the frustum left near cascades in empty space for an orbiting camera, and shadows
+     * changed as it moved. Two cameras with the same shape and direction must produce the same cascade
+     * sizes at any distance.
      */
     {
         for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
@@ -135,11 +131,10 @@ s32 main(void) {
     }
 
     /*
-     * ── Between them the cascades reach the whole range, and stop after it.
+     * Between them the cascades reach the whole range, and stop after it.
      *
-     * A point at the far end of the range has to land in *some* cascade or it draws unshadowed, and a
-     * point well past the range has to land in none — that is what makes the range a range rather than
-     * a suggestion.
+     * A point at the far end must land in some cascade or it draws unshadowed, and a point well past it in
+     * none.
      */
     {
         NYA_Camera3DPerspective camera = camera_looking_at_origin(10.0F);
@@ -162,13 +157,11 @@ s32 main(void) {
     }
 
     /*
-     * ── ⭐ Turning the camera does not resize a cascade.
+     * Turning the camera does not resize a cascade.
      *
-     * The reason the fit takes the slice's bounding *sphere* rather than its bounding box, and the
-     * property behind "the shadows move when I turn". A box fitted to the frustum corners changes size
-     * as the camera turns, so every texel changes size with it and the snap below has no fixed grid to
-     * snap to — the edges then crawl however carefully they are rounded. A sphere is the same size in
-     * every direction, which is what makes the snap work at all.
+     * Why the fit uses the slice's bounding sphere, not its box: a box fitted to frustum corners changes
+     * size as the camera turns, so texels resize and the snap has no fixed grid, and edges crawl. A
+     * sphere is the same size in every direction.
      */
     {
         f32x3 targets[] = {
@@ -193,10 +186,9 @@ s32 main(void) {
     }
 
     /*
-     * ── A wider frustum needs a bigger cascade.
+     * A wider frustum needs a bigger cascade.
      *
-     * The fit measures the frustum, so it has to actually respond to its shape — otherwise every
-     * assertion above would also pass for a fit that ignored the camera and returned a constant.
+     * Without this, a fit returning a constant would pass every assertion above.
      */
     {
         NYA_Camera3DPerspective narrow = camera_at(0.0F);
@@ -270,16 +262,13 @@ s32 main(void) {
     }
 
     /*
-     * ── The snap quantises the volume: many camera positions, few volume positions.
+     * The snap quantises the volume: many camera positions, few volume positions.
      *
-     * This is the property the snap exists for, and it has to be stated as quantisation rather than as
-     * "a small move does nothing" — a small move *can* cross a grid boundary. What is true is that a
-     * hundred camera positions spanning one texel produce a handful of volume positions, against a
-     * hundred unsnapped.
+     * Stated as quantisation because a small move can cross a grid boundary. A hundred camera positions
+     * spanning one texel produce a handful of volume positions, against a hundred unsnapped.
      *
-     * A handful, and specifically at most three: the snap rounds along *two* lateral axes, and a camera
-     * walking along world x has a component on both, so it can cross one boundary on each. Asserting
-     * two was asserting that the camera moved along a single snap axis, which this one does not.
+     * At most three: the snap rounds along two lateral axes, and a camera moving along world x has a
+     * component on both, so it can cross one boundary on each.
      */
     {
         // One texel of the cascade being measured, whose size the fit is what decides.
@@ -313,8 +302,8 @@ s32 main(void) {
         nya_check(snapped_positions <= 3, "one texel of camera travel should give at most three volume positions, got " FMTu32,
                   snapped_positions);
 
-        // Which only means anything if the unsnapped fit really does follow the camera continuously —
-        // otherwise the assertion above would also pass for a fit that ignored it.
+        // meaningful only if the unsnapped fit follows the camera continuously; otherwise a fit ignoring the
+        // camera would pass too.
         nya_check(raw_positions > SAMPLES / 2, "unsnapped, the volume should follow the camera continuously, got " FMTu32 " positions",
                   raw_positions);
     }
@@ -357,8 +346,7 @@ s32 main(void) {
 
     // ── The degenerate cases.
     {
-        // A camera aimed at itself names no direction. The volume sits on it, which is wrong but
-        // bounded — the point is that it is not NaN.
+        // a camera aimed at itself has no direction. The volume sits on it, wrong but bounded and not NaN.
         NYA_Camera3DPerspective still = { .position = { 3.0F, 4.0F, 5.0F }, .target = { 3.0F, 4.0F, 5.0F } };
 
         NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(still, SUN, 0, (NYA_Render3DShadowFit){ .strength = 0.4F });
@@ -380,8 +368,8 @@ s32 main(void) {
         nya_check(clamped.cascade == NYA_RENDER3D_SHADOW_CASCADES - 1, "a cascade past the last is clamped, got " FMTu32,
                   clamped.cascade);
 
-        // A range inside the near plane names no slice, and is clamped rather than asserted — a caller
-        // ramping the shadow distance to nothing should get no shadows, not a crash.
+        // a range inside the near plane names no slice and is clamped: ramping shadow distance to nothing gives
+        // no shadows, not a crash.
         NYA_Render3DShadow tiny = nya_render3d_shadow_for_camera(camera_at(0.0F), SUN, 0,
                                                                  (NYA_Render3DShadowFit){ .range = 0.001F, .strength = 0.4F });
 

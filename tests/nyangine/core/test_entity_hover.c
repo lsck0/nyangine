@@ -71,8 +71,8 @@ s32 main(void) {
 
     nya_assert(!nya_entity_is_valid(nya_entity_hovered()), "a fresh world hovers nothing");
 
-    // Zero is NYA_ENTITY_HANDLE_NONE and generations start at one, so a zeroed system already reads as
-    // "nothing hovered" rather than as "entity zero" — which is what makes no explicit init necessary.
+    // zero is NYA_ENTITY_HANDLE_NONE and generations start at one, so a zeroed system reads as nothing
+    // hovered without an init.
     NYA_EntityHandle nothing = nya_entity_hover((f32x2){ 500.0F, 500.0F });
 
     nya_assert(!nya_entity_is_valid(nothing));
@@ -133,8 +133,8 @@ s32 main(void) {
     (void)nya_entity_hover((f32x2){ 0.0F, 0.0F });
     nya_assert(call_count == 1 && call_was(0, left, true));
 
-    // Straight from one to the other, with no frame in between on empty space — which is the ordinary
-    // case for two adjacent things and the one where the order matters.
+    // straight from one to the other with no empty frame between, the ordinary case for adjacent things
+    // and where order matters.
     NYA_EntityHandle hit = nya_entity_hover((f32x2){ 200.0F, 0.0F });
 
     nya_assert(hit.index == right.index, "the new entity is the hovered one");
@@ -216,9 +216,8 @@ s32 main(void) {
     nya_assert(call_count == 1, "despawning does not fire the leave edge, got %u calls", call_count);
     nya_assert(!nya_entity_is_valid(nya_entity_hovered()), "and the hover is released immediately");
 
-    // And the next arrival is a clean enter rather than being swallowed as "no change" against a stale
-    // handle — which is what would happen if the despawn had left the handle in place and the slot were
-    // reused.
+    // the next arrival is a clean enter, not swallowed as "no change" against a stale handle in a reused
+    // slot.
     NYA_EntityHandle other = spawn_2d("other", (f32x2){ 100.0F, 100.0F }, true);
 
     (void)nya_entity_hover((f32x2){ 100.0F, 100.0F });
@@ -229,7 +228,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: 3D — the ray overload drives the same edges
+  // TEST: 3D: the ray overload drives the same edges
   // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();

@@ -29,8 +29,8 @@ s32 main(void) {
   printf("TEST: euler round trip\n");
   {
     for (u32 trial = 0; trial < 500; trial++) {
-      // Pitch kept clear of +-90 degrees, where yaw and roll stop being separable and only their
-      // sum survives — a documented property of euler angles rather than a defect.
+      // pitch kept clear of +-90 degrees, where yaw and roll stop being separable. A property of euler
+      // angles, not a defect.
       f32 pitch = ((f32)(rand() % 2000) / 1000.0F - 1.0F) * 1.3F;
       f32 yaw   = ((f32)(rand() % 2000) / 1000.0F - 1.0F) * 3.1F;
       f32 roll  = ((f32)(rand() % 2000) / 1000.0F - 1.0F) * 3.1F;

@@ -52,9 +52,8 @@ static void record_phase(const NYA_Neat* neat, const NYA_NeatTrace* trace, void*
 static NYA_NeatNetwork* xor_seed(NYA_Arena* arena) {
   NYA_NeatNetwork* seed = nya_nn_neat_network_create(arena);
 
-  // The bias is not optional for XOR. Without a constant to lean on, a node cannot learn a
-  // threshold, and the population plateaus around 3 of 4 — which looks like slow progress rather
-  // than a missing input. The original example omitted it.
+  // XOR needs the bias. Without a constant a node cannot learn a threshold, and the population plateaus
+  // at 3 of 4, which looks like slow progress.
   nya_nn_neat_network_push_bias(seed, "bias");
   nya_nn_neat_network_push_sensor(seed, "x");
   nya_nn_neat_network_push_sensor(seed, "y");
@@ -140,9 +139,8 @@ s32 main(void) {
     nya_nn_neat_network_set_sensor(network, "in", 1.0);
     nya_nn_neat_network_run(network);
 
-    // Not merely "did not crash": the bad genes must contribute nothing, so the output has to be
-    // exactly what it was without them. Under the sanitizers the run itself is the other half of
-    // this test — an unguarded version would abort before reaching here.
+    // the bad genes must contribute nothing, so the output must equal the output without them. Under
+    // sanitizers an unguarded version aborts before this.
     f64 with_dangling = nya_nn_neat_network_get_output(network, "out");
     nya_assert(with_dangling == clean, "a dangling gene changed the result: %.17g against %.17g", with_dangling, clean);
   }
@@ -192,9 +190,7 @@ s32 main(void) {
   // TEST: evolution solves XOR
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    /*
-     * Several seeds, and a majority must solve — not one seed that must.
-     */
+    /* Several seeds, and a majority must solve. */
     NYA_ConstCString seeds[] = { "6E79616E67696E65", "1234567890ABCDEF", "FEDCBA0987654321" };
 
     const u32 generation_budget = 250;
@@ -262,11 +258,9 @@ s32 main(void) {
     struct ObserverLog log = { 0 };
 
     /*
-     * The hook exists so a caller can watch a run without the library deciding what is worth
-     * logging, and this asserts the two things a watcher depends on: that the five phases arrive in
-     * declaration order, and that the population is never reported empty. The second is the
-     * regression guard — every historical NEAT failure here was a generation that quietly bred
-     * nothing, and before the hook the only symptom was a fitness that stopped moving.
+     * The hook lets a caller watch a run without the library deciding what to log. Asserts the five
+     * phases arrive in declaration order and the population is never reported empty; past NEAT failures
+     * here were generations that quietly bred nothing.
      */
     NYA_Neat* neat = nya_nn_neat_create((NYA_NeatConfig){
       .seed                = xor_seed(arena),
@@ -294,8 +288,7 @@ s32 main(void) {
   {
 #define TEST_NEAT_PATH "./tests/nyangine/nn/test_neat_genome.json"
 
-    // Built by hand rather than evolved, so the assertions below name exact values — an evolved
-    // genome would only let this check that two opaque things match.
+    // built by hand so the assertions name exact values instead of comparing two opaque genomes.
     NYA_NeatNetwork* original = nya_nn_neat_network_create(arena);
     nya_nn_neat_network_push_bias(original, "bias");
     nya_nn_neat_network_push_sensor(original, "x");
@@ -313,9 +306,8 @@ s32 main(void) {
     nya_array_push_back(original->connections, ((NYA_NeatConnection){ .in = 0, .out = 2, .weight = 0.75, .enabled = false, .innovation_number = 11 }));
 
     /*
-     * Both formats, because they take different paths through serde and the default is the one that
-     * is easiest to leave untested — the extension chooses, so a test naming only .json exercises
-     * the interop path and never the native one.
+     * Both formats, since they take different serde paths and the extension chooses; testing only .json
+     * would never cover the native one.
      */
     NYA_ConstCString paths[] = { "./tests/nyangine/nn/test_neat_genome.nya", TEST_NEAT_PATH };
 
@@ -340,8 +332,8 @@ s32 main(void) {
     nya_assert(loaded->nodes->items[3].kind == NYA_NEAT_NODE_HIDDEN);
     nya_assert(loaded->nodes->items[3].label == nullptr, "a hidden node has no label and must not gain one");
 
-    // Genes come back sorted by innovation number, which is the invariant the distance function
-    // relies on — so they are checked by number rather than by position.
+    // genes come back sorted by innovation number, which the distance function relies on, so check by
+    // number rather than position.
     for (u32 i = 0; i < 3; i++) {
       u32 innovation = loaded->connections->items[i].innovation_number;
 

@@ -200,7 +200,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: CRC64 consistency — same data always produces same hash
+  // TEST: CRC64 consistency: same data always produces same hash
   // ─────────────────────────────────────────────────────────────────────────────
   {
     u8  data[] = "The quick brown fox jumps over the lazy dog";

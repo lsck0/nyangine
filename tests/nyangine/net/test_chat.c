@@ -77,7 +77,7 @@ static void on_game_event(const NYA_Object* event) {
 
 static u64 CHILD_TICK = 1;
 
-/** One tick of the client and nothing else — a child has no server to run. */
+/** One tick of the client and nothing else; a child has no server to run. */
 static void client_pump(void) {
   nya_net_client_tick(CHILD_TICK, TICK_SECONDS);
   nya_system_sim_apply_commands();
@@ -291,8 +291,8 @@ static s32 child_main(u32 index, s32 port_pipe) {
   }
 
   /*
-   * Long enough for twenty reliable messages to cross a loopback socket several times over, and short
-   * enough that the bucket refills by at most one token — NYA_NET_CHAT_REFILL_MS is 1500.
+   * Long enough for twenty reliable messages to cross loopback several times, and short enough that the
+   * bucket refills at most one token (NYA_NET_CHAT_REFILL_MS is 1500).
    */
   client_pump_for(1200);
 
@@ -348,11 +348,10 @@ s32 main(void) {
     nya_assert(nya_net_chat_sanitize(nullptr, out, sizeof(out)) == 0);
 
     /*
-     * ── truncation lands on a codepoint boundary ───────────────────────────
+     * truncation lands on a codepoint boundary
      *
-     * Three bytes each, into eight bytes of capacity. Two fit with the terminator and the third does
-     * not, so the answer must be exactly six — a byte-counting truncation would write seven and leave
-     * a third of a character at the end, which is the malformed input this function exists to remove.
+     * Three bytes each into eight bytes of capacity: two fit with the terminator, so the answer is six. A
+     * byte counting truncation would leave a third of a character.
      */
     char small[8] = { 0 };
 
@@ -520,9 +519,7 @@ s32 main(void) {
     sleep_ms(2);
   }
 
-  /*
-   * The server was *handed* every flooded line — the limit is not a transport that dropped them.
-   */
+  /* The server received every flooded line, so the limit is not the transport dropping them. */
   u32 delivered = SERVER_CHAT_SEEN - before_flood;
 
   nya_assert(delivered >= FLOOD_ATTEMPTS, "the server was handed %u of %d flooded lines; the limit was not what stopped them",

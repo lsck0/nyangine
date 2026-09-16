@@ -40,10 +40,8 @@ s32 main(void) {
     // TEST: the same property for every other name map in the tree
     // ─────────────────────────────────────────────────────────────────────────────
     //
-    // The event map was the one that was wrong, but nothing about the mistake was specific to it —
-    // any of these is a designated-initialiser table indexed by an enum, and any of them can grow an
-    // enumerator without growing a row. Checked here rather than in five separate places because the
-    // property is identical and the failure mode is identical.
+    // Every one is a designated initialiser table indexed by an enum, and any can gain an enumerator
+    // without a row.
     printf("TEST: every name map is complete\n");
 
 #define _NYA_CHECK_NAME_MAP(map, count)                                                                                                              \

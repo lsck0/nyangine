@@ -212,8 +212,8 @@ s32 main(void) {
 
         NYA_EXPECT(nya_tilemap_autotile_layer(map, ground, lookup, 16, NYA_TILEMAP_AUTOTILE_EDGES, false));
 
-        // The fixture's filled cells are the 2x2 block at (1,1)-(2,2). Each has exactly two filled
-        // edge neighbours, so each gets a different corner piece — and no cell may keep its old id.
+        // the filled cells are the 2x2 block at (1,1)-(2,2). Each has exactly two filled edge neighbours, so
+        // each gets a different corner piece and none keeps its old id.
         nya_check(nya_tilemap_tile_at(map, ground, 0, 0) == 0, "an empty cell stays empty");
 
         u32 top_left = nya_tilemap_tile_at(map, ground, 1, 1);

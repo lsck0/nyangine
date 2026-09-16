@@ -231,7 +231,7 @@ s32 main(void) {
     for (u32 i = 0; i < 4; i++) {
       nya_ring_push(ring, ((TestItem){ .id = i }));
     }
-    // Pop 2 items, push 2 more — head wraps forward
+    // pop 2 items, push 2 more; head wraps forward
     nya_ring_pop(ring);
     nya_ring_pop(ring);
     nya_ring_push(ring, ((TestItem){ .id = 10 }));
@@ -242,7 +242,7 @@ s32 main(void) {
     nya_assert(nya_ring_front(ring)->id == 2);
     nya_assert(nya_ring_back(ring)->id == 11);
 
-    // Resize — must linearize wrapped data
+    // resize must linearize wrapped data
     nya_ring_resize(ring, 16);
     nya_assert(nya_ring_capacity(ring) == 16);
     nya_assert(nya_ring_length(ring) == 4);

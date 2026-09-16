@@ -226,8 +226,8 @@ s32 main(void) {
     NYA_Error empty = nya_sql_exec(db, "");
     nya_assert(empty.kind == NYA_ERROR_INVALID_ARGUMENT);
 
-    // The connection is still usable, which is what proves the failed statement was finalized
-    // rather than left open — nya_sql_close would otherwise refuse at the end of this block.
+    // the connection is still usable, proving the failed statement was finalized; nya_sql_close would
+    // refuse otherwise.
     NYA_EXPECT(nya_sql_exec(db, "CREATE TABLE fine (x INTEGER)"));
   }
 

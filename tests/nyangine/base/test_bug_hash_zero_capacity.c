@@ -17,10 +17,8 @@ s32 main(void) {
     // TEST: reading a zero capacity container reports empty rather than dividing
     // ─────────────────────────────────────────────────────────────────────────────
     //
-    // The lookups take `hash(key) % capacity` to pick a starting bucket, before the probe loop —
-    // whose own bound, `iterations < capacity`, would have kept it from running. So a get on a
-    // container that had been created empty and never written to divided by zero in the
-    // initialiser, reached from the very first call a caller could make.
+    // Lookups take `hash(key) % capacity` before the probe loop, whose own bound would not run, so a get
+    // on a never written container must not divide by zero.
     printf("TEST: reading a zero capacity container\n");
     {
         NYA_HMapᐸu32ˏu32ᐳ* map  = nya_hmap_create_with_capacity(arena, u32, u32, 0);

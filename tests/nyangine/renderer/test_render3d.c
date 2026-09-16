@@ -18,10 +18,8 @@ static NYA_Window* make_window(void) {
   nya_assert(window != nullptr);
 
   /*
-   * Set by hand, because a headless build creates no SDL window and therefore learns no size — a
-   * real one takes it from the swapchain. Every screen coordinate in this file is relative to these
-   * two numbers, so they have to be something rather than zero: a target of no size has no centre,
-   * and screen_ray correctly refuses to invent one.
+   * Set by hand: a headless build has no window to learn a size from. Every screen coordinate here is
+   * relative to these, and a zero sized target has no centre for screen_ray.
    */
   window->screen_width  = 800;
   window->screen_height = 600;
@@ -81,8 +79,8 @@ s32 main(void) {
     nya_render3d_end(window);
 
     /*
-     * The regression. `active` is false here — the scene is closed, exactly as it is when the next
-     * frame's on_event runs — and the ray still has to be the one the player was looking along.
+     * The regression. `active` is false, as when the next frame's on_event runs after the scene closed,
+     * and the ray must still be the one the player looked along.
      */
     nya_assert(!nya_render3d_active(window), "the scene is closed, which is the state a click arrives in");
 
@@ -102,8 +100,8 @@ s32 main(void) {
     nya_render3d_begin(window, camera);
     nya_render3d_end(window);
 
-    // Screen y grows downward and clip space y grows up, so a pixel *below* centre has to aim
-    // *down* — a missing flip here is the classic inverted picker.
+    // screen y points down and clip y up, so a pixel below centre must aim down. A missing flip is the
+    // classic inverted picker.
     NYA_Render3DRay lower = nya_render3d_screen_ray(window, (f32x2){ 400.0F, 500.0F });
     nya_assert(lower.direction.y < 0.0F, "a pixel below centre aims downward, got %f", (f64)lower.direction.y);
 
@@ -111,9 +109,8 @@ s32 main(void) {
     nya_assert(upper.direction.y > 0.0F, "and one above aims upward, got %f", (f64)upper.direction.y);
 
     /*
-     * Standing at +z looking at the origin with +y up, the world's +x is on your right — the camera
-     * basis is `right = forward x up`, and forward here is (0, 0, -1), which crosses with (0, 1, 0)
-     * to give (1, 0, 0).
+     * At +z looking at the origin with +y up, world +x is to the right: `right = forward x up`, and
+     * (0, 0, -1) x (0, 1, 0) = (1, 0, 0).
      */
     NYA_Render3DRay right = nya_render3d_screen_ray(window, (f32x2){ 700.0F, 300.0F });
     nya_assert(right.direction.x > 0.0F, "right of centre aims along +x from this camera, got %f", (f64)right.direction.x);
@@ -146,8 +143,8 @@ s32 main(void) {
     nya_assert(nya_entity_is_valid(hit), "the ray found something");
     nya_assert(hit.index == cube.index, "and it is the cube");
 
-    // The near face of a unit cube at the origin, seen from +z, is at z = 0.5 — and its normal
-    // points back at the camera.
+    // the near face of a unit cube at the origin, seen from +z, is at z = 0.5 with its normal toward the
+    // camera.
     nya_assert(fabsf(point.z - 0.5F) < 0.01F, "it struck the near face, got %f", (f64)point.z);
     nya_assert(normal.z > 0.9F, "whose normal faces the camera, got %f", (f64)normal.z);
 

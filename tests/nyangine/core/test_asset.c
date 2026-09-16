@@ -402,9 +402,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * The case `source` exists for, spelled out in its own documentation: a face carries no size, so
-     * a .ttf at two sizes cannot be keyed on the path alone. Font loading is CPU side — an atlas
-     * needs a GPU, opening the face does not — so it is reachable here.
+     * The case `source` exists for: a face carries no size, so a .ttf at two sizes cannot be keyed on the
+     * path. Opening a face needs no GPU, so it is reachable here.
      */
     char small[] = "font:aldrich@12";
     char large[] = "font:aldrich@48";
@@ -449,10 +448,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * Headless is a supported configuration, not merely the state of this test — NYA_HEADLESS is a
-     * documented build flag, and CI runs the suite that way. So asking for a texture with no device
-     * has to be an ordinary failed asset rather than a fault, and the failure has to be reached
-     * through the same queue as everything else.
+     * Headless is a supported configuration (NYA_HEADLESS, and CI runs the suite that way), so a texture
+     * request without a device must be an ordinary failed asset reached through the same queue.
      */
     char texture[] = "./_test_asset_texture.png";
     write_file(texture, "not really a png");

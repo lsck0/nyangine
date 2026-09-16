@@ -185,7 +185,7 @@ s32 main(void) {
     packet[at++] = (u8)((KIND_DATA << 4) | NYA_NET_CHANNEL_UNRELIABLE);
     write_u16(packet + at, 7); // message id
     at += 2;
-    write_u16(packet + at, 1); // fragment index 1 — so the copy is offset, not at zero
+    write_u16(packet + at, 1); // fragment index 1, so the copy is offset, not at zero
     at += 2;
     write_u16(packet + at, 2); // of two
     at += 2;
@@ -343,8 +343,8 @@ s32 main(void) {
       if (state->peers[i].occupied) index = i;
     }
 
-    // Two hundred fragments of ~1176 usable bytes each is about 235 kB per message — under the per-message
-    // cap, so only the per-peer budget can refuse it.
+    // two hundred fragments of ~1176 usable bytes is about 235 kB, under the per message cap, so only the
+    // per peer budget can refuse it.
     for (u16 message = 100; message < 100 + 8; message++) {
       u8  packet[NYA_NET_MAX_DATAGRAM] = { 0 };
       u64 at                           = write_header(packet, (u16)(200 + message), 1);
@@ -398,9 +398,8 @@ s32 main(void) {
     nya_assert(before >= 1);
 
     /*
-     * Dense: many message ids in one datagram, because `fragment_count` is a byte and a fragment may carry
-     * a single payload byte. That is the cheap version of the attack — a few packets build a queue that a
-     * naive implementation keeps forever.
+     * Dense: many message ids in one datagram, since `fragment_count` is a byte and a fragment may carry
+     * one payload byte. A few packets build a queue a naive implementation keeps forever.
      */
     for (u32 round = 0; round < 6; round++) {
       u8  packet[NYA_NET_MAX_DATAGRAM] = { 0 };
@@ -505,10 +504,9 @@ s32 main(void) {
       NYA_Arena* scratch = nya_arena_create(.name = "fuzz");
 
       /*
-       * A decoder is allowed to succeed on random input — some of it is accidentally valid, and a snapshot
-       * of zero entities is a legal thing to decode. What it is not allowed to do is fault, read past the
-       * buffer, or allocate from a number it was handed. ASan and the arena's own accounting are the
-       * assertions; the counters below only prove the parsers were genuinely reached.
+       * A decoder may succeed on random input, since some is valid and an empty snapshot is legal. It must
+       * not fault, read past the buffer, or allocate from a size it was handed. ASan and the arena
+       * accounting are the assertions; the counters only prove the parsers were reached.
        */
       NYA_NetSnapshot snapshot = { 0 };
       if (nya_net_snapshot_decode(scratch, buffer, size, nullptr, &snapshot).ok) snapshot_ok++;
@@ -627,9 +625,8 @@ s32 main(void) {
   printf("TEST: an impossible snapshot acknowledgement drops the peer\n");
   {
     /*
-     * `acknowledged_tick` is a u64 the client picks, and it is monotonic. One message naming U64_MAX meant
-     * no baseline ever matched again, so that peer received a **full** snapshot every tick for the rest of
-     * the session — a bandwidth multiplier the client chose, times however many peers it could occupy.
+     * `acknowledged_tick` is a client chosen u64 and monotonic. Naming U64_MAX must not stop every future
+     * baseline from matching, which would send that peer a full snapshot every tick.
      */
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1 }));
 
@@ -675,9 +672,8 @@ s32 main(void) {
   printf("TEST: a command from the far future does not wedge later commands\n");
   {
     /*
-     * `tick` is unvalidated. One command claiming U64_MAX set `last_command_tick` to it, and every later
-     * command from that client was then discarded as stale — while the repeat pass kept re-applying the
-     * frozen one. The player is stuck walking in one direction and it looks like a server bug.
+     * `tick` is client chosen. A command claiming U64_MAX must not make every later command stale while
+     * the repeat pass keeps applying the frozen one.
      */
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1 }));
 
@@ -741,8 +737,8 @@ s32 main(void) {
   printf("TEST: a malformed command drops the peer\n");
   {
     /*
-     * Unlike a game event, a command has a fixed encoding that no well behaved client of any version can
-     * get wrong — so a malformed one is a broken client or a probe, and the peer goes.
+     * Unlike a game event, a command has a fixed encoding every well behaved client gets right, so a
+     * malformed one is a broken client or a probe and the peer is dropped.
      */
     NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1 }));
 

@@ -429,10 +429,8 @@ s32 main(void) {
     printf("TEST: oversized separator\n");
 
     /*
-     * nya_string_split and nya_string_count copy their needle onto the stack with nya_alloca to get
-     * a null terminated form of it. The length comes from the caller, so a long enough needle used
-     * to run off the end of the stack — a fault at whatever address the next frame would have
-     * touched, with nothing pointing back at the split that caused it.
+     * nya_string_split and nya_string_count copy their needle onto the stack with nya_alloca for a null
+     * terminated copy. The length comes from the caller, so the bound must stop a long needle.
      */
     NYA_String* haystack = nya_string_from(arena, "the quick brown fox");
 

@@ -199,7 +199,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: UDP over localhost — handshake, both directions, fragmentation
+  // TEST: UDP over localhost: handshake, both directions, fragmentation
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: udp connects over localhost\n");
   {
@@ -209,8 +209,7 @@ s32 main(void) {
     NYA_EXPECT(nya_net_transport_udp_create(arena, &server));
     NYA_EXPECT(nya_net_transport_udp_create(arena, &client));
 
-    // Several ports tried, because a port already in use is otherwise a flaky test rather than a
-    // failing one — and on a shared CI machine that happens.
+    // several ports, so a port in use on a shared CI machine is not a flaky failure.
     u16 port = 0;
 
     for (u16 candidate = FIRST_PORT; candidate < FIRST_PORT + 16; candidate++) {
@@ -351,8 +350,7 @@ s32 main(void) {
 
       nya_assert(cc.disconnects == 1, "the client was never told the server dropped it");
 
-      // The id is dead. A handle held across a disconnect must fail to resolve rather than address
-      // whoever takes the slot next — that is the whole point of the generation.
+      // the id is dead. A handle held across a disconnect must not resolve to whoever takes the slot next.
       u8 payload[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
       nya_assert(!nya_net_transport_send(server, server_to_client, NYA_NET_CHANNEL_RELIABLE, payload, sizeof(payload)).ok);
     }
@@ -389,8 +387,7 @@ s32 main(void) {
     Collected cs = { 0 };
     Collected cc = { 0 };
 
-    // Loss is turned on *after* the handshake. The handshake has its own retry and is worth testing
-    // under loss too, but not in the same case — a failure here should point at one thing.
+    // loss is turned on after the handshake, which has its own retry, so a failure points at one thing.
     nya_assert(pump_until(client, server, &cc, &cs, both_connected), "the handshake did not complete");
 
     NYA_NetPeerId to_client = cs.last_peer;
@@ -509,8 +506,8 @@ s32 main(void) {
       // Further in the past than the timeout, which is what a pulled cable looks like.
       server_state->peers[to_client.index].last_received_ms = 1;
 
-      // The clock has to be past the timeout for the subtraction to exceed it, which it is — the monotonic
-      // clock is well past ten seconds by the time a test suite reaches here.
+      // the clock must be past the timeout for the subtraction to exceed it, and the monotonic clock is well
+      // past ten seconds by now.
       nya_assert(nya_clock_get_monotonic_ms() > 10000, "the monotonic clock is too young for this case to mean anything");
 
       pump(server, 5);
@@ -660,9 +657,8 @@ s32 main(void) {
   printf("TEST: the Steam transport reports itself unavailable\n");
   {
     /*
-     * A stub, and covered anyway — because "reports itself unsupported" is a contract a game relies on to
-     * grey out a menu item, and a stub that asserted or returned a broken transport instead would be found by
-     * a player rather than here.
+     * A stub, still covered: games grey out menu items based on "unsupported", so it must not assert or
+     * return a broken transport.
      */
     NYA_NetTransport* steam = nullptr;
 
@@ -677,8 +673,8 @@ s32 main(void) {
     NYA_NetTransport* transport = nullptr;
     NYA_EXPECT(nya_net_transport_udp_create(arena, &transport));
 
-    // A transport holds one socket. Listening twice, or connecting after listening, would silently discard
-    // the first — so both are refused.
+    // a transport holds one socket. Listening twice or connecting after listening would discard the first,
+    // so both are refused.
     u16 port = 0;
     for (u16 candidate = FIRST_PORT + 128; candidate < FIRST_PORT + 144; candidate++) {
       if (nya_net_transport_listen(transport, candidate).ok) {

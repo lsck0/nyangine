@@ -157,8 +157,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: aliased union at the load factor\n");
   {
-    // Filled to one below the threshold so the first insert nya_hset_union attempts triggers
-    // nya_hset_resize_and_rehash — which frees the items and occupied arrays being iterated.
+    // filled to one below the threshold, so nya_hset_union's first insert triggers
+    // nya_hset_resize_and_rehash, which frees the arrays being iterated.
     NYA_HSetᐸu32ᐳ* set       = nya_hset_create_with_capacity(arena, u32, 16);
     u64            threshold = (u64)((f32)set->capacity * _NYA_HASHSET_LOAD_FACTOR);
     for (u32 i = 0; i < (u32)threshold; i++) nya_hset_insert(set, i * 7 + 1);

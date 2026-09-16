@@ -46,8 +46,8 @@ s32 main(void) {
     nya_assert(version > 0, "SDL reported version %d", version);
     nya_log_info("SDL %d.%d.%d", SDL_VERSIONNUM_MAJOR(version), SDL_VERSIONNUM_MINOR(version), SDL_VERSIONNUM_MICRO(version));
 
-    // Each satellite is compiled against SDL's headers, so a version mismatch between them is the
-    // failure this catches — they would link and then disagree about struct layouts.
+    // each satellite compiles against SDL's headers, so a version mismatch would link and then disagree
+    // about struct layouts.
     int image_version = IMG_Version();
     int ttf_version   = TTF_Version();
     int mixer_version = MIX_Version();
@@ -68,9 +68,8 @@ s32 main(void) {
   // VENDOR: SDL_net
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // Brings the library up and tears it down without opening a socket. Enough to prove it is not
-    // the stub build — vendor/sdl-net carries an SDL_net_stub_only.c, and linking that instead
-    // would resolve every symbol and do nothing.
+    // brings the library up and down without a socket, enough to prove it is not SDL_net_stub_only.c,
+    // which resolves every symbol and does nothing.
     nya_assert(NET_Init(), "NET_Init() failed: %s", SDL_GetError());
     defer NET_Quit();
 
@@ -80,7 +79,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // VENDOR: box2d — a world that actually simulates
+  // VENDOR: box2d, a world that actually simulates
   // ─────────────────────────────────────────────────────────────────────────────
   {
     b2WorldDef world_def = b2DefaultWorldDef();
@@ -149,7 +148,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // VENDOR: lz4 — a compress/decompress round trip
+  // VENDOR: lz4, a compress/decompress round trip
   // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_log_info("lz4 %s", LZ4_versionString());
@@ -183,7 +182,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // VENDOR: LuaJIT — a state that runs a script
+  // VENDOR: LuaJIT, a state that runs a script
   // ─────────────────────────────────────────────────────────────────────────────
   {
     // This is the one that was silently broken: libluajit-linux.a held COFF objects, lld skipped
@@ -232,14 +231,12 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // VENDOR: sqlean and sqlvec — the archives exist and their entry points link
+  // VENDOR: sqlean and sqlvec, the archives exist and their entry points link
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // Both are static archives whose whole surface is one init function; see vendor_sqlean.h and
-    // vendor_sqlvec.h. This file links against the archives directly rather than going through
-    // nya_sql_open, so it fails if the archive is missing or listed after libsqlite3 — which is a
-    // build problem, and belongs here rather than in the plugin's own suite. What those functions do
-    // once registered is tested in test_sql_extensions.c.
+    // both archives expose one init function (see vendor_sqlean.h and vendor_sqlvec.h). Linking them
+    // directly, not through nya_sql_open, fails on a missing archive or wrong link order. What they do
+    // once registered is in test_sql_extensions.c.
     sqlite3* handle = nullptr;
     nya_assert(sqlite3_open(":memory:", &handle) == SQLITE_OK);
     defer     (void)sqlite3_close_v2(handle);
@@ -251,7 +248,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // VENDOR: libcurl — no network, just the library
+  // VENDOR: libcurl, no network, just the library
   // ─────────────────────────────────────────────────────────────────────────────
   {
     curl_version_info_data* info = curl_version_info(CURLVERSION_NOW);
@@ -276,15 +273,13 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // VENDOR: libbacktrace — already wired into base_backtrace
+  // VENDOR: libbacktrace, already wired into base_backtrace
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // base_backtrace keys off __has_include("backtrace.h") and degrades to a null backend when the
-    // vendor is absent, which means a missing libbacktrace does not fail the build — it silently
-    // produces stack traces with no frames. Capturing one is what tells the two apart.
-    // Initialised first. libbacktrace builds its debug info state lazily on the first call, and
-    // without this the capture succeeds and reports zero frames — which is exactly what the null
-    // backend does, so the two are indistinguishable unless the real one has been brought up.
+    // base_backtrace falls back to a null backend when backtrace.h is missing, so a missing
+    // libbacktrace still builds and captures no frames. Capturing one tells them apart.
+    // Initialised first, since libbacktrace builds its debug info lazily and would otherwise report zero
+    // frames like the null backend.
     nya_backtrace_init();
 
     NYA_Backtrace trace = { 0 };

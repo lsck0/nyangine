@@ -71,7 +71,7 @@ s32 main(void) {
     NYA_SpriteAnimator animator = { 0 };
     nya_sprite_animator_play(&animator, &attack);
 
-    // Zero time, so nothing has advanced — but the animation has begun and frame zero is showing.
+    // zero time, so nothing advanced, but the animation has begun and frame zero shows.
     u32 count = nya_sprite_animator_advance(&animator, 0.0F, signals, nya_carray_length(signals));
 
     nya_assert(count_of(signals, count, NYA_SPRITE_ANIMATION_STARTED) == 1, "play then advance emits exactly one STARTED");
@@ -132,7 +132,7 @@ s32 main(void) {
     count = nya_sprite_animator_advance(&animator, 1.0F, signals, nya_carray_length(signals));
     nya_assert(count == 0, "a finished animator is silent, got " FMTu32 " signals", count);
 
-    // Resume does not restart it either — replaying is what play is for.
+    // resume does not restart it either; that is what play is for.
     nya_sprite_animator_resume(&animator);
     nya_assert(!animator.playing, "resume does not revive a finished animation");
 
@@ -175,8 +175,7 @@ s32 main(void) {
     (void)nya_sprite_animator_advance(&animator, 0.1F, nullptr, 0);
     nya_assert(animator.frame == 2, "two steps forward, got " FMTu32, animator.frame);
 
-    // The turn. The far frame is already on screen, so the next step goes back rather than showing
-    // it a second time — repeating it reads as a stutter.
+    // the turn: the far frame is already showing, so the next step goes back instead of repeating it.
     (void)nya_sprite_animator_advance(&animator, 0.1F, nullptr, 0);
     nya_assert(animator.reversing, "it turned around at the end");
     nya_assert(animator.frame == 1, "and stepped back rather than repeating the last frame, got " FMTu32, animator.frame);

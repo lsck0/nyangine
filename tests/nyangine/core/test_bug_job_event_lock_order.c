@@ -91,9 +91,8 @@ s32 main(void) {
     });
 
     /*
-     * Seeded with work first, so the scheduler is already churning — reaping finished threads and
-     * starting new ones, which is exactly when it holds both job mutexes and wants to dispatch.
-     * Dispatching into that from this thread is the other half of the inversion.
+     * Seeded with work first, so the scheduler is reaping and starting threads, holding both job mutexes
+     * while dispatching. Dispatching from this thread is the other half of the inversion.
      */
     for (u32 i = 0; i < 32; i++) {
       (void)nya_job_submit((NYA_Job){

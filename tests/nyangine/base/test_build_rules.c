@@ -115,8 +115,8 @@ s32 main(void) {
     NYA_EXPECT(nya_build(&once));
     nya_assert(pre_hook_calls == 1, "a missing output must build, got " FMTu32, pre_hook_calls);
 
-    // The command was `true`, so nothing created the output — it still does not exist, and the rule
-    // must therefore run again. "Once" means once the artifact is there, not once per process.
+    // the command was `true`, so the output still does not exist and the rule must run again. Once means
+    // once the artifact exists, not once per process.
     NYA_EXPECT(nya_build(&once));
     nya_assert(pre_hook_calls == 2, "an output that was never produced must build again");
 
@@ -195,9 +195,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * A metarule short circuits before the command is ever spawned, which is what makes it safe to
-     * leave `command` empty. What it does *not* skip is the policy — that is decided one level up,
-     * before the rule is run at all.
+     * A metarule short circuits before spawning, so `command` may be empty. The policy is still decided
+     * one level up, before the rule runs.
      */
     reset_hooks();
 
@@ -262,9 +261,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * A dependency graph is a graph. Two rules that both need the same one must not build it twice
-     * within a single nya_build, which is what last_built_epoch is for — and it is why
-     * `./build build release` once compiled the shaders twice.
+     * Two rules sharing a dependency must not build it twice in one nya_build; last_built_epoch
+     * guarantees that.
      */
     reset_hooks();
 

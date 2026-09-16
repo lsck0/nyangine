@@ -31,7 +31,7 @@ s32 main(void) {
 
         nya_assert(nya_ceiling_count() == 2);
 
-        // Fonts is 1/32 (~3%), tweens is 3/512 (~0.6%) — fonts is fuller, so it sorts first.
+        // fonts is 1/32 (~3%), tweens 3/512 (~0.6%), so fonts sorts first.
         nya_assert(nya_string_equals(nya_ceiling_name_at(0), "fonts"));
         nya_assert(nya_ceiling_capacity_at(0) == 32);
         nya_assert(nya_ceiling_live_at(0) == 1);
@@ -40,8 +40,8 @@ s32 main(void) {
         nya_assert(nya_ceiling_capacity_at(1) == 512);
         nya_assert(nya_ceiling_live_at(1) == 3);
 
-        // The registry publishes a pointer, not a snapshot: moving the live counter moves the read,
-        // and moves the order too — tweens at 500/512 is now fuller than fonts at 1/32.
+        // the registry publishes a pointer, not a snapshot, so moving the counter moves the read and the
+        // order: tweens at 500/512 is now fuller than fonts at 1/32.
         tweens = 500;
         nya_assert(nya_string_equals(nya_ceiling_name_at(0), "tweens"), "the registry should read the counter live, not a copy taken at registration");
         nya_assert(nya_ceiling_live_at(0) == 500);
@@ -56,7 +56,7 @@ s32 main(void) {
         static u32 mostly_empty = 1;
         static u32 mostly_full  = 9;
 
-        // Registered emptiest first — finalize order must not just echo registration order.
+        // registered emptiest first, so finalize order cannot just echo registration.
         nya_ceiling_register("mostly_empty", 10, &mostly_empty);
         nya_ceiling_register("mostly_full", 10, &mostly_full);
 

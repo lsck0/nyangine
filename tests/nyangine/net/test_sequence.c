@@ -31,9 +31,8 @@ s32 main(void) {
     nya_assert(!_nya_net_udp_sequence_newer(65535, 65535));
 
     /*
-     * The wrap. This is the whole reason the function exists rather than a `>` — after 65535 the next packet
-     * is 0, and a plain comparison would call every packet for the rest of the session older than the one
-     * before the wrap.
+     * The wrap, and why this is not a `>`: after 65535 comes 0, and a plain comparison would call every
+     * later packet older.
      */
     nya_assert(_nya_net_udp_sequence_newer(0, 65535), "0 must be newer than 65535");
     nya_assert(!_nya_net_udp_sequence_newer(65535, 0));
@@ -61,9 +60,7 @@ s32 main(void) {
           continue;
         }
 
-        // The one pair where the distance is exactly half in both directions is genuinely ambiguous, and no
-        // scheme can resolve it — excluded rather than asserted, because pretending otherwise would be
-        // asserting something false.
+        // the one pair exactly half apart in both directions is ambiguous under any scheme, so it is excluded.
         if ((u16)(a - b) == 32768) continue;
 
         b8 forward  = _nya_net_udp_sequence_newer(a, b);
@@ -104,7 +101,7 @@ s32 main(void) {
   {
     _NYA_NetUdpPeer peer = { 0 };
 
-    // 10 arrives, then 7 — late, but inside the window, so it is still recorded.
+    // 10 arrives, then 7: late but inside the window, so still recorded.
     _nya_net_udp_record_ack(&peer, 10);
     _nya_net_udp_record_ack(&peer, 7);
 
@@ -238,9 +235,8 @@ s32 main(void) {
   printf("TEST: the seen window suppresses duplicates without eating fresh ids\n");
   {
     /*
-     * The transport promises a message is never delivered twice, and retransmits make duplicates ordinary
-     * rather than exotic — a reliable message resent because its acknowledgement was lost arrives perfectly
-     * intact for the second time.
+     * The transport never delivers a message twice, and duplicates are ordinary: a reliable message resent
+     * after a lost acknowledgement arrives intact a second time.
      */
     _NYA_NetUdpPeer peer = { 0 };
 
@@ -249,10 +245,8 @@ s32 main(void) {
     _nya_net_udp_mark_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 5);
     nya_assert(_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 5), "a marked id is seen");
 
-    // Testing is pure. That split exists because reassembly asks twice — once to decide whether a fragment
-    // belongs to something already delivered, and again when the last fragment lands — and a test that
-    // marked as a side effect made the second ask always say yes, silently dropping every fragmented
-    // message.
+    // testing is pure. Reassembly asks twice, once per fragment and again when the last lands, so marking
+    // as a side effect would make the second ask drop every fragmented message.
     nya_assert(_nya_net_udp_is_seen(&peer, NYA_NET_CHANNEL_RELIABLE, 5), "asking twice changed the answer");
 
     // The channels are separate, so a reliable id does not shadow an unreliable one.
@@ -280,9 +274,8 @@ s32 main(void) {
   printf("TEST: an id arriving out of order does not unmark the ones after it\n");
   {
     /*
-     * The window used to be indexed by id modulo its size and cleared 64 bits ahead of every mark, so
-     * receiving 5 after 10 erased 10's mark. A retransmit of 10 then got through as fresh, queued a second
-     * time behind a delivery id already past it, and sat in the reliable queue until it filled.
+     * Receiving 5 after 10 must not erase 10's mark, or a retransmit of 10 would be accepted again, queued
+     * behind a delivery id already past it, and fill the reliable queue.
      */
     _NYA_NetUdpPeer peer = { 0 };
 
@@ -311,7 +304,7 @@ s32 main(void) {
   {
     _NYA_NetUdpPeer peer = { 0 };
 
-    // A run, then the same run again — which is exactly what a sender does when acknowledgements are lost.
+    // a run, then the same run again, as a sender does when acknowledgements are lost.
     for (u16 id = 1; id <= 64; id++) _nya_net_udp_mark_seen(&peer, NYA_NET_CHANNEL_RELIABLE, id);
 
     for (u16 id = 1; id <= 64; id++) {
@@ -325,8 +318,8 @@ s32 main(void) {
   printf("TEST: a cumulative reliable ack retires the right messages\n");
   {
     /*
-     * `reliable_ack` is "the next id I expect", so everything strictly older is done with. Cumulative, so
-     * losing one of these costs nothing — the next carries a number at least as high.
+     * `reliable_ack` is the next expected id, so everything older is done. Cumulative, so losing one costs
+     * nothing.
      */
     NYA_Arena* arena = nya_arena_create(.name = "test_sequence");
     defer      nya_arena_destroy(arena);

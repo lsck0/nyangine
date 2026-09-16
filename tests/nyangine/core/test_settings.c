@@ -39,10 +39,8 @@ s32 main(void) {
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
   /*
-   * Both variables, because the save root is resolved per platform: Linux reads XDG_DATA_HOME and
-   * Windows reads APPDATA. Pointed at a scratch directory so the round-trip test does not write into
-   * the developer's real ~/.local/share, which is where it would otherwise land — a test that edits
-   * the machine it runs on is a test nobody can run twice.
+   * Both variables, since Linux reads XDG_DATA_HOME and Windows APPDATA. Pointed at a scratch directory
+   * so the round trip does not write into the developer's real data directory.
    */
   NYA_Arena*  scratch_arena = nya_arena_create(.name = "test_settings_scratch");
   NYA_String* temp_root     = nullptr;

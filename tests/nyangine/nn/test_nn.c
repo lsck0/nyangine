@@ -83,8 +83,8 @@ int main(void) {
   {
     NYA_NNGraph* graph = nya_nn_graph_create(arena);
 
-    // [2,3] by [3,2]. Worked out by hand, because a matmul that is wrong in a way a gradient check
-    // cannot see — a consistent transpose, say — would still pass every derivative test below.
+    // [2,3] by [3,2], worked by hand, since a consistently wrong matmul (a transpose, say) passes every
+    // gradient check below.
     NYA_NNTensor* a = nya_nn_tensor_from(graph, NYA_NN_SHAPE(2, 3), (f32[]){ 1, 2, 3, 4, 5, 6 });
     NYA_NNTensor* b = nya_nn_tensor_from(graph, NYA_NN_SHAPE(3, 2), (f32[]){ 7, 8, 9, 10, 11, 12 });
 
@@ -309,8 +309,8 @@ int main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * The property that makes this usable inside a frame. A training loop that allocates per step
-     * would be a leak in everything but name — bounded only by how long the game runs.
+     * What makes training usable inside a frame: a loop allocating per step leaks for as long as the game
+     * runs.
      */
     NYA_NNGraph*      graph   = nya_nn_graph_create(arena);
     NYA_NNSequential* network = build_network(arena, &rng, 4, 3);
@@ -548,10 +548,8 @@ int main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * Headless, so the draw calls are no-ops — but the layout arithmetic, the forward pass and every
-     * guard still run, which is where the crashes would be. A visualiser is called from a debug
-     * overlay on networks that are half built or empty, and it must never be the thing that takes
-     * the frame down.
+     * Headless, so draws are no-ops, but layout, the forward pass and every guard still run. Debug overlays
+     * call the visualiser on half built or empty networks, and it must never crash the frame.
      */
     NYA_NNGraph* graph = nya_nn_graph_create(arena);
 

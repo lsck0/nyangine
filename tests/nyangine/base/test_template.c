@@ -46,10 +46,9 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * The load bearing property. Every derived container in the engine is *declared* through
-     * nya_template and then *used* by writing the unicode name out — NYA_ArrayᐸNYA_Jobᐳ appears
-     * literally in core_job.h. If the two ever disagreed, the declaration and the use would be
-     * different types and nothing would compile, but only in the file that happened to use it.
+     * The load bearing property. Containers are declared through nya_template and used by writing the
+     * unicode name out (NYA_ArrayᐸNYA_Jobᐳ in core_job.h). If the two disagreed they would be different
+     * types and only the using file would fail to compile.
      */
     nya_template(Box, OneByte) declared = { .tag = 1 };
     BoxᐸOneByteᐳ*            written  = &declared;
@@ -80,8 +79,8 @@ s32 main(void) {
 
     nya_assert(one.tag == 1 && two.tag == 2 && three.tag == 3 && four.tag == 4);
 
-    // Each arity is a *different* type. _Generic is the only way to ask that in C, and it fails to
-    // compile if two of these ever mangled to the same name — a duplicate association is an error.
+    // each arity is a different type. _Generic rejects duplicate associations, so this fails to compile
+    // if two mangle to the same name.
     nya_assert(
         _Generic(
             one,
@@ -112,9 +111,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * A separator that did not survive the paste would make Boxᐸa,bᐳ and Boxᐸb,aᐳ the same
-     * identifier — and for a hash map keyed one way against the other, that is a type confusion the
-     * compiler would never mention.
+     * A separator lost in the paste would make Boxᐸa,bᐳ and Boxᐸb,aᐳ the same identifier, a type confusion
+     * the compiler would never report.
      */
     derive_box(SixteenBytes, OneByte);
 
@@ -126,7 +124,7 @@ s32 main(void) {
     nya_template(Box, OneByte, SixteenBytes) forward = { .tag = 10 };
     nya_template(Box, SixteenBytes, OneByte) reverse = { .tag = 20 };
 
-    // Same shape, same size, and still not the same type — which is exactly what the separator buys.
+    // same shape and size, still different types. That is what the separator buys.
     nya_assert(
         _Generic(
             forward,
@@ -153,9 +151,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * Not a test of nya_array — a test that the container macros and this file agree on how a name
-     * is built. If they ever diverged, every hand written NYA_ArrayᐸTᐳ in the tree would stop
-     * naming the array that nya_derive_array declared.
+     * Checks that the container macros and this file build names the same way, so hand written
+     * NYA_ArrayᐸTᐳ names the array nya_derive_array declared.
      */
     NYA_Arena* arena = nya_arena_create(.name = "template_test");
     defer nya_arena_destroy(arena);

@@ -84,13 +84,13 @@ s32 main(void) {
     nya_assert(nya_physics3d_body_count() == 2, "two bodies");
     nya_assert(nya_physics3d_body_attached(nya_entity_get(box)), "and the box has one");
 
-    // The entity's own velocity integration steps aside for a simulated body — two things writing one
-    // position is a fight the frame rate decides.
+    // the entity's own velocity integration steps aside for a simulated body, or two writers would fight
+    // over the position.
     NYA_Entity* entity = nya_entity_get(box);
     f32         start  = entity->position.y;
 
-    // A third of a second, which is well short of the ~0.96 s it takes to fall four and a half
-    // metres — so it is still in the air here and the velocity means something.
+    // a third of a second, well short of the ~0.96 s a 4.5 m fall takes, so it is still airborne and the
+    // velocity is meaningful.
     step(20);
 
     nya_assert(entity->position.y < start, "it fell, from %f to %f", (f64)start, (f64)entity->position.y);
@@ -102,8 +102,7 @@ s32 main(void) {
     nya_assert(fabsf(entity->position.y - 0.5F) < 0.1F, "it came to rest on the floor, got %f", (f64)entity->position.y);
     nya_assert(nya_physics3d_grounded(entity), "and reports standing on something");
 
-    // Asked twice in one tick costs one contact query, not two — the answer is remembered for the
-    // step it was computed on.
+    // asking twice in one tick costs one contact query; the answer is remembered for that step.
     nya_assert(nya_physics3d_grounded(entity), "the cached answer agrees");
 
     nya_entity_despawn(box);
@@ -123,9 +122,8 @@ s32 main(void) {
 
     NYA_Entity* entity = nya_entity_get(box);
 
-    // About x and z at once, which a 2D body could not do at all: it has one angular degree of
-    // freedom and this has three. That is the whole reason there is no nya_physics3d_rotation
-    // returning a float — there is no single number to return.
+    // about x and z at once, which a 2D body with one angular degree of freedom cannot do. That is why
+    // there is no float returning nya_physics3d_rotation.
     nya_physics3d_angular_velocity_set(entity, (f32x3){ 2.0F, 0.0F, 3.0F });
 
     step(30);
@@ -133,8 +131,7 @@ s32 main(void) {
     f32x3 angular = nya_physics3d_angular_velocity(entity);
     nya_assert(angular.x > 0.5F && angular.z > 0.5F, "it is turning about two axes, got (%f, %f)", (f64)angular.x, (f64)angular.z);
 
-    // A quaternion that has actually moved off the identity, and is still unit — the readback must
-    // not be leaking an unnormalised value onto the entity.
+    // moved off the identity and still unit, so the readback does not leak an unnormalised value.
     NYA_Quaternion rotation = entity->rotation;
     nya_assert(fabsf(rotation.w) < 0.999F, "the rotation left the identity, w = %f", (f64)rotation.w);
 
@@ -229,7 +226,7 @@ s32 main(void) {
     NYA_EntityHandle floor = nya_entity_spawn(.name = "floor", .position = { 0.0F, -0.5F, 0.0F });
     nya_assert(nya_physics3d_body_attach(floor, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 20.0F, 1.0F, 20.0F }));
 
-    // Dropped from well above the threshold, which is four metres per second — about a metre's fall.
+    // dropped from well above the threshold of four metres per second, about a metre's fall.
     NYA_EntityHandle box = nya_entity_spawn(.name = "dropped", .position = { 0.0F, 8.0F, 0.0F }, .on_collision = nya_callback(record_collision));
     nya_assert(nya_physics3d_body_attach(box, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 1.0F, 1.0F, 1.0F }, .density = 500.0F));
 
@@ -268,8 +265,7 @@ s32 main(void) {
     nya_assert(!nya_physics3d_body_attach(bad, .shape = NYA_PHYSICS3D_SHAPE_SPHERE, .radius = 0.0F), "a sphere with no radius is refused");
     nya_assert(!nya_physics3d_body_attach(bad, .shape = NYA_PHYSICS3D_SHAPE_CAPSULE, .radius = 1.0F, .length = 0.0F), "a capsule with no length is refused");
 
-    // A rejected attach leaves nothing behind — the body is destroyed rather than left shapeless,
-    // which would be something that falls through the world forever.
+    // a rejected attach leaves nothing: the body is destroyed rather than left shapeless to fall forever.
     nya_assert(nya_physics3d_body_count() == 0, "and none of them left a body");
     nya_assert(!nya_physics3d_body_attached(nya_entity_get(bad)), "nor an attachment");
 

@@ -41,7 +41,7 @@ s32 main(void) {
   defer nya_system_callback_deinit();
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: 2D — a click on a body runs its callback
+  // TEST: 2D: a click on a body runs its callback
   // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
@@ -75,7 +75,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: 2D — an entity with no on_click is not clickable
+  // TEST: 2D: an entity with no on_click is not clickable
   // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
@@ -98,7 +98,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: 3D — a ray runs the struck entity's callback
+  // TEST: 3D: a ray runs the struck entity's callback
   // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
@@ -114,7 +114,7 @@ s32 main(void) {
     // there.
     NYA_EntityHandle hit = nya_entity_click((f32x3){ 0.0F, 0.0F, 10.0F }, (f32x3){ 0.0F, 0.0F, -20.0F }, NYA_MOUSE_BUTTON_LEFT);
 
-    nya_assert(clicks == 1, "a ray through a body runs its on_click — the case that was unreachable before");
+    nya_assert(clicks == 1, "a ray through a body runs its on_click; the case that was unreachable before");
     nya_assert(hit.index == cube.index && hit.generation == cube.generation);
     nya_assert(last_button == NYA_MOUSE_BUTTON_LEFT);
 
@@ -139,7 +139,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: 3D — the nearest body wins, and one behind it cannot take the click
+  // TEST: 3D: the nearest body wins, and one behind it cannot take the click
   // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
@@ -160,7 +160,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: 3D — an entity with no on_click declines, exactly as in 2D
+  // TEST: 3D: an entity with no on_click declines, exactly as in 2D
   // ─────────────────────────────────────────────────────────────────────────────
   {
     reset();
@@ -189,8 +189,7 @@ s32 main(void) {
 
     nya_entity_despawn(crate);
 
-    // The body went with the entity, so there is nothing at that point any more. Clicking where it
-    // used to be must miss rather than resolve a stale handle.
+    // the body went with the entity. Clicking there must miss, not resolve a stale handle.
     NYA_EntityHandle hit = nya_entity_click((f32x2){ 50.0F, 50.0F }, NYA_MOUSE_BUTTON_LEFT);
 
     nya_assert(clicks == 0, "a despawned entity is not clickable");

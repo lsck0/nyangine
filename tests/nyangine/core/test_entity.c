@@ -195,8 +195,8 @@ s32 main(void) {
     );
     nya_assert(spawn_calls == 1, "on_spawn fired during the spawn, got " FMTu32, spawn_calls);
 
-    // Explicitly not ACTIVE. Spawn defaults to ACTIVE | VISIBLE, so this has to be overridden
-    // rather than merely omitted — the update loop skips it, which is what the flag is for.
+    // explicitly not ACTIVE. Spawn defaults to ACTIVE | VISIBLE, so it must be overridden; the update loop
+    // skips it.
     NYA_EntityHandle inactive = nya_entity_spawn(
       .name      = "inactive",
       .state     = NYA_ENTITY_STATE_VISIBLE,
@@ -288,8 +288,8 @@ s32 main(void) {
   {
     nya_entity_clear();
 
-    // Three decades apart, so each lands in a different cell at any sane cell size, and one sits at
-    // a negative coordinate — which is where a truncating cell computation goes wrong.
+    // three decades apart, so each lands in a different cell, and one is negative, where truncating cell
+    // math goes wrong.
     NYA_EntityHandle near_plane   = nya_entity_spawn(.name = "near_plane", .type = 1, .position = { 10.0F, 10.0F, 0.0F });
     NYA_EntityHandle far_plane    = nya_entity_spawn(.name = "far_plane", .type = 1, .position = { 4000.0F, 4000.0F, 0.0F });
     NYA_EntityHandle behind = nya_entity_spawn(.name = "behind", .type = 2, .position = { -500.0F, -500.0F, 0.0F });
@@ -489,8 +489,8 @@ s32 main(void) {
     entity->visual.z_order = 3.0F;
     nya_assert(nya_entity_sort_key(entity) == 3.0F, "without y-sorting the key is the field, got %f", (f64)nya_entity_sort_key(entity));
 
-    // With it on, the field is ignored entirely — a half-applied version would read as depth
-    // flickering only for entities that happen to have both set.
+    // with it on the field is ignored entirely; a partial version would flicker depth only for entities
+    // with both set.
     entity->visual.y_sorted = true;
     nya_assert(nya_entity_sort_key(entity) == 40.0F, "y-sorting takes the position, got %f", (f64)nya_entity_sort_key(entity));
 

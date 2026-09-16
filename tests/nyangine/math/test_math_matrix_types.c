@@ -103,12 +103,9 @@ s32 main(void) {
         nya_check(fabsl(v2.x - 3.0L) < 1e-12L && fabsl(v2.y - 7.0L) < 1e-12L, "f128 2x2, got (%Lf, %Lf)", v2.x, v2.y);
 
         /*
-         * These two used to be absent: instantiating nya_matrix_create for f128x3 trips an
-         * AddressSanitizer stack-buffer-overflow, a 40-byte write past a 32-byte stack object. The
-         * cause turned out to be ext_vector_type(3) over x87 long double and not matrix_type — see
-         * the note on the f128x3 typedef in math_vector.h. Sanitizers are on in this build, so these
-         * cases are the regression test for that workaround: if the padding lane is ever removed,
-         * the first line below aborts the process.
+         * nya_matrix_create for f128x3 tripped an AddressSanitizer stack-buffer-overflow (a 40-byte write
+         * past a 32-byte object), caused by ext_vector_type(3) over x87 long double. See the f128x3 typedef in
+         * math_vector.h. With sanitizers on, removing the padding lane aborts on the first line below.
          */
         f128_3x3 m3 = nya_matrix_create((f128x3){ 1, 0, 0 }, (f128x3){ 0, 2, 0 }, (f128x3){ 0, 0, 3 });
         f128x3   v3 = nya_matrix_times_vector(m3, (f128x3){ 1, 1, 1 });
@@ -150,8 +147,8 @@ s32 main(void) {
     {
         f32_4x4 projection = nya_matrix_perspective(1.0F, 16.0F / 9.0F, 0.1F, 100.0F);
 
-        // A point at the near plane should land at depth 0, and at the far plane at w-divided depth 1 —
-        // this projection maps depth onto [0, 1], which is why the frustum's near plane is row 2 alone.
+        // a point on the near plane lands at depth 0 and on the far plane at depth 1 after the w divide. Depth
+        // maps onto [0, 1], which is why the near plane is row 2 alone.
         f32x4 near_point = nya_matrix_times_vector(projection, (f32x4){ 0, 0, -0.1F, 1 });
         f32x4 far_point  = nya_matrix_times_vector(projection, (f32x4){ 0, 0, -100.0F, 1 });
 

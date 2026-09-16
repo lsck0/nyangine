@@ -86,8 +86,8 @@ s32 main(void) {
     nya_check(base != nya_siphash(data, sizeof(data), SIPHASH_KEY_LOW ^ 1ULL, SIPHASH_KEY_HIGH), "the low key half does not affect the digest");
     nya_check(base != nya_siphash(data, sizeof(data), SIPHASH_KEY_LOW, SIPHASH_KEY_HIGH ^ 1ULL), "the high key half does not affect the digest");
 
-    // Flipping any single bit of the input must change the digest — this is the property that makes
-    // it a tamper check rather than a checksum.
+    // flipping any single input bit must change the digest, which makes it a tamper check rather than a
+    // checksum.
     for (u32 byte = 0; byte < sizeof(data); byte++) {
       for (u32 bit = 0; bit < 8; bit++) {
         data[byte] ^= (u8)(1U << bit);

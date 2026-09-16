@@ -128,7 +128,7 @@ s32 main(void) {
         Scene                     scene      = scene_create(0.0F);
         nya_check(settle(&controller, &scene), "settled");
 
-        // Take the floor away, then jump a few ticks later — inside the window.
+        // take the floor away, then jump a few ticks later, inside the window.
         nya_entity_despawn(scene.floor);
         scene.floor = NYA_ENTITY_HANDLE_NONE;
 
@@ -159,14 +159,13 @@ s32 main(void) {
 
     // ── Jump buffering: a press just before landing fires on touchdown.
     {
-        // Started just above the floor, so the fall is a handful of ticks — the buffer is a window in
-        // real time, and a press from far above is supposed to expire rather than wait.
+        // started just above the floor so the fall is a few ticks. The buffer is a real time window, and a
+        // press from far above should expire.
         NYA_CharacterController2D controller = { .tuning = { .jump_buffer_s = 0.15F } };
         Scene                     scene      = scene_create(120.0F);
 
-        // Fall until close to the floor, then press — rather than pressing at a fixed tick, which ties
-        // the test to the fall geometry. The buffer is a real-time window: a press from far above is
-        // meant to expire, and that is the next case.
+        // fall until close to the floor, then press, so the test does not depend on fall geometry. A press
+        // from far above should expire; that is the next case.
         for (u32 i = 0; i < 60 && nya_entity_get(scene.body)->position.y < 150.0F; i++) {
             tick(&controller, &scene, (NYA_CharacterInput2D){ 0 }, 1);
         }
@@ -206,7 +205,7 @@ s32 main(void) {
         scene_destroy(&scene);
     }
 
-    // ⭐ One press must not produce two jumps. Both windows have to be consumed.
+    // One press must not produce two jumps. Both windows have to be consumed.
     {
         NYA_CharacterController2D controller = { 0 };
         Scene                     scene      = scene_create(0.0F);

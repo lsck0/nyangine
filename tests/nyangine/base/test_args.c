@@ -421,7 +421,7 @@ s32 main(void) {
       .root_command    = &root,
     };
 
-    // Print usage for sub1, then sub2 — should not corrupt static state
+    // print usage for sub1, then sub2; must not corrupt static state
     nya_args_print_usage(&parser, &sub1);
     nya_args_print_usage(&parser, &sub2);
     // If we get here without crashing, the static state reset is working
@@ -606,8 +606,8 @@ s32 main(void) {
     // description does not terminate early.
     assert_contains(script, "'--tricky[Don'\\''t \\[do\\] this\\: really]'");
 
-    // In a _describe entry the text is literal past the first colon, so only the colon and the
-    // quote need handling — escaped brackets would show as backslashes in the listing.
+    // in a _describe entry text is literal past the first colon, so only the colon and quote need
+    // escaping. Escaped brackets would show as backslashes.
     assert_contains(script, "'sub:Colons\\: and '\\''quotes'\\'''");
   }
 

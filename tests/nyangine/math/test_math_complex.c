@@ -107,7 +107,7 @@ s32 main(void) {
     nya_assert(fabs(nya_complex_real(z) - 0.6) < EPS);
     nya_assert(fabs(nya_complex_imag(z) - 0.8) < EPS);
 
-    // "Returns zero unchanged rather than dividing by it" — so no NaN comes out.
+    // "returns zero unchanged rather than dividing by it", so no NaN comes out.
     c64 zero = nya_complex_normalize(nya_complex_f64(0.0, 0.0));
     nya_assert(nya_complex_real(zero) == 0.0);
     nya_assert(nya_complex_imag(zero) == 0.0);

@@ -269,8 +269,8 @@ s32 main(void) {
 
         nya_entity_get(parent)->position.x = 100.0F;
 
-        // Without a sync the child is still where the last propagation left it — which is the
-        // documented cost of propagating once, at the end of the tick.
+        // without a sync the child is where the last propagation left it, the documented cost of propagating
+        // once per tick.
         nya_check(near_enough(nya_entity_get(child)->position.x, 10.0F), "the child is stale until something propagates");
 
         nya_entity_transform_sync(parent);

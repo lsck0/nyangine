@@ -148,8 +148,8 @@ s32 main(void) {
     nya_assert(nya_net_client_state() == NYA_NET_CLIENT_PLAYING, "the handshake did not complete");
 
     /*
-     * The world is set before the entity is asked about, because every entity query is against whichever
-     * world is *current* — and the loop above left that as the client's.
+     * The world is set first, because entity queries use the current world and the loop above left the
+     * client's current.
      */
     (void)nya_world_set(SERVER_WORLD);
     nya_assert(nya_entity_is_valid(SERVER_PLAYER), "the server spawned no player");
@@ -200,9 +200,8 @@ s32 main(void) {
   printf("TEST: prediction moves the client ahead of the server\n");
   {
     /*
-     * The client applies its own command the instant it samples it. With the two sides moving at different
-     * speeds on purpose, the client's copy runs away from the server's — which is what makes the correction
-     * below observable rather than a fraction of a unit.
+     * The client applies its own command when sampled. With the sides moving at different speeds on
+     * purpose, the client drifts from the server, which makes the correction observable.
      */
     HELD = 1;
 

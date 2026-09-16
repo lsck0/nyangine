@@ -17,18 +17,16 @@ static b8 same_tile(f32x2 a, f32x2 b) {
 }
 
 s32 main(void) {
-  // No real audio device; nya_system_asset_init opens one otherwise. Same reason as test_asset.c —
-  // and on CI the difference is not academic: the real ALSA driver leaks inside the library itself,
-  // which LeakSanitizer reports against this test.
+  // no real audio device, or nya_system_asset_init opens one and the ALSA driver's own leaks are
+  // reported against this test. Same as test_asset.c.
   SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // The asset system registers an end-of-frame hook, so the event system has to be up first — the
-  // same build-up-by-hand the other core tests do rather than a full nya_app_init, which would want
-  // a window.
+  // the asset system registers an end-of-frame hook, so events come up first, by hand like the other
+  // core tests, since nya_app_init wants a window.
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
   nya_system_asset_init();
@@ -205,8 +203,7 @@ s32 main(void) {
 
     nya_assert(terrain == 3, "and each is findable by kind, got " FMTu32, terrain);
 
-    // A layer that is not there is a warning and no bodies, not a crash — a map is content and may
-    // simply not have one.
+    // a missing layer is a warning and no bodies. Maps are content and may lack one.
     nya_assert(nya_tilemap_collision_build(map, "nope", KIND_TERRAIN) == 0, "a missing layer builds nothing");
 
     nya_entity_clear();

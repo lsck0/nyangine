@@ -138,8 +138,7 @@ s32 main(void) {
 
     (void)nya_particles_emit(flat, (NYA_ParticleBurst){ .count = 200, .shape = NYA_PARTICLE_SHAPE_SPHERE, .radius = 5.0F });
 
-    // Flattened, so a sphere becomes a disc. Without this a point burst on screen loses most of its
-    // particles into a z that nothing draws — the effect is simply thinner than it was authored.
+    // flattened, so a sphere becomes a disc. Otherwise most of a point burst lands at a z nothing draws.
     for (u32 i = 0; i < nya_particles_count(flat); i++) {
       nya_assert(flat->particles[i].position.z == 0.0F, "a 2D burst stays in the plane");
       nya_assert(flat->particles[i].velocity.z == 0.0F, "and so does its velocity");

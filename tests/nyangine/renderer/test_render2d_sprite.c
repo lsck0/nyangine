@@ -17,9 +17,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * The arithmetic only, since no texture is loaded in a headless test — which is itself worth
-     * asserting: an atlas over a texture that has not arrived reports no frames rather than
-     * inventing a grid, and a sprite over one has no size rather than a wrong one.
+     * Arithmetic only, since no texture loads headless. That is worth asserting too: an atlas over a
+     * missing texture reports no frames, and a sprite over one has no size.
      */
     NYA_SpriteAtlas atlas = nya_sprite_atlas_grid("does/not/exist.png", 32, 32);
     nya_assert(nya_sprite_atlas_frame_count(&atlas) == 0, "an atlas over an unloaded texture has no frames");
@@ -50,8 +49,7 @@ s32 main(void) {
     nya_assert(from_list.texture == frames[1], "frame one is the second image");
     nya_assert(from_list.source_width == 0.0F, "a list frame is a whole image, so it has no source rect");
 
-    // Past the end points at nothing, which draws nothing — rather than clamping and hiding an
-    // animation that has run off the end of its own table.
+    // past the end draws nothing rather than clamping and hiding an animation that ran off its table.
     nya_sprite_set_frame_from_list(&from_list, &list, 99);
     nya_assert(from_list.texture == nullptr, "an out of range frame points at no texture");
   }

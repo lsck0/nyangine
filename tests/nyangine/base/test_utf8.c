@@ -33,8 +33,7 @@ s32 main(void) {
   {
     u32 count = decode_all("aé€𝄞", out, nya_carray_length(out));
 
-    // One string, four characters, ten bytes — which is the whole reason a byte-indexed renderer
-    // could not draw it: it saw ten things and drew nine gaps.
+    // one string, four characters, ten bytes. A byte indexed renderer would draw ten things.
     nya_assert(count == 4, "four codepoints, got " FMTu32, count);
     nya_assert(out[0] == 0x61, "ASCII 'a'");
     nya_assert(out[1] == 0xE9, "two bytes: e acute");
@@ -94,9 +93,8 @@ s32 main(void) {
   // TEST: real text in several languages round trips
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // The strings an i18n file actually holds. Each is checked by its codepoint count, because the
-    // byte count and the character count differ for every one of them — which is exactly the gap a
-    // byte-indexed renderer fell into.
+    // the strings an i18n file holds, each checked by codepoint count, since bytes and characters differ
+    // for every one.
     nya_assert(decode_all("Grüße", out, nya_carray_length(out)) == 5, "German");
     nya_assert(decode_all("l'été", out, nya_carray_length(out)) == 5, "French");
     nya_assert(decode_all("años", out, nya_carray_length(out)) == 4, "Spanish");

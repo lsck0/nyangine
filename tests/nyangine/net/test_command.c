@@ -40,8 +40,7 @@ s32 main(void) {
       nya_assert(received[i].tick == sent[i].tick, "command %u lost its tick", i);
       nya_assert(received[i].actions == sent[i].actions, "command %u lost its actions", i);
 
-      // Exact, because floats cross as their bit pattern rather than through a decimal form — anything less
-      // than exact means a field was read or written wrongly.
+      // exact, because floats cross as bit patterns, so any difference means a field was misread.
       nya_assert(received[i].aim.x == sent[i].aim.x && received[i].aim.y == sent[i].aim.y, "command %u lost its aim", i);
       nya_assert(received[i].analog == sent[i].analog, "command %u lost its analog", i);
     }
@@ -72,7 +71,7 @@ s32 main(void) {
 
     nya_assert(count == NYA_NET_COMMAND_REDUNDANCY, "sixteen commands should have clamped to %d, got %u", NYA_NET_COMMAND_REDUNDANCY, count);
 
-    // The *first* ones, because clamping takes a prefix — a caller wanting the newest passes the newest.
+    // the first ones, because clamping takes a prefix. A caller wanting the newest passes the newest.
     nya_assert(received[0].tick == 200, "the clamp did not take the run from the start");
   }
 
@@ -97,9 +96,8 @@ s32 main(void) {
     u32            count                               = 0;
 
     /*
-     * The case this bound exists for. `count` is a byte a peer chose, and `received` holds exactly
-     * NYA_NET_COMMAND_REDUNDANCY — so a peer claiming 255 would write past the end of an array on the
-     * server's stack, one call away from a socket.
+     * The case this bound exists for. `count` is a peer chosen byte and `received` holds exactly
+     * NYA_NET_COMMAND_REDUNDANCY, so 255 would write past an array on the server's stack.
      */
     for (u32 claimed = NYA_NET_COMMAND_REDUNDANCY + 1; claimed <= 255; claimed++) {
       NYA_String* payload = nya_string_create(arena);
@@ -218,8 +216,8 @@ s32 main(void) {
       for (u64 i = 0; i < size; i++) buffer[i] = nya_rng_sample_u8(&rng, uniform);
 
       /*
-       * A canary either side of the array, so an overrun is caught even where ASan's redzone would not
-       * reach — a write of exactly one element past the end lands inside this frame.
+       * A canary either side of the array catches a one element overrun inside this frame, where ASan's
+       * redzone may not reach.
        */
       struct {
         u64            guard_low;

@@ -126,9 +126,8 @@ s32 main(void) {
   // TEST: every method reaches the transport, not just GET
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // A write method with no body used to be the case that hung: curl waits for a body it was told
-    // to expect and the peer times out. Against a closed port each of these has to fail the same
-    // fast way GET does, which is what proves the request was fully formed before it was sent.
+    // a write method with no body must not hang with curl waiting for a body. Against a closed port each
+    // must fail as fast as GET, proving the request was fully formed.
     NYA_RequestMethod methods[] = {
       NYA_REQUEST_METHOD_GET, NYA_REQUEST_METHOD_POST, NYA_REQUEST_METHOD_PUT, NYA_REQUEST_METHOD_PATCH, NYA_REQUEST_METHOD_DELETE,
     };
@@ -207,9 +206,8 @@ s32 main(void) {
   // TEST: a timeout that cannot be met is reported as a timeout
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // 1ms against a documentation address that is routed nowhere. TEST-NET-1 (192.0.2.0/24) is
-    // reserved by RFC 5737 precisely so it never reaches a real host, so this cannot accidentally
-    // contact anything — it either times out or fails to route, and both are acceptable answers.
+    // 1ms against TEST-NET-1 (192.0.2.0/24), reserved by RFC 5737 to never reach a real host. Timing out
+    // and failing to route are both acceptable.
     NYA_Response response = { 0 };
     NYA_Error    result   = nya_request_perform(
       arena, (NYA_Request){ .method = NYA_REQUEST_METHOD_GET, .url = "http://192.0.2.1/", .timeout_ms = 1 }, &response

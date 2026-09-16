@@ -28,9 +28,8 @@ static f32 identity_error(f32_4x4 matrix) {
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
-  // No real audio device; nya_system_asset_init opens one otherwise. Same reason as test_asset.c —
-  // and on CI the difference is not academic: the real ALSA driver leaks inside the library itself,
-  // which LeakSanitizer reports against this test.
+  // no real audio device, or nya_system_asset_init opens one and the ALSA driver's own leaks are
+  // reported against this test. Same as test_asset.c.
   SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
@@ -38,8 +37,8 @@ s32 main(void) {
   b8 sdl_ok = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // The asset system registers an end-of-frame hook, so the event system has to be up first — the
-  // same build-up-by-hand the other core tests do rather than a full nya_app_init, which wants a window.
+  // the asset system registers an end-of-frame hook, so events come up first, by hand like the other
+  // core tests, since nya_app_init wants a window.
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
   nya_system_asset_init();

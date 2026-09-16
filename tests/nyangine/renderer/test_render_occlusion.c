@@ -144,7 +144,7 @@ s32 main(void) {
         nya_occlusion_begin(&buffer, camera_matrix());
         wall(&buffer, -5.0F, 1000.0F);
 
-        // Fully on screen, behind the wall, and about 41×41 pixels — over the tenth of the buffer
+        // fully on screen, behind the wall, and about 41×41 pixels, over the tenth of the buffer
         // NYA_OCCLUSION_MAX_QUERY_PIXELS allows.
         (void)nya_occlusion_test(&buffer, (f32x3){ 0, 0, -12 }, 2.5F);
 

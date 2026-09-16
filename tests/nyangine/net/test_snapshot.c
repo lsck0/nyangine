@@ -220,8 +220,8 @@ s32 main(void) {
 
     nya_entity_despawn(first);
 
-    // The table hands slots back in LIFO order, so this very likely takes the index just freed —
-    // which is exactly the collision being tested.
+    // the table reuses slots LIFO, so this very likely takes the index just freed: the collision under
+    // test.
     NYA_EntityHandle second = nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { -1.0F, -2.0F, -3.0F });
 
     nya_assert(second.index == first.index, "the test needs the slot to be reused to mean anything");
@@ -291,8 +291,7 @@ s32 main(void) {
 
     nya_net_snapshot_apply(&incoming, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
 
-    // The despawn is deferred, so it takes the barrier to actually happen — the same barrier the app
-    // loop runs at the end of every tick.
+    // the despawn is deferred until the barrier, as the app loop runs at the end of every tick.
     nya_system_sim_apply_commands();
 
     nya_assert(nya_entity_is_valid(local_only), "an entity the map never knew about is not swept by a snapshot");
@@ -446,7 +445,7 @@ s32 main(void) {
       nya_string_push_back(unsorted, 0);
       nya_string_push_back(unsorted, 0);
 
-      // Then index 2 — lower than the one before it.
+      // then index 2, lower than the one before.
       nya_string_push_back(unsorted, 2);
       for (u32 i = 0; i < 3; i++) nya_string_push_back(unsorted, 0);
       nya_string_push_back(unsorted, 1);

@@ -45,7 +45,7 @@ s32 main(void) {
         nya_check(nya_render3d_lod_select(TREE, 91.0F) == TREE_FAR, "then drops again");
         nya_check(nya_render3d_lod_select(TREE, 249.0F) == TREE_FAR, "up to the last range");
 
-        // Past the final level is not a handle at all — that is the draw distance.
+        // past the final level there is no handle: that is the draw distance.
         nya_check(nya_render3d_lod_select(TREE, 251.0F) == nullptr, "past the last level it is not drawn");
         nya_check(nya_render3d_lod_select(TREE, 1e6F) == nullptr, "however far past");
 

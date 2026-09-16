@@ -168,8 +168,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the sweep removes replicas and spares local entities\n");
   {
-    // An entity the client made for itself, marked replicated. The server has never heard of it, so the
-    // server's silence says nothing about it — sweeping by flag rather than by map would destroy it.
+    // an entity the client made itself, marked replicated. The server's silence says nothing about it, so
+    // sweeping by flag instead of by map would destroy it.
     (void)nya_world_set(client_world);
     NYA_EntityHandle client_owned = nya_entity_spawn(.name = "client effect", .flags = FLAG_REPLICATED, .position = { -50.0F, 0.0F, 0.0F });
 
@@ -263,7 +263,7 @@ s32 main(void) {
     NYA_NetSnapshot received = { 0 };
     NYA_EXPECT(nya_net_snapshot_decode(arena, payload->items, payload->length, nullptr, &received));
 
-    // Spawned normally the first time — there is nothing to spare until it exists.
+    // spawned normally the first time; nothing to spare until it exists.
     nya_net_snapshot_apply(&received, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
     nya_system_sim_apply_commands();
 
@@ -350,9 +350,9 @@ s32 main(void) {
     REPLICATE(301);
 
     /*
-     * Applying the snapshot puts the entity at the target, and interpolation then walks it there from
-     * where it was. So immediately after a snapshot the entity is *at* 100 — and the first interpolated
-     * frame pulls it back toward 0, which is the one-snapshot-of-lag this trades for smoothness.
+     * Applying the snapshot puts the entity at the target, and interpolation walks it there from where it
+     * was. Right after a snapshot it is at 100, and the first interpolated frame pulls it back toward 0:
+     * the one snapshot of lag traded for smoothness.
      */
     (void)nya_world_set(client_world);
 

@@ -223,10 +223,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * The handle used to be a hash of the job struct, so two submissions of the same function with
-     * the same arguments were indistinguishable — and that is the ordinary case, not a corner one.
-     * nya_job_is_done can only answer for the first match it finds, so waiting on any handle in a
-     * batch of identical work returned as soon as *one* of them finished.
+     * Two submissions of the same function with the same arguments must get distinct handles. That is the
+     * ordinary case, and waiting on one handle must not return when a different identical job finishes.
      */
     enum { COUNT = 4 };
 

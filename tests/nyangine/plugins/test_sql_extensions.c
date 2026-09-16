@@ -114,8 +114,8 @@ s32 main(void) {
     nya_assert(nya_object_get(nearest.rows->items[0], "rowid")->as_s64 == 1, "the exact match should come first");
     nya_assert(nya_object_get(nearest.rows->items[1], "rowid")->as_s64 == 3, "the near match should come second, not the orthogonal one");
 
-    // The exact match is at distance zero, and the row carries the distance as an ordinary column —
-    // which is the whole reason a result is an NYA_Object rather than a special vector type.
+    // the exact match is at distance zero, and the distance is an ordinary column, which is why results
+    // are NYA_Objects rather than a vector type.
     NYA_Value* distance = nya_object_get(nearest.rows->items[0], "distance");
     nya_assert(distance->type == NYA_TYPE_F64);
     nya_assert(fabs(distance->as_f64) < 0.0001, "expected 0, got %f", distance->as_f64);
@@ -216,10 +216,9 @@ s32 main(void) {
     NYA_Database* db = open_memory(arena);
     defer         nya_sql_close(db);
 
-    // writefile comes from sqlean's fileio. Left out because a query that can write anywhere the
-    // process can is not something to hand to save data or a mod by default. If this ever starts
-    // passing, someone added fileio — which is a decision, not an accident, and should come with a
-    // change to this assertion and to sqlean_extensions.c.
+    // writefile comes from sqlean's fileio, left out because queries from save data or mods should not
+    // write anywhere the process can. If this passes, fileio was added deliberately; update this and
+    // sqlean_extensions.c together.
     nya_assert(!prepares(db, arena, "SELECT writefile('/tmp/nyangine-should-not-exist', 'x')"), "sqlean's fileio is not meant to be registered");
 
     // regexp needs PCRE2 in an archive of its own; crypto needs a header upstream downloads at build

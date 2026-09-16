@@ -68,14 +68,13 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: the silent case — a positional that looks like a boolean
+  // TEST: the silent case: a positional that looks like a boolean
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: --strict followed by a positional that parses as a boolean\n");
   {
     /*
-     * This is the dangerous half. The old code consumed "0", left `strict` false, and handed the
-     * command an empty source list — so it ran, reported nothing, and exited successfully while
-     * checking nothing at all. No error, no warning, nothing to notice.
+     * The dangerous half: consuming "0" would leave `strict` false and the source list empty, so the
+     * command would succeed while checking nothing.
      */
     Fixture fixture;
     fixture_init(&fixture);
@@ -135,8 +134,8 @@ s32 main(void) {
     NYA_ArgCommand* command = nullptr;
     NYA_Error       error   = nya_args_parse(&fixture.parser, 2, argv, &command);
 
-    // Attached means the user meant it as a value, so a value that makes no sense is an error —
-    // unlike a following token, which is simply not the flag's business.
+    // attached means the user meant it as the value, so a nonsense value is an error, unlike a following
+    // token.
     nya_assert(!error.ok, "an explicit value that is not a boolean is rejected");
   }
 
@@ -218,8 +217,8 @@ s32 main(void) {
     NYA_ArgCommand* command = nullptr;
     NYA_Error       error   = nya_args_parse(&fixture.parser, 2, argv, &command);
 
-    // Empty is a value the user wrote, so it is parsed and refused rather than treated as absent —
-    // falling back to the next token here would be the greedy behaviour all over again.
+    // empty is a value the user wrote, so it is refused rather than treated as absent. Falling back to
+    // the next token would be greedy again.
     nya_assert(!error.ok, "an empty attached value is not a number");
   }
   {

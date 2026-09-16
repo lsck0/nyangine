@@ -372,10 +372,9 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * The cases above push a batch and drain it. What that never reaches is the sift path taken when
-     * a pop lands the last element at the root of a heap that is *still being pushed into* — the
-     * shape a job queue is in continuously, and the one where an off-by-one in the child indices
-     * hides, because a heap that is merely almost correct still pops its smallest element first.
+     * The cases above push a batch and drain it. This covers popping the last element to the root of a
+     * heap still being pushed into, as a job queue does, where an off-by-one in the child indices hides
+     * while the smallest element still pops first.
      */
     NYA_Heapᐸs32ᐳ* churn = nya_heap_create(arena, s32, compare_s32_asc);
     NYA_RNG        rng   = nya_rng_create(.seed = "5EED");
@@ -403,7 +402,7 @@ s32 main(void) {
         nya_assert(popped == live_minimum, "step %u popped %d, expected the minimum %d", step, popped, live_minimum);
         live_count--;
 
-        // Recomputed by scanning, which is O(n) and exactly the point — an independent answer.
+        // recomputed by an O(n) scan, as an independent answer.
         if (live_count > 0) {
           live_minimum = churn->items[0];
           for (u64 i = 1; i < churn->length; i++) {

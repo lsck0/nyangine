@@ -187,11 +187,10 @@ s32 main(void) {
     }
 
     /*
-     * ── A self-referencing table is refused rather than followed.
+     * A self-referencing table is refused rather than followed.
      *
-     * Two lines of Lua, and a converter without a depth limit recurses on it until the process dies.
-     * What is asserted is only that it returns — the shape of what comes back past the limit is not
-     * interesting, and pinning it would be pinning the limit.
+     * Two lines of Lua would recurse a converter without a depth limit until the process dies. Only
+     * returning is asserted; the shape past the limit would just pin the limit.
      */
     {
         NYA_EXPECT(nya_lua_run(vm, "loop = {} loop.self = loop", "cycle"));

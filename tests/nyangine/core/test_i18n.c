@@ -11,10 +11,8 @@
 
 s32 main(void) {
   /*
-   * No real audio device. nya_system_asset_init brings up SDL_mixer, which opens the default playback
-   * device, and on a machine without a sound card ALSA leaks its configuration tree while failing to —
-   * which the leak sanitizer then charges to this test. The same hint test_asset.c sets, for the same
-   * reason: nothing here plays a sound.
+   * No real audio device. nya_system_asset_init brings up SDL_mixer, and on a machine without a sound
+   * card ALSA leaks its configuration tree while failing to open it. Same hint as test_asset.c.
    */
   SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 

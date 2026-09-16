@@ -34,7 +34,7 @@ s32 main(void) {
   f64 expected = strtod(nya_string_to_cstring(arena, digits), nullptr);
   nya_assert(
       value->as_f64 == expected,
-      "parsed %.17g but the document says %.17g — the digits were truncated to fit the parser's buffer",
+      "parsed %.17g but the document says %.17g; the digits were truncated to fit the parser's buffer",
       value->as_f64,
       expected
   );

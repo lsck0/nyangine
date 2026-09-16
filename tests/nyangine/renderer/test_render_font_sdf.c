@@ -51,7 +51,7 @@ s32 main(void) {
     defer nya_system_callback_deinit();
 
     /*
-     * ── ⭐ Asking before the face exists is accepted, and lands once it does.
+     * ── Asking before the face exists is accepted, and lands once it does.
      *
      * The whole bug, in the order a game actually writes it: register, ask, draw later.
      */
@@ -145,11 +145,10 @@ s32 main(void) {
     }
 
     /*
-     * ── Clearing the registry clears the requests with it.
+     * Clearing the registry clears the requests with it.
      *
-     * They are keyed by path and size rather than by name, so nothing else would ever drop one — and a
-     * request outliving its registry would silently reapply itself to the next font that happened to
-     * share a path and a size, which is precisely what every font in a small game does.
+     * Requests are keyed by path and size, not name, so nothing else drops them, and a stale request would
+     * reapply to the next font sharing path and size, which in a small game is every font.
      */
     {
         nya_font_clear();
@@ -163,8 +162,8 @@ s32 main(void) {
 
         NYA_Font body = nya_font_named("body");
 
-        // The face may well still be loaded from the block above, so this reads the face itself rather
-        // than a pending answer — which is the stricter of the two.
+        // the face may still be loaded from the block above, so read the face itself rather than a pending
+        // answer, the stricter check.
         TTF_Font* face = nya_text_font_for(FACE, POINT_SIZE);
 
         if (face != nullptr) {

@@ -54,7 +54,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: in_out symmetry — f(0.5) ≈ 0.5 for polynomial easings
+  // TEST: in_out symmetry: f(0.5) ≈ 0.5 for polynomial easings
   // ─────────────────────────────────────────────────────────────────────────────
   {
     nya_assert(fabsf(nya_ease(NYA_EASE_QUAD_IN_OUT, 0.5F) - 0.5F) < EPSILON);

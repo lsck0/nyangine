@@ -237,8 +237,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * The pointer a game parks so its state survives a hot reload. What can be tested in process is
-     * the contract around it — the reload itself needs two dlopens and a running game.
+     * The pointer a game parks so its state survives a hot reload. Only the contract is testable in
+     * process; the reload needs two dlopens and a running game.
      */
     nya_world_user_data_set(nullptr);
     nya_assert(nya_world_user_data() == nullptr, "an unset seam must read as null, not as anything else");
@@ -248,7 +248,7 @@ s32 main(void) {
     nya_assert(nya_world_user_data() == &state, "the seam must hand back exactly what was parked in it");
     nya_assert(*(u64*)nya_world_user_data() == 0xD00DFEED, "and it must still point at the caller's memory");
 
-    // Overwritten rather than accumulated — there is one root per world, not a stack of them.
+    // overwritten, not accumulated: one root per world.
     u64 second = 0x1234;
     nya_world_user_data_set(&second);
     nya_assert(nya_world_user_data() == &second, "setting again must replace, not append");
@@ -256,10 +256,7 @@ s32 main(void) {
     // Reachable through the world struct too, since that is the same storage.
     nya_assert(nya_world()->user_data == &second, "the seam and the world struct must be one field");
 
-    /*
-     * Per world, not global. A second world starts with its own empty seam and does not see the
-     * first one's — which is the whole reason this moved off NYA_App.
-     */
+    /* Per world, not global. A second world starts with its own empty pointer. */
     NYA_World* other = nya_world_create();
     NYA_World* first = nya_world_set(other);
 

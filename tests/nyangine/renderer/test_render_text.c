@@ -43,11 +43,10 @@ s32 main(void) {
     }
 
     /*
-     * ── Kerning actually happens, which is the whole reason shaping replaced the old codepoint walk.
+     * Kerning happens, which is why text is shaped.
      *
-     * "AV" is the canonical kerned pair: the two diagonals nest, so a face that kerns draws them
-     * closer than the sum of their advances. Compared against "AH", which does not nest — asserting
-     * an absolute number would only be asserting what Aldrich happens to ship.
+     * "AV" is the canonical kerned pair: the diagonals nest, so a kerning face draws them closer than the
+     * sum of their advances. Compared against "AH", since an absolute number would only pin Aldrich.
      */
     {
         f32x2 kerned   = nya_text_measure_font(font, "AV", 0);

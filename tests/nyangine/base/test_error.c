@@ -61,10 +61,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * `ok` is redundant state, so the only thing that keeps it true is that every NYA_Error comes
-     * out of one of three places. This asserts the invariant at all three rather than trusting it:
-     * a fourth construction site added later — or a designated initializer that names `kind` and
-     * forgets this — fails here rather than silently reporting every error as a success.
+     * `ok` is redundant state, kept true only because every NYA_Error comes from one of three places.
+     * This checks all three, so a new construction site or an initializer that forgets it fails here.
      */
     nya_assert(NYA_OK.ok, "NYA_OK must be ok");
     nya_assert(NYA_OK.ok);
@@ -72,8 +70,8 @@ s32 main(void) {
     nya_assert(!NYA_NOT_OK.ok, "NYA_NOT_OK must not be ok");
     nya_assert(NYA_NOT_OK.kind == NYA_ERROR_NOT_OK);
 
-    // _nya_error_create, across every kind there is, including NONE — which is legal to construct
-    // and is the one case where the derivation is not simply "false".
+    // _nya_error_create across every kind, including NONE, which is legal and the one case where `ok` is
+    // not simply false.
     for (u32 kind = 0; kind < NYA_ERROR_COUNT; kind++) {
       NYA_Error error = nya_error((NYA_ErrorKind)kind, "kind %u", kind);
 
@@ -287,8 +285,7 @@ s32 main(void) {
     errno = EPERM;
     nya_assert(nya_error_from_errno().kind == NYA_ERROR_PERMISSION_DENIED);
 
-    // These used to be folded into the generic kind. The mapping now distinguishes them, which is
-    // the whole reason a caller can tell "already there" from "no permission" without reading text.
+    // distinct kinds, so a caller can tell "already there" from "no permission" without reading text.
     errno = EEXIST;
     nya_assert(nya_error_from_errno().kind == NYA_ERROR_ALREADY_EXISTS);
     errno = EINVAL;
@@ -306,9 +303,8 @@ s32 main(void) {
     errno = ENOTSUP;
     nya_assert(nya_error_from_errno().kind == NYA_ERROR_NOT_SUPPORTED);
 
-    // Not in the mapping, so it lands on the generic kind. Arguably it should be
-    // PERMISSION_DENIED — a read only filesystem is a permission problem — but that is the
-    // engine's call to make, and this pins what it does today rather than what it might.
+    // not in the mapping, so it lands on the generic kind. PERMISSION_DENIED would be arguable; this pins
+    // current behaviour.
     errno = EROFS;
     nya_assert(nya_error_from_errno().kind == NYA_ERROR_NOT_OK);
   }

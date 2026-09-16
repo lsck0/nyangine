@@ -93,8 +93,8 @@ s32 main(void) {
      */
     nya_assert(asset->as_mesh.uvs != nullptr, "the model's UV set was read");
 
-    // Whether the reservation and the write agreed. Not a requirement — the teardown frees by the
-    // reserved extent precisely so it need not be — but worth knowing for these two files.
+    // whether the reservation and the write agreed. Not required, since teardown frees the reserved
+    // extent, but worth knowing for these files.
     nya_log_info("  Cubie.fbx wrote %u of %u reserved vertices", vertices, asset->as_mesh.allocated);
 
     u32 in_unit_range = 0;
@@ -193,8 +193,7 @@ s32 main(void) {
   // TEST: something that is not an FBX fails rather than being believed
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // A real file of the wrong kind, rather than a made up path — the interesting failure is ufbx
-    // rejecting the contents, not the filesystem rejecting the name.
+    // a real file of the wrong kind, so ufbx rejects the contents rather than the filesystem the name.
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_MESH, .handle = NYA_ASSET_I18N_EN_JSON }));
 
     end_frame();

@@ -81,9 +81,8 @@ s32 main(void) {
   defer nya_system_callback_deinit();
 
   /*
-   * The base locale first, so write_fixture has real strings and real specifiers to copy, and one
-   * fixture for the whole run rather than one per case — see the third case for why its lifetime
-   * matters.
+   * The base locale first, so write_fixture has real strings and specifiers, and one fixture for the
+   * whole run; the third case depends on its lifetime.
    */
   NYA_EXPECT(nya_i18n_load(NYA_I18N_BASE_LOCALE, NYA_STRING_KEYS, NYA_STRING_COUNT));
 

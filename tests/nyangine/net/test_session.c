@@ -26,9 +26,8 @@ static void sleep_ms(u32 milliseconds) {
 }
 
 /*
- * What both sides run. Deterministic given (entity, command, dt) and nothing else — no clock, no RNG,
- * no lookup into state only the server has. That is the contract NYA_NetApplyCommandFn states, and
- * breaking it is what makes a client correct on every single tick.
+ * What both sides run. Deterministic in (entity, command, dt) alone: no clock, no RNG, no server only
+ * state. That is the NYA_NetApplyCommandFn contract, and it is what keeps prediction correct.
  */
 static void apply_movement(NYA_Entity* entity, const NYA_NetCommand* command, f32 delta_time_s) {
   f32 direction = 0.0F;
@@ -197,7 +196,7 @@ s32 main(void) {
     f32 expected = start_x + (SPEED * TICK_SECONDS * 30.0F);
     f32 drift    = entity->position.x - expected;
 
-    nya_assert(drift < 5.0F && drift > -5.0F, "the host moved %f, expected about %f — double application?", (f64)entity->position.x, (f64)expected);
+    nya_assert(drift < 5.0F && drift > -5.0F, "the host moved %f, expected about %f; double application?", (f64)entity->position.x, (f64)expected);
 
     nya_assert(nya_net_client_correction_count() == 0, "a listen server host is never corrected");
 
@@ -358,9 +357,8 @@ s32 main(void) {
   printf("TEST: a remote client predicts its own movement\n");
   {
     /*
-     * Prediction is checked against a transport that is *not* local, but without a real server on the
-     * other end — so nothing ever corrects it. That isolates the property being tested: the client
-     * applies its own command immediately rather than waiting a round trip.
+     * Prediction against a transport that is not local, with no server to correct it, isolates the
+     * property: the client applies its command immediately instead of waiting a round trip.
      */
     NYA_Arena* arena = nya_arena_create(.name = "test_session_predict");
     defer      nya_arena_destroy(arena);
@@ -450,8 +448,7 @@ s32 main(void) {
 
     SPAWN_CALLS = 0;
 
-    // A HELLO claiming a protocol this build does not speak, sent by hand rather than through the
-    // client — which would of course send the right one.
+    // a HELLO with a protocol this build does not speak, sent by hand since the client sends the right one.
     {
       NYA_String* payload = nya_string_create(arena);
 
@@ -472,8 +469,8 @@ s32 main(void) {
                                         payload->length));
     }
 
-    // The server has to be given this transport to drain it, which nya_net_server_attach_local does —
-    // but that makes its own pair. So the message is fed through the server's own loopback instead.
+    // the server must be given this transport to drain it, but nya_net_server_attach_local makes its own
+    // pair, so the message goes through the server's loopback.
     NYA_NetTransport* real_client = nullptr;
     NYA_EXPECT(nya_net_server_attach_local(&real_client));
 

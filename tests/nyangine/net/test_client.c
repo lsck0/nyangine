@@ -27,8 +27,7 @@ static void on_peer_change(NYA_NetPeerId peer, NYA_ConstCString name, b8 joined)
 
   nya_assert(name != nullptr, "a roster hook was called with no name");
 
-  // Copied, because the header says it dies when this returns — and a test that kept the pointer would
-  // be relying on something the contract does not promise.
+  // copied, because the header says it dies when this returns.
   (void)snprintf(LAST_PEER_NAME, sizeof(LAST_PEER_NAME), "%s", name);
 
   if (joined) PEERS_JOINED++;
@@ -343,9 +342,7 @@ s32 main(void) {
     nya_net_client_tick(2, TICK_SECONDS);
     nya_assert(nya_net_client_state() == NYA_NET_CLIENT_PLAYING);
 
-    /*
-     * On a loopback the client applies nothing — it shares the server's world.
-     */
+    /* On loopback the client applies nothing; it shares the server's world. */
     send_as_server(server_end, SNAPSHOT(60, 20.0F));
     nya_net_client_tick(3, TICK_SECONDS);
 
@@ -364,8 +361,8 @@ s32 main(void) {
 
     nya_assert(nya_net_client_server_tick() == 61, "a newer snapshot was not applied");
 
-    // A malformed snapshot is dropped without disturbing what has been applied — the channel is unreliable
-    // and the next one arrives a sixteenth of a second later.
+    // a malformed snapshot is dropped without disturbing applied state. The channel is unreliable and the
+    // next one is a tick away.
     {
       NYA_String* garbage = nya_string_create(arena);
       nya_net_message_begin(garbage, NYA_NET_MSG_SNAPSHOT);

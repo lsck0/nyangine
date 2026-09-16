@@ -46,9 +46,8 @@ s32 main(void) {
     NYA_ArgCommand* command = nullptr;
     NYA_Error       error   = nya_args_parse(&parser, ARGUMENT_COUNT + 1, argv, &command);
 
-    // Either answer is defensible — refuse the input, or take what fits and say so — but writing
-    // past the array is not one of them. What this pins is that values_count never exceeds the
-    // array, whichever way the overflow is resolved.
+    // refusing or truncating are both fine; writing past the array is not. This pins that values_count
+    // never exceeds the array.
     nya_assert(
       files.values_count <= NYA_ARG_MAX_PARAMETERS,
       "values_count reached %u, past the %d the array holds",

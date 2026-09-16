@@ -24,8 +24,8 @@ s32 main(void) {
 
     NYA_String* document = nya_serde_nya_serialize(arena, object, 0);
 
-    // Splice the long literal in where the 1.0 was written, so the rest of the document — header,
-    // checksum line, field name and type — stays exactly what the writer produces.
+    // splice the long literal where 1.0 was written, so the header, checksum line, field name and type stay
+    // exactly what the writer produces.
     NYA_String* patched = nya_string_clone(arena, document);
     nya_string_replace(patched, "0x1p+0", nya_string_to_cstring(arena, digits));
 
@@ -38,8 +38,8 @@ s32 main(void) {
     NYA_Object* parsed = nullptr;
     NYA_Error   error  = nya_serde_nya_deserialize(arena, patched->items, patched->length, NYA_SERDE_NO_CHECKSUM, &parsed);
 
-    // Either answer is acceptable — refuse the literal, or carry it exactly. Silently returning a
-    // different number is not, and that is what this pins.
+    // refusing the literal or carrying it exactly are both fine. Silently returning a different number is
+    // not.
     if (error.ok) {
       const NYA_Value* value = nya_object_get(parsed, "value");
       nya_assert(value != nullptr, "the document parsed but has no 'value'");

@@ -258,7 +258,7 @@ s32 main(void) {
         NYA_SkeletonPose layered = { 0 };
         nya_skeleton_player_update(&player, 1.0F / 60.0F, &layered);
 
-        // The layer's clip rotates the *root*, which the mask excludes — so the layer must change nothing.
+        // the layer's clip rotates the root, which the mask excludes, so the layer must change nothing.
         nya_check(nya_vector_length(world_of(&layered, BONE_END) - unlayered) < 0.001F,
                   "a layer masked away from the bone its clip moves should change nothing");
 

@@ -9,9 +9,8 @@
 s32 main(void) {
   NYA_Arena* arena = nya_arena_create(.name = "test_bug_arena_freelist_order", .defragmentation_threshold = 1);
 
-  // Three consecutive blocks. The third is never freed, so neither of the other two is ever the
-  // region's last allocation — that path returns the bytes by moving `used` back and never touches
-  // the free list at all.
+  // three consecutive blocks. The third is never freed, so neither of the others is the region's last
+  // allocation, which would move `used` back instead of touching the free list.
   u8* lower    = nya_arena_alloc(arena, BLOCK_SIZE);
   u8* higher   = nya_arena_alloc(arena, BLOCK_SIZE);
   u8* sentinel = nya_arena_alloc(arena, BLOCK_SIZE);
@@ -27,7 +26,7 @@ s32 main(void) {
   NYA_ArenaStats stats = nya_arena_stats(arena);
   nya_assert(
       stats.free_list_nodes == 1,
-      "two adjacent free blocks should have coalesced into one node, got " FMTu64 " — the free list is not address ordered",
+      "two adjacent free blocks should have coalesced into one node, got " FMTu64 "; the free list is not address ordered",
       stats.free_list_nodes
   );
 

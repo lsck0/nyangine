@@ -1,16 +1,12 @@
 /**
  * One-way surfaces: jump up through a ledge, land on it, then drop off it.
  *
- * ⚠ Positions are screen-space: y grows **downward**, so "up" is negative y and a falling body's
- * velocity is positive. Every sign below reads backwards if that is forgotten.
+ * Positions are screen space: y grows downward, so up is negative y and falling velocity is positive.
  *
- * ⚠ Two numbers here are load-bearing and were both got wrong first time. The ledge has to be
- * **thicker than one step's travel** or a fast body tunnels through it regardless of what the
- * callback says — that is a property of a discrete solver, and measuring it and calling it a pass is
- * what the first version of this file did. And the drop window has to be long enough for a free fall
- * to **clear the whole ledge**, or the window closes with the body still inside it, the contact
- * turns solid again, and it is pushed back out on top.
- **/
+ * The ledge must be thicker than one step's travel, or a fast body tunnels through it whatever the
+ * callback says. The drop window must last long enough for a free fall to clear the whole ledge, or
+ * the contact turns solid with the body inside and pushes it back on top.
+ * */
 
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
@@ -19,7 +15,7 @@
 
 #define TICK (1.0F / 60.0F)
 
-/** The ledge, centred at the origin. 16 units thick — see the note above. */
+/** The ledge, centred at the origin. 16 units thick; see the note above. */
 #define LEDGE_Y      0.0F
 #define LEDGE_HALF_H 8.0F
 
@@ -35,7 +31,7 @@ static void step(u32 count) {
     for (u32 i = 0; i < count; i++) nya_system_physics2d_update(TICK);
 }
 
-/** Steps, returning the smallest y the entity reached — how far *up* it ever got. */
+/** Steps, returning the smallest y the entity reached, i.e. how far up it got. */
 static f32 step_tracking_highest(NYA_EntityHandle handle, u32 count) {
     f32 highest = nya_entity_get(handle)->position.y;
 
@@ -149,7 +145,7 @@ s32 main(void) {
         NYA_Entity* entity = nya_entity_get(mover);
         nya_check(nya_physics2d_grounded(entity), "it should be resting on the ledge first");
 
-        // Long enough for a free fall to clear the ledge's full thickness — see the file's note.
+        // long enough for a free fall to clear the ledge's full thickness; see the file's note.
         nya_physics2d_drop_through(entity, 0.6F);
         step(60);
 

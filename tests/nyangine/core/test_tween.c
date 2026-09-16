@@ -209,12 +209,11 @@ s32 main(void) {
     }
 
     /*
-     * ── A delay expiring must not shorten the frame for the tweens after it in the pool.
+     * A delay expiring must not shorten the frame for later tweens in the pool.
      *
-     * The update loop hands the remainder of the frame to a tween whose delay just ran out. That
-     * remainder used to be written back into the loop's own delta_time_s, so every slot visited
-     * afterwards was advanced by the leftover instead of by the real frame — and because slots are
-     * walked in index order, whether a tween ran slow depended on which slot it happened to get.
+     * The update hands the rest of the frame to a tween whose delay just ran out. That remainder must not
+     * replace the loop's delta_time_s, or later slots would advance by the leftover and speed would depend
+     * on slot index.
      */
     {
         f32 delayed = 0.0F;

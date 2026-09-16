@@ -111,7 +111,7 @@ s32 main(void) {
         nya_check(binding.button == NYA_GAMEPAD_BUTTON_SOUTH, "and the button");
         nya_check(binding.key == NYA_KEY_UNKNOWN, "and no key");
 
-        // Nothing is connected, so it cannot be pressed — but it must answer, not crash.
+        // nothing is connected, so it cannot be pressed, but it must answer.
         nya_check(!nya_input_action_pressed(jump), "an unpressable binding is simply not pressed");
         nya_check(!nya_input_binding_gamepad_pressed(binding), "and the direct query agrees");
 

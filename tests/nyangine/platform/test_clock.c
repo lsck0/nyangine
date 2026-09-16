@@ -60,15 +60,10 @@ s32 main(void) {
   // TEST: the monotonic clock
   // ─────────────────────────────────────────────────────────────────────────────
   //
-  // Every duration in the engine used to be two wall clock readings subtracted. That is fine until
-  // the system clock moves: a backward NTP step makes the later reading the smaller one, and since
-  // these are u64 the subtraction wraps to something near 2^64 rather than going negative. With
-  // -fsanitize=unsigned-integer-overflow and -fno-sanitize-recover=all, that aborts the process.
-  //
-  // A test cannot step the system clock without CAP_SYS_TIME, so what is pinned here is the
-  // contract that makes the hazard impossible: a separate clock, never decreasing, with an epoch of
-  // its own. The callers that measure durations — frame timing, uptime, the profiler, the NEAT
-  // budget, subprocess run time — are all on it now.
+  // Durations from two wall clock readings break when the clock steps backward: the u64 subtraction
+  // wraps near 2^64, which aborts under -fsanitize=unsigned-integer-overflow. A test cannot step the
+  // system clock without CAP_SYS_TIME, so this pins the contract instead: a separate clock that never
+  // decreases, used by frame timing, uptime, the profiler, the NEAT budget and subprocess timing.
   printf("TEST: monotonic clock\n");
   {
     u64 m1 = nya_clock_get_monotonic_ns();

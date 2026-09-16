@@ -1,7 +1,7 @@
 /**
- * Interest management, bandwidth caps and lag compensation — the three things that decide whether a
- * server scales past a demo.
- **/
+ * Interest management, bandwidth caps and lag compensation: what decides whether a server scales past a
+ * demo.
+ * */
 
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
@@ -210,7 +210,7 @@ s32 main(void) {
     nya_assert(baseline_entity_count(peer, tick) == 1, "only the player should be in range at 200 units");
     tick++;
 
-    // Still out at 120 — inside the *leave* radius, but it has to reach the *enter* radius first.
+    // still out at 120: inside the leave radius, but it must reach the enter radius first.
     nya_entity_get(wanderer)->position.x = 120.0F;
     nya_net_server_tick(tick, TICK_SECONDS);
     nya_system_sim_apply_commands();
@@ -490,9 +490,8 @@ s32 main(void) {
       tick++;
     }
 
-    // Zero history means the feature is off, and off has to mean "returns false", not "returns true and
-    // does nothing" — a game that acted on a successful rewind would resolve every shot against the
-    // present while believing it had compensated.
+    // zero history means off, and off returns false. A game acting on a successful rewind would resolve
+    // shots against the present while believing it compensated.
     nya_assert(!nya_net_server_rewind_begin(peer), "rewinding with no history configured must be refused");
 
     stop_everything();
@@ -504,9 +503,8 @@ s32 main(void) {
   printf("TEST: a game's own relevance rule\n");
   {
     /*
-     * The engine cannot apply distance hysteresis to a rule it does not understand — a room or portal rule
-     * has no radius — so instead it tells the callback whether the entity is already being sent and lets the
-     * rule decide. A rule that ignores that will flicker, which is why the parameter exists at all.
+     * A room or portal rule has no radius for hysteresis, so the engine tells the callback whether the
+     * entity is already sent and the rule decides. Rules that ignore it flicker.
      */
     RELEVANCE_CALLS       = 0;
     RELEVANCE_SAW_CURRENT = false;
@@ -591,8 +589,7 @@ s32 main(void) {
     nya_assert(nya_net_server_peer_count() == 0, "kicking left the peer in the table");
     nya_assert(nya_net_server_peer(peer) == nullptr, "a kicked peer still resolves");
 
-    // Kicking again, and kicking somebody who was never there, are both harmless — a moderation path is not
-    // always sure what it is looking at.
+    // kicking twice, or kicking someone never there, is harmless; moderation code is not always sure.
     nya_net_server_kick(peer, NYA_NET_DISCONNECT_REQUESTED);
     nya_net_server_kick((NYA_NetPeerId){ .index = 20, .generation = 3 }, NYA_NET_DISCONNECT_REQUESTED);
 

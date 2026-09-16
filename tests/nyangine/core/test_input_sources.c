@@ -116,7 +116,7 @@ s32 main(void) {
     nya_assert(nya_input_source_player(keyboard(1)) == NYA_INPUT_PLAYER_NONE);
     nya_assert(nya_input_source_player(keyboard(9)) == NYA_INPUT_PLAYER_NONE, "a device never seen is unclaimed too");
 
-    // Same id, different kind, is a different device — an id is only unique within a kind.
+    // same id, different kind, is a different device. Ids are unique per kind.
     press(mouse(1), NYA_KEY_UNKNOWN, NYA_KEYMOD_NONE);
     click(mouse(1), NYA_MOUSE_BUTTON_LEFT, true);
     nya_assert(nya_input_source_count() == 2, "keyboard 1 and mouse 1 are two devices");
@@ -339,7 +339,7 @@ s32 main(void) {
       nya_assert(!nya_input_key_pressed_by(PLAYER_ONE, NYA_KEY_A), "cycle %u: a reset slot holds nothing", cycle);
     }
 
-    // And the merged view is untouched by all of it — reset is about players, not about devices.
+    // the merged view is untouched: reset concerns players, not devices.
     nya_assert(nya_input_key_pressed(NYA_KEY_A), "the merged view still holds what was never released");
 
     release(keyboard(1), NYA_KEY_A);

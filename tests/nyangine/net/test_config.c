@@ -100,11 +100,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: --flag=value\n");
   {
-    /*
-     * Both spellings, because both are what people type — and because the attached form is the only one
-     * that is unambiguous next to another flag. base_args.c had a live bug from supporting only the
-     * separated form, which is why this parser was written with both from the start.
-     */
+    /* Both spellings, since people type both, and the attached form is unambiguous next to another flag. */
     NYA_NetLaunchConfig config = PARSE("--server", "--port=27019", "--name=Ada", "--max-players=8", "--tickrate=30", "--seed=12345");
 
     nya_assert(config.port == 27019);
@@ -166,8 +162,8 @@ s32 main(void) {
      */
     nya_assert(PARSE("--port", "99999999999999999999999").port == NYA_NET_DEFAULT_PORT, "an overflowing number falls back");
 
-    // An empty attached value is a value the user wrote, so it is parsed and refused rather than treated
-    // as absent — falling back to the next token here would be the greedy behaviour all over again.
+    // an empty attached value is a value the user wrote, so it is refused rather than treated as absent.
+    // Falling back to the next token would be greedy.
     nya_assert(PARSE("--port=", "27020").port == NYA_NET_DEFAULT_PORT, "an empty attached value does not reach forward");
 
     // A listen port that is nonsense means not listening, rather than listening somewhere arbitrary.
@@ -230,8 +226,8 @@ s32 main(void) {
   printf("TEST: overlong name and address\n");
   {
     /*
-     * Both are copied into fixed buffers. A name is cosmetic, so a player with a long one gets a short one
-     * rather than no game — but the copy must not run past the buffer, which is what this is really for.
+     * Both are copied into fixed buffers. A long name is shortened rather than refused, and the copy must
+     * stay inside the buffer.
      */
     char long_name[512];
     nya_memset(long_name, 'N', sizeof(long_name) - 1);
@@ -270,10 +266,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: random argv\n");
   {
-    /*
-     * The catch-all. Anything can appear on a command line, including bytes nobody typed — and the
-     * contract is that this always returns a usable config.
-     */
+    /* The catch-all. A command line can hold any bytes, and this must always return a usable config. */
     NYA_RNG             rng     = nya_rng_create(.seed = "C0FFEE");
     NYA_RNGDistribution uniform = { .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { .min = 32.0, .max = 126.0 } };
 

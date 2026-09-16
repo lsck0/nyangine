@@ -19,8 +19,10 @@
 /** A path of its own under assets/config, so no file this test is not responsible for is touched. */
 #define FIXTURE_PATH "./assets/config/__test_runtime_config.nya"
 
-/** A config a hand written .nya file is not required to differ from — see nya_config_load's tolerance
- *  for a file that omits a field, which every fixture below relies on by only ever writing both. */
+/**
+ * A config a hand written .nya file need not match exactly; nya_config_load tolerates omitted fields,
+ * but every fixture below writes both.
+ * */
 static void write_fixture(NYA_ConstCString text) {
   u64 before = 0;
   b8  existed = nya_filesystem_last_modified(FIXTURE_PATH, &before).ok;
@@ -72,11 +74,9 @@ s32 main(void) {
   // TEST: the shipped starter file loads into a fresh GNY_Config with its real values
   // ─────────────────────────────────────────────────────────────────────────────
   /*
-   * GNY_CONFIG_FILE holds the whole of NYA_CONFIG — its top level is "engine" and "game", matching
-   * GNY_Config's own two fields — because gny_world_create loads it in exactly one call, the same one
-   * exercised here. NYA_ConfigEngine's fields ("renderer", "physics") are therefore one level down,
-   * at config.engine.*, not at the file's top level; the next test loads NYA_ConfigEngine on its own,
-   * from a fixture shaped for it instead.
+   * GNY_CONFIG_FILE holds all of NYA_CONFIG, with "engine" and "game" at the top level like GNY_Config,
+   * since gny_world_create loads it in one call. NYA_ConfigEngine's fields are one level down; the next
+   * test loads NYA_ConfigEngine alone from a fixture shaped for it.
    */
   printf("TEST: nya_config_load reads assets/config/engine.nya\n");
   {
@@ -205,9 +205,8 @@ s32 main(void) {
                   "}\n");
 
     /*
-     * Driven rather than waited on, and it takes more than one frame by design — see the identical
-     * note in test_i18n_reload.c: nya_asset_get stats at most once per stat interval, and the reload
-     * pass waits for the timestamp to settle before trusting it.
+     * Driven rather than waited on, and more than one frame by design: nya_asset_get stats at most once
+     * per interval, and reload waits for the timestamp to settle. Same as test_i18n_reload.c.
      */
     b8 reloaded = false;
 

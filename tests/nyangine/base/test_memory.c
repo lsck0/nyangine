@@ -119,10 +119,6 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_container_of macro
   // ─────────────────────────────────────────────────────────────────────────────
-  //
-  // No longer skipped. It used to be, because the macro named `assert_type_match` rather than
-  // `nya_assert_type_match` and so failed to compile the moment anything expanded it — which meant
-  // nothing ever did, and the one test for it asserted `true`.
   {
     TestStruct container = { .byte_field = 7, .int_field = 1234, .float_field = 2.5f, .long_field = 99 };
 
@@ -282,9 +278,8 @@ s32 main(void) {
   // TEST: nya_alloca is bounded
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // The bound is the whole point: every caller sizes a stack allocation from data, and without it
-    // a long enough input is a stack overflow with no diagnostic — a fault at whatever address the
-    // next frame would have touched, nowhere near the call that caused it.
+    // callers size stack allocations from data, so without the bound a long input overflows the stack
+    // with no diagnostic.
 
     // Right up to the limit still allocates, so the guard is a ceiling rather than a haircut.
     volatile u8* at_limit = nya_alloca(NYA_ALLOCA_MAX);
@@ -308,7 +303,7 @@ s32 main(void) {
     nya_expect_crash(huge = nya_alloca(attacker_length + 1));
     nya_assert(huge == nullptr, "a data-sized allocation past the bound must not be made");
 
-    // Zero is legal and must not trip the bound — nya_alloca(0) is what an empty string reaches.
+    // zero is legal and must not trip the bound; nya_alloca(0) is what an empty string reaches.
     volatile u8* empty = nya_alloca(0);
     nya_assert(empty != nullptr || empty == nullptr, "a zero sized allocation must not abort");
   }

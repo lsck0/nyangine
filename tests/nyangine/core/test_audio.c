@@ -16,8 +16,8 @@ static void end_frame(void) {
  * Checks one of the variation helpers: in range, actually varying, and unbiased.
  * */
 static void check_variation(NYA_ConstCString name, f32 (*vary)(f32, f32), f32 range, f32 units_per_doubling, NYA_ConstCString unit) {
-  // Nothing asked for, nothing changed, and bit exact rather than nearly — a sound the game did not
-  // ask to vary must come out as authored, and "almost 1.0" is still a variation.
+  // nothing requested, nothing changed, bit exact. A sound the game did not ask to vary must play as
+  // authored.
   nya_assert(vary(1.0F, 0.0F) == 1.0F, "%s: no variation must leave the value untouched", name);
   nya_assert(vary(2.0F, 0.0F) == 2.0F, "%s: no variation must not disturb an explicit value either", name);
 
@@ -50,7 +50,7 @@ static void check_variation(NYA_ConstCString name, f32 (*vary)(f32, f32), f32 ra
   }
 
   // The whole point of the feature: a constant would satisfy every bound above.
-  nya_assert(moved, "%s: the variation never varied — %u draws all came back as %f", name, draws, (f64)first);
+  nya_assert(moved, "%s: the variation never varied; %u draws all came back as %f", name, draws, (f64)first);
 
   /*
    * Centred, which is what a symmetric range means.
@@ -167,8 +167,8 @@ s32 main(void) {
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  // The systems the audio system needs, rather than nya_app_init — a full init opens a window and
-  // brings up the renderer, neither of which a headless test can do.
+  // the systems audio needs rather than nya_app_init, which opens a window and a renderer a headless
+  // test cannot.
   nya_system_callback_init();
   NYA_EXPECT(nya_system_events_init());
   nya_system_asset_init();
@@ -229,10 +229,8 @@ s32 main(void) {
   // TEST: pitch and gain variation stay in range, actually vary, and are unbiased
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // The arithmetic rather than the audible result, because neither a detune nor a level change can
-    // be heard without capturing the mixer's output. Device independent: this never touches a track.
-    // Twelve semitones to a doubling of the rate, and 20·log10(2) decibels to a doubling of the
-    // amplitude — the two exponents these are drawn in.
+    // the arithmetic rather than the audible result, since output cannot be captured. Never touches a
+    // track. Twelve semitones double the rate, and 20·log10(2) decibels double the amplitude.
     check_variation("pitch", _nya_audio_vary_pitch, 2.0F, 12.0F, "semitones");
     check_variation("gain", _nya_audio_vary_gain, 2.0F, 20.0F * log10f(2.0F), "dB");
   }
@@ -244,7 +242,7 @@ s32 main(void) {
     // Pure arithmetic, so device independent. Every value below is exact in binary, which is why
     // these compare with == rather than an epsilon.
 
-    // Unspecified means one, not zero — a reference distance of zero is a division by it.
+    // unspecified means one, not zero; a zero reference distance would divide by zero.
     nya_audio_listener_set((NYA_AudioListener){ .position = { 1.0F, 2.0F } });
     nya_assert(nya_audio_listener_get().reference_distance == 1.0F, "an unspecified reference distance must become 1.0");
 
@@ -258,8 +256,8 @@ s32 main(void) {
     nya_assert(here[0] == 0.0F && here[1] == 0.0F && here[2] == 0.0F, "a sound on the listener must land at the origin");
 
     /*
-     * Side on: the screen is a wall, so world y becomes height and is negated on the way in — the
-     * renderer's y counts downward while the mixer's counts up. Nothing reaches z.
+     * Side on: the screen is a wall, so world y becomes height and is negated, since the renderer's y
+     * points down and the mixer's up. Nothing reaches z.
      */
     f32x3 side = _nya_audio_world_to_audio((f32x2){ 14.0F, 28.0F });
     nya_assert(side[0] == 1.0F, "side on: x is unchanged, got %f", (f64)side[0]);
@@ -285,11 +283,10 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: bus filters — off is exact, on removes treble, and it glides there
+  // TEST: bus filters: off is exact, on removes treble, and it glides there
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // The DSP directly, on a buffer of known signal. Device independent, and the only way to assert
-    // on what the filter does to audio — the mixer has no way to hand a test its output.
+    // the DSP directly, on a known signal, since the mixer cannot hand a test its output.
     SDL_AudioSpec spec = { .format = SDL_AUDIO_F32, .channels = 1, .freq = FILTER_RATE };
 
     static f32 pcm[FILTER_FRAMES];
@@ -316,10 +313,8 @@ s32 main(void) {
     // ── A low cutoff must crush treble and let bass through ──
     {
       /*
-       * A one pole at 500Hz passes about 98% of a 100Hz tone and about 6.5% of an 8kHz one. The
-       * thresholds are loose around those so the test is about the shape of the response rather
-       * than its third decimal, but they are nowhere near each other — a filter that did nothing
-       * would fail the treble check by a factor of ten.
+       * A one pole at 500Hz passes about 98% of a 100Hz tone and about 6.5% of an 8kHz one. The thresholds
+       * are loose, but a filter that did nothing would fail the treble check by a factor of ten.
        */
       f64 bass   = filter_response(500.0F, 100.0F);
       f64 treble = filter_response(500.0F, 8000.0F);
@@ -505,7 +500,7 @@ s32 main(void) {
   // TEST: music is a voice, so the same effects reach it
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // Nothing playing yet, so the music voice is not valid — but asking is safe.
+    // nothing playing yet, so the music voice is not valid, but asking is safe.
     nya_audio_stop_music(0);
     nya_assert(!nya_audio_voice_valid(nya_audio_music_voice()), "silent music is not a live voice");
 

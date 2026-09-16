@@ -114,8 +114,7 @@ s32 main(void) {
   // TEST: absent fields are omitted rather than sent empty
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    // An empty string is a *value* to Discord, and it reserves the row for it — so a card with an
-    // empty state has a blank line where there should be nothing at all.
+    // an empty string is a value to Discord and reserves a blank row, so empty fields must be omitted.
     NYA_DiscordActivity sparse = { .details = "Just this" };
 
     NYA_String* payload = _nya_discord_activity_payload(arena, &sparse);
@@ -239,9 +238,8 @@ s32 main(void) {
     nya_assert(!contains(half_text, "\"buttons\""));
 
     /*
-     * Discord refuses an activity carrying both buttons and secrets, and refuses it silently — the
-     * card simply stops updating. The buttons go rather than the secrets, because a join secret is
-     * functional and a button is decorative.
+     * Discord silently refuses an activity with both buttons and secrets, and the card stops updating.
+     * The buttons go, since a join secret is functional and a button decorative.
      */
     NYA_DiscordActivity both = {
       .party_id    = "p",
@@ -278,8 +276,8 @@ s32 main(void) {
     (void)snprintf(second, sizeof(second), "Score: %d", 43);
     nya_assert(!_nya_discord_activity_equals(&a, &b), "and a real change is seen");
 
-    // Null and empty are the same thing, because the builder omits both — two activities differing
-    // only in that produce byte-identical frames and must not be re-sent.
+    // null and empty are equivalent because the builder omits both, so the frames are identical and must
+    // not be re-sent.
     NYA_DiscordActivity absent = { .state = nullptr };
     NYA_DiscordActivity blank  = { .state = "" };
 

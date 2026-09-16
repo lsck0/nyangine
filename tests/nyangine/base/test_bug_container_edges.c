@@ -145,10 +145,9 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: an alignment of 24 is rejected\n");
   {
-    // The on-stack constructor, because the heap one mallocs the NYA_Arena *before* it validates the
-    // options — so the assertion below longjmps straight past the free and LeakSanitizer, correctly,
-    // reports the 48 bytes. That is a property of unwinding out of C rather than anything to pin.
-    // 48 KiB divides by 24, so the region-size check passes and the alignment check is what fires.
+    // the on-stack constructor, because the heap one mallocs the NYA_Arena before validating options,
+    // and the assertion's longjmp would leak it. 48 KiB divides by 24, so the region size check passes
+    // and the alignment check fires.
     nya_expect_crash({
       NYA_Arena bad = nya_arena_create_on_stack(.name = "bad", .alignment = 24, .region_size = nya_kibyte_to_byte(48));
       (void)bad;
@@ -161,10 +160,7 @@ s32 main(void) {
   // TEST: nya_array_from_argv
   // ─────────────────────────────────────────────────────────────────────────────
   //
-  // Exercised at all, which it had never been. The macro carried three compile errors — a `s32(0)`
-  // function style cast, and an NYA_String* pushed into an array of NYA_String — none of which a
-  // macro reports until something expands it. Nothing did, while it sat in base_array.h's public API
-  // overview the whole time.
+  // A macro only reports compile errors when expanded, so this expands it.
   printf("TEST: nya_array_from_argv\n");
   {
     const char* fake_argv[] = { "build", "run", "test" };
