@@ -1,13 +1,11 @@
 /**
  * @file request.h
  *
- * Example:
  * ```c
  * NYA_Arena* arena = nya_arena_create(.name = "request");
  * defer      nya_arena_destroy(arena);
  *
  * NYA_Object* body = nya_object_create(arena);
- * // There is no nya_value_u64 constructor, which this example used to call; a value is a literal.
  * nya_object_set(body, "score", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 4200 });
  *
  * NYA_Response response = { 0 };
@@ -19,7 +17,7 @@
  *     .timeout_ms   = 5000,
  * }, &response);
  *
- * // `response` is filled whether or not `result` is an error: a 404 carries a body worth reading.
+ * // `response` is filled even when `result` is an error: a 404 carries a body worth reading.
  * if (!result.ok) nya_log_error("score upload failed: %s", (NYA_ConstCString)result.message);
  * ```
  * */
@@ -93,9 +91,7 @@ struct NYA_Request {
      * */
     b8 follow_redirects;
 
-    /**
-     * Accept any TLS certificate. **Never set this outside a test against a local server.**
-     * */
+    /** Accept any TLS certificate. Only for tests against a local server. */
     b8 insecure_skip_tls_verify;
 };
 

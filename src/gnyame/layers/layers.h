@@ -7,8 +7,8 @@
 // umbrella and it includes this file, so naming it here is a cycle that only #pragma once hides.
 #include "nyangine/nyangine.h"
 
-// Named here rather than left to gnyame.h having gone first, so this header still compiles on its
-// own — which is what clangd does to it, and what makes GNY_TERRAIN_POINT_COUNT resolve in an editor.
+// named here so this header compiles on its own, as clangd compiles it, and GNY_TERRAIN_POINT_COUNT
+// resolves in an editor.
 #include "gnyame/constants.h"
 #include "gnyame/entities/entities.h"
 
@@ -167,10 +167,10 @@ struct GNY_Menu {
 };
 
 /*
- * ── Shared menu behaviour ──
+ * Shared menu behaviour
  *
- * Both menus are the same widget with different items, so the navigation, the hit testing and the
- * drawing live here once. A layer supplies the list and reacts to what comes back.
+ * Both menus are one widget with different items, so navigation, hit testing and drawing live here.
+ * A layer supplies the list and reacts to the result.
  */
 
 /**
@@ -270,9 +270,8 @@ struct GNY_World {
     /**
      * The Lua VM, or null before the startup script has loaded.
      *
-     * ⚠ **Here rather than in a static inside a .c**, which is the first of lua.h's two hot-reload
-     * rules: GNY_World lives in the engine world's arena, which lives in the *host* executable, so
-     * this survives the game library being replaced. A pointer in the game's own data would not.
+     * Here rather than in a static in a .c, per lua.h's hot reload rules: GNY_World lives in the engine
+     * world's arena in the host executable, so it survives the game library being replaced.
      * */
     NYA_LuaVM* lua;
 
@@ -434,9 +433,7 @@ void      gny_layer_ui_on_render(NYA_Window* window);
  * */
 void gny_terrain_generate(u64 seed);
 
-/**
- * Draws the world — terrain and every entity that knows how to draw itself — through `camera`.
- * */
+/** Draws the world, terrain and every drawable entity, through `camera`. */
 void gny_world_draw(NYA_Window* window, NYA_Camera2DTopDown camera);
 
 /** Creates or resizes the primary camera's offscreen target, which the bloom pass reads back. */

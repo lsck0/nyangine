@@ -17,9 +17,7 @@
 typedef struct NYA_Window        NYA_Window;
 typedef struct NYA_NeatDrawStyle NYA_NeatDrawStyle;
 
-/**
- * How the network is drawn. Zero initialising is meaningful throughout — see each field.
- * */
+/** How the network is drawn. Zero is meaningful for every field. */
 struct NYA_NeatDrawStyle {
     /** Top left of the area the network is laid out in. */
     f32 x, y;
@@ -30,10 +28,7 @@ struct NYA_NeatDrawStyle {
     /** Circle radius. Zero means 14, which is large enough to hold a two decimal number. */
     f32 node_radius;
 
-    /*
-     * Text is opt-out rather than opt-in, because the numbers are usually the point — a picture of
-     * the topology without them says what is connected but not what it does.
-     */
+    /* Text is opt-out, because the numbers usually matter more than the topology. */
     b8 hide_values;
     b8 hide_labels;
 

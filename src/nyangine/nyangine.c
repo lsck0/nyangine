@@ -10,16 +10,13 @@
 #include "nyangine/physics/physics.c"
 #include "nyangine/net/net.c"
 #include "nyangine/core/core.c"
-// Before either renderer and in both: it touches no GPU state, and a headless test reaches it.
-//
-// render_camera.c is here for a stronger reason than that — it is the camera arithmetic both
-// renderers used to carry a copy of, and the copies had drifted. See its file comment.
+// before either renderer and in both: no GPU state, and headless tests reach it. render_camera.c holds
+// the camera arithmetic both renderers share.
 #include "nyangine/renderer/render_camera.c"
 // Shaping, and in both builds for the same reason: it is CPU only, so a headless build can
 // and does lay text out exactly as the real one draws it. See render_text.h.
 #include "nyangine/renderer/render_text.c"
-// Where a shadow cascade goes, as opposed to how it is rasterised. Pure math, so both builds get it —
-// see its file comment.
+// where a shadow cascade goes, not how it is rasterised. Pure math, so both builds get it.
 #include "nyangine/renderer/render_shadow.c"
 #include "nyangine/renderer/render_sort.c"
 #include "nyangine/renderer/render_lod.c"

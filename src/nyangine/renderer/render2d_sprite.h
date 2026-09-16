@@ -101,10 +101,9 @@ struct NYA_SpriteList {
  * ANIMATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * An animation is a span of frames and a rate; an animator is where in one you are. They are
- * separate because the first is *content* — shared, constant, usually a static table — and the
- * second is *state*, one per thing playing it. A hundred goblins share one walk cycle and each has
- * its own animator.
+ * An animation is a span of frames and a rate; an animator is the position in one. Animations are
+ * shared constant content, usually static tables, and animators are per instance state. A hundred
+ * goblins share one walk cycle and each has its own animator.
  *
  * ```c
  * static const NYA_SpriteAnimationEvent attack_events[] = {
@@ -119,17 +118,12 @@ struct NYA_SpriteList {
  * nya_sprite_animator_play(&entity_state->animator, &attack);
  * ```
  *
- * ## Why events and not just "the animation finished"
+ * Events exist because the interesting moment is rarely the end. An attack lands on the frame where
+ * the blade is out, and that frame moves whenever an artist retimes the animation. Reading it from
+ * the animation keeps the hit in sync; a timer in game code drifts.
  *
- * Because the interesting moment is almost never the end. An attack starts its swing and its sound
- * immediately, and *lands* on the frame where the blade is out — which is frame four of seven, and
- * is a number that changes every time an artist retimes the animation. Reading it off the animation
- * means the retime moves the hit with it; hardcoding a timer in the game means it silently stops
- * matching.
- *
- * Signals come out of nya_sprite_animator_advance as a small array, and the entity system forwards
- * them to NYA_Entity.on_animation. Both are the same list; a game that does not use entities polls
- * it directly.
+ * nya_sprite_animator_advance returns signals as a small array, and the entity system forwards them to
+ * NYA_Entity.on_animation. Games without entities poll the array directly.
  */
 
 typedef enum NYA_SpriteAnimationSignalKind NYA_SpriteAnimationSignalKind;

@@ -19,11 +19,9 @@
 #define nya_assert(...)             _NYA_ASSERT_ENABLED(__VA_ARGS__)
 
 /**
- * The same assertion, spelled so the reader knows the check is load bearing: for invariants whose
- * failure is a security or data-integrity problem rather than a programming mistake — the alloca
- * bound in base_memory.h and the tamper check in base_integrity.c are the two cases. Identical to
- * nya_assert today; kept separate because it used to be the one form surviving -DNYA_NO_ASSERT, and
- * the distinction stays documentary now that flag is refused outright.
+ * The same assertion, spelled to mark the check as load bearing for security or data integrity
+ * rather than a programming mistake: the alloca bound in base_memory.h and the tamper check in
+ * base_integrity.c. Identical to nya_assert.
  * */
 #define nya_assert_always(...)      _NYA_ASSERT_ENABLED(__VA_ARGS__)
 
@@ -50,9 +48,4 @@
 #define _NYA_ASSERT2(condition, message)     do { if (!(condition)) { _nya_crash_raise(NYA_CRASH_SOURCE_ASSERT, __FUNCTION__, __FILE__, __LINE__, 0, "%s, %s", #condition, message); } } while (0)
 #define _NYA_ASSERT3(condition, format, ...) do { if (!(condition)) { _nya_crash_raise(NYA_CRASH_SOURCE_ASSERT, __FUNCTION__, __FILE__, __LINE__, 0, "%s, " format, #condition, __VA_ARGS__); } } while (0)
 
-/*
- * There is no disabled form. One existed behind #ifdef NYA_NO_ASSERT, but was unreachable dead code
- * — base_basic.h refuses that macro with an #error — and buggy besides: it kept the *condition* in
- * a discarded context but dropped the message and every format argument, so a message-only variable
- * would have gone unused the moment it was switched on. Removed rather than fixed.
- */
+/* There is no disabled form. base_basic.h refuses NYA_NO_ASSERT with an #error. */

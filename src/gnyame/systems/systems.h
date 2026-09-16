@@ -101,7 +101,7 @@ NYA_INTERNAL void _gny_sky_clouds_draw(NYA_Window* window, GNY_SkyState sky);
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
  * The 3D scene's ground: a heightmap from fBm noise, drawn as flat triangles and collided against as a
- * static triangle mesh. See system_terrain3d.c for why the collider and the draw are built separately.
+ * heightfield.
  */
 
 /**

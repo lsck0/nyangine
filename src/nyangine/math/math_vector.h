@@ -46,15 +46,12 @@ typedef u64 u64x4 __attr_vector(4);
  * PRODUCTS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * The four operations the elementwise operators cannot express, and deliberately only those.
+ * The four operations the elementwise operators cannot express.
  *
- * `a * b` on two vectors is already elementwise multiplication, which is a different and equally
- * useful thing — so a dot product has to be a function or the two would be spelled the same. Same
- * for a cross product, which is not elementwise at all. Length and normalize follow from dot and are
- * here rather than at every call site because the zero-length case has exactly one right answer and
- * writing it out repeatedly is how half the call sites end up dividing by zero.
+ * `a * b` on vectors is already elementwise, so dot and cross must be functions. Length and normalize
+ * live here so the zero-length case is handled once instead of dividing by zero at call sites.
  *
- * f32 only, and only the widths something uses. See the note on the integer lane types above.
+ * f32 only, and only the widths in use. See the note on the integer lane types above.
  */
 
 NYA_API f32 nya_vector_dot(f32x2 a, f32x2 b) __attr_overloaded __attr_no_discard;

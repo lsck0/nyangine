@@ -723,9 +723,9 @@ NYA_API NYA_Render3DMaterial nya_render3d_material(NYA_Window* window) __attr_no
  * PRIMITIVES
  * ─────────────────────────────────────────────────────────
  *
- * All of them take world-space positions and a rotation, and bake both into the vertices as they are
- * built. That is what keeps a hundred of them in one draw call; the cost is that moving one means
- * rebuilding it, which at these vertex counts is cheaper than the draw call it saves.
+ * All take world-space positions and a rotation and bake both into the vertices, which keeps a
+ * hundred of them in one draw call. Moving one means rebuilding it, which at these vertex counts is
+ * cheaper than the draw call saved.
  *
  * Every face is wound counter-clockwise seen from outside, so back-face culling works.
  */

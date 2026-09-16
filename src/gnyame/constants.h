@@ -324,9 +324,8 @@
  * 3D DEMO
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * Metres, not pixels. The 2D world converts through NYA_PHYSICS2D_PIXELS_PER_METER at thirty-two; the
- * 3D one has no pixel scale, so a unit here is a metre and the numbers are the sizes of real things. A
- * one metre cube is a crate.
+ * Metres, not pixels. The 2D world converts at NYA_PHYSICS2D_PIXELS_PER_METER (thirty-two); the 3D
+ * one has no pixel scale, so these are real sizes. A one metre cube is a crate.
  */
 
 /** Full edge length of the cube, in metres. */
@@ -365,9 +364,8 @@
  * TERRAIN 3D
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * The 3D scene's ground: a heightmap from fBm noise, drawn as flat triangles and collided against as a
- * triangle mesh. Replaces the flat plane the scene used to stand on, a useless test exercising one
- * contact normal and nothing else.
+ * The 3D scene's ground: a heightmap from fBm noise, drawn as flat triangles and collided against as
+ * a heightfield.
  */
 
 /**
@@ -589,8 +587,8 @@
  * FIRE AND SMOKE
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * A plume made of billboards — what a volumetric effect is in a renderer with no depth prepass or
- * compute stage. Fire adds, smoke blends; see nya_render3d_billboard for why those are two systems.
+ * A plume made of billboards, the volumetric effect a renderer without depth prepass or compute can
+ * do. Fire adds and smoke blends, so they are two systems; see nya_render3d_billboard.
  */
 
 /**

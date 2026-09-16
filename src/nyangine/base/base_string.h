@@ -91,19 +91,13 @@ NYA_API void                   nya_string_trim_whitespace(NYA_String* str);
  * UTF-8
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * NYA_String holds bytes and nothing here changes that. `length` is bytes, indexing is bytes, and
- * every function above operates on bytes — which is right, because that is what a string *is* in
- * memory and what a file holds.
+ * NYA_String is bytes: `length`, indexing and every function above work on bytes.
  *
- * What these add is the ability to walk a string as *characters* where that is the question being
- * asked. Two places need it and both are load bearing: the text renderer, which has to know which
- * glyph to draw, and i18n, which has to count the characters a translator wrote rather than the
- * bytes their language happens to need.
+ * These walk a string as characters, for the two places that need it: the text renderer picking
+ * glyphs and i18n counting what a translator wrote.
  *
- * Deliberately not a full Unicode library. There is no normalisation, no case mapping outside ASCII,
- * no grapheme clustering and no bidirectional algorithm. Each of those is a real feature with a real
- * data table behind it, and pretending otherwise by adding a half-implementation is worse than not
- * having one.
+ * Not a Unicode library: no normalisation, no case mapping outside ASCII, no grapheme clustering, no
+ * bidirectional text. Each needs real data tables, and a half implementation is worse than none.
  */
 
 /** How many bytes the sequence starting at `cursor` occupies, from its lead byte. Never zero. */

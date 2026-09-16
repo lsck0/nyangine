@@ -42,8 +42,8 @@ struct NYA_NNDrawStyle {
     b8 show_values;
 
     /**
-     * Names for the input and output units, drawn beside their column — left of the inputs, right of
-     * the outputs, the way nn_neat_draw places them.
+     * Names for the input and output units, drawn left of the inputs and right of the outputs, as
+     * nn_neat_draw places them.
      * */
     NYA_ConstCString* input_labels;
     u32               input_label_count;
@@ -60,8 +60,8 @@ struct NYA_NNDrawStyle {
     f32 weight_threshold;
 
     /*
-     * All-zero colours mean the defaults: inputs green, hidden blue, outputs amber, and connections
-     * green or red by the sign of the weight — matching nn_neat_draw so the two read the same way.
+     * All-zero colours mean the defaults: inputs green, hidden blue, outputs amber, connections green or
+     * red by weight sign, matching nn_neat_draw.
      */
     NYA_Color color_input;
     NYA_Color color_hidden;

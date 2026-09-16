@@ -91,9 +91,8 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
     /*
      * Where the cascades start. See NYA_Render3DShadowFit.near_distance.
      *
-     * The camera's near plane is the wrong answer for anything orbited from outside itself: the split
-     * then spends its two sharpest cascades on the gap between the camera and the subject, and the
-     * subject lands in the coarsest one. A caller that knows where its casters begin says so.
+     * The camera's near plane is wrong for an orbit camera: the sharpest cascades would cover the empty
+     * gap to the subject. A caller that knows where its casters begin says so.
      */
     f32 shadow_near = fit.near_distance > near_plane ? fit.near_distance : near_plane;
 
@@ -109,13 +108,11 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
     f32 view_length = sqrtf((view_direction.x * view_direction.x) + (view_direction.y * view_direction.y)
                             + (view_direction.z * view_direction.z));
 
-    // A camera aimed at itself names no direction. The volume then sits on the camera, which is wrong
-    // but bounded — the alternative is a normalize that divides by zero and fills the matrix with NaN.
+    // a camera aimed at itself has no direction. The volume then sits on the camera, wrong but bounded,
+    // instead of normalizing a zero vector into NaN.
     f32x3 forward = view_length > 0.0001F ? view_direction / view_length : (f32x3){ 0.0F, 0.0F, 0.0F };
 
-    /*
-     * The slice's bounding **sphere**, not its bounding box.
-     */
+    /* The slice's bounding sphere, not its bounding box. */
     f32 tan_half = tanf(fov_y * 0.5F);
     f32 k        = sqrtf(1.0F + (aspect * aspect)) * tan_half;
 

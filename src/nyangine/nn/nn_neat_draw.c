@@ -11,9 +11,7 @@
  * LAYOUT AND APPEARANCE CONSTANTS
  * ─────────────────────────────────────────────────────────
  *
- * Named rather than written inline. Every one of these was a bare float buried in an expression,
- * which made the drawing code read as arithmetic instead of as intent — and made a tweak a hunt for
- * which 0.75 was the one that mattered.
+ * Named so the drawing code reads as intent, and a tweak is not a hunt for the right 0.75.
  */
 
 /** Connection thickness, in pixels: the floor a near-zero weight still draws at, and the span above it. */

@@ -111,7 +111,7 @@ GNY_EntityFlags gny_entity_flags(const NYA_Entity* entity);
 /** Reads better than a comparison at a call site, and is null safe for the same reason. */
 b8 gny_entity_is(const NYA_Entity* entity, GNY_EntityKind kind);
 
-/** True when **every** bit in `flags` is set. Passing GNY_ENTITY_FLAG_NONE is true for any entity. */
+/** True when every bit in `flags` is set. GNY_ENTITY_FLAG_NONE is true for any entity. */
 b8 gny_entity_flag_check(const NYA_Entity* entity, GNY_EntityFlags flags);
 
 /*
@@ -137,10 +137,7 @@ void gny_entity_box_destroy(NYA_EntityHandle box);
 void gny_entity_box_destroy_all(void);
 
 /** How many crates are in the world, and how many of those the solver still has awake. */
-/**
- * How many crates there are, and — through `out_awake`, which may be null — how many the solver still
- * considers awake.
- * */
+/** How many crates exist and, through `out_awake` (may be null), how many the solver considers awake. */
 u32 gny_entity_box_count(OUT u32* out_awake);
 
 /**
@@ -159,9 +156,7 @@ void gny_entity_box_on_click(NYA_Entity* entity, f32x3 world_point, u8 button);
 /** The colour a crate draws in, derived from its slot so it is stable for the entity's whole life. */
 NYA_Color gny_entity_box_color(const NYA_Entity* entity);
 
-/**
- * Per crate update. Registered with nya_callback, so it is resolved **by name** after a hot reload.
- * */
+/** Per crate update. Registered with nya_callback, so it is resolved by name after a hot reload. */
 void gny_entity_box_on_update(NYA_Entity* entity, f32 delta_time_s);
 
 /*

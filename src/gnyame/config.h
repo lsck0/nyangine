@@ -6,13 +6,9 @@
  * u32 cascades = NYA_CONFIG.engine.renderer.shadow_cascades;
  * ```
  *
- * ⚠ **Does not survive a code hot reload.** NYA_CONFIG is a plain global in this DLL, exactly like
- * GNY_LAUNCH above, and gny_world_create runs exactly once regardless of how many times the DLL is
- * rebuilt and reloaded while the game keeps running — see main.c's reload loop, which calls
- * gnyame_run again but never gnyame_init. A rebuild of gnyame's *code* therefore resets this struct to
- * zero until the next full restart; only an edit to GNY_CONFIG_FILE itself is picked up live. See the
- * ownership note on core_config.h's file header for why fixing that needs the engine to own the
- * storage instead of pointing into the game's.
+ * Does not survive a code hot reload. NYA_CONFIG is a plain global in this DLL, like GNY_LAUNCH, and
+ * main.c's reload loop calls gnyame_run again but never gnyame_init. A code rebuild leaves it zeroed
+ * until restart; edits to GNY_CONFIG_FILE are picked up live. See core_config.h.
  * */
 #pragma once
 
@@ -43,9 +39,10 @@ typedef struct GNY_Config     GNY_Config;
  * */
 // @reflect
 struct GNY_ConfigGame {
-    /** World units per second a networked player moves. See GNY_PLAYER_SPEED and
-     *  gny_net_apply_command, which is what actually reads a speed today — this field does not feed
-     *  it yet; see the file header on core_config.h for why wiring that up is separate work. */
+    /**
+     * World units per second a networked player moves. Not read yet: gny_net_apply_command still uses
+     * GNY_PLAYER_SPEED.
+     * */
     f32 player_speed;
 
     /** How far apart players spawn, so two joining at once do not start inside each other. See

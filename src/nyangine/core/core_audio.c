@@ -15,10 +15,9 @@ typedef struct NYA_AudioReverbState NYA_AudioReverbState;
  * REVERB
  * ─────────────────────────────────────────────────────────
  *
- * A Schroeder network: four comb filters in parallel, summed, then two allpasses in series, per channel,
- * with the second channel's delays offset so the two rooms are not the same room. Delay lengths are the
- * classic Freeverb set, in samples at 44.1 kHz, and mutually prime — lengths sharing a factor land their
- * echoes on top of each other, heard as a metallic ring rather than a room.
+ * A Schroeder network: four parallel comb filters summed, then two allpasses in series, per channel,
+ * with the second channel's delays offset so the rooms differ. Delays are the Freeverb set, in
+ * samples at 44.1 kHz, and mutually prime, since shared factors stack echoes into a metallic ring.
  */
 
 /** Comb delays at 44.1 kHz, in samples. */

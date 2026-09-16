@@ -2,10 +2,10 @@
  * @file net_server.h
  *
  * ```c
- * // Single player. Nobody is listening, and nothing is serialised.
+ * // single player: nobody listens and nothing is serialised.
  * NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = FLAG_REPLICATED }));
  *
- * // Later, from a menu: open the same game to the LAN. Nothing about the world changes.
+ * // later, from a menu, open the same game to the LAN. The world does not change.
  * NYA_EXPECT(nya_net_server_listen(27015));
  * ```
  * */
@@ -67,18 +67,14 @@ struct NYA_NetServerConfig {
     u32 snapshot_interval_ticks;
 
     /*
-     * ── the game's callbacks ──
+     * the game's callbacks
      *
-     * Handles rather than function pointers, and every one of them has to be built with nya_callback.
-     *
-     * A server outlives a hot reload: the world, the peers and their open sockets all live in the
-     * executable, and only the game DLL is swapped. A raw pointer into that DLL is dangling the moment
-     * it is unloaded, so the first command applied after a reload jumped into freed address space. A
-     * handle is re-resolved by name after the swap — see nya_callback — and in a shipping build the
-     * whole indirection compiles down to the pointer it already was.
+     * Handles built with nya_callback, not function pointers. The world, peers and sockets live in the
+     * executable and survive a hot reload while the game DLL is swapped, so a raw pointer would dangle.
+     * Handles are re-resolved by name, and shipping builds compile them down to plain pointers.
      *
      * Pass the bare function name: nya_callback stringizes its argument, so nya_callback(&fn) records
-     * the name as "&fn" and nothing can find it again.
+     * "&fn", which never resolves.
      */
 
     /** NYA_NetSpawnPlayerFn. What a joining player gets to control. */
@@ -180,9 +176,7 @@ NYA_API NYA_Error nya_net_server_attach_local(OUT NYA_NetTransport** out_client_
 /** The local player's peer id, or NYA_NET_PEER_NONE on a dedicated server. */
 NYA_API NYA_NetPeerId nya_net_server_local_peer(void) __attr_no_discard;
 
-/**
- * Whether this server has no local player — that is, whether it was started with `--server`.
- * */
+/** Whether this server has no local player, i.e. it was started with `--server`. */
 NYA_API b8 nya_net_server_is_dedicated(void) __attr_no_discard;
 
 /**

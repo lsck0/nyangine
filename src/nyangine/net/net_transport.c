@@ -11,8 +11,8 @@ b8 nya_net_peer_equals(NYA_NetPeerId a, NYA_NetPeerId b) {
 }
 
 b8 nya_net_peer_is_set(NYA_NetPeerId peer) {
-    // The generation, not the index. Slot zero is a perfectly ordinary peer — on a listen server it
-    // is the host — and only generation zero means "never assigned".
+    // the generation, not the index. Slot zero is an ordinary peer (the host on a listen server), and
+    // only generation zero means never assigned.
     return peer.generation != 0;
 }
 

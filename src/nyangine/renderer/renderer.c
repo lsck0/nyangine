@@ -27,10 +27,8 @@
  * VERTICES
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
- * Above the headless split, and outside it: narrowing four floats into halves is arithmetic, and a
- * headless build builds the same vertices as a real one — it simply never uploads them. Putting these
- * inside the split would have meant two identical copies, or a link error in whichever build was
- * forgotten, which is what the first attempt did.
+ * Outside the headless split: packing floats into halves is arithmetic, and a headless build builds
+ * the same vertices without uploading them.
  */
 
 void nya_render_clear_color_set(NYA_Window* window, NYA_Color color) {

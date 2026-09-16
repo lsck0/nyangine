@@ -2,7 +2,7 @@
  * @file render_occlusion.h
  *
  * ```c
- * // Once, somewhere that outlives the frame. It is tens of kilobytes; do not put it on the stack.
+ * // tens of kilobytes; keep it somewhere that outlives the frame, not on the stack.
  * static NYA_OcclusionBuffer occlusion;
  *
  * nya_render3d_begin(window, camera);
@@ -11,16 +11,15 @@
  * nya_occlusion_box(&occlusion, wall_center, wall_half_extents, camera.position);
  * nya_render3d_occlusion(window, &occlusion);
  *
- * // Nothing at the call site changes. nya_render3d_mesh tests before it queues anything.
+ * // call sites do not change; nya_render3d_mesh tests before queueing.
  * nya_render3d_mesh(window, MESH_CRATE, position, scale, rotation, tint);
  * ```
  *
- * ⚠ **This does not replace frustum culling and runs after it.** Frustum culling asks "is it on
- * screen", this asks "is something in front of it". `_nya_render3d_visible` does the cheap one first
- * and only reaches this for primitives that survived.
+ * Runs after frustum culling, not instead of it. `_nya_render3d_visible` does the cheap frustum test
+ * first and only tests occlusion for what survived.
  *
- * ⚠ **An occluder must be solid and opaque.** Submitting a fence, a window, or anything the player
- * can see through will hide what is behind it. The buffer has no way to know.
+ * Occluders must be solid and opaque. A fence or window submitted as an occluder hides what is behind
+ * it.
  * */
 #pragma once
 

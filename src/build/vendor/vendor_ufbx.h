@@ -1,29 +1,20 @@
 /**
  * @file vendor_ufbx.h
  *
- * ufbx, an FBX reader. One source file, built into a static archive, one object.
+ * ufbx, an FBX reader: one C file with no dependencies, built into a static archive. Reads binary and
+ * ASCII FBX from 6100 up and normalises the scene (triangulation on request, geometry transforms,
+ * units and axes).
  *
- * FBX is a proprietary format with no specification, several generations of container and a great
- * many exporters that each disagree slightly about what they emit. ufbx is the answer to that: a
- * single C file that reads binary and ASCII FBX from 6100 up, normalises the scene it finds — indices
- * triangulated on request, geometry transforms applied, units and axes converted — and depends on
- * nothing. That last part is what makes it vendorable here at all.
+ * An archive rather than part of the unity build: it is about twenty thousand lines and would be
+ * reparsed on every incremental rebuild, with its helpers in the engine's namespace. It only changes
+ * when the submodule moves.
  *
- * Built as an archive rather than compiled into the engine's unity build. ufbx is around twenty
- * thousand lines and the engine is one translation unit, so including it would put its whole parse on
- * every incremental rebuild of the game — and its internal helpers into the same namespace as
- * everything else. It changes only when the submodule moves, which is exactly what NYA_BUILD_IF_OUTDATED
- * against the source file expresses.
+ * `UFBX_NO_SCENE_EVALUATION`, `UFBX_NO_SUBDIVISION` and `UFBX_NO_TESSELLATION` drop animation
+ * evaluation, Catmull-Clark subdivision and NURBS, which the engine does not call and which are most
+ * of the compiled size. Skinning and blend shapes stay.
  *
- * `UFBX_NO_SCENE_EVALUATION`, `UFBX_NO_SUBDIVISION` and `UFBX_NO_TESSELLATION` cut the parts of the
- * library the engine does not call: animation evaluation, Catmull-Clark subdivision and NURBS. They
- * are opt-*out* macros upstream provides for exactly this, and together they are most of the compiled
- * size. Skinning and blend shapes stay in, since a mesh asset that could not be skinned would have to
- * be rebuilt the day anything is animated.
- *
- * -O2 rather than the -O3 the other vendors take: ufbx's own build notes call out that its bounds
- * checking is what keeps a malformed file from becoming a crash, and there is no reason to spend
- * compile time on a parser that runs once per model load.
+ * -O2 rather than -O3: it runs once per model load and its bounds checking is what keeps a malformed
+ * file from crashing.
  * */
 #pragma once
 
@@ -47,11 +38,11 @@
 // clang-format off
 
 /**
- * What both targets compile the one source with, target flags aside.
+ * What both targets compile the source with, target flags aside.
  *
- * The three NO_ macros are also on `cflags` below, not only here: ufbx.h declares the functions those
- * features add, and a consumer compiled without them would see prototypes for symbols the archive does
- * not contain. Agreeing on both sides is what keeps that a compile error rather than a link error.
+ * The NO_ macros are also on `cflags`: ufbx.h declares the functions those features add, so both
+ * sides must agree or a consumer sees prototypes the archive lacks and fails at link time instead of
+ * compile time.
  * */
 #define UFBX_CFLAGS                 \
     "-c", "-O2", "-std=c11",        \

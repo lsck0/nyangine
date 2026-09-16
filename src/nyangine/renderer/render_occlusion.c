@@ -43,8 +43,8 @@ NYA_INTERNAL f32 _nya_occlusion_edge(f32 ax, f32 ay, f32 bx, f32 by, f32 px, f32
 NYA_INTERNAL b8 _nya_occlusion_convex(NYA_OcclusionBuffer* buffer, _NYA_OcclusionPoint* points, u32 count) {
     if (count < 3) return false;
 
-    // Shoelace, to find out which way it was wound. Either is accepted — a caller submitting a wall
-    // does not know which side of it the camera ended up on — by reversing rather than rejecting.
+    // shoelace finds the winding. Either is accepted by reversing, since a caller submitting a wall does
+    // not know which side the camera is on.
     f32 area = 0.0F;
     for (u32 i = 0; i < count; i++) {
         u32 next = (i + 1) % count;

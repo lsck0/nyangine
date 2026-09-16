@@ -101,21 +101,9 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
                     "-B", SDL_BUILD_WINDOWS_X86_64,
                     SDL_CMAKE_COMMON,
                     /*
-                     * The shared macro, like every other cmake vendor here.
-                     *
-                     * This rule used to spell the toolchain out inline, and it was the only one that
-                     * did. Three things came of that. The compiler paths were absolute
-                     * (/usr/bin/x86_64-w64-mingw32-gcc), so a mingw-w64 installed anywhere else was
-                     * not found. FIND_ROOT_PATH_MODE_INCLUDE was BOTH, which is exactly what the
-                     * shared macro's own comment warns against — a find_package that reaches the
-                     * host's /usr/include mixes glibc headers into a mingw compile. And because
-                     * nothing here expanded NYA_CMAKE_WINDOWS_TOOLCHAIN, a Windows host — where that
-                     * macro is native and takes no cross compiler at all — configured SDL against
-                     * mingw paths that do not exist on it, so the one dependency everything else
-                     * links against could not be built there.
-                     *
-                     * Verified equivalent before switching: configuring both ways produces a
-                     * byte identical include-config-release/build_config/SDL_build_config.h.
+                     * The shared cmake macro, like every other vendor. It finds mingw-w64 on PATH, keeps
+                     * FIND_ROOT_PATH_MODE_INCLUDE from reaching the host's glibc headers, and expands natively on a
+                     * Windows host.
                      */
                     NYA_CMAKE_WINDOWS_TOOLCHAIN,
                 },
