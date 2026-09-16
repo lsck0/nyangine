@@ -2326,25 +2326,21 @@ NYA_INTERNAL NYA_AssetHandle _nya_asset_pick_correct_compiled_shader(NYA_AssetHa
     nya_string_replace(compiled_shader_path, "/shader/source/", "/shader/compiled/");
     nya_string_strip_suffix(compiled_shader_path, ".hlsl");
 
-    switch (NYA_OS_CURRENT) {
-        case NYA_OS_WINDOWS: {
-            nya_string_extend(compiled_shader_path, ".dxil");
-            *out_format = SDL_GPU_SHADERFORMAT_DXIL;
-        } break;
+    // by what the device accepts, not by OS: Windows runs Vulkan as often as Direct3D 12, and a Vulkan device
+    // handed DXIL rejects every shader.
+    SDL_GPUShaderFormat formats = SDL_GetGPUShaderFormats(nya_app_get()->render_system.gpu_device);
 
-        case NYA_OS_LINUX: {
-            nya_string_extend(compiled_shader_path, ".spv");
-            *out_format = SDL_GPU_SHADERFORMAT_SPIRV;
-        } break;
-
-        case NYA_OS_MAC: {
-            nya_string_extend(compiled_shader_path, ".msl");
-            *out_format = SDL_GPU_SHADERFORMAT_MSL;
-        } break;
-
-        default: {
-            nya_log_panic("Unsupported OS for picking compiled shader: %d", NYA_OS_CURRENT);
-        } break;
+    if (formats & SDL_GPU_SHADERFORMAT_SPIRV) {
+        nya_string_extend(compiled_shader_path, ".spv");
+        *out_format = SDL_GPU_SHADERFORMAT_SPIRV;
+    } else if (formats & SDL_GPU_SHADERFORMAT_DXIL) {
+        nya_string_extend(compiled_shader_path, ".dxil");
+        *out_format = SDL_GPU_SHADERFORMAT_DXIL;
+    } else if (formats & SDL_GPU_SHADERFORMAT_MSL) {
+        nya_string_extend(compiled_shader_path, ".msl");
+        *out_format = SDL_GPU_SHADERFORMAT_MSL;
+    } else {
+        nya_log_panic("The GPU device accepts none of the compiled shader formats (SPIR-V, DXIL, MSL).");
     }
 
     NYA_CString handle = nya_arena_alloc(system->allocator, compiled_shader_path->length + 1);

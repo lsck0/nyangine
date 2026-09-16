@@ -118,7 +118,7 @@ NYA_Error nya_system_renderer_init(void) {
 
     // recoverable: no GPU backend is normal without drivers or on CI, and the caller decides what that means.
     SDL_GPUDevice* gpu_device =
-        SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_METALLIB | SDL_GPU_SHADERFORMAT_SPIRV, NYA_DEVELOPMENT_BUILD, nullptr);
+        SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_SPIRV, NYA_DEVELOPMENT_BUILD, nullptr);
     if (gpu_device == nullptr) return nya_error(NYA_ERROR_NOT_SUPPORTED, "SDL_CreateGPUDevice() failed: %s", SDL_GetError());
 
     app->render_system = (NYA_RenderSystem){
@@ -151,7 +151,7 @@ NYA_Error nya_system_renderer_init(void) {
     /* The sample count is settled when the first window is claimed. */
     app->render_system.sample_count = SDL_GPU_SAMPLECOUNT_1;
 
-    nya_log_info("Render system initialized.");
+    nya_log_info("Render system initialized (%s).", SDL_GetGPUDeviceDriver(app->render_system.gpu_device));
     return NYA_OK;
 }
 
