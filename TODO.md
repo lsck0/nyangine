@@ -52,8 +52,6 @@ depth target was `DONT_CARE` while resume `LOAD`ed it.
   because `NYA_CONFIG` is a global in the game DLL (`gnyame/config.h`) that no engine module can read.
   The same is why `shadow_bias`, `shadow_cascades` and `shadow_map_size` are loaded and read by nothing.
   Either the engine owns the config instance or these stay macros.
-- `[ ]` `NYA_CONFIG` resets to zero after a code hot reload: `gnyame_init` does not run again, and the
-  config watch keeps a pointer into the unloaded DLL. Same root cause as above.
 - `[ ]` `NYA_CONFIG.game.player_speed` is not read; `gny_net_apply_command` uses `GNY_PLAYER_SPEED`.
 
 ## `[~]` SDF text: works, looks unconfirmed
@@ -218,6 +216,9 @@ build jobs restore it.
 
 - `[ ]` Watch the first run of that layout through on both platforms. Windows has only recently got
   past sqlite, SDL_net, box2d and LuaJIT, so more native build issues may follow.
+- A Windows host does not build shadercross (DXC does not compile under MinGW). CI compiles shaders in
+  the Linux vendor job and passes them on; a Windows developer needs `assets/shader/compiled/` from a
+  Linux machine. `[ ]` A prebuilt DXC for Windows would remove that.
 - `[ ]` Engine, game and tests are not cached. Each rule is one `clang` call that compiles and links,
   which ccache cannot help, and each test is its own unity build. Split compile and link, or build the
   engine once as an object the tests link, then cache with ccache.
@@ -272,6 +273,14 @@ The UDP duplicate filter was a bitmap indexed by `id % 1024` that cleared 64 bit
 Receiving 5 after 10 cleared 10's mark, so a retransmit of 10 was delivered again, and on the reliable
 channel it queued behind a delivery id already past it until the queue filled. The window now slides
 behind the newest id.
+
+### A code reload must not unmap what the engine points at
+
+The engine keeps pointers into game DLL data: layer ids, perf timer names, config reflection and
+instances, asset handle literals. Reloading dlclosed the old image, so after one reload the main window
+handle and layer ids were gone and those pointers dangled. Old images now stay mapped (each load opens
+its own copy, `RTLD_LOCAL` on Linux so new code does not bind to an older generation), layer ids and
+perf names are copied, and state the game must keep lives in the world rather than DLL globals.
 
 ### LuaJIT's Makefile probes the compiler even to clean
 
