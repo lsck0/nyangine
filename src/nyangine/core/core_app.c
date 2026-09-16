@@ -196,6 +196,12 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     nya_signals_set_handler(NYA_SIGNAL_INTERRUPT, _nya_app_handle_shutdown_signal);
     nya_signals_set_handler(NYA_SIGNAL_TERMINATE, _nya_app_handle_shutdown_signal);
 
+#if OS_LINUX
+    // native Wayland first. SDL falls back to X11 on compositors missing protocols it wants, which runs the
+    // game through XWayland. A hint rather than an override, so SDL_VIDEO_DRIVER in the environment still wins.
+    SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "wayland,x11");
+#endif
+
     if (!SDL_Init(SDL_INIT_EVENTS | SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         nya_signals_deinit();
         return nya_error(NYA_ERROR_NOT_OK, "SDL_Init() failed: %s", SDL_GetError());

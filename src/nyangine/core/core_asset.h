@@ -519,6 +519,9 @@ NYA_API NYA_Error nya_asset_load(NYA_AssetLoadParameters parameters) __attr_no_d
  * */
 NYA_API b8 nya_asset_unload(NYA_AssetHandle handle);
 
+/** Loads everything queued now rather than at the end of the frame. For startup, before a window shows. */
+NYA_API void nya_asset_load_queued(void);
+
 /**
  * Sets a window's icon from an asset, without the asset system taking it on.
  * */

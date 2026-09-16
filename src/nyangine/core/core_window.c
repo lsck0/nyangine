@@ -148,7 +148,9 @@ NYA_WindowHandle nya_window_create(NYA_ConstCString title, u32 requested_width, 
         return NYA_WINDOW_HANDLE_NONE;
     }
 
-    SDL_Window* sdl_window = SDL_CreateWindow(title, (s32)requested_width, (s32)requested_height, flags);
+    // hidden until the renderer's pipelines exist, so the first thing shown is a drawn frame rather than a
+    // black window waiting on shader compilation, which takes seconds on some Direct3D 12 drivers.
+    SDL_Window* sdl_window = SDL_CreateWindow(title, (s32)requested_width, (s32)requested_height, flags | SDL_WINDOW_HIDDEN);
     if (sdl_window == nullptr) {
         nya_log_error("SDL_CreateWindow() failed for '%s': %s", title, SDL_GetError());
         return NYA_WINDOW_HANDLE_NONE;
@@ -177,6 +179,9 @@ NYA_WindowHandle nya_window_create(NYA_ConstCString title, u32 requested_width, 
     window->height = (u32)actual_height;
 
     nya_system_renderer_for_window_init(window);
+    nya_asset_load_queued();
+
+    if ((flags & SDL_WINDOW_HIDDEN) == 0) SDL_ShowWindow(sdl_window);
 
     nya_log_info("Created window '%s' (slot %u, generation %u, %dx%d).", title, slot, handle.generation, actual_width, actual_height);
 

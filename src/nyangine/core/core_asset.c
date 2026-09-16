@@ -1669,6 +1669,13 @@ NYA_INTERNAL b8 _nya_asset_get_modification_time(NYA_Asset* asset, OUT u64* out_
 }
 #endif // NYA_ASSET_HOT_RELOAD
 
+void nya_asset_load_queued(void) {
+    // a window made without the asset system, as some renderer tests do, has nothing queued.
+    if (nya_app_get()->asset_system.loading_queue == nullptr) return;
+
+    _nya_asset_loading_process(nullptr);
+}
+
 void _nya_asset_loading_process(NYA_Event* event) {
     // runs on NYA_EVENT_FRAME_ENDED, outside every frame_* timer. decoding is the classic invisible spike.
     nya_perf_time_this_function();
