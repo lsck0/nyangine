@@ -794,6 +794,18 @@ static_assert(sizeof(NYA_Vertex3D) == 36, "the 3D vertex layout in core_asset.c 
 /**
  * Builds one, from the wide types a caller actually has.
  * */
+/**
+ * Points the open render pass at `cascade`'s quadrant of the shadow atlas.
+ *
+ * Called when the shadow pass opens and again after every mid-pass flush reopens it, because a viewport is
+ * render-pass state in SDL_GPU and a reopened pass has none. Shared rather than written twice: the two have
+ * to agree exactly, and they did not — the resume had no viewport at all, so everything after the first
+ * flush was rasterised across the whole atlas at twice the scale instead of into its own quarter.
+ *
+ * Marked allow-unused because the headless build compiles neither of the two files that call it.
+ * */
+NYA_INTERNAL __attr_allow_unused void _nya_render3d_shadow_viewport_apply(NYA_Window* window, u32 cascade);
+
 NYA_API NYA_Vertex3D nya_vertex3d(f32x3 position, NYA_Color color, f32x3 normal, f32x2 uv) __attr_no_discard;
 
 /**

@@ -1933,6 +1933,11 @@ void _nya_render2d_pass_resume(NYA_Window* window) {
         );
 
         nya_assert(render->render_pass != nullptr, "SDL_BeginGPURenderPass() failed while resuming a shadow pass: %s", SDL_GetError());
+
+        // A viewport belongs to a render pass, and this is a new one. Without this the geometry after the
+        // first flush of a cascade was rasterised over the whole atlas instead of into its own quadrant.
+        _nya_render3d_shadow_viewport_apply(window, render->mesh_batch.shadow_cascade);
+
         return;
     }
 

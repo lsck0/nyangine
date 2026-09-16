@@ -626,21 +626,9 @@ void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
         return;
     }
 
-    // The viewport restricts this pass to its quadrant of the atlas. A viewport rather than a scissor,
-    // because it has to *transform* as well as clip: clip space still spans the whole target, and only
-    // the viewport maps that onto a quarter of it — a scissor would draw the cascade at full size and
-    // then throw away three quarters of it.
-    SDL_SetGPUViewport(
-        render->render_pass,
-        &(SDL_GPUViewport){
-            .x         = (f32)((cascade % 2) * NYA_RENDER3D_SHADOW_MAP_SIZE),
-            .y         = (f32)((cascade / 2) * NYA_RENDER3D_SHADOW_MAP_SIZE),
-            .w         = (f32)NYA_RENDER3D_SHADOW_MAP_SIZE,
-            .h         = (f32)NYA_RENDER3D_SHADOW_MAP_SIZE,
-            .min_depth = 0.0F,
-            .max_depth = 1.0F,
-        }
-    );
+    // The viewport restricts this pass to its quadrant of the atlas. Re-applied after every flush too; see
+    // _nya_render3d_shadow_viewport_apply.
+    _nya_render3d_shadow_viewport_apply(window, cascade);
 
     batch->shadow_pass_active = true;
 
@@ -652,6 +640,29 @@ void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
     // Put back the light the matrix was built from: _nya_render3d_begin_with resets it, right for the
     // scene pass but wrong here, since the shadow map was already positioned by `light`.
     batch->light = light;
+}
+
+void _nya_render3d_shadow_viewport_apply(NYA_Window* window, u32 cascade) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+
+    if (render->render_pass == nullptr) return;
+
+    /*
+     * A viewport rather than a scissor, because it has to *transform* as well as clip: clip space still
+     * spans the whole target, and only the viewport maps that onto a quarter of it — a scissor would draw
+     * the cascade at full size and then throw away three quarters of it.
+     */
+    SDL_SetGPUViewport(
+        render->render_pass,
+        &(SDL_GPUViewport){
+            .x         = (f32)((cascade % 2) * NYA_RENDER3D_SHADOW_MAP_SIZE),
+            .y         = (f32)((cascade / 2) * NYA_RENDER3D_SHADOW_MAP_SIZE),
+            .w         = (f32)NYA_RENDER3D_SHADOW_MAP_SIZE,
+            .h         = (f32)NYA_RENDER3D_SHADOW_MAP_SIZE,
+            .min_depth = 0.0F,
+            .max_depth = 1.0F,
+        }
+    );
 }
 
 void nya_render3d_shadow_end(NYA_Window* window) {
