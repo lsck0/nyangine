@@ -31,7 +31,12 @@
  * Before <tgmath.h>, and only on Windows.
  */
 #if defined(_WIN32) || defined(__CYGWIN__)
+// mingw-w64 before 12 (Ubuntu 24.04 ships 11) pulls in clang's deprecated <mm3dnow.h>, whose #warning
+// fails the build under -Werror.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-W#warnings"
 #include <intrin.h>
+#pragma clang diagnostic pop
 #endif
 
 #include <tgmath.h>

@@ -87,6 +87,9 @@ NYA_VendorRule vendor_sdl_net_windows_x86_64 = {
                     SDL_NET_CMAKE_COMMON,
                     NYA_CMAKE_WINDOWS_TOOLCHAIN,
                     "-DCMAKE_PREFIX_PATH=" SDL_BUILD_WINDOWS_X86_64,
+                    // SDL_net defines static read() and write() over winsock. MSYS2's io.h declares the
+                    // POSIX names too, which is an error; NO_OLDNAMES leaves them undeclared.
+                    "-DCMAKE_C_FLAGS=-DNO_OLDNAMES",
                 },
             },
 

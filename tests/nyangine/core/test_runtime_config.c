@@ -22,7 +22,21 @@
 /** A config a hand written .nya file is not required to differ from — see nya_config_load's tolerance
  *  for a file that omits a field, which every fixture below relies on by only ever writing both. */
 static void write_fixture(NYA_ConstCString text) {
+  u64 before = 0;
+  b8  existed = nya_filesystem_last_modified(FIXTURE_PATH, &before).ok;
+
   NYA_EXPECT(nya_file_write(FIXTURE_PATH, text));
+
+  // two writes a few milliseconds apart can get the same timestamp from a coarse filesystem clock, and a
+  // watch comparing timestamps then never sees the edit. Rewritten until the timestamp moves.
+  for (u32 attempt = 0; existed && attempt < 200; attempt++) {
+    u64 after = 0;
+    NYA_EXPECT(nya_filesystem_last_modified(FIXTURE_PATH, &after));
+    if (after != before) break;
+
+    SDL_Delay(5);
+    NYA_EXPECT(nya_file_write(FIXTURE_PATH, text));
+  }
 }
 
 /**

@@ -30,6 +30,9 @@ static NYA_Window* make_window(void) {
 }
 
 s32 main(void) {
+  // no display on CI, and this test never draws: the offscreen video driver gives it a window anywhere.
+  SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
+
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
