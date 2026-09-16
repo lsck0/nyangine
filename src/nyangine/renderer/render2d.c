@@ -117,12 +117,16 @@ struct NYA_FontAtlas {
     u32 glyph_count;
 
     /**
-     * The CPU side of the atlas, kept alive after the initial upload. Held rather than freed because a
-     * glyph baked later has to be blitted *somewhere* before it can be uploaded, and re-rasterising the
-     * whole atlas to add one character would be far worse. About a megabyte per face, the right trade
-     * for the handful of faces a game uses.
+     * The CPU side of the atlas: one byte of coverage per texel, `atlas_width * atlas_height` of them.
+     *
+     * Kept alive after the initial upload rather than freed, because a glyph baked later has to land
+     * somewhere before it can be uploaded and re-rasterising the whole atlas to add one character would
+     * be far worse.
+     *
+     * One byte, not four. A glyph is ink and nothing else — the bake writes coverage and the shaders read
+     * a single channel, so the other three were three copies of 255 per texel. See NYA_RENDER2D_PIPELINE_TEXT.
      * */
-    SDL_Surface* surface;
+    u8* coverage;
 
     /** Reused for every upload rather than created per glyph. Sized for the whole atlas. */
     SDL_GPUTransferBuffer* transfer_buffer;
@@ -283,7 +287,7 @@ void nya_render2d_shutdown(void) {
 
         // The CPU side is kept alive for the whole run so that a glyph can be baked into it later,
         // so this is the one place it is freed.
-        if (atlas->surface != nullptr) SDL_DestroySurface(atlas->surface);
+        SDL_free(atlas->coverage);
 
         *atlas = (NYA_FontAtlas){ 0 };
     }
@@ -1113,7 +1117,7 @@ NYA_INTERNAL b8 _nya_render2d_glyph_emit(NYA_Window* window, NYA_FontAtlas* atla
     /*
      * Coverage and a distance field are drawn by different pipelines, and sampled differently too.
      */
-    NYA_ConstCString pipeline = atlas->sdf ? NYA_RENDER2D_PIPELINE_TEXT_SDF : NYA_RENDER2D_PIPELINE_TEXTURED;
+    NYA_ConstCString pipeline = atlas->sdf ? NYA_RENDER2D_PIPELINE_TEXT_SDF : NYA_RENDER2D_PIPELINE_TEXT;
     NYA_TextureFilter filter  = atlas->sdf ? NYA_TEXTURE_FILTER_LINEAR : NYA_TEXTURE_FILTER_NEAREST;
 
     if (!_nya_render2d_prepare(window, pipeline, atlas->texture, _nya_render_sampler_for(filter), 4, 6)) {
@@ -2082,7 +2086,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
 
         SDL_ReleaseGPUTexture(device, stale->texture);
         if (stale->transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(device, stale->transfer_buffer);
-        if (stale->surface != nullptr) SDL_DestroySurface(stale->surface);
+        SDL_free(stale->coverage);
 
         if (_nya_render2d_current_atlas == stale) _nya_render2d_current_atlas = nullptr;
 
@@ -2165,15 +2169,13 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     s32       atlas_width  = cell_width * columns;
     s32       atlas_height = cell_height * rows;
 
-    SDL_Surface* atlas_surface = SDL_CreateSurface(atlas_width, atlas_height, SDL_PIXELFORMAT_RGBA32);
-    if (atlas_surface == nullptr) {
-        nya_log_warn("could not allocate a glyph atlas for '%s': %s", derived, SDL_GetError());
+    // Zeroed, which is no coverage: the untouched space between glyphs has to blend away rather than
+    // draw as a box.
+    u8* coverage = SDL_calloc(1, (size_t)atlas_width * (size_t)atlas_height);
+    if (coverage == nullptr) {
+        nya_log_warn("could not allocate a glyph atlas for '%s': out of memory", derived);
         return nullptr;
     }
-
-    // Transparent, not black: the untouched space between glyphs has to blend away rather than draw
-    // as a box.
-    SDL_ClearSurface(atlas_surface, 0.0F, 0.0F, 0.0F, 0.0F);
 
     *slot = (NYA_FontAtlas){
         .path         = font_path,
@@ -2181,7 +2183,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
         .line_height  = (f32)line_skip,
         .ascent       = (f32)ascent,
         .descent      = (f32)descent,
-        .surface      = atlas_surface,
+        .coverage     = coverage,
         .atlas_width  = atlas_width,
         .atlas_height = atlas_height,
         .cell_width   = cell_width,
@@ -2203,7 +2205,8 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
         gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
-            .format               = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+            // One channel. Both text shaders read .r and nothing reads the rest; see NYA_FontAtlas.coverage.
+            .format               = SDL_GPU_TEXTUREFORMAT_R8_UNORM,
             .usage                = SDL_GPU_TEXTUREUSAGE_SAMPLER,
             .width                = (u32)atlas_width,
             .height               = (u32)atlas_height,
@@ -2215,7 +2218,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
 
     slot->transfer_buffer = SDL_CreateGPUTransferBuffer(
         gpu_device,
-        &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = (u32)(atlas_width * atlas_height * 4) }
+        &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = (u32)(atlas_width * atlas_height) }
     );
     nya_assert(slot->transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for a glyph atlas: %s", SDL_GetError());
 
@@ -2443,15 +2446,15 @@ void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 glyph_in
 
     // Cleared first, because a slot may be re-baked after a font reload and the old ink would
     // otherwise show through wherever the new glyph is thinner.
-    SDL_FillSurfaceRect(
-        atlas->surface, &(SDL_Rect){ .x = cell_x, .y = cell_y, .w = atlas->cell_width, .h = atlas->cell_height },
-        SDL_MapSurfaceRGBA(atlas->surface, 0, 0, 0, 0)
-    );
+    for (s32 row = cell_y; row < cell_y + atlas->cell_height && row < atlas->atlas_height; row++) {
+        nya_memset(atlas->coverage + ((size_t)row * (size_t)atlas->atlas_width) + (size_t)cell_x, 0, (size_t)atlas->cell_width);
+    }
 
     /*
-     * Converted rather than blitted straight in when the formats differ.
+     * Converted rather than read straight out when the format differs. A face can rasterise to any of
+     * several, and only RGBA32 puts alpha in a byte this can index.
      */
-    SDL_Surface* source = glyph_surface;
+    SDL_Surface* source    = glyph_surface;
     SDL_Surface* converted = nullptr;
 
     if (source->format != SDL_PIXELFORMAT_RGBA32) {
@@ -2461,16 +2464,13 @@ void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 glyph_in
         source = converted;
     }
 
-    // Copied, not blended: the glyph's alpha has to land in the atlas verbatim.
-    SDL_SetSurfaceBlendMode(source, SDL_BLENDMODE_NONE);
-    SDL_BlitSurface(
-        source, &(SDL_Rect){ .x = 0, .y = 0, .w = width, .h = height }, atlas->surface,
-        &(SDL_Rect){ .x = cell_x + 1, .y = cell_y + 1, .w = width, .h = height }
-    );
-
-    if (converted != nullptr) SDL_DestroySurface(converted);
-
     /*
+     * The glyph's alpha becomes the atlas's coverage, one byte for one byte.
+     *
+     * The colour channels are dropped rather than stored, because SDL_ttf writes a white glyph and this
+     * used to write the 255s back over it. What the shader wants is the ramp alone: see the note on
+     * NYA_FontAtlas.coverage for what that saves, and NYA_RENDER2D_PIPELINE_TEXT for who reads it.
+     *
      * The coverage is kept, not thresholded to a hard mask — that was tried first, on the theory that
      * nearest sampling needs a binary mask because point-sampling a coverage ramp "keeps the soft edge
      * and just makes it blocky as well". Wrong diagnosis: the blur came from *linear* sampling at a
@@ -2478,19 +2478,16 @@ void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 glyph_in
      * one output pixel maps to one texel, so nearest reproduces the cell, coverage and all. Thresholding
      * on top only threw away anti-aliasing a solved problem no longer needed, jagging every curve.
      */
-    for (s32 pixel_y = cell_y; pixel_y < cell_y + atlas->cell_height && pixel_y < atlas->atlas_height; pixel_y++) {
-        u8* row = (u8*)atlas->surface->pixels + ((size_t)pixel_y * (size_t)atlas->surface->pitch);
+    for (s32 y = 0; y < height; y++) {
+        const u8* source_row = (const u8*)source->pixels + ((size_t)y * (size_t)source->pitch);
+        u8*       atlas_row  = atlas->coverage + ((size_t)(cell_y + 1 + y) * (size_t)atlas->atlas_width) + (size_t)(cell_x + 1);
 
-        for (s32 pixel_x = cell_x; pixel_x < cell_x + atlas->cell_width && pixel_x < atlas->atlas_width; pixel_x++) {
-            u8* pixel = row + ((size_t)pixel_x * 4);
-
-            // RGBA32 is byte order dependent; SDL_PIXELFORMAT_RGBA32 is defined so that alpha is the
-            // last byte on either endianness, which is what makes this indexable rather than masked.
-            pixel[0] = 255;
-            pixel[1] = 255;
-            pixel[2] = 255;
-        }
+        // RGBA32 is byte order dependent; SDL_PIXELFORMAT_RGBA32 is defined so that alpha is the last
+        // byte on either endianness, which is what makes this indexable rather than masked.
+        for (s32 x = 0; x < width; x++) atlas_row[x] = source_row[((size_t)x * 4) + 3];
     }
+
+    if (converted != nullptr) SDL_DestroySurface(converted);
 
     *glyph = (NYA_Glyph){
         .u0     = (f32)(cell_x + 1) / (f32)atlas->atlas_width,
@@ -2506,14 +2503,14 @@ void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 glyph_in
 
 void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
     if (!atlas->upload_pending) return;
-    if (atlas->texture == nullptr || atlas->surface == nullptr) return;
+    if (atlas->texture == nullptr || atlas->coverage == nullptr) return;
 
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
-    u32 upload_size = (u32)(atlas->atlas_width * atlas->atlas_height * 4);
+    u32 upload_size = (u32)(atlas->atlas_width * atlas->atlas_height);
 
     void* mapped = SDL_MapGPUTransferBuffer(gpu_device, atlas->transfer_buffer, false);
-    nya_memcpy(mapped, atlas->surface->pixels, upload_size);
+    nya_memcpy(mapped, atlas->coverage, upload_size);
     SDL_UnmapGPUTransferBuffer(gpu_device, atlas->transfer_buffer);
 
     /*

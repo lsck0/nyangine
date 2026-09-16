@@ -379,6 +379,32 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
+      .handle    = NYA_ASSET_SHADER_TEXT_FRAG,
+      .as_shader = {
+          // The glyph atlas, same as the textured pipeline reads. Only the interpretation differs.
+          .num_samplers = 1,
+      },
+  }), "while queueing the text fragment shader");
+
+    /*
+     * Queued for every window whether or not any text is ever drawn.
+     */
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
+      .handle               = NYA_RENDER2D_PIPELINE_TEXT,
+      .as_graphics_pipeline = {
+          .window                 = window,
+          .vertex_shader_handle   = NYA_ASSET_SHADER_BATCH2D_VERT,
+          .fragment_shader_handle = NYA_ASSET_SHADER_TEXT_FRAG,
+          // For the same reason the textured pipeline blends: a glyph is mostly partial coverage, and
+          // without blending every one draws inside an opaque box.
+          .blend                  = true,
+          .vertex_layout          = NYA_VERTEX_LAYOUT_2D,
+      },
+  }), "while queueing the text pipeline");
+
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
       .handle    = NYA_ASSET_SHADER_TEXT_SDF_FRAG,
       .as_shader = {
           // The glyph atlas, same as the textured pipeline reads. Only the interpretation differs.

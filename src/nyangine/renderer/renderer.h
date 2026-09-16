@@ -37,6 +37,9 @@ typedef enum NYA_TextureFilter        NYA_TextureFilter;
 #define NYA_RENDER2D_PIPELINE_SHAPES   "nya_shape_pipeline"
 #define NYA_RENDER2D_PIPELINE_TEXTURED "nya_shape_textured_pipeline"
 
+/** Text out of a coverage atlas, which is every font that is not a distance field. */
+#define NYA_RENDER2D_PIPELINE_TEXT     "nya_text_pipeline"
+
 /** Text out of a distance-field atlas. Selected per atlas, not per draw; see nya_font_sdf_set. */
 #define NYA_RENDER2D_PIPELINE_TEXT_SDF "nya_text_sdf_pipeline"
 
