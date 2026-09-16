@@ -60,6 +60,14 @@ NYA_VendorRule vendor_box2d_linux_x86_64 = {
     },
 };
 
+// box2d's timer.c includes <Windows.h> with a capital W, which a case-sensitive mingw sysroot does not
+// have. On a Windows host the filesystem is case-insensitive, and the shim would shadow the real header.
+#if OS_WINDOWS
+#define BOX2D_WINDOWS_HEADER_SHIM
+#else
+#define BOX2D_WINDOWS_HEADER_SHIM "-DCMAKE_C_FLAGS=-I%CWD%/src/build/compat",
+#endif
+
 NYA_VendorRule vendor_box2d_windows_x86_64 = {
     .name = "box2d (windows-x86_64)",
 
@@ -79,8 +87,7 @@ NYA_VendorRule vendor_box2d_windows_x86_64 = {
                     "-B", BOX2D_BUILD_WINDOWS_X86_64,
                     BOX2D_CMAKE_COMMON,
                     NYA_CMAKE_WINDOWS_TOOLCHAIN,
-                    // box2d's timer.c includes <Windows.h> with a capital W. See the shim header.
-                    "-DCMAKE_C_FLAGS=-I%CWD%/src/build/compat",
+                    BOX2D_WINDOWS_HEADER_SHIM
                 },
             },
 

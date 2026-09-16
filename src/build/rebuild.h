@@ -25,5 +25,6 @@ NYA_INTERNAL NYA_Command build_rebuild_command = {
         FLAGS_DEBUG,
         FLAGS_HOST_NATIVE,
         FLAGS_BUILD_TOOL,
+        "-fsanitize-ignorelist=src/build/sanitizer_ignorelist.txt",
     },
 };

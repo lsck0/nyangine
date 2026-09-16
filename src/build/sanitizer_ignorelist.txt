@@ -1,0 +1,4 @@
+# lz4 is compiled into the build tool, and its hashes overflow unsigned integers by design. Matched by
+# function, since src: only sees the translation unit and lz4.c is included into base_compress.c.
+fun:LZ4_*
+fun:LZ4HC_*
