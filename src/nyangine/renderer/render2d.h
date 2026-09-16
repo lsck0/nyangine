@@ -18,8 +18,7 @@
 #include "nyangine/renderer/render_color.h"
 #include "nyangine/renderer/renderer.h"
 
-// The C side of the built in shaders' constant buffers. Beside the shaders rather than here, so a
-// change to a cbuffer has one obvious place to be mirrored. See assets/shader/uniforms.h.
+// the C side of the shaders' constant buffers lives beside the shaders. see assets/shader/uniforms.h.
 #include "../../../assets/shader/uniforms.h"
 
 typedef struct NYA_Window NYA_Window;
@@ -97,9 +96,7 @@ NYA_API void nya_render2d_flush(NYA_Window* window);
 /** A filled axis aligned rectangle, `x`/`y` being its top left corner. */
 NYA_API void nya_render2d_rect(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, NYA_Color color);
 
-/**
- * A rectangle outline of `thickness`, drawn **inside** the given bounds.
- * */
+/** A rectangle outline of `thickness`, drawn inside the given bounds. */
 NYA_API void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 thickness, NYA_Color color);
 
 /**
@@ -139,10 +136,8 @@ NYA_API void nya_render2d_circle(NYA_Window* window, f32x2 center, f32 radius, N
  */
 
 /**
- * Looks at the world from `camera` for everything drawn afterwards.
- *
- * ⚠ Anything queued is flushed first, because the projection is uniform across a draw call — changing
- * the camera per shape costs a draw call per shape. Set it once, draw the world, reset, draw the UI.
+ * Looks at the world from `camera` for everything drawn afterwards. The projection is per draw call, so queued
+ * shapes are flushed first; set the camera once, draw the world, reset, draw the UI.
  *
  * ```c
  * nya_render2d_camera_set(window, (NYA_Camera2DTopDown){ .position = player_position, .zoom = 2.0F });
@@ -154,7 +149,7 @@ NYA_API void nya_render2d_circle(NYA_Window* window, f32x2 center, f32 radius, N
 NYA_API void nya_render2d_camera_set(NYA_Window* window, NYA_Camera2DTopDown camera);
 
 /**
- * The same, through an isometric projection. Draw coordinates become **tile space**.
+ * The same through an isometric projection. Draw coordinates become tile space.
  *
  * ```c
  * nya_render2d_camera_isometric_set(window, (NYA_Camera2DIsometric){
@@ -208,11 +203,7 @@ struct NYA_Render2DTexture {
     /** The part of the texture to read, in its pixels. A zero width or height means all of it. */
     f32 source_x, source_y, source_width, source_height;
 
-    /**
-     * Where `origin` lands, in the current coordinate space.
-     *
-     * Not necessarily the top left corner of what is drawn — that is what `origin` decides.
-     * */
+    /** Where `origin` lands, in the current coordinate space. */
     f32 x, y;
 
     /** Size on screen. Zero means the source size, so a sprite draws at its natural scale. */
@@ -221,15 +212,10 @@ struct NYA_Render2DTexture {
     /** Clockwise, in radians, about `origin`. */
     f32 rotation;
 
-    /**
-     * The point the sprite rotates about and is positioned by, in destination pixels from its top
-     * left corner.
-     * */
+    /** The point the sprite rotates about and is positioned by, in destination pixels from its top left. */
     f32x2 origin;
 
-    /*
-     * Mirroring, done by swapping the texture coordinates rather than by negating the size.
-     */
+    /* Mirroring swaps the texture coordinates. */
     b8 flip_x;
     b8 flip_y;
 
@@ -330,18 +316,12 @@ NYA_API void nya_render2d_textf_with_font(NYA_Window* window, NYA_ConstCString f
                                       NYA_ConstCString format, ...) __attr_fmt_printf(7, 8);
 
 /*
- * ── Measurement ──
- *
- * Everything a layout pass needs before anything is on screen: centring, right alignment, hit
- * testing and line stacking. These use the same metrics the drawing path does, so the two agree, and
- * they build the atlas on demand — measuring before the first draw gives real numbers rather than
- * zero.
+ * Measurement, for layout before anything is drawn. Same metrics as drawing, and the atlas is built on demand,
+ * so measuring first still gives real numbers.
  */
 
 /** Width and height of `text` in the current font, in pixels. Height counts every line. */
-/*
- * ── Wrapped and aligned text ──
- */
+/* Wrapped and aligned text. */
 
 typedef enum NYA_TextAlign        NYA_TextAlign;
 typedef struct NYA_Render2DTextBox NYA_Render2DTextBox;
@@ -453,10 +433,7 @@ NYA_API void nya_render2d_shader_set_uniform(NYA_Window* window, const void* dat
 /** Returns to the built in pipelines, flushing whatever the custom one still has queued. */
 NYA_API void nya_render2d_shader_end(NYA_Window* window);
 
-/**
- * Draws `vertex_count` vertices from a pipeline that generates its own geometry, with no vertex
- * buffer bound.
- * */
+/** Draws `vertex_count` vertices from a pipeline that generates its own geometry, with no vertex buffer. */
 NYA_API void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handle, u32 vertex_count, const void* uniform_data, u32 uniform_size);
 
 /*
@@ -546,11 +523,8 @@ enum NYA_RenderTextureDepth {
     NYA_RENDER_TEXTURE_DEPTH_ATTACHED = 0,
 
     /**
-     * No depth buffer, for a target only ever drawn into with render2d.
-     *
-     * Every 2D pipeline is built with depth testing and writing off, so it declares no depth-stencil
-     * target and cannot read or write one. A post-processing ping-pong target is the case this exists
-     * for: at 1080p and 4x it was carrying 33 MB that nothing drawing into it could reach.
+     * No depth buffer, for a target only render2d draws into. 2D pipelines declare no depth target, so a post
+     * chain's ping-pong target would carry an unreachable 33 MB at 1080p and 4x.
      * */
     NYA_RENDER_TEXTURE_DEPTH_NONE,
 
@@ -565,10 +539,8 @@ struct NYA_RenderTextureOptions {
 };
 
 /**
- * Creates an offscreen target that can be drawn into and then drawn with.
- *
- * Carries a depth buffer, so a 3D scene drawn into it occludes itself. Take
- * nya_render_texture_create_with to drop it for a target only render2d ever draws into.
+ * Creates an offscreen target that can be drawn into and then drawn with. It has a depth buffer; use
+ * nya_render_texture_create_with to drop it for a 2D-only target.
  * */
 NYA_API NYA_RenderTexture nya_render_texture_create(NYA_Window* window, u32 width, u32 height) __attr_no_discard;
 

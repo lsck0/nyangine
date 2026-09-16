@@ -39,37 +39,35 @@ typedef struct NYA_VertexSkinned3D     NYA_VertexSkinned3D;
 
 /** One material's worth of a model: a run of triangles, a texture and a colour. Must be contiguous in
  * the index buffer, since each material needs its own texture bound per draw call. */
-/** A vertex that can be skinned: NYA_Vertex3D plus who moves it. Separate type rather than extra bytes
- * on every vertex, since a static prop (of which there are thousands) pays nothing for skinning it
- * doesn't use — the same reasoning that keeps NYA_VERTEX_LAYOUT_3D and _3D_INSTANCED apart. */
+/**
+ * A vertex that can be skinned: NYA_Vertex3D plus bone indices and weights. A separate type, so static props
+ * do not pay for skinning.
+ * */
 struct NYA_VertexSkinned3D {
     f32x3     position;
     NYA_Color color;
     f32x3     normals;
     f32x2     uv;
 
-    /** Which bones move this vertex, indices into the skeleton's palette. u32 rather than u8x4 to avoid
-     * a second vertex attribute format for four bytes saved per vertex. */
+    /** Palette indices of the bones moving this vertex. u32 rather than u8x4 to avoid a second attribute format. */
     u32 bones[NYA_SKELETON_WEIGHTS_PER_VERTEX];
 
-    /** How much each of them moves it. Normalised at load; see core_skeleton.h. */
+    /** How much each bone moves it. Normalised at load. */
     f32 weights[NYA_SKELETON_WEIGHTS_PER_VERTEX];
 };
 
 struct NYA_MeshPart {
-    /** Where this part's vertices start in NYA_Asset.as_mesh, and how many. Vertices not indices — the
-     * mesh is fully de-indexed, so a run of vertices is a run of triangles. Count must be a multiple of
-     * three. */
+    /**
+     * Where this part's vertices start in NYA_Asset.as_mesh, and how many. The mesh is de-indexed, so a run of
+     * vertices is a run of triangles; the count is a multiple of three.
+     * */
     u32 first_vertex;
     u32 vertex_count;
 
-    /** Index into NYA_Asset.as_mesh.textures this part samples, or -1 for none. Index rather than pointer
-     * so parts sharing a material share the texture without either owning it. */
+    /** Index into NYA_Asset.as_mesh.textures, or -1 for none, so parts can share a texture. */
     s32 texture;
 
-    /** The material's flat base colour, multiplied into the vertex colour. White when the material names
-     * none. Not the whole material — no specular exponent or index of refraction; this shading model has
-     * no use for them. */
+    /** The material's base colour, multiplied into the vertex colour. White when the material names none. */
     NYA_Color base_color;
 };
 nya_derive_array(NYA_AssetHandle);
@@ -85,8 +83,7 @@ nya_derive_dict(NYA_Asset);
 struct NYA_AssetSystem {
     NYA_Arena* allocator;
 
-    /** Owns every decoded sound. SDL_mixer needs a mixer before loading anything; held here rather than
-     * per caller since audio outlives the track playing it. */
+    /** Owns every decoded sound. A mixer must exist before loading, and audio outlives the track playing it. */
     MIX_Mixer* mixer;
 
     NYA_DictᐸNYA_Assetᐳ*                assets;
@@ -94,9 +91,8 @@ struct NYA_AssetSystem {
     NYA_ArrayᐸNYA_AssetHandleᐳ*         unloading_queue;
 
     /**
-     * Expanded copies of compressed blob entries, one per entry, shared by every asset reading the same
-     * bytes. Several font sizes load one file each, and each used to decompress its own copy. Null until
-     * the first compressed entry is loaded.
+     * Expanded copies of compressed blob entries, one per entry, shared by every asset reading those bytes (several
+     * font sizes read one file). Null until the first compressed entry loads.
      * */
     NYA_AssetBlobExpanded* blob_expanded;
 
@@ -120,64 +116,58 @@ struct NYA_AssetBlobHeader {
     NYA_ConstCString path;
     u64              start;
 
-    /** The asset's real size, which is what a loader gets however the bytes were stored. */
+    /** The asset's real size, whatever form it is stored in. */
     u64 size;
 
     /**
-     * Bytes actually occupied in the blob. Equal to `size` when the entry is stored verbatim.
-     *
-     * The bundler compresses each entry and keeps the result only when it is smaller, so anything already
-     * compressed — a PNG, an OGG — stays byte-for-byte and keeps the zero-copy load it always had. Only
-     * the entries that shrank pay a decompression, and only on the first load.
+     * Bytes the entry occupies in the blob; equal to `size` when stored verbatim. Entries are only kept compressed
+     * when that is smaller, so PNG and OGG stay verbatim and load without a copy.
      * */
     u64 compressed_size;
 };
 
-/** Which vertex struct a graphics pipeline reads. Baked into the pipeline at build time rather than
- * decided at bind time. Two exist because the 2D batch's vertex is a third the size of the general one. */
-/** How a pipeline's output combines with what the target already holds. Baked into the pipeline at
- * creation — two blend modes means two pipelines — so this is a short enum of what a 2D game actually
- * draws, not the full set of factors and operations. */
+/** Which vertex struct a graphics pipeline reads, baked in when the pipeline is built. */
+/**
+ * How a pipeline's output combines with the target. Baked into the pipeline, so this lists what a 2D game
+ * draws rather than every blend factor.
+ * */
 enum NYA_BlendMode {
-    /** Replace. What opaque geometry wants, and what costs least. */
+    /** Replace. For opaque geometry, and the cheapest. */
     NYA_BLEND_NONE = 0,
 
-    /** Straight alpha over the destination: SRC_ALPHA / ONE_MINUS_SRC_ALPHA. Value 1 deliberately, so the
-     * older `.blend = true` still selects it. Needed for anything with a soft edge — glyph, fade,
-     * translucent panel — or it draws as opaque pixel boxes instead. */
+    /**
+     * Straight alpha: SRC_ALPHA / ONE_MINUS_SRC_ALPHA. Value 1, so `.blend = true` selects it. Needed for anything
+     * with a soft edge.
+     * */
     NYA_BLEND_ALPHA = 1,
 
-    /** Adds light rather than covering: SRC_ALPHA / ONE. For sparks, muzzle flashes, glows. Never
-     * darkens — overlaps saturate toward white instead of stacking dark the way alpha would. */
+    /** Additive: SRC_ALPHA / ONE, for sparks and glows. Overlaps saturate toward white. */
     NYA_BLEND_ADDITIVE = 2,
 
-    /** Multiplies into the destination: DST_COLOR / ZERO. What a light map is — darkens what a mostly-dark
-     * texture covers, leaves bright parts alone. How 2D lighting works without a deferred pass; see
-     * nya_render2d_lights_apply. */
+    /** Multiply: DST_COLOR / ZERO. A light map darkens what it covers; see nya_render2d_lights_apply. */
     NYA_BLEND_MULTIPLY = 3,
 
     NYA_BLEND_MODE_COUNT,
 };
 
 enum NYA_VertexLayout {
-    /** NYA_Vertex2D: position, uv, packed byte colour. Twenty bytes. What the 2D batch uses. First, so a
-     * zeroed struct means this — it used to be second, behind a layout called STANDARD that silently fed
-     * a 2D shader sixty-four byte strides and drew its geometry off screen. The layout actually used
-     * should be the default. */
+    /**
+     * NYA_Vertex2D: position, uv, packed colour, twenty bytes. The 2D batch's layout, and first so a zeroed
+     * struct selects it.
+     * */
     NYA_VERTEX_LAYOUT_2D,
 
-    /** NYA_Vertex3D: position, colour, normal, uv. Thirty-six bytes; see that struct for the packing. */
+    /** NYA_Vertex3D: position, colour, normal, uv, 36 bytes. */
     NYA_VERTEX_LAYOUT_3D,
 
 
-    /** NYA_Vertex3D in buffer 0, NYA_Render3DInstance in buffer 1, stepped per *instance*. What the
-     * retained mesh path draws with — buffer 1 carries a model matrix and tint, letting one upload of a
-     * model be drawn a hundred times in one draw call, which the immediate batch structurally cannot do.
-     * The matrix arrives as four FLOAT4 attributes at locations 4 through 7 (a vertex attribute is at
-     * most four components); the shader reassembles it. */
+    /**
+     * NYA_Vertex3D in buffer 0 and NYA_Render3DInstance in buffer 1, stepped per instance, so one upload draws
+     * many copies in one call. The matrix arrives as four FLOAT4 attributes at locations 4 to 7.
+     * */
     NYA_VERTEX_LAYOUT_3D_INSTANCED,
 
-    /** NYA_VertexSkinned3D. The 3D layout plus bone indices and weights. See nya_render3d_skinned_mesh. */
+    /** NYA_VertexSkinned3D: the 3D layout plus bone indices and weights. */
     NYA_VERTEX_LAYOUT_3D_SKINNED,
 
     NYA_VERTEX_LAYOUT_COUNT,
@@ -194,9 +184,7 @@ enum NYA_AssetType {
     // processed data on gpu vram
     NYA_ASSET_TYPE_TEXTURE,
 
-    /** A 3D model, read with ufbx. See nya_render3d_mesh. Holds triangles on the CPU, nothing on the
-     * GPU — deliberate, since the 3D batch already owns the vertex buffer, pipeline and upload; a mesh
-     * with its own would cost a draw call per model and opt out of batching. */
+    /** A 3D model read with ufbx. See nya_render3d_mesh. */
     NYA_ASSET_TYPE_MESH,
     NYA_ASSET_TYPE_SHADER_VERTEX,
     NYA_ASSET_TYPE_SHADER_FRAGMENT,
@@ -205,7 +193,7 @@ enum NYA_AssetType {
     NYA_ASSET_TYPE_BUFFER_INDEX,
     NYA_ASSET_TYPE_BUFFER_UNIFORM,
 
-    // things that are made up of other assets
+    // made of other assets
     NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
     NYA_ASSET_TYPE_COMPUTE_PIPELINE,
 
@@ -217,9 +205,10 @@ enum NYA_AssetLoadStatus {
     NYA_ASSET_STATUS_LOADING,
     NYA_ASSET_STATUS_LOADED,
 
-    /** Could not be loaded, and will not be retried. A baked asset failing is a build problem; an
-     * external one failing is ordinary — the file came from outside the game and may have moved. Either
-     * way the engine keeps running. */
+    /**
+     * Could not be loaded, and will not be retried. For a baked asset that is a build problem; an external file
+     * may simply have moved. The engine keeps running either way.
+     * */
     NYA_ASSET_STATUS_FAILED,
 
     NYA_ASSET_STATUS_COUNT,
@@ -229,16 +218,17 @@ struct NYA_AssetLoadParameters {
     NYA_AssetType   type;
     NYA_AssetHandle handle;
 
-    /** The file to read, when it is not the handle itself. A handle is normally the path, so a file
-     * could only be loaded once — wrong when load parameters matter, e.g. one .ttf at two point sizes is
-     * two assets that can't share a path key. Null keeps the old behaviour: handle is the path. */
+    /**
+     * The file to read, when it is not the handle. One .ttf at two point sizes is two assets, which cannot both
+     * use the path as their handle. Null means the handle is the path.
+     * */
     NYA_ConstCString source;
 
-    /** Load from the filesystem regardless of build backend. Default is a *baked* asset resolved against
-     * the embedded blob; external is one that didn't exist at build time — a dropped file, a mod, a save
-     * thumbnail — so it must be read at runtime. Without this, a dropped file resolves in development
-     * (which reads any path) but fails in release (blob lookup misses). Also means the engine cannot vouch
-     * for the contents — treat a load failure as ordinary, not a build error. */
+    /**
+     * Load from the filesystem in every build. Baked assets resolve against the embedded blob; an external one
+     * (a dropped file, a mod, a save thumbnail) did not exist at build time. Its contents are not the engine's,
+     * so a failure is ordinary.
+     * */
     b8 external;
 
     union {
@@ -254,46 +244,46 @@ struct NYA_AssetLoadParameters {
             NYA_AssetHandle vertex_shader_handle;
             NYA_AssetHandle fragment_shader_handle;
 
-            /** How the output combines with the target. See NYA_BlendMode. Defaults to NYA_BLEND_NONE.
-             * ALPHA is deliberately value 1 so the older `.blend = true` spelling still selects it without
-             * any call site changing. */
+            /** How the output combines with the target. See NYA_BlendMode. Defaults to NYA_BLEND_NONE. */
             NYA_BlendMode blend;
 
-            /** Which vertex struct the vertex shader is written against. Defaults to NYA_VERTEX_LAYOUT_2D.
-             * Getting this wrong is neither a compile nor validation error — the shader reads whatever
-             * bytes the stride lands on and geometry ends up in nonsense positions — so the default is
-             * chosen to usually be right. */
+            /**
+             * Which vertex struct the vertex shader expects. Defaults to NYA_VERTEX_LAYOUT_2D. A mismatch produces no
+             * error, only garbage positions.
+             * */
             NYA_VertexLayout vertex_layout;
 
-            /** Whether this pipeline reads the depth buffer and refuses fragments behind what is there.
-             * Off for 2D, which keeps painter's-order drawing working — on would let a HUD element lose to
-             * the world drawn before it. On for 3D, where geometry occludes itself without sorting. */
+            /** Whether this pipeline depth tests. Off for 2D, which draws in painter's order; on for 3D. */
             b8 depth_test;
 
-            /** Whether this pipeline writes the depth it passed. Usually matches `depth_test`; separate
-             * because transparent 3D geometry must test against the opaque pass but not write, or the
-             * nearest transparent surface would hide the ones behind it. */
+            /**
+             * Whether this pipeline writes depth. Separate from `depth_test` because transparent geometry tests against
+             * the opaque pass without writing.
+             * */
             b8 depth_write;
 
-            /** Discard back faces, front decided by counter-clockwise winding. Off by default — the 2D
-             * batch emits both windings and would lose half its triangles. On for closed 3D geometry,
-             * halving fragment work for free. */
+            /**
+             * Discard back faces (front is counter-clockwise). Off by default: the 2D batch emits both windings. On for
+             * closed 3D geometry.
+             * */
             b8 cull_back_faces;
 
-            /** Discard *front* faces instead. For a shadow pass, and little else — recording the far side
-             * of each object moves the depth away from the tested surface, the cheapest defence against
-             * shadow acne. Wrong for open geometry, which then casts nothing (usually right for a floor).
-             * Ignored when `cull_back_faces` is also set. */
+            /**
+             * Discard front faces instead, for a shadow pass: recording far sides moves the depth away from lit surfaces,
+             * the cheapest defence against acne. Open geometry then casts nothing. Ignored when `cull_back_faces` is set.
+             * */
             b8 cull_front_faces;
 
-            /** The colour target's format. Zero means the window's swapchain format. A pipeline compiled
-             * for the swapchain is rejected at bind time against any other target, so only needed for an
-             * offscreen target of unusual format — the shadow map's R32_FLOAT. */
+            /**
+             * The colour target format; zero means the swapchain's. Needed for offscreen targets of another format, such
+             * as the shadow map.
+             * */
             SDL_GPUTextureFormat color_format;
 
-            /** Force one sample per pixel, whatever the renderer is using. A pipeline's sample count must
-             * match its target; the renderer's multisampled default is wrong for the shadow map, where
-             * averaging two depths would describe neither surface. */
+            /**
+             * Force one sample per pixel. The sample count must match the target, and averaging depths in a shadow map
+             * describes neither surface.
+             * */
             b8 single_sampled;
         } as_graphics_pipeline;
 
@@ -303,15 +293,11 @@ struct NYA_AssetLoadParameters {
              * */
             NYA_TextureFilter filter;
 
-            /**
-             * Rasterize a vector image at this size instead of its natural one.
-             * */
+            /** Rasterize a vector image at this size instead of its natural one. */
             u32 width;
             u32 height;
 
-            /**
-             * What `currentColor` rasterises to, for an SVG that uses it.
-             * */
+            /** What `currentColor` rasterises to in an SVG. */
             NYA_Color svg_color;
         } as_texture_load;
 
@@ -323,14 +309,12 @@ struct NYA_AssetLoadParameters {
         } as_mesh_load;
 
         struct {
-            /** Point size. A font file carries no size of its own, so one face per size. */
+            /** Point size. A font file has no size, so there is one face per size. */
             f32 point_size;
         } as_font;
 
         struct {
-            /**
-             * Decode the whole thing up front rather than streaming it.
-             * */
+            /** Decode the whole sound up front rather than streaming. */
             b8 predecode;
         } as_sound;
     };
@@ -375,14 +359,12 @@ struct NYA_Asset {
             TTF_Font* font;
         } as_font;
 
-        /**
-         * Triangles, flattened and de-indexed by ufbx into one array per attribute.
-         * */
+        /** Triangles, de-indexed by ufbx into one array per attribute. */
         struct {
             f32x3* positions;
             f32x3* normals;
 
-            /** Parallel to the other two. Zeroed for a model with no UV set, which samples one texel. */
+            /** Parallel to the other two. Zeroed for a model without UVs. */
             f32x2* uvs;
 
             /**
@@ -390,9 +372,7 @@ struct NYA_Asset {
              * */
             u32 vertex_count;
 
-            /**
-             * How many elements each array was allocated for, which is not always how many were written.
-             * */
+            /** Elements each array was allocated for, which can exceed how many were written. */
             u32 allocated;
 
             /**
@@ -431,12 +411,8 @@ struct NYA_Asset {
             NYA_TextureFilter filter;
 
             /*
-             * ── skinning ──
-             *
-             * Present only when the file carried a skin deformer. A mesh is either skinned or it is
-             * not: `skinned_vertices` and `vertices` are the same geometry in two layouts and only
-             * one of them is filled, because a static mesh should not pay for the wider vertex and a
-             * skinned one has no use for the narrower.
+             * Skinning, only when the file has a skin deformer. `skinned_vertices` and `vertices` are the same geometry in
+             * two layouts, and only one is filled.
              */
 
             /** Null unless the file was rigged. Owned by this asset. */
@@ -455,11 +431,8 @@ struct NYA_Asset {
     b8 queued_for_unload;
 
     /**
-     * Came out of the embedded blob rather than off disk.
-     *
-     * Asked to decide whether the asset has a file behind it — hot reload watches, and reload scans, are
-     * all gated on this. It does *not* say whether anything has to be freed; see `raw_owned`, which used
-     * to be the same flag and no longer can be.
+     * Came out of the embedded blob. Decides whether there is a file to watch for hot reload; ownership is
+     * `raw_owned`.
      * */
     b8 from_blob;
 
@@ -474,9 +447,8 @@ struct NYA_Asset {
     u32 raw_blob_index;
 
     /**
-     * The encoded bytes, kept outside the union. as_font.font and as_sound.audio share storage with
-     * as_text.data, so once a font or sound was decoded the pointer to its bytes was gone and unloading
-     * freed nothing: every font and sound read off disk leaked its file.
+     * The encoded bytes, kept outside the union: as_font.font and as_sound.audio share storage with as_text.data
+     * and overwrite it once decoded.
      * */
     struct {
         u8* data;
@@ -486,13 +458,12 @@ struct NYA_Asset {
 #ifdef NYA_ASSET_HOT_RELOAD
     u64 source_modification_time;
 
-    /** wait this many frames before actually doing the reload */
+    /** frames to wait before reloading */
     u64 reload_grace_frames;
 
     /**
-     * Uptime at which this asset's file may next be stat'd. See _NYA_ASSET_STAT_INTERVAL_NS.
-     *
-     * Per asset rather than global, so one asset checked often does not starve the rest.
+     * Uptime at which this asset's file may next be stat'd. Per asset, so a busy asset does not starve the rest.
+     * See _NYA_ASSET_STAT_INTERVAL_NS.
      * */
     u64 next_stat_time_ns;
 #endif // NYA_ASSET_HOT_RELOAD
@@ -528,11 +499,9 @@ NYA_API NYA_Asset* nya_asset_get(NYA_AssetHandle handle);
  * */
 NYA_API NYA_Error nya_asset_read(NYA_Arena* arena, NYA_AssetHandle handle, OUT u8** out_data, OUT u64* out_size) __attr_no_discard;
 
-/*
- * Reference counting.
- */
+/* Reference counting. */
 
-/** Errors rather than asserting if the handle is unknown: a typo'd handle should not end the process. */
+/** Errors on an unknown handle rather than asserting. */
 NYA_API NYA_Error nya_asset_acquire(NYA_AssetHandle handle) __attr_no_discard;
 
 /** Drops a reference and queues the asset for unloading if that was the last one. */
@@ -555,7 +524,7 @@ NYA_API b8 nya_asset_unload(NYA_AssetHandle handle);
  * */
 NYA_API NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHandle handle) __attr_no_discard;
 
-/** NYA_ASSET_STATUS_FAILED for anything that could not be loaded, so a caller can react without a hook. */
+/** NYA_ASSET_STATUS_FAILED for anything that could not load, so a caller can react without a hook. */
 NYA_API NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) __attr_no_discard;
 
 /*
@@ -570,16 +539,8 @@ NYA_API NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) __attr_no_disca
 NYA_API NYA_ArrayᐸNYA_Stringᐳ* nya_asset_enumerate(NYA_Arena* arena, NYA_ConstCString suffix) __attr_no_discard;
 
 /*
- * ── the baked index, directly ──
- *
- * nya_asset_enumerate answers "what assets are there", which is what a picker asks. These answer
- * "what is baked into *this binary*, and how big is it" — which is a different question, and one
- * only the blob can answer: a disk walk knows paths but not what was actually shipped, and neither
- * knows an entry's size without opening the file.
- *
- * For tooling rather than for gameplay: a bundle report, a size breakdown, a check that something
- * made it into the build. All three return nothing in a build without NYA_ASSET_PREFER_BLOB, so a
- * caller compiles everywhere and simply finds an empty index where there is no blob.
+ * The baked index. nya_asset_enumerate lists what assets exist; these list what this binary ships and how big
+ * each entry is, which only the blob knows. For tooling. Empty in a build without NYA_ASSET_PREFER_BLOB.
  */
 
 /** How many assets are baked in. Zero when this build has no blob. */
@@ -588,5 +549,5 @@ NYA_API u64 nya_asset_blob_count(void) __attr_no_discard;
 /** The baked entry at `index`, or null past the end. Carries the path, its offset and its size. */
 NYA_API const NYA_AssetBlobHeader* nya_asset_blob_at(u64 index) __attr_no_discard;
 
-/** The baked entry for `path`, or null. The path is spelled as the index spells it, leading "./" and all. */
+/** The baked entry for `path`, or null. Spelled as the index spells it, with the leading "./". */
 NYA_API const NYA_AssetBlobHeader* nya_asset_blob_find(NYA_ConstCString path) __attr_no_discard;
