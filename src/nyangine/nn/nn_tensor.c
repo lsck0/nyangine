@@ -193,7 +193,7 @@ u32 nya_nn_tensor_argmax_row(const NYA_NNTensor* tensor, u32 row) {
     nya_assert(tensor != nullptr);
     nya_assert(tensor->rank == 2 && row < tensor->shape[0]);
 
-    const f32* values = &tensor->data[row * tensor->shape[1]];
+    const f32* values = &tensor->data[(u64)row * tensor->shape[1]];
 
     u32 best = 0;
     for (u32 i = 1; i < tensor->shape[1]; i++) {
@@ -262,14 +262,14 @@ NYA_NNTensor* nya_nn_matmul(NYA_NNGraph* graph, NYA_NNTensor* a, NYA_NNTensor* b
      * i, then k, then j — not the textbook i, j, k.
      */
     for (u32 i = 0; i < m; i++) {
-        f32*       out_row = &out->data[i * n];
-        const f32* a_row   = &a->data[i * k];
+        f32*       out_row = &out->data[(u64)i * n];
+        const f32* a_row   = &a->data[(u64)i * k];
 
         for (u32 p = 0; p < k; p++) {
             f32 a_value = a_row[p];
             if (a_value == 0.0F) continue;
 
-            nya_nn_simd_axpy(out_row, a_value, &b->data[p * n], n);
+            nya_nn_simd_axpy(out_row, a_value, &b->data[(u64)p * n], n);
         }
     }
 
@@ -287,7 +287,7 @@ NYA_NNTensor* nya_nn_bias(NYA_NNGraph* graph, NYA_NNTensor* a, NYA_NNTensor* bia
     u32 columns = a->shape[1];
 
     // One row at a time, because the bias vector is re-read per row rather than strided over.
-    for (u32 i = 0; i < rows; i++) nya_nn_simd_add(&out->data[i * columns], &a->data[i * columns], bias->data, columns);
+    for (u32 i = 0; i < rows; i++) nya_nn_simd_add(&out->data[(u64)i * columns], &a->data[(u64)i * columns], bias->data, columns);
 
     return out;
 }
@@ -580,13 +580,13 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
             // forward pass rather than by materialising a transpose, which would allocate during
             // backward — the one place that must not, since the graph arena is being read not grown.
             for (u32 i = 0; i < m; i++) {
-                const f32* out_row = &tensor->grad[i * n];
+                const f32* out_row = &tensor->grad[(u64)i * n];
 
                 for (u32 p = 0; p < k; p++) {
-                    const f32* b_row = &b->data[p * n];
+                    const f32* b_row = &b->data[(u64)p * n];
 
                     if (grad_a) a->grad[(i * k) + p] += nya_nn_simd_dot(out_row, b_row, n);
-                    if (grad_b) nya_nn_simd_axpy(&b->grad[p * n], a->data[(i * k) + p], out_row, n);
+                    if (grad_b) nya_nn_simd_axpy(&b->grad[(u64)p * n], a->data[((u64)i * k) + p], out_row, n);
                 }
             }
         } break;
@@ -596,9 +596,9 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
             u32 columns = tensor->shape[1];
 
             for (u32 i = 0; i < rows; i++) {
-                const f32* row = &tensor->grad[i * columns];
+                const f32* row = &tensor->grad[(u64)i * columns];
 
-                if (grad_a) nya_nn_simd_axpy(&a->grad[i * columns], 1.0F, row, columns);
+                if (grad_a) nya_nn_simd_axpy(&a->grad[(u64)i * columns], 1.0F, row, columns);
 
                 // Summed down the batch: the same bias element contributed to every row, so its
                 // gradient is the total of what came back from all of them. Accumulating whole rows

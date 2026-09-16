@@ -303,7 +303,7 @@ typedef enum {
 typedef u32              NYA_Keycode;
 NYA_API NYA_ConstCString nya_keycode_to_cstring(NYA_Keycode keycode);
 
-#define NYA_KEY_UNKNOWN              0x00000000u /**< 0 */
+#define NYA_KEY_UNKNOWN              0x00000000U /**< 0 */
 #define NYA_KEY_RETURN               0x0000000du /**< '\r' */
 #define NYA_KEY_ESCAPE               0x0000001bu /**< '\x1B' */
 #define NYA_KEY_BACKSPACE            0x00000008u /**< '\b' */

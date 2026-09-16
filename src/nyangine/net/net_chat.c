@@ -12,7 +12,7 @@
 /**
  * How far into an oversized line the sanitiser will read before giving up, in bytes.
  * */
-#define _NYA_NET_CHAT_SCAN_MAX (NYA_NET_CHAT_TEXT_MAX * 8)
+#define _NYA_NET_CHAT_SCAN_MAX ((u64)NYA_NET_CHAT_TEXT_MAX * 8)
 
 typedef struct {
     /** Whose budget this is. A slot is reused when a peer disconnects, so the id is checked, not just the index. */

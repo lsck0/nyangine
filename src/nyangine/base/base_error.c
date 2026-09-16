@@ -124,7 +124,7 @@ void _nya_error_throw(NYA_Error error, NYA_ConstCString function, NYA_ConstCStri
     // Then the error itself: kind, message and propagation chain. Deliberately not the stack: it
     // is handed to the sink below instead of being flattened into the message, which keeps the two
     // from being printed twice and from crowding each other out of the buffer.
-    if (length + 1 < sizeof(detail)) length += _nya_error_format_summary(&error, &detail[length], (u32)sizeof(detail) - length);
+    if (length + 1 < sizeof(detail)) (void)_nya_error_format_summary(&error, &detail[length], (u32)sizeof(detail) - length);
 
     // The stack the error was *created* with, not the stack of whoever finally threw it. That is
     // the one that says where things actually went wrong. Absent from the struct at all when the

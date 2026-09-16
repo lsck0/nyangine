@@ -92,27 +92,27 @@ NYA_INTERNAL NYA_Value _nya_lua_handle_value(NYA_Arena* arena, NYA_EntityHandle 
  * static one has no name to resolve. See the conventions note in RESEARCH.md §17.
  */
 
-void nya_lua_binding_log(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_log(NYA_LuaCall* call) {
     NYA_ConstCString text = _nya_lua_argument_string(call, 0);
     if (text != nullptr) nya_log_info("[lua] %s", text);
 }
 
-void nya_lua_binding_warn(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_warn(NYA_LuaCall* call) {
     NYA_ConstCString text = _nya_lua_argument_string(call, 0);
     if (text != nullptr) nya_log_warn("[lua] %s", text);
 }
 
-void nya_lua_binding_error(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_error(NYA_LuaCall* call) {
     NYA_ConstCString text = _nya_lua_argument_string(call, 0);
     if (text != nullptr) nya_log_error("[lua] %s", text);
 }
 
-void nya_lua_binding_time(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_time(NYA_LuaCall* call) {
     call->results[0]   = nya_lua_number((f64)nya_app_get()->frame_stats.uptime_s);
     call->result_count = 1;
 }
 
-void nya_lua_binding_spawn(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_spawn(NYA_LuaCall* call) {
     /*
      * A table, not positional arguments.
      */
@@ -129,13 +129,13 @@ void nya_lua_binding_spawn(NYA_LuaCall* call) {
     call->result_count = 1;
 }
 
-void nya_lua_binding_despawn(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_despawn(NYA_LuaCall* call) {
     // Deferred, which is what a script wants: it may well be running from inside an update, and the
     // barrier is what makes removing something mid-iteration safe.
     nya_entity_despawn_deferred(_nya_lua_argument_handle(call, 0));
 }
 
-void nya_lua_binding_position(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_position(NYA_LuaCall* call) {
     NYA_Entity* entity = nya_entity_get(_nya_lua_argument_handle(call, 0));
 
     // Nil for a handle that no longer resolves, which is the whole point of handing scripts handles
@@ -155,7 +155,7 @@ void nya_lua_binding_position(NYA_LuaCall* call) {
     call->result_count = 1;
 }
 
-void nya_lua_binding_move_to(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_move_to(NYA_LuaCall* call) {
     NYA_Entity* entity = nya_entity_get(_nya_lua_argument_handle(call, 0));
     if (entity == nullptr) return;
 
@@ -172,14 +172,14 @@ void nya_lua_binding_move_to(NYA_LuaCall* call) {
 /*
  * ⚠ **An action is a number, not a name.**
  */
-void nya_lua_binding_action(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_action(NYA_LuaCall* call) {
     NYA_InputAction action = (NYA_InputAction)(u32)_nya_lua_argument_number(call, 0, -1.0);
 
     call->results[0]   = nya_lua_boolean(call->argument_count > 0 && nya_input_action_pressed(action));
     call->result_count = 1;
 }
 
-void nya_lua_binding_action_pressed(NYA_LuaCall* call) {
+NYA_INTERNAL void nya_lua_binding_action_pressed(NYA_LuaCall* call) {
     NYA_InputAction action = (NYA_InputAction)(u32)_nya_lua_argument_number(call, 0, -1.0);
 
     call->results[0]   = nya_lua_boolean(call->argument_count > 0 && nya_input_action_just_pressed(action));

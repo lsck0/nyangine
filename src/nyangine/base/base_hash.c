@@ -6,8 +6,8 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-const u64 FNV_OFFSET_BASIS = 14695981039346656037ULL;
-const u64 FNV_PRIME        = 1099511628211ULL;
+NYA_INTERNAL const u64 FNV_OFFSET_BASIS = 14695981039346656037ULL;
+NYA_INTERNAL const u64 FNV_PRIME        = 1099511628211ULL;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -126,11 +126,11 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 nya_siphash(const void* data
 __attr_no_sanitize("unsigned-integer-overflow") f32 nya_ihash2(s32 x, s32 y, u32 seed) {
     u32 n = (u32)(x + y * 57) + seed;
     n     = (n << 13) ^ n;
-    return 1.0F - (f32)((n * (n * n * 15731u + 789221u) + 1376312589u) & 0x7FFFFFFFu) / 1073741824.0F;
+    return 1.0F - (f32)((n * (n * n * 15731U + 789221U) + 1376312589U) & 0x7FFFFFFFU) / 1073741824.0F;
 }
 
 __attr_no_sanitize("unsigned-integer-overflow") f32 nya_ihash3(s32 x, s32 y, s32 z, u32 seed) {
     u32 n = (u32)(x + y * 57 + z * 131) + seed;
     n     = (n << 13) ^ n;
-    return 1.0F - (f32)((n * (n * n * 15731u + 789221u) + 1376312589u) & 0x7FFFFFFFu) / 1073741824.0F;
+    return 1.0F - (f32)((n * (n * n * 15731U + 789221U) + 1376312589U) & 0x7FFFFFFFU) / 1073741824.0F;
 }

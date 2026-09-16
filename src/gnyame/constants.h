@@ -851,7 +851,7 @@
 #define GNY_CUBE3D_DUST_SIZE ((f32x2){ 0.03F, 0.09F })
 
 /** Positive y is up in a 3D scene, so gravity here is negative — the opposite of the 2D world's. */
-#define GNY_CUBE3D_DUST_GRAVITY -9.81F
+#define GNY_CUBE3D_DUST_GRAVITY (-9.81F)
 
 #define GNY_CUBE3D_DUST_COLOR ((NYA_Color){ 0.72F, 0.68F, 0.60F, 1.0F })
 

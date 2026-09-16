@@ -50,6 +50,7 @@
 /** Name of the heap type derived for `type`, e.g. NYA_Heapᐸs32ᐳ. */
 #define _nya_derive_heap_name(type) nya_template(NYA_Heap, type)
 
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_derive_heap(type)                                                                                                                        \
     typedef struct {                                                                                                                                 \
         u64        length;                                                                                                                           \
@@ -58,6 +59,7 @@
         NYA_Arena* arena;                                                                                                                            \
         s32 (*compare)(const type* a, const type* b);                                                                                                \
     } _nya_derive_heap_name(type)
+// NOLINTEND(bugprone-macro-parentheses)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -98,6 +100,7 @@
  *
  * `carray_length` is read once, since it serves as both the initial capacity and the loop bound.
  * */
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_heap_from_carray(arena_ptr, item_type, carray, carray_length, compare_fn)                                                                \
     ({                                                                                                                                               \
         nya_assert_type_match(arena_ptr, (NYA_Arena*)0);                                                                                             \
@@ -110,6 +113,7 @@
         for (u64 _heap_from_i = 0; _heap_from_i < _heap_from_count; _heap_from_i++) nya_heap_push(_heap_from_ptr, _heap_from_items[_heap_from_i]);   \
         _heap_from_ptr;                                                                                                                              \
     })
+// NOLINTEND(bugprone-macro-parentheses)
 
 #define nya_heap_resize(heap_ptr, new_capacity)                                                                                                      \
     ({                                                                                                                                               \

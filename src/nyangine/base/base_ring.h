@@ -41,6 +41,7 @@
 /** Name of the ring buffer type derived for `type`, e.g. NYA_Ringᐸu32ᐳ. */
 #define _nya_derive_ring_name(type) nya_template(NYA_Ring, type)
 
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_derive_ring(type)                                                                                                                        \
     typedef struct {                                                                                                                                 \
         u64        length;                                                                                                                           \
@@ -50,6 +51,7 @@
         u64        tail;                                                                                                                             \
         NYA_Arena* arena;                                                                                                                            \
     } _nya_derive_ring_name(type);
+// NOLINTEND(bugprone-macro-parentheses)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -427,25 +427,31 @@ NYA_INTERNAL NYA_Error _nya_build_run(NYA_BuildRule* build_rule) {
 
 /** Prints how a finished rule went. Shared, so serial and parallel builds report identically. */
 NYA_INTERNAL void _nya_build_report(NYA_BuildRule* build_rule) {
-    if (build_rule->command.exit_code == 0) {
-        printf("[OK] %s took " FMTu64 " ms.\n", build_rule->name, build_rule->command.execution_time_ms);
-        return;
+    NYA_String         empty_str = { .length = 0, .items = (u8*)"" };
+    const NYA_Command* command   = &build_rule->command;
+
+    if (command->exit_code == 0) {
+        printf("[OK] %s took " FMTu64 " ms.\n", build_rule->name, command->execution_time_ms);
+
+        // a rule that passed with diagnostics still shows them. compilers and clang-tidy both exit zero
+        // on warnings, and swallowing the output made every warning invisible.
+        b8 warned = (command->stdout_content != nullptr && nya_string_contains(command->stdout_content, ": warning:")) ||
+                    (command->stderr_content != nullptr && nya_string_contains(command->stderr_content, ": warning:"));
+        if (!warned) return;
+
+        (void)fflush(stdout);
+        (void)fprintf(stderr, "[WARNINGS] %s\n", build_rule->name);
+    } else {
+        (void)fflush(stdout);
+        (void)fprintf(stderr, "[FAILED] %s exit code: %d\n", build_rule->name, command->exit_code);
     }
 
-    /*
-     * A failure goes to stderr, and stdout is flushed first.
-     */
-    fflush(stdout);
+    const NYA_String* stdout_to_print = command->stdout_content ? command->stdout_content : &empty_str;
+    (void)fprintf(stderr, "------- STDOUT -------\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(stdout_to_print));
+    const NYA_String* stderr_to_print = command->stderr_content ? command->stderr_content : &empty_str;
+    (void)fprintf(stderr, "------- STDERR -------\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(stderr_to_print));
 
-    fprintf(stderr, "[FAILED] %s exit code: %d\n", build_rule->name, build_rule->command.exit_code);
-
-    NYA_String  empty_str       = { .length = 0, .items = (u8*)"" };
-    NYA_String* stdout_to_print = build_rule->command.stdout_content ? build_rule->command.stdout_content : &empty_str;
-    fprintf(stderr, "------- STDOUT -------\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(stdout_to_print));
-    NYA_String* stderr_to_print = build_rule->command.stderr_content ? build_rule->command.stderr_content : &empty_str;
-    fprintf(stderr, "------- STDERR -------\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(stderr_to_print));
-
-    fflush(stderr);
+    (void)fflush(stderr);
 }
 
 NYA_INTERNAL u32 _nya_build_argument_count(const NYA_Command* command) {

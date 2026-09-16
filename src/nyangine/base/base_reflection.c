@@ -341,7 +341,7 @@ NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* ty
             case NYA_REFLECT_POINTER: break;
 
             case NYA_REFLECT_COUNT:
-            default: break;
+            default: nya_unreachable();
         }
     }
 
@@ -458,9 +458,10 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
                 break;
             }
 
-            case NYA_REFLECT_POINTER:
+            case NYA_REFLECT_POINTER: break;
+
             case NYA_REFLECT_COUNT:
-            default: break;
+            default: nya_unreachable();
         }
     }
 
@@ -556,12 +557,12 @@ b8 _nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value) {
         case NYA_TYPE_U32: *out_value = value.as_u32; return true;
         case NYA_TYPE_U64: *out_value = (s64)value.as_u64; return true;
 
-        case NYA_TYPE_S8:  *out_value = value.as_s8; return true;
+        case NYA_TYPE_S8:  *out_value = (s64)value.as_s8; return true; // NOLINT(bugprone-signed-char-misuse): sign extension is the point
         case NYA_TYPE_S16: *out_value = value.as_s16; return true;
         case NYA_TYPE_S32: *out_value = value.as_s32; return true;
         case NYA_TYPE_S64: *out_value = value.as_s64; return true;
 
-        case NYA_TYPE_CHAR: *out_value = value.as_char; return true;
+        case NYA_TYPE_CHAR: *out_value = (u8)value.as_char; return true;
 
         // A whole number written with a decimal point is still a whole number. Truncation is
         // deliberate rather than an error, so "count": 3.0 loads.

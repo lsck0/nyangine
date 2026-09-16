@@ -1259,7 +1259,7 @@ void _nya_audio_reverb_apply(NYA_AudioReverbState* reverb, const SDL_AudioSpec* 
     const f32 allpass_feedback = 0.5F;
 
     for (s32 frame = 0; frame < frames; frame++) {
-        f32* row = &pcm[frame * channels];
+        f32* row = &pcm[(ptrdiff_t)frame * channels];
 
         /*
          * Downmixed into a left and a right feed by channel parity: even channels are the left side of

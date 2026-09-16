@@ -143,12 +143,12 @@ typedef struct {
 /**
  * The largest message this transport will reassemble, in bytes.
  * */
-#define _NYA_NET_UDP_MAX_MESSAGE (256 * 1024)
+#define _NYA_NET_UDP_MAX_MESSAGE (256ULL * 1024ULL)
 
 /**
  * The most one peer may have tied up in partial reassemblies at once.
  * */
-#define _NYA_NET_UDP_MAX_REASSEMBLY_BYTES (512 * 1024)
+#define _NYA_NET_UDP_MAX_REASSEMBLY_BYTES (512ULL * 1024ULL)
 
 /**
  * How many reliable messages may wait out of order before a peer is dropped.
@@ -855,19 +855,19 @@ void _nya_net_udp_receive(NYA_NetTransport* transport) {
         /*
          * An oversized datagram is dropped before anything reads it.
          */
-        if (datagram->buflen > (int)NYA_NET_MAX_DATAGRAM) {
+        if (datagram->buflen > NYA_NET_MAX_DATAGRAM) {
             nya_log_debug("Dropping a %d byte datagram; the limit is %d.", datagram->buflen, NYA_NET_MAX_DATAGRAM);
             NET_DestroyDatagram(datagram);
             continue;
         }
 
-        if (datagram->buflen >= (int)_NYA_NET_UDP_HEADER_SIZE && _nya_net_udp_read_u32(datagram->buf) == _NYA_NET_UDP_PROTOCOL) {
+        if (datagram->buflen >= _NYA_NET_UDP_HEADER_SIZE && _nya_net_udp_read_u32(datagram->buf) == _NYA_NET_UDP_PROTOCOL) {
             u32 index = _nya_net_udp_find_peer(state, datagram->addr, datagram->port);
 
             /*
              * The kind byte sits one past the header, and a packet is allowed to end at the header.
              */
-            b8 has_kind = datagram->buflen > (int)_NYA_NET_UDP_HEADER_SIZE;
+            b8 has_kind = datagram->buflen > _NYA_NET_UDP_HEADER_SIZE;
             u8 kind     = has_kind ? datagram->buf[_NYA_NET_UDP_HEADER_SIZE] >> 4 : (u8)_NYA_NET_UDP_KIND_DATA;
 
             if (index >= NYA_NET_MAX_PEERS) {
@@ -895,7 +895,7 @@ void _nya_net_udp_receive(NYA_NetTransport* transport) {
 
                         // A response too short to carry a cookie leaves this zero, which the validator
                         // rejects — so a truncated packet is refused rather than treated as cookie zero.
-                        if (datagram->buflen >= (int)_NYA_NET_UDP_HEADER_SIZE + 1 + 8) {
+                        if (datagram->buflen >= _NYA_NET_UDP_HEADER_SIZE + 1 + 8) {
                             for (u32 i = 0; i < 8; i++) echoed |= (u64)datagram->buf[_NYA_NET_UDP_HEADER_SIZE + 1 + i] << (i * 8);
                         }
 

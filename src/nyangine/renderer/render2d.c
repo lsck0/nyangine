@@ -378,7 +378,7 @@ NYA_INTERNAL void _nya_render2d_range_close(NYA_Window* window) {
 
         // Resolved now, so replaying makes no decisions: shader mode is the same vertices through a
         // different pipeline, and which one it was is part of *this* range rather than of the batch.
-        .pipeline = (NYA_CString)(batch->shader_override != nullptr ? batch->shader_override : batch->pipeline),
+        .pipeline = batch->shader_override != nullptr ? batch->shader_override : batch->pipeline,
 
         .texture = batch->texture,
         .sampler = batch->sampler,
@@ -525,7 +525,7 @@ void nya_render2d_flush(NYA_Window* window) {
 
         if (range->index_count == 0) continue;
 
-        NYA_Asset* pipeline_asset = range->pipeline != nullptr ? nya_asset_get((NYA_CString)range->pipeline) : nullptr;
+        NYA_Asset* pipeline_asset = range->pipeline != nullptr ? nya_asset_get(range->pipeline) : nullptr;
 
         // Still loading, which is normal for the first frames of a run. Skipped rather than holding
         // the whole flush, so one unloaded pipeline does not take the rest of the frame with it.

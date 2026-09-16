@@ -439,7 +439,7 @@ NYA_INTERNAL void _nya_terrain3d_emit_triangle(const NYA_Terrain3D* terrain, NYA
  * Builds one chunk's geometry at `lod` and registers it, replacing whatever was there.
  * */
 NYA_INTERNAL void _nya_terrain3d_chunk_build(NYA_Terrain3D* terrain, NYA_Window* window, NYA_Terrain3DChunk* chunk, u32 lod) {
-    u32 stride = 1u << lod;
+    u32 stride = 1U << lod;
 
     // Clipped at the terrain's edge: the last chunk in a row is short when the resolution is not a
     // whole number of chunks.

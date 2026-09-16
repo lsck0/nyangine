@@ -371,13 +371,13 @@ s32 main(void) {
 
     u64 held = state->peers[index].reassembly_bytes;
 
-    printf("  eight 235 kB reassemblies started: %llu bytes held, cap is %d\n", (unsigned long long)held, _NYA_NET_UDP_MAX_REASSEMBLY_BYTES);
+    printf("  eight 235 kB reassemblies started: %llu bytes held, cap is %llu\n", (unsigned long long)held, (unsigned long long)_NYA_NET_UDP_MAX_REASSEMBLY_BYTES);
 
     /*
      * The bound is the engine's, not the attacker's.
      */
-    nya_assert(held <= _NYA_NET_UDP_MAX_REASSEMBLY_BYTES, "a peer held %llu bytes of reassembly against a %d byte cap",
-               (unsigned long long)held, _NYA_NET_UDP_MAX_REASSEMBLY_BYTES);
+    nya_assert(held <= _NYA_NET_UDP_MAX_REASSEMBLY_BYTES, "a peer held %llu bytes of reassembly against a %llu byte cap",
+               (unsigned long long)held, (unsigned long long)_NYA_NET_UDP_MAX_REASSEMBLY_BYTES);
 
     NET_DestroyDatagramSocket(hoarder);
   }

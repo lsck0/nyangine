@@ -45,6 +45,7 @@
 #define _nya_hmap_hash_bytes_name(key_type, value_type)   nya_template(_nya_hmap_hash_bytes, key_type, value_type)
 #define _nya_hmap_equals_bytes_name(key_type, value_type) nya_template(_nya_hmap_equals_bytes, key_type, value_type)
 
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_derive_hmap(key_type, value_type)                                                                                                        \
     typedef struct {                                                                                                                                 \
         u64         length;                                                                                                                          \
@@ -62,6 +63,7 @@
     __attr_allow_unused static b8 _nya_hmap_equals_bytes_name(key_type, value_type)(const key_type* a, const key_type* b) {                          \
         return nya_memcmp(a, b, sizeof(*a)) == 0;                                                                                                    \
     }
+// NOLINTEND(bugprone-macro-parentheses)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -391,12 +393,16 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_hmap_foreach_key(hmap_ptr, key_name)                                                                                                     \
     for (u64 _nya_hmap_foreach_index = 0; _nya_hmap_foreach_index < (hmap_ptr)->capacity; _nya_hmap_foreach_index++)                                 \
         if ((hmap_ptr)->occupied[_nya_hmap_foreach_index])                                                                                           \
             for (typeof((hmap_ptr)->keys[0])* key_name = &(hmap_ptr)->keys[_nya_hmap_foreach_index]; key_name != NULL; key_name = NULL)
+// NOLINTEND(bugprone-macro-parentheses)
 
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_hmap_foreach_value(hmap_ptr, value_name)                                                                                                 \
     for (u64 _nya_hmap_foreach_index = 0; _nya_hmap_foreach_index < (hmap_ptr)->capacity; _nya_hmap_foreach_index++)                                 \
         if ((hmap_ptr)->occupied[_nya_hmap_foreach_index])                                                                                           \
             for (typeof((hmap_ptr)->values[0])* value_name = &(hmap_ptr)->values[_nya_hmap_foreach_index]; value_name != NULL; value_name = NULL)
+// NOLINTEND(bugprone-macro-parentheses)

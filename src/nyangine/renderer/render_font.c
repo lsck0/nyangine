@@ -52,7 +52,7 @@ NYA_INTERNAL _NYA_FontSdfRequest* _nya_font_sdf_find(NYA_Font font) {
 /**
  * Pushes every outstanding request onto its face, for the ones whose faces exist yet.
  * */
-void _nya_font_sdf_apply_pending(void);
+NYA_INTERNAL void _nya_font_sdf_apply_pending(void);
 
 /**
  * Applies outstanding requests at the end of every frame, so one lands the moment its face resolves.

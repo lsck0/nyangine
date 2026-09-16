@@ -118,11 +118,11 @@ static_assert(NYA_EXECUTION_MODE_CURRENT < NYA_EXECUTION_MODE_COUNT, "Invalid ex
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
 #define COMPILER_MSVC 1
-#elif defined(__clang__)
+#elifdef __clang__
 #define COMPILER_CLANG 1
-#elif defined(__GNUC__)
+#elifdef __GNUC__
 #define COMPILER_GCC 1
 #else
 #define COMPILER_UNKNOWN 1
@@ -151,11 +151,11 @@ typedef enum {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#if defined(__wasm__)
+#ifdef __wasm__
 #define OS_WASM 1
 #elif defined(_WIN32) || defined(__CYGWIN__)
 #define OS_WINDOWS 1
-#elif defined(__linux__)
+#elifdef __linux__
 #define OS_LINUX 1
 #elif defined(__APPLE__) && defined(__MACH__)
 #define OS_MAC 1
@@ -189,9 +189,9 @@ typedef enum {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#if defined(__wasm32__)
+#ifdef __wasm32__
 #define ARCH_WASM32 1
-#elif defined(__wasm64__)
+#elifdef __wasm64__
 #define ARCH_WASM64 1
 #elif defined(_M_IX86) || defined(__i386__)
 #define ARCH_X86 1

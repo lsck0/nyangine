@@ -881,14 +881,18 @@ NYA_API NYA_EntityHandle nya_entity_query_ray(f32x3 origin, f32x3 direction, f32
  * spawning during one is safe (the new entity may or may not be visited); despawning only through
  * nya_entity_despawn_deferred.
  * */
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_entity_foreach_kind(kind, entity_name)                                                                                                   \
     for (NYA_EntityIter _nya_iter = _nya_entity_iter_kind((u32)(kind)); _nya_iter.entity != nullptr; _nya_entity_iter_advance(&_nya_iter))            \
         for (NYA_Entity* entity_name = _nya_iter.entity; entity_name != nullptr; entity_name = nullptr)
+// NOLINTEND(bugprone-macro-parentheses)
 
 /** Walks every live entity with **every** bit of `flag_bits` set. Zero matches everything. */
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_entity_foreach_flags(flag_bits, entity_name)                                                                                             \
     for (NYA_EntityIter _nya_iter = _nya_entity_iter_flags((u64)(flag_bits)); _nya_iter.entity != nullptr; _nya_entity_iter_advance(&_nya_iter))      \
         for (NYA_Entity* entity_name = _nya_iter.entity; entity_name != nullptr; entity_name = nullptr)
+// NOLINTEND(bugprone-macro-parentheses)
 
 /*
  * ── Changing flags ──

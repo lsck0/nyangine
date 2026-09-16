@@ -6,10 +6,11 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-#define TREE     "mesh_tree"
-#define TREE_MID "mesh_tree_mid"
-#define TREE_FAR "mesh_tree_far"
-#define ROCK     "mesh_rock"
+// arrays rather than literals: the tests compare handles by address, and two equal literals need not share one.
+static const char TREE[]     = "mesh_tree";
+static const char TREE_MID[] = "mesh_tree_mid";
+static const char TREE_FAR[] = "mesh_tree_far";
+static const char ROCK[]     = "mesh_rock";
 
 s32 main(void) {
     nya_render3d_lod_clear();

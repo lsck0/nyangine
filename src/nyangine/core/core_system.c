@@ -210,7 +210,7 @@ NYA_SystemDeinitFn nya_system_registry_deinit_at(u32 index) {
 }
 
 #ifdef NYA_TESTING
-void _nya_system_registry_reset_for_test(void) {
+__attr_maybe_unused void _nya_system_registry_reset_for_test(void) {
     _nya_system_registry = (_NYA_SystemRegistry){ 0 };
 }
 #endif

@@ -269,7 +269,7 @@ NYA_INTERNAL b8 _nya_integrity_pe_regions(const u8* data, u64 len, OUT u64* out_
     }
 
     // Entry 4 is IMAGE_DIRECTORY_ENTRY_SECURITY, and each entry is eight bytes.
-    u64 security_offset = directory_offset + (4 * 8);
+    u64 security_offset = directory_offset + (4ULL * 8ULL);
     u64 checksum_offset = optional_offset + 64;
     if (security_offset + 8 > len || checksum_offset + 4 > len) return false;
 

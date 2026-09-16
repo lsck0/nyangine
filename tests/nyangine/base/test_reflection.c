@@ -62,7 +62,7 @@ static const NYA_TypeReflection _NYA_REFLECT_s32 = {
   .name = "s32", .kind = NYA_REFLECT_PRIMITIVE, .size = sizeof(s32), .alignment = alignof(s32), .primitive = NYA_TYPE_S32,
 };
 
-static const NYA_TypeReflection _NYA_REFLECT_u64 = {
+__attr_maybe_unused static const NYA_TypeReflection _NYA_REFLECT_u64 = {
   .name = "u64", .kind = NYA_REFLECT_PRIMITIVE, .size = sizeof(u64), .alignment = alignof(u64), .primitive = NYA_TYPE_U64,
 };
 

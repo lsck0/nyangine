@@ -447,7 +447,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     );
     nya_assert(batch->transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed: %s", SDL_GetError());
 
-    u32 index_buffer_size = (u32)(NYA_RENDER2D_MAX_INDICES * sizeof(u32));
+    u32 index_buffer_size = (u32)((u64)NYA_RENDER2D_MAX_INDICES * sizeof(u32));
 
     batch->index_buffer = SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_INDEX, .size = index_buffer_size });
     nya_assert(batch->index_buffer != nullptr, "SDL_CreateGPUBuffer() failed for indices: %s", SDL_GetError());
@@ -461,7 +461,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     // From the render system arena rather than a frame arena: this lives as long as the window does,
     // and is rewritten every frame.
     batch->vertices = nya_arena_alloc(app->render_system.allocator, NYA_RENDER2D_MAX_VERTICES * sizeof(NYA_Vertex2D));
-    batch->indices  = nya_arena_alloc(app->render_system.allocator, NYA_RENDER2D_MAX_INDICES * sizeof(u32));
+    batch->indices  = nya_arena_alloc(app->render_system.allocator, (u64)NYA_RENDER2D_MAX_INDICES * sizeof(u32));
 
     // The deferred draw ranges. Fixed, like the staging arrays, because a frame that needs more than
     // this many state changes has a batching problem the allocator cannot fix. See NYA_Render2DDrawRange.
@@ -955,7 +955,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
   }), "while queueing the glass pipeline");
 
     u32 mesh_buffer_size = (u32)(NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
-    u32 mesh_index_size  = (u32)(NYA_RENDER3D_MAX_INDICES * sizeof(u32));
+    u32 mesh_index_size  = (u32)((u64)NYA_RENDER3D_MAX_INDICES * sizeof(u32));
 
     mesh_batch->vertex_buffer = SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = mesh_buffer_size });
     nya_assert(mesh_batch->vertex_buffer != nullptr, "SDL_CreateGPUBuffer() failed for the 3D batch: %s", SDL_GetError());
@@ -980,16 +980,16 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
      * Two staging streams, each sized for the whole batch, sharing one GPU buffer.
      */
     mesh_batch->opaque.vertices = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
-    mesh_batch->opaque.indices  = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INDICES * sizeof(u32));
+    mesh_batch->opaque.indices  = nya_arena_alloc(app->render_system.allocator, (u64)NYA_RENDER3D_MAX_INDICES * sizeof(u32));
 
     mesh_batch->transparent.vertices = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
-    mesh_batch->transparent.indices  = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INDICES * sizeof(u32));
+    mesh_batch->transparent.indices  = nya_arena_alloc(app->render_system.allocator, (u64)NYA_RENDER3D_MAX_INDICES * sizeof(u32));
 
     // Sort scratch: one key per triangle the index array could hold, and somewhere to write the
     // reordered run. Allocated once here rather than per flush, which is a per-frame allocation.
     mesh_batch->sort_keys      = nya_arena_alloc(app->render_system.allocator, (NYA_RENDER3D_MAX_INDICES / 3) * sizeof(NYA_Render3DSortKey));
     mesh_batch->sort_keys_scratch = nya_arena_alloc(app->render_system.allocator, (NYA_RENDER3D_MAX_INDICES / 3) * sizeof(NYA_Render3DSortKey));
-    mesh_batch->sorted_indices    = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INDICES * sizeof(u32));
+    mesh_batch->sorted_indices    = nya_arena_alloc(app->render_system.allocator, (u64)NYA_RENDER3D_MAX_INDICES * sizeof(u32));
 
     mesh_batch->sorted_instances = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
 

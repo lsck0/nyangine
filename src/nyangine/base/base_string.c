@@ -747,13 +747,13 @@ u32 nya_utf8_next(NYA_ConstCString cursor, OUT u32* out_codepoint) {
 
     if ((lead & 0xE0) == 0xC0) {
         length    = 2;
-        codepoint = lead & 0x1Fu;
+        codepoint = lead & 0x1FU;
     } else if ((lead & 0xF0) == 0xE0) {
         length    = 3;
-        codepoint = lead & 0x0Fu;
+        codepoint = lead & 0x0FU;
     } else if ((lead & 0xF8) == 0xF0) {
         length    = 4;
-        codepoint = lead & 0x07u;
+        codepoint = lead & 0x07U;
     } else {
         // A continuation byte where a lead was expected, or one of the two lengths UTF-8 retired.
         *out_codepoint = 0xFFFD;
@@ -766,7 +766,7 @@ u32 nya_utf8_next(NYA_ConstCString cursor, OUT u32* out_codepoint) {
             return 1;
         }
 
-        codepoint = (codepoint << 6) | (bytes[i] & 0x3Fu);
+        codepoint = (codepoint << 6) | (bytes[i] & 0x3FU);
     }
 
     /*

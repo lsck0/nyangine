@@ -556,7 +556,7 @@ u64 nya_lua_memory_bytes(const NYA_LuaVM* vm) {
 
     // Kilobytes from Lua, bytes out: every other size in this engine is in bytes, and a unit that
     // changes at a module boundary is how a memory overlay ends up off by a thousand.
-    return (u64)lua_gc((lua_State*)vm->state, LUA_GCCOUNT, 0) * 1024ULL;
+    return (u64)lua_gc(vm->state, LUA_GCCOUNT, 0) * 1024ULL;
 }
 
 void nya_lua_collect(NYA_LuaVM* vm) {

@@ -31,7 +31,7 @@
 // AVX2 has FMA3 — both arrived with Haswell — so this widens nothing the -mavx2 above had not
 // already committed to.
 #define CFLAGS        "-std=c2y", "-mavx", "-mavx2", "-mfma", "-fdefer-ts", "-fenable-matrix", "-ggdb"
-#define WARNINGS      "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro"
+#define WARNINGS      "-Werror", "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro"
 // Only the project's own paths. Everything a third party dependency needs lives on its
 // NYA_VendorRule instead, so this does not grow as dependencies are added.
 #define INCLUDE_PATHS "-I./", "-I./src/"

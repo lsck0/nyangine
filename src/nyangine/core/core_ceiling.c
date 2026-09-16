@@ -97,7 +97,7 @@ u32 nya_ceiling_live_at(u32 index) {
 }
 
 #ifdef NYA_TESTING
-void _nya_ceiling_registry_reset_for_test(void) {
+__attr_maybe_unused void _nya_ceiling_registry_reset_for_test(void) {
     _nya_ceiling_registry = (_NYA_CeilingRegistry){ 0 };
 }
 #endif

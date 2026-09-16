@@ -55,6 +55,9 @@ Checks:
 
     -portability-avoid-pragma-once,
     -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+    # Fields are grouped by meaning. The structs it flags are singletons or per-call
+    # descriptors, where a few bytes of padding are paid once.
+    -clang-analyzer-optin.performance.Padding,
     -misc-include-cleaner,
   ]
 WarningsAsErrors: ""

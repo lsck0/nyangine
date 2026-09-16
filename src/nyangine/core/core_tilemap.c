@@ -539,14 +539,14 @@ NYA_INTERNAL b8 _nya_tilemap_blob_case_built = false;
 
 /** Bit positions in the raw 8-neighbour mask. Clockwise from north, edges and corners interleaved. */
 enum {
-    _NYA_TILEMAP_N  = 1u << 0,
-    _NYA_TILEMAP_NE = 1u << 1,
-    _NYA_TILEMAP_E  = 1u << 2,
-    _NYA_TILEMAP_SE = 1u << 3,
-    _NYA_TILEMAP_S  = 1u << 4,
-    _NYA_TILEMAP_SW = 1u << 5,
-    _NYA_TILEMAP_W  = 1u << 6,
-    _NYA_TILEMAP_NW = 1u << 7,
+    _NYA_TILEMAP_N  = 1U << 0,
+    _NYA_TILEMAP_NE = 1U << 1,
+    _NYA_TILEMAP_E  = 1U << 2,
+    _NYA_TILEMAP_SE = 1U << 3,
+    _NYA_TILEMAP_S  = 1U << 4,
+    _NYA_TILEMAP_SW = 1U << 5,
+    _NYA_TILEMAP_W  = 1U << 6,
+    _NYA_TILEMAP_NW = 1U << 7,
 };
 
 /** Drops the corner bits whose two adjoining edges are not both set. The collapse, in one place. */
@@ -589,10 +589,10 @@ u32 nya_tilemap_autotile_mask(NYA_TilemapAutoTileFilledFn filled, void* user_dat
     if (kind == NYA_TILEMAP_AUTOTILE_EDGES) {
         u32 mask = 0;
 
-        if (filled(x, y - 1, user_data)) mask |= 1u << 0;   // north
-        if (filled(x + 1, y, user_data)) mask |= 1u << 1;   // east
-        if (filled(x, y + 1, user_data)) mask |= 1u << 2;   // south
-        if (filled(x - 1, y, user_data)) mask |= 1u << 3;   // west
+        if (filled(x, y - 1, user_data)) mask |= 1U << 0;   // north
+        if (filled(x + 1, y, user_data)) mask |= 1U << 1;   // east
+        if (filled(x, y + 1, user_data)) mask |= 1U << 2;   // south
+        if (filled(x - 1, y, user_data)) mask |= 1U << 3;   // west
 
         return mask;
     }
@@ -648,7 +648,7 @@ NYA_Error nya_tilemap_autotile_layer(
 
     // Refused rather than clamped: a short table means the caller's sheet does not match the rule they
     // asked for, and reading past it would draw whatever happened to follow it in memory.
-    u32 required = kind == NYA_TILEMAP_AUTOTILE_EDGES ? 16u : 47u;
+    u32 required = kind == NYA_TILEMAP_AUTOTILE_EDGES ? 16U : 47U;
     if (lookup_length < required) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "auto-tiling needs " FMTu32 " lookup entries, got " FMTu32, required, lookup_length);
     }

@@ -20,7 +20,7 @@ void nya_render3d_sort_keys(NYA_Render3DSortKey* keys, NYA_Render3DSortKey* scra
     for (u32 shift = 0; shift < 32; shift += 8) {
         u32 histogram[256] = { 0 };
 
-        for (u32 i = 0; i < count; i++) histogram[(_nya_render3d_sort_bits(source[i].depth) >> shift) & 0xFFu]++;
+        for (u32 i = 0; i < count; i++) histogram[(_nya_render3d_sort_bits(source[i].depth) >> shift) & 0xFFU]++;
 
         // A pass whose digit is the same for every key would only copy the array; skipping it also
         // keeps the ping-pong parity correct, since the result must end up back in `keys`.
@@ -32,7 +32,7 @@ void nya_render3d_sort_keys(NYA_Render3DSortKey* keys, NYA_Render3DSortKey* scra
         }
 
         for (u32 i = 0; i < count; i++) {
-            u32 digit = (_nya_render3d_sort_bits(source[i].depth) >> shift) & 0xFFu;
+            u32 digit = (_nya_render3d_sort_bits(source[i].depth) >> shift) & 0xFFU;
 
             destination[histogram[digit]++] = source[i];
         }

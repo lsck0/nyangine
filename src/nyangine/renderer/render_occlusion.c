@@ -160,7 +160,7 @@ NYA_INTERNAL b8 _nya_occlusion_convex(NYA_OcclusionBuffer* buffer, _NYA_Occlusio
 void nya_occlusion_begin(NYA_OcclusionBuffer* buffer, f32_4x4 view_projection) {
     if (buffer == nullptr) return;
 
-    for (u64 i = 0; i < NYA_OCCLUSION_WIDTH * NYA_OCCLUSION_HEIGHT; i++) buffer->depth[i] = 1.0F;
+    for (u64 i = 0; i < (u64)NYA_OCCLUSION_WIDTH * NYA_OCCLUSION_HEIGHT; i++) buffer->depth[i] = 1.0F;
 
     buffer->view_projection = view_projection;
     buffer->ready           = true;

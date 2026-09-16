@@ -155,8 +155,13 @@ u32 _check_append_vendor_flags(NYA_ConstCString* arguments, u32 at) {
             arguments[at++] = vendors[i]->cflags[flag];
         }
 
+        // as system headers, so findings inside third party code are not reported as ours.
         for (u32 include = 0; include < NYA_VENDOR_MAX_FLAGS && vendors[i]->includes[include] != nullptr; include++) {
-            arguments[at++] = vendors[i]->includes[include];
+            NYA_ConstCString path = vendors[i]->includes[include];
+            if (nya_string_starts_with(path, "-I")) {
+                path = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "-isystem%s", path + 2));
+            }
+            arguments[at++] = path;
         }
     }
 

@@ -1234,11 +1234,11 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
     f32* bone_weights = nullptr;
 
     if (skeleton != nullptr) {
-        bone_indices = nya_arena_alloc(arena, total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(u32));
-        bone_weights = nya_arena_alloc(arena, total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(f32));
+        bone_indices = nya_arena_alloc(arena, (u64)total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(u32));
+        bone_weights = nya_arena_alloc(arena, (u64)total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(f32));
 
-        nya_memset(bone_indices, 0, total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(u32));
-        nya_memset(bone_weights, 0, total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(f32));
+        nya_memset(bone_indices, 0, (u64)total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(u32));
+        nya_memset(bone_weights, 0, (u64)total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(f32));
     }
 
     NYA_MeshPart* mesh_parts = nya_arena_alloc(arena, parts * sizeof(NYA_MeshPart));
@@ -1317,7 +1317,7 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                         s32 existing = -1;
 
                         for (u32 i = 0; i < texture_count; i++) {
-                            if (sources[i] == (const void*)texture->content.data) existing = (s32)i;
+                            if (sources[i] == texture->content.data) existing = (s32)i;
                         }
 
                         if (existing >= 0) {
@@ -1399,7 +1399,7 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                                     nya_log_warn("Could not upload a texture embedded in an FBX (%s); that part will draw untextured.",
                                              (NYA_ConstCString)upload.message);
                                 } else {
-                                    sources[texture_count]  = (const void*)texture->content.data;
+                                    sources[texture_count]  = texture->content.data;
                                     textures[texture_count] = staged.as_texture.texture;
 
                                     part->texture = (s32)texture_count;

@@ -5,6 +5,10 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
+// f128 vectors are passed by value below on purpose, and clang notes that the ABI for that differs
+// without avx512f. Nothing here crosses an ABI boundary.
+#pragma clang diagnostic ignored "-Wpsabi"
+
 s32 main(void) {
     // ── nya_matrix_transform: translation, rotation and scale composed into one matrix.
     {

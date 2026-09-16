@@ -38,6 +38,7 @@
 /** Name of the array type derived for `type`, e.g. NYA_Arrayᐸu32ᐳ. */
 #define _nya_derive_array_name(type) nya_template(NYA_Array, type)
 
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_derive_array(type)                                                                                                                       \
     typedef struct {                                                                                                                                 \
         u64        length;                                                                                                                           \
@@ -45,6 +46,7 @@
         type*      items;                                                                                                                            \
         NYA_Arena* arena;                                                                                                                            \
     } _nya_derive_array_name(type);
+// NOLINTEND(bugprone-macro-parentheses)
 
 nya_derive_array(b8);
 nya_derive_array(b16);

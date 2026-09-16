@@ -230,12 +230,16 @@ NYA_INTERNAL void _nya_log_path_for_day(OUT char* buffer, u32 size, s64 day) {
  * Parses `YYYY-MM-DD.log` back to a day count, or returns false for anything else.
  */
 NYA_INTERNAL b8 _nya_log_day_from_name(NYA_ConstCString name, OUT s64* out_day) {
-    s32 year  = 0;
-    u32 month = 0;
-    u32 date  = 0;
-    char tail = 0;
+    // exactly "DDDD-DD-DD.log", digits checked before they are converted.
+    const char PATTERN[] = "0000-00-00.log";
+    for (u32 i = 0; i < sizeof(PATTERN); i++) {
+        b8 matches = PATTERN[i] == '0' ? (name[i] >= '0' && name[i] <= '9') : name[i] == PATTERN[i];
+        if (!matches) return false;
+    }
 
-    if (sscanf(name, "%4d-%2u-%2u.log%c", &year, &month, &date, &tail) != 3) return false;
+    s32 year  = ((name[0] - '0') * 1000) + ((name[1] - '0') * 100) + ((name[2] - '0') * 10) + (name[3] - '0');
+    u32 month = (u32)(((name[5] - '0') * 10) + (name[6] - '0'));
+    u32 date  = (u32)(((name[8] - '0') * 10) + (name[9] - '0'));
     if (month < 1 || month > 12 || date < 1 || date > 31) return false;
 
     // The inverse of _nya_log_civil_from_days, same era shift.

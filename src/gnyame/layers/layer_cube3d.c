@@ -1104,11 +1104,9 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
      * never up at once). Emission is why it's worth it here: the lamps' beads are drawn past the bloom
      * threshold on purpose, and without this pass they're just small bright spheres.
      */
-    if (!bloom_world->bloom_enabled) {
-        _gny_cube3d_draw_scene(window);
-    } else if (!nya_post_begin(window, &bloom_world->post)) {
-        // Minimised or mid resize: draw straight to the window, the same fallback the 2D path takes
-        // rather than skipping the frame.
+    // minimised or mid resize, nya_post_begin fails and the scene goes straight to the window like the
+    // 2D path does, rather than skipping the frame.
+    if (!bloom_world->bloom_enabled || !nya_post_begin(window, &bloom_world->post)) {
         _gny_cube3d_draw_scene(window);
     } else {
         nya_perf_time_this_scope("gny_cube3d_bloom_pass");
@@ -1230,7 +1228,9 @@ f32 _gny_cube3d_occlusion(f32x3 source, void* user_data) {
         if (nya_entity_is_valid(hit)) blocked++;
     }
 
-    return (f32)blocked / (f32)nya_carray_length(targets);
+    u64 target_count = nya_carray_length(targets);
+
+    return (f32)blocked / (f32)target_count;
 }
 
 f32x3 _gny_cube3d_drop_point(void) {

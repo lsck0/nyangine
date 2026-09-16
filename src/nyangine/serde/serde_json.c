@@ -585,13 +585,13 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_string(_NYA_SerdeJsonParser* parser
                         char hex   = source[i + digit];
                         u32  value = 0;
 
-                        if ('0' <= hex && hex <= '9')
+                        if ('0' <= hex && hex <= '9') {
                             value = (u32)(hex - '0');
-                        else if ('a' <= hex && hex <= 'f')
+                        } else if ('a' <= hex && hex <= 'f') {
                             value = (u32)(hex - 'a') + 10;
-                        else if ('A' <= hex && hex <= 'F')
+                        } else if ('A' <= hex && hex <= 'F') {
                             value = (u32)(hex - 'A') + 10;
-                        else {
+                        } else {
                             ok = false;
                             break;
                         }

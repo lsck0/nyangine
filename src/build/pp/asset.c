@@ -215,7 +215,6 @@ void nya_asset_bundle(void) {
 
     NYA_Arena*  arena               = nya_arena_global;
     NYA_String* result              = nya_string_create(arena);
-    NYA_String* header_count_string = nya_string_create(arena);
     NYA_String* header_string       = nya_string_create(arena);
     NYA_String* blob_string         = nya_string_create(arena);
 
@@ -225,7 +224,7 @@ void nya_asset_bundle(void) {
     NYA_ArrayᐸNYA_Stringᐳ* files = _nya_asset_enumerate();
     nya_string_extend(result, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
     nya_string_extend(result, "#include \"nyangine/nyangine.h\"\n\n");
-    header_count_string = nya_string_sprintf(arena, "static const u64 NYA_ASSET_BLOB_HEADER_COUNT = " FMTu64 ";\n", files->length);
+    NYA_String* header_count_string = nya_string_sprintf(arena, "static const u64 NYA_ASSET_BLOB_HEADER_COUNT = " FMTu64 ";\n", files->length);
     nya_string_extend(header_string, "static const NYA_AssetBlobHeader NYA_ASSET_BLOB_HEADER[] = {\n");
     nya_string_extend(blob_string, "static const u8 NYA_ASSET_BLOB[] = {\n");
 

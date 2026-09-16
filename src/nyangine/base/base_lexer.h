@@ -58,7 +58,7 @@ enum NYA_LexerFlags {
     /**
      * Let bytes at or above 0x80 start and continue an identifier.
      * */
-    NYA_LEXER_UTF8_IDENTS = 1u << 0,
+    NYA_LEXER_UTF8_IDENTS = 1U << 0,
 };
 
 struct NYA_Token {

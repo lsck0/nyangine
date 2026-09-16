@@ -87,7 +87,7 @@ void nya_lexer_run(NYA_Lexer* lexer) {
             lexer->current_char_number += 2;
 
             u32 body_start = lexer->cursor;
-            u32 body_end   = lexer->cursor;
+            u32 body_end   = 0;
 
             while (true) {
                 current_char = lexer->source[lexer->cursor];

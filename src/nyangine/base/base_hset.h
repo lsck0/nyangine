@@ -38,6 +38,7 @@
 /** Name of the hash set type derived for `item_type`, e.g. NYA_HSetᐸu32ᐳ. */
 #define _nya_derive_hset_name(item_type) nya_template(NYA_HSet, item_type)
 
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_derive_hset(item_type)                                                                                                                   \
     typedef struct {                                                                                                                                 \
         u64        length;                                                                                                                           \
@@ -46,6 +47,7 @@
         b8*        occupied;                                                                                                                         \
         NYA_Arena* arena;                                                                                                                            \
     } _nya_derive_hset_name(item_type);
+// NOLINTEND(bugprone-macro-parentheses)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -235,6 +237,7 @@
  * being handed the *same* set twice — `nya_hset_union(a, a)`, `a \ a`, `a △ a` and `a ∩ a` are all
  * things a caller writes, and test_hset.c writes them.
  */
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define _nya_hset_snapshot(src_hset_ptr, items_name, count_name, bytes_name)                                                                         \
     u64                               bytes_name = ((src_hset_ptr)->length + 1) * sizeof(*(src_hset_ptr)->items);                                    \
     typeof((src_hset_ptr)->items[0])* items_name = nya_arena_alloc((src_hset_ptr)->arena, bytes_name);                                               \
@@ -242,6 +245,7 @@
     for (u64 _snapshot_idx = 0; _snapshot_idx < (src_hset_ptr)->capacity; _snapshot_idx++) {                                                         \
         if ((src_hset_ptr)->occupied[_snapshot_idx]) items_name[count_name++] = (src_hset_ptr)->items[_snapshot_idx];                                \
     }
+// NOLINTEND(bugprone-macro-parentheses)
 
 #define nya_hset_union(dest_hset_ptr, src_hset_ptr)                                                                                                  \
     do {                                                                                                                                             \
@@ -327,7 +331,7 @@
                 nya_arena_move(_hset_move_old_arena, new_arena_ptr, (hset_ptr)->occupied, sizeof(*(hset_ptr)->occupied) * (hset_ptr)->capacity),     \
             .length   = (hset_ptr)->length,                                                                                                          \
             .capacity = (hset_ptr)->capacity,                                                                                                        \
-            .arena    = new_arena_ptr                                                                                                                \
+            .arena    = (new_arena_ptr)                                                                                                              \
         };                                                                                                                                           \
         typeof(hset_ptr) _hset_move_new_ptr = nya_arena_alloc(new_arena_ptr, sizeof(*(hset_ptr)));                                                   \
         *_hset_move_new_ptr                 = _hset_move_tmp;                                                                                        \
@@ -341,8 +345,10 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+// NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define nya_hset_foreach(hset_ptr, item_name)                                                                                                        \
     for (u64 _hset_foreach_idx = 0; _hset_foreach_idx < (hset_ptr)->capacity; _hset_foreach_idx++)                                                   \
         if ((hset_ptr)->occupied[_hset_foreach_idx])                                                                                                 \
             for (int _hset_foreach_once = 1; _hset_foreach_once; _hset_foreach_once = 0)                                                             \
                 for (typeof((hset_ptr)->items[0]) item_name = (hset_ptr)->items[_hset_foreach_idx]; _hset_foreach_once; _hset_foreach_once = 0)
+// NOLINTEND(bugprone-macro-parentheses)

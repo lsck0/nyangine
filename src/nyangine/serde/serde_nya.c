@@ -530,9 +530,9 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_value(_NYA_SerdeNyaParser* parser, N
         case NYA_TYPE_B128: {
             b8 truth = false;
 
-            if (token->type == NYA_TOKEN_IDENT && _nya_serde_nya_token_equals(parser, token, "true"))
+            if (token->type == NYA_TOKEN_IDENT && _nya_serde_nya_token_equals(parser, token, "true")) {
                 truth = true;
-            else if (token->type != NYA_TOKEN_IDENT || !_nya_serde_nya_token_equals(parser, token, "false")) {
+            } else if (token->type != NYA_TOKEN_IDENT || !_nya_serde_nya_token_equals(parser, token, "false")) {
                 return nya_error(NYA_ERROR_PARSE, "expected true or false, got '%.*s'", (int)token->length, source);
             }
             parser->index++;

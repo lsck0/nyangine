@@ -72,9 +72,9 @@ NYA_API void                   nya_string_push_back(NYA_String* str, u8 characte
 NYA_API void                   nya_string_print(const NYA_String* str);
 NYA_API void                   nya_string_println(const NYA_String* str);
 NYA_API void                   nya_string_remove(NYA_String* str, NYA_ConstCString substr) __attr_overloaded;
-NYA_API void                   nya_string_remove(NYA_String* str, NYA_String* substr) __attr_overloaded;
+NYA_API void                   nya_string_remove(NYA_String* str, const NYA_String* substr) __attr_overloaded;
 NYA_API void                   nya_string_replace(NYA_String* str, NYA_ConstCString old, NYA_ConstCString new) __attr_overloaded;
-NYA_API void                   nya_string_replace(NYA_String* str, NYA_String* old, const NYA_String* new) __attr_overloaded;
+NYA_API void                   nya_string_replace(NYA_String* str, const NYA_String* old, const NYA_String* new) __attr_overloaded;
 NYA_API void                   nya_string_reserve(NYA_String* str, u64 capacity);
 NYA_API void                   nya_string_reverse(NYA_String* str);
 NYA_API void                   nya_string_shrink_to_fit(NYA_String* str);

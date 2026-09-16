@@ -64,7 +64,7 @@ s32 main(void) {
         nya_check(!runtime.ok && runtime.kind == NYA_ERROR_NOT_OK, "a raised error should not be");
 
         // Lua's own message names the line, which is why it is propagated rather than summarised.
-        nya_check(strstr(runtime.message, "deliberate") != nullptr, "and should carry Lua's message, got '%s'", runtime.message);
+        nya_check(strstr((const char*)runtime.message, "deliberate") != nullptr, "and should carry Lua's message, got '%s'", runtime.message);
     }
 
     // ── Calling a function, with arguments and a result.

@@ -604,32 +604,32 @@ NYA_INTERNAL void _nya_args_zsh_print_escaped(FILE* stream, NYA_ConstCString tex
         switch (*cursor) {
             // Close the word, hand zsh one escaped quote, reopen it. The only way a single quote
             // gets into a single quoted shell word.
-            case '\'': fprintf(stream, "'\\''"); break;
-            case ':':  fprintf(stream, "\\:"); break;
+            case '\'': (void)fprintf(stream, "'\\''"); break;
+            case ':':  (void)fprintf(stream, "\\:"); break;
             case '[':
             case ']':
-                if (escape_brackets) fprintf(stream, "\\");
-                fprintf(stream, "%c", *cursor);
+                if (escape_brackets) (void)fprintf(stream, "\\");
+                (void)fprintf(stream, "%c", *cursor);
                 break;
             // A description is one line in the completion listing, so anything that would break it
             // into two becomes a space.
             case '\n':
-            case '\r': fprintf(stream, " "); break;
-            default:   fprintf(stream, "%c", *cursor); break;
+            case '\r': (void)fprintf(stream, " "); break;
+            default:   (void)fprintf(stream, "%c", *cursor); break;
         }
     }
 }
 
 /** Writes `text` as a double quoted word nested inside the single quoted spec, for paths and globs. */
 NYA_INTERNAL void _nya_args_zsh_print_quoted(FILE* stream, NYA_ConstCString text) {
-    fprintf(stream, "\"");
+    (void)fprintf(stream, "\"");
     for (NYA_ConstCString cursor = text; *cursor != '\0'; cursor++) {
         // A glob's own metacharacters have to survive, so only what the shell would act on inside
         // double quotes is escaped. ${PWD} below is deliberately left expandable.
-        if (*cursor == '"' || *cursor == '\\' || *cursor == '`') fprintf(stream, "\\");
-        fprintf(stream, "%c", *cursor);
+        if (*cursor == '"' || *cursor == '\\' || *cursor == '`') (void)fprintf(stream, "\\");
+        (void)fprintf(stream, "%c", *cursor);
     }
-    fprintf(stream, "\"");
+    (void)fprintf(stream, "\"");
 }
 
 /** Translates the shell independent completion descriptor into the action half of an _arguments spec. */
@@ -643,47 +643,47 @@ NYA_INTERNAL void _nya_args_zsh_print_action(FILE* stream, const NYA_ArgParamete
     switch (kind) {
         case NYA_ARG_COMPLETION_KIND_FILE:
         case NYA_ARG_COMPLETION_KIND_DIRECTORY: {
-            fprintf(stream, "_files");
-            if (kind == NYA_ARG_COMPLETION_KIND_DIRECTORY) fprintf(stream, " -/");
+            (void)fprintf(stream, "_files");
+            if (kind == NYA_ARG_COMPLETION_KIND_DIRECTORY) (void)fprintf(stream, " -/");
 
             if (param->completion.directory != nullptr) {
-                fprintf(stream, " -W ");
+                (void)fprintf(stream, " -W ");
                 // _files takes -W as an absolute path. Given a relative one it silently completes
                 // from the filesystem root instead, which looks like the completion simply not
                 // working, so the working directory is spliced in by the shell at completion time.
                 b8 is_absolute = param->completion.directory[0] == '/';
                 if (!is_absolute) {
-                    fprintf(stream, "\"${PWD}/");
+                    (void)fprintf(stream, "\"${PWD}/");
                     for (NYA_ConstCString cursor = param->completion.directory; *cursor != '\0'; cursor++) {
-                        if (*cursor == '"' || *cursor == '\\' || *cursor == '`') fprintf(stream, "\\");
-                        fprintf(stream, "%c", *cursor);
+                        if (*cursor == '"' || *cursor == '\\' || *cursor == '`') (void)fprintf(stream, "\\");
+                        (void)fprintf(stream, "%c", *cursor);
                     }
-                    fprintf(stream, "\"");
+                    (void)fprintf(stream, "\"");
                 } else {
                     _nya_args_zsh_print_quoted(stream, param->completion.directory);
                 }
             }
 
             if (kind == NYA_ARG_COMPLETION_KIND_FILE && param->completion.glob != nullptr) {
-                fprintf(stream, " -g ");
+                (void)fprintf(stream, " -g ");
                 _nya_args_zsh_print_quoted(stream, param->completion.glob);
             }
         } break;
 
         case NYA_ARG_COMPLETION_KIND_CHOICES: {
-            fprintf(stream, "(");
+            (void)fprintf(stream, "(");
             for (u32 choice_index = 0; choice_index < NYA_ARG_MAX_CHOICES; choice_index++) {
                 NYA_ConstCString choice =
                     param->completion.choices_fn != nullptr ? param->completion.choices_fn(choice_index) : param->completion.choices[choice_index];
                 if (choice == nullptr) break;
 
-                if (choice_index > 0) fprintf(stream, " ");
+                if (choice_index > 0) (void)fprintf(stream, " ");
                 for (NYA_ConstCString cursor = choice; *cursor != '\0'; cursor++) {
-                    if (*cursor == ' ' || *cursor == '(' || *cursor == ')' || *cursor == '\'') fprintf(stream, "\\");
-                    fprintf(stream, "%c", *cursor);
+                    if (*cursor == ' ' || *cursor == '(' || *cursor == ')' || *cursor == '\'') (void)fprintf(stream, "\\");
+                    (void)fprintf(stream, "%c", *cursor);
                 }
             }
-            fprintf(stream, ")");
+            (void)fprintf(stream, ")");
         } break;
 
         // An empty action still tells _arguments the argument exists and takes a word, which is all
@@ -709,86 +709,86 @@ NYA_INTERNAL void _nya_args_zsh_print_command(const NYA_ArgCommandVisit* visit) 
     char function_name[_NYA_ARGS_NAME_MAX];
     nya_args_command_path_join(visit, context->root_function, "_", function_name, sizeof(function_name));
 
-    fprintf(stream, "%s() {\n", function_name);
-    fprintf(stream, "    local curcontext=\"$curcontext\" state line ret=1\n");
-    fprintf(stream, "    typeset -A opt_args\n\n");
-    fprintf(stream, "    _arguments -C \\\n");
+    (void)fprintf(stream, "%s() {\n", function_name);
+    (void)fprintf(stream, "    local curcontext=\"$curcontext\" state line ret=1\n");
+    (void)fprintf(stream, "    typeset -A opt_args\n\n");
+    (void)fprintf(stream, "    _arguments -C \\\n");
 
     for (u32 flag_index = 0; flag_index < visit->flag_count; flag_index++) {
         NYA_ArgParameter* flag = visit->flags[flag_index];
 
-        fprintf(stream, "        '--%s[", flag->name);
+        (void)fprintf(stream, "        '--%s[", flag->name);
         _nya_args_zsh_print_escaped(stream, flag->description, true);
-        fprintf(stream, "]");
+        (void)fprintf(stream, "]");
 
         // A boolean flag may be written bare, everything else consumes the next word.
         if (flag->value.type != NYA_TYPE_B8) {
-            fprintf(stream, ":%s:", flag->name);
+            (void)fprintf(stream, ":%s:", flag->name);
             _nya_args_zsh_print_action(stream, flag);
         }
 
-        fprintf(stream, "' \\\n");
+        (void)fprintf(stream, "' \\\n");
     }
 
     if (has_subcommands) {
-        fprintf(stream, "        '1: :->command' \\\n");
-        fprintf(stream, "        '*:: :->argument' \\\n");
+        (void)fprintf(stream, "        '1: :->command' \\\n");
+        (void)fprintf(stream, "        '*:: :->argument' \\\n");
     } else {
         for (u32 param_index = 0; param_index < NYA_ARG_MAX_PARAMETERS; param_index++) {
             NYA_ArgParameter* param = command->parameters[param_index];
             if (param == nullptr) break;
             if (param->kind != NYA_ARG_PARAMETER_KIND_POSITIONAL) continue;
 
-            fprintf(stream, "        '%s:%s:", param->variadic ? "*" : "", param->name);
+            (void)fprintf(stream, "        '%s:%s:", param->variadic ? "*" : "", param->name);
             _nya_args_zsh_print_action(stream, param);
-            fprintf(stream, "' \\\n");
+            (void)fprintf(stream, "' \\\n");
         }
     }
 
-    fprintf(stream, "        && ret=0\n");
+    (void)fprintf(stream, "        && ret=0\n");
 
     if (has_subcommands) {
-        fprintf(stream, "\n    case $state in\n");
-        fprintf(stream, "        command)\n");
-        fprintf(stream, "            local -a commands\n");
-        fprintf(stream, "            commands=(\n");
+        (void)fprintf(stream, "\n    case $state in\n");
+        (void)fprintf(stream, "        command)\n");
+        (void)fprintf(stream, "            local -a commands\n");
+        (void)fprintf(stream, "            commands=(\n");
 
         for (u32 subcommand_index = 0; subcommand_index < NYA_ARG_MAX_COMMANDS; subcommand_index++) {
             NYA_ArgCommand* subcommand = command->subcommands[subcommand_index];
             if (subcommand == nullptr) break;
 
-            fprintf(stream, "                '%s:", subcommand->name);
+            (void)fprintf(stream, "                '%s:", subcommand->name);
             _nya_args_zsh_print_escaped(stream, subcommand->description, false);
-            fprintf(stream, "'\n");
+            (void)fprintf(stream, "'\n");
         }
 
-        fprintf(stream, "            )\n");
-        fprintf(stream, "            _describe -t commands '%s' commands && ret=0\n", command->name ? command->name : "command");
-        fprintf(stream, "            ;;\n");
-        fprintf(stream, "        argument)\n");
-        fprintf(stream, "            case $line[1] in\n");
+        (void)fprintf(stream, "            )\n");
+        (void)fprintf(stream, "            _describe -t commands '%s' commands && ret=0\n", command->name ? command->name : "command");
+        (void)fprintf(stream, "            ;;\n");
+        (void)fprintf(stream, "        argument)\n");
+        (void)fprintf(stream, "            case $line[1] in\n");
 
         for (u32 subcommand_index = 0; subcommand_index < NYA_ARG_MAX_COMMANDS; subcommand_index++) {
             NYA_ArgCommand* subcommand = command->subcommands[subcommand_index];
             if (subcommand == nullptr) break;
 
-            fprintf(stream, "                %s) %s_%s && ret=0 ;;\n", subcommand->name, function_name, subcommand->name);
+            (void)fprintf(stream, "                %s) %s_%s && ret=0 ;;\n", subcommand->name, function_name, subcommand->name);
         }
 
-        fprintf(stream, "            esac\n");
-        fprintf(stream, "            ;;\n");
-        fprintf(stream, "    esac\n");
+        (void)fprintf(stream, "            esac\n");
+        (void)fprintf(stream, "            ;;\n");
+        (void)fprintf(stream, "    esac\n");
     }
 
-    fprintf(stream, "\n    return ret\n");
-    fprintf(stream, "}\n\n");
+    (void)fprintf(stream, "\n    return ret\n");
+    (void)fprintf(stream, "}\n\n");
 }
 
 void _nya_args_zsh_generate(NYA_ArgParser* parser, NYA_ConstCString binary_name, FILE* stream) {
-    fprintf(stream, "#compdef %s\n", binary_name);
-    fprintf(stream, "# Generated by %s", parser->name);
-    if (parser->version) fprintf(stream, " %s", parser->version);
-    fprintf(stream, ". Regenerate with '%s completions zsh', do not edit by hand.\n\n", binary_name);
+    (void)fprintf(stream, "#compdef %s\n", binary_name);
+    (void)fprintf(stream, "# Generated by %s", parser->name);
+    if (parser->version) (void)fprintf(stream, " %s", parser->version);
+    (void)fprintf(stream, ". Regenerate with '%s completions zsh', do not edit by hand.\n\n", binary_name);
 
     char root_function[_NYA_ARGS_NAME_MAX];
     (void)snprintf(root_function, sizeof(root_function), "_%s", binary_name);
@@ -798,7 +798,7 @@ void _nya_args_zsh_generate(NYA_ArgParser* parser, NYA_ConstCString binary_name,
 
     // Autoloaded #compdef files define their function and then run it, because compinit sources the
     // file in place of the call it was standing in for.
-    fprintf(stream, "%s \"$@\"\n", root_function);
+    (void)fprintf(stream, "%s \"$@\"\n", root_function);
 }
 
 b8 _nya_args_parse_value(NYA_Value* value, NYA_CString str) {

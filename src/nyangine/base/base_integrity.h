@@ -3,7 +3,8 @@
  * */
 #pragma once
 
-#include "nyangine/base/base.h"
+#include "nyangine/base/base_attributes.h"
+#include "nyangine/base/base_error.h"
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
 

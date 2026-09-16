@@ -328,8 +328,9 @@ void nya_nav_flow_build(NYA_NavFlow* flow, NYA_NavPoint goal) {
             flow->distance[neighbour] = tentative;
 
             // Bounded by the queue's own size; a cell re-entering is why this is not a plain BFS.
-            if (tail < cells) flow->queue[tail++] = neighbour;
-            else {
+            if (tail < cells) {
+                flow->queue[tail++] = neighbour;
+            } else {
                 head = 0;
                 tail = 0;
                 flow->queue[tail++] = neighbour;

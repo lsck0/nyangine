@@ -4,7 +4,9 @@
 #pragma once
 
 #include "nyangine/base/base_types.h"
-#include "nyangine/renderer/renderer.h"
+
+// declared, not included: renderer.h includes this file after defining the key.
+typedef struct NYA_Render3DSortKey NYA_Render3DSortKey;
 
 /**
  * Sorts `count` keys ascending by depth, using `scratch` of the same size.
