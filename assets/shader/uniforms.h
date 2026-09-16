@@ -205,6 +205,24 @@ struct NYA_ShaderMesh3DUniform {
     f32 fog_pad;
 };
 
+/*
+ * The cbuffer contract, checked.
+ *
+ * This file's header says a uniform block is an agreement between two files that no compiler verifies. It
+ * can be verified from this side: HLSL packs a constant buffer into sixteen-byte rows and never splits a
+ * member across one, so the layout is arithmetic, and these are the rows mesh3d_shading.hlsli declares —
+ * four scalar rows, two light arrays, the shadow row, the cascade matrices, the cascade row, and two fog
+ * rows. A field inserted anywhere but the end, or a float3 that stops being followed by a float, moves an
+ * offset and the shader silently reads the wrong member. That is what these catch.
+ */
+static_assert(offsetof(struct NYA_ShaderMesh3DUniform, point_light_position_range) == 64, "the four scalar rows come to 64 bytes");
+static_assert(offsetof(struct NYA_ShaderMesh3DUniform, edge) == 192, "the two point light arrays are 64 bytes each");
+static_assert(offsetof(struct NYA_ShaderMesh3DUniform, light_view_projection) == 208, "edge/shadow_strength/shadow_texel/shadow_bias are one row");
+static_assert(offsetof(struct NYA_ShaderMesh3DUniform, cascade_extent) == 208 + (16 * 4 * NYA_RENDER3D_SHADOW_CASCADES),
+              "one float4x4 per cascade, and nothing between them");
+static_assert(sizeof(struct NYA_ShaderMesh3DUniform) == offsetof(struct NYA_ShaderMesh3DUniform, cascade_extent) + 64,
+              "cascade_extent, the cascade row, and two fog rows close the block");
+
 /** Lights one nya_render2d_lights_apply may pass. Matches MAX_LIGHTS in light2d.frag.hlsl. */
 #define NYA_SHADER_LIGHT2D_MAX 16
 

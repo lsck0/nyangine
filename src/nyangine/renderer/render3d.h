@@ -473,6 +473,24 @@ struct NYA_Render3DShadowFit {
     f32 range;
 
     /**
+     * Where shadow casting *starts*, as a distance down the view. Zero is the camera's near plane.
+     *
+     * Named `near_distance` rather than `near`: `near` and `far` are legacy macros in the Windows headers
+     * that MinGW still defines, so a field called `near` compiles on Linux and fails to parse on the
+     * cross build.
+     *
+     * ⚠ **Set this whenever the camera is further from its subject than the subject is wide.** The
+     * cascades split the span from here to `range`, so leaving it at the near plane spends the sharp
+     * near cascades on the empty air between an orbit camera and what it is looking at, and drops the
+     * whole scene into the coarsest map — which is the blurry, misplaced-looking shadow that fitting
+     * the cascades to the frustum did not by itself fix.
+     *
+     * Measured, not guessed: the distance from the camera to the nearest caster. For a scene orbited
+     * from outside, that is the distance to its centre minus its radius.
+     * */
+    f32 near_distance;
+
+    /**
      * The camera's aspect ratio, width over height. Zero is 16:9.
      * */
     f32 aspect;

@@ -1010,6 +1010,16 @@
  * */
 #define GNY_CUBE3D_SHADOW_RANGE   (GNY_TERRAIN3D_EXTENT * 2.0F)
 
+/**
+ * How far casters reach from the scene's centre, in world units. See NYA_Render3DShadowFit.near.
+ *
+ * The terrain's half-diagonal plus headroom for what sits on it: the basin is GNY_TERRAIN3D_EXTENT across,
+ * so its corners are that times root two over two from the middle, and a dropped cube can be above the rim.
+ * Too small and casters near the edge fall outside the cascades; too large and the near cascade goes back
+ * to covering air.
+ * */
+#define GNY_CUBE3D_SHADOW_SUBJECT_REACH (GNY_TERRAIN3D_EXTENT * 0.85F)
+
 /** World units per second a networked player moves. See gny_net_apply_command. */
 #define GNY_PLAYER_SPEED 220.0F
 

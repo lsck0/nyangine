@@ -1066,12 +1066,28 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     f32 aspect = target_height > 0 ? (f32)target_width / (f32)target_height : 0.0F;
 
+    /*
+     * Where the casters start and end down the view, rather than the camera's near plane.
+     *
+     * The camera orbits *outside* the terrain, so everything that casts is in a shell around the target:
+     * nothing is nearer than the distance to the target minus the terrain's reach, and nothing is further
+     * than that plus it. Handing the near plane over instead put cascades zero and one in the empty air
+     * between the camera and the basin and left the whole scene in the coarsest map — blurry shadows that
+     * looked displaced from what cast them. See NYA_Render3DShadowFit.near_distance.
+     */
+    f32 subject_distance = nya_vector_length(shadow_camera.target - shadow_camera.position);
+    f32 subject_reach    = GNY_CUBE3D_SHADOW_SUBJECT_REACH;
+
+    f32 shadow_near = nya_max(subject_distance - subject_reach, 0.1F);
+    f32 shadow_far  = subject_distance + subject_reach;
+
     for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
         nya_render3d_shadow_begin(
             window,
             nya_render3d_shadow_for_camera(shadow_camera, sky.direction, cascade,
                                            (NYA_Render3DShadowFit){
-                                               .range    = GNY_CUBE3D_SHADOW_RANGE,
+                                               .near_distance = shadow_near,
+                                               .range    = shadow_far,
                                                .aspect   = aspect,
                                                .strength = GNY_CUBE3D_SHADOW_STRENGTH,
                                            })

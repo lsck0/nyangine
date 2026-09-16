@@ -120,21 +120,6 @@ NYA_INTERNAL SDL_GPUVertexBufferDescription vertex_buffer_description = {
 };
 
 /*
- * The depth-only shadow layout: position and nothing else. See NYA_VERTEX_LAYOUT_3D_DEPTH for why the
- * other three attributes are absent rather than merely unread.
- */
-NYA_INTERNAL SDL_GPUVertexAttribute vertex_attributes_3d_depth[] = {
-    { .location = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = nya_offsetof(NYA_Vertex3DDepth, position), .buffer_slot = 0 },
-};
-
-NYA_INTERNAL SDL_GPUVertexBufferDescription vertex_buffer_description_3d_depth = {
-    .slot               = 0,
-    .input_rate         = SDL_GPU_VERTEXINPUTRATE_VERTEX,
-    .instance_step_rate = 0,
-    .pitch              = sizeof(NYA_Vertex3DDepth),
-};
-
-/*
  * The retained mesh layout: the same vertices in buffer 0, plus a per-instance transform in buffer 1.
  * The four FLOAT4s at locations 4 to 7 are the *columns* of the model matrix, not its rows — no API
  * has a matrix element format, and the engine's matrices are column-major in memory. Splitting into
@@ -2037,12 +2022,6 @@ void _nya_asset_loading_process(NYA_Event* event) {
                         buffer_descriptions = &vertex_buffer_description_2d;
                         attributes          = vertex_attributes_2d;
                         attribute_count     = (u32)nya_carray_length(vertex_attributes_2d);
-                    } break;
-
-                    case NYA_VERTEX_LAYOUT_3D_DEPTH: {
-                        buffer_descriptions = &vertex_buffer_description_3d_depth;
-                        attributes          = vertex_attributes_3d_depth;
-                        attribute_count     = (u32)nya_carray_length(vertex_attributes_3d_depth);
                     } break;
 
                     case NYA_VERTEX_LAYOUT_3D_INSTANCED: {

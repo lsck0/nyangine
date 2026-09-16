@@ -88,12 +88,21 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
     f32 fov_y      = camera.fov_y > 0.0F ? camera.fov_y : ((f32)M_PI / 3.0F);
     f32 near_plane = camera.near_plane > 0.0F ? camera.near_plane : 0.1F;
 
+    /*
+     * Where the cascades start. See NYA_Render3DShadowFit.near_distance.
+     *
+     * The camera's near plane is the wrong answer for anything orbited from outside itself: the split
+     * then spends its two sharpest cascades on the gap between the camera and the subject, and the
+     * subject lands in the coarsest one. A caller that knows where its casters begin says so.
+     */
+    f32 shadow_near = fit.near_distance > near_plane ? fit.near_distance : near_plane;
+
     // A range inside the near plane names no slice. Clamped rather than asserted: a caller ramping the
     // shadow distance down to nothing should get no shadows, not a crash.
-    if (range <= near_plane) range = near_plane * 1.001F;
+    if (range <= shadow_near) range = shadow_near * 1.001F;
 
     f32 slice_near, slice_far;
-    _nya_render3d_cascade_slice(near_plane, range, cascade, &slice_near, &slice_far);
+    _nya_render3d_cascade_slice(shadow_near, range, cascade, &slice_near, &slice_far);
 
     f32x3 view_direction = camera.target - camera.position;
 

@@ -551,11 +551,8 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
           // No blending: the map holds the nearest depth, and blending two depths averages them into a
           // distance that describes neither surface.
-          .blend = false,
-
-          // Position alone. The immediate batch compacts its vertices down to this on the way to the GPU;
-          // see _nya_render3d_flush_immediate and NYA_VERTEX_LAYOUT_3D_DEPTH.
-          .vertex_layout = NYA_VERTEX_LAYOUT_3D_DEPTH,
+          .blend         = false,
+          .vertex_layout = NYA_VERTEX_LAYOUT_3D,
           .depth_test    = true,
           .depth_write   = true,
 
@@ -952,24 +949,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     );
     nya_assert(mesh_batch->index_transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for the 3D batch's indices: %s", SDL_GetError());
 
-    /*
-     * The shadow pass's own vertex buffer, a third the width.
-     *
-     * A second buffer rather than a prefix of the wide one: a vertex buffer has one pitch, and the pitch is
-     * what the input assembler strides by. Its own indices are not needed — a shadow pass draws the same
-     * triangles in the same order, so it binds the index buffer the camera pass already filled.
-     */
-    u32 mesh_depth_buffer_size = (u32)(NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3DDepth));
-
-    mesh_batch->depth_vertex_buffer =
-        SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = mesh_depth_buffer_size });
-    nya_assert(mesh_batch->depth_vertex_buffer != nullptr, "SDL_CreateGPUBuffer() failed for the 3D shadow batch: %s", SDL_GetError());
-
-    mesh_batch->depth_transfer_buffer = SDL_CreateGPUTransferBuffer(
-        gpu_device,
-        &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = mesh_depth_buffer_size }
-    );
-    nya_assert(mesh_batch->depth_transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for the 3D shadow batch: %s", SDL_GetError());
 
     /*
      * Two staging streams, each sized for the whole batch, sharing one GPU buffer.
@@ -1059,12 +1038,6 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     if (mesh_batch->transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->transfer_buffer);
     if (mesh_batch->index_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, mesh_batch->index_buffer);
     if (mesh_batch->index_transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->index_transfer_buffer);
-
-    // The shadow pass's narrow vertex stream, released beside the wide one it shadows. See
-    // NYA_Render3DBatch.depth_vertex_buffer: it has no index pair, because a shadow pass binds the index
-    // buffer above rather than one of its own.
-    if (mesh_batch->depth_vertex_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, mesh_batch->depth_vertex_buffer);
-    if (mesh_batch->depth_transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->depth_transfer_buffer);
 
     // The instance stream. A vertex buffer as far as SDL is concerned; only the pipeline's input rate
     // makes it per-instance, so it is released exactly like one.

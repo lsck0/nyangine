@@ -145,15 +145,6 @@ enum NYA_VertexLayout {
     /** NYA_Vertex3D: position, colour, normal, uv. Thirty-six bytes; see that struct for the packing. */
     NYA_VERTEX_LAYOUT_3D,
 
-    /**
-     * NYA_Vertex3DDepth: position alone. Twelve bytes, and what the immediate shadow pass uploads.
-     *
-     * A shadow pass writes depth and reads nothing else, so the uv, normal and colour it was being handed
-     * were twenty-four bytes per vertex uploaded across PCIe and discarded by the input assembler — three
-     * times over, once per cascade. Only the *immediate* shadow pipeline uses it: the instanced one draws
-     * out of a buffer uploaded once at registration, which the camera pass reads too and so must stay wide.
-     * */
-    NYA_VERTEX_LAYOUT_3D_DEPTH,
 
     /** NYA_Vertex3D in buffer 0, NYA_Render3DInstance in buffer 1, stepped per *instance*. What the
      * retained mesh path draws with — buffer 1 carries a model matrix and tint, letting one upload of a

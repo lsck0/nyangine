@@ -204,6 +204,21 @@ void nya_render3d_end(NYA_Window* window) {
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
     if (!batch->active) return;
 
+    /*
+     * Nesting inside the shadow pass is a no-op, for the same reason nya_render3d_begin's is.
+     *
+     * A caller draws its scene from one function so the shadow pass and the camera pass cannot disagree
+     * about what is in it — which means that function's own begin/end run inside the shadow pass too.
+     * `begin` already no-ops there; `end` did not, and it is the half that does damage: it cleared
+     * `shadow_valid` and `shadow_cascade_count` mid-sequence and set `active` to false, so a loop guarded
+     * by nya_render3d_active drew geometry into cascade zero and skipped every cascade after it. The
+     * shadow map then held one volume's worth of depth and the scene sampled three, which is what
+     * "the shadows are somewhere else" was.
+     *
+     * The pass is closed by nya_render3d_shadow_end, which is the partner that owns it.
+     */
+    if (batch->shadow_pass_active) return;
+
 
     // Drawn now, so anything render2d puts down afterwards lands in front of it. The 2D pipelines do
     // not test depth, so "in front" is decided purely by which flush happened last.
@@ -1973,43 +1988,11 @@ void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMe
     u32 vertex_upload_size = (u32)((opaque_vertices + transparent_vertices) * sizeof(NYA_Vertex3D));
     u32 index_upload_size  = (u32)((opaque_indices + transparent_indices) * sizeof(u32));
 
-    /*
-     * A shadow pass uploads positions alone, which is a third of the bytes.
-     *
-     * The streams stay NYA_Vertex3D on the CPU — every draw path writes one and the camera pass reads all
-     * of it — so the narrowing happens here, on the way out. A shadow pass reads only the position, and
-     * this runs once per cascade, so the uv, normal and colour were being sent across PCIe three times a
-     * frame to be discarded by the input assembler. See NYA_VERTEX_LAYOUT_3D_DEPTH.
-     */
-    b8 depth_only = batch->shadow_pass_active;
-
-    SDL_GPUTransferBuffer* vertex_transfer = depth_only ? batch->depth_transfer_buffer : batch->transfer_buffer;
-    SDL_GPUBuffer*         vertex_target   = depth_only ? batch->depth_vertex_buffer : batch->vertex_buffer;
-
-    if (depth_only) {
-        vertex_upload_size = (u32)((opaque_vertices + transparent_vertices) * sizeof(NYA_Vertex3DDepth));
-
-        NYA_Vertex3DDepth* mapped = SDL_MapGPUTransferBuffer(gpu_device, vertex_transfer, true);
-        nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D shadow batch: %s", SDL_GetError());
-
-        // A strided copy rather than a memcpy, which is the cost of the narrowing: it reads the same bytes
-        // the wide copy would and writes a third of them.
-        for (u32 i = 0; i < opaque_vertices; i++) {
-            nya_memcpy(mapped[i].position, opaque->vertices[i].position, sizeof(mapped[i].position));
-        }
-
-        for (u32 i = 0; i < transparent_vertices; i++) {
-            nya_memcpy(mapped[opaque_vertices + i].position, transparent->vertices[i].position, sizeof(mapped[i].position));
-        }
-
-        SDL_UnmapGPUTransferBuffer(gpu_device, vertex_transfer);
-    } else {
-        NYA_Vertex3D* mapped = SDL_MapGPUTransferBuffer(gpu_device, vertex_transfer, true);
-        nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D batch: %s", SDL_GetError());
-        nya_memcpy(mapped, opaque->vertices, opaque_vertices * sizeof(NYA_Vertex3D));
-        nya_memcpy(mapped + opaque_vertices, transparent->vertices, transparent_vertices * sizeof(NYA_Vertex3D));
-        SDL_UnmapGPUTransferBuffer(gpu_device, vertex_transfer);
-    }
+    NYA_Vertex3D* mapped = SDL_MapGPUTransferBuffer(gpu_device, batch->transfer_buffer, true);
+    nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D batch: %s", SDL_GetError());
+    nya_memcpy(mapped, opaque->vertices, opaque_vertices * sizeof(NYA_Vertex3D));
+    nya_memcpy(mapped + opaque_vertices, transparent->vertices, transparent_vertices * sizeof(NYA_Vertex3D));
+    SDL_UnmapGPUTransferBuffer(gpu_device, batch->transfer_buffer);
 
     u32* mapped_indices = SDL_MapGPUTransferBuffer(gpu_device, batch->index_transfer_buffer, true);
     nya_assert(mapped_indices != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D batch's indices: %s", SDL_GetError());
@@ -2026,8 +2009,8 @@ void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMe
 
     SDL_UploadToGPUBuffer(
         copy_pass,
-        &(SDL_GPUTransferBufferLocation){ .transfer_buffer = vertex_transfer, .offset = 0 },
-        &(SDL_GPUBufferRegion){ .buffer = vertex_target, .offset = 0, .size = vertex_upload_size },
+        &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->transfer_buffer, .offset = 0 },
+        &(SDL_GPUBufferRegion){ .buffer = batch->vertex_buffer, .offset = 0, .size = vertex_upload_size },
         true
     );
 
@@ -2042,7 +2025,7 @@ void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMe
 
     _nya_render2d_pass_resume(window);
 
-    SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = vertex_target, .offset = 0 }, 1);
+    SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer, .offset = 0 }, 1);
     SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer, .offset = 0 }, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
     if (!_nya_render3d_bind_samplers(window, batch->texture, batch->sampler)) {
@@ -2083,7 +2066,7 @@ void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMe
             // buffer nothing bound — an empty screen on a forgiving driver, a fault on a strict one.
             SDL_BindGPUGraphicsPipeline(render->render_pass, glass_pipeline->as_graphics_pipeline.pipeline);
 
-            SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = vertex_target, .offset = 0 }, 1);
+            SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer, .offset = 0 }, 1);
             SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer, .offset = 0 },
                                    SDL_GPU_INDEXELEMENTSIZE_32BIT);
 

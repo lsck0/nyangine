@@ -133,8 +133,16 @@ void nya_i18n_generate(void) {
             /*
              * Sorted before comparison, so a translation may reorder its arguments positionally.
              */
-            char expected[NYA_I18N_MAX_ARGUMENTS + 1];
-            char actual[NYA_I18N_MAX_ARGUMENTS + 1];
+            /*
+             * Zeroed, not merely assigned into.
+             *
+             * snprintf terminates what it writes, but _nya_i18n_sort_specifiers walks to the first '\0'
+             * and these are read again by nya_string_equals — so a buffer left holding whatever the stack
+             * had is a comparison against garbage. It showed up as a key with no format specifiers at all
+             * being reported as taking one, intermittently, depending on what the previous call left behind.
+             */
+            char expected[NYA_I18N_MAX_ARGUMENTS + 1] = { 0 };
+            char actual[NYA_I18N_MAX_ARGUMENTS + 1]   = { 0 };
 
             (void)snprintf(expected, sizeof(expected), "%s", keys[i].specifiers);
             (void)snprintf(actual, sizeof(actual), "%s", translated_key.specifiers);

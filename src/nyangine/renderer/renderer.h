@@ -22,7 +22,6 @@
 typedef struct NYA_RenderSystem       NYA_RenderSystem;
 typedef struct NYA_RenderSystemWindow NYA_RenderSystemWindow;
 typedef struct NYA_Vertex3D             NYA_Vertex3D;
-typedef struct NYA_Vertex3DDepth        NYA_Vertex3DDepth;
 typedef struct NYA_Render3DInstance     NYA_Render3DInstance;
 typedef struct NYA_Render3DSortKey      NYA_Render3DSortKey;
 typedef struct NYA_Render3DStream        NYA_Render3DStream;
@@ -519,15 +518,6 @@ struct NYA_Render3DBatch {
     SDL_GPUTransferBuffer* index_transfer_buffer;
 
     /**
-     * The same vertices with everything but the position dropped, for the immediate shadow pass.
-     *
-     * Its own pair rather than a region of the wide buffer, because a vertex buffer has one pitch. No index
-     * pair: a shadow pass draws the same triangles in the same order and binds the index buffer above.
-     * */
-    SDL_GPUBuffer*         depth_vertex_buffer;
-    SDL_GPUTransferBuffer* depth_transfer_buffer;
-
-    /**
      * CPU side staging, filled by the draw calls and copied into the transfer buffer on flush. The two
      * share one GPU buffer and one capacity: opaque is uploaded at offset zero and transparent straight
      * after it, so the pair costs no more VRAM than the single stream did.
@@ -800,17 +790,6 @@ struct NYA_Vertex3D {
 
 static_assert(sizeof(NYA_Vertex3D) == 36, "the 3D vertex layout in core_asset.c describes a 36 byte vertex");
 
-/**
- * What the immediate shadow pass uploads: the position and nothing else. See NYA_VERTEX_LAYOUT_3D_DEPTH.
- *
- * Three plain floats rather than an `f32x3`, for the reason NYA_Vertex3D says: the vector type is sixteen
- * bytes and would give back a third of what this exists to save.
- * */
-struct NYA_Vertex3DDepth {
-    f32 position[3];
-};
-
-static_assert(sizeof(NYA_Vertex3DDepth) == 12, "the depth-only shadow vertex is three floats and no padding");
 
 /**
  * Builds one, from the wide types a caller actually has.
