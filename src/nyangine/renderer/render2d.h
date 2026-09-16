@@ -557,6 +557,7 @@ NYA_API void nya_render_texture_end(NYA_Window* window);
  * */
 NYA_API void nya_render2d_render_texture(NYA_Window* window, const NYA_RenderTexture* render_texture, f32 x, f32 y, f32 width, f32 height, NYA_Color tint);
 
+
 /*
  * ─────────────────────────────────────────────────────────
  * INTROSPECTION
