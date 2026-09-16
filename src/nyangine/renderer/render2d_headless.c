@@ -317,6 +317,11 @@ NYA_RenderTexture nya_render_texture_create(NYA_Window* window, u32 width, u32 h
     return (NYA_RenderTexture){ .texture = nullptr, .width = width, .height = height };
 }
 
+NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, u32 height, NYA_RenderTextureOptions options) {
+    nya_unused(window, options);
+    return (NYA_RenderTexture){ .texture = nullptr, .width = width, .height = height };
+}
+
 void nya_render_texture_destroy(NYA_RenderTexture* render_texture) {
     if (render_texture != nullptr) *render_texture = (NYA_RenderTexture){ 0 };
 }

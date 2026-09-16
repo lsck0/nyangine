@@ -29,6 +29,8 @@ typedef struct NYA_Render2DBatch          NYA_Render2DBatch;
 typedef struct NYA_Render2DDrawRange      NYA_Render2DDrawRange;
 typedef struct NYA_Render3DBatch          NYA_Render3DBatch;
 typedef struct NYA_RenderTexture      NYA_RenderTexture;
+typedef struct NYA_RenderTextureOptions NYA_RenderTextureOptions;
+typedef enum NYA_RenderTextureDepth     NYA_RenderTextureDepth;
 typedef struct NYA_Vertex2D           NYA_Vertex2D;
 typedef enum NYA_TextureFilter        NYA_TextureFilter;
 /** The handles the built in pipelines are registered under. Shared by every window. */
@@ -166,9 +168,12 @@ struct NYA_RenderTexture {
 
     /**
      * The depth buffer for passes that draw into this texture. Present for the same reason the window has
-     * one and created with it, so a 3D scene rendered offscreen — into a bloom or CRT pass, say — occludes
-     * itself exactly as it would on the swapchain. Without it, 3D geometry draws in submission order, a
-     * bug that only appears once someone adds a post effect to a scene that already worked.
+     * one, so a 3D scene rendered offscreen — into a bloom or CRT pass, say — occludes itself exactly as it
+     * would on the swapchain. Without it, 3D geometry draws in submission order, a bug that only appears
+     * once someone adds a post effect to a scene that already worked.
+     *
+     * Null when the texture was created NYA_RENDER_TEXTURE_DEPTH_NONE, which only a 2D target may be.
+     * nya_render3d_begin asserts on it rather than letting that bug happen quietly.
      * */
     SDL_GPUTexture* depth_texture;
 

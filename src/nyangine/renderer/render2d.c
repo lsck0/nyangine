@@ -1373,8 +1373,13 @@ void nya_render2d_scissor_end(NYA_Window* window) {
  */
 
 NYA_RenderTexture nya_render_texture_create(NYA_Window* window, u32 width, u32 height) {
+    return nya_render_texture_create_with(window, width, height, (NYA_RenderTextureOptions){ 0 });
+}
+
+NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, u32 height, NYA_RenderTextureOptions options) {
     nya_assert(window != nullptr);
     nya_assert(width > 0 && height > 0, "a render texture needs a non-zero size");
+    nya_assert(options.depth < NYA_RENDER_TEXTURE_DEPTH_COUNT, "NYA_RenderTextureOptions.depth is not one of the enum's values");
 
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
@@ -1422,21 +1427,26 @@ NYA_RenderTexture nya_render_texture_create(NYA_Window* window, u32 width, u32 h
     }
 
     // Same format and same sample count as the window's, because the pipelines that draw here are
-    // the very same objects and both are baked into them.
-    SDL_GPUTexture* depth_texture = SDL_CreateGPUTexture(
-        gpu_device,
-        &(SDL_GPUTextureCreateInfo){
-            .type                 = SDL_GPU_TEXTURETYPE_2D,
-            .format               = nya_app_get()->render_system.depth_format,
-            .usage                = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
-            .width                = width,
-            .height               = height,
-            .layer_count_or_depth = 1,
-            .num_levels           = 1,
-            .sample_count         = nya_app_get()->render_system.sample_count,
-        }
-    );
-    nya_assert(depth_texture != nullptr, "SDL_CreateGPUTexture() failed for a render texture's depth buffer: %s", SDL_GetError());
+    // the very same objects and both are baked into them. Which also makes it the largest of the three:
+    // multisampled, so four times the resolved colour target.
+    SDL_GPUTexture* depth_texture = nullptr;
+
+    if (options.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED) {
+        depth_texture = SDL_CreateGPUTexture(
+            gpu_device,
+            &(SDL_GPUTextureCreateInfo){
+                .type                 = SDL_GPU_TEXTURETYPE_2D,
+                .format               = nya_app_get()->render_system.depth_format,
+                .usage                = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
+                .width                = width,
+                .height               = height,
+                .layer_count_or_depth = 1,
+                .num_levels           = 1,
+                .sample_count         = nya_app_get()->render_system.sample_count,
+            }
+        );
+        nya_assert(depth_texture != nullptr, "SDL_CreateGPUTexture() failed for a render texture's depth buffer: %s", SDL_GetError());
+    }
 
     return (NYA_RenderTexture){
         .texture       = texture,
@@ -1494,15 +1504,18 @@ void nya_render_texture_begin(NYA_Window* window, NYA_RenderTexture* render_text
         },
         1,
         // Cleared to the far plane along with the colour, because this is the start of drawing into
-        // this target and last frame's depth would occlude this frame's geometry.
-        &(SDL_GPUDepthStencilTargetInfo){
-            .texture          = render_texture->depth_texture,
-            .clear_depth      = 1.0F,
-            .load_op          = SDL_GPU_LOADOP_CLEAR,
-            .store_op         = SDL_GPU_STOREOP_STORE,
-            .stencil_load_op  = SDL_GPU_LOADOP_DONT_CARE,
-            .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
-        }
+        // this target and last frame's depth would occlude this frame's geometry. Null, not a struct
+        // naming a null texture, when the target has no depth buffer: SDL reads the pointer itself to
+        // decide whether the pass has a depth-stencil target at all.
+        render_texture->depth_texture == nullptr ? nullptr
+                                                 : &(SDL_GPUDepthStencilTargetInfo){
+                                                       .texture          = render_texture->depth_texture,
+                                                       .clear_depth      = 1.0F,
+                                                       .load_op          = SDL_GPU_LOADOP_CLEAR,
+                                                       .store_op         = SDL_GPU_STOREOP_STORE,
+                                                       .stencil_load_op  = SDL_GPU_LOADOP_DONT_CARE,
+                                                       .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
+                                                   }
     );
     nya_assert(render->render_pass != nullptr, "SDL_BeginGPURenderPass() failed for a render texture: %s", SDL_GetError());
 
@@ -1967,14 +1980,16 @@ void _nya_render2d_pass_resume(NYA_Window* window) {
         1,
         // LOAD, not CLEAR, for exactly the reason the colour target does: this reopens a pass in the
         // middle of drawing a target, and clearing here would throw away the depth of everything
-        // drawn before whatever forced the suspend.
-        &(SDL_GPUDepthStencilTargetInfo){
-            .texture          = batch->target_depth,
-            .load_op          = SDL_GPU_LOADOP_LOAD,
-            .store_op         = SDL_GPU_STOREOP_STORE,
-            .stencil_load_op  = SDL_GPU_LOADOP_DONT_CARE,
-            .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
-        }
+        // drawn before whatever forced the suspend. Null when the target has no depth buffer, matching
+        // the pass nya_render_texture_begin opened — the two have to agree or the bound pipelines do not.
+        batch->target_depth == nullptr ? nullptr
+                                       : &(SDL_GPUDepthStencilTargetInfo){
+                                             .texture          = batch->target_depth,
+                                             .load_op          = SDL_GPU_LOADOP_LOAD,
+                                             .store_op         = SDL_GPU_STOREOP_STORE,
+                                             .stencil_load_op  = SDL_GPU_LOADOP_DONT_CARE,
+                                             .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
+                                         }
     );
     nya_assert(render->render_pass != nullptr, "SDL_BeginGPURenderPass() failed while resuming: %s", SDL_GetError());
 

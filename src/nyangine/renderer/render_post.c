@@ -24,8 +24,17 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
 
     nya_post_chain_destroy(chain);
 
+    /*
+     * Only targets[0] carries a depth buffer.
+     *
+     * It is the one the scene is captured into, by nya_post_begin, and a 3D scene has to occlude itself
+     * there exactly as it would on the swapchain. targets[1] is only ever a destination for the fullscreen
+     * quads between passes, which render2d draws with depth testing and writing off, so the buffer it used
+     * to get was 33 MB at 1080p and 4x that nothing drawing into it could reach.
+     */
     chain->targets[0] = nya_render_texture_create(window, width, height);
-    chain->targets[1] = nya_render_texture_create(window, width, height);
+    chain->targets[1] = nya_render_texture_create_with(window, width, height,
+                                                       (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE });
     chain->width      = width;
     chain->height     = height;
 

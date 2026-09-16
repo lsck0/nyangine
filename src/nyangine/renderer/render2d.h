@@ -539,10 +539,53 @@ NYA_API void nya_render2d_scissor_end(NYA_Window* window);
  */
 
 /**
+ * Whether a render texture carries a depth buffer.
+ * */
+enum NYA_RenderTextureDepth {
+    /** The default, and what a 3D scene needs. Costs width * height * 4 * the renderer's sample count. */
+    NYA_RENDER_TEXTURE_DEPTH_ATTACHED = 0,
+
+    /**
+     * No depth buffer, for a target only ever drawn into with render2d.
+     *
+     * Every 2D pipeline is built with depth testing and writing off, so it declares no depth-stencil
+     * target and cannot read or write one. A post-processing ping-pong target is the case this exists
+     * for: at 1080p and 4x it was carrying 33 MB that nothing drawing into it could reach.
+     * */
+    NYA_RENDER_TEXTURE_DEPTH_NONE,
+
+    NYA_RENDER_TEXTURE_DEPTH_COUNT,
+};
+
+/**
+ * Anything about a render texture that is not its size.
+ * */
+struct NYA_RenderTextureOptions {
+    NYA_RenderTextureDepth depth;
+};
+
+/**
  * Creates an offscreen target that can be drawn into and then drawn with.
+ *
+ * Carries a depth buffer, so a 3D scene drawn into it occludes itself. Take
+ * nya_render_texture_create_with to drop it for a target only render2d ever draws into.
  * */
 NYA_API NYA_RenderTexture nya_render_texture_create(NYA_Window* window, u32 width, u32 height) __attr_no_discard;
-NYA_API void              nya_render_texture_destroy(NYA_RenderTexture* render_texture);
+
+/**
+ * As nya_render_texture_create, with `options`.
+ *
+ * ```c
+ * // A target for fullscreen 2D passes, with no depth buffer behind it.
+ * NYA_RenderTexture scratch = nya_render_texture_create_with(
+ *     window, width, height, (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE }
+ * );
+ * ```
+ * */
+NYA_API NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, u32 height,
+                                                         NYA_RenderTextureOptions options) __attr_no_discard;
+
+NYA_API void nya_render_texture_destroy(NYA_RenderTexture* render_texture);
 
 /**
  * Points subsequent drawing at `render_texture`, clearing it to `clear`.
