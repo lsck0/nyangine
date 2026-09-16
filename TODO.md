@@ -189,6 +189,15 @@ invalidated by the `TTF_Font*` would remove it.
 - `[ ]` GPU allocations should register with the ceiling registry instead of hand computed VRAM figures.
 - `[ ]` RSS has no breakdown by arena anywhere a profile can reach.
 
+## `[ ]` Startup time
+
+Release on Linux/Wayland reaches the first frame about 65 ms after exec (was 135). Startup logs engine
+init, subsystems and first frame; each subsystem's bring-up time is at debug level.
+
+- `[ ]` The renderer's GPU device takes ~24 ms and window plus swapchain ~15 ms, both on the main thread.
+- `[ ]` The gamepad subsystem now starts after the first frame, so frame two carries its ~40 ms.
+- `[ ]` Not measured on Windows.
+
 ## `[ ]` UI system
 
 `src/nyangine/ui/ui.c` is one line, `ui.h` is `#pragma once`, and the include is commented out in
@@ -203,6 +212,12 @@ invalidated by the `TTF_Font*` would remove it.
 - `net_steam.c` returns `NYA_ERROR_NOT_SUPPORTED`.
 - `plugins/steam/steam.c` has never been compiled: `FLAGS_STEAM_*` in `src/build/flags.h` define
   `NYA_PLUGIN_STEAM`, but no build rule uses them. `NYA_EXECUTION_MODE=3` is called "steam".
+
+## `[ ]` gnyame
+
+- `[ ]` layer_background.c also starts the music and writes the perf report, because it is the one layer
+  always present. Both belong in a system.
+- `[ ]` The menu widget has no test; screens.c is only exercised by hand.
 
 ## `[ ]` The game side has no tests
 
