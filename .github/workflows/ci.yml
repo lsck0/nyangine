@@ -16,8 +16,28 @@ concurrency:
 permissions: {}
 
 jobs:
-  # The fast half, so a formatting or lint failure lands before the 60 minute vendor builds do.
+  # Vendors build once per cache key here and are saved before anything else runs, so the jobs below
+  # restore them instead of each compiling the same hour of dependencies in parallel.
+  vendor-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          submodules: recursive
+          lfs: true
+          # The token is only needed to clone. Left in .git/config it travels into anything that
+          # archives the workspace, and nothing here pushes.
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-linux
+        with:
+          llvm-version: 22
+
   check-linux:
+    needs: vendor-linux
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -31,7 +51,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-linux
+      - uses: ./.github/actions/setup-linux
         with:
           llvm-version: 22
 
@@ -49,6 +69,7 @@ jobs:
             'git cat-file -e "$sha1" || { echo "::error::$name pin $sha1 is unreachable"; exit 1; }'
 
   test-linux:
+    needs: vendor-linux
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -62,7 +83,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-linux
+      - uses: ./.github/actions/setup-linux
         with:
           llvm-version: 22
 
@@ -70,6 +91,7 @@ jobs:
         run: ./build run test
 
   build-linux:
+    needs: vendor-linux
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -83,7 +105,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-linux
+      - uses: ./.github/actions/setup-linux
         with:
           llvm-version: 22
 
@@ -97,7 +119,7 @@ jobs:
   # and signtool.
   #
   # MSYS2 is slow to bring up and builds every vendor natively, hence the longer timeout.
-  test-windows:
+  vendor-windows:
     runs-on: windows-latest
     timeout-minutes: 120
     permissions:
@@ -114,7 +136,29 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-windows
+      - uses: ./.github/actions/setup-windows
+        with:
+          llvm-version: 22
+
+  test-windows:
+    needs: vendor-windows
+    runs-on: windows-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          submodules: recursive
+          lfs: true
+          # The token is only needed to clone. Left in .git/config it travels into anything that
+          # archives the workspace, and nothing here pushes.
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-windows
         with:
           llvm-version: 22
 
@@ -122,6 +166,7 @@ jobs:
         run: ./build.exe run test
 
   build-windows:
+    needs: vendor-windows
     runs-on: windows-latest
     timeout-minutes: 120
     permissions:
@@ -138,7 +183,7 @@ jobs:
           # archives the workspace, and nothing here pushes.
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-windows
+      - uses: ./.github/actions/setup-windows
         with:
           llvm-version: 22
 

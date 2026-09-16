@@ -30,7 +30,7 @@ jobs:
           # through the API.
           persist-credentials: false
 
-      - uses: $/.github/actions/setup-linux
+      - uses: ./.github/actions/setup-linux
         with:
           llvm-version: 22
 
