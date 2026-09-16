@@ -173,9 +173,7 @@ struct NYA_TypeReflection {
 /** The field called `name`, or null. Does not search into nested structs; see nya_reflect_path. */
 NYA_API const NYA_ReflectField* nya_reflect_field(const NYA_TypeReflection* type, NYA_ConstCString name) __attr_no_discard;
 
-/**
- * The field at a dotted path — `"visual.color.r"` — resolving through nested structs.
- * */
+/** The field at a dotted path such as `"visual.color.r"`, resolving through nested structs. */
 NYA_API const NYA_ReflectField* nya_reflect_path(const NYA_TypeReflection* type, NYA_ConstCString path, void* instance,
                                                 OUT void** out_instance) __attr_no_discard;
 
@@ -193,7 +191,7 @@ NYA_API b8 nya_reflect_variant_value(const NYA_TypeReflection* type, NYA_ConstCS
  * */
 NYA_API NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance) __attr_no_discard;
 
-/** The inverse. Converts where it safely can — an integer widens, a float does not become an integer. */
+/** The inverse. Converts where safe: integers widen, floats never become integers. */
 NYA_API b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value value);
 
 /*

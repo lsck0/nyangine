@@ -36,8 +36,8 @@ NYA_INTERNAL void _gny_background_motes_draw(NYA_Window* window, f32x2 camera);
 void gny_layer_background_on_create(NYA_Window* window) {
     nya_unused(window);
 
-    // Nothing to build for the drawing. Every plane below is analytic — a sine and a hash — rather
-    // than an asset, so there is no texture to load and nothing that has to survive a reload.
+    // nothing to build: every plane below is analytic (a sine and a hash), so no texture to load or keep
+    // across a reload.
 
     // Streamed rather than predecoded, unlike the impact clip. Predecoding a minute of stereo audio
     // means holding it uncompressed for the whole run to save a decode that only happens once, and
@@ -99,8 +99,7 @@ void gny_layer_background_on_update(NYA_Window* window, f32 delta_time_s) {
 void gny_layer_background_on_render(NYA_Window* window) {
     NYA_Camera2DTopDown view = gny_entity_camera_get();
 
-    // Scaled by the zoom, so zooming in moves the background less than the world rather than the
-    // same amount — the far planes stay far.
+    // scaled by the zoom, so the background moves less than the world and far planes stay far.
     f32x2 camera = view.position * view.zoom;
 
     /*

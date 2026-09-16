@@ -5,7 +5,7 @@
 // Before the layers, which size the terrain array from GNY_TERRAIN_POINT_COUNT.
 #include "gnyame/constants.h"
 /**/
-// NYA_CONFIG, which the world and its systems may read once they exist — so named before either.
+// NYA_CONFIG, which the world and its systems may read, so it is declared before either.
 #include "gnyame/config.h"
 /**/
 // What the player can ask for, before anything that asks whether they did.
@@ -51,9 +51,7 @@ void gny_net_stop(void);
  * There is no gny_net_tick. The engine drives it.
  */
 
-/**
- * Turns a command into movement. Registered on **both** the server and the client.
- * */
+/** Turns a command into movement. Registered on both the server and the client. */
 void gny_net_apply_command(NYA_Entity* entity, const NYA_NetCommand* command, f32 delta_time_s);
 
 /** Reads the local player's input into a command. The client's only way to know what the player wants. */

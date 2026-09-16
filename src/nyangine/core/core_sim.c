@@ -25,8 +25,7 @@ void nya_system_sim_init(void) {
 
     nya_log_info("Simulation system initialized.");
 
-    // Guarded so bringing the app up and down within one process — tests do this a lot — does not
-    // add a copy of itself to the ceiling registry on every cycle.
+    // guarded so bringing the app up and down in one process, as tests do, registers the ceiling once.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("sim_observers", NYA_SIM_OBSERVER_MAX, &nya_world()->sim_system.observer_count);
@@ -80,8 +79,8 @@ void nya_system_sim_end_frame(void) {
 
     NYA_SimSystem* sim = &nya_world()->sim_system;
 
-    // Anything still queued missed every barrier this frame; applying it here rather than carrying it
-    // over avoids a command landing a frame late — the kind of bug that shows up as a flicker much later.
+    // anything still queued missed every barrier this frame. Applied now so a command never lands a frame
+    // late.
     nya_system_sim_apply_commands();
 
     for (u32 i = 0; i < sim->observer_count; i++) {

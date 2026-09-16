@@ -61,8 +61,7 @@ void gny_sim_observe(const NYA_ArrayᐸNYA_SimRecordᐳ* records, void* user_dat
         }
     }
 
-    // Counters the HUD reads. Copied out of the records because those are cleared the moment this
-    // returns — an observer that wanted to keep something had to say so.
+    // counters the HUD reads, copied because the records are cleared when this returns.
     world->hits       += impacts;
     world->boxes_lost += lost;
 
@@ -99,8 +98,7 @@ void _gny_sim_impact_play(const GNY_SimImpact* impact) {
             .size        = GNY_SPARK_SIZE_START,
             .size_end    = GNY_SPARK_SIZE_END,
             .color_start = GNY_SPARK_COLOR,
-            // Zero alpha, so they fade rather than vanishing — a particle that disappears at full
-            // brightness reads as a glitch.
+            // zero alpha, so they fade out. Vanishing at full brightness reads as a glitch.
             .color_end = { 1.0F, 0.35F, 0.05F, 0.0F },
             .gravity   = { 0.0F, GNY_SPARK_GRAVITY, 0.0F },
             .damping   = 1.5F,

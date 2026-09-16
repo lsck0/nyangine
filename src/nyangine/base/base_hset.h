@@ -18,7 +18,7 @@
  * nya_hset_foreach (player_set, player) nya_log_info("Player %u: %s", player->id, player->name);
  *
  * nya_arena_destroy(arena);
- * ```c
+ * ```
  * */
 #pragma once
 
@@ -233,9 +233,8 @@
  */
 
 /*
- * All four set operations walk one set and mutate another, and every one of them has to tolerate
- * being handed the *same* set twice — `nya_hset_union(a, a)`, `a \ a`, `a △ a` and `a ∩ a` are all
- * things a caller writes, and test_hset.c writes them.
+ * All four set operations walk one set and mutate another, and must tolerate the same set on both
+ * sides: `nya_hset_union(a, a)`, `a \ a`, `a △ a` and `a ∩ a`. test_hset.c covers them.
  */
 // NOLINTBEGIN(bugprone-macro-parentheses): type and declarator parameters cannot be parenthesized
 #define _nya_hset_snapshot(src_hset_ptr, items_name, count_name, bytes_name)                                                                         \

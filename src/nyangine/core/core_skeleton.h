@@ -63,9 +63,7 @@ struct NYA_SkeletonBone {
      * */
     s32 parent;
 
-    /**
-     * Model space to bone space at bind time — the inverse bind matrix.
-     * */
+    /** Model space to bone space at bind time: the inverse bind matrix. */
     f32_4x4 inverse_bind;
 
     /** The bone's own transform in the rest pose, for nya_skeleton_pose_rest. */
@@ -166,19 +164,18 @@ NYA_API void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 de
 /**
  * Every bone's model-space transform for `pose`. `out_model` holds NYA_SKELETON_MAX_BONES entries.
  *
- * Where each bone *is*, as opposed to how it moves a vertex — which is what nya_skeleton_palette gives and
- * what a socket cannot use, since a palette entry has the inverse bind folded in and is the identity for a
- * bone that has not moved.
+ * Where each bone is, for sockets. A palette entry has the inverse bind folded in and is the identity
+ * for a bone that has not moved, so it cannot place an accessory.
  *
  * ```c
- * // A hat on the head bone.
+ * // a hat on the head bone.
  * f32_4x4 model[NYA_SKELETON_MAX_BONES];
  * nya_skeleton_model_transforms(skeleton, &pose, model);
  *
  * f32_4x4 head = character_transform * model[nya_skeleton_bone_index(skeleton, "head")];
  * ```
  *
- * Asking about one bone is nya_skeleton_bone_model, which walks that bone's chain instead of the whole rig.
+ * For one bone use nya_skeleton_bone_model, which walks only that bone's chain.
  * */
 NYA_API void nya_skeleton_model_transforms(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_model);
 
@@ -191,9 +188,8 @@ NYA_API void nya_skeleton_palette(const NYA_Skeleton* skeleton, const NYA_Skelet
 /**
  * One bone's model-space transform. False when the bone does not resolve, leaving `out_transform` alone.
  *
- * The socket primitive: attach an accessory by drawing it through this matrix times whatever transform the
- * character itself is drawn with. Cheaper than nya_skeleton_model_transforms for a handful of bones, and
- * the same answer.
+ * The socket primitive: draw an accessory through this matrix times the character's own transform.
+ * Cheaper than nya_skeleton_model_transforms for a handful of bones.
  * */
 NYA_API b8 nya_skeleton_bone_model(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, s32 bone,
                                    OUT f32_4x4* out_transform) __attr_no_discard;

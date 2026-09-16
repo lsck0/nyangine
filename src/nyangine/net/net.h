@@ -3,7 +3,7 @@
  *
  * ```
  * single player      server, nobody listening, one local player
- * open to LAN        the same server, now listening — nothing about the world changes
+ * open to LAN        the same server, now listening; the world does not change
  * dedicated server   the same server, headless, no local player          (--server)
  * joining a game     client                                              (--connect host:port)
  * ```
@@ -12,10 +12,9 @@
 
 #include "nyangine/net/net_types.h"
 /**/
-// net_bytes.h is deliberately absent: the byte codecs are NYA_INTERNAL, so declaring them here would
-// hand a static-and-never-defined declaration to every translation unit that includes nyangine.h
-// without nyangine.c — the game DLL, chiefly — and each one warns about it. The .c files that use
-// them include it themselves.
+// net_bytes.h is not included: its codecs are NYA_INTERNAL, so every translation unit including
+// nyangine.h without nyangine.c (the game DLL) would warn about static declarations never defined.
+// The .c files that need it include it themselves.
 #include "nyangine/net/net_command.h"
 #include "nyangine/net/net_config.h"
 #include "nyangine/net/net_message.h"

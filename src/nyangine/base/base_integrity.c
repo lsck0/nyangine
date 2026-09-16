@@ -61,10 +61,8 @@ void nya_integrity_assert(void) {
 
     b8 binary_valid = path_result.ok && nya_integrity_verify_file(nya_string_to_cstring(arena, executable_path));
 
-    // Deliberately nya_assert_always: this check must never be weakened into something a build
-    // configuration can remove, or a modified executable starts up silently. It is the same macro as
-    // nya_assert — assertions cannot be compiled out — so the spelling is a marker for the next
-    // editor rather than an enforced difference.
+    // nya_assert_always marks a check that must never become configurable, or a modified executable
+    // starts silently. Assertions cannot be compiled out anyway, so the spelling is for readers.
     nya_assert_always(binary_valid, "Executable integrity check failed. The executable is corrupted or was tampered with.");
 }
 
@@ -95,9 +93,8 @@ NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) {
     defer       nya_arena_destroy(arena);
     NYA_String* binary = nya_string_create(arena);
 
-    // Each failure below used to collapse into a bare false, which told the build system that
-    // patching had failed but never which of these it was. A missing sentinel and an unwritable
-    // file need different fixes.
+    // each failure reports which step failed; a missing sentinel and an unwritable file need different
+    // fixes.
     NYA_TRY(nya_file_read(binary_path, binary));
 
     u64 hash_offset = 0;
@@ -195,9 +192,8 @@ NYA_INTERNAL b8 _nya_integrity_code_region(OUT const u8** out_start, OUT u64* ou
 
     return false;
 #elif OS_LINUX
-    // Linker provided bounds of the text segment. Cheaper and more predictable than walking
-    // dl_iterate_phdr, and it covers exactly the code this executable was built with — a hook
-    // installed in a shared library is a different question and not one this answers.
+    // linker provided bounds of the text segment: cheaper and more predictable than dl_iterate_phdr, and
+    // exactly the code this executable was built with. Hooks inside shared libraries are out of scope.
     extern char __executable_start[];
     extern char etext[];
 

@@ -66,9 +66,8 @@ NYA_API NYA_Quaternion nya_quaternion_create(f32 x, f32 y, f32 z, f32 w) __attr_
 NYA_API NYA_Quaternion nya_quaternion_from_axis_angle(f32x3 axis, f32 radians) __attr_no_discard;
 
 /**
- * Euler angles in radians, applied roll (Z) then pitch (X) then yaw (Y) — the convention a first
- * person camera wants: yaw turns around the world up axis regardless of look direction, pitch tilts
- * in the local frame.
+ * Euler angles in radians, applied roll (Z), then pitch (X), then yaw (Y). The first person camera
+ * convention: yaw turns around world up regardless of look direction, pitch tilts in the local frame.
  * */
 NYA_API NYA_Quaternion nya_quaternion_from_euler(f32 pitch, f32 yaw, f32 roll) __attr_no_discard;
 
@@ -144,8 +143,8 @@ NYA_API NYA_Quaternion nya_quaternion_slerp(NYA_Quaternion a, NYA_Quaternion b, 
 /**
  * The same, for rotations already known to be unit length.
  *
- * ⚠ Undefined for non-unit input, in the ordinary way: the result will not be a rotation. Use
- * nya_quaternion_slerp when the input came from arithmetic that could have drifted.
+ * Non-unit input does not produce a rotation. Use nya_quaternion_slerp when the input came from
+ * arithmetic that could have drifted.
  * */
 NYA_API NYA_Quaternion nya_quaternion_slerp_unit(NYA_Quaternion a, NYA_Quaternion b, f32 t) __attr_no_discard;
 

@@ -73,10 +73,8 @@ subcommand_matching:
             argc--;
             argv++;
 
-            // The command tree is the program's own, not the user's, so nesting this deep is a
-            // structural mistake rather than bad input — but the write is unbounded either way, and
-            // _nya_args_validate_command_tree recurses without a depth limit, so it would already
-            // have run out of stack before reaching here.
+            // the command tree is the program's own, so this depth is a programmer mistake, and
+            // _nya_args_validate_command_tree would have overflowed the stack before reaching here.
             nya_assert(path_count < NYA_ARG_MAX_COMMANDS, "command nesting is deeper than the %d this parser tracks", NYA_ARG_MAX_COMMANDS);
 
             path[path_count++] = subcommand;
@@ -218,12 +216,7 @@ subcommand_matching:
                         break;
                     }
 
-                    /*
-                     * Bounded, because `values` is a fixed array and nothing above this stops argv
-                     * from being longer than it. It was not, so the two hundred and fifty seventh
-                     * value and everything after it landed past the end — and NYA_Value is a large
-                     * struct, so it walked a long way into whatever followed the parameter.
-                     */
+                    /* Bounded, because `values` is a fixed array and argv can be longer. */
                     if (param->values_count >= nya_carray_length(param->values)) {
                         return nya_error(
                             NYA_ERROR_NOT_OK,

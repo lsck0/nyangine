@@ -7,10 +7,8 @@
  */
 
 /*
- * The current world, held here rather than on NYA_App: going through nya_app_get would put an
- * assertion on `initialized` in front of every entity/physics/sim call, which a test that brings up
- * a world without a full application would fail. NYA_App holds the pointer too, as the owner; this
- * is the fast path.
+ * The current world, held here as well as on NYA_App: nya_app_get asserts `initialized`, which tests
+ * that build a world without a full app would fail on every entity, physics and sim call.
  */
 NYA_INTERNAL NYA_World* _nya_world_current = nullptr;
 
@@ -33,9 +31,8 @@ NYA_World* nya_world_create(void) {
     *world           = (NYA_World){ .allocator = allocator };
 
     /*
-     * Made current for the duration of the bring-up, then handed back — the three systems below reach
-     * their state through nya_world rather than taking it as a parameter, so building a world that is
-     * not yet current means being current for as long as it takes to build.
+     * Current for the duration of the bring-up, then handed back, since the three systems reach their
+     * state through nya_world instead of a parameter.
      */
     NYA_World* previous = nya_world_set(world);
 
@@ -61,8 +58,7 @@ void nya_world_destroy(NYA_World* world) {
     nya_system_physics3d_deinit();
     nya_system_physics2d_deinit();
 
-    // A world cannot be left current after it's freed — destroying the current one leaves none,
-    // rather than restoring a pointer to the thing about to be released.
+    // destroying the current world leaves none current, rather than a pointer to freed memory.
     (void)nya_world_set(previous == world ? nullptr : previous);
 
     // Last: this frees the NYA_World struct itself, and everything the game hung off user_data.

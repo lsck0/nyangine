@@ -123,8 +123,8 @@ NYA_Error nya_nav_grid_from_tilemap(NYA_Arena* arena, const NYA_Tilemap* map, NY
     NYA_NavGrid* grid = nullptr;
     NYA_TRY(nya_nav_grid_create(arena, map->width, map->height, &grid));
 
-    // Any non-empty tile is solid, which is the rule nya_tilemap_collision_build uses — so what an
-    // agent will not walk through is what a body cannot pass through.
+    // any non-empty tile is solid, the same rule as nya_tilemap_collision_build, so agents avoid what
+    // bodies collide with.
     for (u32 y = 0; y < map->height; y++) {
         for (u32 x = 0; x < map->width; x++) {
             b8 solid = nya_tilemap_tile_at(map, layer, (s32)x, (s32)y) != 0;
@@ -236,8 +236,8 @@ u32 nya_nav_path(NYA_NavGrid* grid, NYA_NavPoint from, NYA_NavPoint to, OUT NYA_
 
     if (!found) return 0;
 
-    // Walk the parents back, then reverse. Counted first so a path longer than the caller's buffer is
-    // refused rather than truncated — half a path leads somewhere nobody asked to go.
+    // walk the parents back, then reverse. Counted first so a path longer than the buffer is refused, not
+    // truncated.
     u32 length  = 0;
     u32 walk    = target;
     for (;;) {

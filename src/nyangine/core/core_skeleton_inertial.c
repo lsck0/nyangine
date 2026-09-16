@@ -64,7 +64,7 @@ NYA_INTERNAL f32x3 _nya_inertial_rotation_vector(NYA_Quaternion rotation) {
     return axis * angle;
 }
 
-/** Captures one vector channel — translation or scale, which behave identically. */
+/** Captures one vector channel. Translation and scale behave identically. */
 NYA_INTERNAL f32 _nya_inertial_capture_vector(NYA_InertialChannel* channel, f32x3 source, f32x3 source_previous, f32x3 target,
                                               f32x3 target_previous, f32 delta_s, f32 duration_s) {
     f32x3 offset = source - target;
@@ -220,9 +220,8 @@ void nya_skeleton_inertializer_update(NYA_SkeletonInertializer* inertializer, f3
     }
 
     /*
-     * History, after the offset has been applied, because the velocity a later transition has to match
-     * is the one that was *on screen* — not the one the destination clip was producing underneath.
-     * That is what makes a second transition during a first one compose rather than fight it.
+     * History after the offset is applied, so a later transition matches the velocity that was on screen
+     * rather than the destination clip's. That lets overlapping transitions compose.
      */
     inertializer->before_previous  = inertializer->previous;
     inertializer->previous         = *pose;

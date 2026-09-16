@@ -35,9 +35,9 @@ struct NYA_World {
     NYA_SimSystem     sim_system;
 
     /**
-     * The game's root pointer for this world; the engine stores it and never looks inside it. Same
-     * contract as NYA_Entity.user_data, but freed with the world provided it was allocated from
-     * `allocator` — the arrangement to prefer, since "destroy the world" then means the whole thing.
+     * The game's root pointer for this world; the engine never looks inside. Same contract as
+     * NYA_Entity.user_data, but freed with the world when allocated from `allocator`, which is the
+     * preferred arrangement.
      * */
     void* user_data;
 };
@@ -54,9 +54,7 @@ struct NYA_World {
  * ─────────────────────────────────────────────────────────
  */
 
-/**
- * Builds a world and brings its three systems up. Does **not** make it current.
- * */
+/** Builds a world and brings its three systems up. Does not make it current. */
 NYA_API NYA_World* nya_world_create(void) __attr_no_discard;
 
 /**

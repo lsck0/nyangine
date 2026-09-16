@@ -12,10 +12,8 @@
  * }
  * ```
  *
- * ⚠ **Built without sanitizers and at -O2, unlike a test.** That is the entire point. A sanitizer build
- * distorts unevenly — it lands hardest on code with a high ratio of memory accesses to arithmetic — and
- * a benchmark run under one measures the sanitizer. The engine's own reverb was profiled at 5.52% of
- * frame time under ASAN and measured at 0.22% of a core without it, a factor of twenty-five.
+ * Built at -O2 without sanitizers, unlike tests. Sanitizers distort unevenly, hitting memory heavy
+ * code hardest: the reverb measured 5.52% of frame time under ASAN and 0.22% of a core without it.
  * */
 #pragma once
 

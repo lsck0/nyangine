@@ -205,8 +205,8 @@ NYA_Error nya_save_database_open(NYA_Arena* arena, NYA_ConstCString relative, OU
 
     NYA_CString path_cstring = nya_string_to_cstring(arena, path);
 
-    // SQLite creates the file but not the directories above it, and answers "unable to open database
-    // file" either way — which is a genuinely unhelpful message to debug a missing subdirectory from.
+    // SQLite creates the file but not its directories, and reports "unable to open database file" either
+    // way.
     NYA_TRY(_nya_save_ensure_parent(arena, path_cstring));
 
     return nya_sql_open(arena, path_cstring, out_database);
@@ -253,8 +253,7 @@ b8 _nya_save_relative_is_safe(NYA_ConstCString relative) {
     // An absolute path is not relative to anything, which is the whole contract of this argument.
     if (nya_path_is_absolute(relative)) return false;
 
-    // Both separators, because a Windows path reaches this code on Linux too — a save name that came
-    // out of a file written on the other platform, for instance.
+    // both separators, since a save name written on Windows can reach this code on Linux.
     if (relative[0] == '/' || relative[0] == '\\') return false;
 
     for (const char* cursor = relative; *cursor != '\0'; cursor++) {

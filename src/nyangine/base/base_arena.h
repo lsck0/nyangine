@@ -38,10 +38,9 @@ typedef struct NYA_ArneaAction         NYA_ArenaAction;
  */
 
 /**
- * A region is *allocated*, not reserved: see _nya_arena_nodebug_alloc, which calls nya_malloc for
- * max(region_size, size). The region size is therefore real memory the moment it is touched, not
- * address space, and every cost that scales with it — allocating it, freeing it, poisoning it on
- * reset — is paid whether or not the arena holds anything.
+ * A region is allocated, not reserved: _nya_arena_nodebug_alloc calls nya_malloc for
+ * max(region_size, size). Allocating, freeing and poisoning on reset all scale with the region size
+ * whether or not the arena holds anything.
  * */
 #define _NYA_ARENA_DEFAULT_OPTIONS                                                                                                                   \
     .name = nullptr, .alignment = 16, .region_size = nya_mebyte_to_byte(64UL), .defragmentation_enabled = true, .defragmentation_threshold = 16,     \
