@@ -21,6 +21,24 @@ NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
 #define NYA_ASSET_BLOB_BYTES_PER_LINE 24
 #define NYA_ASSET_BLOB_INDENT         4
 
+/**
+ * How many bytes an entry has to actually save before it is worth storing compressed.
+ *
+ * A compressed entry costs an allocation and a decompression pass every time it is loaded, against a
+ * verbatim one which is a pointer into `.rodata` and costs neither. Below some saving that trade stops
+ * being worth making, and this is where.
+ *
+ * ⚠ **Absolute bytes, deliberately, and not a percentage.** Measured over this tree's 1506 assets, a
+ * ratio floor throws away exactly the wrong entries: `pill.fbx` and `Cubie.fbx` compress by only 5% and
+ * 5.1%, which is 19 KB and 18 KB of real bytes, while the 10-20% band is 101 entries that save 67 bytes
+ * each. A 10% floor would have cost 36 KB to drop six of the largest savers in the tree.
+ *
+ * 128 is the knee of the measured distribution. It leaves 211 small entries stored verbatim and gives up
+ * 17.5 KB of 715 KB to do it; the next step up, 256, gives up 103 KB for another 465 entries and is the
+ * point where real savings start being thrown away.
+ * */
+#define NYA_ASSET_BLOB_MIN_COMPRESSION_SAVING_BYTES 128
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -242,7 +260,9 @@ void nya_asset_bundle(void) {
 
             u64 written = nya_compress(content->items, content->length, compressed, bound);
 
-            if (written > 0 && written < content->length) {
+            // Only when it actually saves something. See the threshold's note for why the test is on
+            // bytes saved rather than on the ratio.
+            if (written > 0 && written + NYA_ASSET_BLOB_MIN_COMPRESSION_SAVING_BYTES <= content->length) {
                 stored      = compressed;
                 stored_size = written;
                 compressed_count++;
