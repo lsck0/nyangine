@@ -78,6 +78,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
         if (!should_run) continue;
 
         nya_string_strip_suffix(test, ".c");
+        nya_string_extend(test, HOST_EXECUTABLE_SUFFIX);
         NYA_CString test_binary = nya_string_to_cstring(nya_arena_global, test);
 
         NYA_String* build_test_name = nya_string_sprintf(nya_arena_global, "build_test:%s", test_binary);

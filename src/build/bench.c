@@ -67,6 +67,7 @@ void bench_runner(NYA_ArgCommand* command) {
         if (!should_run) continue;
 
         nya_string_strip_suffix(source, ".c");
+        nya_string_extend(source, HOST_EXECUTABLE_SUFFIX);
         NYA_CString binary = nya_string_to_cstring(nya_arena_global, source);
 
         NYA_String*    build_name = nya_string_sprintf(nya_arena_global, "build_bench:%s", binary);

@@ -16,7 +16,7 @@
 #define EXAMPLE_ENTRY_POINT "main.c"
 
 /** Suffix of the built binary, appended to the example's directory name. See the note in this file's header. */
-#define EXAMPLE_BINARY_SUFFIX ".example"
+#define EXAMPLE_BINARY_SUFFIX ".example" HOST_EXECUTABLE_SUFFIX
 
 /**
  * Builds and runs one example.

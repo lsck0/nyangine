@@ -75,6 +75,9 @@
 
 #define BUILD_TOOL_BINARY "build.exe"
 
+/** What the linker appends to an executable here, so rules name the file it actually writes. */
+#define HOST_EXECUTABLE_SUFFIX ".exe"
+
 /*
  * No sanitizers on a Windows host: -fsanitize=leak has no Windows implementation and asan under mingw
  * is not usable. lld because mold is Linux only.
@@ -90,6 +93,8 @@
 #else
 
 #define BUILD_TOOL_BINARY "build"
+
+#define HOST_EXECUTABLE_SUFFIX ""
 
 #define FLAGS_HOST_NATIVE       FLAGS_DEBUG_LINUX_X86_64, FLAGS_SANITIZE, FLAGS_LINUX_X86_64
 
