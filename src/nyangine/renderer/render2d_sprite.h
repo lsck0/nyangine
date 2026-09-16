@@ -239,7 +239,8 @@ struct NYA_SpriteAnimator {
     u32 frame;
 
     /**
-     * Multiplies the rate. Zero pauses without clearing the animation.
+     * Multiplies the rate. Zero pauses without clearing the animation. Never negative: a sprite sheet
+     * played backward is a second animation with ping_pong or its frames listed in reverse.
      * */
     f32 speed;
 

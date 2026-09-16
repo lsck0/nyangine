@@ -3,11 +3,12 @@
  *
  * ```c
  * // A player that owns the transition rather than snapping between clips.
- * nya_skeleton_player_play(&player, skeleton, run_clip, .looping = true, .fade_s = 0.2F);
+ * nya_skeleton_player_init(&player, skeleton);
+ * nya_skeleton_player_play(&player, run_clip, .looping = true, .fade_s = 0.2F);
  *
- * // An upper-body layer, so aiming plays over whatever the legs are doing.
+ * // An upper-body layer in slot 0, so aiming plays over whatever the legs are doing.
  * nya_skeleton_mask_from_bone(skeleton, "spine", &upper_body);
- * nya_skeleton_player_layer(&player, aim_clip, &upper_body, 1.0F);
+ * nya_skeleton_player_layer(&player, 0, aim_clip, &upper_body, 1.0F, true);
  *
  * nya_skeleton_player_update(&player, delta_time_s, &pose);
  *
@@ -56,7 +57,7 @@ typedef struct NYA_SkeletonSignal      NYA_SkeletonSignal;
 typedef struct NYA_RootMotion          NYA_RootMotion;
 
 /**
- * How far the root bone moved this update, in the character's own space.
+ * How far the root bone moved this update, in the frame the character was facing at the start of it.
  * */
 struct NYA_RootMotion {
     f32x3          translation;
@@ -91,7 +92,7 @@ struct NYA_SkeletonPlayOptions {
     /** Seconds to blend from whatever is playing. Zero cuts, which is right for a hit reaction. */
     f32 fade_s;
 
-    /** Clock multiplier. Zero means one. Negative plays backwards. */
+    /** Clock multiplier. Zero means one. Negative plays backwards, starting from the clip's end. */
     f32 speed;
 
     /** Restart from the beginning even if this clip is already playing. */
@@ -136,6 +137,9 @@ struct NYA_SkeletonPlayer {
     f32 fade_elapsed_s;
     f32 fade_duration_s;
     b8  fading;
+
+    /** Set by `play` until the first update, which is the one step whose start point counts for events. */
+    b8 current_fresh;
 
     /*
      * ── Inertialization, when one is attached ──

@@ -9,6 +9,12 @@
 /** The texture's pixel size, or false while it is missing or still loading. */
 NYA_INTERNAL b8 _nya_sprite_texture_size(NYA_ConstCString texture, OUT u32* out_width, OUT u32* out_height);
 
+/**
+ * The atlas grid, from the texture if the atlas was described before it loaded. A grid built at startup
+ * would otherwise stay empty forever and every frame would draw the whole sheet.
+ * */
+NYA_INTERNAL void _nya_sprite_atlas_grid_size(const NYA_SpriteAtlas* atlas, OUT u32* out_columns, OUT u32* out_rows);
+
 /*
  * Compiled in both the real and the headless build, unlike render_draw.
  */
@@ -41,23 +47,8 @@ NYA_SpriteAtlas nya_sprite_atlas_grid_padded(NYA_ConstCString texture, u32 frame
         .margin       = margin,
     };
 
-    u32 texture_width, texture_height;
-
-    // Zero rows and columns while the texture is still loading, which is a legitimate state rather
-    // than an error: this is usually called at startup and the asset resolves at the end of a frame.
-    // Recomputing once it has arrived is one more call.
-    if (!_nya_sprite_texture_size(texture, &texture_width, &texture_height)) return atlas;
-
-    u32 usable_width  = texture_width > (margin * 2) ? texture_width - (margin * 2) : 0;
-    u32 usable_height = texture_height > (margin * 2) ? texture_height - (margin * 2) : 0;
-
-    // A cell costs its own size plus the gap that follows it, so the count is how many such strides
-    // fit once the first cell's missing gap is added back.
-    u32 stride_x = frame_width + spacing;
-    u32 stride_y = frame_height + spacing;
-
-    atlas.columns = (usable_width + spacing) / stride_x;
-    atlas.rows    = (usable_height + spacing) / stride_y;
+    // zero while the texture is still loading, and filled in on use once it has.
+    _nya_sprite_atlas_grid_size(&atlas, &atlas.columns, &atlas.rows);
 
     return atlas;
 }
@@ -65,7 +56,10 @@ NYA_SpriteAtlas nya_sprite_atlas_grid_padded(NYA_ConstCString texture, u32 frame
 u32 nya_sprite_atlas_frame_count(const NYA_SpriteAtlas* atlas) {
     nya_assert(atlas != nullptr);
 
-    return atlas->columns * atlas->rows;
+    u32 columns, rows;
+    _nya_sprite_atlas_grid_size(atlas, &columns, &rows);
+
+    return columns * rows;
 }
 
 void nya_sprite_atlas_frame_rect(const NYA_SpriteAtlas* atlas, u32 frame, OUT f32* out_x, OUT f32* out_y, OUT f32* out_width, OUT f32* out_height) {
@@ -80,10 +74,13 @@ void nya_sprite_atlas_frame_rect(const NYA_SpriteAtlas* atlas, u32 frame, OUT f3
     // Out of range, or an atlas whose texture has not loaded and so has no grid yet. A zeroed
     // rectangle means "the whole texture" to the drawing path, which is a visible wrong frame rather
     // than nothing at all — and being able to see it is the point.
-    if (atlas->columns == 0 || frame >= nya_sprite_atlas_frame_count(atlas)) return;
+    u32 columns, rows;
+    _nya_sprite_atlas_grid_size(atlas, &columns, &rows);
 
-    u32 column = frame % atlas->columns;
-    u32 row    = frame / atlas->columns;
+    if (columns == 0 || frame >= columns * rows) return;
+
+    u32 column = frame % columns;
+    u32 row    = frame / columns;
 
     *out_x      = (f32)(atlas->margin + (column * (atlas->frame_width + atlas->spacing)));
     *out_y      = (f32)(atlas->margin + (row * (atlas->frame_height + atlas->spacing)));
@@ -260,6 +257,22 @@ void nya_render2d_sprite(NYA_Window* window, const NYA_Sprite* sprite, f32x2 pos
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+void _nya_sprite_atlas_grid_size(const NYA_SpriteAtlas* atlas, OUT u32* out_columns, OUT u32* out_rows) {
+    *out_columns = atlas->columns;
+    *out_rows    = atlas->rows;
+    if (atlas->columns > 0 && atlas->rows > 0) return;
+
+    u32 texture_width, texture_height;
+    if (!_nya_sprite_texture_size(atlas->texture, &texture_width, &texture_height)) return;
+
+    u32 usable_width  = texture_width > (atlas->margin * 2) ? texture_width - (atlas->margin * 2) : 0;
+    u32 usable_height = texture_height > (atlas->margin * 2) ? texture_height - (atlas->margin * 2) : 0;
+
+    // a cell costs its size plus the gap after it, and the last cell has no gap after it.
+    *out_columns = (usable_width + atlas->spacing) / (atlas->frame_width + atlas->spacing);
+    *out_rows    = (usable_height + atlas->spacing) / (atlas->frame_height + atlas->spacing);
+}
+
 b8 _nya_sprite_texture_size(NYA_ConstCString texture, OUT u32* out_width, OUT u32* out_height) {
     if (texture == nullptr) return false;
 
@@ -361,6 +374,8 @@ u32 nya_sprite_animator_advance(OUT NYA_SpriteAnimator* animator, f32 delta_time
 
     if (!animator->playing || animator->finished) return count;
     if (animation->frame_count == 0) return count;
+
+    nya_assert(animator->speed >= 0.0F, "a sprite animator plays forward only; got speed %f", (f64)animator->speed);
 
     f32 fps = animation->frames_per_second > 0.0F ? animation->frames_per_second : NYA_SPRITE_ANIMATION_DEFAULT_FPS;
 

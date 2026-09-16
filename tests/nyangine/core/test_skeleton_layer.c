@@ -185,6 +185,45 @@ s32 main(void) {
         nya_check(second >= 2 && second <= 4, "and so should the one at 0.95s, got %u", second);
     }
 
+    // ── An event on the start point fires on the first update, and backward playback does not report a
+    //    loop every frame. Quarter second steps, so every crossing is exact.
+    {
+        static const NYA_SkeletonEvent events[] = {
+            { .time_s = 0.0F, .id = 1 },
+            { .time_s = 0.5F, .id = 2 },
+        };
+
+        for (u32 direction = 0; direction < 2; direction++) {
+            NYA_SkeletonPlayer player = { 0 };
+            nya_skeleton_player_init(&player, &skeleton);
+            nya_skeleton_player_events(&player, events, nya_carray_length(events));
+            nya_skeleton_player_play(&player, &clip_rest, .looping = true, .speed = direction == 0 ? 1.0F : -1.0F);
+
+            u32 at_start = 0;
+            u32 at_half  = 0;
+            u32 loops    = 0;
+
+            for (u32 i = 0; i < 8; i++) {
+                nya_skeleton_player_update(&player, 0.25F, &(NYA_SkeletonPose){ 0 });
+
+                for (u32 s = 0; s < player.signal_count; s++) {
+                    if (player.signals[s].kind == NYA_SKELETON_SIGNAL_LOOPED) loops++;
+                    if (player.signals[s].kind == NYA_SKELETON_SIGNAL_EVENT && player.signals[s].id == 1) at_start++;
+                    if (player.signals[s].kind == NYA_SKELETON_SIGNAL_EVENT && player.signals[s].id == 2) at_half++;
+                }
+            }
+
+            // forward: 0 at the start and at both wraps. backward from the end: 0 as the clock reaches it,
+            // twice, and one wrap between.
+            u32 want_start = direction == 0 ? 3 : 2;
+            u32 want_loops = direction == 0 ? 2 : 1;
+
+            nya_check(at_start == want_start, "direction %u: the event at 0 fired %u times, want %u", direction, at_start, want_start);
+            nya_check(at_half == 2, "direction %u: the event at 0.5 fired %u times, want 2", direction, at_half);
+            nya_check(loops == want_loops, "direction %u: %u loops reported, want %u", direction, loops, want_loops);
+        }
+    }
+
     // ── A non-looping clip reports finishing, once.
     {
         NYA_SkeletonPlayer player = { 0 };

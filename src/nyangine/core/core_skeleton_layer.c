@@ -10,6 +10,9 @@
 NYA_INTERNAL b8 _nya_skeleton_is_descendant(const NYA_Skeleton* skeleton, s32 bone, s32 root) {
     for (s32 walk = bone; walk >= 0; walk = skeleton->bones[walk].parent) {
         if (walk == root) return true;
+
+        // parents precede children, so a chain always walks to smaller indices and ends.
+        nya_assert(skeleton->bones[walk].parent < walk, "bone %d is not ordered after its parent", walk);
     }
 
     return false;
@@ -41,20 +44,36 @@ NYA_INTERNAL NYA_Quaternion _nya_skeleton_parent_rotation(const NYA_Skeleton* sk
 }
 
 /**
+ * The motion from `a` to `b`, in the frame the root had at `a`.
+ *
+ * Measured against the start of the step rather than in the parent's frame, so a walk that turns reports
+ * "forward, then a little left" rather than a world-space vector the caller would have to un-rotate.
+ * `rest` puts it back into the character's own axes for a root whose rest pose is itself rotated, as an
+ * exporter's armature usually is.
+ * */
+NYA_INTERNAL NYA_RootMotion _nya_skeleton_root_segment(NYA_Quaternion rest, NYA_BoneTransform a, NYA_BoneTransform b) {
+    NYA_Quaternion into_start = nya_quaternion_multiply(rest, nya_quaternion_inverse(a.rotation));
+
+    return (NYA_RootMotion){
+        .translation = nya_quaternion_rotate(into_start, b.translation - a.translation),
+        .rotation    = nya_quaternion_multiply(nya_quaternion_inverse(a.rotation), b.rotation),
+    };
+}
+
+/**
  * How far `bone` moved in `clip` between two clock readings, following a loop across the seam.
  * */
 NYA_INTERNAL NYA_RootMotion _nya_skeleton_root_step(const NYA_Skeleton* skeleton, const NYA_SkeletonClip* clip, s32 bone, f32 from_s, f32 to_s,
                                                     b8 wrapped, b8 forward) {
     if (clip == nullptr || bone < 0) return (NYA_RootMotion){ .rotation = nya_quaternion_identity };
 
+    NYA_Quaternion rest = skeleton->bones[bone].rest.rotation;
+
     if (!wrapped) {
         NYA_BoneTransform a = nya_skeleton_clip_bone(skeleton, clip, bone, from_s);
         NYA_BoneTransform b = nya_skeleton_clip_bone(skeleton, clip, bone, to_s);
 
-        return (NYA_RootMotion){
-            .translation = b.translation - a.translation,
-            .rotation    = nya_quaternion_multiply(nya_quaternion_inverse(a.rotation), b.rotation),
-        };
+        return _nya_skeleton_root_segment(rest, a, b);
     }
 
     // The two ends the step ran between, in playback order. Backwards playback wraps the other way:
@@ -67,10 +86,13 @@ NYA_INTERNAL NYA_RootMotion _nya_skeleton_root_step(const NYA_Skeleton* skeleton
     NYA_BoneTransform restart = nya_skeleton_clip_bone(skeleton, clip, bone, arrive);
     NYA_BoneTransform b       = nya_skeleton_clip_bone(skeleton, clip, bone, to_s);
 
+    // two segments, the second continuing from wherever the first left the character facing.
+    NYA_RootMotion first  = _nya_skeleton_root_segment(rest, a, at_end);
+    NYA_RootMotion second = _nya_skeleton_root_segment(rest, restart, b);
+
     return (NYA_RootMotion){
-        .translation = (at_end.translation - a.translation) + (b.translation - restart.translation),
-        .rotation    = nya_quaternion_multiply(nya_quaternion_multiply(nya_quaternion_inverse(a.rotation), at_end.rotation),
-                                               nya_quaternion_multiply(nya_quaternion_inverse(restart.rotation), b.rotation)),
+        .translation = first.translation + nya_quaternion_rotate(first.rotation, second.translation),
+        .rotation    = nya_quaternion_multiply(first.rotation, second.rotation),
     };
 }
 
@@ -94,21 +116,43 @@ NYA_INTERNAL void _nya_skeleton_pin_root(const NYA_Skeleton* skeleton, NYA_Skele
     if (rotation) pose->local[bone].rotation = rest->rotation;
 }
 
-/** Fires any event the last step crossed, in time order. Handles a loop wrapping past the end. */
-NYA_INTERNAL void _nya_skeleton_collect_events(NYA_SkeletonPlayer* player, f32 from_s, f32 to_s, b8 looped, f32 duration_s) {
+/** Whether `time_s` lies between `low` and `high`, each end included or not. */
+NYA_INTERNAL b8 _nya_skeleton_in_interval(f32 time_s, f32 low, b8 low_included, f32 high, b8 high_included) {
+    b8 above = low_included ? time_s >= low : time_s > low;
+    b8 below = high_included ? time_s <= high : time_s < high;
+
+    return above && below;
+}
+
+/**
+ * Fires every event the last step crossed. The clock ran from `from_s` to `to_s` in playback order,
+ * wrapping at the clip's ends when `looped`. The starting point counts as crossed only on the first step
+ * after play, so an event on it fires once rather than never or twice.
+ * */
+NYA_INTERNAL void _nya_skeleton_collect_events(NYA_SkeletonPlayer* player, f32 from_s, f32 to_s, b8 looped, b8 forward, b8 first_step,
+                                               f32 duration_s) {
     if (player->events == nullptr || player->event_count == 0) return;
 
     for (u32 i = 0; i < player->event_count; i++) {
         const NYA_SkeletonEvent* event = &player->events[i];
+        f32                      t     = event->time_s;
 
-        /*
-         * A loop splits the step into two intervals rather than one.
-         */
-        b8 crossed = looped ? (event->time_s > from_s && event->time_s <= duration_s) || (event->time_s >= 0.0F && event->time_s <= to_s)
-                            : (event->time_s > from_s && event->time_s <= to_s);
+        // a loop splits the step in two: to the end the clock left through, and on from the end it
+        // came back in at.
+        b8 crossed = false;
+        if (forward) {
+            crossed = looped ? _nya_skeleton_in_interval(t, from_s, first_step, duration_s, true) || _nya_skeleton_in_interval(t, 0.0F, true, to_s, true)
+                             : _nya_skeleton_in_interval(t, from_s, first_step, to_s, true);
+        } else {
+            crossed = looped ? _nya_skeleton_in_interval(t, 0.0F, true, from_s, first_step) || _nya_skeleton_in_interval(t, to_s, true, duration_s, true)
+                             : _nya_skeleton_in_interval(t, to_s, true, from_s, first_step);
+        }
 
         if (!crossed) continue;
-        if (player->signal_count >= NYA_SKELETON_CLIP_EVENTS) return;
+        if (player->signal_count >= NYA_SKELETON_CLIP_EVENTS) {
+            nya_log_warn("A skeleton update crossed more than %d events; the rest were dropped.", NYA_SKELETON_CLIP_EVENTS);
+            return;
+        }
 
         player->signals[player->signal_count++] = (NYA_SkeletonSignal){
             .kind = NYA_SKELETON_SIGNAL_EVENT,
@@ -149,6 +193,7 @@ b8 nya_skeleton_mask_from_bone(const NYA_Skeleton* skeleton, NYA_ConstCString ro
 
 void nya_skeleton_mask_set(const NYA_Skeleton* skeleton, NYA_SkeletonMask* mask, s32 bone, f32 weight, b8 include_descendants) {
     if (skeleton == nullptr || mask == nullptr || bone < 0 || (u32)bone >= skeleton->bone_count) return;
+    nya_assert(skeleton->bone_count <= NYA_SKELETON_MAX_BONES);
 
     weight = nya_clamp(weight, 0.0F, 1.0F);
 
@@ -227,6 +272,10 @@ void nya_skeleton_player_play_with_options(NYA_SkeletonPlayer* player, const NYA
 
     nya_skeleton_animator_play(&player->current, player->skeleton, clip, options.looping);
     player->current.speed = options.speed;
+    player->current_fresh = true;
+
+    // backward playback starts from the end it plays away from.
+    if (options.speed < 0.0F) player->current.time_s = clip->duration_s;
 }
 
 void nya_skeleton_player_events(NYA_SkeletonPlayer* player, const NYA_SkeletonEvent* events, u32 count) {
@@ -325,16 +374,19 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
     f32 before_s          = player->current.time_s;
     f32 before_previous_s = player->previous.time_s;
     b8  was_ended         = player->current.finished;
+    b8  forward           = player->current.speed >= 0.0F;
+    b8  first_step        = player->current_fresh;
 
     b8 extracting = player->root_motion_bone >= 0;
 
     nya_skeleton_animator_update(&player->current, delta_time_s, out_pose);
+    player->current_fresh = false;
 
     f32 after_s  = player->current.time_s;
-    b8  looped   = player->current.looping && after_s < before_s;
+    b8  looped   = _nya_skeleton_wrapped(&player->current, before_s, forward);
     f32 duration = player->current.clip->duration_s;
 
-    _nya_skeleton_collect_events(player, before_s, after_s, looped, duration);
+    _nya_skeleton_collect_events(player, before_s, after_s, looped, forward, first_step, duration);
 
     if (looped && player->signal_count < NYA_SKELETON_CLIP_EVENTS) {
         player->signals[player->signal_count++] = (NYA_SkeletonSignal){ .kind = NYA_SKELETON_SIGNAL_LOOPED, .clip = player->current.clip };
@@ -352,8 +404,6 @@ void nya_skeleton_player_update(NYA_SkeletonPlayer* player, f32 delta_time_s, OU
      * the root too and pinning before that would only be undone.
      */
     if (extracting) {
-        b8 forward = player->current.speed >= 0.0F;
-
         player->root_motion = _nya_skeleton_root_step(player->skeleton, player->current.clip, player->root_motion_bone, before_s,
                                                       player->current.time_s, _nya_skeleton_wrapped(&player->current, before_s, forward), forward);
     }

@@ -44,11 +44,13 @@ s32 nya_skeleton_bone_index(const NYA_Skeleton* skeleton, NYA_ConstCString name)
 }
 
 void nya_skeleton_pose_rest(const NYA_Skeleton* skeleton, OUT NYA_SkeletonPose* out_pose) {
-    if (skeleton == nullptr || out_pose == nullptr) return;
+    nya_assert(skeleton != nullptr);
+    nya_assert(out_pose != nullptr);
+    nya_assert(skeleton->bone_count <= NYA_SKELETON_MAX_BONES, "the importer caps a skeleton at NYA_SKELETON_MAX_BONES");
 
     out_pose->bone_count = skeleton->bone_count;
 
-    for (u32 i = 0; i < skeleton->bone_count && i < NYA_SKELETON_MAX_BONES; i++) {
+    for (u32 i = 0; i < skeleton->bone_count; i++) {
         out_pose->local[i] = skeleton->bones[i].rest;
     }
 }
@@ -216,6 +218,7 @@ b8 nya_skeleton_bone_model(const NYA_Skeleton* skeleton, const NYA_SkeletonPose*
     u32 depth = 0;
 
     for (s32 at = bone; at >= 0 && depth < NYA_SKELETON_MAX_BONES; at = skeleton->bones[at].parent) {
+        nya_assert(skeleton->bones[at].parent < at, "bone %d is not ordered after its parent", at);
         chain[depth++] = at;
     }
 
@@ -256,7 +259,9 @@ f32_4x4 _nya_skeleton_transform_matrix(NYA_BoneTransform transform) {
 }
 
 void _nya_skeleton_frame_pair(const NYA_SkeletonClip* clip, f32 time_s, OUT u32* out_frame, OUT u32* out_next, OUT f32* out_blend) {
-    // Clamped, not wrapped. Looping belongs to the animator; see the note on nya_skeleton_pose_sample.
+    nya_assert(clip->frame_count > 0);
+
+    // clamped, not wrapped: looping belongs to the animator.
     f32 clamped = time_s;
     if (clamped < 0.0F) clamped = 0.0F;
     if (clamped > clip->duration_s) clamped = clip->duration_s;

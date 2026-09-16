@@ -72,7 +72,7 @@ struct NYA_SkeletonBone {
     NYA_BoneTransform rest;
 };
 
-/** One animation, sampled onto a fixed grid. See the note on baking at the top of this file. */
+/** One animation, sampled onto a uniform grid at load. See NYA_ASSET_SKELETON_BAKE_RATE. */
 struct NYA_SkeletonClip {
     char name[NYA_SKELETON_NAME_MAX];
 
@@ -164,9 +164,6 @@ NYA_API void nya_skeleton_animator_play(NYA_SkeletonAnimator* animator, const NY
 NYA_API void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 delta_time_s, OUT NYA_SkeletonPose* out_pose);
 
 /**
- * Composes `pose` down the hierarchy and folds in each bone's inverse bind, into `out_palette`.
- * */
-/**
  * Every bone's model-space transform for `pose`. `out_model` holds NYA_SKELETON_MAX_BONES entries.
  *
  * Where each bone *is*, as opposed to how it moves a vertex — which is what nya_skeleton_palette gives and
@@ -185,6 +182,10 @@ NYA_API void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 de
  * */
 NYA_API void nya_skeleton_model_transforms(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_model);
 
+/**
+ * Composes `pose` down the hierarchy and folds in each bone's inverse bind, into `out_palette`, which holds
+ * NYA_SKELETON_MAX_BONES entries. What nya_render3d_skinned_mesh takes.
+ * */
 NYA_API void nya_skeleton_palette(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_palette);
 
 /**
