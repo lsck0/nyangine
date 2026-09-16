@@ -28,14 +28,16 @@ runs:
         update: true
         # pacman caching is handled by the action itself.
         cache: true
-        # `make`, `git` and `gettext` come from the MSYS2 environment rather than CLANG64: they are
-        # build drivers, not things being linked into the target. gettext is there for envsubst,
-        # which is what generates sqlite-vec.h from its template.
+        # Build drivers come from the MSYS2 environment rather than CLANG64, since nothing links them.
+        # gettext provides envsubst for sqlite-vec.h. tcl is for sqlite's autosetup: without a tclsh on
+        # PATH it compiles its own jimsh with CLANG64 clang, and that native binary mangles the quoted
+        # multi-line script autosetup pipes through `sh`.
         install: >-
           make
           git
           patch
           gettext
+          tcl
         pacboy: >-
           clang:p
           lld:p
@@ -78,6 +80,7 @@ runs:
         echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
     - name: Cache vendor builds
+      id: vendor-cache
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         # A Windows host builds Windows targets only, so there is no build-linux-x86_64 here.
@@ -94,6 +97,13 @@ runs:
           vendor/lua/src/luajit.h
           vendor/sqlvec/sqlite-vec.h
         key: vendor-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ steps.vendor.outputs.sha }}
+
+    # The checkout stamps every source with the current time and the cache restores outputs with the
+    # time they were built, so rules that compare the two would rebuild everything the cache holds.
+    - name: Mark restored vendor builds as current
+      if: steps.vendor-cache.outputs.cache-hit == 'true'
+      shell: msys2 {0}
+      run: find vendor/*/build-windows-x86_64 vendor/lua/libluajit-windows.a vendor/lz4/liblz4-windows.a vendor/lua/src/luajit.h vendor/sqlvec/sqlite-vec.h -exec touch {} + 2>/dev/null || true
 
     - name: Bootstrap build system
       shell: msys2 {0}

@@ -91,6 +91,7 @@ runs:
         echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
     - name: Cache vendor builds
+      id: vendor-cache
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         # Every configured build tree, by the convention vendor rules follow — plus the two
@@ -112,6 +113,13 @@ runs:
           vendor/lua/src/luajit.h
           vendor/sqlvec/sqlite-vec.h
         key: vendor-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ steps.vendor.outputs.sha }}
+
+    # The checkout stamps every source with the current time and the cache restores outputs with the
+    # time they were built, so rules that compare the two would rebuild everything the cache holds.
+    - name: Mark restored vendor builds as current
+      if: steps.vendor-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: find vendor/*/build-linux-x86_64 vendor/*/build-windows-x86_64 vendor/lua/libluajit-*.a vendor/lz4/liblz4-*.a vendor/lua/src/luajit.h vendor/sqlvec/sqlite-vec.h -exec touch {} + 2>/dev/null || true
 
     - name: Bootstrap build system
       shell: bash
