@@ -99,6 +99,12 @@ void _nya_asset_unloading_process(NYA_Event* event);
 
 NYA_INTERNAL NYA_AssetHandle _nya_asset_pick_correct_compiled_shader(NYA_AssetHandle source_shader, OUT SDL_GPUShaderFormat* out_format);
 
+/**
+ * Samples per second a skeleton clip is baked at, at minimum. A uniform grid makes sampling a division
+ * instead of a search, and thirty is above what this art style resolves.
+ * */
+#define NYA_ASSET_SKELETON_BAKE_RATE 30.0F
+
 /*
  * The immediate 3D layout. Narrower than it looks: colour arrives as four halves and uv as two, and the
  * input assembler expands both, so the shaders still read a `float4` and a `float2` and nothing in them
@@ -877,7 +883,7 @@ NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayᐸ_NYA_AssetPendingUpload�
  */
 
 /** ufbx's matrix is three rows of an affine transform; this is the same thing as a full 4x4. */
-NYA_INTERNAL ufbx_matrix _nya_asset_node_world_at(ufbx_anim* anim, ufbx_node* node, f64 time);
+NYA_INTERNAL ufbx_matrix _nya_asset_node_world_at(ufbx_anim* anim, ufbx_node* node, f64 time, ufbx_matrix* worlds, u32* computed_frame, u32 frame);
 
 NYA_INTERNAL f32_4x4 _nya_asset_matrix_from_ufbx(ufbx_matrix matrix) {
     return nya_matrix_create(
@@ -907,18 +913,73 @@ NYA_INTERNAL ufbx_skin_deformer* _nya_asset_find_skin(ufbx_scene* scene) {
 
 /**
  * Builds the skeleton and bakes every clip, or answers null when the file is not rigged.
+ *
+ * `out_bone_nodes` receives the node behind each bone, NYA_SKELETON_MAX_BONES entries, so a mesh with
+ * its own skin deformer can map its clusters onto these bones by node.
  * */
-NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene* scene) {
+NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene* scene, OUT ufbx_node** out_bone_nodes) {
     ufbx_skin_deformer* skin = _nya_asset_find_skin(scene);
 
     if (skin == nullptr || skin->clusters.count == 0) return nullptr;
 
-    if (skin->clusters.count > NYA_SKELETON_MAX_BONES) {
-        nya_log_warn("The model has %llu bones and the palette holds %d; the rest are ignored.",
-                 (unsigned long long)skin->clusters.count, NYA_SKELETON_MAX_BONES);
+    u32 cluster_count = (u32)skin->clusters.count;
+
+    if (cluster_count > NYA_SKELETON_MAX_BONES) {
+        nya_log_warn("The model has %u bones and the palette holds %d; the deepest ones are dropped.", cluster_count, NYA_SKELETON_MAX_BONES);
     }
 
-    u32 bone_count = (u32)(skin->clusters.count < NYA_SKELETON_MAX_BONES ? skin->clusters.count : NYA_SKELETON_MAX_BONES);
+    /*
+     * Each cluster's parent is the nearest ancestor node that is also a cluster. Helper nodes and the
+     * armature root have no cluster, and skipping them gives the parent as far as the palette cares.
+     */
+    s32* cluster_parent = nya_arena_alloc(arena, (u64)cluster_count * sizeof(s32));
+    u32* cluster_depth  = nya_arena_alloc(arena, (u64)cluster_count * sizeof(u32));
+    u32* order          = nya_arena_alloc(arena, (u64)cluster_count * sizeof(u32));
+    defer nya_arena_free(arena, cluster_parent, (u64)cluster_count * sizeof(s32));
+    defer nya_arena_free(arena, cluster_depth, (u64)cluster_count * sizeof(u32));
+    defer nya_arena_free(arena, order, (u64)cluster_count * sizeof(u32));
+
+    for (u32 i = 0; i < cluster_count; i++) {
+        cluster_parent[i] = -1;
+
+        ufbx_node* node = skin->clusters.data[i]->bone_node;
+        if (node == nullptr) continue;
+
+        for (ufbx_node* ancestor = node->parent; ancestor != nullptr && cluster_parent[i] < 0; ancestor = ancestor->parent) {
+            for (u32 j = 0; j < cluster_count; j++) {
+                if (skin->clusters.data[j]->bone_node == ancestor) {
+                    cluster_parent[i] = (s32)j;
+                    break;
+                }
+            }
+        }
+    }
+
+    // bounded by the cluster count, since a node tree has no cycles and a chain is at most every cluster.
+    u32 max_depth = 0;
+    for (u32 i = 0; i < cluster_count; i++) {
+        u32 depth = 0;
+        for (s32 at = cluster_parent[i]; at >= 0 && depth < cluster_count; at = cluster_parent[at]) depth++;
+
+        cluster_depth[i] = depth;
+        max_depth        = nya_max(max_depth, depth);
+    }
+
+    /*
+     * Ordered by depth, which puts every parent before its children. nya_skeleton_model_transforms
+     * composes in one forward pass and relies on that, and exporters list clusters in vertex group order,
+     * which is often not hierarchy order. It also makes truncation to the palette drop leaves rather than
+     * whichever bones happened to be listed last.
+     */
+    u32 ordered = 0;
+    for (u32 depth = 0; depth <= max_depth; depth++) {
+        for (u32 i = 0; i < cluster_count; i++) {
+            if (cluster_depth[i] == depth) order[ordered++] = i;
+        }
+    }
+    nya_assert(ordered == cluster_count);
+
+    u32 bone_count = nya_min(cluster_count, (u32)NYA_SKELETON_MAX_BONES);
 
     NYA_Skeleton* skeleton = nya_arena_alloc(arena, sizeof(NYA_Skeleton));
 
@@ -928,7 +989,10 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
     };
 
     for (u32 i = 0; i < bone_count; i++) {
-        ufbx_skin_cluster* cluster = skin->clusters.data[i];
+        u32                cluster_index = order[i];
+        ufbx_skin_cluster* cluster       = skin->clusters.data[cluster_index];
+
+        out_bone_nodes[i] = cluster->bone_node;
 
         NYA_SkeletonBone* bone = &skeleton->bones[i];
 
@@ -937,51 +1001,20 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
 
             // geometry_to_bone is exactly the inverse bind: geometry space in, bone space out.
             .inverse_bind = _nya_asset_matrix_from_ufbx(cluster->geometry_to_bone),
+            .rest         = { .scale = { 1.0F, 1.0F, 1.0F } },
         };
 
         NYA_ConstCString name = cluster->bone_node != nullptr ? cluster->bone_node->name.data : "bone";
-
         (void)snprintf(bone->name, sizeof(bone->name), "%s", name);
 
-        bone->rest = (NYA_BoneTransform){ .scale = { 1.0F, 1.0F, 1.0F } };
-    }
-
-    /*
-     * Parents must come before children, which nya_skeleton_palette relies on to compose in one pass.
-     * Rather than sorting — which would renumber every parent index and vertex weight — this checks
-     * and warns instead. ufbx emits clusters in file declaration order; a child before its parent is
-     * possible but not seen here.
-     */
-    for (u32 i = 0; i < bone_count; i++) {
-        if (skeleton->bones[i].parent >= (s32)i) {
-            nya_log_warn("Bone '%s' is declared before its parent; its animation will lag by a frame.", skeleton->bones[i].name);
+        // a parent sits at a smaller depth, so it was placed at a smaller index already.
+        s32 parent_cluster = cluster_parent[cluster_index];
+        for (u32 b = 0; b < i && parent_cluster >= 0; b++) {
+            if (order[b] == (u32)parent_cluster) bone->parent = (s32)b;
         }
+
+        nya_assert(bone->parent < (s32)i, "bone '%s' is not ordered after its parent", bone->name);
     }
-
-    /*
-     * Parents resolved by matching each cluster's node against the others. A cluster's node parent may
-     * itself have no cluster — a helper, or the armature root — so walking up to a node that *is* a
-     * cluster gives the nearest deforming ancestor: the parent as far as the palette is concerned.
-     */
-    for (u32 i = 0; i < bone_count; i++) {
-        ufbx_node* node = skin->clusters.data[i]->bone_node;
-
-        if (node == nullptr) continue;
-
-        for (ufbx_node* ancestor = node->parent; ancestor != nullptr; ancestor = ancestor->parent) {
-            b8 found = false;
-
-            for (u32 j = 0; j < bone_count && !found; j++) {
-                if (skin->clusters.data[j]->bone_node != ancestor) continue;
-
-                skeleton->bones[i].parent = (s32)j;
-                found                     = true;
-            }
-
-            if (found) break;
-        }
-    }
-
 
     /*
      * The rest pose, derived from the bind matrices rather than read off the nodes.
@@ -992,7 +1025,7 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
      * making "the rest palette is the identity" true by construction.
      */
     for (u32 i = 0; i < bone_count; i++) {
-        ufbx_matrix geometry_to_bone = skin->clusters.data[i]->geometry_to_bone;
+        ufbx_matrix geometry_to_bone = skin->clusters.data[order[i]]->geometry_to_bone;
         ufbx_matrix bone_to_geometry = ufbx_matrix_invert(&geometry_to_bone);
 
         s32 parent = skeleton->bones[i].parent;
@@ -1001,7 +1034,7 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
 
         if (parent >= 0) {
             // Relative to the parent's bind transform, which is what a local transform means.
-            ufbx_matrix parent_geometry_to_bone = skin->clusters.data[parent]->geometry_to_bone;
+            ufbx_matrix parent_geometry_to_bone = skin->clusters.data[order[parent]]->geometry_to_bone;
 
             local = ufbx_matrix_mul(&parent_geometry_to_bone, &bone_to_geometry);
         }
@@ -1023,6 +1056,15 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
 
     // ── clips ──
     if (scene->anim_stacks.count > 0) {
+        // one world transform per scene node, reused by every bone that shares an ancestor this frame.
+        u64          node_count     = scene->nodes.count;
+        ufbx_matrix* node_worlds    = nya_arena_alloc(arena, node_count * sizeof(ufbx_matrix));
+        u32*         computed_frame = nya_arena_alloc(arena, node_count * sizeof(u32));
+        defer nya_arena_free(arena, node_worlds, node_count * sizeof(ufbx_matrix));
+        defer nya_arena_free(arena, computed_frame, node_count * sizeof(u32));
+
+        u32 frame_serial = 0;
+
         skeleton->clips      = nya_arena_alloc(arena, scene->anim_stacks.count * sizeof(NYA_SkeletonClip));
         skeleton->clip_count = (u32)scene->anim_stacks.count;
 
@@ -1040,8 +1082,9 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
              * sampling a division instead of a search, and thirty per second is well above what this
              * art style resolves. A clip authored on twos loses nothing; one with curves is resampled.
              */
-            f32 rate  = 30.0F;
-            u32 frames = (u32)(duration * rate) + 1;
+            // at least NYA_ASSET_SKELETON_BAKE_RATE, stretched so the last frame lands exactly on the end.
+            u32 frames = (u32)ceilf(duration * NYA_ASSET_SKELETON_BAKE_RATE) + 1;
+            f32 rate   = duration > 0.0F ? (f32)(frames - 1) / duration : NYA_ASSET_SKELETON_BAKE_RATE;
 
             *clip = (NYA_SkeletonClip){
                 .duration_s  = duration,
@@ -1055,6 +1098,9 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
             for (u32 f = 0; f < frames; f++) {
                 f64 time = stack->time_begin + ((f64)f / (f64)rate);
 
+                // serials start at one, so a zeroed computed_frame means nothing is cached yet.
+                frame_serial++;
+
                 if (time > stack->time_end) time = stack->time_end;
 
                 /*
@@ -1065,10 +1111,13 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
                  */
                 ufbx_matrix world[NYA_SKELETON_MAX_BONES];
 
-                for (u32 b = 0; b < bone_count; b++) {
-                    ufbx_node* node = skin->clusters.data[b]->bone_node;
+                nya_memset(computed_frame, 0, node_count * sizeof(u32));
 
-                    world[b] = node != nullptr ? _nya_asset_node_world_at(stack->anim, node, time) : ufbx_identity_matrix;
+                for (u32 b = 0; b < bone_count; b++) {
+                    ufbx_node* node = out_bone_nodes[b];
+
+                    world[b] = node != nullptr ? _nya_asset_node_world_at(stack->anim, node, time, node_worlds, computed_frame, frame_serial)
+                                               : ufbx_identity_matrix;
                 }
 
                 for (u32 b = 0; b < bone_count; b++) {
@@ -1106,15 +1155,28 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
  * — see UFBX_NO_SCENE_EVALUATION in vendor_ufbx.h. This walks the real node chain rather than the
  * bone chain, so armature roots and helper nodes are included.
  * */
-NYA_INTERNAL ufbx_matrix _nya_asset_node_world_at(ufbx_anim* anim, ufbx_node* node, f64 time) {
-    ufbx_matrix world = ufbx_identity_matrix;
+NYA_INTERNAL ufbx_matrix _nya_asset_node_world_at(ufbx_anim* anim, ufbx_node* node, f64 time, ufbx_matrix* worlds, u32* computed_frame, u32 frame) {
+    // the chain up to the first ancestor already known this frame, walked back down from there.
+    ufbx_node* chain[256];
+    u32        depth = 0;
 
-    for (ufbx_node* step = node; step != nullptr; step = step->parent) {
-        ufbx_transform local  = ufbx_evaluate_transform(anim, step, time);
+    ufbx_node* step = node;
+    while (step != nullptr && computed_frame[step->typed_id] != frame) {
+        nya_assert(depth < nya_carray_length(chain), "a node hierarchy deeper than %d", (s32)nya_carray_length(chain));
+        chain[depth++] = step;
+        step           = step->parent;
+    }
+
+    ufbx_matrix world = step != nullptr ? worlds[step->typed_id] : ufbx_identity_matrix;
+
+    for (u32 i = depth; i > 0; i--) {
+        ufbx_node*     at     = chain[i - 1];
+        ufbx_transform local  = ufbx_evaluate_transform(anim, at, time);
         ufbx_matrix    matrix = ufbx_transform_to_matrix(&local);
 
-        // Prepended, because walking upward visits children before parents and a parent applies first.
-        world = ufbx_matrix_mul(&matrix, &world);
+        world                        = ufbx_matrix_mul(&world, &matrix);
+        worlds[at->typed_id]         = world;
+        computed_frame[at->typed_id] = frame;
     }
 
     return world;
@@ -1123,9 +1185,11 @@ NYA_INTERNAL ufbx_matrix _nya_asset_node_world_at(ufbx_anim* anim, ufbx_node* no
 /**
  * The four strongest influences on one vertex, normalised. ufbx sorts a vertex's weights by
  * descending influence, so the first four are the ones that matter.
+ *
+ * `cluster_bone` maps this mesh's own clusters to skeleton bones, -1 for one the skeleton dropped. A file
+ * can hold several skinned meshes, each with its own deformer and its own cluster numbering.
  * */
-NYA_INTERNAL void _nya_asset_mesh_vertex_weights(ufbx_mesh* mesh, const NYA_Skeleton* skeleton, u32 index, OUT u32* out_bones,
-                                                 OUT f32* out_weights) {
+NYA_INTERNAL void _nya_asset_mesh_vertex_weights(ufbx_mesh* mesh, const s32* cluster_bone, u32 index, OUT u32* out_bones, OUT f32* out_weights) {
     for (u32 i = 0; i < NYA_SKELETON_WEIGHTS_PER_VERTEX; i++) {
         out_bones[i]   = 0;
         out_weights[i] = 0.0F;
@@ -1147,11 +1211,10 @@ NYA_INTERNAL void _nya_asset_mesh_vertex_weights(ufbx_mesh* mesh, const NYA_Skel
     for (u32 w = 0; w < entry.num_weights && taken < NYA_SKELETON_WEIGHTS_PER_VERTEX; w++) {
         ufbx_skin_weight weight = skin->weights.data[entry.weight_begin + w];
 
-        // A cluster past the palette is one the skeleton dropped; skipping it rather than clamping
-        // keeps the weight from being handed to an unrelated bone.
-        if (weight.cluster_index >= skeleton->bone_count) continue;
+        // a dropped bone is skipped rather than clamped, so its weight is not handed to an unrelated one.
+        if (weight.cluster_index >= skin->clusters.count || cluster_bone[weight.cluster_index] < 0) continue;
 
-        out_bones[taken]   = weight.cluster_index;
+        out_bones[taken]   = (u32)cluster_bone[weight.cluster_index];
         out_weights[taken] = (f32)weight.weight;
 
         total += (f32)weight.weight;
@@ -1228,7 +1291,9 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
 
     // ── skinning ── extracted only when a mesh in the file actually carries a deformer, so an
     // unrigged model costs one pointer check and nothing else. See _nya_asset_mesh_skeleton.
-    NYA_Skeleton* skeleton = _nya_asset_mesh_skeleton(arena, scene);
+    ufbx_node*    bone_nodes[NYA_SKELETON_MAX_BONES] = { 0 };
+    NYA_Skeleton* skeleton                           = _nya_asset_mesh_skeleton(arena, scene, bone_nodes);
+    ufbx_skin_deformer* reference_skin               = _nya_asset_find_skin(scene);
 
     u32* bone_indices = nullptr;
     f32* bone_weights = nullptr;
@@ -1258,6 +1323,49 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
 
     for (u64 m = 0; m < scene->meshes.count; m++) {
         ufbx_mesh* mesh = scene->meshes.data[m];
+
+        /*
+         * This mesh's clusters mapped onto the skeleton by node, and the transform from its geometry space
+         * into the reference skin's. The inverse binds come from the reference skin, so a second skinned
+         * mesh has to arrive in that space or every vertex is bound against the wrong origin.
+         */
+        ufbx_skin_deformer* mesh_skin        = mesh->skin_deformers.count > 0 ? mesh->skin_deformers.data[0] : nullptr;
+        u64                 mesh_clusters    = mesh_skin != nullptr ? mesh_skin->clusters.count : 0;
+        s32*                cluster_bone     = nullptr;
+        ufbx_matrix         to_reference     = ufbx_identity_matrix;
+        ufbx_matrix         to_reference_dir = ufbx_identity_matrix;
+
+        if (skeleton != nullptr && mesh_clusters > 0) {
+            cluster_bone = nya_arena_alloc(arena, mesh_clusters * sizeof(s32));
+
+            b8 space_found = mesh_skin == reference_skin;
+
+            for (u64 c = 0; c < mesh_clusters; c++) {
+                cluster_bone[c] = -1;
+
+                for (u32 b = 0; b < skeleton->bone_count; b++) {
+                    if (bone_nodes[b] != mesh_skin->clusters.data[c]->bone_node) continue;
+
+                    cluster_bone[c] = (s32)b;
+
+                    if (!space_found) {
+                        // geometry_to_bone of the same bone in both skins, so reference ← bone ← this mesh.
+                        ufbx_skin_cluster* reference = nullptr;
+                        for (u64 r = 0; r < reference_skin->clusters.count; r++) {
+                            if (reference_skin->clusters.data[r]->bone_node == bone_nodes[b]) reference = reference_skin->clusters.data[r];
+                        }
+
+                        if (reference != nullptr) {
+                            ufbx_matrix bone_to_reference = ufbx_matrix_invert(&reference->geometry_to_bone);
+                            to_reference                  = ufbx_matrix_mul(&bone_to_reference, &mesh_skin->clusters.data[c]->geometry_to_bone);
+                            to_reference_dir              = ufbx_matrix_for_normals(&to_reference);
+                            space_found                   = true;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
 
         u64  corners  = (u64)mesh->max_face_triangles * 3;
         u32* triangle = nya_arena_alloc(arena, corners * sizeof(u32));
@@ -1452,9 +1560,17 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                             normal   = ufbx_transform_direction(&normal_world, normal);
                         }
 
-                        if (skeleton != nullptr) {
-                            _nya_asset_mesh_vertex_weights(mesh, skeleton, vertex, &bone_indices[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX],
+                        if (skeleton != nullptr && cluster_bone != nullptr) {
+                            position = ufbx_transform_position(&to_reference, position);
+                            normal   = ufbx_transform_direction(&to_reference_dir, normal);
+
+                            _nya_asset_mesh_vertex_weights(mesh, cluster_bone, vertex, &bone_indices[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX],
                                                            &bone_weights[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX]);
+                        } else if (skeleton != nullptr) {
+                            // an unskinned mesh in a rigged file rides the root bone rather than collapsing
+                            // to the origin under all-zero weights.
+                            bone_indices[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX] = 0;
+                            bone_weights[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX] = 1.0F;
                         }
 
                         positions[written] = (f32x3){ (f32)position.x, (f32)position.y, (f32)position.z };
