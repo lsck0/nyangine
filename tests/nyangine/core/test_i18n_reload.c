@@ -50,7 +50,21 @@ static void write_fixture(NYA_ConstCString moved) {
 
   nya_string_extend(out, "}\n");
 
+  u64 before  = 0;
+  b8  existed = nya_filesystem_last_modified(FIXTURE_PATH, &before).ok;
+
   NYA_EXPECT(nya_file_write(FIXTURE_PATH, out));
+
+  // rewritten until the timestamp moves, as in test_runtime_config.c: a coarse filesystem clock can give two
+  // quick writes the same one, and the watch compares timestamps.
+  for (u32 attempt = 0; existed && attempt < 200; attempt++) {
+    u64 after = 0;
+    NYA_EXPECT(nya_filesystem_last_modified(FIXTURE_PATH, &after));
+    if (after != before) break;
+
+    SDL_Delay(5);
+    NYA_EXPECT(nya_file_write(FIXTURE_PATH, out));
+  }
 }
 
 /**
