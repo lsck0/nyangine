@@ -1,5 +1,8 @@
 /**
  * @file entity_ledge.c
+ *
+ * One-way platforms: static or kinematic 2D bodies with pre-solve filtering, and a marker entity parented
+ * to each.
  * */
 #include "gnyame/gnyame.h"
 

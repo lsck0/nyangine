@@ -1,5 +1,8 @@
 /**
  * @file layer_background.c
+ *
+ * Sky, parallax ridges and motes drawn procedurally behind every screen. Also starts the music once its
+ * asset is ready and writes the one-shot perf report, since this layer is always present.
  * */
 #include "gnyame/gnyame.h"
 #include "generated/assets.h"

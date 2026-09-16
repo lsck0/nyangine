@@ -1,5 +1,8 @@
 /**
  * @file layer_game.c
+ *
+ * The 2D scene: terrain and tilemap, crates spawned by clicking, the camera entities, input actions,
+ * music and the bloom post chain.
  * */
 #include "gnyame/gnyame.h"
 #include "generated/assets.h"

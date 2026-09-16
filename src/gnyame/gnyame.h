@@ -1,3 +1,73 @@
+/**
+ * @file gnyame.h
+ *
+ * gnyame is the demo game, and the reference for how a game is built on nyangine. Read it in this order.
+ *
+ * ## Entry points
+ *
+ * A game exports three functions, and src/main.c calls them. Release builds link the game in; debug and
+ * developer builds load it as a DLL and reload it when the file changes (gnyame.c).
+ *
+ * ```c
+ * void gnyame_init(s32 argc, NYA_CString* argv);  // nya_app_init, then build the world and push layers
+ * void gnyame_run(void);                          // nya_app_run until should_quit
+ * void gnyame_deinit(void);                       // save, nya_app_deinit
+ * ```
+ *
+ * A code reload unloads nothing but zeroes every global in the new DLL and calls gnyame_run again. State
+ * that must survive lives in GNY_World (world.h), which the engine world owns, and callbacks are passed
+ * as nya_callback(fn) handles, which the engine re-resolves by name.
+ *
+ * ## The frame
+ *
+ * nya_app_run drains events into the layer stack, runs fixed update ticks (physics, systems, layers,
+ * entities, then the simulation barrier) and renders each window's layers bottom to top.
+ *
+ * ## Where each engine feature is used
+ *
+ * | File                          | Shows                                                                   |
+ * | :---------------------------- | :---------------------------------------------------------------------- |
+ * | gnyame.c                      | app init options, locale loading, startup order, hot reload restore     |
+ * | actions.c                     | named input actions, default bindings, settings load and save           |
+ * | config.h                      | a reflected config struct kept in sync with a file (nya_config_watch)   |
+ * | world.c                       | game state in the engine world, Lua VM and scripts, fonts, 2D terrain   |
+ * | screens.c                     | pushing and popping layers at the barrier, a reusable menu widget       |
+ * | layers/layer_game.c           | the 2D scene: tilemap, crates, cameras, bloom post chain, music         |
+ * | layers/layer_cube3d.c         | the 3D scene: meshes, 3D physics, picking, particles, 3D audio, shadows |
+ * | layers/layer_ui.c             | HUD text, frame stats, perf span overlay                                |
+ * | layers/layer_background.c     | procedural immediate mode 2D drawing                                    |
+ * | entities/entity_box.c         | entity kinds, spawn options, 2D bodies, collision, click, lights        |
+ * | entities/entity_camera.c      | cameras as entities, following, render-to-texture views                |
+ * | entities/entity_ledge.c       | one-way platforms, kinematic motion, parented entities                  |
+ * | systems/                      | systems registered by name with ordering (nya_system_register)          |
+ * | sim.c                         | recording facts in callbacks and deciding once per frame in an observer |
+ * | net.c                         | single player, listen server, dedicated server and client in one path   |
+ *
+ * ## A new entity kind
+ *
+ * ```c
+ * NYA_EntityHandle crate = nya_entity_spawn(
+ *     .type      = GNY_ENTITY_BOX,
+ *     .position  = { x, y, 0.0F },
+ *     .on_update = nya_callback(gny_entity_box_on_update),
+ *     .on_render = nya_callback(gny_entity_box_on_render)
+ * );
+ * (void)nya_physics2d_body_attach(crate, .type = NYA_PHYSICS_BODY_DYNAMIC, .shape = NYA_PHYSICS2D_SHAPE_BOX, .size = { 24, 24 });
+ * ```
+ *
+ * Add the kind to GNY_EntityKind (entities.h), give it a file under entities/, and include that file from
+ * entities.c.
+ *
+ * ## A new layer
+ *
+ * Declare the id, the NYA_Layer and five hooks in layers/layers.h, build it in gny_layers_init with
+ * nya_layer_of, and push it from a screen change in screens.c.
+ *
+ * ## Tuning
+ *
+ * Every number the game uses is a named constant in constants.h. Values meant to change without a
+ * rebuild go in GNY_Config and assets/config/engine.nya.
+ * */
 #pragma once
 
 #include "nyangine/nyangine.h"
@@ -17,6 +87,8 @@
 #include "gnyame/systems/systems.h"
 #include "gnyame/sim.h"
 /**/
+#include "gnyame/world.h"
+#include "gnyame/screens.h"
 #include "gnyame/layers/layers.h"
 #include "gnyame/windows.h"
 
@@ -30,7 +102,7 @@
 
 void gnyame_init(s32 argc, NYA_CString* argv);
 
-/** Runs the app. After a code reload, first restores what this DLL's globals held. */
+/** Runs the app. After a code reload, first rebuilds what this DLL's globals held. */
 void gnyame_run(void);
 void gnyame_deinit(void);
 

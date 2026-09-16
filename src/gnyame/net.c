@@ -1,3 +1,9 @@
+/**
+ * @file net.c
+ *
+ * Networking through one code path: single player is a server nobody joined. The same command function
+ * moves the player on server and client, so prediction matches.
+ * */
 #include "gnyame/gnyame.h"
 
 /*

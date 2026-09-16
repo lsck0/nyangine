@@ -1,3 +1,8 @@
+/**
+ * @file actions.c
+ *
+ * The game's input actions: names, default bindings, and the settings file that overrides them.
+ * */
 #include "gnyame/gnyame.h"
 
 /*

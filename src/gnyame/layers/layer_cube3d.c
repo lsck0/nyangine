@@ -1,5 +1,8 @@
 /**
  * @file layer_cube3d.c
+ *
+ * The 3D demo: an orbit camera over a noise terrain, a draggable cube, two loaded models fitted with
+ * bodies, a pile of cubes, fire and smoke particles, occluded 3D sound, shadows and bloom.
  * */
 #include "gnyame/gnyame.h"
 
@@ -32,6 +35,9 @@ NYA_INTERNAL f32 _gny_cube3d_cube_size(u32 index);
 
 /** Spawns one of the pile, sized, coloured and placed from `index`. Zeroed when the spawn fails. */
 NYA_INTERNAL GNY_FallingCube _gny_cube3d_cube_spawn(u32 index);
+
+/** Teleports a body to `position`, upright and at rest. No-op for a handle that does not resolve. */
+NYA_INTERNAL void _gny_cube3d_body_reset(NYA_EntityHandle handle, f32x3 position);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -301,7 +307,7 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             if (key->is_repeat) break;
 
             if (nya_input_action_matches(NYA_INPUT_ACTION_CANCEL, key->key, key->modifier_flags)) {
-                gny_screen_main_menu();
+                gny_screen_request(GNY_SCREEN_MAIN_MENU);
                 event->was_handled = true;
                 break;
             }
@@ -313,34 +319,12 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
 
                 gny_terrain3d_generate(window, nya_world()->allocator, gny_terrain3d()->seed + 1);
 
-                // teleported, so the handle and its on_click stay valid.
-                NYA_Entity* cube = nya_entity_get(scene->cube);
-
-                if (cube != nullptr) {
-                    nya_physics3d_teleport(cube, _gny_cube3d_drop_point(), nya_quaternion_identity);
-                    nya_physics3d_velocity_set(cube, f32x3_zero);
-                    nya_physics3d_angular_velocity_set(cube, f32x3_zero);
-                }
-
-                // the models too, or they would be embedded in a new hill.
-                struct {
-                    NYA_EntityHandle handle;
-                    f32              x;
-                    f32              lift;
-                } models[] = {
-                    { scene->model, GNY_CUBE3D_MODEL_OFFSET, GNY_CUBE3D_MODEL_LIFT },
-                    { scene->pill, GNY_CUBE3D_PILL_OFFSET, GNY_CUBE3D_PILL_LIFT },
-                };
-
-                for (u64 i = 0; i < nya_carray_length(models); i++) {
-                    NYA_Entity* entity = nya_entity_get(models[i].handle);
-                    if (entity == nullptr) continue;
-
-                    nya_physics3d_teleport(entity, (f32x3){ models[i].x, gny_terrain3d()->max_height + models[i].lift, 0.0F },
-                                           nya_quaternion_identity);
-                    nya_physics3d_velocity_set(entity, f32x3_zero);
-                    nya_physics3d_angular_velocity_set(entity, f32x3_zero);
-                }
+                // teleported rather than respawned, so handles and on_click stay valid. the models too, or they would be
+                // embedded in a new hill.
+                f32 top = gny_terrain3d()->max_height;
+                _gny_cube3d_body_reset(scene->cube, _gny_cube3d_drop_point());
+                _gny_cube3d_body_reset(scene->model, (f32x3){ GNY_CUBE3D_MODEL_OFFSET, top + GNY_CUBE3D_MODEL_LIFT, 0.0F });
+                _gny_cube3d_body_reset(scene->pill, (f32x3){ GNY_CUBE3D_PILL_OFFSET, top + GNY_CUBE3D_PILL_LIFT, 0.0F });
 
                 gny_layer_cube3d_cubes_drop();
 
@@ -635,16 +619,10 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
      */
     for (u32 i = 0; i < scene->cube_count; i++) {
         NYA_Entity* cube = nya_entity_get(scene->cubes[i].entity);
-
         if (cube == nullptr || cube->position.y > GNY_TERRAIN3D_CUBE_KILL_Y) continue;
 
         // placed by an ever-climbing counter, so a cube recycled twice lands somewhere new.
-        nya_physics3d_teleport(cube, _gny_cube3d_cube_placement(GNY_TERRAIN3D_CUBE_COUNT + scene->cubes_recycled),
-                               nya_quaternion_identity);
-
-        nya_physics3d_velocity_set(cube, f32x3_zero);
-        nya_physics3d_angular_velocity_set(cube, f32x3_zero);
-
+        _gny_cube3d_body_reset(cube->handle, _gny_cube3d_cube_placement(GNY_TERRAIN3D_CUBE_COUNT + scene->cubes_recycled));
         scene->cubes_recycled++;
     }
 }
@@ -1202,4 +1180,13 @@ f32x3 _gny_cube3d_camera_position(const GNY_Cube3DScene* scene) {
         (sinf(scene->orbit_pitch) * scene->orbit_range) + pivot,
         cosf(scene->orbit_yaw) * horizontal,
     };
+}
+
+void _gny_cube3d_body_reset(NYA_EntityHandle handle, f32x3 position) {
+    NYA_Entity* entity = nya_entity_get(handle);
+    if (entity == nullptr) return;
+
+    nya_physics3d_teleport(entity, position, nya_quaternion_identity);
+    nya_physics3d_velocity_set(entity, f32x3_zero);
+    nya_physics3d_angular_velocity_set(entity, f32x3_zero);
 }

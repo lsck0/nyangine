@@ -1,5 +1,8 @@
 /**
  * @file entity_box.c
+ *
+ * The crate: spawned with a 2D body and a light, reports impacts to the sim barrier, removed when it falls
+ * out of the world, and clickable.
  * */
 #include "gnyame/gnyame.h"
 

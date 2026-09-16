@@ -1,3 +1,9 @@
+/**
+ * @file sim.c
+ *
+ * The simulation observer. Callbacks record impacts and losses during the tick; this reads the whole
+ * frame and decides once which impacts get a voice and sparks.
+ * */
 #include "gnyame/gnyame.h"
 #include "generated/assets.h"
 

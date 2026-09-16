@@ -1,5 +1,8 @@
 /**
  * @file entity_camera.c
+ *
+ * Cameras as entities. The primary one draws the world into the window; others draw into their own texture
+ * and are composited as insets. A camera can follow another entity.
  * */
 #include "gnyame/gnyame.h"
 

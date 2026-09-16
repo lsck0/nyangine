@@ -5,6 +5,8 @@
 #include "gnyame/entities/entities.c"
 #include "gnyame/net.c"
 #include "gnyame/sim.c"
+#include "gnyame/world.c"
+#include "gnyame/screens.c"
 #include "gnyame/systems/systems.c"
 #include "gnyame/layers/layer_background.c"
 #include "gnyame/layers/layer_cube3d.c"
@@ -90,8 +92,8 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
 
     // straight into a scene when asked, so a profile or a smoke run does not have to drive the menu.
     NYA_ConstCString screen = getenv("GNYAME_SCREEN");
-    if (screen != nullptr && nya_string_equals(screen, "cube3d")) gny_screen_cube3d();
-    if (screen != nullptr && nya_string_equals(screen, "game")) gny_screen_start_game();
+    if (screen != nullptr && nya_string_equals(screen, "cube3d")) gny_screen_request(GNY_SCREEN_CUBE3D);
+    if (screen != nullptr && nya_string_equals(screen, "game")) gny_screen_request(GNY_SCREEN_START_GAME);
 }
 
 /*

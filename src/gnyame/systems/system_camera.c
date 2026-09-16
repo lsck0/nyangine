@@ -1,5 +1,8 @@
 /**
  * @file system_camera.c
+ *
+ * Renders the world once per camera entity: insets into their textures, the primary into the window,
+ * then the insets composited on top.
  * */
 #include "gnyame/gnyame.h"
 

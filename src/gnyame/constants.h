@@ -1,5 +1,7 @@
 /**
  * @file constants.h
+ *
+ * Every tuning number the game uses, grouped by what reads it. Change values here, not at call sites.
  * */
 #pragma once
 
@@ -885,10 +887,6 @@
 
 /** How dark a shadow goes. Well under one, since a full shadow reads as a hole. */
 #define GNY_CUBE3D_SHADOW_STRENGTH 0.45F
-/**
- * How far down the view shadows are cast, in world units.
- * */
-#define GNY_CUBE3D_SHADOW_RANGE   (GNY_TERRAIN3D_EXTENT * 2.0F)
 
 /**
  * How far casters reach from the scene's centre, in world units: the terrain's half-diagonal plus room for cubes

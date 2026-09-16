@@ -1,5 +1,7 @@
 /**
  * @file system_movement.c
+ *
+ * Two registered systems, player input then camera follow, and their registration order.
  * */
 #include "gnyame/gnyame.h"
 

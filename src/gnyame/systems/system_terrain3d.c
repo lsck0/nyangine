@@ -1,3 +1,8 @@
+/**
+ * @file system_terrain3d.c
+ *
+ * The 3D scene's ground, created and drawn through nya_terrain3d_*. Only the shape and seed are the game's.
+ * */
 #include "gnyame/gnyame.h"
 
 /*

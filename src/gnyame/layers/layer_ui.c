@@ -1,5 +1,7 @@
 /**
  * @file layer_ui.c
+ *
+ * The 2D scene's HUD: counters, frame cost, key bindings and the perf span overlay, in screen space.
  * */
 #include "gnyame/gnyame.h"
 
@@ -67,7 +69,7 @@ void gny_layer_ui_on_event(NYA_Window* window, NYA_Event* event) {
 
     if (!nya_input_action_matches(NYA_INPUT_ACTION_PAUSE, key->key, key->modifier_flags)) return;
 
-    gny_screen_pause();
+    gny_screen_request(GNY_SCREEN_PAUSE);
     event->was_handled = true;
 }
 

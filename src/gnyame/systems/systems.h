@@ -1,5 +1,8 @@
 /**
  * @file systems.h
+ *
+ * Game systems. Per-tick ones are registered with nya_system_register in gny_systems_register_all; the rest
+ * are helpers the layers call.
  * */
 #pragma once
 

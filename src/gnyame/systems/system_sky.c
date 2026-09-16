@@ -1,3 +1,8 @@
+/**
+ * @file system_sky.c
+ *
+ * The day and night cycle: one phase decides the gradient, sun or moon, stars and clouds, for both scenes.
+ * */
 #include "gnyame/gnyame.h"
 
 /*
