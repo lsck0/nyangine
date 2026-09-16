@@ -8,7 +8,7 @@
 
 | Area             | Decision / Rule                                                                                                  |
 | :--------------- | :--------------------------------------------------------------------------------------------------------------- |
-| **Workflow**     | Edit files directly. Luca handles git. No agent runs git beyond read-only commands.                              |
+| **Workflow**     | Edit files directly. Agents commit and push as work lands, per Luca's standing "sync to github" instruction.      |
 | **Comments**     | _Keep the why, cut the essay._ Compress each prose block to its load-bearing claim (1–3 lines).                  |
 | **Gamepad**      | Tagged digital source: `NYA_InputBinding` is a union of key \| gamepad button \| axis-past-threshold.            |
 | **Subsystems**   | Unified registry: `core_system.h` handles engine subsystems and game systems. Old lifecycle/frame split is gone. |
@@ -44,11 +44,21 @@ the near cascade's reach spent that cascade on empty air and the whole scene fel
 coarsest map. Cascades are now fitted to slices of the camera's own frustum, by bounding sphere so the
 fit is rotation invariant. See `nya_render3d_shadow_for_camera` and `NYA_Render3DShadowFit.range`.
 
+Three separate faults then kept the fit from showing on screen at all, all now fixed and all in the
+pass plumbing rather than in the maths:
+
+- ✅ `nya_render3d_end` had no shadow-pass guard while `begin` did, so cascades one and two were skipped
+  entirely.
+- ✅ `_nya_render2d_pass_resume` never restored the cascade viewport. A viewport belongs to a render
+  pass, and a flush closes and reopens one, so everything after the first flush of a cascade rasterised
+  across the whole atlas at double scale instead of into its own slice.
+- ✅ The shadow depth target was `DONT_CARE` while the resume path was `LOAD`, so every draw after the
+  first flush depth-tested against discarded contents.
+
 - `[ ]` **Verify the crossfade by eye.** The cascade boundary is now blended over the outer 15% of each
   cascade and the PCF penumbra is held constant in world units across cascades — both aimed at "the
   shadows move when the camera turns", neither confirmed on screen yet.
-- `[ ]` **`nya_render3d_cascade_extent` is dead.** It was the old geometric split and nothing calls it
-  now; `NYA_RENDER3D_SHADOW_CASCADE_RATIO` with it. Remove both, or keep them and say what for.
+- ✅ **`nya_render3d_cascade_extent` is gone**, `NYA_RENDER3D_SHADOW_CASCADE_RATIO` with it.
 - `[ ]` **The sun moves.** `system_sky.c` turns the light every frame, so the texel grid the snap rounds
   to rotates with it and edges crawl regardless of how still the camera is. Snapping the light's own
   basis to discrete steps would fix it; nothing does yet.
@@ -155,20 +165,24 @@ Measured on the 3D scene, release build, 1280x720, 4x MSAA: **116 MB RSS**, roug
 and a release `perf` profile whose top entries are below. Everything here is a choice rather than a
 leak, and the ranking is by what a fix returns for what it costs.
 
-### The glyph atlas is paid for three times, in the wrong format
+### ✅ The glyph atlas is R8, not RGBA8 — 58 MB → 14.5 MB
 
-Each atlas allocates its full size as an RGBA8 GPU texture, *again* as an `SDL_Surface` kept alive for
-later bakes, and *again* as a transfer buffer sized for the whole atlas. Four live atlases are 19.4 MB
-of pixels, so about **58 MB across RAM and VRAM**.
+Done. Each atlas allocated its full size as an RGBA8 GPU texture, *again* as an `SDL_Surface` kept alive
+for later bakes, and *again* as a transfer buffer sized for the whole atlas — 19.4 MB of pixels across
+four live atlases, about **58 MB across RAM and VRAM**, three quarters of it a constant.
 
-The pixels are single-channel: the blit fills every channel with the same coverage. R8_UNORM cuts all
-three by four — **58 MB → 14.5 MB**, the single largest saving available.
+The bake rasterised a white glyph, kept its alpha, then wrote `255` back over all three colour channels.
+So the CPU side is a plain coverage byte array now rather than an `SDL_Surface` — SDL has no
+single-channel surface format — and the bake copies the glyph's alpha across directly instead of
+blitting and then whitening.
 
-- ⚠ Not a one-line change. `text_sdf.frag.hlsl` already reads `.r`, but the *coverage* path goes
-  through NYA_RENDER2D_PIPELINE_TEXTURED, which samples RGBA and multiplies — an R8 atlas there draws
-  red text. It needs a coverage-from-`.r` text pipeline shaped like the SDF one.
-- `[ ]` **The transfer buffer is sized for the whole atlas** and one glyph is baked at a time. A
-  cell-sized staging buffer with a rect upload is another 19 MB (5 MB after R8).
+`text_sdf.frag.hlsl` already read `.r` and needed no change. Coverage text needed its own pipeline:
+NYA_RENDER2D_PIPELINE_TEXTURED multiplies all four channels, so an R8 atlas reached it as
+`(coverage, 0, 0, 1)` and drew every glyph as a red box. `NYA_RENDER2D_PIPELINE_TEXT` is that pipeline,
+selected per atlas beside the SDF one it mirrors.
+
+- `[ ]` **The transfer buffer is still sized for the whole atlas** and one glyph is baked at a time. A
+  cell-sized staging buffer with a rect upload is another 4.8 MB now that the format is R8.
 - `[ ]` **The grid is 512 cells sized to the largest glyph.** `@44` is 1152x2176 for 512 slots, and a
   game uses a fraction of them. A smaller NYA_RENDER2D_GLYPH_CAPACITY costs nothing but a ceiling.
 
@@ -187,14 +201,20 @@ call is regenerated from scratch each time. That multiplier is behind most of th
 | `nya_render3d_quad` | 1.2% | |
 | `nya_render3d_sort_keys` | 1.0% | the shadow pass sorts transparencies it does not need |
 
-- `[ ]` **`nya_render3d_sphere` is the clearest win.** 24 segments by 12 rings is 1152 vertices, built
-  on the CPU, for each of four lamp markers, in each of four passes — about 18k vertices a frame,
-  identical every time. `nya_render3d_mesh_register` already exists: register a unit sphere once and
-  draw it transformed. The call site keeps the same signature, so the ergonomics do not change.
-- `[ ]` **The shadow pass does not need the sort, the UVs, the colours or the normals.** It writes
-  depth. A depth-only vertex format would cut the upload it dominates.
-- `[ ]` **Terrain physics is a triangle mesh.** A heightfield is the shape Box3D has a cheaper solver
-  for, and the terrain is literally a heightfield.
+- ✅ **`nya_render3d_sphere` draws a registered unit sphere.** 24 segments by 12 rings was 1152 vertices
+  built on the CPU per marker per pass, about 18k a frame, identical every time.
+  `NYA_RENDER3D_MESH_UNIT_SPHERE` is built once on first use and drawn transformed; the call site kept
+  its signature. The handle is reserved — `nya_render3d_mesh_register` refuses it, and the renderer fills
+  the slot through `_nya_render3d_mesh_register` underneath that check.
+- ✅ **The shadow pass no longer sorts.** It writes depth and does not blend, so its draw order is
+  unobservable. `nya_render3d_sort_keys` was 1.0% of a release frame, three quarters of it sorting for
+  the three cascades.
+- ⚠ **A depth-only shadow vertex format was tried and reverted.** Dropping the UVs, colours and normals
+  for the shadow pass regressed the shadows themselves and the cause was not found before the revert;
+  the shaders are byte-identical to before the attempt. Anyone retrying this should expect the problem
+  to be in the vertex layout the shadow pipeline is *built* with rather than in the data fed to it.
+- ✅ **Terrain physics is a heightfield.** `NYA_PHYSICS3D_SHAPE_HEIGHTFIELD` over `b3CreateHeightField`,
+  which is the shape Box3D has the cheaper solver for. `b3SolveContacts_Mesh` was 4.3%.
 - `[ ]` **Cascade count is a direct multiplier** on all of the above. Three may be one more than this
   scene needs now that the cascades are fitted to the frustum.
 
@@ -248,41 +268,48 @@ built and on the link line for every target.
 
 From `nm --size-sort` on the release binary:
 
+From `nm --size-sort -S` on the current release binary:
+
 | Object | Size | |
 | :--- | ---: | :--- |
-| `NYA_ASSET_BLOB` | 12 MB | above |
+| `NYA_ASSET_BLOB` | 12.4 MB | `.rodata`, below |
 | `b3_worlds` / `b2_worlds` | 596 + 344 KB | solver pools, both resident whether or not a scene uses them |
-| `nya_system_entity_lights.candidates` | 384 KB | `static NYA_EntityLightEntry[NYA_ENTITY_MAX]` |
-| `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` | 260 + 79 KB | resident in single player |
-| `_nya_audio_system` | 436 KB | in `.data`, not `.bss` |
-| `nya_system_entity_render_in.entries` | 192 KB | `static NYA_EntityDrawEntry[NYA_ENTITY_MAX]` |
-| `_nya_render2d_font_cache` | 147 KB | atlas metadata |
+| `_nya_audio_system` | 446 KB | now `.bss` |
+| `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` | 266 + 80 KB | resident in single player |
+| `dphaseTable` / `tllTable` | 256 + 128 KB | vendored audio decoder tables |
+| `_nya_render2d_font_cache` | 150 KB | atlas metadata |
 
-- `[ ]` **The two entity scratch arrays are per-frame working memory held forever** — 576 KB of
-  function statics that exist because there was nowhere else to put them. The frame arena is exactly
-  that place, and it would also stop them being sized by `NYA_ENTITY_MAX` rather than by what a frame
-  actually draws.
-- `[ ]` **`_nya_audio_system` is in `.data` because it has non-zero initializers**, so it costs its
-  436 KB in the binary *and* a copy at load. Whatever the non-zero defaults are, setting them in
-  `nya_system_audio_init` moves the whole thing to `.bss`.
+- ✅ **The two entity scratch arrays moved to the frame arena.** 576 KB of function statics sized by
+  `NYA_ENTITY_MAX` rather than by what a frame actually draws; both are now `nya_arena_alloc` off
+  `frame_allocator` and neither appears in the table above any more.
+- ✅ **`_nya_audio_system` is in `.bss`.** Its non-zero defaults are set in `nya_system_audio_init`
+  rather than as static initializers, so it no longer costs its size in the binary *and* a copy at load.
+- `[ ]` **The solver pools are the largest remaining statics** and neither shrinks when a scene uses
+  only one of the two dimensions.
 
 ### VRAM, by allocation
 
 | What | Size | |
 | :--- | ---: | :--- |
 | Swapchain MSAA colour + depth | 28 MB | 4x, D24S8 |
-| Shadow atlas colour + depth | 32 MB | 2048², R32_FLOAT |
-| Glyph atlases | 19 MB | see above |
+| Shadow atlas colour + depth | 19 MB | strip, R16_UNORM colour + D24S8 depth |
+| Glyph atlases | 4.8 MB | R8, see above |
 | Each offscreen render texture | up to 32 MB | colour **plus its own** MSAA colour and MSAA depth |
 | Refraction capture | 3.5 MB | full-resolution copy |
 | Batch + transfer buffers | 3.8 MB | |
 
-- `[ ]` **The shadow atlas wastes a quadrant** — three cascades in a 2x2 leaves a quarter of colour and
-  depth unused: **8 MB**. A 3-wide strip spends it.
-- `[ ]` **R32_FLOAT for a depth in [0, 1]** — R16 halves it to 8 MB. Measure acne on the near cascade
-  first; that is where sixteen bits would show if anywhere.
-- `[ ]` **Every render texture carries its own MSAA colour and depth**, 29 MB on top of the 3.5 the
-  target costs. A target that exists only to be post-processed may not need multisampling.
+- ✅ **The shadow atlas is a strip.** Three cascades in a 2x2 left a quarter of colour and depth unused.
+  A strip is one cascade wide per cascade and one tall, so it is never worse and is better at every
+  count below four.
+- ✅ **R16_UNORM, not R32_FLOAT**, for a depth in [0, 1]. Colour went 16.8 MB → 6.3 MB. Acne was
+  measured on the near cascade rather than assumed: RMSE against the R32 image is 0.0075.
+- `[~]` **Every render texture carries its own MSAA colour and depth.** The depth half is fixed:
+  `nya_render_texture_create_with` takes `NYA_RENDER_TEXTURE_DEPTH_NONE`, and the post chain's
+  ping-pong target uses it — every 2D pipeline is built with depth testing and writing off, so it
+  declares no depth-stencil target and could not reach that buffer at all. 31.6 MB at 1080p and 4x.
+  `nya_render3d_begin` asserts the target has depth rather than letting a 3D draw fail quietly.
+  → **The MSAA half is still open** and needs single-sampled pipeline variants, which
+  `NYA_AssetLoadParameters.as_graphics_pipeline.single_sampled` already supports.
 
 ### Text is re-shaped every frame, including text that never changes
 
@@ -345,6 +372,20 @@ The findings below record why — it needs a device — and that the same unsign
 because of it. Only the postmortem is written down; nothing has made the bake, upload and lookup
 reachable from a test.
 
+⚠ The bake was rewritten for R8 and is therefore the newest untested code in the tree. It was verified
+by running the game and reading the screen — coverage text at three sizes, the SDF title, and the
+unicode row all correct — which is the only check available and is not a regression test.
+
+## `[ ]` Nothing in a test reaches `render3d.c` at all
+
+`nyangine.c` swaps in `render3d_headless.c` under `NYA_HEADLESS_ENABLED` and tests build headless, so
+`_nya_render3d_visible`, the frustum build and the cull path have no test coverage and cannot be given
+any as things stand. This blocked writing a regression test for the occlusion/shadow-pass fix above.
+
+- → Either a culling unit that lives outside `render3d.c` and both builds include, or a non-headless
+  test target for the handful of things that genuinely need the real renderer. The first is cheaper and
+  covers the maths, which is where the bugs have been.
+
 # nyangine — Research & Findings
 
 This file contains non-obvious engineering findings and details that cost real effort to learn, captured to prevent re-derivation.
@@ -352,6 +393,37 @@ This file contains non-obvious engineering findings and details that cost real e
 ---
 
 ## Findings
+
+### Render Pass State Is Per Pass, And A Flush Opens A New One
+
+Viewport, scissor and the load/store ops belong to an `SDL_GPURenderPass`, not to the command buffer or
+the target. `_nya_render2d_pass_suspend` / `_resume` exist because a copy pass cannot open while a render
+pass is, so any flush that has to upload ends the pass and begins another one — and everything per-pass
+is back at its default on the far side.
+
+This produced two distinct shadow bugs with the same shape:
+
+- The cascade viewport was set once in `nya_render3d_shadow_begin`. After the first flush the pass was a
+  new one, so the rest of the cascade rasterised over the whole atlas at double scale.
+- The depth target was `SDL_GPU_STOREOP_DONT_CARE`, which is right for a pass that runs start to finish.
+  A cascade does not: the driver was free to discard the depths at each suspend, and the resume path
+  `LOAD`s them back, so every draw after the first flush tested against garbage.
+
+Neither is visible in a scene small enough to fit in one flush, which is why both survived so long. When
+adding anything to a pass that can suspend, the question is not "did I set this" but "did I set this
+*after the last flush*" — `_nya_render2d_pass_resume` is the one place that can answer yes.
+
+### An Occlusion Buffer Belongs To One Viewpoint
+
+`nya_occlusion_begin` takes a view-projection and every occluder and query afterwards is in that frame.
+A shadow pass draws from the light, so testing casters against the camera's buffer culls whatever the
+camera cannot see — and that geometry is exactly what casts shadows onto ground the camera *can* see.
+The symptom is shadows blinking out as a wall passes in front of the thing casting them.
+
+Frustum culling has no such problem, because `_nya_render3d_frustum_build` rebuilds the planes from
+whatever matrix the current pass installed, light or camera. The distinction is worth keeping in mind
+for anything else viewpoint-dependent that gets added to the cull path: it has to be asked whether it
+is rebuilt per pass or carried in from outside.
 
 ### "Has A Shadow Pass Run" Is Not "Am I In A Shadow Pass"
 
