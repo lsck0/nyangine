@@ -26,8 +26,8 @@ jobs:
           lfs: true
           # Whole history, for the version and commit the build stamps into the binary.
           fetch-depth: 0
-          # Reading git locally needs no credentials, and nothing here pushes — the release job's
-          # write permission is spent through the API, not through the checkout's remote.
+          # Reading git locally needs no credentials, and nothing pushes; the release job writes
+          # through the API.
           persist-credentials: false
 
       - uses: $/.github/actions/setup-linux

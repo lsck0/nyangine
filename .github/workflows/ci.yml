@@ -11,9 +11,8 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Nothing here needs the API. Denying everything at the top means a job that later grows a step which
-# does gets the failure at that step, rather than silently inheriting whatever the repository default
-# happens to be — which is `write` on a lot of repositories.
+# Nothing here needs the API. Denying everything means a step that later does fails loudly instead of
+# inheriting the repository default, which is often `write`.
 permissions: {}
 
 jobs:
@@ -93,10 +92,9 @@ jobs:
 
   # The Windows host path, which the Linux jobs above cannot cover.
   #
-  # They cross compile the Windows *target* with mingw-w64, which exercises on_linux/build_windows.h
-  # and nothing in on_windows/. Everything only that host reaches — its toolchain file, the native
-  # resource compiler, the autotools vendors needing sh and make, signtool over osslsigncode — was
-  # previously verified by nobody, on a target that ships.
+  # They cross compile the Windows target with mingw-w64, which exercises on_linux/build_windows.h and
+  # nothing in on_windows/: the toolchain file, native windres, autotools vendors under sh and make,
+  # and signtool.
   #
   # MSYS2 is slow to bring up and builds every vendor natively, hence the longer timeout.
   test-windows:
@@ -153,13 +151,11 @@ jobs:
           exe=$(ls gnyame.*.windows-x86_64.exe) || { echo "::error::no windows executable was produced"; exit 1; }
           echo "built ${exe} ($(stat -c%s "${exe}") bytes)"
 
-          # Informational, not a gate. signtool lives in a versioned Windows SDK directory rather
-          # than on PATH, so the signing hook usually warns and skips here — which is allowed, and
-          # is why the build does not fail on it. Reported so a run that *was* expected to sign
-          # does not do so silently.
+          # Informational, not a gate. signtool lives in a versioned Windows SDK directory, not on
+          # PATH, so the signing hook usually skips here. Reported so a missing signature is visible.
           if command -v signtool >/dev/null 2>&1; then
             signtool verify /pa "${exe}" \
-              || echo "::notice::signed, publisher untrusted — expected for the sample certificate"
+              || echo "::notice::signed, publisher untrusted (expected for the sample certificate)"
           else
             echo "::notice::signtool not on PATH, executable is unsigned"
           fi

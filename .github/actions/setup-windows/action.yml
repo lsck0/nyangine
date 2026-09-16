@@ -5,11 +5,9 @@ description: Install build dependencies on a Windows runner, setup caching, boot
 # nothing: that one is apt and apt.llvm.org, this one is MSYS2 and pacman, and a single action
 # carrying both would be two scripts behind an `if` anyway.
 #
-# MSYS2's CLANG64 environment, for two reasons. The engine needs clang 22 for -fdefer-ts and
-# -fenable-matrix and MSYS2 tracks LLVM releases quickly, and the autotools vendors (libbacktrace,
-# sqlite) need `sh` and `make` on PATH — which is the same reason the README names msys2 as a
-# Windows dependency. CLANG64 produces native Windows binaries against UCRT, not Cygwin ones, so
-# OS_WINDOWS is true and nothing is being cross compiled.
+# MSYS2's CLANG64 environment: it tracks LLVM releases quickly (the engine needs clang 22 for
+# -fdefer-ts and -fenable-matrix), and the autotools vendors need `sh` and `make`. CLANG64 produces
+# native UCRT binaries, so OS_WINDOWS is true and nothing is cross compiled.
 
 inputs:
   llvm-version:
@@ -68,28 +66,21 @@ runs:
       id: vendor
       shell: msys2 {0}
       run: |
-        # Two inputs, not one: which revision of each dependency, and how this repository configures
-        # it. src/build/vendor is the second half — a cmake flag changed there produces a different
-        # archive from identical sources, and keying on submodule status alone would hand the next
-        # run a cached build of the old configuration. That is not hypothetical: turning libcurl's
-        # nghttp2 detection off changed what the archive requires at link time while leaving every
-        # submodule revision untouched.
+        # Every submodule revision, plus the recipes and toolchains that configure them, since a
+        # changed cmake flag produces a different archive from identical sources.
         revisions="$(git submodule status --recursive vendor)"
-        recipes="$(find src/build/vendor -type f -name '*.h' -print0 | sort -z | xargs -0 sha256sum)"
+        recipes="$(find src/build/vendor src/build/on_linux src/build/on_windows -type f -name '*.h' -print0 | sort -z | xargs -0 sha256sum)"
         sha="$(printf '%s\n%s' "${revisions}" "${recipes}" | sha256sum | cut -d' ' -f1)"
         echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
-    - name: Cache vendor builds
+    # Restored here and saved right after the vendor build, not at job end, so a failing test or a
+    # cancelled run still keeps the vendors it built.
+    - name: Restore vendor builds
       id: vendor-cache
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
-        # A Windows host builds Windows targets only, so there is no build-linux-x86_64 here.
-        # shadercross is a host tool and lands in a directory named for this host.
-        #
-        # vendor/lua/src/luajit.h is generated from luajit_rolling.h and untracked, so a cache
-        # holding only the archive leaves anything including it failing to compile — the archive's
-        # presence is what makes the build system skip the rule that creates it. sqlite-vec.h is
-        # generated too, and is cached alongside it for the same reason.
+        # A Windows host builds Windows targets only; shadercross lands in a directory named for this
+        # host. luajit.h and sqlite-vec.h are generated and untracked, and cached with the archives.
         path: |
           vendor/*/build-windows-x86_64
           vendor/lua/libluajit-windows.a
@@ -107,12 +98,22 @@ runs:
 
     - name: Bootstrap build system
       shell: msys2 {0}
-      # -o build.exe, not -o build. host.h defines BUILD_TOOL_BINARY as "build.exe" here, and
-      # nya_rebuild_yourself compiles over exactly that name after backing up argv[0]. Bootstrapping
-      # to a different name means the rebuild writes a file nobody runs while the stale binary
-      # re-execs itself — a build tool that silently ignores its own source changes.
+      # -o build.exe: host.h names BUILD_TOOL_BINARY "build.exe" and nya_rebuild_yourself compiles
+      # over that name. Any other name would leave a stale binary re-executing itself.
       run: clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread
 
     - name: Build vendored dependencies
       shell: msys2 {0}
       run: ./build.exe build vendor
+
+    - name: Save vendor builds
+      if: steps.vendor-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: |
+          vendor/*/build-windows-x86_64
+          vendor/lua/libluajit-windows.a
+          vendor/lz4/liblz4-windows.a
+          vendor/lua/src/luajit.h
+          vendor/sqlvec/sqlite-vec.h
+        key: ${{ steps.vendor-cache.outputs.cache-primary-key }}
