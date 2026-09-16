@@ -6,7 +6,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** One slot in the pool. `generation` is odd while running, so a zeroed slot is never a live handle. */
+/** One slot in the pool. Generation zero is never handed out, so a zeroed slot is never a live handle. */
 typedef struct {
     b8              active;
     NYA_TweenTarget target;
@@ -185,13 +185,12 @@ void nya_system_tween_update(f32 delta_time_s) {
         // after it in this loop.
         f32 step_s = delta_time_s;
 
-        // The delay runs down before anything is read, so `from` is the value at the moment the tween
-        // actually begins — not the value it had when it was created, which may be several tweens ago.
+        // the delay runs out before `from` is read, so a tween starts from the value at that moment rather
+        // than the one it had when it was created.
         if (slot->delay_s > 0.0F) {
             slot->delay_s -= step_s;
             if (slot->delay_s > 0.0F) continue;
 
-            // Whatever is left of the frame belongs to the tween itself.
             step_s        = -slot->delay_s;
             slot->delay_s = 0.0F;
         }

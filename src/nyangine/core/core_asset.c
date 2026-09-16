@@ -2,7 +2,7 @@
 
 #include "nyangine/nyangine.h"
 
-// The FBX reader. An archive rather than part of this translation unit; see vendor_ufbx.h.
+// the FBX reader, linked as an archive; see vendor_ufbx.h.
 #include "ufbx.h"
 
 /*
@@ -12,10 +12,9 @@
  */
 
 /*
- * The filesystem is always there; the embedded blob is an optional layer in front of it.
- * NYA_ASSET_PREFER_BLOB bakes src/generated/assets.c into the binary and consults it first; anything not in
- * it still comes off disk. NYA_ASSET_HOT_RELOAD watches files that came off disk and reloads them on
- * change — orthogonal to the blob, since a blob-served asset has no file to watch.
+ * The filesystem is always there, and the embedded blob is an optional layer in front of it.
+ * NYA_ASSET_PREFER_BLOB consults src/generated/assets.c first; anything missing still comes off disk.
+ * NYA_ASSET_HOT_RELOAD watches disk files only, since a blob asset has no file.
  */
 #ifdef NYA_ASSET_PREFER_BLOB
 #include "generated/assets.c"
@@ -23,7 +22,7 @@
 NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT NYA_Asset* out_asset);
 #endif // NYA_ASSET_PREFER_BLOB
 
-/** Drops every memoised handle lookup. Defined beside the memo; declared here for nya_system_asset_init. */
+/** Drops every memoised handle lookup. */
 NYA_INTERNAL void _nya_asset_lookup_invalidate(void);
 
 NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_filesystem(NYA_AssetHandle path, OUT NYA_Asset* out_asset);
@@ -34,9 +33,8 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw(NYA_AssetHandle handle, b8 external, 
 
 NYA_INTERNAL void      _nya_asset_fail(NYA_Asset* asset, const NYA_Error* error);
 /**
- * A texture that has had its pixels staged and is waiting for the frame's copy pass. The transfer
- * buffer has to outlive the copy pass that reads it, which is why these are collected and released
- * together after the single submit rather than each upload cleaning up after itself.
+ * A texture with its pixels staged, waiting for the frame's copy pass. The transfer buffers outlive
+ * that pass, so they are released together after the single submit.
  * */
 typedef struct {
     SDL_GPUTransferBuffer* transfer;
@@ -51,9 +49,8 @@ nya_derive_array(_NYA_AssetPendingUpload);
 NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending, OUT NYA_Asset* out_asset);
 
 /**
- * Turns FBX bytes into the triangles, material colour and texture of NYA_Asset.as_mesh. Takes the
- * frame's pending-upload list because the material's texture is uploaded through the same single
- * copy pass every other texture in the frame uses — see _nya_asset_flush_uploads.
+ * Turns FBX bytes into NYA_Asset.as_mesh. Takes the pending-upload list so the material's texture goes
+ * through the frame's single copy pass; see _nya_asset_flush_uploads.
  * */
 NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* data, u64 size, NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending,
                                              OUT NYA_Asset* out_asset);
@@ -63,17 +60,15 @@ NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayᐸ_NYA_AssetPendingUpload�
 NYA_INTERNAL void      _nya_asset_unload_raw(NYA_Asset* asset);
 NYA_INTERNAL void      _nya_asset_cancel_queued_unload(NYA_Asset* asset);
 
-/** Copies a caller supplied handle into the asset system's own memory. See the note at its definition. */
+/** Copies a caller supplied handle into the asset system's own memory. */
 NYA_INTERNAL NYA_AssetHandle _nya_asset_intern(NYA_AssetHandle handle) __attr_no_discard;
 
 #ifdef NYA_ASSET_HOT_RELOAD
 #define _NYA_ASSET_RELOAD_GRACE_FRAMES 5
 
 /**
- * The shortest interval between two stats of the same asset's file, while hot reload is on.
- * nya_asset_get is on every draw path, so a stat per call is a syscall per lookup per frame — tens of
- * thousands of them in a scene of any size. Rate limiting rather than removing: a tenth of a second is
- * far below the point anyone notices, and _NYA_ASSET_RELOAD_GRACE_FRAMES adds further latency on top.
+ * The shortest interval between two stats of one asset's file under hot reload. nya_asset_get is on every
+ * draw path, and a stat per call would be tens of thousands of syscalls a frame.
  * */
 #define _NYA_ASSET_STAT_INTERVAL_NS nya_time_ms_to_ns(100)
 NYA_INTERNAL b8 _nya_asset_get_modification_time(NYA_Asset* asset, OUT u64* out_modification_time);
@@ -106,10 +101,8 @@ NYA_INTERNAL NYA_AssetHandle _nya_asset_pick_correct_compiled_shader(NYA_AssetHa
 #define NYA_ASSET_SKELETON_BAKE_RATE 30.0F
 
 /*
- * The immediate 3D layout. Narrower than it looks: colour arrives as four halves and uv as two, and the
- * input assembler expands both, so the shaders still read a `float4` and a `float2` and nothing in them
- * changed when NYA_Vertex3D went from sixty-four bytes to thirty-six. See that struct for why colour is
- * HALF4 rather than the normalized bytes the 2D vertex uses.
+ * The immediate 3D layout. Colour arrives as four halves and uv as two; the input assembler expands both,
+ * so the shaders read `float4` and `float2`. See NYA_Vertex3D for why colour is HALF4.
  */
 NYA_INTERNAL SDL_GPUVertexAttribute vertex_attributes[] = {
     { .location = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = nya_offsetof(NYA_Vertex3D, position), .buffer_slot = 0 },
@@ -126,10 +119,9 @@ NYA_INTERNAL SDL_GPUVertexBufferDescription vertex_buffer_description = {
 };
 
 /*
- * The retained mesh layout: the same vertices in buffer 0, plus a per-instance transform in buffer 1.
- * The four FLOAT4s at locations 4 to 7 are the *columns* of the model matrix, not its rows — no API
- * has a matrix element format, and the engine's matrices are column-major in memory. Splitting into
- * rows instead compiles, uploads, and silently transposes every model in the scene.
+ * The retained mesh layout: vertices in buffer 0, a per-instance transform in buffer 1. Locations 4 to 7
+ * are the model matrix's columns, since the engine's matrices are column-major. Rows would silently
+ * transpose every model.
  */
 NYA_INTERNAL SDL_GPUVertexAttribute vertex_attributes_3d_instanced[] = {
     { .location = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, .offset = nya_offsetof(NYA_Vertex3D, position), .buffer_slot = 0 },
@@ -154,15 +146,10 @@ NYA_INTERNAL SDL_GPUVertexBufferDescription vertex_buffer_descriptions_3d_instan
 };
 
 /*
- * The compact layout the 2D batch uses. See NYA_Vertex2D. Same shader semantics as 3D — POSITION,
- * COLOR0, TEXCOORD0 — so one vertex shader source works against either; the differences are two
- * components instead of three for position, no normal, and a colour that arrives as four normalized
- * bytes.
+ * The 2D batch layout. See NYA_Vertex2D. Same semantics as 3D, with two position components, no normal,
+ * and colour as four normalized bytes.
  */
-/*
- * The skinned 3D layout: the 3D one plus who moves each vertex. Locations 4 and 5 continue where the
- * base layout stops, so the shared part of the shader reads identically in both.
- */
+/* The skinned 3D layout: the 3D one plus bone indices and weights at locations 4 and 5. */
 NYA_INTERNAL SDL_GPUVertexAttribute vertex_attributes_3d_skinned[] = {
     {
      .location    = 0,
@@ -218,8 +205,7 @@ NYA_INTERNAL SDL_GPUVertexAttribute vertex_attributes_2d[] = {
      },
     {
      .location    = 1,
-     // UBYTE4_NORM, not UBYTE4: NORM is what makes the input assembler divide by 255 and hand the
-     // shader a float in 0..1. Without it the shader receives 0..255 and everything saturates white.
+     // UBYTE4_NORM: NORM makes the input assembler divide by 255. without it everything saturates white.
      .format      = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
      .offset      = nya_offsetof(NYA_Vertex2D, color),
      .buffer_slot = 0,
@@ -258,8 +244,7 @@ void nya_system_asset_init(void) {
         .allocator = nya_arena_create(.name = "asset_system_allocator"),
     };
 
-    // Each decoder is a library in its own right. Failure here is not fatal: a build with no audio
-    // device still runs, it just cannot load sounds.
+    // not fatal: a build with no audio device runs, it just cannot load sounds.
     if (!TTF_Init()) nya_log_warn("TTF_Init() failed, fonts will not load: %s", SDL_GetError());
 
     if (!MIX_Init()) {
@@ -271,7 +256,7 @@ void nya_system_asset_init(void) {
 
     app->asset_system.assets          = nya_dict_create(app->asset_system.allocator, NYA_Asset);
 
-    // A fresh dictionary shares nothing with the last one's entries.
+    // a fresh dictionary shares nothing with the old memo.
     _nya_asset_lookup_invalidate();
     app->asset_system.loading_queue   = nya_array_create(app->asset_system.allocator, NYA_AssetLoadParameters);
     app->asset_system.unloading_queue = nya_array_create(app->asset_system.allocator, NYA_AssetHandle);
@@ -303,15 +288,14 @@ void nya_system_asset_init(void) {
 void nya_system_asset_deinit(void) {
     NYA_App* app = nya_app_get();
 
-    // submit all assets to be unloaded
     nya_dict_foreach_value(app->asset_system.assets, asset) {
         if (asset && asset->status != NYA_ASSET_STATUS_UNLOADED) { /**/
             nya_array_push_back(app->asset_system.unloading_queue, asset->handle);
         }
     }
-    _nya_asset_unloading_process(nullptr); // process unloading immediately
+    _nya_asset_unloading_process(nullptr);
 
-    // After the assets, since a MIX_Audio outlives neither its mixer nor its bytes.
+    // after the assets: a MIX_Audio outlives neither its mixer nor its bytes.
     if (app->asset_system.mixer != nullptr) {
         MIX_DestroyMixer(app->asset_system.mixer);
         app->asset_system.mixer = nullptr;
@@ -344,14 +328,10 @@ void nya_system_asset_deinit(void) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/**
- * Slots in the direct-mapped memo in front of the asset dictionary. A power of two.
- * */
+/** Slots in the direct-mapped memo in front of the asset dictionary. A power of two. */
 #define _NYA_ASSET_LOOKUP_SLOTS 256
 
-/**
- * One remembered lookup, keyed on the handle **pointer** rather than its text.
- * */
+/** One remembered lookup: the handle pointer, and a copy of the text it pointed at. */
 /**
  * The longest handle the memo will hold a copy of.
  * */
@@ -362,19 +342,18 @@ typedef struct {
     NYA_Asset*      asset;
 
     /**
-     * What `handle` pointed *at* when this entry was written.
+     * What `handle` pointed at when this entry was written. A pointer alone is not a key: a handle built in a
+     * reused stack buffer has the same address with different text.
      * */
     char text[_NYA_ASSET_LOOKUP_HANDLE_MAX];
 
-    /** Which generation of the dictionary this was true for. See _nya_asset_lookup_generation. */
+    /** Which generation of the dictionary this was true for. */
     u64 generation;
 } _NYA_AssetLookupEntry;
 
 NYA_INTERNAL _NYA_AssetLookupEntry _nya_asset_lookup[_NYA_ASSET_LOOKUP_SLOTS] = { 0 };
 
-/**
- * Bumped whenever the dictionary changes shape, invalidating every memo entry at once.
- * */
+/** Bumped whenever the dictionary changes shape, invalidating every memo entry. */
 NYA_INTERNAL u64 _nya_asset_lookup_generation = 1;
 
 /** Invalidates the memo. Called wherever the dictionary is created or inserted into. */
@@ -387,18 +366,15 @@ NYA_Asset* nya_asset_get(NYA_AssetHandle handle) {
 
     NYA_AssetSystem* system = &nya_app_get()->asset_system;
 
-    // Null before the asset system is up, rather than a fault: reachable outside tests too, since a
-    // sprite atlas can legitimately be built during static setup, before anything has loaded.
+    // null before the asset system is up: a sprite atlas can be described during static setup.
     if (system->assets == nullptr) return nullptr;
 
-    /*
-     * The memo, before the dictionary.
-     */
+    /* The memo, before the dictionary. */
     u64 handle_length = strlen(handle);
 
     _NYA_AssetLookupEntry* entry = &_nya_asset_lookup[((uintptr_t)handle >> 3) & (_NYA_ASSET_LOOKUP_SLOTS - 1)];
 
-    // Too long to hold a copy of, so it cannot be memoized safely. Straight to the dictionary.
+    // too long to copy, so it cannot be memoized.
     b8 memoizable = handle_length < _NYA_ASSET_LOOKUP_HANDLE_MAX;
 
     NYA_Asset* asset = nullptr;
@@ -417,11 +393,9 @@ NYA_Asset* nya_asset_get(NYA_AssetHandle handle) {
     }
 
 #ifdef NYA_ASSET_HOT_RELOAD
-    // Only assets that came off disk have a file to have changed; one served from the blob is part of
-    // the executable.
+    // only disk assets have a file that can change.
     if (asset != nullptr && asset->status == NYA_ASSET_STATUS_LOADED && !asset->from_blob) {
-        // Uptime rather than wall clock: sampled once per frame so every lookup within it agrees, and
-        // it cannot jump backwards when the system clock is adjusted.
+        // uptime, sampled once per frame, so every lookup in a frame agrees and clock changes do not matter.
         u64 now_ns = nya_app_get()->frame_stats.uptime_ns;
 
         if (now_ns < asset->next_stat_time_ns) return asset;
@@ -452,8 +426,7 @@ NYA_Error nya_asset_acquire(NYA_AssetHandle handle) {
     if (asset == nullptr) return nya_error(NYA_ERROR_NOT_FOUND, "cannot acquire '%s': it was never loaded", handle);
     if (asset->status == NYA_ASSET_STATUS_FAILED) return nya_error(NYA_ERROR_NOT_OK, "cannot acquire '%s': it failed to load", handle);
 
-    // Taking a reference cancels a pending unload. The asset is still intact here since the queue is
-    // not processed until the end of the frame, so this is a plain revival, not a resurrection.
+    // a reference cancels a pending unload; the queue has not run yet, so the asset is intact.
     if (asset->queued_for_unload) {
         _nya_asset_cancel_queued_unload(asset);
         asset->queued_for_unload = false;
@@ -474,9 +447,7 @@ void nya_asset_release(NYA_AssetHandle handle) {
         return;
     }
 
-    // Checked rather than subtracted blindly. atomic_fetch_sub on zero wraps to UINT64_MAX, and the
-    // asset then has a reference count nothing can ever bring back down — it would never unload, and
-    // nothing would say why.
+    // checked: fetch_sub on zero wraps, and the asset would never unload.
     u64 previous = atomic_load(&asset->reference_count);
     while (previous > 0) {
         if (atomic_compare_exchange_weak(&asset->reference_count, &previous, previous - 1)) break;
@@ -506,16 +477,14 @@ NYA_Error nya_asset_load(NYA_AssetLoadParameters parameters) {
 
     NYA_Asset* asset = nya_dict_get(system->assets, parameters.handle);
 
-    // Already known. A previous failure is terminal, so say so rather than silently doing nothing.
+    // a failure is terminal, so say so.
     if (asset != nullptr && asset->status == NYA_ASSET_STATUS_FAILED) {
         return nya_error(NYA_ERROR_NOT_OK, "asset '%s' previously failed to load", parameters.handle);
     }
     if (asset != nullptr && asset->status != NYA_ASSET_STATUS_UNLOADED) return NYA_OK;
 
-    // Every handle is copied into its own memory first. Handles are string literals generated into
-    // assets.h, living in the game's DLL; hot reload dlcloses that DLL and unmaps the .rodata they sit
-    // in, which would leave the dict hashing keys that point into nothing. The asset system outlives
-    // every DLL that talks to it, so the strings have to as well.
+    // Handles are copied first. They are literals in the game DLL's .rodata, which a hot reload unmaps, and the
+    // asset system outlives the DLL.
     parameters.handle = _nya_asset_intern(parameters.handle);
 
     if (parameters.type == NYA_ASSET_TYPE_GRAPHICS_PIPELINE) {
@@ -532,7 +501,7 @@ NYA_Error nya_asset_load(NYA_AssetLoadParameters parameters) {
 
     nya_dict_set(system->assets, parameters.handle, new_asset);
 
-    // The insert may have rehashed, moving every NYA_Asset* the memo holds.
+    // the insert may have rehashed, moving every NYA_Asset* the memo holds.
     _nya_asset_lookup_invalidate();
     nya_array_push_back(system->loading_queue, parameters);
 
@@ -556,8 +525,7 @@ b8 nya_asset_unload(NYA_AssetHandle handle) {
     NYA_Asset* asset = nya_dict_get(system->assets, handle);
     if (asset == nullptr) return false;
 
-    // Still in use by someone else — not an error: sharing an asset between two systems is normal,
-    // and whichever finishes first should not pull it out from under the other.
+    // shared assets are normal; whoever finishes first must not pull it from the other.
     if (atomic_load(&asset->reference_count) > 0) return false;
 
     if (asset->queued_for_unload) return true; // already on its way out
@@ -580,15 +548,12 @@ NYA_Error nya_asset_read(NYA_Arena* arena, NYA_AssetHandle handle, OUT u8** out_
 
     if (handle == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "asset handle is null");
 
-    // A bare NYA_Asset used as a scratch buffer, never entered into the registry: this is a read,
-    // not a load. Same trick nya_asset_set_window_icon uses below.
+    // a scratch asset, never registered: this is a read, not a load.
     NYA_Asset raw = { 0 };
     NYA_TRY(_nya_asset_load_raw(handle, false, &raw));
     defer _nya_asset_unload_raw(&raw);
 
-    // Copied rather than handed out. Blob bytes point into the executable and would be fine, but
-    // filesystem bytes live in the asset system's arena and are freed by the defer above — so
-    // returning either directly would be right half the time, which is the worst kind of right.
+    // copied: filesystem bytes are freed by the defer above, so only a copy is safe to return in both cases.
     u8* copy = nya_arena_alloc(arena, raw.as_text.size);
     nya_memcpy(copy, raw.as_text.data, raw.as_text.size);
 
@@ -601,7 +566,6 @@ NYA_Error nya_asset_read(NYA_Arena* arena, NYA_AssetHandle handle, OUT u8** out_
 NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHandle handle) {
     if (handle == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "asset handle is null");
 
-    // See the scratch-buffer note in nya_asset_read above.
     NYA_Asset raw = { 0 };
     NYA_TRY(_nya_asset_load_raw(handle, false, &raw));
     defer _nya_asset_unload_raw(&raw);
@@ -625,9 +589,7 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
 
         const u8* stored = (const u8*)NYA_ASSET_BLOB + asset_header.start;
 
-        // Stored verbatim, which is every entry LZ4 could not shrink. Pointed at directly, so the common
-        // case for the big assets — textures and audio, already compressed by their own formats — costs
-        // no allocation and no copy, exactly as it did before compression existed.
+        // stored verbatim (LZ4 could not shrink it): pointed at directly, no allocation and no copy.
         if (asset_header.compressed_size == asset_header.size) {
             out_asset->as_text.data = (u8*)stored;
             out_asset->as_text.size = asset_header.size;
@@ -676,8 +638,7 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
         return NYA_OK;
     }
 
-    // A build problem, but not worth killing the process for: one missing texture should not take
-    // the game down.
+    // a build problem, not fatal: one missing texture should not take the game down.
     return nya_error(NYA_ERROR_NOT_FOUND, "asset not in the embedded blob: %s. Was it indexed at build time?", path);
 }
 #endif // NYA_ASSET_PREFER_BLOB
@@ -685,8 +646,7 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
 NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_filesystem(NYA_CString path, OUT NYA_Asset* out_asset) {
     nya_assert(path != nullptr);
 
-    // Recoverable, not fatal. An external asset is a path from outside the game and the file may
-    // simply have moved since the player picked it.
+    // an external asset is a path from outside the game, and the file may have moved.
     if (!nya_filesystem_exists(path)) return nya_error(NYA_ERROR_NOT_FOUND, "asset not found on disk: %s", path);
 
     NYA_App*   app   = nya_app_get();
@@ -707,13 +667,13 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_filesystem(NYA_CString path, OUT
     out_asset->raw.data     = data;
     out_asset->raw.size     = size;
 
-    // Read into the asset arena above, so this one is freed on unload.
+    // freed on unload.
     out_asset->raw_owned = true;
 
 #ifdef NYA_ASSET_HOT_RELOAD
     out_asset->source_modification_time = modification_time;
 #else
-    nya_unused(modification_time); // nothing is watching, so nothing needs the timestamp
+    nya_unused(modification_time); // nothing is watching, so nothing needs the timestamp.
 #endif
 
     return NYA_OK;
@@ -749,15 +709,12 @@ NYA_INTERNAL void _nya_asset_fail(NYA_Asset* asset, const NYA_Error* error) {
 }
 
 /**
- * Copies a decoded surface into GPU memory. The GPU cannot read the surface directly: pixels go
- * through a transfer buffer and are copied in on a command buffer. Everything is converted to RGBA32
- * first so the texture format is known regardless of what the file contained.
+ * Copies a decoded surface into GPU memory through a transfer buffer. Converted to RGBA32 first so the
+ * texture format is fixed.
  * */
 /*
- * Staging and submission are separate because a copy pass is per command buffer, not per texture.
- * Every texture used to acquire its own command buffer and submit individually, so twenty textures in
- * a frame meant twenty submissions. The pixel work below is per texture and unavoidable; the command
- * recording now happens once for the whole batch in _nya_asset_flush_uploads.
+ * Staging is per texture; the copy pass is per command buffer, so all textures in a frame share one submit
+ * in _nya_asset_flush_uploads.
  */
 NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending, OUT NYA_Asset* out_asset) {
     nya_assert(surface != nullptr);
@@ -778,9 +735,7 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Array�
     u32 width  = (u32)rgba->w;
     u32 height = (u32)rgba->h;
 
-    // Computed wide and checked, because the transfer buffer's size is a u32 and four bytes per
-    // pixel overflows one at around 32k by 32k. A decoder handing back something that large is a
-    // reason to refuse the image, not to allocate a buffer a small fraction of the size needed.
+    // computed wide: the transfer buffer size is a u32, which four bytes per pixel overflows around 32k square.
     u64 size_wide = (u64)width * (u64)height * 4ULL;
     if (size_wide == 0 || size_wide > U32_MAX) {
         if (converted) SDL_DestroySurface(rgba);
@@ -826,10 +781,8 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Array�
     }
 
     /*
-     * Row by row, because a surface's pitch is not required to equal its width in bytes — SDL pads
-     * scanlines, and a surface already in RGBA32 skips SDL_ConvertSurface entirely, so it can be a
-     * sub-surface or come from a decoder that padded. Copying width * height * 4 in one go would read
-     * the padding as pixels and walk off the end of the last row.
+     * Row by row: a surface's pitch may exceed its width, so one bulk copy would read padding and run off the
+     * last row.
      */
     u32 row_bytes = width * 4;
     for (u32 row = 0; row < height; row++) {
@@ -840,8 +793,7 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Array�
 
     if (converted) SDL_DestroySurface(rgba);
 
-    // Handed over now though nothing is copied in yet: nothing can sample it before the frame ends,
-    // since the asset is marked loaded only after the flush.
+    // handed over before the copy: the asset is only marked loaded after the flush.
     nya_array_push_back(pending, ((_NYA_AssetPendingUpload){ .transfer = transfer, .texture = texture, .width = width, .height = height }));
 
     out_asset->as_texture.texture = texture;
@@ -861,8 +813,7 @@ NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayᐸ_NYA_AssetPendingUpload�
 
     SDL_GPUCommandBuffer* command_buffer = SDL_AcquireGPUCommandBuffer(render_system->gpu_device);
     if (command_buffer == nullptr) {
-        // Nothing has been copied, so the textures are undefined rather than wrong. Still release the
-        // transfer buffers; the textures belong to their assets now and are freed on unload as usual.
+        // nothing was copied, so the textures are undefined. the transfer buffers are still released.
         nya_log_error("SDL_AcquireGPUCommandBuffer() failed, dropping " FMTu64 " texture uploads: %s", pending->length, SDL_GetError());
         nya_array_foreach (pending, upload) SDL_ReleaseGPUTransferBuffer(render_system->gpu_device, upload->transfer);
         nya_array_clear(pending);
@@ -883,8 +834,7 @@ NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayᐸ_NYA_AssetPendingUpload�
     SDL_EndGPUCopyPass(copy_pass);
     SDL_SubmitGPUCommandBuffer(command_buffer);
 
-    // Released only after the submit: SDL keeps the buffer alive until the copy has run, but the
-    // release must come after the referencing commands are recorded and handed over.
+    // released after the submit, once the commands referencing them are recorded.
     nya_array_foreach (pending, upload) SDL_ReleaseGPUTransferBuffer(render_system->gpu_device, upload->transfer);
 
     nya_array_clear(pending);
@@ -897,7 +847,7 @@ NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayᐸ_NYA_AssetPendingUpload�
  * ─────────────────────────────────────────────────────────
  */
 
-/** ufbx's matrix is three rows of an affine transform; this is the same thing as a full 4x4. */
+/** ufbx's matrix is three rows of an affine transform. */
 NYA_INTERNAL ufbx_matrix _nya_asset_node_world_at(ufbx_anim* anim, ufbx_node* node, f64 time, ufbx_matrix* worlds, u32* computed_frame, u32 frame);
 
 NYA_INTERNAL f32_4x4 _nya_asset_matrix_from_ufbx(ufbx_matrix matrix) {
@@ -927,10 +877,8 @@ NYA_INTERNAL ufbx_skin_deformer* _nya_asset_find_skin(ufbx_scene* scene) {
 }
 
 /**
- * Builds the skeleton and bakes every clip, or answers null when the file is not rigged.
- *
- * `out_bone_nodes` receives the node behind each bone, NYA_SKELETON_MAX_BONES entries, so a mesh with
- * its own skin deformer can map its clusters onto these bones by node.
+ * Builds the skeleton and bakes every clip, or returns null when the file is not rigged. `out_bone_nodes`
+ * receives the node behind each bone, so another skinned mesh can map its clusters by node.
  * */
 NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene* scene, OUT ufbx_node** out_bone_nodes) {
     ufbx_skin_deformer* skin = _nya_asset_find_skin(scene);
@@ -944,8 +892,8 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
     }
 
     /*
-     * Each cluster's parent is the nearest ancestor node that is also a cluster. Helper nodes and the
-     * armature root have no cluster, and skipping them gives the parent as far as the palette cares.
+     * Each cluster's parent is its nearest ancestor node that is also a cluster. Helper nodes and the armature
+     * root have no cluster.
      */
     s32* cluster_parent = nya_arena_alloc(arena, (u64)cluster_count * sizeof(s32));
     u32* cluster_depth  = nya_arena_alloc(arena, (u64)cluster_count * sizeof(u32));
@@ -970,7 +918,7 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
         }
     }
 
-    // bounded by the cluster count, since a node tree has no cycles and a chain is at most every cluster.
+    // bounded by the cluster count; a node tree has no cycles.
     u32 max_depth = 0;
     for (u32 i = 0; i < cluster_count; i++) {
         u32 depth = 0;
@@ -981,10 +929,8 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
     }
 
     /*
-     * Ordered by depth, which puts every parent before its children. nya_skeleton_model_transforms
-     * composes in one forward pass and relies on that, and exporters list clusters in vertex group order,
-     * which is often not hierarchy order. It also makes truncation to the palette drop leaves rather than
-     * whichever bones happened to be listed last.
+     * Ordered by depth, so parents come first. nya_skeleton_model_transforms composes in one forward pass, and
+     * exporters list clusters in vertex group order. Truncating to the palette then drops leaves.
      */
     u32 ordered = 0;
     for (u32 depth = 0; depth <= max_depth; depth++) {
@@ -1014,7 +960,7 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
         *bone = (NYA_SkeletonBone){
             .parent = -1,
 
-            // geometry_to_bone is exactly the inverse bind: geometry space in, bone space out.
+            // geometry_to_bone is the inverse bind.
             .inverse_bind = _nya_asset_matrix_from_ufbx(cluster->geometry_to_bone),
             .rest         = { .scale = { 1.0F, 1.0F, 1.0F } },
         };
@@ -1022,7 +968,7 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
         NYA_ConstCString name = cluster->bone_node != nullptr ? cluster->bone_node->name.data : "bone";
         (void)snprintf(bone->name, sizeof(bone->name), "%s", name);
 
-        // a parent sits at a smaller depth, so it was placed at a smaller index already.
+        // a parent has a smaller depth, so it is already placed.
         s32 parent_cluster = cluster_parent[cluster_index];
         for (u32 b = 0; b < i && parent_cluster >= 0; b++) {
             if (order[b] == (u32)parent_cluster) bone->parent = (s32)b;
@@ -1032,12 +978,8 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
     }
 
     /*
-     * The rest pose, derived from the bind matrices rather than read off the nodes.
-     * `bone_node->local_transform` is the obvious source and is wrong here: a bone's parent chain runs
-     * through non-bone nodes — the armature object at minimum — so composing cluster-local transforms
-     * would skip what those nodes contribute and displace the rest pose by the armature's transform.
-     * Inverting the bind matrix instead gives each bone's model-space transform at bind time directly,
-     * making "the rest palette is the identity" true by construction.
+     * The rest pose comes from the bind matrices, not the nodes. A bone's node chain runs through non-bone
+     * nodes such as the armature, which local transforms would skip.
      */
     for (u32 i = 0; i < bone_count; i++) {
         ufbx_matrix geometry_to_bone = skin->clusters.data[order[i]]->geometry_to_bone;
@@ -1048,7 +990,7 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
         ufbx_matrix local = bone_to_geometry;
 
         if (parent >= 0) {
-            // Relative to the parent's bind transform, which is what a local transform means.
+            // relative to the parent's bind transform.
             ufbx_matrix parent_geometry_to_bone = skin->clusters.data[order[parent]]->geometry_to_bone;
 
             local = ufbx_matrix_mul(&parent_geometry_to_bone, &bone_to_geometry);
@@ -1058,10 +1000,8 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
     }
 
     /*
-     * The mesh's geometry-to-world transform at bind time. `bind_to_world` is a bone's world
-     * transform when bound, `geometry_to_bone` takes geometry into that bone — composing them
-     * recovers the geometry-to-world the whole rig was bound in, the same for every cluster, hence
-     * cluster zero. Needed only for root bones; between two bones it cancels (see the clip loop).
+     * The mesh's geometry-to-world at bind time, the same for every cluster. Needed for root bones only;
+     * between two bones it cancels.
      */
     ufbx_matrix bind_to_world     = skin->clusters.data[0]->bind_to_world;
     ufbx_matrix geometry_to_bone0 = skin->clusters.data[0]->geometry_to_bone;
@@ -1069,9 +1009,9 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
 
     ufbx_matrix geometry_bind_inverse = ufbx_matrix_invert(&geometry_bind);
 
-    // ── clips ──
+    // clips
     if (scene->anim_stacks.count > 0) {
-        // one world transform per scene node, reused by every bone that shares an ancestor this frame.
+        // one world transform per scene node per frame, shared by bones with common ancestors.
         u64          node_count     = scene->nodes.count;
         ufbx_matrix* node_worlds    = nya_arena_alloc(arena, node_count * sizeof(ufbx_matrix));
         u32*         computed_frame = nya_arena_alloc(arena, node_count * sizeof(u32));
@@ -1092,12 +1032,7 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
 
             if (duration < 0.0F) duration = 0.0F;
 
-            /*
-             * Baked at a fixed rate rather than the file's own keyframe times: a uniform grid makes
-             * sampling a division instead of a search, and thirty per second is well above what this
-             * art style resolves. A clip authored on twos loses nothing; one with curves is resampled.
-             */
-            // at least NYA_ASSET_SKELETON_BAKE_RATE, stretched so the last frame lands exactly on the end.
+            /* Baked on a uniform grid so sampling is a division, not a search. */
             u32 frames = (u32)ceilf(duration * NYA_ASSET_SKELETON_BAKE_RATE) + 1;
             f32 rate   = duration > 0.0F ? (f32)(frames - 1) / duration : NYA_ASSET_SKELETON_BAKE_RATE;
 
@@ -1113,16 +1048,14 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
             for (u32 f = 0; f < frames; f++) {
                 f64 time = stack->time_begin + ((f64)f / (f64)rate);
 
-                // serials start at one, so a zeroed computed_frame means nothing is cached yet.
+                // serials start at one, so a zeroed computed_frame caches nothing.
                 frame_serial++;
 
                 if (time > stack->time_end) time = stack->time_end;
 
                 /*
-                 * World first, then made relative — the same convention the rest pose is derived in.
-                 * ufbx's node-local transform is wrong here: a bone's node parent is not its *bone*
-                 * parent, so composing local transforms would put the root bone's animation into
-                 * geometry space twice.
+                 * World first, then made relative. A bone's node parent is not its bone parent, so node-local transforms
+                 * would apply the geometry transform twice.
                  */
                 ufbx_matrix world[NYA_SKELETON_MAX_BONES];
 
@@ -1143,14 +1076,12 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
                     ufbx_matrix local;
 
                     if (parent >= 0) {
-                        // Between two bones the geometry constant cancels, so this is just the child
-                        // expressed in the parent's frame.
+                        // between two bones the geometry constant cancels.
                         ufbx_matrix parent_inverse = ufbx_matrix_invert(&world[parent]);
 
                         local = ufbx_matrix_mul(&parent_inverse, &world[b]);
                     } else {
-                        // A root bone still has to be brought into geometry space, which is what the
-                        // constant carries. See `geometry_bind` above.
+                        // a root bone is brought into geometry space by `geometry_bind`.
                         local = ufbx_matrix_mul(&geometry_bind_inverse, &world[b]);
                     }
 
@@ -1165,13 +1096,11 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
 
 
 /**
- * A node's world transform at `time`, composed up its parent chain. ufbx_evaluate_transform answers a
- * transform *relative to its parent*, and there is no evaluated scene to read a world transform from
- * — see UFBX_NO_SCENE_EVALUATION in vendor_ufbx.h. This walks the real node chain rather than the
- * bone chain, so armature roots and helper nodes are included.
+ * A node's world transform at `time`. ufbx_evaluate_transform gives parent-relative transforms and there
+ * is no evaluated scene (UFBX_NO_SCENE_EVALUATION), so this walks the real node chain.
  * */
 NYA_INTERNAL ufbx_matrix _nya_asset_node_world_at(ufbx_anim* anim, ufbx_node* node, f64 time, ufbx_matrix* worlds, u32* computed_frame, u32 frame) {
-    // the chain up to the first ancestor already known this frame, walked back down from there.
+    // walks up to the first ancestor known this frame, then composes back down.
     ufbx_node* chain[256];
     u32        depth = 0;
 
@@ -1198,11 +1127,9 @@ NYA_INTERNAL ufbx_matrix _nya_asset_node_world_at(ufbx_anim* anim, ufbx_node* no
 }
 
 /**
- * The four strongest influences on one vertex, normalised. ufbx sorts a vertex's weights by
- * descending influence, so the first four are the ones that matter.
- *
- * `cluster_bone` maps this mesh's own clusters to skeleton bones, -1 for one the skeleton dropped. A file
- * can hold several skinned meshes, each with its own deformer and its own cluster numbering.
+ * The four strongest influences on one vertex, normalised. ufbx sorts weights by influence. `cluster_bone`
+ * maps this mesh's clusters to skeleton bones, -1 for a dropped bone, since each skinned mesh numbers its
+ * clusters differently.
  * */
 NYA_INTERNAL void _nya_asset_mesh_vertex_weights(ufbx_mesh* mesh, const s32* cluster_bone, u32 index, OUT u32* out_bones, OUT f32* out_weights) {
     for (u32 i = 0; i < NYA_SKELETON_WEIGHTS_PER_VERTEX; i++) {
@@ -1226,7 +1153,7 @@ NYA_INTERNAL void _nya_asset_mesh_vertex_weights(ufbx_mesh* mesh, const s32* clu
     for (u32 w = 0; w < entry.num_weights && taken < NYA_SKELETON_WEIGHTS_PER_VERTEX; w++) {
         ufbx_skin_weight weight = skin->weights.data[entry.weight_begin + w];
 
-        // a dropped bone is skipped rather than clamped, so its weight is not handed to an unrelated one.
+        // a dropped bone is skipped, so its weight does not go to an unrelated bone.
         if (weight.cluster_index >= skin->clusters.count || cluster_bone[weight.cluster_index] < 0) continue;
 
         out_bones[taken]   = (u32)cluster_bone[weight.cluster_index];
@@ -1236,11 +1163,7 @@ NYA_INTERNAL void _nya_asset_mesh_vertex_weights(ufbx_mesh* mesh, const s32* clu
         taken++;
     }
 
-    /*
-     * A vertex with no influence at all is pinned to bone zero at full weight. Leaving it at zero
-     * would multiply the vertex by a zero matrix and collapse it to the origin — the single most
-     * recognisable skinning artefact — whereas pinning it looks like a weighting mistake, not a tear.
-     */
+    /* A vertex with no influence is pinned to bone zero. Zero weights would collapse it to the origin. */
     if (total <= 0.0F) {
         out_bones[0]   = 0;
         out_weights[0] = 1.0F;
@@ -1255,12 +1178,7 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                                              OUT NYA_Asset* out_asset) {
     NYA_Arena* arena = nya_app_get()->asset_system.allocator;
 
-    /*
-     * Triangulated and space-converted by ufbx rather than afterwards. `target_axes` and
-     * `target_unit_meters` matter because FBX carries its own idea of up and unit length, and
-     * Blender/Maya/3ds Max each answer differently; converting here means every export arrives y-up
-     * and in metres, with no per-model correction matrix to guess at.
-     */
+    /* ufbx triangulates and converts to y-up metres, since exporters disagree on both. */
     ufbx_load_opts options = {
         .target_axes              = ufbx_axes_right_handed_y_up,
         .target_unit_meters       = 1.0F,
@@ -1275,9 +1193,8 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
     defer ufbx_free_scene(scene);
 
     /*
-     * Counted per instance and per material, matching what the write loop below iterates — a mesh
-     * placed twice emits its triangles twice. num_triangles is what triangulation produces; the raw
-     * face count is smaller for anything modelled in quads and would under-allocate.
+     * Counted per instance and per material, as the write loop iterates. num_triangles is after triangulation;
+     * the face count under-allocates for quads.
      */
     u32 total = 0;
     u32 parts = 0;
@@ -1289,23 +1206,18 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
 
         total += (u32)(mesh->num_triangles * instances) * 3;
 
-        // At least one part per instance: a mesh with no material still draws, as one untextured run.
+        // at least one part per instance, so a mesh with no material still draws.
         parts += (u32)(instances * (mesh->material_parts.count > 0 ? mesh->material_parts.count : 1));
     }
 
     if (total == 0 || parts == 0) return nya_error(NYA_ERROR_NOT_OK, "the FBX has no triangles");
 
-    /*
-     * One vertex per index, no welding — deliberate: two faces meeting at a hard edge need the same
-     * position with different normals, so sharing by position alone would smooth every crease in the
-     * model. The batch uploads what it is given each frame, so the cost is bytes, not draw calls.
-     */
+    /* No welding: faces meeting at a hard edge need the same position with different normals. */
     f32x3* positions = nya_arena_alloc(arena, total * sizeof(f32x3));
     f32x3* normals   = nya_arena_alloc(arena, total * sizeof(f32x3));
     f32x2* uvs       = nya_arena_alloc(arena, total * sizeof(f32x2));
 
-    // ── skinning ── extracted only when a mesh in the file actually carries a deformer, so an
-    // unrigged model costs one pointer check and nothing else. See _nya_asset_mesh_skeleton.
+    // skinning, only when a mesh carries a deformer.
     ufbx_node*    bone_nodes[NYA_SKELETON_MAX_BONES] = { 0 };
     NYA_Skeleton* skeleton                           = _nya_asset_mesh_skeleton(arena, scene, bone_nodes);
     ufbx_skin_deformer* reference_skin               = _nya_asset_find_skin(scene);
@@ -1324,10 +1236,8 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
     NYA_MeshPart* mesh_parts = nya_arena_alloc(arena, parts * sizeof(NYA_MeshPart));
 
     /*
-     * Textures are deduplicated by the ufbx material's texture pointer. Two materials in one file
-     * commonly point at the same image — pill.fbx has its atlas bound as both a base colour and an
-     * alpha source — and decoding it twice would upload the same megabyte twice. `sources` is the
-     * dedupe key; `textures` is what the asset ends up owning, index for index.
+     * Textures are deduplicated by the ufbx texture pointer, since materials often share an image. `sources` is
+     * the key; `textures` is what the asset owns.
      */
     SDL_GPUTexture** textures = nya_arena_alloc(arena, parts * sizeof(SDL_GPUTexture*));
     const void**     sources  = nya_arena_alloc(arena, parts * sizeof(const void*));
@@ -1340,9 +1250,8 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
         ufbx_mesh* mesh = scene->meshes.data[m];
 
         /*
-         * This mesh's clusters mapped onto the skeleton by node, and the transform from its geometry space
-         * into the reference skin's. The inverse binds come from the reference skin, so a second skinned
-         * mesh has to arrive in that space or every vertex is bound against the wrong origin.
+         * This mesh's clusters mapped to bones by node, and the transform into the reference skin's geometry space,
+         * where the inverse binds apply.
          */
         ufbx_skin_deformer* mesh_skin        = mesh->skin_deformers.count > 0 ? mesh->skin_deformers.data[0] : nullptr;
         u64                 mesh_clusters    = mesh_skin != nullptr ? mesh_skin->clusters.count : 0;
@@ -1364,7 +1273,7 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                     cluster_bone[c] = (s32)b;
 
                     if (!space_found) {
-                        // geometry_to_bone of the same bone in both skins, so reference ← bone ← this mesh.
+                        // the same bone in both skins: reference from bone from this mesh.
                         ufbx_skin_cluster* reference = nullptr;
                         for (u64 r = 0; r < reference_skin->clusters.count; r++) {
                             if (reference_skin->clusters.data[r]->bone_node == bone_nodes[b]) reference = reference_skin->clusters.data[r];
@@ -1389,10 +1298,8 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
 
         for (u64 n = 0; n < instances; n++) {
             /*
-             * The node's transform, applied here rather than ignored. ufbx_mesh.vertex_position is in
-             * the mesh's *own* space; the node carries where it sits, how it is turned, and how it is
-             * scaled. Not hypothetical: pill.fbx is a capsule stretched along one axis by its node, and
-             * reading the raw vertices produced a sphere where a capsule was expected.
+             * The node transform is applied: vertex positions are in the mesh's own space. pill.fbx is a capsule only
+             * because its node stretches it.
              */
             ufbx_matrix to_world     = ufbx_identity_matrix;
             ufbx_matrix normal_world = ufbx_identity_matrix;
@@ -1413,10 +1320,7 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                     .base_color   = NYA_COLOR_WHITE,
                 };
 
-                /*
-                 * The material for this run, and the faces that belong to it. ufbx has already grouped
-                 * them: material_parts[g].face_indices lists exactly the faces using materials[g].
-                 */
+                /* The material for this run and its faces, grouped by ufbx. */
                 ufbx_material* material = nullptr;
 
                 if (mesh->material_parts.count > 0 && g < mesh->materials.count) material = mesh->materials.data[g];
@@ -1428,15 +1332,12 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
 
                     ufbx_texture* texture = material->fbx.diffuse_color.texture;
 
-                    // pbr.base_color as the fallback: an exporter writing a modern material graph fills
-                    // that in and may leave the legacy fbx.diffuse_color slot without a texture.
+                    // pbr.base_color as the fallback, for exporters that write a modern material graph.
                     if (texture == nullptr) texture = material->pbr.base_color.texture;
 
-                    // Any texture at all, embedded or not. This used to require `content.size > 0`,
-                    // which quietly skipped every material whose exporter did not embed its images —
-                    // the reason a re-exported model lost its texture without a word.
+                    // any texture, embedded or not; exporters often leave images beside the model.
                     if (texture != nullptr) {
-                        // Already decoded for an earlier part? Then share it rather than upload it twice.
+                        // already decoded for an earlier part.
                         s32 existing = -1;
 
                         for (u32 i = 0; i < texture_count; i++) {
@@ -1447,11 +1348,8 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                             part->texture = existing;
                         } else {
                             /*
-                             * The blob inside the FBX first, the file it points at second. Both are
-                             * normal: "Embed textures" is an exporter checkbox, off leaves a path to a
-                             * sidecar — conventionally a `<model>.fbm` directory beside it. This loader
-                             * once read only the blob, and a re-exported model drew untextured with no
-                             * warning; a material naming an unfindable texture now says so.
+                             * The texture embedded in the FBX first, the file it names second. Both are normal: embedding is an exporter
+                             * option, and without it the image sits beside the model, usually in `<model>.fbm`.
                              */
                             NYA_Arena* texture_arena = nya_arena_create(.name = "fbx_texture");
                             defer      nya_arena_destroy(texture_arena);
@@ -1460,15 +1358,12 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                             u64       image_size = texture->content.size;
 
                             if (image_size == 0) {
-                                // Resolved against the model's own directory and read through the asset
-                                // system, so a bundled build finds it in the blob exactly as a loose
-                                // build finds it on disk. `relative_filename` is relative to the FBX.
+                                // resolved against the model's directory through the asset system, so bundled and loose builds agree.
                                 NYA_ConstCString relative =
                                     texture->relative_filename.length > 0 ? texture->relative_filename.data : texture->filename.data;
 
                                 if (relative != nullptr && relative[0] != '\0') {
-                                    // Everything up to and including the model's last slash, so a texture
-                                    // named `Cubie.fbm/Cubie.png` lands beside the `.fbx` that named it.
+                                    // everything up to the model's last slash.
                                     u64 directory_length = 0;
 
                                     for (u64 c = 0; handle[c] != '\0'; c++) {
@@ -1501,17 +1396,15 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                             SDL_Surface* surface = image_size > 0 ? IMG_Load_IO(SDL_IOFromConstMem(image, image_size), true) : nullptr;
 
                             if (surface == nullptr) {
-                                // Only worth a second warning when there were bytes to decode; the path
-                                // above has already explained an absent image.
+                                // only warn again when there were bytes to decode.
                                 if (image_size > 0) {
                                     nya_log_warn("Could not decode the texture '%s' from '%s' (%s); that part will draw untextured.",
                                              texture->name.data, handle, SDL_GetError());
                                 }
                             } else {
                                 /*
-                                 * Staged into a scratch asset: as_texture and as_mesh are the same union,
-                                 * so writing into out_asset would land on top of the triangle pointers
-                                 * assembled above.
+                                 * Staged into a scratch asset: as_texture and as_mesh share a union, and out_asset already holds the
+                                 * triangles.
                                  */
                                 NYA_Asset staged = { 0 };
 
@@ -1538,8 +1431,7 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                 for (u64 f = 0; f < face_total; f++) {
                     u32 face_index = mesh->material_parts.count > 0 ? mesh->material_parts.data[g].face_indices.data[f] : (u32)f;
 
-                    // Triangulated face by face, into a buffer sized for the worst polygon in this mesh.
-                    // Skipping this turns a quad-modelled asset — most of them — into a mesh full of holes.
+                    // triangulated face by face, or quad-modelled meshes get holes.
                     u32 triangles = ufbx_triangulate_face(triangle, corners, mesh, mesh->faces.data[face_index]);
 
                     for (u32 corner = 0; corner < triangles * 3 && written < total; corner++) {
@@ -1549,11 +1441,8 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                         ufbx_vec3 normal   = ufbx_get_vertex_vec3(&mesh->vertex_normal, vertex);
 
                         /*
-                         * The UV, or zero when the model has no UV set. `exists` has to be checked
-                         * rather than trusted: ufbx_get_vertex_vec2 on a missing attribute reads
-                         * through a null indices array. V is flipped: FBX puts the origin at the
-                         * bottom left, every GPU convention here puts it at the top left, so an
-                         * unflipped sample arrives upside down.
+                         * The UV, or zero without a UV set; `exists` has to be checked, or ufbx reads a null index array. V is
+                         * flipped because FBX puts the origin bottom left.
                          */
                         ufbx_vec2 uv = { 0 };
 
@@ -1563,12 +1452,8 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                         }
 
                         /*
-                         * The node transform is baked in for a static mesh and *not* for a skinned one.
-                         * A skinned vertex has to stay in the space its inverse bind matrix expects,
-                         * which is the geometry space ufbx hands it over in — baking geometry_to_world
-                         * in as well applies the node's placement twice, once here and once through the
-                         * bone, and the model turns inside out on the first animated frame. The static
-                         * path still needs it: pill.fbx is a capsule only because its node stretches it.
+                         * The node transform is baked in for static meshes only. A skinned vertex stays in the geometry space its
+                         * inverse bind expects; baking the node in too applies the placement twice.
                          */
                         if (skeleton == nullptr) {
                             position = ufbx_transform_position(&to_world, position);
@@ -1582,15 +1467,14 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                             _nya_asset_mesh_vertex_weights(mesh, cluster_bone, vertex, &bone_indices[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX],
                                                            &bone_weights[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX]);
                         } else if (skeleton != nullptr) {
-                            // an unskinned mesh in a rigged file rides the root bone rather than collapsing
-                            // to the origin under all-zero weights.
+                            // an unskinned mesh in a rigged file rides the root bone instead of collapsing under zero weights.
                             bone_indices[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX] = 0;
                             bone_weights[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX] = 1.0F;
                         }
 
                         positions[written] = (f32x3){ (f32)position.x, (f32)position.y, (f32)position.z };
 
-                        // Renormalised, because a non-uniform node scale changes a unit normal's length.
+                        // renormalised: non-uniform scale changes a normal's length.
                         normals[written] = nya_vector_normalize((f32x3){ (f32)normal.x, (f32)normal.y, (f32)normal.z });
 
                         uvs[written] = (f32x2){ (f32)uv.x, (f32)uv.y };
@@ -1601,8 +1485,7 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
 
                 part->vertex_count = written - part->first_vertex;
 
-                // An empty run is dropped rather than kept: a part with no triangles is a draw call that
-                // binds a texture and renders nothing.
+                // empty runs are dropped; they would bind a texture and draw nothing.
                 if (part->vertex_count > 0) part_count++;
             }
         }
@@ -1622,10 +1505,8 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
     out_asset->as_mesh.part_capacity = parts;
 
     /*
-     * The skeleton, and the vertices in the wider layout that goes with it. Built here rather than in
-     * the write loop because it needs the final `written` count: the loop drops degenerate runs as it
-     * finds them, so the array is sized for the worst case and only this far in is the real length
-     * known.
+     * The skeleton and the skinned vertices, built here because the final vertex count is only known after the
+     * loop drops empty runs.
      */
     out_asset->as_mesh.skeleton = skeleton;
 
@@ -1665,16 +1546,12 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw(NYA_AssetHandle handle, b8 external, 
     out_asset->raw_owned  = false;
     out_asset->raw_shared = false;
 
-    // Takes the handle rather than reading it off the parameters, because a shader loads the
-    // *compiled* artifact whose handle is derived from the one that was requested. An external
-    // asset is a path from outside the game — something dropped on the window, or a file the player
-    // picked — so it was never a candidate for the blob and goes straight to disk.
+    // takes the handle because a shader loads its compiled artifact, whose handle differs. external assets come
+    // from outside the game and always load from disk.
     if (external) return _nya_asset_load_raw_from_filesystem(handle, out_asset);
 
 #ifdef NYA_ASSET_PREFER_BLOB
-    // The blob is a cache in front of the filesystem rather than a replacement for it. A handle it
-    // does not carry is not an error: the asset may have been added since the build, or deliberately
-    // shipped loose beside the executable, and either way disk is the answer.
+    // the blob is a cache in front of the filesystem, so a handle it lacks falls through to disk.
     NYA_Error blob_result = _nya_asset_load_raw_from_blob(handle, out_asset);
     if (blob_result.ok) {
         out_asset->from_blob = true;
@@ -1686,12 +1563,11 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw(NYA_AssetHandle handle, b8 external, 
     return _nya_asset_load_raw_from_filesystem(handle, out_asset);
 }
 
-/** Takes an asset back out of the unloading queue, for when something acquires it before the queue runs. */
+/** Takes an asset back out of the unloading queue when something acquires it first. */
 /*
- * A handle the asset system can keep, copied out of whoever supplied it. Interned once per asset:
- * nya_asset_load returns early for a handle it already knows, so a repeat load does not allocate a
- * second copy. Freed with the asset system's arena at shutdown.
- * */
+ * A copy of a handle the asset system can keep. Interned once per asset, since a repeat load returns early.
+ * Freed with the arena at shutdown.
+ */
 NYA_INTERNAL NYA_AssetHandle _nya_asset_intern(NYA_AssetHandle handle) {
     nya_assert(handle != nullptr);
 
@@ -1747,14 +1623,7 @@ NYA_INTERNAL b8 _nya_asset_get_modification_time(NYA_Asset* asset, OUT u64* out_
     NYA_Error result;
 
     switch (asset->type) {
-        /*
-         * Everything backed directly by one file on disk. Only text used to be here, and every other
-         * file-backed type — fonts, textures, sounds — fell through to the default below, which
-         * reports a modification time of zero. Zero is never greater than the time recorded at load,
-         * so the comparison in nya_asset_get could never fire and those assets never hot reloaded at
-         * all — nothing said so; the asset was polled every frame and simply always concluded nothing
-         * had changed.
-         */
+        /* Everything backed by one file on disk. A type missing here reports no timestamp and never hot reloads. */
         case NYA_ASSET_TYPE_TEXT:
         case NYA_ASSET_TYPE_FONT:
         case NYA_ASSET_TYPE_SOUND:
@@ -1772,20 +1641,15 @@ NYA_INTERNAL b8 _nya_asset_get_modification_time(NYA_Asset* asset, OUT u64* out_
 
         case NYA_ASSET_TYPE_GRAPHICS_PIPELINE: {
             /*
-             * Watched through the compiled artifacts its shaders were built from, not the .hlsl those
-             * were compiled out of. Editing the source changes nothing a running process can use:
-             * compiling is a build step, and until it runs the .spv on disk is still what the shader
-             * modules hold. This used to watch load_parameters.*_shader_handle, the source path — so
-             * touching a shader rebuilt the pipeline out of unchanged shader modules, which looks
-             * exactly like hot reload doing nothing.
+             * Watched through the compiled shader artifacts, not the .hlsl: until the build compiles a source edit, the
+             * running shaders have not changed.
              */
             NYA_AssetSystem* system = &nya_app_get()->asset_system;
 
             NYA_Asset* vertex   = nya_dict_get(system->assets, asset->load_parameters.as_graphics_pipeline.vertex_shader_handle);
             NYA_Asset* fragment = nya_dict_get(system->assets, asset->load_parameters.as_graphics_pipeline.fragment_shader_handle);
 
-            // Mid load, or gone. Reporting no time rather than guessing keeps the pipeline out of
-            // the reload queue until its shaders are actually there to be compared against.
+            // mid load or gone: no timestamp keeps the pipeline out of the reload queue until its shaders exist.
             if (vertex == nullptr || fragment == nullptr || vertex->status != NYA_ASSET_STATUS_LOADED ||
                 fragment->status != NYA_ASSET_STATUS_LOADED) {
                 *out_modification_time = 0;
@@ -1815,8 +1679,7 @@ NYA_INTERNAL b8 _nya_asset_get_modification_time(NYA_Asset* asset, OUT u64* out_
 #endif // NYA_ASSET_HOT_RELOAD
 
 void _nya_asset_loading_process(NYA_Event* event) {
-    // Runs on NYA_EVENT_FRAME_ENDED, so its cost lands inside the frame without appearing in any of
-    // the frame_* timers. Decoding an image or a font is the classic invisible spike.
+    // runs on NYA_EVENT_FRAME_ENDED, outside every frame_* timer. decoding is the classic invisible spike.
     nya_perf_time_this_function();
 
     nya_unused(event);
@@ -1824,8 +1687,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
     NYA_AssetSystem*  system        = &nya_app_get()->asset_system;
     NYA_RenderSystem* render_system = &nya_app_get()->render_system;
 
-    // Every texture decoded in this pass stages into here and is uploaded in a single copy pass at
-    // the end, rather than each one opening and submitting a command buffer of its own.
+    // every texture decoded here uploads in one copy pass at the end.
     NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ pending_uploads = nya_array_create_on_stack(system->allocator, _NYA_AssetPendingUpload);
     defer                              nya_array_destroy_on_stack(&pending_uploads);
 
@@ -1847,11 +1709,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 asset->status = NYA_ASSET_STATUS_LOADED;
             } break;
 
-                /*
-                 * All three decode from memory rather than from a path. The raw bytes already went
-                 * through _nya_asset_load_raw, which is what makes a blob asset, a filesystem asset and
-                 * a dropped file take exactly the same route from here on.
-                 */
+                /* All three decode from memory, so blob, disk and dropped files take the same route. */
 
             case NYA_ASSET_TYPE_MESH: {
                 NYA_Error result = _nya_asset_load_raw(parameters->source != nullptr ? (NYA_AssetHandle)parameters->source : parameters->handle, parameters->external, asset);
@@ -1861,20 +1719,14 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 }
 
                 /*
-                 * Built into a scratch asset rather than into this one, because as_mesh and as_text are
-                 * the same union. Writing the mesh straight into `asset` overwrites as_text.data with a
-                 * pointer to the positions array, and the _nya_asset_unload_raw below then frees *that*
-                 * as though it were the file's bytes. It is not a subtle failure — ASan aborts inside
-                 * the arena — but it only happens once the parse succeeds, so a loader tested solely on
-                 * a malformed file would look correct.
+                 * Built into a scratch asset, because as_mesh and as_text share a union: writing the mesh into `asset`
+                 * would overwrite the file bytes that unloading then frees.
                  */
                 NYA_Asset built_mesh = { 0 };
 
                 NYA_Error built = _nya_asset_build_mesh(parameters->handle, asset->as_text.data, asset->as_text.size, &pending_uploads, &built_mesh);
 
-                // While as_text is still the file. Freed whether or not the parse succeeded: the
-                // triangles are what the asset is now, and the FBX bytes are several hundred kilobytes
-                // nothing will read again.
+                // the FBX bytes are freed either way; the triangles are what the asset is now.
                 _nya_asset_unload_raw(asset);
 
                 if (!built.ok) {
@@ -1884,7 +1736,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
 
                 asset->as_mesh = built_mesh.as_mesh;
 
-                // Carried across from the load rather than read from the file; see as_mesh_load.filter.
+                // carried from the load parameters; see as_mesh_load.filter.
                 asset->as_mesh.filter = parameters->as_mesh_load.filter;
 
                 asset->type   = NYA_ASSET_TYPE_MESH;
@@ -1902,11 +1754,8 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 u64 encoded_size = asset->as_text.size;
 
                 /*
-                 * A requested size only means anything to a vector image, so it is tried as SVG first
-                 * and falls back to the ordinary loader. Tried rather than sniffed: IMG_LoadSizedSVG_IO
-                 * reports failure cleanly on anything that is not SVG, and detecting the format here
-                 * would mean duplicating the sniffing SDL_image already does — and getting it wrong for
-                 * the XML declaration and comment cases a real .svg often starts with.
+                 * A requested size only matters for a vector image, so SVG is tried first. IMG_LoadSizedSVG_IO fails cleanly
+                 * on anything else, which is simpler than sniffing XML declarations and comments.
                  */
                 SDL_Surface* surface = nullptr;
 
@@ -1915,11 +1764,8 @@ void _nya_asset_loading_process(NYA_Event* event) {
 
                 if (requested_width > 0 && requested_height > 0) {
                     /*
-                     * `currentColor` resolved before rasterising, because afterwards is too late: it
-                     * resolves to black with no document to inherit from, and a black texture cannot
-                     * be recoloured by a draw tint — a tint is a multiply. Substituting a literal here
-                     * is what makes an icon set tintable, and defaulting it to white makes tinting the
-                     * normal way to use one.
+                     * `currentColor` becomes white before rasterising. After rasterising it is black, and a tint (a multiply)
+                     * cannot recolour black.
                      */
                     NYA_Arena scratch = nya_arena_create_on_stack(.name = "svg_recolor");
                     defer     nya_arena_destroy_on_stack(&scratch);
@@ -1946,8 +1792,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                     u64              needle_size   = strlen(needle);
                     u64              replaced_size = strlen(replacement);
 
-                    // The replacement is shorter than the keyword, so the original size is always
-                    // enough room and the output can be built in one pass with no growth check.
+                    // the replacement is shorter than the keyword, so the original size is enough room.
                     u8* rewritten = nya_arena_alloc(&scratch, encoded_size + 1);
 
                     u64 read  = 0;
@@ -1974,7 +1819,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 }
 
                 if (surface == nullptr) surface = IMG_Load_IO(SDL_IOFromConstMem(encoded, encoded_size), true);
-                _nya_asset_unload_raw(asset); // the encoded bytes are done with once decoded
+                _nya_asset_unload_raw(asset); // the encoded bytes are not needed once decoded.
 
                 if (surface == nullptr) {
                     NYA_Error decode = nya_error(NYA_ERROR_CORRUPT, "could not decode image '%s': %s", parameters->handle, SDL_GetError());
@@ -2002,8 +1847,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                     break;
                 }
 
-                // MIX_Audio keeps a reference to the stream for a non predecoded sound, so the
-                // encoded bytes stay alive until the asset is unloaded.
+                // MIX_Audio reads the stream lazily for a sound that is not predecoded.
                 SDL_IOStream* stream = SDL_IOFromConstMem(asset->as_text.data, asset->as_text.size);
                 MIX_Audio*    audio  = MIX_LoadAudio_IO(system->mixer, stream, parameters->as_sound.predecode, true);
 
@@ -2025,11 +1869,10 @@ void _nya_asset_loading_process(NYA_Event* event) {
                     break;
                 }
 
-                // A face has one size baked in, so a zero point size is a caller mistake rather
-                // than a default worth guessing at.
+                // a face has one size baked in, so zero is a caller mistake.
                 f32 point_size = parameters->as_font.point_size > 0.0F ? parameters->as_font.point_size : 16.0F;
 
-                // TTF_Font reads glyphs out of the file lazily, so the bytes must outlive the open.
+                // TTF_Font reads glyphs lazily, so the bytes must outlive the open.
                 SDL_IOStream* stream = SDL_IOFromConstMem(asset->as_text.data, asset->as_text.size);
                 TTF_Font*     font   = TTF_OpenFontIO(stream, true, point_size);
 
@@ -2040,14 +1883,8 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 }
 
                 /*
-                 * Light hinting, the right pairing for an anti-aliased rasteriser. This was NORMAL when
-                 * the atlas thresholded coverage into a hard mask — with nothing to smooth what falls
-                 * between pixels, a stem crossing a boundary snapped to one side and grid-fitting hard
-                 * fixed that lopsidedness. The atlas keeps its anti-aliasing now, which removes the
-                 * reason: normal hinting distorts outlines to force stems onto whole pixels, costing
-                 * shape for a crispness the coverage already provides, and letterforms came out stiff
-                 * and unevenly weighted. Light hinting straightens stems vertically and leaves the
-                 * horizontal outlines alone — what every desktop UI renderer does for the same reason.
+                 * Light hinting straightens stems vertically and leaves horizontal outlines alone. Normal hinting distorts
+                 * letterforms to force pixel alignment, which antialiased coverage does not need.
                  */
                 TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
 
@@ -2061,10 +1898,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 SDL_GPUShaderFormat format;
                 NYA_AssetHandle     compiled_shader_handle = _nya_asset_pick_correct_compiled_shader(parameters->handle, &format);
 
-                // Checked, like every other loader in this switch. Unchecked, a missing .spv reached
-                // SDL_CreateGPUShader as a null pointer with a size of zero, which fails, which the
-                // assertion below then turned into a dead process — for one shader that had not been
-                // compiled yet.
+                // checked: a missing .spv would reach SDL_CreateGPUShader as a null pointer.
                 NYA_Error result = _nya_asset_load_raw(compiled_shader_handle, parameters->external, asset);
                 if (!result.ok) {
                     _nya_asset_fail(asset, &result);
@@ -2092,7 +1926,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                         .num_uniform_buffers  = parameters->as_shader.num_uniform_buffers,
                     }
                 );
-                _nya_asset_unload_raw(asset); // unload raw text code
+                _nya_asset_unload_raw(asset); // the source text is not needed once compiled.
 
                 if (shader == nullptr) {
                     NYA_Error compile = nya_error(NYA_ERROR_CORRUPT, "could not create shader '%s': %s", parameters->handle, SDL_GetError());
@@ -2114,14 +1948,8 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 nya_assert(fragment_shader_asset != nullptr);
 
                 /*
-                 * That the shaders *exist* was the only thing checked here, and existing is not the same
-                 * as having loaded. A shader that failed — no compiled binary in the format this backend
-                 * wants, or one SDL refused — leaves an asset in the dictionary whose `shader` is null.
-                 * That null went straight into SDL_CreateGPUGraphicsPipeline, which returns null, which
-                 * the assertion below turned into an abort naming neither shader — the real cause was
-                 * already in the log from the shader's own failure, several lines up, with nothing tying
-                 * the two together. Checked here so the pipeline's failure names the shader that caused
-                 * it, the one thing needed to tell a missing DXIL build from a rejected one.
+                 * The shaders must have loaded, not just exist. A failed shader leaves a null `shader`, and this error names
+                 * it, which tells a missing build from a rejected one.
                  */
                 if (vertex_shader_asset->status != NYA_ASSET_STATUS_LOADED || vertex_shader_asset->as_shader.shader == nullptr) {
                     NYA_Error missing = nya_error(NYA_ERROR_NOT_OK, "its vertex shader '%s' did not load",
@@ -2140,10 +1968,8 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 }
 
                 /*
-                 * Straight alpha over the destination, matching what the fragment shaders in this
-                 * tree emit. Built here rather than inline below because the whole struct has to be
-                 * zeroed when blending is off: SDL reads these fields regardless, and a stale
-                 * factor with enable_blend false is the kind of thing that works on one backend.
+                 * Straight alpha, matching the fragment shaders. The whole struct is zeroed when blending is off, since SDL
+                 * reads the fields regardless.
                  */
                 SDL_GPUColorTargetBlendState blend_state = { 0 };
 
@@ -2151,8 +1977,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                     blend_state = (SDL_GPUColorTargetBlendState){
                         .enable_blend          = true,
                         .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-                        // ONE, so this only ever adds. Overlapping glows saturate toward white rather
-                        // than stacking into a dark blob the way alpha would.
+                        // ONE: overlapping glows saturate toward white.
                         .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
                         .color_blend_op        = SDL_GPU_BLENDOP_ADD,
                         .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
@@ -2162,13 +1987,11 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 } else if (parameters->as_graphics_pipeline.blend == NYA_BLEND_MULTIPLY) {
                     blend_state = (SDL_GPUColorTargetBlendState){
                         .enable_blend = true,
-                        // DST_COLOR / ZERO: the result is source times destination. A light map drawn
-                        // this way darkens what it covers and leaves the bright parts alone.
+                        // source times destination: a light map darkens what it covers.
                         .src_color_blendfactor = SDL_GPU_BLENDFACTOR_DST_COLOR,
                         .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
                         .color_blend_op        = SDL_GPU_BLENDOP_ADD,
-                        // Alpha left alone. Multiplying it too would make a light map eat the
-                        // target's opacity, which matters the moment it is a render texture.
+                        // alpha untouched, or a light map would eat a render texture's opacity.
                         .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
                         .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
                         .alpha_blend_op        = SDL_GPU_BLENDOP_ADD,
@@ -2179,23 +2002,14 @@ void _nya_asset_loading_process(NYA_Event* event) {
                         .src_color_blendfactor  = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
                         .dst_color_blendfactor  = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
                         .color_blend_op         = SDL_GPU_BLENDOP_ADD,
-                        // The destination is the opaque swapchain, so its alpha is meaningless to the
-                        // compositor. ONE / ONE_MINUS_SRC_ALPHA rather than mirroring the colour
-                        // factors keeps it sane anyway, for the day this renders into a texture that
-                        // is later composited.
+                        // the swapchain's alpha is unused, but this stays correct for a texture composited later.
                         .src_alpha_blendfactor  = SDL_GPU_BLENDFACTOR_ONE,
                         .dst_alpha_blendfactor  = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
                         .alpha_blend_op         = SDL_GPU_BLENDOP_ADD,
                     };
                 }
 
-                /*
-                 * The three layouts, chosen once rather than with a boolean per field. This was a pair
-                 * of `is_2d ? a : b` ternaries repeated across three fields, fine while there were two
-                 * layouts and no longer fine once there are three — the instanced one differs in the
-                 * buffer *count* as well as the tables, and a ternary per field has no way to keep the
-                 * three answers agreeing with each other.
-                 */
+                /* The layout tables, chosen once. The instanced layout also differs in buffer count. */
                 const SDL_GPUVertexBufferDescription* buffer_descriptions = &vertex_buffer_description;
                 const SDL_GPUVertexAttribute*         attributes          = vertex_attributes;
 
@@ -2229,15 +2043,14 @@ void _nya_asset_loading_process(NYA_Event* event) {
 
                 SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {
           .target_info = {
-            // Declared whenever the pipeline tests or writes depth. A pipeline that says it has a
-            // depth target and a pass that has none is a validation failure at draw time, and the
-            // reverse — a pass with depth and a pipeline without — is the ordinary 2D case and fine.
+            // declared whenever the pipeline tests or writes depth. a depth pipeline in a pass without depth fails
+            // validation; the reverse is fine.
             .has_depth_stencil_target  = parameters->as_graphics_pipeline.depth_test || parameters->as_graphics_pipeline.depth_write,
             .depth_stencil_format      = render_system->depth_format,
             .num_color_targets = 1,
             .color_target_descriptions = (SDL_GPUColorTargetDescription[]){
               {
-                // The named format when there is one; the window's otherwise. See color_format.
+                // the named format, else the window's. see color_format.
                 .format = parameters->as_graphics_pipeline.color_format != 0
                             ? parameters->as_graphics_pipeline.color_format
                             : SDL_GetGPUSwapchainTextureFormat(render_system->gpu_device, parameters->as_graphics_pipeline.window->sdl_window),
@@ -2248,23 +2061,18 @@ void _nya_asset_loading_process(NYA_Event* event) {
           .primitive_type                                = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
           .vertex_shader                                 = vertex_shader_asset->as_shader.shader,
           .fragment_shader                               = fragment_shader_asset->as_shader.shader,
-          // Must match every target this pipeline draws into. A pipeline built for one sample count
-          // cannot render to a target with another, which is why there is a single value for the
-          // whole renderer rather than one per pipeline.
+          // must match every target drawn into, so the renderer has one sample count.
           .multisample_state.sample_count                = parameters->as_graphics_pipeline.single_sampled ? SDL_GPU_SAMPLECOUNT_1
                                                                                                             : render_system->sample_count,
           .rasterizer_state.fill_mode                    = SDL_GPU_FILLMODE_FILL,
-          // Counter-clockwise is front, matching the winding the 3D primitives are emitted in.
+          // counter-clockwise front, matching the 3D primitives.
           .rasterizer_state.cull_mode                    = parameters->as_graphics_pipeline.cull_back_faces  ? SDL_GPU_CULLMODE_BACK
                                                            : parameters->as_graphics_pipeline.cull_front_faces ? SDL_GPU_CULLMODE_FRONT
                                                                                                                : SDL_GPU_CULLMODE_NONE,
           .rasterizer_state.front_face                   = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
           /*
-           * LESS, not LESS_OR_EQUAL: a fragment at exactly the stored depth is the same surface drawn
-           * twice, and letting the second one through is what makes coplanar geometry flicker as the
-           * camera moves. The whole block is written whether or not depth testing is on, because SDL
-           * reads these fields regardless — the same reason the blend state above is zeroed rather
-           * than left stale when blending is off.
+           * LESS, not LESS_OR_EQUAL, so coplanar geometry does not flicker. Written even with depth off, since SDL
+           * reads the fields.
            */
           .depth_stencil_state = {
             .compare_op         = SDL_GPU_COMPAREOP_LESS,
@@ -2273,21 +2081,15 @@ void _nya_asset_loading_process(NYA_Event* event) {
           },
           .vertex_input_state.num_vertex_buffers         = buffer_description_count,
           .vertex_input_state.vertex_buffer_descriptions = buffer_descriptions,
-          // Every attribute the chosen layout declares. A count short of that leaves a shader reading the
-          // missing register's leftovers, which is a textured pipeline drawing garbage and no diagnostic.
+          // every attribute of the layout; a short count leaves shaders reading garbage.
           .vertex_input_state.num_vertex_attributes      = attribute_count,
           .vertex_input_state.vertex_attributes          = attributes,
         };
                 SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(render_system->gpu_device, &pipelineCreateInfo);
 
                 /*
-                 * A failure here is reported, not asserted.
-                 *
-                 * Pipeline creation is where the backends disagree: a shader Vulkan accepts can be
-                 * rejected by D3D12 over a sample count, a target format or a vertex layout the other
-                 * tolerated, so this fails on one machine and one driver. An assert would abort there with
-                 * neither the pipeline's name nor SDL's reason. Failing the asset puts both in the log and
-                 * lets everything else load — a scene missing a pass, and the log says which.
+                 * Reported, not asserted. Backends disagree about pipelines, so this can fail on one driver only; the log
+                 * names the pipeline and SDL's reason, and everything else still loads.
                  */
                 if (pipeline == nullptr) {
                     NYA_Error refused = nya_error(NYA_ERROR_NOT_OK, "SDL would not create the graphics pipeline: %s", SDL_GetError());
@@ -2310,11 +2112,8 @@ void _nya_asset_loading_process(NYA_Event* event) {
 
 #ifdef NYA_ASSET_HOT_RELOAD
         /*
-         * The watch baseline, taken once the asset is loaded and therefore knows what it depends on.
-         * Only the filesystem loader used to set this, so anything not built from a file of its own
-         * kept a baseline of zero — a graphics pipeline in particular, assembled from shaders already
-         * loaded. Any nonzero timestamp then looked newer than zero, so every pipeline queued itself
-         * for reload on the first frame and rebuilt once for nothing.
+         * The watch baseline, taken once the asset has loaded. A pipeline has no file of its own, and a baseline of
+         * zero would queue it for reload on the first frame.
          */
         if (asset->status == NYA_ASSET_STATUS_LOADED && !asset->from_blob) {
             _nya_asset_get_modification_time(asset, &asset->source_modification_time);
@@ -2322,9 +2121,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
 #endif
     }
 
-    // One copy pass for everything the loop staged. Assets are already marked loaded above, which is
-    // safe because this runs on NYA_EVENT_FRAME_ENDED: nothing samples a texture between here and
-    // the next frame's rendering.
+    // one copy pass for everything staged. safe to mark loaded first: nothing samples before the next frame.
     _nya_asset_flush_uploads(&pending_uploads);
 
     nya_array_clear(system->loading_queue);
@@ -2344,8 +2141,7 @@ void _nya_asset_unloading_process(NYA_Event* event) {
 
         asset->queued_for_unload = false;
 
-        // Reacquired between queueing and now. The acquire removes it from the queue, but a second
-        // entry from an earlier round could still be sitting here.
+        // reacquired between queueing and now; an earlier round may have left a second entry.
         if (atomic_load(&asset->reference_count) > 0) continue;
         if (asset->status == NYA_ASSET_STATUS_UNLOADED) continue;
 
@@ -2356,24 +2152,18 @@ void _nya_asset_unloading_process(NYA_Event* event) {
             } break;
 
             case NYA_ASSET_TYPE_MESH: {
-                // The FBX bytes were released at the end of the load; what is left is the three arrays
-                // built from them, which were allocated together and go together.
+                // the FBX bytes are gone; the three arrays were allocated together and are freed together.
                 /*
-                 * The GPU textures go first, while the array that names them is still there. Once each,
-                 * which is what the deduplicated array buys: parts refer to textures by index precisely
-                 * so this loop can release every distinct one exactly once, where releasing through the
-                 * parts would double-free an image two materials share.
+                 * GPU textures first, once each through the deduplicated array. Releasing through the parts would free a
+                 * shared image twice.
                  */
                 for (u32 i = 0; i < asset->as_mesh.texture_count; i++) {
                     SDL_ReleaseGPUTexture(render_system->gpu_device, asset->as_mesh.textures[i]);
                 }
 
                 /*
-                 * The retained vertex buffer, if anything ever drew this mesh. Created by the renderer
-                 * on first use rather than here — see NYA_Asset.as_mesh.gpu_vertices — but released
-                 * here, because unload is the one place that knows the asset is going away. A hot
-                 * reload runs unload then load, so without this each reload would strand a buffer the
-                 * size of the model in VRAM.
+                 * The retained vertex buffer, if anything drew the mesh. The renderer creates it; unload releases it, or
+                 * every hot reload would strand one in VRAM.
                  */
                 if (asset->as_mesh.gpu_vertices != nullptr) {
                     SDL_ReleaseGPUBuffer(render_system->gpu_device, asset->as_mesh.gpu_vertices);
@@ -2383,8 +2173,7 @@ void _nya_asset_unloading_process(NYA_Event* event) {
                 }
 
                 if (asset->as_mesh.positions != nullptr) {
-                    // `allocated`, not the counts: the arena frees by extent and the two can differ. See
-                    // the note on NYA_Asset.as_mesh.allocated.
+                    // `allocated`, not the counts: the arena frees by extent. see NYA_Asset.as_mesh.allocated.
                     u32 reserved = asset->as_mesh.allocated;
 
                     nya_arena_free(system->allocator, asset->as_mesh.positions, reserved * sizeof(f32x3));
@@ -2413,14 +2202,10 @@ void _nya_asset_unloading_process(NYA_Event* event) {
                 SDL_ReleaseGPUShader(render_system->gpu_device, asset->as_shader.shader);
                 asset->as_shader.shader = nullptr;
 
-                // The +1 matches the allocation in _nya_asset_pick_correct_compiled_shader, which
-                // reserves room for the terminator. Freeing one byte short hands the arena a block
-                // that does not line up with the one it gave out.
+                // +1 for the terminator reserved in _nya_asset_pick_correct_compiled_shader.
                 nya_arena_free(system->allocator, (void*)asset->as_shader.compiled_handle, strlen(asset->as_shader.compiled_handle) + 1);
 
-                // Cleared rather than left pointing at freed memory: a reload loads the shader
-                // again and picks a fresh handle, and nothing should be able to read this one in
-                // between.
+                // cleared so nothing reads the freed handle before a reload picks a new one.
                 asset->as_shader.compiled_handle = nullptr;
 
                 asset->status = NYA_ASSET_STATUS_UNLOADED;
@@ -2432,14 +2217,14 @@ void _nya_asset_unloading_process(NYA_Event* event) {
             } break;
 
             case NYA_ASSET_TYPE_TEXTURE: {
-                // The encoded bytes were already released once the pixels reached the GPU.
+                // the encoded bytes were released once the pixels reached the GPU.
                 SDL_ReleaseGPUTexture(render_system->gpu_device, asset->as_texture.texture);
                 asset->as_texture = (typeof(asset->as_texture)){ 0 };
                 asset->status     = NYA_ASSET_STATUS_UNLOADED;
             } break;
 
             case NYA_ASSET_TYPE_SOUND: {
-                // Destroy the audio before the bytes: a non predecoded sound still reads from them.
+                // audio before the bytes: a streamed sound still reads them.
                 MIX_DestroyAudio(asset->as_sound.audio);
                 asset->as_sound.audio = nullptr;
                 _nya_asset_unload_raw(asset);
@@ -2447,7 +2232,7 @@ void _nya_asset_unloading_process(NYA_Event* event) {
             } break;
 
             case NYA_ASSET_TYPE_FONT: {
-                // Same ordering: the face reads glyphs out of the file lazily.
+                // same ordering: the face reads glyphs lazily.
                 TTF_CloseFont(asset->as_font.font);
                 asset->as_font.font = nullptr;
                 _nya_asset_unload_raw(asset);
@@ -2455,7 +2240,7 @@ void _nya_asset_unloading_process(NYA_Event* event) {
             } break;
 
             default: {
-                // Includes anything that never finished loading, which has nothing to release.
+                // anything that never finished loading has nothing to release.
                 asset->status = NYA_ASSET_STATUS_UNLOADED;
             } break;
         }
@@ -2475,8 +2260,7 @@ void _nya_asset_reload_process(NYA_Event* event) {
         NYA_Asset* asset = nya_dict_get(system->assets, *handle);
         nya_assert(asset != nullptr);
 
-        // Nothing queues a blob asset, but a pipeline can be pulled in behind a shader that was
-        // itself blob backed, so the queue is not only what nya_asset_get put there.
+        // a pipeline can be queued behind a blob-backed shader.
         if (asset->from_blob) continue;
 
         u64 file_modification_time = 0;
@@ -2497,11 +2281,8 @@ void _nya_asset_reload_process(NYA_Event* event) {
             nya_log_debug("Reloading asset: %s", *handle);
 
             /*
-             * A pipeline holds the shader modules its shaders created, so those have to be rebuilt
-             * from the new bytes before the pipeline is, or it binds the same modules again and the
-             * reload changes nothing visible. Queued ahead of the pipeline because both queues are
-             * drained in order on the next frame — unloading first, then loading — so the shaders are
-             * recreated by the time the pipeline asks them for their SDL_GPUShader.
+             * The shaders are rebuilt before the pipeline, or it binds the old modules again. Both queues drain in
+             * order next frame, unloads first.
              */
             if (asset->type == NYA_ASSET_TYPE_GRAPHICS_PIPELINE) {
                 NYA_AssetHandle shader_handles[] = {
@@ -2590,7 +2371,7 @@ NYA_INTERNAL NYA_AssetHandle _nya_asset_pick_correct_compiled_shader(NYA_AssetHa
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Suffix test over C strings, since nya_string_ends_with wants an NYA_String and both callers have neither. */
+/** Suffix test over C strings. */
 NYA_INTERNAL b8 _nya_asset_path_has_suffix(NYA_ConstCString path, NYA_ConstCString suffix) {
     if (suffix == nullptr || suffix[0] == '\0') return true;
     if (path == nullptr) return false;
@@ -2604,11 +2385,7 @@ NYA_INTERNAL b8 _nya_asset_path_has_suffix(NYA_ConstCString path, NYA_ConstCStri
 }
 
 #ifndef NYA_ASSET_PREFER_BLOB
-/*
- * The disk walk's helpers, compiled only when there is a disk walk. A build with NYA_ASSET_PREFER_BLOB
- * reads the baked index instead and never calls these, and an unused static function is a warning —
- * the compiler correctly pointing out that the guard belongs here rather than only around the call.
- */
+/* Disk walk helpers, only compiled when there is a disk walk, or they are unused statics. */
 typedef struct {
     NYA_ArrayᐸNYA_Stringᐳ* paths;
     NYA_ConstCString       suffix;
@@ -2622,9 +2399,7 @@ NYA_INTERNAL b8 _nya_asset_enumerate_collect(NYA_ConstCString path, const NYA_Di
 
     NYA_String* copy = nya_string_from(context->paths->arena, path);
 
-    // The handles the loader takes are spelled with a leading "./", and so are the blob's, so a path
-    // from a disk walk has to match — otherwise the two builds hand back names that differ by two
-    // characters and only one of them loads.
+    // handles start with "./", as the blob's do, so both builds name assets identically.
     if (!nya_string_starts_with(copy, "./")) nya_string_extend_front(copy, "./");
 
     nya_array_push_back(context->paths, *copy);
@@ -2651,7 +2426,7 @@ NYA_ArrayᐸNYA_Stringᐳ* nya_asset_enumerate(NYA_Arena* arena, NYA_ConstCStrin
     NYA_ArrayᐸNYA_Stringᐳ* paths = nya_array_create(arena, NYA_String);
 
 #ifdef NYA_ASSET_PREFER_BLOB
-    // The baked index. Already sorted, since the generator sorts before it writes.
+    // the baked index, already sorted by the generator.
     for (u64 i = 0; i < NYA_ASSET_BLOB_HEADER_COUNT; i++) {
         NYA_ConstCString path = NYA_ASSET_BLOB_HEADER[i].path;
 
@@ -2663,8 +2438,7 @@ NYA_ArrayᐸNYA_Stringᐳ* nya_asset_enumerate(NYA_Arena* arena, NYA_ConstCStrin
 #else
     _NYA_AssetEnumerateContext context = { .paths = paths, .suffix = suffix };
 
-    // A missing assets directory is not fatal: a test or a headless tool may have no assets at all,
-    // and an empty list is the honest answer rather than a reason to stop.
+    // a missing assets directory is an empty list, not an error.
     NYA_Error walked = nya_filesystem_walk(arena, "./assets", _nya_asset_enumerate_collect, &context);
 
     if (!walked.ok) nya_log_warn("Could not enumerate assets: %s", walked.message);
@@ -2685,8 +2459,7 @@ u64 nya_asset_blob_count(void) {
 #ifdef NYA_ASSET_PREFER_BLOB
     return NYA_ASSET_BLOB_HEADER_COUNT;
 #else
-    // No blob in this build, so the index is empty rather than absent. A caller iterating it does
-    // nothing, which is the right behaviour for a tool that runs in both.
+    // no blob in this build, so the index is empty.
     return 0;
 #endif
 }
@@ -2707,11 +2480,7 @@ const NYA_AssetBlobHeader* nya_asset_blob_find(NYA_ConstCString path) {
     if (path == nullptr) return nullptr;
 
 #ifdef NYA_ASSET_PREFER_BLOB
-    /*
-     * Linear, deliberately: the loader's own lookup is the hot one and already exists; this is for
-     * tooling that walks the whole index anyway, so a map built at startup would cost every build a
-     * hash table to serve a path nothing takes.
-     */
+    /* Linear: this is for tooling that walks the whole index anyway. */
     for (u64 i = 0; i < NYA_ASSET_BLOB_HEADER_COUNT; i++) {
         if (nya_string_equals(NYA_ASSET_BLOB_HEADER[i].path, path)) return &NYA_ASSET_BLOB_HEADER[i];
     }

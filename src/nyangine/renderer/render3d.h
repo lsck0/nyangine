@@ -26,8 +26,7 @@
 
 typedef struct NYA_Window NYA_Window;
 
-// Same reason as NYA_Window: this file deliberately includes nothing that includes it back, and
-// nya_render3d_occlusion only ever takes a pointer. render_occlusion.h has the definition.
+// this file includes nothing that includes it, and nya_render3d_occlusion only takes a pointer.
 typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 
 /*
@@ -65,14 +64,9 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 #define NYA_RENDER3D_PIPELINE_SHADOW "nya_mesh3d_shadow_pipeline"
 
 /*
- * ── The retained mesh path ──
- *
- * Four more pipelines, differing from the three above only in their vertex stage: these read vertices in
- * model space plus a per-instance transform, where those read vertices already in world space.
- *
- * The fragment stages are shared with the immediate path, unchanged. That is not an accident of
- * implementation — it is what guarantees a model looks identical whichever path drew it, and it is why
- * the split can be an internal performance decision rather than something a caller has to think about.
+ * Retained mesh pipelines. They differ from the ones above only in the vertex stage, which reads model-space
+ * vertices plus a per-instance transform. The fragment stages are shared, so a model looks the same
+ * whichever path drew it.
  */
 
 /** Instanced, untextured. */
@@ -91,20 +85,13 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 #define NYA_RENDER3D_PIPELINE_OUTLINE "nya_mesh3d_outline_pipeline"
 
 /*
- * ── The transparent pass ──
- *
- * The same shaders as the opaque pipelines with one state difference: depth is *tested* and not
- * *written*. A translucent surface is still behind the wall in front of it, so it has to test — and
- * writing would let the nearer of two translucent panes stop the further one being drawn at all.
- *
- * Anything drawn with an alpha below one is routed here automatically and sorted back to front within
- * the flush; there is nothing for a caller to switch on. See NYA_Render3DStream.
+ * Transparent pass. Same shaders as the opaque pipelines, but depth is tested and not written: a translucent
+ * surface is still behind a wall, and writing depth would hide the pane behind it. Anything with alpha below
+ * one goes here automatically and is sorted back to front. See NYA_Render3DStream.
  */
 
 /** Untextured, depth-tested, no depth write. */
-/**
- * The gizmo pipeline: transparent, with depth *testing* off as well as depth writing.
- * */
+/** The gizmo pipeline: transparent, with neither depth testing nor writing. */
 /**
  * The skinned mesh pipeline. See nya_render3d_skinned_mesh.
  * */
@@ -132,14 +119,8 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 #define NYA_RENDER3D_PIPELINE_GLASS "nya_mesh3d_glass_pipeline"
 
 /*
- * ── The additive pass ──
- *
- * Light adds, it does not occlude. Fire, sparks, magic and glow are *emission*, so overlapping them has
- * to brighten toward white rather than blending toward an average — which is what alpha does, and why a
- * stack of alpha-blended flame sprites reads as a grey smudge.
- *
- * Additive geometry needs no sorting at all, which is the other half of why it has its own pass:
- * addition is commutative, so the order it is drawn in cannot change the result.
+ * Additive pass. Emission such as fire and glow has to brighten toward white rather than average like alpha
+ * blending. Addition is commutative, so this pass needs no sorting.
  */
 
 /** Untextured, additive, depth-tested, no depth write. */
@@ -226,14 +207,8 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
  * Reserved, and nya_render3d_mesh_register refuses it rather than trusting a caller to have read this.
  * */
 /**
- * The shadow map's colour format: a single normalized 16-bit channel.
- *
- * The map stores one depth in [0, 1], so a 32-bit float spent twice the memory on a value that never uses
- * the exponent — and R16_UNORM spreads its 65536 steps evenly over exactly that range, where a float
- * crowds them near zero. Halves the atlas's colour target.
- *
- * Named once because four places have to agree: the texture, and the three pipelines that render into it.
- * A pipeline built for a different format than its target is rejected at bind time.
+ * The shadow map's colour format: one normalized 16-bit channel. The map stores a depth in [0, 1], which
+ * R16_UNORM covers evenly at half the memory of R32_FLOAT. The texture and three pipelines must agree on it.
  * */
 #define NYA_RENDER3D_SHADOW_FORMAT SDL_GPU_TEXTUREFORMAT_R16_UNORM
 
@@ -260,11 +235,7 @@ typedef enum NYA_Render3DBlend      NYA_Render3DBlend;
 typedef enum NYA_Render3DDepth      NYA_Render3DDepth;
 typedef struct NYA_Render3DTextureBinding NYA_Render3DTextureBinding;
 
-/*
- * Forward declared rather than included. NYA_Vertex3D is renderer.h's, and renderer.h includes this file —
- * so reaching for it would close a cycle. Only the pointer is needed here; the caller building the
- * vertices already has the full definition.
- */
+/* Forward declared: NYA_Vertex3D belongs to renderer.h, which includes this file. */
 typedef struct NYA_Vertex3D NYA_Vertex3D;
 
 /**
@@ -285,9 +256,7 @@ enum NYA_Render3DDepth {
     /** Tested and written. What every piece of world geometry wants. */
     NYA_RENDER3D_DEPTH_DEFAULT,
 
-    /**
-     * Neither tested nor written: always visible, and invisible to everything drawn after it.
-     * */
+    /** Neither tested nor written: always visible, and hidden from everything drawn after it. */
     NYA_RENDER3D_DEPTH_OVERLAY,
 };
 
@@ -295,9 +264,7 @@ enum NYA_Render3DBlend {
     /** Blend over what is behind, by alpha. Sorted back to front. The default, and the zero value. */
     NYA_RENDER3D_BLEND_ALPHA = 0,
 
-    /**
-     * Add to what is behind. For anything that is *emitting* rather than occluding.
-     * */
+    /** Add to what is behind, for anything emitting light rather than occluding. */
     NYA_RENDER3D_BLEND_ADDITIVE,
 
     NYA_RENDER3D_BLEND_COUNT,
@@ -313,7 +280,7 @@ struct NYA_Render3DSky {
     /** At eye level. Zero becomes a pale blue. */
     NYA_Color horizon;
 
-    /** Below level — haze, sea, distant ground. Zero becomes a dim slate. */
+    /** Below level: haze, sea, distant ground. Zero becomes a dim slate. */
     NYA_Color ground;
 
     /**
@@ -365,14 +332,14 @@ struct NYA_Render3DLight {
 };
 
 /**
- * Distance and height fog: the depth cue a flat-shaded renderer has no other source of.
+ * Distance and height fog, the depth cue a flat-shaded renderer otherwise lacks.
  *
  * ```c
  * nya_render3d_fog_set(window, (NYA_Render3DFog){ .color = sky.horizon, .density = 0.02F });
  * ```
  *
- * ⚠ The inverted-hull outline is not fogged: its fragment shader reads no uniforms at all, so ink stays
- * at full contrast while the surface recedes. Visible at heavy density.
+ * The inverted-hull outline is not fogged, since its fragment shader reads no uniforms; at heavy density the
+ * ink stays at full contrast.
  * */
 struct NYA_Render3DFog {
     /**
@@ -380,9 +347,7 @@ struct NYA_Render3DFog {
      * */
     NYA_Color color;
 
-    /**
-     * How quickly fog closes in, per world unit. **Zero disables fog**, shader branch included.
-     * */
+    /** How quickly fog closes in, per world unit. Zero disables fog, shader branch included. */
     f32 density;
 
     /**
@@ -402,9 +367,7 @@ struct NYA_Render3DFog {
 /**
  * How a surface responds to light: the metallic-roughness half of a glTF material.
  * */
-/*
- * The names are historical, and each field says what it now controls.
- */
+/* The names follow glTF; each field says what it controls here. */
 struct NYA_Render3DMaterial {
     /**
      * How strong the single hard-edged highlight is, in [0, 1]. Zero for none.
@@ -424,18 +387,16 @@ struct NYA_Render3DMaterial {
     /**
      * How far this surface bends what is behind it, in [0, 1]. Zero for none.
      *
-     * ⚠ **Needs the scene drawn into a render texture.** The capture is taken by resolving the current
-     * colour target mid-frame, which only happens for a render texture; drawn straight to the window,
-     * refraction is ignored and the surface falls back to ordinary blending.
+     * Only works when the scene is drawn into a render texture, which is the only target resolved mid-frame.
+     * Drawn to the window, the surface falls back to plain blending.
      * */
     f32 refraction;
 
     /**
      * How much the view through this surface is blurred, in [0, 1]. Zero is clear glass.
      *
-     * ⚠ A fixed tap count with a widening radius, not a mip chain — so a very heavy blur shows its
-     * individual taps as a faint grid rather than getting smoother. Same trade GNY_BLOOM_2D_SPREAD
-     * documents, and the same fix: a downsampled chain.
+     * A fixed tap count with a widening radius, so a very heavy blur shows its taps as a faint grid. A
+     * downsampled chain would fix it, as for GNY_BLOOM_2D_SPREAD.
      * */
     f32 blur;
 
@@ -447,10 +408,9 @@ struct NYA_Render3DMaterial {
     /**
      * How strongly curved edges are darkened, in [0, 1]. Zero for none.
      *
-     * ⚠ **Curvature, not creases.** It comes from how fast the interpolated normal turns per pixel — large
-     * on a tight fillet, exactly zero across a flat face — so a rounded cube shows it strongly and a
-     * hard-edged cube shows none at all. A hard crease needs neighbour information this pass does not
-     * have; see mesh3d_edge in mesh3d_shading.hlsli.
+     * It measures how fast the interpolated normal turns per pixel, so a rounded cube shows it and a hard-edged
+     * cube does not. Hard creases need neighbour information this pass lacks; see mesh3d_edge in
+     * mesh3d_shading.hlsli.
      * */
     f32 edge;
 };
@@ -477,31 +437,19 @@ struct NYA_Render3DPointLight {
  * */
 struct NYA_Render3DShadowFit {
     /**
-     * How far from the camera shadows are cast, in world units. Zero is NYA_RENDER3D_SHADOW_EXTENT.
-     *
-     * ⚠ **This is a distance down the view, not a cascade's size.** The cascades divide this range
-     * between them; none of them is a fixed-size box sitting a fixed distance ahead of the camera. Size
-     * a cascade instead of the range and a camera standing further off than the near cascade reaches
-     * spends that cascade on empty air, shadowing the scene with the coarsest map it has — and moving
-     * the camera then slides patches of ground between cascades of very different resolution.
+     * How far from the camera shadows are cast, in world units. Zero is NYA_RENDER3D_SHADOW_EXTENT. This is a
+     * distance down the view that the cascades divide, not the size of one cascade.
      * */
     f32 range;
 
     /**
-     * Where shadow casting *starts*, as a distance down the view. Zero is the camera's near plane.
+     * Where shadow casting starts, as a distance down the view. Zero is the camera's near plane.
      *
-     * Named `near_distance` rather than `near`: `near` and `far` are legacy macros in the Windows headers
-     * that MinGW still defines, so a field called `near` compiles on Linux and fails to parse on the
-     * cross build.
+     * Named `near_distance` because `near` and `far` are macros in the Windows headers MinGW still ships.
      *
-     * ⚠ **Set this whenever the camera is further from its subject than the subject is wide.** The
-     * cascades split the span from here to `range`, so leaving it at the near plane spends the sharp
-     * near cascades on the empty air between an orbit camera and what it is looking at, and drops the
-     * whole scene into the coarsest map — which is the blurry, misplaced-looking shadow that fitting
-     * the cascades to the frustum did not by itself fix.
-     *
-     * Measured, not guessed: the distance from the camera to the nearest caster. For a scene orbited
-     * from outside, that is the distance to its centre minus its radius.
+     * Set it whenever the camera is further from its subject than the subject is wide, usually the distance to
+     * the scene's centre minus its radius. Otherwise the sharp near cascades cover empty air and the whole scene
+     * falls into the coarsest one.
      * */
     f32 near_distance;
 
@@ -745,18 +693,14 @@ NYA_API NYA_Render3DShadow nya_render3d_shadow_for_camera(
 NYA_API void nya_render3d_shadow_end(NYA_Window* window);
 
 /**
- * Whether a shadow pass has *already run* this frame, and so whether anything is being shadowed.
+ * Whether a shadow pass has already run this frame, meaning the scene is shadowed.
  *
- * ⚠ **Not "are we inside a shadow pass".** It goes true at nya_render3d_shadow_end and stays true for
- * the rest of the frame, which is the opposite of what a caller wanting to skip the shadow pass needs.
- * That caller wants nya_render3d_shadow_pass_active, and reaching for this one instead is a mistake
- * that has been made: see the note there.
+ * This is not "inside a shadow pass": it becomes true at nya_render3d_shadow_end and stays true, so it is
+ * false during the first pass and true for the camera pass. Use nya_render3d_shadow_pass_active for that.
  * */
 NYA_API b8 nya_render3d_shadow_active(NYA_Window* window) __attr_no_discard;
 
-/**
- * Whether a shadow pass is running *right now* — between nya_render3d_shadow_begin and its end.
- * */
+/** Whether a shadow pass is running now, between nya_render3d_shadow_begin and its end. */
 NYA_API b8 nya_render3d_shadow_pass_active(NYA_Window* window) __attr_no_discard;
 
 /** How many point lights the frame currently has, at most NYA_RENDER3D_MAX_POINT_LIGHTS. */
@@ -823,8 +767,7 @@ NYA_API void nya_render3d_line(NYA_Window* window, f32x3 from, f32x3 to, f32 thi
 NYA_API void nya_render3d_grid(NYA_Window* window, u32 half_extent, f32 cell_size, NYA_Color color);
 
 /**
- * Draws a model loaded as NYA_ASSET_TYPE_MESH, transformed and pushed into the batch like any other
- * shape.
+ * Draws a model loaded as NYA_ASSET_TYPE_MESH.
  *
  * ```c
  * nya_render3d_mesh(window, NYA_ASSET_MODELS_CUBIE_FBX, position, (f32x3){ 1, 1, 1 }, rotation, NYA_COLOR_WHITE);

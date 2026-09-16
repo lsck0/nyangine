@@ -17,7 +17,7 @@ NYA_INTERNAL void _nya_entity_animation_step(NYA_Entity* entity, f32 delta_time_
 /** Draws whatever NYA_EntityVisual says, before the entity's own on_render runs. */
 NYA_INTERNAL void _nya_entity_visual_draw(NYA_Entity* entity, NYA_Window* window);
 
-/** Sort comparator: depth, then texture to keep the batching, then slot to make the order total. */
+/** Sort comparator: depth, then texture to keep batching, then slot to make the order total. */
 NYA_INTERNAL int _nya_entity_draw_entry_compare(const void* left, const void* right);
 
 /** One entity in a draw list, with the keys it is sorted on. See nya_system_entity_render_in. */
@@ -34,13 +34,13 @@ typedef struct {
 /** Adds a slot to every bitset its kind and flags put it in. */
 NYA_INTERNAL void _nya_entity_index_add(u32 slot, u32 type, u64 flags);
 
-/** The exact inverse, given the kind and flags the entity had at the time. */
+/** The inverse, given the kind and flags the entity had. */
 NYA_INTERNAL void _nya_entity_index_remove(u32 slot, u32 type, u64 flags);
 
 /** The bitset for a kind, or null when that kind is past NYA_ENTITY_KIND_MAX. */
 NYA_INTERNAL u64* _nya_entity_index_kind_bits(u32 type);
 
-/** Words of the bitsets that could hold anything, from the table's high water mark. */
+/** Bitset words that could hold anything, up to the table's high water mark. */
 NYA_INTERNAL u32 _nya_entity_index_word_count(void);
 
 NYA_INTERNAL void _nya_entity_bitset_set(u64* bits, u32 slot);
@@ -49,19 +49,16 @@ NYA_INTERNAL void _nya_entity_bitset_clear(u64* bits, u32 slot);
 /** Which cell a world position falls in. Floored, so it is continuous across zero. */
 NYA_INTERNAL void _nya_entity_grid_cell(f32x2 position, OUT s32* out_x, OUT s32* out_y);
 
-/** Cell coordinates to a bucket. Masked rather than divided, which is why the count is a power of two. */
+/** Cell coordinates to a bucket, masked, hence the power-of-two count. */
 NYA_INTERNAL u32 _nya_entity_grid_bucket(s32 cell_x, s32 cell_y);
 
-/**
- * The shared body of every query: walks the cells covering a rectangle and emits what is really in it.
- * */
+/** The body of every query: walks the cells covering a rectangle and emits what is really inside it. */
 NYA_INTERNAL u32 _nya_entity_query(f32x2 min, f32x2 max, b8 filter_by_type, u32 type_filter, b8 filter_by_flags, u64 flag_filter,
                                    OUT NYA_EntityHandle* out, u32 capacity);
 
 /**
- * Runs `hit`'s on_click, or reports that there was nothing to run.
- *
- * Shared by both nya_entity_click overloads, so the "no entity or no callback is not a click" rule is written once.
+ * Runs `hit`'s on_click, or reports that there was nothing to run. Shared by both nya_entity_click
+ * overloads.
  * */
 NYA_INTERNAL NYA_EntityHandle _nya_entity_click_deliver(NYA_EntityHandle hit, f32x3 world_point, u8 button);
 
@@ -110,17 +107,17 @@ void nya_system_entity_init(void) {
     nya_memset(system->entities, 0, NYA_ENTITY_MAX * sizeof(NYA_Entity));
     nya_memset(system->occupied, 0, NYA_ENTITY_MAX * sizeof(b8));
 
-    // Generations start at 1 so a zeroed handle (an uninitialized struct field) never resolves to slot 0.
+    // generations start at 1, so a zeroed handle never resolves to slot 0.
     for (u32 i = 0; i < NYA_ENTITY_MAX; i++) system->generations[i] = 1;
 
-    // Seeded in reverse so the first spawns come from slot 0 upward, keeping the high water mark tight.
+    // seeded in reverse so spawns fill from slot 0 up, keeping the high water mark tight.
     for (u32 i = 0; i < NYA_ENTITY_MAX; i++) system->free_slots[i] = NYA_ENTITY_MAX - 1 - i;
     system->free_count = NYA_ENTITY_MAX;
 
-    // Empty rather than zeroed: slot 0 is a legal entity, so zero cannot mean "nothing here".
+    // empty, not zero: slot 0 is a real entity.
     for (u32 i = 0; i < NYA_ENTITY_GRID_BUCKETS; i++) system->grid.buckets[i] = NYA_ENTITY_GRID_EMPTY;
 
-    // Zero *is* the right empty for the index — a clear bit means "not in this set".
+    // zero is the right empty for the bitsets.
     nya_memset(system->index.live, 0, NYA_ENTITY_BITSET_WORDS * sizeof(u64));
     nya_memset(system->index.kinds, 0, (u64)NYA_ENTITY_KIND_MAX * NYA_ENTITY_BITSET_WORDS * sizeof(u64));
     nya_memset(system->index.flags, 0, (u64)NYA_ENTITY_FLAG_COUNT * NYA_ENTITY_BITSET_WORDS * sizeof(u64));
@@ -141,25 +138,21 @@ void nya_system_entity_deinit(void) {
 }
 
 void nya_system_entity_update(f32 delta_time_s) {
-    // A linear walk over every slot, so this scales with the world rather than with what is awake.
+    // walks every slot, so this scales with the world, not with what is awake.
     nya_perf_time_this_function();
 
-    // Before the callbacks: the physics step has already written this tick's positions by the time this
-    // runs, so a query during update sees them.
+    // physics has written this tick's positions, so queries during update see them.
     nya_system_entity_grid_rebuild();
 
     nya_entity_foreach (entity) {
         if (!nya_flag_check(entity->state, NYA_ENTITY_STATE_ACTIVE)) continue;
 
-        // Integrate before the callback, so update sees this tick's position rather than last tick's.
-        //
-        // Skipped for a simulated entity: nya_system_physics2d_update has already written this tick's
-        // transform out of the solver, and integrating on top would add velocity a second time — visible
-        // as a body that falls at roughly twice gravity and drifts out of its own collision shape.
+        // integrated before the callback, so update sees this tick's position. skipped for simulated entities: the
+        // solver already wrote the transform, and integrating again would double the velocity.
         if (!nya_flag_check(entity->state, NYA_ENTITY_STATE_STATIC) && !entity->physics2d.attached) {
             entity->position += entity->velocity * delta_time_s;
 
-            // Radians/sec per axis; small enough per tick that quaternion compose + renormalize is cheap and stable.
+            // radians per second per axis; per tick that is small enough for quaternion compose and renormalize.
             f32x3 delta   = entity->angular_velocity * delta_time_s;
             f32x3 squared = delta * delta;
             if (squared.x + squared.y + squared.z > 0.0F) {
@@ -168,8 +161,7 @@ void nya_system_entity_update(f32 delta_time_s) {
             }
         }
 
-        // After velocity integration, not before: a move is an absolute statement of position, and
-        // integrating on top of it would bend the curve by whatever velocity was left on the entity.
+        // after integration: a move states an absolute position, and velocity must not bend it.
         _nya_entity_target_step(entity, delta_time_s);
 
         _nya_entity_animation_step(entity, delta_time_s);
@@ -178,10 +170,8 @@ void nya_system_entity_update(f32 delta_time_s) {
         if (on_update != nullptr) on_update(entity, delta_time_s);
     }
 
-    // Last, so it accounts for everything that moved this tick — integration, an interpolated move,
-    // and anything an on_update did. Rendering and every query run after this, so what they see is
-    // coherent; a callback that has to see a child move within its own tick calls
-    // nya_entity_transform_sync. See the hierarchy note in core_entity.h.
+    // last, so it includes everything that moved this tick. a callback that needs a child moved within its own
+    // tick calls nya_entity_transform_sync.
     nya_system_entity_transforms_update();
 }
 
@@ -191,7 +181,7 @@ void nya_system_entity_update(f32 delta_time_s) {
  * ─────────────────────────────────────────────────────────
  */
 
-/** Whether two handles name the same live entity. Handles are a pair, and there is no operator. */
+/** Whether two handles name the same live entity. */
 NYA_INTERNAL b8 _nya_entity_handle_equals(NYA_EntityHandle a, NYA_EntityHandle b) {
     return a.index == b.index && a.generation == b.generation;
 }
@@ -202,8 +192,7 @@ NYA_INTERNAL void _nya_entity_unlink(NYA_Entity* child) {
 
     child->parent = NYA_ENTITY_HANDLE_NONE;
 
-    // The parent may already be gone — despawn clears the link on its way out, and a stale parent
-    // handle stops resolving. Either way the child is a root now.
+    // the parent may be gone already; either way the child is a root now.
     if (parent == nullptr) {
         child->next_sibling = NYA_ENTITY_HANDLE_NONE;
         return;
@@ -212,8 +201,7 @@ NYA_INTERNAL void _nya_entity_unlink(NYA_Entity* child) {
     if (_nya_entity_handle_equals(parent->first_child, child->handle)) {
         parent->first_child = child->next_sibling;
     } else {
-        // A singly-linked list, so removal walks to the node before. Short: sibling lists are a
-        // handful of entries, and the alternative is a back pointer on every entity in the world.
+        // removal walks to the previous node. sibling lists are short, and a back pointer would cost every entity.
         for (NYA_Entity* sibling = nya_entity_get(parent->first_child); sibling != nullptr;
              sibling             = nya_entity_get(sibling->next_sibling)) {
             if (!_nya_entity_handle_equals(sibling->next_sibling, child->handle)) continue;
@@ -230,23 +218,16 @@ NYA_INTERNAL void _nya_entity_unlink(NYA_Entity* child) {
     nya_world()->entity_system.parented_count--;
 }
 
-/** Captures `child`'s offset from `parent` from the world transforms both currently have. */
+/** Captures `child`'s offset from `parent` from their current world transforms. */
 NYA_INTERNAL void _nya_entity_capture_local(NYA_Entity* child, const NYA_Entity* parent) {
     /*
-     * The inverse of the parent's transform applied to the child's, written out for the pieces this
-     * engine actually composes rather than through a general matrix inverse.
-     *
-     * ⚠ Scale is per axis and rotation is a quaternion, so a parent with a non-uniform scale *and* a
-     * rotation does not have an exact inverse of this form — the composition below would shear. The
-     * offset is captured against the parent's scale as if it were uniform, which is exact for the
-     * uniform case and for the unrotated case, and the two cover everything a game usually builds a
-     * hierarchy out of. A rotated, non-uniformly scaled parent is documented as unsupported rather
-     * than silently approximated.
+     * The inverse of the parent's transform applied to the child's, for the pieces this engine composes. A
+     * parent with both rotation and non-uniform scale has no exact inverse of this form and is unsupported;
+     * the uniform and the unrotated cases are exact.
      */
     f32x3 scale = parent->scale;
 
-    // A zero scale on any axis has no inverse; treated as one, so a parent that has not been given a
-    // scale yet — which is a zeroed struct — behaves like an identity rather than dividing by zero.
+    // a zero scale axis is read as one, so a zeroed parent acts as identity instead of dividing by zero.
     if (scale.x == 0.0F) scale.x = 1.0F;
     if (scale.y == 0.0F) scale.y = 1.0F;
     if (scale.z == 0.0F) scale.z = 1.0F;
@@ -260,7 +241,7 @@ NYA_INTERNAL void _nya_entity_capture_local(NYA_Entity* child, const NYA_Entity*
     child->local_scale    = child->scale / scale;
 }
 
-/** Writes `child`'s world transform from `parent`'s and its own stored local. The inverse of the above. */
+/** Writes `child`'s world transform from `parent`'s and the stored local. */
 NYA_INTERNAL void _nya_entity_compose(NYA_Entity* child, const NYA_Entity* parent) {
     NYA_Quaternion rotation = nya_quaternion_normalize(parent->rotation);
 
@@ -291,7 +272,7 @@ b8 nya_entity_parent_set(NYA_EntityHandle child_handle, NYA_EntityHandle parent_
     NYA_Entity* child = nya_entity_get(child_handle);
     if (child == nullptr) return false;
 
-    // Unparenting. Keeps the world transform, which is what _nya_entity_unlink leaves alone.
+    // unparenting keeps the world transform.
     if (!nya_entity_is_valid(parent_handle)) {
         _nya_entity_unlink(child);
         return true;
@@ -303,25 +284,22 @@ b8 nya_entity_parent_set(NYA_EntityHandle child_handle, NYA_EntityHandle parent_
     }
 
     /*
-     * A cycle would make the propagation walk recurse forever, and it is the one mistake a scene
-     * graph invites — dragging a node onto its own descendant in an editor is the usual way in.
-     * Checked before anything is unlinked, so a refused reparent leaves the tree untouched.
+     * A cycle would make propagation recurse forever. Checked before unlinking, so a refused reparent changes
+     * nothing.
      */
     if (nya_entity_is_ancestor(child_handle, parent_handle)) {
         nya_log_error("Cannot parent entity '%s' to its own descendant; that would make a cycle.", child->name ? child->name : "(unnamed)");
         return false;
     }
 
-    // Already there. Returned early rather than unlinked and relinked, which would silently reorder
-    // the parent's sibling list for no reason.
+    // already parented here; relinking would reorder the siblings for nothing.
     if (_nya_entity_handle_equals(child->parent, parent_handle)) return true;
 
     _nya_entity_unlink(child);
 
     NYA_Entity* parent = nya_entity_get(parent_handle);
 
-    // Pushed at the front: appending would walk the list on every parenting, and nothing depends on
-    // the order siblings come out in.
+    // pushed at the front; nothing depends on sibling order.
     child->parent       = parent_handle;
     child->next_sibling = parent->first_child;
     parent->first_child = child_handle;
@@ -348,8 +326,7 @@ u32 nya_entity_children(const NYA_Entity* entity, OUT NYA_EntityHandle* out, u32
     u32 count = 0;
 
     for (NYA_Entity* child = nya_entity_get(entity->first_child); child != nullptr; child = nya_entity_get(child->next_sibling)) {
-        // Counted even past the capacity, so a caller can size a buffer from the answer rather than
-        // guessing and never learning it guessed low.
+        // counted past the capacity, so the caller can size a buffer from the answer.
         if (out != nullptr && count < capacity) out[count] = child->handle;
 
         count++;
@@ -362,8 +339,7 @@ void nya_entity_transform_sync(NYA_EntityHandle handle) {
     NYA_Entity* entity = nya_entity_get(handle);
     if (entity == nullptr) return;
 
-    // The entity itself first, if it has a parent: syncing a child means "put me where my parent
-    // says", and doing only its descendants would leave it behind by one link.
+    // the entity itself first, or it would lag one link behind its parent.
     NYA_Entity* parent = nya_entity_get(entity->parent);
     if (parent != nullptr) _nya_entity_compose(entity, parent);
 
@@ -373,14 +349,12 @@ void nya_entity_transform_sync(NYA_EntityHandle handle) {
 void nya_system_entity_transforms_update(void) {
     NYA_EntitySystem* system = &nya_world()->entity_system;
 
-    // The whole cost of the hierarchy in a world that does not use one.
+    // the whole cost of the hierarchy when nothing is parented.
     if (system->parented_count == 0) return;
 
     nya_perf_time_this_function();
 
-    /*
-     * From the roots down, so a chain resolves in one pass.
-     */
+    /* From the roots down, so a chain resolves in one pass. */
     nya_entity_foreach (entity) {
         if (entity->first_child.generation == 0) continue;
         if (nya_entity_is_valid(entity->parent)) continue;
@@ -392,8 +366,7 @@ void nya_system_entity_transforms_update(void) {
 f32_4x4 nya_entity_world_matrix(const NYA_Entity* entity) {
     if (entity == nullptr) return f32_4x4_id;
 
-    // Scale of zero on every axis is a zeroed entity rather than a deliberate collapse, and a model
-    // matrix built from it is singular. Read as one, matching _nya_entity_capture_local.
+    // all-zero scale is a zeroed entity, and its matrix would be singular. read as one.
     f32x3 scale = entity->scale;
     if (scale.x == 0.0F && scale.y == 0.0F && scale.z == 0.0F) scale = (f32x3){ 1.0F, 1.0F, 1.0F };
 
@@ -422,13 +395,10 @@ void nya_entity_move_to_with_options(NYA_Entity* entity, f32x3 target, f32 durat
         return;
     }
 
-    // Whatever was running is abandoned first, so calling this mid-move restarts rather than stacking
-    // two tweens on the same staging value — which would interleave writes and produce neither curve.
+    // the running move is abandoned first, or two tweens would write the same value.
     nya_entity_move_stop(entity);
 
-    // A move of no duration is a teleport, not a division by zero, so a caller computing duration from
-    // distance needs no special case for standing still. Handled here rather than left to the tween's
-    // own zero-duration path, which would still cost a slot and a frame of latency.
+    // zero duration teleports, without spending a tween slot and a frame.
     if (duration_s <= 0.0F) {
         if (entity->physics2d.attached) nya_physics2d_teleport(entity, target.xy, nya_physics2d_rotation(entity));
         else entity->position = target;
@@ -438,11 +408,8 @@ void nya_entity_move_to_with_options(NYA_Entity* entity, f32x3 target, f32 durat
     }
 
     /*
-     * The tween reads its start value at the first sample, not here — and for a delayed move that is
-     * the right moment, since the entity may have moved during the delay. Seeding the staging value
-     * with the current position is still needed: _nya_entity_target_step applies it every tick the
-     * handle resolves, delay included, and an unseeded one would snap the entity to wherever the last
-     * move left it.
+     * The tween reads its start at the first sample, which for a delayed move is correct. The staging value is
+     * still seeded, because _nya_entity_target_step applies it during the delay too.
      */
     entity->move_position = entity->position;
     entity->move_tween    = nya_tween_f32x3_with_options(&entity->move_position, target, duration_s, options);
@@ -467,16 +434,13 @@ void nya_entity_move_stop(NYA_Entity* entity) {
 
     b8 was_moving = entity->move_tween.generation != 0 || entity->move_settling;
 
-    // By target rather than by handle: a caller may have started a tween on move_position itself, and
-    // "stop moving" has to mean all of them or the leftover keeps writing.
+    // by target, so tweens started on move_position directly stop too.
     nya_tween_cancel_target(&entity->move_position);
     entity->move_tween    = NYA_TWEEN_NONE;
     entity->move_settling = false;
 
-    // "Keeps the position reached" is only true of a body if the velocity driving it goes too — the
-    // solver has no idea the move was abandoned and would carry the last commanded speed forever.
-    // Guarded on kinematic because that is the only kind a move can be attached to, and a dynamic
-    // body's own velocity is not this function's to clear.
+    // a kinematic body keeps moving at the last commanded velocity unless it is cleared. dynamic bodies own
+    // their velocity.
     if (was_moving && entity->physics2d.attached && entity->physics2d.type == NYA_PHYSICS_BODY_KINEMATIC) {
         nya_physics2d_velocity_set(entity, f32x2_zero);
     }
@@ -494,16 +458,13 @@ f32 nya_entity_move_progress(const NYA_Entity* entity) {
 
 void _nya_entity_target_step(NYA_Entity* entity, f32 delta_time_s) {
     /*
-     * A move is over when its handle stops resolving, and the handle is cleared here rather than by
-     * the tween — so a non-zero handle that no longer resolves is exactly "arrived this tick", which
-     * is the tick the final value still has to be applied on.
+     * The handle is cleared here, not by the tween, so a set handle that no longer resolves means "arrived this
+     * tick", when the final value still has to be applied.
      */
     if (entity->move_tween.generation == 0) {
         /*
-         * The tick after a body-backed move arrived. The velocity carrying its final step was set
-         * during the previous update and the solver only consumed it at the start of this one, so this
-         * is the earliest tick it can be cleared without throwing that step away — which is what
-         * clearing it on the arrival tick, as this used to, did every time.
+         * The tick after a body-backed move arrived. The solver consumes the final velocity at the start of this
+         * update, so this is the earliest tick it can be cleared without losing that step.
          */
         if (entity->move_settling) {
             entity->move_settling = false;
@@ -516,17 +477,14 @@ void _nya_entity_target_step(NYA_Entity* entity, f32 delta_time_s) {
     b8 arrived = !nya_tween_active(entity->move_tween);
 
     if (entity->physics2d.attached) {
-        // A kinematic body is moved by telling the solver how fast it is going, not by writing where it
-        // is — that is what makes it sweep through the tick and push whatever stands on it, which is why
-        // a moving platform is kinematic rather than static.
+        // kinematic bodies move by velocity, so they sweep through the tick and push what stands on them.
         nya_physics2d_velocity_set(entity, (entity->move_position.xy - entity->position.xy) / delta_time_s);
     } else {
         entity->position = entity->move_position;
     }
 
     if (arrived) {
-        // Cleared before anything else can see this tick, so an on_update checking nya_entity_moving on
-        // the arrival tick is told the move is over.
+        // cleared first, so nya_entity_moving reports false on the arrival tick.
         entity->move_tween    = NYA_TWEEN_NONE;
         entity->move_settling = entity->physics2d.attached;
     }
@@ -535,8 +493,7 @@ void _nya_entity_target_step(NYA_Entity* entity, f32 delta_time_s) {
 f32 nya_entity_sort_key(const NYA_Entity* entity) {
     if (entity == nullptr) return 0.0F;
 
-    // The anchor is added rather than replacing the position, so an entity whose sprite is drawn from
-    // its centre says how far down its feet are and nothing else has to know.
+    // the anchor is added, so a centred sprite only says how far down its feet are.
     if (entity->visual.y_sorted) return entity->position.y + entity->visual.y_sort_anchor;
 
     return entity->visual.z_order;
@@ -548,10 +505,7 @@ void nya_system_entity_render(NYA_Window* window) {
     u32 target_width, target_height;
     nya_render2d_target_size(window, &target_width, &target_height);
 
-    /*
-     * All four corners, not two: under camera rotation, two opposite screen corners don't bound the view
-     * — the other two stick out. The extent of all four bounds the visible region regardless.
-     */
+    /* All four corners: under camera rotation, two opposite corners do not bound the view. */
     f32x2 corners[4] = {
         nya_render2d_screen_to_world(window, (f32x2){ 0.0F, 0.0F }),
         nya_render2d_screen_to_world(window, (f32x2){ (f32)target_width, 0.0F }),
@@ -584,19 +538,16 @@ void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 max) {
     u32              count = nya_entity_query_rect(min, max, visible, NYA_ENTITY_MAX);
 
     /*
-     * Collected and sorted before anything is drawn: the query answers in grid bucket order, which is
-     * neither spatial nor stable across a rebuild, so two sprites could otherwise swap depth because one
-     * moved into a different cell. Sorting is what makes NYA_EntityVisual.z_order mean anything.
+     * Collected and sorted first. Queries answer in bucket order, which changes as entities cross cells, so
+     * without sorting sprites could swap depth.
      */
     /*
-     * From the frame arena, not a function static. As a static this was 192 kB resident for the life of the
-     * process holding one frame's working set, and sized by NYA_ENTITY_MAX rather than by what is on screen.
-     * The arena is reset every frame, which is exactly this buffer's lifetime.
+     * From the frame arena, which matches this buffer's lifetime, instead of a function static sized by
+     * NYA_ENTITY_MAX.
      */
     NYA_EntityDrawEntry* entries = nya_arena_alloc(nya_app_get()->frame_allocator, count * sizeof(NYA_EntityDrawEntry));
 
-    // A count of zero allocates nothing and there is nothing to draw, so leaving early is also what keeps
-    // `entries` from being a null nobody checks.
+    // nothing to draw, and nothing allocated.
     if (entries == nullptr) return;
 
     u32 entry_count = 0;
@@ -605,7 +556,7 @@ void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 max) {
         NYA_Entity* entity = nya_entity_get(visible[i]);
         if (entity == nullptr) continue;
 
-        // Clearing NYA_ENTITY_STATE_VISIBLE is what "invisible" is — one bit, not two that can disagree.
+        // invisible is one bit.
         if (!nya_flag_check(entity->state, NYA_ENTITY_STATE_VISIBLE)) continue;
 
         entries[entry_count++] = (NYA_EntityDrawEntry){
@@ -615,20 +566,18 @@ void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 max) {
         };
     }
 
-    // Plain qsort rather than nya_array_sort, which is a macro over NYA_Array and would want a container
-    // this never builds.
+    // qsort: nya_array_sort wants an NYA_Array.
     qsort(entries, entry_count, sizeof(NYA_EntityDrawEntry), _nya_entity_draw_entry_compare);
 
     for (u32 i = 0; i < entry_count; i++) {
         NYA_Entity* entity = nya_entity_get(entries[i].handle);
 
-        // Re-resolved rather than kept as a pointer: on_render is game code and may despawn something,
-        // including a later entry in this list.
+        // re-resolved each time: on_render may despawn later entries.
         if (entity == nullptr) continue;
 
         _nya_entity_visual_draw(entity, window);
 
-        // After the visual, so a health bar lands on top of its sprite rather than under it.
+        // after the visual, so a health bar draws over its sprite.
         NYA_EntityOnRenderFn on_render = nya_callback_get(entity->on_render);
         if (on_render != nullptr) on_render(entity, window);
     }
@@ -646,8 +595,7 @@ void nya_system_entity_grid_rebuild(void) {
     NYA_EntitySystem* system = &nya_world()->entity_system;
     NYA_EntityGrid*   grid   = &system->grid;
 
-    // Clearing is the bucket heads only; chain links are overwritten as entities are inserted, and a
-    // no-longer-live entity is simply never linked in.
+    // only bucket heads are cleared; chain links are overwritten on insert.
     for (u32 i = 0; i < NYA_ENTITY_GRID_BUCKETS; i++) grid->buckets[i] = NYA_ENTITY_GRID_EMPTY;
 
     grid->count = 0;
@@ -662,7 +610,7 @@ void nya_system_entity_grid_rebuild(void) {
 
         u32 bucket = _nya_entity_grid_bucket(cell_x, cell_y);
 
-        // Pushed at the head: insertion is two writes and never walks the chain.
+        // pushed at the head, two writes.
         grid->next[slot]   = grid->buckets[bucket];
         grid->buckets[bucket] = slot;
 
@@ -687,8 +635,7 @@ u32 nya_entity_query_radius(f32x2 center, f32 radius, OUT NYA_EntityHandle* out,
 
     if (radius <= 0.0F || capacity == 0) return 0;
 
-    // The bounding square first, then an exact distance test. Squared throughout, so the circle costs a
-    // multiply rather than a square root per candidate.
+    // bounding square first, then an exact squared distance test.
     f32x2 min = { center.x - radius, center.y - radius };
     f32x2 max = { center.x + radius, center.y + radius };
 
@@ -713,7 +660,7 @@ u32 nya_entity_query_radius(f32x2 center, f32 radius, OUT NYA_EntityHandle* out,
 }
 
 NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button) __attr_overloaded {
-    // z zero: the 2D world is the z = 0 plane. See NYA_EntityOnClickFn.
+    // z zero: the 2D world is the z = 0 plane.
     return _nya_entity_click_deliver(nya_physics2d_entity_at(world_point), (f32x3){ world_point.x, world_point.y, 0.0F }, button);
 }
 
@@ -722,7 +669,7 @@ NYA_EntityHandle nya_entity_hover(f32x2 world_point) __attr_overloaded {
 }
 
 NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction) __attr_overloaded {
-    // The struck point is dropped: on_hover does not take one. See NYA_EntityOnHoverFn.
+    // the point is dropped; on_hover takes none.
     return _nya_entity_hover_move(nya_physics3d_raycast(origin, direction, nullptr, nullptr));
 }
 
@@ -739,11 +686,7 @@ NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button) __at
 
     NYA_EntityHandle hit = nya_physics3d_raycast(origin, direction, &point, nullptr);
 
-    /*
-     * The point on the struck surface, not the ray's origin — it decides which face was hit, where to
-     * put a decal, which end of a lever was pulled. Handing the camera position instead would make
-     * every click on an object report the same coordinates.
-     */
+    /* The point on the struck surface, not the ray origin, so a click knows which face was hit. */
     return _nya_entity_click_deliver(hit, point, button);
 }
 
@@ -789,9 +732,7 @@ NYA_EntityHandle nya_entity_spawn_with_options(NYA_EntitySpawnOptions options) {
         .visual           = options.visual,
         .light            = options.light,
 
-        /*
-         * A root, with an identity local transform.
-         */
+        /* A root, with an identity local transform. */
         .parent       = NYA_ENTITY_HANDLE_NONE,
         .first_child  = NYA_ENTITY_HANDLE_NONE,
         .next_sibling = NYA_ENTITY_HANDLE_NONE,
@@ -806,8 +747,7 @@ NYA_EntityHandle nya_entity_spawn_with_options(NYA_EntitySpawnOptions options) {
     _nya_entity_index_add(slot, options.type, options.flags);
     if (slot + 1 > system->high_water_mark) system->high_water_mark = slot + 1;
 
-    // Called with the entity already live, so on_spawn can spawn more, despawn itself, or hand its own
-    // handle to something else.
+    // the entity is live, so on_spawn can spawn, despawn itself, or pass its handle on.
     NYA_EntityOnSpawnFn on_spawn = nya_callback_get(entity->on_spawn);
     if (on_spawn != nullptr) on_spawn(entity);
 
@@ -824,51 +764,43 @@ void nya_entity_despawn(NYA_EntityHandle entity) {
     if (on_despawn != nullptr) on_despawn(target);
 
     /*
-     * Both solvers, after on_despawn (which may still want to read a velocity or overlap off the body)
-     * and before the slot is cleared. Skipping either leaves that body behind: still colliding, still
-     * costing a step, and unreachable to destroy once the handle stops resolving.
+     * Both solvers, after on_despawn (which may still read the body) and before the slot is cleared. A
+     * forgotten body keeps colliding and can never be destroyed.
      */
     nya_physics2d_body_detach(entity);
     nya_physics3d_body_detach(entity);
 
-    // A tween does not own its target and cannot know the entity went away, so a running move would go
-    // on writing into a slot that is about to be zeroed and then reused. By address rather than by
-    // handle, which also takes any tween a caller aimed at move_position itself.
+    // a running tween would keep writing into this slot after reuse. by address, which also catches tweens a
+    // caller aimed at move_position.
     nya_tween_cancel_target(&target->move_position);
 
     /*
-     * The subtree goes with it.
-     *
-     * ⚠ **Despawning a parent despawns its children**, recursively, and that is a decision rather
-     * than a consequence — a turret whose tank is gone is not something a game wants left floating at
-     * the last place the tank was. Call nya_entity_parent_clear on a child first to keep it.
+     * Despawning a parent despawns its children recursively. Call nya_entity_parent_clear on a child first to
+     * keep it.
      */
     while (nya_entity_is_valid(target->first_child)) {
         NYA_EntityHandle child = target->first_child;
 
-        // Unlinked first so the recursion cannot come back around to this entity through the parent
-        // link, and so `first_child` really advances even if the child refuses to go.
+        // unlinked first, so the recursion cannot reach this entity again and `first_child` advances.
         nya_entity_parent_clear(child);
         nya_entity_despawn(child);
     }
 
-    // And this entity leaves its own parent's list, or that list would name a slot about to be reused.
+    // and it leaves its parent's list, which would otherwise name a reused slot.
     if (nya_entity_is_valid(target->parent)) nya_entity_parent_clear(entity);
 
     /*
-     * The hover is dropped without running on_hover: on_despawn has already run and the entity is on its
-     * way out, so telling it the cursor left is a callback into something half torn down. The generation
-     * bump below would stop the stale handle resolving anyway; clearing it here keeps nya_entity_hovered
-     * honest in the same frame rather than until the cursor next moves.
+     * The hover is dropped without on_hover, since on_despawn already ran. Clearing it keeps nya_entity_hovered
+     * correct this frame.
      */
     if (system->hovered.index == entity.index && system->hovered.generation == entity.generation) {
         system->hovered = NYA_ENTITY_HANDLE_NONE;
     }
 
-    // Before the slot is cleared: removing needs the kind and flags it is being removed for.
+    // before clearing the slot: removal needs the kind and flags.
     _nya_entity_index_remove(entity.index, target->type, target->flags);
 
-    // Bumping the generation makes every outstanding handle to this entity stop resolving.
+    // bumping the generation invalidates every outstanding handle.
     system->generations[entity.index]++;
     system->occupied[entity.index] = false;
     system->count--;
@@ -882,8 +814,7 @@ void nya_entity_despawn_deferred(NYA_EntityHandle entity) {
     NYA_Entity* target = nya_entity_get(entity);
     if (target == nullptr) return;
 
-    // Idempotent: a projectile hitting two things in one tick shouldn't queue two despawns, with the
-    // second applying to whatever reused the slot.
+    // idempotent: two hits in one tick must not queue two despawns.
     if (nya_flag_check(target->state, NYA_ENTITY_STATE_DESPAWNING)) return;
 
     nya_flag_set(target->state, NYA_ENTITY_STATE_DESPAWNING);
@@ -911,7 +842,7 @@ u32 nya_entity_count(void) {
 void nya_entity_clear(void) {
     NYA_EntitySystem* system = &nya_world()->entity_system;
 
-    // By slot rather than nya_entity_foreach: despawning is exactly what that macro is not safe under.
+    // by slot: nya_entity_foreach is not safe under despawning.
     for (u32 slot = 0; slot < system->high_water_mark; slot++) {
         if (!system->occupied[slot]) continue;
         nya_entity_despawn(system->entities[slot].handle);
@@ -948,15 +879,14 @@ u32 nya_entity_slot_count(void) {
 void _nya_entity_grid_cell(f32x2 position, OUT s32* out_x, OUT s32* out_y) {
     f32 cell_size = nya_world()->entity_system.grid.cell_size;
 
-    // floorf, not a cast: a cast truncates toward zero, putting everything between -1 and 1 in the same
-    // cell and mirroring the grid about the origin.
+    // floorf: a cast truncates toward zero and mirrors the grid about the origin.
     *out_x = (s32)floorf(position.x / cell_size);
     *out_y = (s32)floorf(position.y / cell_size);
 }
 
 u32 _nya_entity_index_word_count(void) {
-    // Rounded up, so the word holding the highest slot is included. Safe to stop here because the high
-    // water mark only grows: a slot past it has never been occupied, so its bit has never been set.
+    // rounded up to include the word holding the highest slot. the high water mark only grows, so bits beyond it
+    // were never set.
     return (nya_world()->entity_system.high_water_mark + 63) / 64;
 }
 
@@ -993,9 +923,8 @@ void _nya_entity_index_add(u32 slot, u32 type, u64 flags) {
 void _nya_entity_index_remove(u32 slot, u32 type, u64 flags) {
     NYA_EntityIndex* index = &nya_world()->entity_system.index;
 
-    // `live` is what every query is masked by, so clearing it alone already makes the slot unreachable.
-    // The rest are cleared anyway: a stale bit would otherwise be set again on the next spawn into this
-    // slot, disagreeing about a kind the new entity is not.
+    // clearing `live` already makes the slot unreachable, but a stale kind or flag bit would come back on the
+    // next spawn into this slot.
     _nya_entity_bitset_clear(index->live, slot);
 
     u64* kind_bits = _nya_entity_index_kind_bits(type);
@@ -1011,10 +940,8 @@ void _nya_entity_index_remove(u32 slot, u32 type, u64 flags) {
 
 u32 _nya_entity_grid_bucket(s32 cell_x, s32 cell_y) {
     /*
-     * The usual pair of large primes, multiplied in u64 and truncated on purpose — done in 64 bits
-     * because the 32 bit form wraps and the sanitized build treats that as the accident it usually is,
-     * the same trap the mote hash fell into. Casting the signed coordinate through u32 first is what
-     * makes negative coordinates hash sensibly rather than sign extending into the high half.
+     * The usual large primes, multiplied in u64: the u32 form wraps, which the sanitized build aborts on.
+     * Casting the signed coordinate through u32 first keeps negatives from sign extending.
      */
     u64 hash = ((u64)(u32)cell_x * 73856093ULL) ^ ((u64)(u32)cell_y * 19349663ULL);
 
@@ -1047,22 +974,21 @@ u32 _nya_entity_query(f32x2 min, f32x2 max, b8 filter_by_type, u32 type_filter, 
                 const NYA_Entity* entity = &system->entities[slot];
 
                 /*
-                 * Two filters, both load bearing. The cell check is what makes a *hash* grid correct:
-                 * distant cells share buckets, so a bucket holds entities this query never asked about —
-                 * and since each entity's own cell is visited exactly once, it also stops double-emitting.
+                 * Two filters. Distant cells share buckets, so the cell check drops entities this query did not ask about,
+                 * and since each entity's cell is visited once it also prevents duplicates.
                  */
                 s32 entity_cell_x, entity_cell_y;
                 _nya_entity_grid_cell((f32x2){ entity->position.x, entity->position.y }, &entity_cell_x, &entity_cell_y);
 
                 if (entity_cell_x != cell_x || entity_cell_y != cell_y) continue;
 
-                // The exact test: a cell is coarser than the rectangle that asked.
+                // the exact test: a cell is coarser than the rectangle.
                 if (entity->position.x < min.x || entity->position.x > max.x) continue;
                 if (entity->position.y < min.y || entity->position.y > max.y) continue;
 
                 if (filter_by_type && entity->type != type_filter) continue;
 
-                // Every bit, not any bit: "flammable and wet" means both, not either.
+                // every bit, not any.
                 if (filter_by_flags && (entity->flags & flag_filter) != flag_filter) continue;
 
                 out[found++] = entity->handle;
@@ -1094,8 +1020,7 @@ void nya_entity_flags_set(NYA_Entity* entity, u64 flags) {
 
     u32 slot = entity->handle.index;
 
-    // Only the bits that actually changed are touched: clearing every old bit and setting every new one
-    // is six read-modify-writes instead of one for the common case of flipping one flag out of three.
+    // only changed bits are touched.
     u64 changed = entity->flags ^ flags;
 
     while (changed != 0) {
@@ -1123,21 +1048,18 @@ NYA_EntityIter _nya_entity_iter_kind(u32 type) {
     u64* bits = _nya_entity_index_kind_bits(type);
 
     NYA_EntityIter iter = {
-        // A kind past the indexed range has no bitset, so the walk falls back to every live slot and
-        // checks `type` per entity — slower, correct, and unreachable by accident.
+        // a kind past the indexed range has no bitset, so the walk checks `type` per live slot.
         .bits       = bits != nullptr ? bits : index->live,
         .check_type = bits == nullptr,
         .require_type = type,
 
-        // Positioned before the first word, so the first advance lands on the first match, letting the
-        // macro test `entity` immediately with no separate priming call.
+        // positioned before the first word, so the first advance lands on the first match.
         .word       = 0,
         .word_count = _nya_entity_index_word_count(),
         .remaining  = 0,
     };
 
-    // Prime it: `word` zero and `remaining` empty loads word zero and finds its first set bit, or walks
-    // to the end and reports nothing.
+    // loads word zero and finds its first set bit, or reports nothing.
     iter.remaining = iter.word_count > 0 ? iter.bits[0] & index->live[0] : 0;
     iter.entity    = nullptr;
 
@@ -1156,9 +1078,8 @@ NYA_EntityIter _nya_entity_iter_flags(u64 flags) {
     };
 
     /*
-     * Walk the first requested bit's set, checking the rest per entity. Intersecting every requested
-     * bitset would yield strictly fewer candidates but need a scratch buffer, for a query that is nearly
-     * always one flag and where the extra check is one AND against a word already in a register.
+     * Walks the first requested bit's set and checks the rest per entity. Intersecting bitsets would need
+     * scratch, and queries are nearly always one flag.
      */
     iter.bits = flags != 0 ? &index->flags[(u64)nya_bits_ctz_u64(flags) * NYA_ENTITY_BITSET_WORDS] : index->live;
 
@@ -1173,7 +1094,7 @@ void _nya_entity_iter_advance(NYA_EntityIter* iter) {
     NYA_EntitySystem* system = &nya_world()->entity_system;
 
     for (;;) {
-        // A zero word skips sixty four slots at once, making a rare kind nearly free to look for.
+        // a zero word skips 64 slots, so rare kinds are nearly free.
         while (iter->remaining == 0) {
             iter->word++;
 
@@ -1219,16 +1140,11 @@ int _nya_entity_draw_entry_compare(const void* left, const void* right) {
     if (a->z_order < b->z_order) return -1;
     if (a->z_order > b->z_order) return 1;
 
-    /*
-     * Ties broken by texture: a draw call holds one texture, so sorting purely by depth would interleave
-     * a hundred sprites sharing a sheet with sprites from another, turning one draw call into a hundred.
-     * Grouping equal-depth entities by texture puts the batching back.
-     */
+    /* Ties broken by texture, so equal-depth sprites from one sheet stay one draw call. */
     if ((uintptr_t)a->texture < (uintptr_t)b->texture) return -1;
     if ((uintptr_t)a->texture > (uintptr_t)b->texture) return 1;
 
-    // Finally by slot, so the order is total — otherwise a sort could permute equal elements and two
-    // sprites at the same depth on the same sheet would flicker past each other.
+    // then by slot, so the order is total and equal sprites do not flicker.
     if (a->handle.index < b->handle.index) return -1;
     if (a->handle.index > b->handle.index) return 1;
 
@@ -1242,16 +1158,14 @@ void _nya_entity_animation_step(NYA_Entity* entity, f32 delta_time_s) {
 
     u32 count = nya_sprite_animator_advance(&entity->visual.animator, delta_time_s, signals, nya_carray_length(signals));
 
-    // Applied whether or not anything was signalled: a paused animator still has to draw the frame it's
-    // paused on, and one that crossed no boundary this tick still has to draw the one it's in.
+    // applied every tick: a paused animator still draws its frame.
     nya_sprite_animator_apply(&entity->visual.animator, &entity->visual.atlas, &entity->visual.sprite);
 
     NYA_EntityOnAnimationFn on_animation = nya_callback_get(entity->on_animation);
     if (on_animation == nullptr) return;
 
     for (u32 i = 0; i < count; i++) {
-        // Re-checked every iteration: a callback handling FINISHED may despawn the entity, and the
-        // remaining signals would then deliver to a freed slot.
+        // rechecked every iteration: handling FINISHED may despawn the entity.
         if (!nya_entity_is_valid(entity->handle)) return;
 
         on_animation(entity, signals[i]);
@@ -1262,15 +1176,14 @@ void _nya_entity_visual_draw(NYA_Entity* entity, NYA_Window* window) {
     switch (entity->visual.kind) {
         case NYA_ENTITY_VISUAL_SPRITE:
         case NYA_ENTITY_VISUAL_ANIMATION: {
-            // Null until the texture asset resolves, normal for the first frames of a run.
+            // null until the texture loads.
             if (entity->visual.sprite.texture == nullptr) return;
 
             nya_render2d_sprite(window, &entity->visual.sprite, entity->position.xy);
         } break;
 
         case NYA_ENTITY_VISUAL_CUBE: {
-            // Only while a 3D camera is set: there is no projection otherwise, and drawing through the
-            // 2D one would put a cube somewhere arbitrary rather than nowhere.
+            // only with a 3D camera set; the 2D projection would put the cube somewhere arbitrary.
             if (!nya_render3d_active(window)) return;
 
             nya_render3d_cube(window, entity->position, entity->visual.size, entity->rotation, entity->visual.color);
@@ -1293,7 +1206,7 @@ typedef struct {
     NYA_Light2D light;
     f32x2           position;
 
-    /** Radius times intensity: how much light this contributes at all. Larger wins. */
+    /** Radius times intensity. Larger wins. */
     f32 weight;
 } NYA_EntityLightEntry;
 
@@ -1301,8 +1214,7 @@ NYA_INTERNAL int _nya_entity_light_compare(const void* left, const void* right) 
     const NYA_EntityLightEntry* a = left;
     const NYA_EntityLightEntry* b = right;
 
-    // Descending, so the brightest survive the cap. Ties are left alone: two identical lights are
-    // interchangeable, and forcing an order on them buys nothing.
+    // descending, so the brightest survive the cap.
     if (a->weight > b->weight) return -1;
     if (a->weight < b->weight) return 1;
 
@@ -1318,16 +1230,10 @@ u32 nya_system_entity_lights(f32x2 min, f32x2 max, OUT NYA_Light2D* out, OUT f32
     if (capacity == 0) return 0;
 
     /*
-     * A linear walk of the whole table rather than a spatial query: the grid indexes an entity's
-     * *position*, but a light's reach is its radius, so a query would have to be widened by the largest
-     * radius in the world (which nothing tracks) or by a guess. Lights are rare enough that walking is
-     * honest and cheap.
+     * A walk over the whole table: the grid indexes positions, but a light's reach is its radius, which no query
+     * could bound. Lights are rare.
      */
-    /*
-     * From the frame arena, for the reason the draw list above is: 384 kB of function static held for the
-     * process to hold one frame's candidates. Sized by the ceiling because the walk below is over the whole
-     * table and nothing bounds how many entities carry a light.
-     */
+    /* From the frame arena, for the draw list's reason. Sized by the ceiling, since any entity may carry a light. */
     NYA_EntityLightEntry* candidates = nya_arena_alloc(nya_app_get()->frame_allocator, NYA_ENTITY_MAX * sizeof(NYA_EntityLightEntry));
     if (candidates == nullptr) return 0;
 
@@ -1339,9 +1245,7 @@ u32 nya_system_entity_lights(f32x2 min, f32x2 max, OUT NYA_Light2D* out, OUT f32
 
         f32x2 position = entity->position.xy + entity->light.offset;
 
-        // Widened by the light's own radius: an off-screen light can still spill onto it, and its radius
-        // is exactly the right margin, unlike a sprite's, which the renderer must guess at with
-        // NYA_ENTITY_RENDER_CULL_MARGIN.
+        // widened by the light's radius, since an off-screen light can still spill onto the view.
         f32 reach = entity->light.radius;
 
         if (position.x + reach < min.x || position.x - reach > max.x) continue;
@@ -1354,8 +1258,7 @@ u32 nya_system_entity_lights(f32x2 min, f32x2 max, OUT NYA_Light2D* out, OUT f32
         };
     }
 
-    // Sorted before the cap, so a scene with more lights than the pass can carry drops the ones nobody
-    // would notice, not whichever was spawned last.
+    // sorted before the cap, so the least noticeable lights are dropped.
     if (found > capacity) qsort(candidates, found, sizeof(NYA_EntityLightEntry), _nya_entity_light_compare);
 
     u32 kept = nya_min(found, capacity);
@@ -1364,7 +1267,7 @@ u32 nya_system_entity_lights(f32x2 min, f32x2 max, OUT NYA_Light2D* out, OUT f32
         out[i]           = candidates[i].light;
         out_positions[i] = candidates[i].position;
 
-        // Zeroed is read as white here rather than at every consumer, so a light that only sets a size still works.
+        // zeroed colour is read as white here, so a light that only sets a size works.
         if (out[i].color.r == 0.0F && out[i].color.g == 0.0F && out[i].color.b == 0.0F && out[i].color.a == 0.0F) out[i].color = NYA_COLOR_WHITE;
     }
 
@@ -1376,18 +1279,13 @@ NYA_EntityHandle _nya_entity_hover_move(NYA_EntityHandle hit) {
 
     NYA_EntityHandle previous = system->hovered;
 
-    // Nothing moved. The overwhelmingly common case, since this is called every frame and a cursor
-    // rests on one thing for many of them, and the reason on_hover can be edge triggered at all.
+    // nothing moved: the common case, and why on_hover can be edge triggered.
     if (hit.index == previous.index && hit.generation == previous.generation) return hit;
 
-    /*
-     * Committed before either callback runs.
-     */
+    /* Committed before either callback runs. */
     system->hovered = hit;
 
-    /*
-     * Left first, then entered.
-     */
+    /* Left first, then entered. */
     NYA_Entity* left = nya_entity_get(previous);
 
     if (left != nullptr) {
@@ -1395,8 +1293,7 @@ NYA_EntityHandle _nya_entity_hover_move(NYA_EntityHandle hit) {
         if (on_hover != nullptr) on_hover(left, false);
     }
 
-    // Re-resolved rather than fetched above, because the leave callback has run in between and is
-    // entitled to have despawned it.
+    // re-resolved: the leave callback may have despawned it.
     NYA_Entity* entered = nya_entity_get(hit);
 
     if (entered != nullptr) {
@@ -1411,8 +1308,7 @@ NYA_EntityHandle _nya_entity_click_deliver(NYA_EntityHandle hit, f32x3 world_poi
     NYA_Entity* entity = nya_entity_get(hit);
     if (entity == nullptr) return NYA_ENTITY_HANDLE_NONE;
 
-    // No callback is how an entity declines to be clickable, so this is NONE rather than the handle:
-    // a caller asking "was anything clicked" wants "no" when nothing reacted. See core_entity.h.
+    // no callback means not clickable, so this reports NONE.
     NYA_EntityOnClickFn on_click = nya_callback_get(entity->on_click);
     if (on_click == nullptr) return NYA_ENTITY_HANDLE_NONE;
 
@@ -1427,9 +1323,7 @@ NYA_EntityHandle _nya_entity_click_deliver(NYA_EntityHandle hit, f32x3 world_poi
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/**
- * The three-dimensional counterpart to _nya_entity_query.
- * */
+/** The 3D counterpart to _nya_entity_query. */
 NYA_INTERNAL u32 _nya_entity_query_box(f32x3 min, f32x3 max, b8 filter_type, u32 type, b8 filter_flags, u64 flags,
                                        OUT NYA_EntityHandle* out, u32 capacity) {
     nya_assert(out != nullptr);
@@ -1449,8 +1343,7 @@ NYA_INTERNAL u32 _nya_entity_query_box(f32x3 min, f32x3 max, b8 filter_type, u32
 
         if (filter_type && entity->type != type) continue;
 
-        // Every bit, not any: a filter of two flags means both, which is what a caller asking for
-        // "selectable and visible" means.
+        // every bit, not any.
         if (filter_flags && (entity->flags & flags) != flags) continue;
 
         out[found] = entity->handle;
@@ -1479,8 +1372,7 @@ u32 nya_entity_query_sphere(f32x3 center, f32 radius, OUT NYA_EntityHandle* out,
 
     if (radius <= 0.0F || capacity == 0) return 0;
 
-    // The bounding box first, then an exact distance test on what it returns — the same two step the
-    // 2D radius query uses, and squared throughout so the sphere costs no square root per candidate.
+    // bounding box, then an exact squared distance test.
     f32x3 min = { center.x - radius, center.y - radius, center.z - radius };
     f32x3 max = { center.x + radius, center.y + radius, center.z + radius };
 
@@ -1499,8 +1391,7 @@ u32 nya_entity_query_sphere(f32x3 center, f32 radius, OUT NYA_EntityHandle* out,
 
         if ((delta.x * delta.x) + (delta.y * delta.y) + (delta.z * delta.z) > radius_squared) continue;
 
-        // Compacted in place: the survivors move down over the rejects, so the caller's array holds
-        // exactly the hits with no second pass and no scratch.
+        // compacted in place, so the caller's array holds exactly the hits.
         out[kept] = out[i];
         kept++;
     }
@@ -1515,7 +1406,7 @@ NYA_EntityHandle nya_entity_query_ray(f32x3 origin, f32x3 direction, f32 radius,
 
     f32 length = sqrtf((direction.x * direction.x) + (direction.y * direction.y) + (direction.z * direction.z));
 
-    // A zero length direction is not a ray. Returning nothing beats dividing by it.
+    // a zero length direction is not a ray.
     if (length <= 0.0F) return NYA_ENTITY_HANDLE_NONE;
 
     f32x3 unit = { direction.x / length, direction.y / length, direction.z / length };
@@ -1532,9 +1423,7 @@ NYA_EntityHandle nya_entity_query_ray(f32x3 origin, f32x3 direction, f32 radius,
 
         f32x3 to_entity = entity->position - origin;
 
-        /*
-         * The projection of the entity onto the ray, then its perpendicular distance from it.
-         */
+        /* The entity projected onto the ray, then its perpendicular distance. */
         f32 along = (to_entity.x * unit.x) + (to_entity.y * unit.y) + (to_entity.z * unit.z);
 
         if (along < 0.0F) continue;
@@ -1544,7 +1433,7 @@ NYA_EntityHandle nya_entity_query_ray(f32x3 origin, f32x3 direction, f32 radius,
 
         if ((offset.x * offset.x) + (offset.y * offset.y) + (offset.z * offset.z) > radius_squared) continue;
 
-        // Nearest along the ray wins, so clicking a stack of objects picks the front one.
+        // nearest along the ray wins, so the front object of a stack is picked.
         if (nearest.generation != 0 && along >= nearest_distance) continue;
 
         nearest          = entity->handle;
