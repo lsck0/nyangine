@@ -6,12 +6,12 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** World units to metres, and back. The whole of the unit boundary described in physics3d.h. */
+/** World units to metres and back. The unit boundary described in physics3d.h. */
 NYA_INTERNAL b3Vec3 _nya_physics3d_to_meters(f32x3 world);
 NYA_INTERNAL f32    _nya_physics3d_scalar_to_meters(f32 world);
 NYA_INTERNAL f32x3  _nya_physics3d_to_world(b3Vec3 meters);
 
-/** Between the engine's quaternion convention and Box3D's, which stores the vector part separately. */
+/** Box3D stores the vector part of a quaternion separately. */
 NYA_INTERNAL b3Quat         _nya_physics3d_to_b3_quat(NYA_Quaternion rotation);
 NYA_INTERNAL NYA_Quaternion _nya_physics3d_from_b3_quat(b3Quat rotation);
 
@@ -63,8 +63,8 @@ void nya_system_physics3d_init(void) {
 
     world_def.hitEventThreshold = _nya_physics3d_scalar_to_meters(system->hit_threshold);
 
-    // Single threaded, for the same reason the 2D world is: the dispatch cost is real and a scene of
-    // a few hundred bodies spends more time handing islands out than solving them. See physics2d.c.
+    // single threaded, as in the 2D world: for a few hundred bodies the island dispatch costs more
+    // than the solve.
     world_def.workerCount = 1;
 
     system->world = b3CreateWorld(&world_def);
@@ -76,8 +76,7 @@ void nya_system_physics3d_deinit(void) {
     NYA_Physics3DSystem* system = &nya_world()->physics3d_system;
     if (!system->initialized) return;
 
-    // Cleared first, so entity teardown afterwards does not hand ids back to a world that has already
-    // freed them. The same ordering trap the 2D system documents.
+    // cleared first, so entity teardown does not hand ids back to a world that already freed them.
     system->initialized = false;
     b3DestroyWorld(system->world);
 
@@ -115,8 +114,7 @@ void nya_system_physics3d_update(f32 delta_time_s) {
 
         entity->position = _nya_physics3d_to_world(b3ToVec3(b3Body_GetPosition(entity->physics3d.id)));
 
-        // The whole quaternion, unlike the 2D world's single roll. A 3D body has three angular
-        // degrees of freedom and there is no axis to pick one out of.
+        // the whole quaternion. A 3D body has three angular degrees of freedom.
         entity->rotation = _nya_physics3d_from_b3_quat(b3Body_GetRotation(entity->physics3d.id));
 
         entity->velocity         = _nya_physics3d_to_world(b3Body_GetLinearVelocity(entity->physics3d.id));
@@ -152,9 +150,7 @@ void nya_physics3d_units_per_meter_set(f32 units_per_meter) {
 
     system->units_per_meter = units_per_meter;
 
-    // Both of these were converted through the old scale and mean a *speed* and an *acceleration* in
-    // world units, so they have to be pushed through the new one or the world silently changes how
-    // hard it pulls.
+    // gravity and speed were converted through the old scale, so they go through the new one too.
     if (system->initialized) {
         b3World_SetGravity(system->world, _nya_physics3d_to_meters(system->gravity));
         b3World_SetHitEventThreshold(system->world, _nya_physics3d_scalar_to_meters(system->hit_threshold));
@@ -210,8 +206,7 @@ b8 nya_physics3d_body_attach_with_options(NYA_EntityHandle handle, NYA_Physics3D
     body_def.position = b3ToPos(_nya_physics3d_to_meters(entity->position));
     body_def.rotation = _nya_physics3d_to_b3_quat(entity->rotation);
 
-    // Seeded from the entity, so spawning something with an initial throw is one spawn and one
-    // attach rather than a third call afterwards. Same contract as the 2D attach.
+    // seeded from the entity, so spawning with an initial throw is one spawn and one attach.
     body_def.linearVelocity  = _nya_physics3d_to_meters(entity->velocity);
     body_def.angularVelocity = (b3Vec3){ entity->angular_velocity.x, entity->angular_velocity.y, entity->angular_velocity.z };
 
@@ -234,8 +229,7 @@ b8 nya_physics3d_body_attach_with_options(NYA_EntityHandle handle, NYA_Physics3D
     b3HeightFieldData* height_field = nullptr;
 
     if (!_nya_physics3d_shape_create(body, entity, &options, &mesh, &height_field)) {
-        // The body exists and has no shape, which is a body that falls through the world forever.
-        // Destroyed rather than left behind, so a rejected attach leaves nothing at all.
+        // a body without a shape falls forever, so a rejected attach destroys it.
         b3DestroyBody(body);
         return false;
     }
@@ -271,8 +265,7 @@ void nya_physics3d_body_detach(NYA_EntityHandle handle) {
     if (entity->physics3d.mesh != nullptr) b3DestroyMesh((b3MeshData*)entity->physics3d.mesh);
     if (entity->physics3d.height_field != nullptr) b3DestroyHeightField((b3HeightFieldData*)entity->physics3d.height_field);
 
-    // The body id belongs to a world that no longer exists once the system is down, and handing it back
-    // is a use after free rather than a no-op.
+    // the body id belongs to a world that is gone once the system is down.
     if (system->initialized) {
         b3DestroyBody(entity->physics3d.id);
         system->body_count--;
@@ -329,7 +322,7 @@ void nya_physics3d_angular_velocity_set(NYA_Entity* entity, f32x3 radians_per_se
     NYA_Physics3DBody* body = _nya_physics3d_body_of(entity, "set the angular velocity of");
     if (body == nullptr) return;
 
-    // Radians are dimensionless, so unlike a linear velocity this does not cross the unit boundary.
+    // radians are dimensionless and do not cross the unit boundary.
     b3Body_SetAngularVelocity(body->id, (b3Vec3){ radians_per_second.x, radians_per_second.y, radians_per_second.z });
 }
 
@@ -347,9 +340,8 @@ void nya_physics3d_teleport(NYA_Entity* entity, f32x3 position, NYA_Quaternion r
 
     b3Body_SetTransform(body->id, b3ToPos(_nya_physics3d_to_meters(position)), _nya_physics3d_to_b3_quat(rotation));
 
-    // Mirrored immediately rather than waiting for the next step, so anything reading the transform
-    // between now and then sees where the entity actually is. A sleeping body would otherwise never
-    // report the move at all, because the readback loop skips it.
+    // mirrored now, so readers before the next step see the move. A sleeping body is skipped by the
+    // readback loop and would never report it.
     entity->position = position;
     entity->rotation = rotation;
 }
@@ -374,10 +366,8 @@ b8 nya_physics3d_grounded(const NYA_Entity* entity) {
         if (contact->manifolds == nullptr || contact->manifolds->pointCount == 0) continue;
 
         /*
-         * The manifold normal points from shape A toward shape B, so which of the two we are decides
-         * its sign. Standing on something means the *other* shape is below us — and in 3D below is
-         * negative y, which is the opposite of the 2D world's y-down screen. Hence the leading minus
-         * that the 2D version does not have.
+         * The manifold normal points from A to B, so which shape we are decides its sign. Below is
+         * negative y in 3D, hence the minus the 2D version does not have.
          */
         NYA_Entity* owner_a = b3Body_GetUserData(b3Shape_GetBody(contact->shapeIdA));
 
@@ -450,8 +440,7 @@ NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, OUT f32x3*
         b3DefaultQueryFilter()
     );
 
-    // A fraction of zero with no shape is how upstream says "nothing", and b3Shape_IsValid is the
-    // documented way to ask rather than comparing the id against a sentinel.
+    // a zero fraction with no shape means no hit. b3Shape_IsValid is the documented check.
     if (!b3Shape_IsValid(result.shapeId)) return NYA_ENTITY_HANDLE_NONE;
 
     NYA_Entity* entity = b3Body_GetUserData(b3Shape_GetBody(result.shapeId));
@@ -459,8 +448,7 @@ NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, OUT f32x3*
 
     if (out_point != nullptr) *out_point = _nya_physics3d_to_world(b3ToVec3(result.point));
 
-    // The normal is a unit vector and is dimensionless, so it does not cross the unit boundary the
-    // point does. Converting it would shrink it by the scale factor and quietly stop it being unit.
+    // the normal is unit length and dimensionless, so it is not scaled.
     if (out_normal != nullptr) *out_normal = (f32x3){ result.normal.x, result.normal.y, result.normal.z };
 
     return entity->handle;
@@ -489,8 +477,8 @@ f32x3 _nya_physics3d_to_world(b3Vec3 meters) {
 }
 
 b3Quat _nya_physics3d_to_b3_quat(NYA_Quaternion rotation) {
-    // Box3D splits the vector part into its own b3Vec3 where NYA_Quaternion is flat xyzw. Same four
-    // numbers, same handedness, different packing — which is the entire content of this conversion.
+    // Box3D keeps the vector part in its own b3Vec3; NYA_Quaternion is flat xyzw. Same numbers and
+    // handedness.
     return (b3Quat){ .v = { rotation.x, rotation.y, rotation.z }, .s = rotation.w };
 }
 
@@ -509,8 +497,7 @@ NYA_Physics3DBody* _nya_physics3d_body_of(const NYA_Entity* entity, NYA_ConstCSt
         return nullptr;
     }
 
-    // Cast away const for the same reason the 2D module does: reading a body's state should not
-    // demand a mutable entity, and every Box3D call below needs the id by value anyway.
+    // reading body state should not need a mutable entity, and Box3D takes the id by value.
     return (NYA_Physics3DBody*)&entity->physics3d;
 }
 
@@ -529,8 +516,7 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
     shape_def.isSensor                   = options->is_sensor;
     shape_def.enableContactEvents        = true;
 
-    // On every shape, not just the sensors — Box3D wants it on both sides of a pair and defaults it
-    // off on both, which is the same footgun physics2d.c documents at length.
+    // on every shape: Box3D needs it on both sides of a pair and defaults it off.
     shape_def.enableSensorEvents = true;
 
     switch (options->shape) {
@@ -540,17 +526,14 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
                 return false;
             }
 
-            // Half extents, because `size` is the full width, height and depth — which is what a
-            // renderer takes. Halving here is what keeps a body and the cube drawn for it the same
-            // size, the same contract the 2D box has.
+            // `size` is the full extent, as the renderer takes it, so halve it here.
             b3BoxHull box = b3MakeBoxHull(
                 _nya_physics3d_scalar_to_meters(options->size.x * 0.5F),
                 _nya_physics3d_scalar_to_meters(options->size.y * 0.5F),
                 _nya_physics3d_scalar_to_meters(options->size.z * 0.5F)
             );
 
-            // `base` is the b3HullData header the rest of b3BoxHull's arrays hang off by offset. The
-            // shape copies what it is given, which is why this local can be a stack temporary.
+            // b3BoxHull's arrays hang off `base` by offset. The shape copies it, so a stack temporary is fine.
             (void)b3CreateHullShape(body, &shape_def, &box.base);
             return true;
         }
@@ -573,9 +556,7 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
                 return false;
             }
 
-            // Upright about y, because in 3D y is up and a capsule is nearly always a character. The
-            // 2D capsule is upright about *its* y for the same reason, which happens to be down the
-            // screen — the axis is the same field, the convention around it is not.
+            // upright about y, because a capsule is nearly always a character and y is up in 3D.
             f32       half    = _nya_physics3d_scalar_to_meters(options->length * 0.5F);
             b3Capsule capsule = {
                 .center1 = { 0.0F, -half, 0.0F },
@@ -619,8 +600,8 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
 
             for (u32 i = 0; i < options->vertex_count; i++) points[i] = _nya_physics3d_to_meters(options->vertices[i]);
 
-            // Box3D indexes with int32_t; the engine counts with u32. Copied rather than cast because a
-            // reinterpreting cast would be a lie about signedness on the one index that overflows.
+            // Box3D indexes with int32_t, the engine with u32. Copied so an overflowing index is not
+            // silently reinterpreted.
             s32* indices = nya_arena_alloc(nya_arena_temp, index_bytes);
 
             for (u32 i = 0; i < options->index_count; i++) indices[i] = (s32)options->indices[i];
@@ -631,8 +612,7 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
                 .vertexCount   = (int)options->vertex_count,
                 .triangleCount = (int)(options->index_count / 3),
 
-                // A grid-shaped mesh is the case this exists for, and the median split builds its BVH
-                // markedly faster than the SAH does with no measurable difference in query cost.
+                // median split builds a grid mesh BVH much faster than SAH with no measurable query cost.
                 .useMedianSplit = true,
             };
 
@@ -644,7 +624,7 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
 
             b3MeshData* mesh = b3CreateMesh(&mesh_def, degenerate, degenerate_max);
 
-            // Reverse order, so a bump allocator can actually reclaim both rather than only the last one.
+            // reverse order, so a bump allocator reclaims both.
             nya_arena_free(nya_arena_temp, indices, index_bytes);
             nya_arena_free(nya_arena_temp, points, point_bytes);
 
@@ -654,8 +634,7 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
                 return false;
             }
 
-            // Unit scale: the vertices went in already converted, so scaling here would apply the
-            // conversion twice.
+            // unit scale: the vertices are already converted.
             (void)b3CreateMeshShape(body, &shape_def, mesh, (b3Vec3){ 1.0F, 1.0F, 1.0F });
 
             *out_mesh = mesh;
@@ -675,8 +654,7 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
                 return false;
             }
 
-            // Rejected rather than quietly made static, exactly as the mesh case is: a heightfield is a
-            // surface and has no volume to give a body mass.
+            // a heightfield is a surface with no volume to give a body mass.
             if (options->type != NYA_PHYSICS_BODY_STATIC) {
                 nya_log_error("Entity '%s' asked for a 3D heightfield body that is not static; a surface has no volume.", name);
                 return false;
@@ -684,10 +662,7 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
 
             u32 point_count = options->height_count_x * options->height_count_z;
 
-            /*
-             * Converted into a scratch array, because the engine's heights are in world units and Box3D
-             * wants metres — the same conversion the mesh case does per vertex.
-             */
+            /* Engine heights are world units, Box3D wants metres. */
             u64  height_bytes = (u64)point_count * sizeof(f32);
             f32* heights      = nya_arena_alloc(nya_arena_temp, height_bytes);
 
@@ -702,11 +677,10 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
             }
 
             /*
-             * The quantisation range, from the data rather than guessed.
+             * The quantisation range, from the data.
              *
-             * Box3D stores heights as uint16_t between these two, so a range wider than the terrain wastes
-             * precision and a narrower one clamps real geometry flat. Widened by a hair when the surface is
-             * perfectly level, because a zero range is a division by it.
+             * Box3D stores heights as uint16_t in this range, so a wider range wastes precision and a narrower
+             * one clamps geometry. A level surface is widened slightly to avoid dividing by zero.
              */
             if (highest - lowest < 1e-4F) highest = lowest + 1e-4F;
 
@@ -808,8 +782,7 @@ void _nya_physics3d_collect_sensor_events(NYA_Physics3DSystem* system) {
 
         const b3SensorEndTouchEvent* event = &events.endEvents[i];
 
-        // Either shape may already be destroyed, which is what an exit caused by a despawn looks
-        // like. Same guard, same reason, as the 2D collector.
+        // either shape may already be destroyed when the exit comes from a despawn.
         if (!b3Shape_IsValid(event->sensorShapeId)) continue;
         if (!b3Shape_IsValid(event->visitorShapeId)) continue;
 
@@ -828,8 +801,7 @@ b8 _nya_physics3d_sensor_hit_write(NYA_Physics3DSystem* system, NYA_PhysicsHitKi
 
     if (sensor == nullptr && visitor == nullptr) return false;
 
-    // The midpoint of the two bodies, because a sensor overlap reports no geometry. See the 2D
-    // collector for why it is the midpoint and not either body's own position.
+    // a sensor overlap reports no geometry, so use the midpoint of the two bodies.
     f32x3 sensor_position  = sensor != nullptr ? sensor->position : f32x3_zero;
     f32x3 visitor_position = visitor != nullptr ? visitor->position : f32x3_zero;
 
@@ -840,8 +812,7 @@ b8 _nya_physics3d_sensor_hit_write(NYA_Physics3DSystem* system, NYA_PhysicsHitKi
         .dimension = NYA_PHYSICS_3D,
         .kind      = kind,
 
-        // Sensor first, visitor second. A pickup's callback reads `entity` as itself and `other` as
-        // whatever walked in, and that only holds because the sensor is always A.
+        // sensor first: a pickup callback reads `entity` as itself and `other` as the visitor.
         .a = sensor != nullptr ? sensor->handle : NYA_ENTITY_HANDLE_NONE,
         .b = visitor != nullptr ? visitor->handle : NYA_ENTITY_HANDLE_NONE,
 
@@ -857,8 +828,7 @@ void _nya_physics3d_dispatch_collisions(const NYA_Physics3DSystem* system) {
     for (u32 i = 0; i < system->hit_count; i++) {
         const NYA_PhysicsHit* hit = &system->hits[i];
 
-        // Both sides, each told about the other, and each resolved immediately before it is called —
-        // a callback may despawn either. See _nya_physics2d_dispatch_collisions.
+        // both sides, each resolved right before its call, since a callback may despawn either.
         for (u32 side = 0; side < 2; side++) {
             NYA_EntityHandle self_handle  = side == 0 ? hit->a : hit->b;
             NYA_EntityHandle other_handle = side == 0 ? hit->b : hit->a;

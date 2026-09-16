@@ -9,9 +9,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/**
- * The largest glyph_count/line_count any single run built this process has needed.
- * */
+/** The largest glyph_count and line_count any run has needed in this process. */
 NYA_INTERNAL u32 _nya_text_run_glyph_count_worst = 0;
 NYA_INTERNAL u32 _nya_text_run_line_count_worst  = 0;
 
@@ -29,8 +27,7 @@ NYA_INTERNAL void _nya_text_collect_lines(TTF_Text* text, OUT NYA_TextRun* run) 
     for (s32 line = 0; line < line_count; line++) {
         TTF_SubString substring = { 0 };
 
-        // Zeroed on failure rather than skipped, so line indices stay dense and a glyph's `line` is
-        // always a valid subscript into this array.
+        // zeroed on failure, so a glyph's `line` is always a valid index.
         if (!TTF_GetTextSubStringForLine(text, line, &substring)) substring = (TTF_SubString){ 0 };
 
         run->lines[line] = (NYA_TextLine){
@@ -57,8 +54,7 @@ NYA_INTERNAL u32 _nya_text_line_of(const NYA_TextRun* run, s32 y) {
         if (y >= candidate->y && y < candidate->y + candidate->height) return line;
     }
 
-    // Past the last line box, which a glyph whose ink overshoots its line can be. Clamped rather than
-    // dropped: the glyph is real and has to be drawn somewhere.
+    // past the last line box, which an overshooting glyph can be. Clamped, since it still has to draw.
     return run->line_count > 0 ? run->line_count - 1 : 0;
 }
 
@@ -71,8 +67,7 @@ NYA_INTERNAL u32 _nya_text_line_of(const NYA_TextRun* run, s32 y) {
 b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_width, OUT NYA_TextRun* out_run) {
     nya_assert(out_run != nullptr);
 
-    // Registered once, on the very first call: this runs every time any text is laid out, in both
-    // builds, so it is as early as the two counts above ever become meaningful.
+    // registered on the first call, which is when the counts become meaningful.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("text_run_glyphs", NYA_TEXT_RUN_GLYPHS_MAX, &_nya_text_run_glyph_count_worst);
@@ -84,8 +79,7 @@ b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_wi
 
     if (font == nullptr || text == nullptr) return false;
 
-    // An empty string is not a failure. It occupies one line of no width, which is what a caller
-    // stacking rows needs it to say.
+    // an empty string is one line of no width, which is what a caller stacking rows needs.
     if (text[0] == '\0') {
         out_run->line_count = 1;
         out_run->height     = (s32)nya_text_line_height(font);
@@ -95,9 +89,8 @@ b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_wi
     }
 
     /*
-     * A null engine, which is the whole trick. An engine is what *draws* a laid-out text; the layout
-     * itself — shaping, kerning, line breaking, positioning — runs regardless, and reading it back out
-     * of `internal->ops` is all this needs. So no device, no renderer, and identical results headless.
+     * A null engine. The engine only draws; shaping, kerning and line breaking run anyway and
+     * `internal->ops` has the result, so this needs no device and matches headless.
      */
     TTF_Text* shaped = TTF_CreateText(nullptr, font, text, (size_t)length);
     if (shaped == nullptr) {
@@ -107,13 +100,12 @@ b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_wi
 
     defer TTF_DestroyText(shaped);
 
-    // Before the layout is read: setting it afterwards would mark the layout stale and the ops already
-    // copied out would describe the unwrapped text.
+    // before the layout is read, since setting it later marks the layout stale.
     if (wrap_width > 0 && !TTF_SetTextWrapWidth(shaped, wrap_width)) {
         nya_log_warn("TTF_SetTextWrapWidth() failed: %s", SDL_GetError());
     }
 
-    // Forces the layout now rather than at the first read. `ops` is null until this has run.
+    // forces layout now. `ops` is null until it has run.
     if (!TTF_UpdateText(shaped)) {
         nya_log_warn("TTF_UpdateText() failed while shaping: %s", SDL_GetError());
         return false;
@@ -132,10 +124,7 @@ b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_wi
     for (s32 i = 0; i < data->num_ops; i++) {
         const TTF_DrawOperation* op = &data->ops[i];
 
-        // FILL operations are underline and strikethrough rules, which are geometry rather than
-        // glyphs. Neither style is exposed by the font API, so they should not appear at all —
-        // skipped rather than asserted, since a face could carry one and this is not the place to
-        // refuse it.
+        // FILL ops are underline and strikethrough rules. The font API exposes neither, so skip them.
         if (op->cmd != TTF_DRAW_COMMAND_COPY) continue;
 
         if (out_run->glyph_count >= NYA_TEXT_RUN_GLYPHS_MAX) {
@@ -181,10 +170,8 @@ f32x2 nya_text_measure_font(TTF_Font* font, NYA_ConstCString text, s32 wrap_widt
     if (text[0] == '\0') return (f32x2){ 0.0F, nya_text_line_height(font) };
 
     /*
-     * Measured through the same layout the draw uses, but without keeping the glyphs — TTF_GetTextSize
-     * reports the box the ops were positioned in. Sharing the layout is the point: a measure that took
-     * its own path is a measure that eventually disagrees with what gets drawn, which is how a menu
-     * ends up with its highlight one pixel off every entry.
+     * Measured through the same layout the draw uses, so measure and draw cannot disagree.
+     * TTF_GetTextSize reports the box the ops were positioned in.
      */
     TTF_Text* shaped = TTF_CreateText(nullptr, font, text, 0);
     if (shaped == nullptr) return f32x2_zero;
@@ -208,8 +195,7 @@ f32 nya_text_ascent(TTF_Font* font) {
 }
 
 f32 nya_text_descent(TTF_Font* font) {
-    // Flipped, so ascent + descent is the ink height — which is what a caller doing arithmetic with
-    // the two expects, and not what SDL returns.
+    // flipped, so ascent + descent is the ink height. SDL returns descent negative.
     return font != nullptr ? (f32)(-TTF_GetFontDescent(font)) : 0.0F;
 }
 
@@ -224,64 +210,17 @@ void nya_text_font_handle(NYA_ConstCString path, f32 point_size, OUT char* out_h
     (void)snprintf(out_handle, (size_t)capacity, "%s@%.0f", path, (f64)point_size);
 }
 
-/*
- * BODGE: nya_asset_get memoizes its last lookup by the *pointer* it was handed, not its content (see
- * core_asset.c) — correct for the string literals every other caller passes, but wrong for a handle
- * built into a caller-owned buffer. nya_text_font_for used to build one on the stack every call; called
- * back to back for two different sizes (a menu's title, then its items), the compiler reused the same
- * stack slot for both, so the memo's pointer check matched on address alone and handed back the
- * *previous* size's font — which is what made menu items measure at the title's point size and throw
- * their vertical centring off. Interning each derived handle into its own stable slot keeps every
- * (path, size) pair at an address of its own, restoring the pointer-identity assumption the memo relies
- * on. The real fix belongs in the asset system's memo; this just keeps this call site from tripping it.
- */
-#define _NYA_TEXT_FONT_HANDLE_INTERN_MAX 32
-
-NYA_INTERNAL char _nya_text_font_handle_intern[_NYA_TEXT_FONT_HANDLE_INTERN_MAX][NYA_TEXT_FONT_HANDLE_MAX] = { 0 };
-NYA_INTERNAL u32  _nya_text_font_handle_intern_count                                                      = 0;
-
-NYA_INTERNAL NYA_ConstCString _nya_text_font_handle_stable(NYA_ConstCString path, f32 point_size) {
-    char handle[NYA_TEXT_FONT_HANDLE_MAX];
-    nya_text_font_handle(path, point_size, handle, sizeof(handle));
-
-    for (u32 i = 0; i < _nya_text_font_handle_intern_count; i++) {
-        if (nya_string_equals(_nya_text_font_handle_intern[i], handle)) return _nya_text_font_handle_intern[i];
-    }
-
-    if (_nya_text_font_handle_intern_count >= _NYA_TEXT_FONT_HANDLE_INTERN_MAX) {
-        // Full: a game legitimately drawing more than 32 distinct font/size pairs is rare enough that
-        // raising this ceiling is the right response, not silently degrading back into the bug above.
-        nya_log_warn("no free font handle intern slot for '%s'; raise _NYA_TEXT_FONT_HANDLE_INTERN_MAX", handle);
-        return nullptr;
-    }
-
-    char* slot = _nya_text_font_handle_intern[_nya_text_font_handle_intern_count++];
-    (void)snprintf(slot, NYA_TEXT_FONT_HANDLE_MAX, "%s", handle);
-
-    return slot;
-}
-
 TTF_Font* nya_text_font_for(NYA_ConstCString path, f32 point_size) {
     if (path == nullptr || path[0] == '\0' || point_size <= 0.0F) return nullptr;
 
-    NYA_ConstCString handle = _nya_text_font_handle_stable(path, point_size);
+    char handle[NYA_TEXT_FONT_HANDLE_MAX];
+    nya_text_font_handle(path, point_size, handle, sizeof(handle));
 
-    // Overflow fallback: the pre-bodge behaviour. Capacity permitting (the common case), unreachable.
-    char local_handle[NYA_TEXT_FONT_HANDLE_MAX];
-    if (handle == nullptr) {
-        nya_text_font_handle(path, point_size, local_handle, sizeof(local_handle));
-        handle = local_handle;
-    }
-
-    /*
-     * Cast rather than a const-correct asset API, matching nya_render2d_procedural and every other call
-     * site that has a `const char*` in hand.
-     */
+    /* Cast, matching nya_render2d_procedural and the other call sites holding a `const char*`. */
     NYA_Asset* asset = nya_asset_get((NYA_AssetHandle)handle);
 
     if (asset == nullptr) {
-        // Queued, not loaded: the asset system resolves it over the next frames, and every caller here
-        // already copes with there being no face yet.
+        // queued, not loaded. Callers cope with no face for the next few frames.
         NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
           .type    = NYA_ASSET_TYPE_FONT,
           .handle  = (NYA_AssetHandle)handle,

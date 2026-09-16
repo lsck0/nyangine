@@ -331,20 +331,14 @@ void nya_system_asset_deinit(void) {
 /** Slots in the direct-mapped memo in front of the asset dictionary. A power of two. */
 #define _NYA_ASSET_LOOKUP_SLOTS 256
 
-/** One remembered lookup: the handle pointer, and a copy of the text it pointed at. */
-/**
- * The longest handle the memo will hold a copy of.
- * */
+/** The longest handle the memo will hold a copy of. */
 #define _NYA_ASSET_LOOKUP_HANDLE_MAX 128
 
+/** One remembered lookup, slotted by handle pointer and keyed by a copy of its text. */
 typedef struct {
-    NYA_AssetHandle handle;
-    NYA_Asset*      asset;
+    NYA_Asset* asset;
 
-    /**
-     * What `handle` pointed at when this entry was written. A pointer alone is not a key: a handle built in a
-     * reused stack buffer has the same address with different text.
-     * */
+    /** What `handle` pointed at. A reused stack buffer has the same address with different text. */
     char text[_NYA_ASSET_LOOKUP_HANDLE_MAX];
 
     /** Which generation of the dictionary this was true for. */
@@ -369,7 +363,6 @@ NYA_Asset* nya_asset_get(NYA_AssetHandle handle) {
     // null before the asset system is up: a sprite atlas can be described during static setup.
     if (system->assets == nullptr) return nullptr;
 
-    /* The memo, before the dictionary. */
     u64 handle_length = strlen(handle);
 
     _NYA_AssetLookupEntry* entry = &_nya_asset_lookup[((uintptr_t)handle >> 3) & (_NYA_ASSET_LOOKUP_SLOTS - 1)];
@@ -385,7 +378,7 @@ NYA_Asset* nya_asset_get(NYA_AssetHandle handle) {
         asset = nya_dict_get(system->assets, handle);
 
         if (memoizable) {
-            *entry = (_NYA_AssetLookupEntry){ .handle = handle, .asset = asset, .generation = _nya_asset_lookup_generation };
+            *entry = (_NYA_AssetLookupEntry){ .asset = asset, .generation = _nya_asset_lookup_generation };
 
             nya_memcpy(entry->text, handle, handle_length);
             entry->text[handle_length] = '\0';

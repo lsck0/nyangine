@@ -1835,16 +1835,8 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
      * The handle is derived from path and size, and the asset queued if new. A face has one size baked in, so
      * one .ttf at two sizes is two assets, and the caller only ever passes the path.
      */
-    /* Interned rather than built on the stack, so each (path, size) has one stable address. */
-    NYA_ConstCString derived = _nya_text_font_handle_stable(font_path, point_size);
-
-    // overflow fallback; unreachable while there is capacity.
-    char local_derived[NYA_RENDER2D_FONT_HANDLE_MAX];
-
-    if (derived == nullptr) {
-        (void)snprintf(local_derived, sizeof(local_derived), "%s@%.0f", font_path, (f64)point_size);
-        derived = local_derived;
-    }
+    char derived[NYA_TEXT_FONT_HANDLE_MAX];
+    nya_text_font_handle(font_path, point_size, derived, sizeof(derived));
 
     /* Resolved on every call, not answered from the cache, so a reloaded font is noticed. */
     NYA_Asset* asset = nya_asset_get((NYA_AssetHandle)derived);

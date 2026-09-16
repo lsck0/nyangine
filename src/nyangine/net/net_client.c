@@ -53,9 +53,7 @@ typedef struct {
     /** The transport peer the server is, from this client's side. Always index zero, one peer. */
     NYA_NetPeerId server_peer;
 
-    /*
-     * ── snapshots ──
-     */
+    /* snapshots */
 
     /** The newest snapshot applied, kept as the baseline the next delta is decoded against. */
     NYA_NetSnapshot baseline;
@@ -67,9 +65,7 @@ typedef struct {
 
     u64 server_tick;
 
-    /*
-     * ── prediction ──
-     */
+    /* prediction */
 
     /**
      * Commands sent but not yet confirmed, by tick.
@@ -81,9 +77,7 @@ typedef struct {
     u64 correction_count;
 } _NYA_NetClientState;
 
-/**
- * The one client, as a file scope static. Same reasoning as the server's.
- * */
+/** The one client, as a file scope static, like the server. */
 NYA_INTERNAL _NYA_NetClientState _NYA_NET_CLIENT = { 0 };
 
 NYA_INTERNAL void _nya_net_client_drain(f32 delta_time_s);
@@ -98,8 +92,8 @@ NYA_INTERNAL void _nya_net_client_send_hello(void);
 NYA_INTERNAL void _nya_net_client_send_command(u64 tick, f32 delta_time_s);
 
 /**
- * Compares the server's answer for the predicted entity against what was predicted, and replays if
- * they differ. See the long note at the definition.
+ * Compares the server's state for the predicted entity with the prediction and replays on a
+ * mismatch.
  * */
 NYA_INTERNAL void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s);
 
@@ -139,8 +133,7 @@ NYA_Error nya_net_client_connect(NYA_ConstCString address, u16 port, NYA_ConstCS
         return attached;
     }
 
-    // Attach made its own allocator; this one existed only to hold the transport while it was being
-    // set up, and the transport itself was allocated from it.
+    // the transport was allocated from this setup allocator, and attach made its own.
     _NYA_NET_CLIENT.owns_transport = true;
 
     return NYA_OK;
@@ -149,9 +142,8 @@ NYA_Error nya_net_client_connect(NYA_ConstCString address, u16 port, NYA_ConstCS
 NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString name, NYA_NetClientConfig config) {
     if (_NYA_NET_CLIENT.active) return nya_error(NYA_ERROR_NOT_OK, "a client is already connected");
     if (transport == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no transport");
-    // Zero rather than nullptr: these are nya_callback handles now, and an unset one is a zero handle.
-    // What cannot be checked here is whether the handle *resolves* — under hot reload it is looked up
-    // per call, so a name that no longer exists in the DLL is a null at the call site rather than here.
+    // zero is an unset nya_callback handle. Whether a handle resolves is only known per call, since hot
+    // reload can remove the name.
     if (config.on_sample_command == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a client needs on_sample_command");
     if (config.on_apply_command == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a client needs on_apply_command");
 
@@ -188,8 +180,7 @@ void nya_net_client_disconnect(void) {
         nya_net_transport_disconnect(_NYA_NET_CLIENT.transport, _NYA_NET_CLIENT.server_peer, NYA_NET_DISCONNECT_REQUESTED);
     }
 
-    // Only if this client created it. A listen server's loopback end belongs to the server, which
-    // destroys it — freeing it here would leave the server holding a dangling pointer.
+    // only if this client created it. A listen server's loopback end belongs to the server.
     if (_NYA_NET_CLIENT.owns_transport) nya_net_transport_destroy(_NYA_NET_CLIENT.transport);
 
     _nya_net_client_reset();
@@ -269,8 +260,7 @@ NYA_Error nya_net_client_send_event(const NYA_Object* event) {
 void nya_net_client_interpolate(f32 delta_time_s) {
     if (!_NYA_NET_CLIENT.active) return;
 
-    // Nothing to smooth on a listen server: no snapshots were applied, so the map is empty and the
-    // entities are the server's own.
+    // nothing to smooth on a listen server: the entities are the server's own.
     if (nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) return;
 
     /*
@@ -322,8 +312,7 @@ void _nya_net_client_drain(f32 delta_time_s) {
 
                 nya_log_info("Disconnected (%d).", (int)event.reason);
 
-                // The transport is left alone: it belongs to whoever created it, and a disconnect is not
-                // a reason to destroy it — a caller may want to read the reason and then reconnect.
+                // the transport belongs to whoever created it, and a caller may reconnect after reading the reason.
                 NYA_NetDisconnect reason = event.reason;
                 _nya_net_client_reset();
                 _NYA_NET_CLIENT.disconnect_reason = reason;
@@ -483,8 +472,7 @@ void _nya_net_client_handle_welcome(const u8* body, u64 size) {
 }
 
 void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s) {
-    // A snapshot before the handshake is either a stray packet or a confused server; either way there
-    // is no predicted entity to reconcile against yet.
+    // no predicted entity before the handshake, so a snapshot then is a stray.
     if (_NYA_NET_CLIENT.state != NYA_NET_CLIENT_PLAYING) return;
 
     const NYA_NetSnapshot* baseline = _NYA_NET_CLIENT.has_baseline ? &_NYA_NET_CLIENT.baseline : nullptr;
@@ -499,8 +487,7 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
     NYA_Error decoded = nya_net_snapshot_decode(_NYA_NET_CLIENT.baseline_spare, body, size, baseline, &snapshot);
 
     if (!decoded.ok) {
-        // Dropped, not fatal. A malformed snapshot from a peer is data, and the next one arrives in a
-        // sixteenth of a second — this is exactly the case an unreliable channel is built for.
+        // dropped. A malformed snapshot is peer data, and the next one is a tick away.
         nya_log_debug("Discarding a malformed snapshot: %s", (NYA_ConstCString)decoded.message);
         return;
     }
@@ -524,7 +511,7 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
 
     _nya_net_client_reconcile(&snapshot, delta_time_s);
 
-    // The spare becomes current and the old current becomes spare. One swap, no copy.
+    // swap spare and current, no copy.
     NYA_Arena* previous = _NYA_NET_CLIENT.baseline_arena;
 
     _NYA_NET_CLIENT.baseline_arena = _NYA_NET_CLIENT.baseline_spare;
@@ -534,8 +521,8 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
     _NYA_NET_CLIENT.has_baseline = true;
     _NYA_NET_CLIENT.server_tick  = snapshot.tick;
 
-    // Acknowledged so the server can delta against this. Unreliable: losing one costs nothing, because
-    // the next names a tick at least as high.
+    // acknowledged so the server can delta against it. Unreliable, because the next ack names a tick at
+    // least as high.
     NYA_String* ack = nya_string_create(_NYA_NET_CLIENT.tick_arena);
 
     nya_net_message_begin(ack, NYA_NET_MSG_SNAPSHOT_ACK);
@@ -552,13 +539,12 @@ void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s
 
     if (!nya_entity_is_valid(_NYA_NET_CLIENT.entity_local)) return;
 
-    // Looked up by the *server's* handle, because that is the name a snapshot uses. Searching for the
-    // local handle would match nothing, or — worse — match whichever server entity happens to share
-    // the number.
+    // looked up by the server's handle, the name a snapshot uses. The local handle could match an
+    // unrelated server entity.
     const NYA_NetEntityState* authoritative = nya_net_snapshot_find(snapshot, _NYA_NET_CLIENT.entity_remote);
     if (authoritative == nullptr) return;
 
-    // And applied to the *local* entity, which is the one in this process's table.
+    // applied to the local entity.
     NYA_Entity* entity = nya_entity_get(_NYA_NET_CLIENT.entity_local);
     if (entity == nullptr) return;
 
@@ -584,9 +570,7 @@ void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s
 
     u64 from = snapshot->tick + 1;
 
-    // Bounded by the ring: a command older than NYA_NET_COMMAND_HISTORY ticks has been overwritten, so
-    // replaying from there would replay whatever now occupies the slot. A client this far behind has
-    // bigger problems than a smooth correction.
+    // bounded by the ring: older slots have been overwritten.
     if (_NYA_NET_CLIENT.local_tick >= NYA_NET_COMMAND_HISTORY && from < _NYA_NET_CLIENT.local_tick - NYA_NET_COMMAND_HISTORY + 1) {
         from = _NYA_NET_CLIENT.local_tick - NYA_NET_COMMAND_HISTORY + 1;
     }
@@ -594,8 +578,8 @@ void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s
     for (u64 replay = from; replay <= _NYA_NET_CLIENT.local_tick; replay++) {
         const NYA_NetCommand* command = &_NYA_NET_CLIENT.history[replay % NYA_NET_COMMAND_HISTORY];
 
-        // A slot whose tick does not match was never filled, or has been overwritten. Skipped rather
-        // than applied: replaying a stale command is worse than replaying nothing.
+        // a slot with a different tick was never filled or was overwritten. Replaying it is worse than
+        // skipping.
         if (command->tick != replay) continue;
 
         apply_command(entity, command, delta_time_s);
@@ -617,21 +601,17 @@ void _nya_net_client_send_command(u64 tick, f32 delta_time_s) {
 
     sample_command(&command);
 
-    // The tick is the engine's, not the game's, so it is stamped after sampling — a game filling it in
-    // would have two sources of truth for which tick this is.
+    // stamped after sampling, so the tick has one source.
     command.tick = tick;
 
     _NYA_NET_CLIENT.history[tick % NYA_NET_COMMAND_HISTORY] = command;
 
-    /*
-     * Applied locally before it is sent, which is what prediction *is*.
-     */
+    /* Applied locally before sending. */
     if (!nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) {
         NYA_Entity* entity = nya_entity_get(_NYA_NET_CLIENT.entity_local);
 
-        // Null until the first snapshot has spawned the player locally, which is a tick or two after
-        // WELCOME. Nothing to predict until then, and the commands are still sent and still counted —
-        // so the server moves the player and the next snapshot brings the client into step.
+        // null until the first snapshot spawns the player locally. Commands still go out, so the server
+        // moves the player and the next snapshot catches the client up.
         NYA_NetApplyCommandFn apply_command = nya_callback_get(_NYA_NET_CLIENT.config.on_apply_command);
 
         if (entity != nullptr && apply_command != nullptr) apply_command(entity, &command, delta_time_s);
