@@ -169,7 +169,8 @@ struct NYA_File {
     b8 is_open;
 };
 
-NYA_API NYA_Error nya_file_open(NYA_ConstCString path, NYA_FileMode mode, OUT NYA_File* out_file) __attr_no_discard;
+/** `mode` is NYA_FileMode flags, a u32 because a combination is not itself an enumerator. */
+NYA_API NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file) __attr_no_discard;
 NYA_API void      nya_file_close(NYA_File* file);
 NYA_API b8        nya_file_is_open(const NYA_File* file) __attr_no_discard;
 

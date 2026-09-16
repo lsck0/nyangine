@@ -385,7 +385,7 @@ NYA_Error nya_filesystem_copy_recursive(NYA_ConstCString source, NYA_ConstCStrin
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_Error nya_file_open(NYA_ConstCString path, NYA_FileMode mode, OUT NYA_File* out_file) {
+NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file) {
     nya_assert(path != nullptr);
     nya_assert(out_file != nullptr);
 

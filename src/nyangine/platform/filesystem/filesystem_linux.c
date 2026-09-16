@@ -74,16 +74,17 @@ NYA_Error nya_filesystem_move(NYA_ConstCString source, NYA_ConstCString destinat
 }
 
 NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destination) {
-    NYA_File source_file;
+    NYA_File source_file = { .descriptor = -1 };
     NYA_TRY(nya_file_open(source, NYA_FILE_MODE_READ, &source_file));
     defer nya_file_close(&source_file);
 
-    NYA_File destination_file;
+    NYA_File destination_file = { .descriptor = -1 };
     NYA_TRY(nya_file_open(destination, NYA_FILE_MODE_WRITE | NYA_FILE_MODE_TRUNCATE, &destination_file));
     defer nya_file_close(&destination_file);
 
     s32 source_fd      = source_file.descriptor;
     s32 destination_fd = destination_file.descriptor;
+    nya_assert(source_fd >= 0 && destination_fd >= 0);
 
     // Carry the source's permissions over. Copying an executable and silently dropping its
     // executable bit would, among other things, break restoring the build system from its backup.
@@ -371,7 +372,7 @@ NYA_Error nya_filesystem_copy_recursive(NYA_ConstCString source, NYA_ConstCStrin
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_Error nya_file_open(NYA_ConstCString path, NYA_FileMode mode, OUT NYA_File* out_file) {
+NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file) {
     nya_assert(path != nullptr);
     nya_assert(out_file != nullptr);
 
