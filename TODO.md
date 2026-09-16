@@ -252,8 +252,9 @@ build jobs restore it.
 - `[ ]` Engine, game and tests are not cached. Each rule is one `clang` call that compiles and links,
   which ccache cannot help, and each test is its own unity build. Split compile and link, or build the
   engine once as an object the tests link, then cache with ccache.
-- `[ ]` `nya_build_parallel` waits for a whole batch of `max_jobs`, so one slow rule idles the rest. Use
-  a pool that refills as rules finish.
+- `nya_build_parallel` is a pool that starts the next rule as soon as any finishes. `./build run test` on
+  the 8 thread dev machine: 111 s with batches, 106 s with the pool. The gain is small because test
+  compiles all take 3.5 to 5 s; it grows with uneven rules.
 - `[ ]` No clang-format gate: the tree does not satisfy `.clang-format`, and fixing that is a 73k line
   reformat with include regrouping to review.
 

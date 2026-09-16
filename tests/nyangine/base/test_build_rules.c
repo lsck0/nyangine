@@ -292,6 +292,105 @@ s32 main(void) {
     nya_assert(pre_hook_calls == 2, "a later build must run it again, got " FMTu32, pre_hook_calls);
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the parallel pool refills a slot as soon as its rule finishes
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    reset_hooks();
+
+    // Two slots. Batches would hold the fast rules behind the slow one; a pool runs them all beside it,
+    // so the slow rule finishes last.
+    NYA_BuildRule slow = {
+      .name    = "test_parallel_slow",
+      .policy  = NYA_BUILD_ALWAYS,
+      .command = { .program = "sleep", .arguments = { "1" } },
+
+      .pre_build_hooks  = { &record_pre },
+      .post_build_hooks = { &record_post },
+    };
+
+    NYA_BuildRule fast[3];
+    for (u32 i = 0; i < 3; i++) {
+      fast[i] = (NYA_BuildRule){
+        .name    = "test_parallel_fast",
+        .policy  = NYA_BUILD_ALWAYS,
+        .command = { .program = "true" },
+
+        .post_build_hooks = { &record_pre },
+      };
+    }
+
+    NYA_BuildRule* rules[] = { &slow, &fast[0], &fast[1], &fast[2] };
+    NYA_EXPECT(nya_build_parallel(rules, 4, 2));
+
+    // record_pre marks a fast rule finishing and record_post the slow one, after its own pre hook.
+    nya_assert(hook_sequence_length == 5, "expected five hook calls, got " FMTu32, hook_sequence_length);
+    nya_assert(hook_sequence[4] == 2, "the slow rule must finish after every fast one");
+    for (u32 i = 0; i < 4; i++) nya_assert(!rules[i]->parallel_is_running);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the parallel pool keeps reading output larger than a pipe buffer
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // Blocked on a full pipe the child never exits, so this hangs unless the pool drains while it polls.
+    NYA_BuildRule chatty = {
+      .name    = "test_parallel_chatty",
+      .policy  = NYA_BUILD_ALWAYS,
+      .command = { .program = "head", .arguments = { "-c", "300000", "/dev/zero" } },
+    };
+    NYA_BuildRule slow = {
+      .name    = "test_parallel_chatty_neighbour",
+      .policy  = NYA_BUILD_ALWAYS,
+      .command = { .program = "sleep", .arguments = { "0.2" } },
+    };
+
+    NYA_BuildRule* rules[] = { &slow, &chatty };
+    NYA_EXPECT(nya_build_parallel(rules, 2, 2));
+
+    nya_assert(chatty.command.stdout_content != nullptr);
+    nya_assert(chatty.command.stdout_content->length == 300000, "captured " FMTu64 " bytes", chatty.command.stdout_content->length);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a failing parallel rule fails the call and stops starting new rules
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    reset_hooks();
+
+    NYA_BuildRule failing = {
+      .name    = "test_parallel_failing",
+      .policy  = NYA_BUILD_ALWAYS,
+      .command = { .program = "false" },
+    };
+    NYA_BuildRule running = {
+      .name    = "test_parallel_running",
+      .policy  = NYA_BUILD_ALWAYS,
+      .command = { .program = "sleep", .arguments = { "0.2" } },
+
+      .post_build_hooks = { &record_post },
+    };
+    NYA_BuildRule never = {
+      .name    = "test_parallel_never",
+      .policy  = NYA_BUILD_ALWAYS,
+      .command = { .program = "true" },
+
+      .pre_build_hooks = { &record_pre },
+    };
+
+    NYA_BuildRule* rules[] = { &failing, &running, &never };
+    NYA_Error      result  = nya_build_parallel(rules, 3, 2);
+
+    nya_assert(!result.ok, "a failing rule must fail the parallel build");
+
+    // prepared like every rule, but never started once the failure was seen, while the rule already
+    // running was still reaped and finished.
+    nya_assert(pre_hook_calls == 1, "every rule is prepared before any starts");
+    nya_assert(post_hook_calls == 1, "a rule already running when another fails still finishes");
+    nya_assert(never.last_built_epoch != running.last_built_epoch, "a rule after the failure must not have been built");
+    for (u32 i = 0; i < 3; i++) nya_assert(!rules[i]->parallel_is_running);
+  }
+
   printf("PASSED: test_build_rules\n");
   return 0;
 }

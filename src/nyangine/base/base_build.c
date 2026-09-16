@@ -23,6 +23,13 @@ NYA_INTERNAL u32       _nya_build_argument_count(const NYA_Command* command);
 NYA_INTERNAL u32       _nya_build_append_flags(NYA_BuildRule* build_rule, u32 at, NYA_ConstCString const* flags);
 NYA_INTERNAL u32       _nya_build_apply_vendors(NYA_BuildRule* build_rule);
 NYA_INTERNAL void      _nya_build_report(NYA_BuildRule* build_rule);
+NYA_INTERNAL void      _nya_build_finish_parallel(NYA_BuildRule* build_rule, NYA_Error wait_result, NYA_Error* result);
+
+/**
+ * Longest the parallel pool sleeps between checks when nothing it runs has finished. Only bounds how
+ * late an exit is noticed; output wakes it sooner where the host can wait on pipes.
+ * */
+#define _NYA_BUILD_POLL_INTERVAL_MS 10
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -57,6 +64,7 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
     if (max_jobs == 0) max_jobs = nya_platform_processor_count();
     if (max_jobs == 0) max_jobs = 1;
     if (max_jobs > count) max_jobs = count;
+    if (max_jobs > NYA_BUILD_MAX_PARALLEL_JOBS) max_jobs = NYA_BUILD_MAX_PARALLEL_JOBS;
 
     // A new epoch, exactly as nya_build starts one, so the shared dependencies below are built once
     // for this whole call rather than once per rule.
@@ -92,14 +100,17 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
     NYA_Error result = NYA_OK;
 
     /*
-     * Spawned in batches of max_jobs, each batch drained before the next starts.
+     * A pool: a finished rule's slot goes straight to the next rule, so one slow rule holds one slot
+     * rather than the whole batch around it. Starting stops at the first failure, reaping does not.
      */
-    for (u32 batch_start = 0; batch_start < count && result.ok; batch_start += max_jobs) {
-        u32 batch_end = nya_min(batch_start + max_jobs, count);
-        u32 spawned   = 0;
+    NYA_BuildRule* running[NYA_BUILD_MAX_PARALLEL_JOBS];
+    NYA_Command*   running_commands[NYA_BUILD_MAX_PARALLEL_JOBS];
+    u32            running_count = 0;
+    u32            next          = 0;
 
-        for (u32 i = batch_start; i < batch_end; i++) {
-            NYA_BuildRule* rule = build_rules[i];
+    while (next < count || running_count > 0) {
+        while (result.ok && next < count && running_count < max_jobs) {
+            NYA_BuildRule* rule = build_rules[next++];
 
             if (rule->is_metarule) {
                 printf("[BUILDING META] %s\n", rule->name);
@@ -110,49 +121,45 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
 
             NYA_Error spawn_result = nya_command_spawn(&rule->command);
             if (!spawn_result.ok) {
-                if (result.ok) result = spawn_result;
-                continue;
+                result = spawn_result;
+                break;
             }
 
             rule->parallel_is_running = true;
-            spawned++;
+            running[running_count++]  = rule;
         }
 
-        nya_unused(spawned);
+        // every rule started has been reaped, and either none is left or a failure stopped the starting.
+        if (running_count == 0) break;
 
-        // Everything in this batch is reaped, including when one of them has already failed: a child
-        // left unwaited is a zombie holding a half-written output file that a later build would take
-        // for finished work.
-        for (u32 i = batch_start; i < batch_end; i++) {
-            NYA_BuildRule* rule = build_rules[i];
-            if (!rule->parallel_is_running) continue;
+        // Every running rule is reaped, including after one has already failed: a child left unwaited
+        // is a zombie holding a half written output file that a later build would take for finished work.
+        u32 finished_count = 0;
+        for (u32 slot = 0; slot < running_count;) {
+            NYA_BuildRule* rule     = running[slot];
+            b8             finished = false;
 
-            NYA_Error wait_result = nya_command_wait(&rule->command);
+            NYA_Error wait_result = nya_command_try_wait(&rule->command, &finished);
+            if (wait_result.ok && !finished) {
+                slot++;
+                continue;
+            }
+
             rule->parallel_is_running = false;
+            running[slot]             = running[--running_count];
+            finished_count++;
 
-            if (!wait_result.ok) {
-                if (result.ok) result = wait_result;
-                continue;
-            }
-
-            _nya_build_report(rule);
-
-            if (rule->command.exit_code != 0) {
-                if (result.ok) {
-                    result = nya_error(NYA_ERROR_NOT_OK, "build rule '%s' failed with exit code %d", rule->name, rule->command.exit_code);
-                }
-                continue;
-            }
-
-            for (u64 h = 0; h < NYA_BUILD_MAX_DEPENDENCIES; h++) {
-                void (*hook)(NYA_BuildRule* rule) = rule->post_build_hooks[h];
-                if (!hook) break;
-                hook(rule);
-            }
-
-            rule->last_built_epoch = _nya_build_epoch;
+            _nya_build_finish_parallel(rule, wait_result, &result);
         }
+
+        if (finished_count > 0) continue;
+
+        for (u32 slot = 0; slot < running_count; slot++) running_commands[slot] = &running[slot]->command;
+        nya_command_wait_ready(running_commands, running_count, _NYA_BUILD_POLL_INTERVAL_MS);
     }
+
+    nya_assert(running_count == 0, "nya_build_parallel returned with commands still running.");
+    nya_assert(!result.ok || next == count, "nya_build_parallel succeeded without starting every rule.");
 
     // Undo the vendor splice on every rule, exactly as _nya_build_always does, or a second call
     // would append the same flags again.
@@ -413,6 +420,38 @@ NYA_INTERNAL NYA_Error _nya_build_run(NYA_BuildRule* build_rule) {
     if (build_rule->command.exit_code == 0) return NYA_OK;
 
     return nya_error(NYA_ERROR_NOT_OK, "build rule '%s' failed with exit code %d", build_rule->name, build_rule->command.exit_code);
+}
+
+/**
+ * Reports a reaped parallel rule and runs its post build hooks when it passed. The first failure
+ * becomes `result`; later ones are still printed.
+ * */
+NYA_INTERNAL void _nya_build_finish_parallel(NYA_BuildRule* build_rule, NYA_Error wait_result, NYA_Error* result) {
+    nya_assert(build_rule != nullptr);
+    nya_assert(result != nullptr);
+    nya_assert(!build_rule->parallel_is_running);
+
+    if (!wait_result.ok) {
+        if (result->ok) *result = wait_result;
+        return;
+    }
+
+    _nya_build_report(build_rule);
+
+    if (build_rule->command.exit_code != 0) {
+        if (result->ok) {
+            *result = nya_error(NYA_ERROR_NOT_OK, "build rule '%s' failed with exit code %d", build_rule->name, build_rule->command.exit_code);
+        }
+        return;
+    }
+
+    for (u64 h = 0; h < NYA_BUILD_MAX_DEPENDENCIES; h++) {
+        void (*hook)(NYA_BuildRule* rule) = build_rule->post_build_hooks[h];
+        if (!hook) break;
+        hook(build_rule);
+    }
+
+    build_rule->last_built_epoch = _nya_build_epoch;
 }
 
 /** Prints how a finished rule went. Shared, so serial and parallel builds report identically. */

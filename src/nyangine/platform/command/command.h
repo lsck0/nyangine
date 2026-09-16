@@ -17,6 +17,9 @@
 #define NYA_COMMAND_MAX_ARGUMENTS 512
 #define NYA_COMMAND_MAX_ENV_VARS  128
 
+/** Most commands one nya_command_wait_ready call watches. The Windows wait takes no more than 64 handles. */
+#define NYA_COMMAND_MAX_WAIT_READY 64
+
 typedef enum NYA_CommandFlags NYA_CommandFlags;
 typedef struct NYA_Command    NYA_Command;
 
@@ -84,4 +87,17 @@ NYA_API NYA_Error nya_command_spawn(NYA_Command* command) __attr_no_discard;
 
 /** Waits for a spawned command, drains its output and fills in its results. */
 NYA_API NYA_Error nya_command_wait(NYA_Command* command) __attr_no_discard;
+
+/**
+ * nya_command_wait without blocking: drains whatever output is ready and, once the command has exited,
+ * fills in its results and sets `out_finished`. Call it until it finishes, since a child writing more
+ * than a pipe buffer holds cannot exit until someone reads.
+ * */
+NYA_API NYA_Error nya_command_try_wait(NYA_Command* command, b8* out_finished) __attr_no_discard;
+
+/**
+ * Sleeps until one of the spawned `commands` may have progressed, or `timeout_ms` passes. Only a hint
+ * for when to call nya_command_try_wait again, which is what decides whether anything finished.
+ * */
+NYA_API void nya_command_wait_ready(NYA_Command* const* commands, u32 count, u32 timeout_ms);
 NYA_API void      nya_command_destroy(NYA_Command* command);

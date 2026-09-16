@@ -62,7 +62,7 @@ struct NYA_BuildRule {
      * */
     u32 parallel_arguments_before_vendors;
 
-    /** Set between spawn and wait, so an aborted batch still reaps exactly the rules it started. */
+    /** Set between spawn and wait, so an aborted build still reaps exactly the rules it started. */
     b8 parallel_is_running;
 
     /**

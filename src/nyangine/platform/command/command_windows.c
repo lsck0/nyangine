@@ -3,6 +3,24 @@
 
 #include "nyangine/nyangine.h"
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API DECLARATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/** Most reads one non-blocking drain makes, so a chatty child cannot starve the others being polled. */
+#define _NYA_COMMAND_DRAIN_MAX_READS 64
+
+/**
+ * Reads the child's pipes into the captured output and closes each one once it breaks. Blocks until
+ * both are closed when `block` is set, otherwise returns once nothing more is ready.
+ * */
+NYA_INTERNAL void _nya_command_drain(NYA_Command* command, b8 block);
+
+/** Fills in the results of an exited child and releases its handles. */
+NYA_INTERNAL void _nya_command_finish(NYA_Command* command);
+
 NYA_INTERNAL NYA_String* _nya_command_build_command_line(NYA_Command* command, NYA_Arena* arena) {
     NYA_String* cmdline = nya_string_create(arena);
 
@@ -170,84 +188,56 @@ NYA_Error nya_command_wait(NYA_Command* command) {
     nya_assert(command != nullptr);
     nya_assert(command->process_handle != 0, "nya_command_wait without a matching nya_command_spawn.");
 
-    HANDLE process     = (HANDLE)(uintptr_t)command->process_handle;
-    HANDLE thread      = (HANDLE)(uintptr_t)command->thread_handle;
-    HANDLE stdout_read = (HANDLE)(intptr_t)command->stdout_pipe;
-    HANDLE stderr_read = (HANDLE)(intptr_t)command->stderr_pipe;
+    _nya_command_drain(command, true);
+    nya_assert(command->stdout_pipe == 0 && command->stderr_pipe == 0);
 
-    /*
-     * Both pipes drained together, whichever has bytes waiting.
-     */
-    if (nya_flag_check(command->flags, NYA_COMMAND_FLAG_OUTPUT_CAPTURE)) {
-        HANDLE      handles[2]   = { stdout_read, stderr_read };
-        NYA_String* targets[2]   = { command->stdout_content, command->stderr_content };
-        b8          is_open[2]   = { true, true };
-        u32         still_open   = 2;
+    WaitForSingleObject((HANDLE)(uintptr_t)command->process_handle, INFINITE);
 
-        while (still_open > 0) {
-            b8 made_progress = false;
-
-            for (u32 i = 0; i < 2; i++) {
-                if (!is_open[i]) continue;
-
-                // Fails with ERROR_BROKEN_PIPE once the child has exited and closed its end, which
-                // is what terminates this loop.
-                DWORD available = 0;
-                if (!PeekNamedPipe(handles[i], nullptr, 0, nullptr, &available, nullptr)) {
-                    is_open[i] = false;
-                    still_open--;
-                    continue;
-                }
-
-                if (available == 0) continue; // nothing yet; the child is still working
-
-                char  buffer[4096];
-                DWORD wanted = available < (DWORD)sizeof(buffer) ? available : (DWORD)sizeof(buffer);
-                DWORD taken  = 0;
-
-                if (!ReadFile(handles[i], buffer, wanted, &taken, nullptr) || taken == 0) {
-                    is_open[i] = false;
-                    still_open--;
-                    continue;
-                }
-
-                // the length carrying overload, so output containing zero bytes is not truncated.
-                nya_string_extend(targets[i], &(NYA_String){ .length = (u64)taken, .items = (u8*)buffer });
-                made_progress = true;
-            }
-
-            // Neither pipe had anything ready. Yield instead of spinning on PeekNamedPipe.
-            if (!made_progress && still_open > 0) Sleep(1);
-        }
-    }
-
-    // Outside the capture branch, matching the Linux path. These were closed only when capturing, so
-    // every command that suppressed or showed its output leaked both pipe handles.
-    CloseHandle(stdout_read);
-    CloseHandle(stderr_read);
-
-    // Wait for process to complete
-    WaitForSingleObject(process, INFINITE);
-
-    // Get exit code
-    DWORD exit_code;
-    if (GetExitCodeProcess(process, &exit_code)) {
-        command->exit_code = (s32)exit_code;
-    } else {
-        command->exit_code = 255;
-    }
-
-    // Cleanup
-    CloseHandle(process);
-    CloseHandle(thread);
-
-    u64 end_time               = nya_clock_get_monotonic_ms();
-    command->execution_time_ms = end_time - command->start_time_ms;
-
-    // Cleared so a second wait asserts rather than waiting on a closed handle.
-    command->process_handle = 0;
+    _nya_command_finish(command);
 
     return NYA_OK;
+}
+
+NYA_Error nya_command_try_wait(NYA_Command* command, b8* out_finished) {
+    nya_assert(command != nullptr);
+    nya_assert(out_finished != nullptr);
+    nya_assert(command->process_handle != 0, "nya_command_try_wait without a matching nya_command_spawn.");
+
+    *out_finished = false;
+
+    _nya_command_drain(command, false);
+
+    // a child still holding its pipes is still writing, and finishing now would lose the rest.
+    if (command->stdout_pipe != 0 || command->stderr_pipe != 0) return NYA_OK;
+
+    DWORD state = WaitForSingleObject((HANDLE)(uintptr_t)command->process_handle, 0);
+    if (state == WAIT_TIMEOUT) return NYA_OK;
+    if (state != WAIT_OBJECT_0) return nya_error(NYA_ERROR_IO, "failed to wait for process '%s'", command->program);
+
+    _nya_command_finish(command);
+    *out_finished = true;
+
+    return NYA_OK;
+}
+
+void nya_command_wait_ready(NYA_Command* const* commands, u32 count, u32 timeout_ms) {
+    nya_assert(commands != nullptr);
+    nya_assert(count <= NYA_COMMAND_MAX_WAIT_READY, "nya_command_wait_ready takes at most NYA_COMMAND_MAX_WAIT_READY commands.");
+
+    if (count == 0) {
+        Sleep(timeout_ms);
+        return;
+    }
+
+    HANDLE processes[NYA_COMMAND_MAX_WAIT_READY];
+    for (u32 i = 0; i < count; i++) {
+        nya_assert(commands[i] != nullptr && commands[i]->process_handle != 0);
+        processes[i] = (HANDLE)(uintptr_t)commands[i]->process_handle;
+    }
+
+    // anonymous pipes cannot be waited on, so only an exit wakes this early. a child blocked on a full
+    // pipe is drained by the next try wait, at most one timeout later.
+    (void)WaitForMultipleObjects(count, processes, FALSE, timeout_ms);
 }
 
 u32 nya_platform_processor_count(void) {
@@ -266,4 +256,99 @@ void nya_command_destroy(NYA_Command* command) {
         nya_string_destroy(command->stdout_content);
         nya_string_destroy(command->stderr_content);
     }
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API IMPLEMENTATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+NYA_INTERNAL void _nya_command_drain(NYA_Command* command, b8 block) {
+    nya_assert(command != nullptr);
+
+    s32* pipes[2] = { &command->stdout_pipe, &command->stderr_pipe };
+
+    // nothing was redirected into them, so there is nothing to read.
+    if (!nya_flag_check(command->flags, NYA_COMMAND_FLAG_OUTPUT_CAPTURE)) {
+        for (u32 i = 0; i < 2; i++) {
+            if (*pipes[i] == 0) continue;
+            CloseHandle((HANDLE)(intptr_t)*pipes[i]);
+            *pipes[i] = 0;
+        }
+        return;
+    }
+
+    NYA_String* targets[2] = { command->stdout_content, command->stderr_content };
+
+    // a blocking drain ends when both pipes break, however long the child keeps writing.
+    for (u32 reads = 0; block || reads < _NYA_COMMAND_DRAIN_MAX_READS; reads++) {
+        if (*pipes[0] == 0 && *pipes[1] == 0) return;
+
+        b8 made_progress = false;
+
+        for (u32 i = 0; i < 2; i++) {
+            if (*pipes[i] == 0) continue;
+
+            HANDLE handle = (HANDLE)(intptr_t)*pipes[i];
+
+            // Fails with ERROR_BROKEN_PIPE once the child has exited and closed its end, which
+            // is what terminates this loop.
+            DWORD available = 0;
+            if (!PeekNamedPipe(handle, nullptr, 0, nullptr, &available, nullptr)) {
+                CloseHandle(handle);
+                *pipes[i] = 0;
+                made_progress = true;
+                continue;
+            }
+
+            if (available == 0) continue; // nothing yet; the child is still working
+
+            char  buffer[4096];
+            DWORD wanted = available < (DWORD)sizeof(buffer) ? available : (DWORD)sizeof(buffer);
+            DWORD taken  = 0;
+
+            if (!ReadFile(handle, buffer, wanted, &taken, nullptr) || taken == 0) {
+                CloseHandle(handle);
+                *pipes[i] = 0;
+                made_progress = true;
+                continue;
+            }
+
+            // the length carrying overload, so output containing zero bytes is not truncated.
+            nya_string_extend(targets[i], &(NYA_String){ .length = (u64)taken, .items = (u8*)buffer });
+            made_progress = true;
+        }
+
+        if (made_progress) continue;
+        if (!block) return;
+
+        // Neither pipe had anything ready. Yield instead of spinning on PeekNamedPipe.
+        Sleep(1);
+    }
+}
+
+NYA_INTERNAL void _nya_command_finish(NYA_Command* command) {
+    nya_assert(command != nullptr);
+    nya_assert(command->process_handle != 0);
+
+    HANDLE process = (HANDLE)(uintptr_t)command->process_handle;
+    HANDLE thread  = (HANDLE)(uintptr_t)command->thread_handle;
+
+    DWORD exit_code;
+    if (GetExitCodeProcess(process, &exit_code)) {
+        command->exit_code = (s32)exit_code;
+    } else {
+        command->exit_code = 255;
+    }
+
+    CloseHandle(process);
+    CloseHandle(thread);
+
+    u64 end_time               = nya_clock_get_monotonic_ms();
+    command->execution_time_ms = end_time - command->start_time_ms;
+
+    // Cleared so a second wait asserts rather than waiting on a closed handle.
+    command->process_handle = 0;
+    command->thread_handle  = 0;
 }
