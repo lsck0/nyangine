@@ -59,7 +59,12 @@ nya_derive_array(NYA_PerfSpan);
  * NYA_PerfMeasurement
  */
 struct NYA_PerfMeasurement {
+    /** A copy owned by the perf arena, since callers pass strings from a game DLL that a reload unmaps. */
     NYA_ConstCString name;
+
+    /** The pointer last passed in, compared as a fast path and never read. */
+    NYA_ConstCString key;
+
     b8               is_running;
 
     u64 started_ns[NYA_PERF_MEASUREMENT_SAMPLES];

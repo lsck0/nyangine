@@ -1,8 +1,6 @@
 #include "gnyame/gnyame.h"
 #include "generated/assets.h"
 
-NYA_WindowHandle GNY_WINDOW_MAIN = NYA_WINDOW_HANDLE_NONE;
-
 void gny_window_main_create(void) {
     GNY_WINDOW_MAIN = nya_window_create(GNY_WINDOW_MAIN_TITLE, GNY_WINDOW_MAIN_WIDTH, GNY_WINDOW_MAIN_HEIGHT, GNY_WINDOW_MAIN_FLAGS);
     nya_assert(nya_window_is_valid(GNY_WINDOW_MAIN), "Failed to create the main window.");

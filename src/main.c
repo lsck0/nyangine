@@ -49,6 +49,13 @@ s32 main(s32 argc, NYA_CString* argv) {
 /** How many times a DLL that fails to open is retried, one watch interval apart, before giving up. */
 #define DLL_LOAD_ATTEMPTS 40
 
+/*
+ * A reloaded DLL is never unloaded. The engine keeps pointers into the game's data, such as string
+ * literals passed as names and asset handles, and unmapping the old image would leave them dangling.
+ * Each load opens its own copy, since the loader hands back the image it already has for a known path.
+ */
+#define DLL_LOADED_PATH_MAX 256
+
 /** Where the watch thread is in noticing a new DLL. */
 typedef struct {
     u64 candidate_modified;
@@ -110,6 +117,7 @@ NYA_INTERNAL gnyame_deinit_fn* gnyame_deinit                       = nullptr;
 NYA_INTERNAL atomic u64        gnyame_dll_last_modified            = 0;
 NYA_INTERNAL atomic b8         gnyame_dll_reload_requested         = false;
 NYA_INTERNAL atomic b8         gnyame_dll_watch_thread_should_exit = false;
+NYA_INTERNAL u32               gnyame_dll_generation               = 0;
 
 NYA_INTERNAL b8    dll_load(void) __attr_no_discard;
 NYA_INTERNAL void  dll_unload(void);
@@ -181,7 +189,16 @@ b8 dll_load(void) {
     NYA_Error result   = nya_filesystem_last_modified(DLL_PATH, &modified);
     if (!result.ok) return false;
 
-    void* handle = dlopen(DLL_PATH, RTLD_NOW | RTLD_GLOBAL);
+    char loaded_path[DLL_LOADED_PATH_MAX];
+    (void)snprintf(loaded_path, sizeof(loaded_path), "%s.%u", DLL_PATH, gnyame_dll_generation);
+
+    result = nya_filesystem_copy(DLL_PATH, loaded_path);
+    if (!result.ok) return false;
+
+    // local, so the new image's calls to its own functions do not bind to an older generation's. The copy
+    // is unlinked straight away; the mapping keeps the file alive.
+    void* handle = dlopen(loaded_path, RTLD_NOW | RTLD_LOCAL);
+    (void)nya_filesystem_delete(loaded_path);
     if (handle == nullptr) return false;
 
     gnyame_init_fn*   init   = (gnyame_init_fn*)dlsym(handle, "gnyame_init");
@@ -197,15 +214,14 @@ b8 dll_load(void) {
     gnyame_run               = run;
     gnyame_deinit            = deinit;
     gnyame_dll_last_modified = modified;
+    gnyame_dll_generation++;
     return true;
 }
 
 void dll_unload(void) {
     nya_assert(gnyame_dll != nullptr);
 
-    b8 ok = dlclose(gnyame_dll) == 0;
-    nya_assert(ok, "Failed to unload %s: %s.", DLL_PATH, dlerror());
-
+    // the image stays mapped; see DLL_LOADED_PATH_MAX.
     gnyame_dll    = nullptr;
     gnyame_init   = nullptr;
     gnyame_run    = nullptr;
@@ -273,14 +289,11 @@ void update_callback_pointers(void) {
 #define DLL_PATH "./gnyame.debug.dll"
 #endif
 
-/**
- * Windows keeps a loaded DLL locked, so the compiler cannot overwrite the file the process is
- * currently running. The reload therefore loads a copy and leaves the original free to be replaced.
- * */
+/** Windows locks a loaded DLL, so loading a copy also leaves the original free for the linker. */
 #if NYA_DEVELOPER
-#define DLL_LOADED_PATH "./gnyame.dev.loaded.dll"
+#define DLL_LOADED_PATH_FORMAT "./gnyame.dev.loaded.%u.dll"
 #else
-#define DLL_LOADED_PATH "./gnyame.debug.loaded.dll"
+#define DLL_LOADED_PATH_FORMAT "./gnyame.debug.loaded.%u.dll"
 #endif
 
 typedef void(gnyame_init_fn)(s32 argc, NYA_CString* argv);
@@ -296,6 +309,7 @@ NYA_INTERNAL gnyame_deinit_fn* gnyame_deinit                       = nullptr;
 NYA_INTERNAL atomic u64        gnyame_dll_last_modified            = 0;
 NYA_INTERNAL atomic b8         gnyame_dll_reload_requested         = false;
 NYA_INTERNAL atomic b8         gnyame_dll_watch_thread_should_exit = false;
+NYA_INTERNAL u32               gnyame_dll_generation               = 0;
 
 NYA_INTERNAL b8           dll_load(void) __attr_no_discard;
 NYA_INTERNAL void         dll_unload(void);
@@ -310,7 +324,7 @@ s32 main(s32 argc, NYA_CString* argv) {
     nya_symbols = GetModuleHandleA(nullptr);
     nya_assert(nya_symbols, "Failed to get handle to main executable.");
 
-    if (!dll_load()) nya_log_panic("Failed to load %s: error %lu.", DLL_LOADED_PATH, GetLastError());
+    if (!dll_load()) nya_log_panic("Failed to load %s: error %lu.", DLL_PATH, GetLastError());
 
     gnyame_init(argc, argv);
     nya_app = nya_app_get();
@@ -363,11 +377,13 @@ b8 dll_load(void) {
     NYA_Error result   = nya_filesystem_last_modified(DLL_PATH, &modified);
     if (!result.ok) return false;
 
-    // a copy is loaded, so the original stays writable while the game runs.
-    result = nya_filesystem_copy(DLL_PATH, DLL_LOADED_PATH);
+    char loaded_path[DLL_LOADED_PATH_MAX];
+    (void)snprintf(loaded_path, sizeof(loaded_path), DLL_LOADED_PATH_FORMAT, gnyame_dll_generation);
+
+    result = nya_filesystem_copy(DLL_PATH, loaded_path);
     if (!result.ok) return false;
 
-    HMODULE handle = LoadLibraryA(DLL_LOADED_PATH);
+    HMODULE handle = LoadLibraryA(loaded_path);
     if (handle == nullptr) return false;
 
     gnyame_init_fn*   init   = (gnyame_init_fn*)(void*)GetProcAddress(handle, "gnyame_init");
@@ -383,15 +399,14 @@ b8 dll_load(void) {
     gnyame_run               = run;
     gnyame_deinit            = deinit;
     gnyame_dll_last_modified = modified;
+    gnyame_dll_generation++;
     return true;
 }
 
 void dll_unload(void) {
     nya_assert(gnyame_dll != nullptr);
 
-    b8 ok = FreeLibrary(gnyame_dll) != 0;
-    nya_assert(ok, "Failed to unload %s: error %lu.", DLL_LOADED_PATH, GetLastError());
-
+    // the image stays mapped; see DLL_LOADED_PATH_MAX.
     gnyame_dll    = nullptr;
     gnyame_init   = nullptr;
     gnyame_run    = nullptr;

@@ -605,25 +605,36 @@ NYA_ConstCString nya_video_driver(void) {
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_Layer* nya_layer_get(NYA_WindowHandle window, void* layer_id) {
+NYA_Layer _nya_layer_with_id(NYA_Layer layer, NYA_ConstCString id) {
+    nya_assert(id != nullptr);
+
+    u64 length = strlen(id);
+    nya_assert(length > 0 && length < NYA_LAYER_ID_MAX, "Layer id '%s' must be 1 to %d bytes.", id, NYA_LAYER_ID_MAX - 1);
+
+    nya_memcpy(layer.id, id, length + 1);
+
+    return layer;
+}
+
+NYA_Layer* nya_layer_get(NYA_WindowHandle window, NYA_ConstCString layer_id) {
     nya_assert(layer_id != nullptr);
 
     NYA_Window* target = _nya_window_require(window, "nya_layer_get");
     if (target == nullptr) return nullptr;
 
     nya_array_foreach (target->layer_stack, layer) {
-        if (layer->id == layer_id) return layer;
+        if (nya_string_equals(layer->id, layer_id)) return layer;
     }
 
     return nullptr;
 }
 
-void nya_layer_enable(NYA_WindowHandle window, void* layer_id) {
+void nya_layer_enable(NYA_WindowHandle window, NYA_ConstCString layer_id) {
     NYA_Layer* layer = nya_layer_get(window, layer_id);
     if (layer) layer->enabled = true;
 }
 
-void nya_layer_disable(NYA_WindowHandle window, void* layer_id) {
+void nya_layer_disable(NYA_WindowHandle window, NYA_ConstCString layer_id) {
     NYA_Layer* layer = nya_layer_get(window, layer_id);
     if (layer) layer->enabled = false;
 }
@@ -631,6 +642,8 @@ void nya_layer_disable(NYA_WindowHandle window, void* layer_id) {
 void nya_layer_push(NYA_WindowHandle window, NYA_Layer layer) {
     NYA_Window* target = _nya_window_require(window, "nya_layer_push");
     if (target == nullptr) return;
+
+    nya_assert(layer.id[0] != '\0', "A layer needs an id; build it with nya_layer_of.");
 
     layer.window = window;
     nya_array_push_back(target->layer_stack, layer);

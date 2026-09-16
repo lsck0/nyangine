@@ -21,13 +21,13 @@ dist/
 /*.debug.exe
 /*.debug.dll
 /*.debug.lib
-/*.debug.loaded.dll
+/*.debug.loaded.*.dll
 /*.dev
 /*.dev.so
 /*.dev.exe
 /*.dev.dll
 /*.dev.lib
-/*.dev.loaded.dll
+/*.dev.loaded.*.dll
 /*.test
 
 # `./build run example <name>` builds examples/<name>/main.c to <name>.example at the root, so the

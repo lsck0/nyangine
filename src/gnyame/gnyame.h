@@ -20,10 +20,8 @@
 #include "gnyame/layers/layers.h"
 #include "gnyame/windows.h"
 
-/**
- * What the command line asked for, read once at startup by gnyame_init.
- * */
-NYA_NetLaunchConfig GNY_LAUNCH;
+/** What the command line asked for, read once by gnyame_init and kept in the world. */
+#define GNY_LAUNCH (gny_world()->launch)
 
 /**
  * Which entities cross the wire.
@@ -31,6 +29,8 @@ NYA_NetLaunchConfig GNY_LAUNCH;
 #define GNY_FLAG_REPLICATED (1ULL << 20)
 
 void gnyame_init(s32 argc, NYA_CString* argv);
+
+/** Runs the app. After a code reload, first restores what this DLL's globals held. */
 void gnyame_run(void);
 void gnyame_deinit(void);
 

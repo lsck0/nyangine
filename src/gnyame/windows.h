@@ -10,6 +10,6 @@ u32 GNY_WINDOW_MAIN_WIDTH  = 1280;
 u32 GNY_WINDOW_MAIN_HEIGHT = 720;
 
 /** Valid until the window is closed, after which every lookup through it returns null. */
-extern NYA_WindowHandle GNY_WINDOW_MAIN;
+#define GNY_WINDOW_MAIN (gny_world()->window_main)
 
 void gny_window_main_create(void);

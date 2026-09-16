@@ -21,23 +21,28 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/** False in a DLL that gnyame_init has not run in, which after startup means a code reload. */
+NYA_INTERNAL b8 _gnyame_loaded = false;
+
 void gnyame_init(s32 argc, NYA_CString* argv) {
+    _gnyame_loaded = true;
+
     /*
      * The command line is read first, because it decides what to bring up.
      */
-    GNY_LAUNCH = nya_net_config_from_args(argc, argv);
+    NYA_NetLaunchConfig launch = nya_net_config_from_args(argc, argv);
 
-    nya_net_config_report(&GNY_LAUNCH);
+    nya_net_config_report(&launch);
 
     /*
      * The tick rate, from the command line where one was given.
      */
     u64 time_step_ns = nya_time_ms_to_ns(16);
 
-    if (GNY_LAUNCH.tickrate != 0) {
-        u32 tickrate = nya_clamp(GNY_LAUNCH.tickrate, 10U, 240U);
+    if (launch.tickrate != 0) {
+        u32 tickrate = nya_clamp(launch.tickrate, 10U, 240U);
 
-        if (tickrate != GNY_LAUNCH.tickrate) nya_log_warn("--tickrate %u is outside 10..240; using %u.", GNY_LAUNCH.tickrate, tickrate);
+        if (tickrate != launch.tickrate) nya_log_warn("--tickrate %u is outside 10..240; using %u.", launch.tickrate, tickrate);
 
         time_step_ns = 1'000'000'000ULL / tickrate;
     }
@@ -66,7 +71,7 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
     }
 
     // before the window, since the layer stack's on_create generates the terrain into the world.
-    gny_world_create();
+    gny_world_create(launch);
 
     gny_sim_init();
 
@@ -96,8 +101,14 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
  */
 
 void gnyame_run(void) {
-    // after a code reload this DLL's NYA_CONFIG is zeroed and the watch points into the unloaded one.
-    gny_config_attach();
+    // a freshly reloaded DLL starts with zeroed globals: layers and config are rebuilt, the rest lives in the world.
+    if (!_gnyame_loaded) {
+        gny_layers_init();
+        gny_config_attach();
+        _gnyame_loaded = true;
+
+        nya_log_debug("Restored the layers and config after a code reload.");
+    }
 
     nya_app_run();
 }

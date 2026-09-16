@@ -217,6 +217,12 @@ struct GNY_World {
     /** Owns everything below it, including this struct. Outlives every reload. */
     NYA_Arena* allocator;
 
+    /** What the command line asked for. Here rather than a DLL global so it survives a code reload. */
+    NYA_NetLaunchConfig launch;
+
+    /** The main window, or none on a dedicated server. Here for the same reason as `launch`. */
+    NYA_WindowHandle window_main;
+
     /** The 2D ground. Null until gny_terrain_generate first runs. See core_terrain2d.h. */
     NYA_Terrain2D* terrain2d;
 
@@ -319,7 +325,7 @@ struct GNY_World {
 GNY_World* gny_world(void);
 
 /** Allocates the world and parks it in NYA_App.state. Called once, before any window exists. */
-void gny_world_create(void);
+void gny_world_create(NYA_NetLaunchConfig launch);
 
 /**
  * Despawns the terrain and every crate, leaving the world struct itself intact.
@@ -350,7 +356,7 @@ void gny_layers_init(void);
 /**
  * The title screen. The only thing over the background at startup.
  * */
-void*     GNY_LAYER_MAIN_MENU_ID = "gny_layer_main_menu";
+NYA_ConstCString GNY_LAYER_MAIN_MENU_ID = "gny_layer_main_menu";
 NYA_Layer GNY_LAYER_MAIN_MENU;
 void      gny_layer_main_menu_on_create(NYA_Window* window);
 void      gny_layer_main_menu_on_destroy(NYA_Window* window);
@@ -361,7 +367,7 @@ void      gny_layer_main_menu_on_render(NYA_Window* window);
 /**
  * The pause menu, over a stopped world.
  * */
-void*     GNY_LAYER_PAUSE_MENU_ID = "gny_layer_pause_menu";
+NYA_ConstCString GNY_LAYER_PAUSE_MENU_ID = "gny_layer_pause_menu";
 NYA_Layer GNY_LAYER_PAUSE_MENU;
 void      gny_layer_pause_menu_on_create(NYA_Window* window);
 void      gny_layer_pause_menu_on_destroy(NYA_Window* window);
@@ -371,7 +377,7 @@ void      gny_layer_pause_menu_on_render(NYA_Window* window);
 
 /** Sky, parallax hills and drifting motes. Draws behind the world and reads nothing but the camera. */
 /** The 3D demo: one perspective camera, one Box3D body, one cube you can click and spin. */
-void*     GNY_LAYER_CUBE3D_ID = "gny_layer_cube3d";
+NYA_ConstCString GNY_LAYER_CUBE3D_ID = "gny_layer_cube3d";
 NYA_Layer GNY_LAYER_CUBE3D;
 void      gny_layer_cube3d_on_create(NYA_Window* window);
 void      gny_layer_cube3d_on_destroy(NYA_Window* window);
@@ -396,7 +402,7 @@ void      gny_layer_cube3d_models_attach(NYA_Window* window);
 void      gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s);
 void      gny_layer_cube3d_on_render(NYA_Window* window);
 
-void*     GNY_LAYER_BACKGROUND_ID = "gny_layer_background";
+NYA_ConstCString GNY_LAYER_BACKGROUND_ID = "gny_layer_background";
 NYA_Layer GNY_LAYER_BACKGROUND;
 void      gny_layer_background_on_create(NYA_Window* window);
 void      gny_layer_background_on_destroy(NYA_Window* window);
@@ -405,7 +411,7 @@ void      gny_layer_background_on_update(NYA_Window* window, f32 delta_time_s);
 void      gny_layer_background_on_render(NYA_Window* window);
 
 /** The terrain, the crates, the camera and the input that spawns things. */
-void*     GNY_LAYER_GAME_ID = "gny_layer_game";
+NYA_ConstCString GNY_LAYER_GAME_ID = "gny_layer_game";
 NYA_Layer GNY_LAYER_GAME;
 void      gny_layer_game_on_create(NYA_Window* window);
 void      gny_layer_game_on_destroy(NYA_Window* window);
@@ -414,7 +420,7 @@ void      gny_layer_game_on_update(NYA_Window* window, f32 delta_time_s);
 void      gny_layer_game_on_render(NYA_Window* window);
 
 /** Screen space only: the counters, the frame cost and the key bindings. */
-void*     GNY_LAYER_UI_ID = "gny_layer_ui";
+NYA_ConstCString GNY_LAYER_UI_ID = "gny_layer_ui";
 NYA_Layer GNY_LAYER_UI;
 void      gny_layer_ui_on_create(NYA_Window* window);
 void      gny_layer_ui_on_destroy(NYA_Window* window);

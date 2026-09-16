@@ -178,9 +178,15 @@ struct NYA_Window {
  * ─────────────────────────────────────────────────────────
  */
 
+/** The longest layer id, terminator included. Ids are short literals naming the layer. */
+#ifndef NYA_LAYER_ID_MAX
+#define NYA_LAYER_ID_MAX 64
+#endif
+
 struct NYA_Layer {
-    void* id;
-    b8    enabled;
+    /** Copied, and compared by content, so a layer pushed by a game DLL is still found after a reload. */
+    char id[NYA_LAYER_ID_MAX];
+    b8   enabled;
 
     NYA_CallbackHandle on_create;
     NYA_CallbackHandle on_destroy;
@@ -204,15 +210,14 @@ struct NYA_Layer {
  * builds the struct by hand.
  * */
 #define nya_layer_of(prefix, layer_id)                                                                                                       \
-    ((NYA_Layer){                                                                                                                            \
-        .id         = (layer_id),                                                                                                            \
+    _nya_layer_with_id((NYA_Layer){                                                                                                          \
         .enabled    = true,                                                                                                                  \
         .on_create  = nya_callback(prefix##_on_create),                                                                                       \
         .on_destroy = nya_callback(prefix##_on_destroy),                                                                                      \
         .on_event   = nya_callback(prefix##_on_event),                                                                                        \
         .on_update  = nya_callback(prefix##_on_update),                                                                                       \
         .on_render  = nya_callback(prefix##_on_render),                                                                                       \
-    })
+    }, (layer_id))
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -398,9 +403,12 @@ NYA_API NYA_ConstCString nya_video_driver(void) __attr_no_discard;
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_API NYA_Layer* nya_layer_get(NYA_WindowHandle window, void* layer_id) __attr_no_discard;
-NYA_API void       nya_layer_enable(NYA_WindowHandle window, void* layer_id);
-NYA_API void       nya_layer_disable(NYA_WindowHandle window, void* layer_id);
+NYA_API NYA_Layer* nya_layer_get(NYA_WindowHandle window, NYA_ConstCString layer_id) __attr_no_discard;
+NYA_API void       nya_layer_enable(NYA_WindowHandle window, NYA_ConstCString layer_id);
+NYA_API void       nya_layer_disable(NYA_WindowHandle window, NYA_ConstCString layer_id);
+
+/** `layer` with `id` copied in. What nya_layer_of expands to. */
+NYA_API NYA_Layer _nya_layer_with_id(NYA_Layer layer, NYA_ConstCString id) __attr_no_discard;
 NYA_API void       nya_layer_push(NYA_WindowHandle window, NYA_Layer layer);
 NYA_API NYA_Layer  nya_layer_pop(NYA_WindowHandle window);
 

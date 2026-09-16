@@ -23,7 +23,7 @@ NYA_INTERNAL void _gny_screen_request(GNY_ScreenChange change);
 NYA_INTERNAL void _gny_screen_apply(void* data);
 
 /** Pops the top layer only if it is the one named, so a change cannot eat something else's layer. */
-NYA_INTERNAL b8 _gny_layer_pop_if(void* layer_id);
+NYA_INTERNAL b8 _gny_layer_pop_if(NYA_ConstCString layer_id);
 
 /** The ground: a filled band under the polyline, plus the brighter line along its surface. */
 NYA_INTERNAL void _gny_terrain_draw(NYA_Window* window);
@@ -59,7 +59,7 @@ GNY_World* gny_world(void) {
     return nya_world_user_data();
 }
 
-void gny_world_create(void) {
+void gny_world_create(NYA_NetLaunchConfig launch) {
     /* From the engine world's arena. */
     NYA_Arena* allocator = nya_world()->allocator;
 
@@ -67,9 +67,11 @@ void gny_world_create(void) {
 
     *world = (GNY_World){
         .allocator           = allocator,
+        .launch              = launch,
+        .window_main         = NYA_WINDOW_HANDLE_NONE,
         .terrain             = NYA_ENTITY_HANDLE_NONE,
         /* From --seed when given, so a server operator can reproduce a world. */
-        .terrain_seed        = GNY_LAUNCH.world_seed != 0 ? GNY_LAUNCH.world_seed : 1,
+        .terrain_seed        = launch.world_seed != 0 ? launch.world_seed : 1,
 
         // allocated once with the world: the pool is fixed and emission never allocates.
         .sparks = nya_particles_create(allocator, GNY_SPARK_POOL),
@@ -588,13 +590,13 @@ void _gny_screen_request(GNY_ScreenChange change) {
     nya_sim_defer(_gny_screen_apply, &change, sizeof(change));
 }
 
-b8 _gny_layer_pop_if(void* layer_id) {
+b8 _gny_layer_pop_if(NYA_ConstCString layer_id) {
     NYA_Window* window = nya_window_get(GNY_WINDOW_MAIN);
     if (window == nullptr) return false;
     if (window->layer_stack->length == 0) return false;
 
     // nya_layer_pop takes the top unconditionally, so check first rather than remove someone else's layer.
-    if (window->layer_stack->items[window->layer_stack->length - 1].id != layer_id) return false;
+    if (!nya_string_equals(window->layer_stack->items[window->layer_stack->length - 1].id, layer_id)) return false;
 
     (void)nya_layer_pop(GNY_WINDOW_MAIN);
     return true;

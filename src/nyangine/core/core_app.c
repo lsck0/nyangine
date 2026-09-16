@@ -426,7 +426,7 @@ void _nya_app_update(void) {
                 if (!layer->enabled || on_update_fn == nullptr) continue;
 
                 // a layer's id is its span name, so the breakdown says which layer.
-                nya_perf_time_this_scope((NYA_ConstCString)layer->id);
+                nya_perf_time_this_scope(layer->id);
 
                 on_update_fn(window, app->frame_stats.delta_time_s);
             }
@@ -487,7 +487,7 @@ void _nya_app_render(void) {
             if (!layer->enabled || on_render_fn == nullptr) continue;
 
             // the layer's id names its span.
-            nya_perf_time_this_scope((NYA_ConstCString)layer->id);
+            nya_perf_time_this_scope(layer->id);
 
             on_render_fn(window);
         }

@@ -33,15 +33,16 @@ __attr_allow_unused NYA_INTERNAL u64  _nya_perf_cycles_since_start(void);
 NYA_PerfMeasurement* _nya_perf_timer_get(NYA_ConstCString name) {
     nya_assert(name);
 
-    /*
-     * Pointer first, contents only as a fallback. The same trick _nya_arena_callsite_for uses.
-     */
+    /* Pointer first, contents only as a fallback. The same trick _nya_arena_callsite_for uses. */
     nya_array_foreach (_nya_perf_measurements, measurement) {
-        if (measurement->name == name) return measurement;
+        if (measurement->key == name) return measurement;
     }
 
     nya_array_foreach (_nya_perf_measurements, measurement) {
-        if (nya_string_equals(measurement->name, name)) return measurement;
+        if (!nya_string_equals(measurement->name, name)) continue;
+
+        measurement->key = name;
+        return measurement;
     }
 
     return nullptr;
@@ -70,8 +71,13 @@ void _nya_perf_timer_start(NYA_ConstCString name) {
         return;
     }
 
+    u64   name_length = strlen(name);
+    char* name_copy   = nya_arena_alloc(_nya_perf_arena, name_length + 1);
+    nya_memcpy(name_copy, name, name_length + 1);
+
     NYA_PerfMeasurement new_measurement = {
-        .name           = name,
+        .name           = name_copy,
+        .key            = name,
         .is_running     = true,
         .started_ns     = { _nya_perf_time_since_start_ns() },
         .ended_ns       = { 0 },

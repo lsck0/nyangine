@@ -7,7 +7,7 @@
  * ```
  *
  * NYA_CONFIG is a global in this DLL, so a code reload zeroes it and unmaps what the config watch
- * points at. gnyame_run calls gny_config_attach, which reloads the file into the new global and
+ * points at. gnyame_run then calls gny_config_attach, which reloads the file into the new global and
  * repoints the watch.
  * */
 #pragma once
@@ -66,5 +66,5 @@ struct GNY_Config {
  * */
 extern GNY_Config NYA_CONFIG;
 
-/** Loads GNY_CONFIG_FILE into NYA_CONFIG and watches it. Once per loaded DLL; later calls do nothing. */
+/** Loads GNY_CONFIG_FILE into NYA_CONFIG and watches it. Called again after a code reload. */
 void gny_config_attach(void);
