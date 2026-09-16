@@ -165,7 +165,7 @@ s32 main(void) {
     nya_assert(same_tile(nya_tilemap_tile_to_world(map, (f32x2){ 1.0F, 0.0F }), (f32x2){ 16.0F, 8.0F }), "+x goes right and down");
     nya_assert(same_tile(nya_tilemap_tile_to_world(map, (f32x2){ 0.0F, 1.0F }), (f32x2){ -16.0F, 8.0F }), "+y goes left and down");
 
-    // The inverse is not obvious by eye, which is exactly why it is a function. Several points,
+    // The inverse is not obvious by eye, which is why it is a function. Several points,
     // including a fractional one and one in the negative quadrant.
     f32x2 samples[] = { { 0.0F, 0.0F }, { 3.0F, 5.0F }, { 12.5F, 0.25F }, { -4.0F, 9.0F } };
 

@@ -91,7 +91,7 @@ s32 main(void) {
         nya_check(animation->local_id == 0, "it belongs to local tile 0, got " FMTu32, animation->local_id);
         nya_check(animation->frame_count == 3, "three frames, got " FMTu32, animation->frame_count);
 
-        // Milliseconds in the file, seconds in the struct. The conversion is the whole point of the field.
+        // Milliseconds in the file, seconds in the struct.
         nya_check(fabsf(animation->frames[1].duration_s - 0.2F) < 0.0001F, "the second frame runs 200 ms, got %f",
                   (f64)animation->frames[1].duration_s);
         nya_check(fabsf(animation->total_duration_s - 0.4F) < 0.0001F, "totalling 400 ms, got %f", (f64)animation->total_duration_s);

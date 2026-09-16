@@ -92,7 +92,7 @@ static b8 raw_handshake(NET_DatagramSocket* socket, NET_Address* target, u16 por
       if (reply->buflen >= (int)HEADER_SIZE + 1) {
         u8 kind = reply->buf[HEADER_SIZE] >> 4;
 
-        // The challenge: echo the cookie back, which is the whole point of it.
+        // The challenge: echo the cookie back.
         if (kind == 4 && reply->buflen >= (int)HEADER_SIZE + 1 + 8) {
           u8  response[HEADER_SIZE + 1 + 8] = { 0 };
           u64 at                            = write_header(response, 0, 0);

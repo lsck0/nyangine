@@ -133,8 +133,7 @@ NYA_INTERNAL void nya_lua_binding_despawn(NYA_LuaCall* call) {
 NYA_INTERNAL void nya_lua_binding_position(NYA_LuaCall* call) {
     NYA_Entity* entity = nya_entity_get(_nya_lua_argument_handle(call, 0));
 
-    // Nil for a handle that no longer resolves, which is the whole point of handing scripts handles
-    // rather than anything they could dereference.
+    // nil for a handle that no longer resolves, which is why scripts get handles rather than pointers.
     if (entity == nullptr) {
         call->result_count = 0;
         return;

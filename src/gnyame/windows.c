@@ -13,7 +13,7 @@ void gny_window_main_create(void) {
     // image floating in a large empty window. Without the call the window stays at the size it was
     // created with and never churns.
     //
-    // If a floor is genuinely needed, clamp in NYA_EVENT_WINDOW_RESIZED rather than asking the
+    // If a floor is needed, clamp in NYA_EVENT_WINDOW_RESIZED rather than asking the
     // window manager to enforce it.
 
     // Read, handed to SDL, released. Nothing stays resident: SDL keeps its own converted copy.

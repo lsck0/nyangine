@@ -84,7 +84,7 @@ s32 main(void) {
         nya_check(fabsf(corner - terrain->heights[0]) < 0.01F, "the corner should read its own sample: %f vs %f",
                   (f64)corner, (f64)terrain->heights[0]);
 
-        // ── The rim stands above the middle. That is the whole point of the radial shaping.
+        // ── The rim stands above the middle. The radial shaping exists for this.
         f32 middle = nya_terrain3d_height_at(terrain, 0.0F, 0.0F);
         f32 edge   = nya_terrain3d_height_at(terrain, half * 0.99F, 0.0F);
         nya_check(edge > middle, "the rim should stand above the centre: edge %f, middle %f", (f64)edge, (f64)middle);

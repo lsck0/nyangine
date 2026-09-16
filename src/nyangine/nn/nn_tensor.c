@@ -626,7 +626,7 @@ void _nya_nn_backward_node(NYA_NNTensor* tensor) {
             u32 columns = a->shape[1];
 
             // Only the selected column of each row receives anything. Every other action's value is
-            // untouched by this loss, which is exactly the semantics DQN needs.
+            // untouched by this loss, which is the semantics DQN needs.
             for (u32 i = 0; i < rows; i++) a->grad[(i * columns) + tensor->indices[i]] += tensor->grad[i];
         } break;
 

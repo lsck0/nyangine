@@ -36,7 +36,7 @@ static void write_fixture(NYA_ConstCString moved) {
     NYA_ConstCString value = nya_string_equals(NYA_STRING_KEYS[i], MOVED_KEY) ? moved : nya_i18n_raw(i);
 
     // JSON escaping, for the two characters that would otherwise end the string early. The locales in
-    // this repository contain neither, which is exactly why it is done here rather than assumed.
+    // this repository contain neither, which is why it is done here rather than assumed.
     NYA_String* escaped = nya_string_create(arena);
     for (const char* c = value; *c != '\0'; c++) {
       if (*c == '"' || *c == '\\') nya_string_push_back(escaped, '\\');

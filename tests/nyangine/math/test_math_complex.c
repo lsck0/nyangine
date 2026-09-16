@@ -86,7 +86,7 @@ s32 main(void) {
     c64 z = nya_complex_f64(3.0, 4.0);
     nya_assert(fabs(nya_complex_magnitude_squared(z) - 25.0) < EPS);
 
-    // Consistent with cabs, which is the whole point of offering it as a cheaper comparison.
+    // Consistent with cabs, since it is offered as a cheaper comparison.
     nya_assert(fabs(nya_complex_magnitude_squared(z) - cabs(z) * cabs(z)) < EPS);
     nya_assert(nya_complex_magnitude_squared(nya_complex_f64(0.0, 0.0)) == 0.0);
 

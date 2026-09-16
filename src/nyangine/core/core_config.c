@@ -192,7 +192,7 @@ u64 _nya_config_modification_time(NYA_CString handle) {
 
     u64 modified = 0;
 
-    // A config that is genuinely missing answers zero, which compares equal to itself and so reads
+    // A config that is missing answers zero, which compares equal to itself and so reads
     // as "nothing changed" rather than as a change that can never be resolved.
     if (!nya_filesystem_last_modified(handle, &modified).ok) return 0;
 

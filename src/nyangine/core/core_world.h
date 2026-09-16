@@ -96,7 +96,7 @@ NYA_API NYA_World* nya_world_set(NYA_World* world);
  *     state = nya_arena_alloc(nya_world()->allocator, sizeof(GameState));
  *     *state = (GameState){ 0 };
  *     nya_world_user_data_set(state);
- *     build_the_level(state);          // only on a genuinely fresh start
+ *     build_the_level(state);          // only on a fresh start
  * }
  * ```
  * */

@@ -377,7 +377,7 @@ s32 main(void) {
       nya_assert(!nya_nn_neat_network_from_object(arena, empty, nya_nn_neat_sigmoid, &rejected).ok, "an object with no version must be refused");
 
       // A connection pointing at a node that does not exist would be an out of bounds read on every
-      // evaluation, which is exactly what a save file from elsewhere might contain.
+      // evaluation, which is what a save file from elsewhere might contain.
       NYA_Object* bad = nya_nn_neat_network_to_object(arena, original);
       NYA_Value*  connections = nya_object_get(bad, "connections");
       nya_object_set(&connections->as_array.items[0].as_object, "out", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 999 });

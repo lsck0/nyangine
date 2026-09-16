@@ -98,7 +98,7 @@ s32 main(void) {
     // A title: few glyphs, and the case a memo would have served best, since it does not change.
     nya_bench("title, 6 glyphs", 6, { nya_bench_keep(nya_text_shape(title, "AVATAR", 0, 0, &run)); });
 
-    // Wrapped, where the shaper breaks the lines. Line breaking is the part that is genuinely more
+    // Wrapped, where the shaper breaks the lines. Line breaking is the part that is more
     // work than the old codepoint walk did, rather than the same work done properly.
     nya_bench("paragraph, wrapped to 320px", nya_utf8_count(PARAGRAPH), {
         nya_bench_keep(nya_text_shape(hud, PARAGRAPH, 0, 320, &run));

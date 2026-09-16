@@ -19,8 +19,8 @@
 #define nya_assert(...)             _NYA_ASSERT_ENABLED(__VA_ARGS__)
 
 /**
- * The same assertion, spelled to mark the check as load bearing for security or data integrity
- * rather than a programming mistake: the alloca bound in base_memory.h and the tamper check in
+ * The same assertion, spelled to mark checks that guard security or data integrity rather than
+ * catch a programming mistake: the alloca bound in base_memory.h and the tamper check in
  * base_integrity.c. Identical to nya_assert.
  * */
 #define nya_assert_always(...)      _NYA_ASSERT_ENABLED(__VA_ARGS__)

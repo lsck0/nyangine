@@ -439,7 +439,7 @@ NYA_INTERNAL b8 _nya_type_try_parse_f128(const u8* data, u64 length, OUT f128* o
         u8 digit = c - '0';
 
         // _nya_type_accumulate_digit leaves the accumulator untouched when the multiply would
-        // overflow, which is exactly the saturation wanted here, so the guard is not spelled out a
+        // overflow, which is the saturation wanted here, so the guard is not spelled out a
         // fourth time. The flag is sticky: once a digit has been dropped a later, smaller one must
         // not sneak back in under the limit and land in the wrong place value.
         if (mantissa_saturated || !_nya_type_accumulate_digit(&mantissa, 10, digit)) {

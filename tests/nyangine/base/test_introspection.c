@@ -74,7 +74,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     // This is what answers "memory is climbing, which subsystem". Without it the only way to ask
-    // is to already hold the guilty arena's pointer, which is exactly what you do not have.
+    // is to already hold the guilty arena's pointer, which is what you do not have.
     u32 before = nya_arena_registry_count();
 
     NYA_Arena* tracked = nya_arena_create(.name = "registry_subject");
@@ -135,7 +135,7 @@ s32 main(void) {
 
     nya_assert(small_live >= 1024, "the small site is holding what it allocated, got " FMTs64, small_live);
     nya_assert(big_live >= 8192, "and the big one likewise, got " FMTs64, big_live);
-    nya_assert(big_live > small_live, "live_bytes is what distinguishes the two, which is the whole point");
+    nya_assert(big_live > small_live, "live_bytes distinguishes the two");
 
     // Giving it back drops live_bytes without erasing the history that it ever allocated.
     nya_arena_free(arena, big, 8192);

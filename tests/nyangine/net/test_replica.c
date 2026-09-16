@@ -38,7 +38,7 @@ s32 main(void) {
   defer      nya_arena_destroy(arena);
 
   /*
-   * Two worlds. Each owns its own entity table, which is the whole point.
+   * Two worlds. Each owns its own entity table.
    */
   NYA_World* server_world = nya_world_create();
   NYA_World* client_world = nya_world_create();
@@ -61,7 +61,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: the two handle spaces genuinely differ
+  // TEST: the two handle spaces differ
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the server and client tables disagree about handles\n");
 
@@ -127,7 +127,7 @@ s32 main(void) {
   {
     (void)nya_world_set(server_world);
 
-    // The server moves one of them, so each snapshot is genuinely new rather than byte-identical.
+    // The server moves one of them, so each snapshot is new rather than byte-identical.
     for (u32 round = 0; round < 10; round++) {
       (void)nya_world_set(server_world);
 

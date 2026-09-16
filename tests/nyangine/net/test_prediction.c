@@ -99,7 +99,7 @@ s32 main(void) {
     NYA_EntityHandle filler[6];
     for (u32 i = 0; i < 6; i++) filler[i] = nya_entity_spawn(.name = "clutter", .position = { (f32)i, 0.0F, 0.0F });
 
-    // Interleaved, so the free list is not a clean run and the next index is genuinely unpredictable.
+    // Interleaved, so the free list is not a clean run and the next index is unpredictable.
     for (u32 i = 0; i < 6; i += 2) nya_entity_despawn(filler[i]);
   }
 
@@ -158,7 +158,7 @@ s32 main(void) {
     nya_assert(nya_net_client_entity_remote().index == SERVER_PLAYER.index, "the client learned the wrong remote handle");
   }
 
-  printf("TEST: the replica world is genuinely separate\n");
+  printf("TEST: the replica world is separate\n");
   {
     /*
      * The property that makes everything below meaningful.

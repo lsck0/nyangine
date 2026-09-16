@@ -142,7 +142,7 @@ s32 main(void) {
     nya_skeleton_palette(skeleton, &pose, palette);
 
     /*
-     * The single most load-bearing assertion here.
+     * The key assertion here.
      */
     for (u32 i = 0; i < skeleton->bone_count; i++) {
       f32 error = identity_error(palette[i]);

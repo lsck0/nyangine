@@ -16,8 +16,8 @@ static void step(u32 count) {
 }
 
 /*
- * What a pickup's callback records. A coin is a sensor, and the whole point of the sensor path is
- * that it arrives through the same on_collision an impact does.
+ * What a pickup's callback records. A coin is a sensor, and it arrives through the same on_collision
+ * an impact does.
  */
 static u32              pickup_enters = 0;
 static u32              pickup_exits  = 0;

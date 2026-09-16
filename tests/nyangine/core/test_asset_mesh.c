@@ -67,7 +67,7 @@ s32 main(void) {
   {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_MESH, .handle = NYA_ASSET_MODELS_CUBIE_FBX }));
 
-    // Queued, not loaded. The read happens at the end of the frame, which is exactly why
+    // Queued, not loaded. The read happens at the end of the frame, which is why
     // nya_render3d_mesh draws nothing rather than asserting when it is asked too early.
     nya_assert(nya_asset_status(NYA_ASSET_MODELS_CUBIE_FBX) != NYA_ASSET_STATUS_LOADED, "the load is queued, not immediate");
 

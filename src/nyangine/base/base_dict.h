@@ -60,7 +60,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
 
 /*
  * A dict is exactly an NYA_CString keyed hmap, created with string semantics rather than the
- * default byte-wise ones. That distinction is the whole point of the specialisation: the byte-wise
+ * default byte-wise ones. That distinction is why the specialisation exists: the byte-wise
  * default would hash and compare the char* itself, so two equal strings at different addresses
  * would never find each other.
  */

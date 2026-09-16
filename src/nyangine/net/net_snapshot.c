@@ -221,7 +221,7 @@ NYA_Error nya_net_snapshot_decode(NYA_Arena* arena, const u8* data, u64 size, co
         if (generation == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a snapshot entity with a zero generation");
 
         /*
-         * Unnamed fields come from the baseline, which is the whole point of a delta.
+         * Unnamed fields come from the baseline.
          */
         NYA_NetEntityState state = { .handle = { .index = index, .generation = generation } };
 

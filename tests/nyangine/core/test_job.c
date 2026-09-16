@@ -93,7 +93,7 @@ s32 main(void) {
     });
 
     // Waiting rather than sleeping: the point of the API is that a caller can block until the work
-    // is genuinely finished, and a sleep would make this test both slower and flakier.
+    // is finished, and a sleep would make this test both slower and flakier.
     nya_job_wait(handle);
 
     nya_assert(atomic_load(&completed) == 1, "the job ran, got " FMTu32, atomic_load(&completed));

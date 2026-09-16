@@ -62,7 +62,7 @@ s32 main(void) {
     // the metre and the conversion is the identity.
     nya_assert(nya_physics3d_units_per_meter() == 1.0F, "got %f", (f64)nya_physics3d_units_per_meter());
 
-    // Negative y, where the 2D world's gravity is positive. The two genuinely disagree about which
+    // Negative y, where the 2D world's gravity is positive. The two disagree about which
     // way down is, which costs nothing because nothing is simulated in both.
     f32x3 gravity = nya_physics3d_gravity();
     nya_assert(gravity.y < 0.0F, "3D gravity points down negative y, got %f", (f64)gravity.y);

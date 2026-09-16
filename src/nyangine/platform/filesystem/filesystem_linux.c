@@ -235,7 +235,7 @@ _nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkCallback c
     nya_assert(depth < NYA_FILESYSTEM_WALK_DEPTH_MAX, "Maximum directory depth exceeded walking '%s' (symlink loop?).", path);
 
     // A scratch arena per level, so memory tracks the depth of the tree rather than its total size.
-    // Walking a large tree otherwise grows without bound, which is exactly what a file browser does.
+    // Walking a large tree otherwise grows without bound, which is what a file browser does.
     //
     // Explicitly sized because the default region is a gibibyte, which a sanitized build poisons in
     // full on creation: a fixed cost per directory that dwarfed the walk itself. A mebibyte holds a

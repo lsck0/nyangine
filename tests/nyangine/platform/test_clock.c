@@ -97,7 +97,7 @@ s32 main(void) {
     nya_assert(nya_time_ms_to_ns(before_ms) <= middle_ns + nya_time_ms_to_ns(1), "monotonic ms disagrees with ns");
     nya_assert(middle_ns <= nya_time_µs_to_ns(after_µs) + nya_time_ms_to_ns(1), "monotonic µs disagrees with ns");
 
-    // A different epoch from the wall clock, which is the whole point: a monotonic reading is
+    // A different epoch from the wall clock: a monotonic reading is
     // meaningless on its own and must never be mistaken for a Unix timestamp. The wall clock is past
     // 2020, i.e. > 1.5e18 ns; a monotonic clock counting since boot is far below that.
     u64 monotonic_now = nya_clock_get_monotonic_ns();

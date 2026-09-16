@@ -339,7 +339,7 @@ s32 main(void) {
   printf("TEST: a bandwidth cap skips rather than queues\n");
   {
     /*
-     * A cap that a snapshot of this world genuinely brushes against, exercised in real time.
+     * A cap that a snapshot of this world brushes against, exercised in real time.
      */
     NYA_NetPeerId peer = start_listen_server((NYA_NetServerConfig){ .bandwidth_bytes_per_second = 40000 }, &tick);
 
@@ -564,7 +564,7 @@ s32 main(void) {
     nya_assert(nya_net_server_peer_at(peer.index) != nullptr, "the peer is not in the table");
     nya_assert(nya_net_server_peer_at(NYA_NET_MAX_PEERS) == nullptr, "an index past the table returned something");
 
-    // A stale id resolves to nothing, which is the whole point of the generation.
+    // A stale id resolves to nothing.
     NYA_NetPeerId stale = { .index = peer.index, .generation = peer.generation + 7 };
     nya_assert(nya_net_server_peer(stale) == nullptr, "a stale peer id resolved");
 

@@ -15,7 +15,7 @@
  */
 
 /*
- * A rule file lives in a host directory only when it is genuinely per host, which turned out to be
+ * A rule file lives in a host directory only when it is per host, which turned out to be
  * just the Linux one. The Windows rules were duplicated into both directories and were identical;
  * see build_windows.h.
  */

@@ -46,7 +46,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     /*
-     * The load bearing property. Containers are declared through nya_template and used by writing the
+     * The key property. Containers are declared through nya_template and used by writing the
      * unicode name out (NYA_ArrayᐸNYA_Jobᐳ in core_job.h). If the two disagreed they would be different
      * types and only the using file would fail to compile.
      */

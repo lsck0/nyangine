@@ -61,7 +61,7 @@ s32 main(void) {
 
     nya_assert(nya_rect_contains(rect, (f32x2){ 5.0F, 5.0F }), "the middle is inside");
 
-    // The minimum corner is in, the maximum corner is out. That asymmetry is the whole point.
+    // The minimum corner is in, the maximum corner is out.
     nya_assert(nya_rect_contains(rect, (f32x2){ 0.0F, 0.0F }), "the minimum corner is inside");
     nya_assert(!nya_rect_contains(rect, (f32x2){ 10.0F, 10.0F }), "the maximum corner is outside");
     nya_assert(nya_rect_contains(rect, (f32x2){ 0.0F, 9.999F }));

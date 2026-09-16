@@ -11,7 +11,7 @@
 #define assert_not_contains(haystack, needle)                                                                                                        \
   nya_assert(strstr((haystack), (needle)) == nullptr, "expected NOT to find '%s' in:\n%s", (needle), (haystack))
 
-/** Generates a completion script into `buffer`, which is the whole point of the stream taking variant. */
+/** Generates a completion script into `buffer` through the stream taking variant. */
 NYA_INTERNAL void capture_completions(NYA_ArgParser* parser, NYA_ConstCString binary, NYA_ConstCString shell, char* buffer, u64 buffer_size) {
   FILE* stream = tmpfile();
   nya_assert(stream != nullptr);

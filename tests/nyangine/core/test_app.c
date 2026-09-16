@@ -79,7 +79,7 @@ s32 main(void) {
     nya_assert(app->frame_stats.frame_start_time_ns > 0);
 
     // uptime_s is the same number as uptime_ns, just lossy. Half a millisecond of tolerance covers
-    // the f32 rounding without letting a genuinely wrong value through.
+    // the f32 rounding without letting a wrong value through.
     f64 expected_s = (f64)app->frame_stats.uptime_ns / 1'000'000'000.0;
     nya_assert(fabs((f64)app->frame_stats.uptime_s - expected_s) < 0.0005, "uptime_s mirrors uptime_ns");
   }

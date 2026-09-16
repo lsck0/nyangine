@@ -230,7 +230,7 @@ u32 nya_occlusion_box(NYA_OcclusionBuffer* buffer, f32x3 center, f32x3 half_exte
     u32 rasterized = 0;
 
     for (u32 face = 0; face < 6; face++) {
-        // Positive means the eye is outside that slab, which is exactly when the face points at it.
+        // Positive means the eye is outside that slab, which is when the face points at it.
         if (offset[face] <= 0.0F) continue;
 
         if (nya_occlusion_quad(buffer, corner[faces[face][0]], corner[faces[face][1]], corner[faces[face][2]], corner[faces[face][3]])) {

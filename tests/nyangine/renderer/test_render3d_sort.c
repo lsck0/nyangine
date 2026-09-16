@@ -98,7 +98,7 @@ s32 main(void) {
         nya_check(agrees_with_qsort(keys, nya_carray_length(keys), arena), "extreme magnitudes should agree");
     }
 
-    // ── The result is genuinely ordered, and every input key survives exactly once.
+    // ── The result is ordered, and every input key survives exactly once.
     {
         const u32            count = 2000;
         NYA_Render3DSortKey* keys  = nya_arena_alloc(arena, count * sizeof(NYA_Render3DSortKey));

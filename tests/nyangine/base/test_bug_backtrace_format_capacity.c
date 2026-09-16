@@ -4,7 +4,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-/** Long enough that a small capacity is genuinely too small for it. */
+/** Long enough that a small capacity is too small for it. */
 #define NO_TRACE_TEXT "  <no stack trace available>\n"
 
 s32 main(void) {

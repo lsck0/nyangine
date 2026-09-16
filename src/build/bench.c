@@ -95,7 +95,7 @@ void bench_runner(NYA_ArgCommand* command) {
                     // FLAGS_BENCH, not FLAGS_TEST: optimised, headless, and no NYA_TESTING.
                     FLAGS_BENCH,
                     // FLAGS_HOST_NATIVE_BENCH, not FLAGS_HOST_NATIVE: the latter bundles FLAGS_SANITIZE,
-                    // and a sanitized benchmark measures the sanitizer. That is the whole point of this
+                    // and a sanitized benchmark measures the sanitizer. That is the reason for this
                     // command, and using the wrong macro here silently produced sanitized numbers.
                     FLAGS_HOST_NATIVE_BENCH,
                 },

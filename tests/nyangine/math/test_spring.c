@@ -47,7 +47,7 @@ s32 main(void) {
         nya_check(fabsf(spring.value - 5.0F) < 0.05F, "a zeroed spring should still converge, got %f", (f64)spring.value);
     }
 
-    // ── Retargeting mid-flight carries velocity instead of restarting. This is the whole point.
+    // ── Retargeting mid-flight carries velocity instead of restarting.
     {
         NYA_SpringF32 spring = { .frequency = 4.0F, .damping = 1.0F };
 
