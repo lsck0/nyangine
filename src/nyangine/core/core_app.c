@@ -28,10 +28,8 @@ NYA_INTERNAL void _nya_app_update(void);
 NYA_INTERNAL void _nya_app_render(void);
 
 /**
- * Whether any live window holds input focus. Drives the unfocused frame cap.
- *
- * Any rather than all: a game with a tool window beside its main one is still being worked in, and
- * slowing both down because the inspector is the focused one would be the wrong answer.
+ * Whether any live window holds input focus. Drives the unfocused frame cap. Any rather than all, so a
+ * focused tool window does not slow the game beside it.
  * */
 NYA_INTERNAL b8 _nya_app_any_window_has_focus(void) __attr_no_discard;
 
@@ -46,12 +44,7 @@ NYA_INTERNAL bool SDLCALL _nya_app_live_resize_event_watch(void* userdata, SDL_E
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/**
- * Registers every engine subsystem with core_system.h's registry, in bring-up order. See
- * `_nya_app_register_subsystems` below for the table itself and the ordering notes that used to hang
- * above a `NYA_Subsystem _NYA_SUBSYSTEMS[]` array — the registration calls carry the same comments,
- * in the same order, now that the array is gone.
- * */
+/** Registers every engine subsystem with core_system.h's registry, in bring-up order. */
 NYA_INTERNAL void _nya_app_register_subsystems(void);
 
 NYA_INTERNAL NYA_Error _nya_app_bring_up_logfile(void) {
@@ -60,45 +53,21 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_logfile(void) {
     return NYA_OK;
 }
 
-/*
- * First, and before the settings it feeds.
- */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_save(void) { (void)nya_system_save_init(); return NYA_OK; }
-
-/* Cannot fail: it owns no memory, and everything else may want to read a setting while coming up.
- * Loads whatever the save system found, or the defaults when it found nothing. */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_settings(void) { nya_system_settings_init(); return NYA_OK; }
-
 NYA_INTERNAL NYA_Error _nya_app_bring_up_job(void) { return nya_system_job_init(); }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_callback(void) { nya_system_callback_init(); return NYA_OK; }
-/* After the callback registry, whose handles a tween's on_complete resolves through. */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_tween(void) { nya_system_tween_init(); return NYA_OK; }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_renderer(void) { return nya_system_renderer_init(); }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_window(void) { nya_system_window_init(); return NYA_OK; }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_events(void) { return nya_system_events_init(); }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_input(void) { nya_system_input_init(); return NYA_OK; }
-/* After the event system, whose drain loop hands it the SDL events it consumes. */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_gamepad(void) { nya_system_gamepad_init(); return NYA_OK; }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_asset(void) { nya_system_asset_init(); return NYA_OK; }
-
-/*
- * After the asset system, because a locale file is an asset: the bytes are read through nya_asset_read
- * and the file is watched by registering it, both of which need the registry up.
- */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_i18n(void) { nya_system_i18n_init(); return NYA_OK; }
-
-/*
- * After the asset system, for the same reason i18n is: a config file is read through nya_asset_read
- * and, under NYA_ASSET_HOT_RELOAD, watched by registering it, both of which need the registry up.
- */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_config(void) { nya_system_config_init(); return NYA_OK; }
-
-/* After the asset system, which creates the mixer these tracks are made on. */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_audio(void) { return nya_system_audio_init(); }
 
-/*
- * The world, which is entities, physics and the simulation barrier as one lifetime.
- */
 NYA_INTERNAL NYA_Error _nya_app_bring_up_world(void) {
     NYA_App* app = nya_app_get();
     app->world   = nya_world_create();
@@ -107,37 +76,21 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_world(void) {
 }
 
 NYA_INTERNAL void _nya_app_tear_down_save(void) { nya_system_save_deinit(); }
-
-/* Last, so the teardown of everything above it is in the file. */
 NYA_INTERNAL void _nya_app_tear_down_logfile(void) { nya_log_file_close(); }
-
-/* After settings, which writes its file on the way out into the directory the save system owns. */
 NYA_INTERNAL void _nya_app_tear_down_settings(void) { nya_system_settings_deinit(); }
-
 NYA_INTERNAL void _nya_app_tear_down_job(void) { nya_system_job_deinit(); }
 NYA_INTERNAL void _nya_app_tear_down_callback(void) { nya_system_callback_deinit(); }
-/* Before the callback registry it resolves completion handles through. */
 NYA_INTERNAL void _nya_app_tear_down_tween(void) { nya_system_tween_deinit(); }
 NYA_INTERNAL void _nya_app_tear_down_renderer(void) { nya_system_renderer_deinit(); }
 NYA_INTERNAL void _nya_app_tear_down_window(void) { nya_system_window_deinit(); }
 NYA_INTERNAL void _nya_app_tear_down_events(void) { nya_system_events_deinit(); }
 NYA_INTERNAL void _nya_app_tear_down_input(void) { nya_system_input_deinit(); }
 NYA_INTERNAL void _nya_app_tear_down_asset(void) { nya_system_asset_deinit(); }
-
-/* Before the event system stops feeding it, and before the process ends with a pad still buzzing. */
 NYA_INTERNAL void _nya_app_tear_down_gamepad(void) { nya_system_gamepad_deinit(); }
-
-/* Before the asset system, since its watch hook resolves locale files through the registry. */
 NYA_INTERNAL void _nya_app_tear_down_i18n(void) { nya_system_i18n_deinit(); }
-
-/* Before the asset system, since its watch hook resolves config files through the registry. */
 NYA_INTERNAL void _nya_app_tear_down_config(void) { nya_system_config_deinit(); }
-
-/* Before the asset system destroys the mixer the tracks belong to. */
 NYA_INTERNAL void _nya_app_tear_down_audio(void) { nya_system_audio_deinit(); }
 
-/* Everything the world holds — every entity, every rigid body, and whatever the game hung off
- * user_data — goes here, in the order nya_world_destroy knows about. */
 NYA_INTERNAL void _nya_app_tear_down_world(void) {
     NYA_App* app = nya_app_get();
     (void)nya_world_set(nullptr);
@@ -146,22 +99,22 @@ NYA_INTERNAL void _nya_app_tear_down_world(void) {
 }
 
 /**
- * Registers every engine subsystem, in bring-up order, each chained `after` the one before it so
- * nya_system_registry_finalize cannot produce anything but this exact order. **Teardown is this order
- * in reverse** — nya_system_registry_run_deinit's own contract, not something this function arranges.
+ * Registers every engine subsystem in bring-up order, each chained `after` the previous one so
+ * nya_system_registry_finalize can only produce this order. Teardown runs in reverse.
  * */
 void _nya_app_register_subsystems(void) {
-    // First up and last down, so every line another subsystem writes on its way up or down is in the file.
+    // first up and last down, so every other subsystem's log lines reach the file.
     nya_system_register((NYA_SystemEntry){ .name = "logfile", .init = _nya_app_bring_up_logfile, .deinit = _nya_app_tear_down_logfile });
 
-    // Before the settings it feeds.
+    // before settings, which it feeds. settings cannot fail: it owns no memory and loads defaults when nothing
+    // was saved. on the way out it writes into the save system's directory.
     nya_system_register((NYA_SystemEntry){ .name = "save", .after = "logfile", .init = _nya_app_bring_up_save, .deinit = _nya_app_tear_down_save });
     nya_system_register((NYA_SystemEntry){ .name         = "settings",
                                             .after        = "save",
                                             .init         = _nya_app_bring_up_settings,
                                             .deinit       = _nya_app_tear_down_settings });
 
-    // Before job, so the workers stop before the registry they resolve through is freed.
+    // before job, so the workers stop before the registry they resolve through is freed.
     nya_system_register((NYA_SystemEntry){ .name         = "callback",
                                             .after        = "settings",
                                             .init         = _nya_app_bring_up_callback,
@@ -186,25 +139,21 @@ void _nya_app_register_subsystems(void) {
 
     nya_system_register((NYA_SystemEntry){ .name = "asset", .after = "gamepad", .init = _nya_app_bring_up_asset, .deinit = _nya_app_tear_down_asset });
 
-    // After the asset system: a locale file is an asset, read and watched through the registry.
+    // after the asset system: a locale file is read and watched through the registry.
     nya_system_register((NYA_SystemEntry){ .name = "i18n", .after = "asset", .init = _nya_app_bring_up_i18n, .deinit = _nya_app_tear_down_i18n });
 
-    // After the asset system, for the same reason i18n is: a config file is read and, under hot
-    // reload, watched through the registry.
+    // after the asset system: a config file is read and, under hot reload, watched through the registry.
     nya_system_register((NYA_SystemEntry){ .name = "config", .after = "i18n", .init = _nya_app_bring_up_config, .deinit = _nya_app_tear_down_config });
 
-    // After the asset system, which creates the mixer these tracks are made on — and so torn down
-    // before it destroys that mixer.
+    // after the asset system, which creates the mixer these tracks use and destroys it after them.
     nya_system_register((NYA_SystemEntry){ .name = "audio", .after = "config", .init = _nya_app_bring_up_audio, .deinit = _nya_app_tear_down_audio });
 
     nya_system_register((NYA_SystemEntry){ .name = "world", .after = "audio", .init = _nya_app_bring_up_world, .deinit = _nya_app_tear_down_world });
 
-    // Last, so it is the first thing torn down. See the note above.
+    // last up, first down. the world is entities, physics and the simulation barrier as one lifetime.
     nya_system_register((NYA_SystemEntry){ .name = "window", .after = "world", .init = _nya_app_bring_up_window, .deinit = _nya_app_tear_down_window });
 
-    // A finalize failure here is a typo in one of the .after strings above, in a table only this
-    // function writes — a programmer error to catch at the next boot, not a runtime condition to
-    // recover from, which is why this asserts instead of propagating an NYA_Error to its own caller.
+    // a finalize failure is a typo in an `after` string above, which only this function writes, so it asserts.
     NYA_Error finalized = nya_system_registry_finalize();
     nya_assert(finalized.ok, "engine subsystem registration is broken: %s", (NYA_ConstCString)finalized.message);
 }
@@ -227,8 +176,7 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
 
     nya_integrity_assert();
 
-    // As early as possible: the baseline is only meaningful if nothing has had a chance to hook the
-    // process yet, and everything below this line is a chance.
+    // as early as possible: the integrity baseline only means something before anything could hook the process.
     nya_integrity_baseline_capture();
 
     nya_signals_init();
@@ -256,14 +204,9 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
 
     _nya_app_register_subsystems();
 
-    // Brought up in registration order and unwound in reverse of however far we got. Returning early
-    // and leaving half a world standing would leave the caller with nothing safe to do: nya_app_deinit
-    // would tear down systems that were never built.
-    //
-    // Deliberately not nya_system_registry_run_init: that stops on the first error too, but this still
-    // needs init_at/deinit_at rather than run_deinit for the unwind, because run_deinit tears down
-    // *everything* registered, not just what actually came up before the failure. See core_system.h's
-    // note on why those two accessors exist.
+    // Brought up in order and unwound in reverse of however far it got, so a failure leaves nothing half built.
+    // Not nya_system_registry_run_init, because its deinit tears down everything registered, not just what came
+    // up; see core_system.h.
     NYA_Error result     = NYA_OK;
     u32       brought_up = 0;
 
@@ -273,8 +216,8 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
         if (!result.ok) goto unwind;
     }
 
-    // After the renderer and the windows, since the watcher draws. Failing to register it is not
-    // fatal: it only costs the frames that would have been produced during a resize drag.
+    // after the renderer and windows, since the watcher draws. not fatal: it only costs frames during a resize
+    // drag.
     if (!SDL_AddEventWatch(_nya_app_live_resize_event_watch, nullptr)) {
         nya_log_warn("SDL_AddEventWatch() failed, the window will not redraw while being resized: %s", SDL_GetError());
     }
@@ -319,9 +262,7 @@ void nya_app_deinit(void) {
     // Before the renderer goes away, or a late expose could still ask a dead device to draw.
     SDL_RemoveEventWatch(_nya_app_live_resize_event_watch, nullptr);
 
-    // The registered order in reverse — the same order the unwind path uses, and for the same reasons.
-    // Safe to use run_deinit here unlike in the unwind path: by the time nya_app_deinit runs, every
-    // subsystem came up, so "deinit everything registered" and "deinit everything that came up" agree.
+    // the registered order in reverse. run_deinit is safe here: everything came up.
     nya_system_registry_run_deinit();
 
     nya_log_info("Subsystems deinitialized successfully.");
@@ -342,14 +283,12 @@ void nya_app_run(void) {
     NYA_App* app = nya_app_get();
 
     while (!app->should_quit) {
-        // Before the frame timer opens, so that timer is itself the frame's depth 0 span. Every
-        // scope entered from here until the next iteration is tagged with this frame number, which
-        // is what nya_perf_frame_spans selects on to reconstruct the breakdown.
+        // before the frame timer opens, so that timer is the frame's depth 0 span. nya_perf_frame_spans selects on
+        // this frame number.
         nya_perf_frame_begin();
 
         nya_perf_time_this_scope("frame");
 
-        // start of frame tasks
         {
             nya_event_dispatch((NYA_Event){
                 .type = NYA_EVENT_FRAME_STARTED,
@@ -357,15 +296,14 @@ void nya_app_run(void) {
 
             _nya_app_advance_frame_clock();
 
-            // Cheap, and does nothing until the UTC date actually changes. Without it a process that
-            // runs across midnight puts every following day into the file it started in.
+            // does nothing until the UTC date changes; without it a run across midnight logs every later day into the
+            // first file.
             nya_log_directory_roll();
 
-            // Before events are drained: the edges this clears are set by the events about to arrive.
+            // before events are drained: the edges it clears come from those events.
             nya_system_gamepad_frame_begin();
         }
 
-        // handle events
         {
             nya_perf_time_this_scope("frame_event_handling");
             nya_event_dispatch((NYA_Event){
@@ -407,14 +345,12 @@ void nya_app_run(void) {
         _nya_app_update();
         _nya_app_render();
 
-        // end of frame tasks
         {
             app->frame_stats.frame_end_time_ns  = nya_clock_get_monotonic_ns();
             app->frame_stats.prev_frame_time_ns = app->frame_stats.frame_start_time_ns;
             app->frame_stats.fps                = 1.0F / (f32)nya_time_ns_to_s(app->frame_stats.elapsed_ns);
 
-            // Observers read the frame's records here, then the records are dropped. Before the
-            // frame allocator is reset, so an observer may still touch anything a layer put there.
+            // observers read the frame's records, which are then dropped, before the frame allocator resets.
             nya_system_sim_end_frame();
 
             nya_arena_free_all(app->frame_allocator);
@@ -424,20 +360,14 @@ void nya_app_run(void) {
             });
         }
 
-        /*
-         * Framerate limiting, against the work *this* frame did.
-         */
-        // Recorded rather than computed and dropped. "What did this frame cost" is the first question
-        // anyone asks of a profiler, and the limiter is the only place that already knows.
+        /* Framerate limiting, against the work this frame did. */
+        // recorded: "what did this frame cost" is the first question a profiler gets.
         app->frame_stats.work_ns  = app->frame_stats.frame_end_time_ns - app->frame_stats.frame_start_time_ns;
         app->frame_stats.sleep_ns = 0;
 
         /*
-         * The unfocused cap wins while nothing has focus, and applies even under vsync.
-         *
-         * vsync caps at the display's rate; this asks for slower than that, so sleeping here lands before
-         * the swap would have blocked rather than fighting it. The focused cap keeps its old condition,
-         * because asking for *faster* than vsync is the case the two really do disagree about.
+         * The unfocused cap applies whenever nothing has focus, even under vsync, since it asks for slower than the
+         * display rate. The focused cap still defers to vsync.
          */
         u64 floor_ns = 0;
 
@@ -463,8 +393,7 @@ void _nya_app_advance_frame_clock(void) {
     app->frame_stats.elapsed_ns           = app->frame_stats.frame_start_time_ns - app->frame_stats.prev_frame_time_ns;
     app->frame_stats.time_behind_ns      += (s64)app->frame_stats.elapsed_ns;
 
-    // Debt the update loop could not pay off is dropped rather than carried. See
-    // _NYA_APP_MAX_CATCH_UP_TICKS: carrying it is what turns one slow frame into a permanent one.
+    // unpaid debt is dropped; carrying it turns one slow frame into permanent catch-up.
     s64 max_debt_ns = (s64)app->options.time_step_ns * _NYA_APP_MAX_CATCH_UP_TICKS;
     if (app->frame_stats.time_behind_ns > max_debt_ns) app->frame_stats.time_behind_ns = max_debt_ns;
 }
@@ -478,20 +407,14 @@ void _nya_app_update(void) {
             .type = NYA_EVENT_UPDATING_STARTED,
         });
 
-        // Once per tick, before anything reads it. This is the fixed step and nothing about it
-        // varies per window or per layer, so assigning it inside those loops only meant that an app
-        // with no layer to update left the field holding whatever the last differently configured
-        // tick put there — and every observer of NYA_EVENT_UPDATING_STARTED sees it.
+        // set once per tick before anything reads it, so every observer of NYA_EVENT_UPDATING_STARTED sees this
+        // tick's value.
         app->frame_stats.delta_time_s = (f32)nya_time_ns_to_s(app->options.time_step_ns);
 
-        /*
-         * The solver runs at the top of the tick, before anything reads the world.
-         */
+        /* The solver runs at the top of the tick, before anything reads the world. */
         nya_system_physics2d_update(app->frame_stats.delta_time_s);
 
-        // Both worlds, every tick, in a fixed order. A scene uses one of them and the other steps
-        // over an empty body list, which nya_system_physics3d_update short circuits — so a purely 2D
-        // game pays a branch for the 3D world it never touched.
+        // both worlds every tick; an empty one returns immediately.
         nya_system_physics3d_update(app->frame_stats.delta_time_s);
 
         for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
@@ -502,8 +425,7 @@ void _nya_app_update(void) {
                 NYA_LayerOnUpdateFn on_update_fn = nya_callback_get(layer->on_update);
                 if (!layer->enabled || on_update_fn == nullptr) continue;
 
-                // A layer's id is the string literal it was declared with, so it doubles as the span
-                // name — which is what turns "frame_updating took 2 ms" into "which layer".
+                // a layer's id is its span name, so the breakdown says which layer.
                 nya_perf_time_this_scope((NYA_ConstCString)layer->id);
 
                 on_update_fn(window, app->frame_stats.delta_time_s);
@@ -511,25 +433,21 @@ void _nya_app_update(void) {
         }
 
         /*
-         * Tweens after the layers and before the entities, and the ordering is load-bearing in both
-         * directions.
+         * Tweens after the layers and before the entities: layers start tweens this tick, and entities read the
+         * values tweens write.
          */
         nya_system_tween_update(app->frame_stats.delta_time_s);
 
-        // Entities update after the layers, so a layer that spawns something gets it
-        // simulated on the same tick rather than a frame late.
+        // entities after the layers, so something a layer spawns is simulated this tick.
         nya_system_entity_update(app->frame_stats.delta_time_s);
 
 #ifndef NYA_NO_SDL
-        /*
-         * Networking, after everything that changes the world and before the barrier.
-         */
+        /* Networking, after everything that changes the world and before the barrier. */
         nya_net_server_tick(nya_world()->sim_system.tick, app->frame_stats.delta_time_s);
         nya_net_client_tick(nya_world()->sim_system.tick, app->frame_stats.delta_time_s);
 #endif
 
-        // The barrier. Every update for this tick has run, so nothing is mid iteration and
-        // the queued mutations can be applied without changing what anyone is walking.
+        // the barrier: every update has run, so queued mutations apply without disturbing iteration.
         nya_system_sim_apply_commands();
         nya_world()->sim_system.tick++;
 
@@ -561,17 +479,14 @@ void _nya_app_render(void) {
         NYA_Window* window = nya_window_at_slot(slot);
         if (window == nullptr) continue;
 
-        // Nothing to draw into: the window is minimised, occluded, or its swapchain is mid
-        // resize. Skipping the layers is the point — drawing anyway used to land in the
-        // previous frame's render pass, whose texture was the previous window size.
+        // nothing to draw into: minimised, occluded or mid resize. drawing anyway would target last frame's pass.
         if (!nya_render_begin(window)) continue;
 
         nya_array_foreach (window->layer_stack, layer) {
             NYA_LayerOnRenderFn on_render_fn = nya_callback_get(layer->on_render);
             if (!layer->enabled || on_render_fn == nullptr) continue;
 
-            // Same as the update loop: the layer's id names its span, so the render breakdown says
-            // which layer rather than only how long all of them took together.
+            // the layer's id names its span.
             nya_perf_time_this_scope((NYA_ConstCString)layer->id);
 
             on_render_fn(window);
@@ -590,8 +505,7 @@ void _nya_app_frame_step(b8 live_resize) {
 
     NYA_Arena* outer_allocator = app->frame_allocator;
     if (live_resize) {
-        // The outer frame's allocations have to survive the drag, so a nested step gets its own
-        // arena and empties that one instead.
+        // the outer frame's allocations must survive the drag, so a nested step uses its own arena.
         nya_arena_free_all(app->live_resize_allocator);
         app->frame_allocator = app->live_resize_allocator;
     }
@@ -600,9 +514,8 @@ void _nya_app_frame_step(b8 live_resize) {
     _nya_app_update();
     _nya_app_render();
 
-    // Same bookkeeping the outer loop does at the end of a frame, minus the frame allocator reset.
-    // Without it the drag's whole duration arrives as one delta when the mouse comes up, and the
-    // fixed timestep loop pays that debt off as a burst of catch up ticks.
+    // the outer loop's end-of-frame bookkeeping, without the allocator reset. otherwise the whole drag arrives as
+    // one delta and the fixed step catches up in a burst.
     app->frame_stats.frame_end_time_ns  = nya_clock_get_monotonic_ns();
     app->frame_stats.prev_frame_time_ns = app->frame_stats.frame_start_time_ns;
     if (app->frame_stats.elapsed_ns > 0) app->frame_stats.fps = 1.0F / (f32)nya_time_ns_to_s(app->frame_stats.elapsed_ns);
@@ -613,11 +526,10 @@ void _nya_app_frame_step(b8 live_resize) {
 bool SDLCALL _nya_app_live_resize_event_watch(void* userdata, SDL_Event* event) {
     nya_unused(userdata);
 
-    // Watchers see every event on the way in, including the ones this frame is about to produce, so
-    // a step must never start inside another one.
+    // watchers see events on the way in, so a step must never start inside another.
     static b8 stepping = false;
 
-    // data1 == 0 is an ordinary expose, which the main loop is awake to handle by itself.
+    // data1 == 0 is an ordinary expose, which the main loop handles.
     b8 is_live_resize_expose = event->type == SDL_EVENT_WINDOW_EXPOSED && event->window.data1 == 1;
     if (!is_live_resize_expose || stepping) return true;
 

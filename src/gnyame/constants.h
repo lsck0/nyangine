@@ -14,8 +14,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/* The ground is a polyline sampled at a fixed spacing: wider is cheaper and more angular; the crates
- * notice. */
+/* The ground is a polyline at a fixed spacing: wider is cheaper and more angular, which the crates notice. */
 
 #define GNY_TERRAIN_HALF_WIDTH  2400.0F
 #define GNY_TERRAIN_POINT_STEP  28.0F
@@ -44,30 +43,21 @@
 #define GNY_CAMERA_START_ZOOM 1.0F
 
 /**
- * How far a sound gets from the camera before it fades, in world units. About a third of the view, so
- * an edge-of-screen impact reads as audibly further than a central one. See NYA_AudioListener.reference_distance.
+ * How far a sound gets from the camera before it fades, in world units. About a third of the view, so an edge
+ * impact sounds further than a central one.
  * */
 #define GNY_CAMERA_EAR_DISTANCE 400.0F
 
 /**
- * Fraction of the remaining gap closed per tick — exponential easing, not constant speed, so it starts
- * fast and settles without overshoot or needing to know the target's speed. ~0.1 reads as keeping up,
- * not welded on.
+ * Fraction of the remaining gap closed per tick. Exponential easing settles without overshoot and without
+ * knowing the target's speed; about 0.1 keeps up without looking welded on.
  * */
 #define GNY_CAMERA_FOLLOW_EASING 0.12F
 
-/**
- * World units per second. Separate from the camera's pan speed since the two are in different terms:
- * the camera's scales with zoom, this is a speed in the world.
- * */
+/** World units per second. Unlike the camera's pan speed, which scales with zoom. */
 #define GNY_PLAYER_MOVE_SPEED 420.0F
 
-/*
- * ── Secondary views ──
- *
- * A non-primary camera renders into its own texture, composited into a viewport: a window onto
- * somewhere else in the world.
- */
+/* Secondary views: a non-primary camera renders into its own texture, composited into a viewport. */
 
 /** Size of the inset the demo opens when a crate is followed, in window pixels. */
 #define GNY_CAMERA_VIEW_WIDTH  320.0F
@@ -101,51 +91,35 @@
 #define GNY_PIPELINE_BLOOM "gny_bloom_pipeline"
 
 /**
- * Luminance a pixel needs before it glows, in the 2D world. This and the two below were badly out
- * because the bloom pass ran with an unbound uniform buffer (see gny_bloom_pipeline_ensure), so its
- * cbuffer read as zeros and the pass was a silent pass-through — the world whited out the moment the
- * binding was fixed. Half is roughly where a lit crate sits; the terrain fill (~0.15) stays under it,
- * and a settled crate darkened by the sleep tint drops below threshold and stops glowing.
+ * Luminance a pixel needs before it glows in the 2D world. Half is about a lit crate; the terrain fill (~0.15)
+ * stays under it, and a sleeping crate's tint drops below it.
  * */
 #define GNY_BLOOM_2D_THRESHOLD 0.50F
 
-/**
- * How hard the glow is added back, below one so a glowing crate keeps its edges and colour instead of
- * becoming a white blob. Was 2.2, tuned for a threshold of 0.22 that no longer catches the scene.
- * */
+/** How hard the glow is added back. Below one, so a glowing crate keeps its edges and colour. */
 #define GNY_BLOOM_2D_INTENSITY 0.70F
 
 /**
- * How far apart the kernel's samples sit, in pixels. effect_bloom.frag.hlsl's five-by-five kernel steps
- * `±2` texels, so the true texel size gives a halo two pixels wide — correct but invisible at any real
- * window size. A multiple spreads the same 25 taps over a radius worth seeing; too large and the taps
- * separate into a visible boxy star. Three is a halo without visible taps.
+ * Spacing of the bloom kernel's samples, in pixels. The 5x5 kernel steps ±2 texels, which at the true texel
+ * size is an invisible halo; too large and the taps separate into a boxy star. Three looks right.
  * */
 #define GNY_BLOOM_2D_SPREAD 3.0F
 
 /*
- * ── The 3D scene's own bloom ──
- *
- * Separate numbers: the 2D world is dim and darkens as crates settle (low threshold, high intensity);
- * the 3D scene is a lit daylight landscape where a 0.22 threshold makes almost every pixel "bright".
- * These were never caught either, for the same unbound-uniform reason as above — the pass ran with a
- * zeroed cbuffer, i.e. zero intensity, until the binding was fixed.
+ * The 3D scene's own bloom numbers: a daylight landscape where the 2D threshold would make almost every pixel
+ * bright.
  */
 
 /**
- * Just under where the brightest *lit* surfaces land, not above them: mesh3d_tonemap is identity to 0.6
- * and compresses above, so lit surfaces land under ~0.86 and emissive above ~0.95. The first value
- * (0.90) sat in the gap — arithmetically correct but nearly invisible, since the tonemap had already
- * solved the blowout problem. Now it sits inside the top of the lit range: the rim, sun highlights and
- * horizon catch a little glow while a saturated crate (luma ~0.6 in full sun) stays clear.
+ * Just below the brightest lit surfaces. mesh3d_tonemap puts lit surfaces under ~0.86 and emission above ~0.95,
+ * so the rim, highlights and horizon catch a little glow while a saturated crate (luma ~0.6) stays clear.
  * */
 #define GNY_BLOOM_3D_THRESHOLD 0.78F
 
-/** Around one, so what clears the threshold is visible. At 0.6 the little that got through was added
- *  back at under half strength, reading as switched off. */
+/** Around one, so what clears the threshold is visible. */
 #define GNY_BLOOM_3D_INTENSITY 1.10F
 
-/** Tighter than the 2D world's, so a lamp gets a halo rather than a haze over the whole landscape. */
+/** Tighter than the 2D world's, so a lamp gets a halo rather than a haze. */
 #define GNY_BLOOM_3D_SPREAD 3.0F
 
 /*
@@ -155,10 +129,8 @@
  */
 
 /**
- * Frames per second while the game has no focus. See NYA_AppOptions.unfocused_frame_rate_limit.
- *
- * Fifteen: still animating, so alt-tabbing back does not show a frozen scene catching up, at an eighth of
- * the focused cap's GPU cost. Zero would leave it drawing at full rate behind another window.
+ * Frames per second without focus. See NYA_AppOptions.unfocused_frame_rate_limit. Fifteen keeps animating, so
+ * alt-tabbing back shows no frozen catch-up, at an eighth of the GPU cost.
  * */
 #define GNY_UNFOCUSED_FRAME_RATE 15
 
@@ -166,35 +138,25 @@
 #define GNY_MUSIC_GAIN 0.45F
 
 /**
- * Where the music slider starts, before the player touches it. Separate from GNY_MUSIC_GAIN (the
- * track's own mix level): this is a *setting*, written by gny_actions_init, edited by the pause menu,
- * and persisted.
+ * Where the music slider starts. A setting, unlike GNY_MUSIC_GAIN (the track's mix level): written by
+ * gny_actions_init, edited in the pause menu, persisted.
  * */
 #define GNY_MUSIC_VOLUME_DEFAULT 0.7F
 
 /** How much one press of left or right on a volume row moves it. */
 #define GNY_VOLUME_STEP 0.05F
 
-/** Long enough that the track arrives rather than starting, since it has no lead-in of its own. */
+/** Long enough that the track fades in, since it has no lead-in. */
 #define GNY_MUSIC_FADE_IN_MS 1500
 
-/**
- * Whether the background track starts silent. Loaded and started, then paused immediately, rather than
- * not played at all — `m` resumes the track and there must be something to resume.
- * */
+/** Whether the background track starts silent. It is started and then paused, so `m` has something to resume. */
 #define GNY_MUSIC_START_MUTED true
 
-/*
- * ── Impact audio ──
- *
- * Everything below the physics hit threshold never reaches the game at all; see physics2d.h. These
- * decide what the ones that do sound like.
- */
+/* Impact audio. Hits below the physics threshold never reach the game (see physics2d.h); these shape the rest. */
 
 /**
- * Impacts given a voice per frame. Sixteen voices total, and a collapsing stack can produce dozens of
- * hits in one frame, so this is a budget, not a limit on what the world may do — per frame, not per
- * tick, so the spender sees the whole frame and can pick the *loudest* impacts. See sim.h.
+ * Impacts given a voice per frame. A collapsing stack produces dozens of hits and there are sixteen voices, so
+ * this is a budget. Per frame, so the loudest impacts win. See sim.h.
  * */
 #define GNY_HIT_VOICES_PER_FRAME 6
 
@@ -229,26 +191,22 @@
 /** Slow moving specks, to make motion visible in the empty part of the sky. */
 #define GNY_MOTE_COUNT 64
 
-/** Seeds for nya_ihash2, giving the motes their positions and the crates their sizes. Arbitrary, and
- *  different from each other only so the two don't correlate. */
+/** Seeds for nya_ihash2: mote positions and crate sizes. Different only so the two do not correlate. */
 #define GNY_MOTE_SEED 0x5EED
 #define GNY_BOX_SEED  0xC4A7E
 
-/*
- * ── The day/night cycle ──
- *
- * GNY_SKY_TOP and GNY_SKY_BOTTOM are gone: the gradient's two colours now come from the keyframe table
- * in system_sky.c, since they change through the day. What's left here is the shape of the cycle.
- */
+/* Day/night cycle. The gradient colours come from the keyframe table in system_sky.c; this is the cycle's shape. */
 
 /** How long a full day takes, in seconds. Short enough to see the whole cycle without waiting. */
 #define GNY_DAY_LENGTH_S 120.0F
 
-/** Where the demo starts in the day. 0.32 is mid morning, so the first frame is lit and not black. */
+/** Where the day starts. 0.32 is mid morning, so the first frame is lit. */
 #define GNY_SKY_START_PHASE 0.32F
 
-/** Lowest the sun is allowed to sit, as a sine of its arc — a perfectly horizontal light lands along
- *  the ground plane, lighting nothing and degenerating the shadow volume. */
+/**
+ * Lowest the sun may sit, as the sine of its arc. A horizontal light lights nothing and degenerates the shadow
+ * volume.
+ * */
 #define GNY_SKY_MIN_ELEVATION 0.12F
 
 /** The disc: its size as a fraction of the window, and the path it travels. */
@@ -256,13 +214,12 @@
 #define GNY_SKY_DISC_HORIZON 0.62F
 #define GNY_SKY_DISC_RISE    0.44F
 
-/** Two flat rings under the disc. A cartoon glow has an edge, which is the point of the style. */
+/** Two flat rings under the disc. A cartoon glow has an edge. */
 #define GNY_SKY_HALO_ALPHA 0.10F
 #define GNY_SKY_HALO_INNER 1.9F
 #define GNY_SKY_HALO_OUTER 3.2F
 
-/** How much the moon's craters darken it, and how much less it glows than the sun. No crescent constant
- *  any more; see _gny_sky_disc_draw for why that occlusion trick can't work over a halo. */
+/** How much the moon's craters darken it, and how much less it glows than the sun. See _gny_sky_disc_draw. */
 #define GNY_SKY_CRATER_SHADE 0.82F
 #define GNY_SKY_MOON_HALO    0.35F
 
@@ -284,16 +241,13 @@
 #define GNY_SKY_CLOUD_MAX    0.055F
 #define GNY_SKY_CLOUD_SPEED  6.0F
 /**
- * Opaque, and it has to be: a cloud is three circles and a rectangle overlapping, and translucent parts
- * *double-blend* where they overlap, so every seam draws itself, plainly visible at 0.85. Softness
- * comes from GNY_SKY_CLOUD_TINT instead — mixing toward the horizon colour, from a paler colour rather
- * than a transparent one.
+ * Opaque: a cloud is overlapping shapes, and translucent parts double-blend at the seams. Softness comes from
+ * GNY_SKY_CLOUD_TINT instead.
  * */
 #define GNY_SKY_CLOUD_ALPHA  1.0F
 #define GNY_SKY_CLOUD_COLOR  ((NYA_Color){ 1.0F, 0.99F, 0.97F, 1.0F })
 
-/** How far the clouds are tinted toward the horizon colour: a white cloud at dusk gives away a static
- *  backdrop, and since clouds are opaque this alone keeps them from reading as cut-out paper. */
+/** How far clouds tint toward the horizon colour. A white cloud at dusk looks like a static backdrop. */
 #define GNY_SKY_CLOUD_TINT 0.55F
 
 #define GNY_RIDGE_FAR  ((NYA_Color){ 0.17F, 0.16F, 0.28F, 1.0F })
@@ -311,7 +265,7 @@
 /** The larger face registered as "title". One face at two sizes is two atlases; see render_font.h. */
 #define GNY_UI_TITLE_FONT_SIZE 28.0F
 
-/** How often the startup script's optional hook runs, seconds. Not per frame — see gny_world_script_tick. */
+/** How often the startup script's optional hook runs, in seconds. See gny_world_script_tick. */
 #define GNY_LUA_TICK_INTERVAL_S 1.0F
 
 #define GNY_UI_MARGIN  16.0F
@@ -323,11 +277,7 @@
 #define GNY_UI_DIM     ((NYA_Color){ 0.58F, 0.62F, 0.70F, 1.0F })
 #define GNY_UI_WARNING ((NYA_Color){ 1.0F, 0.72F, 0.30F, 1.0F })
 
-/*
- * ── Frame trace ──
- *
- * The panel `t` opens: every perf span the previous frame recorded, indented by nesting depth.
- */
+/* Frame trace: the panel `t` opens, listing the previous frame's perf spans by nesting depth. */
 
 /** Widest the trace panel gets. Span names are short and the numbers are right aligned inside it. */
 #define GNY_TRACE_WIDTH 420.0F
@@ -335,14 +285,13 @@
 /** Pixels of indent per nesting level, so the shape of the frame is readable at a glance. */
 #define GNY_TRACE_INDENT 14.0F
 
-/** Spans drawn. A frame with more than this has a deeper story than a HUD panel should tell. */
+/** Spans drawn at most. */
 #define GNY_TRACE_MAX_SPANS 48
 
 /** A span taking at least this fraction of the frame's work is drawn in the warning colour. */
 #define GNY_TRACE_HOT_FRACTION 0.25F
 
-/** Seconds before the one-shot frame breakdown is logged. Late enough that asset loads and the first
- *  swapchain resize are behind it, so the report reflects steady state, not startup. */
+/** Seconds before the one-shot frame breakdown is logged, late enough to miss startup loads and resizes. */
 #define GNY_TRACE_LOG_AFTER_S 4.0F
 
 /*
@@ -355,8 +304,7 @@
 #define GNY_MENU_TITLE_SIZE 44.0F
 #define GNY_MENU_ITEM_SIZE  22.0F
 
-/* The panel is centred and sized from its contents, so a menu with three items is not padded out to
- * the height of one with five. */
+/* The panel is centred and sized from its contents. */
 #define GNY_MENU_WIDTH       360.0F
 #define GNY_MENU_ITEM_HEIGHT 42.0F
 #define GNY_MENU_PADDING     28.0F
@@ -388,9 +336,7 @@
 #define GNY_CUBE3D_DROP_HEIGHT 4.0F
 
 #define GNY_CUBE3D_GROUND_SIZE      16.0F
-/** Where the orbit starts: yaw and pitch in radians, range in metres. The range was seven, putting the
- *  camera *inside* a sixteen metre landscape; twenty is roughly the far corner, so the whole basin is
- *  in shot at the start. */
+/** Where the orbit starts: yaw and pitch in radians, range in metres. Twenty metres puts the whole basin in shot. */
 #define GNY_CUBE3D_ORBIT_YAW   0.7F
 #define GNY_CUBE3D_ORBIT_PITCH 0.45F
 #define GNY_CUBE3D_ORBIT_RANGE 20.0F
@@ -402,18 +348,16 @@
 #define GNY_CUBE3D_RANGE_MIN 2.5F
 #define GNY_CUBE3D_RANGE_MAX 45.0F
 
-/** Angular impulse per pixel of drag. Small, since an impulse is a change in angular *momentum* and the
- *  cube's is low (a metre cube at 400 kg/m³); ten times this and a flick sends it tumbling off. */
+/**
+ * Angular impulse per pixel of drag. Small, since the cube's angular momentum is low (a metre cube at
+ * 400 kg/m³); ten times this sends it tumbling off.
+ * */
 #define GNY_CUBE3D_SPIN_STRENGTH 0.02F
 
 /** How far the picking ray reaches, in metres. Past the far edge of the ground. */
 #define GNY_CUBE3D_PICK_RANGE 100.0F
 
-/*
- * A flat cartoon palette: saturated objects on a light ground. The ground used to be near-black, which
- * hid how little light the physically based shader it was chosen for actually put on anything; under
- * the banded model objects keep their own colour, so a light ground reads as a lit room, not a void.
- */
+/* A flat cartoon palette: saturated objects on a light ground, which reads as a lit room under banded shading. */
 #define GNY_CUBE3D_COLOR        ((NYA_Color){ 0.95F, 0.52F, 0.24F, 1.0F })
 #define GNY_CUBE3D_HELD_COLOR   ((NYA_Color){ 0.99F, 0.82F, 0.34F, 1.0F })
 /*
@@ -427,70 +371,60 @@
  */
 
 /**
- * Cells per side (vertex grid is one larger each direction). Thirty-two is where two limits meet: the
- * draw is 2048 flat triangles (6144 of the 3D batch's 16384, leaving room for cubes in the same flush),
- * doubled since the scene draws twice per frame for the shadow map. Sixty-four would be 24576 vertices
- * and split into two draw calls before a single cube was queued.
+ * Cells per side (the vertex grid is one larger). Thirty-two draws 2048 flat triangles, 6144 vertices of the 3D
+ * batch's 16384, leaving room for cubes in the same flush. Sixty-four would split into two draw calls before any
+ * cube was queued.
  * */
 #define GNY_TERRAIN3D_RES 32
 
-/** Metres across, matching the ground the scene was built around so the camera limits still fit. */
+/** Metres across; the camera limits are fitted to it. */
 #define GNY_TERRAIN3D_EXTENT GNY_CUBE3D_GROUND_SIZE
 
 #define GNY_TERRAIN3D_CELL (GNY_TERRAIN3D_EXTENT / (f32)GNY_TERRAIN3D_RES)
 
 /**
- * How far a terrain chunk has to be from the viewer before it drops a detail level, doubling per level.
- *
- * ⚠ **In chunk widths, not in fractions of the world.** This was a quarter of the ground's width — four
- * units on a sixteen-unit scene — which is *half a chunk*, so every chunk including the one under the
- * camera was already two or three levels down and the whole surface drew at its coarsest. The scale
- * that decides when a cell stops being worth resolving is the size of a chunk against the viewing
- * distance; the extent of the world has nothing to do with it.
+ * How far a terrain chunk has to be from the viewer before it drops a detail level, doubling per level. In
+ * chunk widths: the size of a chunk against the viewing distance decides when detail is worth it, not the size
+ * of the world.
  * */
 #define GNY_TERRAIN3D_LOD_DISTANCE (GNY_TERRAIN3D_CELL * (f32)NYA_TERRAIN3D_CHUNK_CELLS * 4.0F)
 
 /**
- * Metres from lowest point to highest, roughly — fBm isn't bounded to its nominal range, so a seed's
- * extremes land a little inside or outside this. Two and a half over sixteen is gentle: enough slope
- * that a cube settles differently each time, shallow enough it doesn't slide off the edge.
+ * Metres from lowest to highest, roughly; fBm is not strictly bounded. Gentle enough that cubes settle
+ * differently each time without sliding off.
  * */
 #define GNY_TERRAIN3D_AMPLITUDE 2.5F
 
 /**
- * Where the rim starts lifting, as a fraction of the way from centre to edge. Everything inside is
- * free noise; past it the noise fades and the rim comes up, so the two never fight over the same ground.
+ * Where the rim starts lifting, as a fraction from centre to edge. Noise inside, rim outside, so they never
+ * fight.
  * */
 #define GNY_TERRAIN3D_RIM_START 0.55F
 
-/** How high the rim stands, in units of GNY_TERRAIN3D_AMPLITUDE. Above one, so it clears the highest
- *  the noise can reach and has no gap a cube can roll through — keeps the pile in without invisible walls. */
+/**
+ * How high the rim stands, in units of GNY_TERRAIN3D_AMPLITUDE. Above one, so it clears the noise and keeps the
+ * pile in without invisible walls.
+ * */
 #define GNY_TERRAIN3D_RIM_HEIGHT 1.15F
 
-/** How much world distance one unit of noise input covers. Lower is broader hills. */
+/** World distance per unit of noise input. Lower is broader hills. */
 #define GNY_TERRAIN3D_FREQUENCY 0.09F
 
 #define GNY_TERRAIN3D_OCTAVES    4
 #define GNY_TERRAIN3D_LACUNARITY 2.0F
 #define GNY_TERRAIN3D_GAIN       0.5F
 
-/** How much a cube sticks to a slope. High, so a landing settles rather than sliding to the edge. */
+/** Slope friction for cubes. High, so landings settle instead of sliding. */
 #define GNY_TERRAIN3D_FRICTION 0.85F
 
 /**
- * The bands the surface is coloured in, low to high. Flat bands, not a gradient, matching the banded
- * shading: colour is chosen per triangle, so the boundary falls on a triangle edge and reads as a
- * facet rather than a contour line.
- */
+ * The bands the surface is coloured in, low to high. Chosen per triangle, so boundaries fall on triangle edges
+ * and read as facets.
+ * */
 #define GNY_TERRAIN3D_COLOR_LOW  ((NYA_Color){ 0.42F, 0.56F, 0.38F, 1.0F })
 #define GNY_TERRAIN3D_COLOR_MID  ((NYA_Color){ 0.55F, 0.67F, 0.42F, 1.0F })
 #define GNY_TERRAIN3D_COLOR_HIGH ((NYA_Color){ 0.72F, 0.74F, 0.58F, 1.0F })
-/*
- * Pale dune. Darker than wanted for a while as a workaround: mesh3d.frag used to clamp output at 1.0,
- * so a fully lit pale surface reached the same value as an emissive lamp and no bloom threshold could
- * separate them. mesh3d_tonemap put the headroom back (lit 0.86 lands near 0.79, emissive near 0.99),
- * freeing the colour to suit the palette again.
- */
+/* Pale dune. */
 #define GNY_TERRAIN3D_COLOR_PEAK ((NYA_Color){ 0.86F, 0.83F, 0.71F, 1.0F })
 
 /** Where each band starts, as a fraction of the height range. */
@@ -499,9 +433,8 @@
 #define GNY_TERRAIN3D_BAND_PEAK 0.84F
 
 /**
- * How much a triangle's colour is jittered from its band, either side — stops a band reading as a flat
- * sheet. Hashed from the cell index, not sampled from noise, so it's stable across frames; a shimmering
- * facet would undo the point.
+ * Per-triangle colour jitter around its band, so bands do not look like flat sheets. Hashed from the cell
+ * index, so it does not shimmer.
  * */
 #define GNY_TERRAIN3D_SHADE_JITTER 0.06F
 
@@ -534,45 +467,38 @@
 /** Radians per second of initial tumble, either side, so no two land on the same face. */
 #define GNY_TERRAIN3D_CUBE_SPIN 3.0F
 
-/** Below this the cube has fallen off the world and is put back at the top — recycled, not despawned,
- *  since the pool is fixed. */
+/** Below this a cube has fallen off the world and is put back at the top. */
 #define GNY_TERRAIN3D_CUBE_KILL_Y (-12.0F)
 
 /*
- * ── Glass cubes ──
- *
- * Some of the pile is glass: a translucent *solid* is the case sorted transparency exists for — six
- * faces per cube, several overlapping, all moving, drawing visibly wrong the moment ordering is off.
- * What reads them as glass, not coloured cellophane, is the cel shader's own terms — a tight bright
- * highlight and strong rim, as an artist would draw a glass edge.
+ * Glass cubes: translucent solids, the case sorted transparency exists for. The cel shader's tight highlight and
+ * strong rim are what read as glass.
  */
 
 /** One in this many cubes is glass. Four leaves enough opaque ones for the glass to be seen against. */
 #define GNY_CUBE3D_GLASS_EVERY 4
 
 /**
- * Pale and barely tinted, since saturated glass reads as plastic. Near-neutral rather than blue,
- * deliberately: the basin's water is blue, and a similarly tinted glass cube would merge into it as one
- * cyan haze. Alpha routes it into the sorted transparent pass; a quarter shows the far wall through the
- * near one — most of what makes it look solid, not hollow — and is low enough that three stacked don't
- * turn opaque.
+ * Pale and nearly neutral: saturated glass reads as plastic, and a blue tint would merge with the water. A
+ * quarter alpha shows the far wall through the near one without three stacked turning opaque.
  * */
 #define GNY_CUBE3D_GLASS_COLOR ((NYA_Color){ 0.80F, 0.88F, 0.86F, 0.26F })
 
 /**
- * A glass material: hard highlight, tight bands, strong rim, no edge darkening. `metallic` is
- * highlight strength here, not metalness; `roughness` is band softness, low for a crisp terminator.
+ * A glass material: hard highlight, tight bands, strong rim, no edge darkening. `metallic` is highlight
+ * strength, `roughness` band softness.
  * */
 #define GNY_CUBE3D_GLASS_METALLIC    0.95F
 #define GNY_CUBE3D_GLASS_ROUGHNESS   0.12F
 #define GNY_CUBE3D_GLASS_REFLECTANCE 1.0F
 
-/** How far the glass bends what's behind it. See NYA_Render3DMaterial.refraction. Small: it's a
- *  screen-space offset, not a traced ray, so a large value looks like image tearing, not thicker glass. */
+/**
+ * How far the glass bends what is behind it. See NYA_Render3DMaterial.refraction. Small: it is a screen-space
+ * offset, and large values look torn.
+ * */
 #define GNY_CUBE3D_GLASS_REFRACTION 0.45F
 
-/** Blur levels the glass cubes cycle through: clear, lightly frosted, heavily frosted. Three, not one,
- *  since a single value can't show what the knob does. Cycled by index, so R replays the arrangement. */
+/** Blur levels the glass cubes cycle through: clear, lightly frosted, heavily frosted. */
 #define GNY_CUBE3D_GLASS_BLURS \
     { 0.0F, 0.35F, 0.85F }
 
@@ -583,8 +509,7 @@
         { 0.55F, 0.82F, 0.55F, 1.0F }, { 0.72F, 0.56F, 0.92F, 1.0F },                                                                         \
     }
 
-/** How far a sound gets from the 3D camera before it fades, in metres. About half the terrain, so a
- *  cube on the far rim is audibly further than one at the viewer's feet without the near ones deafening. */
+/** How far a sound gets from the 3D camera before it fades, in metres. About half the terrain. */
 #define GNY_CUBE3D_EAR_DISTANCE (GNY_TERRAIN3D_EXTENT * 0.5F)
 
 /*
@@ -597,56 +522,52 @@
  */
 
 /**
- * Below the horizon: distant land seen through haze, not a void. A dark slate was tried on the theory
- * the world should read as sitting *on* something, but with terrain only sixteen metres across and the
- * camera pitched down, a dark ground made a small lit island float in a black field. A desaturated
- * green-grey close to the terrain's low band reads as more landscape receding — what haze looks like.
+ * Below the horizon: distant land in haze. A desaturated green-grey near the terrain's low band reads as more
+ * landscape; a dark ground made the small lit island float in black.
  * */
 #define GNY_SKY3D_GROUND ((NYA_Color){ 0.34F, 0.39F, 0.35F, 1.0F })
 
-/** Angular radius of the disc, radians. Life-size is 0.0087, which reads as a dot; this is a shape. */
+/** Angular radius of the disc, radians. Life-size (0.0087) reads as a dot. */
 #define GNY_SKY3D_SUN_ANGLE 0.055F
 
 #define GNY_SKY3D_SUN_INTENSITY  1.0F
 #define GNY_SKY3D_MOON_INTENSITY 0.55F
 
-/** Halo exponent. Low is a wide atmospheric glow, high is a tight ring — see NYA_Render3DSky.sun_halo. */
+/** Halo exponent. Low is a wide glow, high a tight ring. See NYA_Render3DSky.sun_halo. */
 #define GNY_SKY3D_SUN_HALO  48.0F
 #define GNY_SKY3D_MOON_HALO 320.0F
 
 /** Above one, so the horizon colour holds further up the sky than a linear ramp would put it. */
 #define GNY_SKY3D_HORIZON_SOFTNESS 1.4F
 
-/** How wide the fade into the ground half is, in sine-of-elevation units — wide enough to read as haze,
- *  not a drawn line; a narrow band gives a hard horizon, wrong for a world that simply stops. */
+/**
+ * Width of the fade into the ground half, in sine-of-elevation units: wide enough to read as haze rather than a
+ * drawn horizon.
+ * */
 #define GNY_SKY3D_GROUND_BLEND 0.14F
 
 /**
- * Fog density, per metre. The terrain is GNY_TERRAIN3D_EXTENT across, so this fogs the far rim to about a
- * third and leaves anything at the viewer's feet untouched — enough to read as depth on a scene this
- * small, where a density tuned for a real landscape would be invisible across sixteen metres.
+ * Fog density per metre, fogging the far rim to about a third and leaving the foreground clear. A real
+ * landscape's density would be invisible across sixteen metres.
  * */
 #define GNY_SKY3D_FOG_DENSITY 0.022F
 
-/** Thins with altitude, so fog pools in the basin the rim encloses and clears off the hilltops. */
+/** Thins with altitude, so fog pools in the basin. */
 #define GNY_SKY3D_FOG_HEIGHT_FALLOFF 0.10F
 
 /** Tint toward the light. High enough to see at dawn, low enough that midday does not look filtered. */
 #define GNY_SKY3D_FOG_SUN_AMOUNT 0.45F
 
-/** Ink width around the loaded models, in world units. See nya_render3d_outline_set. Small: the hull
- *  expands by this in *world* space, so a line thicker than a model's features closes up its concavities. */
+/**
+ * Ink width around the loaded models, world units. See nya_render3d_outline_set. Small, since the hull expands in
+ * world space and thick lines close concavities.
+ * */
 #define GNY_CUBE3D_OUTLINE_THICKNESS 0.05F
 
-/** Near-black rather than black, so the ink sits in the palette instead of punching a hole in it. */
+/** Near-black, so the ink stays in the palette. */
 #define GNY_CUBE3D_OUTLINE_COLOR ((NYA_Color){ 0.10F, 0.09F, 0.12F, 1.0F })
 
-/*
- * ── Water ──
- *
- * The scene's only translucent geometry, and it is here to give the transparency ordering something to
- * order. See the note at its draw.
- */
+/* Water, the scene's translucent geometry, there to exercise transparency ordering. */
 
 /** Where the surface sits. Below the terrain's mid height, so it pools in the basin rather than flooding. */
 #define GNY_CUBE3D_WATER_LEVEL (-0.55F)
@@ -660,8 +581,7 @@
 /** Narrower than the terrain, so the basin's rim is visibly above the surface. */
 #define GNY_CUBE3D_WATER_SIZE (GNY_TERRAIN3D_EXTENT * 0.62F)
 
-/** Alpha well below one, routing it into the sorted stream. Low because there are three panes: each
- *  blends over the last, so a fifth each lands the stack at about half — water, not paint. */
+/** Alpha well below one, into the sorted stream. Three panes at a fifth each blend to about half. */
 #define GNY_CUBE3D_WATER_COLOR ((NYA_Color){ 0.26F, 0.58F, 0.76F, 0.20F })
 
 /*
@@ -673,17 +593,17 @@
  * compute stage. Fire adds, smoke blends; see nya_render3d_billboard for why those are two systems.
  */
 
-/** The soft radial sprite the plume's billboards use. White with a smooth alpha falloff, so particle
- *  colour comes entirely from the burst and one texture serves both fire and smoke. */
+/**
+ * The soft radial sprite for the plume: white with a smooth alpha falloff, so the burst sets the colour and one
+ * texture serves fire and smoke.
+ * */
 #define GNY_CUBE3D_PUFF_TEXTURE NYA_ASSET_TEXTURES_PUFF_PNG
 
-/** Where the plume stands: up on the rim, clear of where the cubes land — the pile scatters over
- *  GNY_TERRAIN3D_CUBE_SPREAD, so anywhere inside that a crate could land on the fire itself, reading as
- *  broken rather than in the way. */
+/** Up on the rim, outside GNY_TERRAIN3D_CUBE_SPREAD, so no crate lands in the fire. */
 #define GNY_CUBE3D_PLUME_X (-6.2F)
 #define GNY_CUBE3D_PLUME_Z 6.2F
 
-/** How often a puff is emitted, in seconds. Short: a plume is a continuous feed, not a burst. */
+/** How often a puff is emitted, in seconds. */
 #define GNY_CUBE3D_PLUME_INTERVAL_S 0.045F
 
 #define GNY_CUBE3D_FIRE_POOL  256
@@ -693,15 +613,11 @@
 #define GNY_CUBE3D_FIRE_COUNT  2
 #define GNY_CUBE3D_SMOKE_COUNT 2
 
-/** Fire is short-lived and small; smoke outlives it and grows. That contrast is most of the effect. */
+/** Fire is short-lived and small; smoke outlives it and grows. */
 #define GNY_CUBE3D_FIRE_LIFETIME  ((f32x2){ 0.35F, 0.7F })
 #define GNY_CUBE3D_SMOKE_LIFETIME ((f32x2){ 1.4F, 2.6F })
 
-/*
- * Sized to read from the default orbit, twenty metres out — a plume authored at arm's length would
- * disappear at that range. The numbers below are a bonfire, not a candle, matching crates up to a
- * metre across.
- */
+/* Sized to read from the default orbit twenty metres out: a bonfire, not a candle. */
 #define GNY_CUBE3D_FIRE_SIZE      ((f32x2){ 0.35F, 0.7F })
 #define GNY_CUBE3D_FIRE_SIZE_END  ((f32x2){ 0.05F, 0.15F })
 #define GNY_CUBE3D_SMOKE_SIZE     ((f32x2){ 0.7F, 1.2F })
@@ -710,79 +626,61 @@
 #define GNY_CUBE3D_FIRE_SPEED  ((f32x2){ 1.4F, 3.0F })
 #define GNY_CUBE3D_SMOKE_SPEED ((f32x2){ 0.7F, 1.6F })
 
-/** Upward, with a narrow cone. A wide spread reads as an explosion rather than a fire. */
+/** Upward in a narrow cone; a wide spread reads as an explosion. */
 #define GNY_CUBE3D_PLUME_SPREAD 0.35F
 
-/** Negative gravity: both rise, since hot air is what a plume is. Smoke rises more slowly than fire
- *  since it has cooled — the same reason it lasts longer and spreads wider. */
+/** Negative gravity: both rise. Smoke rises slower, having cooled. */
 #define GNY_CUBE3D_FIRE_GRAVITY  ((f32x3){ 0.0F, 2.2F, 0.0F })
 #define GNY_CUBE3D_SMOKE_GRAVITY ((f32x3){ 0.0F, 0.9F, 0.0F })
 
 /**
- * Fire colours, above one on purpose: additive blending adds these straight into the target, and the
- * tonemap's shoulder keeps a stack from clipping, so a value past one stays saturated where several
- * overlap rather than washing to white — and puts the plume over the bloom threshold. Only just past
- * one: the first version used 1.6 and every overlap went to white, since additive stacking is
- * multiplicative and a plume is nothing but overlap. Tune this, not the bloom, when fire looks like a
- * searchlight.
+ * Fire colours just above one: additive overlaps stay saturated under the tonemap's shoulder and cross the bloom
+ * threshold. Higher values turn every overlap white. Tune this, not the bloom, when fire looks like a searchlight.
  * */
 #define GNY_CUBE3D_FIRE_COLOR_START ((NYA_Color){ 1.15F, 0.52F, 0.14F, 1.0F })
 #define GNY_CUBE3D_FIRE_COLOR_END   ((NYA_Color){ 0.55F, 0.09F, 0.02F, 0.0F })
 
-/** Smoke: alpha well below one, which is what routes it into the sorted transparent stream. */
+/** Smoke: alpha well below one, which routes it into the sorted transparent stream. */
 #define GNY_CUBE3D_SMOKE_COLOR_START ((NYA_Color){ 0.26F, 0.24F, 0.24F, 0.55F })
 #define GNY_CUBE3D_SMOKE_COLOR_END   ((NYA_Color){ 0.46F, 0.46F, 0.48F, 0.0F })
 
 /*
- * ── Still missing ──
- *
- * A soft-particle fade: a billboard intersecting the ground shows a hard cut line, since nothing tells
- * it how close the geometry behind it is — needs scene depth as a texture, which this renderer doesn't
- * yet produce (the refraction capture is colour only).
+ * Not done yet: a soft-particle fade. Billboards intersecting the ground show a hard line, and fixing it needs
+ * scene depth as a texture, which the renderer does not produce.
  */
 
-/*
- * ── Reverb ──
- *
- * The basin is a small hard-walled bowl, so a short bright-ish tail is what an impact produces. See
- * NYA_AudioReverb for why room size isn't a time in seconds.
- */
+/* Reverb. The basin is a small hard bowl, so a short bright tail. See NYA_AudioReverb. */
 
-/** Around half is a room rather than a hall. Past 0.9 the basin would sound like a cathedral. */
+/** Around half is a room; past 0.9 it sounds like a cathedral. */
 #define GNY_CUBE3D_REVERB_ROOM 0.62F
 
-/** Middling: stone and sand absorb some treble, not all of it. Zero would be tiled and unnatural. */
+/** Middling: stone and sand absorb some treble. */
 #define GNY_CUBE3D_REVERB_DAMPING 0.45F
 
-/** Enough to hear, little enough that twenty-four cubes landing at once do not turn into a wash. */
+/** Audible, but twenty-four simultaneous landings do not become a wash. */
 #define GNY_CUBE3D_REVERB_WET 0.26F
 
-/** Full: the impacts themselves should not get quieter for being in a room. */
+/** Full, so impacts are not quieter in a room. */
 #define GNY_CUBE3D_REVERB_DRY 1.0F
 
-/*
- * ── Audio occlusion ──
- *
- * What a hill between a sound and the camera does to it. See nya_audio_occlusion_set for why the
- * engine takes a callback instead of raycasting itself.
- */
+/* Audio occlusion: what a hill between a sound and the camera does. See nya_audio_occlusion_set. */
 
-/** Cutoff at full occlusion. Around 700 reads as solid ground rather than as a curtain. */
+/** Cutoff at full occlusion. Around 700 reads as solid ground. */
 #define GNY_CUBE3D_OCCLUSION_HZ 700.0F
 
-/** Gain at full occlusion. Muffling does most of the work; this stops a blocked sound also being loud. */
+/** Gain at full occlusion; muffling does most of the work. */
 #define GNY_CUBE3D_OCCLUSION_GAIN 0.45F
 
 /** How fast the filter follows. Short enough to track a rolling cube, long enough not to click. */
 #define GNY_CUBE3D_OCCLUSION_GLIDE_MS 90.0F
 
-/** How far the two extra rays are offset, as a fraction of the distance. An angular spread, not a length. */
+/** Offset of the two extra rays, as a fraction of the distance, so the spread is angular. */
 #define GNY_CUBE3D_OCCLUSION_SPREAD 0.06F
 
 /** Seeds the per-cube size, position and colour hash. Arbitrary; changing it reshuffles the pile. */
 #define GNY_TERRAIN3D_CUBE_SEED 0xC0BE5
 
-/** The terrain's own hash seed, mixed with the world seed so R gives a genuinely different landscape. */
+/** The terrain's hash seed, mixed with the world seed so R gives a different landscape. */
 #define GNY_TERRAIN3D_SEED 0x7E44A1
 
 /*
@@ -791,21 +689,20 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Live sparks at once, across every impact. A ceiling, not a growable pool, for the same reason
- *  NYA_PHYSICS2D_MAX_HITS is one: past this they're dropped and counted, the right behaviour under load. */
+/** Live sparks across every impact. A ceiling like NYA_PHYSICS2D_MAX_HITS: past it they are dropped and counted. */
 #define GNY_SPARK_POOL 2048
 
 /** Sparks per impact, from the quietest that qualifies to the loudest. */
 #define GNY_SPARK_MIN 12
 #define GNY_SPARK_MAX 64
 
-/** Half angle of the spray, in radians. About fifty degrees either side of straight up. */
+/** Half angle of the spray, in radians: about fifty degrees either side of up. */
 #define GNY_SPARK_SPREAD 0.9F
 
-/** Pulls them back down. Stronger than world gravity, so they arc tightly rather than drifting. */
+/** Stronger than world gravity, so sparks arc tightly. */
 #define GNY_SPARK_GRAVITY 900.0F
 
-/** How big one spark starts and ends, in world units. Ends above zero so it fades rather than pops. */
+/** Start and end size of a spark in world units. Ends above zero so it fades instead of popping. */
 #define GNY_SPARK_SIZE_START ((f32x2){ 3.5F, 8.0F })
 #define GNY_SPARK_SIZE_END   ((f32x2){ 0.5F, 2.0F })
 
@@ -817,25 +714,18 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** How lit the world is where no crate reaches, as a multiplier on what was drawn. Not zero: a scene
- *  with zero ambient renders as a black rectangle, indistinguishable from a broken renderer. */
+/** Light where no crate reaches, as a multiplier. Not zero, which renders as a black rectangle. */
 #define GNY_AMBIENT_LIGHT ((NYA_Color){ 0.34F, 0.36F, 0.46F, 1.0F })
 
 /** World units a crate's glow reaches. A few crate widths, so overlapping ones pool. */
 #define GNY_BOX_LIGHT_RADIUS 190.0F
 
-/** Above one, so the crate itself over-brightens and reads as the source rather than as lit. */
+/** Above one, so the crate over-brightens and reads as the source. */
 #define GNY_BOX_LIGHT_INTENSITY 1.35F
 
 #define GNY_BOX_LIGHT_COLOR ((NYA_Color){ 1.0F, 0.82F, 0.55F, 1.0F })
 
-/*
- * ── 3D demo dust ──
- *
- * Metres, like everything else in that scene. A "spark" here is a chip of ground the cube kicks up,
- * centimetre-scale versus the 2D world's pixel-scale — the same numbers in both would be either
- * invisible or the size of the cube.
- */
+/* 3D demo dust, in metres: chips of ground, centimetre scale. */
 
 /** Live dust particles at once. Small: one cube makes one impact at a time. */
 #define GNY_CUBE3D_DUST_POOL 512
@@ -850,7 +740,7 @@
 /** Metres. A chip of ground, not a boulder. */
 #define GNY_CUBE3D_DUST_SIZE ((f32x2){ 0.03F, 0.09F })
 
-/** Positive y is up in a 3D scene, so gravity here is negative — the opposite of the 2D world's. */
+/** Negative: y is up in 3D. */
 #define GNY_CUBE3D_DUST_GRAVITY (-9.81F)
 
 #define GNY_CUBE3D_DUST_COLOR ((NYA_Color){ 0.72F, 0.68F, 0.60F, 1.0F })
@@ -861,8 +751,10 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Where the demo map's tile (0, 0) sits. The map is 20x12 tiles of 32 units (640x384), centred on x,
- *  placed so its solid bottom rows land just above GNY_TERRAIN_BASE_Y — a floor inside the opening view. */
+/**
+ * Where the demo map's tile (0, 0) sits. The map is 20x12 tiles of 32 units, centred on x, with its solid bottom
+ * rows just above GNY_TERRAIN_BASE_Y.
+ * */
 #define GNY_TILEMAP_ORIGIN ((f32x2){ -320.0F, GNY_TERRAIN_BASE_Y - 384.0F - 30.0F })
 
 /** The kind tilemap colliders are spawned as, so they can be found and cleared as a group. */
@@ -876,7 +768,7 @@
  * Three platforms above the terrain, placed where the opening view already looks. See entity_ledge.c.
  */
 
-/** Full width and height of a ledge, world units. Wide enough to land a crate on, thin enough to read as a shelf. */
+/** Full width and height of a ledge, world units: wide enough for a crate, thin enough to read as a shelf. */
 #define GNY_LEDGE_SIZE ((f32x2){ 220.0F, 18.0F })
 
 /** How far above GNY_TERRAIN_BASE_Y the lowest ledge sits, and the step up to each one after it. */
@@ -892,7 +784,7 @@
 #define GNY_LEDGE_PATROL_DISTANCE 420.0F
 #define GNY_LEDGE_PATROL_SECONDS  3.5F
 
-/** High, so a crate riding the moving platform goes with it rather than being slid out from under. */
+/** High, so a crate rides the moving platform instead of sliding off. */
 #define GNY_LEDGE_FRICTION 0.95F
 
 /**
@@ -926,41 +818,32 @@
 #define GNY_CUBE3D_MODEL NYA_ASSET_MODELS_CUBIE_FBX
 
 /**
- * Drawn at its own size. One, not a shrink factor: ufbx converts to metres on load, and both models
- * span roughly minus one to one. The 0.01 here first was a guess from the file being 356 KB, and drew
- * both models two hundredths of a unit across — present, lit, and far too small to notice.
- * test_asset_mesh asserts the models are unit-sized, so a re-export that changes that fails the test
- * rather than quietly emptying the scene.
+ * Drawn at its own size: ufbx converts to metres and both models span about -1 to 1. test_asset_mesh asserts
+ * this, so a re-export at another scale fails a test instead of shrinking the scene.
  * */
 #define GNY_CUBE3D_MODEL_SCALE 1.0F
 
 /** How far to one side of the cube it stands, so the two are both visible rather than intersecting. */
 #define GNY_CUBE3D_MODEL_OFFSET 2.5F
 
-/** Lifted clear of the ground plane at y zero. One, because the model's origin is its centre and its
- *  lowest vertex is a unit below that — half of it would be under the floor otherwise. */
+/** Lifted by one: the origin is the centre and the lowest vertex is a unit below. */
 #define GNY_CUBE3D_MODEL_LIFT 1.0F
 
 #define GNY_CUBE3D_MODEL_COLOR ((NYA_Color){ 0.42F, 0.63F, 0.88F, 1.0F })
 
 /*
- * The second model, on the other side of the cube. Two, not one: one proves the loader runs, two prove
- * it is a loader — separate assets with separate triangle counts into the same batch, light and draw
- * call, so a path that reused one buffer for both would show up as two identical shapes.
+ * The second model, beside the cube, so two separate meshes share one batch, light and draw call. A path that
+ * reused one buffer would show two identical shapes.
  */
 #define GNY_CUBE3D_PILL NYA_ASSET_MODELS_PILL_FBX
 
-/** Its own scale, since nothing guarantees two FBX files were authored in the same units. */
+/** Its own scale; two FBX files need not share units. */
 #define GNY_CUBE3D_PILL_SCALE 1.0F
 
 /** Mirrored across the cube from GNY_CUBE3D_MODEL_OFFSET, so the three stand in a row. */
 #define GNY_CUBE3D_PILL_OFFSET (-GNY_CUBE3D_MODEL_OFFSET)
 
-/**
- * Half the pill's height, not the cube's. pill.fbx spans about 1.73 either side of its origin on y once
- * its node transform is applied — a capsule stretched along one axis by the node, not its vertex data.
- * Lifting it by one, as the other model is, put its lower third through the floor.
- */
+/** Half the pill's height: pill.fbx spans about 1.73 either side of its origin on y once its node stretches it. */
 #define GNY_CUBE3D_PILL_LIFT 1.75F
 
 #define GNY_CUBE3D_PILL_COLOR ((NYA_Color){ 0.96F, 0.56F, 0.52F, 1.0F })
@@ -971,19 +854,18 @@
  * ─────────────────────────────────────────────────────────
  */
 
-/** Two lamps orbiting the scene, so the point lights are visibly lights, not a tint. Moving, not static:
- *  a stationary coloured light is indistinguishable from coloured ambient. */
+/** Two lamps orbiting the scene. Moving, since a static coloured light looks like coloured ambient. */
 #define GNY_CUBE3D_LAMP_COUNT  2
 #define GNY_CUBE3D_LAMP_RADIUS 4.0F
 #define GNY_CUBE3D_LAMP_HEIGHT 2.2F
 #define GNY_CUBE3D_LAMP_SPEED  0.7F
 
-/** How far each lamp reaches. Comfortably less than the ground plane, so the falloff is visible on it. */
+/** Each lamp's reach, less than the ground, so the falloff shows. */
 #define GNY_CUBE3D_LAMP_RANGE 7.0F
 
 #define GNY_CUBE3D_LAMP_INTENSITY 2.4F
 
-/** Warm and cool, so the two are told apart by colour rather than only by position. */
+/** Warm and cool, told apart by colour. */
 #define GNY_CUBE3D_LAMP_A_COLOR ((NYA_Color){ 1.00F, 0.62F, 0.28F, 1.0F })
 #define GNY_CUBE3D_LAMP_B_COLOR ((NYA_Color){ 0.36F, 0.68F, 1.00F, 1.0F })
 
@@ -991,9 +873,10 @@
 #define GNY_CUBE3D_LAMP_MARKER_RADIUS 0.16F
 #define GNY_CUBE3D_LAMP_EMISSION      1.6F
 
-/** How strongly curved edges are inked in. See NYA_Render3DMaterial.edge. Shows on the two models and
- *  sphere markers; the generated cube has hard faces and gets nothing from it — a limit of the
- *  technique, not a tuning problem. */
+/**
+ * How strongly curved edges are inked. See NYA_Render3DMaterial.edge. Visible on the models and spheres; the
+ * hard-faced cube shows nothing, a limit of the technique.
+ * */
 #define GNY_CUBE3D_EDGE 0.55F
 
 /*
@@ -1002,8 +885,7 @@
  * ─────────────────────────────────────────────────────────
  */
 
-/** How dark a shadowed surface goes. Well under one on purpose: a shadow at one lands on black and
- *  reads as a hole in the floor. */
+/** How dark a shadow goes. Well under one, since a full shadow reads as a hole. */
 #define GNY_CUBE3D_SHADOW_STRENGTH 0.45F
 /**
  * How far down the view shadows are cast, in world units.
@@ -1011,12 +893,9 @@
 #define GNY_CUBE3D_SHADOW_RANGE   (GNY_TERRAIN3D_EXTENT * 2.0F)
 
 /**
- * How far casters reach from the scene's centre, in world units. See NYA_Render3DShadowFit.near.
- *
- * The terrain's half-diagonal plus headroom for what sits on it: the basin is GNY_TERRAIN3D_EXTENT across,
- * so its corners are that times root two over two from the middle, and a dropped cube can be above the rim.
- * Too small and casters near the edge fall outside the cascades; too large and the near cascade goes back
- * to covering air.
+ * How far casters reach from the scene's centre, in world units: the terrain's half-diagonal plus room for cubes
+ * above the rim. Too small drops edge casters; too large puts the near cascade back in empty air. See
+ * NYA_Render3DShadowFit.near_distance.
  * */
 #define GNY_CUBE3D_SHADOW_SUBJECT_REACH (GNY_TERRAIN3D_EXTENT * 0.85F)
 
@@ -1027,8 +906,7 @@
 #define GNY_PLAYER_SPAWN_SPACING 64.0F
 
 /**
- * How large a player is drawn, per side. A drawing constant rather than a collision size: a player has
- * no physics body, so nothing reads this but gny_net_player_on_render. Kept under
- * GNY_PLAYER_SPAWN_SPACING so two players spawning at once are visibly apart rather than touching.
+ * Drawn size of a player per side. Only gny_net_player_on_render reads it; players have no body. Smaller than
+ * GNY_PLAYER_SPAWN_SPACING, so simultaneous spawns are visibly apart.
  * */
 #define GNY_PLAYER_SIZE 24.0F

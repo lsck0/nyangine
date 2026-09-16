@@ -20,8 +20,7 @@
 #include "nyangine/core/core_types.h"
 #include "nyangine/math/math_vector.h"
 
-/* Physics is a property of an entity, and entities hold an NYA_Physics2DBody, so including
- * core_entity.h here would be a cycle. Only the pointer is needed. */
+/* entities hold an NYA_Physics2DBody, so core_entity.h cannot be included here. only the pointer is needed. */
 typedef struct NYA_Entity NYA_Entity;
 
 /*
@@ -68,10 +67,7 @@ typedef struct NYA_Entity NYA_Entity;
 /** Earth gravity, in world units per second squared, pointing down the screen. */
 #define NYA_PHYSICS2D_GRAVITY_DEFAULT ((f32x2){ 0.0F, 9.81F * NYA_PHYSICS2D_PIXELS_PER_METER })
 
-/**
- * Hits kept per step. Anything past this is dropped, and overflow is logged once per step rather
- * than silently truncated.
- * */
+/** Hits kept per step. Overflow is dropped and logged once per step. */
 #ifndef NYA_PHYSICS2D_MAX_HITS
 #define NYA_PHYSICS2D_MAX_HITS 256
 #endif
@@ -95,10 +91,8 @@ typedef struct NYA_Physics2DBodyOptions NYA_Physics2DBodyOptions;
 typedef struct NYA_Physics2DSystem      NYA_Physics2DSystem;
 
 /*
- * NYA_PhysicsBodyType, NYA_PhysicsHitKind and NYA_PhysicsHit are physics_types.h's, shared with the
- * 3D solver. What a static body is does not depend on how many axes it has, and an entity has one
- * on_collision that both solvers deliver to — see that file for why the hit is one type with a
- * dimension tag rather than two types.
+ * NYA_PhysicsBodyType, NYA_PhysicsHitKind and NYA_PhysicsHit are shared with the 3D solver in physics_types.h,
+ * since an entity has one on_collision both solvers deliver to.
  */
 
 /**
@@ -157,23 +151,19 @@ struct NYA_Physics2DSystem {
     /** Bodies currently attached to an entity. */
     u32 body_count;
 
-    /**
-     * Box2D's contact recycle distance, as it was at init, in **metres**.
-     * */
+    /** Box2D's contact recycle distance at init, in metres. */
     f32 contact_recycle_distance;
 
     /**
-     * Whether contact recycling is currently switched off.
+     * Whether contact recycling is switched off.
      *
-     * ⚠ **This exists because Box2D skips the pre-solve callback for a contact that has not moved.**
-     * `b2UpdateContact` is where pre-solve is invoked, and the step loop `continue`s past it entirely
-     * when both bodies are within the recycle distance of where they were — which is every step for
-     * something resting on a platform. So a body standing still on a one-way surface never gets its
-     * contact re-examined, and "let me through" is never heard.
+     * Box2D skips pre-solve for a contact that has not moved: b2UpdateContact is skipped when both bodies stay
+     * within the recycle distance, which is every step for something resting on a platform. Without this a body
+     * standing on a one-way surface is never let through.
      * */
     b8 contact_recycling_suspended;
 
-    /** Seconds the last step spent inside Box2D. For an overlay, and for noticing a stack that costs. */
+    /** Seconds the last step spent inside Box2D. */
     f32 last_step_time_s;
 
     /**
@@ -182,9 +172,8 @@ struct NYA_Physics2DSystem {
     u64 step_count;
 
     /*
-     * Hits from the last step. Copied out of Box2D's transient event buffer rather than pointed at,
-     * and converted to world units and entity handles on the way — upstream's buffer is only valid
-     * until the next step and speaks in metres and shape ids.
+     * Hits from the last step, copied out of Box2D's event buffer (valid only until the next step) and converted
+     * to world units and entity handles.
      */
     NYA_PhysicsHit hits[NYA_PHYSICS2D_MAX_HITS];
     u32            hit_count;
@@ -220,17 +209,13 @@ struct NYA_Physics2DBody {
     b8 attached;
 
     /*
-     * Cached grounded state: asking Box2D for a body's contacts and checking their normals is too
-     * much to do per body per frame for a world of hundreds, and too little to bother precomputing
-     * for the handful anyone actually asks about — so it is computed on demand and remembered for
-     * the tick it was computed in.
+     * Cached grounded state, computed on demand and kept for the tick. Checking contact normals for every body
+     * every frame would cost too much for the few anyone asks about.
      */
 
     b8 grounded;
 
-    /**
-     * The step `grounded` was computed on, plus one. Zero means "never computed".
-     * */
+    /** The step `grounded` was computed on, plus one. Zero means never. */
     u64 grounded_step;
 
     /** Which way this surface lets bodies through, if any. See nya_physics2d_one_way_set. */
@@ -258,11 +243,7 @@ struct NYA_Physics2DBodyOptions {
     /** CAPSULE: distance between the cap centres, world units. */
     f32 length;
 
-    /**
-     * CHAIN: the polyline, in world units **relative to the entity's position**.
-     *
-     * Copied during the call, so the caller's array does not have to outlive it.
-     * */
+    /** CHAIN: the polyline, in world units relative to the entity's position. Copied during the call. */
     const f32x2* points;
     u32          point_count;
 
@@ -301,16 +282,15 @@ struct NYA_Physics2DBodyOptions {
      * }
      * ```
      *
-     * ⚠ Every shape this API creates enables sensor events on **both** sides, unlike Box2D's default of
-     * off on both — a coin with `is_sensor` and a player without would produce no events at all, and
-     * look exactly like a coin that was never reached.
+     * Every shape this API creates enables sensor events on both sides. Box2D defaults both off, and a sensor
+     * coin touching a player without the flag would report nothing.
      * */
     b8 is_sensor;
 
     /** Continuous collision against static geometry, for something small and fast. Costs more. */
     b8 is_bullet;
 
-    /** Never sleeps. Only for a body something is measuring every tick; sleeping is what makes a big world cheap. */
+    /** Never sleeps. Only for a body measured every tick; sleeping is what keeps a large world cheap. */
     b8 never_sleep;
 
     /**
@@ -449,14 +429,9 @@ NYA_API void nya_physics2d_wake(NYA_Entity* entity);
  * if (nya_input_action_just_pressed("crouch")) nya_physics2d_drop_through(player, 0.25F);
  * ```
  *
- * ⚠ **Velocity-based means a body that has already stopped inside the surface stays inside it.**
- * Nothing pushes it out — a one-way surface has no interior to expel from. In practice this is what
- * is wanted: something that gets there was moving the passable way, and it goes on through.
- *
- * ⚠ **The callback runs inside `b2World_Step`.** It reads body user data and the body's velocity and
- * writes nothing, which is what makes it safe; this world is stepped single-threaded (the enqueue
- * hooks in `nya_system_physics2d_init` are deliberately left unset), so it is not a threading
- * question today, and anything added to it must stay read-only if that changes.
+ * Passage is decided by velocity, so a body that stopped inside the surface stays there; nothing pushes it
+ * out. The callback runs inside b2World_Step and only reads, which is safe because the world steps on one
+ * thread.
  * */
 NYA_API void nya_physics2d_one_way_set(NYA_Entity* entity, NYA_Physics2DOneWay direction);
 
@@ -475,11 +450,7 @@ NYA_API void nya_physics2d_drop_through(NYA_Entity* entity, f32 seconds);
  */
 
 /**
- * The hits from the step just taken — impacts and sensor overlaps together.
- *
- * One list rather than two, because everything downstream wants the same thing: walk what happened this
- * tick and react. ⚠ Filter on `kind`, or you will play an impact sound at zero gain every time
- * something walks into a trigger.
+ * The hits from the step just taken, impacts and sensor overlaps together. Filter on `kind`.
  *
  * ```c
  * void layer_on_update(NYA_Window* window, f32 delta_time_s) {
@@ -495,8 +466,7 @@ NYA_API void nya_physics2d_drop_through(NYA_Entity* entity, f32 seconds);
  * }
  * ```
  *
- * ⚠ **Read it during the tick that produced it.** The list is refilled at the top of every tick, so a
- * stashed pointer reads the *next* tick's contacts. Copy what has to outlive the tick.
+ * The list is refilled every tick; copy anything that has to outlive it.
  * */
 NYA_API const NYA_PhysicsHit* nya_physics2d_hits(OUT u32* out_count) __attr_no_discard;
 

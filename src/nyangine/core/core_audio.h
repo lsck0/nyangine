@@ -100,10 +100,8 @@ struct NYA_SoundParams {
     f32 gain;
 
     /**
-     * Varies this instance's level by a random offset in ±this many decibels, on top of `gain`.
-     *
-     * ⚠ **The loud half amplifies**, by about 1.26 at the default ±2dB, and gain above 1.0 clips. Leave
-     * headroom — a base gain of 0.8 rather than 1.0 — on anything played this way at full level.
+     * Varies this instance's level by a random offset in ±this many decibels, on top of `gain`. The loud half
+     * amplifies (about 1.26 at ±2 dB), and gain above 1.0 clips, so leave headroom on sounds played this way.
      * */
     f32 gain_variation_db;
 
@@ -277,7 +275,7 @@ NYA_API NYA_SoundVoice nya_audio_play_sound_varied(NYA_ConstCString sound_handle
 /** Plays with effects already applied, so the first audible sample is already correct. */
 NYA_API NYA_SoundVoice nya_audio_play_sound_with(NYA_ConstCString sound_handle, NYA_SoundParams params);
 
-/** Stops every sound effect. Music is untouched — that is what nya_audio_stop_music is for. */
+/** Stops every sound effect. Music is untouched; see nya_audio_stop_music. */
 NYA_API void nya_audio_stop_sounds(void);
 
 /*
@@ -309,8 +307,8 @@ NYA_API NYA_AudioListener3D nya_audio_listener_3d_get(void) __attr_no_discard;
  * });
  * ```
  *
- * ⚠ Positional playback is mixed down to **mono** by SDL_mixer. A clip whose stereo image is the point of
- * it — most music, some ambience — wants nya_audio_play_sound_with and a pan instead.
+ * SDL_mixer mixes positional playback down to mono. For a clip whose stereo image matters, use
+ * nya_audio_play_sound_with and a pan.
  * */
 NYA_API NYA_SoundVoice nya_audio_play_sound_at(NYA_ConstCString sound_handle, f32x2 world_position, NYA_SoundParams params);
 
@@ -355,10 +353,7 @@ NYA_API NYA_SoundVoice nya_audio_music_voice(void) __attr_no_discard;
 /** Stops the music, fading out over `fade_out_ms`. Zero stops immediately. */
 NYA_API void nya_audio_stop_music(u32 fade_out_ms);
 
-/*
- * Pause and resume, which are not stop and play: the track keeps its position, so resuming carries on
- * rather than starting the piece again. What a pause menu wants.
- */
+/* Pause and resume keep the track's position, unlike stop and play. What a pause menu wants. */
 NYA_API void nya_audio_pause_music(void);
 NYA_API void nya_audio_resume_music(void);
 
@@ -372,9 +367,8 @@ NYA_API b8 nya_audio_music_playing(void) __attr_no_discard;
  */
 
 /*
- * All of these take a voice from nya_audio_play_sound or nya_audio_music_voice, and all of them
- * ignore a handle whose sound has finished. That means a caller adjusting a looping sound every frame
- * needs no "is it still alive" check — it simply stops having an effect.
+ * All of these take a voice from nya_audio_play_sound or nya_audio_music_voice and ignore a handle whose sound
+ * has finished, so adjusting a looping sound every frame needs no liveness check.
  */
 
 /** Whether the sound this handle names is still the one in that slot, and still sounding. */
@@ -385,7 +379,7 @@ NYA_API b8 nya_audio_voice_valid(NYA_SoundVoice voice) __attr_no_discard;
  * */
 NYA_API void nya_audio_voice_set_gain(NYA_SoundVoice voice, f32 gain);
 
-/** Playback rate, 1.0 unchanged. See NYA_SoundParams.pitch — this resamples rather than pitch shifts. */
+/** Playback rate, 1.0 unchanged. This resamples rather than pitch shifts. */
 NYA_API void nya_audio_voice_set_pitch(NYA_SoundVoice voice, f32 ratio);
 
 /**
