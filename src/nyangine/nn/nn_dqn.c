@@ -29,11 +29,10 @@ struct NYA_NNDQN {
     NYA_NNGraph*     graph;
 
     /*
-     * ── Replay ──
+     * Replay
      *
-     * One flat block per field rather than an array of structs. A batch reads one field across many
-     * scattered rows at a time — every state, then every action — so this is the layout that touches
-     * fewer cache lines. It also makes the copy into a batch tensor a straight memcpy per row.
+     * One flat block per field. A batch reads one field across scattered rows, so this touches fewer
+     * cache lines, and copying into a batch tensor is a memcpy per row.
      */
 
     f32* states;       /** capacity * state_size */
@@ -49,10 +48,9 @@ struct NYA_NNDQN {
     u32 replay_count;
 
     /*
-     * ── Scratch, reused every gradient step ──
+     * Scratch, reused every gradient step
      *
-     * Owned rather than allocated per step, which is what keeps a training step free of allocation
-     * once it has run once. See the steady state note in nn_tensor.h.
+     * Owned, so a training step allocates nothing after the first. See nn_tensor.h.
      */
 
     u32* batch_indices;
@@ -112,8 +110,7 @@ NYA_NNDQN* nya_nn_dqn_create(NYA_Arena* arena, NYA_NNDQNConfig config) {
 
     dqn->rng = nya_rng_create_in(arena, config.rng_seed);
 
-    // Sized for a batch through the hidden stack, twice over — the online pass and the target pass
-    // both live on the tape at once during a training step.
+    // sized for a batch through the hidden stack twice: the online and target passes share the tape.
     dqn->graph = nya_nn_graph_create(arena);
 
     /*
@@ -158,8 +155,8 @@ u32 nya_nn_dqn_act(NYA_NNDQN* dqn, const f32* state) {
     nya_assert(dqn != nullptr);
     nya_assert(state != nullptr);
 
-    // Rolled before the network is consulted, so an exploring step costs no forward pass at all —
-    // which matters early on, when almost every step explores.
+    // rolled before consulting the network, so exploring costs no forward pass. Early on almost every
+    // step explores.
     if (nya_rng_gen_bool(dqn->rng, nya_nn_dqn_exploration(dqn))) return _nya_nn_dqn_index(dqn, dqn->config.action_count);
 
     return nya_nn_dqn_act_greedy(dqn, state);
@@ -275,8 +272,7 @@ f32 nya_nn_dqn_train_for(NYA_NNDQN* dqn, f32 delta_time_s) {
     u32 steps = (u32)dqn->train_step_debt;
     if (steps == 0) return 0.0F;
 
-    // A frame that stalled — a breakpoint, a window drag — leaves a large delta, and making all of
-    // it up at once stalls the next frame too. Falling behind is better than compounding a hitch.
+    // a stalled frame leaves a large delta, and catching up at once would stall the next one too.
     if (steps > dqn->config.max_steps_per_frame) {
         steps                = dqn->config.max_steps_per_frame;
         dqn->train_step_debt = 0.0F;

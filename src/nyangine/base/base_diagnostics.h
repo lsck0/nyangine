@@ -15,10 +15,9 @@
  */
 
 /**
- * Starts writing the log to `path` as well, buffered — a write syscall per line is not free on hot
- * paths. Flushed when full, on WARN or worse, on shutdown, and on the way out of a crash, so the
- * interesting lines are never still sitting in memory. Uses raw file descriptors rather than stdio
- * since the crash sink flushes this from contexts where stdio is unsafe to touch.
+ * Also writes the log to `path`, buffered to avoid a syscall per line. Flushed when full, on WARN or
+ * worse, on shutdown and on crash. Uses raw file descriptors because the crash sink flushes from
+ * contexts where stdio is unsafe.
  * */
 NYA_API NYA_Error nya_log_file_open(NYA_ConstCString path) __attr_no_discard;
 
@@ -34,16 +33,14 @@ NYA_API void nya_log_file_close(void);
 #endif
 
 /**
- * Starts writing the log into `directory`, one file per day, named `YYYY-MM-DD.log`. Creates the
- * directory if needed and opens today's file in append mode, so a second run the same day continues
- * rather than truncating — the case a crash causes.
+ * Writes the log into `directory`, one `YYYY-MM-DD.log` per day. Creates the directory and appends to
+ * today's file, so a restart after a crash continues it.
  * */
 NYA_API NYA_Error nya_log_directory_open(NYA_ConstCString directory, u32 retention_days) __attr_no_discard;
 
 /**
- * Switches to the new day's file if the UTC date has changed since the last call; cheap, and does
- * nothing until needed. Called once per frame — otherwise a long-running server would put a week
- * into whichever file happened to be open when it started.
+ * Switches to the new day's file when the UTC date has changed. Cheap. Call once per frame, or a long
+ * running server logs a week into one file.
  * */
 NYA_API void nya_log_directory_roll(void);
 
@@ -51,18 +48,16 @@ NYA_API void nya_log_directory_roll(void);
 NYA_API void nya_log_file_flush(void);
 
 /**
- * Adds a crash observer, notified in registration order. Returns an error once
- * NYA_CRASH_OBSERVER_MAX are registered rather than dropping it quietly — a report that never gets
- * written is not something to discover after the crash.
+ * Adds a crash observer, notified in registration order. Fails once NYA_CRASH_OBSERVER_MAX are
+ * registered, so a missing report is found before the crash.
  * */
 NYA_API NYA_Error nya_crash_observer_add(NYA_CrashObserver observer, void* user_data) __attr_no_discard;
 
 /**
- * Removes the observer registered with exactly this callback and user data. False when it was not there.
+ * Removes the observer registered with exactly this callback and user data. False when absent.
  *
- * The partner `nya_crash_observer_clear` is not: clear drops every observer, including whatever the crash
- * reporter installed at startup, so a caller taking its own overlay down with clear takes the report with
- * it. Matched on the pair, because one callback registered twice with different user data is two observers.
+ * The partner of add, unlike `nya_crash_observer_clear`, which also drops the crash reporter's own
+ * observer. Matched on the pair, since one callback with two user data values is two observers.
  * */
 NYA_API b8 nya_crash_observer_remove(NYA_CrashObserver observer, void* user_data);
 

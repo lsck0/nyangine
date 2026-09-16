@@ -1,8 +1,8 @@
 /**
  * @file vendor_sdl_shadercross.h
  *
- * SDL_shadercross. Produces a tool rather than a library, so it carries no consumer flags: nothing
- * links against it, the shader rules invoke the binary it builds.
+ * SDL_shadercross. Builds a tool, not a library, so it has no consumer flags. The shader rules run
+ * the binary.
  * */
 #pragma once
 
@@ -15,10 +15,8 @@
 #define SHADERCROSS_SOURCE "./vendor/sdl-shadercross"
 
 /*
- * Keyed by host, not by target: shadercross is a build-time tool, not something linked or shipped,
- * and its output (.dxil/.msl/.spv) is identical regardless of target, so one binary per machine
- * suffices. It used to be named and built as a Linux target, which is why a Windows host had it
- * compiling a Linux-named cmake tree natively and then trying to run it with LD_LIBRARY_PATH.
+ * Keyed by host, not target: shadercross is a build-time tool and its .dxil/.msl/.spv output does not
+ * depend on the target, so one binary per machine.
  */
 #if OS_WINDOWS
 #define SHADERCROSS_BUILD    "./vendor/sdl-shadercross/build-windows-x86_64"
@@ -31,19 +29,15 @@
 #endif
 
 /*
- * Where shadercross finds its own shared libraries (libSDL3_shadercross, SPIRV-Cross, DXC): none are
- * installed anywhere the loader looks and the binary carries no RPATH, so without this it fails with
- * a bare exit code 127 — no diagnostic, nothing naming the missing library.
+ * Where shadercross finds libSDL3_shadercross, SPIRV-Cross and DXC. They are not on the loader path
+ * and the binary has no RPATH, so without this it exits 127 with no diagnostic.
  *
- * Carries its own trailing comma since the Windows expansion is empty and `{ , }` is not an
- * initialiser (same convention as FLAGS_TARGET_WINDOWS_X86_64).
+ * Carries its own trailing comma since the Windows expansion is empty (as FLAGS_TARGET_WINDOWS_X86_64).
  *
- * Empty on Windows deliberately: NYA_Command environment entries are _putenv'd into *this* process
- * before CreateProcess rather than into the child (see command_windows.c), so a PATH= here would
- * replace the build tool's own PATH for every later command — cmake, ninja, clang, make included.
- * The Windows loader searches the .exe's own directory first, so the configure below puts every
- * runtime artifact there instead.
- * */
+ * Empty on Windows: NYA_Command _putenv's environment entries into this process (command_windows.c),
+ * so PATH= would replace the build tool's PATH for every later command. The Windows loader searches
+ * the .exe's directory first, so the configure below puts the DLLs there.
+ */
 #if OS_WINDOWS
 #define SHADERCROSS_LIBRARY_PATH
 #else
@@ -53,10 +47,9 @@
 #endif
 
 /*
- * Windows only: forces every DLL in the tree, subprojects included, into the directory
- * shadercross.exe lives in (SDL3_shadercross.dll, spirv-cross-c-shared.dll, dxcompiler.dll), which is
- * what replaces LD_LIBRARY_PATH there. Absolute via %CWD%/hook_expand_cwd, because a relative output
- * directory resolves against each target's own binary directory, not this one.
+ * Windows only: puts every DLL in the tree, subprojects included, next to shadercross.exe, replacing
+ * LD_LIBRARY_PATH. Absolute via %CWD%/hook_expand_cwd, since a relative output directory resolves per
+ * target.
  */
 #if OS_WINDOWS
 #define SHADERCROSS_CMAKE_RUNTIME_OUTPUT "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=%CWD%/vendor/sdl-shadercross/build-windows-x86_64",
@@ -81,8 +74,7 @@ NYA_VendorRule vendor_sdl_shadercross_host = {
                     "-GNinja",
                     "-DSDLSHADERCROSS_VENDORED=ON",
                     SHADERCROSS_CMAKE_RUNTIME_OUTPUT
-                    // Point at the SDL we just built, not whatever the host has installed — otherwise
-                    // this succeeds on a dev machine with a system SDL3 and fails in CI.
+                    // point at the SDL just built, not a system SDL3 that exists on dev machines but not in CI.
                     "-DCMAKE_PREFIX_PATH=" SHADERCROSS_HOST_SDL,
                 },
             },

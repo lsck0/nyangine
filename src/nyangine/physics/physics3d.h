@@ -43,7 +43,7 @@ typedef struct NYA_Entity NYA_Entity;
 #define NYA_PHYSICS3D_SUB_STEPS 4
 #endif
 
-/** Earth gravity, in world units per second squared, pointing down — which in 3D is negative y. */
+/** Earth gravity in world units per second squared, pointing down (negative y). */
 #define NYA_PHYSICS3D_GRAVITY_DEFAULT ((f32x3){ 0.0F, -9.81F * NYA_PHYSICS3D_UNITS_PER_METER, 0.0F })
 
 /** Hits kept per step. Same ceiling and same reasoning as NYA_PHYSICS2D_MAX_HITS. */
@@ -99,22 +99,18 @@ enum NYA_Physics3DShape {
      * */
     NYA_PHYSICS3D_SHAPE_CAPSULE,
 
-    /**
-     * An arbitrary triangle mesh, from `vertices` and `indices`. **Static bodies only.**
-     * */
+    /** An arbitrary triangle mesh, from `vertices` and `indices`. Static bodies only. */
     NYA_PHYSICS3D_SHAPE_MESH,
 
     /**
-     * A regular grid of heights on the xz plane, from `heights`. **Static bodies only.**
+     * A regular grid of heights on the xz plane, from `heights`. Static bodies only.
      *
-     * What a terrain actually is, and Box3D has a cheaper solver for it than for the same surface handed
-     * over as triangles: a heightfield knows which cell a point is over without descending a BVH, so a
-     * contact is a lookup rather than a tree walk. `b3SolveContacts_Mesh` was 4.3% of a release profile
-     * with the terrain as NYA_PHYSICS3D_SHAPE_MESH.
+     * Cheaper than the same terrain as a MESH: a heightfield finds the cell under a point without walking
+     * a BVH. `b3SolveContacts_Mesh` was 4.3% of a release profile with the terrain as a mesh.
      *
-     * Heights are in world units, row-major with x varying fastest, `height_count_x * height_count_z` of
-     * them. `height_scale` is the world size of one cell on x and z; the y component is unused because the
-     * heights are already absolute.
+     * Heights are world units, row-major with x varying fastest, `height_count_x * height_count_z` of
+     * them. `height_scale` is the world size of one cell on x and z; y is unused since heights are
+     * absolute.
      * */
     NYA_PHYSICS3D_SHAPE_HEIGHTFIELD,
 
@@ -179,10 +175,9 @@ struct NYA_Physics3DBody {
     void* mesh;
 
     /**
-     * Box3D's quantised copy of a HEIGHTFIELD shape's grid, owned by this body. Null for every other shape.
+     * Box3D's quantised copy of a HEIGHTFIELD grid, owned by this body. Null for other shapes.
      *
-     * Its own field rather than sharing `mesh`: the two need different destructors, and one pointer plus a
-     * tag saying which is a sentinel with extra steps.
+     * Separate from `mesh` because the two need different destructors.
      * */
     void* height_field;
 
@@ -228,8 +223,8 @@ struct NYA_Physics3DBodyOptions {
     /**
      * HEIGHTFIELD: one height per grid point, world units, row-major with x varying fastest.
      *
-     * Not copied or owned — Box3D quantises them into its own storage at creation, so the caller's array
-     * can go away as soon as nya_physics3d_body_attach returns.
+     * Not copied or owned. Box3D quantises them at creation, so the array can go once
+     * nya_physics3d_body_attach returns.
      * */
     const f32* heights;
 

@@ -42,19 +42,17 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
         time_step_ns = 1'000'000'000ULL / tickrate;
     }
 
-    // The engine reports rather than panics now, so this is the game deciding what a failed startup
-    // means. For a game it means stop: there is no sensible fallback for having no GPU. NYA_EXPECT
-    // routes the message and a backtrace through the crash sink on the way out.
-    // The unfocused cap is set here rather than left at zero so the engine's own feature has a caller:
-    // alt-tabbing away from the game drops it to GNY_UNFOCUSED_FRAME_RATE rather than leaving it drawing
-    // at full rate behind whatever the player switched to.
+    // the engine reports instead of panicking, so the game decides: no GPU means stop. NYA_EXPECT routes
+    // the message and a backtrace through the crash sink.
+    // Alt-tabbing away drops to GNY_UNFOCUSED_FRAME_RATE instead of drawing at full rate in the
+    // background.
     NYA_EXPECT(
         nya_app_init(.time_step_ns = time_step_ns, .unfocused_frame_rate_limit = GNY_UNFOCUSED_FRAME_RATE),
         "while starting the engine"
     );
 
-    // Before the window, because a layer's on_create is entitled to ask what a key is bound to — and
-    // before anything reads a volume, since this is where the player's settings are loaded.
+    // before the window, since a layer's on_create may ask for key bindings, and before anything reads a
+    // volume, since this loads the player's settings.
     gny_actions_init();
 
     /*
@@ -67,8 +65,7 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
                       (NYA_ConstCString)localized.message);
     }
 
-    // Before the window, because the layer stack's on_create reads the world the moment it is
-    // pushed — the terrain is generated from there, and it needs somewhere to put its points.
+    // before the window, since the layer stack's on_create generates the terrain into the world.
     gny_world_create();
 
     gny_sim_init();
@@ -112,13 +109,12 @@ void gnyame_deinit(void) {
     /*
      * The engine first, the world after it.
      */
-    // Before the engine goes down, because writing the settings file needs the save system that
-    // nya_app_deinit tears down — and because a crash during teardown should not be the thing that
-    // loses a rebound key.
+    // before the engine goes down, since saving settings needs the save system, and a crash in teardown
+    // should not lose a rebound key.
     gny_actions_deinit();
 
-    // Before the engine, because stopping the server despawns player entities and that needs the
-    // world — and because a client should say goodbye rather than let the server time it out.
+    // before the engine, since stopping despawns player entities, and a client should disconnect cleanly
+    // rather than time out.
     gny_net_stop();
 
     nya_app_deinit();

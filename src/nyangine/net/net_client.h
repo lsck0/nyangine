@@ -61,17 +61,14 @@ struct NYA_NetClientConfig {
     u64 replicated_flag;
 
     /*
-     * ── the game's callbacks ──
+     * the game's callbacks
      *
-     * Handles rather than function pointers, built with nya_callback and passed the bare function name.
-     * A client survives a hot reload with its socket open while the game DLL underneath it is replaced,
-     * so a raw pointer into that DLL would be dangling on the next tick. See the same note on
+     * Handles built with nya_callback rather than function pointers. The client keeps its socket through
+     * a hot reload while the game DLL is replaced, so a raw pointer would dangle. Same as
      * NYA_NetServerConfig.
      */
 
-    /**
-     * NYA_NetApplyCommandFn. How a command becomes movement — the **same function the server runs**.
-     * */
+    /** NYA_NetApplyCommandFn. Turns a command into movement. Must be the same function the server runs. */
     NYA_CallbackHandle on_apply_command;
 
     /** NYA_NetSampleCommandFn. How the client learns what the player is doing. Required. */
@@ -98,9 +95,7 @@ struct NYA_NetClientConfig {
 /** Connects to a server over UDP. The handshake completes asynchronously; watch nya_net_client_state. */
 NYA_API NYA_Error nya_net_client_connect(NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config) __attr_no_discard;
 
-/**
- * Attaches to a transport somebody else created — which is how a listen server's host plays.
- * */
+/** Attaches to a transport created elsewhere. This is how a listen server's host plays. */
 NYA_API NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString name, NYA_NetClientConfig config) __attr_no_discard;
 
 NYA_API void nya_net_client_disconnect(void);
@@ -115,9 +110,7 @@ NYA_API NYA_NetDisconnect nya_net_client_disconnect_reason(void) __attr_no_disca
  * */
 NYA_API void nya_net_client_tick(u64 tick, f32 delta_time_s);
 
-/**
- * The entity this client controls, in **this process's** handle space.
- * */
+/** The entity this client controls, in this process's handle space. */
 NYA_API NYA_EntityHandle nya_net_client_entity(void) __attr_no_discard;
 
 /**
@@ -147,7 +140,5 @@ NYA_API u64 nya_net_client_correction_count(void) __attr_no_discard;
 /** Sends a game-defined event to the server. Reliable and ordered. */
 NYA_API NYA_Error nya_net_client_send_event(const NYA_Object* event) __attr_no_discard;
 
-/**
- * Smooths every replicated entity between the last two snapshots. Call once per **frame**.
- * */
+/** Smooths every replicated entity between the last two snapshots. Call once per frame. */
 NYA_API void nya_net_client_interpolate(f32 delta_time_s);

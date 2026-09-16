@@ -92,11 +92,8 @@ void gny_layer_main_menu_on_event(NYA_Window* window, NYA_Event* event) {
         default: break;
     }
 
-    // Escape does nothing here, and is swallowed rather than passed down.
-    //
-    // At the root of the menu tree there is nothing to go back to, and the obvious alternative —
-    // treating it as quit — puts "leave the program" on the key people press to dismiss things.
-    // Quitting stays an explicit item.
+    // escape is swallowed and does nothing. There is nothing to go back to at the root, and quitting on
+    // the dismiss key would surprise people. Quit stays an explicit item.
     if (event->type == NYA_EVENT_KEY_DOWN
         && nya_input_action_matches(NYA_INPUT_ACTION_CANCEL, event->as_key_event.key, event->as_key_event.modifier_flags)) {
         event->was_handled = true;
@@ -120,7 +117,6 @@ void gny_layer_main_menu_on_update(NYA_Window* window, f32 delta_time_s) {
  */
 
 void gny_layer_main_menu_on_render(NYA_Window* window) {
-    // Screen space. Nothing below this ever leaves a camera set — the game layer resets its own at
-    // the end of its render — so there is nothing to undo here.
+    // screen space. Layers below reset their camera at the end of render, so nothing to undo.
     gny_menu_draw(window, &gny_world()->main_menu);
 }

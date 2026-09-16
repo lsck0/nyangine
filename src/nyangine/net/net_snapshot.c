@@ -298,9 +298,7 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
 
             NYA_Entity* entity = nya_entity_get(replica->local);
 
-            /*
-             * Mapped, but the local entity is gone — despawned locally, or its slot reused.
-             */
+            /* Mapped, but the local entity is gone: despawned locally or its slot reused. */
             if (entity == nullptr) {
                 replica->remote  = NYA_ENTITY_HANDLE_NONE;
                 replica->present = false;
@@ -408,9 +406,8 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
 void nya_net_replica_map_clear(NYA_NetReplicaMap* map) {
     nya_assert(map != nullptr);
 
-    // Deliberately does not despawn. A caller reconnecting wants a fresh world, and one shutting down
-    // is about to destroy the world anyway — despawning here would make the first case impossible to
-    // express without spawning everything twice.
+    // does not despawn. A reconnecting caller wants a fresh world, and one shutting down destroys the
+    // world anyway.
     *map = (NYA_NetReplicaMap){ 0 };
 }
 
@@ -427,9 +424,8 @@ void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f32 delta_time_s, f32 s
         if (!replica->can_interpolate) continue;
         if (!_nya_net_handle_is_set(replica->remote)) continue;
 
-        // Prediction already places this one where the client believes it is now. Interpolating would
-        // drag it back toward where the server last said it was — which is the correction reconciliation
-        // exists to make deliberately, not something to do every frame.
+        // prediction already places this one. Interpolating would drag it back toward the last server
+        // position, which is reconciliation's job.
         if (_nya_net_handle_equals(replica->remote, predicted_remote)) continue;
 
         NYA_Entity* entity = nya_entity_get(replica->local);

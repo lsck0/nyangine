@@ -21,8 +21,8 @@ typedef struct NYA_DebugOverlayStyle  NYA_DebugOverlayStyle;
  */
 
 /**
- * Frames of history kept for the average, the worst case and the graph — about a second at
- * 120 fps: long enough to steady the average, short enough that the worst case is still recent.
+ * Frames of history for the average, worst case and graph. About a second at 120 fps: enough to
+ * steady the average while keeping the worst case recent.
  * */
 /**
  * How often the printed numbers refresh, in seconds. Sampling still happens every frame; only the
@@ -37,10 +37,7 @@ typedef struct NYA_DebugOverlayStyle  NYA_DebugOverlayStyle;
 #define NYA_DEBUG_OVERLAY_HISTORY 120
 #endif
 
-/**
- * Arenas listed in the memory section, largest first, capped rather than showing all
- * NYA_ARENA_REGISTRY_MAX entries — a HUD listing forty arenas is a wall, not a readout.
- * */
+/** Arenas listed in the memory section, largest first. Capped because forty rows is unreadable. */
 #ifndef NYA_DEBUG_OVERLAY_ARENAS
 #define NYA_DEBUG_OVERLAY_ARENAS 6
 #endif
@@ -98,9 +95,8 @@ struct NYA_DebugOverlayStyle {
     b8 hide_ceilings;
 
     /**
-     * Adds a line naming what forced the most draw calls this frame and how many were dropped. Off
-     * by default — it answers a question worth asking while optimising, not worth a line the rest
-     * of the time.
+     * Adds a line naming what forced the most draw calls this frame and how many were dropped. Off by
+     * default; useful while optimising.
      * */
     b8 show_batch_breakdown;
 
@@ -123,9 +119,9 @@ struct NYA_DebugOverlayStyle {
 NYA_API void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style);
 
 /**
- * Milliseconds of *work* the average observed frame took — update, render and present, without the
- * frame limiter's sleep. For callers without the overlay (a headless benchmark, a shutdown log
- * line). Zero until the overlay has drawn at least once, since that is what samples.
+ * Average milliseconds of work per frame: update, render and present, without the limiter's sleep.
+ * For callers without the overlay, such as a benchmark or a shutdown log. Zero until the overlay has
+ * drawn once, since drawing samples.
  * */
 NYA_API f32 nya_debug_frame_time_average_ms(void) __attr_no_discard;
 

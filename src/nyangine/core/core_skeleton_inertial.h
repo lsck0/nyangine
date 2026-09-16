@@ -2,7 +2,7 @@
  * @file core_skeleton_inertial.h
  *
  * ```c
- * // Sample whatever should be playing now. One clip, always — including mid-transition.
+ * // sample whatever should be playing now. Always one clip, even mid-transition.
  * nya_skeleton_pose_sample(skeleton, clip, time_s, &pose);
  *
  * if (clip_changed) {
@@ -13,13 +13,12 @@
  * nya_skeleton_inertializer_update(&inertializer, delta_time_s, &pose);
  * ```
  *
- * ⚠ **It transitions from what it last produced.** The inertializer keeps the two poses it wrote last,
- * because the velocity it has to match is the one that was on screen — including any offset still
- * decaying from an earlier transition. That is what makes back-to-back transitions compose instead of
- * fighting. It also means every frame must go through `nya_skeleton_inertializer_update`, even the ones
- * with no transition in them.
+ * Transitions start from what the inertializer last produced. It keeps its last two output poses, so
+ * the matched velocity is the one on screen, including offsets still decaying from an earlier
+ * transition. That lets back-to-back transitions compose, and it means every frame must go through
+ * `nya_skeleton_inertializer_update`.
  *
- * ⚠ **Roughly 14 KB.** Put one wherever the character lives, not on the stack.
+ * Roughly 14 KB. Keep it with the character, not on the stack.
  * */
 #pragma once
 
@@ -65,11 +64,10 @@ struct NYA_SkeletonInertializer {
     f32 longest_s;
 
     /*
-     * ── What was on screen, for the velocity a transition has to match ──
+     * What was on screen, for the velocity a transition matches
      *
-     * Two poses, because velocity is a difference: the pose written last frame and the one before it.
-     * Recorded by nya_skeleton_inertializer_update, which is why it has to run on every frame rather
-     * than only during a transition.
+     * Two poses, because velocity is a difference. Recorded by nya_skeleton_inertializer_update, which is
+     * why it runs every frame.
      */
     NYA_SkeletonPose previous;
     NYA_SkeletonPose before_previous;

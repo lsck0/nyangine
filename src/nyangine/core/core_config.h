@@ -5,15 +5,9 @@
  * NYA_EXPECT(nya_config_watch("assets/config/engine.nya", nya_reflect_of(NYA_ConfigEngine), &NYA_CONFIG.engine));
  * ```
  *
- * ⚠ **`instance` is not owned or copied.** A caller in a hot-reloadable game DLL (as gnyame is) that
- * registers a pointer into its own global and then triggers a *code* reload — not a config file
- * change, a rebuild of the DLL itself — leaves this system holding a pointer into memory that reload
- * may have unmapped, because nothing here re-registers watches after one; only core_app's own
- * subsystem table survives a code reload, not the game-side call that populated this table. In
- * practice this matches how GNY_LAUNCH already behaves (gnyame.h): state a game sets up once at
- * startup and does not need to survive being read again is not re-established by a code reload. A
- * config value living through a code reload as well as a file edit would need the engine to own the
- * storage instead of pointing into the game's, which is a larger change than this file makes.
+ * `instance` is not owned or copied. If it points into a hot reloadable game DLL, a code reload can
+ * unmap it, and nothing re-registers watches afterwards. Register such watches from code that runs
+ * again after a reload, or keep the storage in the engine.
  * */
 #pragma once
 
@@ -160,9 +154,8 @@ NYA_API void nya_system_config_deinit(void);
 NYA_API NYA_Error nya_config_load(NYA_ConstCString path, const NYA_TypeReflection* type, void* instance) __attr_no_discard;
 
 /**
- * Loads `path` into `instance` once, then keeps it in sync with the file for as long as
- * NYA_ASSET_HOT_RELOAD is compiled in. Without it, this is exactly nya_config_load — a locale
- * degrades the same way; see core_i18n.h.
+ * Loads `path` into `instance`, then keeps it in sync with the file while NYA_ASSET_HOT_RELOAD is
+ * compiled in. Without it this is nya_config_load, as core_i18n.h degrades.
  * */
 NYA_API NYA_Error nya_config_watch(NYA_ConstCString path, const NYA_TypeReflection* type, void* instance) __attr_no_discard;
 

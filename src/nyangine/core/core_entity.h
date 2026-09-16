@@ -219,15 +219,11 @@ struct NYA_EntitySystem {
  * APPEARANCE
  * ─────────────────────────────────────────────────────────
  *
- * What an entity looks like, so most entities need no on_render at all. Before this, drawing meant a
- * callback reading the transform and calling the renderer by hand — the same eight lines per kind of
- * thing, and where z-ordering and batching went to die: nya_system_entity_render walked the spatial
- * grid in bucket order and drew immediately, so draw order was neither spatial nor stable and shared
- * textures batched only by luck. Giving the entity its appearance lets the system sort before
- * drawing; see nya_system_entity_render_in.
+ * What an entity looks like, so most entities need no on_render. Knowing every appearance lets the
+ * system sort by depth and texture before drawing, which gives stable order and batching. See
+ * nya_system_entity_render_in.
  *
- * on_render still exists and runs *after* the visual — for the health bar, the debug outline,
- * whatever no enum covers.
+ * on_render still runs after the visual, for health bars, debug outlines and anything no enum covers.
  */
 
 enum NYA_EntityVisualKind {
@@ -584,11 +580,10 @@ NYA_API void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 ma
  * nya_entity_get(tank)->position.x += 10.0F;
  * ```
  *
- * **Where the work happens.** Nothing is recomputed when a parent moves; the whole hierarchy is
- * propagated once per tick at the end of nya_system_entity_update. So a child's `position` is
- * correct for everything that reads it *after* that — rendering, queries, the next tick's callbacks —
- * and is one tick stale for an on_update that runs before its parent's does in the same tick. Call
- * nya_entity_transform_sync when that matters, which is rare and usually means aiming something.
+ * Nothing is recomputed when a parent moves. The hierarchy propagates once per tick at the end of
+ * nya_system_entity_update, so a child's `position` is correct for rendering, queries and the next
+ * tick, and one tick stale for an on_update that runs before its parent's. Call
+ * nya_entity_transform_sync when that matters, usually when aiming.
  */
 
 /**
