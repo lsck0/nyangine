@@ -2,7 +2,13 @@
 
 #include "nyangine/base/base_assert.h"
 
+#ifdef NYA_NO_SDL
+// the build tool bootstraps from one clang command, before any vendor archive exists, so lz4 is
+// compiled in rather than linked.
+#include "vendor/lz4/lib/lz4.c"
+#else
 #include "lz4.h"
+#endif
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

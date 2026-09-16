@@ -25,7 +25,5 @@ NYA_INTERNAL NYA_Command build_rebuild_command = {
         FLAGS_DEBUG,
         FLAGS_HOST_NATIVE,
         FLAGS_BUILD_TOOL,
-        // nya_asset_bundle compresses the blob; see FLAGS_HOST_LZ4.
-        FLAGS_HOST_LZ4,
     },
 };

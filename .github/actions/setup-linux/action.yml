@@ -11,11 +11,17 @@ runs:
   using: composite
 
   steps:
+    # Downloaded packages go to a directory the runner user owns. actions/cache restores as that user,
+    # and extracting into root-owned /var/cache/apt/archives failed with "Permission denied", so the
+    # cache never restored anything.
     - name: Keep downloaded packages
       shell: bash
       run: |
-        echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' \
-          | sudo tee /etc/apt/apt.conf.d/99keep-downloads > /dev/null
+        mkdir -p "${HOME}/.apt-archives/partial"
+        {
+          echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";'
+          echo "Dir::Cache::Archives \"${HOME}/.apt-archives\";"
+        } | sudo tee /etc/apt/apt.conf.d/99keep-downloads > /dev/null
 
     # The version arrives through the environment rather than being pasted into the script. A `${{ }}`
     # inside a `run:` block is expanded *before* the shell sees the text, so an input carrying a quote
@@ -35,7 +41,7 @@ runs:
     - name: Cache apt packages
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
-        path: /var/cache/apt/archives/*.deb
+        path: ~/.apt-archives/*.deb
         key: apt-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ hashFiles('.github/ci-packages.txt') }}
 
     - name: Install packages

@@ -75,14 +75,6 @@
 
 #define BUILD_TOOL_BINARY "build.exe"
 
-/**
- * lz4 for the build tool itself, which compresses the asset blob. See nya_asset_bundle.
- *
- * The tool links the host's own archive because it runs here, unlike every other use of lz4 in this
- * tree, which links the archive for the target being shipped.
- * */
-#define FLAGS_HOST_LZ4 "-I./vendor/lz4/lib/", LZ4_A_WIN
-
 /*
  * No sanitizers on a Windows host. -fsanitize=leak has no Windows implementation at all, and asan
  * under mingw is not usable the way it is on Linux — the same reason the Windows project rules skip
@@ -99,9 +91,6 @@
 #else
 
 #define BUILD_TOOL_BINARY "build"
-
-/** See the Windows definition. */
-#define FLAGS_HOST_LZ4 "-I./vendor/lz4/lib/", LZ4_A_LIN
 
 #define FLAGS_HOST_NATIVE       FLAGS_DEBUG_LINUX_X86_64, FLAGS_SANITIZE, FLAGS_LINUX_X86_64
 
