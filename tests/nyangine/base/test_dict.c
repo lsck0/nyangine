@@ -35,25 +35,25 @@ s32 main(void) {
   // TEST: nya_dict_set and nya_dict_get
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* insert_map = nya_dict_create(arena, u64);
-  nya_dict_set(insert_map, "alpha", 100UL);
+  nya_dict_set(insert_map, "alpha", (u64)100);
   nya_assert(insert_map->length == 1);
   u64* val = nya_dict_get(insert_map, "alpha");
   nya_assert(val != nullptr);
-  nya_assert(*val == 100UL);
+  nya_assert(*val == (u64)100);
 
-  nya_dict_set(insert_map, "beta", 200UL);
-  nya_dict_set(insert_map, "gamma", 300UL);
+  nya_dict_set(insert_map, "beta", (u64)200);
+  nya_dict_set(insert_map, "gamma", (u64)300);
   nya_assert(insert_map->length == 3);
-  nya_assert(*nya_dict_get(insert_map, "beta") == 200UL);
-  nya_assert(*nya_dict_get(insert_map, "gamma") == 300UL);
+  nya_assert(*nya_dict_get(insert_map, "beta") == (u64)200);
+  nya_assert(*nya_dict_get(insert_map, "gamma") == (u64)300);
   nya_dict_destroy(insert_map);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dict_contains
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* contains_map = nya_dict_create(arena, u64);
-  nya_dict_set(contains_map, "foo", 1000UL);
-  nya_dict_set(contains_map, "bar", 2000UL);
+  nya_dict_set(contains_map, "foo", (u64)1000);
+  nya_dict_set(contains_map, "bar", (u64)2000);
   nya_assert(nya_dict_contains(contains_map, "foo") == true);
   nya_assert(nya_dict_contains(contains_map, "bar") == true);
   nya_assert(nya_dict_contains(contains_map, "baz") == false);
@@ -64,7 +64,7 @@ s32 main(void) {
   // TEST: nya_dict_get returns nullptr for missing keys
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* get_map = nya_dict_create(arena, u64);
-  nya_dict_set(get_map, "exists", 500UL);
+  nya_dict_set(get_map, "exists", (u64)500);
   nya_assert(nya_dict_get(get_map, "exists") != nullptr);
   nya_assert(nya_dict_get(get_map, "missing") == nullptr);
   nya_dict_destroy(get_map);
@@ -73,9 +73,9 @@ s32 main(void) {
   // TEST: nya_dict_remove
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* remove_map = nya_dict_create(arena, u64);
-  nya_dict_set(remove_map, "a", 10UL);
-  nya_dict_set(remove_map, "b", 20UL);
-  nya_dict_set(remove_map, "c", 30UL);
+  nya_dict_set(remove_map, "a", (u64)10);
+  nya_dict_set(remove_map, "b", (u64)20);
+  nya_dict_set(remove_map, "c", (u64)30);
   nya_assert(remove_map->length == 3);
 
   nya_dict_remove(remove_map, "b");
@@ -83,17 +83,17 @@ s32 main(void) {
   nya_assert(nya_dict_contains(remove_map, "a") == true);
   nya_assert(nya_dict_contains(remove_map, "b") == false);
   nya_assert(nya_dict_contains(remove_map, "c") == true);
-  nya_assert(*nya_dict_get(remove_map, "a") == 10UL);
-  nya_assert(*nya_dict_get(remove_map, "c") == 30UL);
+  nya_assert(*nya_dict_get(remove_map, "a") == (u64)10);
+  nya_assert(*nya_dict_get(remove_map, "c") == (u64)30);
   nya_dict_destroy(remove_map);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_dict_remove first and last
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* remove_first_last = nya_dict_create(arena, u64);
-  nya_dict_set(remove_first_last, "first", 1UL);
-  nya_dict_set(remove_first_last, "middle", 2UL);
-  nya_dict_set(remove_first_last, "last", 3UL);
+  nya_dict_set(remove_first_last, "first", (u64)1);
+  nya_dict_set(remove_first_last, "middle", (u64)2);
+  nya_dict_set(remove_first_last, "last", (u64)3);
 
   nya_dict_remove(remove_first_last, "first");
   nya_assert(remove_first_last->length == 2);
@@ -109,9 +109,9 @@ s32 main(void) {
   // TEST: nya_dict_clear
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* clear_map = nya_dict_create(arena, u64);
-  nya_dict_set(clear_map, "x", 1UL);
-  nya_dict_set(clear_map, "y", 2UL);
-  nya_dict_set(clear_map, "z", 3UL);
+  nya_dict_set(clear_map, "x", (u64)1);
+  nya_dict_set(clear_map, "y", (u64)2);
+  nya_dict_set(clear_map, "z", (u64)3);
   nya_assert(clear_map->length == 3);
 
   nya_dict_clear(clear_map);
@@ -141,18 +141,18 @@ s32 main(void) {
   // TEST: insert updates existing key value
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* update_map = nya_dict_create(arena, u64);
-  nya_dict_set(update_map, "key", 100UL);
-  nya_assert(*nya_dict_get(update_map, "key") == 100UL);
-  nya_dict_set(update_map, "key", 999UL);
+  nya_dict_set(update_map, "key", (u64)100);
+  nya_assert(*nya_dict_get(update_map, "key") == (u64)100);
+  nya_dict_set(update_map, "key", (u64)999);
   nya_assert(update_map->length == 1);
-  nya_assert(*nya_dict_get(update_map, "key") == 999UL);
+  nya_assert(*nya_dict_get(update_map, "key") == (u64)999);
   nya_dict_destroy(update_map);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: remove non-existent key (should not crash)
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* remove_nonexist = nya_dict_create(arena, u64);
-  nya_dict_set(remove_nonexist, "present", 10UL);
+  nya_dict_set(remove_nonexist, "present", (u64)10);
   nya_dict_remove(remove_nonexist, "absent");
   nya_assert(remove_nonexist->length == 1);
   nya_assert(nya_dict_contains(remove_nonexist, "present") == true);
@@ -173,15 +173,15 @@ s32 main(void) {
   // TEST: clear then reuse
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* reuse_map = nya_dict_create(arena, u64);
-  nya_dict_set(reuse_map, "a", 1UL);
-  nya_dict_set(reuse_map, "b", 2UL);
+  nya_dict_set(reuse_map, "a", (u64)1);
+  nya_dict_set(reuse_map, "b", (u64)2);
   nya_dict_clear(reuse_map);
   nya_assert(reuse_map->length == 0);
-  nya_dict_set(reuse_map, "a", 10UL);
-  nya_dict_set(reuse_map, "b", 20UL);
+  nya_dict_set(reuse_map, "a", (u64)10);
+  nya_dict_set(reuse_map, "b", (u64)20);
   nya_assert(reuse_map->length == 2);
-  nya_assert(*nya_dict_get(reuse_map, "a") == 10UL);
-  nya_assert(*nya_dict_get(reuse_map, "b") == 20UL);
+  nya_assert(*nya_dict_get(reuse_map, "a") == (u64)10);
+  nya_assert(*nya_dict_get(reuse_map, "b") == (u64)20);
   nya_dict_destroy(reuse_map);
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -195,7 +195,7 @@ s32 main(void) {
     nya_assert(remove_all->length == 9 - i);
   }
   nya_assert(remove_all->length == 0);
-  nya_dict_set(remove_all, "reuse", 42UL);
+  nya_dict_set(remove_all, "reuse", (u64)42);
   nya_assert(remove_all->length == 1);
   nya_dict_destroy(remove_all);
 
@@ -203,22 +203,22 @@ s32 main(void) {
   // TEST: keys with same prefix are distinct
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* prefix_map = nya_dict_create(arena, u64);
-  nya_dict_set(prefix_map, "key", 1UL);
-  nya_dict_set(prefix_map, "key1", 2UL);
-  nya_dict_set(prefix_map, "key12", 3UL);
+  nya_dict_set(prefix_map, "key", (u64)1);
+  nya_dict_set(prefix_map, "key1", (u64)2);
+  nya_dict_set(prefix_map, "key12", (u64)3);
   nya_assert(prefix_map->length == 3);
-  nya_assert(*nya_dict_get(prefix_map, "key") == 1UL);
-  nya_assert(*nya_dict_get(prefix_map, "key1") == 2UL);
-  nya_assert(*nya_dict_get(prefix_map, "key12") == 3UL);
+  nya_assert(*nya_dict_get(prefix_map, "key") == (u64)1);
+  nya_assert(*nya_dict_get(prefix_map, "key1") == (u64)2);
+  nya_assert(*nya_dict_get(prefix_map, "key12") == (u64)3);
   nya_dict_destroy(prefix_map);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: foreach iteration
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Dictᐸu64ᐳ* iter_map = nya_dict_create(arena, u64);
-  nya_dict_set(iter_map, "a", 100UL);
-  nya_dict_set(iter_map, "b", 200UL);
-  nya_dict_set(iter_map, "c", 300UL);
+  nya_dict_set(iter_map, "a", (u64)100);
+  nya_dict_set(iter_map, "b", (u64)200);
+  nya_dict_set(iter_map, "c", (u64)300);
 
   u64 val_sum = 0;
   u64 count   = 0;
@@ -261,9 +261,9 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Dictᐸu64ᐳ stack_dict = nya_dict_create_on_stack(arena, u64);
-    nya_dict_set(&stack_dict, "x", 42UL);
+    nya_dict_set(&stack_dict, "x", (u64)42);
     nya_assert(stack_dict.length == 1);
-    nya_assert(*nya_dict_get(&stack_dict, "x") == 42UL);
+    nya_assert(*nya_dict_get(&stack_dict, "x") == (u64)42);
     nya_dict_destroy_on_stack(stack_dict);
   }
 

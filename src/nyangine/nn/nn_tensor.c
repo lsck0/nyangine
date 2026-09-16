@@ -59,7 +59,7 @@ NYA_NNGraph* nya_nn_graph_create(NYA_Arena* arena) {
 
     // Sized for activations, which are small and short lived: a batch of a few hundred rows through
     // a few layers. It grows if a network needs more, in steps of this rather than of the default.
-    graph->allocator = nya_arena_create(.name = "nn_graph", .region_size = nya_mebyte_to_byte(4UL));
+    graph->allocator = nya_arena_create(.name = "nn_graph", .region_size = nya_mebyte_to_byte(4));
 
     return graph;
 }

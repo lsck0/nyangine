@@ -134,7 +134,7 @@ NYA_String* nya_path_normalize(NYA_Arena* arena, NYA_ConstCString path) {
      * Sized to the segment table below rather than left at the default, which is a gibibyte.
      * */
     u64 table_size   = (length + 1) * (sizeof(NYA_ConstCString) + sizeof(u64));
-    u64 scratch_size = nya_max((u64)nya_kibyte_to_byte(4UL), (u64)(table_size + nya_kibyte_to_byte(1UL)));
+    u64 scratch_size = nya_max((u64)nya_kibyte_to_byte(4), (u64)(table_size + nya_kibyte_to_byte(1)));
 
     NYA_Arena* scratch = nya_arena_create(.region_size = scratch_size);
     defer      nya_arena_destroy(scratch);

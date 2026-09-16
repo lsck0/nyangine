@@ -14,7 +14,7 @@ s32 main(void) {
   nya_assert(numbers->capacity == 1000, "the growth path must not run, or the overrun is absorbed");
 
   // 999 * 8 - 1 = 7991 bytes moved to items + 2, ending 7 bytes past the 8000 byte allocation.
-  nya_array_insert(numbers, 12345UL, 1);
+  nya_array_insert(numbers, (u64)12345, 1);
 
   nya_assert(numbers->length == 1000);
   nya_assert(numbers->items[0] == 0);

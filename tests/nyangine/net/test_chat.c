@@ -7,6 +7,13 @@
 
 #include "SDL3/SDL_init.h"
 
+#if OS_WINDOWS
+// forks two client processes, which Windows cannot.
+s32 main(void) {
+  return 0;
+}
+#else
+
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -562,3 +569,4 @@ s32 main(void) {
 
   return 0;
 }
+#endif

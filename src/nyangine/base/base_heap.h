@@ -176,7 +176,7 @@
         nya_assert((heap_ptr)->compare != nullptr);                                                                                                  \
         nya_assert_type_match(item, (heap_ptr)->items[0]);                                                                                           \
         if ((heap_ptr)->length == (heap_ptr)->capacity) {                                                                                            \
-            nya_heap_resize(heap_ptr, (heap_ptr)->capacity == 0 ? 1 : nya_cast_to_u64(2UL * (heap_ptr)->capacity));                                  \
+            nya_heap_resize(heap_ptr, (heap_ptr)->capacity == 0 ? 1 : nya_cast_to_u64((u64)2 * (heap_ptr)->capacity));                               \
         }                                                                                                                                            \
         u64 index                = (heap_ptr)->length++;                                                                                             \
         (heap_ptr)->items[index] = item;                                                                                                             \

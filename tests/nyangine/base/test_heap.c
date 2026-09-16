@@ -280,15 +280,15 @@ s32 main(void) {
   nya_heap_push(reserve_heap, 20);
   nya_assert(reserve_heap->capacity == 4);
 
-  nya_heap_reserve(reserve_heap, 100UL);
-  nya_assert(reserve_heap->capacity >= 100UL);
+  nya_heap_reserve(reserve_heap, (u64)100);
+  nya_assert(reserve_heap->capacity >= (u64)100);
   nya_assert(reserve_heap->length == 2);
   nya_assert(reserve_heap->items[0] == 10);
   nya_assert(reserve_heap->items[1] == 20);
 
   // Reserve with smaller capacity should not change
   u64 cap = reserve_heap->capacity;
-  nya_heap_reserve(reserve_heap, 50UL);
+  nya_heap_reserve(reserve_heap, (u64)50);
   nya_assert(reserve_heap->capacity == cap);
   nya_heap_destroy(reserve_heap);
 

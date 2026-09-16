@@ -543,7 +543,7 @@ NYA_Neat* nya_nn_neat_create(NYA_NeatConfig config) {
     _nya_nn_neat_apply_config_defaults(&config);
 
     /* Region sizes stated explicitly. */
-    const u64 neat_region_size = nya_mebyte_to_byte(4UL);
+    const u64 neat_region_size = nya_mebyte_to_byte(4);
 
     NYA_Arena* allocator = nya_arena_create(.name = "neat_allocator", .region_size = neat_region_size);
 
@@ -561,7 +561,7 @@ NYA_Neat* nya_nn_neat_create(NYA_NeatConfig config) {
     neat->current_innovations = nya_array_create(allocator, NYA_NeatConnection);
 
     // small: it holds one genome at a time. see NYA_Neat.best_allocator.
-    neat->best_allocator = nya_arena_create(.name = "neat_best", .region_size = nya_mebyte_to_byte(1UL));
+    neat->best_allocator = nya_arena_create(.name = "neat_best", .region_size = nya_mebyte_to_byte(1));
 
     NYA_Arena* generation = neat->generation_allocators[0];
     neat->species         = nya_array_create(generation, NYA_NeatSpecies);

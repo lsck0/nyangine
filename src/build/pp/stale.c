@@ -24,7 +24,7 @@ NYA_INTERNAL b8 _nya_pp_has_extension(NYA_ConstCString path, NYA_ConstCString ex
 u64 nya_pp_newest(NYA_ConstCString* paths, NYA_ConstCString extension) {
     nya_assert(paths != nullptr);
 
-    NYA_Arena* arena = nya_arena_create(.region_size = nya_mebyte_to_byte(1UL));
+    NYA_Arena* arena = nya_arena_create(.region_size = nya_mebyte_to_byte(1));
     defer      nya_arena_destroy(arena);
 
     _NYA_PPNewest state = { .extension = extension };

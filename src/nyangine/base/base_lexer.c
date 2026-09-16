@@ -28,7 +28,7 @@ NYA_Lexer nya_lexer_create(NYA_ConstCString source, NYA_LexerFlags flags) __attr
     NYA_Lexer lexer = {
         // A token stream is small and short lived, so it gets a region sized for one rather than
         // the gibibyte default, which a sanitized build pays for in full on creation.
-        .arena               = nya_arena_create(.region_size = nya_mebyte_to_byte(1UL)),
+        .arena               = nya_arena_create(.region_size = nya_mebyte_to_byte(1)),
         .source              = source,
         .cursor              = 0,
         .flags               = flags,

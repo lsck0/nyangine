@@ -21,7 +21,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: freed blocks are reused\n");
   {
-    NYA_Arena* arena = nya_arena_create(.name = "reuse", .region_size = nya_kibyte_to_byte(64UL));
+    NYA_Arena* arena = nya_arena_create(.name = "reuse", .region_size = nya_kibyte_to_byte(64));
 
     // Two allocations so the first is not the most recent, which takes the "last allocation" path
     // in free rather than going onto the free list.
@@ -52,7 +52,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: adjacent frees coalesce\n");
   {
-    NYA_Arena* arena = nya_arena_create(.name = "coalesce", .region_size = nya_kibyte_to_byte(64UL));
+    NYA_Arena* arena = nya_arena_create(.name = "coalesce", .region_size = nya_kibyte_to_byte(64));
 
     enum { BLOCKS = 32, BLOCK_SIZE = 128 };
 
@@ -87,7 +87,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: churn is bounded\n");
   {
-    NYA_Arena* arena = nya_arena_create(.name = "churn", .region_size = nya_kibyte_to_byte(64UL));
+    NYA_Arena* arena = nya_arena_create(.name = "churn", .region_size = nya_kibyte_to_byte(64));
 
     void* anchor = nya_arena_alloc(arena, 64);   // keeps the churn off the last-allocation path
     nya_assert(anchor != nullptr);
@@ -123,7 +123,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: coalesced span is usable\n");
   {
-    NYA_Arena* arena = nya_arena_create(.name = "span", .region_size = nya_kibyte_to_byte(64UL));
+    NYA_Arena* arena = nya_arena_create(.name = "span", .region_size = nya_kibyte_to_byte(64));
 
     enum { PIECES = 16, PIECE = 256 };
 
@@ -153,7 +153,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: realloc round trip\n");
   {
-    NYA_Arena* arena = nya_arena_create(.name = "realloc", .region_size = nya_kibyte_to_byte(64UL));
+    NYA_Arena* arena = nya_arena_create(.name = "realloc", .region_size = nya_kibyte_to_byte(64));
 
     u8* data = nya_arena_alloc(arena, 1024);
     for (u32 i = 0; i < 1024; i++) data[i] = (u8)(i & 0xFF);
@@ -174,17 +174,17 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: oversized allocation\n");
   {
-    NYA_Arena* arena = nya_arena_create(.name = "oversized", .region_size = nya_kibyte_to_byte(4UL));
+    NYA_Arena* arena = nya_arena_create(.name = "oversized", .region_size = nya_kibyte_to_byte(4));
 
-    u8* big = nya_arena_alloc(arena, nya_kibyte_to_byte(64UL));
+    u8* big = nya_arena_alloc(arena, nya_kibyte_to_byte(64));
     nya_assert(big != nullptr);
 
     // Writable across its whole length, which is what ASan is here to confirm.
-    nya_memset(big, 0xAB, nya_kibyte_to_byte(64UL));
+    nya_memset(big, 0xAB, nya_kibyte_to_byte(64));
     nya_assert(big[0] == 0xAB);
-    nya_assert(big[nya_kibyte_to_byte(64UL) - 1] == 0xAB);
+    nya_assert(big[nya_kibyte_to_byte(64) - 1] == 0xAB);
 
-    nya_arena_free(arena, big, nya_kibyte_to_byte(64UL));
+    nya_arena_free(arena, big, nya_kibyte_to_byte(64));
     nya_arena_destroy(arena);
     printf("  PASSED\n");
   }

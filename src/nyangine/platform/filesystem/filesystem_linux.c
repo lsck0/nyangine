@@ -241,7 +241,7 @@ _nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkCallback c
     // full on creation: a fixed cost per directory that dwarfed the walk itself. A mebibyte holds a
     // few thousand entries and their joined paths, and a directory larger than that just chains
     // another region.
-    NYA_Arena* scratch = nya_arena_create(.region_size = nya_mebyte_to_byte(1UL));
+    NYA_Arena* scratch = nya_arena_create(.region_size = nya_mebyte_to_byte(1));
     defer      nya_arena_destroy(scratch);
 
     NYA_ArrayᐸNYA_DirectoryEntryᐳ* entries = nullptr;

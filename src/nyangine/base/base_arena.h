@@ -43,14 +43,14 @@ typedef struct NYA_ArneaAction         NYA_ArenaAction;
  * whether or not the arena holds anything.
  * */
 #define _NYA_ARENA_DEFAULT_OPTIONS                                                                                                                   \
-    .name = nullptr, .alignment = 16, .region_size = nya_mebyte_to_byte(64UL), .defragmentation_enabled = true, .defragmentation_threshold = 16,     \
+    .name = nullptr, .alignment = 16, .region_size = nya_mebyte_to_byte(64), .defragmentation_enabled = true, .defragmentation_threshold = 16,       \
     .garbage_collection_enabled = true, .garbage_collection_threshold = 3
 
 /**
  * The same, for a stack arena, whose region is sized for scratch rather than for a subsystem.
  * */
 #define _NYA_ARENA_DEFAULT_OPTIONS_ON_STACK                                                                                                          \
-    .name = nullptr, .alignment = 16, .region_size = nya_kibyte_to_byte(64UL), .defragmentation_enabled = true, .defragmentation_threshold = 16,     \
+    .name = nullptr, .alignment = 16, .region_size = nya_kibyte_to_byte(64), .defragmentation_enabled = true, .defragmentation_threshold = 16,       \
     .garbage_collection_enabled = true, .garbage_collection_threshold = 3
 
 struct NYA_ArenaOptions {

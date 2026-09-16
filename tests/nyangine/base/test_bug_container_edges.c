@@ -42,7 +42,7 @@ s32 main(void) {
   printf("TEST: nya_heap_from_carray on an empty array\n");
   {
     u32*           nothing = nullptr;
-    NYA_Heapᐸu32ᐳ* heap    = nya_heap_from_carray(arena, u32, nothing, 0UL, &compare_u32_ascending);
+    NYA_Heapᐸu32ᐳ* heap    = nya_heap_from_carray(arena, u32, nothing, (u64)0, &compare_u32_ascending);
 
     // Growing from zero is proven by the next section; here it is only that an empty source is
     // accepted at all rather than tripping the capacity-zero allocation path.
@@ -57,7 +57,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: growing a zero capacity heap\n");
   {
-    NYA_Heapᐸu32ᐳ* heap = nya_heap_create_with_capacity(arena, u32, &compare_u32_ascending, 0UL);
+    NYA_Heapᐸu32ᐳ* heap = nya_heap_create_with_capacity(arena, u32, &compare_u32_ascending, (u64)0);
     nya_assert(heap->items == nullptr, "capacity zero should not allocate");
 
     for (u32 i = 10; i > 0; i--) nya_heap_push(heap, i);
@@ -77,7 +77,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: nya_heap_destroy_on_stack resets the state\n");
   {
-    NYA_Heapᐸu32ᐳ heap = nya_heap_create_with_capacity_on_stack(arena, u32, &compare_u32_ascending, 4UL);
+    NYA_Heapᐸu32ᐳ heap = nya_heap_create_with_capacity_on_stack(arena, u32, &compare_u32_ascending, (u64)4);
     nya_heap_push(&heap, 3U);
     nya_heap_push(&heap, 1U);
 

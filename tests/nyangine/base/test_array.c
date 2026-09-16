@@ -454,14 +454,14 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   NYA_Arrayᐸu32ᐳ* reserve_arr = nya_array_create_with_capacity(arena, u32, 4);
   nya_array_add_many(reserve_arr, 1U, 2U);
-  nya_array_reserve(reserve_arr, 100UL);
+  nya_array_reserve(reserve_arr, (u64)100);
   nya_assert(reserve_arr->capacity >= 100);
   nya_assert(reserve_arr->length == 2);
   nya_assert(reserve_arr->items[0] == 1);
   nya_assert(reserve_arr->items[1] == 2);
 
   u64 cap = reserve_arr->capacity;
-  nya_array_reserve(reserve_arr, 50UL);
+  nya_array_reserve(reserve_arr, (u64)50);
   nya_assert(reserve_arr->capacity == cap);
   nya_array_destroy(reserve_arr);
 

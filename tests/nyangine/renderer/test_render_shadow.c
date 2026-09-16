@@ -91,16 +91,16 @@ s32 main(void) {
     {
         for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
             NYA_Render3DShadow close = nya_render3d_shadow_for_camera(camera_looking_at_origin(4.0F), SUN, cascade, unsnapped);
-            NYA_Render3DShadow far   = nya_render3d_shadow_for_camera(camera_looking_at_origin(40.0F), SUN, cascade, unsnapped);
+            NYA_Render3DShadow distant = nya_render3d_shadow_for_camera(camera_looking_at_origin(40.0F), SUN, cascade, unsnapped);
 
-            nya_check(fabsf(close.extent - far.extent) < 0.001F,
+            nya_check(fabsf(close.extent - distant.extent) < 0.001F,
                       "cascade " FMTu32 " must be the same size from four units away as from forty, got %f against %f", cascade,
-                      (f64)close.extent, (f64)far.extent);
+                      (f64)close.extent, (f64)distant.extent);
 
             // And it must sit the same distance down the view, so it covers the same slice of what the
             // camera can see rather than the same patch of world.
             f32 close_distance = close.center.z - (-4.0F);
-            f32 far_distance   = far.center.z - (-40.0F);
+            f32 far_distance   = distant.center.z - (-40.0F);
 
             nya_check(fabsf(close_distance - far_distance) < 0.001F, "and the same distance down the view, got %f against %f",
                       (f64)close_distance, (f64)far_distance);
@@ -120,12 +120,12 @@ s32 main(void) {
         for (u32 i = 0; i < nya_carray_length(distances); i++) {
             NYA_Camera3DPerspective camera = camera_looking_at_origin(distances[i]);
 
-            NYA_Render3DShadow near = nya_render3d_shadow_for_camera(camera, SUN, 0, fit);
+            NYA_Render3DShadow first = nya_render3d_shadow_for_camera(camera, SUN, 0, fit);
 
             // A point two units ahead of the camera, on the view axis.
             f32x3 ahead = { 0.0F, 0.0F, camera.position.z + 2.0F };
 
-            nya_check(covers(near, ahead), "cascade zero should cover a point two units ahead of a camera %f from its target",
+            nya_check(covers(first, ahead), "cascade zero should cover a point two units ahead of a camera %f from its target",
                       (f64)distances[i]);
         }
     }

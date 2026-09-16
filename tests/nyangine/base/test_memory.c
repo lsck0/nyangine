@@ -201,12 +201,12 @@ s32 main(void) {
     nya_assert(tb_decimal == 2000);
 
     // Test gibyte_to_byte
-    u64 gib_to_bytes = nya_gibyte_to_byte(1UL);
+    u64 gib_to_bytes = nya_gibyte_to_byte(1);
     nya_assert(gib_to_bytes == 1024ULL * 1024 * 1024);
-    nya_assert(nya_gibyte_to_byte(2UL) == 2ULL * 1024 * 1024 * 1024);
+    nya_assert(nya_gibyte_to_byte(2) == 2ULL * 1024 * 1024 * 1024);
 
     // Test gbyte_to_byte
-    u64 gb_to_bytes = nya_gbyte_to_byte(1UL);
+    u64 gb_to_bytes = nya_gbyte_to_byte((u64)1);
     nya_assert(gb_to_bytes == 1000000000ULL);
 
     // Test tbyte_to_byte

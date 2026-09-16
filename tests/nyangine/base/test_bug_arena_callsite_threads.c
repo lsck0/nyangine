@@ -22,7 +22,7 @@ static s32 SDLCALL worker(void* data) {
   nya_unused(data);
 
   // Its own arena. The table is what is shared, not the allocator.
-  NYA_Arena* arena = nya_arena_create(.name = "callsite_thread_arena", .region_size = nya_kibyte_to_byte(64UL));
+  NYA_Arena* arena = nya_arena_create(.name = "callsite_thread_arena", .region_size = nya_kibyte_to_byte(64));
 
   for (u32 i = 0; i < ALLOCS_PER_THREAD; i++) allocate_a_block(arena);
 
