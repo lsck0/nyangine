@@ -114,7 +114,7 @@ written lookup, its own eviction rule (usually none), and its own idea of when a
 | `core_asset.c:407` `_nya_asset_lookup` | the last asset per slot | handle pointer, plus a copy of its text |
 | `render_text.c:262` `_nya_text_font_handle_intern` | stable handle strings | linear scan over the text |
 | `render2d.c:319` `_nya_render2d_font_cache` | glyph atlases | path + point size, linear scan |
-| `render3d.h` mesh registry | uploaded vertex buffers | a name |
+| `render3d.h` mesh registry | uploaded vertex buffers | a copy of the handle, FNV-1a key then text |
 
 Four hand-rolled tables, and between them they have produced most of the bugs in the Findings below —
 a memo that returned the wrong asset for two days, an intern table that exists only to paper over that
@@ -253,16 +253,14 @@ value is a different thing. Worth measuring, not worth assuming.
 `[ ]` **`NYA_VertexSkinned3D` is untouched** and still carries the same four wide fields plus bones and
 weights. It has its own attribute table and its own layout, so it can move independently.
 
-### The asset blob is 12 MB, uncompressed, and LZ4 is already linked
+### ✅ The asset blob is compressed per entry
 
-`NYA_ASSET_BLOB` is the largest object in the binary by a factor of ten — everything else static
-together is about 4 MB. `src/build/pp/asset.c` writes it as plain bytes, and `vendor/lz4` is already
-built and on the link line for every target.
+Done. Each entry is LZ4 compressed at bundle time and kept compressed only when that saves at least
+`NYA_ASSET_BLOB_MIN_COMPRESSION_SAVING_BYTES`. A compressed entry is expanded once and shared, reference
+counted, by every asset reading it, so several sizes of one font share one copy.
 
-- `[ ]` Compress per entry and decompress on first use. The blob is `.rodata`, so what is resident is
-  whatever has been touched — but the binary is 12 MB larger on disk and in the page cache regardless.
-- `[ ]` Or bake less: nothing checks whether an asset is ever loaded, so the blob carries the whole
-  tree including anything only a test or an old scene reads.
+- `[ ]` Bake less: nothing checks whether an asset is ever loaded, so the blob carries the whole tree
+  including anything only a test or an old scene reads.
 
 ### Static memory that is resident for no reason
 
@@ -345,15 +343,25 @@ The game builds its menus by hand in `layers.c` in the meantime.
 ## `[ ]` Steam is dead code, twice over
 
 - `net_steam.c:57` returns `NYA_ERROR_NOT_SUPPORTED`; the transport is unimplemented.
-- `plugins/steam/steam.c` has never been compiled. `plugins.c` *does* include it, behind
-  `#ifdef NYA_PLUGIN_STEAM` — but `FLAGS_PLUGINS` in `src/build/flags.h:61` passes CURL, SQLITE,
-  DISCORD and LUA and not STEAM, so no build defines it. (steam.c's own file comment claims it is in no
-  translation unit at all; that is stale, and wrong in a way that would send the next person looking in
-  `nyangine.c` instead of at the build flags.) `NYA_EXECUTION_MODE=3` is called "steam".
+- `plugins/steam/steam.c` has never been compiled. `plugins.c` includes it behind `#ifdef NYA_PLUGIN_STEAM`,
+  and `FLAGS_STEAM_LINUX_X86_64` / `FLAGS_STEAM_WINDOWS_X86_64` in `src/build/flags.h` define it, but no
+  build rule uses either flag set. `NYA_EXECUTION_MODE=3` is called "steam".
 
 ## `[ ]` The game side has no tests
 
 `tests/gnyame/` holds a `.keep` and nothing else.
+
+## `[ ]` CI builds everything from scratch
+
+The vendor libraries are cached (Linux: one 2 GiB entry keyed on submodule revisions and the vendor
+recipes). The engine, game and tests are not: every rule is one `clang` invocation that compiles and
+links, which ccache cannot cache, and each test is its own unity build of the whole engine. That is
+most of the test job's time.
+
+- → Split each rule into compile and link, or build the engine once as an object the tests link, then
+  put ccache in front of `clang` and cache its directory per job.
+- `nya_build_parallel` runs a batch of `max_jobs` and waits for the whole batch, so one slow rule idles
+  the other slots. A job pool that refills as each rule finishes would use them.
 
 ## `[ ]` The verification rule is not being kept
 
@@ -361,10 +369,11 @@ The game builds its menus by hand in `layers.c` in the meantime.
 saves, nav, jobs, occlusion, tweens, LOD, gamepads, or the sqlite/curl/discord/steam plugins. The nn one
 matters most: the GDD makes DQN and NEAT robot programming the core mechanic and the game uses neither.
 
-## `[ ]` Hot reload can open a half-written DLL
+## `[ ]` Animation has no caller in the game
 
-`src/main.c:108`. Wants the asset system's change detection to gate the load rather than racing the
-compiler.
+Skeletons, skinned meshes and the sprite animator are only reached from tests; `gnyame` uses tweens and
+nothing else. `bender.fbx` is loaded by `test_skeleton.c` and never drawn. The fixes to bone order,
+multi-mesh skins, event direction and root motion are covered headless; a skinned draw on screen is not.
 
 ## `[ ]` The glyph atlas rasteriser is still untested
 
@@ -393,6 +402,29 @@ This file contains non-obvious engineering findings and details that cost real e
 ---
 
 ## Findings
+
+### A CI Runner Ignores SIGPIPE, And Children Inherit It
+
+GitHub's runner starts jobs with SIGPIPE ignored, and an ignored disposition survives `exec`. `yes | head`
+in a child then does not die when `head` closes the pipe; `yes` prints `yes: standard output: Broken pipe`
+and exits. `test_bug_command_pipe_deadlock` saw exactly those 34 extra bytes on CI and never locally.
+`nya_command_spawn` resets SIGPIPE to the default in the child.
+
+### A Union Member Can Overwrite The Pointer To Its Own Bytes
+
+`NYA_Asset.as_text`, `as_font` and `as_sound` share storage. A font is decoded from `as_text.data`, then
+`as_font.font` is written over that same pointer, so unloading freed null and every font and sound read
+off disk leaked its file. Nothing noticed because the leak is inside an arena. The encoded bytes are now
+also kept in `NYA_Asset.raw`, outside the union. The mesh loader had hit the same aliasing earlier and
+builds into a scratch asset for that reason.
+
+### A Seen Window Indexed By Id Forgets Under Reordering
+
+The UDP transport's duplicate filter was a bitmap indexed by `id % 1024` that cleared 64 bits ahead of
+each mark. Receiving 5 after 10 cleared 10's mark, so a retransmit of 10 was delivered again. On the
+reliable channel it was queued behind a delivery id already past it and never drained, until the queue
+filled and the peer was dropped. The window now slides behind the newest id, which a late id cannot
+disturb.
 
 ### Render Pass State Is Per Pass, And A Flush Opens A New One
 
