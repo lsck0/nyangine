@@ -1060,6 +1060,12 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     if (mesh_batch->index_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, mesh_batch->index_buffer);
     if (mesh_batch->index_transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->index_transfer_buffer);
 
+    // The shadow pass's narrow vertex stream, released beside the wide one it shadows. See
+    // NYA_Render3DBatch.depth_vertex_buffer: it has no index pair, because a shadow pass binds the index
+    // buffer above rather than one of its own.
+    if (mesh_batch->depth_vertex_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, mesh_batch->depth_vertex_buffer);
+    if (mesh_batch->depth_transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->depth_transfer_buffer);
+
     // The instance stream. A vertex buffer as far as SDL is concerned; only the pipeline's input rate
     // makes it per-instance, so it is released exactly like one.
     if (mesh_batch->instance_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, mesh_batch->instance_buffer);
