@@ -28,6 +28,7 @@ typedef NYA_CString                    NYA_AssetHandle;
 typedef enum NYA_AssetLoadStatus       NYA_AssetStatus;
 typedef enum NYA_AssetType             NYA_AssetType;
 typedef struct NYA_Asset               NYA_Asset;
+typedef struct NYA_AssetBlobExpanded   NYA_AssetBlobExpanded;
 typedef struct NYA_AssetBlobHeader     NYA_AssetBlobHeader;
 typedef enum NYA_BlendMode NYA_BlendMode;
 typedef enum NYA_VertexLayout          NYA_VertexLayout;
@@ -92,6 +93,13 @@ struct NYA_AssetSystem {
     NYA_ArrayᐸNYA_AssetLoadParametersᐳ* loading_queue;
     NYA_ArrayᐸNYA_AssetHandleᐳ*         unloading_queue;
 
+    /**
+     * Expanded copies of compressed blob entries, one per entry, shared by every asset reading the same
+     * bytes. Several font sizes load one file each, and each used to decompress its own copy. Null until
+     * the first compressed entry is loaded.
+     * */
+    NYA_AssetBlobExpanded* blob_expanded;
+
 #ifdef NYA_ASSET_HOT_RELOAD
     NYA_ArrayᐸNYA_AssetHandleᐳ* reload_queue;
 #endif // NYA_ASSET_HOT_RELOAD
@@ -102,6 +110,11 @@ struct NYA_AssetSystem {
  * ASSET STRUCTS
  * ─────────────────────────────────────────────────────────
  */
+
+struct NYA_AssetBlobExpanded {
+    u8* data;
+    u32 references;
+};
 
 struct NYA_AssetBlobHeader {
     NYA_ConstCString path;
@@ -451,14 +464,24 @@ struct NYA_Asset {
     b8 from_blob;
 
     /**
-     * `as_text.data` is an allocation this asset owns, and `_nya_asset_unload_raw` frees it.
-     *
-     * False for a blob entry stored verbatim, which points straight into the executable's own `.rodata`
-     * and must not be freed. True for anything read off disk, and also true for a *compressed* blob
-     * entry, which is expanded into the asset arena and therefore owns memory despite having no file.
-     * Those two questions were one flag until compression made them disagree.
+     * `raw.data` is an allocation this asset owns, and `_nya_asset_unload_raw` frees it. True for
+     * anything read off disk; false for a blob entry, which is either `.rodata` or a shared expansion.
      * */
     b8 raw_owned;
+
+    /** `raw.data` is a shared expansion of blob entry `raw_blob_index`, released on unload. */
+    b8  raw_shared;
+    u32 raw_blob_index;
+
+    /**
+     * The encoded bytes, kept outside the union. as_font.font and as_sound.audio share storage with
+     * as_text.data, so once a font or sound was decoded the pointer to its bytes was gone and unloading
+     * freed nothing: every font and sound read off disk leaked its file.
+     * */
+    struct {
+        u8* data;
+        u64 size;
+    } raw;
 
 #ifdef NYA_ASSET_HOT_RELOAD
     u64 source_modification_time;

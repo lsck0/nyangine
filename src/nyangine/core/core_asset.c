@@ -631,34 +631,47 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
         if (asset_header.compressed_size == asset_header.size) {
             out_asset->as_text.data = (u8*)stored;
             out_asset->as_text.size = asset_header.size;
+            out_asset->raw.data     = (u8*)stored;
+            out_asset->raw.size     = asset_header.size;
             out_asset->raw_owned    = false;
 
             return NYA_OK;
         }
 
-        /*
-         * Compressed, so it is expanded into the asset arena and the asset owns the result.
-         *
-         * Into a fresh allocation rather than a shared scratch buffer, because the caller holds these
-         * bytes across a decode that can itself load another asset — a mesh pulling in its texture — and
-         * a shared buffer would be overwritten underneath the outer one.
-         */
-        NYA_App*   app   = nya_app_get();
-        NYA_Arena* arena = app->asset_system.allocator;
+        // compressed: expanded once and shared, reference counted, by every asset reading this entry.
+        NYA_AssetSystem* system = &nya_app_get()->asset_system;
 
-        u8* expanded = nya_arena_alloc(arena, asset_header.size);
-        if (expanded == nullptr) {
-            return nya_error(NYA_ERROR_OUT_OF_MEMORY, "could not allocate " FMTu64 " bytes to decompress '%s'", asset_header.size, path);
+        if (system->blob_expanded == nullptr) {
+            u64 bytes             = NYA_ASSET_BLOB_HEADER_COUNT * sizeof(NYA_AssetBlobExpanded);
+            system->blob_expanded = nya_arena_alloc(system->allocator, bytes);
+            nya_memset(system->blob_expanded, 0, bytes);
         }
 
-        if (!nya_decompress(stored, asset_header.compressed_size, expanded, asset_header.size)) {
-            nya_arena_free(arena, expanded, asset_header.size);
-            return nya_error(NYA_ERROR_CORRUPT, "the embedded blob entry for '%s' did not decompress", path);
+        NYA_AssetBlobExpanded* expanded = &system->blob_expanded[asset_header_index];
+
+        if (expanded->references == 0) {
+            u8* data = nya_arena_alloc(system->allocator, asset_header.size);
+            if (data == nullptr) {
+                return nya_error(NYA_ERROR_OUT_OF_MEMORY, "could not allocate " FMTu64 " bytes to decompress '%s'", asset_header.size, path);
+            }
+
+            if (!nya_decompress(stored, asset_header.compressed_size, data, asset_header.size)) {
+                nya_arena_free(system->allocator, data, asset_header.size);
+                return nya_error(NYA_ERROR_CORRUPT, "the embedded blob entry for '%s' did not decompress", path);
+            }
+
+            expanded->data = data;
         }
 
-        out_asset->as_text.data = expanded;
-        out_asset->as_text.size = asset_header.size;
-        out_asset->raw_owned    = true;
+        expanded->references++;
+
+        out_asset->as_text.data   = expanded->data;
+        out_asset->as_text.size   = asset_header.size;
+        out_asset->raw.data       = expanded->data;
+        out_asset->raw.size       = asset_header.size;
+        out_asset->raw_owned      = false;
+        out_asset->raw_shared     = true;
+        out_asset->raw_blob_index = (u32)asset_header_index;
 
         return NYA_OK;
     }
@@ -691,6 +704,8 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_filesystem(NYA_CString path, OUT
 
     out_asset->as_text.data = data;
     out_asset->as_text.size = size;
+    out_asset->raw.data     = data;
+    out_asset->raw.size     = size;
 
     // Read into the asset arena above, so this one is freed on unload.
     out_asset->raw_owned = true;
@@ -710,10 +725,10 @@ NYA_INTERNAL void _nya_asset_unload_raw_from_filesystem(NYA_Asset* asset) {
     NYA_App*   app   = nya_app_get();
     NYA_Arena* arena = app->asset_system.allocator;
 
-    nya_arena_free(arena, asset->as_text.data, asset->as_text.size);
+    nya_arena_free(arena, asset->raw.data, asset->raw.size);
 
-    asset->as_text.data = nullptr;
-    asset->as_text.size = 0;
+    asset->raw.data = nullptr;
+    asset->raw.size = 0;
 }
 
 /**
@@ -1646,8 +1661,9 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw(NYA_AssetHandle handle, b8 external, 
     nya_assert(handle != nullptr);
     nya_assert(out_asset != nullptr);
 
-    out_asset->from_blob = false;
-    out_asset->raw_owned = false;
+    out_asset->from_blob  = false;
+    out_asset->raw_owned  = false;
+    out_asset->raw_shared = false;
 
     // Takes the handle rather than reading it off the parameters, because a shader loads the
     // *compiled* artifact whose handle is derived from the one that was requested. An external
@@ -1659,8 +1675,6 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw(NYA_AssetHandle handle, b8 external, 
     // The blob is a cache in front of the filesystem rather than a replacement for it. A handle it
     // does not carry is not an error: the asset may have been added since the build, or deliberately
     // shipped loose beside the executable, and either way disk is the answer.
-    // raw_owned is set by the blob loader, which is the only thing that knows whether the entry was
-    // stored verbatim or had to be expanded.
     NYA_Error blob_result = _nya_asset_load_raw_from_blob(handle, out_asset);
     if (blob_result.ok) {
         out_asset->from_blob = true;
@@ -1701,9 +1715,28 @@ NYA_INTERNAL void _nya_asset_cancel_queued_unload(NYA_Asset* asset) {
 NYA_INTERNAL void _nya_asset_unload_raw(NYA_Asset* asset) {
     nya_assert(asset != nullptr);
 
-    // Keyed on ownership, not on where the bytes came from. A blob entry stored verbatim points straight
-    // into the executable's own .rodata and must not be freed, but a *compressed* one was expanded into
-    // the asset arena and must be. from_blob answers a different question; see its note.
+#ifdef NYA_ASSET_PREFER_BLOB
+    if (asset->raw_shared) {
+        NYA_AssetSystem*       system   = &nya_app_get()->asset_system;
+        NYA_AssetBlobExpanded* expanded = &system->blob_expanded[asset->raw_blob_index];
+
+        nya_assert(expanded->references > 0, "a shared blob entry released more often than it was taken");
+        nya_assert(expanded->data == asset->raw.data);
+
+        expanded->references--;
+        if (expanded->references == 0) {
+            nya_arena_free(system->allocator, expanded->data, asset->raw.size);
+            expanded->data = nullptr;
+        }
+
+        asset->raw_shared = false;
+        asset->raw.data   = nullptr;
+        asset->raw.size   = 0;
+        return;
+    }
+#endif
+
+    // a verbatim blob entry points into the executable's .rodata and is not freed.
     if (!asset->raw_owned) return;
 
     _nya_asset_unload_raw_from_filesystem(asset);
