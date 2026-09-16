@@ -45,7 +45,15 @@ NYA_INTERNAL b8 _nya_render3d_shadow_ensure(NYA_Window* window);
  * backends. The cost is a cascade's filter kernel reaching into its neighbour at a quadrant edge, which
  * the inset in mesh3d_shadow guards against.
  * */
-#define _NYA_RENDER3D_SHADOW_ATLAS_SIZE (NYA_RENDER3D_SHADOW_MAP_SIZE * 2)
+/*
+ * The atlas is a strip: one cascade wide per cascade, one tall.
+ *
+ * A two-by-two square wasted whatever a power of two did not divide — three cascades left a whole quadrant
+ * unused, four megabytes of colour and depth for nothing. A strip is never worse and is better at every
+ * count below four: one cascade costs a quarter of what the square did, two a half, three three quarters.
+ */
+#define _NYA_RENDER3D_SHADOW_ATLAS_WIDTH  (NYA_RENDER3D_SHADOW_MAP_SIZE * NYA_RENDER3D_SHADOW_CASCADES)
+#define _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT (NYA_RENDER3D_SHADOW_MAP_SIZE)
 
 /** A quad with real texture coordinates and a texture bound. The billboard path; see its note there. */
 NYA_INTERNAL void _nya_render3d_quad_textured(
@@ -655,8 +663,8 @@ void _nya_render3d_shadow_viewport_apply(NYA_Window* window, u32 cascade) {
     SDL_SetGPUViewport(
         render->render_pass,
         &(SDL_GPUViewport){
-            .x         = (f32)((cascade % 2) * NYA_RENDER3D_SHADOW_MAP_SIZE),
-            .y         = (f32)((cascade / 2) * NYA_RENDER3D_SHADOW_MAP_SIZE),
+            .x         = (f32)(cascade * NYA_RENDER3D_SHADOW_MAP_SIZE),
+            .y         = 0.0F,
             .w         = (f32)NYA_RENDER3D_SHADOW_MAP_SIZE,
             .h         = (f32)NYA_RENDER3D_SHADOW_MAP_SIZE,
             .min_depth = 0.0F,
@@ -718,8 +726,8 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
             .type                 = SDL_GPU_TEXTURETYPE_2D,
             .format               = SDL_GPU_TEXTUREFORMAT_R32_FLOAT,
             .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
-            .width                = _NYA_RENDER3D_SHADOW_ATLAS_SIZE,
-            .height               = _NYA_RENDER3D_SHADOW_ATLAS_SIZE,
+            .width                = _NYA_RENDER3D_SHADOW_ATLAS_WIDTH,
+            .height               = _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT,
             .layer_count_or_depth = 1,
             .num_levels           = 1,
             .sample_count         = SDL_GPU_SAMPLECOUNT_1,
@@ -737,8 +745,8 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
             .type                 = SDL_GPU_TEXTURETYPE_2D,
             .format               = nya_app_get()->render_system.depth_format,
             .usage                = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
-            .width                = _NYA_RENDER3D_SHADOW_ATLAS_SIZE,
-            .height               = _NYA_RENDER3D_SHADOW_ATLAS_SIZE,
+            .width                = _NYA_RENDER3D_SHADOW_ATLAS_WIDTH,
+            .height               = _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT,
             .layer_count_or_depth = 1,
             .num_levels           = 1,
             .sample_count         = SDL_GPU_SAMPLECOUNT_1,
@@ -753,7 +761,7 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
         return false;
     }
 
-    nya_log_debug("Shadow atlas created at %dx%d: %d cascades of %dx%d.", _NYA_RENDER3D_SHADOW_ATLAS_SIZE, _NYA_RENDER3D_SHADOW_ATLAS_SIZE,
+    nya_log_debug("Shadow atlas created at %dx%d: %d cascades of %dx%d.", _NYA_RENDER3D_SHADOW_ATLAS_WIDTH, _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT,
               NYA_RENDER3D_SHADOW_CASCADES, NYA_RENDER3D_SHADOW_MAP_SIZE, NYA_RENDER3D_SHADOW_MAP_SIZE);
 
     return true;

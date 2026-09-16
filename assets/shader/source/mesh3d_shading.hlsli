@@ -42,8 +42,8 @@
  * */
 #define MESH3D_SHADOW_CASCADES 3
 
-/** The atlas is two by two, so a cascade occupies half of each axis. */
-#define MESH3D_SHADOW_ATLAS_SPLIT 2.0
+/** The atlas is a strip of MESH3D_SHADOW_CASCADES cascades across and one tall. */
+#define MESH3D_SHADOW_ATLAS_SPLIT ((float)MESH3D_SHADOW_CASCADES)
 
 cbuffer Uniforms : register(b0, space3) {
   // Points *from* the surface *toward* the light, already normalized by the CPU side. Naming it this
@@ -332,7 +332,7 @@ float mesh3d_shadow_in_cascade(Texture2D map, SamplerState smp, int cascade, flo
    * atlas — a fragment at a cascade's edge has to read its own map, not whatever is in the neighbouring
    * quadrant.
    */
-  float2 cascade_origin = float2((float)(cascade % 2), (float)(cascade / 2)) / MESH3D_SHADOW_ATLAS_SPLIT;
+  float2 cascade_origin = float2((float)cascade / MESH3D_SHADOW_ATLAS_SPLIT, 0.0);
 
   // Nothing past the far plane was recorded, and unrecorded is lit. Nor is anything outside the volume,
   // which the blend below can ask for even though the selection would not have.
@@ -372,7 +372,8 @@ float mesh3d_shadow_in_cascade(Texture2D map, SamplerState smp, int cascade, flo
        * which reads as a bright or dark fringe along the boundary. A texel of inset is enough, because the
        * kernel reaches `spread` texels and the sample is clamped rather than the kernel shrunk.
        */
-      float2 tap = clamp(uv + offset, shadow_texel, 1.0 - shadow_texel) / MESH3D_SHADOW_ATLAS_SPLIT;
+      // x is folded into this cascade's column; y spans the whole strip, which is one cascade tall.
+      float2 tap = clamp(uv + offset, shadow_texel, 1.0 - shadow_texel) / float2(MESH3D_SHADOW_ATLAS_SPLIT, 1.0);
 
       // The map holds the depth of whatever the light saw first. Anything further away is behind it.
       float occluder = map.Sample(smp, cascade_origin + tap).r;
