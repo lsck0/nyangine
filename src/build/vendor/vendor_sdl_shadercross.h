@@ -99,3 +99,13 @@ NYA_VendorRule vendor_sdl_shadercross_host = {
         },
     },
 };
+
+/*
+ * DXC does not compile under MinGW, so a Windows host does not build shadercross and uses shaders
+ * compiled on a Linux host instead. See nya_asset_compile_shaders.
+ */
+#if OS_WINDOWS
+#define SHADERCROSS_HOST_VENDOR
+#else
+#define SHADERCROSS_HOST_VENDOR &vendor_sdl_shadercross_host,
+#endif

@@ -43,7 +43,7 @@ NYA_INTERNAL NYA_BuildRule build_shaders = {
     .name            = "build_shaders",
     .is_metarule     = true,
     .pre_build_hooks = { &hook_compile_shaders, },
-    .vendors         = { &vendor_sdl_shadercross_host, },
+    .vendors         = { SHADERCROSS_HOST_VENDOR },
 };
 
 /**

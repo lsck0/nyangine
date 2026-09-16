@@ -11,6 +11,7 @@ NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_enumerate(void) __attr_no_dis
 NYA_INTERNAL b8                     _nya_asset_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL s32                    _nya_asset_path_compare(const NYA_String* a, const NYA_String* b);
 NYA_INTERNAL NYA_BuildRulePolicy    _nya_asset_shader_policy(u64 newest_include, NYA_ConstCString target) __attr_no_discard;
+NYA_INTERNAL b8 _nya_asset_shader_outdated(NYA_BuildRulePolicy policy, NYA_ConstCString source, NYA_ConstCString target) __attr_no_discard;
 
 /** Memo behind _nya_asset_enumerate. See the note there for why it is safe to share. */
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
@@ -43,16 +44,17 @@ NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
  */
 
 void nya_asset_compile_shaders(void) {
-
-    /*
-     * When a shared `.hlsli` last changed, which no per shader rule can see.
-     */
+    // when a shared `.hlsli` last changed, which no per shader rule can see.
     NYA_ConstCString include_roots[] = { SHADER_SOURCE_DIRECTORY, nullptr };
     u64              newest_include  = nya_pp_newest(include_roots, ".hlsli");
 
-    // Deliberately not the shared enumeration: this function writes into ./assets/shader/compiled/,
-    // so anything it cached would be a snapshot of the tree from before its own outputs existed.
+    // not the shared enumeration: this writes into ./assets/shader/compiled/, and a cached listing would
+    // predate its own outputs.
     NYA_ArrayᐸNYA_Stringᐳ* shaders = _nya_asset_walk(SHADER_SOURCE_DIRECTORY);
+
+    NYA_ConstCString formats[][2] = { { "dxil", ".dxil" }, { "msl", ".msl" }, { "spirv", ".spv" } };
+
+    NYA_EXPECT(nya_filesystem_create_directory("./assets/shader/compiled/"));
 
     nya_array_foreach (shaders, shader) {
         if (!nya_string_ends_with(shader, ".hlsl")) continue;
@@ -62,91 +64,38 @@ void nya_asset_compile_shaders(void) {
         nya_string_strip_suffix(shader, ".hlsl");
         nya_string_extend_front(shader, "./assets/shader/compiled/");
 
-        nya_string_extend(shader, ".dxil");
-        NYA_CString target_dxil = nya_string_to_cstring(nya_arena_global, shader);
-        nya_string_strip_suffix(shader, ".dxil");
+        for (u32 i = 0; i < nya_carray_length(formats); i++) {
+            NYA_CString target = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s%s", (int)shader->length, shader->items, formats[i][1]));
+            NYA_BuildRulePolicy policy = _nya_asset_shader_policy(newest_include, target);
 
-        nya_string_extend(shader, ".msl");
-        NYA_CString target_metal = nya_string_to_cstring(nya_arena_global, shader);
-        nya_string_strip_suffix(shader, ".msl");
+            // a Windows host cannot build shadercross (DXC does not compile under MinGW), so it relies on
+            // shaders compiled elsewhere and must say so when one is stale.
+            if (!nya_filesystem_exists(SHADERCROSS_BINARY) && _nya_asset_shader_outdated(policy, source, target)) {
+                nya_log_panic("%s needs compiling, but %s does not exist. Compile shaders on a Linux host and copy ./assets/shader/compiled/.",
+                              source, SHADERCROSS_BINARY);
+            }
 
-        nya_string_extend(shader, ".spv");
-        NYA_CString target_spirv = nya_string_to_cstring(nya_arena_global, shader);
-        nya_string_strip_suffix(shader, ".spv");
+            NYA_BuildRule rule = {
+                .name        = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%s -> %s", source, target)),
+                .policy      = policy,
+                .input_file  = source,
+                .output_file = target,
+                .command = {
+                    .program     = SHADERCROSS_BINARY,
+                    .environment = { SHADERCROSS_LIBRARY_PATH },
+                    .arguments = {
+                        source,
+                        "-o", target,
+                        "-s", "hlsl",
+                        "-d", formats[i][0],
 
-        NYA_EXPECT(nya_filesystem_create_directory("./assets/shader/compiled/"));
-
-        // compile to DXIL
-        NYA_String* compile_to_dxil_name = nya_string_sprintf(nya_arena_global, "%s -> %s", source, target_dxil);
-        NYA_BuildRule compile_to_dxil_rule      = {
-        .name        = nya_string_to_cstring(nya_arena_global, compile_to_dxil_name),
-        .policy      = _nya_asset_shader_policy(newest_include, target_dxil),
-        .input_file  = source,
-        .output_file = target_dxil,
-        .command = {
-            .program = SHADERCROSS_BINARY,
-            .environment = { SHADERCROSS_LIBRARY_PATH },
-            .arguments = {
-                source,
-                "-o", target_dxil,
-                "-s", "hlsl",
-                "-d", "dxil",
-
-                // so a shader can `#include` a shared `.hlsli`. shadercross compiles from a temporary file, so
-                // relative includes fail with "file not found" without this.
-                "-I", SHADER_SOURCE_DIRECTORY,
-            },
-        },
-    };
-        NYA_EXPECT(nya_build(&compile_to_dxil_rule));
-
-        // compile to Metal
-        NYA_String* compile_to_metal_name = nya_string_sprintf(nya_arena_global, "%s -> %s", source, target_metal);
-        NYA_BuildRule compile_to_metal_rule      = {
-        .name        = nya_string_to_cstring(nya_arena_global, compile_to_metal_name),
-        .policy      = _nya_asset_shader_policy(newest_include, target_metal),
-        .input_file  = source,
-        .output_file = target_metal,
-        .command = {
-            .program = SHADERCROSS_BINARY,
-            .environment = { SHADERCROSS_LIBRARY_PATH },
-            .arguments = {
-                source,
-                "-o", target_metal,
-                "-s", "hlsl",
-                "-d", "msl",
-
-                // so a shader can `#include` a shared `.hlsli`. shadercross compiles from a temporary file, so
-                // relative includes fail with "file not found" without this.
-                "-I", SHADER_SOURCE_DIRECTORY,
-            },
-        },
-    };
-        NYA_EXPECT(nya_build(&compile_to_metal_rule));
-
-        // compile to SPIR-V
-        NYA_String* compile_to_spirv_name = nya_string_sprintf(nya_arena_global, "%s -> %s", source, target_spirv);
-        NYA_BuildRule compile_to_spirv_rule      = {
-        .name        = nya_string_to_cstring(nya_arena_global, compile_to_spirv_name),
-        .policy      = _nya_asset_shader_policy(newest_include, target_spirv),
-        .input_file  = source,
-        .output_file = target_spirv,
-        .command = {
-            .program = SHADERCROSS_BINARY,
-            .environment = { SHADERCROSS_LIBRARY_PATH },
-            .arguments = {
-                source,
-                "-o", target_spirv,
-                "-s", "hlsl",
-                "-d", "spirv",
-
-                // so a shader can `#include` a shared `.hlsli`. shadercross compiles from a temporary file, so
-                // relative includes fail with "file not found" without this.
-                "-I", SHADER_SOURCE_DIRECTORY,
-            },
-        },
-    };
-        NYA_EXPECT(nya_build(&compile_to_spirv_rule));
+                        // shadercross compiles from a temporary file, so relative `#include`s need the source root.
+                        "-I", SHADER_SOURCE_DIRECTORY,
+                    },
+                },
+            };
+            NYA_EXPECT(nya_build(&rule));
+        }
     }
 }
 
@@ -386,4 +335,18 @@ NYA_INTERNAL NYA_BuildRulePolicy _nya_asset_shader_policy(u64 newest_include, NY
     if (!nya_filesystem_last_modified(target, &target_modified_at).ok) return NYA_BUILD_IF_OUTDATED;
 
     return newest_include > target_modified_at ? NYA_BUILD_ALWAYS : NYA_BUILD_IF_OUTDATED;
+}
+
+/** Whether nya_build would run the rule `policy`, `source` and `target` describe. */
+NYA_INTERNAL b8 _nya_asset_shader_outdated(NYA_BuildRulePolicy policy, NYA_ConstCString source, NYA_ConstCString target) {
+    nya_assert(policy == NYA_BUILD_ALWAYS || policy == NYA_BUILD_IF_OUTDATED);
+
+    if (policy == NYA_BUILD_ALWAYS) return true;
+
+    u64 source_modified_at = 0;
+    u64 target_modified_at = 0;
+    if (!nya_filesystem_last_modified(target, &target_modified_at).ok) return true;
+    if (!nya_filesystem_last_modified(source, &source_modified_at).ok) return true;
+
+    return source_modified_at > target_modified_at;
 }

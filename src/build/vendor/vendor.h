@@ -71,7 +71,7 @@
 NYA_VendorRule* NYA_VENDORS_LINUX_X86_64[] = {
     &vendor_sqlite_linux_x86_64,
     NYA_PROJECT_VENDORS_LINUX_X86_64,
-    &vendor_sdl_shadercross_host,
+    SHADERCROSS_HOST_VENDOR
     nullptr,
 };
 
@@ -79,7 +79,7 @@ NYA_VendorRule* NYA_VENDORS_LINUX_X86_64[] = {
 NYA_VendorRule* NYA_VENDORS_WINDOWS_X86_64[] = {
     &vendor_sqlite_windows_x86_64,
     NYA_PROJECT_VENDORS_WINDOWS_X86_64,
-    &vendor_sdl_shadercross_host,
+    SHADERCROSS_HOST_VENDOR
     nullptr,
 };
 
@@ -99,7 +99,7 @@ NYA_VendorRule* NYA_VENDORS[] = {
     &vendor_sqlite_windows_x86_64,
     NYA_PROJECT_VENDORS_WINDOWS_X86_64,
     // Unconditional: a host tool, needed to compile the shaders for whatever is being targeted.
-    &vendor_sdl_shadercross_host,
+    SHADERCROSS_HOST_VENDOR
     nullptr,
 };
 
@@ -109,8 +109,8 @@ NYA_VendorRule* NYA_VENDORS[] = {
  * this list. Linux rules are still omitted on Windows, for the same reason as in NYA_VENDORS.
  * */
 NYA_VendorRule* NYA_VENDORS_ALL[] = {
-    // A host tool rather than a target artifact, so it is built on every host.
-    &vendor_sdl_shadercross_host,
+    // a host tool rather than a target artifact, so it is built on every host that can.
+    SHADERCROSS_HOST_VENDOR
 #if !OS_WINDOWS
     &vendor_sdl_linux_x86_64,
     &vendor_libbacktrace_linux_x86_64,
