@@ -25,6 +25,9 @@ typedef struct NYA_Vertex3D             NYA_Vertex3D;
 typedef struct NYA_Render3DInstance     NYA_Render3DInstance;
 typedef struct NYA_Render3DSortKey      NYA_Render3DSortKey;
 typedef struct NYA_Render3DStream        NYA_Render3DStream;
+typedef struct NYA_Render3DObject        NYA_Render3DObject;
+typedef struct NYA_Render3DFrustum       NYA_Render3DFrustum;
+typedef struct NYA_Render3DSegment       NYA_Render3DSegment;
 typedef struct NYA_Render2DBatch          NYA_Render2DBatch;
 typedef struct NYA_Render2DDrawRange      NYA_Render2DDrawRange;
 typedef struct NYA_Render3DBatch          NYA_Render3DBatch;
@@ -501,8 +504,67 @@ struct NYA_Render3DStream {
     NYA_Vertex3D* vertices;
     u32           vertex_count;
 
-    u32* indices;
+    /** Sixteen bits, which NYA_RENDER3D_MAX_VERTICES fits, since each pass uploads its own list of them. */
+    u16* indices;
     u32  index_count;
+
+    NYA_Render3DObject* objects;
+    u32                 object_count;
+};
+
+/**
+ * A run of a stream's indices seen by the same passes: one culled primitive, or neighbours that agree. It ends where
+ * the next object starts.
+ * */
+struct NYA_Render3DObject {
+    u32 first_index;
+
+    /** One bit per pass that sees it: the camera in bit zero, cascade `c` in bit `c + 1`. */
+    u8 passes;
+};
+
+/** The six inward-facing clip planes of a view-projection. See _nya_render3d_frustum_build. */
+struct NYA_Render3DFrustum {
+    f32x4 planes[6];
+};
+
+/** A run of the uploaded index buffer. */
+typedef struct {
+    u32 first;
+    u32 count;
+} NYA_Render3DIndexRange;
+
+/**
+ * What the scene recorded between two state changes: the shading, the pipeline choice and the geometry drawn with
+ * them. Recorded once and drawn by every pass, so the shadow cascades and the camera share one upload.
+ * */
+struct NYA_Render3DSegment {
+    /** Where this segment's objects start in each stream. They end where the next segment's start. */
+    u32 opaque_objects;
+    u32 transparent_objects;
+
+    /** The instanced groups and decals recorded with this state. */
+    u32 first_group;
+    u32 group_count;
+    u32 first_decal;
+    u32 decal_count;
+
+    /** Written by the playback: each stream's visible indices, per pass. */
+    NYA_Render3DIndexRange opaque[NYA_RENDER3D_PASSES];
+    NYA_Render3DIndexRange transparent[NYA_RENDER3D_PASSES];
+
+    SDL_GPUTexture*  texture;
+    SDL_GPUSampler*  sampler;
+    NYA_ConstCString decal_texture;
+
+    /** A posed mesh drawn instead of the geometry above: its handle and its palette, in the frame arena. */
+    NYA_ConstCString                    skinned;
+    const struct NYA_ShaderSkinUniform* skin;
+
+    NYA_Render3DMaterial material;
+    NYA_Render3DBlend    blend;
+    NYA_Render3DDepth    depth;
+    b8                   casts_shadow;
 };
 
 struct NYA_Render3DBatch {
@@ -512,11 +574,22 @@ struct NYA_Render3DBatch {
     SDL_GPUTransferBuffer* index_transfer_buffer;
 
     /**
-     * CPU staging, copied on flush. Both streams share one GPU buffer, opaque at offset zero and transparent
-     * after it.
+     * CPU staging, uploaded once when the scene plays back. Both streams share one GPU buffer, opaque at offset zero
+     * and transparent after it.
      * */
     NYA_Render3DStream opaque;
     NYA_Render3DStream transparent;
+
+    /** What was recorded, in order. See NYA_Render3DSegment. */
+    NYA_Render3DSegment*            segments;
+    struct NYA_ShaderMesh3DUniform* segment_uniforms;
+    u32                             segment_count;
+
+    /** The most segments one playback held, for the ceiling. */
+    u32 segment_count_worst;
+
+    /** Every pass's visible indices, one list after another, as uploaded. */
+    u16* pass_indices;
 
     /**
      * The stream primitives are writing into, chosen by colour. Kept as state because a shape emits many quads
@@ -529,7 +602,7 @@ struct NYA_Render3DBatch {
      * the original since a triangle's three indices move together.
      * */
     NYA_Render3DSortKey* sort_keys;
-    u32*                 sorted_indices;
+    u16*                 sorted_indices;
 
     /** The radix sort's other buffer. */
     NYA_Render3DSortKey* sort_keys_scratch;
@@ -564,23 +637,32 @@ struct NYA_Render3DBatch {
     /** As the caller set them. Resolve through nya_render3d_shadow_options, which applies the defaults. */
     NYA_Render3DShadowOptions shadow_options;
 
+    /** As the caller set it. See nya_render3d_shadow_set. */
+    NYA_Render3DShadowFit shadow_fit;
+
+    /** The fitted volume's strength and bias, for the uniform. */
     NYA_Render3DShadow shadow;
 
-    /** One matrix per cascade and its reach, filled as each pass runs and read by the scene pass later. */
+    /** One matrix per cascade and its reach, fitted when the scene first draws and read by the camera pass. */
     f32_4x4 shadow_view_projection[NYA_RENDER3D_SHADOW_CASCADES];
     f32     shadow_cascade_extent[NYA_RENDER3D_SHADOW_CASCADES];
 
-    /** Cascades run this frame. Reset by nya_render3d_end. */
+    /** Cascades fitted this frame. Reset by nya_render3d_end. */
     u32 shadow_cascade_count;
 
-    /** The cascade the open pass is filling. */
-    u32 shadow_cascade;
-
-    /** True between nya_render3d_shadow_begin and nya_render3d_shadow_end. Selects the depth pipeline. */
-    b8 shadow_pass_active;
-
-    /** True once a pass ran this frame. Cleared by nya_render3d_end, so a frame without one is unshadowed. */
+    /** True once the cascades were drawn this frame, so a later playback loads the atlas instead of clearing it. */
     b8 shadow_valid;
+
+    /**
+     * Every pass's frustum, the camera's first and a cascade's after it, fitted the first time something is drawn.
+     * Recording tests a draw against all of them once and keeps the answer as a pass mask.
+     * */
+    NYA_Render3DFrustum passes[NYA_RENDER3D_PASSES];
+    u32                 pass_count;
+    b8                  passes_ready;
+
+    /** Whether what is drawn now goes into the shadow cascades. See nya_render3d_shadow_cast_set. */
+    b8 casts_shadow;
 
     /** False outside nya_render3d_begin and nya_render3d_end. Nothing draws while false. */
     b8 active;
@@ -606,20 +688,14 @@ struct NYA_Render3DBatch {
     NYA_Render3DLight    light;
     NYA_Render3DMaterial material;
 
-    /**
-     * The six inward-facing clip planes of `view_projection`, rebuilt once per pass. The shadow pass installs
-     * the light's matrix through the same path, so it culls against the light's volume, which is right for
-     * casters.
-     * */
-    f32x4 frustum[6];
-
-    /** The occlusion buffer this pass culls against, or null. */
+    /** The occlusion buffer the camera pass culls against, or null. */
     const NYA_OcclusionBuffer* occlusion;
 
-    /* Retained mesh path, drained by the same flush. See NYA_Render3DInstance. */
+    /* Retained mesh path, played back with the rest. See NYA_Render3DInstance. */
 
-    /** Per-instance transforms, uploaded once per flush. */
+    /** Per-instance transforms, uploaded once per playback, and which passes see each. */
     NYA_Render3DInstance* instances;
+    u8*                   instance_passes;
     u32                   instance_count;
 
     SDL_GPUBuffer*         instance_buffer;
@@ -661,6 +737,9 @@ struct NYA_Render3DBatch {
 
     /** Of those that survived the frustum, how many the occlusion buffer hid. */
     u32 frame_occluded;
+
+    /** Passes drawn: each cascade and the camera, per playback. */
+    u32 frame_passes;
 };
 
 struct NYA_RenderSystemWindow {
@@ -747,13 +826,6 @@ static_assert(sizeof(NYA_Vertex3D) == 36, "the 3D vertex layout in core_asset.c 
 
 
 /** Builds one from the wide types a caller has. */
-/**
- * Points the open render pass at `cascade`'s slice of the shadow atlas. Called when the shadow pass opens
- * and after every flush reopens it, since the viewport is per pass. Allow-unused because the headless build
- * compiles neither caller.
- * */
-NYA_INTERNAL __attr_allow_unused void _nya_render3d_shadow_viewport_apply(NYA_Window* window, u32 cascade);
-
 /** Releases the shadow atlas, which the next pass creates again at the current options. A no-op headless. */
 NYA_INTERNAL __attr_allow_unused void _nya_render3d_shadow_release(NYA_Window* window);
 

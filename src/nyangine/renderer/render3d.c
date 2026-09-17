@@ -11,51 +11,59 @@
  */
 
 /**
- * Room for `vertices` more vertices and `indices` more indices, flushing first if needed. False only when
- * the request cannot fit an empty batch. The texture is part of the request so a primitive queued after a
- * textured mesh cannot draw against its atlas by accident. Null is the untextured pipeline.
+ * Starts a recorded primitive: routes it by colour, makes room for `vertices` and `indices`, and records which passes
+ * see its bounding sphere. False when no pass does, or it cannot fit an empty batch; nothing is written then. The
+ * texture is part of the request so a primitive queued after a textured one cannot draw against its atlas by
+ * accident. Null is the untextured pipeline.
  * */
+NYA_INTERNAL b8 _nya_render3d_object_begin(NYA_Window* window, NYA_Color color, f32x3 center, f32 radius, u32 vertices, u32 indices,
+                                           SDL_GPUTexture* texture, SDL_GPUSampler* sampler) __attr_no_discard;
+
+/** Room for `vertices` more vertices and `indices` more indices, drawing the scene so far first if needed. */
 NYA_INTERNAL b8 _nya_render3d_reserve(NYA_Window* window, u32 vertices, u32 indices, SDL_GPUTexture* texture, SDL_GPUSampler* sampler);
 
-/** Appends one vertex and returns its index. `uv` is zero for every generated primitive. */
-NYA_INTERNAL u32 _nya_render3d_vertex(NYA_Render3DBatch* batch, f32x3 position, f32x3 normal, NYA_Color color, f32x2 uv);
+/** Two triangles over four corners, wound counter-clockwise seen from outside, into room already reserved. */
+NYA_INTERNAL void _nya_render3d_quad_emit(NYA_Render3DBatch* batch, f32x3 a, f32x3 b, f32x3 c, f32x3 d, NYA_Color color, b8 textured);
 
-/** Two triangles over four corners, wound counter-clockwise seen from outside. */
+/** A square prism along a line, into room already reserved for its six quads. */
+NYA_INTERNAL void _nya_render3d_line_emit(NYA_Render3DBatch* batch, f32x3 from, f32x3 to, f32 thickness, NYA_Color color);
 
 /** Fills in whatever the caller left at zero, so a `{ 0 }` camera still renders something. */
 NYA_INTERNAL NYA_Camera3DPerspective  _nya_render3d_camera_defaults(NYA_Camera3DPerspective camera);
 NYA_INTERNAL NYA_Camera3DOrthographic _nya_render3d_camera_orthographic_defaults(NYA_Camera3DOrthographic camera);
 
 /** Shared tail of both begin functions: flush 2D, store the view-projection, reset light and material. */
-NYA_INTERNAL void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection, f32x3 eye);
+NYA_INTERNAL void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection);
 
 /** Creates the shadow map and its depth buffer if they are not there yet. False when the GPU refused. */
 NYA_INTERNAL b8 _nya_render3d_shadow_ensure(NYA_Window* window);
 
+/** Fits the cascades to the camera and the light, and builds every pass's frustum. Once per scene. */
+NYA_INTERNAL void _nya_render3d_passes_prepare(NYA_Window* window);
+
 /** nya_render3d_mesh_register without the reserved-handle check, so the renderer can fill its own slots. */
 NYA_INTERNAL b8 _nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString handle, const NYA_Vertex3D* vertices, u32 vertex_count);
-
-/** A quad with real texture coordinates and a texture bound. The billboard path. */
-NYA_INTERNAL void _nya_render3d_quad_textured(
-    NYA_Window*     window,
-    f32x3           a,
-    f32x3           b,
-    f32x3           c,
-    f32x3           d,
-    SDL_GPUTexture* texture,
-    SDL_GPUSampler* sampler,
-    NYA_Color       color
-);
 
 /** Whichever staging stream the primitives are currently writing into. See NYA_Render3DStream. */
 NYA_INTERNAL NYA_Render3DStream* _nya_render3d_stream(NYA_Render3DBatch* batch) __attr_no_discard;
 
-/** Selects that stream from a primitive's colour. Called before the reserve, not after. */
-NYA_INTERNAL void _nya_render3d_route(NYA_Render3DBatch* batch, NYA_Color color);
+/** Orders a run of transparent triangles back to front in place. Nothing to do for fewer than two. */
+NYA_INTERNAL void _nya_render3d_sort_transparent(NYA_Render3DBatch* batch, u16* indices, u32 index_count, f32x3 eye);
 
-/** Orders the transparent stream's triangles back to front. Nothing to do for fewer than two. */
-NYA_INTERNAL void _nya_render3d_sort_transparent(NYA_Render3DBatch* batch, f32x3 eye);
+/** Starts a new segment at the end of what is recorded. */
+NYA_INTERNAL void _nya_render3d_segment_open(NYA_Window* window);
 
+/** Closes the open segment even if it recorded nothing, as a skinned draw does, and opens the next. */
+NYA_INTERNAL void _nya_render3d_segment_close(NYA_Window* window);
+
+/**
+ * Draws everything recorded: one upload, then every shadow cascade and the camera pass from the same buffers, then
+ * starts recording again. The open segment must be closed.
+ * */
+NYA_INTERNAL void _nya_render3d_playback(NYA_Window* window);
+
+/** Draws the recorded segments into one pass: the camera for zero, cascade `pass - 1` otherwise. */
+NYA_INTERNAL void _nya_render3d_pass_draw(NYA_Window* window, u32 pass);
 
 /**
  * Copies the current colour target into the refraction capture, creating or resizing it. False when
@@ -76,7 +84,7 @@ NYA_INTERNAL NYA_Render3DRegisteredMesh* _nya_render3d_registered_claim(NYA_Rend
 NYA_INTERNAL b8 _nya_render3d_resolved_bounds(const NYA_Render3DRegisteredMesh* registered, NYA_Asset* asset, OUT f32x3* out_min,
                                               OUT f32x3* out_max) __attr_no_discard;
 
-/** The registry's destructor: the vertex buffer, and a staged copy that never got a frame. Callers flush first. */
+/** The registry's destructor: the vertex buffer, and a staged copy that never got a frame. */
 NYA_INTERNAL void _nya_render3d_registered_destroy(void* value, void* user_data);
 
 /**
@@ -97,20 +105,29 @@ NYA_INTERNAL void _nya_render3d_registered_flush_upload(NYA_Window* window, NYA_
 /** Uploads a loaded mesh's vertices into a GPU buffer it then keeps. False when it could not. */
 NYA_INTERNAL b8 _nya_render3d_mesh_upload(NYA_Window* window, NYA_Asset* asset);
 
-/** The group for `handle` this pass, appending one if it is the first copy. Null when the table is full. */
+/** The group for `handle` in the open segment, appending one if it is the first copy. Null when the table is full. */
 NYA_INTERNAL NYA_Render3DMeshGroup* _nya_render3d_mesh_group(NYA_Render3DBatch* batch, NYA_ConstCString handle, b8 transparent);
 
-/** The fragment uniform block, built from the batch's light, material and shadow state. */
+/** The fragment uniform block, built from the batch's light and material. The shadow fields are the playback's. */
 NYA_INTERNAL struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DBatch* batch) __attr_no_discard;
 
-/** Binds the shadow map, and the base colour before it when there is one. Skipped during a shadow pass. */
+/** Binds the shadow map, and the base colour before it when there is one. */
 NYA_INTERNAL b8 _nya_render3d_bind_samplers(NYA_Window* window, SDL_GPUTexture* texture, SDL_GPUSampler* sampler);
 
-/** Draws the CPU-baked triangles, which is everything generated per frame. */
-NYA_INTERNAL void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMesh3DUniform* uniform);
+/** Draws a segment's CPU-baked triangles in one pass. */
+NYA_INTERNAL void _nya_render3d_immediate_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
+                                               const struct NYA_ShaderMesh3DUniform* uniform, u32 pass);
 
-/** Draws the queued mesh groups, one instanced call per mesh part. See NYA_Render3DInstance. */
-NYA_INTERNAL void _nya_render3d_flush_instanced(NYA_Window* window, const struct NYA_ShaderMesh3DUniform* uniform);
+/** Draws a segment's mesh groups in one pass, a call per mesh part and run of visible copies. */
+NYA_INTERNAL void _nya_render3d_instanced_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
+                                               const struct NYA_ShaderMesh3DUniform* uniform, u32 pass);
+
+/** Draws a segment's posed mesh in one pass. */
+NYA_INTERNAL void _nya_render3d_skinned_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
+                                             const struct NYA_ShaderMesh3DUniform* uniform, u32 pass);
+
+/** The matrix a pass rasterises with. */
+NYA_INTERNAL f32_4x4 _nya_render3d_pass_view_projection(const NYA_Render3DBatch* batch, u32 pass) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -127,18 +144,7 @@ NYA_INTERNAL void _nya_render3d_flush_instanced(NYA_Window* window, const struct
 void nya_render3d_begin(NYA_Window* window, NYA_Camera3DPerspective camera) {
     nya_assert(window != nullptr);
 
-    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
-
     camera = _nya_render3d_camera_defaults(camera);
-
-    // nested inside a shadow pass: the light's matrix is already installed and must stay. the camera is still
-    // recorded so screen rays work during the pass.
-    if (batch->shadow_pass_active) {
-        batch->camera          = camera;
-        batch->camera_is_ortho = false;
-        batch->camera_valid    = true;
-        return;
-    }
 
     u32 target_width, target_height;
     nya_render2d_target_size(window, &target_width, &target_height);
@@ -150,7 +156,7 @@ void nya_render3d_begin(NYA_Window* window, NYA_Camera3DPerspective camera) {
     f32_4x4 projection = nya_matrix_perspective(camera.fov_y, aspect, camera.near_plane, camera.far_plane);
     f32_4x4 view       = nya_matrix_look_at(camera.position, camera.target, camera.up);
 
-    _nya_render3d_begin_with(window, projection * view, camera.position);
+    _nya_render3d_begin_with(window, projection * view);
 
     // kept so nya_render3d_screen_ray can rebuild a ray from the camera basis instead of inverting a matrix.
     window->render_system.mesh_batch.camera          = camera;
@@ -161,16 +167,7 @@ void nya_render3d_begin(NYA_Window* window, NYA_Camera3DPerspective camera) {
 void nya_render3d_begin_orthographic(NYA_Window* window, NYA_Camera3DOrthographic camera) {
     nya_assert(window != nullptr);
 
-    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
-
     camera = _nya_render3d_camera_orthographic_defaults(camera);
-
-    if (batch->shadow_pass_active) {
-        batch->camera_orthographic = camera;
-        batch->camera_is_ortho     = true;
-        batch->camera_valid        = true;
-        return;
-    }
 
     u32 target_width, target_height;
     nya_render2d_target_size(window, &target_width, &target_height);
@@ -180,7 +177,7 @@ void nya_render3d_begin_orthographic(NYA_Window* window, NYA_Camera3DOrthographi
     f32_4x4 projection = nya_matrix_orthographic_3d(camera.height, aspect, camera.near_plane, camera.far_plane);
     f32_4x4 view       = nya_matrix_look_at(camera.position, camera.target, camera.up);
 
-    _nya_render3d_begin_with(window, projection * view, camera.position);
+    _nya_render3d_begin_with(window, projection * view);
 
     window->render_system.mesh_batch.camera_orthographic = camera;
     window->render_system.mesh_batch.camera_is_ortho     = true;
@@ -193,22 +190,14 @@ void nya_render3d_end(NYA_Window* window) {
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
     if (!batch->active) return;
 
-    /*
-     * A no-op inside the shadow pass, like nya_render3d_begin. A scene is drawn from one function for both
-     * passes, so its own begin/end run inside the shadow pass too, and ending here would clear the cascade
-     * state mid-pass. nya_render3d_shadow_end closes the pass.
-     */
-    if (batch->shadow_pass_active) return;
-
-
     // drawn now, so render2d output afterwards lands in front. 2D pipelines do not test depth.
     nya_render3d_flush(window);
+    _nya_render3d_playback(window);
 
-    if (batch->shadow_pass_active) return;
+    batch->active       = false;
+    batch->passes_ready = false;
 
-    batch->active = false;
-
-    // the shadow map expires with its frame, so a frame that stops casting shadows draws unshadowed at once.
+    // the shadow map expires with its scene, so a frame that stops casting shadows draws unshadowed at once.
     batch->shadow_valid = false;
 
     // and the cascade count, so a frame with fewer cascades does not index last frame's matrices.
@@ -228,12 +217,6 @@ void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky) {
 
     // no camera, no basis to shade a ray from.
     if (!batch->active) return;
-
-    /*
-     * Never into a shadow map. A shadow pass sets `active` like the scene pass does, so the sky wrote its
-     * colour into every cascade as depth and about half the scene read as shadowed.
-     */
-    if (batch->shadow_pass_active) return;
 
     u32 target_width  = 0;
     u32 target_height = 0;
@@ -309,9 +292,7 @@ void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky) {
         .ground_b = ground.b,
     };
 
-    // the sky writes no depth, so queued geometry has to go out before it.
-    nya_render3d_flush(window);
-
+    // drawn now and writing no depth, behind whatever the scene records, which draws at nya_render3d_end.
     nya_render2d_procedural(window, NYA_RENDER3D_PIPELINE_SKY, 3, &uniform, sizeof(uniform));
 }
 
@@ -349,18 +330,13 @@ void nya_render3d_billboard_resolved(NYA_Window* window, NYA_Render3DTextureBind
 
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
-    if (!batch->active) return;
-
     f32x2 half = size * 0.5F;
 
-    // the half-diagonal bounds the quad however it spins in the view plane.
-    if (!_nya_render3d_visible(batch, center, nya_vector_length(half))) {
-        batch->frame_culled++;
-        return;
-    }
+    // the half-diagonal bounds the quad however it spins in the view plane. the texture is resolved to a bound
+    // texture because the batch changes segment on texture change, not on handle change.
+    if (!_nya_render3d_object_begin(window, color, center, nya_vector_length(half), 4, 6, texture.texture, texture.sampler)) return;
 
-    // the camera's right and up, so the quad faces the viewer. in a shadow pass these are the light's, and
-    // the billboard casts the shadow of a quad facing the light.
+    // the camera's right and up, so the quad faces the viewer, and every cascade casts the shadow of that same quad.
     f32x3 eye     = batch->camera_is_ortho ? batch->camera_orthographic.position : batch->camera.position;
     f32x3 target  = batch->camera_is_ortho ? batch->camera_orthographic.target : batch->camera.target;
     f32x3 up_hint = batch->camera_is_ortho ? batch->camera_orthographic.up : batch->camera.up;
@@ -379,18 +355,9 @@ void nya_render3d_billboard_resolved(NYA_Window* window, NYA_Render3DTextureBind
     f32x3 offset_x = axis_x * half.x;
     f32x3 offset_y = axis_y * half.y;
 
-    // wound toward the camera: the quad is single sided and back faces are culled. the texture is resolved
-    // to a bound texture because the batch flushes on texture change, not on handle change.
-    _nya_render3d_quad_textured(
-        window,
-        center - offset_x - offset_y,
-        center - offset_x + offset_y,
-        center + offset_x + offset_y,
-        center + offset_x - offset_y,
-        texture.texture,
-        texture.sampler,
-        color
-    );
+    // wound toward the camera: the quad is single sided and back faces are culled.
+    _nya_render3d_quad_emit(batch, center - offset_x - offset_y, center - offset_x + offset_y, center + offset_x + offset_y,
+                            center + offset_x - offset_y, color, true);
 }
 
 NYA_Render3DTextureBinding nya_render3d_texture_resolve(NYA_ConstCString texture_handle) {
@@ -469,159 +436,69 @@ NYA_INTERNAL NYA_Render3DLight _nya_render3d_default_light(void) {
     };
 }
 
-void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
+void nya_render3d_shadow_cast_set(NYA_Window* window, b8 casts_shadow) {
     nya_assert(window != nullptr);
 
-    NYA_RenderSystemWindow* render = &window->render_system;
-    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
-    nya_assert(!batch->shadow_pass_active, "nya_render3d_shadow_begin does not nest; end the current pass first");
-    nya_assert(!batch->active, "the shadow pass has to come before nya_render3d_begin, not inside it");
+    // segment state: a cascade skips a whole segment.
+    if (casts_shadow != batch->casts_shadow) nya_render3d_flush(window);
 
-    // zero strength turns shadows off without removing the calls.
-    if (shadow.strength <= 0.0F) return;
+    batch->casts_shadow = casts_shadow;
+}
 
-    if (render->render_pass == nullptr) return;
-    if (!_nya_render3d_shadow_ensure(window)) return;
+void _nya_render3d_passes_prepare(NYA_Window* window) {
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
-    // clamped: looping past the window's count refills the last cascade instead of writing outside the atlas.
-    u32 cascade = nya_min(shadow.cascade, nya_render3d_shadow_options(window).cascades - 1);
+    if (batch->passes_ready) return;
 
-    // `extent` already covers this cascade's frustum slice; see NYA_Render3DShadowFit.range.
-    if (shadow.extent <= 0.0F) shadow.extent = NYA_RENDER3D_SHADOW_EXTENT;
+    batch->passes_ready         = true;
+    batch->pass_count           = 1;
+    batch->shadow_cascade_count = 0;
 
-    if (shadow.depth <= 0.0F) shadow.depth = shadow.extent * 4.0F;
-    if (shadow.bias <= 0.0F) shadow.bias = NYA_RENDER3D_SHADOW_BIAS;
+    NYA_Render3DShadowFit fit = batch->shadow_fit;
 
-    shadow.strength = nya_clamp(shadow.strength, 0.0F, 1.0F);
+    // the fit follows a perspective frustum; an orthographic view casts nothing.
+    if (fit.strength <= 0.0F || batch->camera_is_ortho) return;
 
-    // the light the scene will use. nya_render3d_begin resets it to the default each frame, so a caller that
-    // has not set one yet still gets a shadow from the default sun.
+    u32 target_width, target_height;
+    nya_render2d_target_size(window, &target_width, &target_height);
+
+    if (fit.aspect <= 0.0F && target_height > 0) fit.aspect = (f32)target_width / (f32)target_height;
+
+    // the light the scene is lit by, or the default sun when the caller has not set one.
     NYA_Render3DLight light = batch->light;
 
-    b8 light_is_unset = light.direction.x == 0.0F && light.direction.y == 0.0F && light.direction.z == 0.0F;
+    if (light.direction.x == 0.0F && light.direction.y == 0.0F && light.direction.z == 0.0F) light = _nya_render3d_default_light();
 
-    if (light_is_unset) light = _nya_render3d_default_light();
+    u32 cascades = nya_render3d_shadow_options(window).cascades;
 
-    // the same function the headless tests use, so the rasterised and sampled matrices cannot drift.
-    f32x3   eye;
-    f32_4x4 light_view_projection = nya_render3d_shadow_view_projection(shadow.center, light.direction, shadow.extent, shadow.depth, &eye);
+    for (u32 cascade = 0; cascade < cascades; cascade++) {
+        NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(window, batch->camera, light.direction, cascade, fit);
 
-    batch->shadow          = shadow;
-    batch->shadow_cascade  = cascade;
+        if (shadow.depth <= 0.0F) shadow.depth = shadow.extent * 4.0F;
+        if (shadow.bias <= 0.0F) shadow.bias = NYA_RENDER3D_SHADOW_BIAS;
 
-    batch->shadow_view_projection[cascade] = light_view_projection;
-    batch->shadow_cascade_extent[cascade]  = shadow.extent;
+        shadow.strength = nya_clamp(shadow.strength, 0.0F, 1.0F);
 
-    // highest cascade reached plus one, so the shader never indexes stale cascades.
-    if (cascade + 1 > batch->shadow_cascade_count) batch->shadow_cascade_count = cascade + 1;
+        // the same function the headless tests use, so the rasterised and sampled matrices cannot drift.
+        f32_4x4 view_projection = nya_render3d_shadow_view_projection(shadow.center, light.direction, shadow.extent, shadow.depth, nullptr);
 
-    _nya_render2d_pass_suspend(window);
+        batch->shadow                          = shadow;
+        batch->shadow_view_projection[cascade] = view_projection;
+        batch->shadow_cascade_extent[cascade]  = shadow.extent;
 
-    // the shadow pipelines have no normals variant, and the scene pass after this reattaches the buffer itself.
-    render->render_pass_normals = false;
-
-    render->render_pass = SDL_BeginGPURenderPass(
-        render->render_commands,
-        &(SDL_GPUColorTargetInfo){
-            .texture = batch->shadow_color,
-            // white is the far plane in this encoding, so unseen texels compare as unoccluded.
-            .clear_color = (SDL_FColor){ .r = 1.0F, .g = 1.0F, .b = 1.0F, .a = 1.0F },
-
-            // only the first cascade clears: a load op ignores the viewport and would clear the whole atlas.
-            .load_op  = cascade == 0 ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD,
-            .store_op = SDL_GPU_STOREOP_STORE,
-        },
-        1,
-        &(SDL_GPUDepthStencilTargetInfo){
-            .texture          = batch->shadow_depth,
-            .clear_depth      = 1.0F,
-
-            // each cascade clears depth, since it only tests against its own geometry.
-            .load_op = SDL_GPU_LOADOP_CLEAR,
-
-            /*
-             * Stored, not DONT_CARE: a flush suspends the pass mid-cascade and _nya_render2d_pass_resume loads the
-             * depth back. DONT_CARE lets the driver discard it, and every later draw tests against garbage.
-             */
-            .store_op = SDL_GPU_STOREOP_STORE,
-            .stencil_load_op  = SDL_GPU_LOADOP_DONT_CARE,
-            .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
-        }
-    );
-
-    if (render->render_pass == nullptr) {
-        nya_log_error("SDL_BeginGPURenderPass() failed for the shadow pass: %s", SDL_GetError());
-        _nya_render2d_pass_resume(window);
-        return;
+        _nya_render3d_frustum_build(&batch->passes[cascade + 1], view_projection);
     }
 
-    // restricts the pass to its slice of the atlas; reapplied after every flush by
-    // _nya_render3d_shadow_viewport_apply.
-    _nya_render3d_shadow_viewport_apply(window, cascade);
-
-    batch->shadow_pass_active = true;
-
-    // set up exactly like the scene pass, so a game's draw function needs no idea which pass it is in.
-    _nya_render3d_begin_with(window, batch->shadow_view_projection[cascade], eye);
-
-    // _nya_render3d_begin_with reset the light, but the map was positioned by `light`.
-    batch->light = light;
+    batch->shadow_cascade_count = cascades;
+    batch->pass_count           = cascades + 1;
 }
 
-void _nya_render3d_shadow_viewport_apply(NYA_Window* window, u32 cascade) {
-    NYA_RenderSystemWindow* render = &window->render_system;
+f32_4x4 _nya_render3d_pass_view_projection(const NYA_Render3DBatch* batch, u32 pass) {
+    nya_assert(pass < batch->pass_count);
 
-    if (render->render_pass == nullptr) return;
-
-    f32 size = (f32)nya_render3d_shadow_options(window).map_size;
-
-    /* A viewport rather than a scissor, because it has to map clip space onto the slice, not just clip it. */
-    SDL_SetGPUViewport(
-        render->render_pass,
-        &(SDL_GPUViewport){
-            .x         = (f32)cascade * size,
-            .y         = 0.0F,
-            .w         = size,
-            .h         = size,
-            .min_depth = 0.0F,
-            .max_depth = 1.0F,
-        }
-    );
-}
-
-void nya_render3d_shadow_end(NYA_Window* window) {
-    nya_assert(window != nullptr);
-
-    NYA_RenderSystemWindow* render = &window->render_system;
-    NYA_Render3DBatch*      batch  = &render->mesh_batch;
-
-    if (!batch->shadow_pass_active) return;
-
-    // flushed while the shadow pipeline is selected, or the last triangles would draw with the scene shader.
-    nya_render3d_flush(window);
-
-    batch->active             = false;
-    batch->shadow_pass_active = false;
-    batch->shadow_valid       = true;
-
-    if (render->render_pass != nullptr) SDL_EndGPURenderPass(render->render_pass);
-
-    render->render_pass = nullptr;
-
-    _nya_render2d_pass_resume(window);
-}
-
-b8 nya_render3d_shadow_active(NYA_Window* window) {
-    nya_assert(window != nullptr);
-
-    return window->render_system.mesh_batch.shadow_valid;
-}
-
-b8 nya_render3d_shadow_pass_active(NYA_Window* window) {
-    nya_assert(window != nullptr);
-
-    return window->render_system.mesh_batch.shadow_pass_active;
+    return pass == 0 ? batch->view_projection : batch->shadow_view_projection[pass - 1];
 }
 
 void _nya_render3d_shadow_release(NYA_Window* window) {
@@ -780,12 +657,9 @@ void nya_render3d_cube(NYA_Window* window, f32x3 center, f32x3 size, NYA_Quatern
     f32x3 half = size * 0.5F;
 
     // culled once for the whole cube rather than per face. the half-diagonal is rotation invariant.
-    NYA_Render3DBatch* cube_batch = &window->render_system.mesh_batch;
+    if (!_nya_render3d_object_begin(window, color, center, nya_vector_length(half), 24, 36, nullptr, nullptr)) return;
 
-    if (!_nya_render3d_visible(cube_batch, center, nya_vector_length(half))) {
-        cube_batch->frame_culled++;
-        return;
-    }
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
     // rotated on the CPU: a model matrix is a per-draw uniform, and a draw call per cube is what this avoids.
     f32x3 corners[8];
@@ -800,24 +674,23 @@ void nya_render3d_cube(NYA_Window* window, f32x3 center, f32x3 size, NYA_Quatern
     }
 
     // counter-clockwise from outside, or back-face culling removes the visible face.
-    nya_render3d_quad(window, corners[0], corners[2], corners[3], corners[1], color); // -z
-    nya_render3d_quad(window, corners[5], corners[7], corners[6], corners[4], color); // +z
-    nya_render3d_quad(window, corners[4], corners[6], corners[2], corners[0], color); // -x
-    nya_render3d_quad(window, corners[1], corners[3], corners[7], corners[5], color); // +x
-    nya_render3d_quad(window, corners[0], corners[1], corners[5], corners[4], color); // -y
-    nya_render3d_quad(window, corners[6], corners[7], corners[3], corners[2], color); // +y
+    _nya_render3d_quad_emit(batch, corners[0], corners[2], corners[3], corners[1], color, false); // -z
+    _nya_render3d_quad_emit(batch, corners[5], corners[7], corners[6], corners[4], color, false); // +z
+    _nya_render3d_quad_emit(batch, corners[4], corners[6], corners[2], corners[0], color, false); // -x
+    _nya_render3d_quad_emit(batch, corners[1], corners[3], corners[7], corners[5], color, false); // +x
+    _nya_render3d_quad_emit(batch, corners[0], corners[1], corners[5], corners[4], color, false); // -y
+    _nya_render3d_quad_emit(batch, corners[6], corners[7], corners[3], corners[2], color, false); // +y
 }
 
 void nya_render3d_cube_outline(NYA_Window* window, f32x3 center, f32x3 size, NYA_Quaternion rotation, f32 thickness, NYA_Color color) {
     nya_assert(window != nullptr);
 
-    // one test for the outline instead of one per edge.
-    NYA_Render3DBatch* outline_batch = &window->render_system.mesh_batch;
+    if (thickness <= 0.0F) thickness = 0.02F;
 
-    if (!_nya_render3d_visible(outline_batch, center, nya_vector_length(size * 0.5F) + thickness)) {
-        outline_batch->frame_culled++;
-        return;
-    }
+    // one object for the outline instead of one per edge.
+    if (!_nya_render3d_object_begin(window, color, center, nya_vector_length(size * 0.5F) + thickness, 12 * 24, 12 * 36, nullptr, nullptr)) return;
+
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
     f32x3 half = size * 0.5F;
 
@@ -839,7 +712,7 @@ void nya_render3d_cube_outline(NYA_Window* window, f32x3 center, f32x3 size, NYA
         { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 }, // along z
     };
 
-    for (u32 i = 0; i < 12; i++) nya_render3d_line(window, corners[edges[i][0]], corners[edges[i][1]], thickness, color);
+    for (u32 i = 0; i < 12; i++) _nya_render3d_line_emit(batch, corners[edges[i][0]], corners[edges[i][1]], thickness, color);
 }
 
 /** Builds and registers the unit sphere if it is not registered already. */
@@ -905,20 +778,16 @@ void nya_render3d_plane(NYA_Window* window, f32x3 center, f32x2 size, NYA_Color 
 
     f32x2 half = size * 0.5F;
 
-    NYA_Render3DBatch* plane_batch = &window->render_system.mesh_batch;
+    if (!_nya_render3d_object_begin(window, color, center, nya_vector_length(half), 4, 6, nullptr, nullptr)) return;
 
-    if (!_nya_render3d_visible(plane_batch, center, nya_vector_length(half))) {
-        plane_batch->frame_culled++;
-        return;
-    }
-
-    nya_render3d_quad(
-        window,
+    _nya_render3d_quad_emit(
+        &window->render_system.mesh_batch,
         center + (f32x3){ -half.x, 0.0F, half.y },
         center + (f32x3){ half.x, 0.0F, half.y },
         center + (f32x3){ half.x, 0.0F, -half.y },
         center + (f32x3){ -half.x, 0.0F, -half.y },
-        color
+        color,
+        false
     );
 }
 
@@ -930,26 +799,13 @@ void nya_render3d_triangle(NYA_Window* window, f32x3 a, f32x3 b, f32x3 c, NYA_Co
      * cheaper than the vertex writes they save above roughly one hit in twenty. The circumcircle is loose for
      * thin triangles, which is the safe direction.
      */
-    NYA_Render3DBatch* triangle_batch = &window->render_system.mesh_batch;
-
-    // before the reserve, so the capacity check and the emit use the same stream.
-    _nya_render3d_route(triangle_batch, color);
-
     f32x3 centroid = (a + b + c) / 3.0F;
 
     f32 radius = nya_max(nya_vector_length(a - centroid), nya_max(nya_vector_length(b - centroid), nya_vector_length(c - centroid)));
 
-    if (!_nya_render3d_visible(triangle_batch, centroid, radius)) {
-        triangle_batch->frame_culled++;
-        return;
-    }
+    if (!_nya_render3d_object_begin(window, color, centroid, radius, 3, 3, nullptr, nullptr)) return;
 
-    if (!_nya_render3d_reserve(window, 3, 3, nullptr, nullptr)) return;
-
-    NYA_Render3DStream* stream = _nya_render3d_stream(triangle_batch);
-
-    NYA_Render3DBatch* batch = triangle_batch;
-    nya_unused(batch);
+    NYA_Render3DStream* stream = _nya_render3d_stream(&window->render_system.mesh_batch);
 
     /*
      * The face normal from the winding. A degenerate triangle normalizes to zero and shades as unlit, which
@@ -959,62 +815,18 @@ void nya_render3d_triangle(NYA_Window* window, f32x3 a, f32x3 b, f32x3 c, NYA_Co
 
     u32 base = stream->vertex_count;
 
-    (void)_nya_render3d_vertex(triangle_batch, a, normal, color, f32x2_zero);
-    (void)_nya_render3d_vertex(triangle_batch, b, normal, color, f32x2_zero);
-    (void)_nya_render3d_vertex(triangle_batch, c, normal, color, f32x2_zero);
+    stream->vertices[base + 0] = nya_vertex3d(a, color, normal, f32x2_zero);
+    stream->vertices[base + 1] = nya_vertex3d(b, color, normal, f32x2_zero);
+    stream->vertices[base + 2] = nya_vertex3d(c, color, normal, f32x2_zero);
 
-    stream->indices[stream->index_count++] = base + 0;
-    stream->indices[stream->index_count++] = base + 1;
-    stream->indices[stream->index_count++] = base + 2;
+    stream->indices[stream->index_count++] = (u16)(base + 0);
+    stream->indices[stream->index_count++] = (u16)(base + 1);
+    stream->indices[stream->index_count++] = (u16)(base + 2);
+
+    stream->vertex_count += 3;
 }
 
-void _nya_render3d_quad_textured(
-    NYA_Window*     window,
-    f32x3           a,
-    f32x3           b,
-    f32x3           c,
-    f32x3           d,
-    SDL_GPUTexture* texture,
-    SDL_GPUSampler* sampler,
-    NYA_Color       color
-) {
-    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
-
-    _nya_render3d_route(batch, color);
-
-    // passing the texture to the reserve is what flushes on change and selects the textured pipeline.
-    if (!_nya_render3d_reserve(window, 4, 6, texture, sampler)) return;
-
-    NYA_Render3DStream* stream = _nya_render3d_stream(batch);
-
-    f32x3 normal = nya_vector_normalize(nya_vector_cross(b - a, c - a));
-
-    u32 base = stream->vertex_count;
-
-    // v grows down in a texture and up in the quad, so the first corner takes v = 1.
-    (void)_nya_render3d_vertex(batch, a, normal, color, (f32x2){ 0.0F, 1.0F });
-    (void)_nya_render3d_vertex(batch, b, normal, color, (f32x2){ 0.0F, 0.0F });
-    (void)_nya_render3d_vertex(batch, c, normal, color, (f32x2){ 1.0F, 0.0F });
-    (void)_nya_render3d_vertex(batch, d, normal, color, (f32x2){ 1.0F, 1.0F });
-
-    stream->indices[stream->index_count++] = base + 0;
-    stream->indices[stream->index_count++] = base + 1;
-    stream->indices[stream->index_count++] = base + 2;
-    stream->indices[stream->index_count++] = base + 0;
-    stream->indices[stream->index_count++] = base + 2;
-    stream->indices[stream->index_count++] = base + 3;
-}
-
-void nya_render3d_quad(NYA_Window* window, f32x3 a, f32x3 b, f32x3 c, f32x3 d, NYA_Color color) {
-    nya_assert(window != nullptr);
-
-    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
-
-    // routed where vertices are written, so every shape built on quads and triangles is covered.
-    _nya_render3d_route(batch, color);
-
-    if (!_nya_render3d_reserve(window, 4, 6, nullptr, nullptr)) return;
-
+void _nya_render3d_quad_emit(NYA_Render3DBatch* batch, f32x3 a, f32x3 b, f32x3 c, f32x3 d, NYA_Color color, b8 textured) {
     NYA_Render3DStream* stream = _nya_render3d_stream(batch);
 
     // flat shading on purpose: shared normals would round a cube's corners. smooth meshes bring normals.
@@ -1022,37 +834,43 @@ void nya_render3d_quad(NYA_Window* window, f32x3 a, f32x3 b, f32x3 c, f32x3 d, N
 
     u32 base = stream->vertex_count;
 
-    (void)_nya_render3d_vertex(batch, a, normal, color, f32x2_zero);
-    (void)_nya_render3d_vertex(batch, b, normal, color, f32x2_zero);
-    (void)_nya_render3d_vertex(batch, c, normal, color, f32x2_zero);
-    (void)_nya_render3d_vertex(batch, d, normal, color, f32x2_zero);
+    // v grows down in a texture and up in the quad, so the first corner takes v = 1.
+    stream->vertices[base + 0] = nya_vertex3d(a, color, normal, textured ? (f32x2){ 0.0F, 1.0F } : f32x2_zero);
+    stream->vertices[base + 1] = nya_vertex3d(b, color, normal, f32x2_zero);
+    stream->vertices[base + 2] = nya_vertex3d(c, color, normal, textured ? (f32x2){ 1.0F, 0.0F } : f32x2_zero);
+    stream->vertices[base + 3] = nya_vertex3d(d, color, normal, textured ? (f32x2){ 1.0F, 1.0F } : f32x2_zero);
 
-    stream->indices[stream->index_count++] = base + 0;
-    stream->indices[stream->index_count++] = base + 1;
-    stream->indices[stream->index_count++] = base + 2;
-    stream->indices[stream->index_count++] = base + 0;
-    stream->indices[stream->index_count++] = base + 2;
-    stream->indices[stream->index_count++] = base + 3;
+    u16* indices = stream->indices + stream->index_count;
+
+    indices[0] = (u16)(base + 0);
+    indices[1] = (u16)(base + 1);
+    indices[2] = (u16)(base + 2);
+    indices[3] = (u16)(base + 0);
+    indices[4] = (u16)(base + 2);
+    indices[5] = (u16)(base + 3);
+
+    stream->vertex_count += 4;
+    stream->index_count  += 6;
 }
 
-void nya_render3d_line(NYA_Window* window, f32x3 from, f32x3 to, f32 thickness, NYA_Color color) {
+void nya_render3d_quad(NYA_Window* window, f32x3 a, f32x3 b, f32x3 c, f32x3 d, NYA_Color color) {
     nya_assert(window != nullptr);
 
+    f32x3 center = (a + b + c + d) * 0.25F;
+
+    f32 radius = nya_max(nya_max(nya_vector_length(a - center), nya_vector_length(b - center)),
+                         nya_max(nya_vector_length(c - center), nya_vector_length(d - center)));
+
+    if (!_nya_render3d_object_begin(window, color, center, radius, 4, 6, nullptr, nullptr)) return;
+
+    _nya_render3d_quad_emit(&window->render_system.mesh_batch, a, b, c, d, color, false);
+}
+
+void _nya_render3d_line_emit(NYA_Render3DBatch* batch, f32x3 from, f32x3 to, f32 thickness, NYA_Color color) {
     f32x3 along  = to - from;
     f32   length = nya_vector_length(along);
 
-    if (length < NYA_EPSILON) return;
-    if (thickness <= 0.0F) thickness = 0.02F;
-
-    // one test for the whole prism. thickness is added so a line seen end-on is not culled.
-    NYA_Render3DBatch* line_batch = &window->render_system.mesh_batch;
-
-    if (!_nya_render3d_visible(line_batch, (from + to) * 0.5F, (length * 0.5F) + thickness)) {
-        line_batch->frame_culled++;
-        return;
-    }
-
-    f32x3 forward = along / length;
+    f32x3 forward = along / nya_max(length, NYA_EPSILON);
 
     // crossed against the world axis the line is least aligned with, so a vertical line does not collapse.
     f32x3 reference = fabsf(forward.y) < 0.9F ? (f32x3){ 0.0F, 1.0F, 0.0F } : (f32x3){ 1.0F, 0.0F, 0.0F };
@@ -1065,18 +883,28 @@ void nya_render3d_line(NYA_Window* window, f32x3 from, f32x3 to, f32 thickness, 
         to - right - up,   to + right - up,   to - right + up,   to + right + up,
     };
 
-    nya_render3d_quad(window, corners[0], corners[2], corners[3], corners[1], color);
-    nya_render3d_quad(window, corners[5], corners[7], corners[6], corners[4], color);
-    nya_render3d_quad(window, corners[4], corners[6], corners[2], corners[0], color);
-    nya_render3d_quad(window, corners[1], corners[3], corners[7], corners[5], color);
-    nya_render3d_quad(window, corners[0], corners[1], corners[5], corners[4], color);
-    nya_render3d_quad(window, corners[6], corners[7], corners[3], corners[2], color);
+    _nya_render3d_quad_emit(batch, corners[0], corners[2], corners[3], corners[1], color, false);
+    _nya_render3d_quad_emit(batch, corners[5], corners[7], corners[6], corners[4], color, false);
+    _nya_render3d_quad_emit(batch, corners[4], corners[6], corners[2], corners[0], color, false);
+    _nya_render3d_quad_emit(batch, corners[1], corners[3], corners[7], corners[5], color, false);
+    _nya_render3d_quad_emit(batch, corners[0], corners[1], corners[5], corners[4], color, false);
+    _nya_render3d_quad_emit(batch, corners[6], corners[7], corners[3], corners[2], color, false);
 }
 
-/**
- * Draws a skinned mesh through `palette` (see core_skeleton.h). Its own un-instanced draw call, since
- * every copy of a character has its own pose.
- * */
+void nya_render3d_line(NYA_Window* window, f32x3 from, f32x3 to, f32 thickness, NYA_Color color) {
+    nya_assert(window != nullptr);
+
+    f32 length = nya_vector_length(to - from);
+
+    if (length < NYA_EPSILON) return;
+    if (thickness <= 0.0F) thickness = 0.02F;
+
+    // one test for the whole prism. thickness is added so a line seen end-on is not culled.
+    if (!_nya_render3d_object_begin(window, color, (from + to) * 0.5F, (length * 0.5F) + thickness, 24, 36, nullptr, nullptr)) return;
+
+    _nya_render3d_line_emit(&window->render_system.mesh_batch, from, to, thickness, color);
+}
+
 /*
  * uniforms.h cannot include engine headers, so the bone cap is written twice. A mismatch would misread the
  * uniform block as garbage geometry, so it is checked here.
@@ -1084,6 +912,10 @@ void nya_render3d_line(NYA_Window* window, f32x3 from, f32x3 to, f32 thickness, 
 static_assert(NYA_SHADER_SKIN_MAX_BONES == NYA_SKELETON_MAX_BONES,
               "the shader's bone palette and NYA_SKELETON_MAX_BONES have drifted apart");
 
+/**
+ * Draws a skinned mesh through `palette` (see core_skeleton.h). Recorded as a segment of its own and drawn un-instanced
+ * in every pass, since every copy of a character has its own pose.
+ * */
 void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, const f32_4x4* palette, u32 bone_count, f32_4x4 model,
                                NYA_Color tint) {
     nya_assert(window != nullptr);
@@ -1105,11 +937,6 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
     }
 
     if (asset->as_mesh.vertex_count == 0) return;
-
-    // queued batch geometry was built for the pipeline this draw replaces.
-    nya_render3d_flush(window);
-
-    NYA_RenderSystemWindow* render = &window->render_system;
 
     // the vertex buffer never changes, only the pose, which travels as a uniform.
     NYA_Render3DRegisteredMesh* registered = _nya_render3d_registered(batch, handle);
@@ -1138,29 +965,11 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
 
     _nya_render3d_registered_flush_upload(window, registered);
 
-    // the depth-only pipeline in a shadow pass; on_render runs again for each cascade.
-    b8 shadow = batch->shadow_pass_active;
-
-    NYA_ConstCString pipeline_handle = shadow ? NYA_RENDER3D_PIPELINE_SKINNED_SHADOW : NYA_RENDER3D_PIPELINE_SKINNED;
-
-    NYA_Asset* pipeline = nya_asset_get((NYA_AssetHandle)pipeline_handle);
-
-    if (pipeline == nullptr || pipeline->status != NYA_ASSET_STATUS_LOADED) return;
-
-    // The shadow map is created before binding anything: creating it opens a pass, which drops the bindings
-    // made before it and fails with "Missing fragment sampler binding".
-    if (!shadow && batch->shadow_color == nullptr && !_nya_render3d_shadow_ensure(window)) return;
-
-    _nya_render2d_pass_normals_set(window, true);
-
-    // Checked after everything that can suspend the pass and before binding. An upload or the shadow map
-    // creation replaces the pass handle, and a stale null crashes inside SDL. Nothing may touch it from here
-    // to the draw.
-    if (render->render_pass == nullptr) return;
+    // in the frame arena, since it is only read by this scene's playback.
+    struct NYA_ShaderSkinUniform* skin = nya_arena_alloc(nya_app_get()->frame_allocator, sizeof(struct NYA_ShaderSkinUniform));
+    if (skin == nullptr) return;
 
     // the palette, three rows a bone, at most 64.
-    struct NYA_ShaderSkinUniform skin = { 0 };
-
     u32 bones = bone_count < NYA_SHADER_SKIN_MAX_BONES ? bone_count : NYA_SHADER_SKIN_MAX_BONES;
 
     for (u32 b = 0; b < bones; b++) {
@@ -1168,7 +977,7 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
         f32_4x4 placed = model * palette[b];
 
         for (u32 row = 0; row < 3; row++) {
-            for (u32 column = 0; column < 4; column++) skin.bones[b][row][column] = placed[row][column];
+            for (u32 column = 0; column < 4; column++) skin->bones[b][row][column] = placed[row][column];
         }
     }
 
@@ -1176,45 +985,24 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
     // instead of collapsing to the origin.
     for (u32 b = bones; b < NYA_SHADER_SKIN_MAX_BONES; b++) {
         for (u32 row = 0; row < 3; row++) {
-            for (u32 column = 0; column < 4; column++) skin.bones[b][row][column] = model[row][column];
+            for (u32 column = 0; column < 4; column++) skin->bones[b][row][column] = model[row][column];
         }
     }
 
-    skin.tint_r = tint.r;
-    skin.tint_g = tint.g;
-    skin.tint_b = tint.b;
-    skin.tint_a = tint.a;
+    skin->tint_r = tint.r;
+    skin->tint_g = tint.g;
+    skin->tint_b = tint.b;
+    skin->tint_a = tint.a;
 
-    SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, pipeline));
-    SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = registered->vertices, .offset = 0 }, 1);
+    // what came before draws before it, as its own segment.
+    nya_render3d_flush(window);
 
-    // batch->view_projection holds the cascade's matrix during a shadow pass, so one path serves both.
-    SDL_PushGPUVertexUniformData(render->render_commands, 0, &batch->view_projection, sizeof(batch->view_projection));
-    SDL_PushGPUVertexUniformData(render->render_commands, 1, &skin, sizeof(skin));
+    NYA_Render3DSegment* segment = &batch->segments[batch->segment_count];
 
-    // the shadow pipeline declares no uniform or sampler, and binding one is a validation error.
-    if (!shadow) {
-        struct NYA_ShaderMesh3DUniform shading = _nya_render3d_shading_uniform(batch);
+    segment->skinned = handle;
+    segment->skin    = skin;
 
-        SDL_PushGPUFragmentUniformData(render->render_commands, 0, &shading, sizeof(shading));
-
-        // bound directly: _nya_render3d_bind_samplers binds nothing during a shadow pass, and mesh3d.frag.hlsl
-        // always declares one sampler.
-        SDL_GPUSampler* shadow_sampler = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR);
-
-        if (batch->shadow_color == nullptr || shadow_sampler == nullptr) return;
-
-        SDL_BindGPUFragmentSamplers(
-            render->render_pass,
-            0,
-            &(SDL_GPUTextureSamplerBinding){ .texture = batch->shadow_color, .sampler = shadow_sampler },
-            1
-        );
-    }
-
-    SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);
-
-    batch->frame_draw_calls++;
+    _nya_render3d_segment_close(window);
 }
 
 void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center, f32x3 scale, NYA_Quaternion rotation, NYA_Color color) {
@@ -1223,6 +1011,8 @@ void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center
     if (handle == nullptr) return;
 
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    if (!batch->active) return;
 
     if (nya_render3d_lod_count() > 0) {
         f32x3 eye    = batch->camera_is_ortho ? batch->camera_orthographic.position : batch->camera.position;
@@ -1256,6 +1046,11 @@ void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center
      * Records an instance rather than emitting vertices. The model is uploaded once, and a draw appends a model
      * matrix and a tint. The immediate batch is for geometry generated every frame, which has nothing to reuse.
      */
+    _nya_render3d_passes_prepare(window);
+
+    // a mesh without bounds yet is seen by every pass.
+    u8 passes = (u8)((1U << batch->pass_count) - 1U);
+
     f32x3 bounds_min;
     f32x3 bounds_max;
 
@@ -1267,28 +1062,22 @@ void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center
         // is the safe direction.
         f32x3 world_center = center + nya_quaternion_rotate(rotation, middle);
 
-        if (!_nya_render3d_visible(batch, world_center, nya_vector_length(extent))) {
-            batch->frame_culled++;
-            return;
-        }
+        passes = _nya_render3d_passes_seeing(batch, world_center, nya_vector_length(extent));
+
+        if (passes == 0) return;
     }
 
     // uploaded on first draw because the copy needs a frame, which the asset system does not have.
     if (asset != nullptr && asset->as_mesh.gpu_vertices == nullptr && !_nya_render3d_mesh_upload(window, asset)) return;
 
-    if (batch->instance_count >= NYA_RENDER3D_MAX_INSTANCES) {
-        // counted and dropped. see NYA_RENDER3D_MAX_INSTANCES.
-        batch->frame_dropped_draws++;
-        return;
+    // full: what is recorded draws now, and this copy starts the next playback.
+    if (batch->instance_count >= NYA_RENDER3D_MAX_INSTANCES || batch->mesh_group_count >= NYA_RENDER3D_MAX_MESH_GROUPS) {
+        nya_render3d_flush(window);
+        _nya_render3d_playback(window);
     }
 
     // the tint's alpha picks the pass, as for primitives.
     NYA_Render3DMeshGroup* group = _nya_render3d_mesh_group(batch, handle, color.a < 1.0F);
-
-    if (group == nullptr) {
-        batch->frame_dropped_draws++;
-        return;
-    }
 
     /*
      * Appended at the end of the instance array. A group's instances must be contiguous because a draw names a
@@ -1298,6 +1087,8 @@ void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center
         .model = nya_matrix_transform(center, nya_quaternion_to_matrix3(rotation), scale),
         .tint  = color,
     };
+
+    batch->instance_passes[batch->instance_count] = passes;
 
     // transparent groups draw back to front by their furthest copy. instances in a group are sorted too, since
     // groups can interleave in depth.
@@ -1336,9 +1127,6 @@ NYA_INTERNAL b8 _nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString
     }
 
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
-
-    // queued draws may reference the old buffer, and SDL only defers release past submitted work.
-    nya_render3d_flush(window);
 
     SDL_GPUBuffer*         buffer   = nullptr;
     SDL_GPUTransferBuffer* transfer = nullptr;
@@ -1388,9 +1176,6 @@ void nya_render3d_mesh_release(NYA_Window* window, NYA_ConstCString handle) {
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
     if (_nya_render3d_registered(batch, handle) == nullptr) return;
-
-    // queued draws may reference this mesh.
-    nya_render3d_flush(window);
 
     b8 removed = nya_cache_remove(batch->registered_meshes, handle, strlen(handle));
     nya_assert(removed, "'%s' was registered a moment ago", handle);
@@ -1539,41 +1324,24 @@ NYA_Render3DFrameStats nya_render3d_frame_stats(NYA_Window* window) {
         .culled        = batch->frame_culled,
         .occluded      = batch->frame_occluded,
         .dropped_draws = batch->frame_dropped_draws,
+        .passes        = batch->frame_passes,
     };
 }
 
 void nya_render3d_flush(NYA_Window* window) {
-    nya_perf_time_this_function();
-
     nya_assert(window != nullptr);
 
-    NYA_RenderSystemWindow* render = &window->render_system;
-    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+    NYA_RenderSystemWindow*    render = &window->render_system;
+    NYA_Render3DBatch*         batch  = &render->mesh_batch;
+    const NYA_Render3DSegment* open   = &batch->segments[batch->segment_count];
 
-    if (batch->opaque.index_count == 0 && batch->transparent.index_count == 0 && batch->instance_count == 0 && render->decals_gpu.count == 0) return;
+    // nothing recorded since the last change, so the open segment simply takes the new state.
+    b8 empty = batch->opaque.object_count == open->opaque_objects && batch->transparent.object_count == open->transparent_objects
+            && batch->mesh_group_count == open->first_group && render->decals_gpu.count == open->first_decal;
 
-    // no pass: the window is occluded or minimised. dropped rather than drawn stale later.
-    if (render->render_pass == nullptr) {
-        batch->opaque      = (NYA_Render3DStream){ .vertices = batch->opaque.vertices, .indices = batch->opaque.indices };
-        batch->transparent = (NYA_Render3DStream){ .vertices = batch->transparent.vertices, .indices = batch->transparent.indices };
+    if (empty) return;
 
-        batch->instance_count    = 0;
-        batch->mesh_group_count  = 0;
-        render->decals_gpu.count = 0;
-        return;
-    }
-
-    // the scene pass writes the normal buffer when its target has one. a no-op while one is attached already.
-    _nya_render2d_pass_normals_set(window, true);
-
-    // built once for both paths: light, material and shadow state are batch state and flush on change.
-    struct NYA_ShaderMesh3DUniform uniform = _nya_render3d_shading_uniform(batch);
-
-    _nya_render3d_flush_immediate(window, &uniform);
-    _nya_render3d_flush_instanced(window, &uniform);
-
-    // last, over the ground they lie on, whichever of the two paths drew it.
-    _nya_render3d_decals_flush(window, &uniform);
+    _nya_render3d_segment_close(window);
 }
 
 /*
@@ -1610,13 +1378,10 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
 
         .edge = batch->material.edge,
 
-        .shadow_strength = batch->shadow_valid ? batch->shadow.strength : 0.0F,
         // one cascade's texel, not the atlas's: the shader offsets its kernel in cascade-local uv. the atlas
         // texel would shrink the kernel and harden every contact shadow.
         .shadow_texel = 1.0F / (f32)shadow_options.map_size,
-        .shadow_bias  = batch->shadow.bias,
 
-        .cascade_count  = (f32)batch->shadow_cascade_count,
         .atlas_cascades = (f32)shadow_options.cascades,
     };
 
@@ -1640,7 +1405,7 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
     uniform.shade_tint_g = nya_lerp(1.0F, shade.g / nya_max(luma, NYA_EPSILON), amount);
     uniform.shade_tint_b = nya_lerp(1.0F, shade.b / nya_max(luma, NYA_EPSILON), amount);
 
-    /* Fog defaults are resolved here once per flush, since the shader only tests `density`. */
+    /* Fog defaults are resolved here once per segment, since the shader only tests `density`. */
     if (batch->fog.density > 0.0F) {
         NYA_Color color = batch->fog.color;
 
@@ -1655,11 +1420,6 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
         uniform.fog_height_falloff = batch->fog.height_falloff;
         uniform.fog_height_base    = batch->fog.height_base;
         uniform.fog_sun_amount     = batch->fog.sun_amount;
-    }
-
-    for (u32 i = 0; i < NYA_RENDER3D_SHADOW_CASCADES; i++) {
-        uniform.light_view_projection[i] = batch->shadow_view_projection[i];
-        uniform.cascade_extent[i]        = batch->shadow_cascade_extent[i];
     }
 
     // field by field: f32x3 is sixteen bytes and the uniform block must match the HLSL layout exactly.
@@ -1692,15 +1452,11 @@ b8 _nya_render3d_bind_samplers(NYA_Window* window, SDL_GPUTexture* texture, SDL_
     NYA_Render3DBatch*      batch  = &render->mesh_batch;
 
     /*
-     * Bindings in each shader's declared order. The shadow pass binds nothing. The untextured scene pipeline
-     * declares one sampler (the shadow map) and the textured one two (base colour, then shadow map). A shadow
-     * map is bound even when no pass ran, since a declared sampler must have something bound.
+     * Bindings in each shader's declared order. The untextured scene pipeline declares one sampler (the shadow map)
+     * and the textured one two (base colour, then shadow map). A shadow map is bound even when no cascade was drawn,
+     * since a declared sampler must have something bound. The playback created it.
      */
-    if (batch->shadow_pass_active) return true;
-
-    // created on demand even for scenes without shadows, since binding null to a declared sampler crashes some
-    // drivers. shadow_strength is zero then, so it is never read.
-    if (batch->shadow_color == nullptr && !_nya_render3d_shadow_ensure(window)) return false;
+    if (batch->shadow_color == nullptr) return false;
 
     SDL_GPUSampler* shadow_sampler = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR);
 
@@ -1726,218 +1482,410 @@ b8 _nya_render3d_bind_samplers(NYA_Window* window, SDL_GPUTexture* texture, SDL_
     return true;
 }
 
-void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMesh3DUniform* uniform) {
+void _nya_render3d_playback(NYA_Window* window) {
+    nya_perf_time_this_function();
+
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DBatch*      batch  = &render->mesh_batch;
 
-    NYA_Render3DStream* opaque      = &batch->opaque;
-    NYA_Render3DStream* transparent = &batch->transparent;
+    // no pass: the window is occluded or minimised, and what was recorded is dropped rather than drawn stale later.
+    if (batch->segment_count > 0 && render->render_pass != nullptr) {
+        _nya_render3d_passes_prepare(window);
 
-    if (opaque->index_count == 0 && transparent->index_count == 0) return;
+        // created even without cascades, since binding null to a declared sampler crashes some drivers.
+        b8  atlas      = _nya_render3d_shadow_ensure(window);
+        u32 pass_count = atlas ? batch->pass_count : 1;
 
-    // before the upload, since sorting rewrites the indices.
-    f32x3 eye = batch->camera_is_ortho ? batch->camera_orthographic.position : batch->camera.position;
+        SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
-    /*
-     * No sort for additive blending, where order does not change the result, or for a shadow pass, which
-     * writes depth without blending. The shadow case was 1.0% of a release frame across three cascades.
-     */
-    if (batch->blend != NYA_RENDER3D_BLEND_ADDITIVE && !batch->shadow_pass_active) _nya_render3d_sort_transparent(batch, eye);
+        f32x3 eye = batch->camera_is_ortho ? batch->camera_orthographic.position : batch->camera.position;
+
+        /*
+         * Every pass's visible indices, written straight into the upload one pass after another. The streams' own
+         * indices stay as recorded, so each pass reads them unsorted.
+         */
+        u16* indices = SDL_MapGPUTransferBuffer(gpu_device, batch->index_transfer_buffer, true);
+        nya_assert(indices != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D batch's indices: %s", SDL_GetError());
+
+        u32 index_count = 0;
+
+        for (u32 pass = 0; pass < pass_count; pass++) {
+            for (u32 s = 0; s < batch->segment_count; s++) {
+                NYA_Render3DSegment* segment = &batch->segments[s];
+
+                b8  last            = s + 1 == batch->segment_count;
+                u32 opaque_end      = last ? batch->opaque.object_count : segment[1].opaque_objects;
+                u32 transparent_end = last ? batch->transparent.object_count : segment[1].transparent_objects;
+
+                segment->opaque[pass]      = (NYA_Render3DIndexRange){ .first = index_count };
+                segment->transparent[pass] = (NYA_Render3DIndexRange){ .first = index_count };
+
+                if (pass > 0 && !segment->casts_shadow) continue;
+
+                segment->opaque[pass].count  = _nya_render3d_pass_indices(&batch->opaque, segment->opaque_objects, opaque_end, pass, indices + index_count);
+                index_count                 += segment->opaque[pass].count;
+
+                // a cascade draws translucent geometry solid, as the map holds depth, not transmittance. what adds light casts nothing.
+                if (pass > 0 && segment->blend == NYA_RENDER3D_BLEND_ADDITIVE) continue;
+
+                u32 count = _nya_render3d_pass_indices(&batch->transparent, segment->transparent_objects, transparent_end, pass, indices + index_count);
+
+                // only the camera blends, and adding does not depend on order.
+                if (pass == 0 && segment->blend != NYA_RENDER3D_BLEND_ADDITIVE) _nya_render3d_sort_transparent(batch, indices + index_count, count, eye);
+
+                segment->transparent[pass].count  = count;
+                index_count                      += count;
+            }
+        }
+
+        SDL_UnmapGPUTransferBuffer(gpu_device, batch->index_transfer_buffer);
+
+        /*
+         * Instances are ordered within each transparent group before upload. Groups alone are not enough: one group
+         * holds many copies at many depths. Opaque groups are left alone; the depth buffer handles them.
+         */
+        for (u32 g = 0; g < batch->mesh_group_count; g++) {
+            const NYA_Render3DMeshGroup* group = &batch->mesh_groups[g];
+
+            if (!group->transparent || group->instance_count < 2) continue;
+
+            for (u32 i = 0; i < group->instance_count; i++) {
+                const NYA_Render3DInstance* instance = &batch->instances[group->first_instance + i];
+
+                /* The translation is the matrix's fourth column. */
+                f32x3 offset = (f32x3){ instance->model[0][3], instance->model[1][3], instance->model[2][3] } - eye;
+
+                batch->sort_keys[i] = (NYA_Render3DSortKey){ .depth = nya_vector_dot(offset, offset), .first = i };
+            }
+
+            nya_render3d_sort_keys(batch->sort_keys, batch->sort_keys_scratch, group->instance_count);
+
+            u8 passes[NYA_RENDER3D_MAX_INSTANCES];
+
+            // backwards: ascending radix, furthest-first draw. the pass masks move with their copies.
+            for (u32 i = 0; i < group->instance_count; i++) {
+                u32 source                 = batch->sort_keys[group->instance_count - 1 - i].first;
+                batch->sorted_instances[i] = batch->instances[group->first_instance + source];
+                passes[i]                  = batch->instance_passes[group->first_instance + source];
+            }
+
+            nya_memcpy(&batch->instances[group->first_instance], batch->sorted_instances,
+                       (u64)group->instance_count * sizeof(NYA_Render3DInstance));
+            nya_memcpy(&batch->instance_passes[group->first_instance], passes, group->instance_count);
+        }
+
+        const NYA_Render3DStream* opaque      = &batch->opaque;
+        const NYA_Render3DStream* transparent = &batch->transparent;
+
+        // both streams share one buffer, opaque first. transparent indices are relative to their own first vertex,
+        // so a draw's vertex offset rebases them.
+        u32 vertex_size   = (opaque->vertex_count + transparent->vertex_count) * (u32)sizeof(NYA_Vertex3D);
+        u32 index_size    = index_count * (u32)sizeof(u16);
+        u32 instance_size = batch->instance_count * (u32)sizeof(NYA_Render3DInstance);
+
+        if (vertex_size > 0) {
+            NYA_Vertex3D* mapped = SDL_MapGPUTransferBuffer(gpu_device, batch->transfer_buffer, true);
+            nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D batch: %s", SDL_GetError());
+            nya_memcpy(mapped, opaque->vertices, (u64)opaque->vertex_count * sizeof(NYA_Vertex3D));
+            nya_memcpy(mapped + opaque->vertex_count, transparent->vertices, (u64)transparent->vertex_count * sizeof(NYA_Vertex3D));
+            SDL_UnmapGPUTransferBuffer(gpu_device, batch->transfer_buffer);
+        }
+
+        if (instance_size > 0) {
+            void* mapped = SDL_MapGPUTransferBuffer(gpu_device, batch->instance_transfer_buffer, true);
+            nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D instance stream: %s", SDL_GetError());
+            nya_memcpy(mapped, batch->instances, instance_size);
+            SDL_UnmapGPUTransferBuffer(gpu_device, batch->instance_transfer_buffer);
+        }
+
+        // one copy pass for the whole scene, since a copy pass cannot run inside a render pass.
+        _nya_render2d_pass_suspend(window);
+
+        SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(render->render_commands);
+
+        if (vertex_size > 0) {
+            SDL_UploadToGPUBuffer(
+                copy_pass,
+                &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->transfer_buffer },
+                &(SDL_GPUBufferRegion){ .buffer = batch->vertex_buffer, .size = vertex_size },
+                true
+            );
+        }
+
+        if (index_size > 0) {
+            SDL_UploadToGPUBuffer(
+                copy_pass,
+                &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->index_transfer_buffer },
+                &(SDL_GPUBufferRegion){ .buffer = batch->index_buffer, .size = index_size },
+                true
+            );
+        }
+
+        if (instance_size > 0) {
+            SDL_UploadToGPUBuffer(
+                copy_pass,
+                &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->instance_transfer_buffer },
+                &(SDL_GPUBufferRegion){ .buffer = batch->instance_buffer, .size = instance_size },
+                true
+            );
+        }
+
+        _nya_render3d_decals_upload(window, copy_pass);
+
+        SDL_EndGPUCopyPass(copy_pass);
+
+        for (u32 pass = 1; pass < pass_count; pass++) _nya_render3d_pass_draw(window, pass);
+
+        if (pass_count > 1) batch->shadow_valid = true;
+
+        // the camera pass writes the normal buffer when its target has one.
+        render->render_pass_normals = render->draw_batch.target_normal != nullptr;
+
+        _nya_render2d_pass_resume(window);
+
+        // what the cascades just drew, which no segment could know when it was recorded.
+        for (u32 s = 0; s < batch->segment_count; s++) {
+            struct NYA_ShaderMesh3DUniform* uniform = &batch->segment_uniforms[s];
+
+            uniform->shadow_strength = batch->shadow_valid ? batch->shadow.strength : 0.0F;
+            uniform->shadow_bias     = batch->shadow.bias;
+            uniform->cascade_count   = (f32)batch->shadow_cascade_count;
+
+            for (u32 i = 0; i < NYA_RENDER3D_SHADOW_CASCADES; i++) {
+                uniform->light_view_projection[i] = batch->shadow_view_projection[i];
+                uniform->cascade_extent[i]        = batch->shadow_cascade_extent[i];
+            }
+        }
+
+        _nya_render3d_pass_draw(window, 0);
+
+        batch->frame_passes   += pass_count;
+        batch->frame_vertices += opaque->vertex_count + transparent->vertex_count;
+        batch->frame_indices  += index_count;
+    }
+
+    batch->opaque.vertex_count      = 0;
+    batch->opaque.index_count       = 0;
+    batch->opaque.object_count      = 0;
+    batch->transparent.vertex_count = 0;
+    batch->transparent.index_count  = 0;
+    batch->transparent.object_count = 0;
+
+    batch->instance_count    = 0;
+    batch->mesh_group_count  = 0;
+    batch->segment_count     = 0;
+    render->decals_gpu.count = 0;
+
+    _nya_render3d_segment_open(window);
+}
+
+void _nya_render3d_pass_draw(NYA_Window* window, u32 pass) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+
+    if (pass > 0) {
+        u32 cascade = pass - 1;
+
+        // the first cascade clears the whole atlas, and a later playback in the same scene adds to what it holds.
+        SDL_GPULoadOp load = cascade == 0 && !batch->shadow_valid ? SDL_GPU_LOADOP_CLEAR : SDL_GPU_LOADOP_LOAD;
+
+        // the shadow pipelines have no normals variant.
+        render->render_pass_normals = false;
+
+        render->render_pass = SDL_BeginGPURenderPass(
+            render->render_commands,
+            &(SDL_GPUColorTargetInfo){
+                .texture = batch->shadow_color,
+                // white is the far plane in this encoding, so unseen texels compare as unoccluded.
+                .clear_color = (SDL_FColor){ .r = 1.0F, .g = 1.0F, .b = 1.0F, .a = 1.0F },
+                .load_op     = load,
+                .store_op    = SDL_GPU_STOREOP_STORE,
+            },
+            1,
+            &(SDL_GPUDepthStencilTargetInfo){
+                .texture     = batch->shadow_depth,
+                .clear_depth = 1.0F,
+                .load_op     = load,
+
+                // stored for the next cascade's slice, since only the first one clears.
+                .store_op         = SDL_GPU_STOREOP_STORE,
+                .stencil_load_op  = SDL_GPU_LOADOP_DONT_CARE,
+                .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
+            }
+        );
+
+        if (render->render_pass == nullptr) {
+            nya_log_error("SDL_BeginGPURenderPass() failed for shadow cascade %u: %s", cascade, SDL_GetError());
+            return;
+        }
+
+        f32 size = (f32)nya_render3d_shadow_options(window).map_size;
+
+        // a viewport rather than a scissor, because it has to map clip space onto the slice, not just clip it.
+        SDL_SetGPUViewport(render->render_pass, &(SDL_GPUViewport){ .x = (f32)cascade * size, .w = size, .h = size, .max_depth = 1.0F });
+    }
+
+    for (u32 s = 0; s < batch->segment_count; s++) {
+        const NYA_Render3DSegment*            segment = &batch->segments[s];
+        const struct NYA_ShaderMesh3DUniform* uniform = &batch->segment_uniforms[s];
+
+        if (pass > 0 && !segment->casts_shadow) continue;
+
+        if (segment->skinned != nullptr) {
+            _nya_render3d_skinned_draw(window, segment, uniform, pass);
+            continue;
+        }
+
+        _nya_render3d_immediate_draw(window, segment, uniform, pass);
+        _nya_render3d_instanced_draw(window, segment, uniform, pass);
+
+        // last, over the ground they lie on, whichever of the two paths drew it.
+        if (pass == 0) _nya_render3d_decals_draw(window, segment, uniform);
+    }
+
+    if (pass == 0 || render->render_pass == nullptr) return;
+
+    SDL_EndGPURenderPass(render->render_pass);
+    render->render_pass = nullptr;
+}
+
+void _nya_render3d_immediate_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform,
+                                  u32 pass) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+
+    NYA_Render3DIndexRange opaque      = segment->opaque[pass];
+    NYA_Render3DIndexRange transparent = segment->transparent[pass];
+
+    if (opaque.count == 0 && transparent.count == 0) return;
+
+    b8 shadow  = pass > 0;
+    b8 overlay = segment->depth == NYA_RENDER3D_DEPTH_OVERLAY;
 
     /*
      * Translucent surfaces test depth but do not write it, or a nearer pane hides the one behind it. The
      * overlay replaces both streams, because gizmos are usually opaque.
      */
-    NYA_ConstCString opaque_handle = batch->shadow_pass_active                      ? NYA_RENDER3D_PIPELINE_SHADOW
-                                   : batch->depth == NYA_RENDER3D_DEPTH_OVERLAY     ? NYA_RENDER3D_PIPELINE_OVERLAY
-                                   : batch->texture != nullptr                      ? NYA_RENDER3D_PIPELINE_MESH_TEXTURED
-                                                                                    : NYA_RENDER3D_PIPELINE_MESH;
-
-    /*
-     * The shadow pass draws translucent geometry as solid. The map holds depth, not transmittance, and a
-     * solid shadow reads better than none.
-     */
-    b8 wants_glass = !batch->shadow_pass_active && batch->material.refraction > 0.0F && transparent->index_count > 0;
-
-    /*
-     * Only the intent is decided here. The capture happens after the opaque draw, because glass has to see the
-     * opaque scene this flush draws. Both pipelines are looked up now to avoid a lookup mid-pass.
-     */
-    b8 additive_shadow = batch->shadow_pass_active && batch->blend == NYA_RENDER3D_BLEND_ADDITIVE;
+    NYA_ConstCString opaque_handle = shadow                      ? NYA_RENDER3D_PIPELINE_SHADOW
+                                   : overlay                     ? NYA_RENDER3D_PIPELINE_OVERLAY
+                                   : segment->texture != nullptr ? NYA_RENDER3D_PIPELINE_MESH_TEXTURED
+                                                                 : NYA_RENDER3D_PIPELINE_MESH;
 
     NYA_ConstCString transparent_handle;
 
-    if (batch->shadow_pass_active) {
+    if (shadow) {
         transparent_handle = NYA_RENDER3D_PIPELINE_SHADOW;
-    } else if (batch->depth == NYA_RENDER3D_DEPTH_OVERLAY) {
+    } else if (overlay) {
         // the overlay check comes first, whatever the blend mode, so a gizmo is always on top.
         transparent_handle = NYA_RENDER3D_PIPELINE_OVERLAY;
-    } else if (batch->blend == NYA_RENDER3D_BLEND_ADDITIVE) {
-        transparent_handle = batch->texture != nullptr ? NYA_RENDER3D_PIPELINE_ADDITIVE_TEXTURED : NYA_RENDER3D_PIPELINE_ADDITIVE;
+    } else if (segment->blend == NYA_RENDER3D_BLEND_ADDITIVE) {
+        transparent_handle = segment->texture != nullptr ? NYA_RENDER3D_PIPELINE_ADDITIVE_TEXTURED : NYA_RENDER3D_PIPELINE_ADDITIVE;
     } else {
-        transparent_handle = batch->texture != nullptr ? NYA_RENDER3D_PIPELINE_TRANSPARENT_TEXTURED : NYA_RENDER3D_PIPELINE_TRANSPARENT;
+        transparent_handle = segment->texture != nullptr ? NYA_RENDER3D_PIPELINE_TRANSPARENT_TEXTURED : NYA_RENDER3D_PIPELINE_TRANSPARENT;
     }
 
     NYA_Asset* opaque_pipeline      = nya_asset_get((NYA_AssetHandle)opaque_handle);
     NYA_Asset* transparent_pipeline = nya_asset_get((NYA_AssetHandle)transparent_handle);
 
+    /*
+     * Only the intent is decided here. The capture happens after the opaque draw, because glass has to see the
+     * opaque scene drawn so far. Both pipelines are looked up now to avoid a lookup mid-pass.
+     */
+    b8 wants_glass = !shadow && segment->material.refraction > 0.0F && transparent.count > 0;
+
     NYA_Asset* glass_pipeline = wants_glass ? nya_asset_get((NYA_AssetHandle)NYA_RENDER3D_PIPELINE_GLASS) : nullptr;
 
     if (glass_pipeline != nullptr && glass_pipeline->status != NYA_ASSET_STATUS_LOADED) glass_pipeline = nullptr;
 
+    // still loading on the first frames.
     b8 opaque_ready      = opaque_pipeline != nullptr && opaque_pipeline->status == NYA_ASSET_STATUS_LOADED;
     b8 transparent_ready = transparent_pipeline != nullptr && transparent_pipeline->status == NYA_ASSET_STATUS_LOADED;
 
-    if (!opaque_ready && !transparent_ready && glass_pipeline == nullptr) {
-        // still loading on the first frames. dropped so geometry does not pile up.
-        opaque->vertex_count      = 0;
-        opaque->index_count       = 0;
-        transparent->vertex_count = 0;
-        transparent->index_count  = 0;
-        return;
-    }
+    if (!opaque_ready && !transparent_ready && glass_pipeline == nullptr) return;
 
-    SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
+    f32_4x4 view_projection = _nya_render3d_pass_view_projection(batch, pass);
 
-    // both streams share one buffer, opaque first. transparent indices are relative to their own first vertex,
-    // so the draw's vertex offset rebases them.
-    u32 opaque_vertices      = opaque->vertex_count;
-    u32 transparent_vertices = transparent->vertex_count;
-    u32 opaque_indices       = opaque->index_count;
-    u32 transparent_indices  = transparent->index_count;
+    SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer }, 1);
+    SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer }, SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
-    u32 vertex_upload_size = (u32)((opaque_vertices + transparent_vertices) * sizeof(NYA_Vertex3D));
-    u32 index_upload_size  = (u32)((opaque_indices + transparent_indices) * sizeof(u32));
+    // the shadow pipelines declare no sampler and no fragment uniform.
+    if (!shadow && !_nya_render3d_bind_samplers(window, segment->texture, segment->sampler)) return;
 
-    NYA_Vertex3D* mapped = SDL_MapGPUTransferBuffer(gpu_device, batch->transfer_buffer, true);
-    nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D batch: %s", SDL_GetError());
-    nya_memcpy(mapped, opaque->vertices, opaque_vertices * sizeof(NYA_Vertex3D));
-    nya_memcpy(mapped + opaque_vertices, transparent->vertices, transparent_vertices * sizeof(NYA_Vertex3D));
-    SDL_UnmapGPUTransferBuffer(gpu_device, batch->transfer_buffer);
+    SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
 
-    u32* mapped_indices = SDL_MapGPUTransferBuffer(gpu_device, batch->index_transfer_buffer, true);
-    nya_assert(mapped_indices != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D batch's indices: %s", SDL_GetError());
-    nya_memcpy(mapped_indices, opaque->indices, opaque_indices * sizeof(u32));
-    nya_memcpy(mapped_indices + opaque_indices, transparent->indices, transparent_indices * sizeof(u32));
-    SDL_UnmapGPUTransferBuffer(gpu_device, batch->index_transfer_buffer);
-
-    // a copy pass cannot run inside a render pass, so the pass is suspended and resumed with render2d's helpers.
-    _nya_render2d_pass_suspend(window);
-
-    SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(render->render_commands);
-
-    SDL_UploadToGPUBuffer(
-        copy_pass,
-        &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->transfer_buffer, .offset = 0 },
-        &(SDL_GPUBufferRegion){ .buffer = batch->vertex_buffer, .offset = 0, .size = vertex_upload_size },
-        true
-    );
-
-    SDL_UploadToGPUBuffer(
-        copy_pass,
-        &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->index_transfer_buffer, .offset = 0 },
-        &(SDL_GPUBufferRegion){ .buffer = batch->index_buffer, .offset = 0, .size = index_upload_size },
-        true
-    );
-
-    SDL_EndGPUCopyPass(copy_pass);
-
-    _nya_render2d_pass_resume(window);
-
-    SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer, .offset = 0 }, 1);
-    SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer, .offset = 0 }, SDL_GPU_INDEXELEMENTSIZE_32BIT);
-
-    if (!_nya_render3d_bind_samplers(window, batch->texture, batch->sampler)) {
-        opaque->vertex_count      = 0;
-        opaque->index_count       = 0;
-        transparent->vertex_count = 0;
-        transparent->index_count  = 0;
-        return;
-    }
-
-    SDL_PushGPUVertexUniformData(render->render_commands, 0, &batch->view_projection, sizeof(batch->view_projection));
-    SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
+    if (!shadow) SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
 
     // opaque first, so transparent surfaces test against the opaque depth.
-    if (opaque_indices > 0 && opaque_ready) {
+    if (opaque.count > 0 && opaque_ready) {
         SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, opaque_pipeline));
-        SDL_DrawGPUIndexedPrimitives(render->render_pass, opaque_indices, 1, 0, 0, 0);
+        SDL_DrawGPUIndexedPrimitives(render->render_pass, opaque.count, 1, opaque.first, 0, 0);
 
         batch->frame_draw_calls++;
     }
 
-    if (transparent_indices > 0 && !additive_shadow) {
-        /*
-         * The capture sits between the opaque and transparent halves, so glass sees everything opaque drawn so far.
-         * Glass behind glass sees an unrefracted backdrop, the limit of a single capture.
-         */
-        b8 glass = glass_pipeline != nullptr && _nya_render3d_shadow_ensure(window) && _nya_render3d_refraction_capture(window);
+    if (transparent.count == 0) return;
 
-        if (glass) {
-            // a resume begins a new pass with nothing bound, so everything is rebound, not only the samplers.
-            SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, glass_pipeline));
+    /*
+     * The capture sits between the opaque and transparent halves, so glass sees everything opaque drawn so far.
+     * Glass behind glass sees an unrefracted backdrop, the limit of a single capture.
+     */
+    b8 glass = glass_pipeline != nullptr && _nya_render3d_refraction_capture(window);
 
-            SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer, .offset = 0 }, 1);
-            SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer, .offset = 0 },
-                                   SDL_GPU_INDEXELEMENTSIZE_32BIT);
+    if (glass) {
+        // a resume begins a new pass with nothing bound, so everything is rebound, not only the samplers.
+        SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, glass_pipeline));
 
-            // capture at t0 and shadow map at t1, the order mesh3d_glass.frag.hlsl declares.
-            SDL_GPUSampler* linear = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR);
+        SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer }, 1);
+        SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer }, SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
-            SDL_BindGPUFragmentSamplers(
-                render->render_pass,
-                0,
-                (SDL_GPUTextureSamplerBinding[]){
-                    { .texture = batch->refraction_capture, .sampler = linear },
-                    { .texture = batch->shadow_color, .sampler = linear },
-                },
-                2
-            );
+        // capture at t0 and shadow map at t1, the order mesh3d_glass.frag.hlsl declares.
+        SDL_GPUSampler* linear = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR);
 
-            struct NYA_ShaderGlassUniform glass_uniform = {
-                .texel_x    = batch->refraction_width > 0 ? 1.0F / (f32)batch->refraction_width : 0.0F,
-                .texel_y    = batch->refraction_height > 0 ? 1.0F / (f32)batch->refraction_height : 0.0F,
-                .refraction = batch->material.refraction,
-                .blur       = batch->material.blur,
-            };
+        SDL_BindGPUFragmentSamplers(
+            render->render_pass,
+            0,
+            (SDL_GPUTextureSamplerBinding[]){
+                { .texture = batch->refraction_capture, .sampler = linear },
+                { .texture = batch->shadow_color, .sampler = linear },
+            },
+            2
+        );
 
-            SDL_PushGPUVertexUniformData(render->render_commands, 0, &batch->view_projection, sizeof(batch->view_projection));
-            SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
-            SDL_PushGPUFragmentUniformData(render->render_commands, 1, &glass_uniform, sizeof(glass_uniform));
-        } else if (transparent_ready) {
-            SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, transparent_pipeline));
-        }
+        struct NYA_ShaderGlassUniform glass_uniform = {
+            .texel_x    = batch->refraction_width > 0 ? 1.0F / (f32)batch->refraction_width : 0.0F,
+            .texel_y    = batch->refraction_height > 0 ? 1.0F / (f32)batch->refraction_height : 0.0F,
+            .refraction = segment->material.refraction,
+            .blur       = segment->material.blur,
+        };
 
-        if (glass || transparent_ready) {
-            // the vertex offset rebases this stream's indices onto the second half of the buffer.
-            SDL_DrawGPUIndexedPrimitives(render->render_pass, transparent_indices, 1, opaque_indices, (s32)opaque_vertices, 0);
-
-            batch->frame_draw_calls++;
-        }
+        SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
+        SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
+        SDL_PushGPUFragmentUniformData(render->render_commands, 1, &glass_uniform, sizeof(glass_uniform));
+    } else if (transparent_ready) {
+        SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, transparent_pipeline));
     }
 
-    batch->frame_vertices += opaque_vertices + transparent_vertices;
-    batch->frame_indices  += opaque_indices + transparent_indices;
+    if (glass || transparent_ready) {
+        // the vertex offset rebases this stream's indices onto the second half of the buffer.
+        SDL_DrawGPUIndexedPrimitives(render->render_pass, transparent.count, 1, transparent.first, (s32)batch->opaque.vertex_count, 0);
 
-    opaque->vertex_count      = 0;
-    opaque->index_count       = 0;
-    transparent->vertex_count = 0;
-    transparent->index_count  = 0;
+        batch->frame_draw_calls++;
+    }
 }
 
-void _nya_render3d_sort_transparent(NYA_Render3DBatch* batch, f32x3 eye) {
-    NYA_Render3DStream* stream = &batch->transparent;
+void _nya_render3d_sort_transparent(NYA_Render3DBatch* batch, u16* indices, u32 index_count, f32x3 eye) {
+    const NYA_Render3DStream* stream = &batch->transparent;
 
-    u32 triangles = stream->index_count / 3;
+    u32 triangles = index_count / 3;
 
     if (triangles < 2) return;
 
     for (u32 i = 0; i < triangles; i++) {
         u32 first = i * 3;
 
-        f32x3 a = nya_vertex3d_position(stream->vertices[stream->indices[first + 0]]);
-        f32x3 b = nya_vertex3d_position(stream->vertices[stream->indices[first + 1]]);
-        f32x3 c = nya_vertex3d_position(stream->vertices[stream->indices[first + 2]]);
+        f32x3 a = nya_vertex3d_position(stream->vertices[indices[first + 0]]);
+        f32x3 b = nya_vertex3d_position(stream->vertices[indices[first + 1]]);
+        f32x3 c = nya_vertex3d_position(stream->vertices[indices[first + 2]]);
 
         f32x3 offset = ((a + b + c) / 3.0F) - eye;
 
@@ -1950,92 +1898,41 @@ void _nya_render3d_sort_transparent(NYA_Render3DBatch* batch, f32x3 eye) {
     for (u32 i = 0; i < triangles; i++) {
         u32 source = batch->sort_keys[triangles - 1 - i].first;
 
-        batch->sorted_indices[(i * 3) + 0] = stream->indices[source + 0];
-        batch->sorted_indices[(i * 3) + 1] = stream->indices[source + 1];
-        batch->sorted_indices[(i * 3) + 2] = stream->indices[source + 2];
+        batch->sorted_indices[(i * 3) + 0] = indices[source + 0];
+        batch->sorted_indices[(i * 3) + 1] = indices[source + 1];
+        batch->sorted_indices[(i * 3) + 2] = indices[source + 2];
     }
 
-    // copied back so the stream's array is always the current one.
-    nya_memcpy(stream->indices, batch->sorted_indices, (u64)triangles * 3 * sizeof(u32));
+    nya_memcpy(indices, batch->sorted_indices, (u64)triangles * 3 * sizeof(u16));
 }
 
-void _nya_render3d_flush_instanced(NYA_Window* window, const struct NYA_ShaderMesh3DUniform* uniform) {
+void _nya_render3d_instanced_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform,
+                                  u32 pass) {
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DBatch*      batch  = &render->mesh_batch;
 
-    if (batch->instance_count == 0) return;
+    if (segment->group_count == 0) return;
 
-    SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
+    b8 shadow = pass > 0;
 
-    /*
-     * Instances are ordered within each transparent group before upload. Groups alone are not enough: one group
-     * holds many copies at many depths. Opaque groups are left alone; the depth buffer handles them.
-     */
-    f32x3 eye = batch->camera_is_ortho ? batch->camera_orthographic.position : batch->camera.position;
-
-    for (u32 g = 0; g < batch->mesh_group_count; g++) {
-        const NYA_Render3DMeshGroup* group = &batch->mesh_groups[g];
-
-        if (!group->transparent || group->instance_count < 2) continue;
-
-        for (u32 i = 0; i < group->instance_count; i++) {
-            const NYA_Render3DInstance* instance = &batch->instances[group->first_instance + i];
-
-            /* The translation is the matrix's fourth column. */
-            f32x3 offset = (f32x3){ instance->model[0][3], instance->model[1][3], instance->model[2][3] } - eye;
-
-            batch->sort_keys[i] = (NYA_Render3DSortKey){ .depth = nya_vector_dot(offset, offset), .first = i };
-        }
-
-        nya_render3d_sort_keys(batch->sort_keys, batch->sort_keys_scratch, group->instance_count);
-
-        // backwards: ascending radix, furthest-first draw.
-        for (u32 i = 0; i < group->instance_count; i++) {
-            u32 source                 = batch->sort_keys[group->instance_count - 1 - i].first;
-            batch->sorted_instances[i] = batch->instances[group->first_instance + source];
-        }
-
-        nya_memcpy(&batch->instances[group->first_instance], batch->sorted_instances,
-                   (u64)group->instance_count * sizeof(NYA_Render3DInstance));
-    }
-
-    u32 instance_upload_size = (u32)(batch->instance_count * sizeof(NYA_Render3DInstance));
-
-    void* mapped = SDL_MapGPUTransferBuffer(gpu_device, batch->instance_transfer_buffer, true);
-    nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for the 3D instance stream: %s", SDL_GetError());
-    nya_memcpy(mapped, batch->instances, instance_upload_size);
-    SDL_UnmapGPUTransferBuffer(gpu_device, batch->instance_transfer_buffer);
-
-    // one copy pass for all instances this frame.
-    _nya_render2d_pass_suspend(window);
-
-    SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(render->render_commands);
-
-    SDL_UploadToGPUBuffer(
-        copy_pass,
-        &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->instance_transfer_buffer, .offset = 0 },
-        &(SDL_GPUBufferRegion){ .buffer = batch->instance_buffer, .offset = 0, .size = instance_upload_size },
-        true
-    );
-
-    SDL_EndGPUCopyPass(copy_pass);
-
-    _nya_render2d_pass_resume(window);
+    f32_4x4 view_projection = _nya_render3d_pass_view_projection(batch, pass);
 
     /*
-     * One draw call per mesh part, since a part is what has a texture. Cost scales with distinct materials on
-     * screen, not with the number of copies.
+     * One draw call per mesh part and run of copies the pass sees, since a part is what has a texture. Cost scales
+     * with distinct materials on screen, not with the number of copies.
      */
     u32 order[NYA_RENDER3D_MAX_MESH_GROUPS];
     u32 order_count = 0;
 
-    for (u32 g = 0; g < batch->mesh_group_count; g++) {
+    u32 end = segment->first_group + segment->group_count;
+
+    for (u32 g = segment->first_group; g < end; g++) {
         if (!batch->mesh_groups[g].transparent) order[order_count++] = g;
     }
 
     u32 opaque_groups = order_count;
 
-    for (u32 g = 0; g < batch->mesh_group_count; g++) {
+    for (u32 g = segment->first_group; g < end; g++) {
         if (batch->mesh_groups[g].transparent) order[order_count++] = g;
     }
 
@@ -2058,7 +1955,10 @@ void _nya_render3d_flush_instanced(NYA_Window* window, const struct NYA_ShaderMe
     for (u32 o = 0; o < order_count; o++) {
         const NYA_Render3DMeshGroup* group = &batch->mesh_groups[order[o]];
 
-        if (group->instance_count == 0) continue;
+        u32 instances_end = group->first_instance + group->instance_count;
+
+        u32 first_seen = 0;
+        if (_nya_render3d_pass_run(batch->instance_passes, group->first_instance, instances_end, pass, &first_seen) == 0) continue;
 
         // registered geometry is treated as one untextured part, so both sources share the loop below.
         NYA_Render3DRegisteredMesh* registered = _nya_render3d_registered(batch, group->handle);
@@ -2094,10 +1994,10 @@ void _nya_render3d_flush_instanced(NYA_Window* window, const struct NYA_ShaderMe
             SDL_GPUTexture* texture = (asset != nullptr && part->texture >= 0) ? asset->as_mesh.textures[part->texture] : nullptr;
             SDL_GPUSampler* sampler = texture != nullptr ? _nya_render_sampler_for(asset->as_mesh.filter) : nullptr;
 
-            // a shadow pass draws translucent meshes solid, as the immediate path does.
+            // a cascade draws translucent meshes solid, as the immediate path does.
             NYA_ConstCString pipeline_handle;
 
-            if (batch->shadow_pass_active) {
+            if (shadow) {
                 pipeline_handle = NYA_RENDER3D_PIPELINE_INSTANCED_SHADOW;
             } else if (group->transparent) {
                 pipeline_handle = texture != nullptr ? NYA_RENDER3D_PIPELINE_INSTANCED_TRANSPARENT_TEXTURED
@@ -2111,50 +2011,91 @@ void _nya_render3d_flush_instanced(NYA_Window* window, const struct NYA_ShaderMe
 
             SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, pipeline_asset));
 
-            // the instance buffer is bound from this group's first instance, so the draw's first-instance stays zero.
-            // some backends apply first_instance to the buffer but not to SV_InstanceID.
-            SDL_BindGPUVertexBuffers(
-                render->render_pass,
-                0,
-                (SDL_GPUBufferBinding[]){
-                    { .buffer = mesh_vertices, .offset = 0 },
-                    { .buffer = batch->instance_buffer, .offset = (u32)(group->first_instance * sizeof(NYA_Render3DInstance)) },
-                },
-                2
-            );
+            if (!shadow && !_nya_render3d_bind_samplers(window, texture, sampler)) return;
 
-            if (!_nya_render3d_bind_samplers(window, texture, sampler)) break;
+            SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
 
-            SDL_PushGPUVertexUniformData(render->render_commands, 0, &batch->view_projection, sizeof(batch->view_projection));
-            SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
+            if (!shadow) SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
 
-            // not indexed: the loader de-indexes, so an index buffer would be the identity.
-            SDL_DrawGPUPrimitives(render->render_pass, part->vertex_count, group->instance_count, part->first_vertex, 0);
+            u32 first = first_seen;
+            u32 run   = 0;
 
-            batch->frame_draw_calls++;
-            batch->frame_vertices += part->vertex_count * group->instance_count;
+            while ((run = _nya_render3d_pass_run(batch->instance_passes, first, instances_end, pass, &first)) > 0) {
+                // bound from the run's first copy, so the draw's first-instance stays zero. some backends apply
+                // first_instance to the buffer but not to SV_InstanceID.
+                SDL_BindGPUVertexBuffers(
+                    render->render_pass,
+                    0,
+                    (SDL_GPUBufferBinding[]){
+                        { .buffer = mesh_vertices },
+                        { .buffer = batch->instance_buffer, .offset = first * (u32)sizeof(NYA_Render3DInstance) },
+                    },
+                    2
+                );
+
+                // not indexed: the loader de-indexes, so an index buffer would be the identity.
+                SDL_DrawGPUPrimitives(render->render_pass, part->vertex_count, run, part->first_vertex, 0);
+
+                batch->frame_draw_calls++;
+                batch->frame_vertices  += part->vertex_count * run;
+                batch->frame_instances += p == 0 ? run : 0;
+
+                first += run;
+            }
         }
+    }
+}
 
-        batch->frame_instances += group->instance_count;
+void _nya_render3d_skinned_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform,
+                                u32 pass) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+
+    b8 shadow = pass > 0;
+
+    NYA_Render3DRegisteredMesh* registered = _nya_render3d_registered(batch, segment->skinned);
+
+    // released since it was recorded, or its copy has not run.
+    if (registered == nullptr || registered->pending_upload != nullptr) return;
+
+    NYA_Asset* pipeline = nya_asset_get((NYA_AssetHandle)(shadow ? NYA_RENDER3D_PIPELINE_SKINNED_SHADOW : NYA_RENDER3D_PIPELINE_SKINNED));
+
+    if (pipeline == nullptr || pipeline->status != NYA_ASSET_STATUS_LOADED) return;
+
+    f32_4x4 view_projection = _nya_render3d_pass_view_projection(batch, pass);
+
+    SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, pipeline));
+    SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = registered->vertices }, 1);
+
+    SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
+    SDL_PushGPUVertexUniformData(render->render_commands, 1, segment->skin, sizeof(*segment->skin));
+
+    // the shadow pipeline declares no uniform or sampler, and binding one is a validation error.
+    if (!shadow) {
+        SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
+
+        // mesh3d.frag.hlsl always declares the shadow map's sampler.
+        if (!_nya_render3d_bind_samplers(window, nullptr, nullptr)) return;
     }
 
-    batch->instance_count   = 0;
-    batch->mesh_group_count = 0;
+    SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);
+
+    batch->frame_draw_calls++;
 }
 
 NYA_Render3DMeshGroup* _nya_render3d_mesh_group(NYA_Render3DBatch* batch, NYA_ConstCString handle, b8 transparent) {
     /*
-     * Only the last group or a new one: a group is a contiguous run of the instance array. Alternating between
-     * two meshes therefore costs a draw call per switch; draw scenes grouped by model.
+     * Only the last group of the open segment or a new one: a group is a contiguous run of the instance array.
+     * Alternating between two meshes therefore costs a draw call per switch; draw scenes grouped by model.
      */
-    if (batch->mesh_group_count > 0) {
+    if (batch->mesh_group_count > batch->segments[batch->segment_count].first_group) {
         NYA_Render3DMeshGroup* last = &batch->mesh_groups[batch->mesh_group_count - 1];
 
         // transparency must match too, since the two draw through different pipelines.
         if (last->handle == handle && last->transparent == transparent) return last;
     }
 
-    if (batch->mesh_group_count >= NYA_RENDER3D_MAX_MESH_GROUPS) return nullptr;
+    nya_assert(batch->mesh_group_count < NYA_RENDER3D_MAX_MESH_GROUPS, "nya_render3d_mesh plays the scene back before the groups fill");
 
     NYA_Render3DMeshGroup* group = &batch->mesh_groups[batch->mesh_group_count];
 
@@ -2473,9 +2414,7 @@ NYA_Camera3DOrthographic _nya_render3d_camera_orthographic_defaults(NYA_Camera3D
     return camera;
 }
 
-void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection, f32x3 eye) {
-    nya_unused(eye);
-
+void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection) {
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
     /*
@@ -2488,14 +2427,20 @@ void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection, f32x3
     // queued 2D goes behind the scene, which is the ordering contract in render3d.h.
     nya_render2d_flush(window);
 
-    // a second begin changes camera mid-frame; queued geometry belongs to the old one.
-    if (batch->active) nya_render3d_flush(window);
+    // a second begin changes camera mid-frame; what was recorded belongs to the old one.
+    if (batch->active) {
+        nya_render3d_flush(window);
+        _nya_render3d_playback(window);
+    }
 
     batch->view_projection = view_projection;
     batch->active          = true;
 
-    // planes once per pass. see _nya_render3d_frustum_build.
-    _nya_render3d_frustum_build(batch);
+    // the camera's frustum now; the cascades follow it the first time something is drawn.
+    _nya_render3d_frustum_build(&batch->passes[0], view_projection);
+
+    batch->passes_ready = false;
+    batch->shadow_valid = false;
 
     /* Light and material reset every begin, so a frame never depends on the last. */
     // an occlusion buffer from a camera that moved would hide visible geometry. see nya_render3d_occlusion.
@@ -2505,7 +2450,38 @@ void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection, f32x3
 
     batch->material = (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 1.0F, .reflectance = 0.5F };
 
-    batch->blend = NYA_RENDER3D_BLEND_ALPHA;
+    batch->blend        = NYA_RENDER3D_BLEND_ALPHA;
+    batch->casts_shadow = true;
+}
+
+b8 _nya_render3d_object_begin(NYA_Window* window, NYA_Color color, f32x3 center, f32 radius, u32 vertices, u32 indices,
+                              SDL_GPUTexture* texture, SDL_GPUSampler* sampler) {
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    if (!batch->active) return false;
+
+    _nya_render3d_passes_prepare(window);
+
+    u8 passes = _nya_render3d_passes_seeing(batch, center, radius);
+
+    if (passes == 0) return false;
+
+    /* The colour's alpha decides the stream. */
+    batch->transparent_active = color.a < 1.0F;
+
+    if (!_nya_render3d_reserve(window, vertices, indices, texture, sampler)) return false;
+
+    NYA_Render3DStream*        stream = _nya_render3d_stream(batch);
+    const NYA_Render3DSegment* open   = &batch->segments[batch->segment_count];
+
+    u32 segment_objects = batch->transparent_active ? open->transparent_objects : open->opaque_objects;
+
+    // a neighbour in the same segment seen by the same passes grows instead, so a surface of triangles stays one object.
+    if (stream->object_count > segment_objects && stream->objects[stream->object_count - 1].passes == passes) return true;
+
+    stream->objects[stream->object_count++] = (NYA_Render3DObject){ .first_index = stream->index_count, .passes = passes };
+
+    return true;
 }
 
 b8 _nya_render3d_reserve(NYA_Window* window, u32 vertices, u32 indices, SDL_GPUTexture* texture, SDL_GPUSampler* sampler) {
@@ -2517,7 +2493,7 @@ b8 _nya_render3d_reserve(NYA_Window* window, u32 vertices, u32 indices, SDL_GPUT
         return false;
     }
 
-    /* A different texture ends the run, as a different material does. */
+    /* A different texture ends the segment, as a different material does. */
     if (batch->texture != texture || batch->sampler != sampler) {
         nya_render3d_flush(window);
 
@@ -2531,33 +2507,60 @@ b8 _nya_render3d_reserve(NYA_Window* window, u32 vertices, u32 indices, SDL_GPUT
 
     if (staged_vertices + vertices > NYA_RENDER3D_MAX_VERTICES || staged_indices + indices > NYA_RENDER3D_MAX_INDICES) {
         nya_render3d_flush(window);
-
-        staged_vertices = batch->opaque.vertex_count + batch->transparent.vertex_count;
-        staged_indices  = batch->opaque.index_count + batch->transparent.index_count;
+        _nya_render3d_playback(window);
     }
 
-    // a flush that found no pipeline dropped everything, so there is room.
-    return staged_vertices + vertices <= NYA_RENDER3D_MAX_VERTICES && staged_indices + indices <= NYA_RENDER3D_MAX_INDICES;
+    return true;
 }
 
 NYA_Render3DStream* _nya_render3d_stream(NYA_Render3DBatch* batch) {
     return batch->transparent_active ? &batch->transparent : &batch->opaque;
 }
 
-void _nya_render3d_route(NYA_Render3DBatch* batch, NYA_Color color) {
-    /* The colour's alpha decides the stream. */
-    batch->transparent_active = color.a < 1.0F;
+void _nya_render3d_segment_open(NYA_Window* window) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+
+    nya_assert(batch->segment_count < NYA_RENDER3D_MAX_SEGMENTS);
+
+    batch->segments[batch->segment_count] = (NYA_Render3DSegment){
+        .opaque_objects      = batch->opaque.object_count,
+        .transparent_objects = batch->transparent.object_count,
+        .first_group         = batch->mesh_group_count,
+        .first_decal         = render->decals_gpu.count,
+    };
 }
 
-u32 _nya_render3d_vertex(NYA_Render3DBatch* batch, f32x3 position, f32x3 normal, NYA_Color color, f32x2 uv) {
-    NYA_Render3DStream* stream = _nya_render3d_stream(batch);
+void _nya_render3d_segment_close(NYA_Window* window) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+    NYA_Render3DSegment*    open   = &batch->segments[batch->segment_count];
 
-    u32 index = stream->vertex_count;
+    nya_assert(batch->mesh_group_count >= open->first_group);
 
-    stream->vertices[index] = nya_vertex3d(position, color, normal, uv);
+    open->group_count = batch->mesh_group_count - open->first_group;
 
-    stream->vertex_count++;
+    // switching decals off mid-scene empties them.
+    open->decal_count   = render->decals_gpu.count > open->first_decal ? render->decals_gpu.count - open->first_decal : 0;
+    open->decal_texture = render->decals_gpu.texture;
 
-    return index;
+    open->texture      = batch->texture;
+    open->sampler      = batch->sampler;
+    open->material     = batch->material;
+    open->blend        = batch->blend;
+    open->depth        = batch->depth;
+    open->casts_shadow = batch->casts_shadow;
+
+    batch->segment_uniforms[batch->segment_count] = _nya_render3d_shading_uniform(batch);
+
+    batch->segment_count++;
+    batch->segment_count_worst = nya_max(batch->segment_count_worst, batch->segment_count);
+
+    // full: the scene so far draws now, which opens the next segment itself.
+    if (batch->segment_count == NYA_RENDER3D_MAX_SEGMENTS) {
+        _nya_render3d_playback(window);
+        return;
+    }
+
+    _nya_render3d_segment_open(window);
 }
-

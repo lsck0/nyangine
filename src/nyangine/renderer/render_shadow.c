@@ -174,14 +174,27 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(const NYA_Window* window, NYA_
     return (NYA_Render3DShadow){
         .center = center,
 
-        // This cascade's own half-width, already final. nya_render3d_shadow_begin applies no ratio to
-        // it any more: the size comes from the frustum slice, so there is nothing left to widen.
+        // this cascade's own half-width, already final: the size comes from the frustum slice.
         .extent   = extent,
         .depth    = fit.depth,
         .strength = fit.strength,
         .bias     = fit.bias,
         .cascade  = cascade,
     };
+}
+
+void nya_render3d_shadow_set(NYA_Window* window, NYA_Render3DShadowFit fit) {
+    nya_assert(window != nullptr);
+    nya_assert(fit.range >= 0.0F && fit.near_distance >= 0.0F && fit.aspect >= 0.0F && fit.depth >= 0.0F, "a shadow fit has no negative distances");
+
+    // read when the next scene first draws, so a change inside one waits for the next.
+    window->render_system.mesh_batch.shadow_fit = fit;
+}
+
+NYA_Render3DShadowFit nya_render3d_shadow(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.mesh_batch.shadow_fit;
 }
 
 void nya_render3d_shadow_options_set(NYA_Window* window, NYA_Render3DShadowOptions options) {
@@ -196,7 +209,8 @@ void nya_render3d_shadow_options_set(NYA_Window* window, NYA_Render3DShadowOptio
 
     if (before.cascades == after.cascades && before.map_size == after.map_size) return;
 
-    nya_assert(!batch->shadow_pass_active, "shadow options cannot change inside a shadow pass");
+    // the cascades of a scene being recorded were fitted to the old atlas.
+    nya_assert(!batch->active, "shadow options change between scenes, not inside one");
 
     _nya_render3d_shadow_release(window);
 }

@@ -1,4 +1,4 @@
-// Vertex stage for the shadow pass. See nya_render3d_shadow_begin in src/nyangine/renderer/render3d.h.
+// Vertex stage for the shadow pass. See nya_render3d_shadow_set in src/nyangine/renderer/render3d.h.
 //
 // The same vertices the scene pass gets, projected through the *light's* view instead of the camera's.
 // Nothing else about the batch changes, which is the point: the game draws its scene twice with the same

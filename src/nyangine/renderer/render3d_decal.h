@@ -138,7 +138,7 @@ struct NYA_Render3DDecalsGPU {
 
     NYA_Vertex3D* vertices;
 
-    /** Decals staged since the last flush, and the texture asset they share. */
+    /** Decals staged since the scene last played back, and the texture asset the latest ones share. */
     u32              count;
     NYA_ConstCString texture;
 

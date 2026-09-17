@@ -1024,58 +1024,28 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     GNY_World* bloom_world = gny_world();
 
-    GNY_SkyState sky = gny_sky_state();
-
     gny_config_renderer_apply(window);
 
-    // the sun is set before the shadow pass, which builds its matrix from the current light.
-    nya_render3d_light_set(window, _gny_cube3d_light(sky));
-
-    /*
-     * The shadow pass before the camera draw. The batch keeps no geometry, so the scene is drawn once per pass, and
-     * _gny_cube3d_draw_scene must be callable repeatedly with no state of its own.
-     */
-    NYA_Camera3DPerspective shadow_camera = {
-        .position = _gny_cube3d_camera_position(scene),
-        .target   = { 0.0F, gny_terrain3d_height_at(0.0F, 0.0F) + GNY_CUBE3D_SIZE, 0.0F },
-    };
-
-    /* The target's aspect, since the fit measures the camera's frustum. */
-    u32 target_width = 0, target_height = 0;
-    nya_render2d_target_size(window, &target_width, &target_height);
-
-    f32 aspect = target_height > 0 ? (f32)target_width / (f32)target_height : 0.0F;
+    f32x3 eye    = _gny_cube3d_camera_position(scene);
+    f32x3 target = { 0.0F, gny_terrain3d_height_at(0.0F, 0.0F) + GNY_CUBE3D_SIZE, 0.0F };
 
     /*
      * Where casters start and end down the view. The camera orbits outside the terrain, so casters lie within the
      * terrain's reach of the target distance. Using the near plane put the sharp cascades in empty air. See
-     * NYA_Render3DShadowFit.near_distance.
+     * NYA_Render3DShadowFit.near_distance. The scene is recorded once and every cascade draws it.
      */
-    f32 subject_distance = nya_vector_length(shadow_camera.target - shadow_camera.position);
+    f32 subject_distance = nya_vector_length(target - eye);
     f32 subject_reach    = GNY_CUBE3D_SHADOW_SUBJECT_REACH;
 
-    f32 shadow_near = nya_max(subject_distance - subject_reach, 0.1F);
-    f32 shadow_far  = subject_distance + subject_reach;
-
-    u32 cascades = nya_render3d_shadow_options(window).cascades;
-
-    for (u32 cascade = 0; cascade < cascades; cascade++) {
-        nya_render3d_shadow_begin(
-            window,
-            nya_render3d_shadow_for_camera(window, shadow_camera, sky.direction, cascade,
-                                           (NYA_Render3DShadowFit){
-                                               .near_distance = shadow_near,
-                                               .range    = shadow_far,
-                                               .aspect   = aspect,
-                                               .strength = GNY_CUBE3D_SHADOW_STRENGTH,
-                                               .bias     = NYA_CONFIG.engine.renderer.shadow_bias,
-                                           })
-        );
-
-        if (nya_render3d_active(window)) _gny_cube3d_draw_scene(window);
-
-        nya_render3d_shadow_end(window);
-    }
+    nya_render3d_shadow_set(
+        window,
+        (NYA_Render3DShadowFit){
+            .near_distance = nya_max(subject_distance - subject_reach, 0.1F),
+            .range         = subject_distance + subject_reach,
+            .strength      = GNY_CUBE3D_SHADOW_STRENGTH,
+            .bias          = NYA_CONFIG.engine.renderer.shadow_bias,
+        }
+    );
 
     /*
      * The cartoon passes from the config every frame, so saving engine.nya changes the look while it runs. The
@@ -1088,7 +1058,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     nya_post_antialias_set(window, look->antialias);
     nya_post_debug_view_set(window, look->debug_view);
 
-    _gny_cube3d_effects_apply(window, scene, shadow_camera.position);
+    _gny_cube3d_effects_apply(window, scene, eye);
 
     b8 cartoon = look->ink.enabled || look->ambient_occlusion.enabled || look->antialias.enabled || look->debug_view != NYA_POST_DEBUG_VIEW_NONE
               || look->depth_of_field.focus != NYA_POST_FOCUS_OFF || look->speed_lines.amount > 0.0F;
@@ -1377,9 +1347,6 @@ void _gny_cube3d_effects_apply(NYA_Window* window, GNY_Cube3DScene* scene, f32x3
 }
 
 void _gny_cube3d_decals_draw(NYA_Window* window, const GNY_Cube3DScene* scene) {
-    // the renderer would ignore them, so the shadow passes skip the loops too.
-    if (nya_render3d_shadow_pass_active(window)) return;
-
     f32 now_s = nya_app_get()->frame_stats.uptime_s;
 
     for (u32 i = 0; i < GNY_CUBE3D_MARK_COUNT; i++) {

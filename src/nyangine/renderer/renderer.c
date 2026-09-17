@@ -919,7 +919,9 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
   }), "while queueing the glass pipeline");
 
     u32 mesh_buffer_size = (u32)(NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
-    u32 mesh_index_size  = (u32)((u64)NYA_RENDER3D_MAX_INDICES * sizeof(u32));
+
+    // room for every pass's list of the indices it sees, which share one upload.
+    u32 mesh_index_size = (u32)((u64)NYA_RENDER3D_MAX_INDICES * NYA_RENDER3D_PASSES * sizeof(u16));
 
     mesh_batch->vertex_buffer = nya_gpu_buffer_create(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = mesh_buffer_size });
     nya_assert(mesh_batch->vertex_buffer != nullptr, "SDL_CreateGPUBuffer() failed for the 3D batch: %s", SDL_GetError());
@@ -939,20 +941,37 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     );
     nya_assert(mesh_batch->index_transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for the 3D batch's indices: %s", SDL_GetError());
 
+    NYA_Arena* allocator = app->render_system.allocator;
 
-    /* Two staging streams, each sized for the whole batch, sharing one GPU buffer. */
-    mesh_batch->opaque.vertices = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
-    mesh_batch->opaque.indices  = nya_arena_alloc(app->render_system.allocator, (u64)NYA_RENDER3D_MAX_INDICES * sizeof(u32));
+    /* Two staging streams, each sized for the whole batch, sharing one GPU buffer. An object has three indices at least. */
+    NYA_Render3DStream* streams[] = { &mesh_batch->opaque, &mesh_batch->transparent };
 
-    mesh_batch->transparent.vertices = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
-    mesh_batch->transparent.indices  = nya_arena_alloc(app->render_system.allocator, (u64)NYA_RENDER3D_MAX_INDICES * sizeof(u32));
+    for (u32 i = 0; i < nya_carray_length(streams); i++) {
+        streams[i]->vertices = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
+        streams[i]->indices  = nya_arena_alloc(allocator, (u64)NYA_RENDER3D_MAX_INDICES * sizeof(u16));
+        streams[i]->objects  = nya_arena_alloc(allocator, (u64)(NYA_RENDER3D_MAX_INDICES / 3) * sizeof(NYA_Render3DObject));
+    }
 
-    // sort scratch sized for the index array, allocated once instead of per flush.
-    mesh_batch->sort_keys      = nya_arena_alloc(app->render_system.allocator, (NYA_RENDER3D_MAX_INDICES / 3) * sizeof(NYA_Render3DSortKey));
-    mesh_batch->sort_keys_scratch = nya_arena_alloc(app->render_system.allocator, (NYA_RENDER3D_MAX_INDICES / 3) * sizeof(NYA_Render3DSortKey));
-    mesh_batch->sorted_indices    = nya_arena_alloc(app->render_system.allocator, (u64)NYA_RENDER3D_MAX_INDICES * sizeof(u32));
+    // sort scratch sized for the index array, allocated once instead of per playback.
+    mesh_batch->sort_keys         = nya_arena_alloc(allocator, (NYA_RENDER3D_MAX_INDICES / 3) * sizeof(NYA_Render3DSortKey));
+    mesh_batch->sort_keys_scratch = nya_arena_alloc(allocator, (NYA_RENDER3D_MAX_INDICES / 3) * sizeof(NYA_Render3DSortKey));
+    mesh_batch->sorted_indices    = nya_arena_alloc(allocator, (u64)NYA_RENDER3D_MAX_INDICES * sizeof(u16));
 
-    mesh_batch->sorted_instances = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
+    mesh_batch->sorted_instances = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
+
+    mesh_batch->segments         = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_SEGMENTS * sizeof(NYA_Render3DSegment));
+    mesh_batch->segment_uniforms = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_SEGMENTS * sizeof(struct NYA_ShaderMesh3DUniform));
+
+    nya_assert(mesh_batch->segments != nullptr && mesh_batch->segment_uniforms != nullptr);
+
+    // the empty scene's open segment.
+    *mesh_batch->segments = (NYA_Render3DSegment){ 0 };
+
+    static b8 segments_registered = false;
+
+    // the first window's count; every window has the same capacity.
+    if (!segments_registered) nya_ceiling_register("render3d_segments", NYA_RENDER3D_MAX_SEGMENTS, &mesh_batch->segment_count_worst);
+    segments_registered = true;
 
     /* The instance buffer for the retained mesh path. */
     u32 instance_buffer_size = (u32)(NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
@@ -968,7 +987,8 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     nya_assert(mesh_batch->instance_transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for the 3D instance stream: %s",
                SDL_GetError());
 
-    mesh_batch->instances = nya_arena_alloc(app->render_system.allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
+    mesh_batch->instances       = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
+    mesh_batch->instance_passes = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(u8));
 
     /*
      * Claiming the window installed a working swapchain already. Everything below is an improvement, so a
@@ -1225,6 +1245,7 @@ b8 nya_render_begin(NYA_Window* window) {
     window->render_system.mesh_batch.frame_culled        = 0;
     window->render_system.mesh_batch.frame_occluded      = 0;
     window->render_system.mesh_batch.frame_dropped_draws = 0;
+    window->render_system.mesh_batch.frame_passes        = 0;
     window->render_system.decals_gpu.frame_count         = 0;
 
     window->render_system.draw_batch.target_texture    = swapchain_texture;

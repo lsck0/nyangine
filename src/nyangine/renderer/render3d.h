@@ -60,7 +60,7 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
  * */
 #define NYA_RENDER3D_PIPELINE_MESH_TEXTURED "nya_mesh3d_textured_pipeline"
 
-/** The depth-only pipeline the shadow pass draws with. See nya_render3d_shadow_begin. */
+/** The depth-only pipeline the shadow cascades draw with. See nya_render3d_shadow_set. */
 #define NYA_RENDER3D_PIPELINE_SHADOW "nya_mesh3d_shadow_pipeline"
 
 /*
@@ -144,6 +144,17 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES <= 4,
               "MESH3D_SHADOW_CASCADES and the uniform's matrix array are sized for at most four");
 
+/** The most passes one scene is drawn in: every cascade, then the camera. */
+#define NYA_RENDER3D_PASSES (NYA_RENDER3D_SHADOW_CASCADES + 1)
+
+/**
+ * State changes one playback can record, a material, light or texture change each. Past it the scene recorded so far
+ * is drawn early, which costs its cascades a second pass.
+ * */
+#ifndef NYA_RENDER3D_MAX_SEGMENTS
+#define NYA_RENDER3D_MAX_SEGMENTS 128
+#endif
+
 /**
  * The default sun's direction: upper front left, the one that makes a cube read as a cube by lighting
  * three faces differently. Straight down lights one and leaves four identical.
@@ -178,11 +189,13 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
 #endif
 
 /**
- * Vertices the 3D batch can hold before a draw is forced.
+ * Vertices the 3D batch can hold before the scene recorded so far is drawn early.
  * */
 #ifndef NYA_RENDER3D_MAX_VERTICES
 #define NYA_RENDER3D_MAX_VERTICES 16384
 #endif
+
+static_assert(NYA_RENDER3D_MAX_VERTICES <= 65536, "the 3D batch's indices are sixteen bits");
 
 /** Indices the 3D batch can hold. Six per quad, so a cube of six quads is thirty-six. */
 #ifndef NYA_RENDER3D_MAX_INDICES
@@ -507,7 +520,8 @@ struct NYA_Render3DShadowFit {
     f32 near_distance;
 
     /**
-     * The camera's aspect ratio, width over height. Zero is 16:9.
+     * The camera's aspect ratio, width over height. Zero is the render target's through nya_render3d_shadow_set, and
+     * 16:9 for nya_render3d_shadow_for_camera.
      * */
     f32 aspect;
 
@@ -556,21 +570,7 @@ struct NYA_Render3DShadow {
      * */
     f32 bias;
 
-    /**
-     * Which cascade this pass is filling, from zero for the nearest.
-     *
-     * ```c
-     * for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
-     *     nya_render3d_shadow_begin(window, (NYA_Render3DShadow){
-     *         .center = focus, .extent = 8.0F, .strength = 0.45F, .cascade = cascade,
-     *     });
-     *
-     *     draw_scene(window);
-     *
-     *     nya_render3d_shadow_end(window);
-     * }
-     * ```
-     * */
+    /** Which cascade this volume covers, from zero for the nearest. */
     u32 cascade;
 };
 
@@ -688,19 +688,29 @@ NYA_API void nya_render3d_point_light_add(NYA_Window* window, NYA_Render3DPointL
 NYA_API void nya_render3d_point_lights_clear(NYA_Window* window);
 
 /**
- * Starts the shadow pass. Everything drawn until nya_render3d_shadow_end goes into the shadow map.
+ * Casts the sun's shadow in every scene the window draws from now on. The scene is recorded once and drawn into each
+ * cascade before the camera sees it, fitted to the camera by `fit` and cast along the light in effect when the scene
+ * first draws something. Zero strength turns shadows off. Only perspective cameras cast them.
  *
  * ```c
- * nya_render3d_shadow_begin(window, (NYA_Render3DShadow){ .center = ..., .extent = 12.0F, .strength = 0.45F });
- * draw_the_scene(window);
- * nya_render3d_shadow_end(window);
+ * nya_render3d_shadow_set(window, (NYA_Render3DShadowFit){ .strength = 0.45F });
  *
  * nya_render3d_begin(window, camera);
- * draw_the_scene(window);   // the same calls; the shadow map is sampled automatically
+ * nya_render3d_light_set(window, sun);
+ * draw_the_scene(window);
  * nya_render3d_end(window);
  * ```
  * */
-NYA_API void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow);
+NYA_API void nya_render3d_shadow_set(NYA_Window* window, NYA_Render3DShadowFit fit);
+
+/** The fit as set. */
+NYA_API NYA_Render3DShadowFit nya_render3d_shadow(NYA_Window* window) __attr_no_discard;
+
+/**
+ * Whether what is drawn from here on casts a shadow. On by default and at every begin. A translucent billboard
+ * would cast a solid square, which is what turning it off is for. A change costs a draw call.
+ * */
+NYA_API void nya_render3d_shadow_cast_set(NYA_Window* window, b8 casts_shadow);
 
 /**
  * The light's own axes: where it points, and an up that is not parallel to it. The direction is snapped to
@@ -720,16 +730,8 @@ NYA_API f32_4x4 nya_render3d_shadow_view_projection(
 );
 
 /**
- * A cascade's shadow volume, fitted to a camera over the window's cascade count and snapped to its texel grid.
- *
- * ```c
- * for (u32 cascade = 0; cascade < nya_render3d_shadow_options(window).cascades; cascade++) {
- *     nya_render3d_shadow_begin(window, nya_render3d_shadow_for_camera(window, camera, sun, cascade,
- *                                                                     (NYA_Render3DShadowFit){ .strength = 0.45F }));
- *     draw_scene(window);
- *     nya_render3d_shadow_end(window);
- * }
- * ```
+ * A cascade's shadow volume, fitted to a camera over the window's cascade count and snapped to its texel grid. What
+ * nya_render3d_shadow_set fits every cascade with.
  * */
 NYA_API NYA_Render3DShadow nya_render3d_shadow_for_camera(
     const NYA_Window*       window,
@@ -738,9 +740,6 @@ NYA_API NYA_Render3DShadow nya_render3d_shadow_for_camera(
     u32                     cascade,
     NYA_Render3DShadowFit   fit
 ) __attr_no_discard;
-
-/** Ends the shadow pass and restores the previous render target. */
-NYA_API void nya_render3d_shadow_end(NYA_Window* window);
 
 /**
  * Sets how many cascades the window's shadow uses and how large each is, with zeroes taking the defaults and the
@@ -753,19 +752,8 @@ NYA_API void nya_render3d_shadow_end(NYA_Window* window);
  * */
 NYA_API void nya_render3d_shadow_options_set(NYA_Window* window, NYA_Render3DShadowOptions options);
 
-/** The window's shadow options with defaults and clamping applied. Loop cascades up to `.cascades`. */
+/** The window's shadow options with defaults and clamping applied. */
 NYA_API NYA_Render3DShadowOptions nya_render3d_shadow_options(const NYA_Window* window) __attr_no_discard;
-
-/**
- * Whether a shadow pass has already run this frame, meaning the scene is shadowed.
- *
- * This is not "inside a shadow pass": it becomes true at nya_render3d_shadow_end and stays true, so it is
- * false during the first pass and true for the camera pass. Use nya_render3d_shadow_pass_active for that.
- * */
-NYA_API b8 nya_render3d_shadow_active(NYA_Window* window) __attr_no_discard;
-
-/** Whether a shadow pass is running now, between nya_render3d_shadow_begin and its end. */
-NYA_API b8 nya_render3d_shadow_pass_active(NYA_Window* window) __attr_no_discard;
 
 /** How many point lights the frame currently has, at most NYA_RENDER3D_MAX_POINT_LIGHTS. */
 NYA_API u32 nya_render3d_point_light_count(NYA_Window* window) __attr_no_discard;
@@ -894,7 +882,10 @@ NYA_API NYA_Render3DRay nya_render3d_screen_ray(NYA_Window* window, f32x2 screen
  * ─────────────────────────────────────────────────────────
  */
 
-/** Draws what is queued. Called by nya_render3d_end and at frame end; a game does not call it. */
+/**
+ * Ends the run of draws that share the current state, so the next draw can change it. Called by every setter that
+ * changes shading; the scene draws at nya_render3d_end. A game does not call it.
+ * */
 NYA_API void nya_render3d_flush(NYA_Window* window);
 
 typedef struct NYA_Render3DFrameStats NYA_Render3DFrameStats;
@@ -912,7 +903,7 @@ struct NYA_Render3DFrameStats {
     /** Copies of retained meshes drawn. See NYA_Render3DInstance. */
     u32 instances;
 
-    /** Primitives rejected by the frustum test before any vertex was written. */
+    /** Primitives no pass could see, rejected before any vertex was written. */
     u32 culled;
 
     /**
@@ -922,6 +913,9 @@ struct NYA_Render3DFrameStats {
 
     /** Primitives too large for an empty batch, or past the instance ceiling. Any of these is a bug. */
     u32 dropped_draws;
+
+    /** Passes the scene was drawn in: each shadow cascade and the camera. */
+    u32 passes;
 };
 
 /** What the 3D batch did this frame. Reset by nya_render_begin, so this is read before it. */

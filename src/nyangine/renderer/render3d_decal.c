@@ -102,7 +102,7 @@ void nya_render3d_decal(NYA_Window* window, NYA_Render3DDecal decal) {
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DDecalsGPU*  gpu    = &render->decals_gpu;
 
-    if (!render->decals.enabled || !render->mesh_batch.active || render->mesh_batch.shadow_pass_active || decal.texture == nullptr) return;
+    if (!render->decals.enabled || !render->mesh_batch.active || decal.texture == nullptr) return;
 
     NYA_Render3DDecalProbe probe = nya_callback_get(gpu->probe);
     if (probe == nullptr) return;
@@ -114,7 +114,7 @@ void nya_render3d_decal(NYA_Window* window, NYA_Render3DDecal decal) {
 
     if (!_nya_render3d_decals_ensure(gpu)) return;
 
-    // one texture per draw call: a different one sends the staged decals out first.
+    // one texture per draw call: a different one ends the segment the staged decals belong to.
     if (gpu->count > 0 && gpu->texture != decal.texture) nya_render3d_flush(window);
 
     const _NYA_Render3DDecalBox box = {
@@ -268,11 +268,11 @@ void _nya_render3d_decals_release(NYA_Window* window) {
     *gpu = (NYA_Render3DDecalsGPU){ .probe = gpu->probe, .probe_user_data = gpu->probe_user_data, .probe_generation = gpu->probe_generation };
 }
 
-/** The vertex, transfer and index buffers, with the index pattern uploaded once. False when the GPU refused. */
-NYA_INTERNAL b8 _nya_render3d_decals_buffers_ensure(NYA_Window* window) {
-    NYA_RenderSystemWindow* render     = &window->render_system;
-    NYA_Render3DDecalsGPU*  gpu        = &render->decals_gpu;
-    SDL_GPUDevice*          gpu_device = nya_app_get()->render_system.gpu_device;
+void _nya_render3d_decals_upload(NYA_Window* window, SDL_GPUCopyPass* copy_pass) {
+    NYA_Render3DDecalsGPU* gpu        = &window->render_system.decals_gpu;
+    SDL_GPUDevice*         gpu_device = nya_app_get()->render_system.gpu_device;
+
+    if (gpu->count == 0) return;
 
     u32 vertex_size = (u32)((u64)NYA_RENDER3D_DECAL_MAX * NYA_RENDER3D_DECAL_VERTICES * sizeof(NYA_Vertex3D));
     u32 index_size  = (u32)((u64)NYA_RENDER3D_DECAL_MAX * NYA_RENDER3D_DECAL_INDICES * sizeof(u16));
@@ -287,108 +287,75 @@ NYA_INTERNAL b8 _nya_render3d_decals_buffers_ensure(NYA_Window* window) {
 
     if (gpu->vertex_buffer == nullptr || gpu->transfer_buffer == nullptr || gpu->index_buffer == nullptr) {
         nya_log_error("Could not create the decal buffers: %s", SDL_GetError());
-        return false;
+        return;
     }
 
-    if (gpu->indices_uploaded) return true;
+    if (!gpu->indices_uploaded) {
+        SDL_GPUTransferBuffer* staging =
+            nya_gpu_transfer_buffer_create(gpu_device, &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = index_size });
 
-    SDL_GPUTransferBuffer* staging =
-        nya_gpu_transfer_buffer_create(gpu_device, &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = index_size });
+        if (staging == nullptr) return;
 
-    if (staging == nullptr) return false;
+        u16* indices = SDL_MapGPUTransferBuffer(gpu_device, staging, false);
+        nya_assert(indices != nullptr, "SDL_MapGPUTransferBuffer() failed for the decal indices: %s", SDL_GetError());
 
-    u16* indices = SDL_MapGPUTransferBuffer(gpu_device, staging, false);
-    nya_assert(indices != nullptr, "SDL_MapGPUTransferBuffer() failed for the decal indices: %s", SDL_GetError());
+        const u32 side = NYA_RENDER3D_DECAL_GRID + 1;
 
-    const u32 side = NYA_RENDER3D_DECAL_GRID + 1;
+        // two triangles a cell, wound counter-clockwise seen from above.
+        for (u32 decal = 0; decal < NYA_RENDER3D_DECAL_MAX; decal++) {
+            u32 base = decal * NYA_RENDER3D_DECAL_VERTICES;
 
-    // two triangles a cell, wound counter-clockwise seen from above.
-    for (u32 decal = 0; decal < NYA_RENDER3D_DECAL_MAX; decal++) {
-        u32 base = decal * NYA_RENDER3D_DECAL_VERTICES;
+            for (u32 row = 0; row < NYA_RENDER3D_DECAL_GRID; row++) {
+                for (u32 column = 0; column < NYA_RENDER3D_DECAL_GRID; column++) {
+                    u16 a = (u16)(base + (row * side) + column);
+                    u16 b = (u16)(a + 1);
+                    u16 c = (u16)(a + side + 1);
+                    u16 d = (u16)(a + side);
 
-        for (u32 row = 0; row < NYA_RENDER3D_DECAL_GRID; row++) {
-            for (u32 column = 0; column < NYA_RENDER3D_DECAL_GRID; column++) {
-                u16 a = (u16)(base + (row * side) + column);
-                u16 b = (u16)(a + 1);
-                u16 c = (u16)(a + side + 1);
-                u16 d = (u16)(a + side);
-
-                *indices++ = a;
-                *indices++ = c;
-                *indices++ = b;
-                *indices++ = a;
-                *indices++ = d;
-                *indices++ = c;
+                    *indices++ = a;
+                    *indices++ = c;
+                    *indices++ = b;
+                    *indices++ = a;
+                    *indices++ = d;
+                    *indices++ = c;
+                }
             }
         }
+
+        SDL_UnmapGPUTransferBuffer(gpu_device, staging);
+
+        SDL_UploadToGPUBuffer(copy_pass, &(SDL_GPUTransferBufferLocation){ .transfer_buffer = staging },
+                              &(SDL_GPUBufferRegion){ .buffer = gpu->index_buffer, .size = index_size }, false);
+
+        // released once the copy has run.
+        nya_gpu_transfer_buffer_release(gpu_device, staging);
+
+        gpu->indices_uploaded = true;
     }
 
-    SDL_UnmapGPUTransferBuffer(gpu_device, staging);
-
-    _nya_render2d_pass_suspend(window);
-
-    SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(render->render_commands);
-
-    SDL_UploadToGPUBuffer(
-        copy_pass,
-        &(SDL_GPUTransferBufferLocation){ .transfer_buffer = staging },
-        &(SDL_GPUBufferRegion){ .buffer = gpu->index_buffer, .size = index_size },
-        false
-    );
-
-    SDL_EndGPUCopyPass(copy_pass);
-
-    _nya_render2d_pass_resume(window);
-
-    // released once the copy has run.
-    nya_gpu_transfer_buffer_release(gpu_device, staging);
-
-    gpu->indices_uploaded = true;
-
-    return true;
-}
-
-void _nya_render3d_decals_flush(NYA_Window* window, const struct NYA_ShaderMesh3DUniform* uniform) {
-    NYA_RenderSystemWindow* render = &window->render_system;
-    NYA_Render3DBatch*      batch  = &render->mesh_batch;
-    NYA_Render3DDecalsGPU*  gpu    = &render->decals_gpu;
-
-    if (gpu->count == 0) return;
-
-    u32 count  = gpu->count;
-    gpu->count = 0;
-
-    // still loading on the first frames, like a textured mesh.
-    NYA_Render3DTextureBinding texture  = nya_render3d_texture_resolve(gpu->texture);
-    NYA_Asset*                 pipeline = nya_asset_get(NYA_RENDER3D_PIPELINE_DECAL);
-
-    if (texture.texture == nullptr || pipeline == nullptr || pipeline->status != NYA_ASSET_STATUS_LOADED) return;
-    if (!_nya_render3d_decals_buffers_ensure(window)) return;
-
-    SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
-
-    u32 vertex_count = count * NYA_RENDER3D_DECAL_VERTICES;
+    u32 vertex_count = gpu->count * NYA_RENDER3D_DECAL_VERTICES;
 
     NYA_Vertex3D* mapped = SDL_MapGPUTransferBuffer(gpu_device, gpu->transfer_buffer, true);
     nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for the decals: %s", SDL_GetError());
     nya_memcpy(mapped, gpu->vertices, (u64)vertex_count * sizeof(NYA_Vertex3D));
     SDL_UnmapGPUTransferBuffer(gpu_device, gpu->transfer_buffer);
 
-    _nya_render2d_pass_suspend(window);
+    SDL_UploadToGPUBuffer(copy_pass, &(SDL_GPUTransferBufferLocation){ .transfer_buffer = gpu->transfer_buffer },
+                          &(SDL_GPUBufferRegion){ .buffer = gpu->vertex_buffer, .size = vertex_count * (u32)sizeof(NYA_Vertex3D) }, true);
+}
 
-    SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(render->render_commands);
+void _nya_render3d_decals_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+    NYA_Render3DDecalsGPU*  gpu    = &render->decals_gpu;
 
-    // cycled, since an earlier flush this frame may have drawn from the same buffer.
-    SDL_UploadToGPUBuffer(
-        copy_pass,
-        &(SDL_GPUTransferBufferLocation){ .transfer_buffer = gpu->transfer_buffer },
-        &(SDL_GPUBufferRegion){ .buffer = gpu->vertex_buffer, .size = vertex_count * (u32)sizeof(NYA_Vertex3D) },
-        true
-    );
+    if (segment->decal_count == 0 || !gpu->indices_uploaded) return;
 
-    SDL_EndGPUCopyPass(copy_pass);
+    // still loading on the first frames, like a textured mesh.
+    NYA_Render3DTextureBinding texture  = nya_render3d_texture_resolve(segment->decal_texture);
+    NYA_Asset*                 pipeline = nya_asset_get(NYA_RENDER3D_PIPELINE_DECAL);
 
-    _nya_render2d_pass_resume(window);
+    if (texture.texture == nullptr || pipeline == nullptr || pipeline->status != NYA_ASSET_STATUS_LOADED) return;
 
     SDL_GPUGraphicsPipeline* build = _nya_render_pipeline(window, pipeline);
     if (build == nullptr) return;
@@ -402,10 +369,12 @@ void _nya_render3d_decals_flush(NYA_Window* window, const struct NYA_ShaderMesh3
     SDL_PushGPUVertexUniformData(render->render_commands, 0, &batch->view_projection, sizeof(batch->view_projection));
     SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
 
-    SDL_DrawGPUIndexedPrimitives(render->render_pass, count * NYA_RENDER3D_DECAL_INDICES, 1, 0, 0, 0);
+    // every decal's grid has its own slot of the index pattern, so the segment's run starts at its first decal's.
+    SDL_DrawGPUIndexedPrimitives(render->render_pass, segment->decal_count * NYA_RENDER3D_DECAL_INDICES, 1,
+                                 segment->first_decal * NYA_RENDER3D_DECAL_INDICES, 0, 0);
 
     batch->frame_draw_calls++;
-    batch->frame_vertices += vertex_count;
+    batch->frame_vertices += segment->decal_count * NYA_RENDER3D_DECAL_VERTICES;
 }
 
 #endif // NYA_HEADLESS_ENABLED

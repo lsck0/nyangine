@@ -119,15 +119,15 @@ s32 main(void) {
     nya_check(landed == 3 * (NYA_RENDER3D_DECAL_GRID + 1), "only the columns over ground should land, got %u", landed);
   }
 
-  // ── Nothing is staged inside a shadow pass, and past the ceiling a decal is dropped and counted.
+  // ── Nothing is staged outside a scene, and past the ceiling a decal is dropped and counted.
   {
     u32 staged = decals->count;
 
-    window.render_system.mesh_batch.shadow_pass_active = true;
+    nya_render3d_end(&window);
     nya_render3d_decal(&window, decal_at(0.0F));
-    window.render_system.mesh_batch.shadow_pass_active = false;
+    nya_render3d_begin(&window, (NYA_Camera3DPerspective){ .position = { 0.0F, 5.0F, 5.0F } });
 
-    nya_check(decals->count == staged, "a shadow pass should stage no decal");
+    nya_check(decals->count == staged, "outside a scene no decal should be staged");
 
     while (decals->frame_count < NYA_RENDER3D_DECAL_MAX) nya_render3d_decal(&window, decal_at(0.0F));
 

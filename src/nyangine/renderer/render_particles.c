@@ -224,11 +224,10 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
     if (system->space == NYA_PARTICLE_SPACE_3D && !nya_render3d_active(window)) return;
 
     /*
-     * Systems that opt out skip the shadow pass: it has no alpha, so a translucent billboard would cast a solid
-     * square. See NYA_ParticleSystem.casts_shadow. `shadow_pass_active`, not `shadow_active`, which means a pass has
-     * already run and is true during the camera pass.
+     * Systems that opt out stay out of the shadow cascades: they have no alpha, so a translucent billboard would cast
+     * a solid square. See NYA_ParticleSystem.casts_shadow.
      */
-    if (system->space == NYA_PARTICLE_SPACE_3D && !system->casts_shadow && nya_render3d_shadow_pass_active(window)) return;
+    if (system->space == NYA_PARTICLE_SPACE_3D) nya_render3d_shadow_cast_set(window, system->casts_shadow);
 
     /* The system's texture, resolved once. */
     NYA_Render3DTextureBinding texture = system->space == NYA_PARTICLE_SPACE_3D ? nya_render3d_texture_resolve(system->texture)
@@ -278,6 +277,9 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
 
         nya_render2d_rect_rotated(window, center, (f32x2){ size, size }, particle->rotation, color);
     }
+
+    // back on, so what the scene draws next casts as it would have.
+    if (system->space == NYA_PARTICLE_SPACE_3D) nya_render3d_shadow_cast_set(window, true);
 }
 
 void nya_particles_clear(NYA_ParticleSystem* system) {

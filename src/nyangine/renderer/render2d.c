@@ -1980,36 +1980,6 @@ void _nya_render2d_pass_resume(NYA_Window* window) {
 
     if (render->render_commands == nullptr) return;
 
-    /*
-     * Resuming a shadow pass: back onto the shadow map, or everything after the first flush lands in the scene's
-     * colour buffer.
-     */
-    if (render->mesh_batch.shadow_pass_active && render->mesh_batch.active) {
-        render->render_pass = SDL_BeginGPURenderPass(
-            render->render_commands,
-            &(SDL_GPUColorTargetInfo){
-                .texture = render->mesh_batch.shadow_color,
-                .load_op = SDL_GPU_LOADOP_LOAD,
-                .store_op = SDL_GPU_STOREOP_STORE,
-            },
-            1,
-            &(SDL_GPUDepthStencilTargetInfo){
-                .texture          = render->mesh_batch.shadow_depth,
-                .load_op          = SDL_GPU_LOADOP_LOAD,
-                .store_op         = SDL_GPU_STOREOP_STORE,
-                .stencil_load_op  = SDL_GPU_LOADOP_DONT_CARE,
-                .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
-            }
-        );
-
-        nya_assert(render->render_pass != nullptr, "SDL_BeginGPURenderPass() failed while resuming a shadow pass: %s", SDL_GetError());
-
-        // a viewport belongs to a pass, and this is a new pass.
-        _nya_render3d_shadow_viewport_apply(window, render->mesh_batch.shadow_cascade);
-
-        return;
-    }
-
     if (batch->target_texture == nullptr) return;
 
     /*
@@ -2064,7 +2034,7 @@ void _nya_render2d_pass_normals_set(NYA_Window* window, b8 normals) {
 
     normals = normals && render->draw_batch.target_normal != nullptr;
 
-    if (render->render_pass_normals == normals || render->mesh_batch.shadow_pass_active) return;
+    if (render->render_pass_normals == normals) return;
 
     _nya_render2d_pass_suspend(window);
 

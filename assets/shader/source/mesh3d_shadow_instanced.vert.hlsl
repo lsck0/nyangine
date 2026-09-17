@@ -1,4 +1,4 @@
-// Vertex stage for the shadow pass over retained meshes. See nya_render3d_shadow_begin.
+// Vertex stage for the shadow pass over retained meshes. See nya_render3d_shadow_set.
 //
 // mesh3d_shadow.vert.hlsl with a model matrix in front of it, and it exists for exactly the reason that
 // file's own note gives: the game draws its scene twice with the same calls and only the matrix in the

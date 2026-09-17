@@ -47,5 +47,9 @@ struct NYA_ShaderMesh3DUniform;
 /** Releases everything decals hold, keeping the probe. */
 NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_release(NYA_Window* window);
 
-/** Draws the staged decals in the open pass. Called by nya_render3d_flush, which has the shading uniform ready. */
-NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_flush(NYA_Window* window, const struct NYA_ShaderMesh3DUniform* uniform);
+/** Uploads the staged decals in the scene's copy pass, creating the buffers and the index pattern the first time. */
+NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_upload(NYA_Window* window, SDL_GPUCopyPass* copy_pass);
+
+/** Draws a segment's decals in the camera pass. */
+NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
+                                                                const struct NYA_ShaderMesh3DUniform* uniform);

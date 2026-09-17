@@ -76,42 +76,19 @@ NYA_Render3DFog nya_render3d_fog(NYA_Window* window) {
     return window->render_system.mesh_batch.fog;
 }
 
-/*
- * The point lights are *stored* rather than ignored, like the light and the material above.
- */
-/*
- * The shadow pass records its configuration and nothing else.
- */
-void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
+void nya_render3d_shadow_cast_set(NYA_Window* window, b8 casts_shadow) {
     nya_assert(window != nullptr);
 
-    window->render_system.mesh_batch.shadow = shadow;
-}
-
-void nya_render3d_shadow_end(NYA_Window* window) {
-    nya_assert(window != nullptr);
+    window->render_system.mesh_batch.casts_shadow = casts_shadow;
 }
 
 void _nya_render3d_shadow_release(NYA_Window* window) {
     nya_assert(window != nullptr);
 }
 
-b8 nya_render3d_shadow_active(NYA_Window* window) {
-    nya_assert(window != nullptr);
-
-    return false;
-}
-
 /*
- * False: a headless shadow_begin only records configuration, so there is never a pass to be inside,
- * and callers that skip work during a shadow pass should skip nothing.
+ * The point lights are *stored* rather than ignored, like the light and the material above.
  */
-b8 nya_render3d_shadow_pass_active(NYA_Window* window) {
-    nya_assert(window != nullptr);
-
-    return false;
-}
-
 void nya_render3d_point_light_add(NYA_Window* window, NYA_Render3DPointLight light) {
     nya_assert(window != nullptr);
 
@@ -318,6 +295,7 @@ NYA_Render3DFrameStats nya_render3d_frame_stats(NYA_Window* window) {
         .culled        = batch->frame_culled,
         .occluded      = batch->frame_occluded,
         .dropped_draws = batch->frame_dropped_draws,
+        .passes        = batch->frame_passes,
     };
 }
 
