@@ -24,10 +24,11 @@ NYA_API NYA_Error nya_log_file_open(NYA_ConstCString path) __attr_no_discard;
 /** Flushes and closes the log file. Safe to call when no file is open. */
 NYA_API void nya_log_file_close(void);
 
-/** Where the engine puts its daily log files, and how many days of them it keeps. */
-#ifndef NYA_LOG_DIRECTORY
-#define NYA_LOG_DIRECTORY "./logs"
-#endif
+/**
+ * How many days of daily log files the engine keeps. They go to `logs` under the app's user data directory
+ * (see nya_save_application), since an install directory is often not writable; -DNYA_LOG_DIRECTORY=\"./logs\"
+ * pins them elsewhere.
+ * */
 #ifndef NYA_LOG_RETENTION_DAYS
 #define NYA_LOG_RETENTION_DAYS 14
 #endif

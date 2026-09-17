@@ -51,7 +51,19 @@ NYA_INTERNAL bool SDLCALL _nya_app_live_resize_event_watch(void* userdata, SDL_E
 NYA_INTERNAL void _nya_app_register_subsystems(void);
 
 NYA_INTERNAL NYA_Error _nya_app_bring_up_logfile(void) {
+#ifdef NYA_LOG_DIRECTORY
     NYA_Error opened = nya_log_directory_open(NYA_LOG_DIRECTORY, NYA_LOG_RETENTION_DAYS);
+#else
+    NYA_Arena*  arena  = nya_arena_create(.name = "log_directory");
+    defer       nya_arena_destroy(arena);
+    NYA_String* root   = nullptr;
+    NYA_Error   opened = nya_filesystem_user_data_directory(arena, nya_save_application(), &root);
+    if (opened.ok) {
+        NYA_String* directory = nya_path_join(arena, nya_string_to_cstring(arena, root), "logs");
+        opened                = nya_log_directory_open(nya_string_to_cstring(arena, directory), NYA_LOG_RETENTION_DAYS);
+        if (opened.ok) nya_log_info("Logging to '%s'.", nya_string_to_cstring(arena, directory));
+    }
+#endif
     if (!opened.ok) nya_log_warn("Continuing without a log file: %s", (NYA_ConstCString)opened.message);
     return NYA_OK;
 }

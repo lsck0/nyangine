@@ -27,9 +27,8 @@
  */
 
 /**
- * The subdirectory of the user's data directory saves live under: `~/.local/share/<this>` or
- * `%APPDATA%/<this>`, what players are told to delete and what a Steam Auto-Cloud rule names. Override with
- * -DNYA_SAVE_APPLICATION=\"my-game\".
+ * The subdirectory of the user's data directory saves and logs live under when the app names no app_id:
+ * `~/.local/share/<this>` or `%APPDATA%/<this>`. Override with -DNYA_SAVE_APPLICATION=\"my-game\".
  * */
 #ifndef NYA_SAVE_APPLICATION
 #define NYA_SAVE_APPLICATION "nyangine"
@@ -70,6 +69,12 @@ struct NYA_SaveSystem {
  * Resolves the save root and creates it. Called by nya_app_init before the settings system comes up.
  * */
 NYA_API NYA_Error nya_system_save_init(void) __attr_no_discard;
+
+/**
+ * The user data subdirectory this app writes to: NYA_AppOptions.app_id, else NYA_SAVE_APPLICATION. What
+ * players are told to delete and what a Steam Auto-Cloud rule names.
+ * */
+NYA_API NYA_ConstCString nya_save_application(void) __attr_no_discard;
 NYA_API void      nya_system_save_deinit(void);
 
 /*

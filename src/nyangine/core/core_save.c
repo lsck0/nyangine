@@ -28,6 +28,11 @@ NYA_INTERNAL NYA_Error _nya_save_ensure_parent(NYA_Arena* arena, NYA_ConstCStrin
  * ─────────────────────────────────────────────────────────
  */
 
+NYA_ConstCString nya_save_application(void) {
+    NYA_ConstCString app_id = _NYA_APP_INSTANCE.options.app_id;
+    return app_id != nullptr && app_id[0] != '\0' ? app_id : NYA_SAVE_APPLICATION;
+}
+
 NYA_Error nya_system_save_init(void) {
     NYA_SaveSystem* system = _nya_save_system();
 
@@ -38,7 +43,7 @@ NYA_Error nya_system_save_init(void) {
     system->allocator = nya_arena_create();
 
     NYA_String* root  = nullptr;
-    NYA_Error   error = nya_filesystem_user_data_directory(system->allocator, NYA_SAVE_APPLICATION, &root);
+    NYA_Error   error = nya_filesystem_user_data_directory(system->allocator, nya_save_application(), &root);
 
     if (!error.ok) {
         // Warned and returned rather than thrown. A machine with no writable home directory can
