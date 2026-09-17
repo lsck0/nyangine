@@ -109,6 +109,9 @@ struct NYA_ConfigEngineRenderer {
     NYA_PostAntialias        antialias;
     NYA_PostDebugView        debug_view;
 
+    /** The hue shade leans toward, alpha as how far. See NYA_Render3DShadowOptions.color. */
+    NYA_Color shadow_color;
+
     /** The `.cube` table the scene is graded through, an asset path. Empty turns grading off. */
     char grade_lut[NYA_CONFIG_ASSET_PATH_MAX];
 

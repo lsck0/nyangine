@@ -898,6 +898,14 @@
  * ─────────────────────────────────────────────────────────
  */
 
+/**
+ * The ambient on tops takes this much of the sky's zenith colour, and on undersides this much of the warm light
+ * bounced off the sand. See NYA_Render3DLight.sky.
+ * */
+#define GNY_CUBE3D_AMBIENT_SKY_MIX    0.2F
+#define GNY_CUBE3D_AMBIENT_GROUND_MIX 0.35F
+#define GNY_CUBE3D_AMBIENT_BOUNCE     ((NYA_Color){ 0.92F, 0.76F, 0.58F, 1.0F })
+
 /** How dark a shadow goes. Well under one, since a full shadow reads as a hole. */
 #define GNY_CUBE3D_SHADOW_STRENGTH 0.45F
 

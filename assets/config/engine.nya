@@ -16,6 +16,8 @@ nya 2 0
             shadow_cascades: u32 2;
             // Texels per cascade side, a power of two. See NYA_Render3DShadowOptions.
             shadow_map_size: u32 1024;
+            // The hue shade leans toward, alpha as how far; a = 0 keeps plain darkening.
+            shadow_color: object { r: f32 0.42; g: f32 0.50; b: f32 0.95; a: f32 0.55; };
             // The cartoon post passes, read by the 3D demo every frame. A field left out or zero takes its
             // NYA_POST_* default; see render_post.h.
             ink: object {

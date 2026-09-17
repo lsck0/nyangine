@@ -19,6 +19,7 @@ void gny_config_renderer_apply(NYA_Window* window) {
         (NYA_Render3DShadowOptions){
             .cascades = renderer->shadow_cascades,
             .map_size = renderer->shadow_map_size,
+            .color    = renderer->shadow_color,
         }
     );
 }

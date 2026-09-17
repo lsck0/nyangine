@@ -42,6 +42,9 @@ NYA_INTERNAL void _gny_cube3d_body_reset(NYA_EntityHandle handle, f32x3 position
 /** Advances the skinned bar's clock and rebuilds its palette. Clips play once each, in turn. */
 NYA_INTERNAL void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s);
 
+/** The sun or moon from the time of day, with the ambient tinted by the sky above and the sand below. */
+NYA_INTERNAL NYA_Render3DLight _gny_cube3d_light(GNY_SkyState sky);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * ON CREATE
@@ -701,15 +704,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
 
     GNY_SkyState sky = gny_sky_state();
 
-    nya_render3d_light_set(
-        window,
-        (NYA_Render3DLight){
-            .direction = sky.direction,
-            .color     = sky.light,
-            .ambient   = sky.ambient,
-            .intensity = sky.intensity,
-        }
-    );
+    nya_render3d_light_set(window, _gny_cube3d_light(sky));
 
     /* The sky first, from the same GNY_SkyState as the light, shaded from the view ray so it turns with the camera. */
     nya_render3d_sky_draw(
@@ -952,15 +947,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     gny_config_renderer_apply(window);
 
     // the sun is set before the shadow pass, which builds its matrix from the current light.
-    nya_render3d_light_set(
-        window,
-        (NYA_Render3DLight){
-            .direction = sky.direction,
-            .color     = sky.light,
-            .ambient   = sky.ambient,
-            .intensity = sky.intensity,
-        }
-    );
+    nya_render3d_light_set(window, _gny_cube3d_light(sky));
 
     /*
      * The shadow pass before the camera draw. The batch keeps no geometry, so the scene is drawn once per pass, and
@@ -1220,6 +1207,17 @@ f32x3 _gny_cube3d_camera_position(const GNY_Cube3DScene* scene) {
         sinf(scene->orbit_yaw) * horizontal,
         (sinf(scene->orbit_pitch) * scene->orbit_range) + pivot,
         cosf(scene->orbit_yaw) * horizontal,
+    };
+}
+
+NYA_Render3DLight _gny_cube3d_light(GNY_SkyState sky) {
+    return (NYA_Render3DLight){
+        .direction = sky.direction,
+        .color     = sky.light,
+        .ambient   = sky.ambient,
+        .intensity = sky.intensity,
+        .sky       = nya_color_mix(sky.light, sky.top, GNY_CUBE3D_AMBIENT_SKY_MIX),
+        .ground    = nya_color_mix(sky.light, GNY_CUBE3D_AMBIENT_BOUNCE, GNY_CUBE3D_AMBIENT_GROUND_MIX),
     };
 }
 
