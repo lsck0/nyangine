@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json
+
+PackageIdentifier: lsck0.gnyame
+PackageVersion: 0.0.0
+PackageLocale: en-US
+Publisher: Luca Sandrock
+PublisherUrl: https://github.com/lsck0
+PackageName: gnyame
+PackageUrl: https://github.com/lsck0/nyangine
+License: MIT
+LicenseUrl: https://github.com/lsck0/nyangine/blob/master/LICENSE
+ShortDescription: A physics sandbox built on nyangine
+Tags:
+  - game
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0

@@ -1,0 +1,30 @@
+{
+    "version": "0.0.0",
+    "description": "A physics sandbox built on nyangine",
+    "homepage": "https://github.com/lsck0/nyangine",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/lsck0/nyangine/releases/download/v0.0.0/gnyame.0.0.0.windows-x86_64.zip",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+    },
+    "bin": "gnyame.exe",
+    "shortcuts": [
+        [
+            "gnyame.exe",
+            "gnyame"
+        ]
+    ],
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/lsck0/nyangine/releases/download/v$version/gnyame.$version.windows-x86_64.zip"
+            }
+        },
+        "hash": {
+            "url": "$baseurl/SHA256SUMS"
+        }
+    }
+}

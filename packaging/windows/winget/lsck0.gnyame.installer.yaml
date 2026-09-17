@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.10.0.schema.json
+
+PackageIdentifier: lsck0.gnyame
+PackageVersion: 0.0.0
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+  - RelativeFilePath: gnyame.exe
+    PortableCommandAlias: gnyame
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/lsck0/nyangine/releases/download/v0.0.0/gnyame.0.0.0.windows-x86_64.zip
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
+ManifestType: installer
+ManifestVersion: 1.10.0
