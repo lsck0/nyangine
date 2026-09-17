@@ -245,10 +245,21 @@ Startup logs engine init, subsystems and first frame; each subsystem's bring-up 
 - `[ ]` The renderer's GPU device takes ~21 ms and window plus swapchain ~10 ms, both on the main thread.
 - `[ ]` Not measured on Windows.
 
-## `[ ]` UI system
+## `[~]` UI system
 
-`src/nyangine/ui/ui.c` is one line, `ui.h` is `#pragma once`, and the include is commented out in
-`nyangine.c`. The game builds menus by hand in `layers.c`.
+`src/nyangine/ui` is an immediate-mode module: anchored rounded panels with an ink outline and drop shadow,
+rows of equal cells, label, button, selectable, toggle, slider, space and scrim, with focus navigation (wrap,
+hold repeat), hover, click, slider drag and cancel. One function runs as an input pass in `on_update` and a
+draw pass in `on_render`; presses roll per tick, so each is handled once however many ticks a frame runs. Ids
+hash label and panel. Fixed tables (64 widgets per pass, 32 panels) registered as ceilings, no heap. The style
+is a struct where zero is the cartoon default, fed from `engine.ui` in the config. gnyame's menus (with volume
+sliders, a stats toggle and a language row) and both HUDs use it; the hand-rolled menu widget is gone (664 to
+431 lines). Release: pause menu draw about 0.02 ms and 20 draw calls, input pass 0.004 ms, binary +41 KB.
+
+- `[ ]` Merge same-state 2D draw ranges after sorting, so a menu is a few draw calls instead of two per widget.
+- `[ ]` Text input (IME caret and selection), rows inside rows, clipping and scrolling, navigation across row
+  cells.
+- `[ ]` The German key hint line runs past a 1280 wide window.
 
 ## `[ ]` Editor
 
