@@ -180,6 +180,10 @@ void nya_settings_from_object(const NYA_Object* object) {
         b8 cleared = false;
         u32 slot   = 0;
 
+        // the file only holds keys, so the gamepad bindings are put back after the keys are replaced.
+        NYA_InputBinding previous[NYA_INPUT_BINDINGS_PER_ACTION];
+        for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) previous[i] = nya_input_action_get(action, i);
+
         nya_array_foreach (&keys->as_array, key) {
             if (key->type != NYA_TYPE_STRING) continue;
             if (slot >= NYA_INPUT_BINDINGS_PER_ACTION) break;
@@ -196,6 +200,13 @@ void nya_settings_from_object(const NYA_Object* object) {
             }
 
             nya_input_action_set(action, slot++, binding.key, binding.modifiers);
+        }
+
+        if (!cleared) continue;
+
+        for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) {
+            if (previous[i].kind == NYA_INPUT_BINDING_GAMEPAD_BUTTON) nya_input_action_bind_button(action, previous[i].button);
+            if (previous[i].kind == NYA_INPUT_BINDING_GAMEPAD_AXIS) nya_input_action_bind_axis(action, previous[i].axis, previous[i].axis_threshold);
         }
     }
 }

@@ -118,8 +118,8 @@ typedef enum {
     NYA_INPUT_ACTION_MAX = 256,
 } NYA_InputAction;
 
-/** How many alternative bindings an action can carry: the usual primary and secondary. */
-#define NYA_INPUT_BINDINGS_PER_ACTION 2
+/** How many alternative bindings an action can carry: two keys, a gamepad button and a stick direction. */
+#define NYA_INPUT_BINDINGS_PER_ACTION 4
 
 /**
  * What kind of physical input a binding names.

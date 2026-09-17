@@ -389,6 +389,14 @@ s32 main(void) {
     nya_assert(nya_input_action_get(ACTION_JUMP, 0).key == NYA_KEY_SPACE, "a second load is idempotent");
     nya_assert(nya_input_action_get(ACTION_JUMP, 1).key == NYA_KEY_W, "on both slots");
 
+    // The file holds keys only, so loading it must not wipe a gamepad binding the game made at startup.
+    nya_input_action_bind_button(ACTION_JUMP, NYA_GAMEPAD_BUTTON_SOUTH);
+    nya_input_action_bind_axis(ACTION_JUMP, NYA_GAMEPAD_AXIS_LEFT_Y, -0.5F);
+    NYA_EXPECT(nya_settings_load());
+    nya_assert(nya_input_action_get(ACTION_JUMP, 0).key == NYA_KEY_SPACE, "the keys still load first");
+    nya_assert(nya_input_action_get(ACTION_JUMP, 2).kind == NYA_INPUT_BINDING_GAMEPAD_BUTTON, "the button survives a load");
+    nya_assert(nya_input_action_get(ACTION_JUMP, 3).axis_threshold == -0.5F, "and so does the stick direction");
+
     printf("  PASSED\n");
   }
 
