@@ -1,7 +1,7 @@
 /**
  * @file vendor_sdl_image.h
  *
- * SDL3_image. cmake, static, with its image codecs vendored so nothing is expected from the host.
+ * SDL3_image. cmake, static, decoding with the stb_image and nanosvg it carries, so nothing is expected from the host.
  * */
 #pragma once
 
@@ -28,15 +28,33 @@
     "-DSDLIMAGE_SAMPLES=OFF",       \
     "-DSDLIMAGE_INSTALL=OFF",       \
     /*                                                                                             \
-     * PNG, JPEG and WebP cover what a game ships. The rest are switched off deliberately:          \
+     * What a game ships: PNG, JPEG, BMP, GIF, TGA, QOI and SVG, which the icons and sized vector    \
+     * loads use. All of them decode with stb_image or code inside SDL_image, so no codec library    \
+     * is linked; libpng would only add APNG. Nothing here saves an image.                           \
      *                                                                                             \
-     * TIFF drags in libjbig, which is not vendored and exists on most systems only as a shared     \
-     * library, so a static link fails on symbols no game asked for. AVIF drags in aom and dav1d,   \
-     * which are enormous, need nasm to assemble, and decode a format nothing here loads.           \
+     * WebP was 0.75 MB and nothing loads it; turn it back on here if a game does. TIFF drags in     \
+     * libjbig, which is not vendored and exists on most systems only as a shared library. AVIF      \
+     * drags in aom and dav1d, which are enormous and need nasm. The rest are formats of old paint   \
+     * programs.                                                                                     \
      */                                                                                            \
+    "-DSDLIMAGE_BACKEND_STB=ON",    \
+    "-DSDLIMAGE_PNG_LIBPNG=OFF",    \
+    "-DSDLIMAGE_WEBP=OFF",          \
     "-DSDLIMAGE_TIF=OFF",           \
     "-DSDLIMAGE_AVIF=OFF",          \
-    "-DSDLIMAGE_JXL=OFF"
+    "-DSDLIMAGE_JXL=OFF",           \
+    "-DSDLIMAGE_ANI=OFF",           \
+    "-DSDLIMAGE_LBM=OFF",           \
+    "-DSDLIMAGE_PCX=OFF",           \
+    "-DSDLIMAGE_PNM=OFF",           \
+    "-DSDLIMAGE_XCF=OFF",           \
+    "-DSDLIMAGE_XPM=OFF",           \
+    "-DSDLIMAGE_XV=OFF",            \
+    "-DSDLIMAGE_BMP_SAVE=OFF",      \
+    "-DSDLIMAGE_GIF_SAVE=OFF",      \
+    "-DSDLIMAGE_JPG_SAVE=OFF",      \
+    "-DSDLIMAGE_PNG_SAVE=OFF",      \
+    "-DSDLIMAGE_TGA_SAVE=OFF"
 
 // clang-format on
 
@@ -44,17 +62,7 @@ NYA_VendorRule vendor_sdl_image_linux_x86_64 = {
     .name = "sdl-image (linux-x86_64)",
 
     .includes     = { "-I./vendor/sdl-image/include/", },
-    // The codecs each library vendors are separate archives, and a static link needs every one of
-    // them. Order matters: a dependency must follow whatever refers to it.
-    .linker_flags = {
-        SDL_IMAGE_A_LINUX_X86_64,
-        SDL_IMAGE_BUILD_LINUX_X86_64 "/external/libpng-build/libpng16.a",
-        SDL_IMAGE_BUILD_LINUX_X86_64 "/external/zlib-build/libz.a",
-        SDL_IMAGE_BUILD_LINUX_X86_64 "/external/libwebp-build/libwebpdemux.a",
-        SDL_IMAGE_BUILD_LINUX_X86_64 "/external/libwebp-build/libwebpmux.a",
-        SDL_IMAGE_BUILD_LINUX_X86_64 "/external/libwebp-build/libwebp.a",
-        SDL_IMAGE_BUILD_LINUX_X86_64 "/external/libwebp-build/libsharpyuv.a",
-    },
+    .linker_flags = { SDL_IMAGE_A_LINUX_X86_64, },
 
     .parts = {
         &(NYA_BuildRule){
@@ -91,16 +99,7 @@ NYA_VendorRule vendor_sdl_image_windows_x86_64 = {
     .name = "sdl-image (windows-x86_64)",
 
     .includes     = { "-I./vendor/sdl-image/include/", },
-    .linker_flags = {
-        SDL_IMAGE_A_WINDOWS_X86_64,
-        SDL_IMAGE_BUILD_WINDOWS_X86_64 "/external/libpng-build/libpng16.a",
-        // mingw builds zlib as zlibstatic rather than z.
-        SDL_IMAGE_BUILD_WINDOWS_X86_64 "/external/zlib-build/libzlibstatic.a",
-        SDL_IMAGE_BUILD_WINDOWS_X86_64 "/external/libwebp-build/libwebpdemux.a",
-        SDL_IMAGE_BUILD_WINDOWS_X86_64 "/external/libwebp-build/libwebpmux.a",
-        SDL_IMAGE_BUILD_WINDOWS_X86_64 "/external/libwebp-build/libwebp.a",
-        SDL_IMAGE_BUILD_WINDOWS_X86_64 "/external/libwebp-build/libsharpyuv.a",
-    },
+    .linker_flags = { SDL_IMAGE_A_WINDOWS_X86_64, },
 
     .parts = {
         &(NYA_BuildRule){
