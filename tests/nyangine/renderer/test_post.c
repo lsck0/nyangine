@@ -282,7 +282,49 @@ s32 main(void) {
         nya_post_end(&window, &chain, nullptr, 0);
         nya_check(chain.blur.width == 0, "turning bloom off releases the blur target");
 
+        // eye adaptation keeps two single texels of history, and nothing else.
+        nya_post_eye_adaptation_set(&window, (NYA_PostEyeAdaptation){ .enabled = true });
+        nya_check(nya_post_begin(&window, &chain), "adaptation on");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(chain.adaptation[0].width == 1 && chain.adaptation[1].height == 1 && chain.blur.width == 0 && !chain.targets[0].options.normals,
+                  "adaptation adds only its history");
+        nya_check(chain.adaptation[0].options.format == NYA_RENDER3D_NORMAL_FORMAT, "the history holds more than eight bits");
+        nya_check(nya_post_enabled(&window), "adaptation counts as a scene pass");
+
+        nya_post_eye_adaptation_set(&window, (NYA_PostEyeAdaptation){ 0 });
+        nya_check(nya_post_begin(&window, &chain), "adaptation off");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(chain.adaptation[0].width == 0 && chain.adaptation[1].width == 0, "turning adaptation off releases its history");
+
+        // a 2D world has no depth, so occlusion allocates nothing for it.
+        chain.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE };
+        nya_post_ambient_occlusion_set(&window, (NYA_PostAmbientOcclusion){ .enabled = true });
+        nya_check(nya_post_begin(&window, &chain), "occlusion over 2D");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(chain.half.width == 0 && !chain.targets[0].options.normals, "a 2D scene holds no occlusion target");
+        nya_post_ambient_occlusion_set(&window, (NYA_PostAmbientOcclusion){ 0 });
+        chain.scene = (NYA_RenderTextureOptions){ 0 };
+
         nya_post_antialias_set(&window, (NYA_PostAntialias){ 0 });
+        nya_check(!nya_post_enabled(&window), "with everything off the chain can be skipped");
+    }
+
+    // ── Eye adaptation clamps what a config file holds, and eases by the frame's time.
+    {
+        nya_post_eye_adaptation_set(&window, (NYA_PostEyeAdaptation){ .enabled = true, .key = 3.0F, .exposure_max = 20.0F, .saturation = -1.0F });
+        NYA_PostEyeAdaptation adaptation = nya_post_eye_adaptation(&window);
+        nya_check(adaptation.key == 1.0F && adaptation.exposure_max == 8.0F && adaptation.saturation == 0.0F, "adaptation clamps");
+
+        struct NYA_ShaderEyeAdaptationUniform reset = _nya_post_eye_adaptation_uniform((NYA_PostEyeAdaptation){ 0 }, true);
+        nya_check(reset.rate_dark == 1.0F && reset.rate_bright == 1.0F, "a fresh history jumps straight to the measurement");
+        nya_check(reset.key == NYA_POST_ADAPTATION_KEY && reset.exposure_max == NYA_POST_ADAPTATION_EXPOSURE_MAX, "zero fields take the defaults");
+
+        nya_app_get()->frame_stats.elapsed_ns = nya_time_ms_to_ns(16);
+        struct NYA_ShaderEyeAdaptationUniform eased = _nya_post_eye_adaptation_uniform((NYA_PostEyeAdaptation){ 0 }, false);
+        nya_check(eased.rate_dark > 0.0F && eased.rate_dark < eased.rate_bright && eased.rate_bright < 1.0F, "the dark is slower than the light, got %f %f",
+                  (f64)eased.rate_dark, (f64)eased.rate_bright);
+
+        nya_post_eye_adaptation_set(&window, (NYA_PostEyeAdaptation){ 0 });
     }
 
     return nya_check_failures() == 0 ? 0 : 1;

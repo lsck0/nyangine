@@ -27,10 +27,11 @@
  * nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_TILT_SHIFT });
  * nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ .amount = camera_speed / top_speed, .motion = camera_velocity });
  * nya_post_bloom_set(window, (NYA_PostBloom){ .enabled = true });
+ * nya_post_eye_adaptation_set(window, (NYA_PostEyeAdaptation){ .enabled = true });
  * ```
  *
- * They run inside nya_post_end before the caller's passes, occlusion then ink then depth of field then
- * antialiasing, and the debug view after them. Depth of field follows the ink, so a line blurs with the surface it
+ * They run inside nya_post_end before the caller's passes, occlusion then ink then depth of field then eye adaptation
+ * then antialiasing, and the debug view after them. Depth of field follows the ink, so a line blurs with the surface it
  * is drawn on, and comes before antialiasing, which smooths the cut between sharp and blurred. A feature that is off
  * has no pass, no pipeline and no target. Ink, occlusion and distance focus read the scene normal buffer
  * (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only while one of them or a debug view is on,
@@ -117,6 +118,23 @@
 /** The widest spread allowed. The taps are fixed, so past this they separate into a grid. */
 #define NYA_POST_BLOOM_SPREAD_MAX 8.0F
 
+/**
+ * The average brightness eye adaptation exposes a scene toward, when NYA_PostEyeAdaptation.key is zero. About what the
+ * 3D demo averages at midday, so daylight is left as authored.
+ * */
+#define NYA_POST_ADAPTATION_KEY 0.45F
+
+/** The least and most eye adaptation exposes by, when the fields are zero. Close to one, so flat colour stays flat. */
+#define NYA_POST_ADAPTATION_EXPOSURE_MIN 0.75F
+#define NYA_POST_ADAPTATION_EXPOSURE_MAX 1.6F
+
+/** Seconds to get most of the way used to the dark and to the light, when the fields are zero. The dark is slower. */
+#define NYA_POST_ADAPTATION_DARK_SECONDS   2.5F
+#define NYA_POST_ADAPTATION_BRIGHT_SECONDS 0.6F
+
+/** How far saturation follows the exposure, when NYA_PostEyeAdaptation.saturation is zero. */
+#define NYA_POST_ADAPTATION_SATURATION 0.2F
+
 /** Lines around the full circle, when NYA_PostSpeedLines.density is zero. */
 #define NYA_POST_SPEED_LINES_DENSITY 140.0F
 
@@ -140,6 +158,7 @@ typedef struct NYA_PostAntialias        NYA_PostAntialias;
 typedef struct NYA_PostDepthOfField     NYA_PostDepthOfField;
 typedef struct NYA_PostSpeedLines       NYA_PostSpeedLines;
 typedef struct NYA_PostBloom            NYA_PostBloom;
+typedef struct NYA_PostEyeAdaptation    NYA_PostEyeAdaptation;
 typedef enum NYA_PostFocus              NYA_PostFocus;
 typedef enum NYA_PostDebugView          NYA_PostDebugView;
 
@@ -325,6 +344,31 @@ struct NYA_PostBloom {
     f32 spread;
 };
 
+/**
+ * Eyes getting used to the dark and the light. The image's average brightness is measured into a one texel target
+ * every frame and eased toward, faster into the light than into the dark, and the image is exposed toward `key` with
+ * its saturation following: lower where the eye opened up for the dark, higher where it closed down. Nothing is read
+ * back; the history stays on the GPU.
+ * */
+// @reflect
+struct NYA_PostEyeAdaptation {
+    b8 enabled;
+
+    /** The average brightness exposed toward. See NYA_POST_ADAPTATION_KEY. */
+    f32 key;
+
+    /** The exposure's clamp, so a dark cave does not turn grey nor a sunlit field white. See NYA_POST_ADAPTATION_EXPOSURE_MIN. */
+    f32 exposure_min;
+    f32 exposure_max;
+
+    /** Seconds to get most of the way used to a darker and to a brighter scene. See NYA_POST_ADAPTATION_DARK_SECONDS. */
+    f32 dark_seconds;
+    f32 bright_seconds;
+
+    /** How far saturation follows the exposure, in [0, 1]. See NYA_POST_ADAPTATION_SATURATION. */
+    f32 saturation;
+};
+
 /** A buffer shown in place of the image, for looking at what the scene passes read. */
 // @reflect
 enum NYA_PostDebugView {
@@ -369,6 +413,13 @@ struct NYA_PostChain {
     NYA_RenderTexture blur;
 
     /**
+     * Eye adaptation's history, one texel of log brightness each, written in turn so a frame reads the last one. Exist
+     * only while adaptation is on.
+     * */
+    NYA_RenderTexture adaptation[2];
+    u32               adaptation_latest;
+
+    /**
      * How the scene target is made. Zeroed attaches depth for a 3D scene; a 2D world saves it with DEPTH_NONE. The
      * chain adds `normals` itself.
      * */
@@ -401,6 +452,9 @@ NYA_API b8 nya_post_begin(NYA_Window* window, NYA_PostChain* chain) __attr_no_di
  * */
 NYA_API void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* passes, u32 pass_count);
 
+/** Whether any of the window's scene passes is on. Without one, and without passes of its own, a caller can skip the chain. */
+NYA_API b8 nya_post_enabled(NYA_Window* window) __attr_no_discard;
+
 /** Releases the chain's targets. Safe on a zeroed or already destroyed chain. */
 NYA_API void nya_post_chain_destroy(NYA_PostChain* chain);
 
@@ -427,6 +481,10 @@ NYA_API NYA_PostSpeedLines nya_post_speed_lines(NYA_Window* window) __attr_no_di
 /** Sets this window's bloom, clamped like the ink. */
 NYA_API void          nya_post_bloom_set(NYA_Window* window, NYA_PostBloom bloom);
 NYA_API NYA_PostBloom nya_post_bloom(NYA_Window* window) __attr_no_discard;
+
+/** Sets this window's eye adaptation, clamped like the ink. */
+NYA_API void                  nya_post_eye_adaptation_set(NYA_Window* window, NYA_PostEyeAdaptation adaptation);
+NYA_API NYA_PostEyeAdaptation nya_post_eye_adaptation(NYA_Window* window) __attr_no_discard;
 
 /** Shows a buffer instead of the image. An unknown view reads as none. */
 NYA_API void              nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view);

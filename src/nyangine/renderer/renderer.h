@@ -208,6 +208,9 @@ struct NYA_RenderTextureOptions {
      * at 4x. Pipelines drawing into it are built single sampled on first use.
      * */
     b8 single_sampled;
+
+    /** The colour format. Zero is the window's, which every built-in pipeline draws into. */
+    SDL_GPUTextureFormat format;
 };
 
 /**
@@ -848,6 +851,7 @@ struct NYA_RenderSystemWindow {
     NYA_PostDepthOfField     post_depth_of_field;
     NYA_PostSpeedLines       post_speed_lines;
     NYA_PostBloom            post_bloom;
+    NYA_PostEyeAdaptation    post_eye_adaptation;
     NYA_PostDebugView        post_debug_view;
 
     /** This frame so far, and the last finished one. The draw calls are filled in when a frame finishes. */
