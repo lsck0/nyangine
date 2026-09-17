@@ -37,9 +37,9 @@ it. Scope is the engine: no editor, no game; gnyame stays a minimal example exer
 | Hot reload | assets, code, configuration | `[x]` |
 | Tracing | time and memory per feature (shadows, antialiasing, particles, ...) | `[~]` CPU spans and GPU allocation counters; per feature attribution missing |
 | CI/CD | tests and builds with caching | `[x]` green on Linux and Windows |
-| Anti-tamper | integrity checks like the CRC | `[~]` code segment hash; more missing |
-| Networking | attack and cheat resistant, optional end to end public key encryption | `[~]` in progress |
-| Targets | Linux, Windows, Steam Linux, Steam Windows | `[~]` Linux and Windows; Steam variants missing |
+| Anti-tamper | integrity checks like the CRC | `[x]` executable stamp, chunked code baseline and a sweep every 250 ms, per blob entry hashes, a watchdog at two inlined sites; failure logs and exits 86 |
+| Networking | attack and cheat resistant, optional end to end public key encryption | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders |
+| Targets | Linux, Windows, Steam Linux, Steam Windows | `[x]` all four build in CI; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS) |
 
 # Open
 
@@ -113,6 +113,41 @@ Next:
   frame; warm, 0.8 ms. SDL does not document pipeline creation as thread safe.
 - A render graph is not planned: the pass order is fixed and short, and a graph would be more code than
   the passes it orders.
+
+## `[~]` Networking
+
+UDP is always encrypted, loopback never: a stateless handshake (padded CONNECT, 45 byte cookie challenge, no
+amplification) authenticated with X25519 against the server's long-term key and an optional player key, then
+XChaCha20-Poly1305 per packet with a key per direction and a 32 packet replay window. `--server-key` pins the
+server; `nya_net_key_pair_load` keeps its identity. Handshakes are rate limited per address (8/s, burst 16) and
+capped at 4 connections per IP. The server applies one command per tick (burst 4), checks command ticks, caps
+speed with `max_speed` and kicks on a decaying violation score. Snapshots carry only changed entities in fixed
+point against the acknowledged baseline, rotations smallest-three in 32 bits. Clients reconcile against the
+command the server confirmed, follow the server's tick rate and draw replicas with a jitter-adaptive delay and
+100 ms extrapolation. `--net-latency/-jitter/-loss/-duplicate/-reorder` condition the transport. Every wire
+decoder is fuzzed from a fixed seed. Bench, 48 crates and 6 drones: 44.3 to 6.9 kB/s down settled, 10.3 to 3.9
+up. Under 120 ms, 20 ms jitter and 5% loss, prediction converges with no corrections at about 3 kB/s each way.
+
+- `[ ]` One fragment per datagram; 28 bytes per packet overhead dominates small snapshots.
+- `[ ]` Cumulative acks only; lag compensation rewinds to the acknowledged tick, not the render time.
+- `[ ]` Version-rejected peers linger until timeout; hostname resolution blocks up to 5 s.
+- `[ ]` No allowlist API for player keys; the Steam transport is a stub.
+
+## `[~]` Steam targets and anti-tamper
+
+`steam-linux` and `steam-windows` link the Steamworks SDK and ship its library beside the executable.
+`NYA_AppOptions.steam_app_id` relaunches through Steam when started outside it, runs callbacks once a frame and
+plays on without a client. steam-linux compiles every vendor and the game with clang 22 against the pinned sniper
+SDK sysroot (downloaded into vendor/steamrt, 1.2 GB): GLIBC_2.29 at most, curl on the runtime's GnuTLS. CI builds
+and verifies all four targets; CD publishes both depots.
+
+Anti-tamper: executable stamp and chunked code baseline on a startup thread, a sweep of one 64 KiB chunk every
+250 ms (13 µs), per blob entry hashes checked on first load, and a watchdog requiring the checks to have run and
+agreed. Failure logs one line and exits 86. `base_integrity.h` states the limits: this raises the bar, the server
+stays the authority.
+
+- `[ ]` Steam Cloud rules; `net_steam.c`; a real client and depot upload not exercised.
+- `[ ]` The steam-linux binary only starts inside the runtime on hosts with a newer nettle.
 
 ## `[~]` Audio propagation and effects
 
