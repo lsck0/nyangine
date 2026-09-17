@@ -56,8 +56,8 @@
 #define NYA_TEXT_FONT_HANDLE_MAX 256
 
 /**
- * Laid out strings kept by nya_text_shape_with_font, across every face. The main menu holds 6 and the HUD about
- * 20; strings that change every frame (a frame time) cycle out least recently used.
+ * Laid out strings kept by nya_text_shape_with_font, across every face. The main menu holds 5 and a scene HUD
+ * about 15; strings that change every frame (a counter) cycle out least recently used.
  * */
 #ifndef NYA_TEXT_RUN_CACHE_CAPACITY
 #define NYA_TEXT_RUN_CACHE_CAPACITY 128
