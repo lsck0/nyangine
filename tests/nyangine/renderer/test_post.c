@@ -327,5 +327,46 @@ s32 main(void) {
         nya_post_eye_adaptation_set(&window, (NYA_PostEyeAdaptation){ 0 });
     }
 
+    // ── Light shafts read the normal buffer and gather into the half target, over a 3D scene only.
+    {
+        NYA_PostChain chain = { 0 };
+        defer         nya_post_chain_destroy(&chain);
+
+        nya_post_light_shafts_set(&window, (NYA_PostLightShafts){ .enabled = true, .length = 3.0F, .intensity = -1.0F });
+        nya_check(nya_post_light_shafts(&window).length == 1.0F && nya_post_light_shafts(&window).intensity == 0.0F, "shafts clamp");
+
+        nya_check(nya_post_begin(&window, &chain), "shafts on");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(chain.targets[0].options.normals && chain.blur.width == 160, "shafts need the normal buffer and the half target");
+
+        chain.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE };
+        nya_check(nya_post_begin(&window, &chain), "shafts over 2D");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(!chain.targets[0].options.normals && chain.blur.width == 0, "a 2D scene has no sky to gather");
+
+        nya_post_light_shafts_set(&window, (NYA_PostLightShafts){ 0 });
+
+        // the sun straight ahead sits mid screen; behind the camera, or with no perspective, there are no shafts.
+        NYA_Render3DBatch* batch = &window.render_system.mesh_batch;
+
+        batch->camera          = (NYA_Camera3DPerspective){ .position = { 0.0F, 0.0F, 0.0F }, .target = { 0.0F, 0.0F, -1.0F }, .up = { 0.0F, 1.0F, 0.0F } };
+        batch->view_projection = nya_matrix_perspective((f32)M_PI / 3.0F, 1.6F, 0.1F, 100.0F) * nya_matrix_look_at(batch->camera.position, batch->camera.target, batch->camera.up);
+        batch->light           = (NYA_Render3DLight){ .direction = { 0.0F, 0.0F, 1.0F } };
+
+        f32x2 sun    = { 0 };
+        f32   facing = _nya_post_sun(&window, &sun);
+        nya_check(facing == 1.0F && fabsf(sun.x - 0.5F) < 1e-4F && fabsf(sun.y - 0.5F) < 1e-4F, "a sun ahead is centred, got %f at %f %f", (f64)facing,
+                  (f64)sun.x, (f64)sun.y);
+
+        batch->light = (NYA_Render3DLight){ .direction = { 0.0F, 0.0F, -1.0F } };
+        nya_check(_nya_post_sun(&window, &sun) == 0.0F, "a sun behind the camera casts no shafts");
+
+        batch->light           = (NYA_Render3DLight){ .direction = { 0.0F, 0.0F, 1.0F } };
+        batch->camera_is_ortho = true;
+        nya_check(_nya_post_sun(&window, &sun) == 0.0F, "an orthographic camera has no vanishing point");
+
+        *batch = (NYA_Render3DBatch){ 0 };
+    }
+
     return nya_check_failures() == 0 ? 0 : 1;
 }
