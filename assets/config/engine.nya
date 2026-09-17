@@ -54,6 +54,16 @@ nya 2 0
             bloom: object {
                 enabled: b8 true;
             };
+            // Eyes getting used to the dark and the light. See NYA_PostEyeAdaptation.
+            eye_adaptation: object {
+                enabled: b8 true;
+                key: f32 0.45;
+                exposure_min: f32 0.75;
+                exposure_max: f32 1.6;
+                dark_seconds: f32 2.5;
+                bright_seconds: f32 0.6;
+                saturation: f32 0.2;
+            };
             // See NYA_Render3DDecals.
             decals: object {
                 enabled: b8 true;

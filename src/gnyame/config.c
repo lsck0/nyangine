@@ -22,6 +22,13 @@ void gny_config_renderer_apply(NYA_Window* window) {
             .color    = renderer->shadow_color,
         }
     );
+
+    // a 2D scene has no normal buffer, so the passes reading it run in 3D only and cost the 2D world nothing.
+    nya_post_ink_set(window, renderer->ink);
+    nya_post_ambient_occlusion_set(window, renderer->ambient_occlusion);
+    nya_post_antialias_set(window, renderer->antialias);
+    nya_post_debug_view_set(window, renderer->debug_view);
+    nya_post_eye_adaptation_set(window, renderer->eye_adaptation);
 }
 
 void gny_config_audio_apply(void) {

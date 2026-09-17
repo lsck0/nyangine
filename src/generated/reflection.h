@@ -42,6 +42,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostFocus;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDepthOfField;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostSpeedLines;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostBloom;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostEyeAdaptation;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIOverflow;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateColors;
@@ -50,7 +51,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated type, for an editor that needs to enumerate them. */
-#define NYA_REFLECT_TYPE_COUNT 37
+#define NYA_REFLECT_TYPE_COUNT 38
 
 extern const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT];
 

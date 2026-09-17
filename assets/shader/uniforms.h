@@ -350,6 +350,19 @@ struct NYA_ShaderDepthOfFieldUniform {
     f32 pad[2];
 };
 
+/** effect_adaptation_measure.frag.hlsl and effect_adaptation.frag.hlsl. See NYA_PostEyeAdaptation. */
+struct NYA_ShaderEyeAdaptationUniform {
+    f32 key;
+    f32 exposure_min, exposure_max;
+    f32 saturation;
+
+    /** How much of the way to the measured brightness this frame moves, darker and brighter. One starts over. */
+    f32 rate_dark, rate_bright;
+
+    /** Where this frame's grid of taps sits within a cell, in [0, 1). */
+    f32 jitter_x, jitter_y;
+};
+
 /** effect_output_hdr.frag.hlsl, from NYA_RenderOutput with the defaults resolved. */
 struct NYA_ShaderOutputUniform {
     /** 0 for extended linear sRGB, 1 for HDR10. */

@@ -178,11 +178,7 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
 void gny_layer_cube3d_on_destroy(NYA_Window* window) {
     GNY_Cube3DScene* scene = _gny_cube3d_scene();
 
-    // the scene passes belong to this scene; left on, the 2D game would carry their normal buffer.
-    nya_post_ink_set(window, (NYA_PostInk){ 0 });
-    nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ 0 });
-    nya_post_antialias_set(window, (NYA_PostAntialias){ 0 });
-    nya_post_debug_view_set(window, NYA_POST_DEBUG_VIEW_NONE);
+    // what this scene drives by its camera; the rest follows the config in both scenes.
     nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ 0 });
     nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ 0 });
     nya_post_bloom_set(window, (NYA_PostBloom){ 0 });
@@ -1024,24 +1020,10 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         }
     );
 
-    /*
-     * The post passes from the config every frame, so saving engine.nya changes the look while it runs. The
-     * engine skips whatever is off, so this costs a few copies.
-     */
-    const NYA_ConfigEngineRenderer* look = &NYA_CONFIG.engine.renderer;
-
-    nya_post_ink_set(window, look->ink);
-    nya_post_ambient_occlusion_set(window, look->ambient_occlusion);
-    nya_post_antialias_set(window, look->antialias);
-    nya_post_debug_view_set(window, look->debug_view);
-
     _gny_cube3d_effects_apply(window, scene, eye);
 
     // this scene's numbers; see GNY_BLOOM_3D_THRESHOLD.
     gny_bloom_apply(window, (NYA_PostBloom){ .threshold = GNY_BLOOM_3D_THRESHOLD, .intensity = GNY_BLOOM_3D_INTENSITY, .spread = GNY_BLOOM_3D_SPREAD });
-
-    b8 scene_passes = look->ink.enabled || look->ambient_occlusion.enabled || look->antialias.enabled || look->debug_view != NYA_POST_DEBUG_VIEW_NONE
-              || look->depth_of_field.focus != NYA_POST_FOCUS_OFF || look->speed_lines.amount > 0.0F || nya_post_bloom(window).enabled;
 
     /*
      * Through the post chain when bloom or a scene pass wants it, otherwise straight to the window. The lamp beads
@@ -1055,7 +1037,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     // minimised or mid resize, nya_post_begin fails and the scene goes straight to the window like the
     // 2D path does, rather than skipping the frame.
-    if (!(pass_count > 0 || scene_passes) || !nya_post_begin(window, &bloom_world->post)) {
+    if (!(pass_count > 0 || nya_post_enabled(window)) || !nya_post_begin(window, &bloom_world->post)) {
         _gny_cube3d_draw_scene(window);
 
         // without the chain to mark it, so HDR lifts the scene and not the HUD.

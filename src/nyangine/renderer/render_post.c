@@ -19,6 +19,11 @@
 #define _NYA_POST_PIPELINE_BLOOM_GATHER    "nya_post_bloom_gather_pipeline"
 #define _NYA_POST_PIPELINE_BLOOM           "nya_post_bloom_pipeline"
 #define _NYA_POST_PIPELINE_DEBUG           "nya_post_debug_pipeline"
+#define _NYA_POST_PIPELINE_ADAPTATION_MEASURE "nya_post_adaptation_measure_pipeline"
+#define _NYA_POST_PIPELINE_ADAPTATION         "nya_post_adaptation_pipeline"
+
+/** Eye adaptation's history: log brightness wants more than eight bits, or easing stalls short of its target. */
+#define _NYA_POST_ADAPTATION_FORMAT NYA_RENDER3D_NORMAL_FORMAT
 
 /** Near black with a little blue, what NYA_PostInk.color falls back to. */
 #define _NYA_POST_INK_COLOR ((NYA_Color){ 0.08F, 0.07F, 0.10F, 1.0F })
@@ -46,14 +51,20 @@ typedef struct {
     /** _NYA_PostInput bits. */
     u32 inputs;
 
-    /** Draws into this half resolution target instead of the next image in the chain. */
+    /** Draws into this target instead of the next image in the chain. */
     NYA_RenderTexture* target;
 
     NYA_TraceFeature trace;
+
+    /** An eye adaptation texel bound after the other inputs, or null. */
+    NYA_RenderTexture* adaptation;
 } _NYA_PostStep;
 
-/** The built-in passes one frame can queue: occlusion twice, ink, depth of field twice, antialiasing, the debug view. */
-#define _NYA_POST_BUILT_IN_MAX 7
+/**
+ * The built-in passes one frame can queue before the caller's: occlusion twice, ink, depth of field twice, eye
+ * adaptation twice, antialiasing.
+ * */
+#define _NYA_POST_BUILT_IN_MAX 8
 
 /** Whether any option on the window reads the scene normal buffer. */
 NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_RenderSystemWindow* render) {
@@ -61,9 +72,10 @@ NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_RenderSystemWindow* render) {
         || render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE;
 }
 
-/** Whether any option on the window draws the half resolution occlusion. Every debug view binds it. */
-NYA_INTERNAL b8 _nya_post_wants_half(const NYA_RenderSystemWindow* render) {
-    return render->post_ambient_occlusion.enabled || render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE;
+/** Whether any option on the window draws the half resolution occlusion. Every debug view binds it. A 2D scene has none. */
+NYA_INTERNAL b8 _nya_post_wants_half(const NYA_RenderSystemWindow* render, const NYA_PostChain* chain) {
+    return (render->post_ambient_occlusion.enabled || render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE)
+        && chain->scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED;
 }
 
 /** Whether `pass` can draw this frame: its pipeline, and its texture if it names one, have loaded. */
@@ -114,10 +126,10 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
 
     b8 half_matches = chain->half.width == half_width && chain->half.height == half_height;
 
-    if (!_nya_post_wants_half(render) || !half_matches) nya_render_texture_destroy(&chain->half);
+    if (!_nya_post_wants_half(render, chain) || !half_matches) nya_render_texture_destroy(&chain->half);
 
     // single sampled: it is only ever filled by one fullscreen pass, which a multisampled companion would not improve.
-    if (_nya_post_wants_half(render) && chain->half.width == 0) {
+    if (_nya_post_wants_half(render, chain) && chain->half.width == 0) {
         nya_trace_scope(NYA_TRACE_OCCLUSION);
 
         chain->half = nya_render_texture_create_with(
@@ -138,6 +150,21 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
         chain->blur = nya_render_texture_create_with(
             window, half_width, half_height, (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE, .single_sampled = true }
         );
+    }
+
+    b8 adapting = render->post_eye_adaptation.enabled;
+
+    for (u32 i = 0; i < nya_carray_length(chain->adaptation); i++) {
+        if (!adapting) nya_render_texture_destroy(&chain->adaptation[i]);
+
+        if (!adapting || chain->adaptation[i].width != 0) continue;
+
+        chain->adaptation[i] = nya_render_texture_create_with(
+            window, 1, 1, (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE, .single_sampled = true, .format = _NYA_POST_ADAPTATION_FORMAT }
+        );
+
+        // neither holds a measurement yet.
+        chain->adaptation_latest = 2;
     }
 
     return true;
@@ -187,7 +214,7 @@ NYA_INTERNAL void _nya_post_draw_pass(NYA_Window* window, const NYA_RenderTextur
 
 /** Draws a built-in pass as one fullscreen triangle, binding the inputs it names. */
 NYA_INTERNAL void _nya_post_draw_step(NYA_Window* window, const NYA_PostChain* chain, u32 source, const _NYA_PostStep* step) {
-    SDL_GPUTexture* textures[4];
+    SDL_GPUTexture* textures[5];
     u32             count = 0;
 
     // a scene without normals gets the image in their place. only tilt shift asks then, and it never samples them.
@@ -197,15 +224,18 @@ NYA_INTERNAL void _nya_post_draw_step(NYA_Window* window, const NYA_PostChain* c
     if (step->inputs & _NYA_POST_INPUT_NORMALS) textures[count++] = normals;
     if (step->inputs & _NYA_POST_INPUT_HALF) textures[count++] = chain->half.texture;
     if (step->inputs & _NYA_POST_INPUT_BLUR) textures[count++] = chain->blur.texture;
+    if (step->adaptation != nullptr) textures[count++] = step->adaptation->texture;
 
     nya_render2d_fullscreen(window, step->pipeline, textures, count, step->uniform, step->uniform_size);
 }
 
 /**
  * Whether a scene pass pipeline is loaded, queueing it the first time it is asked for. Paired with the procedural
- * vertex stage every window already loads.
+ * vertex stage every window already loads. `target` is the format of the target a pass replaces, or zero for a pass
+ * drawn over the chain's image.
  * */
-NYA_INTERNAL b8 _nya_post_pipeline_ready(NYA_Window* window, NYA_ConstCString pipeline, NYA_AssetHandle fragment, u32 samplers, b8 half) {
+NYA_INTERNAL b8 _nya_post_pipeline_ready(NYA_Window* window, NYA_ConstCString pipeline, NYA_AssetHandle fragment, u32 samplers,
+                                         SDL_GPUTextureFormat target) {
     NYA_AssetStatus status = nya_asset_status((NYA_CString)pipeline);
 
     if (status != NYA_ASSET_STATUS_UNLOADED) return status == NYA_ASSET_STATUS_LOADED;
@@ -226,8 +256,9 @@ NYA_INTERNAL b8 _nya_post_pipeline_ready(NYA_Window* window, NYA_ConstCString pi
             .vertex_layout          = NYA_VERTEX_LAYOUT_2D,
 
             // over whatever the window already holds, as every chain pass is. the occlusion replaces its target.
-            .blend          = half ? NYA_BLEND_NONE : NYA_BLEND_ALPHA,
-            .single_sampled = half,
+            .blend          = target != SDL_GPU_TEXTUREFORMAT_INVALID ? NYA_BLEND_NONE : NYA_BLEND_ALPHA,
+            .single_sampled = target != SDL_GPU_TEXTUREFORMAT_INVALID,
+            .color_format   = target,
         },
     }) : shader;
 
@@ -364,6 +395,33 @@ NYA_INTERNAL struct NYA_ShaderInkUniform _nya_post_ink_uniform(NYA_PostInk ink, 
     };
 }
 
+/** The eye adaptation block with every zero field replaced by its default, eased over the last frame's time. */
+NYA_INTERNAL struct NYA_ShaderEyeAdaptationUniform _nya_post_eye_adaptation_uniform(NYA_PostEyeAdaptation options, b8 reset) {
+    const NYA_FrameStats* frame = &nya_app_get()->frame_stats;
+
+    f32 elapsed_s = (f32)nya_time_ns_to_s(frame->elapsed_ns);
+    f32 dark_s    = options.dark_seconds > 0.0F ? options.dark_seconds : NYA_POST_ADAPTATION_DARK_SECONDS;
+    f32 bright_s  = options.bright_seconds > 0.0F ? options.bright_seconds : NYA_POST_ADAPTATION_BRIGHT_SECONDS;
+
+    f32 exposure_min = options.exposure_min > 0.0F ? options.exposure_min : NYA_POST_ADAPTATION_EXPOSURE_MIN;
+    f32 exposure_max = options.exposure_max > 0.0F ? options.exposure_max : NYA_POST_ADAPTATION_EXPOSURE_MAX;
+
+    // ninety percent of the way in the given seconds: ln 10.
+    return (struct NYA_ShaderEyeAdaptationUniform){
+        .key          = options.key > 0.0F ? options.key : NYA_POST_ADAPTATION_KEY,
+        .exposure_min = exposure_min,
+        .exposure_max = nya_max(exposure_max, exposure_min),
+        .saturation   = options.saturation > 0.0F ? options.saturation : NYA_POST_ADAPTATION_SATURATION,
+
+        .rate_dark   = reset ? 1.0F : 1.0F - expf(-elapsed_s * 2.3026F / dark_s),
+        .rate_bright = reset ? 1.0F : 1.0F - expf(-elapsed_s * 2.3026F / bright_s),
+
+        // a different grid of taps every frame, so over a second the measurement covers the image.
+        .jitter_x = fmodf(frame->uptime_s * 61.8034F, 1.0F),
+        .jitter_y = fmodf(frame->uptime_s * 38.1966F, 1.0F),
+    };
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -421,10 +479,14 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     struct NYA_ShaderSpeedLinesUniform        lines     = { 0 };
     struct NYA_ShaderBloomUniform             bloom     = { 0 };
     struct NYA_ShaderSceneDebugUniform        debug     = { 0 };
+    struct NYA_ShaderEyeAdaptationUniform     adaptation = { 0 };
+
+    // what a pass drawing into a half resolution target is built for.
+    SDL_GPUTextureFormat half = window->render_system.color_format;
 
     const NYA_PostAmbientOcclusion* occlusion_options = &render->post_ambient_occlusion;
 
-    if (scene && _nya_post_wants_half(render)) {
+    if (scene && _nya_post_wants_half(render, chain)) {
         occlusion = (struct NYA_ShaderAmbientOcclusionUniform){
             .view       = view,
             .radius     = occlusion_options->radius > 0.0F ? occlusion_options->radius : NYA_POST_OCCLUSION_RADIUS,
@@ -434,7 +496,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             .softness   = occlusion_options->softness > 0.0F ? occlusion_options->softness : NYA_POST_OCCLUSION_SOFTNESS,
         };
 
-        if (_nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_OCCLUSION, NYA_ASSET_SHADER_EFFECT_OCCLUSION_FRAG, 1, true)) {
+        if (_nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_OCCLUSION, NYA_ASSET_SHADER_EFFECT_OCCLUSION_FRAG, 1, half)) {
             before[before_count++] = (_NYA_PostStep){
                 .pipeline     = _NYA_POST_PIPELINE_OCCLUSION,
                 .trace        = NYA_TRACE_OCCLUSION,
@@ -450,7 +512,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     b8 half_ready = before_count > 0;
 
     if (scene && half_ready && occlusion_options->enabled
-        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_OCCLUSION_APPLY, NYA_ASSET_SHADER_EFFECT_OCCLUSION_APPLY_FRAG, 3, false)) {
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_OCCLUSION_APPLY, NYA_ASSET_SHADER_EFFECT_OCCLUSION_APPLY_FRAG, 3, 0)) {
         before[before_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_OCCLUSION_APPLY,
             .trace        = NYA_TRACE_OCCLUSION,
@@ -462,7 +524,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
     if (scene) ink = _nya_post_ink_uniform(render->post_ink, view);
 
-    if (scene && render->post_ink.enabled && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_INK, NYA_ASSET_SHADER_EFFECT_INK_FRAG, 2, false)) {
+    if (scene && render->post_ink.enabled && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_INK, NYA_ASSET_SHADER_EFFECT_INK_FRAG, 2, 0)) {
         before[before_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_INK,
             .trace        = NYA_TRACE_INK,
@@ -477,8 +539,8 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
     b8 focus_on = focus_options->focus == NYA_POST_FOCUS_TILT_SHIFT || (scene && focus_options->focus == NYA_POST_FOCUS_DISTANCE);
 
-    if (focus_on && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLUR, NYA_ASSET_SHADER_EFFECT_DEPTH_OF_FIELD_BLUR_FRAG, 2, true)
-        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_FOCUS, NYA_ASSET_SHADER_EFFECT_DEPTH_OF_FIELD_FRAG, 3, false)) {
+    if (focus_on && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLUR, NYA_ASSET_SHADER_EFFECT_DEPTH_OF_FIELD_BLUR_FRAG, 2, half)
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_FOCUS, NYA_ASSET_SHADER_EFFECT_DEPTH_OF_FIELD_FRAG, 3, 0)) {
         focus = _nya_post_depth_of_field_uniform(*focus_options, chain);
 
         before[before_count++] = (_NYA_PostStep){
@@ -499,10 +561,39 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
         };
     }
 
+    // turned on between begin and end, the frame has no history to read yet.
+    if (render->post_eye_adaptation.enabled && chain->adaptation[0].texture != nullptr
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_ADAPTATION_MEASURE, NYA_ASSET_SHADER_EFFECT_ADAPTATION_MEASURE_FRAG, 2, _NYA_POST_ADAPTATION_FORMAT)
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_ADAPTATION, NYA_ASSET_SHADER_EFFECT_ADAPTATION_FRAG, 2, 0)) {
+        adaptation = _nya_post_eye_adaptation_uniform(render->post_eye_adaptation, chain->adaptation_latest > 1);
+
+        u32 previous = chain->adaptation_latest % 2;
+        u32 latest   = previous ^ 1U;
+
+        before[before_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_ADAPTATION_MEASURE,
+            .uniform      = &adaptation,
+            .uniform_size = sizeof(adaptation),
+            .inputs       = _NYA_POST_INPUT_SOURCE,
+            .target       = &chain->adaptation[latest],
+            .adaptation   = &chain->adaptation[previous],
+        };
+
+        before[before_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_ADAPTATION,
+            .uniform      = &adaptation,
+            .uniform_size = sizeof(adaptation),
+            .inputs       = _NYA_POST_INPUT_SOURCE,
+            .adaptation   = &chain->adaptation[latest],
+        };
+
+        chain->adaptation_latest = latest;
+    }
+
     const NYA_PostAntialias* antialias_options = &render->post_antialias;
 
     if (antialias_options->enabled
-        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_ANTIALIAS, NYA_ASSET_SHADER_EFFECT_ANTIALIAS_FRAG, 1, false)) {
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_ANTIALIAS, NYA_ASSET_SHADER_EFFECT_ANTIALIAS_FRAG, 1, 0)) {
         antialias = (struct NYA_ShaderAntialiasUniform){
             .texel_x   = 1.0F / (f32)chain->width,
             .texel_y   = 1.0F / (f32)chain->height,
@@ -522,8 +613,8 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     const NYA_PostBloom* bloom_options = &render->post_bloom;
 
     // turned on between begin and end, the frame has no target to gather into yet.
-    if (bloom_options->enabled && chain->blur.texture != nullptr && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM_GATHER, NYA_ASSET_SHADER_EFFECT_BLOOM_GATHER_FRAG, 1, true)
-        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM, NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG, 2, false)) {
+    if (bloom_options->enabled && chain->blur.texture != nullptr && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM_GATHER, NYA_ASSET_SHADER_EFFECT_BLOOM_GATHER_FRAG, 1, half)
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM, NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG, 2, 0)) {
         f32 spread = bloom_options->spread > 0.0F ? bloom_options->spread : NYA_POST_BLOOM_SPREAD;
 
         bloom = (struct NYA_ShaderBloomUniform){
@@ -554,7 +645,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     const NYA_PostSpeedLines* lines_options = &render->post_speed_lines;
 
     if (lines_options->amount > 0.0F
-        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_SPEED_LINES, NYA_ASSET_SHADER_EFFECT_SPEED_LINES_FRAG, 1, false)) {
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_SPEED_LINES, NYA_ASSET_SHADER_EFFECT_SPEED_LINES_FRAG, 1, 0)) {
         NYA_Color color  = lines_options->color.a > 0.0F ? lines_options->color : NYA_COLOR_WHITE;
         f32x2     center = _nya_post_speed_lines_center(window, lines_options);
 
@@ -586,7 +677,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     }
 
     if (scene && half_ready && render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE
-        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_DEBUG, NYA_ASSET_SHADER_EFFECT_SCENE_DEBUG_FRAG, 3, false)) {
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_DEBUG, NYA_ASSET_SHADER_EFFECT_SCENE_DEBUG_FRAG, 3, 0)) {
         const NYA_Render3DBatch* batch = &render->mesh_batch;
 
         debug = (struct NYA_ShaderSceneDebugUniform){ .ink = ink, .view = (f32)render->post_debug_view };
@@ -702,9 +793,20 @@ void nya_post_chain_destroy(NYA_PostChain* chain) {
 
     nya_render_texture_destroy(&chain->half);
     nya_render_texture_destroy(&chain->blur);
+    nya_render_texture_destroy(&chain->adaptation[0]);
+    nya_render_texture_destroy(&chain->adaptation[1]);
 
     // the scene options are the caller's choice, not state, so they survive.
     *chain = (NYA_PostChain){ .scene = chain->scene };
+}
+
+b8 nya_post_enabled(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    const NYA_RenderSystemWindow* render = &window->render_system;
+
+    return _nya_post_wants_normals(render) || render->post_antialias.enabled || render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF
+        || render->post_speed_lines.amount > 0.0F || render->post_bloom.enabled || render->post_eye_adaptation.enabled;
 }
 
 void nya_post_ink_set(NYA_Window* window, NYA_PostInk ink) {
@@ -824,6 +926,25 @@ NYA_PostBloom nya_post_bloom(NYA_Window* window) {
     nya_assert(window != nullptr);
 
     return window->render_system.post_bloom;
+}
+
+void nya_post_eye_adaptation_set(NYA_Window* window, NYA_PostEyeAdaptation adaptation) {
+    nya_assert(window != nullptr);
+
+    adaptation.key            = nya_clamp(adaptation.key, 0.0F, 1.0F);
+    adaptation.exposure_min   = nya_clamp(adaptation.exposure_min, 0.0F, 1.0F);
+    adaptation.exposure_max   = nya_clamp(adaptation.exposure_max, 0.0F, 8.0F);
+    adaptation.dark_seconds   = nya_clamp(adaptation.dark_seconds, 0.0F, 60.0F);
+    adaptation.bright_seconds = nya_clamp(adaptation.bright_seconds, 0.0F, 60.0F);
+    adaptation.saturation     = nya_clamp(adaptation.saturation, 0.0F, 1.0F);
+
+    window->render_system.post_eye_adaptation = adaptation;
+}
+
+NYA_PostEyeAdaptation nya_post_eye_adaptation(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.post_eye_adaptation;
 }
 
 void nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view) {

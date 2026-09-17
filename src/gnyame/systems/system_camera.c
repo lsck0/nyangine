@@ -101,7 +101,8 @@ void _gny_camera_render_primary(NYA_Window* window, NYA_Camera2DTopDown camera) 
     // no depth: nothing in the 2D world tests it, and at 4x it is 14 MB.
     world->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE };
 
-    // before the chain begins, which makes the glow's target. the 2D world's numbers; see GNY_BLOOM_2D_THRESHOLD.
+    // before the chain begins, which makes the targets. the 2D world's bloom numbers; see GNY_BLOOM_2D_THRESHOLD.
+    gny_config_renderer_apply(window);
     gny_bloom_apply(window, (NYA_PostBloom){ .threshold = GNY_BLOOM_2D_THRESHOLD, .intensity = GNY_BLOOM_2D_INTENSITY, .spread = GNY_BLOOM_2D_SPREAD });
 
     if (!nya_post_begin(window, &world->post)) {
