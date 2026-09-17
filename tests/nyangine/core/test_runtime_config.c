@@ -86,9 +86,9 @@ s32 main(void) {
     nya_assert(config.engine.renderer.shadow_bias == 0.0015F, "shadow_bias, got %f", (double)config.engine.renderer.shadow_bias);
     nya_assert(config.engine.renderer.shadow_cascades == 2, "shadow_cascades, got %u", config.engine.renderer.shadow_cascades);
     nya_assert(config.engine.renderer.shadow_map_size == 1024, "shadow_map_size, got %u", config.engine.renderer.shadow_map_size);
-    nya_assert(config.engine.renderer.shadow_color.a == 0.55F, "shadow_color.a, got %f", (double)config.engine.renderer.shadow_color.a);
-    nya_assert(nya_string_equals(config.engine.renderer.grade_lut, NYA_ASSET_GRADES_TOON_CUBE), "grade_lut, got '%s'", config.engine.renderer.grade_lut);
-    nya_assert(config.engine.renderer.grade_strength == 1.0F, "grade_strength, got %f", (double)config.engine.renderer.grade_strength);
+    nya_assert(config.engine.renderer.shadow_color.a == 0.25F, "shadow_color.a, got %f", (double)config.engine.renderer.shadow_color.a);
+    nya_assert(nya_string_equals(config.engine.renderer.grade_lut, NYA_ASSET_GRADES_VIVID_CUBE), "grade_lut, got '%s'", config.engine.renderer.grade_lut);
+    nya_assert(config.engine.renderer.grade_strength == 0.4F, "grade_strength, got %f", (double)config.engine.renderer.grade_strength);
     nya_assert(config.engine.renderer.depth_of_field.focus == NYA_POST_FOCUS_OFF, "depth_of_field.focus, got %d",
                (s32)config.engine.renderer.depth_of_field.focus);
     nya_assert(config.engine.renderer.depth_of_field.focus_range == 1.5F, "depth_of_field.focus_range, got %f",

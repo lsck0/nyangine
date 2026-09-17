@@ -17,11 +17,11 @@ nya 2 0
             // Texels per cascade side, a power of two. See NYA_Render3DShadowOptions.
             shadow_map_size: u32 1024;
             // The hue shade leans toward, alpha as how far; a = 0 keeps plain darkening.
-            shadow_color: object { r: f32 0.42; g: f32 0.50; b: f32 0.95; a: f32 0.55; };
-            // The cartoon post passes, read by the 3D demo every frame. A field left out or zero takes its
-            // NYA_POST_* default; see render_post.h.
+            shadow_color: object { r: f32 0.42; g: f32 0.50; b: f32 0.95; a: f32 0.25; };
+            // The post passes, read by the 3D demo every frame. A field left out or zero takes its
+            // NYA_POST_* default; see render_post.h. Ink outlines are there for a drawn look; off here.
             ink: object {
-                enabled: b8 true;
+                enabled: b8 false;
                 width: f32 2.0;
                 crease: f32 40.0;
                 fade_start: f32 25.0;
@@ -32,8 +32,10 @@ nya 2 0
                 radius: f32 0.75;
                 // Pixels, so contact shading reads however far away the camera is.
                 min_radius: f32 32.0;
-                strength: f32 0.45;
-                band: f32 0.25;
+                strength: f32 0.35;
+                // A soft gradient rather than a band: band sits mid way and softness spans it.
+                band: f32 0.4;
+                softness: f32 0.4;
             };
             antialias: object {
                 enabled: b8 true;
@@ -64,9 +66,9 @@ nya 2 0
             // NYA_POST_DEBUG_VIEW_NONE, _NORMALS, _DEPTH, _OCCLUSION, _INK or _CASCADES.
             debug_view: string "NYA_POST_DEBUG_VIEW_NONE";
             // A .cube colour lookup table, or "" for none. assets/grades/identity.cube changes nothing.
-            grade_lut: string "./assets/grades/toon.cube";
+            grade_lut: string "./assets/grades/vivid.cube";
             // How much of the grade applies. Zero skips the pass.
-            grade_strength: f32 1.0;
+            grade_strength: f32 0.4;
         };
         physics: object {
             // Metres per second squared. See NYA_PHYSICS3D_GRAVITY_DEFAULT.

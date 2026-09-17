@@ -111,7 +111,7 @@ s32 main(void) {
     // ── The shipped grade keeps black and white where they are.
     {
         NYA_String file = *nya_string_create(arena);
-        NYA_EXPECT(nya_file_read("./assets/grades/toon.cube", &file));
+        NYA_EXPECT(nya_file_read("./assets/grades/vivid.cube", &file));
 
         NYA_Lut lut = { 0 };
         NYA_EXPECT(nya_lut_parse(arena, file.items, file.length, &lut));

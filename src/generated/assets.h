@@ -5,7 +5,7 @@
 #define NYA_ASSET_CONFIG_ENGINE_NYA                      "./assets/config/engine.nya"
 #define NYA_ASSET_FONTS_ALDRICH_TTF                      "./assets/fonts/Aldrich.ttf"
 #define NYA_ASSET_GRADES_IDENTITY_CUBE                   "./assets/grades/identity.cube"
-#define NYA_ASSET_GRADES_TOON_CUBE                       "./assets/grades/toon.cube"
+#define NYA_ASSET_GRADES_VIVID_CUBE                      "./assets/grades/vivid.cube"
 #define NYA_ASSET_I18N_DE_JSON                           "./assets/i18n/de.json"
 #define NYA_ASSET_I18N_EN_JSON                           "./assets/i18n/en.json"
 #define NYA_ASSET_ICON_ICON_BMP                          "./assets/icon/icon.bmp"

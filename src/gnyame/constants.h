@@ -219,7 +219,7 @@
 #define GNY_SKY_DISC_HORIZON 0.62F
 #define GNY_SKY_DISC_RISE    0.44F
 
-/** Two flat rings under the disc. A cartoon glow has an edge. */
+/** Two flat rings under the disc, a glow with an edge. */
 #define GNY_SKY_HALO_ALPHA 0.10F
 #define GNY_SKY_HALO_INNER 1.9F
 #define GNY_SKY_HALO_OUTER 3.2F
@@ -332,7 +332,7 @@
 /** How far the picking ray reaches, in metres. Past the far edge of the ground. */
 #define GNY_CUBE3D_PICK_RANGE 100.0F
 
-/* A flat cartoon palette: saturated objects on a light ground, which reads as a lit room under banded shading. */
+/* A flat palette: saturated objects on a light ground. */
 #define GNY_CUBE3D_COLOR        ((NYA_Color){ 0.95F, 0.52F, 0.24F, 1.0F })
 #define GNY_CUBE3D_HELD_COLOR   ((NYA_Color){ 0.99F, 0.82F, 0.34F, 1.0F })
 /*
@@ -867,7 +867,7 @@
  * How strongly curved edges are inked. See NYA_Render3DMaterial.edge. Visible on the models and spheres; the
  * hard-faced cube shows nothing, a limit of the technique.
  * */
-#define GNY_CUBE3D_EDGE 0.55F
+#define GNY_CUBE3D_EDGE 0.15F
 
 /*
  * ─────────────────────────────────────────────────────────
@@ -901,12 +901,10 @@
  * Their look comes from NYA_CONFIG.engine.renderer. These are how the scene drives them.
  */
 
-/** A 2x2 sheet: splat, scorch, blob shadow, impact star, in reading order. */
+/** A 2x2 sheet in reading order. The scuff is its second cell, the blob shadow its third. */
 #define GNY_CUBE3D_DECAL_TEXTURE NYA_ASSET_TEXTURES_DECALS_PNG
-#define GNY_CUBE3D_DECAL_SPLAT   0
-#define GNY_CUBE3D_DECAL_SCORCH  1
+#define GNY_CUBE3D_DECAL_SCUFF   1
 #define GNY_CUBE3D_DECAL_BLOB    2
-#define GNY_CUBE3D_DECAL_STAR    3
 
 /** Impact marks kept at once. The oldest is painted over. */
 #define GNY_CUBE3D_MARK_COUNT 48
@@ -914,17 +912,11 @@
 /** How hard a landing leaves a mark, in the landing strength the dust uses. Soft settling leaves none. */
 #define GNY_CUBE3D_MARK_STRENGTH 0.3F
 
-/** Past this strength a star pops up over the mark, and one of the three props scorches instead of splatting. */
-#define GNY_CUBE3D_MARK_HARD 0.97F
-
-/** Seconds a mark lasts, shrinking away over its last third. The star is a flash. */
+/** Seconds a mark lasts, shrinking away over its last third. */
 #define GNY_CUBE3D_MARK_LIFETIME_S 14.0F
-#define GNY_CUBE3D_STAR_LIFETIME_S 0.45F
 
-#define GNY_CUBE3D_STAR_SIZE 2.2F
-
-#define GNY_CUBE3D_SCORCH_COLOR ((NYA_Color){ 0.22F, 0.18F, 0.16F, 0.85F })
-#define GNY_CUBE3D_STAR_COLOR   ((NYA_Color){ 1.00F, 0.86F, 0.32F, 1.0F })
+/** A landing's scuff at full strength; weaker landings scale the alpha down. */
+#define GNY_CUBE3D_SCUFF_COLOR ((NYA_Color){ 0.22F, 0.18F, 0.16F, 0.45F })
 
 /** The blob under each of the three props: how dark, how wide against the prop, and how high it still shows. */
 #define GNY_CUBE3D_BLOB_COLOR ((NYA_Color){ 0.10F, 0.08F, 0.14F, 0.45F })

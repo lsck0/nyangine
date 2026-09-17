@@ -201,7 +201,7 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
 void gny_layer_cube3d_on_destroy(NYA_Window* window) {
     GNY_Cube3DScene* scene = _gny_cube3d_scene();
 
-    // the cartoon passes belong to this scene; left on, the 2D game would carry their normal buffer.
+    // the scene passes belong to this scene; left on, the 2D game would carry their normal buffer.
     nya_post_ink_set(window, (NYA_PostInk){ 0 });
     nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ 0 });
     nya_post_antialias_set(window, (NYA_PostAntialias){ 0 });
@@ -496,53 +496,21 @@ void gny_layer_cube3d_on_collision(NYA_Entity* entity, NYA_Entity* other, const 
     // a mark where it hit the ground. cube on cube leaves none.
     if (strength < GNY_CUBE3D_MARK_STRENGTH || (entity->type != GNY_ENTITY_TERRAIN && other->type != GNY_ENTITY_TERRAIN)) return;
 
-    NYA_EntityHandle lander = entity->type == GNY_ENTITY_TERRAIN ? other->handle : entity->handle;
-
-    // the pile splats paint in its own colour. the heavier props scorch when they land hard.
-    NYA_Color color = GNY_CUBE3D_SCORCH_COLOR;
-    b8        pile  = false;
-
-    for (u32 i = 0; i < scene->cube_count; i++) {
-        if (scene->cubes[i].entity.index != lander.index || scene->cubes[i].entity.generation != lander.generation) continue;
-
-        // a glass cube's splat is as solid as any other.
-        color   = scene->cubes[i].color;
-        color.a = 1.0F;
-        pile    = true;
-    }
-
-    b8 hard   = strength >= GNY_CUBE3D_MARK_HARD;
-    b8 scorch = hard && !pile;
-
-    if (!pile && !scorch) return;
-
     // turned from the point, so the marks look scattered rather than stamped.
     f32 rotation = nya_ihash2((s32)(hit->point.x * 64.0F), (s32)(hit->point.z * 64.0F), GNY_TERRAIN3D_CUBE_SEED) * (f32)M_PI;
-    f32 born_s   = nya_app_get()->frame_stats.uptime_s;
+
+    // a scuff, darker the harder the landing.
+    NYA_Color color = GNY_CUBE3D_SCUFF_COLOR;
+    color.a        *= strength;
 
     scene->marks[scene->mark_next] = (GNY_Cube3DMark){
         .position   = hit->point,
         .rotation   = rotation,
         .size       = nya_lerp(0.9F, 1.6F, strength),
         .color      = color,
-        .cell       = scorch ? GNY_CUBE3D_DECAL_SCORCH : GNY_CUBE3D_DECAL_SPLAT,
-        .born_s     = born_s,
+        .cell       = GNY_CUBE3D_DECAL_SCUFF,
+        .born_s     = nya_app_get()->frame_stats.uptime_s,
         .lifetime_s = GNY_CUBE3D_MARK_LIFETIME_S,
-    };
-
-    scene->mark_next = (scene->mark_next + 1) % GNY_CUBE3D_MARK_COUNT;
-
-    if (!hard) return;
-
-    // and a star over the hardest, gone again in a moment.
-    scene->marks[scene->mark_next] = (GNY_Cube3DMark){
-        .position   = hit->point,
-        .rotation   = -rotation,
-        .size       = GNY_CUBE3D_STAR_SIZE,
-        .color      = GNY_CUBE3D_STAR_COLOR,
-        .cell       = GNY_CUBE3D_DECAL_STAR,
-        .born_s     = born_s,
-        .lifetime_s = GNY_CUBE3D_STAR_LIFETIME_S,
     };
 
     scene->mark_next = (scene->mark_next + 1) % GNY_CUBE3D_MARK_COUNT;
@@ -851,7 +819,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
         );
     }
 
-    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 0.9F, .edge = GNY_CUBE3D_EDGE });
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 1.0F, .edge = GNY_CUBE3D_EDGE });
 
     // the landscape is a few thousand flat triangles in the shared batch. the facets show relief better than a
     // grid.
@@ -916,14 +884,14 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     }
 
     // back to the pile's material, or the models below get glass highlights.
-    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 0.9F, .edge = GNY_CUBE3D_EDGE });
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 1.0F, .edge = GNY_CUBE3D_EDGE });
 
     if (cube != nullptr) {
         // brushed metal while held, matte plastic otherwise: material belongs to the draw, not the object.
         nya_render3d_material_set(
             window,
-            scene->dragging ? (NYA_Render3DMaterial){ .metallic = 1.0F, .roughness = 0.28F, .edge = GNY_CUBE3D_EDGE }
-                            : (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 0.55F, .edge = GNY_CUBE3D_EDGE }
+            scene->dragging ? (NYA_Render3DMaterial){ .metallic = 1.0F, .roughness = 0.6F, .edge = GNY_CUBE3D_EDGE }
+                            : (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 0.9F, .edge = GNY_CUBE3D_EDGE }
         );
 
         // rotation straight off the entity.
@@ -938,7 +906,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
 
     // the loaded model shares the batch, light and material with the primitives. smooth shaded, since its normals
     // come from the file.
-    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.1F, .roughness = 0.45F, .edge = GNY_CUBE3D_EDGE });
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.1F, .roughness = 0.85F, .edge = GNY_CUBE3D_EDGE });
 
     // placed and turned by the solver, so the models fall and roll like the cubes.
     const NYA_Entity* model_entity = nya_entity_get(scene->model);
@@ -955,7 +923,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     }
 
     // the pill gets a different roughness, showing material varies per draw within one batch.
-    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.55F, .roughness = 0.3F, .edge = GNY_CUBE3D_EDGE });
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.55F, .roughness = 0.7F, .edge = GNY_CUBE3D_EDGE });
 
     const NYA_Entity* pill_entity = nya_entity_get(scene->pill);
 
@@ -978,7 +946,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
         f32_4x4 placement = nya_matrix_transform(base, nya_quaternion_to_matrix3(nya_quaternion_identity),
                                                  (f32x3){ GNY_CUBE3D_BENDER_SCALE, GNY_CUBE3D_BENDER_SCALE, GNY_CUBE3D_BENDER_SCALE });
 
-        nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.2F, .roughness = 0.5F, .edge = GNY_CUBE3D_EDGE });
+        nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.2F, .roughness = 0.85F, .edge = GNY_CUBE3D_EDGE });
         nya_render3d_skinned_mesh(window, GNY_CUBE3D_BENDER, scene->bender_palette, scene->bender_bone_count, placement,
                                   GNY_CUBE3D_BENDER_COLOR);
     }
@@ -1049,7 +1017,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     );
 
     /*
-     * The cartoon passes from the config every frame, so saving engine.nya changes the look while it runs. The
+     * The post passes from the config every frame, so saving engine.nya changes the look while it runs. The
      * engine skips whatever is off, so this costs a few copies.
      */
     const NYA_ConfigEngineRenderer* look = &NYA_CONFIG.engine.renderer;
@@ -1064,11 +1032,11 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     // this scene's numbers; see GNY_BLOOM_3D_THRESHOLD.
     gny_bloom_apply(window, (NYA_PostBloom){ .threshold = GNY_BLOOM_3D_THRESHOLD, .intensity = GNY_BLOOM_3D_INTENSITY, .spread = GNY_BLOOM_3D_SPREAD });
 
-    b8 cartoon = look->ink.enabled || look->ambient_occlusion.enabled || look->antialias.enabled || look->debug_view != NYA_POST_DEBUG_VIEW_NONE
+    b8 scene_passes = look->ink.enabled || look->ambient_occlusion.enabled || look->antialias.enabled || look->debug_view != NYA_POST_DEBUG_VIEW_NONE
               || look->depth_of_field.focus != NYA_POST_FOCUS_OFF || look->speed_lines.amount > 0.0F || nya_post_bloom(window).enabled;
 
     /*
-     * Through the post chain when bloom or a cartoon pass wants it, otherwise straight to the window. The lamp beads
+     * Through the post chain when bloom or a scene pass wants it, otherwise straight to the window. The lamp beads
      * are past the bloom threshold on purpose.
      */
     // the chain is shared with the 2D world, which drops the depth this scene needs.
@@ -1079,7 +1047,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     // minimised or mid resize, nya_post_begin fails and the scene goes straight to the window like the
     // 2D path does, rather than skipping the frame.
-    if (!(pass_count > 0 || cartoon) || !nya_post_begin(window, &bloom_world->post)) {
+    if (!(pass_count > 0 || scene_passes) || !nya_post_begin(window, &bloom_world->post)) {
         _gny_cube3d_draw_scene(window);
 
         // without the chain to mark it, so HDR lifts the scene and not the HUD.
