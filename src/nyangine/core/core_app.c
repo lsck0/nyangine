@@ -92,6 +92,12 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_audio(void) {
     return error;
 }
 
+#ifdef NYA_PLUGIN_STEAM
+// never fails: a player without the client still plays.
+NYA_INTERNAL NYA_Error _nya_app_bring_up_steam(void) { if (nya_app_get()->options.steam_app_id != 0) (void)nya_system_steam_init(); return NYA_OK; }
+NYA_INTERNAL void _nya_app_tear_down_steam(void) { nya_system_steam_deinit(); }
+#endif
+
 NYA_INTERNAL NYA_Error _nya_app_bring_up_world(void) {
     NYA_App* app = nya_app_get();
     app->world   = nya_world_create();
@@ -137,6 +143,11 @@ void _nya_app_register_subsystems(void) {
                                             .after        = "save",
                                             .init         = _nya_app_bring_up_settings,
                                             .deinit       = _nya_app_tear_down_settings });
+
+#ifdef NYA_PLUGIN_STEAM
+    // early, so the overlay can hook the renderer's device when it is created.
+    nya_system_register((NYA_SystemEntry){ .name = "steam", .after = "settings", .init = _nya_app_bring_up_steam, .deinit = _nya_app_tear_down_steam });
+#endif
 
     // before job, so the workers stop before the registry they resolve through is freed.
     nya_system_register((NYA_SystemEntry){ .name         = "callback",
@@ -200,6 +211,14 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
 
     // uptime starts here, so it includes the integrity check and SDL_Init below.
     u64 started_ns = nya_clock_get_monotonic_ns();
+
+#ifdef NYA_PLUGIN_STEAM
+    // before anything is brought up, since Steam starts a new copy of the game and this one has nothing to undo.
+    if (options.steam_app_id != 0 && nya_system_steam_restart_if_necessary(options.steam_app_id)) {
+        nya_log_info("Started outside Steam; relaunching through the Steam client.");
+        exit(EXIT_SUCCESS);
+    }
+#endif
 
     // as early as possible: a code baseline only means something before anything could hook the process.
     nya_integrity_start();
@@ -347,6 +366,10 @@ void nya_app_run(void) {
             nya_log_directory_roll();
 
             nya_system_gamepad_frame_begin();
+
+#ifdef NYA_PLUGIN_STEAM
+            nya_system_steam_update();
+#endif
         }
 
         {

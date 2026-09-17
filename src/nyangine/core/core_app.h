@@ -58,6 +58,12 @@ struct NYA_AppOptions {
      * is the app_id a desktop file is matched by, which is where the window's icon and name come from.
      * */
     NYA_ConstCString app_id;
+
+    /**
+     * The game's Steam app id. A build with NYA_PLUGIN_STEAM relaunches through Steam when started outside it and
+     * connects to the client; zero, or a build without the plugin, leaves Steam alone.
+     * */
+    u32 steam_app_id;
 };
 
 struct NYA_FrameStats {

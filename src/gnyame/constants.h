@@ -139,6 +139,12 @@
  * */
 #define GNY_UNFOCUSED_FRAME_RATE 30
 
+/**
+ * The Steam app id the Steam builds relaunch through and connect as. 480 is Valve's public Spacewar test app; a real
+ * game puts its own here and in packaging/steam.
+ * */
+#define GNY_STEAM_APP_ID 480
+
 /** Level the background track sits at, under the master and music gains. */
 #define GNY_MUSIC_GAIN 0.45F
 

@@ -12,8 +12,22 @@ typedef char SteamErrMsg[1024];
 extern ESteamAPIInitResult SteamAPI_InitFlat(SteamErrMsg* pOutErrMsg);
 extern void                SteamAPI_Shutdown(void);
 extern void                SteamAPI_RunCallbacks(void);
-extern b8                  SteamAPI_IsSteamRunning(void);
-extern b8                  SteamAPI_RestartAppIfNecessary(u32 unOwnAppID);
+extern bool                SteamAPI_RestartAppIfNecessary(u32 unOwnAppID);
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API DECLARATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+NYA_INTERNAL b8 _nya_steam_connected = false;
+
+NYA_INTERNAL NYA_ConstCString _NYA_STEAM_INIT_RESULT_NAME[NYA_SYSTEM_STEAM_INIT_COUNT] = {
+    [NYA_SYSTEM_STEAM_INIT_OK]               = "ok",
+    [NYA_SYSTEM_STEAM_INIT_FAILED_GENERIC]   = "failed",
+    [NYA_SYSTEM_STEAM_INIT_NO_STEAM_CLIENT]  = "no client",
+    [NYA_SYSTEM_STEAM_INIT_VERSION_MISMATCH] = "client out of date",
+};
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -27,27 +41,44 @@ extern b8                  SteamAPI_RestartAppIfNecessary(u32 unOwnAppID);
  * ─────────────────────────────────────────────────────────
  */
 
-/*
- * `err_msg_capacity` is not optional, and the result is always terminated.
- */
-NYA_SteamInitResult nya_system_steam_init(OUT NYA_CString err_msg, u64 err_msg_capacity) {
-    SteamErrMsg         raw_err = { 0 };
-    ESteamAPIInitResult result  = SteamAPI_InitFlat(&raw_err);
+b8 nya_system_steam_restart_if_necessary(u32 app_id) {
+    nya_assert(app_id != 0);
 
-    if (err_msg != nullptr && err_msg_capacity > 0) {
-        u64 copied = 0;
-        while (copied + 1 < err_msg_capacity && copied < sizeof(SteamErrMsg) && raw_err[copied] != '\0') {
-            err_msg[copied] = raw_err[copied];
-            copied++;
-        }
-        err_msg[copied] = '\0';
+    return SteamAPI_RestartAppIfNecessary(app_id);
+}
+
+NYA_SteamInitResult nya_system_steam_init(void) {
+    nya_assert(!_nya_steam_connected);
+
+    SteamErrMsg message = { 0 };
+    s32         result  = SteamAPI_InitFlat(&message);
+    message[sizeof(message) - 1] = '\0';
+
+    // a result this SDK does not name reads as a generic failure rather than indexing past the table.
+    if (result < 0 || result >= NYA_SYSTEM_STEAM_INIT_COUNT) result = NYA_SYSTEM_STEAM_INIT_FAILED_GENERIC;
+
+    if (result != NYA_SYSTEM_STEAM_INIT_OK) {
+        nya_log_warn("Steam is unavailable (%s), continuing without it: %s", _NYA_STEAM_INIT_RESULT_NAME[result], message);
+        return (NYA_SteamInitResult)result;
     }
 
-    return (NYA_SteamInitResult)result;
+    _nya_steam_connected = true;
+    nya_log_info("Connected to Steam.");
+
+    return NYA_SYSTEM_STEAM_INIT_OK;
+}
+
+void nya_system_steam_update(void) {
+    if (!_nya_steam_connected) return;
+
+    SteamAPI_RunCallbacks();
 }
 
 void nya_system_steam_deinit(void) {
+    if (!_nya_steam_connected) return;
+
     SteamAPI_Shutdown();
+    _nya_steam_connected = false;
 }
 
 /*
@@ -55,3 +86,7 @@ void nya_system_steam_deinit(void) {
  * STEAM FUNCTIONS
  * ─────────────────────────────────────────────────────────
  */
+
+b8 nya_steam_is_connected(void) {
+    return _nya_steam_connected;
+}
