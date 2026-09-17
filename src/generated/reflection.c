@@ -38,6 +38,7 @@ const NYA_TypeReflection _NYA_REFLECT_f32x4 = { .name = "f32x4", .kind = NYA_REF
 static const NYA_ReflectField _NYA_REFLECT_GNY_ConfigGame_FIELDS[] = {
     { .name = "player_speed", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, player_speed), .hint = NYA_HINT_NONE },
     { .name = "player_spawn_spacing", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, player_spawn_spacing), .hint = NYA_HINT_NONE },
+    { .name = "animation_speed", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, animation_speed), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame = {
@@ -46,7 +47,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame = {
     .size = sizeof(GNY_ConfigGame),
     .alignment = alignof(GNY_ConfigGame),
     .fields = _NYA_REFLECT_GNY_ConfigGame_FIELDS,
-    .field_count = 2,
+    .field_count = 3,
 };
 
 /* GNY_Config, src/gnyame/config.h */

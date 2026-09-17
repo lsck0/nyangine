@@ -91,6 +91,7 @@ NYA_EntityHandle gny_entity_ledge_create(f32x2 position, f32x2 size, f32 patrol_
         .position     = { position.x, position.y - (size.y * 0.5F) - GNY_LEDGE_MARKER_LIFT, 0.0F },
         .scale        = { 1.0F, 1.0F, 1.0F },
         .state        = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_VISIBLE,
+        .on_update    = nya_callback(gny_entity_ledge_marker_on_update),
         .on_animation = nya_callback(gny_entity_ledge_marker_on_animation),
         .visual       = {
             .kind   = NYA_ENTITY_VISUAL_ANIMATION,
@@ -152,6 +153,13 @@ void gny_entity_ledge_on_render(NYA_Entity* entity, NYA_Window* window) {
 
     nya_render2d_line(window, (f32x2){ center.x - half_width, center.y - half_height },
                       (f32x2){ center.x + half_width, center.y - half_height }, GNY_LEDGE_EDGE_THICKNESS, GNY_LEDGE_EDGE_COLOR);
+}
+
+void gny_entity_ledge_marker_on_update(NYA_Entity* entity, f32 delta_time_s) {
+    nya_unused(delta_time_s);
+
+    // read every tick, so an edit to the config file retimes the animation live.
+    entity->visual.animator.speed = NYA_CONFIG.game.animation_speed > 0.0F ? NYA_CONFIG.game.animation_speed : GNY_ANIMATION_SPEED;
 }
 
 void gny_entity_ledge_marker_on_animation(NYA_Entity* entity, NYA_SpriteAnimationSignal signal) {

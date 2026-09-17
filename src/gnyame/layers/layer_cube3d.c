@@ -1212,8 +1212,10 @@ void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s) {
         nya_skeleton_animator_play(&scene->bender, skeleton, &skeleton->clips[scene->bender_clip], false);
     }
 
+    f32 speed = NYA_CONFIG.game.animation_speed > 0.0F ? NYA_CONFIG.game.animation_speed : GNY_ANIMATION_SPEED;
+
     NYA_SkeletonPose pose;
-    nya_skeleton_animator_update(&scene->bender, scene->bender_frozen ? 0.0F : delta_time_s, &pose);
+    nya_skeleton_animator_update(&scene->bender, scene->bender_frozen ? 0.0F : delta_time_s * speed, &pose);
 
     nya_skeleton_palette(skeleton, &pose, scene->bender_palette);
     scene->bender_bone_count = skeleton->bone_count;

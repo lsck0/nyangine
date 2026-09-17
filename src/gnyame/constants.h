@@ -913,6 +913,9 @@
 /** How far apart players spawn, so two joining at once do not start inside each other. */
 #define GNY_PLAYER_SPAWN_SPACING 64.0F
 
+/** Playback rate of the 3D demo's skinned bar and the 2D ledge marker. See GNY_ConfigGame.animation_speed. */
+#define GNY_ANIMATION_SPEED 1.0F
+
 /**
  * Drawn size of a player per side. Only gny_net_player_on_render reads it; players have no body. Smaller than
  * GNY_PLAYER_SPAWN_SPACING, so simultaneous spawns are visibly apart.

@@ -44,6 +44,9 @@ struct GNY_ConfigGame {
 
     /** How far apart players spawn, so two joining at once do not overlap. Zero falls back to GNY_PLAYER_SPAWN_SPACING. */
     f32 player_spawn_spacing;
+
+    /** Multiplies the demos' skeleton and sprite animation clocks. Zero falls back to GNY_ANIMATION_SPEED. */
+    f32 animation_speed;
 };
 
 /**

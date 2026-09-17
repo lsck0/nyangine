@@ -27,5 +27,7 @@ nya 2 0
         player_speed: f32 220.0;
         // See GNY_PLAYER_SPAWN_SPACING.
         player_spawn_spacing: f32 64.0;
+        // See GNY_ANIMATION_SPEED.
+        animation_speed: f32 1.0;
     };
 }
