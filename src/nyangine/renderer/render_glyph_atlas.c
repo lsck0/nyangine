@@ -33,9 +33,6 @@
 /** Cells across the atlas texture. Rows follow from the capacity. */
 #define NYA_RENDER2D_GLYPH_COLUMNS 16
 
-/** How far SDL_ttf extends a distance field past the ink on every side, in texels. Its DEFAULT_SDF_SPREAD, unexported. */
-#define NYA_RENDER2D_GLYPH_SDF_SPREAD 8
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -128,8 +125,8 @@ NYA_GlyphGrid _nya_render2d_glyph_grid(TTF_Font* font) {
 
     // a fixed width on both sides of the ink, so the half again above does not cover it at small sizes.
     if (TTF_GetFontSDF(font)) {
-        cell_width  += 2 * NYA_RENDER2D_GLYPH_SDF_SPREAD;
-        cell_height += 2 * NYA_RENDER2D_GLYPH_SDF_SPREAD;
+        cell_width  += 2 * NYA_TEXT_SDF_SPREAD;
+        cell_height += 2 * NYA_TEXT_SDF_SPREAD;
     }
 
     s32 rows = (NYA_RENDER2D_GLYPH_CAPACITY + NYA_RENDER2D_GLYPH_COLUMNS - 1) / NYA_RENDER2D_GLYPH_COLUMNS;

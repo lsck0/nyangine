@@ -25,6 +25,14 @@ NYA_INTERNAL void _nya_text_run_reset(OUT NYA_TextRun* run);
 /** Reads a laid out text into `out_run`. */
 NYA_INTERNAL b8 _nya_text_run_fill(TTF_Text* shaped, OUT NYA_TextRun* out_run);
 
+/**
+ * The laid out text's size. SDL_ttf measures a distance field line out to its last ink plus the spread wherever that
+ * passes the advance, which is up to the spread wider than the same face as coverage and puts centred text a few
+ * pixels left. Such a text is measured again to where each line's last glyph advances, within a pixel, since the
+ * advance reads back whole.
+ * */
+NYA_INTERNAL b8 _nya_text_size(TTF_Text* shaped, OUT s32* out_width, OUT s32* out_height);
+
 /** The loaded font asset for a face at a size, queueing the load on the first ask. Null until it has loaded. */
 NYA_INTERNAL NYA_Asset* _nya_text_font_asset(NYA_ConstCString path, f32 point_size, OUT char* out_handle, u64 capacity);
 
@@ -141,7 +149,7 @@ f32x2 nya_text_measure_font(TTF_Font* font, NYA_ConstCString text, s32 wrap_widt
     if (wrap_width > 0) (void)TTF_SetTextWrapWidth(shaped, wrap_width);
 
     s32 width = 0, height = 0;
-    if (!TTF_GetTextSize(shaped, &width, &height)) return f32x2_zero;
+    if (!_nya_text_size(shaped, &width, &height)) return f32x2_zero;
 
     return (f32x2){ (f32)width, (f32)height };
 }
@@ -227,7 +235,7 @@ f32x2 nya_text_measure_with_font(NYA_ConstCString path, f32 point_size, NYA_Cons
     if (shaped == nullptr) return f32x2_zero;
 
     s32 width = 0, height = 0;
-    b8  sized = TTF_GetTextSize(shaped, &width, &height);
+    b8  sized = _nya_text_size(shaped, &width, &height);
 
     if (owned) TTF_DestroyText(shaped);
 
@@ -255,6 +263,60 @@ void _nya_text_run_reset(OUT NYA_TextRun* run) {
     run->overflowed  = false;
 }
 
+b8 _nya_text_size(TTF_Text* shaped, OUT s32* out_width, OUT s32* out_height) {
+    nya_assert(shaped != nullptr && out_width != nullptr && out_height != nullptr);
+
+    if (!TTF_GetTextSize(shaped, out_width, out_height)) return false;
+
+    TTF_Font*           font = TTF_GetTextFont(shaped);
+    const TTF_TextData* data = shaped->internal;
+
+    if (font == nullptr || data == nullptr || !TTF_GetFontSDF(font)) return true;
+
+    // a glyph's image reaches the spread past its ink, which is exactly where SDL_ttf measures it to.
+    s32 image_right = 0;
+
+    for (s32 i = 0; i < data->num_ops; i++) {
+        const TTF_DrawOperation* op = &data->ops[i];
+
+        if (op->cmd == TTF_DRAW_COMMAND_COPY) image_right = nya_max(image_right, op->copy.dst.x + op->copy.dst.w);
+    }
+
+    // past every image, the width is where the advance ends and already right.
+    if (*out_width > image_right) return true;
+
+    s32 width = 0;
+
+    for (s32 i = 0; i < data->num_ops; i++) {
+        const TTF_DrawOperation* op = &data->ops[i];
+
+        if (op->cmd != TTF_DRAW_COMMAND_COPY) continue;
+
+        width = nya_max(width, op->copy.dst.x + op->copy.dst.w - (2 * NYA_TEXT_SDF_SPREAD));
+
+        // only the last glyph of a line advances to where the line ends: the next one starts a new line further left.
+        const TTF_DrawOperation* next = i + 1 < data->num_ops ? &data->ops[i + 1] : nullptr;
+
+        if (next != nullptr && next->cmd == TTF_DRAW_COMMAND_COPY && next->copy.dst.x > op->copy.dst.x) continue;
+
+        NYA_ConstCString cursor    = &shaped->text[op->copy.text_offset];
+        size_t           remaining = strlen(cursor);
+        u32              codepoint = SDL_StepUTF8(&cursor, &remaining);
+
+        s32 min_x = 0, advance = 0;
+
+        // SDL_ttf's own width stands when the glyph cannot be read back.
+        if (!TTF_GetGlyphMetrics(font, codepoint, &min_x, nullptr, nullptr, nullptr, &advance)) return true;
+
+        // the image starts the spread before the ink, which starts min_x after the pen.
+        width = nya_max(width, op->copy.dst.x + NYA_TEXT_SDF_SPREAD - min_x + advance);
+    }
+
+    *out_width = width;
+
+    return true;
+}
+
 b8 _nya_text_run_fill(TTF_Text* shaped, OUT NYA_TextRun* out_run) {
     nya_assert(shaped != nullptr && out_run != nullptr);
 
@@ -274,7 +336,7 @@ b8 _nya_text_run_fill(TTF_Text* shaped, OUT NYA_TextRun* out_run) {
         return false;
     }
 
-    if (!TTF_GetTextSize(shaped, &out_run->width, &out_run->height)) {
+    if (!_nya_text_size(shaped, &out_run->width, &out_run->height)) {
         out_run->width  = 0;
         out_run->height = 0;
     }

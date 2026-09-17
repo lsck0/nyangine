@@ -55,6 +55,9 @@
 /** Longest derived font asset handle: a path, an '@', and a point size. */
 #define NYA_TEXT_FONT_HANDLE_MAX 256
 
+/** How far SDL_ttf extends a distance field past the ink on every side, in pixels. Its DEFAULT_SDF_SPREAD, unexported. */
+#define NYA_TEXT_SDF_SPREAD 8
+
 /**
  * Laid out strings kept by nya_text_shape_with_font, across every face. The main menu holds 5 and a scene HUD
  * about 15; strings that change every frame (a counter) cycle out least recently used.

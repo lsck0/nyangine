@@ -128,6 +128,35 @@ s32 main(void) {
         nya_check(!nya_font_sdf(body), "and reported off");
     }
 
+    // ── A distance field measures as wide as the same face in coverage, so centred text lands where it would. SDL_ttf
+    //    alone widens it by up to the field's spread.
+    {
+        nya_font_clear();
+
+        nya_check(nya_font_register("title", FACE, POINT_SIZE), "the font should register");
+
+        NYA_Font title = nya_font_named("title");
+
+        nya_check(pump_until_loaded(title) != nullptr, "the face should have loaded");
+
+        NYA_ConstCString texts[] = { "PAUSED", "Wave, AVA.", "two lines\nof text" };
+        f32x2            coverage[3];
+
+        for (u32 i = 0; i < nya_carray_length(texts); i++) coverage[i] = nya_font_measure(title, texts[i]);
+
+        nya_check(nya_font_sdf_set(title, true), "on should be accepted");
+
+        for (u32 i = 0; i < nya_carray_length(texts); i++) {
+            f32x2 field = nya_font_measure(title, texts[i]);
+
+            // within a pixel: the layout advances in fractions, and a glyph's advance reads back whole.
+            nya_check(fabsf(field.x - coverage[i].x) <= 1.0F && field.y == coverage[i].y, "'%s' measures %fx%f as a field and %fx%f as coverage", texts[i],
+                      (f64)field.x, (f64)field.y, (f64)coverage[i].x, (f64)coverage[i].y);
+        }
+
+        nya_check(nya_font_sdf_set(title, false), "off should be accepted");
+    }
+
     // ── A font nobody asked about is left alone.
     {
         nya_font_clear();
