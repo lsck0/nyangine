@@ -75,14 +75,14 @@ s32 main(void) {
     NYA_Command cmd = {
       .arena             = arena,
       .flags             = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-      .working_directory = "/tmp",
+      .working_directory = "src",
       .program           = "pwd",
       .arguments         = { nullptr },
     };
     NYA_EXPECT(nya_command_run(&cmd));
     nya_assert(cmd.exit_code == 0);
     nya_assert(cmd.stdout_content != nullptr);
-    nya_assert(nya_string_contains(cmd.stdout_content, "/tmp") == true);
+    nya_assert(nya_string_contains(cmd.stdout_content, "src") == true);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
