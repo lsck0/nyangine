@@ -39,6 +39,15 @@ enum {
     GNY_ACTION_TOGGLE_MUSIC,
     GNY_ACTION_TOGGLE_OVERLAY,
 
+    /*
+     * The 3D demo's render features, on the number row. They flip NYA_CONFIG.engine.renderer, so the config file sets
+     * where they start.
+     */
+    GNY_ACTION_TOGGLE_INK,
+    GNY_ACTION_TOGGLE_OCCLUSION,
+    GNY_ACTION_TOGGLE_ANTIALIAS,
+    GNY_ACTION_CYCLE_DEBUG_VIEW,
+
     /** Opens a drop-through window on every crate, so anything on a one-way ledge falls off it. */
     GNY_ACTION_DROP_THROUGH,
 

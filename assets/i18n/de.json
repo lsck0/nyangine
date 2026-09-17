@@ -32,5 +32,6 @@
   "cube3d_hint_drag": "ziehe den würfel zum drehen",
   "cube3d_hint_camera": "rechtsziehen dreht, mausrad zoomt, r setzt zurück",
   "cube3d_hint_animation": "f hält den biegebalken an",
-  "cube3d_keys": "leertaste ablegen   c leeren   r gelände   b bloom   t statistik   esc menü"
+  "cube3d_keys": "leertaste ablegen   c leeren   r gelände   b bloom   t statistik   esc menü",
+  "cube3d_render_keys": "1 tusche   2 verdeckung   3 fxaa   v debug-ansicht"
 }

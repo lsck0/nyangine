@@ -9,7 +9,6 @@
 #define NYA_ASSET_ICON_ICON_BMP                             "./assets/icon/icon.bmp"
 #define NYA_ASSET_ICON_ICON_ICO                             "./assets/icon/icon.ico"
 #define NYA_ASSET_ICON_ICON_RC                              "./assets/icon/icon.rc"
-#define NYA_ASSET_ICON_ICON_RES                             "./assets/icon/icon.res"
 #define NYA_ASSET_ICONS_ACCESSIBILITY_SIGN_SVG              "./assets/icons/accessibility-sign.svg"
 #define NYA_ASSET_ICONS_ACCESSIBILITY_TECH_SVG              "./assets/icons/accessibility-tech.svg"
 #define NYA_ASSET_ICONS_ACCESSIBILITY_SVG                   "./assets/icons/accessibility.svg"

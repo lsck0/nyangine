@@ -188,9 +188,13 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
  */
 
 void gny_layer_cube3d_on_destroy(NYA_Window* window) {
-    nya_unused(window);
-
     GNY_Cube3DScene* scene = _gny_cube3d_scene();
+
+    // the cartoon passes belong to this scene; left on, the 2D game would carry their normal buffer.
+    nya_post_ink_set(window, (NYA_PostInk){ 0 });
+    nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ 0 });
+    nya_post_antialias_set(window, (NYA_PostAntialias){ 0 });
+    nya_post_debug_view_set(window, NYA_POST_DEBUG_VIEW_NONE);
 
     // the bloom target is shared with the 2D game layer. released here too, since going from the menu into this
     // scene and out never runs that layer's on_destroy. guarded on the texture, so either release order is safe.
@@ -363,6 +367,23 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
                 event->was_handled         = true;
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_OVERLAY, key->key, key->modifier_flags)) {
                 gny_overlay_toggle();
+                event->was_handled = true;
+            }
+
+            // the config's own fields, so the file sets where they start and a save puts them back.
+            NYA_ConfigEngineRenderer* look = &NYA_CONFIG.engine.renderer;
+
+            if (nya_input_action_matches(GNY_ACTION_TOGGLE_INK, key->key, key->modifier_flags)) {
+                look->ink.enabled  = !look->ink.enabled;
+                event->was_handled = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_OCCLUSION, key->key, key->modifier_flags)) {
+                look->ambient_occlusion.enabled = !look->ambient_occlusion.enabled;
+                event->was_handled              = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_ANTIALIAS, key->key, key->modifier_flags)) {
+                look->antialias.enabled = !look->antialias.enabled;
+                event->was_handled      = true;
+            } else if (nya_input_action_matches(GNY_ACTION_CYCLE_DEBUG_VIEW, key->key, key->modifier_flags)) {
+                look->debug_view   = (NYA_PostDebugView)(((u32)look->debug_view + 1) % NYA_POST_DEBUG_VIEW_COUNT);
                 event->was_handled = true;
             }
         } break;
@@ -980,40 +1001,49 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     }
 
     /*
-     * Through the bloom target like the 2D world, or straight to the window. The lamp beads are past the bloom
-     * threshold on purpose.
+     * The cartoon passes from the config every frame, so saving engine.nya changes the look while it runs. The
+     * engine skips whatever is off, so this costs four copies.
      */
-    // minimised or mid resize, nya_post_begin fails and the scene goes straight to the window like the
-    // 2D path does, rather than skipping the frame.
+    const NYA_ConfigEngineRenderer* look = &NYA_CONFIG.engine.renderer;
+
+    nya_post_ink_set(window, look->ink);
+    nya_post_ambient_occlusion_set(window, look->ambient_occlusion);
+    nya_post_antialias_set(window, look->antialias);
+    nya_post_debug_view_set(window, look->debug_view);
+
+    b8 cartoon = look->ink.enabled || look->ambient_occlusion.enabled || look->antialias.enabled || look->debug_view != NYA_POST_DEBUG_VIEW_NONE;
+
+    /*
+     * Through the post chain when bloom or a cartoon pass wants it, otherwise straight to the window. The lamp beads
+     * are past the bloom threshold on purpose.
+     */
     // the chain is shared with the 2D world, which drops the depth this scene needs.
     bloom_world->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED };
 
-    if (!bloom_world->bloom_enabled || !nya_post_begin(window, &bloom_world->post)) {
+    // minimised or mid resize, nya_post_begin fails and the scene goes straight to the window like the
+    // 2D path does, rather than skipping the frame.
+    if (!(bloom_world->bloom_enabled || cartoon) || !nya_post_begin(window, &bloom_world->post)) {
         _gny_cube3d_draw_scene(window);
     } else {
-        nya_perf_time_this_scope("gny_cube3d_bloom_pass");
+        nya_perf_time_this_scope("gny_cube3d_post_pass");
 
         _gny_cube3d_draw_scene(window);
 
-        // nya_post_end blits the scene back when a pipeline is not loaded, so a failure costs only the glow.
-        nya_post_end(
-            window, &bloom_world->post,
-            (NYA_PostPass[]){
-                {
-                    .pipeline = GNY_PIPELINE_BLOOM,
-                    .uniform =
-                        &(NYA_ShaderBloomUniform){
-                            // this scene's numbers; see GNY_BLOOM_3D_THRESHOLD.
-                            .texel_x   = GNY_BLOOM_3D_SPREAD / (f32)bloom_world->post.width,
-                            .texel_y   = GNY_BLOOM_3D_SPREAD / (f32)bloom_world->post.height,
-                            .threshold = GNY_BLOOM_3D_THRESHOLD,
-                            .intensity = GNY_BLOOM_3D_INTENSITY,
-                        },
-                    .uniform_size = sizeof(NYA_ShaderBloomUniform),
+        NYA_PostPass bloom = {
+            .pipeline = GNY_PIPELINE_BLOOM,
+            .uniform =
+                &(NYA_ShaderBloomUniform){
+                    // this scene's numbers; see GNY_BLOOM_3D_THRESHOLD.
+                    .texel_x   = GNY_BLOOM_3D_SPREAD / (f32)bloom_world->post.width,
+                    .texel_y   = GNY_BLOOM_3D_SPREAD / (f32)bloom_world->post.height,
+                    .threshold = GNY_BLOOM_3D_THRESHOLD,
+                    .intensity = GNY_BLOOM_3D_INTENSITY,
                 },
-            },
-            1
-        );
+            .uniform_size = sizeof(NYA_ShaderBloomUniform),
+        };
+
+        // nya_post_end blits the scene back when a pipeline is not loaded, so a failure costs only the glow.
+        nya_post_end(window, &bloom_world->post, &bloom, bloom_world->bloom_enabled ? 1 : 0);
     }
 
 
@@ -1027,6 +1057,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         nya_string_cube3d_hint_camera(),
         nya_string_cube3d_hint_animation(),
         nya_string_cube3d_keys(),
+        nya_string_cube3d_render_keys(),
     };
 
     for (u32 i = 0; i < nya_carray_length(hud); i++) {

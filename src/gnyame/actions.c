@@ -73,6 +73,10 @@ NYA_INTERNAL const GNY_ActionDefault _GNY_ACTION_DEFAULTS[] = {
     { .action = GNY_ACTION_TOGGLE_BLOOM,         .name = "toggle_bloom",         .primary = NYA_KEY_B     },
     { .action = GNY_ACTION_TOGGLE_MUSIC,         .name = "toggle_music",         .primary = NYA_KEY_M     },
     { .action = GNY_ACTION_TOGGLE_OVERLAY,       .name = "toggle_overlay",        .primary = NYA_KEY_T     },
+    { .action = GNY_ACTION_TOGGLE_INK,           .name = "toggle_ink",           .primary = NYA_KEY_1     },
+    { .action = GNY_ACTION_TOGGLE_OCCLUSION,     .name = "toggle_occlusion",     .primary = NYA_KEY_2     },
+    { .action = GNY_ACTION_TOGGLE_ANTIALIAS,     .name = "toggle_antialias",     .primary = NYA_KEY_3     },
+    { .action = GNY_ACTION_CYCLE_DEBUG_VIEW,     .name = "cycle_debug_view",     .primary = NYA_KEY_V     },
     { .action = GNY_ACTION_DROP_THROUGH,         .name = "drop_through",         .primary = NYA_KEY_G     },
     { .action = GNY_ACTION_FREEZE_ANIMATION,     .name = "freeze_animation",     .primary = NYA_KEY_F     },
 };

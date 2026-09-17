@@ -16,6 +16,26 @@ nya 2 0
             shadow_cascades: u32 3;
             // See NYA_RENDER3D_SHADOW_MAP_SIZE.
             shadow_map_size: u32 1024;
+            // The cartoon post passes, read by the 3D demo every frame. A field left out or zero takes its
+            // NYA_POST_* default; see render_post.h.
+            ink: object {
+                enabled: b8 true;
+                width: f32 2.0;
+                crease: f32 40.0;
+                fade_start: f32 25.0;
+                fade_end: f32 90.0;
+            };
+            ambient_occlusion: object {
+                enabled: b8 true;
+                radius: f32 0.75;
+                strength: f32 0.45;
+                band: f32 0.25;
+            };
+            antialias: object {
+                enabled: b8 true;
+            };
+            // NYA_POST_DEBUG_VIEW_NONE, _NORMALS, _DEPTH, _OCCLUSION, _INK or _CASCADES.
+            debug_view: string "NYA_POST_DEBUG_VIEW_NONE";
         };
         physics: object {
             // Metres per second squared. See NYA_PHYSICS3D_GRAVITY_DEFAULT.
