@@ -428,19 +428,17 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
                 replica->present = false;
                 replica          = nullptr;
             } else {
-                /*
-                 * The previous target becomes the new origin, and the snapshot becomes the new target.
-                 */
-                replica->from_position = replica->to_position;
-                replica->from_rotation = replica->to_rotation;
-                replica->from_tick     = replica->to_tick;
+                // a snapshot older than the newest sample is a late arrival; the samples stay in tick order without it.
+                if (snapshot->tick > replica->samples[replica->sample_count - 1].tick) {
+                    if (replica->sample_count == NYA_NET_REPLICA_SAMPLES) {
+                        nya_memmove(replica->samples, replica->samples + 1, (NYA_NET_REPLICA_SAMPLES - 1) * sizeof(NYA_NetReplicaSample));
+                        replica->sample_count--;
+                    }
 
-                replica->to_position = state->position;
-                replica->to_rotation = state->rotation;
-                replica->to_tick     = snapshot->tick;
-
-                replica->alpha           = 0.0F;
-                replica->can_interpolate = true;
+                    replica->samples[replica->sample_count++] = (NYA_NetReplicaSample){
+                        .tick = snapshot->tick, .position = state->position, .velocity = state->velocity, .rotation = state->rotation,
+                    };
+                }
 
                 nya_net_entity_state_apply(entity, state);
                 continue;
@@ -488,23 +486,12 @@ void nya_net_snapshot_apply(const NYA_NetSnapshot* snapshot, u64 flag, NYA_NetRe
         // a previous occupant of this server index, with an older generation, is replaced here.
         map->by_remote_index[state->handle.index] = (u16)(slot - map->entries + 1);
 
-        /*
-         * A newly spawned replica has one transform, so it cannot be interpolated yet.
-         */
         *slot = (NYA_NetReplica){
-            .remote = state->handle,
-            .local  = spawned,
-            .present = true,
-
-            .from_position = state->position,
-            .from_rotation = state->rotation,
-            .to_position   = state->position,
-            .to_rotation   = state->rotation,
-            .from_tick     = snapshot->tick,
-            .to_tick       = snapshot->tick,
-
-            .alpha           = 1.0F,
-            .can_interpolate = false,
+            .remote       = state->handle,
+            .local        = spawned,
+            .present      = true,
+            .samples      = { { .tick = snapshot->tick, .position = state->position, .velocity = state->velocity, .rotation = state->rotation } },
+            .sample_count = 1,
         };
     }
 
@@ -542,46 +529,55 @@ void nya_net_replica_map_clear(NYA_NetReplicaMap* map) {
     *map = (NYA_NetReplicaMap){ 0 };
 }
 
-void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f32 delta_time_s, f32 snapshot_interval_s, NYA_EntityHandle predicted_remote) {
+void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f64 render_tick, f32 tick_seconds, f32 extrapolation_limit_s, NYA_EntityHandle predicted_remote) {
     nya_assert(map != nullptr);
 
-    // A zero or negative interval would divide by nothing. Treated as "no smoothing" rather than
-    // asserted, because it is a plausible thing for a game to compute from a snapshot rate of zero.
-    if (snapshot_interval_s <= 0.0F || delta_time_s <= 0.0F) return;
+    if (tick_seconds <= 0.0F || !isfinite(render_tick)) return;
+
+    f64 limit_ticks = nya_max((f64)extrapolation_limit_s, 0.0) / (f64)tick_seconds;
 
     for (u32 i = 0; i < map->count; i++) {
         NYA_NetReplica* replica = &map->entries[i];
 
-        if (!replica->can_interpolate) continue;
-        if (!_nya_net_handle_is_set(replica->remote)) continue;
+        if (replica->sample_count == 0 || !_nya_net_handle_is_set(replica->remote)) continue;
 
-        // prediction already places this one. Interpolating would drag it back toward the last server
-        // position, which is reconciliation's job.
+        // prediction already places this one. Interpolating would drag it back toward the last server position.
         if (_nya_net_handle_equals(replica->remote, predicted_remote)) continue;
 
         NYA_Entity* entity = nya_entity_get(replica->local);
         if (entity == nullptr) continue;
 
-        // The solver owns an attached entity's transform and rewrites it every step, so writing here
-        // would be undone within the tick. See the same note in nya_net_entity_state_apply.
+        // the solver owns an attached entity's transform and rewrites it every step. See nya_net_entity_state_apply.
         if (nya_physics2d_body_attached(entity)) continue;
 
-        /*
-         * Advanced by however much of a snapshot interval this frame was.
-         */
-        replica->alpha += delta_time_s / snapshot_interval_s;
-        if (replica->alpha > 1.0F) replica->alpha = 1.0F;
+        const NYA_NetReplicaSample* newest = &replica->samples[replica->sample_count - 1];
+        const NYA_NetReplicaSample* oldest = &replica->samples[0];
 
-        f32 alpha = replica->alpha;
+        if (render_tick >= (f64)newest->tick) {
+            // past what has arrived: carried on for a little, then held, since a guess that runs on is worse than a pause.
+            f64 ahead = nya_min(render_tick - (f64)newest->tick, limit_ticks);
 
-        entity->position = replica->from_position + ((replica->to_position - replica->from_position) * alpha);
+            entity->position = newest->position + (newest->velocity * (f32)(ahead * (f64)tick_seconds));
+            entity->rotation = newest->rotation;
+        } else if (render_tick <= (f64)oldest->tick) {
+            entity->position = oldest->position;
+            entity->rotation = oldest->rotation;
+        } else {
+            u32 later = 1;
+            while (later < replica->sample_count - 1 && (f64)replica->samples[later].tick <= render_tick) later++;
 
-        // Spherical, not component-wise: interpolating a quaternion's four numbers linearly and
-        // normalising afterwards takes the short way round but at a varying rate, so a spinning object
-        // visibly speeds up and slows down between snapshots.
-        entity->rotation = nya_quaternion_slerp(replica->from_rotation, replica->to_rotation, alpha);
+            const NYA_NetReplicaSample* from = &replica->samples[later - 1];
+            const NYA_NetReplicaSample* to   = &replica->samples[later];
 
-        // already smoothed per frame, so drawn as written rather than from the previous tick.
+            f32 alpha = (f32)((render_tick - (f64)from->tick) / (f64)(to->tick - from->tick));
+
+            entity->position = from->position + ((to->position - from->position) * alpha);
+
+            // spherical, so a spinning object turns at an even rate between snapshots.
+            entity->rotation = nya_quaternion_slerp(from->rotation, to->rotation, alpha);
+        }
+
+        // already placed for this frame, so drawn as written rather than blended with the previous tick.
         nya_entity_transform_snap(entity);
     }
 }

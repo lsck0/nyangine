@@ -99,6 +99,10 @@ f32 _nya_net_read_f32(_NYA_NetReader* reader) {
     return value;
 }
 
+u64 _nya_net_elapsed_ns(u64 now, u64 then) {
+    return now > then ? now - then : 0;
+}
+
 u64 _nya_net_elapsed_ms(u64 now, u64 then) {
     // Saturating, never wrapping. See the note at the declaration for what the wrap actually cost.
     return now > then ? now - then : 0;

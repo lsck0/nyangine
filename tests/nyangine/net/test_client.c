@@ -151,6 +151,37 @@ s32 main(void) {
     nya_net_transport_destroy(server_end);
   }
 
+  printf("TEST: a client ticks at the server's rate, within reason\n");
+  {
+    for (u32 attempt = 0; attempt < 2; attempt++) {
+      NYA_NetTransport* server_end = attach_client(arena, (NYA_NetClientConfig){ 0 });
+      nya_net_client_tick(1, TICK_SECONDS);
+
+      // thirty ticks a second is followed; a thousand is refused and the client keeps its own.
+      u64 offered = attempt == 0 ? 33333333ULL : 1000000ULL;
+
+      NYA_String* payload = nya_string_create(arena);
+      nya_net_message_begin(payload, NYA_NET_MSG_WELCOME);
+
+      NYA_Object* body = nya_object_create(arena);
+      nya_object_set(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
+      nya_object_set(body, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
+      nya_object_set(body, "tick_ns", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = offered });
+      NYA_EXPECT(nya_net_message_write_object(arena, payload, body));
+
+      send_as_server(server_end, payload);
+      nya_net_client_tick(2, TICK_SECONDS);
+
+      nya_assert(nya_net_client_state() == NYA_NET_CLIENT_PLAYING);
+      nya_assert(nya_app_get()->options.time_step_ns == 33333333ULL, "attempt %u left the tick at %llu ns", attempt, (unsigned long long)nya_app_get()->options.time_step_ns);
+
+      nya_net_client_disconnect();
+      nya_net_transport_destroy(server_end);
+    }
+
+    _NYA_APP_INSTANCE.options.time_step_ns = nya_time_ms_to_ns(16);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: REJECT carries a reason the player can be shown
   // ─────────────────────────────────────────────────────────────────────────────

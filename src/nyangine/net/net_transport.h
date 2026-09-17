@@ -98,6 +98,9 @@ struct NYA_NetPeerStats {
 
     /** Commands the server refused or corrected for breaking its rules. See NYA_NetServerConfig.violation_limit. */
     u32 violations;
+
+    /** A client's: how far in the past other entities are drawn, following the link's jitter. */
+    f32 interpolation_delay_ms;
 };
 
 /**

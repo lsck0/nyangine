@@ -13,6 +13,11 @@
  * */
 #define _NYA_NET_CLIENT_DEFAULT_THRESHOLD 0.01F
 
+/** The range the interpolation delay stays in, in ticks, and how far the timeline may drift before it jumps rather than eases. */
+#define _NYA_NET_CLIENT_DELAY_MIN_TICKS 1.0F
+#define _NYA_NET_CLIENT_DELAY_MAX_TICKS 30.0F
+#define _NYA_NET_CLIENT_RESYNC_TICKS    8.0
+
 /** A snapshot the client decoded, kept so the server may send deltas against it. */
 typedef struct {
     NYA_NetSnapshot snapshot;
@@ -89,6 +94,27 @@ typedef struct {
     u64 local_tick;
 
     u64 correction_count;
+
+    /*
+     * the timeline replicas are drawn on
+     *
+     * Remote entities are drawn a little in the past, at `render_tick`, so there are nearly always two snapshots
+     * around the moment drawn. How far in the past follows the link: the gap between snapshots plus twice how
+     * irregularly they arrive.
+     */
+
+    f64 render_tick;
+    b8  render_started;
+
+    /** How far behind the newest snapshot replicas are drawn, in ticks, easing toward what the link needs. */
+    f32 delay_ticks;
+
+    /** Moving averages of the tick gap between applied snapshots and of how far each arrived from when it was due. */
+    f32 arrival_gap_ticks;
+    f32 arrival_jitter_ticks;
+
+    /** When the newest snapshot arrived, by the monotonic clock. */
+    u64 arrival_ns;
 } _NYA_NetClientState;
 
 /** The one client, as a file scope static, like the server. */
@@ -167,7 +193,9 @@ NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString na
     if (config.correction_threshold <= 0.0F) config.correction_threshold = _NYA_NET_CLIENT_DEFAULT_THRESHOLD;
 
     _NYA_NET_CLIENT = (_NYA_NetClientState){
-        .active    = true,
+        .active      = true,
+        .delay_ticks = _NYA_NET_CLIENT_DELAY_MIN_TICKS * 2.0F,
+        .arrival_gap_ticks = 1.0F,
         .state     = NYA_NET_CLIENT_CONNECTING,
         .config    = config,
         .transport = transport,
@@ -249,7 +277,9 @@ NYA_NetPeerStats nya_net_client_stats(void) {
     if (!_NYA_NET_CLIENT.active || _NYA_NET_CLIENT.transport == nullptr) return (NYA_NetPeerStats){ 0 };
 
     NYA_NetPeerStats stats = nya_net_transport_stats(_NYA_NET_CLIENT.transport, _NYA_NET_CLIENT.server_peer);
-    stats.snapshot_bytes   = _NYA_NET_CLIENT.snapshot_bytes;
+
+    stats.snapshot_bytes         = _NYA_NET_CLIENT.snapshot_bytes;
+    stats.interpolation_delay_ms = _NYA_NET_CLIENT.delay_ticks * (f32)nya_time_ns_to_s(nya_app_get()->options.time_step_ns) * 1000.0F;
 
     return stats;
 }
@@ -278,35 +308,39 @@ NYA_Error nya_net_client_send_event(const NYA_Object* event) {
 }
 
 void nya_net_client_interpolate(f32 delta_time_s) {
-    if (!_NYA_NET_CLIENT.active) return;
+    if (!_NYA_NET_CLIENT.active || _NYA_NET_CLIENT.state != NYA_NET_CLIENT_PLAYING) return;
 
     // nothing to smooth on a listen server: the entities are the server's own.
-    if (nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) return;
+    if (nya_net_transport_is_local(_NYA_NET_CLIENT.transport) || _NYA_NET_CLIENT.server_tick == 0) return;
+    if (!(delta_time_s > 0.0F)) return;
 
-    /*
-     * The interval is measured rather than configured.
-     */
-    u64 tick_gap = 1;
+    f64 tick_ns = (f64)nya_app_get()->options.time_step_ns;
+    if (tick_ns <= 0.0) return;
 
-    for (u32 i = 0; i < _NYA_NET_CLIENT.replicas->count; i++) {
-        const NYA_NetReplica* replica = &_NYA_NET_CLIENT.replicas->entries[i];
+    f32 target_delay = nya_clamp(_NYA_NET_CLIENT.arrival_gap_ticks + (2.0F * _NYA_NET_CLIENT.arrival_jitter_ticks), _NYA_NET_CLIENT_DELAY_MIN_TICKS,
+                                 _NYA_NET_CLIENT_DELAY_MAX_TICKS);
 
-        if (!replica->can_interpolate) continue;
-        if (replica->to_tick <= replica->from_tick) continue;
+    // eased over about half a second, so a burst of jitter does not visibly lurch everything back.
+    _NYA_NET_CLIENT.delay_ticks += (target_delay - _NYA_NET_CLIENT.delay_ticks) * nya_min(delta_time_s * 2.0F, 1.0F);
 
-        tick_gap = replica->to_tick - replica->from_tick;
-        break;
+    // where the server is now, as far as the stream of snapshots says.
+    f64 server_now = (f64)_NYA_NET_CLIENT.server_tick + ((f64)_nya_net_elapsed_ns(nya_clock_get_monotonic_ns(), _NYA_NET_CLIENT.arrival_ns) / tick_ns);
+    f64 target     = server_now - (f64)_NYA_NET_CLIENT.delay_ticks;
+    f64 advance    = (f64)delta_time_s * 1e9 / tick_ns;
+
+    if (!_NYA_NET_CLIENT.render_started || fabs(target - _NYA_NET_CLIENT.render_tick) > _NYA_NET_CLIENT_RESYNC_TICKS) {
+        _NYA_NET_CLIENT.render_tick    = target;
+        _NYA_NET_CLIENT.render_started = true;
+    } else {
+        // a tenth faster or slower at most, so catching up never reads as fast forward.
+        f64 drift = nya_clamp((target - (_NYA_NET_CLIENT.render_tick + advance)) * 0.1, -0.1, 0.1);
+
+        _NYA_NET_CLIENT.render_tick += advance * (1.0 + drift);
     }
 
-    /*
-     * The tick length, from the app rather than assumed.
-     */
-    f64 tick_seconds = nya_time_ns_to_s(nya_app_get()->options.time_step_ns);
-    if (tick_seconds <= 0.0) return;
+    f32 limit_s = (f32)(_NYA_NET_CLIENT.config.extrapolation_limit_ms == 0 ? NYA_NET_EXTRAPOLATION_LIMIT_MS_DEFAULT : _NYA_NET_CLIENT.config.extrapolation_limit_ms) / 1000.0F;
 
-    f32 interval = (f32)(tick_seconds * (f64)tick_gap);
-
-    nya_net_replica_interpolate(_NYA_NET_CLIENT.replicas, delta_time_s, interval, _NYA_NET_CLIENT.entity_remote);
+    nya_net_replica_interpolate(_NYA_NET_CLIENT.replicas, _NYA_NET_CLIENT.render_tick, (f32)(tick_ns / 1e9), limit_s, _NYA_NET_CLIENT.entity_remote);
 }
 
 /*
@@ -561,8 +595,22 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
     stored->snapshot          = snapshot;
     stored->snapshot.entities = entities;
 
+    // how regularly snapshots come is what the interpolation delay is sized from.
+    u64 now_ns  = nya_clock_get_monotonic_ns();
+    f64 tick_ns = (f64)nya_app_get()->options.time_step_ns;
+
+    if (_NYA_NET_CLIENT.server_tick != 0 && tick_ns > 0.0) {
+        f32 gap     = (f32)(tick - _NYA_NET_CLIENT.server_tick);
+        f32 arrived = (f32)((f64)_nya_net_elapsed_ns(now_ns, _NYA_NET_CLIENT.arrival_ns) / tick_ns);
+        f32 off     = nya_min(fabsf(arrived - gap), _NYA_NET_CLIENT_DELAY_MAX_TICKS);
+
+        _NYA_NET_CLIENT.arrival_gap_ticks    = (_NYA_NET_CLIENT.arrival_gap_ticks * 0.9F) + (nya_min(gap, _NYA_NET_CLIENT_DELAY_MAX_TICKS) * 0.1F);
+        _NYA_NET_CLIENT.arrival_jitter_ticks = (_NYA_NET_CLIENT.arrival_jitter_ticks * 0.9F) + (off * 0.1F);
+    }
+
     _NYA_NET_CLIENT.server_tick    = tick;
     _NYA_NET_CLIENT.snapshot_bytes = (u32)size;
+    _NYA_NET_CLIENT.arrival_ns     = now_ns;
 }
 
 void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s) {

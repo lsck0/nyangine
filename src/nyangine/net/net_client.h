@@ -27,6 +27,9 @@
 
 typedef struct NYA_NetClientConfig NYA_NetClientConfig;
 
+/** How long replicas are extrapolated past the newest snapshot when the config does not say. */
+#define NYA_NET_EXTRAPOLATION_LIMIT_MS_DEFAULT 100
+
 /** The tick lengths a client accepts from a server's WELCOME: 240 down to 10 ticks a second. */
 #define NYA_NET_TICK_NS_MIN (1000000000ULL / 240)
 #define NYA_NET_TICK_NS_MAX (1000000000ULL / 10)
@@ -88,6 +91,9 @@ struct NYA_NetClientConfig {
      * How far a prediction may be wrong before it is corrected, in world units.
      * */
     f32 correction_threshold;
+
+    /** How long a replica may be carried on by its velocity past the newest snapshot before it holds. Zero is NYA_NET_EXTRAPOLATION_LIMIT_MS_DEFAULT. */
+    u32 extrapolation_limit_ms;
 
     /** The server's public key. Any other server is refused. Zero trusts the key the server presents. */
     u8 server_key[NYA_NET_KEY_SIZE];
@@ -153,5 +159,8 @@ NYA_API u64 nya_net_client_correction_count(void) __attr_no_discard;
 /** Sends a game-defined event to the server. Reliable and ordered. */
 NYA_API NYA_Error nya_net_client_send_event(const NYA_Object* event) __attr_no_discard;
 
-/** Smooths every replicated entity between the last two snapshots. Call once per frame. */
+/**
+ * Draws every replicated entity a little in the past, between the snapshots around that moment, with a delay that
+ * follows how regularly snapshots arrive. Call once per frame with the frame's real duration.
+ * */
 NYA_API void nya_net_client_interpolate(f32 delta_time_s);

@@ -323,99 +323,73 @@ s32 main(void) {
     /** Sends the server's current state to the client. */
     #define REPLICATE(at_tick)                                                                                                                             do {                                                                                                                                                   (void)nya_world_set(server_world);                                                                                                                    NYA_NetSnapshot _snapshot = { 0 };                                                                                                                    NYA_EXPECT(nya_net_snapshot_capture(arena, FLAG_REPLICATED, (at_tick), &_snapshot));                                                                  NYA_String* _payload = nya_string_create(arena);                                                                                                      NYA_EXPECT(nya_net_snapshot_encode(arena, &_snapshot, nullptr, _payload));                                                                            (void)nya_world_set(client_world);                                                                                                                    NYA_NetSnapshot _received = { 0 };                                                                                                                    NYA_EXPECT(nya_net_snapshot_decode(arena, _payload->items, _payload->length, nullptr, &_received));                                                   nya_net_snapshot_apply(&_received, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);                                                                    nya_system_sim_apply_commands();                                                                                                                    } while (0)
 
+    #define MOVE_TO(x, velocity_x)                                                                                                                         \
+      do {                                                                                                                                             \
+        (void)nya_world_set(server_world);                                                                                                             \
+        nya_entity_get(mover)->position = (f32x3){ (x), 0.0F, 0.0F };                                                                                  \
+        nya_entity_get(mover)->velocity = (f32x3){ (velocity_x), 0.0F, 0.0F };                                                                         \
+      } while (0)
+
+    /** Where the client draws the mover at a fractional server tick, a tenth of a second of extrapolation allowed at 60 ticks a second. */
+    #define DRAWN_AT(render_tick)                                                                                                                          \
+      ({                                                                                                                                             \
+        (void)nya_world_set(client_world);                                                                                                             \
+        nya_net_replica_interpolate(&map, (render_tick), 1.0F / 60.0F, 0.1F, NYA_ENTITY_HANDLE_NONE);                                                   \
+        nya_entity_get(nya_net_replica_local(&map, mover))->position.x;                                                                                \
+      })
+
     REPLICATE(300);
 
     NYA_EntityHandle local_mover = nya_net_replica_local(&map, mover);
     nya_assert(nya_entity_is_valid(local_mover));
 
-    /*
-     * One snapshot is not motion, so nothing is interpolated yet.
-     */
-    {
-      (void)nya_world_set(client_world);
+    // one snapshot is a place, not motion: drawn there whatever the moment asked for.
+    nya_assert(DRAWN_AT(299.0) == 0.0F && DRAWN_AT(300.5) == 0.0F, "a replica with one snapshot moved");
 
-      NYA_Entity* entity = nya_entity_get(local_mover);
-      f32         before = entity->position.x;
-
-      nya_net_replica_interpolate(&map, 1.0F / 60.0F, 1.0F / 20.0F, NYA_ENTITY_HANDLE_NONE);
-
-      entity = nya_entity_get(local_mover);
-      nya_assert(entity->position.x == before, "a replica with only one snapshot must not move");
-    }
-
-    // The server moves it a long way, and tells the client.
-    (void)nya_world_set(server_world);
-    nya_entity_get(mover)->position = (f32x3){ 100.0F, 0.0F, 0.0F };
-
-    REPLICATE(301);
-
-    /*
-     * Applying the snapshot puts the entity at the target, and interpolation walks it there from where it
-     * was. Right after a snapshot it is at 100, and the first interpolated frame pulls it back toward 0:
-     * the one snapshot of lag traded for smoothness.
-     */
-    (void)nya_world_set(client_world);
-
-    nya_net_replica_interpolate(&map, 1.0F / 60.0F, 1.0F / 20.0F, NYA_ENTITY_HANDLE_NONE);
-
-    NYA_Entity* entity = nya_entity_get(local_mover);
-    nya_assert(entity != nullptr);
-
-    f32 first = entity->position.x;
-
-    nya_assert(first > 0.0F && first < 100.0F, "the first interpolated frame should be between the two snapshots, got %f", (f64)first);
-
-    // Three frames per snapshot at 60/20, so a third of the way each frame.
-    nya_assert(first > 25.0F && first < 40.0F, "one frame of three should be about a third of the way, got %f", (f64)first);
-
-    // Monotonic toward the target, and it arrives rather than overshooting.
-    f32 previous = first;
-
-    for (u32 frame = 0; frame < 10; frame++) {
-      nya_net_replica_interpolate(&map, 1.0F / 60.0F, 1.0F / 20.0F, NYA_ENTITY_HANDLE_NONE);
-
-      entity = nya_entity_get(local_mover);
-      nya_assert(entity != nullptr);
-
-      nya_assert(entity->position.x >= previous, "interpolation went backwards on frame %u", frame);
-      nya_assert(entity->position.x <= 100.0F, "interpolation overshot the target on frame %u (%f)", frame, (f64)entity->position.x);
-
-      previous = entity->position.x;
-    }
-
-    nya_assert(previous == 100.0F, "interpolation never reached the target, stopped at %f", (f64)previous);
-
-    /*
-     * A frame far longer than the snapshot interval clamps rather than flying past.
-     */
-    (void)nya_world_set(server_world);
-    nya_entity_get(mover)->position = (f32x3){ 200.0F, 0.0F, 0.0F };
+    // snapshots two ticks apart, then one: the drawn position is where the entity was at that moment.
+    MOVE_TO(100.0F, 0.0F);
     REPLICATE(302);
+    MOVE_TO(150.0F, 60.0F);
+    REPLICATE(303);
 
-    (void)nya_world_set(client_world);
+    nya_assert(DRAWN_AT(300.0) == 0.0F, "at the oldest snapshot");
+    nya_assert(DRAWN_AT(301.0) == 50.0F, "halfway between ticks 300 and 302 should be 50, got %f", (f64)DRAWN_AT(301.0));
+    nya_assert(DRAWN_AT(302.5) == 125.0F, "halfway between ticks 302 and 303 should be 125, got %f", (f64)DRAWN_AT(302.5));
+    nya_assert(DRAWN_AT(250.0) == 0.0F, "before the oldest sample it holds there");
 
-    nya_net_replica_interpolate(&map, 5.0F, 1.0F / 20.0F, NYA_ENTITY_HANDLE_NONE);
+    // past the newest, carried on by the velocity: two ticks at 60 units a second is two units.
+    nya_assert(fabsf(DRAWN_AT(305.0) - 152.0F) < 0.01F, "two ticks of extrapolation should reach 152, got %f", (f64)DRAWN_AT(305.0));
 
-    entity = nya_entity_get(local_mover);
-    nya_assert(entity->position.x == 200.0F, "a very long frame should clamp at the target, got %f", (f64)entity->position.x);
+    // and never further than the limit, however late the next snapshot is.
+    nya_assert(fabsf(DRAWN_AT(400.0) - 156.0F) < 0.01F, "extrapolation should stop at a tenth of a second, 156, got %f", (f64)DRAWN_AT(400.0));
+
+    // a late snapshot, older than the newest sample, does not bend the timeline back.
+    MOVE_TO(-999.0F, 0.0F);
+    REPLICATE(301);
+    nya_assert(DRAWN_AT(301.0) == 50.0F, "a late snapshot changed the past, got %f", (f64)DRAWN_AT(301.0));
+
+    // the sample ring rolls over without losing order.
+    for (u64 at = 304; at < 320; at++) {
+      MOVE_TO((f32)at, 0.0F);
+      REPLICATE(at);
+    }
+
+    nya_assert(DRAWN_AT(318.5) == 318.5F, "after the ring rolled over, got %f", (f64)DRAWN_AT(318.5));
 
     // ── the predicted entity is left alone ────────────────────────────────────
     {
-      (void)nya_world_set(server_world);
-      nya_entity_get(mover)->position = (f32x3){ 300.0F, 0.0F, 0.0F };
-      REPLICATE(303);
-
       (void)nya_world_set(client_world);
 
       // As if the client had predicted it somewhere else entirely.
       nya_entity_get(local_mover)->position = (f32x3){ 777.0F, 0.0F, 0.0F };
 
-      nya_net_replica_interpolate(&map, 1.0F / 60.0F, 1.0F / 20.0F, mover);
+      nya_net_replica_interpolate(&map, 310.0, 1.0F / 60.0F, 0.1F, mover);
 
-      entity = nya_entity_get(local_mover);
-      nya_assert(entity->position.x == 777.0F, "the predicted entity was dragged back by interpolation (%f)", (f64)entity->position.x);
+      nya_assert(nya_entity_get(local_mover)->position.x == 777.0F, "the predicted entity was dragged back by interpolation");
     }
 
+    #undef DRAWN_AT
+    #undef MOVE_TO
     #undef REPLICATE
   }
 

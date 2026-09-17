@@ -19,6 +19,7 @@
 typedef struct NYA_NetEntityState NYA_NetEntityState;
 typedef struct NYA_NetSnapshot    NYA_NetSnapshot;
 typedef struct NYA_NetReplica     NYA_NetReplica;
+typedef struct NYA_NetReplicaSample NYA_NetReplicaSample;
 typedef struct NYA_NetReplicaMap  NYA_NetReplicaMap;
 
 /**
@@ -90,6 +91,17 @@ struct NYA_NetSnapshot {
     u32                 entity_count;
 };
 
+/** Snapshots of transform each replica keeps. Enough for the delay a jittery link needs plus one to extrapolate from. */
+#define NYA_NET_REPLICA_SAMPLES 4
+
+/** Where a replica was at one server tick. */
+struct NYA_NetReplicaSample {
+    u64            tick;
+    f32x3          position;
+    f32x3          velocity;
+    NYA_Quaternion rotation;
+};
+
 /**
  * One entity, as both sides name it.
  * */
@@ -103,30 +115,9 @@ struct NYA_NetReplica {
     /** Set by each apply, cleared before it. What the despawn sweep reads. */
     b8 present;
 
-    /*
-     * ── interpolation ──
-     *
-     * Where this entity was at the last two snapshots, so it can be drawn moving between them instead
-     * of stepping. See nya_net_replica_interpolate.
-     */
-
-    /** The transform the previous snapshot gave, and the one the newest gave. */
-    f32x3          from_position;
-    NYA_Quaternion from_rotation;
-    f32x3          to_position;
-    NYA_Quaternion to_rotation;
-
-    /** Which server tick each of the two came from, so the gap between them is known. */
-    u64 from_tick;
-    u64 to_tick;
-
-    /**
-     * How far between `from` and `to` the entity is currently drawn, 0..1.
-     * */
-    f32 alpha;
-
-    /** False until two snapshots have arrived, because one point does not describe motion. */
-    b8 can_interpolate;
+    /** The newest snapshots' transforms, oldest first, so the entity can be drawn at any moment between them. */
+    NYA_NetReplicaSample samples[NYA_NET_REPLICA_SAMPLES];
+    u32                  sample_count;
 };
 
 /**
@@ -190,9 +181,11 @@ NYA_API NYA_EntityHandle nya_net_replica_local(const NYA_NetReplicaMap* map, NYA
 NYA_API NYA_EntityHandle nya_net_replica_remote(const NYA_NetReplicaMap* map, NYA_EntityHandle local) __attr_no_discard;
 
 /**
- * Moves every replica a fraction of the way from the previous snapshot's transform to the newest.
+ * Places every replica where it was at `render_tick`, a fractional server tick: between the two samples around it,
+ * or, past the newest, carried on by its velocity for at most `extrapolation_limit_s`. The predicted entity and
+ * anything the solver owns are left alone.
  * */
-NYA_API void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f32 delta_time_s, f32 snapshot_interval_s, NYA_EntityHandle predicted_remote);
+NYA_API void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f64 render_tick, f32 tick_seconds, f32 extrapolation_limit_s, NYA_EntityHandle predicted_remote);
 
 /**
  * Reads one entity's state out of a snapshot. Null when it is not in it.
