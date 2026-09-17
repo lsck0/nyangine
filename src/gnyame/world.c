@@ -265,6 +265,59 @@ void gny_overlay_toggle(void) {
     if (gny_world()->overlay_enabled) nya_arena_stats_report();
 }
 
+b8 gny_overlay_key(const NYA_KeyEvent* key) {
+    nya_assert(key != nullptr);
+
+    GNY_World* world = gny_world();
+
+    if (nya_input_action_matches(GNY_ACTION_TOGGLE_OVERLAY, key->key, key->modifier_flags)) {
+        gny_overlay_toggle();
+        return true;
+    }
+
+    if (nya_input_action_matches(GNY_ACTION_CYCLE_OVERLAY_PAGE, key->key, key->modifier_flags)) {
+        // a page is only worth choosing while it shows.
+        world->overlay_enabled = true;
+        world->overlay_page    = (NYA_DebugOverlayPage)(((u32)world->overlay_page + 1) % NYA_DEBUG_OVERLAY_PAGE_COUNT);
+        return true;
+    }
+
+    if (nya_input_action_matches(GNY_ACTION_CYCLE_TRACE_SORT, key->key, key->modifier_flags)) {
+        world->trace_sort = (NYA_TraceSort)(((u32)world->trace_sort + 1) % NYA_TRACE_SORT_COUNT);
+        return true;
+    }
+
+    if (nya_input_action_matches(GNY_ACTION_TRACE_REPORT, key->key, key->modifier_flags)) {
+        nya_trace_report();
+        return true;
+    }
+
+    if (nya_input_action_matches(GNY_ACTION_TRACE_CAPTURE, key->key, key->modifier_flags)) {
+        // under logs/, which git ignores. a capture already running refuses a second.
+        if (!nya_trace_capture_begin(GNY_TRACE_CAPTURE_FRAMES, GNY_TRACE_CAPTURE_PATH)) nya_log_warn("A trace capture is already running.");
+        return true;
+    }
+
+    return false;
+}
+
+void gny_overlay_draw(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    const GNY_World* world = gny_world();
+    if (!world->overlay_enabled) return;
+
+    // the trace page's table is wider than the stats, so it is placed by its own width.
+    f32 width = world->overlay_page == NYA_DEBUG_OVERLAY_PAGE_TRACE ? GNY_UI_TRACE_WIDTH : GNY_UI_OVERLAY_WIDTH;
+
+    nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){
+        .x    = (f32)window->screen_width - GNY_UI_MARGIN - width,
+        .y    = GNY_UI_MARGIN,
+        .page = world->overlay_page,
+        .sort = world->trace_sort,
+    });
+}
+
 void gny_post_pipelines_ensure(NYA_Window* window) {
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
         .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
@@ -340,6 +393,7 @@ u32 gny_post_passes(NYA_Window* window, OUT NYA_PostPass* out_passes) {
             .texture      = world->grade_lut,
             .uniform      = &world->grade_uniform,
             .uniform_size = sizeof(world->grade_uniform),
+            .trace        = NYA_TRACE_GRADE,
         };
     }
 

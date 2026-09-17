@@ -37,13 +37,13 @@
   "hud_robots_neat": "neat  generation %u  species %u  best %.3f",
   "hud_robots_dqn": "dqn  steps %u  score %.3f  exploring %.0f%%",
   "hud_robots_run": "run %u  record %.3f  training %.1f ms",
-  "hud_keys": "click drop   right click remove   space burst   c clear   r terrain   p physics   m music   b bloom   4 grade   t stats   esc menu",
+  "hud_keys": "click drop   right click remove   space burst   c clear   r terrain   p physics   m music   b bloom   4 grade   t stats   y trace   u sort   l log   k capture   esc menu",
 
   "cube3d_title": "3d demo",
   "cube3d_hint_click": "click the cube",
   "cube3d_hint_drag": "drag the cube to spin it",
   "cube3d_hint_camera": "right drag orbits, wheel zooms, r resets",
   "cube3d_hint_animation": "f freezes the bending bar",
-  "cube3d_keys": "space drop   c clear   r terrain   b bloom   t stats   esc menu",
+  "cube3d_keys": "space drop   c clear   r terrain   b bloom   t stats   y trace   u sort   l log   k capture   esc menu",
   "cube3d_render_keys": "1 ink   2 occlusion   3 fxaa   4 grade   5 depth of field   6 speed lines   7 decals   8 hdr   v debug view"
 }

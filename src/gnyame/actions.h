@@ -39,6 +39,12 @@ enum {
     GNY_ACTION_TOGGLE_MUSIC,
     GNY_ACTION_TOGGLE_OVERLAY,
 
+    /** The overlay's pages and the trace table's order, a log of the table, and a capture to disk. See debug_trace.h. */
+    GNY_ACTION_CYCLE_OVERLAY_PAGE,
+    GNY_ACTION_CYCLE_TRACE_SORT,
+    GNY_ACTION_TRACE_REPORT,
+    GNY_ACTION_TRACE_CAPTURE,
+
     /*
      * The 3D demo's render features, on the number row. They flip NYA_CONFIG.engine.renderer, so the config file sets
      * where they start.

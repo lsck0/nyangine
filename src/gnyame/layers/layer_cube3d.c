@@ -363,8 +363,7 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_GRADE, key->key, key->modifier_flags)) {
                 gny_world()->grade_enabled = !gny_world()->grade_enabled;
                 event->was_handled         = true;
-            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_OVERLAY, key->key, key->modifier_flags)) {
-                gny_overlay_toggle();
+            } else if (gny_overlay_key(key)) {
                 event->was_handled = true;
             }
 
@@ -1094,9 +1093,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     // the overlay reads the current font.
     nya_render2d_font_set(GNY_UI_FONT, GNY_UI_FONT_SIZE);
 
-    if (gny_world()->overlay_enabled) {
-        nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = (f32)window->screen_width - GNY_UI_MARGIN - GNY_UI_OVERLAY_WIDTH, .y = GNY_UI_MARGIN });
-    }
+    gny_overlay_draw(window);
 }
 
 /*

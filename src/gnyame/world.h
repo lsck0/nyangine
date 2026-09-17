@@ -66,6 +66,10 @@ typedef struct GNY_World {
     /** The engine's debug overlay, toggled with `t` in either scene. */
     b8 overlay_enabled;
 
+    /** Which page it shows, `y`, and how the trace page orders its rows, `u`. */
+    NYA_DebugOverlayPage overlay_page;
+    NYA_TraceSort        trace_sort;
+
     /** The learning drones, while the 2D scene runs and the config has them on. See robots.h. */
     GNY_Robots* robots;
 } GNY_World;
@@ -96,6 +100,12 @@ void gny_post_pipelines_ensure(NYA_Window* window);
 
 /** Shows or hides the debug overlay. Showing it also logs every arena with its resident bytes. */
 void gny_overlay_toggle(void);
+
+/** The overlay and trace keys, shared by both scenes: toggle, page, sort, log and capture. True when `key` was one. */
+b8 gny_overlay_key(const NYA_KeyEvent* key);
+
+/** The debug overlay in the top right corner, on the page the keys chose, if it is on. */
+void gny_overlay_draw(NYA_Window* window);
 
 /**
  * Fills `out_passes` with this frame's post passes, at most GNY_POST_PASSES_MAX: the grade when the config names

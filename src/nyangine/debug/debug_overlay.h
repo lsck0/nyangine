@@ -4,15 +4,20 @@
  * ```c
  * nya_render2d_font_set(NYA_ASSET_FONTS_ALDRICH_TTF, 24.0F);
  * nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = 16, .y = 16 });
+ *
+ * // time, GPU time and memory by feature, most expensive first. tracing runs while this page is drawn.
+ * nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = 16, .y = 16, .page = NYA_DEBUG_OVERLAY_PAGE_TRACE, .sort = NYA_TRACE_SORT_GPU });
  * ```
  * */
 #pragma once
 
 #include "nyangine/base/base_types.h"
+#include "nyangine/debug/debug_trace.h"
 #include "nyangine/renderer/render_color.h"
 
-typedef struct NYA_Window             NYA_Window;
-typedef struct NYA_DebugOverlayStyle  NYA_DebugOverlayStyle;
+typedef struct NYA_Window            NYA_Window;
+typedef struct NYA_DebugOverlayStyle NYA_DebugOverlayStyle;
+typedef enum NYA_DebugOverlayPage    NYA_DebugOverlayPage;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -49,17 +54,37 @@ typedef struct NYA_DebugOverlayStyle  NYA_DebugOverlayStyle;
 #define NYA_DEBUG_OVERLAY_CEILINGS 4
 #endif
 
+/** Features listed on the trace page, in the chosen order. The total line still counts every one. */
+#ifndef NYA_DEBUG_OVERLAY_TRACE_ROWS
+#define NYA_DEBUG_OVERLAY_TRACE_ROWS 16
+#endif
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+enum NYA_DebugOverlayPage {
+    /** Frame time, draws, memory by arena and the fullest ceilings. */
+    NYA_DEBUG_OVERLAY_PAGE_STATS,
+
+    /** One row per trace feature: CPU and GPU time, VRAM, RAM and draw calls. See debug_trace.h. */
+    NYA_DEBUG_OVERLAY_PAGE_TRACE,
+
+    NYA_DEBUG_OVERLAY_PAGE_COUNT,
+};
+
 struct NYA_DebugOverlayStyle {
     /** Top left corner. */
     f32 x, y;
 
-    /** Graph width. Zero means 220, which is wide enough to see a hitch's shape. */
+    NYA_DebugOverlayPage page;
+
+    /** The trace page's order. */
+    NYA_TraceSort sort;
+
+    /** Graph width. Zero means 300 on the stats page and 460 on the trace page, whose table is wider. */
     f32 width;
 
     /** Graph height. Zero means 48. */

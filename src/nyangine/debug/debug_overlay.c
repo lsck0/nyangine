@@ -48,6 +48,12 @@ NYA_INTERNAL void _nya_debug_overlay_apply_style_defaults(NYA_DebugOverlayStyle*
 /** Picks the largest named arenas into _nya_debug_memory, with their resident bytes and the process total. */
 NYA_INTERNAL void _nya_debug_memory_sample(void);
 
+/** The frame time graph, its top left corner at `x`, `y`. */
+NYA_INTERNAL void _nya_debug_overlay_graph_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style, f32 x, f32 y);
+
+/** The trace page: the table, a total, and the graph. */
+NYA_INTERNAL void _nya_debug_overlay_trace_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style, f32 work_ms, b8 refresh);
+
 /**
  * Bytes as a fixed width string in a readable unit. Returns one of a few static buffers, so several
  * calls work in one format string. Not thread safe.
@@ -114,7 +120,9 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     f32 uptime_s = nya_app_get()->frame_stats.uptime_s;
 
-    if (uptime_s >= next_refresh_s) {
+    b8 refresh = uptime_s >= next_refresh_s;
+
+    if (refresh) {
         next_refresh_s = uptime_s + NYA_DEBUG_OVERLAY_REFRESH_SECONDS;
 
         latched_work_ms = work_ms;
@@ -123,13 +131,18 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
         latched_average = nya_debug_frame_time_average_ms();
         latched_worst   = nya_debug_frame_time_worst_ms();
 
-        if (!style.hide_memory) _nya_debug_memory_sample();
+        if (!style.hide_memory && style.page == NYA_DEBUG_OVERLAY_PAGE_STATS) _nya_debug_memory_sample();
     }
     f32 average_ms = latched_average;
     f32 worst_ms   = latched_worst;
 
     work_ms = latched_work_ms;
     wall_ms = latched_wall_ms;
+
+    if (style.page == NYA_DEBUG_OVERLAY_PAGE_TRACE) {
+        _nya_debug_overlay_trace_draw(window, &style, work_ms, refresh);
+        return;
+    }
 
     NYA_Render2DFrameStats draw_stats = nya_render2d_frame_stats(window);
 
@@ -331,32 +344,7 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     if (style.hide_graph) return;
 
-    f32 graph_x = style.x + padding;
-    f32 graph_y = text_y;
-
-    nya_render2d_rect(window, graph_x, graph_y, style.width, style.height, (NYA_Color){ 0.0F, 0.0F, 0.0F, 0.35F });
-
-    // one bar per sample, oldest on the left. Bars, since a line implies values in between.
-    f32 column_width = style.width / (f32)NYA_DEBUG_OVERLAY_HISTORY;
-
-    for (u32 i = 0; i < _nya_debug_sample_count; i++) {
-        // read from the cursor so the newest sample is on the right.
-        u32 index  = (_nya_debug_frame_cursor + NYA_DEBUG_OVERLAY_HISTORY - _nya_debug_sample_count + i) % NYA_DEBUG_OVERLAY_HISTORY;
-        f32 sample = _nya_debug_frame_times_ms[index];
-
-        f32 fraction = nya_clamp(sample / style.graph_ceiling_ms, 0.0F, 1.0F);
-        f32 bar      = fraction * style.height;
-
-        /*
-         * Green up to half the ceiling, amber to three quarters, red past it.
-         */
-        NYA_Color color = (NYA_Color){ 0.35F, 0.85F, 0.45F, 0.9F };
-        if (fraction > 0.75F) color = (NYA_Color){ 0.95F, 0.35F, 0.35F, 0.9F };
-        else if (fraction > 0.5F) color = (NYA_Color){ 0.95F, 0.75F, 0.3F, 0.9F };
-
-        // from the bottom up.
-        nya_render2d_rect(window, graph_x + ((f32)i * column_width), graph_y + (style.height - bar), nya_max(column_width, 1.0F), bar, color);
-    }
+    _nya_debug_overlay_graph_draw(window, &style, style.x + padding, text_y);
 }
 
 /*
@@ -425,8 +413,117 @@ void _nya_debug_memory_sample(void) {
     _nya_debug_memory = sample;
 }
 
+void _nya_debug_overlay_graph_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style, f32 x, f32 y) {
+    nya_render2d_rect(window, x, y, style->width, style->height, (NYA_Color){ 0.0F, 0.0F, 0.0F, 0.35F });
+
+    // one bar per sample, oldest on the left. Bars, since a line implies values in between.
+    f32 column_width = style->width / (f32)NYA_DEBUG_OVERLAY_HISTORY;
+
+    for (u32 i = 0; i < _nya_debug_sample_count; i++) {
+        // read from the cursor so the newest sample is on the right.
+        u32 index  = (_nya_debug_frame_cursor + NYA_DEBUG_OVERLAY_HISTORY - _nya_debug_sample_count + i) % NYA_DEBUG_OVERLAY_HISTORY;
+        f32 sample = _nya_debug_frame_times_ms[index];
+
+        f32 fraction = nya_clamp(sample / style->graph_ceiling_ms, 0.0F, 1.0F);
+        f32 bar      = fraction * style->height;
+
+        /*
+         * Green up to half the ceiling, amber to three quarters, red past it.
+         */
+        NYA_Color color = (NYA_Color){ 0.35F, 0.85F, 0.45F, 0.9F };
+        if (fraction > 0.75F) color = (NYA_Color){ 0.95F, 0.35F, 0.35F, 0.9F };
+        else if (fraction > 0.5F) color = (NYA_Color){ 0.95F, 0.75F, 0.3F, 0.9F };
+
+        // from the bottom up.
+        nya_render2d_rect(window, x + ((f32)i * column_width), y + (style->height - bar), nya_max(column_width, 1.0F), bar, color);
+    }
+}
+
+void _nya_debug_overlay_trace_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style, f32 work_ms, b8 refresh) {
+    // held with the printed figures, so the table reads instead of flickering.
+    static NYA_TraceStats rows[NYA_TRACE_FEATURE_MAX];
+    static u32            row_count = 0;
+    static NYA_TraceStats total     = { 0 };
+
+    // every frame the page is up, or tracing stops.
+    nya_trace_request();
+
+    if (refresh) {
+        row_count = nya_trace_stats(rows, NYA_TRACE_FEATURE_MAX, style->sort);
+        total     = (NYA_TraceStats){ .name = "total" };
+
+        for (u32 i = 0; i < row_count; i++) {
+            total.cpu_ms     += rows[i].cpu_ms;
+            total.gpu_ms     += rows[i].gpu_ms;
+            total.has_gpu     = total.has_gpu || rows[i].has_gpu;
+            total.vram_bytes += rows[i].vram_bytes;
+            total.ram_bytes  += rows[i].ram_bytes;
+            total.draws      += rows[i].draws;
+        }
+    }
+
+    f32 line_height = nya_render2d_font_line_height();
+    if (line_height <= 0.0F) line_height = 16.0F;
+
+    f32 padding = 8.0F;
+    u32 shown   = nya_min(row_count, (u32)NYA_DEBUG_OVERLAY_TRACE_ROWS);
+
+    // a heading, the column names, the rows and the total.
+    f32 panel_height = (line_height * (f32)(shown + 3)) + (padding * 2.0F);
+    if (!style->hide_graph) panel_height += style->height + padding;
+
+    if (style->background.a > 0.0F) nya_render2d_rect(window, style->x, style->y, style->width + (padding * 2.0F), panel_height, style->background);
+
+    static const NYA_ConstCString sort_names[NYA_TRACE_SORT_COUNT] = { "cpu", "gpu", "vram", "ram", "name" };
+
+    f32 text_x = style->x + padding;
+    f32 text_y = style->y + padding;
+
+    if (NYA_TRACE_ENABLED) {
+        nya_render2d_textf_with_font(window, style->font, style->font_size, text_x, text_y, style->text_color, "%7.2f ms work   by %s", (f64)work_ms,
+                                     sort_names[style->sort]);
+    } else {
+        nya_render2d_textf_with_font(window, style->font, style->font_size, text_x, text_y, style->text_color, "tracing is compiled out of this build");
+    }
+    text_y += line_height;
+
+    // columns at fixed fractions of the width: the font is proportional, so padded printf fields would not line up.
+    const f32 columns[] = { 0.0F, 0.34F, 0.49F, 0.64F, 0.80F, 0.93F };
+    const NYA_Color dim = { 0.72F, 0.76F, 0.82F, 1.0F };
+
+    NYA_ConstCString headings[] = { "feature", "cpu ms", "gpu ms", "vram", "ram", "draws" };
+
+    for (u32 column = 0; column < nya_carray_length(headings); column++) {
+        nya_render2d_textf_with_font(window, style->font, style->font_size, text_x + (columns[column] * style->width), text_y, dim, "%s", headings[column]);
+    }
+    text_y += line_height;
+
+    for (u32 i = 0; i <= shown; i++) {
+        const NYA_TraceStats* row = i < shown ? &rows[i] : &total;
+
+        char cells[6][24];
+        (void)snprintf(cells[0], sizeof(cells[0]), "%s", row->name);
+        (void)snprintf(cells[1], sizeof(cells[1]), "%.2f", row->cpu_ms);
+        // n/a rather than zero: the feature shares a GPU group with another, or GPU time is not measured.
+        if (row->has_gpu) (void)snprintf(cells[2], sizeof(cells[2]), "%.2f", row->gpu_ms);
+        else (void)snprintf(cells[2], sizeof(cells[2]), "n/a");
+        (void)snprintf(cells[3], sizeof(cells[3]), "%s", row->vram_bytes > 0 ? _nya_debug_format_bytes(row->vram_bytes) : "-");
+        (void)snprintf(cells[4], sizeof(cells[4]), "%s", row->ram_bytes > 0 ? _nya_debug_format_bytes(row->ram_bytes) : "-");
+        (void)snprintf(cells[5], sizeof(cells[5]), "%.0f", (f64)row->draws);
+
+        NYA_Color color = i < shown ? style->text_color : dim;
+
+        for (u32 column = 0; column < nya_carray_length(cells); column++) {
+            nya_render2d_textf_with_font(window, style->font, style->font_size, text_x + (columns[column] * style->width), text_y, color, "%s", cells[column]);
+        }
+        text_y += line_height;
+    }
+
+    if (!style->hide_graph) _nya_debug_overlay_graph_draw(window, style, text_x, text_y);
+}
+
 void _nya_debug_overlay_apply_style_defaults(NYA_DebugOverlayStyle* style) {
-    if (style->width <= 0.0F) style->width = 300.0F;
+    if (style->width <= 0.0F) style->width = style->page == NYA_DEBUG_OVERLAY_PAGE_TRACE ? 460.0F : 300.0F;
     if (style->height <= 0.0F) style->height = 48.0F;
 
     // 33.3 ms is two frames at 60 Hz, so the top of the graph means a deadline missed twice.

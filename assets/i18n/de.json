@@ -37,13 +37,13 @@
   "hud_robots_neat": "neat  generation %u  arten %u  beste %.3f",
   "hud_robots_dqn": "dqn  schritte %u  wertung %.3f  erkundet %.0f%%",
   "hud_robots_run": "lauf %u  rekord %.3f  training %.1f ms",
-  "hud_keys": "klick ablegen   rechtsklick entfernen   leertaste schwall   c leeren   r gelände   p physik   m musik   b bloom   4 farbkorrektur   t statistik   esc menü",
+  "hud_keys": "klick ablegen   rechtsklick entfernen   leertaste schwall   c leeren   r gelände   p physik   m musik   b bloom   4 farbkorrektur   t statistik   y trace   u sortierung   l log   k aufnahme   esc menü",
 
   "cube3d_title": "3d-demo",
   "cube3d_hint_click": "klicke auf den würfel",
   "cube3d_hint_drag": "ziehe den würfel zum drehen",
   "cube3d_hint_camera": "rechtsziehen dreht, mausrad zoomt, r setzt zurück",
   "cube3d_hint_animation": "f hält den biegebalken an",
-  "cube3d_keys": "leertaste ablegen   c leeren   r gelände   b bloom   t statistik   esc menü",
+  "cube3d_keys": "leertaste ablegen   c leeren   r gelände   b bloom   t statistik   y trace   u sortierung   l log   k aufnahme   esc menü",
   "cube3d_render_keys": "1 tusche   2 verdeckung   3 fxaa   4 farbkorrektur   5 tiefenschärfe   6 tempolinien   7 abdrücke   8 hdr   v debug-ansicht"
 }

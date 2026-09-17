@@ -29,10 +29,7 @@ void gny_layer_ui_on_event(NYA_Window* window, NYA_Event* event) {
     if (event->type != NYA_EVENT_KEY_DOWN || event->as_key_event.is_repeat) return;
     const NYA_KeyEvent* key = &event->as_key_event;
 
-    if (nya_input_action_matches(GNY_ACTION_TOGGLE_OVERLAY, key->key, key->modifier_flags)) {
-        gny_overlay_toggle();
-        event->was_handled = true;
-    }
+    if (gny_overlay_key(key)) event->was_handled = true;
 }
 
 void gny_layer_ui_on_update(NYA_Window* window, f32 delta_time_s) {
@@ -83,10 +80,8 @@ void gny_layer_ui_on_render(NYA_Window* window) {
 
     nya_ui_end(ui);
 
-    // frame graph, draw calls, arena memory and the fullest ceilings, all from the engine.
-    if (gny_world()->overlay_enabled) {
-        nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = (f32)window->screen_width - GNY_UI_MARGIN - GNY_UI_OVERLAY_WIDTH, .y = GNY_UI_MARGIN });
-    }
+    // frame graph, draw calls, arena memory and the fullest ceilings, or the trace table, all from the engine.
+    gny_overlay_draw(window);
 }
 
 void _gny_ui_robots(NYA_Window* window, NYA_UI* ui, const GNY_Robots* robots) {
