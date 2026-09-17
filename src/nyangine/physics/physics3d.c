@@ -68,6 +68,7 @@ void nya_system_physics3d_init(void) {
     world_def.workerCount = 1;
 
     system->world = b3CreateWorld(&world_def);
+    nya_assert(b3World_IsValid(system->world), "more than B3_MAX_WORLDS (%d) worlds at once; see BOX3D_MAX_WORLDS", B3_MAX_WORLDS);
 
     nya_log_info("Physics3D system initialized (%.1f world units per metre, %u sub steps).", (f64)system->units_per_meter, system->sub_step_count);
 }

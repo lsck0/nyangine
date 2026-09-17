@@ -19,6 +19,9 @@
 #define BOX3D_A_LINUX_X86_64   BOX3D_BUILD_LINUX_X86_64 "/src/libbox3d.a"
 #define BOX3D_A_WINDOWS_X86_64 BOX3D_BUILD_WINDOWS_X86_64 "/src/libbox3d.a"
 
+// Worlds alive at once, one per NYA_World, for the same reason as BOX2D_MAX_WORLDS: 596 KB of .bss at 128.
+#define BOX3D_MAX_WORLDS "8"
+
 #define BOX3D_CMAKE_COMMON      \
     NYA_CMAKE_STATIC,           \
     "-DBOX3D_BUILD_DOCS=OFF",   \
@@ -31,7 +34,7 @@
 NYA_VendorRule vendor_box3d_linux_x86_64 = {
     .name = "box3d (linux-x86_64)",
 
-    .includes     = { "-I./vendor/box3d/include/", },
+    .includes     = { "-I./vendor/box3d/include/", "-DB3_MAX_WORLDS=" BOX3D_MAX_WORLDS, },
     .linker_flags = { BOX3D_A_LINUX_X86_64, },
 
     .parts = {
@@ -42,7 +45,7 @@ NYA_VendorRule vendor_box3d_linux_x86_64 = {
 
             .command = {
                 .program   = "cmake",
-                .arguments = { "-S", BOX3D_SOURCE, "-B", BOX3D_BUILD_LINUX_X86_64, BOX3D_CMAKE_COMMON, },
+                .arguments = { "-S", BOX3D_SOURCE, "-B", BOX3D_BUILD_LINUX_X86_64, BOX3D_CMAKE_COMMON, "-DCMAKE_C_FLAGS=-DB3_MAX_WORLDS=" BOX3D_MAX_WORLDS, },
             },
 
             .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },
@@ -63,7 +66,7 @@ NYA_VendorRule vendor_box3d_linux_x86_64 = {
 NYA_VendorRule vendor_box3d_windows_x86_64 = {
     .name = "box3d (windows-x86_64)",
 
-    .includes     = { "-I./vendor/box3d/include/", },
+    .includes     = { "-I./vendor/box3d/include/", "-DB3_MAX_WORLDS=" BOX3D_MAX_WORLDS, },
     .linker_flags = { BOX3D_A_WINDOWS_X86_64, },
 
     .parts = {
@@ -74,7 +77,7 @@ NYA_VendorRule vendor_box3d_windows_x86_64 = {
 
             .command = {
                 .program   = "cmake",
-                .arguments = { "-S", BOX3D_SOURCE, "-B", BOX3D_BUILD_WINDOWS_X86_64, BOX3D_CMAKE_COMMON, NYA_CMAKE_WINDOWS_TOOLCHAIN, },
+                .arguments = { "-S", BOX3D_SOURCE, "-B", BOX3D_BUILD_WINDOWS_X86_64, BOX3D_CMAKE_COMMON, NYA_CMAKE_WINDOWS_TOOLCHAIN, "-DCMAKE_C_FLAGS=-DB3_MAX_WORLDS=" BOX3D_MAX_WORLDS, },
             },
 
             .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },

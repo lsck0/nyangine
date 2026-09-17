@@ -82,6 +82,7 @@ void nya_system_physics2d_init(void) {
     world_def.workerCount = 1;
 
     system->world = b2CreateWorld(&world_def);
+    nya_assert(b2World_IsValid(system->world), "more than B2_MAX_WORLDS (%d) worlds at once; see BOX2D_MAX_WORLDS", B2_MAX_WORLDS);
 
     // read back rather than hardcoded, so it follows Box2D.
     system->contact_recycle_distance = b2World_GetContactRecycleDistance(system->world);
