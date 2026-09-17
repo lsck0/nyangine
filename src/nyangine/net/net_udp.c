@@ -789,7 +789,7 @@ void _nya_net_udp_send_packet(NYA_NetTransport* transport, u32 peer_index, u8 ki
 
     if (connection->sent_at_sequence[slot] != 0) {
         f32 lost         = connection->sent_at_ms[slot] != 0 ? 1.0F : 0.0F;
-        connection->loss = (connection->loss * 0.95F) + (lost * 0.05F);
+        connection->loss = (connection->loss * 0.98F) + (lost * 0.02F);
     }
 
     connection->sent_at_ms[slot]       = now_ms;

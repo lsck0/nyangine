@@ -213,6 +213,23 @@ s32 main(void) {
     nya_assert(nya_net_client_state() == NYA_NET_CLIENT_PLAYING, "the client dropped out");
   }
 
+  printf("TEST: the overlay line, from either side\n");
+  {
+    char line[NYA_NET_STATS_LINE_MAX];
+
+    nya_assert(nya_net_stats_line(line, sizeof(line)), "a playing client has nothing to show");
+    printf("  client: %s\n", line);
+
+    // the server's view of the same connection, as a dedicated server with no client of its own would show it.
+    NYA_NetClientState playing = _NYA_NET_CLIENT.state;
+    _NYA_NET_CLIENT.state      = NYA_NET_CLIENT_DISCONNECTED;
+
+    nya_assert(nya_net_stats_line(line, sizeof(line)), "a server with a remote player has nothing to show");
+    printf("  server: %s\n", line);
+
+    _NYA_NET_CLIENT.state = playing;
+  }
+
   nya_net_client_disconnect();
 
   (void)nya_world_set(SERVER_WORLD);

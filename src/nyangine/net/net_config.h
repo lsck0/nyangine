@@ -6,12 +6,16 @@
  * gnyame --server --port 27015                dedicated server, headless, no window
  * gnyame --connect 192.168.1.5 --port 27015   join somebody else's game
  * gnyame --name Luca                          any of the above, with a name
+ * gnyame --connect host --server-key 1f0c...  refuse any server but the one holding that key
+ * gnyame --net-latency 60 --net-loss 5        and a bad network, to see how the game holds up
  * ```
  * */
 #pragma once
 
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/net/net_crypto.h"
+#include "nyangine/net/net_transport.h"
 #include "nyangine/net/net_types.h"
 
 /*
@@ -67,6 +71,12 @@ struct NYA_NetLaunchConfig {
 
     /** From `--seed`, for a game that generates its world. Zero means the game decides. */
     u64 world_seed;
+
+    /** From `--server-key`, 64 hex digits: the only server a client will talk to. Zero trusts the first key it sees. */
+    u8 server_key[NYA_NET_KEY_SIZE];
+
+    /** From `--net-latency` and `--net-jitter` in milliseconds, `--net-loss`, `--net-duplicate` and `--net-reorder` in percent. */
+    NYA_NetConditions conditions;
 };
 
 /*

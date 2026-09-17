@@ -263,6 +263,15 @@ NYA_API void nya_net_server_rewind_end(void);
  * */
 NYA_API u64 nya_net_server_rewind_ticks(void) __attr_no_discard;
 
+/** How long a line nya_net_stats_line writes may be, terminator included. */
+#define NYA_NET_STATS_LINE_MAX 128
+
+/**
+ * One line summing up the network for a debug overlay: the connection to the server on a remote client, every remote
+ * player on a server. False, writing nothing, when there is no network to describe.
+ * */
+NYA_API b8 nya_net_stats_line(OUT char* out, u64 capacity) __attr_no_discard;
+
 /** What a player's connection is costing, and how often they broke the rules. Zeroes for a peer that is gone. */
 NYA_API NYA_NetPeerStats nya_net_server_peer_stats(NYA_NetPeerId peer) __attr_no_discard;
 

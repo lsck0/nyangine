@@ -150,7 +150,10 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     if (!style.hide_ceilings) ceiling_count = nya_min(nya_ceiling_count(), (u32)NYA_DEBUG_OVERLAY_CEILINGS);
 
-    u32 line_count = 2;
+    char net_line[NYA_NET_STATS_LINE_MAX];
+    b8   has_net = nya_net_stats_line(net_line, sizeof(net_line));
+
+    u32 line_count = has_net ? 3 : 2;
     if (!style.hide_draw_stats) line_count += 2;
     if (style.show_batch_breakdown) line_count++;
     if (!style.hide_memory) line_count += memory_count + 1 + gauge_count;
@@ -183,6 +186,11 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
     // worst beside average, since an average hides the hitch.
     nya_render2d_textf_with_font(window, style.font, style.font_size, text_x, text_y, style.text_color, "avg %7.2f     worst %7.2f", (f64)average_ms, (f64)worst_ms);
     text_y += line_height;
+
+    if (has_net) {
+        nya_render2d_textf_with_font(window, style.font, style.font_size, text_x, text_y, style.text_color, "%s", net_line);
+        text_y += line_height;
+    }
 
     if (!style.hide_draw_stats) {
         nya_render2d_textf_with_font(window, style.font, style.font_size, text_x, text_y, style.text_color, "%5u draws   %7u verts", draw_stats.draw_calls, draw_stats.vertices);

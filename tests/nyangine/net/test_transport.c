@@ -128,6 +128,8 @@ static void fill(u8* buffer, u64 size, u8 tag) {
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
+  _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
+
   b8 sdl_ok = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
@@ -705,6 +707,32 @@ s32 main(void) {
     hex[10] = 'x';
     nya_assert(!nya_net_key_from_hex(hex, parsed) && !nya_net_key_is_set(parsed), "a key with a bad digit parsed");
     nya_assert(!nya_net_key_from_hex("abcd", parsed), "a short key parsed");
+
+    // a saved identity survives a restart, and a damaged one is replaced rather than trusted.
+    {
+      NYA_EXPECT(nya_system_save_init());
+
+      NYA_ConstCString path = "test_transport/identity.nya";
+      (void)nya_save_delete(path);
+
+      NYA_NetKeyPair first  = { 0 };
+      NYA_NetKeyPair second = { 0 };
+
+      NYA_EXPECT(nya_net_key_pair_load(path, &first));
+      NYA_EXPECT(nya_net_key_pair_load(path, &second));
+
+      nya_assert(nya_net_key_is_set(first.public_key) && nya_memcmp(&first, &second, sizeof(first)) == 0, "a saved identity changed between loads");
+
+      NYA_Object* damaged = nya_object_create(arena);
+      nya_object_set(damaged, "secret_key", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "not a key" });
+      NYA_EXPECT(nya_save_write(path, damaged, NYA_SERDE_NONE));
+
+      NYA_EXPECT(nya_net_key_pair_load(path, &second));
+      nya_assert(nya_net_key_is_set(second.public_key) && nya_memcmp(&first, &second, sizeof(first)) != 0, "a damaged identity was not replaced");
+
+      NYA_EXPECT(nya_save_delete(path));
+      nya_system_save_deinit();
+    }
 
     NYA_NetTransport* server = nullptr;
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ .identity = server_identity }, &server));

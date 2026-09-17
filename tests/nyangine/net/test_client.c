@@ -431,6 +431,9 @@ s32 main(void) {
     nya_assert(nya_net_client_server_tick() == 0);
     nya_assert(nya_net_client_correction_count() == 0);
 
+    char line[NYA_NET_STATS_LINE_MAX];
+    nya_assert(!nya_net_stats_line(line, sizeof(line)) && line[0] == '\0', "no network still produced an overlay line");
+
     // The translation helper answers for a handle nobody has mapped.
     nya_assert(!nya_entity_is_valid(nya_net_client_local_entity((NYA_EntityHandle){ .index = 1, .generation = 1 })));
 

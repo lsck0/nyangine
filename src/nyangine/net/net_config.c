@@ -19,6 +19,9 @@ NYA_INTERNAL NYA_ConstCString _nya_net_config_value(s32 argc, NYA_CString* argv,
 /** Parses an unsigned decimal, or reports the default with a warning. Never exits. */
 NYA_INTERNAL u64 _nya_net_config_number(NYA_ConstCString text, NYA_ConstCString what, u64 fallback) __attr_no_discard;
 
+/** Parses a percentage, 0..100 with a fraction allowed, or reports zero with a warning. */
+NYA_INTERNAL f32 _nya_net_config_percent(NYA_ConstCString text, NYA_ConstCString what) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -122,6 +125,38 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
             continue;
         }
 
+        if (_nya_net_config_matches(argument, "server-key", &attached)) {
+            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
+
+            if (!nya_net_key_from_hex(value, config.server_key)) nya_log_warn("--server-key needs 64 hex digits; trusting the first key the server presents.");
+            continue;
+        }
+
+        if (_nya_net_config_matches(argument, "net-latency", &attached)) {
+            config.conditions.latency_ms = (u32)nya_min(_nya_net_config_number(_nya_net_config_value(argc, argv, &at, attached), "--net-latency", 0), (u64)5000);
+            continue;
+        }
+
+        if (_nya_net_config_matches(argument, "net-jitter", &attached)) {
+            config.conditions.jitter_ms = (u32)nya_min(_nya_net_config_number(_nya_net_config_value(argc, argv, &at, attached), "--net-jitter", 0), (u64)5000);
+            continue;
+        }
+
+        if (_nya_net_config_matches(argument, "net-loss", &attached)) {
+            config.conditions.loss_percent = _nya_net_config_percent(_nya_net_config_value(argc, argv, &at, attached), "--net-loss");
+            continue;
+        }
+
+        if (_nya_net_config_matches(argument, "net-duplicate", &attached)) {
+            config.conditions.duplicate_percent = _nya_net_config_percent(_nya_net_config_value(argc, argv, &at, attached), "--net-duplicate");
+            continue;
+        }
+
+        if (_nya_net_config_matches(argument, "net-reorder", &attached)) {
+            config.conditions.reorder_percent = _nya_net_config_percent(_nya_net_config_value(argc, argv, &at, attached), "--net-reorder");
+            continue;
+        }
+
         if (_nya_net_config_matches(argument, "seed", &attached)) {
             NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
 
@@ -158,6 +193,13 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
 
 void nya_net_config_report(const NYA_NetLaunchConfig* config) {
     nya_assert(config != nullptr);
+
+    const NYA_NetConditions* bad = &config->conditions;
+
+    if (nya_net_conditions_active(*bad)) {
+        nya_log_warn("Simulating a bad network: %u ms latency, %u ms jitter, %.1f%% loss, %.1f%% duplicated, %.1f%% reordered.", bad->latency_ms, bad->jitter_ms,
+                     (f64)bad->loss_percent, (f64)bad->duplicate_percent, (f64)bad->reorder_percent);
+    }
 
     if (config->role == NYA_NET_ROLE_CLIENT) {
         nya_log_info("Joining %s:%u as '%s'.", config->address, config->port, config->name);
@@ -231,6 +273,18 @@ NYA_ConstCString _nya_net_config_value(s32 argc, NYA_CString* argv, s32* at, NYA
     *at += 1;
 
     return argv[*at];
+}
+
+f32 _nya_net_config_percent(NYA_ConstCString text, NYA_ConstCString what) {
+    char* end   = nullptr;
+    f32   value = text == nullptr ? NAN : strtof(text, &end);
+
+    if (text == nullptr || end == text || *end != '\0' || !(value >= 0.0F && value <= 100.0F)) {
+        nya_log_warn("%s needs a percentage from 0 to 100; using 0.", what);
+        return 0.0F;
+    }
+
+    return value;
 }
 
 u64 _nya_net_config_number(NYA_ConstCString text, NYA_ConstCString what, u64 fallback) {

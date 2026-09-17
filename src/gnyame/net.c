@@ -28,12 +28,23 @@
  */
 
 void gny_net_start(void) {
+    f32 speed = NYA_CONFIG.game.player_speed > 0.0F ? NYA_CONFIG.game.player_speed : GNY_PLAYER_SPEED;
+
     if (GNY_LAUNCH.role == NYA_NET_ROLE_CLIENT) {
-        NYA_Error connected = nya_net_client_connect(GNY_LAUNCH.address, GNY_LAUNCH.port, GNY_LAUNCH.name, (NYA_NetClientConfig){
+        NYA_NetClientConfig config = {
             .replicated_flag   = GNY_FLAG_REPLICATED,
             .on_apply_command  = nya_callback(gny_net_apply_command),
             .on_sample_command = nya_callback(gny_net_sample_command),
-        });
+            .conditions        = GNY_LAUNCH.conditions,
+        };
+
+        nya_memcpy(config.server_key, GNY_LAUNCH.server_key, NYA_NET_KEY_SIZE);
+
+        // anonymous rather than no game when the save root is unwritable.
+        NYA_Error identified = nya_net_key_pair_load(GNY_NET_PLAYER_IDENTITY, &config.identity);
+        if (!identified.ok) nya_log_warn("Connecting anonymously: %s", (NYA_ConstCString)identified.message);
+
+        NYA_Error connected = nya_net_client_connect(GNY_LAUNCH.address, GNY_LAUNCH.port, GNY_LAUNCH.name, config);
 
         /*
          * A failed connection is not a crash.
@@ -48,12 +59,23 @@ void gny_net_start(void) {
         }
     }
 
-    NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){
+    NYA_NetServerConfig server = {
         .replicated_flag  = GNY_FLAG_REPLICATED,
         .max_players      = GNY_LAUNCH.max_players,
         .on_spawn_player  = nya_callback(gny_net_spawn_player),
         .on_apply_command = nya_callback(gny_net_apply_command),
-    }), "while starting the server");
+        .max_speed        = speed * GNY_NET_SPEED_HEADROOM,
+        .position_bits    = GNY_NET_POSITION_BITS,
+        .conditions       = GNY_LAUNCH.conditions,
+    };
+
+    // a listening server keeps its identity, so players who pinned its key can come back. Without one it makes a throwaway.
+    if (GNY_LAUNCH.listen_port != 0) {
+        NYA_Error identified = nya_net_key_pair_load(GNY_NET_SERVER_IDENTITY, &server.identity);
+        if (!identified.ok) nya_log_warn("Using a throwaway server key: %s", (NYA_ConstCString)identified.message);
+    }
+
+    NYA_EXPECT(nya_net_server_start(server), "while starting the server");
 
     // Single player is this same server with nothing after it. That is the whole architecture; see net.h.
     if (GNY_LAUNCH.listen_port != 0) {

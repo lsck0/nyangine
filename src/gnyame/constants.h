@@ -925,6 +925,19 @@
 /** How far apart players spawn, so two joining at once do not start inside each other. */
 #define GNY_PLAYER_SPAWN_SPACING 64.0F
 
+/**
+ * How much faster than the configured player speed the server lets anyone move before it cuts them short and counts
+ * it against them. Room for the speed being raised in the config file while the game runs.
+ * */
+#define GNY_NET_SPEED_HEADROOM 2.0F
+
+/** Positions cross the network in sixteenths of a pixel, finer than anything drawn. See NYA_NetServerConfig.position_bits. */
+#define GNY_NET_POSITION_BITS 4
+
+/** Where the server keeps the key players pin, and where a player keeps the one a server recognises them by, under the save root. */
+#define GNY_NET_SERVER_IDENTITY "net/server_identity.nya"
+#define GNY_NET_PLAYER_IDENTITY "net/player_identity.nya"
+
 /** Playback rate of the 3D demo's skinned bar and the 2D ledge marker. See GNY_ConfigGame.animation_speed. */
 #define GNY_ANIMATION_SPEED 1.0F
 

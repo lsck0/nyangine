@@ -50,6 +50,12 @@ struct NYA_NetKeyPair {
 /** A fresh key pair from the operating system's random source. Fails only when that source does. */
 NYA_API NYA_Error nya_net_key_pair_create(OUT NYA_NetKeyPair* out_key_pair) __attr_no_discard;
 
+/**
+ * The key pair saved at `relative` under the save root, or a fresh one saved there the first time, so a server keeps
+ * the identity players pinned and a player stays recognisable.
+ * */
+NYA_API NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* out_key_pair) __attr_no_discard;
+
 /** The pair a stored secret key belongs to. */
 NYA_API NYA_NetKeyPair nya_net_key_pair_from_secret(const u8* secret_key) __attr_no_discard;
 

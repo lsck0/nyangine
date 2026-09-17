@@ -313,6 +313,37 @@ s32 main(void) {
     printf("  4000 random command lines all produced a usable config\n");
   }
 
+  printf("TEST: --server-key pins the server, and a bad one pins nothing\n");
+  {
+    NYA_NetLaunchConfig pinned = PARSE("--connect", "host", "--server-key", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1F");
+
+    for (u32 i = 0; i < NYA_NET_KEY_SIZE; i++) nya_assert(pinned.server_key[i] == i, "key byte %u parsed as %u", i, pinned.server_key[i]);
+
+    NYA_NetLaunchConfig short_key = PARSE("--connect", "host", "--server-key=0001");
+    NYA_NetLaunchConfig not_hex   = PARSE("--connect", "host", "--server-key", "zz0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
+
+    nya_assert(!nya_net_key_is_set(short_key.server_key) && !nya_net_key_is_set(not_hex.server_key), "a malformed key pinned something");
+  }
+
+  printf("TEST: the network conditioner flags\n");
+  {
+    NYA_NetLaunchConfig bad = PARSE("--net-latency", "120", "--net-jitter=20", "--net-loss", "5", "--net-duplicate", "0.5", "--net-reorder", "1");
+
+    nya_assert(bad.conditions.latency_ms == 120 && bad.conditions.jitter_ms == 20);
+    nya_assert(bad.conditions.loss_percent == 5.0F && bad.conditions.duplicate_percent == 0.5F && bad.conditions.reorder_percent == 1.0F);
+    nya_assert(nya_net_conditions_active(bad.conditions));
+
+    nya_net_config_report(&bad);
+
+    // out of range or unreadable falls back to a clean wire rather than a broken one.
+    NYA_NetLaunchConfig silly = PARSE("--net-loss", "150", "--net-duplicate", "-3", "--net-reorder", "lots", "--net-latency", "99999999");
+
+    nya_assert(silly.conditions.loss_percent == 0.0F && silly.conditions.duplicate_percent == 0.0F && silly.conditions.reorder_percent == 0.0F);
+    nya_assert(silly.conditions.latency_ms == 5000, "a huge latency clamps, got %u", silly.conditions.latency_ms);
+
+    nya_assert(!nya_net_conditions_active(PARSE("--name", "x").conditions), "no flags is a clean wire");
+  }
+
   printf("PASSED: test_config (0 failures)\n");
 
   return EXIT_SUCCESS;

@@ -137,6 +137,48 @@ b8 nya_net_key_from_hex(NYA_ConstCString hex, OUT u8* out_key) {
     return true;
 }
 
+NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* out_key_pair) {
+    nya_assert(relative != nullptr);
+    nya_assert(out_key_pair != nullptr);
+
+    *out_key_pair = (NYA_NetKeyPair){ 0 };
+
+    NYA_Arena* scratch = nya_arena_create(.name = "net_key_pair_load");
+    defer      nya_arena_destroy(scratch);
+
+    NYA_Object* saved = nullptr;
+    NYA_Error   read  = nya_save_read(scratch, relative, NYA_SERDE_NONE, &saved);
+
+    if (read.ok) {
+        NYA_Value* secret = nya_object_get(saved, "secret_key");
+        u8         key[NYA_NET_KEY_SIZE] = { 0 };
+
+        if (secret != nullptr && secret->type == NYA_TYPE_STRING && nya_net_key_from_hex(secret->as_string, key) && nya_net_key_is_set(key)) {
+            *out_key_pair = nya_net_key_pair_from_secret(key);
+            _nya_net_crypto_wipe(key, sizeof(key));
+            return NYA_OK;
+        }
+
+        // a damaged file is replaced rather than trusted, which gives the endpoint a new identity. Said out loud, since players who pinned the old one will be refused.
+        nya_log_warn("The key pair in '%s' is unreadable; making a new one.", relative);
+    } else if (read.kind != NYA_ERROR_NOT_FOUND) {
+        return read;
+    }
+
+    NYA_TRY(nya_net_key_pair_create(out_key_pair));
+
+    char hex[NYA_NET_KEY_HEX_SIZE];
+    nya_net_key_to_hex(out_key_pair->secret_key, hex);
+
+    NYA_Object* fresh = nya_object_create(scratch);
+    nya_object_set(fresh, "secret_key", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = hex });
+
+    NYA_Error written = nya_save_write(relative, fresh, NYA_SERDE_NONE);
+    _nya_net_crypto_wipe(hex, sizeof(hex));
+
+    return written;
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API IMPLEMENTATION

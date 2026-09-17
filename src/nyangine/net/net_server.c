@@ -536,6 +536,50 @@ NYA_NetPeerStats nya_net_server_peer_stats(NYA_NetPeerId peer) {
     return stats;
 }
 
+b8 nya_net_stats_line(OUT char* out, u64 capacity) {
+    nya_assert(out != nullptr);
+    nya_assert(capacity > 0);
+
+    out[0] = '\0';
+
+    if (nya_net_client_state() == NYA_NET_CLIENT_PLAYING && _NYA_NET_CLIENT.replicas != nullptr) {
+        NYA_NetPeerStats stats = nya_net_client_stats();
+
+        (void)snprintf(out, capacity, "net %4.0f ms %3.0f jit %4.1f%% loss %5.1f/%4.1f kB/s %4u B snap %3.0f ms lerp %llu rs", (f64)stats.rtt_ms,
+                       (f64)stats.jitter_ms, (f64)(stats.packet_loss * 100.0F), (f64)stats.bytes_received_per_second / 1000.0,
+                       (f64)stats.bytes_sent_per_second / 1000.0, stats.snapshot_bytes, (f64)stats.interpolation_delay_ms, (unsigned long long)stats.retransmits);
+        return true;
+    }
+
+    if (!_NYA_NET_SERVER.running || _NYA_NET_SERVER.remote_peer_count == 0) return false;
+
+    // the worst connection is the one worth seeing; the bytes are everyone's together.
+    NYA_NetPeerStats worst = { 0 };
+    u64 sent       = 0;
+    u64 received   = 0;
+    u32 snapshot   = 0;
+    u32 violations = 0;
+
+    for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
+        _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
+        if (state == nullptr || !state->public_state.accepted || state->public_state.is_local) continue;
+
+        NYA_NetPeerStats stats = nya_net_server_peer_stats(state->public_state.peer);
+
+        if (stats.rtt_ms >= worst.rtt_ms) worst = stats;
+
+        sent       += stats.bytes_sent_per_second;
+        received   += stats.bytes_received_per_second;
+        snapshot    = nya_max(snapshot, stats.snapshot_bytes);
+        violations += stats.violations;
+    }
+
+    (void)snprintf(out, capacity, "net %2u peers %4.0f ms %4.1f%% loss %5.1f/%4.1f kB/s %4u B snap %u viol", _NYA_NET_SERVER.remote_peer_count, (f64)worst.rtt_ms,
+                   (f64)(worst.packet_loss * 100.0F), (f64)sent / 1000.0, (f64)received / 1000.0, snapshot, violations);
+
+    return true;
+}
+
 NYA_NetCommand nya_net_server_last_command(NYA_NetPeerId peer) {
     _NYA_NetServerPeerState* state = _nya_net_server_find(peer);
 
