@@ -6,6 +6,14 @@
 // glibc only declares it for _DEFAULT_SOURCE, which base_basic.h's strict POSIX request turns off.
 extern int mincore(void* address, size_t length, unsigned char* vector);
 
+// the same for these before glibc 2.35, which the Steam sniper runtime builds against. the values are the kernel's.
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS 0x20
+#endif
+#ifndef MAP_NORESERVE
+#define MAP_NORESERVE 0x4000
+#endif
+
 /** How many pages one mincore call inspects, so the vector fits on the stack. */
 #define _NYA_MEMORY_MINCORE_BATCH 1024
 
