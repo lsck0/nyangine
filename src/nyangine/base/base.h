@@ -11,6 +11,7 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_bits.h"
 #include "nyangine/base/base_build.h"
+#include "nyangine/base/base_cache.h"
 #include "nyangine/base/base_compress.h"
 #include "nyangine/base/base_crc.h"
 #include "nyangine/base/base_diagnostics.h"

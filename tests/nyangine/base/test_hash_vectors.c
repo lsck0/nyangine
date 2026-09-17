@@ -1,5 +1,5 @@
 /**
- * Known-answer vectors for FNV-1a and SipHash-2-4.
+ * Known-answer vectors for FNV-1a, wyhash and SipHash-2-4.
  */
 
 #include "nyangine/nyangine.c"
@@ -33,6 +33,32 @@ s32 main(void) {
 
     // The cstring overload has to agree with the explicit-length one.
     nya_check(nya_hash_fnv1a("foobar") == nya_hash_fnv1a("foobar", 6), "the fnv1a overloads disagree");
+  }
+  printf("  done\n");
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: wyhash against the copy vendored with box3d (verstable.h, default seed and secret). The inputs
+  // cover each length branch: empty, under four, four to sixteen, under 48, and the 48 byte rounds.
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: wyhash known answers\n");
+  {
+    struct {
+      NYA_ConstCString input;
+      u64              expected;
+    } cases[] = {
+      {                                                               "", 0x93228A4DE0EEC5A2ULL },
+      {                                                              "a", 0xACED12527FE5BFF8ULL },
+      {                                                            "abc", 0x989B4A209C1011C9ULL },
+      {                                                       "abcdefgh", 0xB9A4994F5B68615CULL },
+      {                                    "./assets/fonts/inter.ttf@17", 0xD4A575E0962D0BC5ULL },
+      {                        "./assets/shader/source/mesh3d.frag.hlsl", 0xD51C9D546F9B19C4ULL },
+      { "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", 0x117C207EF102ABB3ULL },
+    };
+
+    for (u64 i = 0; i < nya_carray_length(cases); i++) {
+      u64 got = nya_hash_wyhash(cases[i].input, strlen(cases[i].input));
+      nya_check(got == cases[i].expected, "wyhash(\"%s\") = 0x%016llX, expected 0x%016llX", cases[i].input, (unsigned long long)got, (unsigned long long)cases[i].expected);
+    }
   }
   printf("  done\n");
 

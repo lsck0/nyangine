@@ -54,6 +54,102 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 nya_hash_fnv1a(NYA_String st
 }
 
 /*
+ * wyhash's default secret. The first word doubles as the seed mix, as in the reference.
+ */
+NYA_INTERNAL const u64 _NYA_WYHASH_SEED = 0xca813bf4c7abf0a9ULL;
+NYA_INTERNAL const u64 _NYA_WYHASH_P0   = 0x2d358dccaa6c78a5ULL;
+NYA_INTERNAL const u64 _NYA_WYHASH_P1   = 0x8bb84b93962eacc9ULL;
+NYA_INTERNAL const u64 _NYA_WYHASH_P2   = 0x4b33a62ed433d4a3ULL;
+NYA_INTERNAL const u64 _NYA_WYHASH_P3   = 0x4d5a2da51de1aa47ULL;
+
+/**
+ * nya_hash_wyhash without the precondition, forced inline so the caches in base_cache.c, compiled after this
+ * file, pay no call on their lookup path.
+ * */
+__attribute__((always_inline)) NYA_INTERNAL inline u64 _nya_hash_wyhash(const void* data, u64 size) __attr_no_discard;
+
+/** The full 128 bit product, folded back into both words. */
+NYA_INTERNAL inline void _nya_wyhash_mum(u64* a, u64* b) {
+    u128 product = (u128)*a * *b;
+    *a           = (u64)product;
+    *b           = (u64)(product >> 64);
+}
+
+NYA_INTERNAL inline u64 _nya_wyhash_mix(u64 a, u64 b) {
+    _nya_wyhash_mum(&a, &b);
+    return a ^ b;
+}
+
+NYA_INTERNAL inline u64 _nya_wyhash_read8(const u8* bytes) {
+    u64 value = 0;
+    nya_memcpy(&value, bytes, sizeof(value));
+    return value;
+}
+
+NYA_INTERNAL inline u64 _nya_wyhash_read4(const u8* bytes) {
+    u32 value = 0;
+    nya_memcpy(&value, bytes, sizeof(value));
+    return value;
+}
+
+__attr_no_sanitize("unsigned-integer-overflow") u64 nya_hash_wyhash(const void* data, u64 size) {
+    nya_assert(data != nullptr || size == 0);
+    return _nya_hash_wyhash(data, size);
+}
+
+__attr_no_sanitize("unsigned-integer-overflow") u64 _nya_hash_wyhash(const void* data, u64 size) {
+
+    const u8* bytes = (const u8*)data;
+    u64       seed  = _NYA_WYHASH_SEED;
+    u64       a     = 0;
+    u64       b     = 0;
+
+    if (size <= 16) {
+        if (size >= 4) {
+            // two overlapping four byte reads from each end cover every length from 4 to 16.
+            u64 middle = (size >> 3) << 2;
+            a          = (_nya_wyhash_read4(bytes) << 32) | _nya_wyhash_read4(bytes + middle);
+            b          = (_nya_wyhash_read4(bytes + size - 4) << 32) | _nya_wyhash_read4(bytes + size - 4 - middle);
+        } else if (size > 0) {
+            a = ((u64)bytes[0] << 16) | ((u64)bytes[size >> 1] << 8) | bytes[size - 1];
+        }
+    } else {
+        u64 remaining = size;
+
+        if (remaining >= 48) {
+            u64 seed1 = seed;
+            u64 seed2 = seed;
+
+            do {
+                seed       = _nya_wyhash_mix(_nya_wyhash_read8(bytes) ^ _NYA_WYHASH_P1, _nya_wyhash_read8(bytes + 8) ^ seed);
+                seed1      = _nya_wyhash_mix(_nya_wyhash_read8(bytes + 16) ^ _NYA_WYHASH_P2, _nya_wyhash_read8(bytes + 24) ^ seed1);
+                seed2      = _nya_wyhash_mix(_nya_wyhash_read8(bytes + 32) ^ _NYA_WYHASH_P3, _nya_wyhash_read8(bytes + 40) ^ seed2);
+                bytes     += 48;
+                remaining -= 48;
+            } while (remaining >= 48);
+
+            seed ^= seed1 ^ seed2;
+        }
+
+        while (remaining > 16) {
+            seed       = _nya_wyhash_mix(_nya_wyhash_read8(bytes) ^ _NYA_WYHASH_P1, _nya_wyhash_read8(bytes + 8) ^ seed);
+            bytes     += 16;
+            remaining -= 16;
+        }
+
+        // the last sixteen bytes, overlapping what the loop already took when the length is not a multiple.
+        a = _nya_wyhash_read8(bytes + remaining - 16);
+        b = _nya_wyhash_read8(bytes + remaining - 8);
+    }
+
+    a ^= _NYA_WYHASH_P1;
+    b ^= seed;
+    _nya_wyhash_mum(&a, &b);
+
+    return _nya_wyhash_mix(a ^ _NYA_WYHASH_P0 ^ size, b ^ _NYA_WYHASH_P1);
+}
+
+/*
  * SipHash-2-4, the reference construction. Two compression rounds per 8 byte block and four
  * finalization rounds, which is where the name comes from.
  */

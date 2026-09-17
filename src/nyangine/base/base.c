@@ -9,6 +9,8 @@
 #include "nyangine/base/base_error.c"
 #include "nyangine/base/base_file.c"
 #include "nyangine/base/base_hash.c"
+// after base_hash.c, whose inline hash it calls.
+#include "nyangine/base/base_cache.c"
 #include "nyangine/base/base_integrity.c"
 #include "nyangine/base/base_lexer.c"
 #include "nyangine/base/base_logging.c"
