@@ -17,6 +17,9 @@ NYA_INTERNAL void _gny_screen_apply(void* data);
 /** Pops the top layer only if it is `layer_id`, so a stale request cannot remove another screen's layer. */
 NYA_INTERNAL b8 _gny_layer_pop_if(NYA_ConstCString layer_id);
 
+/** What one menu action does, whether a key event or a gamepad press carried it. */
+NYA_INTERNAL void _gny_menu_apply(GNY_Menu* menu, NYA_InputAction action);
+
 /** One row's label, with the value and arrows a volume row shows. */
 NYA_INTERNAL NYA_ConstCString _gny_menu_row_label(const GNY_MenuItem* item, b8 highlighted, OUT char* buffer, u64 capacity);
 
@@ -146,31 +149,23 @@ b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Eve
 
     if (menu->item_count == 0) return false;
 
-    const GNY_MenuItem* selected = &menu->items[menu->selected];
-
     switch (event->type) {
         case NYA_EVENT_KEY_DOWN: {
             const NYA_KeyEvent* key = &event->as_key_event;
 
             if (nya_input_action_matches(NYA_INPUT_ACTION_CANCEL, key->key, key->modifier_flags)) {
-                if (!key->is_repeat && menu->on_cancel != GNY_SCREEN_NONE) gny_screen_request(menu->on_cancel);
+                if (!key->is_repeat) _gny_menu_apply(menu, NYA_INPUT_ACTION_CANCEL);
                 return true;
             }
 
-            // adding item_count - 1 wraps upward without an unsigned 0 - 1.
-            if (nya_input_action_matches(NYA_INPUT_ACTION_UP, key->key, key->modifier_flags)) {
-                menu->selected = (menu->selected + menu->item_count - 1) % menu->item_count;
-            } else if (nya_input_action_matches(NYA_INPUT_ACTION_DOWN, key->key, key->modifier_flags)) {
-                menu->selected = (menu->selected + 1) % menu->item_count;
-            } else if (selected->kind == GNY_MENU_ITEM_KIND_VOLUME) {
-                f32 step = 0.0F;
-                if (nya_input_action_matches(NYA_INPUT_ACTION_LEFT, key->key, key->modifier_flags)) step = -GNY_VOLUME_STEP;
-                if (nya_input_action_matches(NYA_INPUT_ACTION_RIGHT, key->key, key->modifier_flags)) step = GNY_VOLUME_STEP;
+            const NYA_InputAction actions[] = { NYA_INPUT_ACTION_UP, NYA_INPUT_ACTION_DOWN, NYA_INPUT_ACTION_LEFT, NYA_INPUT_ACTION_RIGHT,
+                                                NYA_INPUT_ACTION_CONFIRM };
 
-                // nya_settings_volume_set clamps.
-                if (step != 0.0F) nya_settings_volume_set(selected->channel, nya_settings_volume(selected->channel) + step);
-            } else if (nya_input_action_matches(NYA_INPUT_ACTION_CONFIRM, key->key, key->modifier_flags)) {
-                gny_screen_request(selected->screen);
+            for (u32 i = 0; i < nya_carray_length(actions); i++) {
+                if (!nya_input_action_matches(actions[i], key->key, key->modifier_flags)) continue;
+
+                _gny_menu_apply(menu, actions[i]);
+                break;
             }
 
             // every key is swallowed: the menu is modal.
@@ -207,6 +202,58 @@ b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Eve
         }
 
         default: return false;
+    }
+}
+
+void gny_menu_update(GNY_Menu* menu) {
+    nya_assert(menu != nullptr);
+
+    if (menu->item_count == 0) return;
+
+    const NYA_InputAction actions[] = { NYA_INPUT_ACTION_UP,    NYA_INPUT_ACTION_DOWN,    NYA_INPUT_ACTION_LEFT, NYA_INPUT_ACTION_RIGHT,
+                                        NYA_INPUT_ACTION_CONFIRM, NYA_INPUT_ACTION_CANCEL, NYA_INPUT_ACTION_PAUSE };
+
+    u32 held = 0;
+    for (u32 i = 0; i < nya_carray_length(actions); i++) {
+        if (gny_action_pad_held(actions[i])) held |= 1U << i;
+    }
+
+    u32 pressed    = held & ~menu->pad_held;
+    menu->pad_held = held;
+
+    for (u32 i = 0; i < nya_carray_length(actions); i++) {
+        if ((pressed & (1U << i)) == 0) continue;
+
+        _gny_menu_apply(menu, actions[i] == NYA_INPUT_ACTION_PAUSE ? NYA_INPUT_ACTION_CANCEL : actions[i]);
+    }
+}
+
+void _gny_menu_apply(GNY_Menu* menu, NYA_InputAction action) {
+    const GNY_MenuItem* selected = &menu->items[menu->selected];
+
+    switch (action) {
+        case NYA_INPUT_ACTION_CANCEL: {
+            if (menu->on_cancel != GNY_SCREEN_NONE) gny_screen_request(menu->on_cancel);
+        } break;
+
+        // adding item_count - 1 wraps upward without an unsigned 0 - 1.
+        case NYA_INPUT_ACTION_UP: menu->selected = (menu->selected + menu->item_count - 1) % menu->item_count; break;
+        case NYA_INPUT_ACTION_DOWN: menu->selected = (menu->selected + 1) % menu->item_count; break;
+
+        // nya_settings_volume_set clamps.
+        case NYA_INPUT_ACTION_LEFT:
+        case NYA_INPUT_ACTION_RIGHT: {
+            if (selected->kind != GNY_MENU_ITEM_KIND_VOLUME) break;
+
+            f32 step = action == NYA_INPUT_ACTION_LEFT ? -GNY_VOLUME_STEP : GNY_VOLUME_STEP;
+            nya_settings_volume_set(selected->channel, nya_settings_volume(selected->channel) + step);
+        } break;
+
+        case NYA_INPUT_ACTION_CONFIRM: {
+            if (selected->kind == GNY_MENU_ITEM_KIND_SCREEN) gny_screen_request(selected->screen);
+        } break;
+
+        default: nya_unreachable();
     }
 }
 

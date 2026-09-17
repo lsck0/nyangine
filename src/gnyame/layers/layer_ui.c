@@ -7,6 +7,9 @@
  * */
 #include "gnyame/gnyame.h"
 
+/** Whether the gamepad's pause was held last tick. */
+NYA_INTERNAL b8 _gny_ui_pause_held = false;
+
 /** A translucent panel behind `lines` rows of text at the top left of `x`, `y`. */
 NYA_INTERNAL void _gny_ui_panel_draw(NYA_Window* window, f32 x, f32 y, f32 width, u32 lines);
 
@@ -39,6 +42,13 @@ void gny_layer_ui_on_event(NYA_Window* window, NYA_Event* event) {
 
 void gny_layer_ui_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_unused(window, delta_time_s);
+
+    // the gamepad's pause, which sends no key event. Tracked while a menu is up too, so a start button released
+    // over the pause menu is not still down here.
+    b8 pause_held = gny_action_pad_held(NYA_INPUT_ACTION_PAUSE);
+    if (pause_held && !_gny_ui_pause_held && !gny_modal_active()) gny_screen_request(GNY_SCREEN_PAUSE);
+
+    _gny_ui_pause_held = pause_held;
 }
 
 void gny_layer_ui_on_render(NYA_Window* window) {

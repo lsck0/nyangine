@@ -235,6 +235,31 @@ s32 main(void) {
         nya_check(nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_PAUSE_MENU_ID) == nullptr, "cancel resumes, stack '%s'", stack());
     }
 
+    // ── The menus and movement resolve to a gamepad as well as keys, and a menu polls it without a device.
+    {
+        NYA_InputBinding confirm = nya_input_action_get(NYA_INPUT_ACTION_CONFIRM, 2);
+        nya_check(confirm.kind == NYA_INPUT_BINDING_GAMEPAD_BUTTON && confirm.button == NYA_GAMEPAD_BUTTON_SOUTH, "confirm is the south button");
+        nya_check(nya_input_action_get(NYA_INPUT_ACTION_PAUSE, 1).button == NYA_GAMEPAD_BUTTON_START, "pause is start");
+
+        NYA_InputBinding up    = nya_input_action_get(NYA_INPUT_ACTION_UP, 2);
+        NYA_InputBinding stick = nya_input_action_get(NYA_INPUT_ACTION_UP, 3);
+        nya_check(up.kind == NYA_INPUT_BINDING_GAMEPAD_BUTTON && up.button == NYA_GAMEPAD_BUTTON_DPAD_UP, "menu up is the d-pad");
+        nya_check(stick.kind == NYA_INPUT_BINDING_GAMEPAD_AXIS && stick.axis == NYA_GAMEPAD_AXIS_LEFT_Y && stick.axis_threshold < 0.0F,
+                  "and the left stick pushed up");
+
+        NYA_InputBinding left = nya_input_action_get(GNY_ACTION_MOVE_LEFT, 3);
+        nya_check(nya_input_action_get(GNY_ACTION_MOVE_LEFT, 1).key == NYA_KEY_A, "walking keeps both keys");
+        nya_check(left.kind == NYA_INPUT_BINDING_GAMEPAD_AXIS && left.axis == NYA_GAMEPAD_AXIS_LEFT_X && left.axis_threshold < 0.0F,
+                  "and walks left on the stick");
+
+        nya_check(!gny_action_pad_held(NYA_INPUT_ACTION_CONFIRM), "with no pad connected nothing is held");
+
+        GNY_Menu menu = { .title = "menu", .items = items, .item_count = nya_carray_length(items), .selected = 2, .pad_held = U32_MAX };
+        gny_menu_update(&menu);
+        nya_system_sim_apply_commands();
+        nya_check(menu.pad_held == 0 && menu.selected == 2 && !nya_app_get()->should_quit, "and polling changes nothing");
+    }
+
     // ── The mouse: hover selects without consuming, a left click activates a row, anything else is swallowed.
     {
         GNY_Menu menu = { .title = "menu", .subtitle = "sub", .items = items, .item_count = nya_carray_length(items) };

@@ -15,8 +15,9 @@
  *
  * menu = (GNY_Menu){ .title = "paused", .items = items, .item_count = nya_carray_length(items), .on_cancel = GNY_SCREEN_RESUME };
  *
- * // on_event
+ * // on_event, and on_update for a gamepad
  * if (gny_menu_handle_event(window, &menu, event)) event->was_handled = true;
+ * gny_menu_update(&menu);
  *
  * // on_render
  * gny_menu_draw(window, &menu);
@@ -86,6 +87,12 @@ typedef struct GNY_Menu {
 
     /** What cancel requests. NONE swallows it. */
     GNY_Screen on_cancel;
+
+    /**
+     * Which menu actions a gamepad held last tick, one bit each. Set to U32_MAX when the menu opens, so the
+     * button that opened it does not also act in it.
+     * */
+    u32 pad_held;
 } GNY_Menu;
 
 /** Where row `index` sits, in window pixels. Drawing and hit testing both use it. */
@@ -93,6 +100,9 @@ NYA_Rectf gny_menu_item_bounds(const NYA_Window* window, const GNY_Menu* menu, u
 
 /** Navigates, edits volumes and requests screens. True when the event belonged to the menu. */
 b8 gny_menu_handle_event(const NYA_Window* window, GNY_Menu* menu, const NYA_Event* event);
+
+/** The same for a gamepad, which sends no events: polled from the menu layer's on_update. Pause acts as cancel. */
+void gny_menu_update(GNY_Menu* menu);
 
 /** The scrim, the panel, the title and the rows, in screen space. */
 void gny_menu_draw(NYA_Window* window, const GNY_Menu* menu);

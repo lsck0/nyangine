@@ -26,6 +26,9 @@ void gny_layer_main_menu_on_create(NYA_Window* window) {
     nya_unused(window);
 
     _gny_main_menu.selected = 0;
+
+    // the start or confirm press that opened this menu is still held.
+    _gny_main_menu.pad_held = U32_MAX;
 }
 
 void gny_layer_main_menu_on_destroy(NYA_Window* window) {
@@ -38,6 +41,8 @@ void gny_layer_main_menu_on_event(NYA_Window* window, NYA_Event* event) {
 
 void gny_layer_main_menu_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_unused(window, delta_time_s);
+
+    gny_menu_update(&_gny_main_menu);
 }
 
 void gny_layer_main_menu_on_render(NYA_Window* window) {
