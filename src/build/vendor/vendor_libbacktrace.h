@@ -52,8 +52,9 @@ NYA_VendorRule vendor_libbacktrace_linux_x86_64 = {
                 .arguments = {
                     NYA_CONFIGURE_LEADING_ARGS
                     "CC=" CC,
-                    // -fPIC because the debug build links this archive into a shared object.
-                    "CFLAGS=-g -O2 -fPIC",
+                    // -fPIC because the debug build links this archive into a shared object. No -g: the
+                    // shipped binary would carry libbacktrace's own line tables, and no trace needs them.
+                    "CFLAGS=-O2 -fPIC",
                 },
             },
 
@@ -91,7 +92,7 @@ NYA_VendorRule vendor_libbacktrace_windows_x86_64 = {
                     NYA_CONFIGURE_LEADING_ARGS
                     NYA_AUTOTOOLS_WINDOWS_HOST
                     "CC=" NYA_WINDOWS_CC,
-                    "CFLAGS=-g -O2",
+                    "CFLAGS=-O2",
                 },
             },
 
