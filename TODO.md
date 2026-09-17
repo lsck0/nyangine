@@ -295,11 +295,20 @@ build jobs restore it.
 - `[ ]` No clang-format gate: the tree does not satisfy `.clang-format`, and fixing that is a 73k line
   reformat with include regrouping to review.
 
-## `[ ]` The verification rule is not being kept
+## `[~]` The verification rule
 
-Nothing in the game touches nn/DQN/NEAT, saves, nav, jobs, occlusion, LOD, gamepads, or the
-sqlite, curl, discord and steam plugins. nn matters most: the GDD makes DQN and NEAT robot programming
-the core mechanic.
+Six drones in the 2D scene learn to fly to the player: five fly the best NEAT genome, one a DQN. Both train
+on one job every 0.25 s and are scored on the same eight test flights; the HUD shows the numbers and the
+genome. A nav flow field around terrain and map picks each drone's next point. The best genome is saved to
+`robots.nya` and each run is a row in `robots.db` (sqlite). `game.robots` in `engine.nya` toggles and tunes
+it live. Release: 3 to 4 µs a tick on the main thread, a 2 to 7 ms job every 0.25 s, about 0.8 MB resident,
+nothing when disabled. Walking and all menus work on a gamepad, tested headless through SDL's virtual
+joystick.
+
+- `[ ]` Gamepad just-pressed edges reset per frame while key edges reset per tick, so a pad press polled in
+  `on_update` is unreliable; the menus detect presses themselves.
+- `[ ]` Nothing in the game calls render occlusion (`nya_occlusion_*`) or mesh LOD (`nya_render3d_lod_*`).
+- curl, Discord and Steam stay unwired: each needs a network, a running client or an app id.
 
 ---
 
