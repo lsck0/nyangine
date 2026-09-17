@@ -242,7 +242,9 @@ NYA_Error nya_net_server_listen(u16 port) {
     if (_NYA_NET_SERVER.udp != nullptr) return nya_error(NYA_ERROR_NOT_OK, "the server is already listening");
 
     NYA_NetTransport* transport = nullptr;
-    NYA_TRY(nya_net_transport_udp_create(_NYA_NET_SERVER.allocator, &transport));
+    NYA_NetUdpOptions options = { .identity = _NYA_NET_SERVER.config.identity, .conditions = _NYA_NET_SERVER.config.conditions };
+
+    NYA_TRY(nya_net_transport_udp_create(_NYA_NET_SERVER.allocator, options, &transport));
 
     NYA_Error listening = nya_net_transport_listen(transport, port);
 
@@ -259,6 +261,12 @@ NYA_Error nya_net_server_listen(u16 port) {
 
 b8 nya_net_server_is_listening(void) {
     return _NYA_NET_SERVER.udp != nullptr;
+}
+
+const u8* nya_net_server_public_key(void) {
+    if (_NYA_NET_SERVER.udp == nullptr) return nullptr;
+
+    return nya_net_transport_public_key(_NYA_NET_SERVER.udp);
 }
 
 NYA_Error nya_net_server_attach_local(OUT NYA_NetTransport** out_client_transport) {
@@ -704,6 +712,9 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
 
     state->public_state.accepted = true;
     state->public_state.is_local = nya_net_transport_is_local(transport);
+
+    const u8* peer_key = nya_net_transport_peer_key(transport, peer);
+    if (peer_key != nullptr) nya_memcpy(state->public_state.public_key, peer_key, NYA_NET_KEY_SIZE);
 
     if (state->public_state.is_local) _NYA_NET_SERVER.local_peer = peer;
     else _NYA_NET_SERVER.remote_peer_count++;

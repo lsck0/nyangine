@@ -108,16 +108,40 @@ void nya_net_transport_destroy(NYA_NetTransport* transport) {
     if (transport->vtable->destroy != nullptr) transport->vtable->destroy(transport);
 }
 
-void nya_net_simulate_packet_loss(NYA_NetTransport* transport, u32 percent) {
+void nya_net_transport_condition(NYA_NetTransport* transport, NYA_NetConditions conditions) {
     nya_assert(transport != nullptr);
     nya_assert(transport->vtable != nullptr);
-    nya_assert(percent <= 100, "packet loss is a percentage, got %u", percent);
+    nya_assert(conditions.loss_percent >= 0.0F && conditions.loss_percent <= 100.0F, "loss is a percentage, got %f", (f64)conditions.loss_percent);
+    nya_assert(conditions.duplicate_percent >= 0.0F && conditions.duplicate_percent <= 100.0F);
+    nya_assert(conditions.reorder_percent >= 0.0F && conditions.reorder_percent <= 100.0F);
 
-    // Silently nothing for a transport with no wire. A test that turns loss on for a loopback pair
-    // is asking for something meaningless rather than something wrong.
-    if (transport->vtable->simulate_packet_loss == nullptr) return;
+    // silently nothing for a transport with no wire: a test degrading a loopback pair asks for something meaningless, not wrong.
+    if (transport->vtable->condition == nullptr) return;
 
-    transport->vtable->simulate_packet_loss(transport, percent);
+    transport->vtable->condition(transport, conditions);
+}
+
+b8 nya_net_conditions_active(NYA_NetConditions conditions) {
+    return conditions.latency_ms > 0 || conditions.jitter_ms > 0 || conditions.loss_percent > 0.0F || conditions.duplicate_percent > 0.0F
+        || conditions.reorder_percent > 0.0F;
+}
+
+const u8* nya_net_transport_public_key(NYA_NetTransport* transport) {
+    nya_assert(transport != nullptr);
+    nya_assert(transport->vtable != nullptr);
+
+    if (transport->vtable->public_key == nullptr) return nullptr;
+
+    return transport->vtable->public_key(transport);
+}
+
+const u8* nya_net_transport_peer_key(NYA_NetTransport* transport, NYA_NetPeerId peer) {
+    nya_assert(transport != nullptr);
+    nya_assert(transport->vtable != nullptr);
+
+    if (transport->vtable->peer_key == nullptr) return nullptr;
+
+    return transport->vtable->peer_key(transport, peer);
 }
 
 b8 nya_net_transport_is_local(const NYA_NetTransport* transport) {

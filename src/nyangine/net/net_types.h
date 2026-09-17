@@ -115,6 +115,12 @@ enum NYA_NetDisconnect {
     /** The server shut down. */
     NYA_NET_DISCONNECT_SERVER_CLOSED,
 
+    /** The server could not prove it holds the key the client was told to expect. */
+    NYA_NET_DISCONNECT_IDENTITY,
+
+    /** The server counted too many broken rules for movement or actions. */
+    NYA_NET_DISCONNECT_CHEATING,
+
     NYA_NET_DISCONNECT_COUNT,
 };
 

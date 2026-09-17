@@ -215,8 +215,8 @@ s32 main(void) {
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
 
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &server));
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &client));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
     // several ports, so a port in use on a shared CI machine is not a flaky failure.
     u16 port = 0;
@@ -379,8 +379,8 @@ s32 main(void) {
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
 
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &server));
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &client));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
     u16 port = 0;
     for (u16 candidate = FIRST_PORT + 32; candidate < FIRST_PORT + 48; candidate++) {
@@ -401,8 +401,8 @@ s32 main(void) {
 
     NYA_NetPeerId to_client = cs.last_peer;
 
-    nya_net_simulate_packet_loss(server, 30);
-    nya_net_simulate_packet_loss(client, 30);
+    nya_net_transport_condition(server, (NYA_NetConditions){ .loss_percent = 30.0F });
+    nya_net_transport_condition(client, (NYA_NetConditions){ .loss_percent = 30.0F });
 
     u32 before = cc.messages;
     u32 count  = 24;
@@ -459,8 +459,8 @@ s32 main(void) {
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
 
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &server));
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &client));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
     u16 port = 0;
     for (u16 candidate = FIRST_PORT + 64; candidate < FIRST_PORT + 80; candidate++) {
@@ -546,8 +546,8 @@ s32 main(void) {
     NYA_NetTransport* server = nullptr;
     NYA_NetTransport* client = nullptr;
 
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &server));
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &client));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
     u16 port = 0;
     for (u16 candidate = FIRST_PORT + 96; candidate < FIRST_PORT + 112; candidate++) {
@@ -588,6 +588,198 @@ s32 main(void) {
                "a message needing more fragments than the limit was accepted");
 
     nya_net_transport_destroy(client);
+    nya_net_transport_destroy(server);
+  }
+
+  printf("TEST: the conditioner delays, duplicates and reorders without breaking delivery\n");
+  {
+    NYA_NetTransport* server = nullptr;
+    NYA_NetTransport* client = nullptr;
+
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
+
+    u16 port = 0;
+    for (u16 candidate = FIRST_PORT + 160; candidate < FIRST_PORT + 176 && port == 0; candidate++) {
+      if (nya_net_transport_listen(server, candidate).ok) port = candidate;
+    }
+    nya_assert(port != 0);
+
+    NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
+
+    Collected cs = { 0 };
+    Collected cc = { 0 };
+
+    nya_assert(pump_until(client, server, &cc, &cs, both_connected), "the handshake did not complete");
+
+    NYA_NetPeerId to_client = cs.last_peer;
+
+    // ── latency is latency ─────────────────────────────────────────────────────
+    nya_net_transport_condition(server, (NYA_NetConditions){ .latency_ms = 120 });
+
+    u8 ping[32];
+    fill(ping, sizeof(ping), 0x51);
+
+    u32 before  = cc.messages;
+    u64 sent_ms = nya_clock_get_monotonic_ms();
+
+    NYA_EXPECT(nya_net_transport_send(server, to_client, NYA_NET_CHANNEL_UNRELIABLE, ping, sizeof(ping)));
+
+    while (cc.messages == before && nya_clock_get_monotonic_ms() < sent_ms + 2000) {
+      drain(client, &cc);
+      drain(server, &cs);
+      sleep_ms(1);
+    }
+
+    u64 took_ms = nya_clock_get_monotonic_ms() - sent_ms;
+    printf("  a datagram under 120 ms of latency took %llu ms\n", (unsigned long long)took_ms);
+
+    nya_assert(cc.messages == before + 1, "the delayed datagram never arrived");
+    nya_assert(took_ms >= 115, "120 ms of latency delivered in %llu ms", (unsigned long long)took_ms);
+
+    // ── everything at once, both ways ──────────────────────────────────────────
+    NYA_NetConditions bad = { .latency_ms = 40, .jitter_ms = 20, .loss_percent = 10.0F, .duplicate_percent = 10.0F, .reorder_percent = 10.0F };
+
+    nya_net_transport_condition(server, bad);
+    nya_net_transport_condition(client, bad);
+
+    before = cc.messages;
+
+    u32 count = 60;
+
+    for (u32 i = 0; i < count; i++) {
+      u8 message[64];
+      fill(message, sizeof(message), (u8)i);
+      NYA_EXPECT(nya_net_transport_send(server, to_client, NYA_NET_CHANNEL_RELIABLE, message, sizeof(message)));
+    }
+
+    u64 deadline = nya_clock_get_monotonic_ms() + 15000;
+    while (cc.messages < before + count && nya_clock_get_monotonic_ms() < deadline) {
+      drain(client, &cc);
+      drain(server, &cs);
+      sleep_ms(2);
+    }
+
+    // a duplicated datagram is a replay to the receiver, so nothing may arrive twice once the stream settles.
+    u64 settle = nya_clock_get_monotonic_ms() + 600;
+    while (nya_clock_get_monotonic_ms() < settle) {
+      drain(client, &cc);
+      drain(server, &cs);
+      sleep_ms(2);
+    }
+
+    nya_assert(cc.messages == before + count, "%u of %u reliable messages arrived through a bad link", cc.messages - before, count);
+
+    for (u32 i = 0; i < count; i++) nya_assert(cc.first_byte[before + i] == (u8)i, "message %u arrived out of order", i);
+
+    NYA_NetPeerStats received = nya_net_transport_stats(client, cc.last_peer);
+    NYA_NetPeerStats sent     = nya_net_transport_stats(server, to_client);
+
+    printf("  60 reliable messages in order: %.1f ms rtt, %.1f ms jitter, %.0f%% loss, %llu resends; %llu duplicates rejected\n", (f64)sent.rtt_ms,
+           (f64)sent.jitter_ms, (f64)(sent.packet_loss * 100.0F), (unsigned long long)sent.retransmits, (unsigned long long)received.packets_rejected);
+
+    nya_assert(received.packets_rejected > 0, "10%% duplication produced no rejected replays");
+    nya_assert(sent.rtt_ms > 60.0F && sent.rtt_ms < 250.0F, "80 ms of added round trip measured as %.1f ms", (f64)sent.rtt_ms);
+
+    nya_net_transport_destroy(client);
+    nya_net_transport_destroy(server);
+  }
+
+  printf("TEST: a pinned server key is enforced, and a player key is proven\n");
+  {
+    NYA_NetKeyPair server_identity = { 0 };
+    NYA_NetKeyPair player_identity = { 0 };
+    NYA_NetKeyPair impostor        = { 0 };
+
+    NYA_EXPECT(nya_net_key_pair_create(&server_identity));
+    NYA_EXPECT(nya_net_key_pair_create(&player_identity));
+    NYA_EXPECT(nya_net_key_pair_create(&impostor));
+
+    // the hex form survives a round trip, and anything that is not exactly a key is refused.
+    char hex[NYA_NET_KEY_HEX_SIZE];
+    nya_net_key_to_hex(server_identity.public_key, hex);
+
+    u8 parsed[NYA_NET_KEY_SIZE];
+    nya_assert(nya_net_key_from_hex(hex, parsed) && nya_memcmp(parsed, server_identity.public_key, NYA_NET_KEY_SIZE) == 0);
+
+    hex[10] = 'x';
+    nya_assert(!nya_net_key_from_hex(hex, parsed) && !nya_net_key_is_set(parsed), "a key with a bad digit parsed");
+    nya_assert(!nya_net_key_from_hex("abcd", parsed), "a short key parsed");
+
+    NYA_NetTransport* server = nullptr;
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ .identity = server_identity }, &server));
+
+    u16 port = 0;
+    for (u16 candidate = FIRST_PORT + 176; candidate < FIRST_PORT + 192 && port == 0; candidate++) {
+      if (nya_net_transport_listen(server, candidate).ok) port = candidate;
+    }
+    nya_assert(port != 0);
+
+    nya_assert(nya_memcmp(nya_net_transport_public_key(server), server_identity.public_key, NYA_NET_KEY_SIZE) == 0, "the server is not who it was told to be");
+
+    // ── a client expecting someone else refuses this server ─────────────────────
+    {
+      NYA_NetUdpOptions options = { 0 };
+      nya_memcpy(options.server_key, impostor.public_key, NYA_NET_KEY_SIZE);
+
+      NYA_NetTransport* client = nullptr;
+      NYA_EXPECT(nya_net_transport_udp_create(arena, options, &client));
+      NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
+
+      NYA_NetDisconnect reason   = NYA_NET_DISCONNECT_NONE;
+      u32               connects = 0;
+      u64               deadline = nya_clock_get_monotonic_ms() + 8000;
+
+      while (reason == NYA_NET_DISCONNECT_NONE && nya_clock_get_monotonic_ms() < deadline) {
+        NYA_NetTransportEvent event = { 0 };
+
+        while (nya_net_transport_poll(client, &event)) {
+          if (event.kind == NYA_NET_TRANSPORT_EVENT_CONNECTED) connects++;
+          if (event.kind == NYA_NET_TRANSPORT_EVENT_DISCONNECTED) reason = event.reason;
+        }
+
+        pump(server, 1);
+      }
+
+      nya_assert(connects == 0, "a client connected to a server whose key it was told to refuse");
+      nya_assert(reason == NYA_NET_DISCONNECT_IDENTITY, "the refusal was reported as %d rather than as an identity failure", (int)reason);
+
+      nya_net_transport_destroy(client);
+    }
+
+    // ── the right key, and a player key the server can read back ────────────────
+    {
+      NYA_NetUdpOptions options = { .identity = player_identity };
+      nya_memcpy(options.server_key, server_identity.public_key, NYA_NET_KEY_SIZE);
+
+      NYA_NetTransport* client = nullptr;
+      NYA_EXPECT(nya_net_transport_udp_create(arena, options, &client));
+      NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
+
+      Collected cs = { 0 };
+      Collected cc = { 0 };
+
+      nya_assert(pump_until(client, server, &cc, &cs, both_connected), "a client pinning the right key did not connect");
+
+      const u8* proven = nya_net_transport_peer_key(server, cs.last_peer);
+      nya_assert(proven != nullptr && nya_memcmp(proven, player_identity.public_key, NYA_NET_KEY_SIZE) == 0, "the server did not learn the player's key");
+
+      const u8* server_seen = nya_net_transport_peer_key(client, cc.last_peer);
+      nya_assert(server_seen != nullptr && nya_memcmp(server_seen, server_identity.public_key, NYA_NET_KEY_SIZE) == 0);
+
+      u8 message[48];
+      fill(message, sizeof(message), 0x3C);
+
+      u32 before = cs.messages;
+      NYA_EXPECT(nya_net_transport_send(client, cc.last_peer, NYA_NET_CHANNEL_RELIABLE, message, sizeof(message)));
+
+      EXPECTED_MESSAGES = before + 1;
+      nya_assert(pump_until(client, server, &cc, &cs, server_got_expected), "an encrypted message did not arrive");
+      nya_assert(cs.first_byte[before] == 0x3C, "an encrypted message arrived altered");
+
+      nya_net_transport_destroy(client);
+    }
+
     nya_net_transport_destroy(server);
   }
 
@@ -643,7 +835,7 @@ s32 main(void) {
     NYA_EXPECT(nya_net_transport_loopback_create(arena, &a, &b));
 
     // A loopback has no wire to lose packets on, so this does nothing rather than lying about it.
-    nya_net_simulate_packet_loss(a, 100);
+    nya_net_transport_condition(a, (NYA_NetConditions){ .loss_percent = 100.0F });
 
     Collected ca = { 0 };
     Collected cb = { 0 };
@@ -680,7 +872,7 @@ s32 main(void) {
   printf("TEST: transport construction and reconfiguration errors\n");
   {
     NYA_NetTransport* transport = nullptr;
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &transport));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &transport));
 
     // a transport holds one socket. Listening twice or connecting after listening would discard the first,
     // so both are refused.
@@ -698,7 +890,7 @@ s32 main(void) {
 
     // A hostname that cannot resolve is an error a player can act on rather than a hang.
     NYA_NetTransport* client = nullptr;
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &client));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
     NYA_Error unresolvable = nya_net_transport_connect(client, "this-host-does-not-exist.invalid", 1234);
     nya_assert(!unresolvable.ok, "an unresolvable hostname was accepted");

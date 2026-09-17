@@ -7,6 +7,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/net/net_crypto.h"
 #include "nyangine/net/net_types.h"
 
 /*
@@ -19,6 +20,8 @@ typedef struct NYA_NetTransport      NYA_NetTransport;
 typedef struct NYA_NetTransportVTable NYA_NetTransportVTable;
 typedef struct NYA_NetTransportEvent NYA_NetTransportEvent;
 typedef struct NYA_NetPeerStats      NYA_NetPeerStats;
+typedef struct NYA_NetConditions     NYA_NetConditions;
+typedef struct NYA_NetUdpOptions     NYA_NetUdpOptions;
 typedef enum NYA_NetTransportKind    NYA_NetTransportKind;
 typedef enum NYA_NetTransportEventKind NYA_NetTransportEventKind;
 
@@ -80,8 +83,53 @@ struct NYA_NetPeerStats {
     u64 packets_sent;
     u64 packets_received;
 
+    /** Over the last whole second. */
+    u32 bytes_sent_per_second;
+    u32 bytes_received_per_second;
+
     /** Reliable messages resent because they were not acknowledged in time. */
     u64 retransmits;
+
+    /** Packets from this peer's address that failed authentication or replayed a sequence, dropped unread. */
+    u64 packets_rejected;
+
+    /** The newest snapshot's size in bytes: sent, on the server, or received, on a client. */
+    u32 snapshot_bytes;
+
+    /** Commands the server refused or corrected for breaking its rules. See NYA_NetServerConfig.violation_limit. */
+    u32 violations;
+};
+
+/**
+ * A bad network on purpose, applied to what one endpoint sends. Zero is a clean wire.
+ * */
+struct NYA_NetConditions {
+    /** Added to every datagram, in milliseconds. */
+    u32 latency_ms;
+
+    /** Each datagram's delay varies by up to this much either way, which also reorders them. */
+    u32 jitter_ms;
+
+    /** Percentages, 0..100. */
+    f32 loss_percent;
+    f32 duplicate_percent;
+
+    /** Datagrams held back past the ones sent after them. */
+    f32 reorder_percent;
+};
+
+/** How a UDP transport identifies itself and whom it trusts. Zero is an anonymous client, or a server with a throwaway identity. */
+struct NYA_NetUdpOptions {
+    /**
+     * This endpoint's long term key. A server's is its identity, and a server not given one generates a fresh one.
+     * A client's is optional and lets the server recognise the player across connections.
+     * */
+    NYA_NetKeyPair identity;
+
+    /** The server key a client accepts. Zero trusts whatever key the server presents. */
+    u8 server_key[NYA_NET_KEY_SIZE];
+
+    NYA_NetConditions conditions;
 };
 
 /**
@@ -113,10 +161,14 @@ struct NYA_NetTransportVTable {
     /** Human readable, for a server browser or a log line. */
     NYA_ConstCString (*peer_address)(NYA_NetTransport* transport, NYA_NetPeerId peer);
 
-    /**
-     * Drops `percent` of outgoing datagrams on purpose. Null for a transport that cannot lie.
-     * */
-    void (*simulate_packet_loss)(NYA_NetTransport* transport, u32 percent);
+    /** Degrades what this endpoint sends. Null for a transport with no wire to degrade. */
+    void (*condition)(NYA_NetTransport* transport, NYA_NetConditions conditions);
+
+    /** This endpoint's long term public key, or null for a transport without one. */
+    const u8* (*public_key)(NYA_NetTransport* transport);
+
+    /** The peer's long term public key, or null when it presented none. */
+    const u8* (*peer_key)(NYA_NetTransport* transport, NYA_NetPeerId peer);
 
     void (*destroy)(NYA_NetTransport* transport);
 };
@@ -151,9 +203,10 @@ struct NYA_NetTransport {
 NYA_API NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTransport** out_a, OUT NYA_NetTransport** out_b) __attr_no_discard;
 
 /**
- * A transport over UDP datagrams, with reliability and fragmentation on top. See net_udp.c.
+ * A transport over UDP datagrams, encrypted, with reliability and fragmentation on top. See net_udp.c and net_crypto.h.
  * */
-NYA_API NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, OUT NYA_NetTransport** out_transport) __attr_no_discard;
+NYA_API NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptions options, OUT NYA_NetTransport** out_transport)
+    __attr_no_discard;
 
 /**
  * A transport over Steam's relayed peer-to-peer sockets.
@@ -181,10 +234,17 @@ NYA_API NYA_NetPeerStats nya_net_transport_stats(NYA_NetTransport* transport, NY
 NYA_API NYA_ConstCString nya_net_transport_peer_address(NYA_NetTransport* transport, NYA_NetPeerId peer) __attr_no_discard;
 NYA_API void      nya_net_transport_destroy(NYA_NetTransport* transport);
 
-/**
- * Deliberately drops `percent` of outgoing datagrams, 0..100.
- * */
-NYA_API void nya_net_simulate_packet_loss(NYA_NetTransport* transport, u32 percent);
+/** Degrades what this transport sends. Replaces any earlier conditions; zero restores a clean wire. */
+NYA_API void nya_net_transport_condition(NYA_NetTransport* transport, NYA_NetConditions conditions);
+
+/** Whether any condition is set at all. */
+NYA_API b8 nya_net_conditions_active(NYA_NetConditions conditions) __attr_no_discard;
+
+/** This endpoint's long term public key, or null. */
+NYA_API const u8* nya_net_transport_public_key(NYA_NetTransport* transport) __attr_no_discard;
+
+/** The long term key `peer` proved it holds during the handshake, or null for an anonymous or local peer. */
+NYA_API const u8* nya_net_transport_peer_key(NYA_NetTransport* transport, NYA_NetPeerId peer) __attr_no_discard;
 
 /**
  * Whether this transport's peers are in the same process.

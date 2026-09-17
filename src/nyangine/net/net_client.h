@@ -84,6 +84,15 @@ struct NYA_NetClientConfig {
      * How far a prediction may be wrong before it is corrected, in world units.
      * */
     f32 correction_threshold;
+
+    /** The server's public key. Any other server is refused. Zero trusts the key the server presents. */
+    u8 server_key[NYA_NET_KEY_SIZE];
+
+    /** The player's own long term key, so the server can recognise them. Zero connects anonymously. */
+    NYA_NetKeyPair identity;
+
+    /** A bad network on purpose, for what this client sends. */
+    NYA_NetConditions conditions;
 };
 
 /*

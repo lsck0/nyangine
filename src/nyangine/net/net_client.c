@@ -114,7 +114,10 @@ NYA_Error nya_net_client_connect(NYA_ConstCString address, u16 port, NYA_ConstCS
 
     NYA_NetTransport* transport = nullptr;
 
-    NYA_Error created = nya_net_transport_udp_create(allocator, &transport);
+    NYA_NetUdpOptions options = { .identity = config.identity, .conditions = config.conditions };
+    nya_memcpy(options.server_key, config.server_key, NYA_NET_KEY_SIZE);
+
+    NYA_Error created = nya_net_transport_udp_create(allocator, options, &transport);
     if (!created.ok) {
         nya_arena_destroy(allocator);
         return created;

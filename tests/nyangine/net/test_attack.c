@@ -11,19 +11,28 @@
 #include <time.h>
 
 #define FIRST_PORT 48100
-#define SETTLE_MS  60
 
 /*
  * The wire layout, restated here rather than shared with the implementation.
  */
-#define PROTOCOL        0x6E796105U
-#define HEADER_SIZE     15
+#define PROTOCOL        0x6E796106U
+#define HEADER_SIZE     12
 #define FRAGMENT_HEADER 9
+#define MAC_SIZE        16
+#define KEY_SIZE        32
 
 #define KIND_DATA       0
 #define KIND_CONNECT    1
+#define KIND_ACCEPT     2
 #define KIND_DISCONNECT 3
+#define KIND_CHALLENGE  4
 #define KIND_RESPONSE   5
+#define KIND_REFUSED    6
+
+#define CONNECT_SIZE   64
+#define CHALLENGE_SIZE 45
+#define RESPONSE_SIZE  93
+#define ACCEPT_SIZE    53
 
 static void sleep_ms(u32 milliseconds) {
   struct timespec request = { .tv_sec = milliseconds / 1000, .tv_nsec = (long)(milliseconds % 1000) * 1000000L };
@@ -39,25 +48,6 @@ static void write_u32(u8* out, u32 value) {
   for (u32 i = 0; i < 4; i++) out[i] = (u8)((value >> (i * 8)) & 0xFF);
 }
 
-/** A packet header with the given fragment count. Returns how many bytes were written. */
-static u64 write_header(u8* out, u16 sequence, u8 fragment_count) {
-  u64 at = 0;
-
-  write_u32(out + at, PROTOCOL);
-  at += 4;
-  write_u16(out + at, sequence);
-  at += 2;
-  write_u16(out + at, 0); // ack
-  at += 2;
-  write_u32(out + at, 0); // ack_bits
-  at += 4;
-  write_u16(out + at, 0); // reliable_ack
-  at += 2;
-  out[at++] = fragment_count;
-
-  return at;
-}
-
 /** Pumps a transport, discarding everything. Lets timers fire and queues drain. */
 static void pump(NYA_NetTransport* transport, u32 times) {
   for (u32 i = 0; i < times; i++) {
@@ -68,58 +58,138 @@ static void pump(NYA_NetTransport* transport, u32 times) {
   }
 }
 
+/** A hostile client on its own socket that completed a real handshake, so its sealed packets are accepted. */
+typedef struct {
+  NET_DatagramSocket* socket;
+  u8                  send_key[KEY_SIZE];
+  u8                  receive_key[KEY_SIZE];
+  u64                 sequence;
+} RawPeer;
+
+static void send_connect(NET_DatagramSocket* socket, NET_Address* target, u16 port, u32 size) {
+  u8 connect[CONNECT_SIZE] = { 0 };
+  write_u32(connect, PROTOCOL);
+  connect[4] = KIND_CONNECT;
+
+  (void)NET_SendDatagram(socket, target, port, connect, (int)size);
+}
+
 /**
- * Completes a real handshake on a raw socket, so the attacker is a legitimate peer.
+ * Waits for a datagram of kind `kind` on `socket`, pumping the server meanwhile. Copies it into `out`, which holds
+ * at least NYA_NET_MAX_DATAGRAM bytes, and returns its size, or zero on a timeout.
  * */
-static b8 raw_handshake(NET_DatagramSocket* socket, NET_Address* target, u16 port, NYA_NetTransport* server) {
-  u8  connect[HEADER_SIZE + 1 + 8] = { 0 };
-  u64 connect_size                 = write_header(connect, 0, 0);
-  connect[connect_size++]          = (u8)(KIND_CONNECT << 4);
-  connect_size += 8;
-
-  u64 deadline = nya_clock_get_monotonic_ms() + 4000;
-
-  b8 responded = false;
+static u64 await_kind(NET_DatagramSocket* socket, NYA_NetTransport* server, u8 kind, u8* out, u32 timeout_ms) {
+  u64 deadline = nya_clock_get_monotonic_ms() + timeout_ms;
 
   while (nya_clock_get_monotonic_ms() < deadline) {
-    if (!responded) (void)NET_SendDatagram(socket, target, port, connect, (int)connect_size);
-
     pump(server, 1);
 
     NET_Datagram* reply = nullptr;
 
     while (NET_ReceiveDatagram(socket, &reply) && reply != nullptr) {
-      if (reply->buflen >= (int)HEADER_SIZE + 1) {
-        u8 kind = reply->buf[HEADER_SIZE] >> 4;
+      u64 size = (u64)reply->buflen;
+      b8  hit  = size >= 5 && reply->buf[4] == kind && size <= NYA_NET_MAX_DATAGRAM;
 
-        // The challenge: echo the cookie back.
-        if (kind == 4 && reply->buflen >= (int)HEADER_SIZE + 1 + 8) {
-          u8  response[HEADER_SIZE + 1 + 8] = { 0 };
-          u64 at                            = write_header(response, 0, 0);
-
-          response[at++] = (u8)(KIND_RESPONSE << 4);
-
-          for (u32 i = 0; i < 8; i++) response[at++] = reply->buf[HEADER_SIZE + 1 + i];
-
-          (void)NET_SendDatagram(socket, target, port, response, (int)at);
-          responded = true;
-        }
-
-        // Accepted. Now a peer, and the data paths are reachable.
-        if (kind == 2) {
-          NET_DestroyDatagram(reply);
-          return true;
-        }
-      }
+      if (hit) nya_memcpy(out, reply->buf, size);
 
       NET_DestroyDatagram(reply);
       reply = nullptr;
+
+      if (hit) return size;
     }
 
-    sleep_ms(4);
+    sleep_ms(2);
+  }
+
+  return 0;
+}
+
+/** Builds a RESPONSE to `challenge` with a fresh ephemeral key, keeping what the ACCEPT will need. */
+static void build_response(const u8* challenge, u8* response, NYA_NetKeyPair* ephemeral, u8* premaster) {
+  NYA_EXPECT(nya_net_key_pair_create(ephemeral));
+
+  u8 dh[KEY_SIZE]   = { 0 };
+  u8 none[KEY_SIZE] = { 0 };
+  u8 key[KEY_SIZE]  = { 0 };
+
+  nya_assert(_nya_net_crypto_exchange(dh, ephemeral->secret_key, challenge + 13));
+
+  write_u32(response, PROTOCOL);
+  response[4] = KIND_RESPONSE;
+  nya_memcpy(response + 5, challenge + 5, 8);
+  nya_memcpy(response + 13, ephemeral->public_key, KEY_SIZE);
+  nya_memset(response + 13 + KEY_SIZE, 0, KEY_SIZE);
+
+  _nya_net_crypto_premaster(premaster, dh, none, challenge + 13, ephemeral->public_key, none);
+  _nya_net_crypto_response_key(key, premaster);
+  _nya_net_crypto_seal(key, 0, response, 13 + (KEY_SIZE * 2), nullptr, 0, response + 13 + (KEY_SIZE * 2));
+}
+
+/** Completes a real handshake on a raw socket, so the attacker is a legitimate, keyed peer. */
+static b8 raw_handshake(RawPeer* peer, NET_Address* target, u16 port, NYA_NetTransport* server) {
+  u8 datagram[NYA_NET_MAX_DATAGRAM];
+
+  for (u32 attempt = 0; attempt < 20; attempt++) {
+    send_connect(peer->socket, target, port, CONNECT_SIZE);
+
+    if (await_kind(peer->socket, server, KIND_CHALLENGE, datagram, 300) != CHALLENGE_SIZE) continue;
+
+    u8             response[RESPONSE_SIZE];
+    NYA_NetKeyPair ephemeral          = { 0 };
+    u8             premaster[KEY_SIZE] = { 0 };
+
+    build_response(datagram, response, &ephemeral, premaster);
+
+    (void)NET_SendDatagram(peer->socket, target, port, response, RESPONSE_SIZE);
+
+    if (await_kind(peer->socket, server, KIND_ACCEPT, datagram, 300) != ACCEPT_SIZE) continue;
+
+    u8 dh[KEY_SIZE] = { 0 };
+    nya_assert(_nya_net_crypto_exchange(dh, ephemeral.secret_key, datagram + 5));
+
+    _nya_net_crypto_session(peer->send_key, peer->receive_key, premaster, dh, datagram + 5);
+    nya_assert(_nya_net_crypto_open(peer->receive_key, U64_MAX, datagram, 5 + KEY_SIZE, nullptr, 0, datagram + 5 + KEY_SIZE), "the ACCEPT did not verify");
+
+    peer->sequence = 1;
+    return true;
   }
 
   return false;
+}
+
+/** Seals `body` behind a header and sends it as the raw peer. `body` is encrypted in place. */
+static void raw_send(RawPeer* peer, NET_Address* target, u16 port, u8 kind, u8 fragment_count, u8* body, u64 body_size) {
+  nya_assert(HEADER_SIZE + body_size + MAC_SIZE <= 65000);
+
+  u64 total  = HEADER_SIZE + body_size + MAC_SIZE;
+  u8* packet = malloc(total);
+
+  u64 sequence = peer->sequence++;
+
+  packet[0] = kind;
+  write_u16(packet + 1, (u16)sequence);
+  write_u16(packet + 3, 0);
+  write_u32(packet + 5, 0);
+  write_u16(packet + 9, 0);
+  packet[11] = fragment_count;
+
+  nya_memcpy(packet + HEADER_SIZE, body, body_size);
+  _nya_net_crypto_seal(peer->send_key, sequence, packet, HEADER_SIZE, packet + HEADER_SIZE, body_size, packet + HEADER_SIZE + body_size);
+
+  (void)NET_SendDatagram(peer->socket, target, port, packet, (int)total);
+
+  free(packet);
+}
+
+/** Writes one fragment header at `out`, returning its size. */
+static u64 write_fragment(u8* out, u8 channel, u16 message_id, u16 index, u16 total, u16 length) {
+  out[0] = channel;
+  write_u16(out + 1, message_id);
+  write_u16(out + 3, index);
+  write_u16(out + 5, total);
+  write_u16(out + 7, length);
+
+  return FRAGMENT_HEADER;
 }
 
 /** Counts how many peers a transport currently holds, by walking its own table. */
@@ -132,6 +202,32 @@ static u32 peer_count(NYA_NetTransport* transport) {
   }
 
   return count;
+}
+
+/** The newest occupied slot, which after a handshake is the peer that just joined. */
+static u32 newest_peer(NYA_NetTransport* transport) {
+  const _NYA_NetUdpState* state = transport->state;
+
+  u32 newest = 0;
+  for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
+    if (state->peers[i].occupied && state->peers[i].generation >= state->peers[newest].generation) newest = i;
+  }
+
+  return newest;
+}
+
+/** Binds a fresh listening server in the test range. */
+static NYA_NetTransport* listen_server(NYA_Arena* arena, u16 first, OUT u16* out_port) {
+  NYA_NetTransport* server = nullptr;
+  NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
+
+  *out_port = 0;
+  for (u16 candidate = first; candidate < first + 16 && *out_port == 0; candidate++) {
+    if (nya_net_transport_listen(server, candidate).ok) *out_port = candidate;
+  }
+  nya_assert(*out_port != 0, "could not bind any port in the test range");
+
+  return server;
 }
 
 s32 main(void) {
@@ -151,217 +247,235 @@ s32 main(void) {
   // TRANSPORT: what a raw socket can do to a listening server
   // ═════════════════════════════════════════════════════════════════════════════
 
-  NYA_NetTransport* server = nullptr;
-  NYA_EXPECT(nya_net_transport_udp_create(arena, &server));
-
-  u16 port = 0;
-  for (u16 candidate = FIRST_PORT; candidate < FIRST_PORT + 16; candidate++) {
-    if (nya_net_transport_listen(server, candidate).ok) {
-      port = candidate;
-      break;
-    }
-  }
-  nya_assert(port != 0, "could not bind any port in the test range");
-
-  // The attacker's own socket, so packets can be malformed in ways the transport would never produce.
-  NET_DatagramSocket* attacker = NET_CreateDatagramSocket(nullptr, 0, 0);
-  nya_assert(attacker != nullptr, "could not open an attacker socket: %s", SDL_GetError());
+  u16               port   = 0;
+  NYA_NetTransport* server = listen_server(arena, FIRST_PORT, &port);
 
   NET_Address* target = NET_ResolveHostname("127.0.0.1");
   nya_assert(target != nullptr);
   nya_assert(NET_WaitUntilResolved(target, 3000) == 1, "could not resolve loopback");
 
+  printf("TEST: a CONNECT is answered without amplification, and only at a bounded rate\n");
+  {
+    NET_DatagramSocket* flooder = NET_CreateDatagramSocket(nullptr, 0, 0);
+    nya_assert(flooder != nullptr);
+
+    u8 datagram[NYA_NET_MAX_DATAGRAM];
+
+    // a short CONNECT would make the challenge larger than the request, so it gets nothing.
+    send_connect(flooder, target, port, 16);
+    nya_assert(await_kind(flooder, server, KIND_CHALLENGE, datagram, 150) == 0, "a short CONNECT was answered");
+
+    send_connect(flooder, target, port, CONNECT_SIZE);
+    u64 size = await_kind(flooder, server, KIND_CHALLENGE, datagram, 500);
+    nya_assert(size == CHALLENGE_SIZE && size <= CONNECT_SIZE, "a CONNECT got a %llu byte answer", (unsigned long long)size);
+
+    // the address's allowance, not the flood's size, decides how many answers go out.
+    u32 before = peer_count(server);
+
+    for (u32 i = 0; i < 400; i++) send_connect(flooder, target, port, CONNECT_SIZE);
+
+    pump(server, 10);
+
+    u32 answered = 0;
+    while (await_kind(flooder, server, KIND_CHALLENGE, datagram, 50) != 0) answered++;
+
+    printf("  400 CONNECTs from one address: %u challenges, %u new peers\n", answered, peer_count(server) - before);
+
+    nya_assert(answered <= 24, "a flood of CONNECTs got %u answers from a rate limited server", answered);
+    nya_assert(peer_count(server) == before, "a CONNECT took a peer slot");
+
+    NET_DestroyDatagramSocket(flooder);
+    sleep_ms(2100);
+  }
+
+  printf("TEST: a forged cookie or a bad tag takes no slot\n");
+  {
+    NET_DatagramSocket* forger = NET_CreateDatagramSocket(nullptr, 0, 0);
+    nya_assert(forger != nullptr);
+
+    u32 before = peer_count(server);
+
+    u8 datagram[NYA_NET_MAX_DATAGRAM];
+    send_connect(forger, target, port, CONNECT_SIZE);
+    nya_assert(await_kind(forger, server, KIND_CHALLENGE, datagram, 500) == CHALLENGE_SIZE);
+
+    u8             response[RESPONSE_SIZE];
+    NYA_NetKeyPair ephemeral          = { 0 };
+    u8             premaster[KEY_SIZE] = { 0 };
+
+    // a made up cookie: a keyed hash under a secret only the server holds, so guessing is the only option.
+    build_response(datagram, response, &ephemeral, premaster);
+    for (u32 i = 0; i < 8; i++) response[5 + i] ^= 0xCD;
+    (void)NET_SendDatagram(forger, target, port, response, RESPONSE_SIZE);
+
+    // a real cookie with a tag that does not match: a client that does not know what the server's key needs.
+    build_response(datagram, response, &ephemeral, premaster);
+    response[RESPONSE_SIZE - 1] ^= 0x01;
+    (void)NET_SendDatagram(forger, target, port, response, RESPONSE_SIZE);
+
+    // a low order ephemeral key, which would force an all zero shared secret.
+    build_response(datagram, response, &ephemeral, premaster);
+    nya_memset(response + 13, 0, KEY_SIZE);
+    (void)NET_SendDatagram(forger, target, port, response, RESPONSE_SIZE);
+
+    nya_assert(await_kind(forger, server, KIND_ACCEPT, datagram, 400) == 0, "a forged response was accepted");
+    nya_assert(peer_count(server) == before, "a forged response took a slot");
+
+    printf("  forged cookie, bad tag and low order key refused\n");
+
+    NET_DestroyDatagramSocket(forger);
+  }
+
+  RawPeer attacker = { .socket = NET_CreateDatagramSocket(nullptr, 0, 0) };
+  nya_assert(attacker.socket != nullptr, "could not open an attacker socket: %s", SDL_GetError());
+
+  nya_assert(raw_handshake(&attacker, target, port, server), "the attacker could not join to mount the attacks");
+
   printf("TEST: an oversized datagram is dropped, not parsed\n");
   {
     /*
-     * The critical case. `buflen` can be up to 65507 because SDL_net's receive buffer is 64 kB, so the
-     * fragment path below was reachable with a length no datagram was assumed able to carry.
+     * `buflen` can be up to 65507 because SDL_net's receive buffer is 64 kB, so this is reachable.
      */
-    u64 total_size = HEADER_SIZE + FRAGMENT_HEADER + 60000;
-    u8* packet     = nya_arena_alloc(arena, total_size);
+    u64 body_size = FRAGMENT_HEADER + 60000;
+    u8* body      = nya_arena_alloc(arena, body_size);
 
-    u64 at = write_header(packet, 1, 1);
+    u64 at = write_fragment(body, NYA_NET_CHANNEL_UNRELIABLE, 7, 1, 2, 60000);
+    nya_memset(body + at, 0x41, 60000);
 
-    packet[at++] = (u8)((KIND_DATA << 4) | NYA_NET_CHANNEL_UNRELIABLE);
-    write_u16(packet + at, 7); // message id
-    at += 2;
-    write_u16(packet + at, 1); // fragment index 1, so the copy is offset, not at zero
-    at += 2;
-    write_u16(packet + at, 2); // of two
-    at += 2;
-    write_u16(packet + at, 60000); // and claims sixty thousand bytes
-    at += 2;
-
-    nya_memset(packet + at, 0x41, 60000);
-
-    /*
-     * A completed handshake first, so this reaches the fragment path.
-     */
-    nya_assert(raw_handshake(attacker, target, port, server), "the attacker could not join to mount the attack");
-
-    (void)NET_SendDatagram(attacker, target, port, packet, (int)total_size);
+    raw_send(&attacker, target, port, KIND_DATA, 1, body, body_size);
     pump(server, 8);
 
-    printf("  survived a %llu byte datagram claiming a 60000 byte fragment\n", (unsigned long long)total_size);
+    printf("  survived a %llu byte sealed datagram claiming a 60000 byte fragment\n", (unsigned long long)(HEADER_SIZE + body_size + MAC_SIZE));
   }
 
-  printf("TEST: an over-length fragment inside a legal datagram is refused\n");
+  printf("TEST: an over-length fragment inside a legal sealed datagram is refused\n");
   {
-    /*
-     * The same overflow, kept under NYA_NET_MAX_DATAGRAM so the datagram-size guard does not catch it.
-     */
-    u8  packet[NYA_NET_MAX_DATAGRAM] = { 0 };
-    u64 at                           = write_header(packet, 2, 1);
+    u8  body[NYA_NET_MAX_DATAGRAM - HEADER_SIZE - MAC_SIZE] = { 0 };
+    u64 claimed                                            = sizeof(body) - FRAGMENT_HEADER;
 
-    u64 claimed = NYA_NET_MAX_DATAGRAM - HEADER_SIZE - FRAGMENT_HEADER; // exactly `usable`, plus we lie below
+    // index 1 of 2 claims a whole datagram's worth at a non-zero offset, one byte more than the body holds.
+    u64 at = write_fragment(body, NYA_NET_CHANNEL_UNRELIABLE, 8, 1, 2, (u16)(claimed + 1));
+    nya_memset(body + at, 0x42, claimed);
 
-    packet[at++] = (u8)((KIND_DATA << 4) | NYA_NET_CHANNEL_UNRELIABLE);
-    write_u16(packet + at, 8);
-    at += 2;
-    write_u16(packet + at, 1);
-    at += 2;
-    write_u16(packet + at, 2);
-    at += 2;
-    write_u16(packet + at, (u16)claimed);
-    at += 2;
+    raw_send(&attacker, target, port, KIND_DATA, 1, body, sizeof(body));
 
-    nya_memset(packet + at, 0x42, claimed);
+    // and a fragment count far past what the body holds.
+    at = write_fragment(body, NYA_NET_CHANNEL_UNRELIABLE, 9, 0, 1, 4);
+    raw_send(&attacker, target, port, KIND_DATA, 255, body, at + 4);
 
-    (void)NET_SendDatagram(attacker, target, port, packet, (int)(at + claimed));
     pump(server, 8);
 
-    printf("  survived a fragment claiming the whole datagram at a non-zero offset\n");
+    nya_assert(peer_count(server) >= 1, "the server lost its peers to a malformed fragment");
+    printf("  survived fragments claiming more than the datagram holds\n");
   }
 
-  printf("TEST: a flood of spoofed CONNECTs consumes no peer slots\n");
+  printf("TEST: a forged, tampered or replayed packet is rejected before it is read\n");
   {
-    /*
-     * Address validation, which is the difference between a peer table and a free-for-all.
-     */
-    u32 before = peer_count(server);
-
-    u8  connect[HEADER_SIZE + 1 + 8] = { 0 };
-    u64 connect_size                 = write_header(connect, 0, 0);
-    connect[connect_size++]          = (u8)(KIND_CONNECT << 4);
-    connect_size += 8;
-
-    for (u32 i = 0; i < 200; i++) (void)NET_SendDatagram(attacker, target, port, connect, (int)connect_size);
-
-    pump(server, 20);
-
-    u32 after = peer_count(server);
-
-    printf("  200 CONNECTs: %u peers before, %u after\n", before, after);
-
-    nya_assert(after <= before + 1, "%u CONNECTs produced %u peer slots; a CONNECT must not allocate one", 200, after - before);
-  }
-
-  printf("TEST: a response with a forged cookie is refused\n");
-  {
-    u32 before = peer_count(server);
-
-    u8  response[HEADER_SIZE + 1 + 8] = { 0 };
-    u64 at                            = write_header(response, 0, 0);
-
-    response[at++] = (u8)(KIND_RESPONSE << 4);
-
-    // A cookie an attacker made up. It is a keyed hash of their own address under a secret only the
-    // server holds, so guessing is the only option and sixty-four bits is not guessable.
-    for (u32 i = 0; i < 8; i++) response[at++] = 0xCD;
-
-    for (u32 i = 0; i < 50; i++) (void)NET_SendDatagram(attacker, target, port, response, (int)at);
-
-    pump(server, 20);
-
-    nya_assert(peer_count(server) == before, "a forged connect cookie was accepted");
-    printf("  50 forged cookies rejected\n");
-  }
-
-  printf("TEST: a forged DISCONNECT does not evict a real peer\n");
-  {
-    /*
-     * The control channel, which was seventeen forgeable bytes.
-     */
     NYA_NetTransport* client = nullptr;
-    NYA_EXPECT(nya_net_transport_udp_create(arena, &client));
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
     NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
 
-    // Let the handshake finish: connect, challenge, response, accept.
     u64 deadline = nya_clock_get_monotonic_ms() + 4000;
     b8  joined   = false;
+    u32 messages = 0;
+
+    NYA_NetPeerId to_server = NYA_NET_PEER_NONE;
 
     while (!joined && nya_clock_get_monotonic_ms() < deadline) {
       NYA_NetTransportEvent event = { 0 };
 
       while (nya_net_transport_poll(client, &event)) {
-        if (event.kind == NYA_NET_TRANSPORT_EVENT_CONNECTED) joined = true;
+        if (event.kind == NYA_NET_TRANSPORT_EVENT_CONNECTED) {
+          joined    = true;
+          to_server = event.peer;
+        }
       }
 
       pump(server, 1);
-      sleep_ms(2);
     }
 
     nya_assert(joined, "the client never completed the handshake");
 
+    u32 slot = newest_peer(server);
+
+    _NYA_NetUdpState* server_state = server->state;
+    _NYA_NetUdpState* client_state = client->state;
+
     u32 with_client = peer_count(server);
-    nya_assert(with_client >= 1, "the server should hold the client");
 
-    // A DISCONNECT with no token, and one with a wrong token.
-    for (u32 attempt = 0; attempt < 2; attempt++) {
-      u8  packet[HEADER_SIZE + 1 + 8] = { 0 };
-      u64 at                          = write_header(packet, 0, 0);
-
-      packet[at++] = (u8)((KIND_DISCONNECT << 4) | (u8)NYA_NET_DISCONNECT_REQUESTED);
-
-      for (u32 i = 0; i < 8; i++) packet[at++] = attempt == 0 ? 0x00 : 0xEE;
-
-      for (u32 i = 0; i < 20; i++) (void)NET_SendDatagram(attacker, target, port, packet, (int)at);
+    // an unauthenticated DISCONNECT from the attacker's socket, in the old unsealed shape and as garbage.
+    for (u32 attempt = 0; attempt < 20; attempt++) {
+      u8 packet[HEADER_SIZE + 1 + 8] = { KIND_DISCONNECT };
+      (void)NET_SendDatagram(attacker.socket, target, port, packet, sizeof(packet));
     }
 
-    pump(server, 20);
-    pump(client, 5);
+    // a message the server receives, whose sealed bytes are then replayed and tampered with as if from the client's address.
+    u8 payload[24] = { 0x10 };
+    NYA_EXPECT(nya_net_transport_send(client, to_server, NYA_NET_CHANNEL_UNRELIABLE, payload, sizeof(payload)));
 
+    u64 sealed_size = HEADER_SIZE + FRAGMENT_HEADER + sizeof(payload) + MAC_SIZE;
+    u8  sealed[HEADER_SIZE + FRAGMENT_HEADER + sizeof(payload) + MAC_SIZE];
+    nya_memcpy(sealed, client_state->send_buffer, sealed_size);
+
+    deadline = nya_clock_get_monotonic_ms() + 2000;
+    while (messages == 0 && nya_clock_get_monotonic_ms() < deadline) {
+      NYA_NetTransportEvent event = { 0 };
+      while (nya_net_transport_poll(server, &event)) {
+        if (event.kind == NYA_NET_TRANSPORT_EVENT_MESSAGE) messages++;
+      }
+      sleep_ms(2);
+    }
+
+    nya_assert(messages == 1, "the genuine message did not arrive");
+
+    u64 rejected_before = server_state->peers[slot].stats.packets_rejected;
+
+    u8 replay[sizeof(sealed)];
+    nya_memcpy(replay, sealed, sizeof(sealed));
+    _nya_net_udp_handle_packet(server, slot, replay, sealed_size);
+
+    u8 tampered[sizeof(sealed)];
+    nya_memcpy(tampered, sealed, sizeof(sealed));
+    write_u16(tampered + 1, 900);
+    _nya_net_udp_handle_packet(server, slot, tampered, sealed_size);
+
+    nya_memcpy(tampered, sealed, sizeof(sealed));
+    write_u16(tampered + 1, 901);
+    tampered[HEADER_SIZE + 3] ^= 0x80;
+    _nya_net_udp_handle_packet(server, slot, tampered, sealed_size);
+
+    NYA_NetTransportEvent event = { 0 };
+    while (nya_net_transport_poll(server, &event)) {
+      if (event.kind == NYA_NET_TRANSPORT_EVENT_MESSAGE) messages++;
+    }
+
+    u64 rejected = server_state->peers[slot].stats.packets_rejected - rejected_before;
+
+    printf("  replay and two tamperings: %llu rejected, %u messages delivered in total\n", (unsigned long long)rejected, messages);
+
+    nya_assert(messages == 1, "a replayed or tampered packet was delivered");
+    nya_assert(rejected == 3, "only %llu of 3 bad packets were counted as rejected", (unsigned long long)rejected);
     nya_assert(peer_count(server) >= with_client, "a forged disconnect removed a peer (%u -> %u)", with_client, peer_count(server));
-    printf("  40 forged disconnects rejected, %u peers intact\n", peer_count(server));
 
     nya_net_transport_destroy(client);
+    pump(server, 4);
   }
 
   printf("TEST: the per-peer reassembly budget refuses rather than evicting\n");
   {
-    /*
-     * The memory-amplification bound.
-     */
-    NET_DatagramSocket* hoarder = NET_CreateDatagramSocket(nullptr, 0, 0);
-    nya_assert(hoarder != nullptr);
-
-    nya_assert(raw_handshake(hoarder, target, port, server), "the hoarder could not join");
-
-    u32 index = 0;
+    u32 index = newest_peer(server);
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
       const _NYA_NetUdpState* state = server->state;
-      if (state->peers[i].occupied) index = i;
+      if (state->peers[i].occupied && state->peers[i].established) index = i;
     }
 
-    // two hundred fragments of ~1176 usable bytes is about 235 kB, under the per message cap, so only the
-    // per peer budget can refuse it.
+    // two hundred fragments of ~1163 bytes is about 233 kB, under the per message cap, so only the per peer budget refuses.
     for (u16 message = 100; message < 100 + 8; message++) {
-      u8  packet[NYA_NET_MAX_DATAGRAM] = { 0 };
-      u64 at                           = write_header(packet, (u16)(200 + message), 1);
+      u8  body[FRAGMENT_HEADER + 1];
+      u64 at   = write_fragment(body, NYA_NET_CHANNEL_UNRELIABLE, message, 0, 200, 1);
+      body[at] = 0x5A;
 
-      packet[at++] = (u8)((KIND_DATA << 4) | NYA_NET_CHANNEL_UNRELIABLE);
-      write_u16(packet + at, message);
-      at += 2;
-      write_u16(packet + at, 0); // first fragment only, so the message never completes
-      at += 2;
-      write_u16(packet + at, 200);
-      at += 2;
-      write_u16(packet + at, 1); // one byte of payload
-      at += 2;
-
-      packet[at++] = 0x5A;
-
-      (void)NET_SendDatagram(hoarder, target, port, packet, (int)at);
+      raw_send(&attacker, target, port, KIND_DATA, 1, body, sizeof(body));
       pump(server, 2);
     }
 
@@ -369,84 +483,87 @@ s32 main(void) {
 
     const _NYA_NetUdpState* state = server->state;
 
-    u64 held = state->peers[index].reassembly_bytes;
+    u64 held = 0;
+    for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) held = nya_max(held, state->peers[i].reassembly_bytes);
 
-    printf("  eight 235 kB reassemblies started: %llu bytes held, cap is %llu\n", (unsigned long long)held, (unsigned long long)_NYA_NET_UDP_MAX_REASSEMBLY_BYTES);
+    printf("  eight 233 kB reassemblies started: %llu bytes held, cap is %llu\n", (unsigned long long)held, (unsigned long long)_NYA_NET_UDP_MAX_REASSEMBLY_BYTES);
 
-    /*
-     * The bound is the engine's, not the attacker's.
-     */
-    nya_assert(held <= _NYA_NET_UDP_MAX_REASSEMBLY_BYTES, "a peer held %llu bytes of reassembly against a %llu byte cap",
-               (unsigned long long)held, (unsigned long long)_NYA_NET_UDP_MAX_REASSEMBLY_BYTES);
-
-    NET_DestroyDatagramSocket(hoarder);
+    nya_assert(held > 0, "no reassembly was started, so the budget was never tested");
+    nya_assert(held <= _NYA_NET_UDP_MAX_REASSEMBLY_BYTES, "a peer held %llu bytes of reassembly against a %llu byte cap", (unsigned long long)held,
+               (unsigned long long)_NYA_NET_UDP_MAX_REASSEMBLY_BYTES);
+    nya_unused(index);
   }
 
   printf("TEST: a stalled reliable stream drops the peer rather than growing\n");
   {
     /*
-     * Ordered delivery holds an early arrival until the gap ahead of it is filled, and an attacker turns
-     * that into unbounded memory: send ids 1, 2, 3… and never the one the receiver is waiting for, and
-     * nothing is ever delivered or freed.
-     */
-    NET_DatagramSocket* staller = NET_CreateDatagramSocket(nullptr, 0, 0);
-    nya_assert(staller != nullptr);
-
-    nya_assert(raw_handshake(staller, target, port, server), "the staller could not join");
-
-    u32 before = peer_count(server);
-    nya_assert(before >= 1);
-
-    /*
-     * Dense: many message ids in one datagram, since `fragment_count` is a byte and a fragment may carry
-     * one payload byte. A few packets build a queue a naive implementation keeps forever.
+     * Send ids 1, 2, 3... and never 0, the one the receiver waits for, and nothing is ever delivered or freed.
      */
     for (u32 round = 0; round < 6; round++) {
-      u8  packet[NYA_NET_MAX_DATAGRAM] = { 0 };
-      u64 at                           = write_header(packet, (u16)(400 + round), 100);
+      u8  body[NYA_NET_MAX_DATAGRAM - HEADER_SIZE - MAC_SIZE];
+      u64 at = 0;
 
       for (u16 slot = 0; slot < 100; slot++) {
-        u16 message_id = (u16)(1 + (round * 100) + slot);
-
-        packet[at++] = (u8)((KIND_DATA << 4) | NYA_NET_CHANNEL_RELIABLE);
-        write_u16(packet + at, message_id);
-        at += 2;
-        write_u16(packet + at, 0);
-        at += 2;
-        write_u16(packet + at, 1); // a single fragment, so it is queued rather than reassembled
-        at += 2;
-        write_u16(packet + at, 1);
-        at += 2;
-
-        packet[at++] = (u8)slot;
+        at += write_fragment(body + at, NYA_NET_CHANNEL_RELIABLE, (u16)(1 + (round * 100) + slot), 0, 1, 1);
+        body[at++] = (u8)slot;
       }
 
-      (void)NET_SendDatagram(staller, target, port, packet, (int)at);
+      raw_send(&attacker, target, port, KIND_DATA, 100, body, at);
       pump(server, 2);
     }
 
     pump(server, 10);
 
-    /*
-     * Either bound is an acceptable outcome, and asserting on which one fired would be asserting on an
-     * implementation detail. What must hold is that the queue did not grow without limit: the peer is
-     * either gone, or still present with a bounded queue.
-     */
     const _NYA_NetUdpState* state = server->state;
 
     u32 queued = 0;
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
-      if (!state->peers[i].occupied) continue;
-      if (state->peers[i].incoming_reliable == nullptr) continue;
+      if (!state->peers[i].occupied || state->peers[i].incoming_reliable == nullptr) continue;
 
-      if (state->peers[i].incoming_reliable->length > queued) queued = (u32)state->peers[i].incoming_reliable->length;
+      queued = nya_max(queued, (u32)state->peers[i].incoming_reliable->length);
     }
 
     printf("  600 stalled reliable messages: deepest queue is %u, cap is %d\n", queued, _NYA_NET_UDP_MAX_REORDER);
 
     nya_assert(queued <= _NYA_NET_UDP_MAX_REORDER, "a reorder queue reached %u against a %d cap", queued, _NYA_NET_UDP_MAX_REORDER);
+  }
 
-    NET_DestroyDatagramSocket(staller);
+  printf("TEST: one address cannot hold more than a few slots\n");
+  {
+    u16               cap_port   = 0;
+    NYA_NetTransport* cap_server = listen_server(arena, FIRST_PORT + 32, &cap_port);
+
+    RawPeer peers[_NYA_NET_UDP_MAX_PEERS_PER_ADDRESS + 1] = { 0 };
+
+    for (u32 i = 0; i < _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS; i++) {
+      peers[i].socket = NET_CreateDatagramSocket(nullptr, 0, 0);
+      nya_assert(raw_handshake(&peers[i], target, cap_port, cap_server), "join %u of the allowed %d failed", i, _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS);
+    }
+
+    RawPeer* extra = &peers[_NYA_NET_UDP_MAX_PEERS_PER_ADDRESS];
+    extra->socket  = NET_CreateDatagramSocket(nullptr, 0, 0);
+
+    u8 datagram[NYA_NET_MAX_DATAGRAM];
+    send_connect(extra->socket, target, cap_port, CONNECT_SIZE);
+    nya_assert(await_kind(extra->socket, cap_server, KIND_CHALLENGE, datagram, 500) == CHALLENGE_SIZE);
+
+    u8             response[RESPONSE_SIZE];
+    NYA_NetKeyPair ephemeral          = { 0 };
+    u8             premaster[KEY_SIZE] = { 0 };
+
+    build_response(datagram, response, &ephemeral, premaster);
+    (void)NET_SendDatagram(extra->socket, target, cap_port, response, RESPONSE_SIZE);
+
+    u64 refused = await_kind(extra->socket, cap_server, KIND_REFUSED, datagram, 500);
+
+    printf("  %u peers from 127.0.0.1, the next one refused (%llu byte answer)\n", peer_count(cap_server), (unsigned long long)refused);
+
+    nya_assert(peer_count(cap_server) == _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS, "one address holds %u slots", peer_count(cap_server));
+    nya_assert(refused == 6 && datagram[5] == NYA_NET_DISCONNECT_FULL, "the extra connection was not refused as full");
+
+    for (u32 i = 0; i <= _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS; i++) NET_DestroyDatagramSocket(peers[i].socket);
+
+    nya_net_transport_destroy(cap_server);
   }
 
   printf("TEST: random garbage never faults the transport\n");
@@ -464,10 +581,10 @@ s32 main(void) {
 
       for (u32 i = 0; i < size; i++) packet[i] = nya_rng_sample_u8(&rng, uniform);
 
-      // Every other one gets a valid protocol word, so it is parsed rather than dropped.
+      // every other one gets a valid protocol word, so the handshake parser sees it too.
       if ((iteration % 2) == 0 && size >= 4) write_u32(packet, PROTOCOL);
 
-      (void)NET_SendDatagram(attacker, target, port, packet, (int)size);
+      (void)NET_SendDatagram(attacker.socket, target, port, packet, (int)size);
 
       // Drained periodically rather than per packet, so the receive loop's own batching is exercised too.
       if ((iteration % 64) == 0) pump(server, 1);
@@ -479,7 +596,7 @@ s32 main(void) {
   }
 
   NET_UnrefAddress(target);
-  NET_DestroyDatagramSocket(attacker);
+  NET_DestroyDatagramSocket(attacker.socket);
   nya_net_transport_destroy(server);
 
   // ═════════════════════════════════════════════════════════════════════════════

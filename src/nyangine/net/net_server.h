@@ -120,6 +120,16 @@ struct NYA_NetServerConfig {
     u32 bandwidth_bytes_per_second;
 
     /*
+     * ── security ──
+     */
+
+    /** Who this server is. Players pin its public key. Zero generates a fresh identity when listening starts. */
+    NYA_NetKeyPair identity;
+
+    /** A bad network on purpose, for what this server sends to remote players. */
+    NYA_NetConditions conditions;
+
+    /*
      * ── lag compensation ──
      */
 
@@ -143,6 +153,9 @@ struct NYA_NetServerPeer {
 
     /** True for a listen server's own player. See nya_net_server_local_peer. */
     b8 is_local;
+
+    /** The long term key the player proved it holds, or all zero for an anonymous or local player. */
+    u8 public_key[NYA_NET_KEY_SIZE];
 };
 
 /*
@@ -167,6 +180,9 @@ NYA_API NYA_Error nya_net_server_listen(u16 port) __attr_no_discard;
 
 /** Whether a socket is open. False for single player, true once opened to the LAN. */
 NYA_API b8 nya_net_server_is_listening(void) __attr_no_discard;
+
+/** The key players pin to be sure they reached this server, or null until it listens. */
+NYA_API const u8* nya_net_server_public_key(void) __attr_no_discard;
 
 /**
  * Attaches a local player over a loopback transport, and hands back the client end.

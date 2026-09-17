@@ -2,6 +2,7 @@
 /**/
 #include "nyangine/net/net_command.c"
 #include "nyangine/net/net_config.c"
+#include "nyangine/net/net_crypto.c"
 #include "nyangine/net/net_message.c"
 #include "nyangine/net/net_transport.c"
 /**/
