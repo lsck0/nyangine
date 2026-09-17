@@ -29,8 +29,8 @@ void gny_layer_ui_on_event(NYA_Window* window, NYA_Event* event) {
     const NYA_KeyEvent* key = &event->as_key_event;
 
     if (nya_input_action_matches(GNY_ACTION_TOGGLE_OVERLAY, key->key, key->modifier_flags)) {
-        gny_world()->overlay_enabled = !gny_world()->overlay_enabled;
-        event->was_handled           = true;
+        gny_overlay_toggle();
+        event->was_handled = true;
     } else if (nya_input_action_matches(NYA_INPUT_ACTION_PAUSE, key->key, key->modifier_flags)) {
         gny_screen_request(GNY_SCREEN_PAUSE);
         event->was_handled = true;

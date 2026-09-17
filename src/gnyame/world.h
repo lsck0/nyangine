@@ -84,6 +84,9 @@ void gny_world_draw(NYA_Window* window, NYA_Camera2DTopDown camera);
 /** Queues the bloom shader and pipeline. Safe to call more than once. */
 void gny_bloom_pipeline_ensure(NYA_Window* window);
 
+/** Shows or hides the debug overlay. Showing it also logs every arena with its resident bytes. */
+void gny_overlay_toggle(void);
+
 /** The inset camera, created on first use. */
 NYA_EntityHandle gny_world_inset_camera(void);
 

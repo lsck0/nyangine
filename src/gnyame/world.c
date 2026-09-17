@@ -256,6 +256,13 @@ void gny_world_draw(NYA_Window* window, NYA_Camera2DTopDown camera) {
     nya_render2d_camera_reset(window);
 }
 
+void gny_overlay_toggle(void) {
+    gny_world()->overlay_enabled = !gny_world()->overlay_enabled;
+
+    // the overlay has room for six arenas; the log takes all of them, for a report or a profile to read.
+    if (gny_world()->overlay_enabled) nya_arena_stats_report();
+}
+
 void gny_bloom_pipeline_ensure(NYA_Window* window) {
     /* The bloom pass: one fragment shader, paired with the batch's vertex stage. */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){

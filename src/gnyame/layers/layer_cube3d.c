@@ -362,8 +362,8 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
                 gny_world()->bloom_enabled = !gny_world()->bloom_enabled;
                 event->was_handled         = true;
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_OVERLAY, key->key, key->modifier_flags)) {
-                gny_world()->overlay_enabled = !gny_world()->overlay_enabled;
-                event->was_handled           = true;
+                gny_overlay_toggle();
+                event->was_handled = true;
             }
         } break;
 
