@@ -26,6 +26,10 @@
  */
 
 typedef struct NYA_NetClientConfig NYA_NetClientConfig;
+
+/** The tick lengths a client accepts from a server's WELCOME: 240 down to 10 ticks a second. */
+#define NYA_NET_TICK_NS_MIN (1000000000ULL / 240)
+#define NYA_NET_TICK_NS_MAX (1000000000ULL / 10)
 typedef enum NYA_NetClientState    NYA_NetClientState;
 
 /**

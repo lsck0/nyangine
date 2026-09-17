@@ -20,17 +20,22 @@ struct _NYA_NetReader {
     b8 failed;
 };
 
-NYA_INTERNAL void _nya_net_write_u16(NYA_String* out, u16 value);
 NYA_INTERNAL void _nya_net_write_u32(NYA_String* out, u32 value);
-NYA_INTERNAL void _nya_net_write_u64(NYA_String* out, u64 value);
 NYA_INTERNAL void _nya_net_write_f32(NYA_String* out, f32 value);
-NYA_INTERNAL void _nya_net_write_f32x3(NYA_String* out, f32x3 value);
 
-NYA_INTERNAL u16   _nya_net_read_u16(_NYA_NetReader* reader);
+/** LEB128: seven bits a byte, low first, so small numbers cost one byte. */
+NYA_INTERNAL void _nya_net_write_varint(NYA_String* out, u64 value);
+
+/** A signed number folded so small magnitudes of either sign stay small: 0, -1, 1, -2 become 0, 1, 2, 3. */
+NYA_INTERNAL void _nya_net_write_signed(NYA_String* out, s64 value);
+
 NYA_INTERNAL u32   _nya_net_read_u32(_NYA_NetReader* reader);
-NYA_INTERNAL u64   _nya_net_read_u64(_NYA_NetReader* reader);
 NYA_INTERNAL f32   _nya_net_read_f32(_NYA_NetReader* reader);
-NYA_INTERNAL f32x3 _nya_net_read_f32x3(_NYA_NetReader* reader);
+NYA_INTERNAL u8    _nya_net_read_u8(_NYA_NetReader* reader);
+
+/** At most ten bytes; a longer or unterminated one poisons the reader. */
+NYA_INTERNAL u64 _nya_net_read_varint(_NYA_NetReader* reader);
+NYA_INTERNAL s64 _nya_net_read_signed(_NYA_NetReader* reader);
 
 /** Whether `count` more bytes are available, poisoning the reader if not. */
 NYA_INTERNAL b8 _nya_net_reader_has(_NYA_NetReader* reader, u64 count);

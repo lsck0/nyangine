@@ -84,7 +84,14 @@ static NYA_NetPeerId start_listen_server(NYA_NetServerConfig config, u64* tick) 
 
   nya_assert(nya_net_client_state() == NYA_NET_CLIENT_PLAYING, "the handshake did not complete");
 
-  return nya_net_server_local_peer();
+  // a server sends nothing to its own player, who shares the world. Treated as remote here, so the snapshots this
+  // file inspects are built over a loopback instead of a socket.
+  NYA_NetPeerId local = nya_net_server_local_peer();
+
+  _NYA_NET_SERVER.peers[local.index]->public_state.is_local = false;
+  _NYA_NET_SERVER.remote_peer_count++;
+
+  return local;
 }
 
 static void stop_everything(void) {
@@ -557,7 +564,10 @@ s32 main(void) {
 
     nya_assert(nya_net_server_peer_count() == 1);
 
-    // The peer table is walkable, and a peer resolves both ways.
+    // The peer table is walkable, and a peer resolves both ways. Local again, as it joined, after the helper's pretence.
+    _NYA_NET_SERVER.peers[peer.index]->public_state.is_local = true;
+    _NYA_NET_SERVER.remote_peer_count--;
+
     const NYA_NetServerPeer* view = nya_net_server_peer(peer);
     nya_assert(view != nullptr, "the peer does not resolve");
     nya_assert(view->is_local, "a loopback peer is local");

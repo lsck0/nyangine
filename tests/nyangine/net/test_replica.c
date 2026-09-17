@@ -437,6 +437,7 @@ s32 main(void) {
     // A pairing by hand, since what is being tested is the clear rather than how the map was filled.
     scratch.entries[0] = (NYA_NetReplica){ .remote = { .index = 77, .generation = 1 }, .local = survivor, .present = true };
     scratch.count      = 1;
+    scratch.by_remote_index[77] = 1;
 
     nya_assert(nya_entity_is_valid(nya_net_replica_local(&scratch, (NYA_EntityHandle){ .index = 77, .generation = 1 })));
 

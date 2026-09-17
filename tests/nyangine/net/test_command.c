@@ -113,31 +113,76 @@ s32 main(void) {
     }
   }
 
-  printf("TEST: a count with too little data behind it is refused\n");
+  printf("TEST: every truncation of a run is refused, and the whole run accepted\n");
+  {
+    NYA_NetCommand sent[NYA_NET_COMMAND_REDUNDANCY] = {
+      { .tick = 500, .actions = 0x5, .aim = { 10.0F, 20.0F }, .analog = 0.5F },
+      { .tick = 501, .actions = 0x5, .aim = { 10.0F, 20.0F }, .analog = 0.5F },
+      { .tick = 503, .actions = 1ULL << 40, .aim = { 11.0F, 20.0F }, .analog = 0.5F },
+      { .tick = 504, .actions = 0x0, .aim = { 11.0F, 20.0F }, .analog = -0.5F },
+    };
+
+    NYA_String* payload = nya_string_create(arena);
+    NYA_EXPECT(nya_net_command_encode(payload, sent, NYA_NET_COMMAND_REDUNDANCY));
+
+    NYA_NetCommand received[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
+    u32            count                               = 0;
+
+    // a bounds check that is off by one shows up at exactly one of these.
+    for (u64 prefix = 0; prefix < payload->length; prefix++) {
+      nya_assert(!nya_net_command_decode(payload->items, prefix, received, &count).ok, "a run cut to %llu of %llu bytes was accepted",
+                 (unsigned long long)prefix, (unsigned long long)payload->length);
+      nya_assert(count == 0);
+    }
+
+    NYA_EXPECT(nya_net_command_decode(payload->items, payload->length, received, &count));
+    nya_assert(count == NYA_NET_COMMAND_REDUNDANCY);
+
+    for (u32 i = 0; i < count; i++) {
+      nya_assert(received[i].tick == sent[i].tick && received[i].actions == sent[i].actions, "command %u changed", i);
+      nya_assert(received[i].aim.x == sent[i].aim.x && received[i].aim.y == sent[i].aim.y && received[i].analog == sent[i].analog, "command %u changed", i);
+    }
+
+    // bytes past the end are refused too: a payload is exactly one run.
+    nya_string_push_back(payload, 0);
+    nya_assert(!nya_net_command_decode(payload->items, payload->length, received, &count).ok, "trailing bytes were accepted");
+
+    // a player holding a key and not touching the mouse repeats nothing but the tick step.
+    NYA_NetCommand steady[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
+    for (u32 i = 0; i < NYA_NET_COMMAND_REDUNDANCY; i++) steady[i] = (NYA_NetCommand){ .tick = 70000 + i, .actions = 0x3, .aim = { 640.0F, 360.0F } };
+
+    NYA_String* small = nya_string_create(arena);
+    NYA_EXPECT(nya_net_command_encode(small, steady, NYA_NET_COMMAND_REDUNDANCY));
+
+    printf("  a varied run of four: %llu bytes, a steady one: %llu bytes\n", (unsigned long long)(payload->length - 1), (unsigned long long)small->length);
+    nya_assert(small->length <= 32, "a steady run of four took %llu bytes", (unsigned long long)small->length);
+  }
+
+  printf("TEST: non-finite values, backwards ticks and unknown bits are refused\n");
   {
     NYA_NetCommand received[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
     u32            count                               = 0;
 
-    // Every shortfall from one byte to a whole command's worth. A bounds check that is off by one shows up
-    // at exactly one of these.
-    for (u32 provided = 0; provided < 28 * NYA_NET_COMMAND_REDUNDANCY; provided++) {
-      NYA_String* payload = nya_string_create(arena);
-      nya_string_push_back(payload, NYA_NET_COMMAND_REDUNDANCY);
+    NYA_NetCommand poisoned = { .tick = 9, .aim = { NAN, 0.0F } };
+    NYA_String*    payload  = nya_string_create(arena);
+    NYA_EXPECT(nya_net_command_encode(payload, &poisoned, 1));
+    nya_assert(!nya_net_command_decode(payload->items, payload->length, received, &count).ok, "a NaN aim was accepted");
 
-      for (u32 i = 0; i < provided; i++) nya_string_push_back(payload, 0x00);
+    NYA_NetCommand infinite = { .tick = 9, .analog = INFINITY };
+    payload                 = nya_string_create(arena);
+    NYA_EXPECT(nya_net_command_encode(payload, &infinite, 1));
+    nya_assert(!nya_net_command_decode(payload->items, payload->length, received, &count).ok, "an infinite analog was accepted");
 
-      b8 ok = nya_net_command_decode(payload->items, payload->length, received, &count).ok;
+    NYA_NetCommand backwards[2] = { { .tick = 9 }, { .tick = 8 } };
+    payload                     = nya_string_create(arena);
+    nya_assert(!nya_net_command_encode(payload, backwards, 2).ok, "a run out of order was encoded");
 
-      nya_assert(!ok, "a run of %d with only %u bytes behind it was accepted", NYA_NET_COMMAND_REDUNDANCY, provided);
-    }
+    // by hand: a step of zero repeats a tick, which the encoder never writes.
+    u8 repeat[] = { 2, 3, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    nya_assert(!nya_net_command_decode(repeat, sizeof(repeat), received, &count).ok, "a repeated tick was accepted");
 
-    // And exactly enough is accepted, which is what says the refusals above were about the shortfall.
-    NYA_String* exact = nya_string_create(arena);
-    nya_string_push_back(exact, NYA_NET_COMMAND_REDUNDANCY);
-    for (u32 i = 0; i < 28 * NYA_NET_COMMAND_REDUNDANCY; i++) nya_string_push_back(exact, 0x00);
-
-    NYA_EXPECT(nya_net_command_decode(exact->items, exact->length, received, &count));
-    nya_assert(count == NYA_NET_COMMAND_REDUNDANCY);
+    u8 unknown[] = { 1, 0x83, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    nya_assert(!nya_net_command_decode(unknown, sizeof(unknown), received, &count).ok, "unknown presence bits were accepted");
   }
 
   printf("TEST: an empty payload is refused\n");

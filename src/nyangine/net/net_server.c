@@ -17,6 +17,18 @@ typedef struct {
     u32 capacity;
 } _NYA_NetServerBaseline;
 
+/** Commands a peer may have waiting. More than a second's worth of jitter never legitimately queues. */
+#define _NYA_NET_SERVER_COMMAND_QUEUE 32
+
+/** Queued commands that may be applied in one tick after a stall, so a late burst catches up without a speedup. */
+#define _NYA_NET_SERVER_COMMAND_BURST 4.0F
+
+/** How far past the time elapsed since its last command a client's tick may run, for clocks that drift and bunch. */
+#define _NYA_NET_SERVER_COMMAND_SLACK 64
+
+/** The most a HELLO may be, in bytes. */
+#define _NYA_NET_SERVER_MAX_HELLO 512
+
 typedef struct {
     NYA_NetServerPeer public_state;
 
@@ -32,20 +44,35 @@ typedef struct {
     /** The newest tick this peer says it has applied. Zero until it says anything. */
     u64 acknowledged_tick;
 
-    /** The newest command tick applied, so a duplicate or a late one is ignored. */
+    /*
+     * commands
+     *
+     * Queued as they arrive and applied one per server tick, the rate the client produced them at, so sending more
+     * or sending them faster moves nobody further. The client's numbering is anchored at HELLO: a command claiming a
+     * tick further ahead than the time since the last one allows is a lie.
+     */
+
+    NYA_NetCommand queue[_NYA_NET_SERVER_COMMAND_QUEUE];
+    u32            queue_head;
+    u32            queue_count;
+
+    /** The newest command tick received, in the client's numbering, and the server tick it arrived on. */
     u64 last_command_tick;
+    u64 last_command_server_tick;
 
-    /**
-     * The server tick a command was last applied to this peer. Not comparable with `last_command_tick`, which is
-     * the client's numbering: a command for client tick T is applied during server tick T+1.
-     * */
-    u64 last_applied_server_tick;
-
-    /**
-     * The last applied command, repeated on ticks without one, so a player whose packets stall keeps walking as
-     * their client predicts.
-     * */
+    /** The newest command applied: what each snapshot tells the client its prediction can replay from. */
+    u64            applied_command_tick;
     NYA_NetCommand last_command;
+
+    /** How many queued commands may still be applied. One is earned per tick, up to _NYA_NET_SERVER_COMMAND_BURST. */
+    f32 command_tokens;
+
+    /** Broken rules, ever, and as a score that decays by one a second. The score is what kicks. */
+    u32 violations;
+    f32 violation_score;
+
+    /** The size of the newest snapshot sent, for the stats. */
+    u32 snapshot_bytes;
 
     /* bandwidth */
 
@@ -129,10 +156,17 @@ typedef struct {
 /** The one server. */
 NYA_INTERNAL _NYA_NetServerState _NYA_NET_SERVER = { 0 };
 
-NYA_INTERNAL void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick, f32 delta_time_s);
-NYA_INTERNAL void _nya_net_server_handle_message(
-    NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* data, u64 size, u64 tick, f32 delta_time_s
-);
+NYA_INTERNAL void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick);
+NYA_INTERNAL void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* data, u64 size, u64 tick);
+
+/** Queues what a COMMAND carries that is new, and takes its acknowledgement. */
+NYA_INTERNAL void _nya_net_server_handle_command(_NYA_NetServerPeerState* state, const u8* body, u64 size, u64 tick);
+
+/** Applies what this tick's allowance permits of a peer's queue, holding the entity to the configured speed. */
+NYA_INTERNAL void _nya_net_server_apply_commands(_NYA_NetServerPeerState* state, NYA_NetApplyCommandFn apply_command, f32 delta_time_s);
+
+/** Counts a broken rule against a peer, kicking it once its score passes the limit. */
+NYA_INTERNAL void _nya_net_server_violation(_NYA_NetServerPeerState* state, NYA_ConstCString what);
 NYA_INTERNAL void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* body, u64 size);
 NYA_INTERNAL void _nya_net_server_send_snapshots(u64 tick);
 
@@ -177,6 +211,7 @@ NYA_Error nya_net_server_start(NYA_NetServerConfig config) {
 
     if (config.max_players == 0 || config.max_players > NYA_NET_MAX_PEERS) config.max_players = NYA_NET_MAX_PEERS;
     if (config.snapshot_interval_ticks == 0) config.snapshot_interval_ticks = 1;
+    if (config.position_bits > NYA_NET_POSITION_BITS_MAX) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%u position bits, past the %d limit", config.position_bits, NYA_NET_POSITION_BITS_MAX);
 
     // clamped: asking for more history than the ring holds means as much as possible.
     if (config.lag_history_ticks > NYA_NET_LAG_HISTORY) {
@@ -308,31 +343,22 @@ void nya_net_server_tick(u64 tick, f32 delta_time_s) {
 
     nya_arena_free_all(_NYA_NET_SERVER.tick_arena);
 
-    if (_NYA_NET_SERVER.udp != nullptr) _nya_net_server_drain(_NYA_NET_SERVER.udp, tick, delta_time_s);
-    if (_NYA_NET_SERVER.loopback_server_end != nullptr) _nya_net_server_drain(_NYA_NET_SERVER.loopback_server_end, tick, delta_time_s);
+    if (_NYA_NET_SERVER.udp != nullptr) _nya_net_server_drain(_NYA_NET_SERVER.udp, tick);
+    if (_NYA_NET_SERVER.loopback_server_end != nullptr) _nya_net_server_drain(_NYA_NET_SERVER.loopback_server_end, tick);
 
-    /* A tick with no command from a peer repeats the last one. */
     // resolved once for the loop: under hot reload it is a registry lookup.
     NYA_NetApplyCommandFn apply_command = nya_callback_get(_NYA_NET_SERVER.config.on_apply_command);
 
-    if (apply_command != nullptr) {
-        for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
-            _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
+    for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
+        _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
+        if (state == nullptr || !state->public_state.accepted) continue;
 
-            if (state == nullptr || !state->public_state.accepted) continue;
+        _nya_net_server_apply_commands(state, apply_command, delta_time_s);
 
-            // applied this server tick already. compared with the server's tick, never the client's.
-            if (state->last_applied_server_tick == tick) continue;
+        // a kick from the rules removes the peer, and the slot's state with it.
+        if (!state->public_state.accepted) continue;
 
-            if (state->last_command.tick == 0) continue; // nothing to repeat yet
-
-            NYA_Entity* entity = nya_entity_get(state->public_state.entity);
-            if (entity == nullptr) continue;
-
-            apply_command(entity, &state->last_command, delta_time_s);
-
-            state->last_applied_server_tick = tick;
-        }
+        state->violation_score = nya_max(state->violation_score - delta_time_s, 0.0F);
     }
 
     if (tick % _NYA_NET_SERVER.config.snapshot_interval_ticks == 0) _nya_net_server_send_snapshots(tick);
@@ -498,6 +524,18 @@ u64 nya_net_server_rewind_ticks(void) {
     return _NYA_NET_SERVER.rewind_active ? _NYA_NET_SERVER.rewind_ticks : 0;
 }
 
+NYA_NetPeerStats nya_net_server_peer_stats(NYA_NetPeerId peer) {
+    _NYA_NetServerPeerState* state = _nya_net_server_find(peer);
+    if (state == nullptr) return (NYA_NetPeerStats){ 0 };
+
+    NYA_NetPeerStats stats = nya_net_transport_stats(state->transport, peer);
+
+    stats.snapshot_bytes = state->snapshot_bytes;
+    stats.violations     = state->violations;
+
+    return stats;
+}
+
 NYA_NetCommand nya_net_server_last_command(NYA_NetPeerId peer) {
     _NYA_NetServerPeerState* state = _nya_net_server_find(peer);
 
@@ -510,7 +548,7 @@ NYA_NetCommand nya_net_server_last_command(NYA_NetPeerId peer) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick, f32 delta_time_s) {
+void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick) {
     NYA_NetTransportEvent event = { 0 };
 
     while (nya_net_transport_poll(transport, &event)) {
@@ -523,7 +561,7 @@ void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick, f32 delta_time
             case NYA_NET_TRANSPORT_EVENT_DISCONNECTED: _nya_net_server_remove(event.peer, event.reason); break;
 
             case NYA_NET_TRANSPORT_EVENT_MESSAGE: {
-                _nya_net_server_handle_message(transport, event.peer, event.data, event.size, tick, delta_time_s);
+                _nya_net_server_handle_message(transport, event.peer, event.data, event.size, tick);
             } break;
 
             default: break;
@@ -531,7 +569,7 @@ void _nya_net_server_drain(NYA_NetTransport* transport, u64 tick, f32 delta_time
     }
 }
 
-void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* data, u64 size, u64 tick, f32 delta_time_s) {
+void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* data, u64 size, u64 tick) {
     u64                body_offset = 0;
     NYA_NetMessageKind kind        = nya_net_message_kind(data, size, &body_offset);
 
@@ -552,62 +590,7 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
     if (state == nullptr || !state->public_state.accepted) return;
 
     switch (kind) {
-        case NYA_NET_MSG_COMMAND: {
-            NYA_NetCommand commands[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
-            u32            count                                = 0;
-
-            NYA_Error decoded = nya_net_command_decode(body, body_size, commands, &count);
-
-            if (!decoded.ok) {
-                /* Malformed: the peer is dropped. */
-                nya_log_warn("Dropping a peer that sent a malformed command: %s", (NYA_ConstCString)decoded.message);
-                nya_net_server_kick(peer, NYA_NET_DISCONNECT_PROTOCOL);
-                return;
-            }
-
-            NYA_Entity* entity = nya_entity_get(state->public_state.entity);
-
-            /* How far ahead of the server a command may claim to be. */
-            const u64 command_slack = 256;
-
-            for (u32 i = 0; i < count; i++) {
-                /* A command from the far future is discarded. */
-                if (commands[i].tick > tick + command_slack) continue;
-
-                // ordered and de-duplicated by tick; the unreliable channel sends each command several times.
-                if (commands[i].tick <= state->last_command_tick) continue;
-
-                state->last_command      = commands[i];
-                state->last_command_tick = commands[i].tick;
-
-                NYA_NetApplyCommandFn apply_command = nya_callback_get(_NYA_NET_SERVER.config.on_apply_command);
-
-                if (entity != nullptr && apply_command != nullptr) {
-                    apply_command(entity, &commands[i], delta_time_s);
-
-                    // so the repeat pass knows this peer already moved.
-                    state->last_applied_server_tick = tick;
-                }
-            }
-        } break;
-
-        case NYA_NET_MSG_SNAPSHOT_ACK: {
-            if (body_size < 8) return;
-
-            _NYA_NetReader reader = { .data = body, .size = body_size };
-            u64            acked  = _nya_net_read_u64(&reader);
-
-            /* A client cannot have applied a snapshot that was not sent. */
-            if (acked > _NYA_NET_SERVER.current_tick) {
-                nya_log_warn("Dropping a peer that acknowledged tick %llu when the server is at %llu.", (unsigned long long)acked,
-                         (unsigned long long)_NYA_NET_SERVER.current_tick);
-                nya_net_server_kick(peer, NYA_NET_DISCONNECT_PROTOCOL);
-                return;
-            }
-
-            // monotonic: an old acknowledgement must not move the baseline backwards.
-            if (acked > state->acknowledged_tick) state->acknowledged_tick = acked;
-        } break;
+        case NYA_NET_MSG_COMMAND: _nya_net_server_handle_command(state, body, body_size, tick); break;
 
         case NYA_NET_MSG_GAME_EVENT: {
             NYA_NetServerEventFn on_client_event = nya_callback_get(_NYA_NET_SERVER.config.on_client_event);
@@ -636,10 +619,121 @@ void _nya_net_server_handle_message(NYA_NetTransport* transport, NYA_NetPeerId p
     }
 }
 
-/**
- * The most a HELLO may be, in bytes.
- * */
-#define _NYA_NET_SERVER_MAX_HELLO 512
+void _nya_net_server_handle_command(_NYA_NetServerPeerState* state, const u8* body, u64 size, u64 tick) {
+    NYA_NetPeerId peer = state->public_state.peer;
+
+    _NYA_NetReader reader = { .data = body, .size = size };
+
+    u64 acked = _nya_net_read_varint(&reader);
+
+    NYA_NetCommand commands[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
+    u32            count                                = 0;
+
+    NYA_Error decoded = reader.failed ? nya_error(NYA_ERROR_INVALID_ARGUMENT, "no acknowledgement") : nya_net_command_decode(body + reader.at, size - reader.at, commands, &count);
+
+    // a fixed encoding every well behaved client gets right, so a malformed one is a broken client or a probe.
+    if (!decoded.ok) {
+        nya_log_warn("Dropping a peer that sent a malformed command: %s", (NYA_ConstCString)decoded.message);
+        nya_net_server_kick(peer, NYA_NET_DISCONNECT_PROTOCOL);
+        return;
+    }
+
+    // a client cannot have applied a snapshot that was never sent.
+    if (acked > tick) {
+        nya_log_warn("Dropping a peer that acknowledged tick %llu when the server is at %llu.", (unsigned long long)acked, (unsigned long long)tick);
+        nya_net_server_kick(peer, NYA_NET_DISCONNECT_PROTOCOL);
+        return;
+    }
+
+    // monotonic: an old acknowledgement must not move the baseline backwards.
+    if (acked > state->acknowledged_tick) state->acknowledged_tick = acked;
+
+    for (u32 i = 0; i < count; i++) {
+        const NYA_NetCommand* command = &commands[i];
+
+        // each command rides in several packets, so anything already seen is a copy.
+        if (command->tick <= state->last_command_tick) continue;
+
+        u64 elapsed = tick > state->last_command_server_tick ? tick - state->last_command_server_tick : 0;
+
+        if (command->tick - state->last_command_tick > elapsed + _NYA_NET_SERVER_COMMAND_SLACK) {
+            _nya_net_server_violation(state, "a command tick from the future");
+            if (!state->public_state.accepted) return;
+            continue;
+        }
+
+        if (state->queue_count == _NYA_NET_SERVER_COMMAND_QUEUE) {
+            // flooded: the oldest waiting command goes, so the queue stays a fixed size and the newest intent survives.
+            state->queue_head = (state->queue_head + 1) % _NYA_NET_SERVER_COMMAND_QUEUE;
+            state->queue_count--;
+
+            _nya_net_server_violation(state, "more commands than ticks");
+            if (!state->public_state.accepted) return;
+        }
+
+        state->queue[(state->queue_head + state->queue_count) % _NYA_NET_SERVER_COMMAND_QUEUE] = *command;
+        state->queue_count++;
+
+        state->last_command_tick        = command->tick;
+        state->last_command_server_tick = tick;
+    }
+}
+
+void _nya_net_server_apply_commands(_NYA_NetServerPeerState* state, NYA_NetApplyCommandFn apply_command, f32 delta_time_s) {
+    state->command_tokens = nya_min(state->command_tokens + 1.0F, _NYA_NET_SERVER_COMMAND_BURST);
+
+    NYA_Entity* entity = nya_entity_get(state->public_state.entity);
+
+    f32x3 start   = entity != nullptr ? entity->position : (f32x3){ 0.0F, 0.0F, 0.0F };
+    u32   applied = 0;
+
+    while (state->queue_count > 0 && state->command_tokens >= 1.0F) {
+        NYA_NetCommand command = state->queue[state->queue_head];
+
+        state->queue_head = (state->queue_head + 1) % _NYA_NET_SERVER_COMMAND_QUEUE;
+        state->queue_count--;
+        state->command_tokens -= 1.0F;
+
+        if (entity != nullptr && apply_command != nullptr) apply_command(entity, &command, delta_time_s);
+
+        state->last_command         = command;
+        state->applied_command_tick = command.tick;
+        applied++;
+    }
+
+    f32 max_speed = _NYA_NET_SERVER.config.max_speed;
+
+    if (entity == nullptr || applied == 0 || max_speed <= 0.0F) return;
+
+    /*
+     * The game's own movement code decides where commands take a player; this only holds it to the promise that
+     * nothing moves faster than `max_speed`, whatever the command said. A little slack for float error.
+     */
+    f32x3 moved   = entity->position - start;
+    f32   allowed = max_speed * delta_time_s * (f32)applied * 1.01F;
+    f32   length  = sqrtf((moved.x * moved.x) + (moved.y * moved.y) + (moved.z * moved.z));
+
+    if (length <= allowed || !isfinite(length)) {
+        if (isfinite(length)) return;
+        allowed = 0.0F;
+    }
+
+    entity->position = start + (length > 0.0F && isfinite(length) ? moved * (allowed / length) : (f32x3){ 0.0F, 0.0F, 0.0F });
+
+    _nya_net_server_violation(state, "moving faster than max_speed");
+}
+
+void _nya_net_server_violation(_NYA_NetServerPeerState* state, NYA_ConstCString what) {
+    state->violations++;
+    state->violation_score += 1.0F;
+
+    u32 limit = _NYA_NET_SERVER.config.violation_limit == 0 ? NYA_NET_VIOLATION_LIMIT_DEFAULT : _NYA_NET_SERVER.config.violation_limit;
+
+    if (state->violation_score <= (f32)limit) return;
+
+    nya_log_warn("Kicking '%s' after %u violations, the last %s.", state->public_state.name, state->violations, what);
+    nya_net_server_kick(state->public_state.peer, NYA_NET_DISCONNECT_CHEATING);
+}
 
 void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId peer, const u8* body, u64 size) {
     /* Refused on size before parsing, since parsing is what is being protected. */
@@ -659,9 +753,10 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
         return;
     }
 
-    NYA_Value* protocol = nya_object_get(hello, "protocol");
-    NYA_Value* snapshot = nya_object_get(hello, "snapshot");
-    NYA_Value* name     = nya_object_get(hello, "name");
+    NYA_Value* protocol    = nya_object_get(hello, "protocol");
+    NYA_Value* snapshot    = nya_object_get(hello, "snapshot");
+    NYA_Value* name        = nya_object_get(hello, "name");
+    NYA_Value* client_tick = nya_object_get(hello, "tick");
 
     u64 their_protocol = protocol != nullptr && protocol->type == NYA_TYPE_U64 ? protocol->as_u64 : 0;
     u64 their_snapshot = snapshot != nullptr && snapshot->type == NYA_TYPE_U64 ? snapshot->as_u64 : 0;
@@ -713,6 +808,10 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
     state->public_state.accepted = true;
     state->public_state.is_local = nya_net_transport_is_local(transport);
 
+    // where the client's numbering stands now: its commands start after this, and advance with time.
+    state->last_command_tick        = client_tick != nullptr && client_tick->type == NYA_TYPE_U64 ? client_tick->as_u64 : 0;
+    state->last_command_server_tick = _NYA_NET_SERVER.current_tick;
+
     const u8* peer_key = nya_net_transport_peer_key(transport, peer);
     if (peer_key != nullptr) nya_memcpy(state->public_state.public_key, peer_key, NYA_NET_KEY_SIZE);
 
@@ -734,6 +833,7 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
     nya_object_set(body_object, "entity_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = state->public_state.entity.index });
     nya_object_set(body_object, "entity_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = state->public_state.entity.generation });
     nya_object_set(body_object, "replicated_flag", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = _NYA_NET_SERVER.config.replicated_flag });
+    nya_object_set(body_object, "tick_ns", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_app_get()->options.time_step_ns });
 
     NYA_EXPECT(nya_net_message_write_object(scratch, welcome, body_object));
 
@@ -745,7 +845,8 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
 }
 
 void _nya_net_server_send_snapshots(u64 tick) {
-    if (_NYA_NET_SERVER.peer_count == 0) return;
+    // a listen server's own player shares the world, so with nobody remote there is nothing to describe.
+    if (_NYA_NET_SERVER.remote_peer_count == 0 && _NYA_NET_SERVER.config.lag_history_ticks == 0) return;
 
     NYA_Arena* arena = _NYA_NET_SERVER.tick_arena;
 
@@ -754,6 +855,8 @@ void _nya_net_server_send_snapshots(u64 tick) {
     NYA_Error captured = nya_net_snapshot_capture(arena, _NYA_NET_SERVER.config.replicated_flag, tick, &snapshot);
     if (!captured.ok) return;
 
+    snapshot.position_bits = (u8)_NYA_NET_SERVER.config.position_bits;
+
     /* The unfiltered world goes into the history ring first. */
     if (_NYA_NET_SERVER.config.lag_history_ticks > 0) {
         _nya_net_server_store(&_NYA_NET_SERVER.history[tick % _NYA_NET_SERVER.config.lag_history_ticks], &snapshot);
@@ -761,7 +864,7 @@ void _nya_net_server_send_snapshots(u64 tick) {
 
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
         _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
-        if (state == nullptr || !state->public_state.accepted) continue;
+        if (state == nullptr || !state->public_state.accepted || state->public_state.is_local) continue;
 
         /* The baseline is what this peer acknowledged, if still in the ring. */
         const NYA_NetSnapshot* baseline = nullptr;
@@ -774,6 +877,7 @@ void _nya_net_server_send_snapshots(u64 tick) {
 
         // only what this peer may see. a subset of a sorted list stays sorted. see NYA_NetRelevanceFn.
         NYA_NetSnapshot relevant = _nya_net_server_relevant(arena, &snapshot, state);
+        relevant.command_tick    = state->applied_command_tick;
 
         NYA_String* payload = nya_string_create(arena);
 
@@ -785,6 +889,8 @@ void _nya_net_server_send_snapshots(u64 tick) {
         if (!_nya_net_server_afford(state, payload->length)) continue;
 
         _nya_net_server_send(state, NYA_NET_CHANNEL_UNRELIABLE, payload);
+
+        state->snapshot_bytes = (u32)payload->length;
 
         /* Kept as a future baseline; the filtered snapshot is what the peer has. */
         _nya_net_server_store(&state->baselines[tick % NYA_NET_SNAPSHOT_HISTORY], &relevant);

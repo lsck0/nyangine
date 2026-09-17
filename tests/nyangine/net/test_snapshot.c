@@ -13,8 +13,13 @@
 /** A second game flag, to check that the whole `flags` word round trips rather than just the marker. */
 #define FLAG_ENEMY (1ULL << 9)
 
+/** Equal on the wire: every field exact except the rotation, which crosses as smallest three and so within a fraction of a degree. */
 static b8 states_equal(const NYA_NetEntityState* a, const NYA_NetEntityState* b) {
-  return nya_net_entity_state_diff(a, b) == 0 && a->handle.index == b->handle.index && a->handle.generation == b->handle.generation;
+  u16 differ = nya_net_entity_state_diff(a, b) & (u16)~NYA_NET_FIELD_ROTATION;
+
+  f32 dot = fabsf((a->rotation.x * b->rotation.x) + (a->rotation.y * b->rotation.y) + (a->rotation.z * b->rotation.z) + (a->rotation.w * b->rotation.w));
+
+  return differ == 0 && dot > 0.99999F && a->handle.index == b->handle.index && a->handle.generation == b->handle.generation;
 }
 
 /** Encodes then decodes, so a test asserts on what a client would actually end up with. */
@@ -107,9 +112,7 @@ s32 main(void) {
     nya_assert(decoded.tick == 99);
     nya_assert(decoded.entity_count == 1);
 
-    /*
-     * Exact equality, not a tolerance.
-     */
+    // exact for everything on a power of two grid, which every value here is.
     nya_assert(states_equal(&snapshot.entities[0], &decoded.entities[0]), "a full snapshot round trip lost or changed a field");
 
     // Spot checks, so a failure says which field rather than only that one differed.
@@ -376,133 +379,154 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the decoder refuses what a hostile peer can send
   // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: fixed point on the wire
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: positions cross on a power of two grid, and rotations within a fraction of a degree\n");
+  {
+    NYA_NetEntityState state = { .handle = { .index = 3, .generation = 1 }, .scale = { 1.0F, 1.0F, 1.0F }, .rotation = nya_quaternion_identity };
+    NYA_NetSnapshot    one   = { .tick = 5, .position_bits = 4, .entities = &state, .entity_count = 1 };
+
+    // a sixteenth of a unit is kept exactly, a hundredth rounds to the nearest sixteenth.
+    state.position          = (f32x3){ 100.0625F, -3.0F, 0.01F };
+    NYA_NetSnapshot decoded = round_trip(arena, &one, nullptr, nullptr);
+
+    nya_assert(decoded.position_bits == 4, "the precision is carried in the header");
+    nya_assert(decoded.entities[0].position.x == 100.0625F && decoded.entities[0].position.y == -3.0F, "a value on the grid moved");
+    nya_assert(decoded.entities[0].position.z == 0.0F, "0.01 at four bits should round to zero, got %f", (f64)decoded.entities[0].position.z);
+
+    // decoding what was decoded gives the same bits: what lets both sides derive a baseline's integers alike.
+    NYA_NetSnapshot again = round_trip(arena, &decoded, nullptr, nullptr);
+    nya_assert(nya_memcmp(&again.entities[0].position, &decoded.entities[0].position, sizeof(f32x3)) == 0, "a second round trip moved a quantised position");
+
+    // large, not finite, and absurd values are clamped rather than wrapped or trusted.
+    state.position = (f32x3){ 1.0e30F, NAN, -INFINITY };
+    decoded        = round_trip(arena, &one, nullptr, nullptr);
+    nya_assert(isfinite(decoded.entities[0].position.x) && decoded.entities[0].position.x > 1.0e9F, "a huge position did not clamp");
+    nya_assert(decoded.entities[0].position.y == 0.0F, "a NaN position did not become zero");
+
+    // rotations: random unit quaternions, including both signs of the same rotation.
+    NYA_RNG             rng     = nya_rng_create(.seed = "40747E");
+    NYA_RNGDistribution uniform = { .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { .min = -1.0, .max = 1.0 } };
+
+    f32 worst_degrees = 0.0F;
+    state.position    = (f32x3){ 0.0F, 0.0F, 0.0F };
+
+    for (u32 i = 0; i < 2000; i++) {
+      NYA_Quaternion q = { nya_rng_sample_f32(&rng, uniform), nya_rng_sample_f32(&rng, uniform), nya_rng_sample_f32(&rng, uniform), nya_rng_sample_f32(&rng, uniform) };
+      if (i % 7 == 0) q = (NYA_Quaternion){ 0.0F, 0.0F, 0.70710678F, 0.70710678F }; // two equal largest components, a crate on its side
+
+      state.rotation = nya_quaternion_normalize(q);
+      decoded        = round_trip(arena, &one, nullptr, nullptr);
+
+      NYA_Quaternion back = decoded.entities[0].rotation;
+      f32 dot = fabsf((state.rotation.x * back.x) + (state.rotation.y * back.y) + (state.rotation.z * back.z) + (state.rotation.w * back.w));
+
+      worst_degrees = nya_max(worst_degrees, 2.0F * acosf(nya_min(dot, 1.0F)) * 57.29578F);
+    }
+
+    printf("  2000 rotations in 32 bits each: worst error %.3f degrees\n", (f64)worst_degrees);
+    nya_assert(worst_degrees < 0.25F, "smallest three lost %.3f degrees", (f64)worst_degrees);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: only what changed crosses, and removals are explicit
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: a delta names removed entities and omits unchanged ones\n");
+  {
+    NYA_NetEntityState before[4] = { 0 };
+    for (u32 i = 0; i < 4; i++) {
+      before[i] = (NYA_NetEntityState){ .handle = { .index = 10 + (i * 3), .generation = 1 }, .position = { (f32)i * 8.0F, 0.0F, 0.0F }, .scale = { 1.0F, 1.0F, 1.0F }, .rotation = nya_quaternion_identity };
+    }
+
+    NYA_NetSnapshot baseline = { .tick = 100, .entities = before, .entity_count = 4 };
+    NYA_NetSnapshot received = round_trip(arena, &baseline, nullptr, nullptr);
+
+    // the second entity is gone, the third moved a little, and a new one sits where the first was.
+    NYA_NetEntityState after[4] = { before[0], before[2], before[3], before[3] };
+    after[0].handle.generation   = 2;
+    after[1].position.x         += 0.5F;
+    after[3].handle.index        = 40;
+
+    NYA_NetSnapshot current = { .tick = 104, .entities = after, .entity_count = 4 };
+
+    NYA_String* delta = nya_string_create(arena);
+    NYA_EXPECT(nya_net_snapshot_encode(arena, &current, &baseline, delta));
+
+    u64 tick          = 0;
+    u64 baseline_tick = 0;
+    nya_assert(nya_net_snapshot_peek(delta->items, delta->length, &tick, &baseline_tick) && tick == 104 && baseline_tick == 100, "the header does not name its baseline");
+
+    NYA_NetSnapshot decoded = { 0 };
+    NYA_EXPECT(nya_net_snapshot_decode(arena, delta->items, delta->length, &received, &decoded));
+
+    nya_assert(decoded.entity_count == 4, "the delta decoded to %u entities", decoded.entity_count);
+    for (u32 i = 0; i < 4; i++) nya_assert(states_equal(&after[i], &decoded.entities[i]), "entity %u came back different", i);
+
+    // the moving one costs a few bytes; the unchanged one costs nothing.
+    printf("  a delta with a replacement, a removal, a move and an addition: %llu bytes\n", (unsigned long long)delta->length);
+
+    // against any baseline but the one it names, it is refused rather than misread.
+    NYA_NetSnapshot wrong = received;
+    wrong.tick            = 99;
+    nya_assert(!nya_net_snapshot_decode(arena, delta->items, delta->length, &wrong, &decoded).ok, "a delta decoded against the wrong baseline");
+    nya_assert(!nya_net_snapshot_decode(arena, delta->items, delta->length, nullptr, &decoded).ok, "a delta decoded against no baseline");
+
+    // every truncation is refused, and so is a byte past the end.
+    for (u64 prefix = 0; prefix < delta->length; prefix++) {
+      nya_assert(!nya_net_snapshot_decode(arena, delta->items, prefix, &received, &decoded).ok, "a delta cut to %llu bytes was accepted", (unsigned long long)prefix);
+    }
+
+    nya_string_push_back(delta, 0);
+    nya_assert(!nya_net_snapshot_decode(arena, delta->items, delta->length, &received, &decoded).ok, "trailing bytes were accepted");
+
+    // an unchanged world is the header and two empty lists.
+    NYA_NetSnapshot same = { .tick = 101, .entities = before, .entity_count = 4 };
+    NYA_String*     none = nya_string_create(arena);
+    NYA_EXPECT(nya_net_snapshot_encode(arena, &same, &baseline, none));
+    nya_assert(none->length <= 8, "an unchanged world took %llu bytes", (unsigned long long)none->length);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the decoder refuses what a hostile peer can send
+  // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the decoder rejects malformed payloads\n");
   {
     NYA_NetSnapshot decoded = { 0 };
 
-    // Nothing at all.
     nya_assert(!nya_net_snapshot_decode(arena, nullptr, 0, nullptr, &decoded).ok);
 
-    u8 truncated[4] = { 1, 2, 3, 4 };
-    nya_assert(!nya_net_snapshot_decode(arena, truncated, sizeof(truncated), nullptr, &decoded).ok,
-               "a payload too short for the header is refused");
+    /** tick, gap, command tick, bits, removed, then whatever the case needs. */
+    #define PAYLOAD(...)                                                                                                                       \
+      ({                                                                                                                                       \
+        static const u8 _bytes[] = { __VA_ARGS__ };                                                                                            \
+        (NYA_String){ .items = (u8*)_bytes, .length = sizeof(_bytes) };                                                                        \
+      })
 
-    /*
-     * A count the payload cannot possibly hold.
-     */
-    NYA_String* lying = nya_string_create(arena);
-    for (u32 i = 0; i < 8; i++) nya_string_push_back(lying, 0); // tick
-    nya_string_push_back(lying, 0xFF);
-    nya_string_push_back(lying, 0xFF);
-    nya_string_push_back(lying, 0xFF);
-    nya_string_push_back(lying, 0xFF); // count = 4294967295
+    NYA_String cases[] = {
+      PAYLOAD(1, 2),                                            // too short for the header
+      PAYLOAD(5, 0, 0, 17, 0, 0),                               // more position bits than allowed
+      PAYLOAD(5, 6, 0, 6, 0, 0),                                // a baseline before tick zero
+      PAYLOAD(5, 0, 0, 6, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F),     // an absurd changed count
+      PAYLOAD(5, 0, 0, 6, 0, 4),                                // a count with nothing behind it
+      PAYLOAD(5, 0, 0, 6, 1, 0, 0),                             // a removal with no baseline to remove from
+      PAYLOAD(5, 0, 0, 6, 0, 1, 0, 0x7F),                       // a mask without the new bit against no baseline
+      PAYLOAD(5, 0, 0, 6, 0, 1, 0, 0xFF, 0x03, 0),              // a new entity with generation zero
+      PAYLOAD(5, 0, 0, 6, 0, 1, 0, 0x80, 0x02, 1),              // a new entity missing its fields
+      PAYLOAD(5, 0, 0, 6, 0, 1, 0x80, 0x80, 0x01, 0xFF, 0x03, 1), // an index past the entity table
+      PAYLOAD(5, 0, 0, 6, 0, 1, 0, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01), // an unterminated varint
+    };
 
-    nya_assert(!nya_net_snapshot_decode(arena, lying->items, lying->length, nullptr, &decoded).ok,
-               "an absurd entity count is refused rather than allocated");
-
-    // A plausible count with no entity data behind it.
-    NYA_String* short_body = nya_string_create(arena);
-    for (u32 i = 0; i < 8; i++) nya_string_push_back(short_body, 0);
-    nya_string_push_back(short_body, 4);
-    nya_string_push_back(short_body, 0);
-    nya_string_push_back(short_body, 0);
-    nya_string_push_back(short_body, 0); // count = 4, and nothing follows
-
-    nya_assert(!nya_net_snapshot_decode(arena, short_body->items, short_body->length, nullptr, &decoded).ok,
-               "a count with no data behind it is refused");
-
-    // A mask claiming fields the payload runs out before providing.
-    NYA_String* short_fields = nya_string_create(arena);
-    for (u32 i = 0; i < 8; i++) nya_string_push_back(short_fields, 0);
-    nya_string_push_back(short_fields, 1);
-    nya_string_push_back(short_fields, 0);
-    nya_string_push_back(short_fields, 0);
-    nya_string_push_back(short_fields, 0); // count = 1
-    for (u32 i = 0; i < 8; i++) nya_string_push_back(short_fields, 0); // handle
-    nya_string_push_back(short_fields, 0xFF);
-    nya_string_push_back(short_fields, 0x00); // mask = every field, and none of them follow
-
-    nya_assert(!nya_net_snapshot_decode(arena, short_fields->items, short_fields->length, nullptr, &decoded).ok,
-               "a mask promising fields that are not there is refused");
-
-    /*
-     * Entities out of ascending handle order.
-     */
-    {
-      NYA_String* unsorted = nya_string_create(arena);
-
-      for (u32 i = 0; i < 8; i++) nya_string_push_back(unsorted, 0); // tick
-      nya_string_push_back(unsorted, 2);
-      nya_string_push_back(unsorted, 0);
-      nya_string_push_back(unsorted, 0);
-      nya_string_push_back(unsorted, 0); // count = 2
-
-      // Index 5, generation 1, empty mask.
-      nya_string_push_back(unsorted, 5);
-      for (u32 i = 0; i < 3; i++) nya_string_push_back(unsorted, 0);
-      nya_string_push_back(unsorted, 1);
-      for (u32 i = 0; i < 3; i++) nya_string_push_back(unsorted, 0);
-      nya_string_push_back(unsorted, 0);
-      nya_string_push_back(unsorted, 0);
-
-      // then index 2, lower than the one before.
-      nya_string_push_back(unsorted, 2);
-      for (u32 i = 0; i < 3; i++) nya_string_push_back(unsorted, 0);
-      nya_string_push_back(unsorted, 1);
-      for (u32 i = 0; i < 3; i++) nya_string_push_back(unsorted, 0);
-      nya_string_push_back(unsorted, 0);
-      nya_string_push_back(unsorted, 0);
-
-      nya_assert(!nya_net_snapshot_decode(arena, unsorted->items, unsorted->length, nullptr, &decoded).ok,
-                 "entities out of handle order are refused");
+    for (u32 i = 0; i < nya_carray_length(cases); i++) {
+      nya_assert(!nya_net_snapshot_decode(arena, cases[i].items, cases[i].length, nullptr, &decoded).ok, "malformed case %u was accepted", i);
     }
 
-    // A duplicate index is the same problem: two entities cannot occupy one slot at one instant.
-    {
-      NYA_String* duplicate = nya_string_create(arena);
-
-      for (u32 i = 0; i < 8; i++) nya_string_push_back(duplicate, 0);
-      nya_string_push_back(duplicate, 2);
-      for (u32 i = 0; i < 3; i++) nya_string_push_back(duplicate, 0);
-
-      for (u32 entity = 0; entity < 2; entity++) {
-        nya_string_push_back(duplicate, 3);
-        for (u32 i = 0; i < 3; i++) nya_string_push_back(duplicate, 0);
-        nya_string_push_back(duplicate, 1);
-        for (u32 i = 0; i < 3; i++) nya_string_push_back(duplicate, 0);
-        nya_string_push_back(duplicate, 0);
-        nya_string_push_back(duplicate, 0);
-      }
-
-      nya_assert(!nya_net_snapshot_decode(arena, duplicate->items, duplicate->length, nullptr, &decoded).ok,
-                 "a repeated handle index is refused");
-    }
-
-    /*
-     * A generation of zero names nothing.
-     */
-    {
-      NYA_String* zero_generation = nya_string_create(arena);
-
-      for (u32 i = 0; i < 8; i++) nya_string_push_back(zero_generation, 0);
-      nya_string_push_back(zero_generation, 1);
-      for (u32 i = 0; i < 3; i++) nya_string_push_back(zero_generation, 0);
-
-      for (u32 i = 0; i < 8; i++) nya_string_push_back(zero_generation, 0); // index 0, generation 0
-      nya_string_push_back(zero_generation, 0);
-      nya_string_push_back(zero_generation, 0);
-
-      nya_assert(!nya_net_snapshot_decode(arena, zero_generation->items, zero_generation->length, nullptr, &decoded).ok,
-                 "an entity with a zero generation is refused");
-    }
+    #undef PAYLOAD
 
     // An empty but well formed snapshot is legal: a world with nothing replicated in it.
-    NYA_String* empty = nya_string_create(arena);
-    for (u32 i = 0; i < 8; i++) nya_string_push_back(empty, 0);
-    for (u32 i = 0; i < 4; i++) nya_string_push_back(empty, 0);
-
-    NYA_EXPECT(nya_net_snapshot_decode(arena, empty->items, empty->length, nullptr, &decoded));
-    nya_assert(decoded.entity_count == 0, "an empty snapshot decodes to an empty world, not an error");
+    u8 empty[] = { 5, 0, 0, 6, 0, 0 };
+    NYA_EXPECT(nya_net_snapshot_decode(arena, empty, sizeof(empty), nullptr, &decoded));
+    nya_assert(decoded.entity_count == 0 && decoded.tick == 5, "an empty snapshot decodes to an empty world, not an error");
   }
 
   printf("PASSED: test_snapshot (0 failures)\n");

@@ -192,6 +192,28 @@ static u64 write_fragment(u8* out, u8 channel, u16 message_id, u16 index, u16 to
   return FRAGMENT_HEADER;
 }
 
+/** What the cheating tests move: one entity, stepped by a fixed speed while action 0 is held. */
+#define HONEST_SPEED 100.0F
+#define CHEAT_TICK   (1.0F / 60.0F)
+
+static NYA_EntityHandle CHEATER = NYA_ENTITY_HANDLE_NONE;
+
+static NYA_EntityHandle spawn_cheater(NYA_NetPeerId peer, NYA_ConstCString name) {
+  nya_unused(peer, name);
+
+  CHEATER = nya_entity_spawn(.name = "cheater", .flags = 1, .position = { 0.0F, 0.0F, 0.0F });
+  return CHEATER;
+}
+
+static void walk(NYA_Entity* entity, const NYA_NetCommand* command, f32 delta_time_s) {
+  if (nya_net_command_holds(command, 0)) entity->position.x += HONEST_SPEED * delta_time_s;
+}
+
+/** A game that trusts what the command says about speed, which max_speed exists to contain. */
+static void walk_trusting(NYA_Entity* entity, const NYA_NetCommand* command, f32 delta_time_s) {
+  entity->position.x += command->analog * delta_time_s;
+}
+
 /** Counts how many peers a transport currently holds, by walking its own table. */
 static u32 peer_count(NYA_NetTransport* transport) {
   const _NYA_NetUdpState* state = transport->state;
@@ -771,9 +793,13 @@ s32 main(void) {
       nya_assert(nya_net_server_peer_count() == 1, "the attacker should have joined normally first");
     }
 
+    // the acknowledgement rides at the front of every command.
+    NYA_NetCommand honest = { .tick = 1 };
+
     NYA_String* ack = nya_string_create(arena);
-    nya_net_message_begin(ack, NYA_NET_MSG_SNAPSHOT_ACK);
-    for (u32 i = 0; i < 8; i++) nya_string_push_back(ack, 0xFF); // U64_MAX
+    nya_net_message_begin(ack, NYA_NET_MSG_COMMAND);
+    _nya_net_write_varint(ack, U64_MAX);
+    NYA_EXPECT(nya_net_command_encode(ack, &honest, 1));
 
     SEND_AS_CLIENT(ack);
 
@@ -820,6 +846,7 @@ s32 main(void) {
 
       NYA_String* payload = nya_string_create(arena);
       nya_net_message_begin(payload, NYA_NET_MSG_COMMAND);
+      _nya_net_write_varint(payload, 0);
       NYA_EXPECT(nya_net_command_encode(payload, &absurd, 1));
 
       SEND_AS_CLIENT(payload);
@@ -836,6 +863,7 @@ s32 main(void) {
 
       NYA_String* payload = nya_string_create(arena);
       nya_net_message_begin(payload, NYA_NET_MSG_COMMAND);
+      _nya_net_write_varint(payload, 0);
       NYA_EXPECT(nya_net_command_encode(payload, &honest, 1));
 
       SEND_AS_CLIENT(payload);
@@ -881,6 +909,7 @@ s32 main(void) {
     // four-entry stack array.
     NYA_String* payload = nya_string_create(arena);
     nya_net_message_begin(payload, NYA_NET_MSG_COMMAND);
+    _nya_net_write_varint(payload, 0);
     nya_string_push_back(payload, 200);
 
     SEND_AS_CLIENT(payload);
@@ -890,6 +919,125 @@ s32 main(void) {
 
     nya_assert(nya_net_server_peer_count() == 0, "a peer sending a malformed command was not dropped");
     printf("  a command claiming 200 entries dropped the peer\n");
+
+    nya_net_server_stop();
+  }
+
+  printf("TEST: commands sent faster than ticks move nobody faster, and get the sender kicked\n");
+  {
+    NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){ .replicated_flag = 1, .on_spawn_player = nya_callback(spawn_cheater), .on_apply_command = nya_callback(walk) }));
+
+    NYA_NetTransport* hostile = nullptr;
+    NYA_EXPECT(nya_net_server_attach_local(&hostile));
+
+    NYA_String* hello_payload = nya_string_create(arena);
+    nya_net_message_begin(hello_payload, NYA_NET_MSG_HELLO);
+
+    NYA_Object* hello = nya_object_create(arena);
+    nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "speedhack" });
+    nya_object_set(hello, "tick", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1000 });
+
+    NYA_EXPECT(nya_net_message_write_object(arena, hello_payload, hello));
+    SEND_AS_CLIENT(hello_payload);
+
+    nya_net_server_tick(30, CHEAT_TICK);
+    nya_system_sim_apply_commands();
+
+    NYA_NetPeerId peer = nya_net_server_local_peer();
+    nya_assert(nya_net_peer_is_set(peer) && nya_entity_is_valid(CHEATER));
+
+    // four fresh ticks a packet and four packets a tick: sixteen ticks of walking claimed for every one that passes.
+    u64 claimed = 1000;
+    u32 ticks   = 0;
+    u32 peak    = 0;
+
+    for (; ticks < 120 && nya_net_server_peer_count() == 1; ticks++) {
+      for (u32 packet = 0; packet < 4; packet++) {
+        NYA_NetCommand run[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
+        for (u32 i = 0; i < NYA_NET_COMMAND_REDUNDANCY; i++) run[i] = (NYA_NetCommand){ .tick = ++claimed, .actions = 1 };
+
+        NYA_String* payload = nya_string_create(arena);
+        nya_net_message_begin(payload, NYA_NET_MSG_COMMAND);
+        _nya_net_write_varint(payload, 0);
+        NYA_EXPECT(nya_net_command_encode(payload, run, NYA_NET_COMMAND_REDUNDANCY));
+
+        SEND_AS_CLIENT(payload);
+      }
+
+      nya_net_server_tick(31 + ticks, CHEAT_TICK);
+
+      if (nya_net_server_peer_count() == 1) peak = nya_max(peak, nya_net_server_peer_stats(peer).violations);
+
+      NYA_Entity* entity = nya_entity_get(CHEATER);
+      if (entity != nullptr) {
+        f32 honest_most = (f32)(ticks + 1 + 4) * HONEST_SPEED * CHEAT_TICK;
+        nya_assert(entity->position.x <= honest_most + 0.01F, "after %u ticks the cheater is at %f, past the %f an honest client reaches", ticks + 1,
+                   (f64)entity->position.x, (f64)honest_most);
+      }
+
+      nya_system_sim_apply_commands();
+    }
+
+    printf("  sixteen ticks claimed per tick: kicked after %u ticks with %u violations counted\n", ticks, peak);
+
+    nya_assert(nya_net_server_peer_count() == 0, "a client flooding commands was never kicked");
+
+    nya_net_server_stop();
+  }
+
+  printf("TEST: max_speed holds a game that trusts the command to the server's rules\n");
+  {
+    NYA_EXPECT(nya_net_server_start((NYA_NetServerConfig){
+      .replicated_flag  = 1,
+      .on_spawn_player  = nya_callback(spawn_cheater),
+      .on_apply_command = nya_callback(walk_trusting),
+      .max_speed        = 200.0F,
+    }));
+
+    NYA_NetTransport* hostile = nullptr;
+    NYA_EXPECT(nya_net_server_attach_local(&hostile));
+
+    NYA_String* hello_payload = nya_string_create(arena);
+    nya_net_message_begin(hello_payload, NYA_NET_MSG_HELLO);
+
+    NYA_Object* hello = nya_object_create(arena);
+    nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "teleporter" });
+
+    NYA_EXPECT(nya_net_message_write_object(arena, hello_payload, hello));
+    SEND_AS_CLIENT(hello_payload);
+
+    nya_net_server_tick(1, CHEAT_TICK);
+    nya_system_sim_apply_commands();
+
+    NYA_NetPeerId peer = nya_net_server_local_peer();
+
+    for (u32 i = 0; i < 10; i++) {
+      NYA_NetCommand fast = { .tick = 1 + i, .analog = 100000.0F };
+
+      NYA_String* payload = nya_string_create(arena);
+      nya_net_message_begin(payload, NYA_NET_MSG_COMMAND);
+      _nya_net_write_varint(payload, 0);
+      NYA_EXPECT(nya_net_command_encode(payload, &fast, 1));
+      SEND_AS_CLIENT(payload);
+
+      nya_net_server_tick(2 + i, CHEAT_TICK);
+      nya_system_sim_apply_commands();
+    }
+
+    NYA_Entity* entity = nya_entity_get(CHEATER);
+    nya_assert(entity != nullptr);
+
+    f32 limit = 10.0F * 200.0F * CHEAT_TICK * 1.01F;
+
+    printf("  ten commands asking for 100000 units a second: moved %.2f, violations %u\n", (f64)entity->position.x, nya_net_server_peer_stats(peer).violations);
+
+    nya_assert(entity->position.x <= limit, "max_speed let the entity reach %f past a limit of %f", (f64)entity->position.x, (f64)limit);
+    nya_assert(entity->position.x > 0.0F, "max_speed stopped the entity instead of slowing it");
+    nya_assert(nya_net_server_peer_stats(peer).violations == 10, "each clamped command should count once");
 
     nya_net_server_stop();
   }

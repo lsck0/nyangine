@@ -24,10 +24,17 @@ typedef struct NYA_NetReplicaMap  NYA_NetReplicaMap;
 /**
  * Bumped whenever the encoding changes in a way an older peer would misread.
  * */
-#define NYA_NET_SNAPSHOT_VERSION 1
+#define NYA_NET_SNAPSHOT_VERSION 2
 
 /** How many replicated entities one snapshot may carry. Sizes the per-snapshot arrays. */
 #define NYA_NET_MAX_REPLICATED 2048
+
+/**
+ * Fractional bits positions and velocities are sent with when a snapshot does not say: steps of 1/64 of a world unit.
+ * A game in metres wants more, one in pixels fewer. See NYA_NetSnapshot.position_bits.
+ * */
+#define NYA_NET_POSITION_BITS_DEFAULT 6
+#define NYA_NET_POSITION_BITS_MAX     16
 
 /**
  * Which fields of an entity differ from its baseline.
@@ -67,8 +74,17 @@ struct NYA_NetEntityState {
  * The replicated world at one tick.
  * */
 struct NYA_NetSnapshot {
-    /** The server tick this describes. What a client reconciles its prediction against. */
+    /** The server tick this describes. */
     u64 tick;
+
+    /** The tick a decoded snapshot was a delta against, or zero for a whole one. */
+    u64 baseline_tick;
+
+    /** The newest of the receiving client's commands the server had applied. What prediction replays from. */
+    u64 command_tick;
+
+    /** Fractional bits positions and velocities are sent with. Zero is NYA_NET_POSITION_BITS_DEFAULT. */
+    u8 position_bits;
 
     NYA_NetEntityState* entities;
     u32                 entity_count;
@@ -119,6 +135,9 @@ struct NYA_NetReplica {
 struct NYA_NetReplicaMap {
     NYA_NetReplica entries[NYA_NET_MAX_REPLICATED];
     u32            count;
+
+    /** Which entry holds each server index, plus one, so a snapshot finds its replicas without a search. Zero is none. */
+    u16 by_remote_index[NYA_ENTITY_MAX];
 };
 
 /*
@@ -138,8 +157,11 @@ NYA_API NYA_Error nya_net_snapshot_capture(NYA_Arena* arena, u64 flag, u64 tick,
 NYA_API NYA_Error nya_net_snapshot_encode(NYA_Arena* arena, const NYA_NetSnapshot* snapshot, const NYA_NetSnapshot* baseline, OUT NYA_String* out)
     __attr_no_discard;
 
+/** The tick a payload describes and the baseline it needs, without decoding it. False when even that is malformed. */
+NYA_API b8 nya_net_snapshot_peek(const u8* data, u64 size, OUT u64* out_tick, OUT u64* out_baseline_tick) __attr_no_discard;
+
 /**
- * Reads a snapshot back, filling in unchanged fields from `baseline`.
+ * Reads a snapshot back against the baseline its header names, which must be `baseline`.
  * */
 NYA_API NYA_Error nya_net_snapshot_decode(NYA_Arena* arena, const u8* data, u64 size, const NYA_NetSnapshot* baseline, OUT NYA_NetSnapshot* out_snapshot)
     __attr_no_discard;

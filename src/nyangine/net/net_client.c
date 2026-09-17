@@ -13,6 +13,14 @@
  * */
 #define _NYA_NET_CLIENT_DEFAULT_THRESHOLD 0.01F
 
+/** A snapshot the client decoded, kept so the server may send deltas against it. */
+typedef struct {
+    NYA_NetSnapshot snapshot;
+
+    /** How many entities `snapshot.entities` has room for, so a slot reuses its buffer. */
+    u32 capacity;
+} _NYA_NetClientBaseline;
+
 typedef struct {
     b8 active;
 
@@ -56,15 +64,17 @@ typedef struct {
 
     /* snapshots */
 
-    /** The newest snapshot applied, kept as the baseline the next delta is decoded against. */
-    NYA_NetSnapshot baseline;
-    b8              has_baseline;
+    /**
+     * Recently decoded snapshots by `tick % NYA_NET_SNAPSHOT_HISTORY`. The server deltas against whichever one it
+     * last heard acknowledged, which is rarely the newest, so the ring is as long as the server's.
+     * */
+    _NYA_NetClientBaseline baselines[NYA_NET_SNAPSHOT_HISTORY];
 
-    /** Which arena `baseline` lives in. Swapped between two, so decoding does not free what it reads. */
-    NYA_Arena* baseline_arena;
-    NYA_Arena* baseline_spare;
-
+    /** The newest snapshot applied, and what every command acknowledges. */
     u64 server_tick;
+
+    /** The newest snapshot's payload size, for the stats. */
+    u32 snapshot_bytes;
 
     /* prediction */
 
@@ -72,6 +82,9 @@ typedef struct {
      * Commands sent but not yet confirmed, by tick.
      * */
     NYA_NetCommand history[NYA_NET_COMMAND_HISTORY];
+
+    /** Where prediction put the player after each command in `history`, to compare with the server's answer for it. */
+    f32x3 predicted[NYA_NET_COMMAND_HISTORY];
 
     u64 local_tick;
 
@@ -164,12 +177,6 @@ NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString na
 
         .allocator  = nya_arena_create(.name = "net_client"),
         .tick_arena = nya_arena_create(.name = "net_client_tick"),
-
-        /*
-         * Two arenas for the baseline, used alternately.
-         */
-        .baseline_arena = nya_arena_create(.name = "net_client_baseline_a"),
-        .baseline_spare = nya_arena_create(.name = "net_client_baseline_b"),
     };
 
     (void)snprintf(_NYA_NET_CLIENT.name, sizeof(_NYA_NET_CLIENT.name), "%s", name != nullptr ? name : "player");
@@ -241,7 +248,10 @@ NYA_NetPeerId nya_net_client_peer(void) {
 NYA_NetPeerStats nya_net_client_stats(void) {
     if (!_NYA_NET_CLIENT.active || _NYA_NET_CLIENT.transport == nullptr) return (NYA_NetPeerStats){ 0 };
 
-    return nya_net_transport_stats(_NYA_NET_CLIENT.transport, _NYA_NET_CLIENT.server_peer);
+    NYA_NetPeerStats stats = nya_net_transport_stats(_NYA_NET_CLIENT.transport, _NYA_NET_CLIENT.server_peer);
+    stats.snapshot_bytes   = _NYA_NET_CLIENT.snapshot_bytes;
+
+    return stats;
 }
 
 u64 nya_net_client_server_tick(void) {
@@ -356,6 +366,7 @@ void _nya_net_client_send_hello(void) {
     nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
     nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
     nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = _NYA_NET_CLIENT.name });
+    nya_object_set(hello, "tick", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = _NYA_NET_CLIENT.local_tick });
 
     if (!nya_net_message_write_object(scratch, payload, hello).ok) return;
 
@@ -454,6 +465,7 @@ void _nya_net_client_handle_welcome(const u8* body, u64 size) {
     NYA_Value* entity_index      = nya_object_get(welcome, "entity_index");
     NYA_Value* entity_generation = nya_object_get(welcome, "entity_generation");
     NYA_Value* replicated_flag   = nya_object_get(welcome, "replicated_flag");
+    NYA_Value* tick_ns           = nya_object_get(welcome, "tick_ns");
 
     if (peer_index == nullptr || peer_index->type != NYA_TYPE_U64) return;
     if (peer_generation == nullptr || peer_generation->type != NYA_TYPE_U64) return;
@@ -476,6 +488,15 @@ void _nya_net_client_handle_welcome(const u8* body, u64 size) {
         _NYA_NET_CLIENT.config.replicated_flag = replicated_flag->as_u64;
     }
 
+    // the client ticks at the server's rate, so each command is one server tick of movement on both sides.
+    NYA_App* app = nya_app_get();
+
+    if (tick_ns != nullptr && tick_ns->type == NYA_TYPE_U64 && tick_ns->as_u64 >= NYA_NET_TICK_NS_MIN && tick_ns->as_u64 <= NYA_NET_TICK_NS_MAX
+        && tick_ns->as_u64 != app->options.time_step_ns) {
+        nya_log_info("Following the server's tick of %.2f ms.", (f64)tick_ns->as_u64 / 1e6);
+        app->options.time_step_ns = tick_ns->as_u64;
+    }
+
     _NYA_NET_CLIENT.state = NYA_NET_CLIENT_PLAYING;
 
     nya_log_info("Joined as peer %u, controlling server entity %u.", _NYA_NET_CLIENT.peer.index, _NYA_NET_CLIENT.entity_remote.index);
@@ -485,114 +506,120 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
     // no predicted entity before the handshake, so a snapshot then is a stray.
     if (_NYA_NET_CLIENT.state != NYA_NET_CLIENT_PLAYING) return;
 
-    const NYA_NetSnapshot* baseline = _NYA_NET_CLIENT.has_baseline ? &_NYA_NET_CLIENT.baseline : nullptr;
+    u64 tick          = 0;
+    u64 baseline_tick = 0;
 
-    /*
-     * Decoded into the *spare* arena, never the one holding the current baseline.
-     */
-    nya_arena_free_all(_NYA_NET_CLIENT.baseline_spare);
+    // older than what was applied, or a duplicate: applying it would move the world backwards.
+    if (!nya_net_snapshot_peek(body, size, &tick, &baseline_tick)) return;
+    if (tick <= _NYA_NET_CLIENT.server_tick) return;
+
+    const NYA_NetSnapshot* baseline = nullptr;
+
+    if (baseline_tick != 0) {
+        const _NYA_NetClientBaseline* slot = &_NYA_NET_CLIENT.baselines[baseline_tick % NYA_NET_SNAPSHOT_HISTORY];
+
+        // gone from the ring: this delta cannot be read, and the server falls back to a whole snapshot once its own ring moves on.
+        if (slot->snapshot.tick != baseline_tick) return;
+
+        baseline = &slot->snapshot;
+    }
 
     NYA_NetSnapshot snapshot = { 0 };
 
-    NYA_Error decoded = nya_net_snapshot_decode(_NYA_NET_CLIENT.baseline_spare, body, size, baseline, &snapshot);
+    NYA_Error decoded = nya_net_snapshot_decode(_NYA_NET_CLIENT.tick_arena, body, size, baseline, &snapshot);
 
     if (!decoded.ok) {
-        // dropped. A malformed snapshot is peer data, and the next one is a tick away.
+        // dropped. a malformed snapshot is peer data, and the next one is a tick away.
         nya_log_debug("Discarding a malformed snapshot: %s", (NYA_ConstCString)decoded.message);
         return;
     }
 
-    /*
-     * Older than what has already been applied. Discarded.
-     */
-    if (_NYA_NET_CLIENT.has_baseline && snapshot.tick <= _NYA_NET_CLIENT.server_tick) return;
-
-    /*
-     * A listen server applies nothing.
-     */
+    // a listen server's client shares the server's world, so it applies nothing.
     if (!nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) {
         nya_net_snapshot_apply(&snapshot, _NYA_NET_CLIENT.config.replicated_flag, _NYA_NET_CLIENT.replicas, _NYA_NET_CLIENT.entity_remote);
 
-        /*
-         * The local name for the player, now that a snapshot may have spawned it.
-         */
+        // the local name for the player, now that a snapshot may have spawned it.
         _NYA_NET_CLIENT.entity_local = nya_net_replica_local(_NYA_NET_CLIENT.replicas, _NYA_NET_CLIENT.entity_remote);
     }
 
     _nya_net_client_reconcile(&snapshot, delta_time_s);
 
-    // swap spare and current, no copy.
-    NYA_Arena* previous = _NYA_NET_CLIENT.baseline_arena;
+    // kept after the reconcile, which reads from the tick arena copy, so the stored copy is free to reuse its slot's buffer.
+    _NYA_NetClientBaseline* stored = &_NYA_NET_CLIENT.baselines[tick % NYA_NET_SNAPSHOT_HISTORY];
 
-    _NYA_NET_CLIENT.baseline_arena = _NYA_NET_CLIENT.baseline_spare;
-    _NYA_NET_CLIENT.baseline_spare = previous;
+    if (stored->capacity < snapshot.entity_count) {
+        if (stored->snapshot.entities != nullptr) nya_arena_free(_NYA_NET_CLIENT.allocator, stored->snapshot.entities, (u64)stored->capacity * sizeof(NYA_NetEntityState));
 
-    _NYA_NET_CLIENT.baseline     = snapshot;
-    _NYA_NET_CLIENT.has_baseline = true;
-    _NYA_NET_CLIENT.server_tick  = snapshot.tick;
+        stored->snapshot.entities = nya_arena_alloc(_NYA_NET_CLIENT.allocator, (u64)snapshot.entity_count * sizeof(NYA_NetEntityState));
+        stored->capacity          = snapshot.entity_count;
+    }
 
-    // acknowledged so the server can delta against it. Unreliable, because the next ack names a tick at
-    // least as high.
-    NYA_String* ack = nya_string_create(_NYA_NET_CLIENT.tick_arena);
+    NYA_NetEntityState* entities = stored->snapshot.entities;
 
-    nya_net_message_begin(ack, NYA_NET_MSG_SNAPSHOT_ACK);
-    _nya_net_write_u64(ack, snapshot.tick);
+    if (snapshot.entity_count > 0) nya_memcpy(entities, snapshot.entities, (u64)snapshot.entity_count * sizeof(NYA_NetEntityState));
 
-    (void)nya_net_transport_send(_NYA_NET_CLIENT.transport, _NYA_NET_CLIENT.server_peer, NYA_NET_CHANNEL_UNRELIABLE, ack->items, ack->length);
+    stored->snapshot          = snapshot;
+    stored->snapshot.entities = entities;
+
+    _NYA_NET_CLIENT.server_tick    = tick;
+    _NYA_NET_CLIENT.snapshot_bytes = (u32)size;
 }
 
 void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s) {
-    /*
-     * On a listen server there is nothing to reconcile.
-     */
+    // on a listen server there is nothing to reconcile.
     if (nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) return;
 
-    if (!nya_entity_is_valid(_NYA_NET_CLIENT.entity_local)) return;
-
-    // looked up by the server's handle, the name a snapshot uses. The local handle could match an
-    // unrelated server entity.
+    // looked up by the server's handle, the name a snapshot uses. The local handle could match an unrelated server entity.
     const NYA_NetEntityState* authoritative = nya_net_snapshot_find(snapshot, _NYA_NET_CLIENT.entity_remote);
     if (authoritative == nullptr) return;
 
-    // applied to the local entity.
     NYA_Entity* entity = nya_entity_get(_NYA_NET_CLIENT.entity_local);
     if (entity == nullptr) return;
 
     /*
-     * How far the prediction was wrong.
+     * The server's answer describes the player after command `command_tick`, so it is compared with where prediction
+     * had the player after that same command, not with where the player is now, which is further along by every
+     * command still in flight.
      */
-    f32x3 error = entity->position - authoritative->position;
+    u64 acknowledged = snapshot->command_tick;
 
-    f32 distance_squared = (error.x * error.x) + (error.y * error.y) + (error.z * error.z);
-    f32 threshold        = _NYA_NET_CLIENT.config.correction_threshold;
+    const NYA_NetCommand* confirmed = &_NYA_NET_CLIENT.history[acknowledged % NYA_NET_COMMAND_HISTORY];
 
-    if (distance_squared <= threshold * threshold) return;
+    b8 known = acknowledged != 0 && confirmed->tick == acknowledged;
 
-    _NYA_NET_CLIENT.correction_count++;
+    if (known) {
+        f32x3 error = _NYA_NET_CLIENT.predicted[acknowledged % NYA_NET_COMMAND_HISTORY] - authoritative->position;
 
-    /*
-     * Snap to the server's answer, then replay everything since.
-     */
+        f32 distance_squared = (error.x * error.x) + (error.y * error.y) + (error.z * error.z);
+        f32 threshold        = _NYA_NET_CLIENT.config.correction_threshold;
+
+        if (distance_squared <= threshold * threshold) return;
+
+        _NYA_NET_CLIENT.correction_count++;
+    }
+
+    // snapped to the server's answer, then every command since replayed on top of it. Also when the server has not
+    // confirmed a command this client still remembers, since then there is nothing to compare against.
     nya_net_entity_state_apply(entity, authoritative);
 
     NYA_NetApplyCommandFn apply_command = nya_callback_get(_NYA_NET_CLIENT.config.on_apply_command);
     if (apply_command == nullptr) return;
 
-    u64 from = snapshot->tick + 1;
+    u64 local_tick = _NYA_NET_CLIENT.local_tick;
+    u64 from       = acknowledged + 1;
 
     // bounded by the ring: older slots have been overwritten.
-    if (_NYA_NET_CLIENT.local_tick >= NYA_NET_COMMAND_HISTORY && from < _NYA_NET_CLIENT.local_tick - NYA_NET_COMMAND_HISTORY + 1) {
-        from = _NYA_NET_CLIENT.local_tick - NYA_NET_COMMAND_HISTORY + 1;
-    }
+    if (local_tick >= NYA_NET_COMMAND_HISTORY && from < local_tick - NYA_NET_COMMAND_HISTORY + 1) from = local_tick - NYA_NET_COMMAND_HISTORY + 1;
 
-    for (u64 replay = from; replay <= _NYA_NET_CLIENT.local_tick; replay++) {
+    for (u64 replay = from; replay < local_tick; replay++) {
         const NYA_NetCommand* command = &_NYA_NET_CLIENT.history[replay % NYA_NET_COMMAND_HISTORY];
 
-        // a slot with a different tick was never filled or was overwritten. Replaying it is worse than
-        // skipping.
+        // a slot with a different tick was never filled or was overwritten. Replaying it is worse than skipping.
         if (command->tick != replay) continue;
 
         apply_command(entity, command, delta_time_s);
+
+        _NYA_NET_CLIENT.predicted[replay % NYA_NET_COMMAND_HISTORY] = entity->position;
     }
 }
 
@@ -624,7 +651,10 @@ void _nya_net_client_send_command(u64 tick, f32 delta_time_s) {
         // moves the player and the next snapshot catches the client up.
         NYA_NetApplyCommandFn apply_command = nya_callback_get(_NYA_NET_CLIENT.config.on_apply_command);
 
-        if (entity != nullptr && apply_command != nullptr) apply_command(entity, &command, delta_time_s);
+        if (entity != nullptr && apply_command != nullptr) {
+            apply_command(entity, &command, delta_time_s);
+            _NYA_NET_CLIENT.predicted[tick % NYA_NET_COMMAND_HISTORY] = entity->position;
+        }
     }
 
     /*
@@ -647,7 +677,9 @@ void _nya_net_client_send_command(u64 tick, f32 delta_time_s) {
 
     NYA_String* payload = nya_string_create(_NYA_NET_CLIENT.tick_arena);
 
+    // the newest applied snapshot rides along, so the server can delta against it without a packet of its own.
     nya_net_message_begin(payload, NYA_NET_MSG_COMMAND);
+    _nya_net_write_varint(payload, _NYA_NET_CLIENT.server_tick);
 
     if (!nya_net_command_encode(payload, run, count).ok) return;
 
@@ -661,8 +693,6 @@ void _nya_net_client_reset(void) {
     if (_NYA_NET_CLIENT.replicas != nullptr) nya_net_replica_map_despawn_all(_NYA_NET_CLIENT.replicas);
 
     if (_NYA_NET_CLIENT.tick_arena != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.tick_arena);
-    if (_NYA_NET_CLIENT.baseline_arena != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.baseline_arena);
-    if (_NYA_NET_CLIENT.baseline_spare != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.baseline_spare);
     if (_NYA_NET_CLIENT.allocator != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.allocator);
 
     _NYA_NET_CLIENT = (_NYA_NetClientState){

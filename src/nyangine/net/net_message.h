@@ -22,7 +22,7 @@ typedef enum NYA_NetMessageKind NYA_NetMessageKind;
 /**
  * Bumped on any change either side could misread. Checked at the handshake.
  * */
-#define NYA_NET_PROTOCOL_VERSION 1
+#define NYA_NET_PROTOCOL_VERSION 2
 
 enum NYA_NetMessageKind {
     /*
@@ -35,14 +35,9 @@ enum NYA_NetMessageKind {
     NYA_NET_MSG_HELLO = 1,
 
     /**
-     * What the player is trying to do, for a run of recent ticks. Unreliable, every tick.
+     * The newest snapshot applied, then what the player is trying to do for a run of recent ticks. Unreliable, every tick.
      * */
     NYA_NET_MSG_COMMAND = 2,
-
-    /**
-     * "I have applied the snapshot for tick N." Unreliable, ridden along with commands.
-     * */
-    NYA_NET_MSG_SNAPSHOT_ACK = 3,
 
     /*
      * ── server to client ──

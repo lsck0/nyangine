@@ -29,6 +29,9 @@
 typedef struct NYA_NetServerConfig NYA_NetServerConfig;
 typedef struct NYA_NetServerPeer   NYA_NetServerPeer;
 
+/** Violations a player may run up before being kicked, when the config does not say. */
+#define NYA_NET_VIOLATION_LIMIT_DEFAULT 32
+
 /**
  * The default hysteresis band, as a fraction of the relevance radius.
  * */
@@ -118,6 +121,22 @@ struct NYA_NetServerConfig {
      * The most this server will send one peer per second, in bytes. Zero is unlimited.
      * */
     u32 bandwidth_bytes_per_second;
+
+    /*
+     * ── authority ──
+     */
+
+    /**
+     * The fastest any player's entity may move, in world units per second. Commands that would take it further are
+     * cut short and counted as violations. Zero trusts the game's movement code.
+     * */
+    f32 max_speed;
+
+    /** Violations a player may run up, decaying by one a second, before being kicked. Zero is NYA_NET_VIOLATION_LIMIT_DEFAULT. */
+    u32 violation_limit;
+
+    /** Fractional bits positions and velocities are sent with. Zero is NYA_NET_POSITION_BITS_DEFAULT. */
+    u32 position_bits;
 
     /*
      * ── security ──
@@ -244,7 +263,10 @@ NYA_API void nya_net_server_rewind_end(void);
  * */
 NYA_API u64 nya_net_server_rewind_ticks(void) __attr_no_discard;
 
+/** What a player's connection is costing, and how often they broke the rules. Zeroes for a peer that is gone. */
+NYA_API NYA_NetPeerStats nya_net_server_peer_stats(NYA_NetPeerId peer) __attr_no_discard;
+
 /**
- * The most recent command received from a peer.
+ * The most recent command applied for a peer.
  * */
 NYA_API NYA_NetCommand nya_net_server_last_command(NYA_NetPeerId peer) __attr_no_discard;

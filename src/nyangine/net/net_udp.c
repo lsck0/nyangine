@@ -1820,7 +1820,7 @@ void _nya_net_udp_apply_acks(_NYA_NetUdpPeer* peer, u16 ack, u32 ack_bits, u64 n
     for (u32 bit = 0; bit <= _NYA_NET_UDP_ACK_WINDOW; bit++) {
         if (bit > 0 && (ack_bits & (1U << (bit - 1))) == 0) continue;
 
-        u16 sequence = (u16)(ack - bit);
+        u16 sequence = (u16)((u32)ack + 65536U - bit);
         u32 slot     = sequence % _NYA_NET_UDP_SENT_WINDOW;
 
         // the ring holds the last 64 sends; the sequence check stops a reused slot measuring a wrong round trip.
