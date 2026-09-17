@@ -96,6 +96,11 @@ s32 main(void) {
     nya_assert(entity->position.y < start, "it fell, from %f to %f", (f64)start, (f64)entity->position.y);
     nya_assert(entity->velocity.y < 0.0F, "and the velocity was mirrored back onto the entity, got %f", (f64)entity->velocity.y);
 
+    // the mirrored velocity is a report. integrating it again would draw the body a tick ahead of the solver.
+    f32 solved = entity->position.y;
+    nya_system_entity_update(TICK);
+    nya_assert(entity->position.y == solved, "the entity update left the solver's position, got %f for %f", (f64)entity->position.y, (f64)solved);
+
     step(300);
 
     // Resting on a one metre box whose top is at y = 0, so its centre sits at half its own height.

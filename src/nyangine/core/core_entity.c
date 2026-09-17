@@ -148,7 +148,7 @@ void nya_system_entity_update(f32 delta_time_s) {
 
         // integrated before the callback, so update sees this tick's position. skipped for simulated entities: the
         // solver already wrote the transform, and integrating again would double the velocity.
-        if (!nya_flag_check(entity->state, NYA_ENTITY_STATE_STATIC) && !entity->physics2d.attached) {
+        if (!nya_flag_check(entity->state, NYA_ENTITY_STATE_STATIC) && !entity->physics2d.attached && !entity->physics3d.attached) {
             entity->position += entity->velocity * delta_time_s;
 
             // radians per second per axis; per tick that is small enough for quaternion compose and renormalize.
