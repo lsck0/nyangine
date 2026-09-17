@@ -32,6 +32,8 @@
  */
 
 NYA_Error nya_net_command_encode(NYA_String* out, const NYA_NetCommand* commands, u32 count) {
+    nya_trace_scope(NYA_TRACE_NET_ENCODE);
+
     nya_assert(out != nullptr);
 
     if (commands == nullptr || count == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no commands to encode");
@@ -69,6 +71,8 @@ NYA_Error nya_net_command_encode(NYA_String* out, const NYA_NetCommand* commands
 }
 
 NYA_Error nya_net_command_decode(const u8* data, u64 size, OUT NYA_NetCommand* out_commands, OUT u32* out_count) {
+    nya_trace_scope(NYA_TRACE_NET_DECODE);
+
     nya_assert(out_commands != nullptr);
     nya_assert(out_count != nullptr);
 

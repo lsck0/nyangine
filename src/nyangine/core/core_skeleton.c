@@ -127,6 +127,8 @@ void nya_skeleton_animator_play(NYA_SkeletonAnimator* animator, const NYA_Skelet
 }
 
 void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 delta_time_s, OUT NYA_SkeletonPose* out_pose) {
+    nya_trace_scope(NYA_TRACE_SKINNING);
+
     if (animator == nullptr) return;
     if (animator->skeleton == nullptr) return;
 
@@ -169,6 +171,8 @@ void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 delta_time
 }
 
 void nya_skeleton_animator_render_pose(const NYA_SkeletonAnimator* animator, OUT NYA_SkeletonPose* out_pose) {
+    nya_trace_scope(NYA_TRACE_SKINNING);
+
     if (animator == nullptr || out_pose == nullptr) return;
     if (animator->skeleton == nullptr) return;
 
@@ -213,6 +217,8 @@ void nya_skeleton_model_transforms(const NYA_Skeleton* skeleton, const NYA_Skele
 }
 
 void nya_skeleton_palette(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_palette) {
+    nya_trace_scope(NYA_TRACE_SKINNING);
+
     if (skeleton == nullptr || pose == nullptr || out_palette == nullptr) return;
 
     u32 bone_count = skeleton->bone_count < NYA_SKELETON_MAX_BONES ? skeleton->bone_count : NYA_SKELETON_MAX_BONES;

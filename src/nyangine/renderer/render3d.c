@@ -520,6 +520,8 @@ void _nya_render3d_shadow_release(NYA_Window* window) {
 }
 
 b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
+    nya_trace_scope(NYA_TRACE_SHADOWS);
+
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
     if (batch->shadow_color != nullptr && batch->shadow_depth != nullptr) return true;
@@ -921,6 +923,8 @@ static_assert(NYA_SHADER_SKIN_MAX_BONES == NYA_SKELETON_MAX_BONES,
  * */
 void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, const f32_4x4* palette, u32 bone_count, f32_4x4 model,
                                NYA_Color tint) {
+    nya_trace_scope(NYA_TRACE_SKINNING);
+
     nya_assert(window != nullptr);
 
     if (handle == nullptr || palette == nullptr || bone_count == 0) return;
@@ -1473,6 +1477,7 @@ void _nya_render3d_bind_samplers(NYA_Window* window, SDL_GPUTexture* texture, SD
 
 void _nya_render3d_playback(NYA_Window* window) {
     nya_perf_time_this_function();
+    nya_trace_scope(NYA_TRACE_SCENE);
 
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DBatch*      batch  = &render->mesh_batch;
@@ -1665,6 +1670,8 @@ void _nya_render3d_playback(NYA_Window* window) {
 }
 
 void _nya_render3d_pass_draw(NYA_Window* window, u32 pass) {
+    nya_trace_scope(pass > 0 ? NYA_TRACE_SHADOWS : NYA_TRACE_SCENE);
+
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DBatch*      batch  = &render->mesh_batch;
 
@@ -1676,6 +1683,8 @@ void _nya_render3d_pass_draw(NYA_Window* window, u32 pass) {
 
         // the shadow pipelines have no normals variant.
         render->render_pass_normals = false;
+
+        _nya_render_trace_mark(window);
 
         render->render_pass = SDL_BeginGPURenderPass(
             render->render_commands,
@@ -1808,6 +1817,7 @@ void _nya_render3d_immediate_draw(NYA_Window* window, const NYA_Render3DSegment*
         SDL_DrawGPUIndexedPrimitives(render->render_pass, opaque.count, 1, opaque.first, 0, 0);
 
         batch->frame_draw_calls++;
+        nya_trace_draws(1);
     }
 
     if (transparent.count == 0) return;
@@ -1857,10 +1867,13 @@ void _nya_render3d_immediate_draw(NYA_Window* window, const NYA_Render3DSegment*
         SDL_DrawGPUIndexedPrimitives(render->render_pass, transparent.count, 1, transparent.first, (s32)batch->opaque.vertex_count, 0);
 
         batch->frame_draw_calls++;
+        nya_trace_draws(1);
     }
 }
 
 void _nya_render3d_sort_transparent(NYA_Render3DBatch* batch, u16* indices, u32 index_count, f32x3 eye) {
+    nya_trace_scope(NYA_TRACE_TRANSPARENT);
+
     const NYA_Render3DStream* stream = &batch->transparent;
 
     u32 triangles = index_count / 3;
@@ -2045,6 +2058,7 @@ void _nya_render3d_instanced_draw(NYA_Window* window, const NYA_Render3DSegment*
                 SDL_DrawGPUPrimitives(render->render_pass, part->vertex_count, run, part->first_vertex, 0);
 
                 batch->frame_draw_calls++;
+                nya_trace_draws(1);
                 batch->frame_vertices  += part->vertex_count * run;
                 batch->frame_instances += p == 0 ? run : 0;
 
@@ -2056,6 +2070,8 @@ void _nya_render3d_instanced_draw(NYA_Window* window, const NYA_Render3DSegment*
 
 void _nya_render3d_skinned_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform,
                                 u32 pass) {
+    nya_trace_scope(NYA_TRACE_SKINNING);
+
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DBatch*      batch  = &render->mesh_batch;
 
@@ -2089,6 +2105,7 @@ void _nya_render3d_skinned_draw(NYA_Window* window, const NYA_Render3DSegment* s
     SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);
 
     batch->frame_draw_calls++;
+    nya_trace_draws(1);
 }
 
 NYA_Render3DMeshGroup* _nya_render3d_mesh_group(NYA_Render3DBatch* batch, NYA_ConstCString handle, b8 transparent) {
@@ -2123,6 +2140,8 @@ NYA_Render3DMeshGroup* _nya_render3d_mesh_group(NYA_Render3DBatch* batch, NYA_Co
 }
 
 b8 _nya_render3d_refraction_capture(NYA_Window* window) {
+    nya_trace_scope(NYA_TRACE_TRANSPARENT);
+
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DBatch*      batch  = &render->mesh_batch;
     NYA_Render2DBatch*      target = &render->draw_batch;
@@ -2317,6 +2336,8 @@ void _nya_render3d_registered_flush_upload(NYA_Window* window, NYA_Render3DRegis
 }
 
 b8 _nya_render3d_mesh_upload(NYA_Window* window, NYA_Asset* asset) {
+    nya_trace_scope(NYA_TRACE_ASSETS);
+
     NYA_RenderSystemWindow* render     = &window->render_system;
     SDL_GPUDevice*          gpu_device = nya_app_get()->render_system.gpu_device;
 

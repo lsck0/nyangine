@@ -48,6 +48,8 @@ typedef struct {
 
     /** Draws into this half resolution target instead of the next image in the chain. */
     NYA_RenderTexture* target;
+
+    NYA_TraceFeature trace;
 } _NYA_PostStep;
 
 /** The built-in passes one frame can queue: occlusion twice, ink, depth of field twice, antialiasing, the debug view. */
@@ -94,6 +96,8 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
 
     // current also means the renderer's sample count, so a changed MSAA setting rebuilds the normal buffer with it.
     if (!nya_render_texture_is_current(&chain->targets[0], width, height) || built->depth != scene.depth || built->normals != scene.normals) {
+        nya_trace_scope(NYA_TRACE_TARGETS);
+
         nya_render_texture_destroy(&chain->targets[0]);
         nya_render_texture_destroy(&chain->targets[1]);
 
@@ -114,6 +118,8 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
 
     // single sampled: it is only ever filled by one fullscreen pass, which a multisampled companion would not improve.
     if (_nya_post_wants_half(render) && chain->half.width == 0) {
+        nya_trace_scope(NYA_TRACE_OCCLUSION);
+
         chain->half = nya_render_texture_create_with(
             window, half_width, half_height, (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE, .single_sampled = true }
         );
@@ -126,6 +132,9 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
     if (!wants_blur || !blur_matches) nya_render_texture_destroy(&chain->blur);
 
     if (wants_blur && chain->blur.width == 0) {
+        // shared, so counted against whichever of the two asked first.
+        nya_trace_scope(render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF ? NYA_TRACE_DEPTH_OF_FIELD : NYA_TRACE_BLOOM);
+
         chain->blur = nya_render_texture_create_with(
             window, half_width, half_height, (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE, .single_sampled = true }
         );
@@ -139,6 +148,8 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
  * takes fullscreen passes, which have no edges to smooth and nothing to occlude.
  */
 NYA_INTERNAL void _nya_post_intermediate_ensure(NYA_Window* window, NYA_PostChain* chain, b8 needed) {
+    nya_trace_scope(NYA_TRACE_POST);
+
     if (!needed) {
         nya_render_texture_destroy(&chain->targets[1]);
         return;
@@ -426,6 +437,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
         if (_nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_OCCLUSION, NYA_ASSET_SHADER_EFFECT_OCCLUSION_FRAG, 1, true)) {
             before[before_count++] = (_NYA_PostStep){
                 .pipeline     = _NYA_POST_PIPELINE_OCCLUSION,
+                .trace        = NYA_TRACE_OCCLUSION,
                 .uniform      = &occlusion,
                 .uniform_size = sizeof(occlusion),
                 .inputs       = _NYA_POST_INPUT_NORMALS,
@@ -441,6 +453,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_OCCLUSION_APPLY, NYA_ASSET_SHADER_EFFECT_OCCLUSION_APPLY_FRAG, 3, false)) {
         before[before_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_OCCLUSION_APPLY,
+            .trace        = NYA_TRACE_OCCLUSION,
             .uniform      = &occlusion,
             .uniform_size = sizeof(occlusion),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS | _NYA_POST_INPUT_HALF,
@@ -452,6 +465,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     if (scene && render->post_ink.enabled && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_INK, NYA_ASSET_SHADER_EFFECT_INK_FRAG, 2, false)) {
         before[before_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_INK,
+            .trace        = NYA_TRACE_INK,
             .uniform      = &ink,
             .uniform_size = sizeof(ink),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS,
@@ -469,6 +483,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
         before[before_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_BLUR,
+            .trace        = NYA_TRACE_DEPTH_OF_FIELD,
             .uniform      = &focus,
             .uniform_size = sizeof(focus),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS,
@@ -477,6 +492,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
         before[before_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_FOCUS,
+            .trace        = NYA_TRACE_DEPTH_OF_FIELD,
             .uniform      = &focus,
             .uniform_size = sizeof(focus),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS | _NYA_POST_INPUT_BLUR,
@@ -496,6 +512,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
         before[before_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_ANTIALIAS,
+            .trace        = NYA_TRACE_ANTIALIAS,
             .uniform      = &antialias,
             .uniform_size = sizeof(antialias),
             .inputs       = _NYA_POST_INPUT_SOURCE,
@@ -518,6 +535,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
         after[after_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_BLOOM_GATHER,
+            .trace        = NYA_TRACE_BLOOM,
             .uniform      = &bloom,
             .uniform_size = sizeof(bloom),
             .inputs       = _NYA_POST_INPUT_SOURCE,
@@ -526,6 +544,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
         after[after_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_BLOOM,
+            .trace        = NYA_TRACE_BLOOM,
             .uniform      = &bloom,
             .uniform_size = sizeof(bloom),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_BLUR,
@@ -559,6 +578,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
         after[after_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_SPEED_LINES,
+            .trace        = NYA_TRACE_SPEED_LINES,
             .uniform      = &lines,
             .uniform_size = sizeof(lines),
             .inputs       = _NYA_POST_INPUT_SOURCE,
@@ -579,6 +599,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
         after[after_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_DEBUG,
+            .trace        = NYA_TRACE_POST,
             .uniform      = &debug,
             .uniform_size = sizeof(debug),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS | _NYA_POST_INPUT_HALF,
@@ -633,10 +654,13 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
                 .uniform      = pass->uniform,
                 .uniform_size = pass->uniform_size,
                 .tint         = pass->tint,
+                .trace        = pass->trace != NYA_TRACE_OTHER ? pass->trace : NYA_TRACE_POST,
             };
         } else {
             step = after[i - before_count - pass_count];
         }
+
+        nya_trace_scope(step.trace);
 
         // the occlusion and the blur go to their own targets and leave the chain's image where it was.
         if (step.target != nullptr) {

@@ -53,3 +53,27 @@ NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_upload(NYA_Window* wi
 /** Draws a segment's decals in the camera pass. */
 NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
                                                                 const struct NYA_ShaderMesh3DUniform* uniform);
+
+/*
+ * Defined in render_trace.c, GPU time by trace feature. Compiled out with tracing, where a frame submits one command
+ * buffer as before.
+ */
+
+#if NYA_TRACE_ENABLED
+/** The command buffer a traced frame encodes into, or `swapchain_commands` itself while tracing is off. */
+NYA_INTERNAL __attr_allow_unused SDL_GPUCommandBuffer* _nya_render_trace_begin(NYA_Window* window, SDL_GPUCommandBuffer* swapchain_commands);
+
+/** Ends the open group if the trace feature changed since it began. Only called with no pass open. */
+NYA_INTERNAL __attr_allow_unused void _nya_render_trace_mark(NYA_Window* window);
+
+/** Submits the frame: the last group, then the swapchain's command buffer. */
+NYA_INTERNAL __attr_allow_unused void _nya_render_trace_end(NYA_Window* window);
+
+/** Stops the fence thread. Called with the device idle, before it is destroyed. */
+NYA_INTERNAL __attr_allow_unused void _nya_render_trace_shutdown(void);
+#else
+#define _nya_render_trace_begin(window, swapchain_commands) ({ nya_unused(window); (swapchain_commands); })
+#define _nya_render_trace_mark(window)                      nya_unused(window)
+#define _nya_render_trace_end(window)                       SDL_SubmitGPUCommandBuffer((window)->render_system.render_commands)
+#define _nya_render_trace_shutdown()                        ((void)0)
+#endif

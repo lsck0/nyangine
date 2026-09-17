@@ -135,6 +135,8 @@ void _nya_render_output_apply(NYA_Window* window) {
 }
 
 SDL_GPUTexture* _nya_render_output_target(NYA_Window* window, SDL_GPUTexture* swapchain, u32 width, u32 height) {
+    nya_trace_scope(NYA_TRACE_HDR_OUTPUT);
+
     NYA_RenderOutputGPU* gpu        = &window->render_system.output_gpu;
     SDL_GPUDevice*       gpu_device = nya_app_get()->render_system.gpu_device;
 
@@ -177,10 +179,14 @@ SDL_GPUTexture* _nya_render_output_target(NYA_Window* window, SDL_GPUTexture* sw
 }
 
 void _nya_render_output_present(NYA_Window* window) {
+    nya_trace_scope(NYA_TRACE_HDR_OUTPUT);
+
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_RenderOutputGPU*    gpu    = &render->output_gpu;
 
     if (gpu->swapchain == nullptr) return;
+
+    _nya_render_trace_mark(window);
 
     b8 linear = gpu->composition == SDL_GPU_SWAPCHAINCOMPOSITION_HDR_EXTENDED_LINEAR;
 

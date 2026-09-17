@@ -179,6 +179,8 @@ void nya_system_renderer_deinit(void) {
 
     SDL_WaitForGPUIdle(app->render_system.gpu_device);
 
+    _nya_render_trace_shutdown();
+
     // the glyph atlases belong to no window, so they go with the renderer.
     nya_render2d_shutdown();
 
@@ -215,6 +217,8 @@ NYA_INTERNAL void _nya_renderer_options_apply(NYA_Window* window);
  * and releases it when multisampling is off.
  * */
 NYA_INTERNAL void _nya_renderer_ensure_msaa_texture(NYA_Window* window, u32 width, u32 height) {
+    nya_trace_scope(NYA_TRACE_TARGETS);
+
     NYA_App* app = nya_app_get();
 
     if (window->render_system.msaa_texture != nullptr && window->render_system.msaa_width == width && window->render_system.msaa_height == height
@@ -251,6 +255,8 @@ NYA_INTERNAL void _nya_renderer_ensure_msaa_texture(NYA_Window* window, u32 widt
 }
 
 void _nya_renderer_ensure_depth_texture(NYA_Window* window, u32 width, u32 height) {
+    nya_trace_scope(NYA_TRACE_TARGETS);
+
     NYA_App* app = nya_app_get();
 
     if (window->render_system.depth_texture != nullptr && window->render_system.depth_width == width
@@ -464,6 +470,9 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
           .vertex_layout          = NYA_VERTEX_LAYOUT_2D,
       },
   }), "while queueing the distance field text pipeline");
+
+    // what follows is counted against the 2D batch, then against the 3D scene from the mesh batch on.
+    nya_trace_scope(NYA_TRACE_BATCH2D);
 
     batch->vertex_buffer = nya_gpu_buffer_create(
         gpu_device,
@@ -925,6 +934,8 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
       },
   }), "while queueing the glass pipeline");
 
+    nya_trace_scope(NYA_TRACE_SCENE);
+
     u32 mesh_buffer_size = (u32)(NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
 
     // room for every pass's list of the indices it sees, which share one upload.
@@ -1240,6 +1251,9 @@ b8 nya_render_begin(NYA_Window* window) {
         .stencil_store_op = SDL_GPU_STOREOP_DONT_CARE,
     };
 
+    // while tracing, drawing goes into command buffers of its own and this one only presents.
+    command_buffer = _nya_render_trace_begin(window, command_buffer);
+
     SDL_GPURenderPass* render_pass = SDL_BeginGPURenderPass(command_buffer, &target_info, 1, &depth_info);
     nya_assert(render_pass != nullptr, "SDL_BeginGPURenderPass() failed: %s", SDL_GetError());
 
@@ -1315,7 +1329,7 @@ void nya_render_end(NYA_Window* window) {
 
     _nya_render_output_present(window);
 
-    SDL_SubmitGPUCommandBuffer(window->render_system.render_commands);
+    _nya_render_trace_end(window);
 
     NYA_RenderSystemWindow* render = &window->render_system;
 

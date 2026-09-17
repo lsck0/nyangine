@@ -31,6 +31,8 @@ NYA_NetMessageKind nya_net_message_kind(const u8* data, u64 size, OUT u64* out_b
 }
 
 NYA_Error nya_net_message_write_object(NYA_Arena* arena, NYA_String* out, const NYA_Object* object) {
+    nya_trace_scope(NYA_TRACE_NET_ENCODE);
+
     nya_assert(arena != nullptr);
     nya_assert(out != nullptr);
     nya_assert(object != nullptr);
@@ -49,6 +51,8 @@ NYA_Error nya_net_message_write_object(NYA_Arena* arena, NYA_String* out, const 
 }
 
 NYA_Error nya_net_message_read_object(NYA_Arena* arena, const u8* data, u64 size, OUT NYA_Object** out_object) {
+    nya_trace_scope(NYA_TRACE_NET_DECODE);
+
     nya_assert(arena != nullptr);
     nya_assert(out_object != nullptr);
 

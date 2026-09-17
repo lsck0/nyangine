@@ -207,6 +207,9 @@ typedef struct {
     u64     pass_serial;
     b8      registered;
 
+    /** Open from begin to end, since the widgets between are the UI's cost. */
+    NYA_TraceScope trace;
+
     /* This pass's input. All false in a draw pass except what feedback reads. */
 
     b8    confirm;
@@ -394,6 +397,7 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     ui->scale  = _nya_ui_scale_derive(window, &ui->style);
 
     _nya_ui.open            = ui;
+    _nya_ui.trace           = nya_trace_begin(NYA_TRACE_UI);
     _nya_ui.pass_serial    += 1;
     _nya_ui.widget_count    = 0;
     _nya_ui.focus_found     = U32_MAX;
@@ -501,6 +505,8 @@ void nya_ui_end(NYA_UI* ui) {
     _nya_ui.widget_count_worst = nya_max(_nya_ui.widget_count_worst, count);
     _nya_ui.depth              = 0;
     _nya_ui.open               = nullptr;
+
+    nya_trace_end(&_nya_ui.trace);
 }
 
 /*

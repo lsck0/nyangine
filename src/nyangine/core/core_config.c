@@ -139,6 +139,8 @@ NYA_Error nya_config_watch(NYA_ConstCString path, const NYA_TypeReflection* type
 
 #ifdef NYA_ASSET_HOT_RELOAD
 void _nya_config_watch_tick(NYA_Event* event) {
+    nya_trace_scope(NYA_TRACE_HOT_RELOAD);
+
     nya_unused(event);
 
     NYA_ConfigSystem* system = &nya_app_get()->config_system;

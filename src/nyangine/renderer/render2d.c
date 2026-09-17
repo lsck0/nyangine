@@ -361,6 +361,8 @@ s32 nya_render2d_layer(NYA_Window* window) {
 }
 
 void nya_render2d_flush(NYA_Window* window) {
+    nya_trace_scope_fallback(NYA_TRACE_BATCH2D);
+
     // timed per call: the run count is the draw call count, and the total is what it costs.
     nya_perf_time_this_function();
 
@@ -477,6 +479,7 @@ void nya_render2d_flush(NYA_Window* window) {
         SDL_DrawGPUIndexedPrimitives(render->render_pass, draw->index_count, 1, draw->first_index, 0, 0);
 
         batch->frame_flushes++;
+    nya_trace_draws(1);
     }
 
     batch->frame_vertices += batch->vertex_count;
@@ -1275,6 +1278,7 @@ void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handl
     SDL_DrawGPUPrimitives(render->render_pass, (Uint32)vertex_count, 1, 0, 0);
 
     batch->frame_flushes++;
+    nya_trace_draws(1);
     batch->frame_flush_reasons[NYA_RENDER2D_FLUSH_PIPELINE]++;
 
     /*
@@ -1337,6 +1341,7 @@ void nya_render2d_fullscreen(
     SDL_DrawGPUPrimitives(render->render_pass, 3, 1, 0, 0);
 
     batch->frame_flushes++;
+    nya_trace_draws(1);
     batch->frame_flush_reasons[NYA_RENDER2D_FLUSH_PIPELINE]++;
 
     // this bound a pipeline and samplers behind the batch's back.
@@ -1552,6 +1557,9 @@ void nya_render_texture_begin(NYA_Window* window, NYA_RenderTexture* render_text
     _nya_render2d_flush_for(window, NYA_RENDER2D_FLUSH_STATE);
 
     SDL_EndGPURenderPass(render->render_pass);
+    render->render_pass = nullptr;
+
+    _nya_render_trace_mark(window);
 
     render->render_pass = SDL_BeginGPURenderPass(
         render->render_commands,
@@ -1940,6 +1948,8 @@ void _nya_render2d_pass_suspend(NYA_Window* window) {
 
     SDL_EndGPURenderPass(render->render_pass);
     render->render_pass = nullptr;
+
+    _nya_render_trace_mark(window);
 }
 
 void _nya_render2d_apply_scissor(NYA_Window* window) {
@@ -1967,6 +1977,8 @@ void _nya_render2d_pass_resume(NYA_Window* window) {
     if (render->render_commands == nullptr) return;
 
     if (batch->target_texture == nullptr) return;
+
+    _nya_render_trace_mark(window);
 
     /*
      * Multisampling resolves once, on the frame's last pass. Resolving on every reopen would resolve once per draw
@@ -2057,6 +2069,8 @@ void _nya_render2d_normals_resolve(NYA_Window* window) {
 }
 
 NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString font_path, f32 point_size) {
+    nya_trace_scope(NYA_TRACE_TEXT);
+
     if (font_path == nullptr) return nullptr;
     if (point_size <= 0.0F) point_size = NYA_RENDER2D_FONT_DEFAULT_SIZE;
 
@@ -2272,6 +2286,7 @@ void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, co
     SDL_DrawGPUPrimitives(render->render_pass, 3, 1, 0, 0);
 
     batch->frame_flushes++;
+    nya_trace_draws(1);
     batch->frame_flush_reasons[NYA_RENDER2D_FLUSH_PIPELINE]++;
 
     // cleared: this bound a pipeline behind the batch's back.
@@ -2357,6 +2372,8 @@ const NYA_Glyph* _nya_render2d_glyph(NYA_FontAtlas* atlas, u32 glyph_index) {
 }
 
 void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
+    nya_trace_scope(NYA_TRACE_TEXT);
+
     nya_assert(atlas != nullptr);
     nya_assert(atlas->uploaded_count <= atlas->glyph_count);
 

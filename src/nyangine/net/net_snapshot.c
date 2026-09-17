@@ -150,6 +150,8 @@ NYA_Error nya_net_snapshot_capture(NYA_Arena* arena, u64 flag, u64 tick, OUT NYA
 }
 
 NYA_Error nya_net_snapshot_encode(NYA_Arena* arena, const NYA_NetSnapshot* snapshot, const NYA_NetSnapshot* baseline, OUT NYA_String* out) {
+    nya_trace_scope(NYA_TRACE_NET_ENCODE);
+
     nya_assert(arena != nullptr);
     nya_assert(snapshot != nullptr);
     nya_assert(out != nullptr);
@@ -262,6 +264,8 @@ b8 nya_net_snapshot_peek(const u8* data, u64 size, OUT u64* out_tick, OUT u64* o
 }
 
 NYA_Error nya_net_snapshot_decode(NYA_Arena* arena, const u8* data, u64 size, const NYA_NetSnapshot* baseline, OUT NYA_NetSnapshot* out_snapshot) {
+    nya_trace_scope(NYA_TRACE_NET_DECODE);
+
     nya_assert(arena != nullptr);
     nya_assert(out_snapshot != nullptr);
 

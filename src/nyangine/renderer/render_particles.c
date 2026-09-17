@@ -174,6 +174,7 @@ u32 nya_particles_emit(NYA_ParticleSystem* system, NYA_ParticleBurst burst) {
 
 void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
     nya_perf_time_this_function();
+    nya_trace_scope(NYA_TRACE_PARTICLES);
 
     nya_assert(system != nullptr);
 
@@ -218,6 +219,7 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
 
 void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
     nya_perf_time_this_function();
+    nya_trace_scope(NYA_TRACE_PARTICLES);
 
     nya_assert(window != nullptr);
 

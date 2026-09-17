@@ -150,6 +150,8 @@ s32 main(s32 argc, NYA_CString* argv) {
         gnyame_run(); // NOLINT(clang-analyzer-core.CallAndMessage): dll_load has succeeded, which sets every entry point
 
         if (gnyame_dll_reload_requested) {
+            nya_trace_scope(NYA_TRACE_HOT_RELOAD);
+
             dll_unload();
 
             // the watch thread only asks once the file has stopped changing, but a linker can still leave
@@ -339,6 +341,8 @@ s32 main(s32 argc, NYA_CString* argv) {
         gnyame_run();
 
         if (gnyame_dll_reload_requested) {
+            nya_trace_scope(NYA_TRACE_HOT_RELOAD);
+
             dll_unload();
 
             // see the Linux path: a failed open is retried rather than fatal.

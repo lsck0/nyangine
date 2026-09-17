@@ -471,6 +471,8 @@ u64 nya_asset_reference_count(NYA_AssetHandle handle) {
 }
 
 NYA_Error nya_asset_load(NYA_AssetLoadParameters parameters) {
+    nya_trace_scope(NYA_TRACE_ASSETS);
+
     NYA_AssetSystem* system = &nya_app_get()->asset_system;
 
     if (parameters.handle == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "asset handle is null");
@@ -1002,6 +1004,8 @@ SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoad
 }
 
 NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending) {
+    nya_trace_scope(NYA_TRACE_ASSETS);
+
     nya_assert(pending != nullptr);
 
     if (pending->length == 0) return;
@@ -1904,6 +1908,8 @@ void nya_asset_load_queued(void) {
 }
 
 void _nya_asset_loading_process(NYA_Event* event) {
+    nya_trace_scope(NYA_TRACE_ASSETS);
+
     // runs on NYA_EVENT_FRAME_ENDED, outside every frame_* timer. decoding is the classic invisible spike.
     nya_perf_time_this_function();
 
@@ -2417,6 +2423,8 @@ void _nya_asset_unloading_process(NYA_Event* event) {
 
 #ifdef NYA_ASSET_HOT_RELOAD
 void _nya_asset_reload_process(NYA_Event* event) {
+    nya_trace_scope(NYA_TRACE_HOT_RELOAD);
+
     nya_unused(event);
     NYA_AssetSystem* system = &nya_app_get()->asset_system;
 

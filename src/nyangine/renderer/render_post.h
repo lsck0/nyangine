@@ -42,6 +42,7 @@
 // Deliberately not renderer.h: this header is included from the end of it, once NYA_RenderTexture
 // and NYA_Window exist. Including it back would be a cycle.
 #include "nyangine/base/base_types.h"
+#include "nyangine/debug/debug_trace.h"
 #include "nyangine/renderer/render_color.h"
 
 /*
@@ -162,6 +163,9 @@ struct NYA_PostPass {
      * Multiplied into the result by the shader, so anything but white tints the whole screen.
      * */
     NYA_Color tint;
+
+    /** The trace feature the pass is timed as. Zero is NYA_TRACE_POST. */
+    NYA_TraceFeature trace;
 };
 
 /**

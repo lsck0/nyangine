@@ -110,6 +110,7 @@ void nya_system_physics2d_deinit(void) {
 
 void nya_system_physics2d_update(f32 delta_time_s) {
     nya_perf_time_this_function();
+    nya_trace_scope(NYA_TRACE_PHYSICS2D);
 
     NYA_Physics2DSystem* system = &nya_world()->physics2d_system;
 

@@ -4,6 +4,7 @@
 
 #include "nyangine/base/base.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/debug/debug_trace.h"
 #include "nyangine/renderer/render_camera.h"
 #include "nyangine/renderer/render_color.h"
 // the 3D batch embeds a light and a material by value, so their definitions are needed here.
@@ -853,6 +854,12 @@ struct NYA_RenderSystemWindow {
     /** This frame so far, and the last finished one. The draw calls are filled in when a frame finishes. */
     NYA_RenderFrameStats frame_stats;
     NYA_RenderFrameStats frame_stats_last;
+
+    /** While tracing, the command buffer holding the swapchain, submitted last. Null otherwise. See render_trace.c. */
+    SDL_GPUCommandBuffer* trace_present;
+
+    /** The trace feature the open command buffer is charged to. */
+    NYA_TraceFeature trace_feature;
 };
 
 /*

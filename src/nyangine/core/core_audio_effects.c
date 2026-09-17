@@ -355,6 +355,8 @@ void _nya_audio_chain_publish(NYA_AudioChain* chain, const NYA_AudioChainSetting
 }
 
 void _nya_audio_chain_process(NYA_AudioChain* chain, const SDL_AudioSpec* spec, f32* pcm, s32 samples) {
+    nya_trace_scope(NYA_TRACE_AUDIO_EFFECTS);
+
     if (samples <= 0 || spec->channels <= 0 || spec->freq <= 0) return;
     if (spec->channels > NYA_AUDIO_EFFECTS_MAX_CHANNELS) return;
 

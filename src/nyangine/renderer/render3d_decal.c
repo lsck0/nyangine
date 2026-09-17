@@ -96,6 +96,8 @@ void nya_render3d_decal_probe_set(NYA_Window* window, NYA_CallbackHandle probe, 
 }
 
 void nya_render3d_decal(NYA_Window* window, NYA_Render3DDecal decal) {
+    nya_trace_scope(NYA_TRACE_DECALS);
+
     nya_assert(window != nullptr);
     nya_assert(decal.size.x > 0.0F && decal.size.y > 0.0F && decal.size.z > 0.0F, "a decal needs a box with volume");
 
@@ -269,6 +271,8 @@ void _nya_render3d_decals_release(NYA_Window* window) {
 }
 
 void _nya_render3d_decals_upload(NYA_Window* window, SDL_GPUCopyPass* copy_pass) {
+    nya_trace_scope(NYA_TRACE_DECALS);
+
     NYA_Render3DDecalsGPU* gpu        = &window->render_system.decals_gpu;
     SDL_GPUDevice*         gpu_device = nya_app_get()->render_system.gpu_device;
 
@@ -353,6 +357,8 @@ void _nya_render3d_decals_upload(NYA_Window* window, SDL_GPUCopyPass* copy_pass)
 }
 
 void _nya_render3d_decals_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform) {
+    nya_trace_scope(NYA_TRACE_DECALS);
+
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DBatch*      batch  = &render->mesh_batch;
     NYA_Render3DDecalsGPU*  gpu    = &render->decals_gpu;
@@ -382,6 +388,7 @@ void _nya_render3d_decals_draw(NYA_Window* window, const NYA_Render3DSegment* se
                                  segment->first_decal * NYA_RENDER3D_DECAL_INDICES, 0, 0);
 
     batch->frame_draw_calls++;
+    nya_trace_draws(1);
     batch->frame_vertices += segment->decal_count * NYA_RENDER3D_DECAL_VERTICES;
 }
 

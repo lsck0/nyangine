@@ -97,6 +97,8 @@ NYA_INTERNAL u32 _nya_text_line_of(const NYA_TextRun* run, s32 y) {
  */
 
 b8 nya_text_shape(TTF_Font* font, NYA_ConstCString text, u64 length, s32 wrap_width, OUT NYA_TextRun* out_run) {
+    nya_trace_scope(NYA_TRACE_TEXT);
+
     nya_assert(out_run != nullptr);
 
     _nya_text_run_reset(out_run);
