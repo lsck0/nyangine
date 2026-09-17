@@ -160,6 +160,40 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the table commits as it fills, keeps pointers, and refuses past its capacity
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_EntitySystem* system = &nya_world()->entity_system;
+    u32 committed_before     = system->committed_slots;
+
+    NYA_EntityHandle first = nya_entity_spawn(.name = "first", .position = { 1.0F, 2.0F, 3.0F });
+    NYA_Entity* first_entity = nya_entity_get(first);
+
+    static NYA_EntityHandle handles[NYA_ENTITY_MAX];
+    handles[0] = first;
+    for (u32 i = 1; i < NYA_ENTITY_MAX; i++) {
+      handles[i] = nya_entity_spawn(.name = "fill", .position = { (f32)i, 0.0F, 0.0F });
+      nya_assert(nya_entity_is_valid(handles[i]), "spawn " FMTu32 " of " FMTu32 " failed", i, (u32)NYA_ENTITY_MAX);
+    }
+
+    nya_assert(committed_before <= NYA_ENTITY_COMMIT_SLOTS, "a table that held a few hundred entities commits one chunk, got " FMTu32, committed_before);
+    nya_assert(system->committed_slots == NYA_ENTITY_MAX && system->touched_slots == NYA_ENTITY_MAX);
+    nya_assert(nya_entity_get(first) == first_entity && first_entity->position[2] == 3.0F, "growing the table moves nothing");
+    nya_assert(nya_entity_get(handles[NYA_ENTITY_MAX - 1])->position[0] == (f32)(NYA_ENTITY_MAX - 1));
+
+    NYA_EntityHandle refused = nya_entity_spawn(.name = "one too many");
+    nya_assert(!nya_entity_is_valid(refused), "a full table refuses a spawn");
+
+    // a slot freed in a full table is the one the next spawn takes.
+    nya_entity_despawn(handles[1000]);
+    NYA_EntityHandle reused = nya_entity_spawn(.name = "reused");
+    nya_assert(reused.index == handles[1000].index && reused.generation == handles[1000].generation + 1);
+
+    nya_entity_clear();
+    nya_assert(nya_entity_count() == 0);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: deferred despawn waits, immediate despawn does not
   // ─────────────────────────────────────────────────────────────────────────────
   {

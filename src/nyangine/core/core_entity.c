@@ -8,6 +8,9 @@
 
 NYA_INTERNAL void _nya_entity_apply_deferred_despawn(void* data);
 
+/** Commits the next NYA_ENTITY_COMMIT_SLOTS slots of the table. False when the system refuses. */
+NYA_INTERNAL b8 _nya_entity_table_commit(NYA_EntitySystem* system) __attr_no_discard;
+
 /** Advances a running nya_entity_move_to by one tick. No-op for an entity with no move. */
 NYA_INTERNAL void _nya_entity_target_step(NYA_Entity* entity, f32 delta_time_s);
 
@@ -86,7 +89,7 @@ void nya_system_entity_init(void) {
 
     *system = (NYA_EntitySystem){
         .allocator   = allocator,
-        .entities    = nya_arena_alloc(allocator, NYA_ENTITY_MAX * sizeof(NYA_Entity)),
+        .entities    = nya_memory_reserve(NYA_ENTITY_MAX * sizeof(NYA_Entity)),
         .occupied    = nya_arena_alloc(allocator, NYA_ENTITY_MAX * sizeof(b8)),
         .generations = nya_arena_alloc(allocator, NYA_ENTITY_MAX * sizeof(u32)),
         .free_slots  = nya_arena_alloc(allocator, NYA_ENTITY_MAX * sizeof(u32)),
@@ -104,15 +107,10 @@ void nya_system_entity_init(void) {
         },
     };
 
-    nya_memset(system->entities, 0, NYA_ENTITY_MAX * sizeof(NYA_Entity));
+    nya_assert(system->entities != nullptr, "could not reserve address space for %d entities", NYA_ENTITY_MAX);
+
+    // the table itself is not touched: slots are committed and their generations set as spawning reaches them.
     nya_memset(system->occupied, 0, NYA_ENTITY_MAX * sizeof(b8));
-
-    // generations start at 1, so a zeroed handle never resolves to slot 0.
-    for (u32 i = 0; i < NYA_ENTITY_MAX; i++) system->generations[i] = 1;
-
-    // seeded in reverse so spawns fill from slot 0 up, keeping the high water mark tight.
-    for (u32 i = 0; i < NYA_ENTITY_MAX; i++) system->free_slots[i] = NYA_ENTITY_MAX - 1 - i;
-    system->free_count = NYA_ENTITY_MAX;
 
     // empty, not zero: slot 0 is a real entity.
     for (u32 i = 0; i < NYA_ENTITY_GRID_BUCKETS; i++) system->grid.buckets[i] = NYA_ENTITY_GRID_EMPTY;
@@ -131,6 +129,7 @@ void nya_system_entity_deinit(void) {
 
     NYA_EntitySystem* system = &nya_world()->entity_system;
 
+    nya_memory_release(system->entities, NYA_ENTITY_MAX * sizeof(NYA_Entity));
     nya_arena_destroy(system->allocator);
     *system = (NYA_EntitySystem){ 0 };
 
@@ -699,12 +698,24 @@ NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button) __at
 NYA_EntityHandle nya_entity_spawn_with_options(NYA_EntitySpawnOptions options) {
     NYA_EntitySystem* system = &nya_world()->entity_system;
 
-    if (system->free_count == 0) {
+    if (system->free_count == 0 && system->touched_slots == NYA_ENTITY_MAX) {
         nya_log_error("Cannot spawn entity '%s': all %d entity slots are in use.", options.name ? options.name : "(unnamed)", NYA_ENTITY_MAX);
         return NYA_ENTITY_HANDLE_NONE;
     }
 
-    u32 slot = system->free_slots[--system->free_count];
+    // a despawned slot first, so the table only grows once every earlier slot is live.
+    u32 slot = system->free_count > 0 ? system->free_slots[--system->free_count] : system->touched_slots;
+
+    if (slot == system->touched_slots) {
+        if (slot == system->committed_slots && !_nya_entity_table_commit(system)) {
+            nya_log_error("Cannot spawn entity '%s': committing memory for slot %u failed.", options.name ? options.name : "(unnamed)", slot);
+            return NYA_ENTITY_HANDLE_NONE;
+        }
+
+        // generations start at 1, so a zeroed handle never resolves to slot 0.
+        system->generations[slot] = 1;
+        system->touched_slots++;
+    }
 
     NYA_EntityHandle handle = { .index = slot, .generation = system->generations[slot] };
 
@@ -875,6 +886,19 @@ u32 nya_entity_slot_count(void) {
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+b8 _nya_entity_table_commit(NYA_EntitySystem* system) {
+    nya_assert(system->committed_slots < NYA_ENTITY_MAX);
+
+    u32 slots = nya_min((u32)NYA_ENTITY_COMMIT_SLOTS, NYA_ENTITY_MAX - system->committed_slots);
+
+    if (!nya_memory_commit(&system->entities[system->committed_slots], (u64)slots * sizeof(NYA_Entity))) return false;
+
+    system->committed_slots += slots;
+
+    nya_assert(system->committed_slots <= NYA_ENTITY_MAX);
+    return true;
+}
 
 void _nya_entity_grid_cell(f32x2 position, OUT s32* out_x, OUT s32* out_y) {
     f32 cell_size = nya_world()->entity_system.grid.cell_size;

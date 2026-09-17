@@ -35,11 +35,19 @@ typedef struct NYA_Window NYA_Window;
  */
 
 /**
- * Entity slots, allocated up front and never grown, so an NYA_Entity* stays valid: on_update holds a raw
+ * Entity slots, reserved up front and never moved, so an NYA_Entity* stays valid: on_update holds a raw
  * pointer, and a spawn that grew the table would leave it dangling.
  * */
 #ifndef NYA_ENTITY_MAX
 #define NYA_ENTITY_MAX 8192
+#endif
+
+/**
+ * Slots committed at a time as spawning reaches past the committed part of the table. A world with a few
+ * hundred entities then holds a few hundred kilobytes rather than the whole reservation.
+ * */
+#ifndef NYA_ENTITY_COMMIT_SLOTS
+#define NYA_ENTITY_COMMIT_SLOTS 256
 #endif
 
 /**
@@ -185,12 +193,19 @@ struct NYA_EntityIter {
 struct NYA_EntitySystem {
     NYA_Arena* allocator;
 
+    /** NYA_ENTITY_MAX slots of address space, committed from the front. See NYA_ENTITY_COMMIT_SLOTS. */
     NYA_Entity* entities;
     b8*         occupied;
     u32*        generations;
 
+    /** Slots backed by memory. Never shrinks, so pointers into the table stay valid. */
+    u32 committed_slots;
+
+    /** Slots handed out at least once. Past this the table was never touched, and spawning takes the next. */
+    u32 touched_slots;
+
     /**
-     * Free slots, most recently freed first. A stack, since scanning for an empty slot makes mass spawning
+     * Despawned slots, most recently freed first. A stack, since scanning for an empty slot makes mass spawning
      * quadratic.
      * */
     u32* free_slots;
