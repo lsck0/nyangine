@@ -88,7 +88,11 @@ typedef struct {
 
     NYA_NetPeerId local_peer;
 
-    _NYA_NetServerPeerState peers[NYA_NET_MAX_PEERS];
+    /**
+     * Indexed like the transport's peers. Allocated when a peer first takes the slot and reused after it leaves, so a
+     * single player server holds one peer's state rather than NYA_NET_MAX_PEERS.
+     * */
+    _NYA_NetServerPeerState* peers[NYA_NET_MAX_PEERS];
 
     /** Peers connected on a transport that is not the loopback. */
     u32 remote_peer_count;
@@ -206,8 +210,8 @@ void nya_net_server_stop(void) {
 
     // each peer is told, so a client says "the server closed" instead of timing out.
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
-        _NYA_NetServerPeerState* state = &_NYA_NET_SERVER.peers[i];
-        if (!nya_net_peer_is_set(state->public_state.peer)) continue;
+        _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
+        if (state == nullptr || !nya_net_peer_is_set(state->public_state.peer)) continue;
 
         nya_net_transport_disconnect(state->transport, state->public_state.peer, NYA_NET_DISCONNECT_SERVER_CLOSED);
     }
@@ -305,9 +309,9 @@ void nya_net_server_tick(u64 tick, f32 delta_time_s) {
 
     if (apply_command != nullptr) {
         for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
-            _NYA_NetServerPeerState* state = &_NYA_NET_SERVER.peers[i];
+            _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
 
-            if (!state->public_state.accepted) continue;
+            if (state == nullptr || !state->public_state.accepted) continue;
 
             // applied this server tick already. compared with the server's tick, never the client's.
             if (state->last_applied_server_tick == tick) continue;
@@ -332,9 +336,10 @@ u32 nya_net_server_peer_count(void) {
 
 const NYA_NetServerPeer* nya_net_server_peer_at(u32 index) {
     if (index >= NYA_NET_MAX_PEERS) return nullptr;
-    if (!nya_net_peer_is_set(_NYA_NET_SERVER.peers[index].public_state.peer)) return nullptr;
+    const _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[index];
+    if (state == nullptr || !nya_net_peer_is_set(state->public_state.peer)) return nullptr;
 
-    return &_NYA_NET_SERVER.peers[index].public_state;
+    return &state->public_state;
 }
 
 const NYA_NetServerPeer* nya_net_server_peer(NYA_NetPeerId peer) {
@@ -368,8 +373,8 @@ NYA_Error nya_net_server_send_event(NYA_NetPeerId peer, const NYA_Object* event)
     // NYA_NET_PEER_NONE means everyone.
     if (!nya_net_peer_is_set(peer)) {
         for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
-            _NYA_NetServerPeerState* state = &_NYA_NET_SERVER.peers[i];
-            if (!state->public_state.accepted) continue;
+            _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
+            if (state == nullptr || !state->public_state.accepted) continue;
 
             _nya_net_server_send(state, NYA_NET_CHANNEL_RELIABLE, payload);
         }
@@ -744,8 +749,8 @@ void _nya_net_server_send_snapshots(u64 tick) {
     }
 
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
-        _NYA_NetServerPeerState* state = &_NYA_NET_SERVER.peers[i];
-        if (!state->public_state.accepted) continue;
+        _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
+        if (state == nullptr || !state->public_state.accepted) continue;
 
         /* The baseline is what this peer acknowledged, if still in the ring. */
         const NYA_NetSnapshot* baseline = nullptr;
@@ -912,7 +917,8 @@ _NYA_NetServerPeerState* _nya_net_server_find(NYA_NetPeerId peer) {
     if (!nya_net_peer_is_set(peer)) return nullptr;
     if (peer.index >= NYA_NET_MAX_PEERS) return nullptr;
 
-    _NYA_NetServerPeerState* state = &_NYA_NET_SERVER.peers[peer.index];
+    _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[peer.index];
+    if (state == nullptr) return nullptr;
 
     // the generation, so a stale handle does not address the slot's next peer.
     if (!nya_net_peer_equals(state->public_state.peer, peer)) return nullptr;
@@ -925,9 +931,14 @@ _NYA_NetServerPeerState* _nya_net_server_admit(NYA_NetTransport* transport, NYA_
     if (_NYA_NET_SERVER.peer_count >= _NYA_NET_SERVER.config.max_players) return nullptr;
 
     /* The transport's peer index is the server's slot. */
-    _NYA_NetServerPeerState* state = &_NYA_NET_SERVER.peers[peer.index];
+    _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[peer.index];
 
-    if (nya_net_peer_is_set(state->public_state.peer)) return nullptr;
+    if (state == nullptr) {
+        state                             = nya_arena_alloc(_NYA_NET_SERVER.allocator, sizeof(_NYA_NetServerPeerState));
+        _NYA_NET_SERVER.peers[peer.index] = state;
+    } else if (nya_net_peer_is_set(state->public_state.peer)) {
+        return nullptr;
+    }
 
     *state = (_NYA_NetServerPeerState){
         .transport = transport,
@@ -991,9 +1002,9 @@ void _nya_net_server_broadcast_roster(NYA_NetPeerId about, NYA_ConstCString name
     if (!nya_net_message_write_object(scratch, payload, object).ok) return;
 
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
-        _NYA_NetServerPeerState* state = &_NYA_NET_SERVER.peers[i];
+        _NYA_NetServerPeerState* state = _NYA_NET_SERVER.peers[i];
 
-        if (!state->public_state.accepted) continue;
+        if (state == nullptr || !state->public_state.accepted) continue;
 
         // not to the peer itself: it learns its arrival from WELCOME.
         if (nya_net_peer_equals(state->public_state.peer, about)) continue;

@@ -97,7 +97,7 @@ static void stop_everything(void) {
 
 /** How many entities the server put in the peer's most recent baseline. */
 static u32 baseline_entity_count(NYA_NetPeerId peer, u64 tick) {
-  const _NYA_NetServerBaseline* slot = &_NYA_NET_SERVER.peers[peer.index].baselines[tick % NYA_NET_SNAPSHOT_HISTORY];
+  const _NYA_NetServerBaseline* slot = &_NYA_NET_SERVER.peers[peer.index]->baselines[tick % NYA_NET_SNAPSHOT_HISTORY];
 
   return slot->used && slot->snapshot.tick == tick ? slot->snapshot.entity_count : 0;
 }
@@ -322,7 +322,7 @@ s32 main(void) {
 
     nya_assert(sent == 2, "the player plus the near crate, got %u", sent);
 
-    const _NYA_NetServerBaseline* slot = &_NYA_NET_SERVER.peers[peer.index].baselines[(tick - 1) % NYA_NET_SNAPSHOT_HISTORY];
+    const _NYA_NetServerBaseline* slot = &_NYA_NET_SERVER.peers[peer.index]->baselines[(tick - 1) % NYA_NET_SNAPSHOT_HISTORY];
 
     // Nothing beyond the radius is in it, which is the assertion that matters.
     for (u32 i = 0; i < slot->snapshot.entity_count; i++) {
@@ -427,7 +427,7 @@ s32 main(void) {
     }
 
     f32 present = nya_entity_get(target)->position.x;
-    u64 acked   = _NYA_NET_SERVER.peers[shooter.index].acknowledged_tick;
+    u64 acked   = _NYA_NET_SERVER.peers[shooter.index]->acknowledged_tick;
 
     nya_assert(acked > 0, "the local client never acknowledged a snapshot, so there is nothing to rewind to");
     nya_assert(present > 0.0F);

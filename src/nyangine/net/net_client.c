@@ -46,9 +46,10 @@ typedef struct {
     NYA_EntityHandle entity_local;
 
     /**
-     * Which local entity stands for which server entity. See NYA_NetReplicaMap.
+     * Which local entity stands for which server entity. See NYA_NetReplicaMap. Null on a listen server's own
+     * client, which shares the server's world and replicates nothing, so single player carries no map.
      * */
-    NYA_NetReplicaMap replicas;
+    NYA_NetReplicaMap* replicas;
 
     /** The transport peer the server is, from this client's side. Always index zero, one peer. */
     NYA_NetPeerId server_peer;
@@ -170,6 +171,11 @@ NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString na
 
     (void)snprintf(_NYA_NET_CLIENT.name, sizeof(_NYA_NET_CLIENT.name), "%s", name != nullptr ? name : "player");
 
+    if (!nya_net_transport_is_local(transport)) {
+        _NYA_NET_CLIENT.replicas  = nya_arena_alloc(_NYA_NET_CLIENT.allocator, sizeof(NYA_NetReplicaMap));
+        *_NYA_NET_CLIENT.replicas = (NYA_NetReplicaMap){ 0 };
+    }
+
     return NYA_OK;
 }
 
@@ -220,8 +226,9 @@ NYA_EntityHandle nya_net_client_entity_remote(void) {
 NYA_EntityHandle nya_net_client_local_entity(NYA_EntityHandle remote) {
     // On a listen server there is one table and one world, so a server handle is already local.
     if (nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) return remote;
+    if (_NYA_NET_CLIENT.replicas == nullptr) return NYA_ENTITY_HANDLE_NONE;
 
-    return nya_net_replica_local(&_NYA_NET_CLIENT.replicas, remote);
+    return nya_net_replica_local(_NYA_NET_CLIENT.replicas, remote);
 }
 
 NYA_NetPeerId nya_net_client_peer(void) {
@@ -268,8 +275,8 @@ void nya_net_client_interpolate(f32 delta_time_s) {
      */
     u64 tick_gap = 1;
 
-    for (u32 i = 0; i < _NYA_NET_CLIENT.replicas.count; i++) {
-        const NYA_NetReplica* replica = &_NYA_NET_CLIENT.replicas.entries[i];
+    for (u32 i = 0; i < _NYA_NET_CLIENT.replicas->count; i++) {
+        const NYA_NetReplica* replica = &_NYA_NET_CLIENT.replicas->entries[i];
 
         if (!replica->can_interpolate) continue;
         if (replica->to_tick <= replica->from_tick) continue;
@@ -286,7 +293,7 @@ void nya_net_client_interpolate(f32 delta_time_s) {
 
     f32 interval = (f32)(tick_seconds * (f64)tick_gap);
 
-    nya_net_replica_interpolate(&_NYA_NET_CLIENT.replicas, delta_time_s, interval, _NYA_NET_CLIENT.entity_remote);
+    nya_net_replica_interpolate(_NYA_NET_CLIENT.replicas, delta_time_s, interval, _NYA_NET_CLIENT.entity_remote);
 }
 
 /*
@@ -501,12 +508,12 @@ void _nya_net_client_handle_snapshot(const u8* body, u64 size, f32 delta_time_s)
      * A listen server applies nothing.
      */
     if (!nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) {
-        nya_net_snapshot_apply(&snapshot, _NYA_NET_CLIENT.config.replicated_flag, &_NYA_NET_CLIENT.replicas, _NYA_NET_CLIENT.entity_remote);
+        nya_net_snapshot_apply(&snapshot, _NYA_NET_CLIENT.config.replicated_flag, _NYA_NET_CLIENT.replicas, _NYA_NET_CLIENT.entity_remote);
 
         /*
          * The local name for the player, now that a snapshot may have spawned it.
          */
-        _NYA_NET_CLIENT.entity_local = nya_net_replica_local(&_NYA_NET_CLIENT.replicas, _NYA_NET_CLIENT.entity_remote);
+        _NYA_NET_CLIENT.entity_local = nya_net_replica_local(_NYA_NET_CLIENT.replicas, _NYA_NET_CLIENT.entity_remote);
     }
 
     _nya_net_client_reconcile(&snapshot, delta_time_s);
@@ -648,7 +655,7 @@ void _nya_net_client_reset(void) {
     /*
      * The replicated world goes with the connection.
      */
-    if (!nya_net_transport_is_local(_NYA_NET_CLIENT.transport)) nya_net_replica_map_despawn_all(&_NYA_NET_CLIENT.replicas);
+    if (_NYA_NET_CLIENT.replicas != nullptr) nya_net_replica_map_despawn_all(_NYA_NET_CLIENT.replicas);
 
     if (_NYA_NET_CLIENT.tick_arena != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.tick_arena);
     if (_NYA_NET_CLIENT.baseline_arena != nullptr) nya_arena_destroy(_NYA_NET_CLIENT.baseline_arena);

@@ -288,12 +288,12 @@ s32 main(void) {
       // And the server saw the acknowledgement, which is what lets it delta rather than send in full.
       deadline = nya_clock_get_monotonic_ms() + PUMP_TIMEOUT_MS;
 
-      while (_NYA_NET_SERVER.peers[peer.index].acknowledged_tick == 0 && nya_clock_get_monotonic_ms() < deadline) {
+      while (_NYA_NET_SERVER.peers[peer.index]->acknowledged_tick == 0 && nya_clock_get_monotonic_ms() < deadline) {
         run_ticks(&tick, 1, true);
         sleep_ms(2);
       }
 
-      nya_assert(_NYA_NET_SERVER.peers[peer.index].acknowledged_tick > 0, "the server never received a snapshot acknowledgement");
+      nya_assert(_NYA_NET_SERVER.peers[peer.index]->acknowledged_tick > 0, "the server never received a snapshot acknowledgement");
 
       printf("  server tick %llu, client applied %llu\n", (unsigned long long)tick, (unsigned long long)nya_net_client_server_tick());
     }
