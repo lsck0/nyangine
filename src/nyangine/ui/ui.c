@@ -103,8 +103,12 @@ typedef struct {
     b8    pointer_down;
     b8    pointer_released;
 
-    /** Directions are worked out once per tick for every window, so a second input pass cannot repeat twice as fast. */
+    /**
+     * Directions are worked out once per tick for every window, so a second input pass cannot repeat twice as fast.
+     * Both counters are one past their value, so a zeroed system has read no tick and holds no direction.
+     * */
     u64 direction_tick;
+    b8  tick_directions[4];
     u32 repeat_direction;
     f32 repeat_s;
 
@@ -121,7 +125,8 @@ typedef struct {
     u32               panel_count;
 } _NYA_UISystem;
 
-NYA_INTERNAL _NYA_UISystem _nya_ui = { .direction_tick = U64_MAX, .repeat_direction = U32_MAX };
+/* Zeroed, so the tables cost the binary nothing. */
+NYA_INTERNAL _NYA_UISystem _nya_ui = { 0 };
 
 /** In the order of _NYA_UISystem.directions. */
 NYA_INTERNAL const NYA_InputAction _NYA_UI_DIRECTIONS[4] = { NYA_INPUT_ACTION_UP, NYA_INPUT_ACTION_DOWN, NYA_INPUT_ACTION_LEFT, NYA_INPUT_ACTION_RIGHT };
@@ -139,8 +144,11 @@ NYA_INTERNAL NYA_UI* _nya_ui_context(const NYA_Window* window);
 
 NYA_INTERNAL NYA_UIStyle _nya_ui_style_resolve(NYA_UIStyle style);
 
-/** Reads confirm, cancel, the pointer and the four directions with their hold repeat. */
+/** Reads confirm, cancel, the pointer and the four directions. */
 NYA_INTERNAL void _nya_ui_input_read(NYA_UIPass pass);
+
+/** This tick's direction presses, and the held one's repeat. */
+NYA_INTERNAL void _nya_ui_directions_read(void);
 
 /** `label` hashed into `scope`. Never zero, which means no widget. */
 NYA_INTERNAL u64 _nya_ui_id(u64 scope, NYA_ConstCString label);
@@ -527,9 +535,6 @@ b8 nya_ui_toggle(NYA_UI* ui, NYA_ConstCString label, b8* value) {
         NYA_Color fill = widget.focused ? style->accent : style->button;
         NYA_Rectf body = _nya_ui_body_draw(ui, rect, widget, fill);
 
-        _nya_ui_text_draw(ui, layout, label, text_width, (NYA_Rectf){ body.x + style->padding, body.y, body.width, body.height }, NYA_UI_ALIGN_START,
-                          widget.focused ? style->accent_text : style->text);
-
         f32 x = body.x + body.width - style->padding - pill_width;
         f32 y = body.y + ((body.height - pill_height) * 0.5F);
 
@@ -542,6 +547,10 @@ b8 nya_ui_toggle(NYA_UI* ui, NYA_ConstCString label, b8* value) {
         f32   knob   = (pill_height * 0.5F) - style->outline;
         f32x2 center = { *value ? x + pill_width - (pill_height * 0.5F) : x + (pill_height * 0.5F), y + (pill_height * 0.5F) };
         nya_render2d_circle(ui->window, center, knob, *value ? style->button : style->ink);
+
+        // text after every shape, so the widget is two draw calls rather than three.
+        _nya_ui_text_draw(ui, layout, label, text_width, (NYA_Rectf){ body.x + style->padding, body.y, body.width, body.height }, NYA_UI_ALIGN_START,
+                          widget.focused ? style->accent_text : style->text);
     }
 
     return *value != before;
@@ -591,9 +600,6 @@ b8 nya_ui_slider(NYA_UI* ui, NYA_ConstCString label, f32* value, f32 min, f32 ma
         NYA_Color fill = widget.focused ? style->accent : style->button;
         NYA_Rectf body = _nya_ui_body_draw(ui, rect, widget, fill);
 
-        _nya_ui_text_draw(ui, layout, label, text_width, (NYA_Rectf){ body.x + style->padding, body.y, body.width, body.height }, NYA_UI_ALIGN_START,
-                          widget.focused ? style->accent_text : style->text);
-
         f32 track_height = knob;
         f32 x            = track_x + (body.x - rect.x);
         f32 y            = body.y + ((body.height - track_height) * 0.5F);
@@ -606,6 +612,9 @@ b8 nya_ui_slider(NYA_UI* ui, NYA_ConstCString label, f32* value, f32 min, f32 ma
         f32x2 center = { x + (track_width * t), y + (track_height * 0.5F) };
         nya_render2d_circle(ui->window, center, knob + style->outline, style->ink);
         nya_render2d_circle(ui->window, center, knob, style->button);
+
+        _nya_ui_text_draw(ui, layout, label, text_width, (NYA_Rectf){ body.x + style->padding, body.y, body.width, body.height }, NYA_UI_ALIGN_START,
+                          widget.focused ? style->accent_text : style->text);
     }
 
     return *value != before;
@@ -741,38 +750,46 @@ void _nya_ui_input_read(NYA_UIPass pass) {
     _nya_ui.pointer_pressed  = input && nya_input_mouse_button_just_pressed(NYA_MOUSE_BUTTON_LEFT);
     _nya_ui.pointer_released = input && nya_input_mouse_button_just_released(NYA_MOUSE_BUTTON_LEFT);
 
-    if (!input) {
-        nya_memset(_nya_ui.directions, 0, sizeof(_nya_ui.directions));
-        return;
+    nya_memset(_nya_ui.directions, 0, sizeof(_nya_ui.directions));
+    if (!input) return;
+
+    u64 tick = nya_world()->sim_system.tick + 1;
+
+    if (tick != _nya_ui.direction_tick) {
+        _nya_ui.direction_tick = tick;
+        _nya_ui_directions_read();
     }
 
-    u64 tick = nya_world()->sim_system.tick;
-    if (tick == _nya_ui.direction_tick) return;
+    nya_memcpy(_nya_ui.directions, _nya_ui.tick_directions, sizeof(_nya_ui.directions));
+}
 
-    _nya_ui.direction_tick = tick;
-    nya_memset(_nya_ui.directions, 0, sizeof(_nya_ui.directions));
+void _nya_ui_directions_read(void) {
+    b8* fired = _nya_ui.tick_directions;
+    nya_memset(fired, 0, sizeof(_nya_ui.tick_directions));
 
     for (u32 i = 0; i < nya_carray_length(_NYA_UI_DIRECTIONS); i++) {
         if (!nya_input_action_just_pressed(_NYA_UI_DIRECTIONS[i])) continue;
 
-        _nya_ui.directions[i]    = true;
-        _nya_ui.repeat_direction = i;
+        fired[i]                 = true;
+        _nya_ui.repeat_direction = i + 1;
         _nya_ui.repeat_s         = -NYA_UI_REPEAT_DELAY_S;
     }
 
-    u32 held = _nya_ui.repeat_direction;
-    if (held == U32_MAX || _nya_ui.directions[held]) return;
+    if (_nya_ui.repeat_direction == 0) return;
+
+    u32 held = _nya_ui.repeat_direction - 1;
+    if (fired[held]) return;
 
     if (!nya_input_action_pressed(_NYA_UI_DIRECTIONS[held])) {
-        _nya_ui.repeat_direction = U32_MAX;
+        _nya_ui.repeat_direction = 0;
         return;
     }
 
     _nya_ui.repeat_s += nya_app_get()->frame_stats.delta_time_s;
     if (_nya_ui.repeat_s < NYA_UI_REPEAT_INTERVAL_S) return;
 
-    _nya_ui.repeat_s        -= NYA_UI_REPEAT_INTERVAL_S;
-    _nya_ui.directions[held] = true;
+    _nya_ui.repeat_s -= NYA_UI_REPEAT_INTERVAL_S;
+    fired[held]       = true;
 }
 
 u64 _nya_ui_id(u64 scope, NYA_ConstCString label) {
