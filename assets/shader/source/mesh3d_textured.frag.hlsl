@@ -4,6 +4,7 @@
 // by a sampled texture. Everything after that is mesh3d_shading.hlsli, shared between the two.
 
 #include "mesh3d_shading.hlsli"
+#include "mesh3d_normals.hlsli"
 
 /*
  * The shadow map, at t1/s1.
@@ -33,7 +34,7 @@ struct FragInput {
   float3 world_position : TEXCOORD1;
 };
 
-float4 main(FragInput input) : SV_Target {
+Mesh3DOutput main(FragInput input) {
   float3 normal = normalize(input.normal);
 
   /*
@@ -50,5 +51,6 @@ float4 main(FragInput input) : SV_Target {
 
   float3 colour = mesh3d_shade(input.color.rgb * sampled.rgb, normal, input.world_position, shadow);
 
-  return float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), input.color.a * sampled.a);
+  return mesh3d_output(float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), input.color.a * sampled.a), normal,
+                       input.world_position);
 }

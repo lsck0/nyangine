@@ -243,6 +243,88 @@ struct NYA_ShaderSkyUniform {
 };
 
 /**
+ * effect_scene.hlsli: what a screen-space pass needs to turn a normal buffer texel back into a world position.
+ * Embedded first in every block that reads the normal buffer. Filled by nya_post_end from the 3D batch.
+ * */
+struct NYA_ShaderSceneView {
+    f32 right_x, right_y, right_z;
+
+    /** tan(fov_y / 2), zero for an orthographic camera. */
+    f32 tangent;
+
+    f32 up_x, up_y, up_z;
+
+    /** Width over height. */
+    f32 aspect;
+
+    f32 forward_x, forward_y, forward_z;
+
+    /** Half the orthographic view's height, zero for a perspective camera. */
+    f32 half_height;
+
+    f32 eye_x, eye_y, eye_z;
+
+    /** See NYA_Render3DFog. Zero is no fog. */
+    f32 fog_density;
+
+    f32 fog_height_falloff;
+    f32 fog_height_base;
+
+    /** One texel of the normal buffer in uv. */
+    f32 texel_x, texel_y;
+};
+
+/** effect_ink.frag.hlsl. See NYA_PostInk; every field already has its default applied. */
+struct NYA_ShaderInkUniform {
+    struct NYA_ShaderSceneView view;
+
+    f32 color_r, color_g, color_b, color_a;
+
+    f32 width;
+
+    /** The cosine of NYA_PostInk.crease, which is what a dot product compares against. */
+    f32 crease_cosine;
+
+    f32 fade_start;
+    f32 fade_end;
+};
+
+/** effect_occlusion.frag.hlsl and effect_occlusion_apply.frag.hlsl. See NYA_PostAmbientOcclusion. */
+struct NYA_ShaderAmbientOcclusionUniform {
+    struct NYA_ShaderSceneView view;
+
+    f32 radius;
+    f32 strength;
+    f32 band;
+    f32 pad;
+};
+
+/** effect_antialias.frag.hlsl. See NYA_PostAntialias. */
+struct NYA_ShaderAntialiasUniform {
+    f32 texel_x, texel_y;
+    f32 subpixel;
+    f32 threshold;
+};
+
+/** effect_scene_debug.frag.hlsl: the ink's settings for the ink view, then the view and the cascades. */
+struct NYA_ShaderSceneDebugUniform {
+    struct NYA_ShaderInkUniform ink;
+
+    /** A NYA_PostDebugView, as a float for the row. */
+    f32 view;
+
+    /** How many entries below are real. */
+    f32 cascade_count;
+
+    f32 pad[2];
+
+    f32_4x4 light_view_projection[NYA_RENDER3D_SHADOW_CASCADES];
+};
+
+static_assert(sizeof(struct NYA_ShaderSceneView) == 80, "five rows, matching SceneView in effect_scene.hlsli");
+static_assert(offsetof(struct NYA_ShaderSceneDebugUniform, light_view_projection) == 128, "the ink block and one row");
+
+/**
  * mesh3d_glass.frag.hlsl: capture texel size, refraction and blur. A block at b1 so ordinary mesh draws do not
  * carry glass state.
  * */

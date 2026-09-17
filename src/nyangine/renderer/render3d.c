@@ -526,6 +526,9 @@ void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
 
     _nya_render2d_pass_suspend(window);
 
+    // the shadow pipelines have no normals variant, and the scene pass after this reattaches the buffer itself.
+    render->render_pass_normals = false;
+
     render->render_pass = SDL_BeginGPURenderPass(
         render->render_commands,
         &(SDL_GPUColorTargetInfo){
@@ -1129,6 +1132,8 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
     // made before it and fails with "Missing fragment sampler binding".
     if (!shadow && batch->shadow_color == nullptr && !_nya_render3d_shadow_ensure(window)) return;
 
+    _nya_render2d_pass_normals_set(window, true);
+
     // Checked after everything that can suspend the pass and before binding. An upload or the shadow map
     // creation replaces the pass handle, and a stale null crashes inside SDL. Nothing may touch it from here
     // to the draw.
@@ -1161,7 +1166,7 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
     skin.tint_b = tint.b;
     skin.tint_a = tint.a;
 
-    SDL_BindGPUGraphicsPipeline(render->render_pass, nya_asset_graphics_pipeline(pipeline, render->draw_batch.target_sample_count));
+    SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, pipeline));
     SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = registered->vertices, .offset = 0 }, 1);
 
     // batch->view_projection holds the cascade's matrix during a shadow pass, so one path serves both.
@@ -1538,6 +1543,9 @@ void nya_render3d_flush(NYA_Window* window) {
         return;
     }
 
+    // the scene pass writes the normal buffer when its target has one. a no-op while one is attached already.
+    _nya_render2d_pass_normals_set(window, true);
+
     // built once for both paths: light, material and shadow state are batch state and flush on change.
     struct NYA_ShaderMesh3DUniform uniform = _nya_render3d_shading_uniform(batch);
 
@@ -1806,7 +1814,7 @@ void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMe
 
     // opaque first, so transparent surfaces test against the opaque depth.
     if (opaque_indices > 0 && opaque_ready) {
-        SDL_BindGPUGraphicsPipeline(render->render_pass, nya_asset_graphics_pipeline(opaque_pipeline, render->draw_batch.target_sample_count));
+        SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, opaque_pipeline));
         SDL_DrawGPUIndexedPrimitives(render->render_pass, opaque_indices, 1, 0, 0, 0);
 
         batch->frame_draw_calls++;
@@ -1821,7 +1829,7 @@ void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMe
 
         if (glass) {
             // a resume begins a new pass with nothing bound, so everything is rebound, not only the samplers.
-            SDL_BindGPUGraphicsPipeline(render->render_pass, nya_asset_graphics_pipeline(glass_pipeline, render->draw_batch.target_sample_count));
+            SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, glass_pipeline));
 
             SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer, .offset = 0 }, 1);
             SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer, .offset = 0 },
@@ -1851,7 +1859,7 @@ void _nya_render3d_flush_immediate(NYA_Window* window, const struct NYA_ShaderMe
             SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
             SDL_PushGPUFragmentUniformData(render->render_commands, 1, &glass_uniform, sizeof(glass_uniform));
         } else if (transparent_ready) {
-            SDL_BindGPUGraphicsPipeline(render->render_pass, nya_asset_graphics_pipeline(transparent_pipeline, render->draw_batch.target_sample_count));
+            SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, transparent_pipeline));
         }
 
         if (glass || transparent_ready) {
@@ -2055,7 +2063,7 @@ void _nya_render3d_flush_instanced(NYA_Window* window, const struct NYA_ShaderMe
             NYA_Asset* pipeline_asset = nya_asset_get((NYA_AssetHandle)pipeline_handle);
             if (pipeline_asset == nullptr || pipeline_asset->status != NYA_ASSET_STATUS_LOADED) continue;
 
-            SDL_BindGPUGraphicsPipeline(render->render_pass, nya_asset_graphics_pipeline(pipeline_asset, render->draw_batch.target_sample_count));
+            SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, pipeline_asset));
 
             // the instance buffer is bound from this group's first instance, so the draw's first-instance stays zero.
             // some backends apply first_instance to the buffer but not to SV_InstanceID.

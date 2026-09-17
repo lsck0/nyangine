@@ -147,6 +147,10 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
     { .name = "shadow_bias", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_bias), .hint = NYA_HINT_NONE },
     { .name = "shadow_cascades", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_cascades), .hint = NYA_HINT_NONE },
     { .name = "shadow_map_size", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_map_size), .hint = NYA_HINT_NONE },
+    { .name = "ink", .type = &_NYA_REFLECT_NYA_PostInk, .offset = nya_offsetof(NYA_ConfigEngineRenderer, ink), .hint = NYA_HINT_NONE },
+    { .name = "ambient_occlusion", .type = &_NYA_REFLECT_NYA_PostAmbientOcclusion, .offset = nya_offsetof(NYA_ConfigEngineRenderer, ambient_occlusion), .hint = NYA_HINT_NONE },
+    { .name = "antialias", .type = &_NYA_REFLECT_NYA_PostAntialias, .offset = nya_offsetof(NYA_ConfigEngineRenderer, antialias), .hint = NYA_HINT_NONE },
+    { .name = "debug_view", .type = &_NYA_REFLECT_NYA_PostDebugView, .offset = nya_offsetof(NYA_ConfigEngineRenderer, debug_view), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
@@ -155,7 +159,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .size = sizeof(NYA_ConfigEngineRenderer),
     .alignment = alignof(NYA_ConfigEngineRenderer),
     .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
-    .field_count = 4,
+    .field_count = 8,
 };
 
 /* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
@@ -257,6 +261,87 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Color = {
     .field_count = 4,
 };
 
+/* NYA_PostInk, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PostInk_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostInk, enabled), .hint = NYA_HINT_NONE },
+    { .name = "color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_PostInk, color), .hint = NYA_HINT_NONE },
+    { .name = "width", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostInk, width), .hint = NYA_HINT_NONE },
+    { .name = "crease", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostInk, crease), .hint = NYA_HINT_NONE },
+    { .name = "fade_start", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostInk, fade_start), .hint = NYA_HINT_NONE },
+    { .name = "fade_end", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostInk, fade_end), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostInk = {
+    .name = "NYA_PostInk",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PostInk),
+    .alignment = alignof(NYA_PostInk),
+    .fields = _NYA_REFLECT_NYA_PostInk_FIELDS,
+    .field_count = 6,
+};
+
+/* NYA_PostAmbientOcclusion, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PostAmbientOcclusion_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostAmbientOcclusion, enabled), .hint = NYA_HINT_NONE },
+    { .name = "radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostAmbientOcclusion, radius), .hint = NYA_HINT_NONE },
+    { .name = "strength", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostAmbientOcclusion, strength), .hint = NYA_HINT_NONE },
+    { .name = "band", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostAmbientOcclusion, band), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostAmbientOcclusion = {
+    .name = "NYA_PostAmbientOcclusion",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PostAmbientOcclusion),
+    .alignment = alignof(NYA_PostAmbientOcclusion),
+    .fields = _NYA_REFLECT_NYA_PostAmbientOcclusion_FIELDS,
+    .field_count = 4,
+};
+
+/* NYA_PostAntialias, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PostAntialias_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostAntialias, enabled), .hint = NYA_HINT_NONE },
+    { .name = "subpixel", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostAntialias, subpixel), .hint = NYA_HINT_NONE },
+    { .name = "threshold", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostAntialias, threshold), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostAntialias = {
+    .name = "NYA_PostAntialias",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PostAntialias),
+    .alignment = alignof(NYA_PostAntialias),
+    .fields = _NYA_REFLECT_NYA_PostAntialias_FIELDS,
+    .field_count = 3,
+};
+
+/* NYA_PostDebugView, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectVariant _NYA_REFLECT_NYA_PostDebugView_VARIANTS[] = {
+    { .name = "NYA_POST_DEBUG_VIEW_NONE", .value = (s64)(NYA_POST_DEBUG_VIEW_NONE) },
+    { .name = "NYA_POST_DEBUG_VIEW_NORMALS", .value = (s64)(NYA_POST_DEBUG_VIEW_NORMALS) },
+    { .name = "NYA_POST_DEBUG_VIEW_DEPTH", .value = (s64)(NYA_POST_DEBUG_VIEW_DEPTH) },
+    { .name = "NYA_POST_DEBUG_VIEW_OCCLUSION", .value = (s64)(NYA_POST_DEBUG_VIEW_OCCLUSION) },
+    { .name = "NYA_POST_DEBUG_VIEW_INK", .value = (s64)(NYA_POST_DEBUG_VIEW_INK) },
+    { .name = "NYA_POST_DEBUG_VIEW_CASCADES", .value = (s64)(NYA_POST_DEBUG_VIEW_CASCADES) },
+    { .name = "NYA_POST_DEBUG_VIEW_COUNT", .value = (s64)(NYA_POST_DEBUG_VIEW_COUNT) },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView = {
+    .name = "NYA_PostDebugView",
+    .kind = NYA_REFLECT_ENUM,
+    .size = sizeof(NYA_PostDebugView),
+    .alignment = alignof(NYA_PostDebugView),
+    .primitive = (sizeof(NYA_PostDebugView) == 8 ? NYA_TYPE_S64
+                : sizeof(NYA_PostDebugView) == 2 ? NYA_TYPE_S16
+                : sizeof(NYA_PostDebugView) == 1 ? NYA_TYPE_S8
+                                  : NYA_TYPE_S32),
+    .variants = _NYA_REFLECT_NYA_PostDebugView_VARIANTS,
+    .variant_count = 7,
+    .is_bitflags = false,
+};
+
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_GNY_ConfigRobots,
     &_NYA_REFLECT_GNY_ConfigGame,
@@ -269,6 +354,10 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_NetChatMessage,
     &_NYA_REFLECT_NYA_NetPeerId,
     &_NYA_REFLECT_NYA_Color,
+    &_NYA_REFLECT_NYA_PostInk,
+    &_NYA_REFLECT_NYA_PostAmbientOcclusion,
+    &_NYA_REFLECT_NYA_PostAntialias,
+    &_NYA_REFLECT_NYA_PostDebugView,
 };
 
 const NYA_TypeReflection* nya_reflect_find(NYA_ConstCString name) {

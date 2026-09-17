@@ -178,6 +178,12 @@ struct NYA_RenderTextureOptions {
     NYA_RenderTextureDepth depth;
 
     /**
+     * Also record the 3D scene's normals and distances. See NYA_RENDER3D_NORMAL_FORMAT, which says what it costs.
+     * Needs the depth buffer.
+     * */
+    b8 normals;
+
+    /**
      * No multisampled companion, whatever NYA_RenderOptions.msaa_samples says. For targets that only ever take
      * fullscreen passes, where there are no edges to smooth: a 1280x720 target then costs 3.5 MB instead of 17.5 MB
      * at 4x. Pipelines drawing into it are built single sampled on first use.
@@ -205,6 +211,13 @@ struct NYA_RenderTexture {
      * */
     SDL_GPUTexture* depth_texture;
 
+    /**
+     * The scene normal buffer and its multisampled companion, null unless NYA_RenderTextureOptions.normals. See
+     * NYA_RENDER3D_NORMAL_FORMAT.
+     * */
+    SDL_GPUTexture* normal_texture;
+    SDL_GPUTexture* normal_msaa_texture;
+
     u32 width;
     u32 height;
 
@@ -214,6 +227,9 @@ struct NYA_RenderTexture {
     /** What it was made with, so a caller can tell whether it still fits. See nya_render_texture_is_current. */
     NYA_RenderTextureOptions options;
 };
+
+// after NYA_RenderTexture, which the post chain is built from, and before the window state, which holds its options.
+#include "nyangine/renderer/render_post.h"
 
 /** The 2D shape batch for one window. Only render2d.c touches it. */
 /** Bytes of custom fragment uniform a deferred range can carry inline. */
@@ -371,6 +387,16 @@ struct NYA_Render2DBatch {
      * the right one.
      * */
     SDL_GPUTexture* target_depth;
+
+    /** The current target's normal buffer and its multisampled side, null for the window. */
+    SDL_GPUTexture* target_normal;
+    SDL_GPUTexture* target_normal_msaa;
+
+    /**
+     * Whether a pass attached the normal buffer since the target began, meaning 3D was drawn into it. The first one
+     * clears it; nya_render_texture_end resolves it only if one did.
+     * */
+    b8 target_normal_written;
 
     u32 target_width;
     u32 target_height;
@@ -636,6 +662,13 @@ struct NYA_RenderSystemWindow {
     SDL_GPUCommandBuffer* render_commands;
     SDL_GPUTexture*       swapchain_texture;
 
+    /**
+     * Whether the open pass, or the one the next resume opens, attaches the target's normal buffer. 3D draws set
+     * it and 2D draws clear it, since their pipelines are built for different targets. See
+     * _nya_render2d_pass_normals_set.
+     * */
+    b8 render_pass_normals;
+
     /* The window's multisampled colour buffer and the size and sample count it was built for. */
     SDL_GPUTexture*    msaa_texture;
     u32                msaa_width;
@@ -653,6 +686,13 @@ struct NYA_RenderSystemWindow {
 
     NYA_Render2DBatch draw_batch;
     NYA_Render3DBatch mesh_batch;
+
+    /* The cartoon post passes. See render_post.h. */
+
+    NYA_PostInk              post_ink;
+    NYA_PostAmbientOcclusion post_ambient_occlusion;
+    NYA_PostAntialias        post_antialias;
+    NYA_PostDebugView        post_debug_view;
 };
 
 /*
@@ -782,9 +822,6 @@ NYA_API void      nya_system_renderer_set_vsync(b8 enabled);
  * */
 NYA_API b8   nya_render_begin(NYA_Window* window) __attr_no_discard;
 NYA_API void nya_render_end(NYA_Window* window);
-
-// last, after NYA_RenderTexture, which the post chain is built from.
-#include "nyangine/renderer/render_post.h"
 
 // after NYA_Render3DSortKey, which it sorts.
 #include "nyangine/renderer/render_sort.h"

@@ -436,6 +436,26 @@ NYA_API void nya_render2d_shader_end(NYA_Window* window);
 /** Draws `vertex_count` vertices from a pipeline that generates its own geometry, with no vertex buffer. */
 NYA_API void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handle, u32 vertex_count, const void* uniform_data, u32 uniform_size);
 
+/**
+ * One fullscreen triangle through `pipeline_handle`, with `textures` bound from t0 in order and `uniform` at
+ * fragment slot 0. For a pass reading several images, which the batch's one texture per draw cannot carry. The
+ * pipeline pairs NYA_ASSET_SHADER_PROCEDURAL_VERT, whose uv has v growing up. Sampled linearly; a shader that
+ * must not blend texels reads them with Load.
+ *
+ * ```c
+ * SDL_GPUTexture* inputs[] = { scene.texture, scene.normal_texture };
+ * nya_render2d_fullscreen(window, "ink_pipeline", inputs, 2, &ink, sizeof(ink));
+ * ```
+ * */
+NYA_API void nya_render2d_fullscreen(
+    NYA_Window*            window,
+    NYA_ConstCString       pipeline_handle,
+    SDL_GPUTexture* const* textures,
+    u32                    texture_count,
+    const void*            uniform,
+    u32                    uniform_size
+);
+
 /*
  * ─────────────────────────────────────────────────────────
  * LIGHTS

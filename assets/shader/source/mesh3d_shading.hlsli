@@ -138,7 +138,7 @@ float mesh3d_banded(float3 normal, float3 light, float softness) {
  *
  * It finds curvature, not creases. Derivatives come from a 2x2 quad inside one triangle, so flat faces meeting
  * at a hard angle report nothing. It catches fillets, caps and tight radii on smooth models, plus a little at
- * grazing angles. Hard creases need an inverted hull or a screen-space pass. Being per pixel, it is scale
+ * grazing angles. Hard creases are left to the screen-space ink, NYA_PostInk. Being per pixel, it is scale
  * independent.
  * */
 float mesh3d_edge(float3 normal) {

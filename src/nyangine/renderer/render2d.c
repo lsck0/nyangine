@@ -147,6 +147,16 @@ NYA_INTERNAL void _nya_render2d_range_apply_scissor(NYA_Window* window, const NY
 NYA_INTERNAL void _nya_render2d_pass_resume(NYA_Window* window);
 
 /**
+ * Reopens the pass with or without the target's normal buffer, whichever the next draw's pipeline is built for.
+ * Only a change reopens it, so a run of 3D or of 2D costs nothing. A target without the buffer always gets a pass
+ * without it, and a shadow pass is left alone.
+ * */
+NYA_INTERNAL void _nya_render2d_pass_normals_set(NYA_Window* window, b8 normals);
+
+/** Resolves the render texture's multisampled normal buffer, if a pass wrote it. Called with no pass open. */
+NYA_INTERNAL void _nya_render2d_normals_resolve(NYA_Window* window);
+
+/**
  * Builds the glyph atlas for a font asset, or returns the one already built. Null on failure.
  * */
 NYA_INTERNAL NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString font_path, f32 point_size);
@@ -398,6 +408,9 @@ void nya_render2d_flush(NYA_Window* window) {
     );
     SDL_EndGPUCopyPass(copy_pass);
 
+    // reopened without the normal buffer, which no 2D pipeline is built for. see _nya_render2d_pass_normals_set.
+    render->render_pass_normals = false;
+
     _nya_render2d_pass_resume(window);
 
     /*
@@ -418,7 +431,7 @@ void nya_render2d_flush(NYA_Window* window) {
         NYA_Asset* pipeline_asset = range->pipeline != nullptr ? nya_asset_get(range->pipeline) : nullptr;
 
         // still loading; skipped so one pipeline does not hold up the frame.
-        SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(pipeline_asset, batch->target_sample_count);
+        SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(pipeline_asset, batch->target_sample_count, false);
         if (pipeline == nullptr) continue;
 
         // per range, since target and camera belong to the range.
@@ -1117,8 +1130,9 @@ void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handl
 
     if (pipeline_handle == nullptr || vertex_count == 0) return;
 
-    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get((NYA_CString)pipeline_handle), batch->target_sample_count);
-    if (pipeline == nullptr) {
+    NYA_Asset* asset = nya_asset_get((NYA_CString)pipeline_handle);
+
+    if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) {
         batch->frame_dropped_draws++;
         return;
     }
@@ -1127,6 +1141,16 @@ void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handl
     _nya_render2d_flush_for(window, NYA_RENDER2D_FLUSH_PIPELINE);
 
     if (render->render_pass == nullptr || render->render_commands == nullptr) {
+        batch->frame_dropped_draws++;
+        return;
+    }
+
+    // the sky draws inside the 3D pass, where the normal buffer is attached; a 2D fullscreen effect does not.
+    _nya_render2d_pass_normals_set(window, render->mesh_batch.active);
+
+    SDL_GPUGraphicsPipeline* pipeline = _nya_render_pipeline(window, asset);
+
+    if (pipeline == nullptr) {
         batch->frame_dropped_draws++;
         return;
     }
@@ -1147,6 +1171,65 @@ void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handl
      * The cached pipeline is cleared: the batch skips rebinding what it thinks is bound, and this draw bound
      * another one behind its back.
      */
+    batch->pipeline = nullptr;
+    batch->texture  = nullptr;
+    batch->sampler  = nullptr;
+}
+
+void nya_render2d_fullscreen(
+    NYA_Window*            window,
+    NYA_ConstCString       pipeline_handle,
+    SDL_GPUTexture* const* textures,
+    u32                    texture_count,
+    const void*            uniform,
+    u32                    uniform_size
+) {
+    nya_assert(window != nullptr);
+    nya_assert(textures != nullptr || texture_count == 0);
+    nya_assert(uniform != nullptr || uniform_size == 0);
+
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render2DBatch*      batch  = &render->draw_batch;
+
+    // SDL_GPU binds at most eight per stage, and a post pass reads two or three.
+    SDL_GPUTextureSamplerBinding bindings[8];
+    nya_assert(texture_count <= nya_carray_length(bindings), "%u textures, past the eight a stage can bind", texture_count);
+
+    _nya_render2d_flush_for(window, NYA_RENDER2D_FLUSH_PIPELINE);
+
+    if (render->render_pass == nullptr || render->render_commands == nullptr) {
+        batch->frame_dropped_draws++;
+        return;
+    }
+
+    _nya_render2d_pass_normals_set(window, false);
+
+    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get((NYA_CString)pipeline_handle), batch->target_sample_count, false);
+
+    if (pipeline == nullptr) {
+        batch->frame_dropped_draws++;
+        return;
+    }
+
+    SDL_GPUSampler* sampler = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR);
+
+    for (u32 i = 0; i < texture_count; i++) {
+        nya_assert(textures[i] != nullptr, "input %u of '%s' is null", i, pipeline_handle);
+
+        bindings[i] = (SDL_GPUTextureSamplerBinding){ .texture = textures[i], .sampler = sampler };
+    }
+
+    SDL_BindGPUGraphicsPipeline(render->render_pass, pipeline);
+
+    if (texture_count > 0) SDL_BindGPUFragmentSamplers(render->render_pass, 0, bindings, texture_count);
+    if (uniform_size > 0) SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, uniform_size);
+
+    SDL_DrawGPUPrimitives(render->render_pass, 3, 1, 0, 0);
+
+    batch->frame_flushes++;
+    batch->frame_flush_reasons[NYA_RENDER2D_FLUSH_PIPELINE]++;
+
+    // this bound a pipeline and samplers behind the batch's back.
     batch->pipeline = nullptr;
     batch->texture  = nullptr;
     batch->sampler  = nullptr;
@@ -1204,6 +1287,7 @@ NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, 
     nya_assert(window != nullptr);
     nya_assert(width > 0 && height > 0, "a render texture needs a non-zero size");
     nya_assert(options.depth < NYA_RENDER_TEXTURE_DEPTH_COUNT, "NYA_RenderTextureOptions.depth is not one of the enum's values");
+    nya_assert(!options.normals || options.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED, "a normal buffer records a 3D scene, which needs depth");
 
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
@@ -1267,14 +1351,53 @@ NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, 
         nya_assert(depth_texture != nullptr, "SDL_CreateGPUTexture() failed for a render texture's depth buffer: %s", SDL_GetError());
     }
 
+    SDL_GPUTexture* normal_texture      = nullptr;
+    SDL_GPUTexture* normal_msaa_texture = nullptr;
+
+    if (options.normals) {
+        normal_texture = nya_gpu_texture_create(
+            gpu_device,
+            &(SDL_GPUTextureCreateInfo){
+                .type                 = SDL_GPU_TEXTURETYPE_2D,
+                .format               = NYA_RENDER3D_NORMAL_FORMAT,
+                .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
+                .width                = width,
+                .height               = height,
+                .layer_count_or_depth = 1,
+                .num_levels           = 1,
+            }
+        );
+        nya_assert(normal_texture != nullptr, "SDL_CreateGPUTexture() failed for a render texture's normal buffer: %s", SDL_GetError());
+
+        if (sample_count != SDL_GPU_SAMPLECOUNT_1) {
+            normal_msaa_texture = nya_gpu_texture_create(
+                gpu_device,
+                &(SDL_GPUTextureCreateInfo){
+                    .type                 = SDL_GPU_TEXTURETYPE_2D,
+                    .format               = NYA_RENDER3D_NORMAL_FORMAT,
+                    .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
+                    .width                = width,
+                    .height               = height,
+                    .layer_count_or_depth = 1,
+                    .num_levels           = 1,
+                    .sample_count         = sample_count,
+                }
+            );
+            nya_assert(normal_msaa_texture != nullptr, "SDL_CreateGPUTexture() failed for a render texture's MSAA normal buffer: %s",
+                       SDL_GetError());
+        }
+    }
+
     return (NYA_RenderTexture){
-        .texture        = texture,
-        .msaa_texture   = msaa_texture,
-        .depth_texture  = depth_texture,
-        .width          = width,
-        .height         = height,
-        .sample_count   = sample_count,
-        .options        = options,
+        .texture             = texture,
+        .msaa_texture        = msaa_texture,
+        .depth_texture       = depth_texture,
+        .normal_texture      = normal_texture,
+        .normal_msaa_texture = normal_msaa_texture,
+        .width               = width,
+        .height              = height,
+        .sample_count        = sample_count,
+        .options             = options,
     };
 }
 
@@ -1288,6 +1411,8 @@ void nya_render_texture_destroy(NYA_RenderTexture* render_texture) {
     nya_gpu_texture_release(gpu_device, render_texture->texture);
     if (render_texture->msaa_texture != nullptr) nya_gpu_texture_release(gpu_device, render_texture->msaa_texture);
     if (render_texture->depth_texture != nullptr) nya_gpu_texture_release(gpu_device, render_texture->depth_texture);
+    if (render_texture->normal_texture != nullptr) nya_gpu_texture_release(gpu_device, render_texture->normal_texture);
+    if (render_texture->normal_msaa_texture != nullptr) nya_gpu_texture_release(gpu_device, render_texture->normal_msaa_texture);
 
     *render_texture = (NYA_RenderTexture){ 0 };
 }
@@ -1350,6 +1475,12 @@ void nya_render_texture_begin(NYA_Window* window, NYA_RenderTexture* render_text
     batch->target_width      = render_texture->width;
     batch->target_height     = render_texture->height;
     batch->target_is_texture = true;
+
+    // cleared by the first pass that attaches it rather than here, where a 2D pass into it would pay for it.
+    batch->target_normal         = render_texture->normal_texture;
+    batch->target_normal_msaa    = render_texture->normal_msaa_texture;
+    batch->target_normal_written = false;
+    render->render_pass_normals  = false;
 }
 
 void nya_render_texture_end(NYA_Window* window) {
@@ -1366,6 +1497,12 @@ void nya_render_texture_end(NYA_Window* window) {
 
     SDL_EndGPURenderPass(render->render_pass);
     render->render_pass = nullptr;
+
+    _nya_render2d_normals_resolve(window);
+
+    batch->target_normal        = nullptr;
+    batch->target_normal_msaa   = nullptr;
+    render->render_pass_normals = false;
 
     batch->target_texture    = render->swapchain_texture;
     batch->target_msaa         = render->msaa_texture;
@@ -1755,16 +1892,30 @@ void _nya_render2d_pass_resume(NYA_Window* window) {
      */
     b8 resolving = batch->target_msaa != nullptr && (batch->target_is_texture || batch->resolve_pending);
 
-    render->render_pass = SDL_BeginGPURenderPass(
-        render->render_commands,
-        &(SDL_GPUColorTargetInfo){
+    SDL_GPUColorTargetInfo color_targets[2] = {
+        {
             .texture         = batch->target_msaa != nullptr ? batch->target_msaa : batch->target_texture,
             .resolve_texture = resolving ? batch->target_texture : nullptr,
             // LOAD, since this reopens mid-target. RESOLVE_AND_STORE keeps the multisample contents the LOAD needs.
             .load_op  = SDL_GPU_LOADOP_LOAD,
             .store_op = resolving ? SDL_GPU_STOREOP_RESOLVE_AND_STORE : SDL_GPU_STOREOP_STORE,
         },
-        1,
+        {
+            // stored without resolving: nothing reads it before nya_render_texture_end resolves it once.
+            .texture  = batch->target_normal_msaa != nullptr ? batch->target_normal_msaa : batch->target_normal,
+            .load_op  = batch->target_normal_written ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR,
+            .store_op = SDL_GPU_STOREOP_STORE,
+        },
+    };
+
+    b8 normals = render->render_pass_normals && batch->target_normal != nullptr;
+
+    if (normals) batch->target_normal_written = true;
+
+    render->render_pass = SDL_BeginGPURenderPass(
+        render->render_commands,
+        color_targets,
+        normals ? 2 : 1,
         // LOAD for the same reason. null when there is no depth buffer, matching nya_render_texture_begin, or the
         // bound pipelines do not match the pass.
         batch->target_depth == nullptr ? nullptr
@@ -1780,6 +1931,43 @@ void _nya_render2d_pass_resume(NYA_Window* window) {
 
     // a new pass clips to nothing, so the batch's clip goes back on.
     _nya_render2d_apply_scissor(window);
+}
+
+void _nya_render2d_pass_normals_set(NYA_Window* window, b8 normals) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+
+    normals = normals && render->draw_batch.target_normal != nullptr;
+
+    if (render->render_pass_normals == normals || render->mesh_batch.shadow_pass_active) return;
+
+    _nya_render2d_pass_suspend(window);
+
+    render->render_pass_normals = normals;
+
+    _nya_render2d_pass_resume(window);
+}
+
+void _nya_render2d_normals_resolve(NYA_Window* window) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render2DBatch*      batch  = &render->draw_batch;
+
+    if (!batch->target_normal_written || batch->target_normal_msaa == nullptr || render->render_commands == nullptr) return;
+
+    // an empty pass whose only work is its store op, so the resolve happens once per capture instead of per pass.
+    SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(
+        render->render_commands,
+        &(SDL_GPUColorTargetInfo){
+            .texture         = batch->target_normal_msaa,
+            .resolve_texture = batch->target_normal,
+            .load_op         = SDL_GPU_LOADOP_LOAD,
+            .store_op        = SDL_GPU_STOREOP_RESOLVE,
+        },
+        1,
+        nullptr
+    );
+    nya_assert(pass != nullptr, "SDL_BeginGPURenderPass() failed resolving the normal buffer: %s", SDL_GetError());
+
+    SDL_EndGPURenderPass(pass);
 }
 
 NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString font_path, f32 point_size) {
@@ -1939,7 +2127,7 @@ void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, co
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render2DBatch*      batch  = &render->draw_batch;
 
-    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get(NYA_RENDER2D_PIPELINE_LIGHT), batch->target_sample_count);
+    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get(NYA_RENDER2D_PIPELINE_LIGHT), batch->target_sample_count, false);
     if (pipeline == nullptr) {
         // still loading. an unlit frame beats an all-dark one.
         batch->frame_dropped_draws++;
@@ -1985,6 +2173,9 @@ void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, co
     }
 
     uniform.count = (f32)kept;
+
+    // a light map multiplies a 2D scene, and its pipeline has no normals variant.
+    _nya_render2d_pass_normals_set(window, false);
 
     SDL_BindGPUGraphicsPipeline(render->render_pass, pipeline);
 

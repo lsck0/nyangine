@@ -347,9 +347,9 @@ struct NYA_Asset {
 
         struct {
             /**
-             * [0] for single sampled targets, [1] for the renderer's sample count. Built on first use and rebuilt when
-             * the sample count or depth format they were built for changes. Reach them through
-             * nya_asset_graphics_pipeline.
+             * One per kind of target: [0] single sampled, [1] at the renderer's sample count, and [2] and [3] the same
+             * with the scene normal buffer as a second colour target. Built on first use and rebuilt when the sample
+             * count or depth format they were built for changes. Reach them through nya_asset_graphics_pipeline.
              * */
             struct {
                 SDL_GPUGraphicsPipeline* pipeline;
@@ -358,7 +358,7 @@ struct NYA_Asset {
 
                 /** Tried, even if SDL refused, so a refusal is logged once. */
                 b8 built;
-            } variants[2];
+            } variants[4];
         } as_graphics_pipeline;
 
         struct {
@@ -555,8 +555,11 @@ NYA_API NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) __attr_no_disca
  * The pipeline to bind for a target of `sample_count`, built the first time a target of that kind asks, so a single
  * sampled render texture or a changed MSAA setting needs no second asset. Null while the asset is not loaded or when
  * SDL refuses the build. A `single_sampled` pipeline ignores `sample_count`.
+ *
+ * `normals` is for a pass that also attaches the scene normal buffer (NYA_RENDER3D_NORMAL_FORMAT) as a second colour
+ * target. That build writes it only if the pipeline writes depth, so translucent geometry and the sky leave it alone.
  * */
-NYA_API SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count) __attr_no_discard;
+NYA_API SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count, b8 normals) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

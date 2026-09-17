@@ -5,6 +5,7 @@
 // glass sees a capture taken before either pane, so it shows the unrefracted backdrop.
 
 #include "mesh3d_shading.hlsli"
+#include "mesh3d_normals.hlsli"
 
 /* The captured opaque scene at t0 and the shadow map at t1, last, so mesh3d_shadow is handed its register. */
 Texture2D scene : register(t0, space2);
@@ -75,7 +76,7 @@ float3 refracted_scene(float2 screen_uv, float3 normal) {
   return sum / 13.0;
 }
 
-float4 main(FragInput input) : SV_Target {
+Mesh3DOutput main(FragInput input) {
   float3 normal = normalize(input.normal);
 
   // SV_POSITION holds window coordinates here, which is the uv to read the capture at.
@@ -105,5 +106,5 @@ float4 main(FragInput input) : SV_Target {
    * backdrop (the capture already carries its fog); unfogged glass would stand out far more. Doing it properly
    * needs the backdrop's depth.
    */
-  return float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), 1.0);
+  return mesh3d_output(float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), 1.0), normal, input.world_position);
 }

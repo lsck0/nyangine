@@ -98,6 +98,13 @@ struct NYA_ConfigEngineRenderer {
 
     /** Shadow map resolution per cascade, texels on a side. See NYA_RENDER3D_SHADOW_MAP_SIZE. */
     u32 shadow_map_size;
+
+    /* The cartoon post passes, handed to nya_post_ink_set and its siblings as they are. */
+
+    NYA_PostInk              ink;
+    NYA_PostAmbientOcclusion ambient_occlusion;
+    NYA_PostAntialias        antialias;
+    NYA_PostDebugView        debug_view;
 };
 
 /**

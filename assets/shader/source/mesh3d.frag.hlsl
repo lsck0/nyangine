@@ -9,6 +9,7 @@
 // render2d made the same call for the same reason; see NYA_RENDER2D_PIPELINE_SHAPES against _TEXTURED.
 
 #include "mesh3d_shading.hlsli"
+#include "mesh3d_normals.hlsli"
 
 /*
  * The shadow map, at t0/s0.
@@ -28,7 +29,7 @@ struct FragInput {
   float3 world_position : TEXCOORD1;
 };
 
-float4 main(FragInput input) : SV_Target {
+Mesh3DOutput main(FragInput input) {
   // Normalized once, here, rather than in the vertex stage: interpolating two unit normals across a
   // triangle gives something shorter than unit in the middle, and normalizing before the interpolation
   // cannot fix that.
@@ -50,5 +51,5 @@ float4 main(FragInput input) : SV_Target {
    * Alpha passes through untouched. The shading is a multiply on rgb, and folding it into alpha would make a
    * shaded face transparent as well as dark.
    */
-  return float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), input.color.a);
+  return mesh3d_output(float4(mesh3d_fog(mesh3d_tonemap(colour), input.world_position), input.color.a), normal, input.world_position);
 }

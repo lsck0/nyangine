@@ -209,6 +209,22 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
  * */
 #define NYA_RENDER3D_SHADOW_FORMAT SDL_GPU_TEXTUREFORMAT_R16_UNORM
 
+/**
+ * The scene normal buffer's format: the world normal in rgb and the distance from the camera in alpha, zero where
+ * no opaque surface was drawn. What the screen-space passes read; see NYA_PostInk.
+ *
+ * Written by the scene pass itself as a second colour target, since a separate pass would draw the scene twice.
+ * Only a render texture created with NYA_RenderTextureOptions.normals has one, so a scene drawn to the window pays
+ * nothing. A pass needs pipelines built for its exact targets, so every 3D pipeline has a variant with this
+ * target (`normals` on the load parameters) and the batch reopens the pass with the buffer attached when 3D draws
+ * and without it when 2D does.
+ *
+ * Multisampled like the colour, and resolved once when the render texture ends. The resolve averages, so an edge
+ * pixel holds a blend of both sides: the ink reads that as a softer edge and the occlusion's range check rejects
+ * it. Half floats, because eight bits of distance cannot tell a crease from a step.
+ * */
+#define NYA_RENDER3D_NORMAL_FORMAT SDL_GPU_TEXTUREFORMAT_R16G16B16A16_FLOAT
+
 #define NYA_RENDER3D_MESH_UNIT_SPHERE "nya_unit_sphere"
 
 #ifndef NYA_RENDER3D_SPHERE_SEGMENTS
@@ -403,8 +419,7 @@ struct NYA_Render3DMaterial {
      * How strongly curved edges are darkened, in [0, 1]. Zero for none.
      *
      * It measures how fast the interpolated normal turns per pixel, so a rounded cube shows it and a hard-edged
-     * cube does not. Hard creases need neighbour information this pass lacks; see mesh3d_edge in
-     * mesh3d_shading.hlsli.
+     * cube does not. Hard creases need neighbour information this pass lacks, which NYA_PostInk has.
      * */
     f32 edge;
 };

@@ -144,7 +144,71 @@ s32 main(void) {
         nya_check(nya_app_get()->render_system.options.msaa_samples == 2, "the request should wait for the next nya_render_begin");
         nya_render_options_set(&window, (NYA_RenderOptions){ 0 });
 
-        nya_check(nya_asset_graphics_pipeline(nya_asset_get("no_such_pipeline"), SDL_GPU_SAMPLECOUNT_4) == nullptr, "nothing loaded, nothing to bind");
+        nya_check(nya_asset_graphics_pipeline(nya_asset_get("no_such_pipeline"), SDL_GPU_SAMPLECOUNT_4, false) == nullptr, "nothing loaded, nothing to bind");
+    }
+    // ── The cartoon options: zero is off, and out of range values from a config file are clamped.
+    {
+        NYA_PostInk ink = nya_post_ink(&window);
+        nya_check(!ink.enabled && ink.width == 0.0F, "a fresh window has no ink");
+
+        nya_post_ink_set(&window, (NYA_PostInk){ .enabled = true, .width = 400.0F, .crease = -3.0F, .color = { 2.0F, -1.0F, 0.5F, 1.0F } });
+        ink = nya_post_ink(&window);
+        nya_check(ink.enabled && ink.width == 16.0F && ink.crease == 0.0F, "ink width and crease clamp, got %f and %f", (f64)ink.width,
+                  (f64)ink.crease);
+        nya_check(ink.color.r == 1.0F && ink.color.g == 0.0F && ink.color.b == 0.5F, "ink colour clamps per channel");
+
+        nya_post_ambient_occlusion_set(&window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 3.0F, .band = -1.0F });
+        NYA_PostAmbientOcclusion occlusion = nya_post_ambient_occlusion(&window);
+        nya_check(occlusion.strength == 1.0F && occlusion.band == 0.0F, "occlusion strength and band clamp to [0, 1]");
+
+        nya_post_antialias_set(&window, (NYA_PostAntialias){ .enabled = true, .subpixel = 5.0F });
+        nya_check(nya_post_antialias(&window).subpixel == 1.0F, "the subpixel amount clamps to one");
+
+        nya_post_debug_view_set(&window, (NYA_PostDebugView)99);
+        nya_check(nya_post_debug_view(&window) == NYA_POST_DEBUG_VIEW_NONE, "an unknown debug view reads as none");
+
+        nya_post_debug_view_set(&window, NYA_POST_DEBUG_VIEW_CASCADES);
+        nya_check(nya_post_debug_view(&window) == NYA_POST_DEBUG_VIEW_CASCADES, "a known view is kept");
+    }
+
+    // ── Targets follow the options: the normal buffer and the half resolution occlusion exist only while needed.
+    {
+        NYA_PostChain chain = { 0 };
+        defer         nya_post_chain_destroy(&chain);
+
+        window.render_system.post_ink               = (NYA_PostInk){ 0 };
+        window.render_system.post_ambient_occlusion = (NYA_PostAmbientOcclusion){ 0 };
+        window.render_system.post_antialias         = (NYA_PostAntialias){ 0 };
+        window.render_system.post_debug_view        = NYA_POST_DEBUG_VIEW_NONE;
+
+        nya_check(nya_post_begin(&window, &chain), "all off");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(!chain.targets[0].options.normals && chain.half.width == 0, "nothing on means no normal buffer and no half target");
+
+        // antialiasing reads only the image.
+        nya_post_antialias_set(&window, (NYA_PostAntialias){ .enabled = true });
+        nya_check(nya_post_begin(&window, &chain), "antialias on");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(!chain.targets[0].options.normals && chain.half.width == 0, "antialiasing alone needs neither buffer");
+
+        nya_post_ink_set(&window, (NYA_PostInk){ .enabled = true });
+        nya_check(nya_post_begin(&window, &chain), "ink on");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(chain.targets[0].options.normals && chain.half.width == 0, "ink needs the normal buffer and no half target");
+
+        nya_post_ambient_occlusion_set(&window, (NYA_PostAmbientOcclusion){ .enabled = true });
+        nya_check(nya_post_begin(&window, &chain), "occlusion on");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(chain.targets[0].options.normals && chain.half.width == 160 && chain.half.height == 100, "occlusion adds a half target, got %ux%u",
+                  chain.half.width, chain.half.height);
+
+        nya_post_ink_set(&window, (NYA_PostInk){ 0 });
+        nya_post_ambient_occlusion_set(&window, (NYA_PostAmbientOcclusion){ 0 });
+        nya_check(nya_post_begin(&window, &chain), "both off again");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(!chain.targets[0].options.normals && chain.half.width == 0, "turning them off releases both");
+
+        nya_post_antialias_set(&window, (NYA_PostAntialias){ 0 });
     }
 
     return nya_check_failures() == 0 ? 0 : 1;

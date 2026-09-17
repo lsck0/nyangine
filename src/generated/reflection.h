@@ -22,9 +22,13 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_NetPeerId;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Color;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostInk;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostAmbientOcclusion;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostAntialias;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView;
 
 /** Every annotated type, for an editor that needs to enumerate them. */
-#define NYA_REFLECT_TYPE_COUNT 11
+#define NYA_REFLECT_TYPE_COUNT 15
 
 extern const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT];
 

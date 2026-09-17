@@ -1203,9 +1203,10 @@ b8 nya_render_begin(NYA_Window* window) {
     SDL_GPURenderPass* render_pass = SDL_BeginGPURenderPass(command_buffer, &target_info, 1, &depth_info);
     nya_assert(render_pass != nullptr, "SDL_BeginGPURenderPass() failed: %s", SDL_GetError());
 
-    window->render_system.render_commands   = command_buffer;
-    window->render_system.swapchain_texture = swapchain_texture;
-    window->render_system.render_pass       = render_pass;
+    window->render_system.render_commands     = command_buffer;
+    window->render_system.swapchain_texture   = swapchain_texture;
+    window->render_system.render_pass         = render_pass;
+    window->render_system.render_pass_normals = false;
 
     /* The batch draws into the swapchain until told otherwise, and its projection comes from this target. */
     // counters are per frame.
@@ -1236,6 +1237,8 @@ b8 nya_render_begin(NYA_Window* window) {
     window->render_system.draw_batch.target_width      = swapchain_width;
     window->render_system.draw_batch.target_height     = swapchain_height;
     window->render_system.draw_batch.target_is_texture = false;
+    window->render_system.draw_batch.target_normal       = nullptr;
+    window->render_system.draw_batch.target_normal_msaa  = nullptr;
     window->render_system.draw_batch.shader_override     = nullptr;
     window->render_system.draw_batch.shader_uniform_size = 0;
 
@@ -1293,4 +1296,13 @@ __attr_maybe_unused SDL_GPUSampler* _nya_render_sampler_for(NYA_TextureFilter fi
     if (filter >= NYA_TEXTURE_FILTER_COUNT) filter = NYA_TEXTURE_FILTER_LINEAR;
 
     return nya_app_get()->render_system.samplers[filter];
+}
+
+// maybe-unused for the same reason as _nya_render_sampler_for.
+__attr_maybe_unused SDL_GPUGraphicsPipeline* _nya_render_pipeline(NYA_Window* window, NYA_Asset* asset) {
+    nya_assert(window != nullptr);
+
+    const NYA_RenderSystemWindow* render = &window->render_system;
+
+    return nya_asset_graphics_pipeline(asset, render->draw_batch.target_sample_count, render->render_pass_normals);
 }

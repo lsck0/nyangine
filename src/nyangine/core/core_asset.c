@@ -87,8 +87,12 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
 /** Runs every staged upload in one copy pass, then releases the transfer buffers. */
 NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending);
 
-/** A pipeline from `parameters` for targets of `sample_count`. Null when a shader is missing or SDL refuses. */
-NYA_INTERNAL SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoadParameters* parameters, SDL_GPUSampleCount sample_count)
+/**
+ * A pipeline from `parameters` for targets of `sample_count`, with the scene normal buffer as a second target when
+ * `normals`. Null when a shader is missing or SDL refuses.
+ * */
+NYA_INTERNAL SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoadParameters* parameters, SDL_GPUSampleCount sample_count,
+                                                                          b8 normals)
     __attr_no_discard;
 
 NYA_INTERNAL void      _nya_asset_unload_raw(NYA_Asset* asset);
@@ -505,7 +509,7 @@ NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) {
     return asset ? asset->status : NYA_ASSET_STATUS_UNLOADED;
 }
 
-SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count) {
+SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count, b8 normals) {
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return nullptr;
     nya_assert(asset->type == NYA_ASSET_TYPE_GRAPHICS_PIPELINE, "'%s' is not a graphics pipeline", asset->handle);
 
@@ -514,7 +518,9 @@ SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSa
 
     NYA_RenderSystem* render_system = &nya_app_get()->render_system;
 
-    typeof(asset->as_graphics_pipeline.variants[0])* variant = &asset->as_graphics_pipeline.variants[sample_count == SDL_GPU_SAMPLECOUNT_1 ? 0 : 1];
+    u32 index = (sample_count == SDL_GPU_SAMPLECOUNT_1 ? 0 : 1) + (normals ? 2 : 0);
+
+    typeof(asset->as_graphics_pipeline.variants[0])* variant = &asset->as_graphics_pipeline.variants[index];
 
     // a refused build is remembered too, so it is logged once rather than retried every draw.
     if (variant->built && variant->sample_count == sample_count && variant->depth_format == render_system->depth_format) return variant->pipeline;
@@ -524,7 +530,7 @@ SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSa
 
     *variant = (typeof(*variant)){
         .built        = true,
-        .pipeline     = _nya_asset_graphics_pipeline_create(&asset->load_parameters, sample_count),
+        .pipeline     = _nya_asset_graphics_pipeline_create(&asset->load_parameters, sample_count, normals),
         .sample_count = sample_count,
         .depth_format = render_system->depth_format,
     };
@@ -820,7 +826,7 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Array�
     return NYA_OK;
 }
 
-SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoadParameters* parameters, SDL_GPUSampleCount sample_count) {
+SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoadParameters* parameters, SDL_GPUSampleCount sample_count, b8 normals) {
     NYA_RenderSystem* render_system = &nya_app_get()->render_system;
 
     NYA_Asset* vertex_shader_asset   = nya_asset_get(parameters->as_graphics_pipeline.vertex_shader_handle);
@@ -910,7 +916,7 @@ SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoad
             // validation; the reverse is fine.
             .has_depth_stencil_target  = parameters->as_graphics_pipeline.depth_test || parameters->as_graphics_pipeline.depth_write,
             .depth_stencil_format      = render_system->depth_format,
-            .num_color_targets         = 1,
+            .num_color_targets         = normals ? 2 : 1,
             .color_target_descriptions = (SDL_GPUColorTargetDescription[]){
                 {
                     // the named format, else the window's. see color_format.
@@ -918,6 +924,12 @@ SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoad
                                        ? parameters->as_graphics_pipeline.color_format
                                        : SDL_GetGPUSwapchainTextureFormat(render_system->gpu_device, parameters->as_graphics_pipeline.window->sdl_window),
                     .blend_state = blend_state,
+                },
+                {
+                    // never blended, since half a normal is no normal. masked for geometry that leaves depth alone, so a
+                    // pane or the sky does not hide what is behind it from the post passes.
+                    .format      = NYA_RENDER3D_NORMAL_FORMAT,
+                    .blend_state = { .enable_color_write_mask = !parameters->as_graphics_pipeline.depth_write },
                 },
             },
         },
@@ -2142,7 +2154,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 }
 
                 SDL_GPUSampleCount sample_count = parameters->as_graphics_pipeline.single_sampled ? SDL_GPU_SAMPLECOUNT_1 : render_system->sample_count;
-                SDL_GPUGraphicsPipeline* pipeline = _nya_asset_graphics_pipeline_create(parameters, sample_count);
+                SDL_GPUGraphicsPipeline* pipeline = _nya_asset_graphics_pipeline_create(parameters, sample_count, false);
 
                 /*
                  * Reported, not asserted. Backends disagree about pipelines, so this can fail on one driver only; the log

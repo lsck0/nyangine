@@ -351,6 +351,18 @@ void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handl
     nya_unused(uniform_size);
 }
 
+void nya_render2d_fullscreen(
+    NYA_Window*            window,
+    NYA_ConstCString       pipeline_handle,
+    SDL_GPUTexture* const* textures,
+    u32                    texture_count,
+    const void*            uniform,
+    u32                    uniform_size
+) {
+    nya_assert(window != nullptr);
+    nya_unused(pipeline_handle, textures, texture_count, uniform, uniform_size);
+}
+
 void nya_render2d_textf(NYA_Window* window, f32 x, f32 y, NYA_Color color, NYA_ConstCString format, ...) {
     nya_assert(window != nullptr);
     nya_unused(x);
