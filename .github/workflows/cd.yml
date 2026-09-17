@@ -50,7 +50,18 @@ jobs:
       - name: Build release targets
         run: ./build build release
 
-      # `release` on this host cross compiles the Windows target too, so both artifacts exist here and
+      # CI saves the cache this restores; a tag rarely changes the vendors, and a miss only costs time.
+      - uses: ./.github/actions/setup-steamrt
+        with:
+          llvm-version: 22
+          save: "false"
+
+      - name: Build the Steam Linux target
+        run: |
+          ./build build steam-linux
+          packaging/steam/verify-linux.sh "$(ls -d gnyame.*.steam-linux-x86_64)"
+
+      # `release` on this host cross compiles both Windows targets too, so all four artifacts exist here and
       # there is no second job to collect from.
       - name: Collect artifacts
         run: |

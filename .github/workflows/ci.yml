@@ -136,8 +136,61 @@ jobs:
           llvm-version: 22
           ccache-key: build
 
+      # Linux, Windows and Steam Windows, the last two cross compiled.
       - name: Build release targets
         run: ./build build release
+
+      - name: Check the Steam Windows depot
+        run: |
+          depot="$(ls -d gnyame.*.steam-windows-x86_64)" || { echo "::error::no steam windows depot was produced"; exit 1; }
+          for file in gnyame.exe steam_api64.dll; do
+            [ -f "${depot}/${file}" ] || { echo "::error::${depot}/${file} is missing"; exit 1; }
+          done
+
+      - name: Report compiler cache statistics
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        run: ccache --show-stats
+
+      # even after a failure, so the objects that did compile are kept.
+      - name: Save compiler cache
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ steps.setup.outputs.ccache-dir }}
+          key: ${{ steps.setup.outputs.ccache-cache-key }}
+
+  # The Steam Linux Runtime build: every vendor again against the sniper SDK sysroot, cached apart from the
+  # others, then the game, checked against the runtime's glibc and started inside Valve's sniper image.
+  build-steam-linux:
+    needs: vendor-linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          submodules: recursive
+          lfs: true
+          # The token is only needed to clone. Left in .git/config it travels into anything that
+          # archives the workspace, and nothing here pushes.
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-linux
+        id: setup
+        with:
+          llvm-version: 22
+          ccache-key: steam-linux
+
+      - uses: ./.github/actions/setup-steamrt
+        with:
+          llvm-version: 22
+
+      - name: Build the Steam Linux target
+        run: ./build build steam-linux
+
+      - name: Verify the Steam Linux depot
+        run: packaging/steam/verify-linux.sh "$(ls -d gnyame.*.steam-linux-x86_64)"
 
       - name: Report compiler cache statistics
         if: always() && steps.setup.outputs.ccache-cache-key != ''
@@ -252,14 +305,20 @@ jobs:
           llvm-version: 22
           ccache-key: build
 
-      # On this host `release` is the Windows executable alone; there is no Linux target to ask for.
-      - name: Build release target
+      # On this host `release` is the Windows and Steam Windows executables; there is no Linux target to ask for.
+      - name: Build release targets
         run: ./build.exe build release
 
-      - name: Report the produced executable
+      - name: Report the produced executables
         run: |
           exe=$(ls gnyame.*.windows-x86_64.exe) || { echo "::error::no windows executable was produced"; exit 1; }
           echo "built ${exe} ($(stat -c%s "${exe}") bytes)"
+
+          depot="$(ls -d gnyame.*.steam-windows-x86_64)" || { echo "::error::no steam windows depot was produced"; exit 1; }
+          for file in gnyame.exe steam_api64.dll; do
+            [ -f "${depot}/${file}" ] || { echo "::error::${depot}/${file} is missing"; exit 1; }
+          done
+          echo "built ${depot}/gnyame.exe ($(stat -c%s "${depot}/gnyame.exe") bytes)"
 
           # Informational, not a gate. signtool lives in a versioned Windows SDK directory, not on
           # PATH, so the signing hook usually skips here. Reported so a missing signature is visible.

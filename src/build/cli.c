@@ -262,6 +262,11 @@ NYA_INTERNAL NYA_ArgCommand build = {
             .description = "Build the Steam Linux Runtime executable and libsteam_api.so. Downloads the sniper SDK sysroot once.",
             .build_rule  = &build_project_steam_linux_x86_64,
         },
+        &(NYA_ArgCommand){
+            .name        = "steam-linux-vendor",
+            .description = "Build only the sniper SDK sysroot and the vendors against it, so CI can cache them apart from the game.",
+            .build_rule  = &build_steamrt_vendors,
+        },
 #endif
         &(NYA_ArgCommand){
             .name        = "steam-windows",

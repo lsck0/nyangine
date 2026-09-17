@@ -1,0 +1,61 @@
+name: Setup (Steam Runtime)
+description: Restore the sniper SDK sysroot and the vendors built against it, then build whatever is missing.
+
+# After ../setup-linux, whose toolchain and bootstrapped build tool this uses. Separate from its vendor cache: only
+# the Steam Linux jobs need these, and the sysroot alone is 1.2 GB unpacked.
+
+inputs:
+  llvm-version:
+    description: LLVM major version, part of the cache key like in setup-linux.
+    required: false
+    default: "22"
+  save:
+    description: Save the cache when it missed. CD restores only.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+
+  steps:
+    - name: Compute Steam Runtime cache key
+      id: key
+      shell: bash
+      run: |
+        # the pinned snapshot lives in vendor_steamrt.h, so the recipes cover a runtime update too.
+        revisions="$(git submodule status --recursive vendor)"
+        recipes="$(find src/build/vendor src/build/on_linux -type f -name '*.h' -print0 | sort -z | xargs -0 sha256sum)"
+        sha="$(printf '%s\n%s' "${revisions}" "${recipes}" | sha256sum | cut -d' ' -f1)"
+        echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+    - name: Restore Steam Runtime vendors
+      id: cache
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: |
+          vendor/steamrt
+          vendor/*/build-steamrt-x86_64
+          vendor/lua/libluajit-steamrt.a
+          vendor/lz4/liblz4-steamrt.a
+        key: steamrt-${{ runner.os }}-llvm${{ inputs.llvm-version }}-${{ steps.key.outputs.sha }}
+
+    # the same reason as the vendor cache in setup-linux: restored outputs are older than the checkout.
+    - name: Mark restored Steam Runtime vendors as current
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: find vendor/*/build-steamrt-x86_64 vendor/lua/libluajit-steamrt.a vendor/lz4/liblz4-steamrt.a -exec touch {} + 2>/dev/null || true
+
+    - name: Build Steam Runtime vendors
+      shell: bash
+      run: ./build build steam-linux-vendor
+
+    - name: Save Steam Runtime vendors
+      if: steps.cache.outputs.cache-hit != 'true' && inputs.save == 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: |
+          vendor/steamrt
+          vendor/*/build-steamrt-x86_64
+          vendor/lua/libluajit-steamrt.a
+          vendor/lz4/liblz4-steamrt.a
+        key: ${{ steps.cache.outputs.cache-primary-key }}
