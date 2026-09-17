@@ -71,6 +71,11 @@ nya 2 0
                 length: f32 0.9;
                 threshold: f32 0.85;
             };
+            // The 3D demo's fog; a zero field keeps the sky's colour and the scene's numbers. aerial turns distant
+            // ground toward the sky's hue before the fog covers it. See NYA_Render3DFog.
+            fog: object {
+                aerial: f32 0.75;
+            };
             // See NYA_Render3DDecals.
             decals: object {
                 enabled: b8 true;

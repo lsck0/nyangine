@@ -120,6 +120,9 @@ struct NYA_ConfigEngineRenderer {
     NYA_PostEyeAdaptation eye_adaptation;
     NYA_PostLightShafts   light_shafts;
 
+    /** A zero field keeps the scene's own. See nya_render3d_fog_set. */
+    NYA_Render3DFog fog;
+
     /** See nya_render3d_decals_set. */
     NYA_Render3DDecals decals;
 

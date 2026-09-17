@@ -387,9 +387,10 @@ struct NYA_Render3DLight {
  * Distance and height fog, the depth cue a flat-shaded renderer otherwise lacks.
  *
  * ```c
- * nya_render3d_fog_set(window, (NYA_Render3DFog){ .color = sky.horizon, .density = 0.02F });
+ * nya_render3d_fog_set(window, (NYA_Render3DFog){ .color = sky.horizon, .density = 0.02F, .aerial = 0.75F });
  * ```
  * */
+// @reflect
 struct NYA_Render3DFog {
     /**
      * What distance fades toward. Zero becomes NYA_RENDER3D_FOG_COLOR.
@@ -411,6 +412,12 @@ struct NYA_Render3DFog {
      * How far fog tints toward the light's own colour when looking into it, in [0, 1]. Zero is off.
      * */
     f32 sun_amount;
+
+    /**
+     * Aerial perspective: how many times faster than the fog itself distance draws a surface's hue toward the fog's,
+     * keeping its brightness, so far ground reads as far without washing out. Zero is off.
+     * */
+    f32 aerial;
 };
 
 /**
