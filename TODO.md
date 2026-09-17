@@ -20,6 +20,32 @@
 
 # Open
 
+## `[~]` Cartoon renderer
+
+The goal for the 3D renderer is a strong cartoon look. It already has banded wrapped diffuse, a hard
+highlight, rim, curvature edge darkening, inverted hull outlines, distance and height fog, four point lights
+per draw, instancing, cascaded sun shadows, MSAA and glass.
+
+In progress:
+
+- `[~]` Colour grading through a `.cube` LUT, tuned for clean saturated palettes (see below).
+- `[~]` Coloured shadows and a sky/ground ambient instead of flat `ambient`.
+- `[~]` Screen-space ink outlines from depth and normal discontinuities, catching the hard creases the
+  inverted hull and `mesh3d_edge` miss.
+- `[~]` Banded ambient occlusion, FXAA for single sampled targets, debug views (normals, depth, AO,
+  outline mask, cascade colours).
+- `[~]` Tilt-shift depth of field, projected decals, HDR swapchain output when the display supports it,
+  cartoon speed lines.
+- `[~]` A skinned, animated model in the 3D demo.
+
+Not started:
+
+- `[ ]` Point and spot light shadows.
+- `[ ]` Indirect draws and GPU culling; build the shadow casters once per frame instead of once per pass.
+- `[ ]` Pipeline cache on disk. SDL GPU exposes none, so check what each backend allows first.
+- A render graph is not planned: the pass order is fixed and short, and a graph would be more code than
+  the passes it orders.
+
 ## `[ ]` Colour grading through a LUT
 
 The post chain (`render_post.h`) ships bloom, blur, crt, grayscale and pixelate. `mesh3d_tonemap` is a
@@ -168,8 +194,10 @@ tagged with the font asset's `generation` (a `NYA_Cache`, see `base_cache.h`) wo
 - `[ ]` Windows: the 3D demo drew only the models, particles and sky on one machine (terrain, pile, lamps and
   water missing). Wine with Direct3D 12 and Vulkan both render correctly, so it needs that machine's log:
   the `Render system initialized (<driver>)` line and any `failed to load`.
-- `[ ]` "No sound" reported; Linux debug writes impact sounds through SDL's disk audio driver in both scenes.
-  Music starts paused by design (`m`). Needs the platform and log.
+- `[ ]` "No sound" reported more than once, then "sound is back", then gone again. Recording the game's own
+  PipeWire stream on Linux gets audible impacts in the 2D game and the 3D demo, also after a code reload.
+  Each process opens two output streams and only the newer one carries sound, so a mixer showing the
+  first looks silent. Music starts paused by design (`m`). Needs the platform and log of a silent run.
 - `[ ]` Resident memory differs by machine (300 MB, 150 MB, 50 MB + 150 MB VRAM). Arenas no longer allocate
   64 MiB regions, which Windows committed up front; the rest is the GPU driver mapping into the process,
   which on integrated GPUs counts texture memory as RAM. Measure per driver before changing anything.
@@ -210,12 +238,14 @@ init, subsystems and first frame; each subsystem's bring-up time is at debug lev
 
 ## `[~]` CI
 
-Never green so far. Vendors now build in one job per platform that saves the cache right after the
+Never green so far. The ccache change shipped a workflow with duplicated `if:` keys, which GitHub rejects
+without starting any job; `actionlint` catches that locally. Vendors now build in one job per platform that saves the cache right after the
 build, keyed on submodule revisions, vendor recipes and both toolchain directories; the check, test and
 build jobs restore it.
 
-- `[ ]` Watch the first run of that layout through on both platforms. Windows has only recently got
-  past sqlite, SDL_net, box2d and LuaJIT, so more native build issues may follow.
+- `[ ]` Watch the first run of that layout through on both platforms. The last Windows test run passed
+  137 tests and failed on `test_command.c` running `pwd` in `/tmp`, which Windows lacks; it now runs in
+  `src`.
 - A Windows host does not build shadercross (DXC does not compile under MinGW). CI compiles shaders in
   the Linux vendor job and passes them on; a Windows developer needs `assets/shader/compiled/` from a
   Linux machine. `[ ]` A prebuilt DXC for Windows would remove that.
