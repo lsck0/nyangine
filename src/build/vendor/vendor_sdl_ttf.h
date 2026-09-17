@@ -21,10 +21,12 @@
 #define SDL_TTF_A_LINUX_X86_64   SDL_TTF_BUILD_LINUX_X86_64 "/libSDL3_ttf.a"
 #define SDL_TTF_A_WINDOWS_X86_64 SDL_TTF_BUILD_WINDOWS_X86_64 "/libSDL3_ttf.a"
 
+// plutosvg only draws SVG colour emoji glyphs, which no font here has.
 #define SDL_TTF_CMAKE_COMMON    \
     NYA_CMAKE_STATIC,           \
     "-DSDLTTF_VENDORED=ON",     \
     "-DSDLTTF_HARFBUZZ=ON",     \
+    "-DSDLTTF_PLUTOSVG=OFF",    \
     "-DSDLTTF_SAMPLES=OFF",     \
     "-DSDLTTF_INSTALL=OFF"
 
@@ -37,13 +39,11 @@ NYA_VendorRule vendor_sdl_ttf_linux_x86_64 = {
     // The codecs each library vendors are separate archives, and a static link needs every one of
     // them. Order matters: a dependency must follow whatever refers to it.
     .linker_flags = {
-        // These vendor C++ codecs (harfbuzz, libgme), so the C++ runtime has to come along.
+        // harfbuzz is C++, so the C++ runtime has to come along.
         "-lstdc++",
         SDL_TTF_A_LINUX_X86_64,
         SDL_TTF_BUILD_LINUX_X86_64 "/external/harfbuzz-build/libharfbuzz.a",
         SDL_TTF_BUILD_LINUX_X86_64 "/external/freetype-build/libfreetype.a",
-        SDL_TTF_BUILD_LINUX_X86_64 "/external/plutosvg-guild/libplutosvg.a",
-        SDL_TTF_BUILD_LINUX_X86_64 "/external/plutovg-build/libplutovg.a",
     },
 
     .parts = {
@@ -88,8 +88,6 @@ NYA_VendorRule vendor_sdl_ttf_windows_x86_64 = {
         SDL_TTF_A_WINDOWS_X86_64,
         SDL_TTF_BUILD_WINDOWS_X86_64 "/external/harfbuzz-build/libharfbuzz.a",
         SDL_TTF_BUILD_WINDOWS_X86_64 "/external/freetype-build/libfreetype.a",
-        SDL_TTF_BUILD_WINDOWS_X86_64 "/external/plutosvg-guild/libplutosvg.a",
-        SDL_TTF_BUILD_WINDOWS_X86_64 "/external/plutovg-build/libplutovg.a",
     },
 
     .parts = {
