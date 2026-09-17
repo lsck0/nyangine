@@ -20,15 +20,19 @@
 
 # Open
 
-## `[~]` Cartoon renderer
+## `[~]` Stylized renderer
 
-The goal for the 3D renderer is a strong cartoon look: banded wrapped diffuse, a hard highlight, rim,
-curvature edge darkening, distance and height fog, four point lights per draw, instancing, cascaded sun
-shadows, runtime MSAA and glass, plus the passes below. Every feature is an options struct set per window,
-fed from `engine.renderer` in the config, and costs nothing when off.
+The goal is a stylized, flat coloured look, not a cartoon. Defaults stay restrained: faceted flat colour with
+smooth wrapped lighting (materials at high roughness fade the bands into a gradient), a cool tint in shade,
+soft ambient occlusion (`softness` spans the band into a gradient), a gentle grade (`vivid.cube` at 0.4),
+bloom on lights only, scuff marks and blob shadows as the only decals. Ink outlines, banded shading, speed
+lines, tilt shift and the rest stay as options.
+
+Every feature is an options struct set per window, fed from `engine.renderer` in the config, and costs
+nothing when off.
 
 - Grading through a `.cube` LUT (`NYA_ASSET_TYPE_LUT`, an RGBA8 3D texture), after ink, occlusion and FXAA
-  and before bloom. `toon.cube` saturates muted colours and keeps black and white exact; mean saturation in
+  and before bloom. `vivid.cube` (was `toon.cube`) saturates muted colours and keeps black and white exact; mean saturation in
   the 3D demo 49 to 63, about 0.35 ms at 1280x720. Key 4 in both scenes, `grade_lut` and `grade_strength`
   in the config.
 - A cool shade colour gathers in cast shadow and the dark band; sky and ground ambient colours replace flat
