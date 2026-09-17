@@ -66,3 +66,7 @@
 	path = vendor/ufbx
 	url = https://github.com/ufbx/ufbx.git
 	ignore = dirty
+[submodule "vendor/monocypher"]
+	path = vendor/monocypher
+	url = https://github.com/LoupVaillant/Monocypher.git
+	ignore = dirty
