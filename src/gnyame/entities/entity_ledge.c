@@ -8,6 +8,29 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * MARKER ANIMATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/** The id of the marker's one frame event, on its last cell. */
+enum { GNY_LEDGE_MARKER_EVENT_PUFF = 1 };
+
+NYA_INTERNAL const NYA_SpriteAnimationEvent _GNY_LEDGE_MARKER_EVENTS[] = {
+    { .frame = GNY_LEDGE_MARKER_FRAMES - 1, .id = GNY_LEDGE_MARKER_EVENT_PUFF },
+};
+
+NYA_INTERNAL const NYA_SpriteAnimation _GNY_LEDGE_MARKER_ANIMATION = {
+    .first_frame       = 0,
+    .frame_count       = GNY_LEDGE_MARKER_FRAMES,
+    .frames_per_second = GNY_LEDGE_MARKER_FPS,
+    .looping           = true,
+    .ping_pong         = true,
+    .events            = _GNY_LEDGE_MARKER_EVENTS,
+    .event_count       = nya_carray_length(_GNY_LEDGE_MARKER_EVENTS),
+};
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * LIFETIME
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -55,16 +78,30 @@ NYA_EntityHandle gny_entity_ledge_create(f32x2 position, f32x2 size, f32 patrol_
     );
 
     /*
-     * A marker riding on it, parented rather than moved.
+     * A marker riding on it, parented rather than moved, cycling through the tileset's cells.
      */
+    NYA_Error sheet = nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXTURE, .handle = GNY_LEDGE_MARKER_SHEET });
+
+    // not fatal: the marker draws nothing until a sheet loads.
+    if (!sheet.ok) nya_log_warn("%s", (NYA_ConstCString)sheet.message);
+
     NYA_EntityHandle marker = nya_entity_spawn(
-        .name      = "ledge_marker",
-        .type      = GNY_ENTITY_LEDGE,
-        .position  = { position.x, position.y - (size.y * 0.5F) - GNY_LEDGE_MARKER_LIFT, 0.0F },
-        .scale     = { 1.0F, 1.0F, 1.0F },
-        .state     = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_VISIBLE,
-        .on_render = nya_callback(gny_entity_ledge_marker_on_render)
+        .name         = "ledge_marker",
+        .type         = GNY_ENTITY_LEDGE,
+        .position     = { position.x, position.y - (size.y * 0.5F) - GNY_LEDGE_MARKER_LIFT, 0.0F },
+        .scale        = { 1.0F, 1.0F, 1.0F },
+        .state        = NYA_ENTITY_STATE_ACTIVE | NYA_ENTITY_STATE_VISIBLE,
+        .on_animation = nya_callback(gny_entity_ledge_marker_on_animation),
+        .visual       = {
+            .kind   = NYA_ENTITY_VISUAL_ANIMATION,
+            .atlas  = nya_sprite_atlas_grid(GNY_LEDGE_MARKER_SHEET, GNY_LEDGE_MARKER_CELL, GNY_LEDGE_MARKER_CELL),
+            .sprite = { .origin = { 0.5F, 0.5F }, .scale = { GNY_LEDGE_MARKER_SCALE, GNY_LEDGE_MARKER_SCALE } },
+        },
     );
+
+    if (!nya_entity_is_valid(marker)) return ledge;
+
+    nya_sprite_animator_play(&nya_entity_get(marker)->visual.animator, &_GNY_LEDGE_MARKER_ANIMATION);
 
     (void)nya_entity_parent_set(marker, ledge);
 
@@ -117,8 +154,26 @@ void gny_entity_ledge_on_render(NYA_Entity* entity, NYA_Window* window) {
                       (f32x2){ center.x + half_width, center.y - half_height }, GNY_LEDGE_EDGE_THICKNESS, GNY_LEDGE_EDGE_COLOR);
 }
 
-void gny_entity_ledge_marker_on_render(NYA_Entity* entity, NYA_Window* window) {
-    // Nothing here reads the parent. The transform this draws at was written by the hierarchy pass
-    // from the ledge's, which is the property worth being able to see moving.
-    nya_render2d_circle(window, (f32x2){ entity->position.x, entity->position.y }, GNY_LEDGE_MARKER_RADIUS, GNY_LEDGE_MARKER_COLOR);
+void gny_entity_ledge_marker_on_animation(NYA_Entity* entity, NYA_SpriteAnimationSignal signal) {
+    if (signal.kind != NYA_SPRITE_ANIMATION_EVENT || signal.id != GNY_LEDGE_MARKER_EVENT_PUFF) return;
+
+    // the position the hierarchy pass wrote from the ledge's, so the puff follows the patrol.
+    (void)nya_particles_emit(
+        gny_world()->sparks,
+        (NYA_ParticleBurst){
+            .shape       = NYA_PARTICLE_SHAPE_CONE,
+            .position    = entity->position,
+            .count       = GNY_LEDGE_MARKER_SPARKS,
+            .direction   = { 0.0F, -1.0F, 0.0F },
+            .spread      = GNY_SPARK_SPREAD,
+            .speed       = { 60.0F, 160.0F },
+            .lifetime_s  = { 0.2F, 0.5F },
+            .size        = GNY_SPARK_SIZE_START,
+            .size_end    = GNY_SPARK_SIZE_END,
+            .color_start = GNY_SPARK_COLOR,
+            .color_end   = { 1.0F, 0.35F, 0.05F, 0.0F },
+            .gravity     = { 0.0F, GNY_SPARK_GRAVITY, 0.0F },
+            .damping     = 1.5F,
+        }
+    );
 }

@@ -784,10 +784,18 @@
 #define GNY_LEDGE_EDGE_COLOR    ((NYA_Color){ 0.82F, 0.88F, 1.0F, 1.0F })
 #define GNY_LEDGE_EDGE_THICKNESS 2.5F
 
-/** The marker parented to the moving ledge: how far under it, how big, and what colour. */
-#define GNY_LEDGE_MARKER_LIFT   22.0F
-#define GNY_LEDGE_MARKER_RADIUS 7.0F
-#define GNY_LEDGE_MARKER_COLOR  ((NYA_Color){ 1.0F, 0.78F, 0.35F, 1.0F })
+/** The marker parented to the moving ledge: how far under it, and its size against a tile. */
+#define GNY_LEDGE_MARKER_LIFT  22.0F
+#define GNY_LEDGE_MARKER_SCALE 0.5F
+
+/** The marker's sprite sheet: the tileset's four cells, played back and forth. */
+#define GNY_LEDGE_MARKER_SHEET  NYA_ASSET_MAPS_TILESET_PNG
+#define GNY_LEDGE_MARKER_CELL   32
+#define GNY_LEDGE_MARKER_FRAMES 4
+#define GNY_LEDGE_MARKER_FPS    6.0F
+
+/** Sparks puffed from the marker each time the animation reaches its last cell. */
+#define GNY_LEDGE_MARKER_SPARKS 10
 
 /*
  * ─────────────────────────────────────────────────────────

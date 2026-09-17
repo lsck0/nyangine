@@ -245,7 +245,7 @@ void gny_entity_ledge_destroy_all(void);
 u32 gny_entity_ledge_drop_everything_through(f32 seconds);
 
 void gny_entity_ledge_on_render(NYA_Entity* entity, NYA_Window* window);
-void gny_entity_ledge_marker_on_render(NYA_Entity* entity, NYA_Window* window);
+void gny_entity_ledge_marker_on_animation(NYA_Entity* entity, NYA_SpriteAnimationSignal signal);
 
 /** What `camera` is watching, or NYA_ENTITY_HANDLE_NONE. */
 NYA_EntityHandle gny_entity_camera_target(NYA_EntityHandle camera);
