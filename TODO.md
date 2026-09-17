@@ -229,12 +229,33 @@ Startup logs engine init, subsystems and first frame; each subsystem's bring-up 
 
 `src/nyangine/editor/editor.c` and `.h` are empty.
 
+## `[~]` Packaging and distribution
+
+`packaging/` holds an AUR `gnyame-bin` package, a Flatpak manifest wrapping the release tarball, winget and
+scoop manifests for the portable Windows zip, and SteamPipe scripts with `upload.sh`. CD checks the tag
+against `VERSION`, then publishes both binaries, the Linux tarball, the Windows zip, rendered manifests and
+`SHA256SUMS`. The Windows exe carries its icon and version info. `packaging/README.md` covers cutting a
+release per channel.
+
+- `[ ]` namcap, flatpak-builder and real winget/scoop installs have not been run.
+- `[ ]` Nothing submits to the AUR, winget-pkgs or a scoop bucket automatically.
+- `[ ]` A C2Y build needs glibc 2.38 (C23 `strtol`/`sscanf` variants, `strlcpy`), and curl links
+  `libssl.so.3`. The Steam sniper runtime has neither, so build the Linux depot in the sniper SDK with
+  OpenSSL static, or target Steam Linux Runtime 4.0, where the binary already runs.
+- `[ ]` A real code signing certificate; the signing hook uses the sample `.pfx`, and an unsigned browser
+  download warns under SmartScreen. winget and scoop installs do not.
+- `[ ]` Logs go to `./logs` in the working directory and saves to a directory named "nyangine" whatever the
+  game is. Both should follow the game's app id.
+
 ## `[ ]` Steam is dead code
 
 - `net_steam.c` returns `NYA_ERROR_NOT_SUPPORTED`.
 - `plugins/steam/steam.c` has never been compiled: `FLAGS_STEAM_*` in `src/build/flags.h` define
   `NYA_PLUGIN_STEAM`, but no build rule uses them. `NYA_EXECUTION_MODE=3` is called "steam".
-
+- To ship on Steam: a build variant linking `libsteam_api.so` / `steam_api64.dll` and adding them to the
+  depots; `SteamAPI_RestartAppIfNecessary` first, init with a fallback when the client is not running,
+  `SteamAPI_RunCallbacks` each frame, deinit; Steam Cloud rules for the save directory. No SteamStub DRM
+  wrapper: it rewrites the exe, breaking the integrity CRC and the signature.
 ## `[~]` CI
 
 Never green so far. The ccache change shipped a workflow with duplicated `if:` keys, which GitHub rejects
