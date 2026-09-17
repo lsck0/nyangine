@@ -263,14 +263,12 @@ release per channel.
   wrapper: it rewrites the exe, breaking the integrity CRC and the signature.
 ## `[~]` CI
 
-Never green so far. The ccache change shipped a workflow with duplicated `if:` keys, which GitHub rejects
-without starting any job; `actionlint` catches that locally. Vendors now build in one job per platform that saves the cache right after the
+First fully green run on 2026-09-17 (Linux and Windows: vendors, check, tests, builds). A push cancels the
+run in progress, so a vendor rebuild cut short saves no cache; wait for the vendor jobs before pushing again.
+`actionlint` catches workflow syntax errors locally, which GitHub reports only as a run with no jobs. Vendors now build in one job per platform that saves the cache right after the
 build, keyed on submodule revisions, vendor recipes and both toolchain directories; the check, test and
 build jobs restore it.
 
-- `[ ]` Watch the first run of that layout through on both platforms. The last Windows test run passed
-  137 tests and failed on `test_command.c` running `pwd` in `/tmp`, which Windows lacks; it now runs in
-  `src`.
 - A Windows host does not build shadercross (DXC does not compile under MinGW). CI compiles shaders in
   the Linux vendor job and passes them on; a Windows developer needs `assets/shader/compiled/` from a
   Linux machine. `[ ]` A prebuilt DXC for Windows would remove that.
