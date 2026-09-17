@@ -61,8 +61,22 @@ fed from `engine.renderer` in the config, and costs nothing when off.
 
 Next:
 
-- `[ ]` Indirect draws and GPU culling; build the shadow casters once per frame instead of once per pass.
-- `[ ]` Pipeline cache on disk. SDL GPU exposes none, so check what each backend allows first.
+- The 3D scene between `nya_render3d_begin` and `_end` is recorded once as segments of shared state, uploaded
+  in one copy pass, and drawn by each shadow cascade and the camera from the same buffers with per-pass index
+  lists (a draw keeps a mask of the passes whose frustum it touches). `nya_render3d_shadow_set` replaces the
+  cascade loop. Release 3D demo, 1280x720, 4x: uncapped frame 1.00 to 0.41 ms, CPU work at the cap 0.28 to
+  0.19 ms, uploads 61 (203 KiB) to 12 (152 KiB), render passes 59 to 25. The shadow atlas exists only while a
+  scene casts shadows (-12.6 MB off). `-mf16c` inlines half float conversion. The overlay shows draws, passes
+  and upload bytes per frame.
+- `[ ]` A scene past the vertex, segment, instance or group ceilings is drawn early in pieces, and earlier
+  pieces miss later casters' shadows. Cascades use the light in effect when the scene first draws;
+  orthographic cameras cast no shadows.
+- `[ ]` Decal grids miss their cache every frame while marks shrink (probe 2.2%, staging 1.1% of samples).
+- Indirect draws are not worth it yet: about 15 calls per pass, each with its own mesh buffer or material;
+  removing them saved at most 0.04 ms.
+- A pipeline cache on disk is not possible through SDL 3.5 (Vulkan passes a null cache; D3D12 and Metal have no
+  equivalent exposed). Cold driver cache: 46 pipelines take 222 ms, 11 lazy variants 57.5 ms after the first
+  frame; warm, 0.8 ms. SDL does not document pipeline creation as thread safe.
 - A render graph is not planned: the pass order is fixed and short, and a graph would be more code than
   the passes it orders.
 
@@ -115,9 +129,9 @@ glyphs at 17 pt before; the `@44` distance field title atlas is 1440x544.
 Glyphs upload one cell at a time through a cell sized transfer buffer: the menu and HUD fonts staged 3.4 MB
 of transfer buffers, now 7 KB.
 
-### The scene is emitted four times a frame
+### The scene is recorded once a frame
 
-Two cascades plus the camera pass by default, regenerated from scratch each time.
+Two cascades plus the camera pass by default, all drawing one upload. Before that change:
 
 | Symbol                        | Share | Note                           |
 | :---------------------------- | ----: | :----------------------------- |
