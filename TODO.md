@@ -43,15 +43,15 @@ it. Scope is the engine: no editor, no game; gnyame stays a minimal example exer
 
 # Unmerged work
 
+The per-feature trace is merged (overlay trace page, Chrome trace capture); debug draw and physics hitboxes are not
+started.
+
 Stopped mid-task to save quota; committed on local branches, not yet verified against master. Rebase, run
 debug-linux, release, tests and `check --strict`, then merge.
 
-- `worktree-agent-acd7befc2c4291844`: eye adaptation measured on the GPU, light shafts at half resolution,
+- `worktree-agent-acd7befc2c4291844` (conflicts with the merged trace scopes in `render_post.c`): eye adaptation measured on the GPU, light shafts at half resolution,
   aerial perspective, 2D haze veils, camera motion blur, player graphics settings (MSAA, FXAA, shadows, post
   passes, fov, render scale). Not done: the pause menu graphics panel, water and reflections, dynamic mesh LOD.
-- `worktree-agent-ae8afa694b2271d4c`: per-feature trace (time, calls, draws, memory) with a Chrome trace
-  capture, scopes over shadows, scene, post passes, physics, audio, net and assets, GPU groups timed through
-  fences, an overlay trace page. Not done: debug draw and physics hitboxes.
 - Not started: core systems audit and parser fuzzing.
 
 # Open
