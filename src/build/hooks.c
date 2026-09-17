@@ -221,6 +221,28 @@ void hook_add_version_flag(NYA_BuildRule* rule) {
     rule->command.arguments[length] = VERSION_FLAG;
 }
 
+void hook_add_version_resource_flags(NYA_BuildRule* rule) {
+    nya_assert(rule != nullptr);
+
+    static const NYA_ConstCString PARTS[] = { "MAJOR", "MINOR", "PATCH" };
+
+    u32 length = 0;
+    while (length < NYA_COMMAND_MAX_ARGUMENTS && rule->command.arguments[length] != nullptr) length++;
+    nya_assert(length + 3 < NYA_COMMAND_MAX_ARGUMENTS, "Not enough space to add version resource flags.");
+
+    // a suffix like -rc1 only shows in the version strings, the numeric fields have no room for it.
+    NYA_ConstCString cursor = VERSION;
+    for (u32 i = 0; i < 3; i++) {
+        char* end = nullptr;
+        u64   part = strtoull(cursor, &end, 10);
+        nya_assert(end != cursor && (i == 2 || *end == '.'), "VERSION '%s' does not start with major.minor.patch.", VERSION);
+        nya_assert(part <= U16_MAX, "VERSION '%s' has a part over 65535.", VERSION);
+
+        rule->command.arguments[length + i] = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "-DNYA_RC_VERSION_%s=" FMTu64, PARTS[i], part));
+        cursor                              = end + 1;
+    }
+}
+
 void hook_remove_output_file(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
     nya_assert(rule->output_file);

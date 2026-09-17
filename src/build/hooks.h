@@ -60,6 +60,9 @@ void hook_use_compiler_cache(NYA_BuildRule* rule);
 /** Appends -DVERSION to the rule's compile command. */
 void hook_add_version_flag(NYA_BuildRule* rule);
 
+/** Appends VERSION as -DNYA_RC_VERSION_MAJOR, _MINOR and _PATCH, for the numeric fields of the Windows version resource. */
+void hook_add_version_resource_flags(NYA_BuildRule* rule);
+
 /** Deletes the rule's output file. Used to clean up after a rule that only ran for its effect. */
 void hook_remove_output_file(NYA_BuildRule* rule);
 

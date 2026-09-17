@@ -3,7 +3,6 @@
 # The asset index and the string table are committed so a fresh clone builds. The blob is not:
 # it is the whole asset tree as a byte array.
 src/generated/assets.c
-assets/icon/icon.res
 assets/shader/compiled/
 
 # binaries

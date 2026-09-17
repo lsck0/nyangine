@@ -5,8 +5,6 @@
 
 #include "nyangine/nyangine.h"
 
-// For WINDRES, which compiles the icon.
-#include "build/toolchain.h"
 // For the hooks the rules below hang the pipeline off.
 #include "build/hooks.h"
 // For SHADER_SOURCE_DIRECTORY, which the shader rules walk.
@@ -21,23 +19,6 @@
 /*
  * The asset pipeline expressed as build rules.
  */
-
-// Only the two rules below depend on this one.
-NYA_INTERNAL NYA_BuildRule build_windows_icon = {
-    .name        = "build_windows_icon",
-    .policy      = NYA_BUILD_IF_OUTDATED,
-    .input_file  = "./assets/icon/icon.ico",
-    .output_file = "./assets/icon/icon.res",
-
-    .command = {
-        .program   = WINDRES,
-        .arguments = {
-            "./assets/icon/icon.rc",
-            "-O", "coff",
-            "-o", "./assets/icon/icon.res",
-        },
-    },
-};
 
 NYA_INTERNAL NYA_BuildRule build_shaders = {
     .name            = "build_shaders",
@@ -72,7 +53,7 @@ NYA_INTERNAL NYA_BuildRule index_assets = {
     // generate_reflection is here for the same reason generate_strings is: it writes *source* that
     // the compile rules then consume, and everything that compiles depends on this rule. It has
     // nothing to do with indexing assets beyond that shared ordering requirement.
-    .dependencies     = { &build_windows_icon, &build_shaders, &generate_strings, &generate_reflection, },
+    .dependencies     = { &build_shaders, &generate_strings, &generate_reflection, },
     .post_build_hooks = { &hook_index_assets, },
 };
 
@@ -82,7 +63,7 @@ NYA_INTERNAL NYA_BuildRule index_assets = {
 NYA_INTERNAL NYA_BuildRule bundle_assets = {
     .name             = "bundle_assets",
     .is_metarule      = true,
-    .dependencies     = { &build_windows_icon, &build_shaders, &index_assets, },
+    .dependencies     = { &build_shaders, &index_assets, },
     .post_build_hooks = { &hook_bundle_assets, },
 };
 

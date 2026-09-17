@@ -20,6 +20,7 @@
 #define WINDOWS_X86_64_DEV_OBJECT       OBJECT_DIRECTORY "/" WINDOWS_X86_64_DEV_BINARY OBJECT_SUFFIX
 #define WINDOWS_X86_64_DEV_DLL_OBJECT   OBJECT_DIRECTORY "/" WINDOWS_X86_64_DEV_DLL OBJECT_SUFFIX
 #define WINDOWS_X86_64_OBJECT           OBJECT_DIRECTORY "/" WINDOWS_X86_64_BINARY OBJECT_SUFFIX
+#define WINDOWS_X86_64_RESOURCES        OBJECT_DIRECTORY "/" WINDOWS_X86_64_BINARY ".res"
 
 NYA_INTERNAL NYA_BuildRule compile_project_debug_executable_windows = {
     .name        = "compile_project_debug_executable_windows",
@@ -128,6 +129,29 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_windows = {
     .dependencies = { &build_project_debug_executable_windows, &build_project_debug_dll_windows, },
 };
 
+/*
+ * The icon and version resource the release executable links. Always rebuilt, since it depends on
+ * VERSION as well as the icon, and windres is cheap next to the link it feeds.
+ */
+NYA_INTERNAL NYA_BuildRule build_windows_resources = {
+    .name        = "build_windows_resources",
+    .policy      = NYA_BUILD_ALWAYS,
+    .output_file = WINDOWS_X86_64_RESOURCES,
+
+    .command = {
+        .program   = WINDRES,
+        .arguments = {
+            "./assets/icon/icon.rc",
+            "-O", "coff",
+            "-o", WINDOWS_X86_64_RESOURCES,
+            "-DNYA_RC_NAME=" PROJECT_NAME,
+            "-DNYA_RC_VERSION=" VERSION,
+        },
+    },
+
+    .pre_build_hooks = { &hook_create_output_directory, &hook_add_version_resource_flags, },
+};
+
 NYA_INTERNAL NYA_BuildRule compile_project_windows_x86_64 = {
     .name        = "compile_project_windows_x86_64",
     .policy      = NYA_BUILD_ALWAYS,
@@ -169,13 +193,13 @@ NYA_INTERNAL NYA_BuildRule build_project_windows_x86_64 = {
             FLAGS_RELEASE_LINK,
             FLAGS_TARGET_WINDOWS_X86_64
             FLAGS_WINDOWS_X86_64,
-            "./assets/icon/icon.res",
+            WINDOWS_X86_64_RESOURCES,
         },
     },
 
     .vendors          = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
-    .dependencies     = { &compile_project_windows_x86_64, },
+    .dependencies     = { &compile_project_windows_x86_64, &build_windows_resources, },
     // Signing last: the CRC patch rewrites bytes the signature would otherwise cover.
     .post_build_hooks = { &hook_insert_integrity_hash, &hook_sign_windows_executable, },
 };
