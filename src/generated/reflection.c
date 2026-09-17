@@ -158,6 +158,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
     { .name = "ambient_occlusion", .type = &_NYA_REFLECT_NYA_PostAmbientOcclusion, .offset = nya_offsetof(NYA_ConfigEngineRenderer, ambient_occlusion), .hint = NYA_HINT_NONE },
     { .name = "antialias", .type = &_NYA_REFLECT_NYA_PostAntialias, .offset = nya_offsetof(NYA_ConfigEngineRenderer, antialias), .hint = NYA_HINT_NONE },
     { .name = "depth_of_field", .type = &_NYA_REFLECT_NYA_PostDepthOfField, .offset = nya_offsetof(NYA_ConfigEngineRenderer, depth_of_field), .hint = NYA_HINT_NONE },
+    { .name = "speed_lines", .type = &_NYA_REFLECT_NYA_PostSpeedLines, .offset = nya_offsetof(NYA_ConfigEngineRenderer, speed_lines), .hint = NYA_HINT_NONE },
     { .name = "debug_view", .type = &_NYA_REFLECT_NYA_PostDebugView, .offset = nya_offsetof(NYA_ConfigEngineRenderer, debug_view), .hint = NYA_HINT_NONE },
     { .name = "shadow_color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_color), .hint = NYA_HINT_NONE },
     { .name = "grade_lut", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer_grade_lut_ARRAY, .offset = nya_offsetof(NYA_ConfigEngineRenderer, grade_lut), .hint = NYA_HINT_NONE },
@@ -170,7 +171,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .size = sizeof(NYA_ConfigEngineRenderer),
     .alignment = alignof(NYA_ConfigEngineRenderer),
     .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
-    .field_count = 12,
+    .field_count = 13,
 };
 
 /* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
@@ -372,6 +373,26 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostDepthOfField = {
     .field_count = 8,
 };
 
+/* NYA_PostSpeedLines, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PostSpeedLines_FIELDS[] = {
+    { .name = "amount", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, amount), .hint = NYA_HINT_NONE },
+    { .name = "center_x", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, center_x), .hint = NYA_HINT_NONE },
+    { .name = "center_y", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, center_y), .hint = NYA_HINT_NONE },
+    { .name = "density", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, density), .hint = NYA_HINT_NONE },
+    { .name = "clear_radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, clear_radius), .hint = NYA_HINT_NONE },
+    { .name = "color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_PostSpeedLines, color), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostSpeedLines = {
+    .name = "NYA_PostSpeedLines",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PostSpeedLines),
+    .alignment = alignof(NYA_PostSpeedLines),
+    .fields = _NYA_REFLECT_NYA_PostSpeedLines_FIELDS,
+    .field_count = 6,
+};
+
 /* NYA_PostDebugView, src/nyangine/renderer/render_post.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_PostDebugView_VARIANTS[] = {
@@ -415,6 +436,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostAntialias,
     &_NYA_REFLECT_NYA_PostFocus,
     &_NYA_REFLECT_NYA_PostDepthOfField,
+    &_NYA_REFLECT_NYA_PostSpeedLines,
     &_NYA_REFLECT_NYA_PostDebugView,
 };
 

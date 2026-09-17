@@ -108,6 +108,10 @@ struct NYA_ConfigEngineRenderer {
     NYA_PostAmbientOcclusion ambient_occlusion;
     NYA_PostAntialias        antialias;
     NYA_PostDepthOfField     depth_of_field;
+
+    /** A game driving the lines by speed reads `amount` as their most. */
+    NYA_PostSpeedLines speed_lines;
+
     NYA_PostDebugView        debug_view;
 
     /** The hue shade leans toward, alpha as how far. See NYA_Render3DShadowOptions.color. */

@@ -702,6 +702,7 @@ struct NYA_RenderSystemWindow {
     NYA_PostAmbientOcclusion post_ambient_occlusion;
     NYA_PostAntialias        post_antialias;
     NYA_PostDepthOfField     post_depth_of_field;
+    NYA_PostSpeedLines       post_speed_lines;
     NYA_PostDebugView        post_debug_view;
 };
 

@@ -27,10 +27,11 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostAmbientOcclusion;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostAntialias;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostFocus;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDepthOfField;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostSpeedLines;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView;
 
 /** Every annotated type, for an editor that needs to enumerate them. */
-#define NYA_REFLECT_TYPE_COUNT 17
+#define NYA_REFLECT_TYPE_COUNT 18
 
 extern const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT];
 

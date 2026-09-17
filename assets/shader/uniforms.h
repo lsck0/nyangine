@@ -350,6 +350,30 @@ struct NYA_ShaderDepthOfFieldUniform {
     f32 pad[2];
 };
 
+/** effect_speed_lines.frag.hlsl. See NYA_PostSpeedLines. */
+struct NYA_ShaderSpeedLinesUniform {
+    /** Where the lines converge, in uv. */
+    f32 center_x, center_y;
+
+    /** Width over height, so the lines stay round on a wide target. */
+    f32 aspect;
+
+    /** Which drawing this is: whole numbers, stepped at NYA_POST_SPEED_LINES_RATE. */
+    f32 frame;
+
+    f32 amount;
+
+    /** Lines around the circle. Whole, so the last wedge meets the first. */
+    f32 density;
+
+    f32 clear_radius;
+
+    /** One pixel in units of the target's height. */
+    f32 pixel;
+
+    f32 color_r, color_g, color_b, color_a;
+};
+
 /** effect_scene_debug.frag.hlsl: the ink's settings for the ink view, then the view and the cascades. */
 struct NYA_ShaderSceneDebugUniform {
     struct NYA_ShaderInkUniform ink;

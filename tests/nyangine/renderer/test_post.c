@@ -170,6 +170,11 @@ s32 main(void) {
         nya_check(depth_of_field.focus == NYA_POST_FOCUS_OFF, "an unknown focus reads as off");
         nya_check(depth_of_field.radius == NYA_POST_DEPTH_OF_FIELD_RADIUS_MAX && depth_of_field.band_offset == -0.5F, "radius and band offset clamp");
 
+        nya_post_speed_lines_set(&window, (NYA_PostSpeedLines){ .amount = 3.0F, .center_x = -2.0F, .density = -4.0F });
+        NYA_PostSpeedLines lines = nya_post_speed_lines(&window);
+        nya_check(lines.amount == 1.0F && lines.center_x == -0.5F && lines.density == 0.0F, "speed lines clamp");
+        nya_post_speed_lines_set(&window, (NYA_PostSpeedLines){ 0 });
+
         nya_post_debug_view_set(&window, (NYA_PostDebugView)99);
         nya_check(nya_post_debug_view(&window) == NYA_POST_DEBUG_VIEW_NONE, "an unknown debug view reads as none");
 

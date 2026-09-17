@@ -15,6 +15,7 @@
 #define _NYA_POST_PIPELINE_ANTIALIAS       "nya_post_antialias_pipeline"
 #define _NYA_POST_PIPELINE_BLUR            "nya_post_depth_of_field_blur_pipeline"
 #define _NYA_POST_PIPELINE_FOCUS           "nya_post_depth_of_field_pipeline"
+#define _NYA_POST_PIPELINE_SPEED_LINES     "nya_post_speed_lines_pipeline"
 #define _NYA_POST_PIPELINE_DEBUG           "nya_post_debug_pipeline"
 
 /** Near black with a little blue, what NYA_PostInk.color falls back to. */
@@ -353,7 +354,8 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
      * The built-in passes, queued only for what is on. Their uniforms live here until the passes below have run.
      */
     _NYA_PostStep before[_NYA_POST_BUILT_IN_MAX];
-    _NYA_PostStep after[1];
+    // speed lines, then the debug view.
+    _NYA_PostStep after[2];
 
     u32 before_count = 0;
     u32 after_count  = 0;
@@ -363,6 +365,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     struct NYA_ShaderInkUniform               ink       = { 0 };
     struct NYA_ShaderAntialiasUniform         antialias = { 0 };
     struct NYA_ShaderDepthOfFieldUniform      focus     = { 0 };
+    struct NYA_ShaderSpeedLinesUniform        lines     = { 0 };
     struct NYA_ShaderSceneDebugUniform        debug     = { 0 };
 
     const NYA_PostAmbientOcclusion* occlusion_options = &render->post_ambient_occlusion;
@@ -450,6 +453,38 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             .pipeline     = _NYA_POST_PIPELINE_ANTIALIAS,
             .uniform      = &antialias,
             .uniform_size = sizeof(antialias),
+            .inputs       = _NYA_POST_INPUT_SOURCE,
+        };
+    }
+
+    const NYA_PostSpeedLines* lines_options = &render->post_speed_lines;
+
+    if (lines_options->amount > 0.0F
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_SPEED_LINES, NYA_ASSET_SHADER_EFFECT_SPEED_LINES_FRAG, 1, false)) {
+        NYA_Color color = lines_options->color.a > 0.0F ? lines_options->color : NYA_COLOR_WHITE;
+
+        lines = (struct NYA_ShaderSpeedLinesUniform){
+            .center_x = 0.5F + lines_options->center_x,
+            .center_y = 0.5F + lines_options->center_y,
+            .aspect   = (f32)chain->width / (f32)chain->height,
+            // stepped, so each drawing holds for a few frames, and wrapped so the float keeps its precision in long runs.
+            .frame = fmodf(floorf(nya_app_get()->frame_stats.uptime_s * NYA_POST_SPEED_LINES_RATE), 997.0F),
+
+            .amount       = lines_options->amount,
+            .density      = nya_max(roundf(lines_options->density > 0.0F ? lines_options->density : NYA_POST_SPEED_LINES_DENSITY), 1.0F),
+            .clear_radius = lines_options->clear_radius > 0.0F ? lines_options->clear_radius : NYA_POST_SPEED_LINES_CLEAR_RADIUS,
+            .pixel        = 1.0F / (f32)chain->height,
+
+            .color_r = color.r,
+            .color_g = color.g,
+            .color_b = color.b,
+            .color_a = color.a,
+        };
+
+        after[after_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_SPEED_LINES,
+            .uniform      = &lines,
+            .uniform_size = sizeof(lines),
             .inputs       = _NYA_POST_INPUT_SOURCE,
         };
     }
@@ -644,6 +679,24 @@ NYA_PostDepthOfField nya_post_depth_of_field(NYA_Window* window) {
     nya_assert(window != nullptr);
 
     return window->render_system.post_depth_of_field;
+}
+
+void nya_post_speed_lines_set(NYA_Window* window, NYA_PostSpeedLines speed_lines) {
+    nya_assert(window != nullptr);
+
+    speed_lines.amount       = nya_clamp(speed_lines.amount, 0.0F, 1.0F);
+    speed_lines.center_x     = nya_clamp(speed_lines.center_x, -0.5F, 0.5F);
+    speed_lines.center_y     = nya_clamp(speed_lines.center_y, -0.5F, 0.5F);
+    speed_lines.density      = nya_clamp(speed_lines.density, 0.0F, 1024.0F);
+    speed_lines.clear_radius = nya_clamp(speed_lines.clear_radius, 0.0F, 2.0F);
+
+    window->render_system.post_speed_lines = speed_lines;
+}
+
+NYA_PostSpeedLines nya_post_speed_lines(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.post_speed_lines;
 }
 
 void nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view) {

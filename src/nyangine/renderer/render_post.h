@@ -25,6 +25,7 @@
  * nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 0.4F });
  * nya_post_antialias_set(window, (NYA_PostAntialias){ .enabled = true });
  * nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_TILT_SHIFT });
+ * nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ .amount = camera_speed / top_speed });
  * ```
  *
  * They run inside nya_post_end before the caller's passes, occlusion then ink then depth of field then
@@ -32,7 +33,8 @@
  * is drawn on, and comes before antialiasing, which smooths the cut between sharp and blurred. A feature that is off
  * has no pass, no pipeline and no target. Ink, occlusion and distance focus read the scene normal buffer
  * (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only while one of them or a debug view is on,
- * and they skip a frame whose capture drew no 3D.
+ * and they skip a frame whose capture drew no 3D. Speed lines are drawn after the caller's passes, so a grade or a
+ * bloom leaves them as drawn.
  * */
 #pragma once
 
@@ -90,6 +92,15 @@
 /** Distinct amounts of blur, when NYA_PostDepthOfField.layers is zero. */
 #define NYA_POST_DEPTH_OF_FIELD_LAYERS 3
 
+/** Lines around the full circle, when NYA_PostSpeedLines.density is zero. */
+#define NYA_POST_SPEED_LINES_DENSITY 140.0F
+
+/** The clear middle at full amount, a fraction of the screen's height, when NYA_PostSpeedLines.clear_radius is zero. */
+#define NYA_POST_SPEED_LINES_CLEAR_RADIUS 0.28F
+
+/** How many times a second the lines are redrawn. Low on purpose: every frame reads as noise, not drawing. */
+#define NYA_POST_SPEED_LINES_RATE 12.0F
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -102,6 +113,7 @@ typedef struct NYA_PostInk              NYA_PostInk;
 typedef struct NYA_PostAmbientOcclusion NYA_PostAmbientOcclusion;
 typedef struct NYA_PostAntialias        NYA_PostAntialias;
 typedef struct NYA_PostDepthOfField     NYA_PostDepthOfField;
+typedef struct NYA_PostSpeedLines       NYA_PostSpeedLines;
 typedef enum NYA_PostFocus              NYA_PostFocus;
 typedef enum NYA_PostDebugView          NYA_PostDebugView;
 
@@ -231,6 +243,29 @@ struct NYA_PostDepthOfField {
     u32 layers;
 };
 
+/**
+ * Cartoon speed lines, the stand-in for motion blur: thin spikes converging on a point, redrawn a few times a second
+ * like cel animation.
+ * */
+// @reflect
+struct NYA_PostSpeedLines {
+    /** How many lines show and how far in they reach, in [0, 1]. Zero is off. */
+    f32 amount;
+
+    /** Where the lines converge, as an offset from the middle of the screen in [-0.5, 0.5]. */
+    f32 center_x;
+    f32 center_y;
+
+    /** Lines around the full circle. See NYA_POST_SPEED_LINES_DENSITY. */
+    f32 density;
+
+    /** The clear middle at full amount, a fraction of the screen's height. See NYA_POST_SPEED_LINES_CLEAR_RADIUS. */
+    f32 clear_radius;
+
+    /** Zero is white. Alpha is how opaque a line is. */
+    NYA_Color color;
+};
+
 /** A buffer shown in place of the image, for looking at what the cartoon passes read. */
 // @reflect
 enum NYA_PostDebugView {
@@ -322,6 +357,10 @@ NYA_API NYA_PostAntialias nya_post_antialias(NYA_Window* window) __attr_no_disca
 /** Sets this window's depth of field, clamped like the ink. An unknown focus reads as off. */
 NYA_API void                 nya_post_depth_of_field_set(NYA_Window* window, NYA_PostDepthOfField depth_of_field);
 NYA_API NYA_PostDepthOfField nya_post_depth_of_field(NYA_Window* window) __attr_no_discard;
+
+/** Sets this window's speed lines, clamped like the ink. Cheap enough to drive every frame. */
+NYA_API void               nya_post_speed_lines_set(NYA_Window* window, NYA_PostSpeedLines speed_lines);
+NYA_API NYA_PostSpeedLines nya_post_speed_lines(NYA_Window* window) __attr_no_discard;
 
 /** Shows a buffer instead of the image. An unknown view reads as none. */
 NYA_API void              nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view);
