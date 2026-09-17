@@ -289,9 +289,15 @@ u32 nya_tween_cancel_target(const void* address) {
 
     u32 cancelled = 0;
 
-    for (u32 i = 1; i < NYA_TWEEN_MAX; i++) {
+    // stops at the last live slot: every despawn calls this, and slots fill from the front.
+    u32 live = _nya_tween_system.count;
+
+    for (u32 i = 1; i < NYA_TWEEN_MAX && live > 0; i++) {
         _NYA_TweenSlot* slot = &_nya_tween_system.slots[i];
-        if (!slot->active || slot->address != address) continue;
+        if (!slot->active) continue;
+
+        live--;
+        if (slot->address != address) continue;
 
         _nya_tween_free(slot);
         cancelled++;

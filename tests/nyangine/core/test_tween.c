@@ -144,6 +144,21 @@ s32 main(void) {
         nya_check(nya_tween_count() == 0, "cancel_all should empty the pool");
     }
 
+    // ── The scan stops at the last live slot, so a live tween past a freed one is still found.
+    {
+        f32 first = 0.0F;
+        f32 last  = 0.0F;
+
+        NYA_Tween freed = nya_tween_f32(&first, 1.0F, 5.0F);
+        (void)nya_tween_f32(&first, 1.0F, 5.0F);
+        (void)nya_tween_f32(&last, 1.0F, 5.0F);
+        nya_tween_cancel(freed);
+
+        nya_check(nya_tween_cancel_target(&last) == 1, "the tween behind a hole should be cancelled");
+        nya_check(nya_tween_cancel_target(&first) == 1, "and the one before it");
+        nya_check(nya_tween_count() == 0, "nothing should be left, got %u", nya_tween_count());
+    }
+
     // ── Repeat restarts from the original value rather than drifting.
     {
         f32 value = 0.0F;
