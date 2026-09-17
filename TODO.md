@@ -98,8 +98,15 @@ or see none. `nya_app_tick_alpha` says where between the last tick and the next 
 their previous tick's position and age toward the current one; before, the smoke and sparks froze on frames
 without a tick and jumped on the next, which read as flicker (captured: every other frame unchanged).
 
-- `[ ]` Entities (physics cubes, the player, drones) and the skinned pose still draw the current tick, so they
-  judder the same way at display rates above the tick rate.
+- Entities capture their transform at the start of each tick (`nya_system_entity_transforms_capture`, 0.7 ns a
+  slot) and draw through `nya_entity_render_position` / `_rotation` (4.6 ns). `nya_entity_transform_snap` makes
+  a jump draw instantly and carries children; spawn, teleports, zero duration `move_to` and net replicas snap.
+  `NYA_Entity` is 704 bytes (was 672). The 2D camera interpolates; the skeleton animator samples the clip
+  between ticks (`nya_skeleton_animator_render_pose`). At 120 fps against a 62.5 Hz tick the 3D cube region's
+  per-frame change evenness went from 0.87 to 0.16 (CV), the 2D region from 0.90 to 0.04.
+- Fixed on the way: 3D bodies integrated their mirrored velocity a second time and drew a tick ahead.
+- `[ ]` `NYA_SkeletonPlayer` (layers, crossfades, root motion) still samples per tick; y-sorting uses the
+  current tick; the frame rate cap is not in the config.
 
 ## `[~]` Shadows
 
