@@ -13,7 +13,19 @@
  * The light's own axes: where it points, and an up that is not parallel to it.
  * */
 void nya_render3d_light_basis(f32x3 direction, OUT f32x3* out_forward, OUT f32x3* out_right, OUT f32x3* out_up) {
-    f32x3 forward = nya_vector_normalize(direction);
+    nya_assert(out_forward != nullptr && out_right != nullptr && out_up != nullptr);
+
+    f32x3 unit = nya_vector_normalize(direction);
+
+    /*
+     * Snapped in elevation and azimuth. A sun that turns every frame turns the texel grid with it, and caster
+     * edges crawl even under a still camera; snapped, the grid holds between steps.
+     */
+    f32 step      = NYA_RENDER3D_SHADOW_ANGLE_STEP;
+    f32 elevation = roundf(asinf(nya_clamp(unit.y, -1.0F, 1.0F)) / step) * step;
+    f32 azimuth   = roundf(atan2f(unit.z, unit.x) / step) * step;
+
+    f32x3 forward = { cosf(elevation) * cosf(azimuth), sinf(elevation), cosf(elevation) * sinf(azimuth) };
 
     // An up vector not parallel to the light: a look-at with the two collinear produces a degenerate
     // basis and a matrix of NaNs, and the light pointing straight down is the *common* case here.

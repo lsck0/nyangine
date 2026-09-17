@@ -154,6 +154,14 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
 #define NYA_RENDER3D_SHADOW_EXTENT 12.0F
 #endif
 
+/**
+ * The step the shadow light's elevation and azimuth snap to, in radians: half a degree. See
+ * nya_render3d_light_basis. A sun crossing the sky in a minute takes six steps a second.
+ * */
+#ifndef NYA_RENDER3D_SHADOW_ANGLE_STEP
+#define NYA_RENDER3D_SHADOW_ANGLE_STEP 0.00873F
+#endif
+
 /** Depth slack when NYA_Render3DShadow.bias is zero. Tuned against a 1024 map over a 12 unit extent. */
 #ifndef NYA_RENDER3D_SHADOW_BIAS
 #define NYA_RENDER3D_SHADOW_BIAS 0.0015F
@@ -671,7 +679,8 @@ NYA_API void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow sh
  * ```
  * */
 /**
- * The light's own axes: where it points, and an up that is not parallel to it.
+ * The light's own axes: where it points, and an up that is not parallel to it. The direction is snapped to
+ * NYA_RENDER3D_SHADOW_ANGLE_STEP first, so everything built on the basis moves in steps.
  * */
 NYA_API void nya_render3d_light_basis(f32x3 direction, OUT f32x3* out_forward, OUT f32x3* out_right, OUT f32x3* out_up);
 
