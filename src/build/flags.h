@@ -34,8 +34,9 @@
 
 // CC and NPROCS come from build/vendor/vendor.h.
 // -mfma is not implied by -mavx2, and nn/nn_simd.h falls back to separate multiply and add without it.
-// Every AVX2 CPU has FMA3 (both came with Haswell), so this adds no requirement.
-#define CFLAGS        "-std=c2y", "-mavx", "-mavx2", "-mfma", "-fdefer-ts", "-fenable-matrix", "-ggdb"
+// -mf16c turns the half float casts in NYA_Vertex3D into one instruction instead of a libgcc call per channel.
+// Every AVX2 CPU has FMA3 and F16C (all came with Haswell), so neither adds a requirement.
+#define CFLAGS        "-std=c2y", "-mavx", "-mavx2", "-mfma", "-mf16c", "-fdefer-ts", "-fenable-matrix", "-ggdb"
 #define WARNINGS      "-Werror", "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro"
 /*
  * A rule that compiles with `-c` takes only compile flags: under -Werror clang rejects a linker flag it
