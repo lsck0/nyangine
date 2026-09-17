@@ -161,7 +161,7 @@ void gny_net_player_on_render(NYA_Entity* entity, NYA_Window* window) {
     /*
      * Drawn here rather than left to the crate renderer, which is what it used to reuse.
      */
-    f32x2 center = { entity->position.x, entity->position.y };
+    f32x2 center = nya_entity_render_position(entity).xy;
     f32x2 size   = { GNY_PLAYER_SIZE, GNY_PLAYER_SIZE };
 
     /*
