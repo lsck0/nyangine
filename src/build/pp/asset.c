@@ -238,8 +238,9 @@ void nya_asset_bundle(void) {
         }
 
         NYA_String* blob_name = _nya_asset_blob_name(group);
-        nya_string_extend_sprintf(header_string, "  { \"%.*s\", " NYA_FMT_STRING " + " FMTu64 ", " FMTu64 ", " FMTu64 " },\n",
-                                  NYA_FMT_STRING_ARG(file), NYA_FMT_STRING_ARG(blob_name), cursors[group], content->length, stored_size);
+        nya_string_extend_sprintf(header_string, "  { \"%.*s\", " NYA_FMT_STRING " + " FMTu64 ", " FMTu64 ", " FMTu64 ", 0x%016" PRIX64 "ULL },\n",
+                                  NYA_FMT_STRING_ARG(file), NYA_FMT_STRING_ARG(blob_name), cursors[group], content->length, stored_size,
+                                  nya_integrity_hash(stored, stored_size));
 
         // A byte costs at most the indent plus "0xAB" plus a separator, so the room for a whole file
         // is known before writing any of it and the buffer grows once rather than per byte.

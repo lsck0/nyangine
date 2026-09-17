@@ -113,6 +113,9 @@ struct NYA_AssetSystem {
 struct NYA_AssetBlobExpanded {
     u8* data;
     u32 references;
+
+    /** The stored bytes matched their hash once, which holds for the rest of the run. */
+    b8 verified;
 };
 
 struct NYA_AssetBlobHeader {
@@ -129,6 +132,9 @@ struct NYA_AssetBlobHeader {
      * when that is smaller, so PNG and OGG stay verbatim and load without a copy.
      * */
     u64 compressed_size;
+
+    /** nya_integrity_hash of the stored bytes, recorded by the build. */
+    u64 hash;
 };
 
 /** Which vertex struct a graphics pipeline reads, baked in when the pipeline is built. */

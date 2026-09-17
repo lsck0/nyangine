@@ -7,6 +7,15 @@
 #error "__has_attribute macro not available."
 #endif
 
+/**
+ * Copies the function into every caller, so there is no single body to patch.
+ * */
+#if __has_attribute(always_inline)
+#define __attr_always_inline __attribute__((always_inline))
+#else
+#error "attribute 'always_inline' not available."
+#endif
+
 #if __has_attribute(cleanup)
 #define __attr_cleanup(func) __attribute__((cleanup(func)))
 #else

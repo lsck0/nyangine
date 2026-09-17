@@ -3,6 +3,7 @@
 
 #if OS_LINUX
 #include <elf.h>
+#include <pthread.h>
 #endif
 
 /*
@@ -34,15 +35,25 @@ NYA_INTERNAL b8  _nya_integrity_find_sentinel(const u8* data, u64 len, OUT u64* 
 NYA_INTERNAL u64 _nya_integrity_compute_mac(u8* data, u64 len, u64 hash_offset);
 NYA_INTERNAL b8  _nya_integrity_code_region(OUT const u8** out_start, OUT u64* out_size);
 
+/** Reads `path` and computes its MAC, along with the one stamped into it. False when either cannot be had. */
+NYA_INTERNAL b8 _nya_integrity_file_mac(NYA_ConstCString path, OUT u64* out_stored, OUT u64* out_computed);
+
+/** What the startup thread runs: the file check, then the code baseline. */
+NYA_INTERNAL void _nya_integrity_startup(void);
+
 /*
  * The MAC key.
  * */
 #define _NYA_INTEGRITY_KEY_LOW  (0x9E3779B97F4A7C15ULL ^ 0x517CC1B727220A95ULL)
 #define _NYA_INTEGRITY_KEY_HIGH (0xBF58476D1CE4E5B9ULL ^ 0x94D049BB133111EBULL)
 
-/** Baseline hash of the mapped code, taken by nya_integrity_baseline_capture. */
-NYA_INTERNAL u64 _nya_integrity_code_baseline       = 0;
-NYA_INTERNAL b8  _nya_integrity_code_baseline_taken = false;
+NYA_IntegrityState _nya_integrity_state;
+b8                 _nya_integrity_started = false;
+
+/** Folds a chunk hash into a digest. Order dependent, so a pass that skips or repeats a chunk folds differently. */
+NYA_INTERNAL u64 _nya_integrity_fold(u64 digest, u64 hash) {
+    return ((digest << 1) | (digest >> 63)) ^ hash;
+}
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -50,43 +61,41 @@ NYA_INTERNAL b8  _nya_integrity_code_baseline_taken = false;
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-void nya_integrity_assert(void) {
-    // Only shipping builds carry a patched hash. A development build is recompiled constantly and a
-    // test build is never stamped, so checking either would fail every time.
-    if (!NYA_SHIPPING_BUILD) return;
-
-    NYA_Arena* arena = nya_arena_create();
-    defer      nya_arena_destroy(arena);
-
-    // Asks the filesystem layer rather than reimplementing /proc/self/exe and GetModuleFileNameA
-    // here, so there is one definition of "where am I" to get right.
-    NYA_String* executable_path = nullptr;
-    NYA_Error   path_result     = nya_filesystem_executable_path(arena, &executable_path);
-
-    b8 binary_valid = path_result.ok && nya_integrity_verify_file(nya_string_to_cstring(arena, executable_path));
-
-    // nya_assert_always marks a check that must never become configurable, or a modified executable
-    // starts silently. Assertions cannot be compiled out anyway, so the spelling is for readers.
-    nya_assert_always(binary_valid, "Executable integrity check failed. The executable is corrupted or was tampered with.");
+u64 nya_integrity_hash(const void* data, u64 size) {
+    // keyed, so a value cannot simply be recomputed after an edit the way a CRC can.
+    return nya_siphash(data, size, _NYA_INTEGRITY_KEY_LOW, _NYA_INTEGRITY_KEY_HIGH);
 }
+
+void nya_integrity_fail(NYA_IntegrityStatus status, NYA_ConstCString detail) {
+    nya_assert(status > NYA_INTEGRITY_OK && status < NYA_INTEGRITY_STATUS_COUNT);
+
+    nya_log_error("Integrity check failed (%s): %s. Exiting.", NYA_INTEGRITY_STATUS_NAME_MAP[status], detail);
+    nya_log_file_flush();
+    (void)fflush(stdout);
+    (void)fflush(stderr);
+
+    // _Exit rather than exit: another thread may be mid frame, and atexit handlers running under it would race.
+    _Exit(NYA_INTEGRITY_EXIT_CODE);
+}
+
+u64 _nya_integrity_stamped_mac(void) {
+    u64 mac = 0;
+    for (u32 i = 0; i < _NYA_INTEGRITY_HASH_SIZE; i++) mac |= (u64)_NYA_INTEGRITY_BLOCK.hash[i] << (i * 8);
+    return mac;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * ON DISK
+ * ─────────────────────────────────────────────────────────
+ */
 
 b8 nya_integrity_verify_file(NYA_ConstCString path) {
     nya_assert(path != nullptr);
 
-    NYA_Arena* arena = nya_arena_create();
-    defer      nya_arena_destroy(arena);
-
-    NYA_String* binary_content = nya_string_create(arena);
-    if (!nya_file_read(path, binary_content).ok) return false;
-    if (binary_content->length == 0) return false;
-
-    u64 hash_offset = 0;
-    if (!_nya_integrity_find_sentinel(binary_content->items, binary_content->length, &hash_offset)) return false;
-
-    u64 stored_mac = 0;
-    nya_memcpy(&stored_mac, &binary_content->items[hash_offset], sizeof(u64));
-
-    return stored_mac == _nya_integrity_compute_mac(binary_content->items, binary_content->length, hash_offset);
+    u64 stored   = 0;
+    u64 computed = 0;
+    return _nya_integrity_file_mac(path, &stored, &computed) && stored == computed;
 }
 
 NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) {
@@ -116,57 +125,181 @@ NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) {
 }
 
 /*
+ * ─────────────────────────────────────────────────────────
+ * AT RUNTIME
+ * ─────────────────────────────────────────────────────────
+ */
+
+#if OS_WINDOWS
+NYA_INTERNAL DWORD WINAPI _nya_integrity_thread(LPVOID user_data) {
+    nya_unused(user_data);
+    _nya_integrity_startup();
+    return 0;
+}
+#else
+NYA_INTERNAL void* _nya_integrity_thread(void* user_data) {
+    nya_unused(user_data);
+    _nya_integrity_startup();
+    return nullptr;
+}
+#endif
+
+void nya_integrity_start(void) {
+    if (!NYA_SHIPPING_BUILD) return;
+    nya_assert(!_nya_integrity_started, "nya_integrity_start runs once.");
+
+    _nya_integrity_started = true;
+
+    // reading and hashing the whole executable takes about 10 ms, so it runs beside startup instead of in front of it.
+#if OS_WINDOWS
+    HANDLE thread = CreateThread(nullptr, 0, _nya_integrity_thread, nullptr, 0, nullptr);
+    if (thread != nullptr) {
+        (void)CloseHandle(thread);
+        return;
+    }
+#else
+    pthread_t thread;
+    if (pthread_create(&thread, nullptr, _nya_integrity_thread, nullptr) == 0) {
+        (void)pthread_detach(thread);
+        return;
+    }
+#endif
+
+    _nya_integrity_startup();
+}
+
+void nya_integrity_sweep(u64 now_ns) {
+    if (!NYA_SHIPPING_BUILD || !_nya_integrity_started) return;
+
+    NYA_IntegrityState* state = &_nya_integrity_state;
+    if (!atomic_load(&state->baseline_ready)) return;
+
+    if (state->sweep_next_ns == 0) state->sweep_next_ns = now_ns;
+
+    for (u32 step = 0; step < NYA_INTEGRITY_SWEEP_CATCH_UP_MAX && now_ns >= state->sweep_next_ns; step++) {
+        NYA_IntegrityStatus status = nya_integrity_sweep_step(state);
+        if (status != NYA_INTEGRITY_OK) nya_integrity_fail(status, "the executable's code changed while it ran");
+
+        state->sweep_next_ns += NYA_INTEGRITY_SWEEP_INTERVAL_NS;
+    }
+
+    // a stall longer than the catch up is dropped rather than repaid over the frames after it.
+    if (now_ns >= state->sweep_next_ns) state->sweep_next_ns = now_ns + NYA_INTEGRITY_SWEEP_INTERVAL_NS;
+}
+
+void nya_integrity_capture(NYA_IntegrityState* state, const u8* code, u64 size) {
+    nya_assert(state != nullptr);
+    nya_assert(code != nullptr || size == 0);
+    nya_assert(!atomic_load(&state->baseline_ready), "a baseline is captured once.");
+
+    // wider chunks rather than more of them, so the table stays a fixed size whatever the executable.
+    u64 chunk_bytes = NYA_INTEGRITY_CODE_CHUNK_BYTES;
+    while (chunk_bytes * NYA_INTEGRITY_CODE_CHUNK_MAX < size) chunk_bytes *= 2;
+
+    u32 chunk_count = (u32)((size + chunk_bytes - 1) / chunk_bytes);
+    u64 digest      = 0;
+
+    for (u32 i = 0; i < chunk_count; i++) {
+        u64 offset = (u64)i * chunk_bytes;
+        u64 length = nya_min(chunk_bytes, size - offset);
+
+        state->chunk_hashes[i] = nya_integrity_hash(&code[offset], length);
+        digest                 = _nya_integrity_fold(digest, state->chunk_hashes[i]);
+    }
+
+    state->code             = code;
+    state->code_size        = size;
+    state->chunk_bytes      = chunk_bytes;
+    state->chunk_count      = chunk_count;
+    state->baseline_digest  = digest;
+    state->last_pass_digest = digest;
+
+    // last: the sweep reads nothing above until this is set.
+    atomic_store(&state->baseline_ready, true);
+
+    nya_assert(state->chunk_count <= NYA_INTEGRITY_CODE_CHUNK_MAX);
+}
+
+NYA_IntegrityStatus nya_integrity_sweep_step(NYA_IntegrityState* state) {
+    nya_assert(state != nullptr);
+    nya_assert(atomic_load(&state->baseline_ready), "sweeping before the baseline was captured.");
+
+    if (state->chunk_count == 0) {
+        state->sweep_passes++;
+        return NYA_INTEGRITY_OK;
+    }
+
+    u32 index  = state->sweep_cursor;
+    u64 offset = (u64)index * state->chunk_bytes;
+    u64 hash   = nya_integrity_hash(&state->code[offset], nya_min(state->chunk_bytes, state->code_size - offset));
+
+    state->sweep_digest = _nya_integrity_fold(state->sweep_digest, hash);
+    state->sweep_cursor++;
+
+    if (state->sweep_cursor == state->chunk_count) {
+        state->last_pass_digest = state->sweep_digest;
+        state->sweep_digest     = 0;
+        state->sweep_cursor     = 0;
+        state->sweep_passes++;
+    }
+
+    return hash == state->chunk_hashes[index] ? NYA_INTEGRITY_OK : NYA_INTEGRITY_CODE_MODIFIED;
+}
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/*
- * ─────────────────────────────────────────────────────────
- * IN MEMORY
- * ─────────────────────────────────────────────────────────
- */
+void _nya_integrity_startup(void) {
+    NYA_Arena* arena = nya_arena_create(.name = "integrity");
+    defer      nya_arena_destroy(arena);
 
-void nya_integrity_baseline_capture(void) {
-    /*
-     * Not under ASan, where this read is a false positive by construction.
-     */
-    if (ASAN_ENABLED) {
-        nya_log_debug("Runtime integrity baseline skipped: ASan instrumentation makes the code region unhashable.");
-        return;
+    // asks the filesystem layer rather than reimplementing /proc/self/exe and GetModuleFileNameA here.
+    NYA_String* executable_path = nullptr;
+    if (!nya_filesystem_executable_path(arena, &executable_path).ok) nya_integrity_fail(NYA_INTEGRITY_FILE_MODIFIED, "the executable could not be located");
+
+    u64 stored   = 0;
+    u64 computed = 0;
+    if (!_nya_integrity_file_mac(nya_string_to_cstring(arena, executable_path), &stored, &computed)) {
+        nya_integrity_fail(NYA_INTEGRITY_FILE_MODIFIED, "the executable could not be read");
     }
 
-    const u8* start = nullptr;
-    u64       size  = 0;
+    // published whatever it is: the watchdog compares it with the stamp itself, so skipping the check below is not enough.
+    atomic_store(&_nya_integrity_state.executable_mac, computed);
+    if (stored != computed) nya_integrity_fail(NYA_INTEGRITY_FILE_MODIFIED, "the executable does not match its stamp");
 
-    if (!_nya_integrity_code_region(&start, &size)) {
-        nya_log_error("Could not locate the executable's code region; runtime integrity checks are disabled.");
-        return;
-    }
+    const u8* code = nullptr;
+    u64       size = 0;
 
-    _nya_integrity_code_baseline       = nya_siphash(start, size, _NYA_INTEGRITY_KEY_LOW, _NYA_INTEGRITY_KEY_HIGH);
-    _nya_integrity_code_baseline_taken = true;
+    if (!_nya_integrity_code_region(&code, &size)) nya_log_warn("Could not locate the executable's code; it is not swept.");
 
-    nya_log_debug("Integrity baseline captured over " FMTu64 " bytes of code.", size);
+    u64 started_ns = nya_clock_get_monotonic_ns();
+    nya_integrity_capture(&_nya_integrity_state, code, size);
+
+    nya_log_debug("Integrity baseline over " FMTu64 " KB of code in " FMTu32 " chunks took %.2f ms.", size / 1024, _nya_integrity_state.chunk_count,
+                  nya_time_ns_to_ms(nya_clock_get_monotonic_ns() - started_ns));
 }
 
-NYA_IntegrityStatus nya_integrity_verify_code(void) {
-    if (!_nya_integrity_code_baseline_taken) return NYA_INTEGRITY_NO_BASELINE;
+b8 _nya_integrity_file_mac(NYA_ConstCString path, OUT u64* out_stored, OUT u64* out_computed) {
+    nya_assert(path != nullptr);
+    nya_assert(out_stored != nullptr && out_computed != nullptr);
 
-    const u8* start = nullptr;
-    u64       size  = 0;
-    if (!_nya_integrity_code_region(&start, &size)) return NYA_INTEGRITY_UNAVAILABLE;
+    NYA_Arena* arena = nya_arena_create();
+    defer      nya_arena_destroy(arena);
 
-    u64 current = nya_siphash(start, size, _NYA_INTEGRITY_KEY_LOW, _NYA_INTEGRITY_KEY_HIGH);
+    NYA_String* binary_content = nya_string_create(arena);
+    if (!nya_file_read(path, binary_content).ok) return false;
+    if (binary_content->length == 0) return false;
 
-    return current == _nya_integrity_code_baseline ? NYA_INTEGRITY_OK : NYA_INTEGRITY_CODE_MODIFIED;
-}
+    u64 hash_offset = 0;
+    if (!_nya_integrity_find_sentinel(binary_content->items, binary_content->length, &hash_offset)) return false;
 
-u64 nya_integrity_code_size(void) {
-    const u8* start = nullptr;
-    u64       size  = 0;
+    nya_memcpy(out_stored, &binary_content->items[hash_offset], sizeof(u64));
+    *out_computed = _nya_integrity_compute_mac(binary_content->items, binary_content->length, hash_offset);
 
-    return _nya_integrity_code_region(&start, &size) ? size : 0;
+    return true;
 }
 
 /**

@@ -74,10 +74,135 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: nya_integrity_assert returns without crashing in debug builds
+  // TEST: the runtime checks do nothing outside a shipping build
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    nya_integrity_assert();
+    nya_integrity_start();
+    nya_integrity_sweep(nya_clock_get_monotonic_ns());
+    nya_integrity_watchdog(nya_clock_get_monotonic_ns());
+    nya_assert(!_nya_integrity_started, "a test build must not start the process checks");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the integrity hash is keyed, stable, and sees every byte
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    const u8 bytes[] = { 'n', 'y', 'a' };
+    nya_assert(nya_integrity_hash(bytes, sizeof(bytes)) == nya_integrity_hash(bytes, sizeof(bytes)));
+    nya_assert(nya_integrity_hash(bytes, sizeof(bytes)) != nya_siphash(bytes, sizeof(bytes), 0, 0), "the hash must use the integrity key");
+    nya_assert(nya_integrity_hash(bytes, 2) != nya_integrity_hash(bytes, 3));
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a sweep over unchanged code completes passes that agree with the baseline
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // three and a half chunks, so the short last chunk is covered too.
+    u64 size = (NYA_INTEGRITY_CODE_CHUNK_BYTES * 3) + (NYA_INTEGRITY_CODE_CHUNK_BYTES / 2);
+    u8* code = nya_arena_alloc(arena, size);
+    for (u64 i = 0; i < size; i++) code[i] = (u8)((i * 131) ^ (i >> 7));
+
+    NYA_IntegrityState* state = nya_arena_alloc(arena, sizeof(NYA_IntegrityState));
+    memset(state, 0, sizeof(NYA_IntegrityState));
+    nya_integrity_capture(state, code, size);
+
+    nya_assert(state->chunk_count == 4);
+    nya_assert(state->chunk_bytes == NYA_INTEGRITY_CODE_CHUNK_BYTES);
+
+    for (u32 pass = 0; pass < 2; pass++) {
+      for (u32 i = 0; i < state->chunk_count; i++) nya_assert(nya_integrity_sweep_step(state) == NYA_INTEGRITY_OK);
+    }
+
+    nya_assert(state->sweep_passes == 2);
+    nya_assert(state->last_pass_digest == state->baseline_digest);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a sweep reports a patched byte in the chunk that holds it, and code too large widens the chunks
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    u64 size = NYA_INTEGRITY_CODE_CHUNK_BYTES * 4;
+    u8* code = nya_arena_alloc(arena, size);
+    for (u64 i = 0; i < size; i++) code[i] = (u8)(i * 7);
+
+    NYA_IntegrityState* state = nya_arena_alloc(arena, sizeof(NYA_IntegrityState));
+    memset(state, 0, sizeof(NYA_IntegrityState));
+    nya_integrity_capture(state, code, size);
+
+    code[(NYA_INTEGRITY_CODE_CHUNK_BYTES * 2) + 5] = 0xCC; // an int3
+
+    nya_assert(nya_integrity_sweep_step(state) == NYA_INTEGRITY_OK);
+    nya_assert(nya_integrity_sweep_step(state) == NYA_INTEGRITY_OK);
+    nya_assert(nya_integrity_sweep_step(state) == NYA_INTEGRITY_CODE_MODIFIED);
+    nya_assert(nya_integrity_sweep_step(state) == NYA_INTEGRITY_OK);
+    nya_assert(state->last_pass_digest != state->baseline_digest, "a pass over patched code must not fold to the baseline");
+
+    NYA_IntegrityState* wide = nya_arena_alloc(arena, sizeof(NYA_IntegrityState));
+    memset(wide, 0, sizeof(NYA_IntegrityState));
+    u64 wide_size = (NYA_INTEGRITY_CODE_CHUNK_BYTES * NYA_INTEGRITY_CODE_CHUNK_MAX) + 1;
+    u8* wide_code = nya_arena_alloc(arena, wide_size);
+    memset(wide_code, 0x90, wide_size);
+    nya_integrity_capture(wide, wide_code, wide_size);
+    nya_assert(wide->chunk_count <= NYA_INTEGRITY_CODE_CHUNK_MAX);
+    nya_assert(wide->chunk_bytes == NYA_INTEGRITY_CODE_CHUNK_BYTES * 2);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the watchdog holds the startup check and the sweep to their deadlines
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    const u64 stamped = 0x1234;
+    const u64 second  = 1'000'000'000ULL;
+
+    u8 code[256];
+    memset(code, 0xC3, sizeof(code));
+
+    NYA_IntegrityState* state = nya_arena_alloc(arena, sizeof(NYA_IntegrityState));
+    memset(state, 0, sizeof(NYA_IntegrityState));
+
+    // nothing finished yet is fine until the startup deadline, counted a second a call at most.
+    u64 now = second;
+    nya_assert(nya_integrity_watchdog_verdict(state, stamped, now) == NYA_INTEGRITY_OK);
+    now += 3600 * second; // a suspended machine
+    nya_assert(nya_integrity_watchdog_verdict(state, stamped, now) == NYA_INTEGRITY_OK, "one long gap must not count as a stall");
+
+    for (u32 i = 0; i < 31; i++) {
+      now += second;
+      (void)nya_integrity_watchdog_verdict(state, stamped, now);
+    }
+    nya_assert(nya_integrity_watchdog_verdict(state, stamped, now) == NYA_INTEGRITY_CHECK_SKIPPED, "a startup check that never finishes is a finding");
+
+    // a startup check that computed something other than the stamp is a finding even if it said nothing.
+    memset(state, 0, sizeof(NYA_IntegrityState));
+    atomic_store(&state->executable_mac, stamped + 1);
+    nya_assert(nya_integrity_watchdog_verdict(state, stamped, second) == NYA_INTEGRITY_CHECK_SKIPPED);
+
+    // a sweep that keeps completing passes keeps the watchdog quiet, one that stops does not.
+    memset(state, 0, sizeof(NYA_IntegrityState));
+    atomic_store(&state->executable_mac, stamped);
+    nya_integrity_capture(state, code, sizeof(code));
+
+    now = second;
+    for (u32 i = 0; i < 120; i++) {
+      now += second / 2;
+      nya_assert(nya_integrity_sweep_step(state) == NYA_INTEGRITY_OK);
+      nya_assert(nya_integrity_watchdog_verdict(state, stamped, now) == NYA_INTEGRITY_OK);
+    }
+
+    b8 flagged = false;
+    for (u32 i = 0; i < 60 && !flagged; i++) {
+      now += second;
+      flagged = nya_integrity_watchdog_verdict(state, stamped, now) != NYA_INTEGRITY_OK;
+    }
+    nya_assert(flagged, "a sweep that stopped must be noticed");
+
+    // a pass folding to something else, as a sweep skipping its comparison would leave it, is a finding.
+    memset(state, 0, sizeof(NYA_IntegrityState));
+    atomic_store(&state->executable_mac, stamped);
+    nya_integrity_capture(state, code, sizeof(code));
+    state->sweep_passes     = 1;
+    state->last_pass_digest = state->baseline_digest ^ 1;
+    nya_assert(nya_integrity_watchdog_verdict(state, stamped, second) == NYA_INTEGRITY_CHECK_SKIPPED);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

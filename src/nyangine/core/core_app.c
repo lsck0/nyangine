@@ -18,9 +18,6 @@ NYA_App _NYA_APP_INSTANCE;
 
 NYA_INTERNAL void _nya_app_handle_shutdown_signal(NYA_Signal signal);
 
-/** Runs nya_integrity_assert off the main thread. */
-NYA_INTERNAL int _nya_app_integrity_thread(void* user_data);
-
 /** Samples the clock once for the frame and books the time since the last one against the update debt. */
 NYA_INTERNAL void _nya_app_advance_frame_clock(void);
 
@@ -204,16 +201,8 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     // uptime starts here, so it includes the integrity check and SDL_Init below.
     u64 started_ns = nya_clock_get_monotonic_ns();
 
-    // hashing the whole executable takes about 10 ms, so shipping builds check it beside startup. A mismatch
-    // still crashes the process, a few frames in at most.
-    if (NYA_SHIPPING_BUILD) {
-        SDL_Thread* integrity = SDL_CreateThread(_nya_app_integrity_thread, "integrity", nullptr);
-        if (integrity != nullptr) SDL_DetachThread(integrity);
-        if (integrity == nullptr) nya_integrity_assert();
-    }
-
-    // as early as possible: the integrity baseline only means something before anything could hook the process.
-    nya_integrity_baseline_capture();
+    // as early as possible: a code baseline only means something before anything could hook the process.
+    nya_integrity_start();
 
     nya_signals_init();
     nya_signals_set_handler(NYA_SIGNAL_HANGUP, _nya_app_handle_shutdown_signal);
@@ -415,6 +404,10 @@ void nya_app_run(void) {
                 .type = NYA_EVENT_FRAME_ENDED,
             });
 
+            // the sweep and a second copy of the watchdog, which also runs every tick, so neither is one patch away.
+            nya_integrity_sweep(app->frame_stats.frame_end_time_ns);
+            nya_integrity_watchdog(app->frame_stats.frame_end_time_ns);
+
             if (!first_frame_reported) {
                 first_frame_reported = true;
                 nya_log_info("First frame presented after %.1f ms.", nya_time_ns_to_ms(nya_app_uptime_ns()));
@@ -471,6 +464,8 @@ void _nya_app_update(void) {
         // set once per tick before anything reads it, so every observer of NYA_EVENT_UPDATING_STARTED sees this
         // tick's value.
         app->frame_stats.delta_time_s = (f32)nya_time_ns_to_s(app->options.time_step_ns);
+
+        nya_integrity_watchdog(app->frame_stats.frame_start_time_ns);
 
         // before anything moves an entity, so a draw between this tick and the next starts from here.
         nya_system_entity_transforms_capture();
@@ -667,13 +662,6 @@ void nya_app_options_update(NYA_AppOptions options) {
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
-
-int _nya_app_integrity_thread(void* user_data) {
-    nya_unused(user_data);
-
-    nya_integrity_assert();
-    return 0;
-}
 
 void _nya_app_handle_shutdown_signal(NYA_Signal signal) {
     nya_unused(signal);

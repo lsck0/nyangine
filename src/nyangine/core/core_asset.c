@@ -622,7 +622,22 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
         NYA_AssetBlobHeader asset_header = NYA_ASSET_BLOB_HEADER[asset_header_index];
         if (!nya_string_equals(asset_header.path, path)) continue;
 
-        const u8* stored = asset_header.data;
+        const u8*        stored = asset_header.data;
+        NYA_AssetSystem* system = &nya_app_get()->asset_system;
+
+        if (system->blob_expanded == nullptr) {
+            u64 bytes             = NYA_ASSET_BLOB_HEADER_COUNT * sizeof(NYA_AssetBlobExpanded);
+            system->blob_expanded = nya_arena_alloc(system->allocator, bytes);
+            nya_memset(system->blob_expanded, 0, bytes);
+        }
+
+        NYA_AssetBlobExpanded* expanded = &system->blob_expanded[asset_header_index];
+
+        // once per entry, on first load: an edited asset stops the game instead of loading.
+        if (!expanded->verified) {
+            if (nya_integrity_hash(stored, asset_header.compressed_size) != asset_header.hash) nya_integrity_fail(NYA_INTEGRITY_ASSET_MODIFIED, path);
+            expanded->verified = true;
+        }
 
         // stored verbatim (LZ4 could not shrink it): pointed at directly, no allocation and no copy.
         if (asset_header.compressed_size == asset_header.size) {
@@ -636,16 +651,6 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
         }
 
         // compressed: expanded once and shared, reference counted, by every asset reading this entry.
-        NYA_AssetSystem* system = &nya_app_get()->asset_system;
-
-        if (system->blob_expanded == nullptr) {
-            u64 bytes             = NYA_ASSET_BLOB_HEADER_COUNT * sizeof(NYA_AssetBlobExpanded);
-            system->blob_expanded = nya_arena_alloc(system->allocator, bytes);
-            nya_memset(system->blob_expanded, 0, bytes);
-        }
-
-        NYA_AssetBlobExpanded* expanded = &system->blob_expanded[asset_header_index];
-
         if (expanded->references == 0) {
             u8* data = nya_arena_alloc(system->allocator, asset_header.size);
             if (data == nullptr) {
