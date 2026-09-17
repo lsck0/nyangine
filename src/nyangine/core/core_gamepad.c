@@ -221,7 +221,9 @@ void nya_system_gamepad_frame_begin(void) {
         if (!_nya_gamepad_system.ready) nya_log_warn("SDL_InitSubSystem(SDL_INIT_GAMEPAD) failed, gamepads are unavailable: %s", SDL_GetError());
     }
 #endif
+}
 
+void nya_system_gamepad_tick_end(void) {
     for (u32 i = 0; i < NYA_GAMEPAD_MAX; i++) {
         _NYA_GamepadSlot* slot = &_nya_gamepad_system.slots[i];
         if (!slot->open) continue;
@@ -229,8 +231,7 @@ void nya_system_gamepad_frame_begin(void) {
         nya_memset(slot->just_pressed, 0, sizeof(slot->just_pressed));
         nya_memset(slot->just_released, 0, sizeof(slot->just_released));
 
-        // Snapshot before this frame's motion events arrive, which is what gives an axis-as-button
-        // the same just-pressed and just-released edges an ordinary button has.
+        // the snapshot is what gives an axis-as-button the same edges an ordinary button has.
         nya_memcpy(slot->axes_previous, slot->axes, sizeof(slot->axes));
     }
 }

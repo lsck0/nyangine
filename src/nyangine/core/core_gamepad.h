@@ -120,8 +120,14 @@ typedef enum NYA_GamepadKind {
 NYA_API void nya_system_gamepad_init(void);
 NYA_API void nya_system_gamepad_deinit(void);
 
-/** Rolls the just-pressed and just-released edges. Called once per frame, before events are handled. */
+/** Starts SDL's gamepad subsystem on the second frame. Called once per frame, before events are handled. */
 NYA_API void nya_system_gamepad_frame_begin(void);
+
+/**
+ * Rolls the just-pressed and just-released edges at the end of each update tick, as keys do. Per tick rather
+ * than per frame, so a frame without a tick keeps a press and one with two ticks reports it once.
+ * */
+NYA_API void nya_system_gamepad_tick_end(void);
 
 /** Consumes an SDL gamepad event. Returns whether it was one. */
 NYA_API b8 nya_system_gamepad_handle_sdl_event(const void* sdl_event);

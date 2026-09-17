@@ -5,7 +5,17 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
+#include "SDL3/SDL_events.h"
 #include "SDL3/SDL_init.h"
+#include "SDL3/SDL_joystick.h"
+
+/** Hands every queued SDL event to the gamepad system, as a frame's event drain does. */
+static void pump(void) {
+    SDL_PumpEvents();
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) (void)nya_system_gamepad_handle_sdl_event(&event);
+}
 
 s32 main(void) {
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
@@ -62,6 +72,45 @@ s32 main(void) {
 
         nya_system_gamepad_frame_begin();
         nya_check(SDL_WasInit(SDL_INIT_GAMEPAD) != 0, "and stays up");
+    }
+
+    // ── Edges roll at the end of an update tick, not at a frame, as key edges do.
+    {
+        SDL_VirtualJoystickDesc description;
+        SDL_INIT_INTERFACE(&description);
+        description.type     = SDL_JOYSTICK_TYPE_GAMEPAD;
+        description.naxes    = SDL_GAMEPAD_AXIS_COUNT;
+        description.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+
+        SDL_JoystickID joystick = SDL_AttachVirtualJoystick(&description);
+        nya_assert(joystick != 0, "SDL_AttachVirtualJoystick failed: %s", SDL_GetError());
+        SDL_Joystick* handle = SDL_OpenJoystick(joystick);
+        nya_assert(handle != nullptr, "SDL_OpenJoystick failed: %s", SDL_GetError());
+
+        pump();
+        NYA_GamepadId pad = nya_gamepad_at(0);
+        nya_check(pad != NYA_GAMEPAD_NONE, "the virtual pad connects");
+
+        nya_assert(SDL_SetJoystickVirtualButton(handle, SDL_GAMEPAD_BUTTON_SOUTH, true), "%s", SDL_GetError());
+        pump();
+        nya_check(nya_gamepad_button_just_pressed(pad, NYA_GAMEPAD_BUTTON_SOUTH), "a press is an edge");
+
+        nya_system_gamepad_frame_begin();
+        nya_check(nya_gamepad_button_just_pressed(pad, NYA_GAMEPAD_BUTTON_SOUTH), "a frame that ran no tick keeps it");
+
+        nya_system_gamepad_tick_end();
+        nya_check(!nya_gamepad_button_just_pressed(pad, NYA_GAMEPAD_BUTTON_SOUTH), "the tick that saw it consumes it");
+        nya_check(nya_gamepad_button_pressed(pad, NYA_GAMEPAD_BUTTON_SOUTH), "while the button stays held");
+
+        nya_assert(SDL_SetJoystickVirtualButton(handle, SDL_GAMEPAD_BUTTON_SOUTH, false), "%s", SDL_GetError());
+        pump();
+        nya_check(nya_gamepad_button_just_released(pad, NYA_GAMEPAD_BUTTON_SOUTH), "a release is an edge");
+        nya_system_gamepad_tick_end();
+        nya_check(!nya_gamepad_button_just_released(pad, NYA_GAMEPAD_BUTTON_SOUTH), "consumed the same way");
+
+        SDL_CloseJoystick(handle);
+        SDL_DetachVirtualJoystick(joystick);
+        pump();
     }
 
     // ── The deadzone rescales rather than clamping, so a control eases in instead of snapping.

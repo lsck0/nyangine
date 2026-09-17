@@ -338,7 +338,6 @@ void nya_app_run(void) {
             // first file.
             nya_log_directory_roll();
 
-            // before events are drained: the edges it clears come from those events.
             nya_system_gamepad_frame_begin();
         }
 

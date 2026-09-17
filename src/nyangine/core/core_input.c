@@ -672,6 +672,7 @@ void _nya_system_event_on_update_ended_hook(NYA_Event* event) {
     NYA_InputSystem* system = &nya_app_get()->input_system;
 
     _nya_input_state_end_frame(&system->merged);
+    nya_system_gamepad_tick_end();
 
     for (u32 player = 0; player < NYA_INPUT_MAX_PLAYERS; player++) {
         if (system->players[player].keys_pressed == nullptr) continue;
