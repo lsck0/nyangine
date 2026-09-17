@@ -36,7 +36,11 @@ In progress:
   outline mask, cascade colours).
 - `[~]` Tilt-shift depth of field, projected decals, HDR swapchain output when the display supports it,
   cartoon speed lines.
-- `[~]` A skinned, animated model in the 3D demo.
+- A skinned, animated bar (bender.fbx) in the 3D demo, lit and shadow casting, posed once per tick so
+  every cascade matches the camera; `f` freezes it. The 2D ledge marker is an animated sprite with a frame
+  event. `game.animation_speed` sets both clocks live.
+- `[ ]` The skinned draw sets no bounds, so it is never culled, and ignores material parts and textures.
+- `[ ]` No test reaches the non-headless skinned draw.
 
 Not started:
 
@@ -79,19 +83,16 @@ depth target was `DONT_CARE` while resume `LOAD`ed it.
   The same is why `shadow_bias`, `shadow_cascades` and `shadow_map_size` are loaded and read by nothing.
   Either the engine owns the config instance or these stay macros.
 
-## `[~]` SDF text: works, looks unconfirmed
+## `[~]` SDF text
 
-`text_sdf.frag.hlsl` and `NYA_RENDER2D_PIPELINE_TEXT_SDF` exist; the pipeline follows what the atlas was
-baked as, and SDF atlases sample linearly. `nya_font_sdf_set` works at registration. Verified in game:
-`@17` bakes coverage, `@28` (title) bakes a distance field. `test_render_font_sdf.c` covers it headless.
+The menu draws through the NYA_Font registry ("menu" at 22, "menu_title" at 44 as a distance field).
+Compared on screen with the bitmap: at a smoothing floor of 1/16 the edge was two pixels and softer; at 1/32
+edge and stroke weight match.
 
-- `[ ]` Nobody has compared it on screen with the bitmap it replaced. `TEXT_SDF_MIN_SMOOTHING` and the
-  other shader constants are guesses.
-- The atlas latches its mode at bake time. Changing the mode after drawing leaves a wrong atlas; fixing
-  that needs render2d, and its headless counterpart, to drop cached atlases for a face.
-- The menu cannot use it: `layers.c` draws through `nya_render2d_text_with_font(GNY_MENU_FONT, 44, ...)`,
-  which bypasses the NYA_Font registry the requests are keyed on. Move the menu to NYA_Font, or key
-  requests lower down.
+- `[ ]` The SDF title sits about 3 px left of the bitmap position; the measured width seems to include the
+  field's padding.
+- `[ ]` The HUD's 28 pt title is not rechecked at the new smoothing.
+- The atlas latches its mode at bake time.
 
 ## `[ ]` Budgets
 
@@ -100,13 +101,12 @@ baked as, and SDF atlases sample linearly. `nya_font_sdf_set` works at registrat
 ### Glyph atlas
 
 Atlases are R8 coverage with `NYA_RENDER2D_PIPELINE_TEXT` for coverage text, 128 cells each (was 512). The
-busiest atlas fills 53 (game HUD plus debug overlay), the menu's `@44` 10 and `@22` 28. `@44` is 1152x544
-(was 1152x2176); across the three fonts the texture and its CPU coverage are 0.85 MB each (were 3.4 MB).
-A full atlas warns once and draws new glyphs blank.
+busiest atlas fills 53 (game HUD plus debug overlay), the menu's `@22` 28. A full atlas warns once and draws
+new glyphs blank. Distance field cells include SDL_ttf's 8 texel spread on each side, which clipped 68 of 95
+glyphs at 17 pt before; the `@44` distance field title atlas is 1440x544.
 
 Glyphs upload one cell at a time through a cell sized transfer buffer: the menu and HUD fonts staged 3.4 MB
-of transfer buffers, now 7 KB. The 2D game and 3D demo report about 220 KiB less GTT through fdinfo; `@44`
-alone was over SDL's 2 MiB large allocation threshold.
+of transfer buffers, now 7 KB.
 
 ### The scene is emitted four times a frame
 
@@ -130,12 +130,12 @@ physics is a heightfield.
 ### Vertex formats
 
 `NYA_Vertex3D` is 36 bytes (was 64): FLOAT3 position and normal, HALF2 uv, HALF4 colour. Colour stays
-half float because emissive colours exceed one (`GNY_CUBE3D_FIRE_COLOR_START` is 1.15 red). The helpers
-sit outside `#if NYA_HEADLESS_ENABLED` so both builds link.
+half float because emissive colours exceed one. `NYA_VertexSkinned3D` is 44 bytes (was 96): the same plus
+UBYTE4 bone indices and UBYTE4_NORM weights summing to exactly 255, the rounding remainder on the strongest
+influence. bender.fbx's vertex buffer went from 621 KB to 285 KB.
 
 - `[ ]` Octahedral SNORM16x2 normals would reach 28 bytes, but `mesh3d_edge` takes `fwidth` of the
   interpolated normal. Measure first.
-- `[ ]` `NYA_VertexSkinned3D` still has the wide layout.
 
 ### Asset blob
 
@@ -146,48 +146,55 @@ and shared by reference count.
 
 ### Static memory
 
-From `nm --size-sort -S` on the release binary:
+From `nm --size-sort -S` on the release binary. `.bss` went from 2.45 MB to 0.77 MB.
 
-| Object                                | Size         |                               |
-| :------------------------------------ | -----------: | :---------------------------- |
-| `NYA_ASSET_BLOB`                      | 12.4 MB      | `.rodata`                     |
-| `b3_worlds` / `b2_worlds`             | 596 + 344 KB | resident even if unused       |
-| `_nya_audio_system`                   | 446 KB       | `.bss`                        |
-| `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` | 266 + 80 KB  | resident in single player     |
-| `dphaseTable` / `tllTable`            | 256 + 128 KB | vendored audio decoder tables |
-| `_nya_gpu_memory`                     | 49 KB        | GPU handle table              |
+| Object                                | Size         |                                          |
+| :------------------------------------ | -----------: | :--------------------------------------- |
+| `NYA_ASSET_BLOB`                      | 12.4 MB      | `.rodata`                                |
+| `b3_worlds` / `b2_worlds`             | 37 + 21 KB   | 8 worlds each via the vendor rules (was 596 + 344 KB) |
+| `_nya_audio_system`                   | 3.6 KB       | reverb lines allocated per bus on first use (was 446 KB) |
+| `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` | 4 + 3 KB     | replica map only for remote clients, peers per used slot |
+| `dphaseTable` / `tllTable`            | 256 + 128 KB | vendored audio decoder tables            |
 
-- `[ ]` The solver pools are the largest statics and do not shrink when a scene uses one dimension.
+Release RSS: 2D game 72.2 to 66.8 MiB, 3D demo 77.9 to 72.5 MiB. The entity table reserves address space and
+commits 256 slots (172 KB) at a time as spawning reaches them, instead of 5.25 MiB zeroed at startup; spawn
+plus despawn of 1024 went from 147 µs to 26 µs, mostly because `nya_tween_cancel_target` stops at the last
+live tween. A checkout built before this keeps 128 world box2d/box3d until `vendor/box2d/build-*` and
+`vendor/box3d/build-*` are deleted.
 
 ### VRAM
 
-| What                          | Size         |                                   |
-| :---------------------------- | -----------: | :-------------------------------- |
-| Swapchain MSAA colour + depth | 28 MB        | 4x, D24S8                         |
-| Shadow atlas colour + depth   | 19 MB        | strip, R16_UNORM + D24S8          |
-| Glyph atlases                 | 0.85 MB      | R8, three fonts                   |
-| Each offscreen render texture | up to 32 MB  | colour plus its own MSAA and depth |
-| Refraction capture            | 3.5 MB       | full resolution copy              |
-| Batch + transfer buffers      | 3.8 MB       |                                   |
+MSAA is runtime configurable (`NYA_RenderOptions.msaa_samples`, `engine.renderer.msaa_samples` in
+`engine.nya`, hot reloaded). Pipelines build single sampled and multisampled variants on first use. The post
+chain holds its second target, single sampled without depth, only while two or more passes run.
 
-The debug overlay's memory rows include `gpu_textures`, `gpu_buffers` and `gpu_transfer`, counted at every
-create and release (`render_gpu_memory.h`), which is what SDL is asked for, not the driver's pages. Debug,
-1280x720, 4x MSAA: 2D game 77.5 / 1.7 / 1.7 MiB, 3D demo 107.0 / 2.1 / 1.7 MiB.
+`gpu_textures` at 1280x720, debug, by sample count 1 / 2 / 4 / 8:
 
-- `[~]` Render textures can skip depth (`NYA_RENDER_TEXTURE_DEPTH_NONE`, used by the post chain). The
-  MSAA half needs single sampled pipeline variants, which
-  `NYA_AssetLoadParameters.as_graphics_pipeline.single_sampled` supports.
+| Scene    |    1 |    2 |    4 |     8 |
+| :------- | ---: | ---: | ---: | ----: |
+| 2D game  |  7.1 | 24.7 | 45.8 |  88.0 |
+| 3D demo  | 40.2 | 61.3 | 89.4 | 145.6 |
 
-### Text is reshaped every frame
+At 4x this was 77.5 and 107.0 MiB before. The debug overlay's `gpu_textures`, `gpu_buffers` and
+`gpu_transfer` rows count what SDL is asked for, not the driver's pages.
 
-The main menu draws six constant strings and spends about 5% of its profile in `TTF_UpdateText`,
-`GetWrappedLines` and `TTF_Size_Internal`, plus the allocations beneath. `bench/bench_text.c` prices a
-HUD frame at 43 µs, so shaping on demand is fine, but a run cache keyed on (face, size, text, wrap) and
-tagged with the font asset's `generation` (a `NYA_Cache`, see `base_cache.h`) would remove it.
+- `[ ]` Half resolution bloom target.
+- `[ ]` Measure driver VRAM, not only what SDL is asked for.
+
+### Text shaping
+
+`nya_text_shape_with_font` and `nya_text_measure_with_font` keep one `TTF_Text` per (wrap width, face and
+size, text) in a least recently used `NYA_Cache` (`text_runs`, 128 entries, keys up to 256 bytes), tagged
+with the font asset's generation. A 20 line HUD frame went from 41.5 µs to 3.4 µs; the main menu's draw from
+about 25 µs to 7 µs.
+
+- `[ ]` `_nya_font_sdf_apply_pending` looks up each request's face on every measure and draw (about 1 µs of
+  the menu).
 
 ### Measurement
 
-- `[ ]` RSS has no breakdown by arena anywhere a profile can reach.
+`nya_arena_resident_bytes` measures resident pages per arena. The arena report and the debug overlay show used
+and resident per arena plus process RSS; opening the overlay in gnyame logs the full report.
 
 ## `[ ]` Reports from other machines
 
@@ -201,16 +208,16 @@ tagged with the font asset's `generation` (a `NYA_Cache`, see `base_cache.h`) wo
 - `[ ]` Resident memory differs by machine (300 MB, 150 MB, 50 MB + 150 MB VRAM). Arenas no longer allocate
   64 MiB regions, which Windows committed up front; the rest is the GPU driver mapping into the process,
   which on integrated GPUs counts texture memory as RAM. Measure per driver before changing anything.
-- `[ ]` The entity table is `NYA_ENTITY_MAX` (8192) × `sizeof(NYA_Entity)` plus index arrays, about 5.5 MiB,
-  allocated at startup. Either a smaller ceiling for this game or a hot/cold split of NYA_Entity.
 
 ## `[ ]` Startup time
 
-Release on Linux/Wayland reaches the first frame about 65 ms after exec (was 135). Startup logs engine
-init, subsystems and first frame; each subsystem's bring-up time is at debug level.
+Release on Linux/Wayland reaches the first frame in about 46 ms (2D) and 56 ms (3D) after exec (was 135).
+Startup logs engine init, subsystems and first frame; each subsystem's bring-up time is at debug level.
 
-- `[ ]` The renderer's GPU device takes ~24 ms and window plus swapchain ~15 ms, both on the main thread.
-- `[ ]` The gamepad subsystem now starts after the first frame, so frame two carries its ~40 ms.
+- The gamepad subsystem starts after the first frame, so frame two carries its ~42 ms. It cannot move to a
+  thread: SDL requires `SDL_InitSubSystem` on the main thread, IOKit binds its HID manager to the calling
+  thread's run loop, and the Windows notification windows belong to their creating thread.
+- `[ ]` The renderer's GPU device takes ~21 ms and window plus swapchain ~10 ms, both on the main thread.
 - `[ ]` Not measured on Windows.
 
 ## `[ ]` UI system
@@ -227,14 +234,6 @@ init, subsystems and first frame; each subsystem's bring-up time is at debug lev
 - `net_steam.c` returns `NYA_ERROR_NOT_SUPPORTED`.
 - `plugins/steam/steam.c` has never been compiled: `FLAGS_STEAM_*` in `src/build/flags.h` define
   `NYA_PLUGIN_STEAM`, but no build rule uses them. `NYA_EXECUTION_MODE=3` is called "steam".
-
-## `[ ]` gnyame
-
-- `[ ]` The menu widget has no test; screens.c is only exercised by hand.
-
-## `[ ]` The game side has no tests
-
-`tests/gnyame/` holds a `.keep`.
 
 ## `[~]` CI
 
@@ -263,11 +262,12 @@ build jobs restore it.
 
   Warm, the 27 s is about 19 s of running tests one at a time and the links. Release stays slow warm
   because both executables are LTO, and LTO codegen happens in the link.
-- `-DGIT_COMMIT` changes on every commit, so ccache's direct mode misses on a new commit and finds the
-  hit by preprocessing instead: the warm test run on a fresh commit was 164 of 164 preprocessed hits in
-  28 s. Nothing reads NYA_GIT_COMMIT yet, so keeping it off compile commands would make those direct.
-- `[ ]` The shared engine scan is coarse: most of the 81 tests compiling their own engine only name a
-  public `_nya_` macro or function. Refining it roughly halves a cold test build again.
+- Compile commands no longer carry the commit hash, so a new commit gets 170 of 170 direct ccache hits
+  and a 27 s warm test run (was preprocessed hits and 42 s).
+- The shared engine scan lexes the engine headers and shares the engine when every `_nya_`/`_NYA_` name a
+  test uses is declared there outside a `NYA_INTERNAL` line: 139 of 171 tests share it. Cold
+  `NYA_CCACHE=off ./build run test` went from 76 s to 45 s. The rest name static internals, define
+  something before including the engine, or use generated reflection names.
 - `nya_build_parallel` is a pool that starts the next rule as soon as any finishes. `./build run test` on
   the 8 thread dev machine: 111 s with batches, 106 s with the pool. The gain is small because test
   compiles all take 3.5 to 5 s; it grows with uneven rules.
@@ -276,26 +276,9 @@ build jobs restore it.
 
 ## `[ ]` The verification rule is not being kept
 
-Nothing in the game touches nn/DQN/NEAT, skeletons, saves, nav, jobs, occlusion, LOD, gamepads, or the
+Nothing in the game touches nn/DQN/NEAT, saves, nav, jobs, occlusion, LOD, gamepads, or the
 sqlite, curl, discord and steam plugins. nn matters most: the GDD makes DQN and NEAT robot programming
 the core mechanic.
-
-## `[ ]` Animation has no caller in the game
-
-Skeletons, skinned meshes and the sprite animator are only reached from tests. `bender.fbx` is loaded
-by `test_skeleton.c` and never drawn. Bone order, multi-mesh skins, event direction and root motion are
-covered headless; a skinned draw on screen is not.
-
-## `[ ]` The glyph atlas rasteriser is untested
-
-It needs a device, and the same unsigned overflow bug shipped twice because of it. The R8 bake is the
-newest untested code in the tree, verified only by reading the screen.
-
-## `[ ]` No test reaches `render3d.c`
-
-Tests build headless, which swaps in `render3d_headless.c`, so `_nya_render3d_visible`, the frustum
-build and culling are uncovered. Move culling into a unit both builds include, or add a non-headless
-test target.
 
 ---
 
