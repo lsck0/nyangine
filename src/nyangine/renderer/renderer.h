@@ -352,12 +352,6 @@ struct NYA_Render3DSortKey {
 typedef struct NYA_Render3DRegisteredMesh NYA_Render3DRegisteredMesh;
 
 struct NYA_Render3DRegisteredMesh {
-    /**
-     * A copy of the handle, compared by content. A pointer key breaks for handles built in a caller's buffer
-     * and for DLL literals after a hot reload. Empty means the slot is free.
-     * */
-    char handle[NYA_RENDER3D_MESH_HANDLE_MAX];
-
     SDL_GPUBuffer* vertices;
     u32            vertex_count;
 
@@ -532,11 +526,8 @@ struct NYA_Render3DBatch {
     NYA_Render3DMeshGroup mesh_groups[NYA_RENDER3D_MAX_MESH_GROUPS];
     u32                   mesh_group_count;
 
-    /** Geometry registered by the game. A flat array: a scene has a handful of generated meshes. */
-    NYA_Render3DRegisteredMesh registered_meshes[NYA_RENDER3D_MAX_REGISTERED_MESHES];
-
-    /** FNV-1a of each slot's handle, zero when free, kept apart from the slots so a scan stays in cache. */
-    u64 registered_mesh_keys[NYA_RENDER3D_MAX_REGISTERED_MESHES];
+    /** Geometry registered by the game: NYA_Render3DRegisteredMesh values keyed by handle text. */
+    NYA_Cache* registered_meshes;
 
     /** Ink width in world units, and its colour. Zero width switches the outline pass off. */
     f32       outline_thickness;

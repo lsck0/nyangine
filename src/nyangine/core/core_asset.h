@@ -426,6 +426,12 @@ struct NYA_Asset {
     atomic u64 reference_count;
 
     /**
+     * Which load this is, unique across the run and set each time the asset finishes loading. Whatever a
+     * consumer derives from an asset (a glyph atlas) is tagged with it, so a reload reads as stale.
+     * */
+    u64 generation;
+
+    /**
      * Already sitting in the unloading queue.
      * */
     b8 queued_for_unload;

@@ -438,6 +438,18 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     *mesh_batch = (NYA_Render3DBatch){ 0 };
 
+    mesh_batch->registered_meshes = nya_cache_create(
+        app->render_system.allocator,
+        NYA_Render3DRegisteredMesh,
+        .name         = "registered_meshes",
+        .capacity     = NYA_RENDER3D_MAX_REGISTERED_MESHES,
+        // the handle without its terminator.
+        .key_size_max = NYA_RENDER3D_MESH_HANDLE_MAX - 1,
+        // refused when full: a registration is expected to stay until released.
+        .eviction     = NYA_CACHE_EVICTION_REFUSE,
+        .destructor   = _nya_render3d_registered_destroy,
+    );
+
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
       .handle    = NYA_ASSET_SHADER_MESH3D_VERT,
@@ -978,19 +990,7 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     if (mesh_batch->instance_transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, mesh_batch->instance_transfer_buffer);
 
     // geometry the game registered belongs to the window; nothing else would release it.
-    for (u32 i = 0; i < NYA_RENDER3D_MAX_REGISTERED_MESHES; i++) {
-        if (mesh_batch->registered_meshes[i].vertices == nullptr) continue;
-
-        nya_gpu_buffer_release(gpu_device, mesh_batch->registered_meshes[i].vertices);
-
-        // a copy that never got a frame, if the window closes first.
-        if (mesh_batch->registered_meshes[i].pending_upload != nullptr) {
-            nya_gpu_transfer_buffer_release(gpu_device, mesh_batch->registered_meshes[i].pending_upload);
-        }
-
-        mesh_batch->registered_meshes[i]    = (NYA_Render3DRegisteredMesh){ 0 };
-        mesh_batch->registered_mesh_keys[i] = 0;
-    }
+    if (mesh_batch->registered_meshes != nullptr) nya_cache_destroy(mesh_batch->registered_meshes);
 
     // the refraction capture, created by the first glass draw.
     if (mesh_batch->refraction_capture != nullptr) nya_gpu_texture_release(gpu_device, mesh_batch->refraction_capture);

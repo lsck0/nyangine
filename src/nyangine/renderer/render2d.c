@@ -36,8 +36,13 @@
 /** Cells across the atlas texture. Rows follow from the capacity. */
 #define NYA_RENDER2D_GLYPH_COLUMNS 16
 
-/** Fonts whose atlases are held at once. A game uses a handful of faces. */
+/**
+ * Glyph atlases held at once, one per face and point size. gnyame bakes four (the UI at 17 and 28, the menu at
+ * 22 and 44), and every atlas is a texture sized to its largest glyph, so this stays small.
+ * */
+#ifndef NYA_RENDER2D_FONT_CACHE_MAX
 #define NYA_RENDER2D_FONT_CACHE_MAX 8
+#endif
 
 /** Longest derived font asset handle: a path, an '@', and a point size. */
 #define NYA_RENDER2D_FONT_HANDLE_MAX 256
@@ -56,9 +61,7 @@ struct NYA_Glyph {
 };
 
 struct NYA_FontAtlas {
-    /**
-     * The path the face was loaded from. Null means the slot is free.
-     * */
+    /** The path the face was loaded from. */
     NYA_ConstCString path;
 
     /** Point size this atlas was rasterised at. Part of the cache key, with the path. */
@@ -69,12 +72,6 @@ struct NYA_FontAtlas {
      * asset system keeps the pointer it is given.
      * */
     char handle[NYA_RENDER2D_FONT_HANDLE_MAX];
-
-    /**
-     * The TTF_Font the glyphs came from. A reload gives the asset a new TTF_Font, and comparing this pointer
-     * is how the atlas notices its glyphs are stale.
-     * */
-    TTF_Font* source_font;
 
     SDL_GPUTexture* texture;
 
@@ -205,6 +202,9 @@ NYA_INTERNAL TTF_Font* _nya_render2d_atlas_font(const NYA_FontAtlas* atlas) __at
 /** Uploads the cells baked since the last upload, one rect each. */
 NYA_INTERNAL void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas);
 
+/** The glyph cache's destructor: texture, transfer buffer and CPU coverage. Callers flush first. */
+NYA_INTERNAL void _nya_render2d_atlas_destroy(void* value, void* user_data);
+
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -213,12 +213,10 @@ NYA_INTERNAL void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* 
  */
 
 /**
- * Glyph atlases, keyed by font handle.
+ * Glyph atlases, keyed by font handle text and tagged with the font asset's generation, so a reloaded face
+ * reads as stale. Created with the first atlas.
  * */
-NYA_INTERNAL NYA_FontAtlas _nya_render2d_font_cache[NYA_RENDER2D_FONT_CACHE_MAX] = { 0 };
-
-/** Slots claimed in _nya_render2d_font_cache, kept for the ceiling registry. */
-NYA_INTERNAL u32 _nya_render2d_font_cache_count = 0;
+NYA_INTERNAL NYA_Cache* _nya_render2d_font_cache = nullptr;
 
 /**
  * The fullest any atlas has been. Glyphs are never evicted, so this is the busiest atlas now.
@@ -233,9 +231,6 @@ NYA_INTERNAL NYA_ConstCString _nya_render2d_current_font = nullptr;
 /** Point size of the current font; the two are one setting. */
 NYA_INTERNAL f32 _nya_render2d_current_font_size = 0.0F;
 
-/** The atlas for _nya_render2d_current_font, resolved once rather than per call. */
-NYA_INTERNAL NYA_FontAtlas* _nya_render2d_current_atlas = nullptr;
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -243,26 +238,13 @@ NYA_INTERNAL NYA_FontAtlas* _nya_render2d_current_atlas = nullptr;
  */
 
 void nya_render2d_shutdown(void) {
-    SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
-
     // keyed by font, not window, so nothing per-window frees them.
-    for (u32 i = 0; i < NYA_RENDER2D_FONT_CACHE_MAX; i++) {
-        NYA_FontAtlas* atlas = &_nya_render2d_font_cache[i];
-
-        if (atlas->texture != nullptr) nya_gpu_texture_release(gpu_device, atlas->texture);
-        if (atlas->transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, atlas->transfer_buffer);
-
-        // kept for the whole run so glyphs can be baked in later; this is the one place it is freed.
-        SDL_free(atlas->coverage);
-
-        *atlas = (NYA_FontAtlas){ 0 };
+    if (_nya_render2d_font_cache != nullptr) {
+        nya_cache_destroy(_nya_render2d_font_cache);
+        _nya_render2d_font_cache = nullptr;
     }
 
-    // they point into the cache that was just emptied.
-    _nya_render2d_current_font  = nullptr;
-    _nya_render2d_current_atlas = nullptr;
-
-    _nya_render2d_font_cache_count = 0;
+    _nya_render2d_current_font      = nullptr;
     _nya_render2d_glyph_count_worst = 0;
 }
 
@@ -885,9 +867,6 @@ void nya_render2d_font_set(NYA_ConstCString font_path, f32 point_size) {
 
     _nya_render2d_current_font      = font_path;
     _nya_render2d_current_font_size = point_size;
-
-    // dropped, not rebuilt here: the atlas may not be buildable yet, and every consumer builds on demand.
-    _nya_render2d_current_atlas = nullptr;
 }
 
 NYA_ConstCString nya_render2d_font_get(void) {
@@ -1863,67 +1842,37 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     if (asset->status != NYA_ASSET_STATUS_LOADED) return nullptr;
     if (asset->as_font.font == nullptr) return nullptr;
 
-    // the common case: the current font, same face as when it was built.
-    if (font_path == _nya_render2d_current_font && point_size == _nya_render2d_current_font_size && _nya_render2d_current_atlas != nullptr &&
-        _nya_render2d_current_atlas->source_font == asset->as_font.font) {
-        return _nya_render2d_current_atlas;
+    if (_nya_render2d_font_cache == nullptr) {
+        _nya_render2d_font_cache = nya_cache_create(
+            nya_app_get()->render_system.allocator,
+            NYA_FontAtlas,
+            .name         = "glyph_atlases",
+            .capacity     = NYA_RENDER2D_FONT_CACHE_MAX,
+            .key_size_max = NYA_TEXT_FONT_HANDLE_MAX,
+            // full, not evicting: eviction would need to know no queued vertex still references the texture.
+            .eviction     = NYA_CACHE_EVICTION_REFUSE,
+            .destructor   = _nya_render2d_atlas_destroy,
+        );
     }
 
-    for (u32 i = 0; i < NYA_RENDER2D_FONT_CACHE_MAX; i++) {
-        if (_nya_render2d_font_cache[i].path == nullptr) continue;
-        if (_nya_render2d_font_cache[i].point_size != point_size || strcmp(_nya_render2d_font_cache[i].path, font_path) != 0) continue;
+    u64 derived_length = strlen(derived);
 
-        if (_nya_render2d_font_cache[i].source_font == asset->as_font.font) {
-            if (font_path == _nya_render2d_current_font && point_size == _nya_render2d_current_font_size) _nya_render2d_current_atlas = &_nya_render2d_font_cache[i];
-            return &_nya_render2d_font_cache[i];
-        }
+    void*           cached = nullptr;
+    NYA_CacheLookup lookup = nya_cache_lookup(_nya_render2d_font_cache, derived, derived_length, asset->generation, &cached);
 
+    if (lookup == NYA_CACHE_LOOKUP_HIT) return cached;
+
+    if (lookup == NYA_CACHE_LOOKUP_STALE) {
         /*
-         * Reloaded: the slot is freed and rebuilt below. Flushed first, since queued vertices name the texture about
-         * to be released. Without a window there is no batch or pass, so the stale atlas is returned; that is a
-         * measurement, and one frame behind is fine.
+         * Reloaded: rebuilt below, and the insert destroys the stale atlas. Flushed first, since queued vertices name
+         * the texture about to be released. Without a window there is no batch or pass, so the stale atlas is
+         * returned; that is a measurement, and one frame behind is fine.
          */
-        if (window == nullptr) return &_nya_render2d_font_cache[i];
+        if (window == nullptr) return cached;
 
         nya_log_debug("font '%s' reloaded; rebuilding its glyph atlas", derived);
 
         _nya_render2d_flush_for(window, NYA_RENDER2D_FLUSH_STATE);
-
-        // texture, CPU coverage and transfer buffer all go, or a hot reload leaks two of them per edit.
-        SDL_GPUDevice* device = nya_app_get()->render_system.gpu_device;
-        NYA_FontAtlas* stale  = &_nya_render2d_font_cache[i];
-
-        nya_gpu_texture_release(device, stale->texture);
-        if (stale->transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(device, stale->transfer_buffer);
-        SDL_free(stale->coverage);
-
-        if (_nya_render2d_current_atlas == stale) _nya_render2d_current_atlas = nullptr;
-
-        *stale = (NYA_FontAtlas){ 0 };
-        break;
-    }
-
-    NYA_FontAtlas* slot = nullptr;
-    for (u32 i = 0; i < NYA_RENDER2D_FONT_CACHE_MAX; i++) {
-        if (_nya_render2d_font_cache[i].path == nullptr) {
-            slot = &_nya_render2d_font_cache[i];
-            break;
-        }
-    }
-
-    // full, not evicting: eviction would need to know no queued vertex still references the texture.
-    if (slot == nullptr) {
-        nya_log_warn("no free glyph atlas slot for '%s'; raise NYA_RENDER2D_FONT_CACHE_MAX (%d)", derived, NYA_RENDER2D_FONT_CACHE_MAX);
-        return nullptr;
-    }
-
-    _nya_render2d_font_cache_count++;
-
-    // registered once, when the first atlas exists.
-    static b8 ceiling_registered = false;
-    if (!ceiling_registered) {
-        nya_ceiling_register("glyph_atlases", NYA_RENDER2D_FONT_CACHE_MAX, &_nya_render2d_font_cache_count);
-        ceiling_registered = true;
     }
 
     TTF_Font*      font       = asset->as_font.font;
@@ -1969,6 +1918,16 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
         nya_log_warn("could not allocate a glyph atlas for '%s': out of memory", derived);
         return nullptr;
     }
+
+    void*     claimed = nullptr;
+    NYA_Error claim   = nya_cache_insert(_nya_render2d_font_cache, derived, derived_length, asset->generation, &claimed);
+    if (!claim.ok) {
+        nya_log_warn("no free glyph atlas slot for '%s'; raise NYA_RENDER2D_FONT_CACHE_MAX (%d)", derived, NYA_RENDER2D_FONT_CACHE_MAX);
+        SDL_free(coverage);
+        return nullptr;
+    }
+
+    NYA_FontAtlas* slot = claimed;
 
     *slot = (NYA_FontAtlas){
         .path         = font_path,
@@ -2016,13 +1975,8 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     // not uploaded empty: a glyph quad samples inside its own cell, and a cell reaches the GPU whole with its glyph.
     slot->texture = texture;
 
-    // compared later to notice a reload; set with the texture so the two agree.
-    slot->source_font = font;
-
     // latched now, with the face that fills it.
     slot->sdf = TTF_GetFontSDF(font);
-
-    if (font_path == _nya_render2d_current_font && point_size == _nya_render2d_current_font_size) _nya_render2d_current_atlas = slot;
 
     // logged because the mode decides the pipeline and is latched here, so a late distance-field request shows up
     // in this line.
@@ -2113,6 +2067,19 @@ void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, co
  * GLYPHS
  * ─────────────────────────────────────────────────────────
  */
+
+void _nya_render2d_atlas_destroy(void* value, void* user_data) {
+    nya_unused(user_data);
+
+    NYA_FontAtlas* atlas      = value;
+    SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
+
+    if (atlas->texture != nullptr) nya_gpu_texture_release(gpu_device, atlas->texture);
+    if (atlas->transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, atlas->transfer_buffer);
+
+    // kept for the whole run so glyphs can be baked in later; this is the one place it is freed.
+    SDL_free(atlas->coverage);
+}
 
 TTF_Font* _nya_render2d_atlas_font(const NYA_FontAtlas* atlas) {
     if (atlas == nullptr) return nullptr;

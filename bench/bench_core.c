@@ -71,6 +71,16 @@ s32 main(void) {
         nya_bench_keep(mixed);
     });
 
+    // What the asset memo and the other caches hash with.
+    nya_bench("wyhash asset handle x1024", HASHES, {
+        u64 mixed = 0;
+        for (u32 i = 0; i < HASHES; i++) {
+            NYA_ConstCString handle  = handles[i % nya_carray_length(handles)];
+            mixed                   ^= nya_hash_wyhash(handle, strlen(handle));
+        }
+        nya_bench_keep(mixed);
+    });
+
     // The comparison that matters for the integer-id question: what a lookup would cost if the handle
     // were already a number.
     nya_bench("integer mix x1024", HASHES, {
@@ -94,8 +104,7 @@ s32 main(void) {
             nya_bench_keep(last);
         });
 
-        // The worst case for a pointer-keyed memo: distinct buffers holding identical text, so every
-        // lookup misses and falls through to the dictionary.
+        // Distinct buffers holding identical text. The memo keys on content, so these hit like the literals.
         static char copies[8][64];
         for (u32 i = 0; i < nya_carray_length(handles); i++) (void)snprintf(copies[i], sizeof(copies[i]), "%s", handles[i]);
 

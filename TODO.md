@@ -46,7 +46,7 @@ depth target was `DONT_CARE` while resume `LOAD`ed it.
 
 ## `[~]` Ceiling auditing: HUD done, config over macros blocked
 
-18 ceilings are registered and shown in `debug_overlay.c`, fullest first, amber past 75%, red past 90%.
+20 ceilings are registered and shown in `debug_overlay.c`, fullest first, amber past 75%, red past 90%.
 
 - Blocked: `NYA_TWEEN_MAX`, `NYA_ENTITY_MAX` and `NYA_RENDER2D_FONT_CACHE_MAX` cannot become config,
   because `NYA_CONFIG` is a global in the game DLL (`gnyame/config.h`) that no engine module can read.
@@ -66,35 +66,6 @@ baked as, and SDF atlases sample linearly. `nya_font_sdf_set` works at registrat
 - The menu cannot use it: `layers.c` draws through `nya_render2d_text_with_font(GNY_MENU_FONT, 44, ...)`,
   which bypasses the NYA_Font registry the requests are keyed on. Move the menu to NYA_Font, or key
   requests lower down.
-
-## `[ ]` One general cache
-
-Each subsystem grew its own fixed array cache with its own lookup, no eviction and its own staleness
-rule:
-
-| Where                                   | Holds                   | Keyed by                         |
-| :-------------------------------------- | :---------------------- | :------------------------------- |
-| `core_asset.c` `_nya_asset_lookup`      | last asset per slot     | handle pointer slot, text copy   |
-| `render2d.c` `_nya_render2d_font_cache` | glyph atlases           | path and point size, linear scan |
-| `render3d.h` mesh registry              | uploaded vertex buffers | handle copy, FNV-1a then text    |
-
-They produced several findings below. Shaped text runs should be cached and are not (see budgets).
-
-A `base_cache.h` has to:
-
-- Key on content, never pointers: take `(const void*, u64)` and hash.
-- Take invalidation as input. Today there is a generation counter, a `TTF_Font*` comparison and a
-  remembered face, three mechanisms for one idea.
-- Evict. None of the current ones do; LRU or refuse-when-full should be a field.
-- Register as a ceiling.
-
-Open questions:
-
-- `base/` (SDL free, testable headless, cannot own GPU objects) or `core/`.
-- Copying into an arena, or holding handles with a caller destructor.
-- Thread safety, since jobs will use it.
-- Cost: the asset memo exists because lookup plus hash was 1.28% of a profile. Measure against
-  `bench/bench_core.c` before moving anything onto it.
 
 ## `[ ]` Budgets
 
@@ -158,7 +129,6 @@ From `nm --size-sort -S` on the release binary:
 | `_nya_audio_system`                   | 446 KB       | `.bss`                        |
 | `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` | 266 + 80 KB  | resident in single player     |
 | `dphaseTable` / `tllTable`            | 256 + 128 KB | vendored audio decoder tables |
-| `_nya_render2d_font_cache`            | 40 KB        | atlas metadata                |
 | `_nya_gpu_memory`                     | 49 KB        | GPU handle table              |
 
 - `[ ]` The solver pools are the largest statics and do not shrink when a scene uses one dimension.
@@ -187,7 +157,7 @@ create and release (`render_gpu_memory.h`), which is what SDL is asked for, not 
 The main menu draws six constant strings and spends about 5% of its profile in `TTF_UpdateText`,
 `GetWrappedLines` and `TTF_Size_Internal`, plus the allocations beneath. `bench/bench_text.c` prices a
 HUD frame at 43 µs, so shaping on demand is fine, but a run cache keyed on (face, size, text, wrap) and
-invalidated by the `TTF_Font*` would remove it.
+tagged with the font asset's `generation` (a `NYA_Cache`, see `base_cache.h`) would remove it.
 
 ### Measurement
 
@@ -300,6 +270,24 @@ test target.
 ---
 
 # Findings
+
+### A content keyed cache costs a hash, and only inlining keeps it near a pointer memo
+
+`NYA_Cache` replaced the asset memo, the glyph atlas table and the mesh registry. `nya_asset_get` over
+eight handles went from 4.1 ns (slot by pointer, strcmp) to 4.9 ns. Out of line it was 7.5 ns: the calls
+to `nya_cache_get`, the hash and `memcmp` each cost about a nanosecond, and relinking a recency list on
+every hit cost more than scanning stamps on the rare evicting insert. FNV-1a would have been pointless
+here at 12.8 ns per path; wyhash is 2.5 ns with the `strlen`.
+
+### A pointer compare cannot tell a reload from the same face
+
+The glyph atlas noticed a reloaded font by comparing `TTF_Font*`. A new face allocated at the freed
+address can compare equal. `NYA_Asset.generation` is unique across the run, so it is the tag instead.
+
+### The ceiling registry cannot forget a row
+
+A registered counter must outlive the process, which a per-window cache does not. Caches register one
+static row per name instead, which reads zero once every cache with that name is destroyed.
 
 ### A CI runner ignores SIGPIPE, and children inherit it
 

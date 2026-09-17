@@ -80,15 +80,18 @@ NYA_INTERNAL b8 _nya_render3d_refraction_capture(NYA_Window* window);
 /** The registered mesh for `handle`, or null. */
 NYA_INTERNAL NYA_Render3DRegisteredMesh* _nya_render3d_registered(NYA_Render3DBatch* batch, NYA_ConstCString handle) __attr_no_discard;
 
-/** A free slot claimed for `handle`, or null when the table is full or the handle does not fit. */
+/**
+ * The entry for `handle`, zeroed, or null when the table is full or the handle does not fit. An existing
+ * registration is released first.
+ * */
 NYA_INTERNAL NYA_Render3DRegisteredMesh* _nya_render3d_registered_claim(NYA_Render3DBatch* batch, NYA_ConstCString handle) __attr_no_discard;
 
 /** Bounds of a mesh already looked up as `registered`, or failing that `asset`. */
 NYA_INTERNAL b8 _nya_render3d_resolved_bounds(const NYA_Render3DRegisteredMesh* registered, NYA_Asset* asset, OUT f32x3* out_min,
                                               OUT f32x3* out_max) __attr_no_discard;
 
-/** The lookup key for a handle. Never zero, which marks a free slot. */
-NYA_INTERNAL u64 _nya_render3d_registered_key(NYA_ConstCString handle) __attr_no_discard;
+/** The registry's destructor: the vertex buffer, and a staged copy that never got a frame. Callers flush first. */
+NYA_INTERNAL void _nya_render3d_registered_destroy(void* value, void* user_data);
 
 /**
  * Creates a GPU vertex buffer and a transfer buffer filled with `vertices`. Does not copy: that needs a
@@ -1331,28 +1334,21 @@ NYA_INTERNAL b8 _nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString
     // queued draws may reference the old buffer, and SDL only defers release past submitted work.
     nya_render3d_flush(window);
 
-    NYA_Render3DRegisteredMesh* slot = _nya_render3d_registered(batch, handle);
-
     SDL_GPUBuffer*         buffer   = nullptr;
     SDL_GPUTransferBuffer* transfer = nullptr;
 
     // the old buffers stay until the new ones exist, so a failed re-registration keeps the old geometry.
     if (!_nya_render3d_vertex_buffer_stage(vertices, (u32)(vertex_count * sizeof(NYA_Vertex3D)), handle, &buffer, &transfer)) return false;
 
-    SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
-
-    if (slot == nullptr) slot = _nya_render3d_registered_claim(batch, handle);
+    // releases a registration being replaced, including a copy that never ran.
+    NYA_Render3DRegisteredMesh* slot = _nya_render3d_registered_claim(batch, handle);
 
     if (slot == nullptr) {
+        SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
         nya_gpu_buffer_release(gpu_device, buffer);
         nya_gpu_transfer_buffer_release(gpu_device, transfer);
         return false;
     }
-
-    if (slot->vertices != nullptr) nya_gpu_buffer_release(gpu_device, slot->vertices);
-
-    // a copy that never ran, from a registration replaced before its first draw.
-    if (slot->pending_upload != nullptr) nya_gpu_transfer_buffer_release(gpu_device, slot->pending_upload);
 
     f32x3 min = nya_vertex3d_position(vertices[0]);
     f32x3 max = min;
@@ -1385,19 +1381,13 @@ void nya_render3d_mesh_release(NYA_Window* window, NYA_ConstCString handle) {
 
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
-    NYA_Render3DRegisteredMesh* slot = _nya_render3d_registered(batch, handle);
-    if (slot == nullptr) return;
+    if (_nya_render3d_registered(batch, handle) == nullptr) return;
 
     // queued draws may reference this mesh.
     nya_render3d_flush(window);
 
-    SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
-
-    if (slot->vertices != nullptr) nya_gpu_buffer_release(gpu_device, slot->vertices);
-    if (slot->pending_upload != nullptr) nya_gpu_transfer_buffer_release(gpu_device, slot->pending_upload);
-
-    batch->registered_mesh_keys[slot - batch->registered_meshes] = 0;
-    *slot                                                         = (NYA_Render3DRegisteredMesh){ 0 };
+    b8 removed = nya_cache_remove(batch->registered_meshes, handle, strlen(handle));
+    nya_assert(removed, "'%s' was registered a moment ago", handle);
 }
 
 b8 nya_render3d_mesh_bounds(NYA_Window* window, NYA_ConstCString handle, OUT f32x3* out_min, OUT f32x3* out_max) {
@@ -2262,45 +2252,42 @@ b8 _nya_render3d_refraction_capture(NYA_Window* window) {
     return true;
 }
 
-u64 _nya_render3d_registered_key(NYA_ConstCString handle) {
-    return nya_hash_fnv1a(handle) | 1ULL;
+void _nya_render3d_registered_destroy(void* value, void* user_data) {
+    nya_unused(user_data);
+
+    NYA_Render3DRegisteredMesh* mesh       = value;
+    SDL_GPUDevice*              gpu_device = nya_app_get()->render_system.gpu_device;
+
+    if (mesh->vertices != nullptr) nya_gpu_buffer_release(gpu_device, mesh->vertices);
+    if (mesh->pending_upload != nullptr) nya_gpu_transfer_buffer_release(gpu_device, mesh->pending_upload);
 }
 
 NYA_Render3DRegisteredMesh* _nya_render3d_registered(NYA_Render3DBatch* batch, NYA_ConstCString handle) {
-    if (handle == nullptr) return nullptr;
+    if (handle == nullptr || handle[0] == '\0') return nullptr;
 
-    u64 key = _nya_render3d_registered_key(handle);
-
-    for (u32 i = 0; i < NYA_RENDER3D_MAX_REGISTERED_MESHES; i++) {
-        if (batch->registered_mesh_keys[i] != key) continue;
-        if (nya_string_equals(batch->registered_meshes[i].handle, handle)) return &batch->registered_meshes[i];
-    }
-
-    return nullptr;
+    // a registration is never stale, so every entry carries tag zero.
+    return nya_cache_get(batch->registered_meshes, handle, strlen(handle), 0);
 }
 
 NYA_Render3DRegisteredMesh* _nya_render3d_registered_claim(NYA_Render3DBatch* batch, NYA_ConstCString handle) {
     nya_assert(handle != nullptr);
-    nya_assert(_nya_render3d_registered(batch, handle) == nullptr, "'%s' is already registered", handle);
 
-    if (strlen(handle) >= NYA_RENDER3D_MESH_HANDLE_MAX) {
-        nya_log_error("The mesh handle '%s' is longer than NYA_RENDER3D_MESH_HANDLE_MAX (%d).", handle, NYA_RENDER3D_MESH_HANDLE_MAX);
+    u64 length = strlen(handle);
+
+    if (length == 0 || length >= NYA_RENDER3D_MESH_HANDLE_MAX) {
+        nya_log_error("The mesh handle '%s' is empty or longer than NYA_RENDER3D_MESH_HANDLE_MAX (%d).", handle, NYA_RENDER3D_MESH_HANDLE_MAX);
         return nullptr;
     }
 
-    for (u32 i = 0; i < NYA_RENDER3D_MAX_REGISTERED_MESHES; i++) {
-        if (batch->registered_mesh_keys[i] != 0) continue;
+    void*     slot  = nullptr;
+    NYA_Error error = nya_cache_insert(batch->registered_meshes, handle, length, 0, &slot);
 
-        NYA_Render3DRegisteredMesh* slot = &batch->registered_meshes[i];
-        *slot                            = (NYA_Render3DRegisteredMesh){ 0 };
-        (void)snprintf(slot->handle, sizeof(slot->handle), "%s", handle);
-
-        batch->registered_mesh_keys[i] = _nya_render3d_registered_key(handle);
-        return slot;
+    if (!error.ok) {
+        nya_log_error("No room to register the mesh '%s'; raise NYA_RENDER3D_MAX_REGISTERED_MESHES.", handle);
+        return nullptr;
     }
 
-    nya_log_error("No room to register the mesh '%s'; raise NYA_RENDER3D_MAX_REGISTERED_MESHES.", handle);
-    return nullptr;
+    return slot;
 }
 
 b8 _nya_render3d_vertex_buffer_stage(

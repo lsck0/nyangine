@@ -22,8 +22,37 @@
 NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT NYA_Asset* out_asset);
 #endif // NYA_ASSET_PREFER_BLOB
 
+/**
+ * Handles the memo in front of the asset dictionary holds, least recently used dropped first. gnyame's menu
+ * looks up 27 distinct handles over a run, and the generated index has 1428, so this leaves room for a busy
+ * scene while a cold handle only costs a dictionary lookup.
+ * */
+#ifndef NYA_ASSET_LOOKUP_CAPACITY
+#define NYA_ASSET_LOOKUP_CAPACITY 256
+#endif
+
+/** The longest handle the memo keeps. Longer ones go to the dictionary every time. */
+#ifndef NYA_ASSET_LOOKUP_HANDLE_MAX
+#define NYA_ASSET_LOOKUP_HANDLE_MAX 128
+#endif
+
+/** Handle text to the NYA_Asset* the dictionary returned, which may be null. */
+NYA_INTERNAL NYA_Cache* _nya_asset_lookup = nullptr;
+
+/** The memo's tag. A rehash moves every NYA_Asset*, so a new generation makes every older entry stale. */
+NYA_INTERNAL u64 _nya_asset_lookup_generation = 1;
+
 /** Drops every memoised handle lookup. */
 NYA_INTERNAL void _nya_asset_lookup_invalidate(void);
+
+/**
+ * Stores a dictionary answer in the memo. Cold and out of line: the NYA_Error it checks would give nya_asset_get a
+ * kilobyte frame and a stack protector on every hit.
+ * */
+__attr_cold NYA_INTERNAL void _nya_asset_lookup_remember(NYA_AssetHandle handle, u64 handle_length, NYA_Asset* asset);
+
+/** The last NYA_Asset.generation handed out. Never reused, so an unload that zeroes an asset cannot repeat one. */
+NYA_INTERNAL u64 _nya_asset_generation_last = 0;
 
 NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_filesystem(NYA_AssetHandle path, OUT NYA_Asset* out_asset);
 NYA_INTERNAL void      _nya_asset_unload_raw_from_filesystem(NYA_Asset* asset);
@@ -255,6 +284,14 @@ void nya_system_asset_init(void) {
     app->asset_system.assets          = nya_dict_create(app->asset_system.allocator, NYA_Asset);
 
     // a fresh dictionary shares nothing with the old memo.
+    _nya_asset_lookup = nya_cache_create(
+        app->asset_system.allocator,
+        NYA_Asset*,
+        .name         = "asset_lookup",
+        .capacity     = NYA_ASSET_LOOKUP_CAPACITY,
+        .key_size_max = NYA_ASSET_LOOKUP_HANDLE_MAX,
+        .eviction     = NYA_CACHE_EVICTION_LEAST_RECENT,
+    );
     _nya_asset_lookup_invalidate();
     app->asset_system.loading_queue   = nya_array_create(app->asset_system.allocator, NYA_AssetLoadParameters);
     app->asset_system.unloading_queue = nya_array_create(app->asset_system.allocator, NYA_AssetHandle);
@@ -309,6 +346,9 @@ void nya_system_asset_deinit(void) {
 
     nya_dict_destroy(app->asset_system.assets);
 
+    nya_cache_destroy(_nya_asset_lookup);
+    _nya_asset_lookup = nullptr;
+
     nya_arena_destroy(app->asset_system.allocator);
 
     nya_log_info("Asset system deinitialized.");
@@ -326,31 +366,17 @@ void nya_system_asset_deinit(void) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Slots in the direct-mapped memo in front of the asset dictionary. A power of two. */
-#define _NYA_ASSET_LOOKUP_SLOTS 256
-
-/** The longest handle the memo will hold a copy of. */
-#define _NYA_ASSET_LOOKUP_HANDLE_MAX 128
-
-/** One remembered lookup, slotted by handle pointer and keyed by a copy of its text. */
-typedef struct {
-    NYA_Asset* asset;
-
-    /** What `handle` pointed at. A reused stack buffer has the same address with different text. */
-    char text[_NYA_ASSET_LOOKUP_HANDLE_MAX];
-
-    /** Which generation of the dictionary this was true for. */
-    u64 generation;
-} _NYA_AssetLookupEntry;
-
-NYA_INTERNAL _NYA_AssetLookupEntry _nya_asset_lookup[_NYA_ASSET_LOOKUP_SLOTS] = { 0 };
-
-/** Bumped whenever the dictionary changes shape, invalidating every memo entry. */
-NYA_INTERNAL u64 _nya_asset_lookup_generation = 1;
-
 /** Invalidates the memo. Called wherever the dictionary is created or inserted into. */
 NYA_INTERNAL void _nya_asset_lookup_invalidate(void) {
     _nya_asset_lookup_generation++;
+}
+
+void _nya_asset_lookup_remember(NYA_AssetHandle handle, u64 handle_length, NYA_Asset* asset) {
+    void* slot = nullptr;
+
+    // cannot fail: the caller checked the key fits, and a least recent cache always makes room.
+    NYA_EXPECT(nya_cache_insert(_nya_asset_lookup, handle, handle_length, _nya_asset_lookup_generation, &slot));
+    *(NYA_Asset**)slot = asset;
 }
 
 NYA_Asset* nya_asset_get(NYA_AssetHandle handle) {
@@ -363,24 +389,17 @@ NYA_Asset* nya_asset_get(NYA_AssetHandle handle) {
 
     u64 handle_length = strlen(handle);
 
-    _NYA_AssetLookupEntry* entry = &_nya_asset_lookup[((uintptr_t)handle >> 3) & (_NYA_ASSET_LOOKUP_SLOTS - 1)];
+    // a cache key is never empty, and a longer handle than the memo keeps is not worth a copy.
+    b8 memoizable = handle_length > 0 && handle_length <= NYA_ASSET_LOOKUP_HANDLE_MAX;
 
-    // too long to copy, so it cannot be memoized.
-    b8 memoizable = handle_length < _NYA_ASSET_LOOKUP_HANDLE_MAX;
+    NYA_Asset** memo  = memoizable ? nya_cache_get(_nya_asset_lookup, handle, handle_length, _nya_asset_lookup_generation) : nullptr;
+    NYA_Asset*  asset = nullptr;
 
-    NYA_Asset* asset = nullptr;
-
-    if (memoizable && entry->generation == _nya_asset_lookup_generation && nya_string_equals(entry->text, handle)) {
-        asset = entry->asset;
+    if (memo != nullptr) {
+        asset = *memo;
     } else {
         asset = nya_dict_get(system->assets, handle);
-
-        if (memoizable) {
-            *entry = (_NYA_AssetLookupEntry){ .asset = asset, .generation = _nya_asset_lookup_generation };
-
-            nya_memcpy(entry->text, handle, handle_length);
-            entry->text[handle_length] = '\0';
-        }
+        if (memoizable) _nya_asset_lookup_remember(handle, handle_length, asset);
     }
 
 #ifdef NYA_ASSET_HOT_RELOAD
@@ -2107,6 +2126,8 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 _nya_asset_fail(asset, &unsupported);
             } break;
         }
+
+        if (asset->status == NYA_ASSET_STATUS_LOADED) asset->generation = ++_nya_asset_generation_last;
 
 #ifdef NYA_ASSET_HOT_RELOAD
         /*
