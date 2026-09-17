@@ -1,0 +1,23 @@
+pkgbase = gnyame-bin
+	pkgdesc = A physics sandbox built on nyangine
+	pkgver = 0.0.0
+	pkgrel = 1
+	url = https://github.com/lsck0/nyangine
+	arch = x86_64
+	license = MIT
+	depends = gcc-libs
+	depends = glibc
+	depends = openssl
+	depends = vulkan-icd-loader
+	optdepends = wayland: native Wayland window
+	optdepends = libdecor: window decorations on Wayland compositors without server side ones
+	optdepends = libx11: X11 window
+	optdepends = libpulse: audio through PulseAudio or pipewire-pulse
+	provides = gnyame
+	conflicts = gnyame
+	options = !strip
+	options = !debug
+	source = https://github.com/lsck0/nyangine/releases/download/v0.0.0/gnyame.0.0.0.linux-x86_64.tar.gz
+	sha256sums = SKIP
+
+pkgname = gnyame-bin
