@@ -41,7 +41,9 @@ s32 main(void) {
   // TEST: Timer records elapsed time
   // ─────────────────────────────────────────────────────────────────────────────
   nya_perf_timer_start("sleep_timer");
-  sleep_ms(10);
+  // Windows' Sleep can wake a tick early, so sleep until the clock says ten milliseconds passed.
+  u64 sleep_start_ms = nya_clock_get_monotonic_ms();
+  while (nya_clock_get_monotonic_ms() - sleep_start_ms < 10) sleep_ms(1);
   nya_perf_timer_stop("sleep_timer");
 
   NYA_PerfMeasurement* sleep_measurement = nya_perf_timer_get("sleep_timer");
