@@ -39,9 +39,14 @@ fed from `engine.renderer` in the config, and costs nothing when off.
   distance buffer as a second colour target, only into render textures created with `.normals`; pipelines
   build that variant on first use. Keys 1, 2, 3 and v in the 3D demo, fed from `engine.renderer` in the
   config. Release 1280x720: +0.11 ms and +39.5 MiB at 4x MSAA, +0.06 ms and +11.4 MiB at 1x.
-- `[ ]` Short ink dashes on distant grazing terrain folds; scale the silhouette threshold with the slope of
-  the distance buffer.
-- `[ ]` The occlusion band is subtle at the default orbit distance; consider a screen-space minimum radius.
+- Ink silhouettes predict the far pixel from the near side's distance slope and check back from two samples
+  past the edge; creases must still turn against the faces beyond, so slivers draw nothing. The dotted cube
+  edge and valley dashes are gone. `[ ]` Faint short dashes remain on terraces descending away from the
+  camera, which are real sub-pixel ledges; a distance-relative floor removed them but cut cube silhouettes.
+- Ambient occlusion reaches at least `min_radius` pixels (32). `[ ]` At the default orbit the band is still
+  subtle; that is strength and band threshold, not radius.
+- Bloom is a built-in half resolution pass (`NYA_PostBloom`, `engine.renderer.bloom`) sharing the depth of
+  field target: 0.095 to 0.056 ms, +0.88 MiB while depth of field is off.
 - `[ ]` A smaller normal buffer: view space normal only, or sample the multisampled buffer where backends
   allow and skip the resolve.
 - Depth of field (tilt shift, or distance focus read from the normal buffer's distance channel), speed lines
@@ -50,8 +55,10 @@ fed from `engine.renderer` in the config, and costs nothing when off.
   FXAA, caller passes (grade, bloom, pause grey), speed lines, debug view. Release, 1280x720, 4x: decals
   +0.06 ms and +0.5 MiB, distance focus +0.05 ms and +0.9 MiB, speed lines +0.02 ms, HDR +0.02 ms and
   +3.5 MiB; off costs nothing.
-- `[ ]` HDR10/PQ untested on hardware; pure white UI text lifts to the HDR peak.
-- `[ ]` Speed lines always converge on the screen centre, not the direction of motion.
+- HDR lifts only the scene: `nya_render_output_scene_end` zeroes the frame's alpha before the HUD draws.
+  `[ ]` HDR10/PQ untested on hardware.
+- Speed lines converge on the vanishing point of the camera's velocity (`NYA_PostSpeedLines.motion`), centred
+  when backing away or moving across the view.
 - `[ ]` Distance focus alone pays for the whole normal buffer.
 - A skinned, animated bar (bender.fbx) in the 3D demo, lit and shadow casting, posed once per tick so
   every cascade matches the camera; `f` freezes it. The 2D ledge marker is an animated sprite with a frame
@@ -120,9 +127,8 @@ The menu draws through the NYA_Font registry ("menu" at 22, "menu_title" at 44 a
 Compared on screen with the bitmap: at a smoothing floor of 1/16 the edge was two pixels and softer; at 1/32
 edge and stroke weight match.
 
-- `[ ]` The SDF title sits about 3 px left of the bitmap position; the measured width seems to include the
-  field's padding.
-- `[ ]` The HUD's 28 pt title is not rechecked at the new smoothing.
+- A distance field line measures as wide as the same face in coverage (SDL_ttf added the spread); the title
+  sits where the bitmap did, and the 28 pt title matches the bitmap within 0.8 px.
 - The atlas latches its mode at bake time.
 
 ## `[ ]` Budgets
@@ -237,8 +243,13 @@ size, text) in a least recently used `NYA_Cache` (`text_runs`, 128 entries, keys
 with the font asset's generation. A 20 line HUD frame went from 41.5 µs to 3.4 µs; the main menu's draw from
 about 25 µs to 7 µs.
 
-- `[ ]` `_nya_font_sdf_apply_pending` looks up each request's face on every measure and draw (about 1 µs of
-  the menu).
+- The distance field request scan runs only after an asset loads (`nya_asset_generation`).
+
+### Integrity check
+
+The runtime baseline hashed `__executable_start` to `etext`, which faults when the linker leaves an unmapped
+page before the code segment (a release build crashed at startup). It now hashes the executable `PT_LOAD`
+segment from the program headers.
 
 ### Measurement
 
