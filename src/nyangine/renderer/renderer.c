@@ -696,6 +696,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
           .cull_front_faces       = true,
           // the shadow format, matching the shadow target.
           .color_format = NYA_RENDER3D_SHADOW_FORMAT,
+          .single_sampled = true,
       },
   }), "while queueing the skinned shadow pipeline");
 
