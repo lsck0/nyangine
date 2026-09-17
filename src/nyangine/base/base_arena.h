@@ -256,6 +256,13 @@ struct NYA_ArenaStats {
 
 NYA_API NYA_ArenaStats nya_arena_stats(NYA_Arena* arena) __attr_no_discard;
 
+/**
+ * Bytes of the arena's regions in physical memory, which reserved_bytes cannot say: a region is only resident
+ * where it was written. A system call per region, so it is for reports and the overlay's refresh rather than
+ * every frame. Small regions share heap pages, which count toward each arena on them.
+ * */
+NYA_API u64 nya_arena_resident_bytes(NYA_Arena* arena) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────
  * REGISTRY
@@ -270,7 +277,10 @@ NYA_API NYA_ArenaStats nya_arena_stats(NYA_Arena* arena) __attr_no_discard;
 NYA_API u32        nya_arena_registry_count(void) __attr_no_discard;
 NYA_API NYA_Arena* nya_arena_registry_at(u32 index) __attr_no_discard;
 
-/** Logs one line per live arena: name, regions, used of reserved, free list and fragmentation. */
+/**
+ * Logs one line per live arena: name, regions, used, reserved and resident, free list and fragmentation. The total
+ * closes with the process's resident set, so what no arena owns is the difference.
+ * */
 NYA_API void nya_arena_stats_report(void);
 
 /*

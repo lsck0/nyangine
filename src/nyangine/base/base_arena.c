@@ -628,6 +628,15 @@ NYA_ArenaStats nya_arena_stats(NYA_Arena* arena) {
     return stats;
 }
 
+u64 nya_arena_resident_bytes(NYA_Arena* arena) {
+    nya_assert(arena != nullptr);
+
+    u64 resident = 0;
+    nya_dll_foreach (arena, region) resident += nya_memory_resident_bytes(region->memory, region->capacity);
+
+    return resident;
+}
+
 u32 nya_arena_registry_count(void) {
     u32 count = 0;
     for (u32 i = 0; i < NYA_ARENA_REGISTRY_MAX; i++) {
@@ -655,32 +664,37 @@ void nya_arena_stats_report(void) {
         return;
     }
 
-    nya_log_info("Arena: %-28s %8s %12s %12s %8s %12s %6s", "name", "regions", "used", "reserved", "free n", "free bytes", "frag");
+    nya_log_info("Arena: %-28s %8s %12s %12s %12s %8s %12s %6s", "name", "regions", "used", "reserved", "resident", "free n", "free bytes", "frag");
 
     u64 total_used     = 0;
     u64 total_reserved = 0;
+    u64 total_resident = 0;
 
     for (u32 i = 0; i < count; i++) {
         NYA_Arena* arena = nya_arena_registry_at(i);
         if (arena == nullptr) continue;
 
-        NYA_ArenaStats stats = nya_arena_stats(arena);
-        total_used          += stats.used_bytes;
-        total_reserved      += stats.reserved_bytes;
+        NYA_ArenaStats stats    = nya_arena_stats(arena);
+        u64            resident = nya_arena_resident_bytes(arena);
+        total_used             += stats.used_bytes;
+        total_reserved         += stats.reserved_bytes;
+        total_resident         += resident;
 
         nya_log_info(
-            "Arena: %-28s %8" PRIu64 " %12" PRIu64 " %12" PRIu64 " %8" PRIu64 " %12" PRIu64 " %5.1f%%",
+            "Arena: %-28s %8" PRIu64 " %12" PRIu64 " %12" PRIu64 " %12" PRIu64 " %8" PRIu64 " %12" PRIu64 " %5.1f%%",
             stats.name != nullptr ? stats.name : "(unnamed)",
             stats.region_count,
             stats.used_bytes,
             stats.reserved_bytes,
+            resident,
             stats.free_list_nodes,
             stats.free_list_bytes,
             (f64)stats.fragmentation * 100.0
         );
     }
 
-    nya_log_info("Arena: %-28s %8s %12" PRIu64 " %12" PRIu64, "TOTAL", "", total_used, total_reserved);
+    nya_log_info("Arena: %-28s %8s %12" PRIu64 " %12" PRIu64 " %12" PRIu64, "TOTAL", "", total_used, total_reserved, total_resident);
+    nya_log_info("Arena: %-28s %8s %12s %12s %12" PRIu64, "PROCESS", "", "", "", nya_memory_process_resident_bytes());
 }
 
 /*

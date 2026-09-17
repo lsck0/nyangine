@@ -48,6 +48,24 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: resident bytes follow what was written, not what was reserved
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Arena* arena = nya_arena_create(.name = "resident_subject");
+    defer      nya_arena_destroy(arena);
+
+    nya_assert(nya_arena_resident_bytes(arena) == 0, "an arena without regions holds nothing");
+
+    u64 page    = nya_memory_page_size();
+    u8* written = nya_arena_alloc(arena, 64 * page);
+    nya_memset(written, 0x5A, 64 * page);
+
+    u64 resident = nya_arena_resident_bytes(arena);
+    nya_assert(resident >= 64 * page, "the pages just written are resident, got " FMTu64, resident);
+    nya_assert(resident <= nya_arena_stats(arena).reserved_bytes + page, "and no more than the regions span, got " FMTu64, resident);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: freeing populates the free list, and stats can see it
   // ─────────────────────────────────────────────────────────────────────────────
   {
