@@ -80,6 +80,16 @@ Next:
 - A render graph is not planned: the pass order is fixed and short, and a graph would be more code than
   the passes it orders.
 
+## `[~]` Interpolation between ticks
+
+Update runs at a fixed tick and frames draw whenever the display allows, so a frame can land between ticks
+or see none. `nya_app_tick_alpha` says where between the last tick and the next it sits. Particles draw from
+their previous tick's position and age toward the current one; before, the smoke and sparks froze on frames
+without a tick and jumped on the next, which read as flicker (captured: every other frame unchanged).
+
+- `[ ]` Entities (physics cubes, the player, drones) and the skinned pose still draw the current tick, so they
+  judder the same way at display rates above the tick rate.
+
 ## `[~]` Shadows
 
 Cascades are fitted to slices of the camera frustum by bounding sphere. The crossfade is verified on screen.
