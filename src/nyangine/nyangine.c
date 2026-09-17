@@ -18,6 +18,8 @@
 // Shaping, and in both builds for the same reason: it is CPU only, so a headless build can
 // and does lay text out exactly as the real one draws it. See render_text.h.
 #include "nyangine/renderer/render_text.c"
+// the CPU side of glyph atlases: cells and the coverage bake. Both builds, so a headless test reaches the bake.
+#include "nyangine/renderer/render_glyph_atlas.c"
 // where a shadow cascade goes, not how it is rasterised. Pure math, so both builds get it.
 #include "nyangine/renderer/render_shadow.c"
 #include "nyangine/renderer/render_sort.c"

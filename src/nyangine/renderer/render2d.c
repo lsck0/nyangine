@@ -16,26 +16,6 @@
  */
 
 
-/** The ASCII range the atlas sizes its cells against, inclusive. */
-#define NYA_RENDER2D_GLYPH_FIRST 32
-#define NYA_RENDER2D_GLYPH_LAST  126
-
-/**
- * Glyphs one atlas can hold, which sets the atlas height. The busiest atlas in gnyame fills 53 (HUD plus debug
- * overlay) and printable ASCII is 95, so 128 leaves room for accents and ligatures. A full atlas warns once and
- * draws new glyphs blank. Not grown, since baked uvs and queued vertices depend on the texture size. A power of
- * two, because the lookup is a masked hash.
- * */
-#ifndef NYA_RENDER2D_GLYPH_CAPACITY
-#define NYA_RENDER2D_GLYPH_CAPACITY 128
-#endif
-
-/** Buckets in an atlas's glyph-index lookup. A power of two, because the index is a masked hash. */
-#define NYA_RENDER2D_GLYPH_LOOKUP (NYA_RENDER2D_GLYPH_CAPACITY * 4)
-
-/** Cells across the atlas texture. Rows follow from the capacity. */
-#define NYA_RENDER2D_GLYPH_COLUMNS 16
-
 /**
  * Glyph atlases held at once, one per face and point size. gnyame bakes four (the UI at 17 and 28, the menu at
  * 22 and 44), and every atlas is a texture sized to its largest glyph, so this stays small.
@@ -47,18 +27,7 @@
 /** Longest derived font asset handle: a path, an '@', and a point size. */
 #define NYA_RENDER2D_FONT_HANDLE_MAX 256
 
-typedef struct NYA_Glyph      NYA_Glyph;
-typedef struct NYA_FontAtlas  NYA_FontAtlas;
-
-/**
- * One glyph's place in the atlas, in pixels except the uvs. Bearing and advance depend on the string
- * around a glyph, so they live on NYA_TextGlyph, which the shaper fills.
- * */
-struct NYA_Glyph {
-    f32 u0, v0, u1, v1;
-
-    f32 width, height;
-};
+typedef struct NYA_FontAtlas NYA_FontAtlas;
 
 struct NYA_FontAtlas {
     /** The path the face was loaded from. */
@@ -101,8 +70,8 @@ struct NYA_FontAtlas {
     u32 glyph_count;
 
     /**
-     * One byte of coverage per texel, `atlas_width * atlas_height`. Holds glyphs baked by a run until the run
-     * uploads them. The shaders read one channel.
+     * One byte of coverage per texel, `grid.atlas_width * grid.atlas_height`. Holds glyphs baked by a run until
+     * the run uploads them. The shaders read one channel.
      * */
     u8* coverage;
 
@@ -112,10 +81,7 @@ struct NYA_FontAtlas {
      * */
     SDL_GPUTransferBuffer* transfer_buffer;
 
-    s32 atlas_width;
-    s32 atlas_height;
-    s32 cell_width;
-    s32 cell_height;
+    NYA_GlyphGrid grid;
 
     /** Slots already on the GPU. Glyphs are never evicted, so the ones to upload are the slots from here on. */
     u32 uploaded_count;
@@ -187,12 +153,6 @@ NYA_INTERNAL NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_Con
 
 /** The glyph for a glyph index, rasterising it into a free cell if needed. */
 NYA_INTERNAL const NYA_Glyph* _nya_render2d_glyph(NYA_FontAtlas* atlas, u32 glyph_index);
-
-/** Rasterises one glyph index into `slot`'s cell of the atlas surface and fills in its NYA_Glyph. */
-NYA_INTERNAL void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 glyph_index, u32 slot);
-
-/** Which lookup bucket a glyph index maps to. Mixed, so adjacent indices do not collide. */
-NYA_INTERNAL u32 _nya_render2d_glyph_bucket(u32 glyph_index) __attr_no_discard;
 
 /**
  * The face an atlas was built from, or null.
@@ -1009,8 +969,8 @@ NYA_INTERNAL b8 _nya_render2d_glyph_emit(NYA_Window* window, NYA_FontAtlas* atla
     }
 
     /* The shaper's sub-rectangle, folded into the cell's uv. */
-    f32 texel_width  = 1.0F / (f32)atlas->atlas_width;
-    f32 texel_height = 1.0F / (f32)atlas->atlas_height;
+    f32 texel_width  = 1.0F / (f32)atlas->grid.atlas_width;
+    f32 texel_height = 1.0F / (f32)atlas->grid.atlas_height;
 
     f32 u0 = glyph->u0 + ((f32)shaped->source_x * texel_width);
     f32 v0 = glyph->v0 + ((f32)shaped->source_y * texel_height);
@@ -1878,42 +1838,15 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     TTF_Font*      font       = asset->as_font.font;
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
-    // a fixed grid sized to the largest glyph, so layout is a multiply instead of a rectangle packer.
     s32 line_skip = TTF_GetFontLineSkip(font);
     s32 ascent    = TTF_GetFontAscent(font);
     // SDL reports the descent as negative; flipped so ascent + descent is the ink height.
     s32 descent   = -TTF_GetFontDescent(font);
 
-    /* A cell holds a glyph's cropped ink image, so sizing it against the line box is conservative. */
-    s32 cell_width  = 1;
-    s32 cell_height = nya_max(TTF_GetFontHeight(font), line_skip);
-
-    for (s32 character = NYA_RENDER2D_GLYPH_FIRST; character <= NYA_RENDER2D_GLYPH_LAST; character++) {
-        s32 min_x = 0, max_x = 0, min_y = 0, max_y = 0, advance = 0;
-        if (!TTF_GetGlyphMetrics(font, (u32)character, &min_x, &max_x, &min_y, &max_y, &advance)) continue;
-
-        // the wider of advance and ink, so overhanging glyphs are not clipped.
-        cell_width = nya_max(cell_width, nya_max(advance, max_x));
-    }
-
-    /*
-     * Half again wider than ASCII needs: cells are sized once, and Latin Extended glyphs run about a third wider
-     * than the widest ASCII one. Too small a cell clips those glyphs silently.
-     */
-    cell_width  = (cell_width * 3) / 2;
-    cell_height = (cell_height * 3) / 2;
-
-    // a one pixel gutter so linear filtering does not bleed in the neighbouring glyph.
-    cell_width  += 2;
-    cell_height += 2;
-
-    const s32 columns      = NYA_RENDER2D_GLYPH_COLUMNS;
-    s32       rows         = (NYA_RENDER2D_GLYPH_CAPACITY + columns - 1) / columns;
-    s32       atlas_width  = cell_width * columns;
-    s32       atlas_height = cell_height * rows;
+    NYA_GlyphGrid grid = _nya_render2d_glyph_grid(font);
 
     // zeroed, so the space between glyphs blends away.
-    u8* coverage = SDL_calloc(1, (size_t)atlas_width * (size_t)atlas_height);
+    u8* coverage = SDL_calloc(1, (size_t)grid.atlas_width * (size_t)grid.atlas_height);
     if (coverage == nullptr) {
         nya_log_warn("could not allocate a glyph atlas for '%s': out of memory", derived);
         return nullptr;
@@ -1936,10 +1869,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
         .ascent       = (f32)ascent,
         .descent      = (f32)descent,
         .coverage     = coverage,
-        .atlas_width  = atlas_width,
-        .atlas_height = atlas_height,
-        .cell_width   = cell_width,
-        .cell_height  = cell_height,
+        .grid         = grid,
 
         /*
          * Empty: glyph indices are only known by shaping text, since SDL_ttf has no codepoint-to-index mapping, so
@@ -1958,8 +1888,8 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
             // one channel; both text shaders read .r.
             .format               = SDL_GPU_TEXTUREFORMAT_R8_UNORM,
             .usage                = SDL_GPU_TEXTUREUSAGE_SAMPLER,
-            .width                = (u32)atlas_width,
-            .height               = (u32)atlas_height,
+            .width                = (u32)grid.atlas_width,
+            .height               = (u32)grid.atlas_height,
             .layer_count_or_depth = 1,
             .num_levels           = 1,
         }
@@ -1968,7 +1898,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
 
     slot->transfer_buffer = nya_gpu_transfer_buffer_create(
         gpu_device,
-        &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = (u32)(cell_width * cell_height) }
+        &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = (u32)(grid.cell_width * grid.cell_height) }
     );
     nya_assert(slot->transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for a glyph atlas: %s", SDL_GetError());
 
@@ -1980,7 +1910,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
 
     // logged because the mode decides the pipeline and is latched here, so a late distance-field request shows up
     // in this line.
-    nya_log_info("Built a glyph atlas for '%s' (%dx%d, %d slots, %s, filled on demand).", derived, atlas_width, atlas_height,
+    nya_log_info("Built a glyph atlas for '%s' (%dx%d, %d slots, %s, filled on demand).", derived, grid.atlas_width, grid.atlas_height,
              NYA_RENDER2D_GLYPH_CAPACITY, slot->sdf ? "distance field" : "coverage");
 
     return slot;
@@ -2091,14 +2021,6 @@ TTF_Font* _nya_render2d_atlas_font(const NYA_FontAtlas* atlas) {
     return asset->as_font.font;
 }
 
-/* The attribute is required: this multiply overflows on purpose, and the sanitized build aborts without it. */
-__attr_no_sanitize("unsigned-integer-overflow") u32 _nya_render2d_glyph_bucket(u32 glyph_index) {
-    // mixed, because glyph indices in one script are consecutive and would collide along a word.
-    u32 hash = glyph_index * 2654435761U;
-
-    return (hash >> 16) & (NYA_RENDER2D_GLYPH_LOOKUP - 1);
-}
-
 const NYA_Glyph* _nya_render2d_glyph(NYA_FontAtlas* atlas, u32 glyph_index) {
     u32 bucket = _nya_render2d_glyph_bucket(glyph_index);
 
@@ -2143,72 +2065,9 @@ const NYA_Glyph* _nya_render2d_glyph(NYA_FontAtlas* atlas, u32 glyph_index) {
         ceiling_registered = true;
     }
 
-    _nya_render2d_glyph_bake(atlas, font, glyph_index, slot);
+    atlas->glyphs[slot] = _nya_render2d_glyph_rasterize(atlas->coverage, atlas->grid, font, glyph_index, slot);
 
     return &atlas->glyphs[slot];
-}
-
-void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 glyph_index, u32 slot) {
-    NYA_Glyph* glyph = &atlas->glyphs[slot];
-
-    *glyph = (NYA_Glyph){ 0 };
-
-    s32 cell_x = (s32)(slot % NYA_RENDER2D_GLYPH_COLUMNS) * atlas->cell_width;
-    s32 cell_y = (s32)(slot / NYA_RENDER2D_GLYPH_COLUMNS) * atlas->cell_height;
-
-    /* By glyph index, as shaped: a ligature has no codepoint, and a mark cluster has several glyphs for one. */
-    TTF_ImageType image_type = TTF_IMAGE_INVALID;
-    SDL_Surface*  glyph_surface = TTF_GetGlyphImageForIndex(font, glyph_index, &image_type);
-
-    // no such glyph, or it failed to rasterise: the cell stays empty.
-    if (glyph_surface == nullptr) return;
-
-    defer SDL_DestroySurface(glyph_surface);
-
-    // clipped rather than spilling into the neighbouring cell.
-    s32 width  = nya_min(glyph_surface->w, atlas->cell_width - 2);
-    s32 height = nya_min(glyph_surface->h, atlas->cell_height - 2);
-
-    if (width <= 0 || height <= 0) return;
-
-    // cleared first: a re-bake after a reload would otherwise show old ink.
-    for (s32 row = cell_y; row < cell_y + atlas->cell_height && row < atlas->atlas_height; row++) {
-        nya_memset(atlas->coverage + ((size_t)row * (size_t)atlas->atlas_width) + (size_t)cell_x, 0, (size_t)atlas->cell_width);
-    }
-
-    /* Converted when the format differs, since only RGBA32 puts alpha in an indexable byte. */
-    SDL_Surface* source    = glyph_surface;
-    SDL_Surface* converted = nullptr;
-
-    if (source->format != SDL_PIXELFORMAT_RGBA32) {
-        converted = SDL_ConvertSurface(source, SDL_PIXELFORMAT_RGBA32);
-        if (converted == nullptr) return;
-
-        source = converted;
-    }
-
-    /*
-     * The glyph's alpha becomes the coverage. Coverage is kept rather than thresholded: with pixel-snapped quads
-     * and nearest sampling, one pixel maps to one texel, so the antialiasing survives unblurred.
-     */
-    for (s32 y = 0; y < height; y++) {
-        const u8* source_row = (const u8*)source->pixels + ((size_t)y * (size_t)source->pitch);
-        u8*       atlas_row  = atlas->coverage + ((size_t)(cell_y + 1 + y) * (size_t)atlas->atlas_width) + (size_t)(cell_x + 1);
-
-        // SDL_PIXELFORMAT_RGBA32 puts alpha in the last byte on either endianness.
-        for (s32 x = 0; x < width; x++) atlas_row[x] = source_row[((size_t)x * 4) + 3];
-    }
-
-    if (converted != nullptr) SDL_DestroySurface(converted);
-
-    *glyph = (NYA_Glyph){
-        .u0     = (f32)(cell_x + 1) / (f32)atlas->atlas_width,
-        .v0     = (f32)(cell_y + 1) / (f32)atlas->atlas_height,
-        .u1     = (f32)(cell_x + 1 + width) / (f32)atlas->atlas_width,
-        .v1     = (f32)(cell_y + 1 + height) / (f32)atlas->atlas_height,
-        .width  = (f32)width,
-        .height = (f32)height,
-    };
 }
 
 void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
@@ -2232,19 +2091,15 @@ void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
     SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(command_buffer);
 
     for (u32 slot = atlas->uploaded_count; slot < atlas->glyph_count; slot++) {
-        s32 cell_x = (s32)(slot % NYA_RENDER2D_GLYPH_COLUMNS) * atlas->cell_width;
-        s32 cell_y = (s32)(slot / NYA_RENDER2D_GLYPH_COLUMNS) * atlas->cell_height;
-
-        nya_assert(cell_x + atlas->cell_width <= atlas->atlas_width && cell_y + atlas->cell_height <= atlas->atlas_height);
+        s32 cell_x = 0;
+        s32 cell_y = 0;
+        _nya_render2d_glyph_cell(atlas->grid, slot, &cell_x, &cell_y);
 
         // cycled: the previous glyph's copy is only recorded, so it still reads the buffer this would overwrite.
         u8* mapped = SDL_MapGPUTransferBuffer(gpu_device, atlas->transfer_buffer, true);
         nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for a glyph cell: %s", SDL_GetError());
 
-        for (s32 row = 0; row < atlas->cell_height; row++) {
-            const u8* source = atlas->coverage + ((size_t)(cell_y + row) * (size_t)atlas->atlas_width) + (size_t)cell_x;
-            nya_memcpy(mapped + ((size_t)row * (size_t)atlas->cell_width), source, (size_t)atlas->cell_width);
-        }
+        _nya_render2d_glyph_cell_read(atlas->coverage, atlas->grid, slot, mapped);
 
         SDL_UnmapGPUTransferBuffer(gpu_device, atlas->transfer_buffer);
 
@@ -2255,8 +2110,8 @@ void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
                 .texture = atlas->texture,
                 .x       = (u32)cell_x,
                 .y       = (u32)cell_y,
-                .w       = (u32)atlas->cell_width,
-                .h       = (u32)atlas->cell_height,
+                .w       = (u32)atlas->grid.cell_width,
+                .h       = (u32)atlas->grid.cell_height,
                 .d       = 1,
             },
             false
