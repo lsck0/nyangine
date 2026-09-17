@@ -26,10 +26,8 @@
  * nya_audio_play_sound_at(NYA_ASSET_SFX_ROCKFALL_WAV, rock_position, (NYA_SoundParams){ .gain = 0.9F });
  * ```
  *
- * ```c
- * // The world dulls; music and UI carry on untouched because they are on another bus.
- * nya_audio_bus_filter_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioFilter){ .lowpass_hz = 700.0F, .glide_ms = 120.0F });
- * ```
+ *
+ * Bus effects are in core_audio_effects.h, and how sound travels through the world in core_audio_propagation.h.
  * */
 #pragma once
 
@@ -125,19 +123,22 @@ struct NYA_SoundParams {
      * Who wins when every voice is busy.
      * */
     s32 priority;
+
+    /**
+     * How wide the source is, world units: a bonfire is not a point. Propagation spreads its rays over it, so a thin
+     * post cannot hide it. Zero takes NYA_AudioPropagation.radius.
+     * */
+    f32 radius;
 };
 
-typedef enum NYA_AudioBus        NYA_AudioBus;
-typedef struct NYA_AudioFilter   NYA_AudioFilter;
+typedef enum NYA_AudioBus          NYA_AudioBus;
+typedef struct NYA_AudioFilter     NYA_AudioFilter;
 typedef enum NYA_AudioPlane        NYA_AudioPlane;
-typedef struct NYA_AudioOcclusion  NYA_AudioOcclusion;
-typedef struct NYA_AudioReverb     NYA_AudioReverb;
-typedef f32 (*NYA_AudioOcclusionFn)(f32x3 world_position, void* user_data);
 typedef struct NYA_AudioListener   NYA_AudioListener;
 typedef struct NYA_AudioListener3D NYA_AudioListener3D;
 
 /**
- * What a filter is attached to.
+ * What effects are attached to.
  * */
 enum NYA_AudioBus {
     /** Every sound effect. The one a "player is underwater" filter usually wants. */
@@ -153,11 +154,11 @@ enum NYA_AudioBus {
 };
 
 /**
- * A filter on a bus. Zeroed is no filtering, which is where every bus starts.
+ * A one pole low pass on a voice. Zeroed is no filtering.
  * */
 struct NYA_AudioFilter {
     /**
-     * Frequency above which the bus is rolled off, in hertz. Zero is off.
+     * Frequency above which the voice is rolled off, in hertz. Zero is off.
      * */
     f32 lowpass_hz;
 
@@ -393,49 +394,11 @@ NYA_API void nya_audio_voice_set_pan(NYA_SoundVoice voice, f32 pan);
 NYA_API void nya_audio_voice_set_position(NYA_SoundVoice voice, f32x3 position);
 
 /**
- * Moves a playing sound to a point in the world, through the listener.
- * */
-/**
  * Puts a low pass on one voice alone. See NYA_AudioFilter for what the filter is and is not.
  * */
 NYA_API void nya_audio_voice_filter_set(NYA_SoundVoice voice, NYA_AudioFilter filter);
 
-/**
- * How a sound is treated when something is between it and the listener.
- * */
-struct NYA_AudioOcclusion {
-    /**
-     * Cutoff in hertz at full occlusion. Zero disables the filtering half.
-     * */
-    f32 lowpass_hz;
-
-    /** Gain multiplier at full occlusion. Zero is read as unspecified and becomes 0.5. */
-    f32 gain;
-
-    /** How long the filter takes to reach a new cutoff. Zero becomes a short glide; see NYA_AudioFilter. */
-    f32 glide_ms;
-};
-
-/**
- * Installs the function that decides how blocked a point is, and how blocked sounds. Null disables it.
- *
- * ```c
- * NYA_INTERNAL f32 occlusion_of(f32x3 source, void* user_data) {
- *     nya_unused(user_data);
- *
- *     f32x3 ear = nya_audio_listener_3d_get().position;
- *
- *     return nya_entity_is_valid(nya_physics3d_raycast(ear, source - ear, nullptr, nullptr)) ? 1.0F : 0.0F;
- * }
- * ```
- * */
-NYA_API void nya_audio_occlusion_set(NYA_AudioOcclusionFn function, void* user_data, NYA_AudioOcclusion occlusion);
-
-/**
- * Re-evaluates occlusion for every positional voice that is still playing. Call it once a frame.
- * */
-NYA_API void nya_audio_occlusion_update(void);
-
+/** Moves a playing sound to a point in the world, through the listener. */
 NYA_API void nya_audio_voice_set_world_position(NYA_SoundVoice voice, f32x2 world_position);
 
 /** Re-places a playing voice at a 3D world point, against the 3D listener as it is now. */
@@ -453,72 +416,6 @@ NYA_API void nya_audio_voice_stop(NYA_SoundVoice voice, u32 fade_out_ms);
 /*
  * Linear multipliers, 1.0 being unchanged. Clamped at zero; values above one amplify and may clip.
  */
-/*
- * ─────────────────────────────────────────────────────────
- * BUS FILTERS
- * ─────────────────────────────────────────────────────────
- */
-
-/**
- * Puts a filter on a whole bus, or takes it off.
- *
- * ```c
- * // Headphones on: the world dulls over a tenth of a second, the UI is on music and stays crisp.
- * nya_audio_bus_filter_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioFilter){ .lowpass_hz = 700.0F, .glide_ms = 120.0F });
- *
- * // Headphones off. Zero is off, and it glides back rather than snapping open.
- * nya_audio_bus_filter_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioFilter){ .glide_ms = 120.0F });
- * ```
- * */
-/**
- * A room around a bus: how big it sounds and how much of it is heard.
- * */
-struct NYA_AudioReverb {
-    /**
-     * How long the tail rings, roughly 0 to 1. Zero switches the reverb off entirely.
-     * */
-    f32 room_size;
-
-    /**
-     * How fast the high frequencies die away inside the tail, 0 to 1.
-     * */
-    f32 damping;
-
-    /** How much reverberated signal is added. Zero is unspecified and becomes a modest 0.3. */
-    f32 wet;
-
-    /**
-     * How much of the original passes through. Zero is unspecified and becomes 1.0, i.e. untouched.
-     * */
-    f32 dry;
-
-    /**
-     * How far apart the two channels' rooms are, 0 to 1. Zero becomes 1.0, fully wide.
-     * */
-    f32 width;
-};
-
-/**
- * Puts a reverb on a bus, or takes it off. See NYA_AudioReverb.
- *
- * ```c
- * // A cave: long, dark, and mostly what you hear.
- * nya_audio_bus_reverb_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioReverb){
- *     .room_size = 0.86F, .damping = 0.35F, .wet = 0.5F, .dry = 0.7F,
- * });
- * ```
- * */
-NYA_API void nya_audio_bus_reverb_set(NYA_AudioBus bus, NYA_AudioReverb reverb);
-
-/** What the bus is currently reverberating with. A zeroed struct when it has none. */
-NYA_API NYA_AudioReverb nya_audio_bus_reverb_get(NYA_AudioBus bus) __attr_no_discard;
-
-NYA_API void nya_audio_bus_filter_set(NYA_AudioBus bus, NYA_AudioFilter filter);
-
-/**
- * What that bus was last set to.
- * */
-NYA_API NYA_AudioFilter nya_audio_bus_filter_get(NYA_AudioBus bus) __attr_no_discard;
 
 NYA_API void nya_audio_set_master_gain(f32 gain);
 NYA_API void nya_audio_set_sound_gain(f32 gain);

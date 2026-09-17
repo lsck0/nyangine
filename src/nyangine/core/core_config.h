@@ -13,6 +13,8 @@
 #include "nyangine/base/base.h"
 #include "nyangine/base/base_reflection.h"
 #include "nyangine/core/core_asset.h"
+#include "nyangine/core/core_audio_effects.h"
+#include "nyangine/core/core_audio_propagation.h"
 #include "nyangine/core/core_event.h"
 #include "nyangine/ui/ui.h"
 
@@ -81,6 +83,7 @@ struct NYA_ConfigSystem {
 
 typedef struct NYA_ConfigEngineRenderer NYA_ConfigEngineRenderer;
 typedef struct NYA_ConfigEnginePhysics  NYA_ConfigEnginePhysics;
+typedef struct NYA_ConfigEngineAudio    NYA_ConfigEngineAudio;
 typedef struct NYA_ConfigEngine         NYA_ConfigEngine;
 
 /**
@@ -148,6 +151,21 @@ struct NYA_ConfigEnginePhysics {
 };
 
 /**
+ * Sound: how it travels through the world, and each bus's effects.
+ * */
+// @reflect
+struct NYA_ConfigEngineAudio {
+    /** See nya_audio_propagation_set. */
+    NYA_AudioPropagation propagation;
+
+    /* Handed to nya_audio_bus_effects_set as they are. */
+
+    NYA_AudioEffects sound;
+    NYA_AudioEffects music;
+    NYA_AudioEffects master;
+};
+
+/**
  * The engine-owned half of a game's config, reached as `NYA_CONFIG.engine.renderer.shadow_bias` and
  * so on once a game embeds this in its own root config struct. See GNY_Config in gnyame/config.h for
  * the game-owned half, and the file header for how the whole is loaded and watched.
@@ -156,6 +174,7 @@ struct NYA_ConfigEnginePhysics {
 struct NYA_ConfigEngine {
     NYA_ConfigEngineRenderer renderer;
     NYA_ConfigEnginePhysics  physics;
+    NYA_ConfigEngineAudio    audio;
 
     /** See nya_ui_style_set. */
     NYA_UIStyle ui;

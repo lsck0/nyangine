@@ -2,7 +2,7 @@
  * @file layer_cube3d.c
  *
  * The 3D demo: an orbit camera over a noise terrain, a draggable cube, two loaded models fitted with
- * bodies, a pile of cubes, fire and smoke particles, occluded 3D sound, shadows and bloom.
+ * bodies, a pile of cubes, fire and smoke particles, 3D sound traced through the terrain, shadows and bloom.
  * */
 #include "gnyame/gnyame.h"
 
@@ -20,9 +20,6 @@ NYA_INTERNAL GNY_Cube3DScene* _gny_cube3d_scene(void);
 
 /** Where the draggable cube starts: above the middle of the terrain, whatever height that is. */
 NYA_INTERNAL f32x3 _gny_cube3d_drop_point(void);
-
-/** How blocked a sound at `source` is from the camera. Installed as the engine's occlusion callback. */
-NYA_INTERNAL f32 _gny_cube3d_occlusion(f32x3 source, void* user_data);
 
 /**
  * Where the pile's `index`-th cube starts, hashed from the index so R replays the same pile and a recycled
@@ -47,6 +44,9 @@ NYA_INTERNAL void _gny_cube3d_decals_draw(NYA_Window* window, const GNY_Cube3DSc
 
 /** Advances the skinned bar's clock. Clips play once each, in turn. The pose is sampled when drawn. */
 NYA_INTERNAL void _gny_cube3d_bender_advance(GNY_Cube3DScene* scene, f32 delta_time_s);
+
+/** Where the plume burns, on the ground under it. The fire's sound comes from here. */
+NYA_INTERNAL f32x3 _gny_cube3d_hearth(void);
 
 /** The sun or moon from the time of day, with the ambient tinted by the sky above and the sand below. */
 NYA_INTERNAL NYA_Render3DLight _gny_cube3d_light(GNY_SkyState sky);
@@ -79,14 +79,14 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
 
     // queued here too so the scene works in any visit order; a second load is a no-op. predecoded, since
     // decoding at the moment of impact is when a hitch is audible.
-    NYA_Error sound = nya_asset_load((NYA_AssetLoadParameters){
-        .type     = NYA_ASSET_TYPE_SOUND,
-        .handle   = NYA_ASSET_SOUNDS_HIT_WAV,
-        .as_sound = { .predecode = true },
-    });
+    NYA_AssetHandle sounds[] = { NYA_ASSET_SOUNDS_HIT_WAV, GNY_CUBE3D_FIRE_SOUND };
 
-    // not fatal: without an audio device the scene still runs and play calls are no-ops.
-    if (!sound.ok) nya_log_warn("%s", (NYA_ConstCString)sound.message);
+    for (u64 i = 0; i < nya_carray_length(sounds); i++) {
+        NYA_Error sound = nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_SOUND, .handle = sounds[i], .as_sound = { .predecode = true } });
+
+        // not fatal: without an audio device the scene still runs and play calls are no-ops.
+        if (!sound.ok) nya_log_warn("%s", (NYA_ConstCString)sound.message);
+    }
 
     NYA_AssetHandle models[] = { GNY_CUBE3D_MODEL, GNY_CUBE3D_PILL, GNY_CUBE3D_BENDER };
 
@@ -165,29 +165,6 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
         .on_collision = nya_callback(gny_layer_cube3d_on_collision)
     );
 
-    // occlusion through a callback (core_audio knows nothing about physics). the terrain is a bowl with a rim, so a
-    // cube on the far slope really is behind ground. reverb goes on the effects bus, after the occlusion filter, so
-    // a muffled sound reverberates muffled and music is left dry.
-    nya_audio_bus_reverb_set(
-        NYA_AUDIO_BUS_SOUND,
-        (NYA_AudioReverb){
-            .room_size = GNY_CUBE3D_REVERB_ROOM,
-            .damping   = GNY_CUBE3D_REVERB_DAMPING,
-            .wet       = GNY_CUBE3D_REVERB_WET,
-            .dry       = GNY_CUBE3D_REVERB_DRY,
-        }
-    );
-
-    nya_audio_occlusion_set(
-        _gny_cube3d_occlusion,
-        nullptr,
-        (NYA_AudioOcclusion){
-            .lowpass_hz = GNY_CUBE3D_OCCLUSION_HZ,
-            .gain       = GNY_CUBE3D_OCCLUSION_GAIN,
-            .glide_ms   = GNY_CUBE3D_OCCLUSION_GLIDE_MS,
-        }
-    );
-
     // the pile last, so it falls onto what is there.
     gny_layer_cube3d_cubes_drop();
 }
@@ -216,12 +193,10 @@ void gny_layer_cube3d_on_destroy(NYA_Window* window) {
     GNY_World* world = gny_world();
     if (world != nullptr) nya_post_chain_destroy(&world->post);
 
-    // despawning destroys the body. deferred, since this can run inside the layer stack's iteration. the occlusion
-    // callback is removed before the solver it raycasts goes; null also clears what it applied.
-    nya_audio_occlusion_set(nullptr, nullptr, (NYA_AudioOcclusion){ 0 });
-
-    // a zero room size switches the reverb off and lets the tail ring out.
-    nya_audio_bus_reverb_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioReverb){ 0 });
+    // despawning destroys the body. deferred, since this can run inside the layer stack's iteration. propagation goes
+    // first: it traces the terrain being torn down, and switching it off puts every voice back as placed.
+    nya_audio_propagation_set((NYA_AudioPropagation){ 0 });
+    nya_audio_voice_stop(scene->fire_voice, GNY_CUBE3D_FIRE_FADE_MS);
 
     nya_entity_despawn_deferred(scene->cube);
     nya_entity_despawn_deferred(scene->model);
@@ -700,8 +675,25 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
 
     _gny_cube3d_bender_advance(scene, delta_time_s);
 
-    // once a tick, so a sound un-muffles as the view swings clear of a hill.
-    nya_audio_occlusion_update();
+    // from the config every tick, so an edit is heard live. the engine traces once a frame, after the listener moves.
+    NYA_AudioPropagation propagation = NYA_CONFIG.engine.audio.propagation;
+    propagation.space                = NYA_AUDIO_SPACE_3D;
+    nya_audio_propagation_set(propagation);
+
+    // retried until the clip has loaded; a valid voice is left looping.
+    if (!nya_audio_voice_valid(scene->fire_voice)) {
+        scene->fire_voice = nya_audio_play_sound_at_3d(
+            GNY_CUBE3D_FIRE_SOUND,
+            _gny_cube3d_hearth(),
+            (NYA_SoundParams){
+                .gain       = GNY_CUBE3D_FIRE_GAIN * nya_settings_volume_effective(NYA_VOLUME_CHANNEL_SOUND),
+                .loop       = true,
+                .fade_in_ms = GNY_CUBE3D_FIRE_FADE_MS,
+                .radius     = GNY_CUBE3D_FIRE_RADIUS,
+                .priority   = 100,
+            }
+        );
+    }
 
     /*
      * Cubes that fall off the terrain's rim are recycled: the pool is fixed, and an escaped body costs solver time
@@ -750,6 +742,9 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
         .up                 = { 0.0F, 1.0F, 0.0F },
         .reference_distance = GNY_CUBE3D_EAR_DISTANCE,
     });
+
+    // a loop is placed against the listener, so it is placed again once the camera has moved.
+    nya_audio_voice_set_world_position_3d(scene->fire_voice, _gny_cube3d_hearth());
 
     GNY_SkyState sky = gny_sky_state();
 
@@ -1110,48 +1105,13 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+f32x3 _gny_cube3d_hearth(void) {
+    return (f32x3){ GNY_CUBE3D_PLUME_X, gny_terrain3d_height_at(GNY_CUBE3D_PLUME_X, GNY_CUBE3D_PLUME_Z), GNY_CUBE3D_PLUME_Z };
+}
+
 GNY_Cube3DScene* _gny_cube3d_scene(void) {
     // on the world, so it survives a hot reload. see layers.h.
     return &gny_world()->cube3d;
-}
-
-f32 _gny_cube3d_occlusion(f32x3 source, void* user_data) {
-    nya_unused(user_data);
-
-    f32x3 ear = nya_audio_listener_3d_get().position;
-
-    f32x3 to_source = source - ear;
-
-    f32 distance = nya_vector_length(to_source);
-
-    // a sound at the listener has no direction; treated as clear.
-    if (distance < NYA_EPSILON) return 0.0F;
-
-    // three rays around the direct line, so occlusion fades in thirds instead of snapping. spread perpendicular and
-    // scaled by distance, so the spread is angular.
-    f32x3 direction = to_source / distance;
-
-    f32x3 reference = fabsf(direction.y) < 0.9F ? (f32x3){ 0.0F, 1.0F, 0.0F } : (f32x3){ 1.0F, 0.0F, 0.0F };
-
-    f32x3 side = nya_vector_normalize(nya_vector_cross(direction, reference)) * (distance * GNY_CUBE3D_OCCLUSION_SPREAD);
-
-    f32x3 targets[] = { source, source + side, source - side };
-
-    u32 blocked = 0;
-
-    for (u64 i = 0; i < nya_carray_length(targets); i++) {
-        // from the ear toward the source: the raycast reports the first hit, and from the source it would hit the ground
-        // the sound sits on.
-        f32x3 ray = targets[i] - ear;
-
-        NYA_EntityHandle hit = nya_physics3d_raycast(ear, ray, nullptr, nullptr);
-
-        if (nya_entity_is_valid(hit)) blocked++;
-    }
-
-    u64 target_count = nya_carray_length(targets);
-
-    return (f32)blocked / (f32)target_count;
 }
 
 f32x3 _gny_cube3d_drop_point(void) {

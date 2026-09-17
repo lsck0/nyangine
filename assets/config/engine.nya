@@ -76,6 +76,35 @@ nya 2 0
             // See NYA_PHYSICS2D_SUB_STEPS / NYA_PHYSICS3D_SUB_STEPS.
             sub_steps: u32 4;
         };
+        audio: object {
+            // How sound travels, traced against the physics world: hidden sounds dull and bend around
+            // edges, the room around the ear sets the reverb, and nearby surfaces echo. The 3D demo's
+            // voices. A zero field takes its NYA_AUDIO_PROPAGATION_* default; see core_audio_propagation.h.
+            propagation: object {
+                enabled: b8 true;
+                ray_budget: u32 64;
+                diffraction: b8 true;
+                diffraction_reach: f32 3.0;
+                environment: b8 true;
+                environment_range: f32 40.0;
+                reflections: f32 0.2;
+            };
+            // Each bus's effects, a unit left out is off. See NYA_AudioEffects in core_audio_effects.h.
+            sound: object {
+                compressor: object {
+                    enabled: b8 true;
+                    threshold_db: f32 -12.0;
+                    ratio: f32 3.0;
+                };
+            };
+            // Nothing past the ceiling however many crates land at once.
+            master: object {
+                limiter: object {
+                    enabled: b8 true;
+                    ceiling_db: f32 -1.0;
+                };
+            };
+        };
         // The menus and HUD panels. A field left out or zero takes its NYA_UI_* default, which is flat and quiet;
         // outline, depth and pop dress it up. Sizes are pixels in a 720 tall window, scaled with the window. See ui.h.
         ui: object {

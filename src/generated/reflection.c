@@ -148,6 +148,191 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_EntityFlags = {
     .is_bitflags = true,
 };
 
+/* NYA_AudioPass, src/nyangine/core/core_audio_effects.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AudioPass_FIELDS[] = {
+    { .name = "lowpass_hz", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPass, lowpass_hz), .hint = NYA_HINT_NONE },
+    { .name = "highpass_hz", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPass, highpass_hz), .hint = NYA_HINT_NONE },
+    { .name = "resonance", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPass, resonance), .hint = NYA_HINT_NONE },
+    { .name = "glide_ms", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPass, glide_ms), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AudioPass = {
+    .name = "NYA_AudioPass",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AudioPass),
+    .alignment = alignof(NYA_AudioPass),
+    .fields = _NYA_REFLECT_NYA_AudioPass_FIELDS,
+    .field_count = 4,
+};
+
+/* NYA_AudioEqualizer, src/nyangine/core/core_audio_effects.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AudioEqualizer_FIELDS[] = {
+    { .name = "low_db", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEqualizer, low_db), .hint = NYA_HINT_NONE },
+    { .name = "mid_db", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEqualizer, mid_db), .hint = NYA_HINT_NONE },
+    { .name = "high_db", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEqualizer, high_db), .hint = NYA_HINT_NONE },
+    { .name = "low_hz", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEqualizer, low_hz), .hint = NYA_HINT_NONE },
+    { .name = "mid_hz", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEqualizer, mid_hz), .hint = NYA_HINT_NONE },
+    { .name = "high_hz", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEqualizer, high_hz), .hint = NYA_HINT_NONE },
+    { .name = "mid_q", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEqualizer, mid_q), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AudioEqualizer = {
+    .name = "NYA_AudioEqualizer",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AudioEqualizer),
+    .alignment = alignof(NYA_AudioEqualizer),
+    .fields = _NYA_REFLECT_NYA_AudioEqualizer_FIELDS,
+    .field_count = 7,
+};
+
+/* NYA_AudioCompressor, src/nyangine/core/core_audio_effects.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AudioCompressor_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioCompressor, enabled), .hint = NYA_HINT_NONE },
+    { .name = "threshold_db", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioCompressor, threshold_db), .hint = NYA_HINT_NONE },
+    { .name = "ratio", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioCompressor, ratio), .hint = NYA_HINT_NONE },
+    { .name = "attack_ms", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioCompressor, attack_ms), .hint = NYA_HINT_NONE },
+    { .name = "release_ms", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioCompressor, release_ms), .hint = NYA_HINT_NONE },
+    { .name = "makeup_db", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioCompressor, makeup_db), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AudioCompressor = {
+    .name = "NYA_AudioCompressor",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AudioCompressor),
+    .alignment = alignof(NYA_AudioCompressor),
+    .fields = _NYA_REFLECT_NYA_AudioCompressor_FIELDS,
+    .field_count = 6,
+};
+
+/* NYA_AudioEcho, src/nyangine/core/core_audio_effects.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AudioEcho_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioEcho, enabled), .hint = NYA_HINT_NONE },
+    { .name = "delay_ms", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEcho, delay_ms), .hint = NYA_HINT_NONE },
+    { .name = "feedback", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEcho, feedback), .hint = NYA_HINT_NONE },
+    { .name = "wet", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEcho, wet), .hint = NYA_HINT_NONE },
+    { .name = "lowpass_hz", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioEcho, lowpass_hz), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AudioEcho = {
+    .name = "NYA_AudioEcho",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AudioEcho),
+    .alignment = alignof(NYA_AudioEcho),
+    .fields = _NYA_REFLECT_NYA_AudioEcho_FIELDS,
+    .field_count = 5,
+};
+
+/* NYA_AudioReverb, src/nyangine/core/core_audio_effects.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AudioReverb_FIELDS[] = {
+    { .name = "room_size", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioReverb, room_size), .hint = NYA_HINT_NONE },
+    { .name = "damping", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioReverb, damping), .hint = NYA_HINT_NONE },
+    { .name = "wet", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioReverb, wet), .hint = NYA_HINT_NONE },
+    { .name = "dry", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioReverb, dry), .hint = NYA_HINT_NONE },
+    { .name = "width", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioReverb, width), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AudioReverb = {
+    .name = "NYA_AudioReverb",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AudioReverb),
+    .alignment = alignof(NYA_AudioReverb),
+    .fields = _NYA_REFLECT_NYA_AudioReverb_FIELDS,
+    .field_count = 5,
+};
+
+/* NYA_AudioLimiter, src/nyangine/core/core_audio_effects.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AudioLimiter_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioLimiter, enabled), .hint = NYA_HINT_NONE },
+    { .name = "ceiling_db", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioLimiter, ceiling_db), .hint = NYA_HINT_NONE },
+    { .name = "release_ms", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioLimiter, release_ms), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AudioLimiter = {
+    .name = "NYA_AudioLimiter",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AudioLimiter),
+    .alignment = alignof(NYA_AudioLimiter),
+    .fields = _NYA_REFLECT_NYA_AudioLimiter_FIELDS,
+    .field_count = 3,
+};
+
+/* NYA_AudioEffects, src/nyangine/core/core_audio_effects.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AudioEffects_FIELDS[] = {
+    { .name = "pass", .type = &_NYA_REFLECT_NYA_AudioPass, .offset = nya_offsetof(NYA_AudioEffects, pass), .hint = NYA_HINT_NONE },
+    { .name = "equalizer", .type = &_NYA_REFLECT_NYA_AudioEqualizer, .offset = nya_offsetof(NYA_AudioEffects, equalizer), .hint = NYA_HINT_NONE },
+    { .name = "compressor", .type = &_NYA_REFLECT_NYA_AudioCompressor, .offset = nya_offsetof(NYA_AudioEffects, compressor), .hint = NYA_HINT_NONE },
+    { .name = "echo", .type = &_NYA_REFLECT_NYA_AudioEcho, .offset = nya_offsetof(NYA_AudioEffects, echo), .hint = NYA_HINT_NONE },
+    { .name = "reverb", .type = &_NYA_REFLECT_NYA_AudioReverb, .offset = nya_offsetof(NYA_AudioEffects, reverb), .hint = NYA_HINT_NONE },
+    { .name = "limiter", .type = &_NYA_REFLECT_NYA_AudioLimiter, .offset = nya_offsetof(NYA_AudioEffects, limiter), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AudioEffects = {
+    .name = "NYA_AudioEffects",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AudioEffects),
+    .alignment = alignof(NYA_AudioEffects),
+    .fields = _NYA_REFLECT_NYA_AudioEffects_FIELDS,
+    .field_count = 6,
+};
+
+/* NYA_AudioSpace, src/nyangine/core/core_audio_propagation.h */
+
+static const NYA_ReflectVariant _NYA_REFLECT_NYA_AudioSpace_VARIANTS[] = {
+    { .name = "NYA_AUDIO_SPACE_3D", .value = (s64)(NYA_AUDIO_SPACE_3D) },
+    { .name = "NYA_AUDIO_SPACE_2D", .value = (s64)(NYA_AUDIO_SPACE_2D) },
+    { .name = "NYA_AUDIO_SPACE_COUNT", .value = (s64)(NYA_AUDIO_SPACE_COUNT) },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AudioSpace = {
+    .name = "NYA_AudioSpace",
+    .kind = NYA_REFLECT_ENUM,
+    .size = sizeof(NYA_AudioSpace),
+    .alignment = alignof(NYA_AudioSpace),
+    .primitive = (sizeof(NYA_AudioSpace) == 8 ? NYA_TYPE_S64
+                : sizeof(NYA_AudioSpace) == 2 ? NYA_TYPE_S16
+                : sizeof(NYA_AudioSpace) == 1 ? NYA_TYPE_S8
+                                  : NYA_TYPE_S32),
+    .variants = _NYA_REFLECT_NYA_AudioSpace_VARIANTS,
+    .variant_count = 3,
+    .is_bitflags = false,
+};
+
+/* NYA_AudioPropagation, src/nyangine/core/core_audio_propagation.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AudioPropagation_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioPropagation, enabled), .hint = NYA_HINT_NONE },
+    { .name = "space", .type = &_NYA_REFLECT_NYA_AudioSpace, .offset = nya_offsetof(NYA_AudioPropagation, space), .hint = NYA_HINT_NONE },
+    { .name = "ray_budget", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_AudioPropagation, ray_budget), .hint = NYA_HINT_NONE },
+    { .name = "voice_rays", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_AudioPropagation, voice_rays), .hint = NYA_HINT_NONE },
+    { .name = "radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPropagation, radius), .hint = NYA_HINT_NONE },
+    { .name = "lowpass_hz", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPropagation, lowpass_hz), .hint = NYA_HINT_NONE },
+    { .name = "transmission", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPropagation, transmission), .hint = NYA_HINT_NONE },
+    { .name = "thickness", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPropagation, thickness), .hint = NYA_HINT_NONE },
+    { .name = "smoothing_ms", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPropagation, smoothing_ms), .hint = NYA_HINT_NONE },
+    { .name = "diffraction", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioPropagation, diffraction), .hint = NYA_HINT_NONE },
+    { .name = "diffraction_reach", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPropagation, diffraction_reach), .hint = NYA_HINT_NONE },
+    { .name = "environment", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AudioPropagation, environment), .hint = NYA_HINT_NONE },
+    { .name = "environment_range", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPropagation, environment_range), .hint = NYA_HINT_NONE },
+    { .name = "reflections", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPropagation, reflections), .hint = NYA_HINT_NONE },
+    { .name = "speed_of_sound", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_AudioPropagation, speed_of_sound), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AudioPropagation = {
+    .name = "NYA_AudioPropagation",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AudioPropagation),
+    .alignment = alignof(NYA_AudioPropagation),
+    .fields = _NYA_REFLECT_NYA_AudioPropagation_FIELDS,
+    .field_count = 15,
+};
+
 /* NYA_ConfigEngineRenderer, src/nyangine/core/core_config.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer_grade_lut_ARRAY = {
@@ -201,11 +386,30 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEnginePhysics = {
     .field_count = 2,
 };
 
+/* NYA_ConfigEngineAudio, src/nyangine/core/core_config.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineAudio_FIELDS[] = {
+    { .name = "propagation", .type = &_NYA_REFLECT_NYA_AudioPropagation, .offset = nya_offsetof(NYA_ConfigEngineAudio, propagation), .hint = NYA_HINT_NONE },
+    { .name = "sound", .type = &_NYA_REFLECT_NYA_AudioEffects, .offset = nya_offsetof(NYA_ConfigEngineAudio, sound), .hint = NYA_HINT_NONE },
+    { .name = "music", .type = &_NYA_REFLECT_NYA_AudioEffects, .offset = nya_offsetof(NYA_ConfigEngineAudio, music), .hint = NYA_HINT_NONE },
+    { .name = "master", .type = &_NYA_REFLECT_NYA_AudioEffects, .offset = nya_offsetof(NYA_ConfigEngineAudio, master), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineAudio = {
+    .name = "NYA_ConfigEngineAudio",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_ConfigEngineAudio),
+    .alignment = alignof(NYA_ConfigEngineAudio),
+    .fields = _NYA_REFLECT_NYA_ConfigEngineAudio_FIELDS,
+    .field_count = 4,
+};
+
 /* NYA_ConfigEngine, src/nyangine/core/core_config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngine_FIELDS[] = {
     { .name = "renderer", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer, .offset = nya_offsetof(NYA_ConfigEngine, renderer), .hint = NYA_HINT_NONE },
     { .name = "physics", .type = &_NYA_REFLECT_NYA_ConfigEnginePhysics, .offset = nya_offsetof(NYA_ConfigEngine, physics), .hint = NYA_HINT_NONE },
+    { .name = "audio", .type = &_NYA_REFLECT_NYA_ConfigEngineAudio, .offset = nya_offsetof(NYA_ConfigEngine, audio), .hint = NYA_HINT_NONE },
     { .name = "ui", .type = &_NYA_REFLECT_NYA_UIStyle, .offset = nya_offsetof(NYA_ConfigEngine, ui), .hint = NYA_HINT_NONE },
 };
 
@@ -215,7 +419,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
     .size = sizeof(NYA_ConfigEngine),
     .alignment = alignof(NYA_ConfigEngine),
     .fields = _NYA_REFLECT_NYA_ConfigEngine_FIELDS,
-    .field_count = 3,
+    .field_count = 4,
 };
 
 /* NYA_EaseType, src/nyangine/math/math_tween.h */
@@ -695,8 +899,18 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_GNY_Config,
     &_NYA_REFLECT_GNY_EntityKind,
     &_NYA_REFLECT_GNY_EntityFlags,
+    &_NYA_REFLECT_NYA_AudioPass,
+    &_NYA_REFLECT_NYA_AudioEqualizer,
+    &_NYA_REFLECT_NYA_AudioCompressor,
+    &_NYA_REFLECT_NYA_AudioEcho,
+    &_NYA_REFLECT_NYA_AudioReverb,
+    &_NYA_REFLECT_NYA_AudioLimiter,
+    &_NYA_REFLECT_NYA_AudioEffects,
+    &_NYA_REFLECT_NYA_AudioSpace,
+    &_NYA_REFLECT_NYA_AudioPropagation,
     &_NYA_REFLECT_NYA_ConfigEngineRenderer,
     &_NYA_REFLECT_NYA_ConfigEnginePhysics,
+    &_NYA_REFLECT_NYA_ConfigEngineAudio,
     &_NYA_REFLECT_NYA_ConfigEngine,
     &_NYA_REFLECT_NYA_EaseType,
     &_NYA_REFLECT_NYA_NetChatMessage,

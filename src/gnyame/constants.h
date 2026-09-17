@@ -619,33 +619,17 @@
  * scene depth as a texture, which the renderer does not produce.
  */
 
-/* Reverb. The basin is a small hard bowl, so a short bright tail. See NYA_AudioReverb. */
+/* The fire's loop, traced through the terrain like the impacts. How it sounds is in engine.nya under audio. */
 
-/** Around half is a room; past 0.9 it sounds like a cathedral. */
-#define GNY_CUBE3D_REVERB_ROOM 0.62F
+#define GNY_CUBE3D_FIRE_SOUND NYA_ASSET_SOUNDS_FIRE_WAV
 
-/** Middling: stone and sand absorb some treble. */
-#define GNY_CUBE3D_REVERB_DAMPING 0.45F
+#define GNY_CUBE3D_FIRE_GAIN 0.7F
 
-/** Audible, but twenty-four simultaneous landings do not become a wash. */
-#define GNY_CUBE3D_REVERB_WET 0.26F
+/** A bonfire's width, metres: the rim hides it gradually, not all at once. */
+#define GNY_CUBE3D_FIRE_RADIUS 0.8F
 
-/** Full, so impacts are not quieter in a room. */
-#define GNY_CUBE3D_REVERB_DRY 1.0F
-
-/* Audio occlusion: what a hill between a sound and the camera does. See nya_audio_occlusion_set. */
-
-/** Cutoff at full occlusion. Around 700 reads as solid ground. */
-#define GNY_CUBE3D_OCCLUSION_HZ 700.0F
-
-/** Gain at full occlusion; muffling does most of the work. */
-#define GNY_CUBE3D_OCCLUSION_GAIN 0.45F
-
-/** How fast the filter follows. Short enough to track a rolling cube, long enough not to click. */
-#define GNY_CUBE3D_OCCLUSION_GLIDE_MS 90.0F
-
-/** Offset of the two extra rays, as a fraction of the distance, so the spread is angular. */
-#define GNY_CUBE3D_OCCLUSION_SPREAD 0.06F
+/** In when the scene opens, out when it closes. */
+#define GNY_CUBE3D_FIRE_FADE_MS 600
 
 /** Seeds the per-cube size, position and colour hash. Arbitrary; changing it reshuffles the pile. */
 #define GNY_TERRAIN3D_CUBE_SEED 0xC0BE5

@@ -92,7 +92,7 @@ static f64 filter_response(f32 cutoff_hz, f32 hz) {
   NYA_AudioFilterState filter;
   _nya_audio_filter_reset(&filter);
 
-  // Straight to the state, not through nya_audio_bus_filter_set: the mixer's thread is running under
+  // Straight to the state, not through nya_audio_voice_filter_set: the mixer's thread is running under
   // the dummy driver and owns the buses, so a test that reached into one would be racing it.
   atomic_store_explicit(&filter.target_hz, cutoff_hz, memory_order_relaxed);
   atomic_store_explicit(&filter.glide_ms, 0.0F, memory_order_relaxed);
@@ -283,7 +283,7 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: bus filters: off is exact, on removes treble, and it glides there
+  // TEST: voice filters: off is exact, on removes treble, and it glides there
   // ─────────────────────────────────────────────────────────────────────────────
   {
     // the DSP directly, on a known signal, since the mixer cannot hand a test its output.
@@ -304,7 +304,7 @@ s32 main(void) {
       _nya_audio_filter_apply(&filter, &spec, pcm, FILTER_FRAMES);
 
       // A wide open one pole would come back nearly the same, which is not the same thing: an
-      // unfiltered bus has to be untouched, or every game pays for a filter it never asked for.
+      // unfiltered voice has to be untouched, or every game pays for a filter it never asked for.
       for (s32 i = 0; i < FILTER_FRAMES; i++) {
         nya_assert(pcm[i] == original[i], "an unfiltered bus must pass samples through untouched: sample %d became %f from %f", i, (f64)pcm[i], (f64)original[i]);
       }
@@ -374,22 +374,22 @@ s32 main(void) {
       }
     }
 
-    // ── The public setter, which is the only part of this a game touches ──
+    // ── The bus effects setter, which is the only part of this a game touches ──
     {
-      nya_audio_bus_filter_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioFilter){ .lowpass_hz = 700.0F, .glide_ms = 120.0F });
+      nya_audio_bus_effects_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioEffects){ .pass = { .lowpass_hz = 700.0F, .glide_ms = 120.0F } });
 
-      NYA_AudioFilter got = nya_audio_bus_filter_get(NYA_AUDIO_BUS_SOUND);
-      nya_assert(got.lowpass_hz == 700.0F && got.glide_ms == 120.0F, "a bus filter must read back as it was set, got %f / %f", (f64)got.lowpass_hz, (f64)got.glide_ms);
+      NYA_AudioEffects got = nya_audio_bus_effects_get(NYA_AUDIO_BUS_SOUND);
+      nya_assert(got.pass.lowpass_hz == 700.0F && got.pass.glide_ms == 120.0F, "a bus's effects must read back as they were set, got %f / %f", (f64)got.pass.lowpass_hz, (f64)got.pass.glide_ms);
 
       // Each bus is its own, or "muffle the world" would take the music with it.
-      NYA_AudioFilter music = nya_audio_bus_filter_get(NYA_AUDIO_BUS_MUSIC);
-      nya_assert(music.lowpass_hz == 0.0F, "filtering one bus must leave the others alone, music got %f", (f64)music.lowpass_hz);
+      NYA_AudioEffects music = nya_audio_bus_effects_get(NYA_AUDIO_BUS_MUSIC);
+      nya_assert(music.pass.lowpass_hz == 0.0F, "filtering one bus must leave the others alone, music got %f", (f64)music.pass.lowpass_hz);
 
       // Negative is clamped rather than refused, since it means the same thing as off.
-      nya_audio_bus_filter_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioFilter){ .lowpass_hz = -5.0F, .glide_ms = -1.0F });
+      nya_audio_bus_effects_set(NYA_AUDIO_BUS_SOUND, (NYA_AudioEffects){ .pass = { .lowpass_hz = -5.0F } });
 
-      got = nya_audio_bus_filter_get(NYA_AUDIO_BUS_SOUND);
-      nya_assert(got.lowpass_hz == 0.0F && got.glide_ms == 0.0F, "a negative filter must clamp to off, got %f / %f", (f64)got.lowpass_hz, (f64)got.glide_ms);
+      got = nya_audio_bus_effects_get(NYA_AUDIO_BUS_SOUND);
+      nya_assert(got.pass.lowpass_hz == 0.0F, "a negative cutoff must clamp to off, got %f", (f64)got.pass.lowpass_hz);
     }
   }
 

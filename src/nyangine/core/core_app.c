@@ -42,6 +42,13 @@ NYA_INTERNAL b8 _nya_app_any_window_has_focus(void) __attr_no_discard;
 NYA_INTERNAL bool SDLCALL _nya_app_live_resize_event_watch(void* userdata, SDL_Event* event);
 
 /*
+ * Audio propagation traces the physics worlds through these. Wired here so neither module knows the other: a miss
+ * and a body with no entity both read as open.
+ */
+NYA_INTERNAL void _nya_app_audio_rays_3d(const NYA_AudioRay* rays, f32* out_fractions, u32 count, void* user_data);
+NYA_INTERNAL void _nya_app_audio_rays_2d(const NYA_AudioRay* rays, f32* out_fractions, u32 count, void* user_data);
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * SUBSYSTEMS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -81,7 +88,12 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_gamepad(void) { nya_system_gamepad_init
 NYA_INTERNAL NYA_Error _nya_app_bring_up_asset(void) { nya_system_asset_init(); return NYA_OK; }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_i18n(void) { nya_system_i18n_init(); return NYA_OK; }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_config(void) { nya_system_config_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_audio(void) { return nya_system_audio_init(); }
+NYA_INTERNAL NYA_Error _nya_app_bring_up_audio(void) {
+    NYA_Error error = nya_system_audio_init();
+    nya_audio_rays_set(NYA_AUDIO_SPACE_3D, _nya_app_audio_rays_3d, nullptr);
+    nya_audio_rays_set(NYA_AUDIO_SPACE_2D, _nya_app_audio_rays_2d, nullptr);
+    return error;
+}
 
 NYA_INTERNAL NYA_Error _nya_app_bring_up_world(void) {
     NYA_App* app = nya_app_get();
@@ -550,6 +562,43 @@ void _nya_app_render(void) {
     nya_event_dispatch((NYA_Event){
         .type = NYA_EVENT_RENDERING_ENDED,
     });
+
+    // after drawing, which is where layers place the listener. once a frame: it is heard, not simulated.
+    nya_system_audio_update((f32)nya_time_ns_to_s(nya_app_get()->frame_stats.elapsed_ns));
+}
+
+void _nya_app_audio_rays_3d(const NYA_AudioRay* rays, f32* out_fractions, u32 count, void* user_data) {
+    nya_unused(user_data);
+
+    for (u32 i = 0; i < count; i++) {
+        f32 length = nya_vector_length(rays[i].direction);
+
+        out_fractions[i] = 1.0F;
+        if (length < NYA_EPSILON) continue;
+
+        f32x3 point = { 0 };
+        if (nya_entity_is_valid(nya_physics3d_raycast(rays[i].origin, rays[i].direction, &point, nullptr))) {
+            out_fractions[i] = nya_vector_length(point - rays[i].origin) / length;
+        }
+    }
+}
+
+void _nya_app_audio_rays_2d(const NYA_AudioRay* rays, f32* out_fractions, u32 count, void* user_data) {
+    nya_unused(user_data);
+
+    for (u32 i = 0; i < count; i++) {
+        f32x2 origin    = { rays[i].origin.x, rays[i].origin.y };
+        f32x2 direction = { rays[i].direction.x, rays[i].direction.y };
+        f32   length    = nya_vector_length(direction);
+
+        out_fractions[i] = 1.0F;
+        if (length < NYA_EPSILON) continue;
+
+        f32x2 point = { 0 };
+        if (nya_entity_is_valid(nya_physics2d_raycast(origin, direction, &point, nullptr))) {
+            out_fractions[i] = nya_vector_length(point - origin) / length;
+        }
+    }
 }
 
 void _nya_app_frame_step(b8 live_resize) {

@@ -70,6 +70,9 @@ typedef struct GNY_Cube3DScene {
     /** Seconds since the plume last emitted. */
     f32 plume_timer_s;
 
+    /** The plume's crackle, looping. */
+    NYA_SoundVoice fire_voice;
+
     /** The skinned bar's clock, and which of its clips it is on. */
     NYA_SkeletonAnimator bender;
     u32                  bender_clip;

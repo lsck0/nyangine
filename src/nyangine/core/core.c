@@ -5,7 +5,10 @@
 // After core_asset.c: uses its _NYA_ASSET_STAT_INTERVAL_NS, which is a translation-unit-local macro
 // rather than something exported through a header.
 #include "nyangine/core/core_config.c"
+// the chain before the system that owns one per bus, and propagation after it, since it steers its voices.
+#include "nyangine/core/core_audio_effects.c"
 #include "nyangine/core/core_audio.c"
+#include "nyangine/core/core_audio_propagation.c"
 #include "nyangine/core/core_callback.c"
 #include "nyangine/core/core_ceiling.c"
 #include "nyangine/core/core_entity.c"

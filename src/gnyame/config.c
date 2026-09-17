@@ -24,6 +24,14 @@ void gny_config_renderer_apply(NYA_Window* window) {
     );
 }
 
+void gny_config_audio_apply(void) {
+    const NYA_ConfigEngineAudio* audio = &NYA_CONFIG.engine.audio;
+
+    nya_audio_bus_effects_set(NYA_AUDIO_BUS_SOUND, audio->sound);
+    nya_audio_bus_effects_set(NYA_AUDIO_BUS_MUSIC, audio->music);
+    nya_audio_bus_effects_set(NYA_AUDIO_BUS_MASTER, audio->master);
+}
+
 NYA_UI* gny_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     nya_ui_style_set(window, NYA_CONFIG.engine.ui);
 

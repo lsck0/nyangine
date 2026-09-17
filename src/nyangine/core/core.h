@@ -5,6 +5,8 @@
 #include "nyangine/core/core_skeleton_inertial.h"
 #include "nyangine/core/core_asset.h"
 #include "nyangine/core/core_audio.h"
+#include "nyangine/core/core_audio_effects.h"
+#include "nyangine/core/core_audio_propagation.h"
 #include "nyangine/core/core_callback.h"
 #include "nyangine/core/core_ceiling.h"
 #include "nyangine/core/core_config.h"
