@@ -161,5 +161,11 @@ s32 main(void) {
         nya_bench_keep(nya_text_shape_with_font(FACE, HUD_POINT_SIZE, PARAGRAPH, 320, &run));
     });
 
+    // what a menu label pays through the font registry, with a distance field asked for as the menu title does.
+    NYA_Font title_font = nya_font(FACE, TITLE_POINT_SIZE);
+    nya_assert(nya_font_sdf_set(title_font, true));
+
+    nya_bench("title through NYA_Font", 6, { nya_bench_keep(nya_font_measure(title_font, "AVATAR").x); });
+
     return nya_bench_end();
 }

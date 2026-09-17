@@ -36,6 +36,12 @@ typedef struct {
 /** One per registry slot: a game cannot ask for more distinct fonts than it can register. */
 NYA_INTERNAL _NYA_FontSdfRequest _nya_font_sdf_requests[NYA_FONT_REGISTRY_MAX] = { 0 };
 
+/**
+ * The asset generation at which every request last sat on its face. A face only appears or changes by loading, so
+ * until the generation moves a measure or draw has nothing to push. U64_MAX while a request waits.
+ * */
+NYA_INTERNAL u64 _nya_font_sdf_settled_generation = U64_MAX;
+
 /** Compared by string as well as pointer, for the reason _nya_font_find is. */
 NYA_INTERNAL _NYA_FontSdfRequest* _nya_font_sdf_find(NYA_Font font) {
     for (u32 i = 0; i < NYA_FONT_REGISTRY_MAX; i++) {
@@ -79,6 +85,12 @@ NYA_INTERNAL void _nya_font_sdf_hook_register(void) {
 }
 
 void _nya_font_sdf_apply_pending(void) {
+    u64 generation = nya_asset_generation();
+
+    if (generation == _nya_font_sdf_settled_generation) return;
+
+    b8 settled = true;
+
     for (u32 i = 0; i < NYA_FONT_REGISTRY_MAX; i++) {
         _NYA_FontSdfRequest* request = &_nya_font_sdf_requests[i];
 
@@ -87,7 +99,10 @@ void _nya_font_sdf_apply_pending(void) {
         TTF_Font* face = nya_text_font_for(request->path, request->point_size);
 
         // Still queued. Normal for the first frames after a font is named; tried again next call.
-        if (face == nullptr) continue;
+        if (face == nullptr) {
+            settled = false;
+            continue;
+        }
 
         if (face == request->applied_to) continue;
 
@@ -100,6 +115,8 @@ void _nya_font_sdf_apply_pending(void) {
 
         request->applied_to = face;
     }
+
+    _nya_font_sdf_settled_generation = settled ? generation : U64_MAX;
 }
 
 /** Compared by string as well as pointer: two call sites naming "ui" hold two different literals. */
@@ -214,7 +231,8 @@ void nya_font_clear(void) {
     // itself to the next font that happened to share a path and a size.
     for (u32 i = 0; i < NYA_FONT_REGISTRY_MAX; i++) _nya_font_sdf_requests[i] = (_NYA_FontSdfRequest){ 0 };
 
-    _nya_font_registry_count = 0;
+    _nya_font_sdf_settled_generation = U64_MAX;
+    _nya_font_registry_count         = 0;
     _nya_font_default        = NYA_FONT_NONE;
 }
 
@@ -277,7 +295,8 @@ b8 nya_font_sdf_set(NYA_Font font, b8 enabled) {
     // A changed answer has to be pushed again, even onto the face it was already pushed onto.
     if (request->sdf != enabled) request->applied_to = nullptr;
 
-    request->sdf = enabled;
+    request->sdf                     = enabled;
+    _nya_font_sdf_settled_generation = U64_MAX;
 
     // Applied now if there is a face, and by whichever entry point reaches one first if there is not.
     _nya_font_sdf_apply_pending();

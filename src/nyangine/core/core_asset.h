@@ -558,6 +558,12 @@ NYA_API b8 nya_asset_unload(NYA_AssetHandle handle);
 NYA_API void nya_asset_load_queued(void);
 
 /**
+ * The generation the latest load handed out. It changes whenever any asset finishes loading, so a cache of what
+ * loaded assets hold is stale exactly when this moved.
+ * */
+NYA_API u64 nya_asset_generation(void) __attr_no_discard;
+
+/**
  * Sets a window's icon from an asset, without the asset system taking it on.
  * */
 NYA_API NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHandle handle) __attr_no_discard;

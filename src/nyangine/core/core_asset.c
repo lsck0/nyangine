@@ -510,6 +510,10 @@ NYA_Error nya_asset_load(NYA_AssetLoadParameters parameters) {
     return NYA_OK;
 }
 
+u64 nya_asset_generation(void) {
+    return _nya_asset_generation_last;
+}
+
 NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) {
     NYA_AssetSystem* system = &nya_app_get()->asset_system;
 
