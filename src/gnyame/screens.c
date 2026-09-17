@@ -126,8 +126,8 @@ b8 _gny_layer_pop_if(NYA_ConstCString layer_id) {
 NYA_Rectf gny_menu_item_bounds(const NYA_Window* window, const GNY_Menu* menu, u32 index) {
     nya_assert(menu->item_count > 0 && index < menu->item_count);
 
-    f32 title_height = nya_render2d_text_measure_with_font(GNY_MENU_FONT, GNY_MENU_TITLE_SIZE, menu->title).y;
-    if (menu->subtitle != nullptr) title_height += nya_render2d_text_measure_with_font(GNY_MENU_FONT, GNY_MENU_ITEM_SIZE, menu->subtitle).y;
+    f32 title_height = nya_font_height(nya_font_named("menu_title"), menu->title);
+    if (menu->subtitle != nullptr) title_height += nya_font_height(nya_font_named("menu"), menu->subtitle);
 
     f32 panel_height = (GNY_MENU_PADDING * 2.0F) + title_height + GNY_MENU_TITLE_GAP + (GNY_MENU_ITEM_HEIGHT * (f32)menu->item_count);
     f32 panel_x      = ((f32)window->screen_width - GNY_MENU_WIDTH) * 0.5F;
@@ -219,8 +219,12 @@ void gny_menu_draw(NYA_Window* window, const GNY_Menu* menu) {
     NYA_Rectf first = gny_menu_item_bounds(window, menu, 0);
     NYA_Rectf last  = gny_menu_item_bounds(window, menu, menu->item_count - 1);
 
-    f32x2 title_size    = nya_render2d_text_measure_with_font(GNY_MENU_FONT, GNY_MENU_TITLE_SIZE, menu->title);
-    f32x2 subtitle_size = menu->subtitle != nullptr ? nya_render2d_text_measure_with_font(GNY_MENU_FONT, GNY_MENU_ITEM_SIZE, menu->subtitle) : f32x2_zero;
+    // registered in world.c; the title is a distance field.
+    NYA_Font title_font = nya_font_named("menu_title");
+    NYA_Font item_font  = nya_font_named("menu");
+
+    f32x2 title_size    = nya_font_measure(title_font, menu->title);
+    f32x2 subtitle_size = menu->subtitle != nullptr ? nya_font_measure(item_font, menu->subtitle) : f32x2_zero;
 
     f32 panel_x      = first.x - GNY_MENU_PADDING;
     f32 panel_width  = first.width + (GNY_MENU_PADDING * 2.0F);
@@ -231,11 +235,10 @@ void gny_menu_draw(NYA_Window* window, const GNY_Menu* menu) {
     nya_render2d_rect_outline(window, panel_x, panel_y, panel_width, panel_height, 1.0F, GNY_MENU_BORDER);
 
     f32 text_y = panel_y + GNY_MENU_PADDING;
-    nya_render2d_text_with_font(window, GNY_MENU_FONT, GNY_MENU_TITLE_SIZE, menu->title, panel_x + ((panel_width - title_size.x) * 0.5F), text_y, GNY_MENU_TITLE);
+    nya_font_draw(window, title_font, menu->title, panel_x + ((panel_width - title_size.x) * 0.5F), text_y, GNY_MENU_TITLE);
 
     if (menu->subtitle != nullptr) {
-        nya_render2d_text_with_font(window, GNY_MENU_FONT, GNY_MENU_ITEM_SIZE, menu->subtitle, panel_x + ((panel_width - subtitle_size.x) * 0.5F),
-                                    text_y + title_size.y, GNY_MENU_SUBTITLE);
+        nya_font_draw(window, item_font, menu->subtitle, panel_x + ((panel_width - subtitle_size.x) * 0.5F), text_y + title_size.y, GNY_MENU_SUBTITLE);
     }
 
     for (u32 i = 0; i < menu->item_count; i++) {
@@ -246,10 +249,10 @@ void gny_menu_draw(NYA_Window* window, const GNY_Menu* menu) {
 
         char             buffer[64];
         NYA_ConstCString label = _gny_menu_row_label(&menu->items[i], highlighted, buffer, sizeof(buffer));
-        f32x2            size  = nya_render2d_text_measure_with_font(GNY_MENU_FONT, GNY_MENU_ITEM_SIZE, label);
+        f32x2            size  = nya_font_measure(item_font, label);
 
-        nya_render2d_text_with_font(window, GNY_MENU_FONT, GNY_MENU_ITEM_SIZE, label, bounds.x + ((bounds.width - size.x) * 0.5F),
-                                    bounds.y + ((bounds.height - size.y) * 0.5F), highlighted ? GNY_MENU_ITEM_ON : GNY_MENU_ITEM);
+        nya_font_draw(window, item_font, label, bounds.x + ((bounds.width - size.x) * 0.5F), bounds.y + ((bounds.height - size.y) * 0.5F),
+                      highlighted ? GNY_MENU_ITEM_ON : GNY_MENU_ITEM);
     }
 }
 

@@ -289,6 +289,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/* Registered as "menu" and "menu_title" by gny_fonts_register. */
 #define GNY_MENU_FONT       NYA_ASSET_FONTS_ALDRICH_TTF
 #define GNY_MENU_TITLE_SIZE 44.0F
 #define GNY_MENU_ITEM_SIZE  22.0F

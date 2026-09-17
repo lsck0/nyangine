@@ -58,22 +58,26 @@ void gny_world_create(NYA_NetLaunchConfig launch) {
     (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = NYA_ASSET_SCRIPTS_STARTUP_LUA });
     (void)nya_asset_acquire(NYA_ASSET_SCRIPTS_STARTUP_LUA);
 
-    /*
-     * The named fonts.
-     */
-    (void)nya_font_register("ui", GNY_UI_FONT, GNY_UI_FONT_SIZE);
-    (void)nya_font_register("title", GNY_UI_FONT, GNY_UI_TITLE_FONT_SIZE);
-
-    /* The title face is a distance field; the HUD face is not. */
-    (void)nya_font_sdf_set(nya_font_named("title"), true);
-
-    nya_font_default_set(nya_font_named("ui"));
+    gny_fonts_register();
 
     /* The runtime config, before the systems that may read it. See gnyame/config.h. */
     gny_config_attach();
 
     // before the game layer's first on_update, and exactly once, unlike a layer's on_create.
     gny_systems_register_all();
+}
+
+void gny_fonts_register(void) {
+    (void)nya_font_register("ui", GNY_UI_FONT, GNY_UI_FONT_SIZE);
+    (void)nya_font_register("title", GNY_UI_FONT, GNY_UI_TITLE_FONT_SIZE);
+    (void)nya_font_register("menu", GNY_MENU_FONT, GNY_MENU_ITEM_SIZE);
+    (void)nya_font_register("menu_title", GNY_MENU_FONT, GNY_MENU_TITLE_SIZE);
+
+    /* Titles are distance fields; the HUD and menu rows are not. */
+    (void)nya_font_sdf_set(nya_font_named("title"), true);
+    (void)nya_font_sdf_set(nya_font_named("menu_title"), true);
+
+    nya_font_default_set(nya_font_named("ui"));
 }
 
 void gny_world_script_tick(f32 delta_time_s) {
