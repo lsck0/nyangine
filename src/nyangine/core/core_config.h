@@ -91,9 +91,6 @@ typedef struct NYA_ConfigEngine         NYA_ConfigEngine;
  * */
 // @reflect
 struct NYA_ConfigEngineRenderer {
-    /** Samples per pixel, fed to nya_render_options_set. See NYA_RenderOptions.msaa_samples: 1 is off, 0 the default. */
-    u32 msaa_samples;
-
     /** Depth slack the shadow comparison allows, in the shadow map's own depth range. See
      *  NYA_RENDER3D_SHADOW_BIAS: too little and flat surfaces self-shadow in stripes ("acne"); too
      *  much and a shadow visibly detaches from the object casting it ("peter-panning"). */

@@ -442,6 +442,66 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: graphics settings clamp, survive a round trip and only turn features off
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: graphics\n");
+  {
+    nya_settings_reset();
+
+    NYA_SettingsGraphics graphics = nya_settings_graphics();
+    nya_assert(graphics.msaa_samples == 4 && graphics.fxaa && !graphics.motion_blur && graphics.shadows == NYA_GRAPHICS_QUALITY_MEDIUM,
+               "the defaults are the game's look, motion blur off");
+
+    nya_settings_graphics_set((NYA_SettingsGraphics){ .msaa_samples = 6, .shadows = (NYA_GraphicsQuality)9, .fov = 400.0F, .render_scale = 0.01F });
+    graphics = nya_settings_graphics();
+    nya_assert(graphics.msaa_samples == 4 && graphics.shadows == NYA_GRAPHICS_QUALITY_MEDIUM, "samples round down to a power of two, got %u",
+               graphics.msaa_samples);
+    nya_assert(graphics.fov == 120.0F && graphics.render_scale == 0.25F, "field of view and render scale clamp");
+
+    // written and read back, over settings that differ in every field.
+    NYA_SettingsGraphics saved = { .msaa_samples = 2, .bloom = true, .motion_blur = true, .shadows = NYA_GRAPHICS_QUALITY_HIGH, .fov = 75.0F, .render_scale = 0.5F };
+    nya_settings_graphics_set(saved);
+
+    NYA_Arena* arena = nya_arena_create(.name = "test_settings_graphics");
+    defer nya_arena_destroy(arena);
+
+    NYA_Object* object = nya_settings_to_object(arena);
+    nya_settings_reset();
+    nya_settings_from_object(object);
+
+    graphics = nya_settings_graphics();
+    nya_assert(graphics.msaa_samples == 2 && graphics.bloom && !graphics.fxaa && graphics.motion_blur && graphics.shadows == NYA_GRAPHICS_QUALITY_HIGH,
+               "switches and choices round trip");
+    nya_assert(graphics.fov == 75.0F && graphics.render_scale == 0.5F, "numbers round trip");
+
+    // laid over a window: off stays off, on only where the game had it on.
+    NYA_Window window = { .screen_width = 320, .screen_height = 200 };
+
+    nya_post_bloom_set(&window, (NYA_PostBloom){ .enabled = true });
+    nya_post_antialias_set(&window, (NYA_PostAntialias){ .enabled = true });
+    nya_post_depth_of_field_set(&window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_TILT_SHIFT });
+    nya_render3d_shadow_set(&window, (NYA_Render3DShadowFit){ .strength = 0.5F });
+
+    nya_settings_graphics_apply(&window);
+
+    nya_assert(nya_post_bloom(&window).enabled && !nya_post_antialias(&window).enabled, "bloom stays, fxaa goes");
+    nya_assert(!nya_post_motion_blur(&window).enabled, "a setting cannot turn on what the game left off");
+    nya_assert(nya_post_depth_of_field(&window).focus == NYA_POST_FOCUS_OFF, "depth of field is off");
+    nya_assert(nya_render3d_shadow_options(&window).cascades == NYA_RENDER3D_SHADOW_CASCADES_DEFAULT + 1, "high shadows add a cascade");
+    nya_assert(fabsf(nya_render_fov_y() - (75.0F * (f32)M_PI / 180.0F)) < 1e-5F, "the field of view reaches cameras");
+    nya_assert(nya_render_options_get(&window).render_scale == 0.5F, "and the render scale the chain");
+
+    nya_settings_graphics_set((NYA_SettingsGraphics){ .shadows = NYA_GRAPHICS_QUALITY_OFF });
+    nya_settings_graphics_apply(&window);
+    nya_assert(nya_render3d_shadow(&window).strength == 0.0F, "shadows off casts nothing");
+
+    nya_settings_reset();
+    nya_render_options_set(&window, (NYA_RenderOptions){ 0 });
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a save path cannot escape the save root
   // ─────────────────────────────────────────────────────────────────────────────
   {

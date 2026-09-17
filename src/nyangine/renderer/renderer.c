@@ -47,13 +47,29 @@ void nya_render_options_set(NYA_Window* window, NYA_RenderOptions options) {
     nya_assert(window != nullptr);
     nya_assert(options.msaa_samples <= 8, "msaa_samples is 0 for the default, or 1, 2, 4 or 8, got %u", options.msaa_samples);
 
+    // a few degrees to nearly a half turn, and a quarter of the pixels at least, so a config file cannot break a frame.
+    options.fov_y        = options.fov_y > 0.0F ? nya_clamp(options.fov_y, 0.1F, 3.0F) : 0.0F;
+    options.render_scale = options.render_scale > 0.0F ? nya_clamp(options.render_scale, 0.25F, 1.0F) : 0.0F;
+
     nya_app_get()->render_system.options = options;
 }
 
 NYA_RenderOptions nya_render_options_get(NYA_Window* window) {
     nya_assert(window != nullptr);
 
-    return (NYA_RenderOptions){ .msaa_samples = 1U << (u32)nya_app_get()->render_system.sample_count };
+    const NYA_RenderSystem* render_system = &nya_app_get()->render_system;
+
+    return (NYA_RenderOptions){
+        .msaa_samples = 1U << (u32)render_system->sample_count,
+        .fov_y        = nya_render_fov_y(),
+        .render_scale = render_system->options.render_scale > 0.0F ? render_system->options.render_scale : 1.0F,
+    };
+}
+
+f32 nya_render_fov_y(void) {
+    f32 fov_y = nya_app_get()->render_system.options.fov_y;
+
+    return fov_y > 0.0F ? fov_y : NYA_RENDER3D_FOV_Y;
 }
 
 NYA_RenderFrameStats nya_render_frame_stats(NYA_Window* window) {

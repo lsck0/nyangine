@@ -582,6 +582,8 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
         return false;
     }
 
+    batch->shadow_atlas = options;
+
     nya_log_debug("Shadow atlas created at %ux%u: %u cascades of %ux%u.", atlas_width, atlas_height, options.cascades, options.map_size,
                   options.map_size);
 
@@ -2415,7 +2417,7 @@ f32_4x4 nya_render3d_view_projection(NYA_Window* window) {
 NYA_Camera3DPerspective _nya_render3d_camera_defaults(NYA_Camera3DPerspective camera) {
     // zero means unset. sixty degrees and y up, as in physics3d.h.
     if (camera.up.x == 0.0F && camera.up.y == 0.0F && camera.up.z == 0.0F) camera.up = (f32x3){ 0.0F, 1.0F, 0.0F };
-    if (camera.fov_y <= 0.0F) camera.fov_y = (f32)M_PI / 3.0F;
+    if (camera.fov_y <= 0.0F) camera.fov_y = nya_render_fov_y();
     if (camera.near_plane <= 0.0F) camera.near_plane = 0.1F;
     if (camera.far_plane <= camera.near_plane) camera.far_plane = 1000.0F;
 

@@ -284,13 +284,13 @@ s32 main(void) {
     }
 
     // ── Confirm requests the row's screen at the barrier, from the menu's last row reached by wrapping upward through
-    //    the look panel's accent, scale, animate and skin lines.
+    //    the graphics panel's eleven lines and the look panel's accent, scale, animate and skin lines.
     {
         gny_screen_request(GNY_SCREEN_RESUME);
         gny_screen_request(GNY_SCREEN_PAUSE);
         barrier();
 
-        for (u32 i = 0; i < 5; i++) press(NYA_KEY_UP, pause_menu);
+        for (u32 i = 0; i < 16; i++) press(NYA_KEY_UP, pause_menu);
 
         tap(NYA_KEY_RETURN);
         pause_menu();

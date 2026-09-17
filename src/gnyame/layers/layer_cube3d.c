@@ -997,9 +997,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     GNY_World* bloom_world = gny_world();
 
-    gny_config_renderer_apply(window);
-
-    f32x3 eye    = _gny_cube3d_camera_position(scene);
+    f32x3 eye   = _gny_cube3d_camera_position(scene);
     f32x3 target = { 0.0F, gny_terrain3d_height_at(0.0F, 0.0F) + GNY_CUBE3D_SIZE, 0.0F };
 
     /*
@@ -1024,6 +1022,9 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     // this scene's numbers; see GNY_BLOOM_3D_THRESHOLD.
     gny_bloom_apply(window, (NYA_PostBloom){ .threshold = GNY_BLOOM_3D_THRESHOLD, .intensity = GNY_BLOOM_3D_INTENSITY, .spread = GNY_BLOOM_3D_SPREAD });
+
+    // last, so the player's settings turn off what the scene just turned on.
+    gny_config_renderer_apply(window);
 
     /*
      * Through the post chain when bloom or a scene pass wants it, otherwise straight to the window. The lamp beads

@@ -102,7 +102,7 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(const NYA_Window* window, NYA_
     // The same defaults _nya_render3d_camera_defaults applies, spelled out rather than shared: that
     // function lives in render3d.c, which the headless build replaces wholesale, and this file is
     // compiled into both.
-    f32 fov_y      = camera.fov_y > 0.0F ? camera.fov_y : ((f32)M_PI / 3.0F);
+    f32 fov_y      = camera.fov_y > 0.0F ? camera.fov_y : NYA_RENDER3D_FOV_Y;
     f32 near_plane = camera.near_plane > 0.0F ? camera.near_plane : 0.1F;
 
     /*
@@ -205,12 +205,13 @@ void nya_render3d_shadow_options_set(NYA_Window* window, NYA_Render3DShadowOptio
 
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
-    NYA_Render3DShadowOptions before = _nya_render3d_shadow_options_resolve(batch->shadow_options);
-    NYA_Render3DShadowOptions after  = _nya_render3d_shadow_options_resolve(options);
+    NYA_Render3DShadowOptions after = _nya_render3d_shadow_options_resolve(options);
 
     batch->shadow_options = options;
 
-    if (before.cascades == after.cascades && before.map_size == after.map_size) return;
+    // measured against the atlas, not the last call: a config and then a player's quality set two sizes every frame, and
+    // only the one left standing when the scene draws is allocated.
+    if (batch->shadow_color == nullptr || (batch->shadow_atlas.cascades == after.cascades && batch->shadow_atlas.map_size == after.map_size)) return;
 
     // the cascades of a scene being recorded were fitted to the old atlas.
     nya_assert(!batch->active, "shadow options change between scenes, not inside one");

@@ -34,9 +34,70 @@ typedef enum {
     NYA_VOLUME_CHANNEL_COUNT,
 } NYA_VolumeChannel;
 
+typedef struct NYA_SettingsGraphics NYA_SettingsGraphics;
+typedef enum NYA_GraphicsQuality    NYA_GraphicsQuality;
+
+/** How much of a costly feature a player asks for. */
+enum NYA_GraphicsQuality {
+    NYA_GRAPHICS_QUALITY_OFF = 0,
+    NYA_GRAPHICS_QUALITY_LOW,
+
+    /** What the game set up. */
+    NYA_GRAPHICS_QUALITY_MEDIUM,
+    NYA_GRAPHICS_QUALITY_HIGH,
+
+    NYA_GRAPHICS_QUALITY_COUNT,
+};
+
+/**
+ * The graphics options a player may change, saved with the rest and laid over a window's renderer options by
+ * nya_settings_graphics_apply. A switch only turns a feature off: how it looks when on is the game's to decide.
+ * */
+struct NYA_SettingsGraphics {
+    /** Samples per pixel, 1, 2, 4 or 8. See NYA_RenderOptions.msaa_samples. */
+    u32 msaa_samples;
+
+    /** FXAA over the finished image. See NYA_PostAntialias. */
+    b8 fxaa;
+
+    b8 ambient_occlusion;
+    b8 bloom;
+    b8 depth_of_field;
+    b8 eye_adaptation;
+    b8 light_shafts;
+
+    /** Off unless the player wants it. */
+    b8 motion_blur;
+
+    /** Off, one cascade at half the size, the game's own, or a cascade more at twice the size. */
+    NYA_GraphicsQuality shadows;
+
+    /** Vertical field of view in degrees, for cameras that set none. See NYA_RenderOptions.fov_y. */
+    f32 fov;
+
+    /** The 3D scene's resolution as a share of the window's. See NYA_RenderOptions.render_scale. */
+    f32 render_scale;
+};
+
+/** What a player starts with, and what nya_settings_reset puts back. */
+#define NYA_SETTINGS_GRAPHICS_DEFAULT                                                                                                          \
+    ((NYA_SettingsGraphics){ .msaa_samples      = 4,                                                                                           \
+                             .fxaa              = true,                                                                                        \
+                             .ambient_occlusion = true,                                                                                        \
+                             .bloom             = true,                                                                                        \
+                             .depth_of_field    = true,                                                                                        \
+                             .eye_adaptation    = true,                                                                                        \
+                             .light_shafts      = true,                                                                                        \
+                             .shadows           = NYA_GRAPHICS_QUALITY_MEDIUM,                                                                 \
+                             .fov               = 60.0F,                                                                                       \
+                             .render_scale      = 1.0F })
+
 struct NYA_SettingsSystem {
     /** Per channel, always within [0, 1]. Set through nya_settings_volume_set, which clamps. */
     f32 volumes[NYA_VOLUME_CHANNEL_COUNT];
+
+    /** Set through nya_settings_graphics_set, which clamps. */
+    NYA_SettingsGraphics graphics;
 
     /**
      * Key bindings, indexed by action.
@@ -127,5 +188,24 @@ NYA_API NYA_ConstCString nya_settings_player_name(void) __attr_no_discard;
 /** Cut to NYA_SETTINGS_NAME_MAX on a character boundary rather than refused, since a name is cosmetic. */
 NYA_API void nya_settings_player_name_set(NYA_ConstCString name);
 
-/** Puts every volume back to 1.0, drops every binding and forgets the name. */
+/** Puts every volume back to 1.0, drops every binding, forgets the name and restores the graphics defaults. */
 NYA_API void nya_settings_reset(void);
+
+/** The player's graphics options. */
+NYA_API NYA_SettingsGraphics nya_settings_graphics(void) __attr_no_discard;
+
+/** Clamped into range, so a hand edited settings file or an overshooting slider cannot break a frame. */
+NYA_API void nya_settings_graphics_set(NYA_SettingsGraphics graphics);
+
+/**
+ * Lays the player's graphics options over `window`'s: the sample count, field of view and render scale are set, and the
+ * post passes and shadows the player turned off or down are turned off or down. Call it after the game has set the
+ * window's options for the frame.
+ *
+ * ```c
+ * nya_post_bloom_set(window, config->bloom);
+ * nya_render3d_shadow_set(window, fit);
+ * nya_settings_graphics_apply(window);
+ * ```
+ * */
+NYA_API void nya_settings_graphics_apply(NYA_Window* window);
