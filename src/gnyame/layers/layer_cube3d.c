@@ -508,7 +508,7 @@ void gny_layer_cube3d_on_collision(NYA_Entity* entity, NYA_Entity* other, const 
         .rotation   = rotation,
         .size       = nya_lerp(0.9F, 1.6F, strength),
         .color      = color,
-        .cell       = GNY_CUBE3D_DECAL_SCUFF,
+        .cell       = GNY_CUBE3D_DECAL_BLOB,
         .born_s     = nya_app_get()->frame_stats.uptime_s,
         .lifetime_s = GNY_CUBE3D_MARK_LIFETIME_S,
     };

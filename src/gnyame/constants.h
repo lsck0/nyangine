@@ -901,9 +901,8 @@
  * Their look comes from NYA_CONFIG.engine.renderer. These are how the scene drives them.
  */
 
-/** A 2x2 sheet in reading order. The scuff is its second cell, the blob shadow its third. */
+/** A 2x2 sheet in reading order. Scuffs and blob shadows both use its soft round third cell. */
 #define GNY_CUBE3D_DECAL_TEXTURE NYA_ASSET_TEXTURES_DECALS_PNG
-#define GNY_CUBE3D_DECAL_SCUFF   1
 #define GNY_CUBE3D_DECAL_BLOB    2
 
 /** Impact marks kept at once. The oldest is painted over. */
@@ -916,7 +915,7 @@
 #define GNY_CUBE3D_MARK_LIFETIME_S 14.0F
 
 /** A landing's scuff at full strength; weaker landings scale the alpha down. */
-#define GNY_CUBE3D_SCUFF_COLOR ((NYA_Color){ 0.22F, 0.18F, 0.16F, 0.45F })
+#define GNY_CUBE3D_SCUFF_COLOR ((NYA_Color){ 0.22F, 0.18F, 0.16F, 0.30F })
 
 /** The blob under each of the three props: how dark, how wide against the prop, and how high it still shows. */
 #define GNY_CUBE3D_BLOB_COLOR ((NYA_Color){ 0.10F, 0.08F, 0.14F, 0.45F })
