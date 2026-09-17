@@ -7,7 +7,7 @@
 #include "nyangine/nyangine.h"
 
 /** Frustum plane order, as _nya_render3d_frustum_build writes them. */
-enum { LEFT, RIGHT, BOTTOM, TOP, NEAR, FAR };
+enum { PLANE_LEFT, PLANE_RIGHT, PLANE_BOTTOM, PLANE_TOP, PLANE_NEAR, PLANE_FAR };
 
 #define FOV_Y      ((f32)M_PI / 3.0F)
 #define ASPECT     (16.0F / 9.0F)
@@ -65,8 +65,8 @@ s32 main(void) {
         }
 
         // near and far sit where the projection put them.
-        nya_check(fabsf(plane_distance(NEAR, (f32x3){ 0, 0, -NEAR_PLANE })) < 1e-4F, "the near plane is at z = -near");
-        nya_check(fabsf(plane_distance(FAR, (f32x3){ 0, 0, -FAR_PLANE })) < 1e-2F, "the far plane is at z = -far");
+        nya_check(fabsf(plane_distance(PLANE_NEAR, (f32x3){ 0, 0, -NEAR_PLANE })) < 1e-4F, "the near plane is at z = -near");
+        nya_check(fabsf(plane_distance(PLANE_FAR, (f32x3){ 0, 0, -FAR_PLANE })) < 1e-2F, "the far plane is at z = -far");
     }
 
     // ── Inside, and outside each plane alone.
@@ -83,12 +83,12 @@ s32 main(void) {
             u32              plane;
             NYA_ConstCString name;
         } outside[] = {
-            { { -20.0F, 0.0F, -10.0F }, 1.0F, LEFT, "left" },
-            { { 20.0F, 0.0F, -10.0F }, 1.0F, RIGHT, "right" },
-            { { 0.0F, -12.0F, -10.0F }, 1.0F, BOTTOM, "bottom" },
-            { { 0.0F, 12.0F, -10.0F }, 1.0F, TOP, "top" },
-            { { 0.0F, 0.0F, -0.05F }, 0.01F, NEAR, "near" },
-            { { 0.0F, 0.0F, -150.0F }, 1.0F, FAR, "far" },
+            { { -20.0F, 0.0F, -10.0F }, 1.0F, PLANE_LEFT, "left" },
+            { { 20.0F, 0.0F, -10.0F }, 1.0F, PLANE_RIGHT, "right" },
+            { { 0.0F, -12.0F, -10.0F }, 1.0F, PLANE_BOTTOM, "bottom" },
+            { { 0.0F, 12.0F, -10.0F }, 1.0F, PLANE_TOP, "top" },
+            { { 0.0F, 0.0F, -0.05F }, 0.01F, PLANE_NEAR, "near" },
+            { { 0.0F, 0.0F, -150.0F }, 1.0F, PLANE_FAR, "far" },
         };
 
         for (u32 i = 0; i < nya_carray_length(outside); i++) {
@@ -127,7 +127,7 @@ s32 main(void) {
         f32x3 corner = inside;
 
         // the two normals are not orthogonal, so pushing out along one moves the other; a few rounds settle both.
-        const u32 planes[] = { LEFT, TOP };
+        const u32 planes[] = { PLANE_LEFT, PLANE_TOP };
         for (u32 round = 0; round < 16; round++) {
             for (u32 i = 0; i < nya_carray_length(planes); i++) {
                 f32x4 p = batch.frustum[planes[i]];
@@ -135,12 +135,12 @@ s32 main(void) {
             }
         }
 
-        nya_check(fabsf(plane_distance(LEFT, corner) + beyond) < 1e-3F && fabsf(plane_distance(TOP, corner) + beyond) < 1e-3F,
+        nya_check(fabsf(plane_distance(PLANE_LEFT, corner) + beyond) < 1e-3F && fabsf(plane_distance(PLANE_TOP, corner) + beyond) < 1e-3F,
                   "the centre is equally far outside both planes");
 
         // from equal distances outside two planes, the edge they meet at is sqrt(2 / (1 + cos)) times further.
-        f32x4 left       = batch.frustum[LEFT];
-        f32x4 top        = batch.frustum[TOP];
+        f32x4 left       = batch.frustum[PLANE_LEFT];
+        f32x4 top        = batch.frustum[PLANE_TOP];
         f32   cosine     = nya_vector_dot((f32x3){ left[0], left[1], left[2] }, (f32x3){ top[0], top[1], top[2] });
         f32   to_frustum = beyond * sqrtf(2.0F / (1.0F + cosine));
         nya_check(to_frustum > 1.0F, "so a unit sphere there misses the view, %f away", (f64)to_frustum);
@@ -155,10 +155,10 @@ s32 main(void) {
         frustum_from(projection * view);
 
         nya_check(_nya_render3d_visible(&batch, (f32x3){ 4.0F, 4.0F, -10.0F }, 0.5F), "inside the box is visible");
-        nya_check(planes_rejecting((f32x3){ 0.0F, 6.0F, -40.0F }, 0.5F) == 1U << TOP, "above the box, however far, only top rejects");
-        nya_check(planes_rejecting((f32x3){ 0.0F, 0.0F, -0.5F }, 0.1F) == 1U << NEAR, "in front of the near plane only near rejects");
-        nya_check(planes_rejecting((f32x3){ 0.0F, 0.0F, -60.0F }, 1.0F) == 1U << FAR, "past the far plane only far rejects");
-        nya_check(fabsf(plane_distance(NEAR, (f32x3){ 0, 0, -1 })) < 1e-4F, "the near plane is at z = -1");
+        nya_check(planes_rejecting((f32x3){ 0.0F, 6.0F, -40.0F }, 0.5F) == 1U << PLANE_TOP, "above the box, however far, only top rejects");
+        nya_check(planes_rejecting((f32x3){ 0.0F, 0.0F, -0.5F }, 0.1F) == 1U << PLANE_NEAR, "in front of the near plane only near rejects");
+        nya_check(planes_rejecting((f32x3){ 0.0F, 0.0F, -60.0F }, 1.0F) == 1U << PLANE_FAR, "past the far plane only far rejects");
+        nya_check(fabsf(plane_distance(PLANE_NEAR, (f32x3){ 0, 0, -1 })) < 1e-4F, "the near plane is at z = -1");
     }
 
     // ── A degenerate matrix leaves its planes alone rather than dividing by zero, and culls nothing.
