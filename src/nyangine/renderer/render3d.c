@@ -1874,9 +1874,30 @@ void _nya_render3d_sort_transparent(NYA_Render3DBatch* batch, u16* indices, u32 
         f32x3 b = nya_vertex3d_position(stream->vertices[indices[first + 1]]);
         f32x3 c = nya_vertex3d_position(stream->vertices[indices[first + 2]]);
 
-        f32x3 offset = ((a + b + c) / 3.0F) - eye;
+        f32x3 centroid = (a + b + c) / 3.0F;
 
-        batch->sort_keys[i] = (NYA_Render3DSortKey){ .depth = nya_vector_dot(offset, offset), .first = first };
+        /*
+         * A quad's two triangles take one key from the quad's middle, as _nya_render3d_quad_emit writes them (the
+         * second starts at the first's first vertex and ends on a new one). Keyed apart, two overlapping billboards
+         * at similar distance interleave half by half, and the seam flickers as they move.
+         */
+        b8 quad = i + 1 < triangles && indices[first + 3] == indices[first] && indices[first + 4] == indices[first + 2];
+
+        if (quad) {
+            f32x3 d  = nya_vertex3d_position(stream->vertices[indices[first + 5]]);
+            centroid = (a + b + c + d) / 4.0F;
+        }
+
+        f32x3 offset = centroid - eye;
+        f32   depth  = nya_vector_dot(offset, offset);
+
+        batch->sort_keys[i] = (NYA_Render3DSortKey){ .depth = depth, .first = first };
+
+        if (!quad) continue;
+
+        // the radix sort is stable, so the pair stays together.
+        i++;
+        batch->sort_keys[i] = (NYA_Render3DSortKey){ .depth = depth, .first = first + 3 };
     }
 
     nya_render3d_sort_keys(batch->sort_keys, batch->sort_keys_scratch, triangles);
