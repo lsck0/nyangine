@@ -127,13 +127,15 @@ void nya_skeleton_animator_play(NYA_SkeletonAnimator* animator, const NYA_Skelet
 }
 
 void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 delta_time_s, OUT NYA_SkeletonPose* out_pose) {
-    if (animator == nullptr || out_pose == nullptr) return;
+    if (animator == nullptr) return;
     if (animator->skeleton == nullptr) return;
 
     if (animator->clip == nullptr) {
-        nya_skeleton_pose_rest(animator->skeleton, out_pose);
+        if (out_pose != nullptr) nya_skeleton_pose_rest(animator->skeleton, out_pose);
         return;
     }
+
+    animator->time_previous_s = animator->time_s;
 
     if (animator->playing) animator->time_s += delta_time_s * animator->speed;
 
@@ -163,7 +165,32 @@ void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 delta_time
         }
     }
 
-    nya_skeleton_pose_sample(animator->skeleton, animator->clip, animator->time_s, out_pose);
+    if (out_pose != nullptr) nya_skeleton_pose_sample(animator->skeleton, animator->clip, animator->time_s, out_pose);
+}
+
+void nya_skeleton_animator_render_pose(const NYA_SkeletonAnimator* animator, OUT NYA_SkeletonPose* out_pose) {
+    if (animator == nullptr || out_pose == nullptr) return;
+    if (animator->skeleton == nullptr) return;
+
+    // sampled rather than blended from two stored poses: as cheap, exact, and nothing extra kept per animator.
+    f32 duration = animator->clip != nullptr ? animator->clip->duration_s : 0.0F;
+    f32 step     = animator->time_s - animator->time_previous_s;
+
+    // a looping clock that wrapped this tick moved a little forward, not back across the clip.
+    if (animator->looping && duration > 0.0F) {
+        if (step > duration * 0.5F) step -= duration;
+        if (step < -duration * 0.5F) step += duration;
+    }
+
+    f32 time_s = animator->time_previous_s + (step * nya_app_tick_alpha());
+
+    if (animator->looping && duration > 0.0F) {
+        time_s = fmodf(time_s, duration);
+        if (time_s < 0.0F) time_s += duration;
+    }
+
+    // a null clip samples the rest pose.
+    nya_skeleton_pose_sample(animator->skeleton, animator->clip, time_s, out_pose);
 }
 
 void nya_skeleton_model_transforms(const NYA_Skeleton* skeleton, const NYA_SkeletonPose* pose, OUT f32_4x4* out_model) {

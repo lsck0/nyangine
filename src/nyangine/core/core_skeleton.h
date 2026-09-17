@@ -111,6 +111,9 @@ struct NYA_SkeletonAnimator {
 
     f32 time_s;
 
+    /** The clock before the last update, which a draw between ticks starts from. */
+    f32 time_previous_s;
+
     /** Multiplies the clock. Negative plays backward, which loops correctly. */
     f32 speed;
 
@@ -158,8 +161,27 @@ NYA_API void nya_skeleton_pose_blend(const NYA_SkeletonPose* from, const NYA_Ske
 NYA_API void nya_skeleton_animator_play(NYA_SkeletonAnimator* animator, const NYA_Skeleton* skeleton,
                                         const NYA_SkeletonClip* clip, b8 looping);
 
-/** Advances the clock and writes the pose. Does nothing to `out_pose` when there is no clip. */
+/**
+ * Advances the clock and writes the pose. Does nothing to `out_pose` when there is no clip. A null `out_pose` only
+ * advances the clock, for a pose drawn with nya_skeleton_animator_render_pose.
+ * */
 NYA_API void nya_skeleton_animator_update(NYA_SkeletonAnimator* animator, f32 delta_time_s, OUT NYA_SkeletonPose* out_pose);
+
+/**
+ * The pose to draw this frame: the clip sampled between the clock's last tick and its current time, by
+ * nya_app_tick_alpha, so a clip advanced per tick moves smoothly at any frame rate.
+ *
+ * ```c
+ * void on_update(NYA_Window* window, f32 delta_time_s) { nya_skeleton_animator_update(&hero, delta_time_s, nullptr); }
+ *
+ * void on_render(NYA_Window* window) {
+ *     NYA_SkeletonPose pose;
+ *     nya_skeleton_animator_render_pose(&hero, &pose);
+ *     nya_skeleton_palette(skeleton, &pose, palette);
+ * }
+ * ```
+ * */
+NYA_API void nya_skeleton_animator_render_pose(const NYA_SkeletonAnimator* animator, OUT NYA_SkeletonPose* out_pose);
 
 /**
  * Every bone's model-space transform for `pose`. `out_model` holds NYA_SKELETON_MAX_BONES entries.

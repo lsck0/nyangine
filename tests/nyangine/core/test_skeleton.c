@@ -25,6 +25,22 @@ static f32 identity_error(f32_4x4 matrix) {
   return worst;
 }
 
+/** The largest difference between two poses, over every bone's translation and rotation. */
+static f32 pose_error(const NYA_SkeletonPose* a, const NYA_SkeletonPose* b) {
+  f32 worst = 0.0F;
+
+  for (u32 bone = 0; bone < a->bone_count; bone++) {
+    f32x3 offset = a->local[bone].translation - b->local[bone].translation;
+    f32   moved  = nya_vector_length(offset);
+    f32   turned = 1.0F - fabsf(nya_quaternion_dot(a->local[bone].rotation, b->local[bone].rotation));
+
+    if (moved > worst) worst = moved;
+    if (turned > worst) worst = turned;
+  }
+
+  return worst;
+}
+
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
@@ -272,6 +288,62 @@ s32 main(void) {
 
     nya_assert(identity_error(palette[upper]) > 0.05F, "writing a bone by hand did not move it");
     nya_assert(identity_error(palette[lower]) < 0.001F, "writing one bone moved another");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a pose drawn between ticks samples the clip between the clock's two times
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: render pose between ticks\n");
+  {
+    const NYA_SkeletonClip* clip     = &skeleton->clips[0];
+    f32                     duration = clip->duration_s;
+
+    NYA_SkeletonAnimator animator = { 0 };
+    NYA_SkeletonPose     drawn    = { 0 };
+    NYA_SkeletonPose     expected = { 0 };
+
+    nya_skeleton_animator_play(&animator, skeleton, clip, true);
+
+    // a null pose only advances the clock.
+    nya_skeleton_animator_update(&animator, duration * 0.2F, nullptr);
+    nya_skeleton_animator_update(&animator, duration * 0.2F, nullptr);
+
+    nya_assert(fabsf(animator.time_s - (duration * 0.4F)) < 0.0001F, "the clock advanced without a pose");
+    nya_assert(fabsf(animator.time_previous_s - (duration * 0.2F)) < 0.0001F, "and kept where the tick began");
+
+    // halfway to the next tick.
+    _NYA_APP_INSTANCE.options.time_step_ns       = 16'000'000;
+    _NYA_APP_INSTANCE.frame_stats.time_behind_ns = 8'000'000;
+
+    nya_skeleton_animator_render_pose(&animator, &drawn);
+    nya_skeleton_pose_sample(skeleton, clip, duration * 0.3F, &expected);
+
+    nya_assert(pose_error(&drawn, &expected) < 0.001F, "halfway between ticks draws the clip halfway, off by %f", (f64)pose_error(&drawn, &expected));
+
+    // a tick that wraps the loop, from 90% to 10%: a quarter of the way is 95%, not back through the middle.
+    nya_skeleton_animator_play(&animator, skeleton, clip, true);
+    nya_skeleton_animator_update(&animator, duration * 0.9F, nullptr);
+    nya_skeleton_animator_update(&animator, duration * 0.2F, nullptr);
+
+    _NYA_APP_INSTANCE.frame_stats.time_behind_ns = 4'000'000;
+
+    nya_skeleton_animator_render_pose(&animator, &drawn);
+    nya_skeleton_pose_sample(skeleton, clip, duration * 0.95F, &expected);
+
+    nya_assert(pose_error(&drawn, &expected) < 0.001F, "a wrapped tick draws across the seam, off by %f", (f64)pose_error(&drawn, &expected));
+
+    // a clip that just started draws its first frame, never the previous clip's time.
+    nya_skeleton_animator_play(&animator, skeleton, clip, false);
+
+    nya_skeleton_animator_render_pose(&animator, &drawn);
+    nya_skeleton_pose_sample(skeleton, clip, 0.0F, &expected);
+
+    nya_assert(pose_error(&drawn, &expected) < 0.001F, "a fresh clip draws from its start");
+
+    _NYA_APP_INSTANCE.options.time_step_ns       = 0;
+    _NYA_APP_INSTANCE.frame_stats.time_behind_ns = 0;
 
     printf("  PASSED\n");
   }
