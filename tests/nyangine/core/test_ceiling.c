@@ -114,6 +114,43 @@ s32 main(void) {
         nya_log_sink_clear();
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: gauges read their byte count live, keep registration order, and refuse past their own ceiling.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        _nya_ceiling_registry_reset_for_test();
+
+        static u64 textures = 4096;
+        static u64 buffers  = 1ULL << 40;
+
+        nya_gauge_register("textures", &textures);
+        nya_gauge_register("buffers", &buffers);
+
+        nya_assert(nya_gauge_count() == 2);
+        nya_assert(nya_ceiling_count() == 0, "a gauge is not a ceiling");
+
+        // registration order, not size: the larger gauge stays second.
+        nya_assert(nya_string_equals(nya_gauge_name_at(0), "textures"));
+        nya_assert(nya_string_equals(nya_gauge_name_at(1), "buffers"));
+        nya_assert(nya_gauge_bytes_at(1) == 1ULL << 40, "a gauge holds a full u64, past what a ceiling's u32 could");
+
+        textures = 0;
+        nya_assert(nya_gauge_bytes_at(0) == 0, "the registry should read the count live, not a copy taken at registration");
+
+        warning_count = 0;
+        nya_log_sink_add(count_warnings, nullptr);
+
+        static u64 filler = 1;
+        for (u32 i = nya_gauge_count(); i < NYA_GAUGE_REGISTRY_MAX; i++) nya_gauge_register("filler", &filler);
+        nya_assert(warning_count == 0, "filling the gauges exactly to their ceiling should not warn");
+
+        nya_gauge_register("one_too_many", &filler);
+        nya_assert(nya_gauge_count() == NYA_GAUGE_REGISTRY_MAX, "the gauge count must not grow past its ceiling");
+        nya_assert(warning_count == 1, "refusing the extra gauge should warn exactly once, warned %u times", warning_count);
+
+        nya_log_sink_clear();
+    }
+
     _nya_ceiling_registry_reset_for_test();
 
     printf("All tests passed.\n");

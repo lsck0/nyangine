@@ -722,5 +722,6 @@ NYA_API void nya_render_end(NYA_Window* window);
 // after NYA_Render3DSortKey, which it sorts.
 #include "nyangine/renderer/render_sort.h"
 #include "nyangine/renderer/render_lod.h"
+#include "nyangine/renderer/render_gpu_memory.h"
 #include "nyangine/renderer/render_text.h"
 #include "nyangine/renderer/render_font.h"

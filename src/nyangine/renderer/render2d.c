@@ -249,8 +249,8 @@ void nya_render2d_shutdown(void) {
     for (u32 i = 0; i < NYA_RENDER2D_FONT_CACHE_MAX; i++) {
         NYA_FontAtlas* atlas = &_nya_render2d_font_cache[i];
 
-        if (atlas->texture != nullptr) SDL_ReleaseGPUTexture(gpu_device, atlas->texture);
-        if (atlas->transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, atlas->transfer_buffer);
+        if (atlas->texture != nullptr) nya_gpu_texture_release(gpu_device, atlas->texture);
+        if (atlas->transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, atlas->transfer_buffer);
 
         // kept for the whole run so glyphs can be baked in later; this is the one place it is freed.
         SDL_free(atlas->coverage);
@@ -1276,7 +1276,7 @@ NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, 
     // the swapchain's format, so the window's pipelines can draw here.
     SDL_GPUTextureFormat format = SDL_GetGPUSwapchainTextureFormat(gpu_device, window->sdl_window);
 
-    SDL_GPUTexture* texture = SDL_CreateGPUTexture(
+    SDL_GPUTexture* texture = nya_gpu_texture_create(
         gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -1296,7 +1296,7 @@ NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, 
     SDL_GPUTexture* msaa_texture = nullptr;
 
     if (nya_app_get()->render_system.sample_count != SDL_GPU_SAMPLECOUNT_1) {
-        msaa_texture = SDL_CreateGPUTexture(
+        msaa_texture = nya_gpu_texture_create(
             gpu_device,
             &(SDL_GPUTextureCreateInfo){
                 .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -1316,7 +1316,7 @@ NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, 
     SDL_GPUTexture* depth_texture = nullptr;
 
     if (options.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED) {
-        depth_texture = SDL_CreateGPUTexture(
+        depth_texture = nya_gpu_texture_create(
             gpu_device,
             &(SDL_GPUTextureCreateInfo){
                 .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -1348,9 +1348,9 @@ void nya_render_texture_destroy(NYA_RenderTexture* render_texture) {
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
     // SDL_ReleaseGPUTexture already waits until the texture is unused; waiting for the GPU here would stall.
-    SDL_ReleaseGPUTexture(gpu_device, render_texture->texture);
-    if (render_texture->msaa_texture != nullptr) SDL_ReleaseGPUTexture(gpu_device, render_texture->msaa_texture);
-    if (render_texture->depth_texture != nullptr) SDL_ReleaseGPUTexture(gpu_device, render_texture->depth_texture);
+    nya_gpu_texture_release(gpu_device, render_texture->texture);
+    if (render_texture->msaa_texture != nullptr) nya_gpu_texture_release(gpu_device, render_texture->msaa_texture);
+    if (render_texture->depth_texture != nullptr) nya_gpu_texture_release(gpu_device, render_texture->depth_texture);
 
     *render_texture = (NYA_RenderTexture){ 0 };
 }
@@ -1893,8 +1893,8 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
         SDL_GPUDevice* device = nya_app_get()->render_system.gpu_device;
         NYA_FontAtlas* stale  = &_nya_render2d_font_cache[i];
 
-        SDL_ReleaseGPUTexture(device, stale->texture);
-        if (stale->transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(device, stale->transfer_buffer);
+        nya_gpu_texture_release(device, stale->texture);
+        if (stale->transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(device, stale->transfer_buffer);
         SDL_free(stale->coverage);
 
         if (_nya_render2d_current_atlas == stale) _nya_render2d_current_atlas = nullptr;
@@ -1992,7 +1992,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     // copied, because the asset system keeps the pointer and `derived` is a local.
     (void)snprintf(slot->handle, sizeof(slot->handle), "%s", derived);
 
-    SDL_GPUTexture* texture = SDL_CreateGPUTexture(
+    SDL_GPUTexture* texture = nya_gpu_texture_create(
         gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -2007,7 +2007,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     );
     nya_assert(texture != nullptr, "SDL_CreateGPUTexture() failed for a glyph atlas: %s", SDL_GetError());
 
-    slot->transfer_buffer = SDL_CreateGPUTransferBuffer(
+    slot->transfer_buffer = nya_gpu_transfer_buffer_create(
         gpu_device,
         &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = (u32)(cell_width * cell_height) }
     );

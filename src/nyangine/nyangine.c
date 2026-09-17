@@ -13,6 +13,8 @@
 // before either renderer and in both: no GPU state, and headless tests reach it. render_camera.c holds
 // the camera arithmetic both renderers share.
 #include "nyangine/renderer/render_camera.c"
+// both builds: asset loading creates textures through it, and headless tests read its counts.
+#include "nyangine/renderer/render_gpu_memory.c"
 // Shaping, and in both builds for the same reason: it is CPU only, so a headless build can
 // and does lay text out exactly as the real one draws it. See render_text.h.
 #include "nyangine/renderer/render_text.c"

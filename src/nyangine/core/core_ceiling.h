@@ -8,6 +8,9 @@
  * for (u32 i = 0; i < nya_ceiling_count(); i++) {
  *     printf("%s: %u/%u\n", nya_ceiling_name_at(i), nya_ceiling_live_at(i), nya_ceiling_capacity_at(i));
  * }
+ *
+ * // a running byte count with no fixed capacity to be full against:
+ * nya_gauge_register("gpu_textures", &_nya_gpu_memory.bytes[NYA_GPU_MEMORY_TEXTURE]);
  * ```
  * */
 #pragma once
@@ -25,6 +28,13 @@
  * How many ceilings can register, ever.
  * */
 #define NYA_CEILING_REGISTRY_MAX 48
+
+/**
+ * How many byte gauges can register, ever. A gauge is a subsystem's total, so there are only a few.
+ * */
+#ifndef NYA_GAUGE_REGISTRY_MAX
+#define NYA_GAUGE_REGISTRY_MAX 16
+#endif
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -46,8 +56,21 @@ NYA_API NYA_ConstCString nya_ceiling_name_at(u32 index) __attr_no_discard;
 NYA_API u32              nya_ceiling_capacity_at(u32 index) __attr_no_discard;
 NYA_API u32              nya_ceiling_live_at(u32 index) __attr_no_discard;
 
+/**
+ * Registers a byte gauge: a name and a pointer to an existing running byte count. It has no capacity,
+ * so it is shown rather than ranked. `bytes` must outlive the registration, like a ceiling's counter.
+ * */
+NYA_API void nya_gauge_register(NYA_ConstCString name, const u64* bytes);
+
+/** How many gauges are registered. */
+NYA_API u32 nya_gauge_count(void) __attr_no_discard;
+
+/** In registration order, so a HUD row does not move. */
+NYA_API NYA_ConstCString nya_gauge_name_at(u32 index) __attr_no_discard;
+NYA_API u64              nya_gauge_bytes_at(u32 index) __attr_no_discard;
+
 #ifdef NYA_TESTING
-/** Returns the registry to its just-linked state: no entries. Test-only, same reasoning as
+/** Returns the registry to its just-linked state: no ceilings and no gauges. Test-only, same reasoning as
  *  _nya_system_registry_reset_for_test in core_system.h. */
 NYA_INTERNAL void _nya_ceiling_registry_reset_for_test(void);
 #endif

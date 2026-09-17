@@ -159,6 +159,7 @@ From `nm --size-sort -S` on the release binary:
 | `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` | 266 + 80 KB  | resident in single player     |
 | `dphaseTable` / `tllTable`            | 256 + 128 KB | vendored audio decoder tables |
 | `_nya_render2d_font_cache`            | 40 KB        | atlas metadata                |
+| `_nya_gpu_memory`                     | 49 KB        | GPU handle table              |
 
 - `[ ]` The solver pools are the largest statics and do not shrink when a scene uses one dimension.
 
@@ -173,6 +174,10 @@ From `nm --size-sort -S` on the release binary:
 | Refraction capture            | 3.5 MB       | full resolution copy              |
 | Batch + transfer buffers      | 3.8 MB       |                                   |
 
+The debug overlay's memory rows include `gpu_textures`, `gpu_buffers` and `gpu_transfer`, counted at every
+create and release (`render_gpu_memory.h`), which is what SDL is asked for, not the driver's pages. Debug,
+1280x720, 4x MSAA: 2D game 77.5 / 1.7 / 1.7 MiB, 3D demo 107.0 / 2.1 / 1.7 MiB.
+
 - `[~]` Render textures can skip depth (`NYA_RENDER_TEXTURE_DEPTH_NONE`, used by the post chain). The
   MSAA half needs single sampled pipeline variants, which
   `NYA_AssetLoadParameters.as_graphics_pipeline.single_sampled` supports.
@@ -186,7 +191,6 @@ invalidated by the `TTF_Font*` would remove it.
 
 ### Measurement
 
-- `[ ]` GPU allocations should register with the ceiling registry instead of hand computed VRAM figures.
 - `[ ]` RSS has no breakdown by arena anywhere a profile can reach.
 
 ## `[ ]` Reports from other machines

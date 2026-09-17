@@ -83,8 +83,9 @@ struct NYA_DebugOverlayStyle {
 
     /**
      * Hides the per-arena memory lines (one per named arena, largest first, capped at
-     * NYA_DEBUG_OVERLAY_ARENAS). Shown by default: it's the only memory view that isn't a process
-     * total, and a total can't say which subsystem is growing.
+     * NYA_DEBUG_OVERLAY_ARENAS) and the byte gauges after them, which include GPU memory by kind.
+     * Shown by default: it's the only memory view that isn't a process total, and a total can't say
+     * which subsystem is growing.
      * */
     b8 hide_memory;
 

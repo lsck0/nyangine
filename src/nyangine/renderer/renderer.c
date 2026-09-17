@@ -194,9 +194,9 @@ NYA_INTERNAL void _nya_renderer_ensure_msaa_texture(NYA_Window* window, u32 widt
     }
 
     // SDL frees a released texture once it is safe, so no wait.
-    if (window->render_system.msaa_texture != nullptr) SDL_ReleaseGPUTexture(app->render_system.gpu_device, window->render_system.msaa_texture);
+    if (window->render_system.msaa_texture != nullptr) nya_gpu_texture_release(app->render_system.gpu_device, window->render_system.msaa_texture);
 
-    window->render_system.msaa_texture = SDL_CreateGPUTexture(
+    window->render_system.msaa_texture = nya_gpu_texture_create(
         app->render_system.gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -225,10 +225,10 @@ void _nya_renderer_ensure_depth_texture(NYA_Window* window, u32 width, u32 heigh
     }
 
     if (window->render_system.depth_texture != nullptr) {
-        SDL_ReleaseGPUTexture(app->render_system.gpu_device, window->render_system.depth_texture);
+        nya_gpu_texture_release(app->render_system.gpu_device, window->render_system.depth_texture);
     }
 
-    window->render_system.depth_texture = SDL_CreateGPUTexture(
+    window->render_system.depth_texture = nya_gpu_texture_create(
         app->render_system.gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -394,7 +394,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
       },
   }), "while queueing the distance field text pipeline");
 
-    batch->vertex_buffer = SDL_CreateGPUBuffer(
+    batch->vertex_buffer = nya_gpu_buffer_create(
         gpu_device,
         &(SDL_GPUBufferCreateInfo){
             .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
@@ -403,7 +403,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     );
     nya_assert(batch->vertex_buffer != nullptr, "SDL_CreateGPUBuffer() failed: %s", SDL_GetError());
 
-    batch->transfer_buffer = SDL_CreateGPUTransferBuffer(
+    batch->transfer_buffer = nya_gpu_transfer_buffer_create(
         gpu_device,
         &(SDL_GPUTransferBufferCreateInfo){
             .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
@@ -414,10 +414,10 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     u32 index_buffer_size = (u32)((u64)NYA_RENDER2D_MAX_INDICES * sizeof(u32));
 
-    batch->index_buffer = SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_INDEX, .size = index_buffer_size });
+    batch->index_buffer = nya_gpu_buffer_create(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_INDEX, .size = index_buffer_size });
     nya_assert(batch->index_buffer != nullptr, "SDL_CreateGPUBuffer() failed for indices: %s", SDL_GetError());
 
-    batch->index_transfer_buffer = SDL_CreateGPUTransferBuffer(
+    batch->index_transfer_buffer = nya_gpu_transfer_buffer_create(
         gpu_device,
         &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = index_buffer_size }
     );
@@ -873,19 +873,19 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     u32 mesh_buffer_size = (u32)(NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));
     u32 mesh_index_size  = (u32)((u64)NYA_RENDER3D_MAX_INDICES * sizeof(u32));
 
-    mesh_batch->vertex_buffer = SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = mesh_buffer_size });
+    mesh_batch->vertex_buffer = nya_gpu_buffer_create(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = mesh_buffer_size });
     nya_assert(mesh_batch->vertex_buffer != nullptr, "SDL_CreateGPUBuffer() failed for the 3D batch: %s", SDL_GetError());
 
-    mesh_batch->transfer_buffer = SDL_CreateGPUTransferBuffer(
+    mesh_batch->transfer_buffer = nya_gpu_transfer_buffer_create(
         gpu_device,
         &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = mesh_buffer_size }
     );
     nya_assert(mesh_batch->transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for the 3D batch: %s", SDL_GetError());
 
-    mesh_batch->index_buffer = SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_INDEX, .size = mesh_index_size });
+    mesh_batch->index_buffer = nya_gpu_buffer_create(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_INDEX, .size = mesh_index_size });
     nya_assert(mesh_batch->index_buffer != nullptr, "SDL_CreateGPUBuffer() failed for the 3D batch's indices: %s", SDL_GetError());
 
-    mesh_batch->index_transfer_buffer = SDL_CreateGPUTransferBuffer(
+    mesh_batch->index_transfer_buffer = nya_gpu_transfer_buffer_create(
         gpu_device,
         &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = mesh_index_size }
     );
@@ -910,10 +910,10 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     u32 instance_buffer_size = (u32)(NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
 
     mesh_batch->instance_buffer =
-        SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = instance_buffer_size });
+        nya_gpu_buffer_create(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = instance_buffer_size });
     nya_assert(mesh_batch->instance_buffer != nullptr, "SDL_CreateGPUBuffer() failed for the 3D instance stream: %s", SDL_GetError());
 
-    mesh_batch->instance_transfer_buffer = SDL_CreateGPUTransferBuffer(
+    mesh_batch->instance_transfer_buffer = nya_gpu_transfer_buffer_create(
         gpu_device,
         &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = instance_buffer_size }
     );
@@ -958,34 +958,34 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     NYA_Render2DBatch* batch      = &window->render_system.draw_batch;
     SDL_GPUDevice* gpu_device = app->render_system.gpu_device;
 
-    if (batch->vertex_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, batch->vertex_buffer);
-    if (batch->transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, batch->transfer_buffer);
-    if (batch->index_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, batch->index_buffer);
-    if (batch->index_transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, batch->index_transfer_buffer);
+    if (batch->vertex_buffer != nullptr) nya_gpu_buffer_release(gpu_device, batch->vertex_buffer);
+    if (batch->transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, batch->transfer_buffer);
+    if (batch->index_buffer != nullptr) nya_gpu_buffer_release(gpu_device, batch->index_buffer);
+    if (batch->index_transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, batch->index_transfer_buffer);
 
     // the vertices came from the render system arena, freed as a whole.
     *batch = (NYA_Render2DBatch){ 0 };
 
     NYA_Render3DBatch* mesh_batch = &window->render_system.mesh_batch;
 
-    if (mesh_batch->vertex_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, mesh_batch->vertex_buffer);
-    if (mesh_batch->transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->transfer_buffer);
-    if (mesh_batch->index_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, mesh_batch->index_buffer);
-    if (mesh_batch->index_transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->index_transfer_buffer);
+    if (mesh_batch->vertex_buffer != nullptr) nya_gpu_buffer_release(gpu_device, mesh_batch->vertex_buffer);
+    if (mesh_batch->transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, mesh_batch->transfer_buffer);
+    if (mesh_batch->index_buffer != nullptr) nya_gpu_buffer_release(gpu_device, mesh_batch->index_buffer);
+    if (mesh_batch->index_transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, mesh_batch->index_transfer_buffer);
 
     // the instance stream is a vertex buffer to SDL; only the pipeline's input rate makes it per instance.
-    if (mesh_batch->instance_buffer != nullptr) SDL_ReleaseGPUBuffer(gpu_device, mesh_batch->instance_buffer);
-    if (mesh_batch->instance_transfer_buffer != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->instance_transfer_buffer);
+    if (mesh_batch->instance_buffer != nullptr) nya_gpu_buffer_release(gpu_device, mesh_batch->instance_buffer);
+    if (mesh_batch->instance_transfer_buffer != nullptr) nya_gpu_transfer_buffer_release(gpu_device, mesh_batch->instance_transfer_buffer);
 
     // geometry the game registered belongs to the window; nothing else would release it.
     for (u32 i = 0; i < NYA_RENDER3D_MAX_REGISTERED_MESHES; i++) {
         if (mesh_batch->registered_meshes[i].vertices == nullptr) continue;
 
-        SDL_ReleaseGPUBuffer(gpu_device, mesh_batch->registered_meshes[i].vertices);
+        nya_gpu_buffer_release(gpu_device, mesh_batch->registered_meshes[i].vertices);
 
         // a copy that never got a frame, if the window closes first.
         if (mesh_batch->registered_meshes[i].pending_upload != nullptr) {
-            SDL_ReleaseGPUTransferBuffer(gpu_device, mesh_batch->registered_meshes[i].pending_upload);
+            nya_gpu_transfer_buffer_release(gpu_device, mesh_batch->registered_meshes[i].pending_upload);
         }
 
         mesh_batch->registered_meshes[i]    = (NYA_Render3DRegisteredMesh){ 0 };
@@ -993,13 +993,13 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     }
 
     // the refraction capture, created by the first glass draw.
-    if (mesh_batch->refraction_capture != nullptr) SDL_ReleaseGPUTexture(gpu_device, mesh_batch->refraction_capture);
+    if (mesh_batch->refraction_capture != nullptr) nya_gpu_texture_release(gpu_device, mesh_batch->refraction_capture);
 
     mesh_batch->refraction_capture = nullptr;
 
     // the shadow map, created by the first pass.
-    if (mesh_batch->shadow_color != nullptr) SDL_ReleaseGPUTexture(gpu_device, mesh_batch->shadow_color);
-    if (mesh_batch->shadow_depth != nullptr) SDL_ReleaseGPUTexture(gpu_device, mesh_batch->shadow_depth);
+    if (mesh_batch->shadow_color != nullptr) nya_gpu_texture_release(gpu_device, mesh_batch->shadow_color);
+    if (mesh_batch->shadow_depth != nullptr) nya_gpu_texture_release(gpu_device, mesh_batch->shadow_depth);
 
     mesh_batch->shadow_color = nullptr;
     mesh_batch->shadow_depth = nullptr;
@@ -1007,12 +1007,12 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     *mesh_batch = (NYA_Render3DBatch){ 0 };
 
     if (window->render_system.msaa_texture != nullptr) {
-        SDL_ReleaseGPUTexture(app->render_system.gpu_device, window->render_system.msaa_texture);
+        nya_gpu_texture_release(app->render_system.gpu_device, window->render_system.msaa_texture);
         window->render_system.msaa_texture = nullptr;
     }
 
     if (window->render_system.depth_texture != nullptr) {
-        SDL_ReleaseGPUTexture(app->render_system.gpu_device, window->render_system.depth_texture);
+        nya_gpu_texture_release(app->render_system.gpu_device, window->render_system.depth_texture);
         window->render_system.depth_texture = nullptr;
     }
 

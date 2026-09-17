@@ -15,8 +15,18 @@ typedef struct {
 } _NYA_CeilingEntry;
 
 typedef struct {
+    NYA_ConstCString name;
+
+    /** Points at the subsystem's own byte count, never owned, like a ceiling's counter. */
+    const u64* bytes;
+} _NYA_GaugeEntry;
+
+typedef struct {
     _NYA_CeilingEntry entries[NYA_CEILING_REGISTRY_MAX];
     u32               count;
+
+    _NYA_GaugeEntry gauges[NYA_GAUGE_REGISTRY_MAX];
+    u32             gauge_count;
 } _NYA_CeilingRegistry;
 
 /* No init: a zeroed registry is already a valid empty one. */
@@ -95,6 +105,41 @@ u32 nya_ceiling_live_at(u32 index) {
     _nya_ceiling_order(order);
 
     return *_nya_ceiling_registry.entries[order[index]].live;
+}
+
+void nya_gauge_register(NYA_ConstCString name, const u64* bytes) {
+    nya_assert(name != nullptr, "a gauge must be registered with a name");
+    nya_assert(bytes != nullptr, "a gauge must be registered with a byte count to point at");
+
+    if (_nya_ceiling_registry.gauge_count >= NYA_GAUGE_REGISTRY_MAX) {
+        // refused rather than grown, for the ceiling registry's reason.
+        nya_log_warn("Gauge registry is full at " FMTu32 "; '%s' was not registered.", (u32)NYA_GAUGE_REGISTRY_MAX, name);
+        return;
+    }
+
+    _nya_ceiling_registry.gauges[_nya_ceiling_registry.gauge_count] = (_NYA_GaugeEntry){
+        .name  = name,
+        .bytes = bytes,
+    };
+    _nya_ceiling_registry.gauge_count++;
+}
+
+u32 nya_gauge_count(void) {
+    return _nya_ceiling_registry.gauge_count;
+}
+
+NYA_ConstCString nya_gauge_name_at(u32 index) {
+    nya_assert(index < _nya_ceiling_registry.gauge_count, "gauge index " FMTu32 " is out of range (" FMTu32 " registered)", index,
+               _nya_ceiling_registry.gauge_count);
+
+    return _nya_ceiling_registry.gauges[index].name;
+}
+
+u64 nya_gauge_bytes_at(u32 index) {
+    nya_assert(index < _nya_ceiling_registry.gauge_count, "gauge index " FMTu32 " is out of range (" FMTu32 " registered)", index,
+               _nya_ceiling_registry.gauge_count);
+
+    return *_nya_ceiling_registry.gauges[index].bytes;
 }
 
 #ifdef NYA_TESTING

@@ -734,7 +734,7 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayá
     }
     u32 size = (u32)size_wide;
 
-    SDL_GPUTexture* texture = SDL_CreateGPUTexture(
+    SDL_GPUTexture* texture = nya_gpu_texture_create(
         render_system->gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -752,21 +752,21 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayá
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_CreateGPUTexture() failed: %s", SDL_GetError());
     }
 
-    SDL_GPUTransferBuffer* transfer = SDL_CreateGPUTransferBuffer(
+    SDL_GPUTransferBuffer* transfer = nya_gpu_transfer_buffer_create(
         render_system->gpu_device,
         &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = size }
     );
 
     if (transfer == nullptr) {
-        SDL_ReleaseGPUTexture(render_system->gpu_device, texture);
+        nya_gpu_texture_release(render_system->gpu_device, texture);
         if (converted) SDL_DestroySurface(rgba);
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_CreateGPUTransferBuffer() failed: %s", SDL_GetError());
     }
 
     void* mapped = SDL_MapGPUTransferBuffer(render_system->gpu_device, transfer, false);
     if (mapped == nullptr) {
-        SDL_ReleaseGPUTransferBuffer(render_system->gpu_device, transfer);
-        SDL_ReleaseGPUTexture(render_system->gpu_device, texture);
+        nya_gpu_transfer_buffer_release(render_system->gpu_device, transfer);
+        nya_gpu_texture_release(render_system->gpu_device, texture);
         if (converted) SDL_DestroySurface(rgba);
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_MapGPUTransferBuffer() failed: %s", SDL_GetError());
     }
@@ -806,7 +806,7 @@ NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayá¸_NYA_AssetPendingUploadá
     if (command_buffer == nullptr) {
         // nothing was copied, so the textures are undefined. the transfer buffers are still released.
         nya_log_error("SDL_AcquireGPUCommandBuffer() failed, dropping " FMTu64 " texture uploads: %s", pending->length, SDL_GetError());
-        nya_array_foreach (pending, upload) SDL_ReleaseGPUTransferBuffer(render_system->gpu_device, upload->transfer);
+        nya_array_foreach (pending, upload) nya_gpu_transfer_buffer_release(render_system->gpu_device, upload->transfer);
         nya_array_clear(pending);
         return;
     }
@@ -826,7 +826,7 @@ NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayá¸_NYA_AssetPendingUploadá
     SDL_SubmitGPUCommandBuffer(command_buffer);
 
     // released after the submit, once the commands referencing them are recorded.
-    nya_array_foreach (pending, upload) SDL_ReleaseGPUTransferBuffer(render_system->gpu_device, upload->transfer);
+    nya_array_foreach (pending, upload) nya_gpu_transfer_buffer_release(render_system->gpu_device, upload->transfer);
 
     nya_array_clear(pending);
 }
@@ -2156,7 +2156,7 @@ void _nya_asset_unloading_process(NYA_Event* event) {
                  * shared image twice.
                  */
                 for (u32 i = 0; i < asset->as_mesh.texture_count; i++) {
-                    SDL_ReleaseGPUTexture(render_system->gpu_device, asset->as_mesh.textures[i]);
+                    nya_gpu_texture_release(render_system->gpu_device, asset->as_mesh.textures[i]);
                 }
 
                 /*
@@ -2164,7 +2164,7 @@ void _nya_asset_unloading_process(NYA_Event* event) {
                  * every hot reload would strand one in VRAM.
                  */
                 if (asset->as_mesh.gpu_vertices != nullptr) {
-                    SDL_ReleaseGPUBuffer(render_system->gpu_device, asset->as_mesh.gpu_vertices);
+                    nya_gpu_buffer_release(render_system->gpu_device, asset->as_mesh.gpu_vertices);
 
                     asset->as_mesh.gpu_vertices     = nullptr;
                     asset->as_mesh.gpu_vertex_count = 0;
@@ -2216,7 +2216,7 @@ void _nya_asset_unloading_process(NYA_Event* event) {
 
             case NYA_ASSET_TYPE_TEXTURE: {
                 // the encoded bytes were released once the pixels reached the GPU.
-                SDL_ReleaseGPUTexture(render_system->gpu_device, asset->as_texture.texture);
+                nya_gpu_texture_release(render_system->gpu_device, asset->as_texture.texture);
                 asset->as_texture = (typeof(asset->as_texture)){ 0 };
                 asset->status     = NYA_ASSET_STATUS_UNLOADED;
             } break;

@@ -151,6 +151,9 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
         }
     }
 
+    // byte gauges, such as the GPU's, below the arenas. few enough to show all of them.
+    u32 gauge_count = style.hide_memory ? 0 : nya_gauge_count();
+
     // the registry returns entries fullest first, so the first few rows are the ones to show.
     u32 ceiling_count = 0;
 
@@ -159,7 +162,7 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
     u32 line_count = 2;
     if (!style.hide_draw_stats) line_count++;
     if (style.show_batch_breakdown) line_count++;
-    if (!style.hide_memory) line_count += memory_count + 1;
+    if (!style.hide_memory) line_count += memory_count + 1 + gauge_count;
     if (ceiling_count > 0) line_count += ceiling_count + 1;
 
     f32 panel_width  = style.width + (padding * 2.0F);
@@ -242,6 +245,22 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
                 "  %-20s %9s",
                 memory[i].name,
                 _nya_debug_format_bytes(memory[i].used_bytes)
+            );
+            text_y += line_height;
+        }
+
+        // counted by the engine at every create and release, not read from the driver.
+        for (u32 i = 0; i < gauge_count; i++) {
+            nya_render2d_textf_with_font(
+                window,
+                style.font,
+                style.font_size,
+                text_x,
+                text_y,
+                (NYA_Color){ 0.72F, 0.76F, 0.82F, 1.0F },
+                "  %-20s %9s",
+                nya_gauge_name_at(i),
+                _nya_debug_format_bytes(nya_gauge_bytes_at(i))
             );
             text_y += line_height;
         }

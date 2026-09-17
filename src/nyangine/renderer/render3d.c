@@ -651,7 +651,7 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
     if (gpu_device == nullptr) return false;
 
     // single sampled: a depth map has nothing to antialias, and multisampling would need a resolve to read.
-    batch->shadow_color = SDL_CreateGPUTexture(
+    batch->shadow_color = nya_gpu_texture_create(
         gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -670,7 +670,7 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
         return false;
     }
 
-    batch->shadow_depth = SDL_CreateGPUTexture(
+    batch->shadow_depth = nya_gpu_texture_create(
         gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
@@ -687,7 +687,7 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
     if (batch->shadow_depth == nullptr) {
         nya_log_error("SDL_CreateGPUTexture() failed for the shadow map's depth buffer: %s", SDL_GetError());
 
-        SDL_ReleaseGPUTexture(gpu_device, batch->shadow_color);
+        nya_gpu_texture_release(gpu_device, batch->shadow_color);
         batch->shadow_color = nullptr;
         return false;
     }
@@ -1118,8 +1118,8 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
         registered = _nya_render3d_registered_claim(batch, handle);
         if (registered == nullptr) {
             SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
-            SDL_ReleaseGPUBuffer(gpu_device, buffer);
-            SDL_ReleaseGPUTransferBuffer(gpu_device, transfer);
+            nya_gpu_buffer_release(gpu_device, buffer);
+            nya_gpu_transfer_buffer_release(gpu_device, transfer);
             return;
         }
 
@@ -1344,15 +1344,15 @@ NYA_INTERNAL b8 _nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString
     if (slot == nullptr) slot = _nya_render3d_registered_claim(batch, handle);
 
     if (slot == nullptr) {
-        SDL_ReleaseGPUBuffer(gpu_device, buffer);
-        SDL_ReleaseGPUTransferBuffer(gpu_device, transfer);
+        nya_gpu_buffer_release(gpu_device, buffer);
+        nya_gpu_transfer_buffer_release(gpu_device, transfer);
         return false;
     }
 
-    if (slot->vertices != nullptr) SDL_ReleaseGPUBuffer(gpu_device, slot->vertices);
+    if (slot->vertices != nullptr) nya_gpu_buffer_release(gpu_device, slot->vertices);
 
     // a copy that never ran, from a registration replaced before its first draw.
-    if (slot->pending_upload != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, slot->pending_upload);
+    if (slot->pending_upload != nullptr) nya_gpu_transfer_buffer_release(gpu_device, slot->pending_upload);
 
     f32x3 min = nya_vertex3d_position(vertices[0]);
     f32x3 max = min;
@@ -1393,8 +1393,8 @@ void nya_render3d_mesh_release(NYA_Window* window, NYA_ConstCString handle) {
 
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
-    if (slot->vertices != nullptr) SDL_ReleaseGPUBuffer(gpu_device, slot->vertices);
-    if (slot->pending_upload != nullptr) SDL_ReleaseGPUTransferBuffer(gpu_device, slot->pending_upload);
+    if (slot->vertices != nullptr) nya_gpu_buffer_release(gpu_device, slot->vertices);
+    if (slot->pending_upload != nullptr) nya_gpu_transfer_buffer_release(gpu_device, slot->pending_upload);
 
     batch->registered_mesh_keys[slot - batch->registered_meshes] = 0;
     *slot                                                         = (NYA_Render3DRegisteredMesh){ 0 };
@@ -2209,13 +2209,13 @@ b8 _nya_render3d_refraction_capture(NYA_Window* window) {
 
     // recreated, because a GPU texture cannot be resized. rare: a window moving between monitors.
     if (batch->refraction_capture != nullptr && (batch->refraction_width != width || batch->refraction_height != height)) {
-        SDL_ReleaseGPUTexture(gpu_device, batch->refraction_capture);
+        nya_gpu_texture_release(gpu_device, batch->refraction_capture);
 
         batch->refraction_capture = nullptr;
     }
 
     if (batch->refraction_capture == nullptr) {
-        batch->refraction_capture = SDL_CreateGPUTexture(
+        batch->refraction_capture = nya_gpu_texture_create(
             gpu_device,
             &(SDL_GPUTextureCreateInfo){
                 .type   = SDL_GPU_TEXTURETYPE_2D,
@@ -2314,7 +2314,7 @@ b8 _nya_render3d_vertex_buffer_stage(
 
     if (gpu_device == nullptr) return false;
 
-    SDL_GPUBuffer* buffer = SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = size });
+    SDL_GPUBuffer* buffer = nya_gpu_buffer_create(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = size });
 
     if (buffer == nullptr) {
         nya_log_error("Could not create a vertex buffer for '%s': %s", label, SDL_GetError());
@@ -2323,11 +2323,11 @@ b8 _nya_render3d_vertex_buffer_stage(
 
     /* A transfer buffer per registration, kept until the copy happens. */
     SDL_GPUTransferBuffer* transfer =
-        SDL_CreateGPUTransferBuffer(gpu_device, &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = size });
+        nya_gpu_transfer_buffer_create(gpu_device, &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = size });
 
     if (transfer == nullptr) {
         nya_log_error("Could not create a transfer buffer for '%s': %s", label, SDL_GetError());
-        SDL_ReleaseGPUBuffer(gpu_device, buffer);
+        nya_gpu_buffer_release(gpu_device, buffer);
         return false;
     }
 
@@ -2335,8 +2335,8 @@ b8 _nya_render3d_vertex_buffer_stage(
 
     if (staging == nullptr) {
         nya_log_error("Could not map the transfer buffer for '%s': %s", label, SDL_GetError());
-        SDL_ReleaseGPUTransferBuffer(gpu_device, transfer);
-        SDL_ReleaseGPUBuffer(gpu_device, buffer);
+        nya_gpu_transfer_buffer_release(gpu_device, transfer);
+        nya_gpu_buffer_release(gpu_device, buffer);
         return false;
     }
 
@@ -2372,7 +2372,7 @@ void _nya_render3d_registered_flush_upload(NYA_Window* window, NYA_Render3DRegis
 
     _nya_render2d_pass_resume(window);
 
-    SDL_ReleaseGPUTransferBuffer(nya_app_get()->render_system.gpu_device, mesh->pending_upload);
+    nya_gpu_transfer_buffer_release(nya_app_get()->render_system.gpu_device, mesh->pending_upload);
 
     mesh->pending_upload = nullptr;
     mesh->pending_size   = 0;
@@ -2385,7 +2385,7 @@ b8 _nya_render3d_mesh_upload(NYA_Window* window, NYA_Asset* asset) {
     u32 vertex_count = asset->as_mesh.vertex_count;
     u32 size         = (u32)(vertex_count * sizeof(NYA_Vertex3D));
 
-    SDL_GPUBuffer* buffer = SDL_CreateGPUBuffer(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = size });
+    SDL_GPUBuffer* buffer = nya_gpu_buffer_create(gpu_device, &(SDL_GPUBufferCreateInfo){ .usage = SDL_GPU_BUFFERUSAGE_VERTEX, .size = size });
 
     if (buffer == nullptr) {
         nya_log_error("Could not create a vertex buffer for the mesh '%s': %s", asset->handle, SDL_GetError());
@@ -2395,11 +2395,11 @@ b8 _nya_render3d_mesh_upload(NYA_Window* window, NYA_Asset* asset) {
     // a transfer buffer for this upload only: the shared one is sized for the immediate path, and this runs
     // once per mesh.
     SDL_GPUTransferBuffer* transfer =
-        SDL_CreateGPUTransferBuffer(gpu_device, &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = size });
+        nya_gpu_transfer_buffer_create(gpu_device, &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = size });
 
     if (transfer == nullptr) {
         nya_log_error("Could not create a transfer buffer for the mesh '%s': %s", asset->handle, SDL_GetError());
-        SDL_ReleaseGPUBuffer(gpu_device, buffer);
+        nya_gpu_buffer_release(gpu_device, buffer);
         return false;
     }
 
@@ -2407,8 +2407,8 @@ b8 _nya_render3d_mesh_upload(NYA_Window* window, NYA_Asset* asset) {
 
     if (staging == nullptr) {
         nya_log_error("Could not map the transfer buffer for the mesh '%s': %s", asset->handle, SDL_GetError());
-        SDL_ReleaseGPUTransferBuffer(gpu_device, transfer);
-        SDL_ReleaseGPUBuffer(gpu_device, buffer);
+        nya_gpu_transfer_buffer_release(gpu_device, transfer);
+        nya_gpu_buffer_release(gpu_device, buffer);
         return false;
     }
 
@@ -2444,7 +2444,7 @@ b8 _nya_render3d_mesh_upload(NYA_Window* window, NYA_Asset* asset) {
     _nya_render2d_pass_resume(window);
 
     // released "as soon as it is safe", which already waits for the queued copy.
-    SDL_ReleaseGPUTransferBuffer(gpu_device, transfer);
+    nya_gpu_transfer_buffer_release(gpu_device, transfer);
 
     asset->as_mesh.gpu_vertices     = buffer;
     asset->as_mesh.gpu_vertex_count = vertex_count;
