@@ -46,6 +46,7 @@
  * */
 #define UFBX_CFLAGS                 \
     "-c", "-O2", "-std=c11",        \
+    NYA_VENDOR_SECTIONS,            \
     "-DUFBX_NO_SCENE_EVALUATION",   \
     "-DUFBX_NO_SUBDIVISION",        \
     "-DUFBX_NO_TESSELLATION",       \

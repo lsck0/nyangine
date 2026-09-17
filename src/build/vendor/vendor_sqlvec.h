@@ -47,6 +47,7 @@
 /** What both targets compile the one source with, target flags aside. */
 #define SQLVEC_CFLAGS               \
     "-c", "-O3", "-std=c11",        \
+    NYA_VENDOR_SECTIONS,            \
     "-mavx", "-mavx2",              \
     "-DSQLITE_VEC_ENABLE_AVX",      \
     "-DSQLITE_CORE",                \

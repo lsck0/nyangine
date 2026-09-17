@@ -24,7 +24,7 @@
 
 /*
  * Off is what the engine never calls: the 2D renderer (drawing is SDL_GPU), OpenGL, camera, haptic,
- * dialogs, tray, notifications, OpenXR and io_uring. Video is wayland and x11 (see nya_app_create),
+ * dialogs, tray, notifications, OpenXR and io_uring. Video is wayland and x11 (see nya_app_init_with_options),
  * so no KMSDRM; offscreen and dummy stay for headless runs. Audio keeps pipewire, pulse and alsa.
  *
  * Lean and mean drops the software blitters, RLE and YUV. SDL_HAVE_BLIT_N keeps the fast format
@@ -36,6 +36,7 @@
 #define SDL_CMAKE_COMMON                        \
     "-GNinja",                                  \
     "-DCMAKE_BUILD_TYPE=Release",               \
+    NYA_CMAKE_OPTIMIZE,                         \
     "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",     \
     "-DSDL_SHARED=OFF",                         \
     "-DSDL_STATIC=ON",                          \

@@ -98,7 +98,8 @@
 // without it a release binary compiles the hot reload entry point and skips the integrity check.
 #define FLAGS_RELEASE  "-O3", "-flto", "-fPIE", "-g1", "-DNYA_EXECUTION_MODE=2", "-DNYA_ASSET_PREFER_BLOB", "-D_FORTIFY_SOURCE=2", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
 
-#define FLAGS_RELEASE_LINK "-fuse-ld=lld"
+// --gc-sections drops the vendor functions nothing reaches, which NYA_VENDOR_OPTIMIZE put in sections of their own.
+#define FLAGS_RELEASE_LINK "-fuse-ld=lld", "-Wl,--gc-sections"
 
 /*
  * Steam is release plus the Steam runtime. Same deploy shape, different execution mode, so the mode

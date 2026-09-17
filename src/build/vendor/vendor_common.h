@@ -70,6 +70,23 @@ NYA_INTERNAL void nya_vendor_detect_nprocs(void) {
 // clang-format off
 
 /**
+ * How every vendor is optimised. Each function and object gets its own section, so the release link's --gc-sections
+ * drops whatever the engine never reaches instead of keeping a whole object for one call into it.
+ *
+ * -O2 rather than cmake's -O3: -O3 made the vendors 0.85 MB bigger on Linux and 1.5 MB on Windows, and neither the
+ * benches nor the frame times of either scene moved by more than their noise. The engine stays at -O3, where it pays.
+ * */
+#define NYA_VENDOR_OPTIMIZE "-O2 -DNDEBUG -ffunction-sections -fdata-sections"
+
+/** The section flags on their own, for a vendor compiled directly that sets its own optimisation. */
+#define NYA_VENDOR_SECTIONS "-ffunction-sections", "-fdata-sections"
+
+/** NYA_VENDOR_OPTIMIZE for a cmake project, whose release build type would otherwise pick its own. */
+#define NYA_CMAKE_OPTIMIZE                                  \
+    "-DCMAKE_C_FLAGS_RELEASE=" NYA_VENDOR_OPTIMIZE,         \
+    "-DCMAKE_CXX_FLAGS_RELEASE=" NYA_VENDOR_OPTIMIZE
+
+/**
  * Everything vendored is linked statically, so the shipped binary carries its dependencies with it
  * rather than relying on what happens to be installed. Only libraries that are guaranteed present
  * on a normal system are linked dynamically: libc, libm, pthread, dl, OpenGL, and the win32 system
@@ -78,6 +95,7 @@ NYA_INTERNAL void nya_vendor_detect_nprocs(void) {
 #define NYA_CMAKE_STATIC                        \
     "-GNinja",                                  \
     "-DCMAKE_BUILD_TYPE=Release",               \
+    NYA_CMAKE_OPTIMIZE,                         \
     "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",     \
     "-DBUILD_SHARED_LIBS=OFF"
 

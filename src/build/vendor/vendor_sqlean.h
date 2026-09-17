@@ -52,6 +52,7 @@
  * */
 #define SQLEAN_CFLAGS               \
     "-c", "-O2", "-std=c11", "-w",  \
+    NYA_VENDOR_SECTIONS,            \
     "-DSQLITE_CORE",                \
     "-I" SQLEAN_SOURCE
 

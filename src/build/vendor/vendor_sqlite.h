@@ -33,7 +33,7 @@ NYA_VendorRule vendor_sqlite_linux_x86_64 = {
             .command = {
                 .working_directory = SQLITE_BUILD_LINUX_X86_64,
                 .program           = NYA_CONFIGURE_PROGRAM,
-                .arguments         = { NYA_CONFIGURE_LEADING_ARGS "--disable-shared", "--enable-static", "--disable-tcl", "CC=" CC, "CFLAGS=-O2 -fPIC", },
+                .arguments         = { NYA_CONFIGURE_LEADING_ARGS "--disable-shared", "--enable-static", "--disable-tcl", "CC=" CC, "CFLAGS=" NYA_VENDOR_OPTIMIZE " -fPIC", },
             },
 
             .pre_build_hooks = { &hook_create_build_directory, },
@@ -71,7 +71,7 @@ NYA_VendorRule vendor_sqlite_windows_x86_64 = {
                     "--disable-shared", "--enable-static", "--disable-tcl",
                     NYA_AUTOTOOLS_WINDOWS_HOST
                     "CC=" NYA_WINDOWS_CC,
-                    "CFLAGS=-O2",
+                    "CFLAGS=" NYA_VENDOR_OPTIMIZE,
                 },
             },
 
