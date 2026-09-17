@@ -174,7 +174,30 @@ s32 main(void) {
         nya_post_speed_lines_set(&window, (NYA_PostSpeedLines){ .amount = 3.0F, .center_x = -2.0F, .density = -4.0F });
         NYA_PostSpeedLines lines = nya_post_speed_lines(&window);
         nya_check(lines.amount == 1.0F && lines.center_x == -0.5F && lines.density == 0.0F, "speed lines clamp");
+
+        nya_post_speed_lines_set(&window, (NYA_PostSpeedLines){ .amount = 1.0F, .motion = { NAN, 0.0F, 0.0F } });
+        lines = nya_post_speed_lines(&window);
+        nya_check(lines.motion.x == 0.0F && lines.motion.y == 0.0F && lines.motion.z == 0.0F, "a broken velocity reads as none");
         nya_post_speed_lines_set(&window, (NYA_PostSpeedLines){ 0 });
+
+        // lines converge where the camera heads, and stay on the centre while it backs away.
+        window.render_system.mesh_batch.camera = (NYA_Camera3DPerspective){
+            .position = { 0.0F, 0.0F, 10.0F },
+            .up       = { 0.0F, 1.0F, 0.0F },
+            .fov_y    = (f32)M_PI / 3.0F,
+        };
+
+        f32x2 ahead = _nya_post_speed_lines_center(&window, &(NYA_PostSpeedLines){ .motion = { 0.0F, 0.0F, -5.0F } });
+        nya_check(fabsf(ahead.x - 0.5F) < 1e-4F && fabsf(ahead.y - 0.5F) < 1e-4F, "straight ahead is the middle, got %f %f", (f64)ahead.x, (f64)ahead.y);
+
+        f32x2 turning = _nya_post_speed_lines_center(&window, &(NYA_PostSpeedLines){ .motion = { 1.0F, 1.0F, -4.0F } });
+        nya_check(turning.x > 0.5F && turning.y < 0.5F, "heading right and up converges right of and above the middle, got %f %f", (f64)turning.x,
+                  (f64)turning.y);
+
+        f32x2 away = _nya_post_speed_lines_center(&window, &(NYA_PostSpeedLines){ .center_x = 0.1F, .motion = { 1.0F, 0.0F, 5.0F } });
+        nya_check(fabsf(away.x - 0.6F) < 1e-4F && away.y == 0.5F, "backing away keeps the set centre, got %f %f", (f64)away.x, (f64)away.y);
+
+        window.render_system.mesh_batch.camera = (NYA_Camera3DPerspective){ 0 };
 
         // a headless window has no swapchain, so HDR is kept as asked and never presented.
         nya_render_output_set(&window, (NYA_RenderOutput){ .hdr = true, .peak = 4.0F });

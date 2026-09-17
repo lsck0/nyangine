@@ -1316,10 +1316,11 @@ void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s) {
 void _gny_cube3d_effects_apply(NYA_Window* window, GNY_Cube3DScene* scene, f32x3 eye) {
     const NYA_ConfigEngineRenderer* config = &NYA_CONFIG.engine.renderer;
 
-    // how fast the camera moved since last frame. the first frame after entering has nothing to compare with.
-    f32 now_s   = nya_app_get()->frame_stats.uptime_s;
-    f32 elapsed = now_s - scene->camera_previous_s;
-    f32 speed   = scene->camera_previous_s > 0.0F && elapsed > 0.0F ? nya_vector_length(eye - scene->camera_previous) / elapsed : 0.0F;
+    // how the camera moved since last frame. the first frame after entering has nothing to compare with.
+    f32   now_s    = nya_app_get()->frame_stats.uptime_s;
+    f32   elapsed  = now_s - scene->camera_previous_s;
+    f32x3 velocity = scene->camera_previous_s > 0.0F && elapsed > 0.0F ? (eye - scene->camera_previous) / elapsed : (f32x3){ 0 };
+    f32   speed    = nya_vector_length(velocity);
 
     scene->camera_previous   = eye;
     scene->camera_previous_s = now_s;
@@ -1327,6 +1328,7 @@ void _gny_cube3d_effects_apply(NYA_Window* window, GNY_Cube3DScene* scene, f32x3
     NYA_PostSpeedLines lines = config->speed_lines;
 
     lines.amount *= nya_clamp((speed - GNY_CUBE3D_SPEED_LINES_START) / (GNY_CUBE3D_SPEED_LINES_FULL - GNY_CUBE3D_SPEED_LINES_START), 0.0F, 1.0F);
+    lines.motion  = velocity;
 
     nya_post_speed_lines_set(window, lines);
 

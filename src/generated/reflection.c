@@ -415,6 +415,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_PostSpeedLines_FIELDS[] = {
     { .name = "amount", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, amount), .hint = NYA_HINT_NONE },
     { .name = "center_x", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, center_x), .hint = NYA_HINT_NONE },
     { .name = "center_y", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, center_y), .hint = NYA_HINT_NONE },
+    { .name = "motion", .type = &_NYA_REFLECT_f32x3, .offset = nya_offsetof(NYA_PostSpeedLines, motion), .hint = NYA_HINT_NONE },
     { .name = "density", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, density), .hint = NYA_HINT_NONE },
     { .name = "clear_radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostSpeedLines, clear_radius), .hint = NYA_HINT_NONE },
     { .name = "color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_PostSpeedLines, color), .hint = NYA_HINT_NONE },
@@ -426,7 +427,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostSpeedLines = {
     .size = sizeof(NYA_PostSpeedLines),
     .alignment = alignof(NYA_PostSpeedLines),
     .fields = _NYA_REFLECT_NYA_PostSpeedLines_FIELDS,
-    .field_count = 6,
+    .field_count = 7,
 };
 
 /* NYA_PostDebugView, src/nyangine/renderer/render_post.h */

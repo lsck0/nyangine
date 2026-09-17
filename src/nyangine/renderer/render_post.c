@@ -267,6 +267,46 @@ NYA_INTERNAL struct NYA_ShaderSceneView _nya_post_scene_view(const NYA_Window* w
     };
 }
 
+/**
+ * Where speed lines converge, in uv: the options' centre, pulled toward where `motion` points on screen as it turns
+ * into the view. Moving across the view that point runs off to infinity, so it eases in from about eighty degrees
+ * and is whole from sixty.
+ * */
+NYA_INTERNAL f32x2 _nya_post_speed_lines_center(const NYA_Window* window, const NYA_PostSpeedLines* options) {
+    f32x2 center = { 0.5F + options->center_x, 0.5F + options->center_y };
+
+    const NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    f32 speed = nya_vector_length(options->motion);
+
+    // an orthographic camera has no vanishing point.
+    if (speed <= 0.0F || batch->camera_is_ortho || window->screen_height == 0) return center;
+
+    f32x3 forward = nya_vector_normalize(batch->camera.target - batch->camera.position);
+    f32x3 right   = nya_vector_normalize(nya_vector_cross(forward, batch->camera.up));
+    f32x3 up      = nya_vector_cross(right, forward);
+
+    f32 ahead  = nya_vector_dot(options->motion, forward) / speed;
+    f32 weight = nya_clamp((ahead - 0.15F) / 0.35F, 0.0F, 1.0F);
+
+    if (weight <= 0.0F) return center;
+
+    f32 tangent = tanf(batch->camera.fov_y * 0.5F);
+    f32 aspect  = (f32)window->screen_width / (f32)window->screen_height;
+    f32 depth   = ahead * speed;
+
+    f32x2 heading = {
+        0.5F + ((nya_vector_dot(options->motion, right) / (depth * tangent * aspect)) * 0.5F),
+        0.5F - ((nya_vector_dot(options->motion, up) / (depth * tangent)) * 0.5F),
+    };
+
+    f32x2 result = nya_lerp(center, heading, weight);
+
+    nya_assert(isfinite(result.x) && isfinite(result.y));
+
+    return result;
+}
+
 /** The depth of field block with every zero field replaced by its default. */
 NYA_INTERNAL struct NYA_ShaderDepthOfFieldUniform _nya_post_depth_of_field_uniform(NYA_PostDepthOfField options, const NYA_PostChain* chain) {
     b8 distance = options.focus == NYA_POST_FOCUS_DISTANCE;
@@ -462,11 +502,12 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
     if (lines_options->amount > 0.0F
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_SPEED_LINES, NYA_ASSET_SHADER_EFFECT_SPEED_LINES_FRAG, 1, false)) {
-        NYA_Color color = lines_options->color.a > 0.0F ? lines_options->color : NYA_COLOR_WHITE;
+        NYA_Color color  = lines_options->color.a > 0.0F ? lines_options->color : NYA_COLOR_WHITE;
+        f32x2     center = _nya_post_speed_lines_center(window, lines_options);
 
         lines = (struct NYA_ShaderSpeedLinesUniform){
-            .center_x = 0.5F + lines_options->center_x,
-            .center_y = 0.5F + lines_options->center_y,
+            .center_x = center.x,
+            .center_y = center.y,
             .aspect   = (f32)chain->width / (f32)chain->height,
             // stepped, so each drawing holds for a few frames, and wrapped so the float keeps its precision in long runs.
             .frame = fmodf(floorf(nya_app_get()->frame_stats.uptime_s * NYA_POST_SPEED_LINES_RATE), 997.0F),
@@ -692,6 +733,9 @@ void nya_post_speed_lines_set(NYA_Window* window, NYA_PostSpeedLines speed_lines
     speed_lines.center_y     = nya_clamp(speed_lines.center_y, -0.5F, 0.5F);
     speed_lines.density      = nya_clamp(speed_lines.density, 0.0F, 1024.0F);
     speed_lines.clear_radius = nya_clamp(speed_lines.clear_radius, 0.0F, 2.0F);
+
+    // a velocity from a paused or first frame can divide by zero; it means no motion rather than a broken frame.
+    if (!isfinite(speed_lines.motion.x) || !isfinite(speed_lines.motion.y) || !isfinite(speed_lines.motion.z)) speed_lines.motion = (f32x3){ 0 };
 
     window->render_system.post_speed_lines = speed_lines;
 }

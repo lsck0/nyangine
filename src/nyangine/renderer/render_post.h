@@ -25,7 +25,7 @@
  * nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 0.4F });
  * nya_post_antialias_set(window, (NYA_PostAntialias){ .enabled = true });
  * nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_TILT_SHIFT });
- * nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ .amount = camera_speed / top_speed });
+ * nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ .amount = camera_speed / top_speed, .motion = camera_velocity });
  * ```
  *
  * They run inside nya_post_end before the caller's passes, occlusion then ink then depth of field then
@@ -253,17 +253,26 @@ struct NYA_PostDepthOfField {
 };
 
 /**
- * Cartoon speed lines, the stand-in for motion blur: thin spikes converging on a point, redrawn a few times a second
- * like cel animation.
+ * Cartoon speed lines, the stand-in for motion blur: thin spikes converging on the point the camera heads for,
+ * redrawn a few times a second like cel animation.
  * */
 // @reflect
 struct NYA_PostSpeedLines {
     /** How many lines show and how far in they reach, in [0, 1]. Zero is off. */
     f32 amount;
 
-    /** Where the lines converge, as an offset from the middle of the screen in [-0.5, 0.5]. */
+    /**
+     * Where the lines converge without motion, as an offset from the middle of the screen in [-0.5, 0.5], down
+     * positive.
+     * */
     f32 center_x;
     f32 center_y;
+
+    /**
+     * The 3D camera's velocity in world units. The lines converge where it points on screen, easing back to the
+     * centre above as it turns across the view, and staying there while the camera backs away. Zero for none.
+     * */
+    f32x3 motion;
 
     /** Lines around the full circle. See NYA_POST_SPEED_LINES_DENSITY. */
     f32 density;
