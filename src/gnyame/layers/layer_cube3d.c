@@ -45,8 +45,8 @@ NYA_INTERNAL void _gny_cube3d_effects_apply(NYA_Window* window, GNY_Cube3DScene*
 /** The landing marks and the blobs under the three props. Drawn after the terrain they lie on. */
 NYA_INTERNAL void _gny_cube3d_decals_draw(NYA_Window* window, const GNY_Cube3DScene* scene);
 
-/** Advances the skinned bar's clock and rebuilds its palette. Clips play once each, in turn. */
-NYA_INTERNAL void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s);
+/** Advances the skinned bar's clock. Clips play once each, in turn. The pose is sampled when drawn. */
+NYA_INTERNAL void _gny_cube3d_bender_advance(GNY_Cube3DScene* scene, f32 delta_time_s);
 
 /** The sun or moon from the time of day, with the ambient tinted by the sky above and the sand below. */
 NYA_INTERNAL NYA_Render3DLight _gny_cube3d_light(GNY_SkyState sky);
@@ -698,7 +698,7 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
     // Gives the two models bodies once their meshes finish loading; a no-op every frame after.
     gny_layer_cube3d_models_attach(window);
 
-    _gny_cube3d_bender_pose(scene, delta_time_s);
+    _gny_cube3d_bender_advance(scene, delta_time_s);
 
     // once a tick, so a sound un-muffles as the view swings clear of a hill.
     nya_audio_occlusion_update();
@@ -835,8 +835,10 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
 
         f32 size = scene->cubes[i].size;
 
-        // rotation straight off the entity as a quaternion.
-        nya_render3d_cube(window, box->position, (f32x3){ size, size, size }, box->rotation, scene->cubes[i].color);
+        // between ticks, so the pile falls smoothly at any frame rate.
+        nya_render3d_cube(
+            window, nya_entity_render_position(box), (f32x3){ size, size, size }, nya_entity_render_rotation(box), scene->cubes[i].color
+        );
     }
 
     /*
@@ -879,7 +881,9 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
 
             f32 size = scene->cubes[i].size;
 
-            nya_render3d_cube(window, box->position, (f32x3){ size, size, size }, box->rotation, scene->cubes[i].color);
+            nya_render3d_cube(
+                window, nya_entity_render_position(box), (f32x3){ size, size, size }, nya_entity_render_rotation(box), scene->cubes[i].color
+            );
         }
     }
 
@@ -894,12 +898,11 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
                             : (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 0.9F, .edge = GNY_CUBE3D_EDGE }
         );
 
-        // rotation straight off the entity.
         nya_render3d_cube(
             window,
-            cube->position,
+            nya_entity_render_position(cube),
             (f32x3){ GNY_CUBE3D_SIZE, GNY_CUBE3D_SIZE, GNY_CUBE3D_SIZE },
-            cube->rotation,
+            nya_entity_render_rotation(cube),
             scene->dragging ? GNY_CUBE3D_HELD_COLOR : GNY_CUBE3D_COLOR
         );
     }
@@ -915,9 +918,9 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
         nya_render3d_mesh(
             window,
             GNY_CUBE3D_MODEL,
-            model_entity->position,
+            nya_entity_render_position(model_entity),
             (f32x3){ GNY_CUBE3D_MODEL_SCALE, GNY_CUBE3D_MODEL_SCALE, GNY_CUBE3D_MODEL_SCALE },
-            model_entity->rotation,
+            nya_entity_render_rotation(model_entity),
             GNY_CUBE3D_MODEL_COLOR
         );
     }
@@ -931,15 +934,26 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
         nya_render3d_mesh(
             window,
             GNY_CUBE3D_PILL,
-            pill_entity->position,
+            nya_entity_render_position(pill_entity),
             (f32x3){ GNY_CUBE3D_PILL_SCALE, GNY_CUBE3D_PILL_SCALE, GNY_CUBE3D_PILL_SCALE },
-            pill_entity->rotation,
+            nya_entity_render_rotation(pill_entity),
             GNY_CUBE3D_PILL_COLOR
         );
     }
 
-    // posed in on_update, so the shadow cascades and the camera pass draw the same frame of the clip.
-    if (scene->bender_bone_count > 0) {
+    // the clock's skeleton, unless a reload since the last tick freed it.
+    const NYA_Asset* bender  = nya_asset_get(GNY_CUBE3D_BENDER);
+    b8               posable = bender != nullptr && bender->status == NYA_ASSET_STATUS_LOADED && bender->as_mesh.skeleton == scene->bender.skeleton;
+
+    // posed between ticks, once a frame, so the clip plays smoothly and the shadow cascades and the camera pass
+    // draw the same pose.
+    if (scene->bender_bone_count > 0 && posable) {
+        NYA_SkeletonPose pose;
+        nya_skeleton_animator_render_pose(&scene->bender, &pose);
+
+        f32_4x4 palette[NYA_SKELETON_MAX_BONES];
+        nya_skeleton_palette(scene->bender.skeleton, &pose, palette);
+
         f32x3 base = { GNY_CUBE3D_BENDER_X, gny_terrain3d_height_at(GNY_CUBE3D_BENDER_X, GNY_CUBE3D_BENDER_Z) + GNY_CUBE3D_BENDER_LIFT,
                        GNY_CUBE3D_BENDER_Z };
 
@@ -947,7 +961,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
                                                  (f32x3){ GNY_CUBE3D_BENDER_SCALE, GNY_CUBE3D_BENDER_SCALE, GNY_CUBE3D_BENDER_SCALE });
 
         nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.2F, .roughness = 0.85F, .edge = GNY_CUBE3D_EDGE });
-        nya_render3d_skinned_mesh(window, GNY_CUBE3D_BENDER, scene->bender_palette, scene->bender_bone_count, placement,
+        nya_render3d_skinned_mesh(window, GNY_CUBE3D_BENDER, palette, scene->bender_bone_count, placement,
                                   GNY_CUBE3D_BENDER_COLOR);
     }
 
@@ -1249,7 +1263,7 @@ NYA_Render3DLight _gny_cube3d_light(GNY_SkyState sky) {
     };
 }
 
-void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s) {
+void _gny_cube3d_bender_advance(GNY_Cube3DScene* scene, f32 delta_time_s) {
     NYA_Asset* asset = nya_asset_get(GNY_CUBE3D_BENDER);
 
     // still loading, or a reload freed the skeleton the animator points into.
@@ -1273,10 +1287,7 @@ void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s) {
 
     f32 speed = NYA_CONFIG.game.animation_speed > 0.0F ? NYA_CONFIG.game.animation_speed : GNY_ANIMATION_SPEED;
 
-    NYA_SkeletonPose pose;
-    nya_skeleton_animator_update(&scene->bender, scene->bender_frozen ? 0.0F : delta_time_s * speed, &pose);
-
-    nya_skeleton_palette(skeleton, &pose, scene->bender_palette);
+    nya_skeleton_animator_update(&scene->bender, scene->bender_frozen ? 0.0F : delta_time_s * speed, nullptr);
     scene->bender_bone_count = skeleton->bone_count;
 }
 
@@ -1304,7 +1315,9 @@ void _gny_cube3d_effects_apply(NYA_Window* window, GNY_Cube3DScene* scene, f32x3
     // unset, the focus follows the cube, which is what the player handles.
     const NYA_Entity* cube = nya_entity_get(scene->cube);
 
-    if (depth_of_field.focus_distance <= 0.0F && cube != nullptr) depth_of_field.focus_distance = nya_vector_length(cube->position - eye);
+    if (depth_of_field.focus_distance <= 0.0F && cube != nullptr) {
+        depth_of_field.focus_distance = nya_vector_length(nya_entity_render_position(cube) - eye);
+    }
 
     nya_post_depth_of_field_set(window, depth_of_field);
     nya_render3d_decals_set(window, config->decals);
@@ -1366,8 +1379,11 @@ void _gny_cube3d_decals_draw(NYA_Window* window, const GNY_Cube3DScene* scene) {
 
         if (props[i].mesh != nullptr && !nya_render3d_mesh_bounds(window, props[i].mesh, &min, &max)) continue;
 
-        f32 ground = gny_terrain3d_height_at(entity->position.x, entity->position.z);
-        f32 rise   = entity->position.y + (min.y * props[i].scale) - ground;
+        // under where the prop is drawn, so the blob keeps up with it between ticks.
+        f32x3 position = nya_entity_render_position(entity);
+
+        f32 ground = gny_terrain3d_height_at(position.x, position.z);
+        f32 rise   = position.y + (min.y * props[i].scale) - ground;
 
         // smaller and lighter the higher the prop is, gone at GNY_CUBE3D_BLOB_REACH.
         f32 closeness = 1.0F - nya_clamp(rise / GNY_CUBE3D_BLOB_REACH, 0.0F, 1.0F);
@@ -1382,7 +1398,7 @@ void _gny_cube3d_decals_draw(NYA_Window* window, const GNY_Cube3DScene* scene) {
             window,
             (NYA_Render3DDecal){
                 .texture = GNY_CUBE3D_DECAL_TEXTURE,
-                .center  = { entity->position.x, ground, entity->position.z },
+                .center  = { position.x, ground, position.z },
                 .size    = { width, 1.0F, width },
                 .color   = color,
                 .columns = 2,

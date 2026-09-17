@@ -194,8 +194,11 @@ NYA_Color gny_entity_box_color(const NYA_Entity* entity) {
 
 void gny_entity_box_on_render(NYA_Entity* entity, NYA_Window* window) {
     /* One crate. nya_system_entity_render walks and culls. */
-    f32x2 center   = { entity->position.x, entity->position.y };
-    f32   rotation = nya_physics2d_rotation(entity);
+    f32x2 center = nya_entity_render_position(entity).xy;
+
+    // roll is the one angle a 2D body turns through.
+    f32 pitch, yaw, rotation;
+    nya_quaternion_to_euler(nya_entity_render_rotation(entity), &pitch, &yaw, &rotation);
 
     NYA_Color color = gny_entity_box_color(entity);
 

@@ -138,7 +138,7 @@ u32 gny_entity_ledge_drop_everything_through(f32 seconds) {
  */
 
 void gny_entity_ledge_on_render(NYA_Entity* entity, NYA_Window* window) {
-    f32x2 center = { entity->position.x, entity->position.y };
+    f32x2 center = nya_entity_render_position(entity).xy;
 
     // brighter while moving, so the kinematic ledge is distinguishable from the static one.
     NYA_Color color = nya_entity_moving(entity) ? GNY_LEDGE_COLOR_MOVING : GNY_LEDGE_COLOR;

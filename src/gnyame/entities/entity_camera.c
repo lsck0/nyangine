@@ -78,8 +78,9 @@ NYA_Camera2DTopDown gny_entity_camera_of(const NYA_Entity* entity) {
     /* The identity camera when there is none, as in the main menu before the game layer creates one. */
     if (entity == nullptr) return (NYA_Camera2DTopDown){ .zoom = 1.0F };
 
+    // between ticks like everything it looks at, or the world would judder against the view.
     return (NYA_Camera2DTopDown){
-        .position = { entity->position.x, entity->position.y },
+        .position = nya_entity_render_position(entity).xy,
         .zoom     = entity->scale.x > 0.0F ? entity->scale.x : 1.0F,
         .rotation = 0.0F,
     };

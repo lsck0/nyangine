@@ -77,9 +77,8 @@ typedef struct GNY_Cube3DScene {
     /** Stops the bar's clock where it is. */
     b8 bender_frozen;
 
-    /** Posed once a tick, read by every pass of the draw. Zero bones until the model loads. */
-    f32_4x4 bender_palette[NYA_SKELETON_MAX_BONES];
-    u32     bender_bone_count;
+    /** Zero until the model loads. */
+    u32 bender_bone_count;
 
     /** A ring: the next landing writes `mark_next`. */
     GNY_Cube3DMark marks[GNY_CUBE3D_MARK_COUNT];

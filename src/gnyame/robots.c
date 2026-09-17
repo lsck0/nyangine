@@ -538,9 +538,8 @@ void _gny_robots_fly(GNY_Robots* robots, f32x2 goal, f32 delta_time_s) {
         GNY_RobotBody* body = &robots->bodies[i];
 
         // a brain that has not learned yet can fly off the map, and would be gone until it had.
-        if (nya_vector_length(goal - body->position) > GNY_ROBOT_RECALL_DISTANCE) {
-            *body = (GNY_RobotBody){ .position = goal + (f32x2){ 0.0F, -GNY_ROBOT_RECALL_HEIGHT } };
-        }
+        b8 recalled = nya_vector_length(goal - body->position) > GNY_ROBOT_RECALL_DISTANCE;
+        if (recalled) *body = (GNY_RobotBody){ .position = goal + (f32x2){ 0.0F, -GNY_ROBOT_RECALL_HEIGHT } };
 
         robots->waypoints[i] = gny_robots_waypoint(robots, body->position, goal, i);
         gny_robot_sense(*body, robots->waypoints[i], senses);
@@ -558,6 +557,9 @@ void _gny_robots_fly(GNY_Robots* robots, f32x2 goal, f32 delta_time_s) {
         gny_robot_move(body, thrust, delta_time_s);
 
         drone->position = (f32x3){ body->position.x, body->position.y, 0.0F };
+
+        // brought back, not flown back, so it is not drawn streaking across the map.
+        if (recalled) nya_entity_transform_snap(drone);
     }
 }
 
