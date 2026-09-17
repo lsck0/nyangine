@@ -1616,6 +1616,26 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
         .atlas_cascades = (f32)shadow_options.cascades,
     };
 
+    /* Zero alpha colours default to the flat ambient and no shade, which the shader applies as identities. */
+    NYA_Color sky    = batch->light.sky.a > 0.0F ? batch->light.sky : batch->light.color;
+    NYA_Color ground = batch->light.ground.a > 0.0F ? batch->light.ground : batch->light.color;
+
+    uniform.ambient_sky_r    = sky.r;
+    uniform.ambient_sky_g    = sky.g;
+    uniform.ambient_sky_b    = sky.b;
+    uniform.ambient_ground_r = ground.r;
+    uniform.ambient_ground_g = ground.g;
+    uniform.ambient_ground_b = ground.b;
+
+    // the hue at unit luminance, so the tint turns shade toward it without darkening it further.
+    NYA_Color shade = shadow_options.color;
+    f32       luma  = (0.2126F * shade.r) + (0.7152F * shade.g) + (0.0722F * shade.b);
+    f32       amount = luma > 0.0F ? nya_clamp(shade.a, 0.0F, 1.0F) : 0.0F;
+
+    uniform.shade_tint_r = nya_lerp(1.0F, shade.r / nya_max(luma, NYA_EPSILON), amount);
+    uniform.shade_tint_g = nya_lerp(1.0F, shade.g / nya_max(luma, NYA_EPSILON), amount);
+    uniform.shade_tint_b = nya_lerp(1.0F, shade.b / nya_max(luma, NYA_EPSILON), amount);
+
     /* Fog defaults are resolved here once per flush, since the shader only tests `density`. */
     if (batch->fog.density > 0.0F) {
         NYA_Color color = batch->fog.color;

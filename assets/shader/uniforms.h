@@ -165,6 +165,18 @@ struct NYA_ShaderMesh3DUniform {
     f32 fog_height_base;
     f32 fog_sun_amount;
     f32 fog_pad;
+
+    /* Colour of the ambient and the shade, three rows. See NYA_Render3DLight.sky and NYA_Render3DShadowOptions.color. */
+
+    f32 ambient_sky_r, ambient_sky_g, ambient_sky_b;
+    f32 ambient_pad;
+
+    f32 ambient_ground_r, ambient_ground_g, ambient_ground_b;
+    f32 ambient_ground_pad;
+
+    /** Multiplied into fully shaded light: the shade colour at unit brightness, or white for none. */
+    f32 shade_tint_r, shade_tint_g, shade_tint_b;
+    f32 shade_tint_pad;
 };
 
 /*
@@ -176,8 +188,8 @@ static_assert(offsetof(struct NYA_ShaderMesh3DUniform, edge) == 192, "the two po
 static_assert(offsetof(struct NYA_ShaderMesh3DUniform, light_view_projection) == 208, "edge/shadow_strength/shadow_texel/shadow_bias are one row");
 static_assert(offsetof(struct NYA_ShaderMesh3DUniform, cascade_extent) == 208 + (16 * 4 * NYA_RENDER3D_SHADOW_CASCADES),
               "one float4x4 per cascade, and nothing between them");
-static_assert(sizeof(struct NYA_ShaderMesh3DUniform) == offsetof(struct NYA_ShaderMesh3DUniform, cascade_extent) + 64,
-              "cascade_extent, the cascade row, and two fog rows close the block");
+static_assert(sizeof(struct NYA_ShaderMesh3DUniform) == offsetof(struct NYA_ShaderMesh3DUniform, cascade_extent) + 112,
+              "cascade_extent, the cascade row, two fog rows and three colour rows close the block");
 
 /** Lights one nya_render2d_lights_apply may pass. Matches MAX_LIGHTS in light2d.frag.hlsl. */
 #define NYA_SHADER_LIGHT2D_MAX 16

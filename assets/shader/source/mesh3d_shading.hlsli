@@ -97,6 +97,16 @@ cbuffer Uniforms : register(b0, space3) {
   float fog_height_base;
   float fog_sun_amount;
   float fog_pad;
+
+  // the ambient's colour on surfaces facing up and down. See NYA_Render3DLight.sky.
+  float3 ambient_sky;
+  float ambient_pad;
+  float3 ambient_ground;
+  float ambient_ground_pad;
+
+  // multiplied into light that reaches a surface without the sun. White for none.
+  float3 shade_tint;
+  float shade_tint_pad;
 };
 
 /*
@@ -393,6 +403,16 @@ float3 mesh3d_fog(float3 colour, float3 world_position) {
 }
 
 /**
+ * A hard step at `edge`, softened over one pixel of `value`'s change. A fixed smoothstep width is a blur up close
+ * and a sparkle at a distance; measured per pixel, a highlight keeps its shape at any size.
+ * */
+float mesh3d_crisp(float edge, float value) {
+  float width = max(fwidth(value), 1e-4);
+
+  return smoothstep(edge - width, edge + width, value);
+}
+
+/**
  * The whole shading model, given a base colour. `world_position` is the shaded point, for point lights and the
  * view vector.
  * */
@@ -411,12 +431,18 @@ float3 mesh3d_shade(float3 base_colour, float3 normal, float3 world_position, fl
    * Ambient is about 0.6 here, so shadowing the sun term alone moved a lit surface from 1.0 to 0.82, a faint
    * smudge. Ambient stands in for sky light, which a sun blocker also blocks. Point lights are added after, so a
    * lamp still lights ground in shadow.
+   *
+   * The ambient comes from a hemisphere, sky colour on tops and bounce colour on undersides, and whatever the sun
+   * does not reach leans toward the shade tint. Both are identities at their defaults.
    */
-  float shade = saturate(ambient + (1.0 - ambient) * lit * intensity);
+  float3 hemisphere = lerp(ambient_ground, ambient_sky, normal.y * 0.5 + 0.5);
+  float3 light = hemisphere * ambient + light_color * ((1.0 - ambient) * lit * intensity);
 
-  shade *= lerp(1.0 - shadow_strength, 1.0, shadow);
+  // doubled, so the lit and mid bands keep their colour and the tint gathers in cast shadow and the dark band.
+  float sunlit = saturate(lit * shadow * 2.0);
+  light *= lerp(shade_tint, float3(1.0, 1.0, 1.0), sunlit) * lerp(1.0 - shadow_strength, 1.0, shadow);
 
-  float3 colour = base_colour * light_color * shade;
+  float3 colour = base_colour * light;
 
   int count = min((int)point_light_count, MESH3D_MAX_POINT_LIGHTS);
 
@@ -453,7 +479,7 @@ float3 mesh3d_shade(float3 base_colour, float3 normal, float3 world_position, fl
   float highlight = pow(saturate(dot(normal, half_vector)), 48.0);
 
   // shadowed too: a surface in shadow has no sunlight to reflect.
-  colour += light_color * smoothstep(0.25, 0.35, highlight) * metallic * 0.35 * shadow;
+  colour += light_color * mesh3d_crisp(0.3, highlight) * metallic * 0.35 * shadow;
 
   /*
    * A rim on the silhouette, separating the object from the background where the surface turns away from the
@@ -461,7 +487,7 @@ float3 mesh3d_shade(float3 base_colour, float3 normal, float3 world_position, fl
    */
   float rim = pow(1.0 - saturate(dot(normal, view)), 3.0);
 
-  colour += light_color * smoothstep(0.55, 0.85, rim) * reflectance * 0.25;
+  colour += light_color * mesh3d_crisp(0.7, rim) * reflectance * 0.25;
 
   /*
    * Emission, added last and unlit, so an emissive surface does not darken away from the sun. A value above one

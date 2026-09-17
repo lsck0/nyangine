@@ -361,6 +361,13 @@ struct NYA_Render3DLight {
 
     /** Scales the lit term only. One is neutral; zero leaves everything at the ambient. */
     f32 intensity;
+
+    /**
+     * The ambient's colour from above and from below, blended by which way a surface faces: sky light on tops,
+     * bounce light on undersides. Zero alpha takes `color`, the flat ambient.
+     * */
+    NYA_Color sky;
+    NYA_Color ground;
 };
 
 /**
@@ -470,6 +477,12 @@ struct NYA_Render3DShadowOptions {
 
     /** Texels per side of one cascade, rounded up to a power of two. Memory grows with its square. */
     u32 map_size;
+
+    /**
+     * The hue shadowed and dark banded surfaces lean toward, with alpha as how far. Brightness is kept, so a cool
+     * colour makes shade blue rather than darker. Zero alpha leaves shade a plain darkening.
+     * */
+    NYA_Color color;
 };
 
 /**

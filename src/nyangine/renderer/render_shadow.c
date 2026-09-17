@@ -226,5 +226,6 @@ NYA_Render3DShadowOptions _nya_render3d_shadow_options_resolve(NYA_Render3DShado
     return (NYA_Render3DShadowOptions){
         .cascades = nya_clamp(cascades, 1U, (u32)NYA_RENDER3D_SHADOW_CASCADES),
         .map_size = power,
+        .color    = options.color,
     };
 }

@@ -430,6 +430,12 @@ s32 main(void) {
                       "case " FMTu32 " resolved to " FMTu32 " cascades of " FMTu32, i, resolved.cascades, resolved.map_size);
         }
 
+        // the shade colour is a look, not a size: it passes through untouched and never releases the atlas.
+        NYA_Color cool = { 0.4F, 0.5F, 0.9F, 0.5F };
+        nya_render3d_shadow_options_set(&fresh, (NYA_Render3DShadowOptions){ .color = cool });
+        nya_check(nya_render3d_shadow_options(&fresh).color.b == cool.b && nya_render3d_shadow_options(&fresh).color.a == cool.a,
+                  "the shade colour should pass through");
+
         // fewer cascades divide the same range: the last one still reaches the far end.
         NYA_Camera3DPerspective camera = camera_at(0.0F);
 
