@@ -2,7 +2,7 @@
 // colour comes from. An include rather than one pipeline with a sampler always bound, which would fetch a
 // texture per fragment on every untextured cube. `.hlsli`, so shader discovery skips it.
 //
-// Flat-shaded cartoon lighting: a wrapped diffuse quantised into bands, an optional hard highlight, a rim, and
+// Flat-shaded stylised lighting: a wrapped diffuse, smooth or quantised into bands, an optional hard highlight, a rim, and
 // up to NYA_RENDER3D_MAX_POINT_LIGHTS point lights. Not physically based, since energy conservation cannot
 // keep flat colour flat.
 
@@ -26,7 +26,7 @@ cbuffer Uniforms : register(b0, space3) {
   // and forgetting it lights shapes from behind.
   float3 light_direction;
 
-  // brightness facing away from every light. around 0.6, higher than physical, so a cartoon shadow reads as a
+  // brightness facing away from every light. around 0.6, higher than physical, so a shadow reads as a
   // shade of the object.
   float ambient;
 
@@ -140,7 +140,10 @@ float mesh3d_banded(float3 normal, float3 light, float softness) {
   // `width`, not `edge`, which is a cbuffer member.
   float width = clamp(softness * 0.5, 0.02, 0.5);
 
-  return saturate((step_index + smoothstep(0.5 - width, 0.5 + width, within_step)) / BANDS);
+  float banded = saturate((step_index + smoothstep(0.5 - width, 0.5 + width, within_step)) / BANDS);
+
+  // past half softness the bands fade into the plain wrapped gradient, which is the flat coloured look.
+  return lerp(banded, wrapped, smoothstep(0.5, 1.0, softness));
 }
 
 /**
@@ -337,7 +340,7 @@ float mesh3d_shadow(Texture2D map, SamplerState smp, float3 world_position, floa
   }
 
   /*
-   * Cut into a crisp edge, since a cartoon shadow is a shape rather than a gradient. The filter still decides
+   * Cut into a crisp edge, since a stylised shadow is a shape rather than a gradient. The filter still decides
    * where the edge falls, so it stays smooth along the texel grid, and faint partial self-shadowing on grazing
    * slopes rounds away to lit.
    */

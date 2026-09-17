@@ -8,7 +8,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/* The cartoon passes' pipelines, queued the first time their feature runs. */
+/* The scene passes' pipelines, queued the first time their feature runs. */
 #define _NYA_POST_PIPELINE_OCCLUSION       "nya_post_occlusion_pipeline"
 #define _NYA_POST_PIPELINE_OCCLUSION_APPLY "nya_post_occlusion_apply_pipeline"
 #define _NYA_POST_PIPELINE_INK             "nya_post_ink_pipeline"
@@ -191,7 +191,7 @@ NYA_INTERNAL void _nya_post_draw_step(NYA_Window* window, const NYA_PostChain* c
 }
 
 /**
- * Whether a cartoon pipeline is loaded, queueing it the first time it is asked for. Paired with the procedural
+ * Whether a scene pass pipeline is loaded, queueing it the first time it is asked for. Paired with the procedural
  * vertex stage every window already loads.
  * */
 NYA_INTERNAL b8 _nya_post_pipeline_ready(NYA_Window* window, NYA_ConstCString pipeline, NYA_AssetHandle fragment, u32 samplers, b8 half) {
@@ -420,6 +420,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             .strength   = occlusion_options->strength > 0.0F ? occlusion_options->strength : NYA_POST_OCCLUSION_STRENGTH,
             .band       = occlusion_options->band > 0.0F ? occlusion_options->band : NYA_POST_OCCLUSION_BAND,
             .min_radius = occlusion_options->min_radius > 0.0F ? occlusion_options->min_radius : NYA_POST_OCCLUSION_MIN_RADIUS,
+            .softness   = occlusion_options->softness > 0.0F ? occlusion_options->softness : NYA_POST_OCCLUSION_SOFTNESS,
         };
 
         if (_nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_OCCLUSION, NYA_ASSET_SHADER_EFFECT_OCCLUSION_FRAG, 1, true)) {
@@ -713,6 +714,7 @@ void nya_post_ambient_occlusion_set(NYA_Window* window, NYA_PostAmbientOcclusion
     occlusion.radius     = nya_clamp(occlusion.radius, 0.0F, 16.0F);
     occlusion.strength   = nya_clamp(occlusion.strength, 0.0F, 1.0F);
     occlusion.band       = nya_clamp(occlusion.band, 0.0F, 1.0F);
+    occlusion.softness   = nya_clamp(occlusion.softness, 0.0F, 1.0F);
     // the shader reaches forty pixels at most.
     occlusion.min_radius = nya_clamp(occlusion.min_radius, 0.0F, 40.0F);
 

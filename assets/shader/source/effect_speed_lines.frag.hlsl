@@ -1,4 +1,4 @@
-// Cartoon speed lines: thin spikes radiating from a point, over the image. See NYA_PostSpeedLines.
+// Speed lines: thin spikes radiating from a point, over the image. See NYA_PostSpeedLines.
 //
 // The circle around the centre is cut into wedges and a few of them hold a line, picked by a hash of the wedge and
 // the drawing number. The drawing number only changes a few times a second, so the lines hold still between

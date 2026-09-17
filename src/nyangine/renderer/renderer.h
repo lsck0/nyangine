@@ -809,7 +809,7 @@ struct NYA_RenderSystemWindow {
     NYA_RenderOutput    output;
     NYA_RenderOutputGPU output_gpu;
 
-    /* The cartoon post passes. See render_post.h. */
+    /* The scene post passes. See render_post.h. */
 
     NYA_PostInk              post_ink;
     NYA_PostAmbientOcclusion post_ambient_occlusion;

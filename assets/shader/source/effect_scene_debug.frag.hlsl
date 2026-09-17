@@ -1,4 +1,4 @@
-// Shows one of the buffers the cartoon passes read, in place of the image. See NYA_PostDebugView, whose values the
+// Shows one of the buffers the scene passes read, in place of the image. See NYA_PostDebugView, whose values the
 // view numbers below are.
 
 #include "effect_scene.hlsli"

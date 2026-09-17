@@ -1,4 +1,4 @@
-// Blurs the half resolution occlusion back up to full size and darkens the scene by it, in one soft band. See
+// Blurs the half resolution occlusion back up to full size and darkens the scene by it, as a band or a gradient. See
 // NYA_PostAmbientOcclusion.
 //
 // The blur weighs each tap by how close its depth is to this pixel's, so occlusion on a wall does not bleed onto
@@ -23,10 +23,10 @@ cbuffer OcclusionUniform : register(b0, space3) {
   float strength;
   float band;
   float min_radius;
-};
 
-/** How wide the band's edge is, in occlusion units. Narrow enough to read as a band, wide enough not to alias. */
-static const float OCCLUSION_BAND_SOFTNESS = 0.08;
+  float softness;
+  float3 occlusion_pad;
+};
 
 float4 main(FragInput input) : SV_Target {
   float2 uv = scene_uv(input);
@@ -58,7 +58,7 @@ float4 main(FragInput input) : SV_Target {
 
   float occluded = weights > 0.0 ? total / weights : 0.0;
 
-  float shade = smoothstep(band - OCCLUSION_BAND_SOFTNESS, band + OCCLUSION_BAND_SOFTNESS, occluded) * strength;
+  float shade = smoothstep(band - softness, band + softness, occluded) * strength;
 
   float3 position = scene_position(view, uv, distance);
 

@@ -17,7 +17,7 @@
  * }
  * ```
  *
- * The cartoon passes are options on the window rather than passes, since they read buffers only the chain
+ * The scene passes are options on the window rather than passes, since they read buffers only the chain
  * knows about. One call each turns them on, and a zeroed field takes its default:
  *
  * ```c
@@ -74,6 +74,12 @@
 
 /** How occluded a pixel has to be before it falls into the band, when NYA_PostAmbientOcclusion.band is zero. */
 #define NYA_POST_OCCLUSION_BAND 0.25F
+
+/**
+ * Half the width of the band's edge in occlusion units, when NYA_PostAmbientOcclusion.softness is zero. Narrow
+ * enough to read as a band, wide enough not to alias; toward one it becomes a plain gradient.
+ * */
+#define NYA_POST_OCCLUSION_SOFTNESS 0.08F
 
 /** FXAA's sub-pixel smoothing when NYA_PostAntialias.subpixel is zero. Higher softens more. */
 #define NYA_POST_ANTIALIAS_SUBPIXEL 0.75F
@@ -200,6 +206,9 @@ struct NYA_PostAmbientOcclusion {
 
     /** The occlusion, in [0, 1], at which the band starts. See NYA_POST_OCCLUSION_BAND. */
     f32 band;
+
+    /** How soft the band's edge is, in [0, 1]. See NYA_POST_OCCLUSION_SOFTNESS. */
+    f32 softness;
 };
 
 /**
@@ -267,7 +276,7 @@ struct NYA_PostDepthOfField {
 };
 
 /**
- * Cartoon speed lines, the stand-in for motion blur: thin spikes converging on the point the camera heads for,
+ * Speed lines, a stylised stand-in for motion blur: thin spikes converging on the point the camera heads for,
  * redrawn a few times a second like cel animation.
  * */
 // @reflect
@@ -316,7 +325,7 @@ struct NYA_PostBloom {
     f32 spread;
 };
 
-/** A buffer shown in place of the image, for looking at what the cartoon passes read. */
+/** A buffer shown in place of the image, for looking at what the scene passes read. */
 // @reflect
 enum NYA_PostDebugView {
     NYA_POST_DEBUG_VIEW_NONE = 0,
@@ -344,7 +353,7 @@ enum NYA_PostDebugView {
  * */
 struct NYA_PostChain {
     /**
-     * [0] holds the scene, at the renderer's sample count, with the normal buffer while a cartoon pass reads it. [1]
+     * [0] holds the scene, at the renderer's sample count, with the normal buffer while a scene pass reads it. [1]
      * exists only while more than one pass runs, single sampled and without depth, so a one pass chain such as a
      * bloom costs one target.
      * */
@@ -388,7 +397,7 @@ struct NYA_PostChain {
 NYA_API b8 nya_post_begin(NYA_Window* window, NYA_PostChain* chain) __attr_no_discard;
 
 /**
- * Ends the capture, runs the window's cartoon passes and then `passes` over it, the last one landing on the window.
+ * Ends the capture, runs the window's scene passes and then `passes` over it, the last one landing on the window.
  * */
 NYA_API void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* passes, u32 pass_count);
 

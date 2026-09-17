@@ -1,4 +1,4 @@
-// The scene pass's second output, the normal buffer the cartoon post passes read. See NYA_RENDER3D_NORMAL_FORMAT.
+// The scene pass's second output, the normal buffer the scene post passes read. See NYA_RENDER3D_NORMAL_FORMAT.
 // Included after mesh3d_shading.hlsli, whose cbuffer has the camera.
 //
 // Written by every opaque mesh shader whether or not the pass attaches the buffer: a pipeline without the second

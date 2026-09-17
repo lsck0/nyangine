@@ -15,6 +15,9 @@ cbuffer OcclusionUniform : register(b0, space3) {
   float strength;
   float band;
   float min_radius;
+
+  float softness;
+  float3 occlusion_pad;
 };
 
 static const int OCCLUSION_SAMPLES = 8;

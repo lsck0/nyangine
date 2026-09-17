@@ -318,6 +318,9 @@ struct NYA_ShaderAmbientOcclusionUniform {
     f32 strength;
     f32 band;
     f32 min_radius;
+
+    f32 softness;
+    f32 pad_0, pad_1, pad_2;
 };
 
 /** effect_antialias.frag.hlsl. See NYA_PostAntialias. */

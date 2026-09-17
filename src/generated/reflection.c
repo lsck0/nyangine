@@ -337,6 +337,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_PostAmbientOcclusion_FIELDS[] = {
     { .name = "min_radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostAmbientOcclusion, min_radius), .hint = NYA_HINT_NONE },
     { .name = "strength", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostAmbientOcclusion, strength), .hint = NYA_HINT_NONE },
     { .name = "band", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostAmbientOcclusion, band), .hint = NYA_HINT_NONE },
+    { .name = "softness", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostAmbientOcclusion, softness), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_PostAmbientOcclusion = {
@@ -345,7 +346,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostAmbientOcclusion = {
     .size = sizeof(NYA_PostAmbientOcclusion),
     .alignment = alignof(NYA_PostAmbientOcclusion),
     .fields = _NYA_REFLECT_NYA_PostAmbientOcclusion_FIELDS,
-    .field_count = 5,
+    .field_count = 6,
 };
 
 /* NYA_PostAntialias, src/nyangine/renderer/render_post.h */

@@ -424,7 +424,8 @@ struct NYA_Render3DMaterial {
     f32 metallic;
 
     /**
-     * How soft the transitions between shading bands are, in [0, 1].
+     * How soft the transitions between shading bands are, in [0, 1]. From one half up the bands fade into a smooth
+     * gradient, reached at one.
      * */
     f32 roughness;
 
