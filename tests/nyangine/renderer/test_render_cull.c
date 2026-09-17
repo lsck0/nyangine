@@ -247,7 +247,7 @@ s32 main(void) {
         nya_check(camera == 9 && out[0] == 0 && out[3] == 3 && out[8] == 8, "the camera's list is the first two objects, got %u", camera);
 
         u32 cascade = _nya_render3d_pass_indices(&stream, 0, 3, 1, out);
-        nya_check(cascade == 9 && out[0] == 3 && out[5] == 8 && out[6] == 9 && out[8] == 11, "the cascade's is the last two, the last up to the end, got %u", cascade);
+        nya_check(cascade == 9 && out[0] == 3 && out[5] == 8 && out[6] == 9 && out[8] == 11, "the cascade's is the last two, got %u", cascade);
 
         nya_check(_nya_render3d_pass_indices(&stream, 1, 2, 0, out) == 6, "a segment's objects end where the next begins");
         nya_check(_nya_render3d_pass_indices(&stream, 0, 3, 2, out) == 0, "a pass no object is in gets nothing");

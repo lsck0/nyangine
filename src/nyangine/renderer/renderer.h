@@ -643,11 +643,13 @@ struct NYA_Render3DBatch {
 
     /**
      * Light-space depth plus the depth buffer for its test. A colour target, because sampling a depth format is
-     * unevenly supported. Created on the first shadow pass and kept; its size is
-     * NYA_RENDER3D_SHADOW_MAP_SIZE.
+     * unevenly supported. Created when a scene first casts shadows, released when they are turned off.
      * */
     SDL_GPUTexture* shadow_color;
     SDL_GPUTexture* shadow_depth;
+
+    /** One texel bound in the atlas's place without shadows, since a declared sampler needs a texture. */
+    SDL_GPUTexture* shadow_none;
 
     /** As the caller set them. Resolve through nya_render3d_shadow_options, which applies the defaults. */
     NYA_Render3DShadowOptions shadow_options;

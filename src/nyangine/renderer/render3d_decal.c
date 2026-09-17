@@ -372,7 +372,7 @@ void _nya_render3d_decals_draw(NYA_Window* window, const NYA_Render3DSegment* se
     SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = gpu->vertex_buffer }, 1);
     SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = gpu->index_buffer }, SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
-    if (!_nya_render3d_bind_samplers(window, texture.texture, texture.sampler)) return;
+    _nya_render3d_bind_samplers(window, texture.texture, texture.sampler);
 
     SDL_PushGPUVertexUniformData(render->render_commands, 0, &batch->view_projection, sizeof(batch->view_projection));
     SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));

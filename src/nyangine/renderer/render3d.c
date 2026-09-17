@@ -111,8 +111,11 @@ NYA_INTERNAL NYA_Render3DMeshGroup* _nya_render3d_mesh_group(NYA_Render3DBatch* 
 /** The fragment uniform block, built from the batch's light and material. The shadow fields are the playback's. */
 NYA_INTERNAL struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DBatch* batch) __attr_no_discard;
 
+/** The shadow atlas once the cascades are drawn, and a placeholder texel before that or without shadows. */
+NYA_INTERNAL SDL_GPUTexture* _nya_render3d_shadow_map(const NYA_Render3DBatch* batch) __attr_no_discard;
+
 /** Binds the shadow map, and the base colour before it when there is one. */
-NYA_INTERNAL b8 _nya_render3d_bind_samplers(NYA_Window* window, SDL_GPUTexture* texture, SDL_GPUSampler* sampler);
+NYA_INTERNAL void _nya_render3d_bind_samplers(NYA_Window* window, SDL_GPUTexture* texture, SDL_GPUSampler* sampler);
 
 /** Draws a segment's CPU-baked triangles in one pass. */
 NYA_INTERNAL void _nya_render3d_immediate_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
@@ -1447,39 +1450,25 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
     return uniform;
 }
 
-b8 _nya_render3d_bind_samplers(NYA_Window* window, SDL_GPUTexture* texture, SDL_GPUSampler* sampler) {
+SDL_GPUTexture* _nya_render3d_shadow_map(const NYA_Render3DBatch* batch) {
+    return batch->shadow_valid ? batch->shadow_color : batch->shadow_none;
+}
+
+void _nya_render3d_bind_samplers(NYA_Window* window, SDL_GPUTexture* texture, SDL_GPUSampler* sampler) {
     NYA_RenderSystemWindow* render = &window->render_system;
-    NYA_Render3DBatch*      batch  = &render->mesh_batch;
 
     /*
      * Bindings in each shader's declared order. The untextured scene pipeline declares one sampler (the shadow map)
-     * and the textured one two (base colour, then shadow map). A shadow map is bound even when no cascade was drawn,
-     * since a declared sampler must have something bound. The playback created it.
+     * and the textured one two (base colour, then shadow map).
      */
-    if (batch->shadow_color == nullptr) return false;
+    SDL_GPUTextureSamplerBinding bindings[2] = {
+        { .texture = texture, .sampler = sampler },
+        { .texture = _nya_render3d_shadow_map(&render->mesh_batch), .sampler = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR) },
+    };
 
-    SDL_GPUSampler* shadow_sampler = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR);
-
-    if (texture != nullptr) {
-        SDL_BindGPUFragmentSamplers(
-            render->render_pass,
-            0,
-            (SDL_GPUTextureSamplerBinding[]){
-                { .texture = texture, .sampler = sampler },
-                { .texture = batch->shadow_color, .sampler = shadow_sampler },
-            },
-            2
-        );
-    } else {
-        SDL_BindGPUFragmentSamplers(
-            render->render_pass,
-            0,
-            &(SDL_GPUTextureSamplerBinding){ .texture = batch->shadow_color, .sampler = shadow_sampler },
-            1
-        );
-    }
-
-    return true;
+    // untextured draws bind the shadow map alone, at slot zero.
+    if (texture != nullptr) SDL_BindGPUFragmentSamplers(render->render_pass, 0, bindings, 2);
+    else SDL_BindGPUFragmentSamplers(render->render_pass, 0, &bindings[1], 1);
 }
 
 void _nya_render3d_playback(NYA_Window* window) {
@@ -1492,8 +1481,8 @@ void _nya_render3d_playback(NYA_Window* window) {
     if (batch->segment_count > 0 && render->render_pass != nullptr) {
         _nya_render3d_passes_prepare(window);
 
-        // created even without cascades, since binding null to a declared sampler crashes some drivers.
-        b8  atlas      = _nya_render3d_shadow_ensure(window);
+        // only a scene that casts shadows allocates the atlas. without one the placeholder is bound.
+        b8  atlas      = batch->pass_count > 1 && _nya_render3d_shadow_ensure(window);
         u32 pass_count = atlas ? batch->pass_count : 1;
 
         SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
@@ -1522,16 +1511,19 @@ void _nya_render3d_playback(NYA_Window* window) {
 
                 if (pass > 0 && !segment->casts_shadow) continue;
 
-                segment->opaque[pass].count  = _nya_render3d_pass_indices(&batch->opaque, segment->opaque_objects, opaque_end, pass, indices + index_count);
-                index_count                 += segment->opaque[pass].count;
+                u32 opaque = _nya_render3d_pass_indices(&batch->opaque, segment->opaque_objects, opaque_end, pass, indices + index_count);
+
+                segment->opaque[pass].count  = opaque;
+                index_count                 += opaque;
 
                 // a cascade draws translucent geometry solid, as the map holds depth, not transmittance. what adds light casts nothing.
                 if (pass > 0 && segment->blend == NYA_RENDER3D_BLEND_ADDITIVE) continue;
 
-                u32 count = _nya_render3d_pass_indices(&batch->transparent, segment->transparent_objects, transparent_end, pass, indices + index_count);
+                u16* transparent = indices + index_count;
+                u32  count       = _nya_render3d_pass_indices(&batch->transparent, segment->transparent_objects, transparent_end, pass, transparent);
 
                 // only the camera blends, and adding does not depend on order.
-                if (pass == 0 && segment->blend != NYA_RENDER3D_BLEND_ADDITIVE) _nya_render3d_sort_transparent(batch, indices + index_count, count, eye);
+                if (pass == 0 && segment->blend != NYA_RENDER3D_BLEND_ADDITIVE) _nya_render3d_sort_transparent(batch, transparent, count, eye);
 
                 segment->transparent[pass].count  = count;
                 index_count                      += count;
@@ -1804,7 +1796,7 @@ void _nya_render3d_immediate_draw(NYA_Window* window, const NYA_Render3DSegment*
     SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer }, SDL_GPU_INDEXELEMENTSIZE_16BIT);
 
     // the shadow pipelines declare no sampler and no fragment uniform.
-    if (!shadow && !_nya_render3d_bind_samplers(window, segment->texture, segment->sampler)) return;
+    if (!shadow) _nya_render3d_bind_samplers(window, segment->texture, segment->sampler);
 
     SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
 
@@ -1841,7 +1833,7 @@ void _nya_render3d_immediate_draw(NYA_Window* window, const NYA_Render3DSegment*
             0,
             (SDL_GPUTextureSamplerBinding[]){
                 { .texture = batch->refraction_capture, .sampler = linear },
-                { .texture = batch->shadow_color, .sampler = linear },
+                { .texture = _nya_render3d_shadow_map(batch), .sampler = linear },
             },
             2
         );
@@ -2006,7 +1998,7 @@ void _nya_render3d_instanced_draw(NYA_Window* window, const NYA_Render3DSegment*
 
             SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, pipeline_asset));
 
-            if (!shadow && !_nya_render3d_bind_samplers(window, texture, sampler)) return;
+            if (!shadow) _nya_render3d_bind_samplers(window, texture, sampler);
 
             SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
 
@@ -2070,7 +2062,7 @@ void _nya_render3d_skinned_draw(NYA_Window* window, const NYA_Render3DSegment* s
         SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
 
         // mesh3d.frag.hlsl always declares the shadow map's sampler.
-        if (!_nya_render3d_bind_samplers(window, nullptr, nullptr)) return;
+        _nya_render3d_bind_samplers(window, nullptr, nullptr);
     }
 
     SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);

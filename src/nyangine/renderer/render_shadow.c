@@ -189,6 +189,9 @@ void nya_render3d_shadow_set(NYA_Window* window, NYA_Render3DShadowFit fit) {
 
     // read when the next scene first draws, so a change inside one waits for the next.
     window->render_system.mesh_batch.shadow_fit = fit;
+
+    // off holds no atlas; the next scene that casts shadows creates it again.
+    if (fit.strength <= 0.0F) _nya_render3d_shadow_release(window);
 }
 
 NYA_Render3DShadowFit nya_render3d_shadow(NYA_Window* window) {

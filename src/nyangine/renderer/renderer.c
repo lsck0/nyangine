@@ -996,6 +996,21 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     mesh_batch->instances       = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(NYA_Render3DInstance));
     mesh_batch->instance_passes = nya_arena_alloc(allocator, NYA_RENDER3D_MAX_INSTANCES * sizeof(u8));
 
+    // never sampled, as a scene without cascades has zero shadow strength.
+    mesh_batch->shadow_none = nya_gpu_texture_create(
+        gpu_device,
+        &(SDL_GPUTextureCreateInfo){
+            .type                 = SDL_GPU_TEXTURETYPE_2D,
+            .format               = NYA_RENDER3D_SHADOW_FORMAT,
+            .usage                = SDL_GPU_TEXTUREUSAGE_SAMPLER,
+            .width                = 1,
+            .height               = 1,
+            .layer_count_or_depth = 1,
+            .num_levels           = 1,
+        }
+    );
+    nya_assert(mesh_batch->shadow_none != nullptr, "SDL_CreateGPUTexture() failed for the shadow placeholder: %s", SDL_GetError());
+
     /*
      * Claiming the window installed a working swapchain already. Everything below is an improvement, so a
      * refusal keeps the default.
@@ -1052,8 +1067,10 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
 
     mesh_batch->refraction_capture = nullptr;
 
-    // the shadow map, created by the first pass.
+    // the shadow map, created by the first scene that cast shadows, and its placeholder.
     _nya_render3d_shadow_release(window);
+
+    if (mesh_batch->shadow_none != nullptr) nya_gpu_texture_release(gpu_device, mesh_batch->shadow_none);
 
     *mesh_batch = (NYA_Render3DBatch){ 0 };
 
