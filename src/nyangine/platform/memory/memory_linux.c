@@ -67,11 +67,16 @@ u64 nya_memory_process_resident_bytes(void) {
     FILE* statm = fopen("/proc/self/statm", "r");
     if (statm == nullptr) return 0;
 
-    unsigned long long total_pages    = 0;
-    unsigned long long resident_pages = 0;
-
-    s32 read = fscanf(statm, "%llu %llu", &total_pages, &resident_pages);
+    char line[128] = { 0 };
+    b8   read      = fgets(line, sizeof(line), statm) != nullptr;
     (void)fclose(statm);
 
-    return read == 2 ? (u64)resident_pages * nya_memory_page_size() : 0;
+    if (!read) return 0;
+
+    char*              cursor         = nullptr;
+    unsigned long long total_pages    = strtoull(line, &cursor, 10);
+    unsigned long long resident_pages = strtoull(cursor, nullptr, 10);
+    nya_unused(total_pages);
+
+    return (u64)resident_pages * nya_memory_page_size();
 }
