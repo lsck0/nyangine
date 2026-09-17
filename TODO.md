@@ -313,8 +313,8 @@ it live. Release: 3 to 4 µs a tick on the main thread, a 2 to 7 ms job every 0.
 nothing when disabled. Walking and all menus work on a gamepad, tested headless through SDL's virtual
 joystick.
 
-- `[ ]` Gamepad just-pressed edges reset per frame while key edges reset per tick, so a pad press polled in
-  `on_update` is unreliable; the menus detect presses themselves.
+- Gamepad edges now roll at the end of each update tick like keys; per frame, a frame without a tick lost
+  a press. `[ ]` The menus still detect pad presses from held state themselves and could use the edges.
 - `[ ]` Nothing in the game calls render occlusion (`nya_occlusion_*`) or mesh LOD (`nya_render3d_lod_*`).
 - curl, Discord and Steam stay unwired: each needs a network, a running client or an app id.
 
