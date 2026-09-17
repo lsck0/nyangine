@@ -84,8 +84,11 @@ s32 main(void) {
     NYA_EXPECT(nya_config_load(GNY_CONFIG_FILE, nya_reflect_of(GNY_Config), &config));
 
     nya_assert(config.engine.renderer.shadow_bias == 0.0015F, "shadow_bias, got %f", (double)config.engine.renderer.shadow_bias);
-    nya_assert(config.engine.renderer.shadow_cascades == 3, "shadow_cascades, got %u", config.engine.renderer.shadow_cascades);
+    nya_assert(config.engine.renderer.shadow_cascades == 2, "shadow_cascades, got %u", config.engine.renderer.shadow_cascades);
     nya_assert(config.engine.renderer.shadow_map_size == 1024, "shadow_map_size, got %u", config.engine.renderer.shadow_map_size);
+    nya_assert(config.engine.renderer.shadow_color.a == 0.55F, "shadow_color.a, got %f", (double)config.engine.renderer.shadow_color.a);
+    nya_assert(nya_string_equals(config.engine.renderer.grade_lut, NYA_ASSET_GRADES_TOON_CUBE), "grade_lut, got '%s'", config.engine.renderer.grade_lut);
+    nya_assert(config.engine.renderer.grade_strength == 1.0F, "grade_strength, got %f", (double)config.engine.renderer.grade_strength);
     nya_assert(config.engine.physics.gravity == 9.81F, "gravity, got %f", (double)config.engine.physics.gravity);
     nya_assert(config.engine.physics.sub_steps == 4, "sub_steps, got %u", config.engine.physics.sub_steps);
     nya_assert(config.game.player_speed == 220.0F, "player_speed, got %f", (double)config.game.player_speed);
