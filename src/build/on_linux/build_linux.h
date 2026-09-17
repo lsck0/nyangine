@@ -166,6 +166,7 @@ NYA_INTERNAL NYA_BuildRule build_project_linux_x86_64 = {
             LINKER_FLAGS,
             FLAGS_RELEASE,
             FLAGS_RELEASE_LINK,
+            FLAGS_RELEASE_LINK_LINUX_X86_64,
             FLAGS_LINUX_X86_64,
         },
     },

@@ -101,6 +101,10 @@
 // --gc-sections drops the vendor functions nothing reaches, which NYA_VENDOR_OPTIMIZE put in sections of their own.
 #define FLAGS_RELEASE_LINK "-fuse-ld=lld", "-Wl,--gc-sections"
 
+// no local symbols, and no COFF symbol table: libbacktrace names frames from the -g1 debug info and never reads them.
+#define FLAGS_RELEASE_LINK_LINUX_X86_64   "-Wl,--discard-all"
+#define FLAGS_RELEASE_LINK_WINDOWS_X86_64 "-Xlinker", "-Xlink=-debug:dwarf,nosymtab"
+
 /*
  * Steam is release plus the Steam runtime. Same deploy shape, different execution mode, so the mode
  * can gate overlay and achievements without a second set of build rules.

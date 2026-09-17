@@ -191,6 +191,7 @@ NYA_INTERNAL NYA_BuildRule build_project_windows_x86_64 = {
             LINKER_FLAGS,
             FLAGS_RELEASE,
             FLAGS_RELEASE_LINK,
+            FLAGS_RELEASE_LINK_WINDOWS_X86_64,
             FLAGS_TARGET_WINDOWS_X86_64
             FLAGS_WINDOWS_X86_64,
             WINDOWS_X86_64_RESOURCES,
