@@ -274,8 +274,12 @@ static_assert(ASAN_PADDING >= 0);
 #define NYA_EXTERN extern
 #endif
 
-#if OS_WINDOWS
+// exported only where a hot reloaded game DLL links against the executable. An export is a GC root, so a release
+// exe exporting the whole API would keep every function the game never calls, and all they reach.
+#if OS_WINDOWS && NYA_DEVELOPMENT_BUILD
 #define NYA_API __declspec(dllexport) NYA_EXTERN
+#elif OS_WINDOWS
+#define NYA_API NYA_EXTERN
 #else
 #define NYA_API __attribute__((visibility("default"))) NYA_EXTERN
 #endif
