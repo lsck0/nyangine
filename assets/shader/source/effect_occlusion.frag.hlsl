@@ -14,7 +14,7 @@ cbuffer OcclusionUniform : register(b0, space3) {
   float radius;
   float strength;
   float band;
-  float pad;
+  float min_radius;
 };
 
 static const int OCCLUSION_SAMPLES = 8;
@@ -43,7 +43,11 @@ float4 main(FragInput input) : SV_Target {
   float3 normal = normalize(centre.rgb);
   float3 position = scene_position(view, pixel * view.texel, centre.a);
 
-  float reach = clamp(radius / scene_pixel_size(view, centre.a), OCCLUSION_REACH_MIN, OCCLUSION_REACH_MAX);
+  // never under min_radius pixels across, so a distant scene still gathers enough of what stands on it to band.
+  float pixel_size = scene_pixel_size(view, centre.a);
+  float world_radius = max(radius, min_radius * pixel_size);
+
+  float reach = clamp(world_radius / pixel_size, OCCLUSION_REACH_MIN, OCCLUSION_REACH_MAX);
 
   // a rotation from a 4x4 ordered pattern, so the apply pass's 4x4 blur sees every rotation once and cancels it.
   const float pattern[16] = { 0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0 };
@@ -71,7 +75,7 @@ float4 main(FragInput input) : SV_Target {
     // facing the surface, lifted slightly so a flat floor does not occlude itself, and gone past the radius.
     float facing = saturate(dot(normal, toward / max(length_toward, 1e-4)) - 0.15);
 
-    float near = saturate(length_toward / radius);
+    float near = saturate(length_toward / world_radius);
 
     occlusion += facing * (1.0 - (near * near));
   }

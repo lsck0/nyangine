@@ -158,9 +158,10 @@ s32 main(void) {
                   (f64)ink.crease);
         nya_check(ink.color.r == 1.0F && ink.color.g == 0.0F && ink.color.b == 0.5F, "ink colour clamps per channel");
 
-        nya_post_ambient_occlusion_set(&window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 3.0F, .band = -1.0F });
+        nya_post_ambient_occlusion_set(&window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 3.0F, .band = -1.0F, .min_radius = 90.0F });
         NYA_PostAmbientOcclusion occlusion = nya_post_ambient_occlusion(&window);
         nya_check(occlusion.strength == 1.0F && occlusion.band == 0.0F, "occlusion strength and band clamp to [0, 1]");
+        nya_check(occlusion.min_radius == 40.0F, "the minimum reach clamps to what the shader samples, got %f", (f64)occlusion.min_radius);
 
         nya_post_antialias_set(&window, (NYA_PostAntialias){ .enabled = true, .subpixel = 5.0F });
         nya_check(nya_post_antialias(&window).subpixel == 1.0F, "the subpixel amount clamps to one");

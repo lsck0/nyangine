@@ -376,6 +376,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             .radius     = occlusion_options->radius > 0.0F ? occlusion_options->radius : NYA_POST_OCCLUSION_RADIUS,
             .strength   = occlusion_options->strength > 0.0F ? occlusion_options->strength : NYA_POST_OCCLUSION_STRENGTH,
             .band       = occlusion_options->band > 0.0F ? occlusion_options->band : NYA_POST_OCCLUSION_BAND,
+            .min_radius = occlusion_options->min_radius > 0.0F ? occlusion_options->min_radius : NYA_POST_OCCLUSION_MIN_RADIUS,
         };
 
         if (_nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_OCCLUSION, NYA_ASSET_SHADER_EFFECT_OCCLUSION_FRAG, 1, true)) {
@@ -630,9 +631,11 @@ NYA_PostInk nya_post_ink(NYA_Window* window) {
 void nya_post_ambient_occlusion_set(NYA_Window* window, NYA_PostAmbientOcclusion occlusion) {
     nya_assert(window != nullptr);
 
-    occlusion.radius   = nya_clamp(occlusion.radius, 0.0F, 16.0F);
-    occlusion.strength = nya_clamp(occlusion.strength, 0.0F, 1.0F);
-    occlusion.band     = nya_clamp(occlusion.band, 0.0F, 1.0F);
+    occlusion.radius     = nya_clamp(occlusion.radius, 0.0F, 16.0F);
+    occlusion.strength   = nya_clamp(occlusion.strength, 0.0F, 1.0F);
+    occlusion.band       = nya_clamp(occlusion.band, 0.0F, 1.0F);
+    // the shader reaches forty pixels at most.
+    occlusion.min_radius = nya_clamp(occlusion.min_radius, 0.0F, 40.0F);
 
     window->render_system.post_ambient_occlusion = occlusion;
 }

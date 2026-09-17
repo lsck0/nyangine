@@ -30,6 +30,8 @@ nya 2 0
             ambient_occlusion: object {
                 enabled: b8 true;
                 radius: f32 0.75;
+                // Pixels, so contact shading reads however far away the camera is.
+                min_radius: f32 32.0;
                 strength: f32 0.45;
                 band: f32 0.25;
             };

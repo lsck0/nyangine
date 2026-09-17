@@ -62,6 +62,12 @@
 /** Occlusion reach in world units when NYA_PostAmbientOcclusion.radius is zero. */
 #define NYA_POST_OCCLUSION_RADIUS 0.75F
 
+/**
+ * The smallest occlusion reach in pixels of the full image, when NYA_PostAmbientOcclusion.min_radius is zero. A
+ * distant camera widens the world radius to this, so contact shading still reads from far away.
+ * */
+#define NYA_POST_OCCLUSION_MIN_RADIUS 32.0F
+
 /** How dark the occlusion band goes when NYA_PostAmbientOcclusion.strength is zero. */
 #define NYA_POST_OCCLUSION_STRENGTH 0.45F
 
@@ -171,6 +177,9 @@ struct NYA_PostAmbientOcclusion {
 
     /** How far occluders are looked for, in world units. See NYA_POST_OCCLUSION_RADIUS. */
     f32 radius;
+
+    /** The least reach in pixels, however far the camera is. See NYA_POST_OCCLUSION_MIN_RADIUS. */
+    f32 min_radius;
 
     /** How dark the band is, in [0, 1]. See NYA_POST_OCCLUSION_STRENGTH. */
     f32 strength;

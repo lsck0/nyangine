@@ -22,7 +22,7 @@ cbuffer OcclusionUniform : register(b0, space3) {
   float radius;
   float strength;
   float band;
-  float pad;
+  float min_radius;
 };
 
 /** How wide the band's edge is, in occlusion units. Narrow enough to read as a band, wide enough not to alias. */
