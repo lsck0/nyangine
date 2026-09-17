@@ -87,13 +87,26 @@ void gny_layer_background_on_render(NYA_Window* window) {
     // scaled by the zoom, so the background moves less than the world and far planes stay far.
     f32x2 camera = view.position * view.zoom;
 
+    // in the sky's horizon colour, like the 3D fog. the config's fields win where it sets them.
+    NYA_Render2DHaze haze = NYA_CONFIG.engine.renderer.haze;
+
+    if (haze.color.a <= 0.0F) haze.color = gny_sky_state().bottom;
+
+    nya_render2d_haze_set(window, haze);
+
     /*
-     * Back to front. Each plane covers the one behind it, which is the only ordering there is.
+     * Back to front. Each plane covers the one behind it, which is the only ordering there is. A plane moving at a
+     * fraction of the camera's speed is that many times further away, which is how much haze lies between them.
      */
+    f32 far_depth  = 0.15F;
+    f32 near_depth = 0.35F;
+
     _gny_background_sky_draw(window);
     _gny_background_motes_draw(window, camera);
-    _gny_background_ridge_draw(window, camera, 0.15F, 0.42F, 46.0F, 640.0F, GNY_RIDGE_FAR);
-    _gny_background_ridge_draw(window, camera, 0.35F, 0.55F, 70.0F, 420.0F, GNY_RIDGE_NEAR);
+    _gny_background_ridge_draw(window, camera, far_depth, 0.42F, 46.0F, 640.0F, GNY_RIDGE_FAR);
+    nya_render2d_haze_draw(window, (1.0F / far_depth) - (1.0F / near_depth));
+    _gny_background_ridge_draw(window, camera, near_depth, 0.55F, 70.0F, 420.0F, GNY_RIDGE_NEAR);
+    nya_render2d_haze_draw(window, (1.0F / near_depth) - 1.0F);
 }
 
 /*

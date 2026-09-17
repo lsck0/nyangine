@@ -257,6 +257,21 @@ struct NYA_RenderTexture {
 #include "nyangine/renderer/render3d_decal.h"
 #include "nyangine/renderer/render_output.h"
 
+typedef struct NYA_Render2DHaze NYA_Render2DHaze;
+
+/** Haze between parallax planes, the 2D match for NYA_Render3DFog. See nya_render2d_haze_draw. */
+// @reflect
+struct NYA_Render2DHaze {
+    /** What the planes fade toward, with alpha as how far at most. Zero is NYA_RENDER3D_FOG_COLOR. */
+    NYA_Color color;
+
+    /** How much gathers per unit of distance between planes. Zero is off. */
+    f32 density;
+
+    /** How much thinner it is at the top of the window than at the bottom, in [0, 1]. Zero is even. */
+    f32 falloff;
+};
+
 /** The 2D shape batch for one window. Only render2d.c touches it. */
 /** Bytes of custom fragment uniform a deferred range can carry inline. */
 #define NYA_RENDER2D_RANGE_UNIFORM_MAX 256
@@ -843,6 +858,9 @@ struct NYA_RenderSystemWindow {
     /** See nya_render_output_set. */
     NYA_RenderOutput    output;
     NYA_RenderOutputGPU output_gpu;
+
+    /** See nya_render2d_haze_set. */
+    NYA_Render2DHaze haze;
 
     /* The scene post passes. See render_post.h. */
 

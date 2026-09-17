@@ -327,6 +327,18 @@ s32 main(void) {
         nya_post_eye_adaptation_set(&window, (NYA_PostEyeAdaptation){ 0 });
     }
 
+    // ── 2D haze, the parallax match for fog: zero density is off, and a config file's numbers are clamped.
+    {
+        nya_check(nya_render2d_haze(&window).density == 0.0F, "a fresh window has no haze");
+        nya_render2d_haze_draw(&window, 1.0F);
+
+        nya_render2d_haze_set(&window, (NYA_Render2DHaze){ .density = -1.0F, .falloff = 3.0F, .color = { 2.0F, 0.5F, 0.5F, 1.0F } });
+        NYA_Render2DHaze haze = nya_render2d_haze(&window);
+        nya_check(haze.density == 0.0F && haze.falloff == 1.0F && haze.color.r == 1.0F, "haze clamps");
+
+        nya_render2d_haze_set(&window, (NYA_Render2DHaze){ 0 });
+    }
+
     // ── Light shafts read the normal buffer and gather into the half target, over a 3D scene only.
     {
         NYA_PostChain chain = { 0 };

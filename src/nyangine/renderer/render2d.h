@@ -581,6 +581,25 @@ struct NYA_Light2D {
  * */
 NYA_API void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, const f32x2* positions, u32 count, NYA_Color ambient);
 
+/**
+ * Veils what is in the target with the window's haze, as much as gathers over `distance`. Drawn between parallax
+ * planes from the back, the veils add up, so far planes fade toward the haze's colour the way fog fades distant ground
+ * in 3D. In target pixels, under no camera; nothing is drawn while the density is zero.
+ *
+ * ```c
+ * nya_render2d_haze_set(window, (NYA_Render2DHaze){ .color = sky_bottom, .density = 0.5F, .falloff = 0.6F });
+ * draw_far_hills(window);
+ * nya_render2d_haze_draw(window, 1.0F);
+ * draw_near_hills(window);
+ * nya_render2d_haze_draw(window, 0.4F);
+ * ```
+ * */
+NYA_API void nya_render2d_haze_draw(NYA_Window* window, f32 distance);
+
+/** Sets this window's haze, clamped, since it usually comes from a config file. */
+NYA_API void             nya_render2d_haze_set(NYA_Window* window, NYA_Render2DHaze haze);
+NYA_API NYA_Render2DHaze nya_render2d_haze(NYA_Window* window) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────
  * SCISSOR

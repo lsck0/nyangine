@@ -356,6 +356,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
     { .name = "eye_adaptation", .type = &_NYA_REFLECT_NYA_PostEyeAdaptation, .offset = nya_offsetof(NYA_ConfigEngineRenderer, eye_adaptation), .hint = NYA_HINT_NONE },
     { .name = "light_shafts", .type = &_NYA_REFLECT_NYA_PostLightShafts, .offset = nya_offsetof(NYA_ConfigEngineRenderer, light_shafts), .hint = NYA_HINT_NONE },
     { .name = "fog", .type = &_NYA_REFLECT_NYA_Render3DFog, .offset = nya_offsetof(NYA_ConfigEngineRenderer, fog), .hint = NYA_HINT_NONE },
+    { .name = "haze", .type = &_NYA_REFLECT_NYA_Render2DHaze, .offset = nya_offsetof(NYA_ConfigEngineRenderer, haze), .hint = NYA_HINT_NONE },
     { .name = "decals", .type = &_NYA_REFLECT_NYA_Render3DDecals, .offset = nya_offsetof(NYA_ConfigEngineRenderer, decals), .hint = NYA_HINT_NONE },
     { .name = "output", .type = &_NYA_REFLECT_NYA_RenderOutput, .offset = nya_offsetof(NYA_ConfigEngineRenderer, output), .hint = NYA_HINT_NONE },
     { .name = "debug_view", .type = &_NYA_REFLECT_NYA_PostDebugView, .offset = nya_offsetof(NYA_ConfigEngineRenderer, debug_view), .hint = NYA_HINT_NONE },
@@ -370,7 +371,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .size = sizeof(NYA_ConfigEngineRenderer),
     .alignment = alignof(NYA_ConfigEngineRenderer),
     .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
-    .field_count = 19,
+    .field_count = 20,
 };
 
 /* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
@@ -803,6 +804,23 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView = {
     .is_bitflags = false,
 };
 
+/* NYA_Render2DHaze, src/nyangine/renderer/renderer.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_Render2DHaze_FIELDS[] = {
+    { .name = "color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_Render2DHaze, color), .hint = NYA_HINT_NONE },
+    { .name = "density", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_Render2DHaze, density), .hint = NYA_HINT_NONE },
+    { .name = "falloff", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_Render2DHaze, falloff), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_Render2DHaze = {
+    .name = "NYA_Render2DHaze",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_Render2DHaze),
+    .alignment = alignof(NYA_Render2DHaze),
+    .fields = _NYA_REFLECT_NYA_Render2DHaze_FIELDS,
+    .field_count = 3,
+};
+
 /* NYA_UIOverflow, src/nyangine/ui/ui.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_UIOverflow_VARIANTS[] = {
@@ -991,6 +1009,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostEyeAdaptation,
     &_NYA_REFLECT_NYA_PostLightShafts,
     &_NYA_REFLECT_NYA_PostDebugView,
+    &_NYA_REFLECT_NYA_Render2DHaze,
     &_NYA_REFLECT_NYA_UIOverflow,
     &_NYA_REFLECT_NYA_UIStateColors,
     &_NYA_REFLECT_NYA_UISkin,
