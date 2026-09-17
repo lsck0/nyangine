@@ -57,8 +57,8 @@ void hook_create_output_directory(NYA_BuildRule* rule);
  * */
 void hook_use_compiler_cache(NYA_BuildRule* rule);
 
-/** Appends -DVERSION and -DGIT_COMMIT to the rule's compile command. */
-void hook_add_version_flag_and_git_hash(NYA_BuildRule* rule);
+/** Appends -DVERSION to the rule's compile command. */
+void hook_add_version_flag(NYA_BuildRule* rule);
 
 /** Deletes the rule's output file. Used to clean up after a rule that only ran for its effect. */
 void hook_remove_output_file(NYA_BuildRule* rule);

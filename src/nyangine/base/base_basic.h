@@ -58,12 +58,6 @@
 #define NYA_VERSION "unknown"
 #endif
 
-#ifdef GIT_COMMIT
-#define NYA_GIT_COMMIT GIT_COMMIT
-#else
-#define NYA_GIT_COMMIT "unknown"
-#endif
-
 #ifndef NYA_EXECUTION_MODE
 #define NYA_EXECUTION_MODE 0
 #endif

@@ -208,37 +208,17 @@ void hook_use_compiler_cache(NYA_BuildRule* rule) {
     nya_assert(rule->command.arguments[count + 1] == nullptr);
 }
 
-void hook_add_version_flag_and_git_hash(NYA_BuildRule* rule) {
+void hook_add_version_flag(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
 
-    static b8          initialized = false;
-    static NYA_CString GIT_HASH_FLAG;
-    static NYA_CString VERSION_FLAG;
-
-    if (!initialized) {
-        NYA_Command git_hash_command = {
-            .arena     = nya_arena_global,
-            .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-            .program   = "git",
-            .arguments = { "rev-parse", "HEAD" },
-        };
-        NYA_EXPECT(nya_command_run(&git_hash_command));
-        nya_assert(git_hash_command.exit_code == 0, "Failed to get git commit hash.");
-
-        nya_string_trim_whitespace(git_hash_command.stdout_content);
-        NYA_CString git_hash      = nya_string_to_cstring(nya_arena_global, git_hash_command.stdout_content);
-        NYA_String* git_hash_flag = nya_string_sprintf(nya_arena_global, "-DGIT_COMMIT=\"%s\"", git_hash);
-        NYA_String* version_flag  = nya_string_sprintf(nya_arena_global, "-DVERSION=\"%s\"", VERSION);
-        GIT_HASH_FLAG             = nya_string_to_cstring(nya_arena_global, git_hash_flag);
-        VERSION_FLAG              = nya_string_to_cstring(nya_arena_global, version_flag);
-        initialized               = true;
-    }
+    // the commit hash stays off: it changes with every commit, and ccache's direct mode hashes the command line.
+    static NYA_CString VERSION_FLAG = nullptr;
+    if (VERSION_FLAG == nullptr) VERSION_FLAG = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "-DVERSION=\"%s\"", VERSION));
 
     u64 length = 0;
     while (length < NYA_COMMAND_MAX_ARGUMENTS && rule->command.arguments[length] != nullptr) length++;
-    nya_assert(length < NYA_COMMAND_MAX_ARGUMENTS - 2, "Not enough space to add version flags.");
-    rule->command.arguments[length + 0] = GIT_HASH_FLAG;
-    rule->command.arguments[length + 1] = VERSION_FLAG;
+    nya_assert(length < NYA_COMMAND_MAX_ARGUMENTS - 1, "Not enough space to add the version flag.");
+    rule->command.arguments[length] = VERSION_FLAG;
 }
 
 void hook_remove_output_file(NYA_BuildRule* rule) {

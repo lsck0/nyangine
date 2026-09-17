@@ -91,7 +91,7 @@ void example_runner(NYA_ArgCommand* command) {
             },
         },
 
-        .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
+        .pre_build_hooks = { &hook_add_version_flag, },
         // Exactly what the project links, by naming the same macro. A hand copied list here is the
         // drift that made every test fail to compile on a missing SDL_image header.
 #if OS_WINDOWS

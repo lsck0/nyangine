@@ -102,7 +102,7 @@ void bench_runner(NYA_ArgCommand* command) {
                 },
             },
 
-            .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
+            .pre_build_hooks = { &hook_add_version_flag, },
 #if OS_WINDOWS
             .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
 #else

@@ -116,7 +116,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
             },
         },
 
-        .pre_build_hooks = { &hook_add_version_flag_and_git_hash, &hook_create_output_directory, &hook_use_compiler_cache, },
+        .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
         .vendors         = { TEST_VENDORS, },
         .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     };
@@ -181,7 +181,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
                 },
             },
 
-            .pre_build_hooks = { &hook_add_version_flag_and_git_hash, &hook_create_output_directory, &hook_use_compiler_cache, },
+            .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
             // The same set the debug executable links, because a test includes the same engine.
             .vendors         = { TEST_VENDORS, },
             .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
