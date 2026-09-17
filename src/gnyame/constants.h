@@ -916,6 +916,51 @@
  * */
 #define GNY_CUBE3D_SHADOW_SUBJECT_REACH (GNY_TERRAIN3D_EXTENT * 0.85F)
 
+/*
+ * ─────────────────────────────────────────────────────────
+ * THE 3D SCENE'S EFFECTS
+ * ─────────────────────────────────────────────────────────
+ *
+ * Their look comes from NYA_CONFIG.engine.renderer. These are how the scene drives them.
+ */
+
+/** A 2x2 sheet: splat, scorch, blob shadow, impact star, in reading order. */
+#define GNY_CUBE3D_DECAL_TEXTURE NYA_ASSET_TEXTURES_DECALS_PNG
+#define GNY_CUBE3D_DECAL_SPLAT   0
+#define GNY_CUBE3D_DECAL_SCORCH  1
+#define GNY_CUBE3D_DECAL_BLOB    2
+#define GNY_CUBE3D_DECAL_STAR    3
+
+/** Impact marks kept at once. The oldest is painted over. */
+#define GNY_CUBE3D_MARK_COUNT 48
+
+/** How hard a landing leaves a mark, in the landing strength the dust uses. Soft settling leaves none. */
+#define GNY_CUBE3D_MARK_STRENGTH 0.3F
+
+/** Past this strength a star pops up over the mark, and one of the three props scorches instead of splatting. */
+#define GNY_CUBE3D_MARK_HARD 0.97F
+
+/** Seconds a mark lasts, shrinking away over its last third. The star is a flash. */
+#define GNY_CUBE3D_MARK_LIFETIME_S 14.0F
+#define GNY_CUBE3D_STAR_LIFETIME_S 0.45F
+
+#define GNY_CUBE3D_STAR_SIZE 2.2F
+
+#define GNY_CUBE3D_SCORCH_COLOR ((NYA_Color){ 0.22F, 0.18F, 0.16F, 0.85F })
+#define GNY_CUBE3D_STAR_COLOR   ((NYA_Color){ 1.00F, 0.86F, 0.32F, 1.0F })
+
+/** The blob under each of the three props: how dark, how wide against the prop, and how high it still shows. */
+#define GNY_CUBE3D_BLOB_COLOR ((NYA_Color){ 0.10F, 0.08F, 0.14F, 0.45F })
+#define GNY_CUBE3D_BLOB_SCALE 1.5F
+#define GNY_CUBE3D_BLOB_REACH 4.0F
+
+/** Camera speed, metres per second, at which speed lines start and at which they reach the configured amount. */
+#define GNY_CUBE3D_SPEED_LINES_START 6.0F
+#define GNY_CUBE3D_SPEED_LINES_FULL  30.0F
+
+/** What `6` switches the lines to when the config has them off. */
+#define GNY_CUBE3D_SPEED_LINES_AMOUNT 0.8F
+
 /** World units per second a networked player moves. See gny_net_apply_command. */
 #define GNY_PLAYER_SPEED 220.0F
 

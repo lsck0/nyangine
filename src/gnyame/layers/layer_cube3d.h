@@ -22,6 +22,19 @@ typedef struct GNY_FallingCube {
     f32 blur;
 } GNY_FallingCube;
 
+/** A mark a landing left on the ground. See GNY_CUBE3D_MARK_COUNT. */
+typedef struct GNY_Cube3DMark {
+    f32x3     position;
+    f32       rotation;
+    f32       size;
+    NYA_Color color;
+    u8        cell;
+
+    /** Uptime the mark was made, zero for a slot never used, and how long it lasts. */
+    f32 born_s;
+    f32 lifetime_s;
+} GNY_Cube3DMark;
+
 typedef struct GNY_Cube3DScene {
     NYA_EntityHandle cube;
     NYA_EntityHandle model;
@@ -67,4 +80,12 @@ typedef struct GNY_Cube3DScene {
     /** Posed once a tick, read by every pass of the draw. Zero bones until the model loads. */
     f32_4x4 bender_palette[NYA_SKELETON_MAX_BONES];
     u32     bender_bone_count;
+
+    /** A ring: the next landing writes `mark_next`. */
+    GNY_Cube3DMark marks[GNY_CUBE3D_MARK_COUNT];
+    u32            mark_next;
+
+    /** Where the camera was last frame and when, for the speed lines. */
+    f32x3 camera_previous;
+    f32   camera_previous_s;
 } GNY_Cube3DScene;

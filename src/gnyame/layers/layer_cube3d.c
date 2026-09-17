@@ -39,6 +39,12 @@ NYA_INTERNAL GNY_FallingCube _gny_cube3d_cube_spawn(u32 index);
 /** Teleports a body to `position`, upright and at rest. No-op for a handle that does not resolve. */
 NYA_INTERNAL void _gny_cube3d_body_reset(NYA_EntityHandle handle, f32x3 position);
 
+/** Hands NYA_CONFIG's effects to the renderer, with the speed lines scaled by how fast the camera moves. */
+NYA_INTERNAL void _gny_cube3d_effects_apply(NYA_Window* window, GNY_Cube3DScene* scene, f32x3 eye);
+
+/** The landing marks and the blobs under the three props. Drawn after the terrain they lie on. */
+NYA_INTERNAL void _gny_cube3d_decals_draw(NYA_Window* window, const GNY_Cube3DScene* scene);
+
 /** Advances the skinned bar's clock and rebuilds its palette. Clips play once each, in turn. */
 NYA_INTERNAL void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s);
 
@@ -107,6 +113,8 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
 
     nya_particles_texture_set(scene->fire, GNY_CUBE3D_PUFF_TEXTURE);
     nya_particles_texture_set(scene->smoke, GNY_CUBE3D_PUFF_TEXTURE);
+
+    nya_render3d_decal_probe_set(window, nya_callback(gny_terrain3d_decal_probe), nullptr);
 
     // negative y: 3D is y up, while the 2D world's y grows down the screen.
     nya_physics3d_gravity_set(NYA_PHYSICS3D_GRAVITY_DEFAULT);
@@ -198,6 +206,9 @@ void gny_layer_cube3d_on_destroy(NYA_Window* window) {
     nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ 0 });
     nya_post_antialias_set(window, (NYA_PostAntialias){ 0 });
     nya_post_debug_view_set(window, NYA_POST_DEBUG_VIEW_NONE);
+    nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ 0 });
+    nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ 0 });
+    nya_render3d_decals_set(window, (NYA_Render3DDecals){ 0 });
 
     // the bloom target is shared with the 2D game layer. released here too, since going from the menu into this
     // scene and out never runs that layer's on_destroy. guarded on the texture, so either release order is safe.
@@ -329,6 +340,11 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
 
                 gny_terrain3d_generate(window, nya_world()->allocator, gny_terrain3d()->seed + 1);
 
+                // the marks lay on the old ground, and setting the probe again forgets the grids draped over it.
+                for (u32 i = 0; i < GNY_CUBE3D_MARK_COUNT; i++) scene->marks[i].born_s = 0.0F;
+
+                nya_render3d_decal_probe_set(window, nya_callback(gny_terrain3d_decal_probe), nullptr);
+
                 // teleported rather than respawned, so handles and on_click stay valid. the models too, or they would be
                 // embedded in a new hill.
                 f32 top = gny_terrain3d()->max_height;
@@ -391,6 +407,18 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             } else if (nya_input_action_matches(GNY_ACTION_CYCLE_DEBUG_VIEW, key->key, key->modifier_flags)) {
                 look->debug_view   = (NYA_PostDebugView)(((u32)look->debug_view + 1) % NYA_POST_DEBUG_VIEW_COUNT);
                 event->was_handled = true;
+            } else if (nya_input_action_matches(GNY_ACTION_CYCLE_FOCUS, key->key, key->modifier_flags)) {
+                look->depth_of_field.focus = (NYA_PostFocus)(((u32)look->depth_of_field.focus + 1) % NYA_POST_FOCUS_COUNT);
+                event->was_handled         = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_SPEED_LINES, key->key, key->modifier_flags)) {
+                look->speed_lines.amount = look->speed_lines.amount > 0.0F ? 0.0F : GNY_CUBE3D_SPEED_LINES_AMOUNT;
+                event->was_handled       = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_DECALS, key->key, key->modifier_flags)) {
+                look->decals.enabled = !look->decals.enabled;
+                event->was_handled   = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_HDR, key->key, key->modifier_flags)) {
+                look->output.hdr   = !look->output.hdr;
+                event->was_handled = true;
             }
         } break;
 
@@ -413,8 +441,6 @@ void gny_layer_cube3d_on_cube_click(NYA_Entity* entity, f32x3 world_point, u8 bu
 }
 
 void gny_layer_cube3d_on_collision(NYA_Entity* entity, NYA_Entity* other, const NYA_PhysicsHit* hit) {
-    nya_unused(entity, other);
-
     // sensor overlaps have no closing speed.
     if (hit->kind != NYA_PHYSICS_HIT_IMPACT) return;
 
@@ -465,6 +491,60 @@ void gny_layer_cube3d_on_collision(NYA_Entity* entity, NYA_Entity* other, const 
             .priority = (s32)(strength * 100.0F),
         }
     );
+
+    // a mark where it hit the ground. cube on cube leaves none.
+    if (strength < GNY_CUBE3D_MARK_STRENGTH || (entity->type != GNY_ENTITY_TERRAIN && other->type != GNY_ENTITY_TERRAIN)) return;
+
+    NYA_EntityHandle lander = entity->type == GNY_ENTITY_TERRAIN ? other->handle : entity->handle;
+
+    // the pile splats paint in its own colour. the heavier props scorch when they land hard.
+    NYA_Color color = GNY_CUBE3D_SCORCH_COLOR;
+    b8        pile  = false;
+
+    for (u32 i = 0; i < scene->cube_count; i++) {
+        if (scene->cubes[i].entity.index != lander.index || scene->cubes[i].entity.generation != lander.generation) continue;
+
+        // a glass cube's splat is as solid as any other.
+        color   = scene->cubes[i].color;
+        color.a = 1.0F;
+        pile    = true;
+    }
+
+    b8 hard   = strength >= GNY_CUBE3D_MARK_HARD;
+    b8 scorch = hard && !pile;
+
+    if (!pile && !scorch) return;
+
+    // turned from the point, so the marks look scattered rather than stamped.
+    f32 rotation = nya_ihash2((s32)(hit->point.x * 64.0F), (s32)(hit->point.z * 64.0F), GNY_TERRAIN3D_CUBE_SEED) * (f32)M_PI;
+    f32 born_s   = nya_app_get()->frame_stats.uptime_s;
+
+    scene->marks[scene->mark_next] = (GNY_Cube3DMark){
+        .position   = hit->point,
+        .rotation   = rotation,
+        .size       = nya_lerp(0.9F, 1.6F, strength),
+        .color      = color,
+        .cell       = scorch ? GNY_CUBE3D_DECAL_SCORCH : GNY_CUBE3D_DECAL_SPLAT,
+        .born_s     = born_s,
+        .lifetime_s = GNY_CUBE3D_MARK_LIFETIME_S,
+    };
+
+    scene->mark_next = (scene->mark_next + 1) % GNY_CUBE3D_MARK_COUNT;
+
+    if (!hard) return;
+
+    // and a star over the hardest, gone again in a moment.
+    scene->marks[scene->mark_next] = (GNY_Cube3DMark){
+        .position   = hit->point,
+        .rotation   = -rotation,
+        .size       = GNY_CUBE3D_STAR_SIZE,
+        .color      = GNY_CUBE3D_STAR_COLOR,
+        .cell       = GNY_CUBE3D_DECAL_STAR,
+        .born_s     = born_s,
+        .lifetime_s = GNY_CUBE3D_STAR_LIFETIME_S,
+    };
+
+    scene->mark_next = (scene->mark_next + 1) % GNY_CUBE3D_MARK_COUNT;
 }
 
 /*
@@ -776,6 +856,8 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     // grid.
     gny_terrain3d_draw(window);
 
+    _gny_cube3d_decals_draw(window, scene);
+
     // the pile shares the terrain's material, so both batch into one draw call.
     for (u32 i = 0; i < scene->cube_count; i++) {
         const NYA_Entity* box = nya_entity_get(scene->cubes[i].entity);
@@ -997,7 +1079,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     /*
      * The cartoon passes from the config every frame, so saving engine.nya changes the look while it runs. The
-     * engine skips whatever is off, so this costs four copies.
+     * engine skips whatever is off, so this costs a few copies.
      */
     const NYA_ConfigEngineRenderer* look = &NYA_CONFIG.engine.renderer;
 
@@ -1006,7 +1088,10 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     nya_post_antialias_set(window, look->antialias);
     nya_post_debug_view_set(window, look->debug_view);
 
-    b8 cartoon = look->ink.enabled || look->ambient_occlusion.enabled || look->antialias.enabled || look->debug_view != NYA_POST_DEBUG_VIEW_NONE;
+    _gny_cube3d_effects_apply(window, scene, shadow_camera.position);
+
+    b8 cartoon = look->ink.enabled || look->ambient_occlusion.enabled || look->antialias.enabled || look->debug_view != NYA_POST_DEBUG_VIEW_NONE
+              || look->depth_of_field.focus != NYA_POST_FOCUS_OFF || look->speed_lines.amount > 0.0F;
 
     /*
      * Through the post chain when bloom or a cartoon pass wants it, otherwise straight to the window. The lamp beads
@@ -1250,6 +1335,120 @@ void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s) {
 
     nya_skeleton_palette(skeleton, &pose, scene->bender_palette);
     scene->bender_bone_count = skeleton->bone_count;
+}
+
+void _gny_cube3d_effects_apply(NYA_Window* window, GNY_Cube3DScene* scene, f32x3 eye) {
+    const NYA_ConfigEngineRenderer* config = &NYA_CONFIG.engine.renderer;
+
+    // how fast the camera moved since last frame. the first frame after entering has nothing to compare with.
+    f32 now_s   = nya_app_get()->frame_stats.uptime_s;
+    f32 elapsed = now_s - scene->camera_previous_s;
+    f32 speed   = scene->camera_previous_s > 0.0F && elapsed > 0.0F ? nya_vector_length(eye - scene->camera_previous) / elapsed : 0.0F;
+
+    scene->camera_previous   = eye;
+    scene->camera_previous_s = now_s;
+
+    NYA_PostSpeedLines lines = config->speed_lines;
+
+    lines.amount *= nya_clamp((speed - GNY_CUBE3D_SPEED_LINES_START) / (GNY_CUBE3D_SPEED_LINES_FULL - GNY_CUBE3D_SPEED_LINES_START), 0.0F, 1.0F);
+
+    nya_post_speed_lines_set(window, lines);
+
+    NYA_PostDepthOfField depth_of_field = config->depth_of_field;
+
+    // unset, the focus follows the cube, which is what the player handles.
+    const NYA_Entity* cube = nya_entity_get(scene->cube);
+
+    if (depth_of_field.focus_distance <= 0.0F && cube != nullptr) depth_of_field.focus_distance = nya_vector_length(cube->position - eye);
+
+    nya_post_depth_of_field_set(window, depth_of_field);
+    nya_render3d_decals_set(window, config->decals);
+
+    // loaded once decals are first wanted, so a session without them never holds the sheet.
+    if (config->decals.enabled) (void)nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXTURE, .handle = GNY_CUBE3D_DECAL_TEXTURE });
+
+    nya_render_output_set(window, config->output);
+}
+
+void _gny_cube3d_decals_draw(NYA_Window* window, const GNY_Cube3DScene* scene) {
+    // the renderer would ignore them, so the shadow passes skip the loops too.
+    if (nya_render3d_shadow_pass_active(window)) return;
+
+    f32 now_s = nya_app_get()->frame_stats.uptime_s;
+
+    for (u32 i = 0; i < GNY_CUBE3D_MARK_COUNT; i++) {
+        const GNY_Cube3DMark* mark = &scene->marks[i];
+
+        f32 age_s = now_s - mark->born_s;
+
+        if (mark->born_s <= 0.0F || age_s >= mark->lifetime_s) continue;
+
+        // shrinks away over its last third rather than fading, so the edge stays hard.
+        f32 left = nya_clamp((mark->lifetime_s - age_s) / (mark->lifetime_s / 3.0F), 0.0F, 1.0F);
+        f32 size = mark->size * left;
+
+        if (size <= 0.0F) continue;
+
+        nya_render3d_decal(
+            window,
+            (NYA_Render3DDecal){
+                .texture  = GNY_CUBE3D_DECAL_TEXTURE,
+                .center   = mark->position,
+                .size     = { size, 1.0F, size },
+                .rotation = mark->rotation,
+                .color    = mark->color,
+                .columns  = 2,
+                .rows     = 2,
+                .cell     = mark->cell,
+            }
+        );
+    }
+
+    struct {
+        NYA_EntityHandle handle;
+        NYA_ConstCString mesh;
+        f32              scale;
+    } props[] = {
+        { scene->cube, nullptr, 1.0F },
+        { scene->model, GNY_CUBE3D_MODEL, GNY_CUBE3D_MODEL_SCALE },
+        { scene->pill, GNY_CUBE3D_PILL, GNY_CUBE3D_PILL_SCALE },
+    };
+
+    for (u64 i = 0; i < nya_carray_length(props); i++) {
+        const NYA_Entity* entity = nya_entity_get(props[i].handle);
+        if (entity == nullptr) continue;
+
+        // the cube has no mesh; a model still loading has no bounds yet.
+        f32x3 min = (f32x3){ -0.5F, -0.5F, -0.5F } * GNY_CUBE3D_SIZE;
+        f32x3 max = (f32x3){ 0.5F, 0.5F, 0.5F } * GNY_CUBE3D_SIZE;
+
+        if (props[i].mesh != nullptr && !nya_render3d_mesh_bounds(window, props[i].mesh, &min, &max)) continue;
+
+        f32 ground = gny_terrain3d_height_at(entity->position.x, entity->position.z);
+        f32 rise   = entity->position.y + (min.y * props[i].scale) - ground;
+
+        // smaller and lighter the higher the prop is, gone at GNY_CUBE3D_BLOB_REACH.
+        f32 closeness = 1.0F - nya_clamp(rise / GNY_CUBE3D_BLOB_REACH, 0.0F, 1.0F);
+        if (closeness <= 0.0F) continue;
+
+        f32 width = nya_max(max.x - min.x, max.z - min.z) * props[i].scale * GNY_CUBE3D_BLOB_SCALE * nya_lerp(0.6F, 1.0F, closeness);
+
+        NYA_Color color = GNY_CUBE3D_BLOB_COLOR;
+        color.a *= closeness;
+
+        nya_render3d_decal(
+            window,
+            (NYA_Render3DDecal){
+                .texture = GNY_CUBE3D_DECAL_TEXTURE,
+                .center  = { entity->position.x, ground, entity->position.z },
+                .size    = { width, 1.0F, width },
+                .color   = color,
+                .columns = 2,
+                .rows    = 2,
+                .cell    = GNY_CUBE3D_DECAL_BLOB,
+            }
+        );
+    }
 }
 
 void _gny_cube3d_body_reset(NYA_EntityHandle handle, f32x3 position) {

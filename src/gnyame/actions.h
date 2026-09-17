@@ -50,6 +50,10 @@ enum {
     /** The colour grade, which the 2D world shares. */
     GNY_ACTION_TOGGLE_GRADE,
     GNY_ACTION_CYCLE_DEBUG_VIEW,
+    GNY_ACTION_CYCLE_FOCUS,
+    GNY_ACTION_TOGGLE_SPEED_LINES,
+    GNY_ACTION_TOGGLE_DECALS,
+    GNY_ACTION_TOGGLE_HDR,
 
     /** Opens a drop-through window on every crate, so anything on a one-way ledge falls off it. */
     GNY_ACTION_DROP_THROUGH,

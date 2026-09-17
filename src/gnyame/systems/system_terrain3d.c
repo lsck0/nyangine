@@ -98,3 +98,28 @@ void gny_terrain3d_draw(NYA_Window* window) {
 
     nya_terrain3d_draw(terrain, window);
 }
+
+b8 gny_terrain3d_decal_probe(f32x3 origin, f32x3 direction, void* user_data, OUT f32x3* out_point, OUT f32x3* out_normal) {
+    nya_unused(user_data);
+    nya_assert(direction.x == 0.0F && direction.z == 0.0F && direction.y < 0.0F, "decals only probe straight down");
+
+    const NYA_Terrain3D* terrain = gny_terrain3d();
+    if (terrain == nullptr) return false;
+
+    // straight down is all decals ask, which a height lookup answers without a raycast.
+    f32 half = GNY_TERRAIN3D_EXTENT * 0.5F;
+    if (fabsf(origin.x) > half || fabsf(origin.z) > half) return false;
+
+    f32 height = nya_terrain3d_height_at(terrain, origin.x, origin.z);
+    if (height > origin.y || height < origin.y + direction.y) return false;
+
+    // the slope from the heights a cell either side.
+    f32 step    = terrain->cell;
+    f32 slope_x = nya_terrain3d_height_at(terrain, origin.x + step, origin.z) - nya_terrain3d_height_at(terrain, origin.x - step, origin.z);
+    f32 slope_z = nya_terrain3d_height_at(terrain, origin.x, origin.z + step) - nya_terrain3d_height_at(terrain, origin.x, origin.z - step);
+
+    *out_point  = (f32x3){ origin.x, height, origin.z };
+    *out_normal = nya_vector_normalize((f32x3){ -slope_x, 2.0F * step, -slope_z });
+
+    return true;
+}

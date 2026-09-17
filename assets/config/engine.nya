@@ -36,6 +36,25 @@ nya 2 0
             antialias: object {
                 enabled: b8 true;
             };
+            // NYA_POST_FOCUS_OFF, _TILT_SHIFT or _DISTANCE. A zero focus_distance follows the cube in the 3D demo.
+            depth_of_field: object {
+                focus: string "NYA_POST_FOCUS_OFF";
+                band_offset: f32 0.05;
+                focus_range: f32 1.5;
+            };
+            // The most the 3D demo draws, scaled by how fast the camera moves. Zero is off.
+            speed_lines: object {
+                amount: f32 0.0;
+            };
+            // See NYA_Render3DDecals.
+            decals: object {
+                enabled: b8 true;
+            };
+            // HDR where the display offers it. See NYA_RenderOutput.
+            output: object {
+                hdr: b8 false;
+                peak: f32 2.5;
+            };
             // NYA_POST_DEBUG_VIEW_NONE, _NORMALS, _DEPTH, _OCCLUSION, _INK or _CASCADES.
             debug_view: string "NYA_POST_DEBUG_VIEW_NONE";
             // A .cube colour lookup table, or "" for none. assets/grades/identity.cube changes nothing.

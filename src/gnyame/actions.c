@@ -78,6 +78,10 @@ NYA_INTERNAL const GNY_ActionDefault _GNY_ACTION_DEFAULTS[] = {
     { .action = GNY_ACTION_TOGGLE_ANTIALIAS,     .name = "toggle_antialias",     .primary = NYA_KEY_3     },
     { .action = GNY_ACTION_TOGGLE_GRADE,         .name = "toggle_grade",         .primary = NYA_KEY_4     },
     { .action = GNY_ACTION_CYCLE_DEBUG_VIEW,     .name = "cycle_debug_view",     .primary = NYA_KEY_V     },
+    { .action = GNY_ACTION_CYCLE_FOCUS,          .name = "cycle_focus",          .primary = NYA_KEY_5     },
+    { .action = GNY_ACTION_TOGGLE_SPEED_LINES,   .name = "toggle_speed_lines",   .primary = NYA_KEY_6     },
+    { .action = GNY_ACTION_TOGGLE_DECALS,        .name = "toggle_decals",        .primary = NYA_KEY_7     },
+    { .action = GNY_ACTION_TOGGLE_HDR,           .name = "toggle_hdr",           .primary = NYA_KEY_8     },
     { .action = GNY_ACTION_DROP_THROUGH,         .name = "drop_through",         .primary = NYA_KEY_G     },
     { .action = GNY_ACTION_FREEZE_ANIMATION,     .name = "freeze_animation",     .primary = NYA_KEY_F     },
 };

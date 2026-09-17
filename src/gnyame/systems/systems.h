@@ -131,3 +131,6 @@ void gny_terrain3d_update(f32x3 viewer);
 
 /** Draws the surface. Must be called between nya_render3d_begin and _end. */
 void gny_terrain3d_draw(NYA_Window* window);
+
+/** Where a decal lands on the terrain. A NYA_Render3DDecalProbe; see nya_render3d_decal_probe_set. */
+b8 gny_terrain3d_decal_probe(f32x3 origin, f32x3 direction, void* user_data, OUT f32x3* out_point, OUT f32x3* out_normal);

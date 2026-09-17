@@ -1442,4 +1442,5 @@
 #define NYA_ASSET_SHADER_TEXT_SDF_FRAG                      "./assets/shader/source/text_sdf.frag.hlsl"
 #define NYA_ASSET_SHADER_TEXTURED_FRAG                      "./assets/shader/source/textured.frag.hlsl"
 #define NYA_ASSET_SOUNDS_HIT_WAV                            "./assets/sounds/hit.wav"
+#define NYA_ASSET_TEXTURES_DECALS_PNG                       "./assets/textures/decals.png"
 #define NYA_ASSET_TEXTURES_PUFF_PNG                         "./assets/textures/puff.png"
