@@ -500,6 +500,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
     // fixed: a frame needing more state changes than this has a batching problem. see NYA_Render2DDrawRange.
     batch->ranges = nya_arena_alloc(app->render_system.allocator, NYA_RENDER2D_MAX_RANGES * sizeof(NYA_Render2DDrawRange));
+    batch->draws  = nya_arena_alloc(app->render_system.allocator, NYA_RENDER2D_MAX_RANGES * sizeof(NYA_Render2DDraw));
 
     /*
      * The 3D mesh batch, set up for every window. Creating it on the first nya_render3d_begin would allocate GPU

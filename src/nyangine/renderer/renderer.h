@@ -31,6 +31,7 @@ typedef struct NYA_Render3DFrustum       NYA_Render3DFrustum;
 typedef struct NYA_Render3DSegment       NYA_Render3DSegment;
 typedef struct NYA_Render2DBatch          NYA_Render2DBatch;
 typedef struct NYA_Render2DDrawRange      NYA_Render2DDrawRange;
+typedef struct NYA_Render2DDraw           NYA_Render2DDraw;
 typedef struct NYA_Render3DBatch          NYA_Render3DBatch;
 typedef struct NYA_RenderTexture      NYA_RenderTexture;
 typedef struct NYA_RenderTextureOptions NYA_RenderTextureOptions;
@@ -259,9 +260,12 @@ struct NYA_RenderTexture {
 /** Ranges recorded before the batch is forced to draw. */
 #define NYA_RENDER2D_MAX_RANGES 512
 
+/** How many draw calls back a range looks for one with its state to join. Bounds the merge at a few compares per range. */
+#define NYA_RENDER2D_MERGE_LOOKBACK 16
+
 /**
- * One draw call's worth of the batch, recorded instead of issued. A state change closes a range, and
- * nya_render2d_flush sorts and issues the ranges, so draw order can differ from declaration order: a
+ * One state's worth of the batch, recorded instead of issued. A state change closes a range, and
+ * nya_render2d_flush sorts, merges and issues the ranges, so draw order can differ from declaration order: a
  * dropdown declared inside its panel still paints over later panels. Without layers the sort is stable
  * and nothing changes.
  * */
@@ -299,6 +303,29 @@ struct NYA_Render2DDrawRange {
 
     b8  scissor_active;
     s32 scissor_x, scissor_y, scissor_width, scissor_height;
+
+    /** What the vertices cover, in the camera's space, so a merge can tell whether moving the range changes the picture. */
+    NYA_Rectf bounds;
+
+    /** The next range in the same draw call, or U32_MAX. Set by nya_render2d_ranges_merge. */
+    u32 next;
+};
+
+/**
+ * Sorted ranges that share every piece of state and draw as one call. A range may join an earlier draw call only
+ * when nothing painted in between overlaps it, so the picture is the one the ranges would paint one by one.
+ * */
+struct NYA_Render2DDraw {
+    /** The chain of ranges in paint order, through NYA_Render2DDrawRange.next. The first one's state is the draw's. */
+    u32 first_range;
+    u32 last_range;
+
+    /** Into the index stream written by nya_render2d_draws_indices_write. */
+    u32 first_index;
+    u32 index_count;
+
+    /** The union of its ranges' bounds. */
+    NYA_Rectf bounds;
 };
 
 struct NYA_Render2DBatch {
@@ -327,8 +354,12 @@ struct NYA_Render2DBatch {
     NYA_Render2DDrawRange* ranges;
     u32                    range_count;
 
+    /** The draw calls the ranges merge into at flush, as many as there are ranges at most. */
+    NYA_Render2DDraw* draws;
+
     /** Where the range being built started, and the counter that keeps the sort stable. */
     u32 range_first_index;
+    u32 range_first_vertex;
     u32 range_sequence;
 
     /** Painted low to high. Snapshotted into each range as it closes. */

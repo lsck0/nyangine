@@ -150,7 +150,6 @@ NYA_INTERNAL void _nya_render2d_pass_suspend(NYA_Window* window);
 /** Pushes the batch's scissor state onto the current render pass, or clears it. */
 NYA_INTERNAL void _nya_render2d_apply_scissor(NYA_Window* window);
 NYA_INTERNAL void _nya_render2d_range_close(NYA_Window* window);
-NYA_INTERNAL s32  _nya_render2d_range_compare(const void* a, const void* b);
 NYA_INTERNAL f32_4x4 _nya_render2d_range_projection(const NYA_Render2DDrawRange* range);
 NYA_INTERNAL void _nya_render2d_range_apply_scissor(NYA_Window* window, const NYA_Render2DDrawRange* range);
 NYA_INTERNAL void _nya_render2d_pass_resume(NYA_Window* window);
@@ -320,22 +319,26 @@ NYA_INTERNAL void _nya_render2d_range_close(NYA_Window* window) {
         range->uniform_size = batch->shader_uniform_size;
     }
 
+    f32 min_x = F32_MAX;
+    f32 min_y = F32_MAX;
+    f32 max_x = -F32_MAX;
+    f32 max_y = -F32_MAX;
+
+    for (u32 i = batch->range_first_vertex; i < batch->vertex_count; i++) {
+        const NYA_Vertex2D* vertex = &batch->vertices[i];
+
+        min_x = nya_min(min_x, vertex->x);
+        min_y = nya_min(min_y, vertex->y);
+        max_x = nya_max(max_x, vertex->x);
+        max_y = nya_max(max_y, vertex->y);
+    }
+
+    range->bounds = min_x <= max_x ? (NYA_Rectf){ min_x, min_y, max_x - min_x, max_y - min_y } : (NYA_Rectf){ 0 };
+
     batch->range_count++;
     batch->range_sequence++;
-    batch->range_first_index = batch->index_count;
-}
-
-/**
- * Layer first, declaration order second.
- * */
-NYA_INTERNAL s32 _nya_render2d_range_compare(const void* a, const void* b) {
-    const NYA_Render2DDrawRange* left  = a;
-    const NYA_Render2DDrawRange* right = b;
-
-    if (left->layer != right->layer) return left->layer < right->layer ? -1 : 1;
-    if (left->sequence != right->sequence) return left->sequence < right->sequence ? -1 : 1;
-
-    return 0;
+    batch->range_first_index  = batch->index_count;
+    batch->range_first_vertex = batch->vertex_count;
 }
 
 void nya_render2d_layer_set(NYA_Window* window, s32 layer) {
@@ -370,21 +373,26 @@ void nya_render2d_flush(NYA_Window* window) {
     _nya_render2d_range_close(window);
 
     if (batch->range_count == 0) {
-        batch->vertex_count      = 0;
-        batch->index_count       = 0;
-        batch->range_first_index = 0;
+        batch->vertex_count       = 0;
+        batch->index_count        = 0;
+        batch->range_first_index  = 0;
+        batch->range_first_vertex = 0;
         return;
     }
 
     // no pass: the window is occluded or minimised. dropped rather than drawn stale later.
     if (render->render_pass == nullptr) {
-        batch->vertex_count      = 0;
-        batch->index_count       = 0;
-        batch->range_count       = 0;
-        batch->range_first_index = 0;
-        batch->range_sequence    = 0;
+        batch->vertex_count       = 0;
+        batch->index_count        = 0;
+        batch->range_count        = 0;
+        batch->range_first_index  = 0;
+        batch->range_first_vertex = 0;
+        batch->range_sequence     = 0;
         return;
     }
+
+    // merged before the upload, which writes the indices in draw order.
+    u32 draw_count = nya_render2d_ranges_merge(batch->ranges, batch->range_count, batch->draws);
 
     SDL_GPUDevice* gpu_device  = nya_app_get()->render_system.gpu_device;
     u32            upload_size = (u32)(batch->vertex_count * sizeof(NYA_Vertex2D));
@@ -398,7 +406,7 @@ void nya_render2d_flush(NYA_Window* window) {
     u32   index_upload_size = (u32)(batch->index_count * sizeof(u32));
     void* mapped_indices    = SDL_MapGPUTransferBuffer(gpu_device, batch->index_transfer_buffer, true);
     nya_assert(mapped_indices != nullptr, "SDL_MapGPUTransferBuffer() failed for indices: %s", SDL_GetError());
-    nya_memcpy(mapped_indices, batch->indices, index_upload_size);
+    nya_render2d_draws_indices_write(batch->ranges, batch->draws, draw_count, batch->indices, mapped_indices);
     SDL_UnmapGPUTransferBuffer(gpu_device, batch->index_transfer_buffer);
 
     _nya_render2d_pass_suspend(window);
@@ -426,20 +434,13 @@ void nya_render2d_flush(NYA_Window* window) {
 
     _nya_render2d_pass_resume(window);
 
-    /*
-     * Rebuilt each flush: it depends on the target size, which changes on resize and when drawing moves
-     * into a render texture. y grows down from the top left.
-     */
-    /* Sorted, then issued. The buffers are bound once, since every range indexes the same upload. */
-    qsort(batch->ranges, batch->range_count, sizeof(NYA_Render2DDrawRange), _nya_render2d_range_compare);
-
+    // the buffers are bound once, since every draw indexes the same upload.
     SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = batch->vertex_buffer, .offset = 0 }, 1);
     SDL_BindGPUIndexBuffer(render->render_pass, &(SDL_GPUBufferBinding){ .buffer = batch->index_buffer, .offset = 0 }, SDL_GPU_INDEXELEMENTSIZE_32BIT);
 
-    for (u32 i = 0; i < batch->range_count; i++) {
-        const NYA_Render2DDrawRange* range = &batch->ranges[i];
-
-        if (range->index_count == 0) continue;
+    for (u32 i = 0; i < draw_count; i++) {
+        const NYA_Render2DDraw*      draw  = &batch->draws[i];
+        const NYA_Render2DDrawRange* range = &batch->ranges[draw->first_range];
 
         NYA_Asset* pipeline_asset = range->pipeline != nullptr ? nya_asset_get(range->pipeline) : nullptr;
 
@@ -473,9 +474,8 @@ void nya_render2d_flush(NYA_Window* window) {
             );
         }
 
-        SDL_DrawGPUIndexedPrimitives(render->render_pass, range->index_count, 1, range->first_index, 0, 0);
+        SDL_DrawGPUIndexedPrimitives(render->render_pass, draw->index_count, 1, draw->first_index, 0, 0);
 
-        // a range is a draw call.
         batch->frame_flushes++;
     }
 
@@ -486,11 +486,12 @@ void nya_render2d_flush(NYA_Window* window) {
     batch->frame_flush_reasons[batch->pending_flush_reason % NYA_RENDER2D_FLUSH_REASON_COUNT]++;
     batch->pending_flush_reason = NYA_RENDER2D_FLUSH_FRAME_END;
 
-    batch->vertex_count      = 0;
-    batch->index_count       = 0;
-    batch->range_count       = 0;
-    batch->range_first_index = 0;
-    batch->range_sequence    = 0;
+    batch->vertex_count       = 0;
+    batch->index_count        = 0;
+    batch->range_count        = 0;
+    batch->range_first_index  = 0;
+    batch->range_first_vertex = 0;
+    batch->range_sequence     = 0;
 }
 
 void _nya_render2d_textf_va(NYA_Window* window, NYA_ConstCString font_path, f32 point_size, f32 x, f32 y, NYA_Color color, NYA_ConstCString format, va_list arguments) {
