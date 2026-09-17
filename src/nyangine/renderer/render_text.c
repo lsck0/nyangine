@@ -167,7 +167,30 @@ void nya_text_font_handle(NYA_ConstCString path, f32 point_size, OUT char* out_h
         return;
     }
 
-    (void)snprintf(out_handle, (size_t)capacity, "%s@%.0f", path, (f64)point_size);
+    /*
+     * By hand for the common case: every draw and measure builds a handle, and "%.0f" alone cost more than a
+     * cached shape. nearbyint rounds half to even, as %.0f does, so both spell a size the same.
+     */
+    f64 rounded     = nearbyint((f64)point_size);
+    u64 path_length = strlen(path);
+
+    char digits[10];
+    u32  digit_count = 0;
+
+    if (point_size > 0.0F && rounded < 1e9) {
+        for (u32 size = (u32)rounded; digit_count == 0 || size > 0; size /= 10) digits[digit_count++] = (char)('0' + (size % 10));
+    }
+
+    if (digit_count == 0 || path_length + 1 + digit_count >= capacity) {
+        (void)snprintf(out_handle, (size_t)capacity, "%s@%.0f", path, (f64)point_size);
+        return;
+    }
+
+    nya_memcpy(out_handle, path, path_length);
+    out_handle[path_length] = '@';
+
+    for (u32 i = 0; i < digit_count; i++) out_handle[path_length + 1 + i] = digits[digit_count - 1 - i];
+    out_handle[path_length + 1 + digit_count] = '\0';
 }
 
 TTF_Font* nya_text_font_for(NYA_ConstCString path, f32 point_size) {

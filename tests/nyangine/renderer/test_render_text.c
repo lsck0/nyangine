@@ -118,5 +118,28 @@ s32 main(void) {
         nya_check(nya_text_descent(font) > 0.0F, "and a descent reported positive, unlike SDL's own");
     }
 
+    // ── A font handle spells its size the way "%.0f" does, rounding half to even.
+    {
+        const f32 sizes[] = { 17.0F, 44.0F, 22.4F, 22.5F, 23.5F, 0.3F, 1.0F, 100.0F, -3.0F, 1e10F };
+
+        char handle[NYA_TEXT_FONT_HANDLE_MAX];
+        char expected[NYA_TEXT_FONT_HANDLE_MAX];
+
+        for (u32 i = 0; i < nya_carray_length(sizes); i++) {
+            nya_text_font_handle(FACE, sizes[i], handle, sizeof(handle));
+            (void)snprintf(expected, sizeof(expected), "%s@%.0f", FACE, (f64)sizes[i]);
+
+            nya_check(nya_string_equals(handle, expected), "size %f should spell '%s', got '%s'", (f64)sizes[i], expected, handle);
+        }
+
+        char short_handle[16];
+        char short_expected[16];
+
+        nya_text_font_handle(FACE, 24.0F, short_handle, sizeof(short_handle));
+        (void)snprintf(short_expected, sizeof(short_expected), "%s@%.0f", FACE, 24.0);
+
+        nya_check(nya_string_equals(short_handle, short_expected), "a handle too long truncates like snprintf, got '%s'", short_handle);
+    }
+
     return nya_check_failures() == 0 ? 0 : 1;
 }
