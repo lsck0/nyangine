@@ -246,13 +246,23 @@ float mesh3d_shadow_in_cascade(Texture2D map, SamplerState smp, int cascade, flo
        * Clamped inside the cascade's slice before the atlas offset, so the kernel never averages in the neighbouring
        * cascade at a seam. One texel of inset is enough since the sample is clamped, not the kernel shrunk.
        */
+      float2 texel = clamp(uv + offset, shadow_texel, 1.0 - shadow_texel) / shadow_texel - 0.5;
+
+      /*
+       * Each tap compares the four texels around it and weights the results bilinearly. Filtering the depths and
+       * comparing once, or comparing one texel, both cut texel steps into grazing surfaces as a comb of teeth.
+       */
+      float2 corner = floor(texel) + 1.0;
+      float2 weight = texel - floor(texel);
+
       // x folds into this cascade's column; y spans the one-cascade-tall strip.
-      float2 tap = clamp(uv + offset, shadow_texel, 1.0 - shadow_texel) / float2(MESH3D_SHADOW_ATLAS_SPLIT, 1.0);
+      float4 occluders = map.GatherRed(smp, cascade_origin + (corner * shadow_texel) / float2(MESH3D_SHADOW_ATLAS_SPLIT, 1.0));
 
       // the map holds the depth the light saw first; anything further is behind it.
-      float occluder = map.Sample(smp, cascade_origin + tap).r;
+      float4 lit = step(projected.z - bias, occluders);
 
-      visibility += (projected.z - bias) <= occluder ? 1.0 : 0.0;
+      // gather order is (-, +), (+, +), (+, -), (-, -) in texel offsets from the corner.
+      visibility += lerp(lerp(lit.w, lit.z, weight.x), lerp(lit.x, lit.y, weight.x), weight.y);
     }
   }
 
@@ -262,13 +272,17 @@ float mesh3d_shadow_in_cascade(Texture2D map, SamplerState smp, int cascade, flo
 /** How much of a cascade's outer edge fades into the next one, as a fraction of its half-width. */
 static const float MESH3D_SHADOW_CASCADE_FADE = 0.15;
 
+/** The span of filtered visibility the shadow edge is cut across. Narrower is harder and aliases sooner. */
+static const float MESH3D_SHADOW_EDGE_LO = 0.3;
+static const float MESH3D_SHADOW_EDGE_HI = 0.7;
+
 /**
  * How lit this fragment is by the directional light, in [0, 1]. One is fully lit. The shadow map is a
  * parameter because its register differs between the two pipelines, and the normal is taken whole because the
  * lookup offsets along it.
  *
- * A three by three percentage-closer filter: each tap is in or out, and the average softens the edge into a
- * contact shadow a few pixels wide.
+ * A three by three percentage-closer filter of bilinear taps, whose average places the edge smoothly between
+ * texels before it is cut crisp.
  *
  * A patch of ground changes cascade whenever the camera moves, and the two cascades record it at different
  * resolutions, so the boundary is crossfaded instead of switched. The last cascade keeps its hard edge at the
@@ -313,8 +327,14 @@ float mesh3d_shadow(Texture2D map, SamplerState smp, float3 world_position, floa
   }
 
   /*
-   * Raw visibility; the caller applies the strength, since it decides what the shadow attenuates (see
-   * mesh3d_shade).
+   * Cut into a crisp edge, since a cartoon shadow is a shape rather than a gradient. The filter still decides
+   * where the edge falls, so it stays smooth along the texel grid, and faint partial self-shadowing on grazing
+   * slopes rounds away to lit.
+   */
+  visibility = smoothstep(MESH3D_SHADOW_EDGE_LO, MESH3D_SHADOW_EDGE_HI, visibility);
+
+  /*
+   * The caller applies the strength, since it decides what the shadow attenuates (see mesh3d_shade).
    */
   return visibility;
 }
