@@ -194,6 +194,9 @@ void gny_layer_game_on_event(NYA_Window* window, NYA_Event* event) {
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_BLOOM, key->key, key->modifier_flags)) {
                 world->bloom_enabled = !world->bloom_enabled;
                 event->was_handled   = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_GRADE, key->key, key->modifier_flags)) {
+                world->grade_enabled = !world->grade_enabled;
+                event->was_handled   = true;
             } else if (nya_input_action_matches(GNY_ACTION_DROP_THROUGH, key->key, key->modifier_flags)) {
                 // every crate, on a ledge or not. The window is harmless off a ledge, and checking would mean
                 // walking contacts. See gny_entity_ledge_drop_everything_through.

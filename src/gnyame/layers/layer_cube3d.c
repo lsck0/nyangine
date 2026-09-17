@@ -365,6 +365,9 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             if (nya_input_action_matches(GNY_ACTION_TOGGLE_BLOOM, key->key, key->modifier_flags)) {
                 gny_world()->bloom_enabled = !gny_world()->bloom_enabled;
                 event->was_handled         = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_GRADE, key->key, key->modifier_flags)) {
+                gny_world()->grade_enabled = !gny_world()->grade_enabled;
+                event->was_handled         = true;
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_OVERLAY, key->key, key->modifier_flags)) {
                 gny_overlay_toggle();
                 event->was_handled = true;
@@ -1025,30 +1028,28 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     // the chain is shared with the 2D world, which drops the depth this scene needs.
     bloom_world->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED };
 
+    // this scene's numbers; see GNY_BLOOM_3D_THRESHOLD. the window's size, which the chain's targets match.
+    NYA_ShaderBloomUniform bloom = {
+        .texel_x   = GNY_BLOOM_3D_SPREAD / (f32)nya_max(window->screen_width, 1U),
+        .texel_y   = GNY_BLOOM_3D_SPREAD / (f32)nya_max(window->screen_height, 1U),
+        .threshold = GNY_BLOOM_3D_THRESHOLD,
+        .intensity = GNY_BLOOM_3D_INTENSITY,
+    };
+
+    NYA_PostPass passes[GNY_POST_PASSES_MAX];
+    u32          pass_count = gny_post_passes(window, &bloom, passes);
+
     // minimised or mid resize, nya_post_begin fails and the scene goes straight to the window like the
     // 2D path does, rather than skipping the frame.
-    if (!(bloom_world->bloom_enabled || cartoon) || !nya_post_begin(window, &bloom_world->post)) {
+    if (!(pass_count > 0 || cartoon) || !nya_post_begin(window, &bloom_world->post)) {
         _gny_cube3d_draw_scene(window);
     } else {
         nya_perf_time_this_scope("gny_cube3d_post_pass");
 
         _gny_cube3d_draw_scene(window);
 
-        NYA_PostPass bloom = {
-            .pipeline = GNY_PIPELINE_BLOOM,
-            .uniform =
-                &(NYA_ShaderBloomUniform){
-                    // this scene's numbers; see GNY_BLOOM_3D_THRESHOLD.
-                    .texel_x   = GNY_BLOOM_3D_SPREAD / (f32)bloom_world->post.width,
-                    .texel_y   = GNY_BLOOM_3D_SPREAD / (f32)bloom_world->post.height,
-                    .threshold = GNY_BLOOM_3D_THRESHOLD,
-                    .intensity = GNY_BLOOM_3D_INTENSITY,
-                },
-            .uniform_size = sizeof(NYA_ShaderBloomUniform),
-        };
-
-        // nya_post_end blits the scene back when a pipeline is not loaded, so a failure costs only the glow.
-        nya_post_end(window, &bloom_world->post, &bloom, bloom_world->bloom_enabled ? 1 : 0);
+        // nya_post_end blits the scene back when a pipeline is not loaded, so a failure costs only the effect.
+        nya_post_end(window, &bloom_world->post, passes, pass_count);
     }
 
 

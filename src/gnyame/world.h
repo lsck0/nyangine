@@ -49,9 +49,16 @@ typedef struct GNY_World {
     /** Sparks thrown off by crate impacts. */
     NYA_ParticleSystem* sparks;
 
-    /** The offscreen chain the world is composited through for bloom. */
+    /** The offscreen chain the world is composited through for grading and bloom. */
     NYA_PostChain post;
     b8            bloom_enabled;
+
+    /** The grade key's state. The config still names the table and strength; see gny_post_passes. */
+    b8 grade_enabled;
+
+    /** The table currently loaded for grading, empty for none, so a config edit can swap or release it. */
+    char                 grade_lut[NYA_CONFIG_ASSET_PATH_MAX];
+    NYA_ShaderLutUniform grade_uniform;
 
     /** Seconds added to the clock before the day phase is taken from it. */
     f32 sky_offset_s;
@@ -89,6 +96,13 @@ void gny_post_pipelines_ensure(NYA_Window* window);
 
 /** Shows or hides the debug overlay. Showing it also logs every arena with its resident bytes. */
 void gny_overlay_toggle(void);
+
+/**
+ * Fills `out_passes` with this frame's post passes, at most GNY_POST_PASSES_MAX: the grade when the config names
+ * a table and the key has it on, then bloom when on. Loads the table on first use and releases it once grading is
+ * off, so a disabled grade holds no texture. Returns how many were written.
+ * */
+u32 gny_post_passes(NYA_Window* window, const NYA_ShaderBloomUniform* bloom, OUT NYA_PostPass* out_passes);
 
 /** The inset camera, created on first use. */
 NYA_EntityHandle gny_world_inset_camera(void);

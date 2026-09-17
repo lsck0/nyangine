@@ -35,6 +35,7 @@ void gny_world_create(NYA_NetLaunchConfig launch) {
         .inset_camera = NYA_ENTITY_HANDLE_NONE,
 
         .bloom_enabled = true,
+        .grade_enabled = true,
 
         // mid morning, so the first frame is lit. see GNY_SKY_START_PHASE.
         .sky_offset_s = GNY_SKY_START_PHASE * GNY_DAY_LENGTH_S,
@@ -308,6 +309,78 @@ void gny_post_pipelines_ensure(NYA_Window* window) {
             .vertex_layout          = NYA_VERTEX_LAYOUT_2D,
         },
     }), "while queueing the grayscale pipeline");
+}
+
+u32 gny_post_passes(NYA_Window* window, const NYA_ShaderBloomUniform* bloom, OUT NYA_PostPass* out_passes) {
+    nya_assert(window != nullptr);
+    nya_assert(bloom != nullptr);
+    nya_assert(out_passes != nullptr);
+
+    GNY_World*                      world    = gny_world();
+    const NYA_ConfigEngineRenderer* renderer = &NYA_CONFIG.engine.renderer;
+
+    b8 grading = world->grade_enabled && renderer->grade_strength > 0.0F && renderer->grade_lut[0] != '\0';
+
+    NYA_ConstCString wanted = grading ? renderer->grade_lut : "";
+
+    // the table follows the config: a new path swaps it, and off releases it so it holds no VRAM.
+    if (strcmp(world->grade_lut, wanted) != 0) {
+        if (world->grade_lut[0] != '\0') (void)nya_asset_unload(world->grade_lut);
+
+        (void)snprintf(world->grade_lut, sizeof(world->grade_lut), "%s", wanted);
+
+        if (grading) {
+            NYA_Error table = nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_LUT, .handle = world->grade_lut });
+
+            // not fatal: a pass whose table is missing is skipped.
+            if (!table.ok) nya_log_warn("Could not queue the grade '%s': %s", world->grade_lut, (NYA_ConstCString)table.message);
+
+            NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+                .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
+                .handle    = NYA_ASSET_SHADER_EFFECT_LUT_FRAG,
+                .as_shader = { .num_samplers = 2, .num_uniform_buffers = 1 },
+            }), "while queueing the grade fragment shader");
+
+            NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+                .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
+                .handle               = GNY_PIPELINE_GRADE,
+                .as_graphics_pipeline = {
+                    .window                 = window,
+                    .vertex_shader_handle   = NYA_ASSET_SHADER_BATCH2D_VERT,
+                    .fragment_shader_handle = NYA_ASSET_SHADER_EFFECT_LUT_FRAG,
+                    // the 2D world is captured over a transparent clear and composited over the sky.
+                    .blend         = true,
+                    .vertex_layout = NYA_VERTEX_LAYOUT_2D,
+                },
+            }), "while queueing the grade pipeline");
+        }
+    }
+
+    u32 count = 0;
+
+    // graded before bloom, so the glow is added to the look rather than recoloured by it.
+    if (grading) {
+        world->grade_uniform = (NYA_ShaderLutUniform){ .strength = nya_clamp(renderer->grade_strength, 0.0F, 1.0F) };
+
+        out_passes[count++] = (NYA_PostPass){
+            .pipeline     = GNY_PIPELINE_GRADE,
+            .texture      = world->grade_lut,
+            .uniform      = &world->grade_uniform,
+            .uniform_size = sizeof(world->grade_uniform),
+        };
+    }
+
+    if (world->bloom_enabled) {
+        out_passes[count++] = (NYA_PostPass){
+            .pipeline     = GNY_PIPELINE_BLOOM,
+            .uniform      = bloom,
+            .uniform_size = sizeof(*bloom),
+        };
+    }
+
+    nya_assert(count <= GNY_POST_PASSES_MAX);
+
+    return count;
 }
 
 f32x2 gny_screen_to_world(const NYA_Window* window, f32x2 screen) {

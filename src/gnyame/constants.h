@@ -95,6 +95,12 @@
 /** The pass that greys out the 2D world while the pause menu is open. */
 #define GNY_PIPELINE_GRAYSCALE "gny_grayscale_pipeline"
 
+/** The handle the colour grading pipeline is registered under. See gny_post_passes. */
+#define GNY_PIPELINE_GRADE "gny_grade_pipeline"
+
+/** Passes a scene's chain can hold: the grade and bloom from gny_post_passes, and the pause grey. */
+#define GNY_POST_PASSES_MAX 3
+
 /**
  * Luminance a pixel needs before it glows in the 2D world. Half is about a lit crate; the terrain fill (~0.15)
  * stays under it, and a sleeping crate's tint drops below it.

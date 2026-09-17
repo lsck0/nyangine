@@ -29,6 +29,9 @@
 #define NYA_CONFIG_WATCH_MAX 8
 #endif
 
+/** Longest asset path a config field can hold, terminator included. */
+#define NYA_CONFIG_ASSET_PATH_MAX 128
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -105,6 +108,12 @@ struct NYA_ConfigEngineRenderer {
     NYA_PostAmbientOcclusion ambient_occlusion;
     NYA_PostAntialias        antialias;
     NYA_PostDebugView        debug_view;
+
+    /** The `.cube` table the scene is graded through, an asset path. Empty turns grading off. */
+    char grade_lut[NYA_CONFIG_ASSET_PATH_MAX];
+
+    /** How much of the grade applies, in [0, 1]. Zero also turns it off, and then no pass runs. */
+    f32 grade_strength;
 };
 
 /**

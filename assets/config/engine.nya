@@ -36,6 +36,10 @@ nya 2 0
             };
             // NYA_POST_DEBUG_VIEW_NONE, _NORMALS, _DEPTH, _OCCLUSION, _INK or _CASCADES.
             debug_view: string "NYA_POST_DEBUG_VIEW_NONE";
+            // A .cube colour lookup table, or "" for none. assets/grades/identity.cube changes nothing.
+            grade_lut: string "./assets/grades/toon.cube";
+            // How much of the grade applies. Zero skips the pass.
+            grade_strength: f32 1.0;
         };
         physics: object {
             // Metres per second squared. See NYA_PHYSICS3D_GRAVITY_DEFAULT.

@@ -108,23 +108,16 @@ void _gny_camera_render_primary(NYA_Window* window, NYA_Camera2DTopDown camera) 
 
     gny_world_draw(window, camera);
 
-    NYA_PostPass passes[2] = { 0 };
-    u32          pass_count = 0;
+    // the 2D world's numbers; the 3D scene runs the same pipeline with its own. See GNY_BLOOM_2D_THRESHOLD.
+    NYA_ShaderBloomUniform bloom = {
+        .texel_x   = GNY_BLOOM_2D_SPREAD / (f32)world->post.width,
+        .texel_y   = GNY_BLOOM_2D_SPREAD / (f32)world->post.height,
+        .threshold = GNY_BLOOM_2D_THRESHOLD,
+        .intensity = GNY_BLOOM_2D_INTENSITY,
+    };
 
-    if (world->bloom_enabled) {
-        passes[pass_count++] = (NYA_PostPass){
-            .pipeline = GNY_PIPELINE_BLOOM,
-            .uniform =
-                &(NYA_ShaderBloomUniform){
-                    // the 2D world's numbers; the 3D scene runs the same pipeline with its own. See GNY_BLOOM_2D_THRESHOLD.
-                    .texel_x   = GNY_BLOOM_2D_SPREAD / (f32)world->post.width,
-                    .texel_y   = GNY_BLOOM_2D_SPREAD / (f32)world->post.height,
-                    .threshold = GNY_BLOOM_2D_THRESHOLD,
-                    .intensity = GNY_BLOOM_2D_INTENSITY,
-                },
-            .uniform_size = sizeof(NYA_ShaderBloomUniform),
-        };
-    }
+    NYA_PostPass passes[GNY_POST_PASSES_MAX];
+    u32          pass_count = gny_post_passes(window, &bloom, passes);
 
     // greyed out behind the pause menu. with bloom on that is two passes, and only then does the chain hold a second
     // target.
