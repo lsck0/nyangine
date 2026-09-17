@@ -638,8 +638,11 @@ void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32 delta_time_s
     if (known) {
         f32x3 error = _NYA_NET_CLIENT.predicted[acknowledged % NYA_NET_COMMAND_HISTORY] - authoritative->position;
 
+        // the server's answer is on the wire's fixed point grid, so nothing finer than one step of it is an error.
+        u32 bits = snapshot->position_bits == 0 ? NYA_NET_POSITION_BITS_DEFAULT : snapshot->position_bits;
+
         f32 distance_squared = (error.x * error.x) + (error.y * error.y) + (error.z * error.z);
-        f32 threshold        = _NYA_NET_CLIENT.config.correction_threshold;
+        f32 threshold        = nya_max(_NYA_NET_CLIENT.config.correction_threshold, 1.0F / (f32)(1U << bits));
 
         if (distance_squared <= threshold * threshold) return;
 

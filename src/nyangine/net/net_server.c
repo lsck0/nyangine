@@ -545,9 +545,10 @@ b8 nya_net_stats_line(OUT char* out, u64 capacity) {
     if (nya_net_client_state() == NYA_NET_CLIENT_PLAYING && _NYA_NET_CLIENT.replicas != nullptr) {
         NYA_NetPeerStats stats = nya_net_client_stats();
 
-        (void)snprintf(out, capacity, "net %4.0f ms %3.0f jit %4.1f%% loss %5.1f/%4.1f kB/s %4u B snap %3.0f ms lerp %llu rs", (f64)stats.rtt_ms,
-                       (f64)stats.jitter_ms, (f64)(stats.packet_loss * 100.0F), (f64)stats.bytes_received_per_second / 1000.0,
-                       (f64)stats.bytes_sent_per_second / 1000.0, stats.snapshot_bytes, (f64)stats.interpolation_delay_ms, (unsigned long long)stats.retransmits);
+        // short enough for the overlay's column: round trip and jitter, loss, down and up, snapshot size, interpolation delay.
+        (void)snprintf(out, capacity, "net %3.0f ms j%-2.0f %4.1f%% %4.1f/%3.1f kB %3u B %3.0f ms", (f64)stats.rtt_ms, (f64)stats.jitter_ms,
+                       (f64)(stats.packet_loss * 100.0F), (f64)stats.bytes_received_per_second / 1000.0, (f64)stats.bytes_sent_per_second / 1000.0,
+                       stats.snapshot_bytes, (f64)stats.interpolation_delay_ms);
         return true;
     }
 
@@ -574,7 +575,8 @@ b8 nya_net_stats_line(OUT char* out, u64 capacity) {
         violations += stats.violations;
     }
 
-    (void)snprintf(out, capacity, "net %2u peers %4.0f ms %4.1f%% loss %5.1f/%4.1f kB/s %4u B snap %u viol", _NYA_NET_SERVER.remote_peer_count, (f64)worst.rtt_ms,
+    // players, the worst round trip and its loss, out and in, the largest snapshot, rules broken.
+    (void)snprintf(out, capacity, "net %2u pl %3.0f ms %4.1f%% %4.1f/%3.1f kB %3u B %u!", _NYA_NET_SERVER.remote_peer_count, (f64)worst.rtt_ms,
                    (f64)(worst.packet_loss * 100.0F), (f64)sent / 1000.0, (f64)received / 1000.0, snapshot, violations);
 
     return true;
