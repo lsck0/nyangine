@@ -18,6 +18,24 @@ NYA_INTERNAL u32 _nya_debug_frame_cursor = 0;
 /** Samples taken, saturating at the ring size, so an empty slot differs from a 0 ms frame. */
 NYA_INTERNAL u32 _nya_debug_sample_count = 0;
 
+/**
+ * The memory section as of the last refresh. Latched with the printed figures, since asking the system which pages
+ * are resident is a call per region.
+ * */
+typedef struct {
+    NYA_ArenaStats arenas[NYA_DEBUG_OVERLAY_ARENAS];
+    u64            resident[NYA_DEBUG_OVERLAY_ARENAS];
+    u32            arena_count;
+
+    /** Every arena's used bytes, named or not. */
+    u64 used_total;
+
+    /** The process's resident set, so the rows can be read against it. */
+    u64 process_resident;
+} _NYA_DebugMemorySample;
+
+NYA_INTERNAL _NYA_DebugMemorySample _nya_debug_memory = { 0 };
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
@@ -26,6 +44,9 @@ NYA_INTERNAL u32 _nya_debug_sample_count = 0;
 
 /** Fills anything the caller left at zero with a sensible default. */
 NYA_INTERNAL void _nya_debug_overlay_apply_style_defaults(NYA_DebugOverlayStyle* style);
+
+/** Picks the largest named arenas into _nya_debug_memory, with their resident bytes and the process total. */
+NYA_INTERNAL void _nya_debug_memory_sample(void);
 
 /**
  * Bytes as a fixed width string in a readable unit. Returns one of a few static buffers, so several
@@ -101,6 +122,8 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
         latched_fps     = frame->fps;
         latched_average = nya_debug_frame_time_average_ms();
         latched_worst   = nya_debug_frame_time_worst_ms();
+
+        if (!style.hide_memory) _nya_debug_memory_sample();
     }
     f32 average_ms = latched_average;
     f32 worst_ms   = latched_worst;
@@ -116,40 +139,8 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     f32 padding = 8.0F;
 
-    // the biggest arenas, picked before drawing since the panel is sized first. A partial selection
-    // sort, cheaper than sorting the registry to show six.
-    NYA_ArenaStats memory[NYA_DEBUG_OVERLAY_ARENAS] = { 0 };
-
-    u32 memory_count = 0;
-    u64 memory_total = 0;
-
-    if (!style.hide_memory) {
-        u32 registry_count = nya_arena_registry_count();
-
-        for (u32 i = 0; i < registry_count; i++) {
-            NYA_Arena* arena = nya_arena_registry_at(i);
-            if (arena == nullptr) continue;
-
-            NYA_ArenaStats stats = nya_arena_stats(arena);
-            memory_total        += stats.used_bytes;
-
-            // unnamed arenas are scratch inside one call.
-            if (stats.name == nullptr) continue;
-
-            // Insertion into a list kept in descending order, dropping off the end.
-            u32 slot = memory_count < NYA_DEBUG_OVERLAY_ARENAS ? memory_count : NYA_DEBUG_OVERLAY_ARENAS - 1;
-            if (memory_count >= NYA_DEBUG_OVERLAY_ARENAS && stats.used_bytes <= memory[slot].used_bytes) continue;
-
-            memory[slot] = stats;
-            if (memory_count < NYA_DEBUG_OVERLAY_ARENAS) memory_count++;
-
-            for (u32 j = slot; j > 0 && memory[j].used_bytes > memory[j - 1].used_bytes; j--) {
-                NYA_ArenaStats swap = memory[j];
-                memory[j]           = memory[j - 1];
-                memory[j - 1]       = swap;
-            }
-        }
-    }
+    const _NYA_DebugMemorySample* memory       = &_nya_debug_memory;
+    u32                           memory_count = memory->arena_count;
 
     // byte gauges, such as the GPU's, below the arenas. few enough to show all of them.
     u32 gauge_count = style.hide_memory ? 0 : nya_gauge_count();
@@ -230,11 +221,21 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
     }
 
     if (!style.hide_memory) {
-        nya_render2d_textf_with_font(window, style.font, style.font_size, text_x, text_y, style.text_color, "mem %9s total", _nya_debug_format_bytes(memory_total));
+        nya_render2d_textf_with_font(
+            window,
+            style.font,
+            style.font_size,
+            text_x,
+            text_y,
+            style.text_color,
+            "mem %9s used %9s rss",
+            _nya_debug_format_bytes(memory->used_total),
+            _nya_debug_format_bytes(memory->process_resident)
+        );
         text_y += line_height;
 
         for (u32 i = 0; i < memory_count; i++) {
-            // sizes in a fixed field, so they line up as a column.
+            // sizes in a fixed field, so they line up as a column. used, then how much of it is resident.
             nya_render2d_textf_with_font(
                 window,
                 style.font,
@@ -242,9 +243,10 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
                 text_x,
                 text_y,
                 (NYA_Color){ 0.72F, 0.76F, 0.82F, 1.0F },
-                "  %-20s %9s",
-                memory[i].name,
-                _nya_debug_format_bytes(memory[i].used_bytes)
+                "  %-16s %9s %9s",
+                memory->arenas[i].name,
+                _nya_debug_format_bytes(memory->arenas[i].used_bytes),
+                _nya_debug_format_bytes(memory->resident[i])
             );
             text_y += line_height;
         }
@@ -368,6 +370,44 @@ NYA_ConstCString _nya_debug_format_bytes(u64 bytes) {
     }
 
     return buffer;
+}
+
+void _nya_debug_memory_sample(void) {
+    _NYA_DebugMemorySample sample = { .process_resident = nya_memory_process_resident_bytes() };
+
+    // the biggest arenas by used bytes. A partial selection sort, cheaper than sorting the registry to show six.
+    u32 registry_count = nya_arena_registry_count();
+
+    for (u32 i = 0; i < registry_count; i++) {
+        NYA_Arena* arena = nya_arena_registry_at(i);
+        if (arena == nullptr) continue;
+
+        NYA_ArenaStats stats  = nya_arena_stats(arena);
+        sample.used_total    += stats.used_bytes;
+
+        // unnamed arenas are scratch inside one call.
+        if (stats.name == nullptr) continue;
+
+        // Insertion into a list kept in descending order, dropping off the end.
+        u32 slot = sample.arena_count < NYA_DEBUG_OVERLAY_ARENAS ? sample.arena_count : NYA_DEBUG_OVERLAY_ARENAS - 1;
+        if (sample.arena_count >= NYA_DEBUG_OVERLAY_ARENAS && stats.used_bytes <= sample.arenas[slot].used_bytes) continue;
+
+        sample.arenas[slot]   = stats;
+        sample.resident[slot] = nya_arena_resident_bytes(arena);
+        if (sample.arena_count < NYA_DEBUG_OVERLAY_ARENAS) sample.arena_count++;
+
+        for (u32 j = slot; j > 0 && sample.arenas[j].used_bytes > sample.arenas[j - 1].used_bytes; j--) {
+            NYA_ArenaStats stats_swap    = sample.arenas[j];
+            u64            resident_swap = sample.resident[j];
+
+            sample.arenas[j]       = sample.arenas[j - 1];
+            sample.resident[j]     = sample.resident[j - 1];
+            sample.arenas[j - 1]   = stats_swap;
+            sample.resident[j - 1] = resident_swap;
+        }
+    }
+
+    _nya_debug_memory = sample;
 }
 
 void _nya_debug_overlay_apply_style_defaults(NYA_DebugOverlayStyle* style) {
