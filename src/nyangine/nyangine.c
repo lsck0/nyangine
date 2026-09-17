@@ -36,6 +36,8 @@
 #else
 #include "nyangine/renderer/render2d.c"
 #endif
+// both builds: a veil of haze is a gradient rect, drawn through whichever renderer was picked.
+#include "nyangine/renderer/render2d_haze.c"
 // After both renderers: particles draw through whichever the system is set to.
 #include "nyangine/renderer/render_particles.c"
 #include "nyangine/nn/nn_draw.c"

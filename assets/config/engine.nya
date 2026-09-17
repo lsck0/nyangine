@@ -76,6 +76,11 @@ nya 2 0
             fog: object {
                 aerial: f32 0.75;
             };
+            // The 2D background's haze between its hills, in the sky's colour unless one is set. See NYA_Render2DHaze.
+            haze: object {
+                density: f32 0.12;
+                falloff: f32 0.7;
+            };
             // See NYA_Render3DDecals.
             decals: object {
                 enabled: b8 true;
