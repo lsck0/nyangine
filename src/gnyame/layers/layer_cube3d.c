@@ -45,7 +45,7 @@ NYA_INTERNAL void _gny_cube3d_decals_draw(NYA_Window* window, const GNY_Cube3DSc
 /** Advances the skinned bar's clock. Clips play once each, in turn. The pose is sampled when drawn. */
 NYA_INTERNAL void _gny_cube3d_bender_advance(GNY_Cube3DScene* scene, f32 delta_time_s);
 
-/** Where the plume burns, on the ground under it. The fire's sound comes from here. */
+/** Where the fire is heard from: the plume, in the middle of its flames. */
 NYA_INTERNAL f32x3 _gny_cube3d_hearth(void);
 
 /** The sun or moon from the time of day, with the ambient tinted by the sky above and the sand below. */
@@ -1106,7 +1106,10 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
  */
 
 f32x3 _gny_cube3d_hearth(void) {
-    return (f32x3){ GNY_CUBE3D_PLUME_X, gny_terrain3d_height_at(GNY_CUBE3D_PLUME_X, GNY_CUBE3D_PLUME_Z), GNY_CUBE3D_PLUME_Z };
+    // a radius up, so the sound's extent sits above the ground it burns on rather than half in it.
+    f32 ground = gny_terrain3d_height_at(GNY_CUBE3D_PLUME_X, GNY_CUBE3D_PLUME_Z);
+
+    return (f32x3){ GNY_CUBE3D_PLUME_X, ground + GNY_CUBE3D_FIRE_RADIUS, GNY_CUBE3D_PLUME_Z };
 }
 
 GNY_Cube3DScene* _gny_cube3d_scene(void) {
