@@ -29,24 +29,46 @@
  * elsewhere.
  *
  * Disabling them costs HTTP/2 and internationalised domain names, which JSON REST calls do not need.
+ *
+ * The request plugin sends headers and a body with basic auth, follows redirects and reads the response.
+ * Everything else a request can ask curl for is off: the other auth schemes, forms and MIME, websockets,
+ * DNS over HTTPS, netrc, HSTS and alt-svc caches, and the option and header introspection APIs. Proxies
+ * and cookies stay, since a player's network may need them.
  */
-#define CURL_CMAKE_COMMON           \
-    NYA_CMAKE_STATIC,               \
-    "-DBUILD_STATIC_LIBS=ON",       \
-    "-DBUILD_CURL_EXE=OFF",         \
-    "-DBUILD_TESTING=OFF",          \
-    "-DCURL_DISABLE_INSTALL=ON",    \
-    "-DHTTP_ONLY=ON",               \
-    "-DCURL_USE_LIBPSL=OFF",        \
-    "-DCURL_USE_LIBSSH2=OFF",       \
-    "-DCURL_ZLIB=OFF",              \
-    "-DCURL_BROTLI=OFF",            \
-    "-DCURL_ZSTD=OFF",              \
-    "-DUSE_NGHTTP2=OFF",            \
-    "-DUSE_NGTCP2=OFF",             \
-    "-DUSE_LIBIDN2=OFF",            \
-    "-DCURL_USE_LIBUV=OFF",         \
-    "-DCURL_USE_GSSAPI=OFF"
+#define CURL_CMAKE_COMMON                   \
+    NYA_CMAKE_STATIC,                       \
+    "-DBUILD_STATIC_LIBS=ON",               \
+    "-DBUILD_CURL_EXE=OFF",                 \
+    "-DBUILD_TESTING=OFF",                  \
+    "-DCURL_DISABLE_INSTALL=ON",            \
+    "-DHTTP_ONLY=ON",                       \
+    "-DCURL_USE_LIBPSL=OFF",                \
+    "-DCURL_USE_LIBSSH2=OFF",               \
+    "-DCURL_ZLIB=OFF",                      \
+    "-DCURL_BROTLI=OFF",                    \
+    "-DCURL_ZSTD=OFF",                      \
+    "-DUSE_NGHTTP2=OFF",                    \
+    "-DUSE_NGTCP2=OFF",                     \
+    "-DUSE_LIBIDN2=OFF",                    \
+    "-DCURL_USE_LIBUV=OFF",                 \
+    "-DCURL_USE_GSSAPI=OFF",                \
+    "-DCURL_DISABLE_DIGEST_AUTH=ON",        \
+    "-DCURL_DISABLE_KERBEROS_AUTH=ON",      \
+    "-DCURL_DISABLE_NEGOTIATE_AUTH=ON",     \
+    "-DCURL_DISABLE_AWS=ON",                \
+    "-DCURL_DISABLE_HTTPSIG=ON",            \
+    "-DCURL_DISABLE_MIME=ON",               \
+    "-DCURL_DISABLE_FORM_API=ON",           \
+    "-DCURL_DISABLE_WEBSOCKETS=ON",         \
+    "-DCURL_DISABLE_DOH=ON",                \
+    "-DCURL_DISABLE_NETRC=ON",              \
+    "-DCURL_DISABLE_HSTS=ON",               \
+    "-DCURL_DISABLE_ALTSVC=ON",             \
+    "-DCURL_DISABLE_GETOPTIONS=ON",         \
+    "-DCURL_DISABLE_HEADERS_API=ON",        \
+    "-DCURL_DISABLE_PROGRESS_METER=ON",     \
+    "-DCURL_DISABLE_BINDLOCAL=ON",          \
+    "-DCURL_DISABLE_IPFS=ON"
 
 // clang-format on
 
