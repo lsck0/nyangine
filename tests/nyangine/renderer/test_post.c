@@ -327,6 +327,25 @@ s32 main(void) {
         nya_post_eye_adaptation_set(&window, (NYA_PostEyeAdaptation){ 0 });
     }
 
+    // ── Motion blur reads distances from the normal buffer and needs no target of its own.
+    {
+        NYA_PostChain chain = { 0 };
+        defer         nya_post_chain_destroy(&chain);
+
+        nya_post_motion_blur_set(&window, (NYA_PostMotionBlur){ .enabled = true, .strength = 9.0F });
+        nya_check(nya_post_motion_blur(&window).strength == 4.0F, "the strength clamps");
+
+        nya_check(nya_post_begin(&window, &chain), "motion blur on");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(chain.targets[0].options.normals && chain.half.width == 0 && chain.blur.width == 0, "motion blur needs only the normal buffer");
+        nya_check(nya_post_enabled(&window), "motion blur counts as a scene pass");
+
+        nya_post_motion_blur_set(&window, (NYA_PostMotionBlur){ 0 });
+        nya_check(nya_post_begin(&window, &chain), "motion blur off");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(!chain.targets[0].options.normals, "turning it off gives the normal buffer back");
+    }
+
     // ── 2D haze, the parallax match for fog: zero density is off, and a config file's numbers are clamped.
     {
         nya_check(nya_render2d_haze(&window).density == 0.0F, "a fresh window has no haze");

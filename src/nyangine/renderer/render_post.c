@@ -22,6 +22,7 @@
 #define _NYA_POST_PIPELINE_ADAPTATION_MEASURE "nya_post_adaptation_measure_pipeline"
 #define _NYA_POST_PIPELINE_ADAPTATION         "nya_post_adaptation_pipeline"
 #define _NYA_POST_PIPELINE_LIGHT_SHAFTS       "nya_post_light_shafts_pipeline"
+#define _NYA_POST_PIPELINE_MOTION_BLUR        "nya_post_motion_blur_pipeline"
 
 /** Eye adaptation's history: log brightness wants more than eight bits, or easing stalls short of its target. */
 #define _NYA_POST_ADAPTATION_FORMAT NYA_RENDER3D_NORMAL_FORMAT
@@ -62,15 +63,15 @@ typedef struct {
 } _NYA_PostStep;
 
 /**
- * The built-in passes one frame can queue before the caller's: occlusion twice, ink, depth of field twice, light
- * shafts twice, eye adaptation twice, antialiasing.
+ * The built-in passes one frame can queue before the caller's: occlusion twice, ink, motion blur, depth of field
+ * twice, light shafts twice, eye adaptation twice, antialiasing.
  * */
-#define _NYA_POST_BUILT_IN_MAX 10
+#define _NYA_POST_BUILT_IN_MAX 11
 
 /** Whether any option on the window reads the scene normal buffer. */
 NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_RenderSystemWindow* render) {
     return render->post_ink.enabled || render->post_ambient_occlusion.enabled || render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE
-        || render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE || render->post_light_shafts.enabled;
+        || render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE || render->post_light_shafts.enabled || render->post_motion_blur.enabled;
 }
 
 /** Whether any option on the window draws the half resolution occlusion. Every debug view binds it. A 2D scene has none. */
@@ -509,6 +510,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     struct NYA_ShaderEyeAdaptationUniform     adaptation = { 0 };
     struct NYA_ShaderLightShaftsUniform       shafts     = { 0 };
     struct NYA_ShaderBloomUniform             shafts_add = { 0 };
+    struct NYA_ShaderMotionBlurUniform        motion     = { 0 };
 
     // what a pass drawing into a half resolution target is built for.
     SDL_GPUTextureFormat half = window->render_system.color_format;
@@ -562,6 +564,29 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS,
         };
     }
+
+    if (scene && render->post_motion_blur.enabled
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_MOTION_BLUR, NYA_ASSET_SHADER_EFFECT_MOTION_BLUR_FRAG, 2, 0)) {
+        f32 elapsed_s = nya_max((f32)nya_time_ns_to_s(nya_app_get()->frame_stats.elapsed_ns), 1e-4F);
+        f32 strength  = render->post_motion_blur.strength > 0.0F ? render->post_motion_blur.strength : NYA_POST_MOTION_BLUR_STRENGTH;
+
+        motion = (struct NYA_ShaderMotionBlurUniform){
+            .view                     = view,
+            .previous_view_projection = chain->previous_view_projection,
+            // a smear as long as `strength` sixtieths of a second of the motion, however long this frame took.
+            .scale   = strength / (60.0F * elapsed_s),
+            .longest = NYA_POST_MOTION_BLUR_MAX,
+        };
+
+        before[before_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_MOTION_BLUR,
+            .uniform      = &motion,
+            .uniform_size = sizeof(motion),
+            .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS,
+        };
+    }
+
+    if (scene) chain->previous_view_projection = render->mesh_batch.view_projection;
 
     // distance focus needs the normal buffer this frame; tilt shift works on any image.
     const NYA_PostDepthOfField* focus_options = &render->post_depth_of_field;
@@ -1026,6 +1051,20 @@ NYA_PostLightShafts nya_post_light_shafts(NYA_Window* window) {
     nya_assert(window != nullptr);
 
     return window->render_system.post_light_shafts;
+}
+
+void nya_post_motion_blur_set(NYA_Window* window, NYA_PostMotionBlur motion_blur) {
+    nya_assert(window != nullptr);
+
+    motion_blur.strength = nya_clamp(motion_blur.strength, 0.0F, 4.0F);
+
+    window->render_system.post_motion_blur = motion_blur;
+}
+
+NYA_PostMotionBlur nya_post_motion_blur(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.post_motion_blur;
 }
 
 void nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view) {

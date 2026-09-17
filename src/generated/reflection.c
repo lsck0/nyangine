@@ -355,6 +355,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
     { .name = "bloom", .type = &_NYA_REFLECT_NYA_PostBloom, .offset = nya_offsetof(NYA_ConfigEngineRenderer, bloom), .hint = NYA_HINT_NONE },
     { .name = "eye_adaptation", .type = &_NYA_REFLECT_NYA_PostEyeAdaptation, .offset = nya_offsetof(NYA_ConfigEngineRenderer, eye_adaptation), .hint = NYA_HINT_NONE },
     { .name = "light_shafts", .type = &_NYA_REFLECT_NYA_PostLightShafts, .offset = nya_offsetof(NYA_ConfigEngineRenderer, light_shafts), .hint = NYA_HINT_NONE },
+    { .name = "motion_blur", .type = &_NYA_REFLECT_NYA_PostMotionBlur, .offset = nya_offsetof(NYA_ConfigEngineRenderer, motion_blur), .hint = NYA_HINT_NONE },
     { .name = "fog", .type = &_NYA_REFLECT_NYA_Render3DFog, .offset = nya_offsetof(NYA_ConfigEngineRenderer, fog), .hint = NYA_HINT_NONE },
     { .name = "haze", .type = &_NYA_REFLECT_NYA_Render2DHaze, .offset = nya_offsetof(NYA_ConfigEngineRenderer, haze), .hint = NYA_HINT_NONE },
     { .name = "decals", .type = &_NYA_REFLECT_NYA_Render3DDecals, .offset = nya_offsetof(NYA_ConfigEngineRenderer, decals), .hint = NYA_HINT_NONE },
@@ -371,7 +372,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .size = sizeof(NYA_ConfigEngineRenderer),
     .alignment = alignof(NYA_ConfigEngineRenderer),
     .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
-    .field_count = 20,
+    .field_count = 21,
 };
 
 /* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
@@ -778,6 +779,22 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostLightShafts = {
     .field_count = 4,
 };
 
+/* NYA_PostMotionBlur, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PostMotionBlur_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostMotionBlur, enabled), .hint = NYA_HINT_NONE },
+    { .name = "strength", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostMotionBlur, strength), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostMotionBlur = {
+    .name = "NYA_PostMotionBlur",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PostMotionBlur),
+    .alignment = alignof(NYA_PostMotionBlur),
+    .fields = _NYA_REFLECT_NYA_PostMotionBlur_FIELDS,
+    .field_count = 2,
+};
+
 /* NYA_PostDebugView, src/nyangine/renderer/render_post.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_PostDebugView_VARIANTS[] = {
@@ -1008,6 +1025,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostBloom,
     &_NYA_REFLECT_NYA_PostEyeAdaptation,
     &_NYA_REFLECT_NYA_PostLightShafts,
+    &_NYA_REFLECT_NYA_PostMotionBlur,
     &_NYA_REFLECT_NYA_PostDebugView,
     &_NYA_REFLECT_NYA_Render2DHaze,
     &_NYA_REFLECT_NYA_UIOverflow,

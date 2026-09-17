@@ -35,6 +35,7 @@
 #define NYA_ASSET_SHADER_EFFECT_INK_FRAG                 "./assets/shader/source/effect_ink.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_LIGHT_SHAFTS_FRAG        "./assets/shader/source/effect_light_shafts.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_LUT_FRAG                 "./assets/shader/source/effect_lut.frag.hlsl"
+#define NYA_ASSET_SHADER_EFFECT_MOTION_BLUR_FRAG         "./assets/shader/source/effect_motion_blur.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_OCCLUSION_FRAG           "./assets/shader/source/effect_occlusion.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_OCCLUSION_APPLY_FRAG     "./assets/shader/source/effect_occlusion_apply.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_OUTPUT_HDR_FRAG          "./assets/shader/source/effect_output_hdr.frag.hlsl"

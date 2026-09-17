@@ -377,6 +377,22 @@ struct NYA_ShaderLightShaftsUniform {
     f32 pad[3];
 };
 
+/** effect_motion_blur.frag.hlsl. See NYA_PostMotionBlur. */
+struct NYA_ShaderMotionBlurUniform {
+    struct NYA_ShaderSceneView view;
+
+    /** The last frame's camera, which a point is projected through to find where it was. */
+    f32_4x4 previous_view_projection;
+
+    /** What the motion since the last frame is multiplied by, the frame's time and the strength in it. */
+    f32 scale;
+
+    /** The longest smear, in uv. */
+    f32 longest;
+
+    f32 pad[2];
+};
+
 /** effect_output_hdr.frag.hlsl, from NYA_RenderOutput with the defaults resolved. */
 struct NYA_ShaderOutputUniform {
     /** 0 for extended linear sRGB, 1 for HDR10. */
