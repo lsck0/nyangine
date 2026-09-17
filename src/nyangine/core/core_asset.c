@@ -178,42 +178,12 @@ NYA_INTERNAL SDL_GPUVertexBufferDescription vertex_buffer_descriptions_3d_instan
  */
 /* The skinned 3D layout: the 3D one plus bone indices and weights at locations 4 and 5. */
 NYA_INTERNAL SDL_GPUVertexAttribute vertex_attributes_3d_skinned[] = {
-    {
-     .location    = 0,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-     .offset      = nya_offsetof(NYA_VertexSkinned3D, position),
-     .buffer_slot = 0,
-     },
-    {
-     .location    = 1,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-     .offset      = nya_offsetof(NYA_VertexSkinned3D, color),
-     .buffer_slot = 0,
-     },
-    {
-     .location    = 2,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-     .offset      = nya_offsetof(NYA_VertexSkinned3D, normals),
-     .buffer_slot = 0,
-     },
-    {
-     .location    = 3,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-     .offset      = nya_offsetof(NYA_VertexSkinned3D, uv),
-     .buffer_slot = 0,
-     },
-    {
-     .location    = 4,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_UINT4,
-     .offset      = nya_offsetof(NYA_VertexSkinned3D, bones),
-     .buffer_slot = 0,
-     },
-    {
-     .location    = 5,
-     .format      = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-     .offset      = nya_offsetof(NYA_VertexSkinned3D, weights),
-     .buffer_slot = 0,
-     },
+    { .location = 0, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,      .offset = nya_offsetof(NYA_VertexSkinned3D, position), .buffer_slot = 0 },
+    { .location = 1, .format = SDL_GPU_VERTEXELEMENTFORMAT_HALF4,       .offset = nya_offsetof(NYA_VertexSkinned3D, color),    .buffer_slot = 0 },
+    { .location = 2, .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,      .offset = nya_offsetof(NYA_VertexSkinned3D, normals),  .buffer_slot = 0 },
+    { .location = 3, .format = SDL_GPU_VERTEXELEMENTFORMAT_HALF2,       .offset = nya_offsetof(NYA_VertexSkinned3D, uv),       .buffer_slot = 0 },
+    { .location = 4, .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4,      .offset = nya_offsetof(NYA_VertexSkinned3D, bones),    .buffer_slot = 0 },
+    { .location = 5, .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM, .offset = nya_offsetof(NYA_VertexSkinned3D, weights),  .buffer_slot = 0 },
 };
 
 NYA_INTERNAL SDL_GPUVertexBufferDescription vertex_buffer_description_3d_skinned = {
@@ -1534,16 +1504,26 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
 
         for (u32 v = 0; v < written; v++) {
             skinned[v] = (NYA_VertexSkinned3D){
-                .position = positions[v],
-                .color    = NYA_COLOR_WHITE,
-                .normals  = normals[v],
-                .uv       = uvs[v],
+                .position = { positions[v].x, positions[v].y, positions[v].z },
+                .uv       = { (f16)uvs[v].x, (f16)uvs[v].y },
+                .normals  = { normals[v].x, normals[v].y, normals[v].z },
+                .color    = { 1.0F, 1.0F, 1.0F, 1.0F },
             };
 
+            u32 quantised = 0;
+
             for (u32 w = 0; w < NYA_SKELETON_WEIGHTS_PER_VERTEX; w++) {
-                skinned[v].bones[w]   = bone_indices[((u64)v * NYA_SKELETON_WEIGHTS_PER_VERTEX) + w];
-                skinned[v].weights[w] = bone_weights[((u64)v * NYA_SKELETON_WEIGHTS_PER_VERTEX) + w];
+                const f32 weight = bone_weights[((u64)v * NYA_SKELETON_WEIGHTS_PER_VERTEX) + w];
+
+                skinned[v].bones[w]   = (u8)bone_indices[((u64)v * NYA_SKELETON_WEIGHTS_PER_VERTEX) + w];
+                skinned[v].weights[w] = (u8)((weight * 255.0F) + 0.5F);
+
+                quantised += skinned[v].weights[w];
             }
+
+            // four rounded weights miss 255 by at most two steps, which the strongest influence absorbs unnoticed.
+            nya_assert(quantised >= 253 && quantised <= 257 && skinned[v].weights[0] >= 2);
+            skinned[v].weights[0] = (u8)(skinned[v].weights[0] + 255 - quantised);
         }
 
         out_asset->as_mesh.skinned_vertices = skinned;

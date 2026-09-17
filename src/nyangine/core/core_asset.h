@@ -40,21 +40,24 @@ typedef struct NYA_VertexSkinned3D     NYA_VertexSkinned3D;
 /** One material's worth of a model: a run of triangles, a texture and a colour. Must be contiguous in
  * the index buffer, since each material needs its own texture bound per draw call. */
 /**
- * A vertex that can be skinned: NYA_Vertex3D plus bone indices and weights. A separate type, so static props
- * do not pay for skinning.
+ * A vertex that can be skinned: NYA_Vertex3D's layout plus bone indices and weights, 44 bytes. A separate type, so
+ * static props do not pay for skinning.
  * */
 struct NYA_VertexSkinned3D {
-    f32x3     position;
-    NYA_Color color;
-    f32x3     normals;
-    f32x2     uv;
+    f32 position[3];
+    f16 uv[2];
+    f32 normals[3];
+    f16 color[4];
 
-    /** Palette indices of the bones moving this vertex. u32 rather than u8x4 to avoid a second attribute format. */
-    u32 bones[NYA_SKELETON_WEIGHTS_PER_VERTEX];
+    /** Palette indices of the bones moving this vertex, UBYTE4. */
+    u8 bones[NYA_SKELETON_WEIGHTS_PER_VERTEX];
 
-    /** How much each bone moves it. Normalised at load. */
-    f32 weights[NYA_SKELETON_WEIGHTS_PER_VERTEX];
+    /** How much each bone moves it, UBYTE4_NORM. Sums to exactly 255. */
+    u8 weights[NYA_SKELETON_WEIGHTS_PER_VERTEX];
 };
+
+static_assert(sizeof(NYA_VertexSkinned3D) == 44, "the skinned layout in core_asset.c describes a 44 byte vertex");
+static_assert(NYA_SKELETON_MAX_BONES <= 256, "a skinned vertex indexes bones with a byte");
 
 struct NYA_MeshPart {
     /**

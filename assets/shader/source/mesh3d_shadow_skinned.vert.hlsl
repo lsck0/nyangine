@@ -15,6 +15,7 @@ struct VertInput {
   float3 normal : NORMAL;
   float2 uv : TEXCOORD0;
 
+  // bytes in the buffer, as in mesh3d_skinned.vert.hlsl.
   uint4 bones : TEXCOORD1;
   float4 weights : TEXCOORD2;
 };

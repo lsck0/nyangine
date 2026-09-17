@@ -18,7 +18,8 @@ struct VertInput {
   float3 normal : NORMAL;
   float2 uv : TEXCOORD0;
 
-  // Matching NYA_VertexSkinned3D. Indices into the palette, and how much each one pulls.
+  // Matching NYA_VertexSkinned3D. Indices into the palette, and how much each one pulls. Both are
+  // bytes in the buffer, widened by the input assembler, the weights to [0, 1].
   uint4 bones : TEXCOORD1;
   float4 weights : TEXCOORD2;
 };

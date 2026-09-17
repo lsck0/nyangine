@@ -100,31 +100,32 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: weights\n");
   {
-    f32 lowest  = 1e30F;
-    f32 highest = -1e30F;
+    u32 blended = 0;
 
     for (u32 v = 0; v < asset->as_mesh.vertex_count; v++) {
       const NYA_VertexSkinned3D* vertex = &asset->as_mesh.skinned_vertices[v];
 
-      f32 sum = 0.0F;
+      u32 sum        = 0;
+      u32 influences = 0;
 
       for (u32 w = 0; w < NYA_SKELETON_WEIGHTS_PER_VERTEX; w++) {
         nya_assert(vertex->bones[w] < skeleton->bone_count, "vertex %u references bone %u of %u", v, vertex->bones[w],
                    skeleton->bone_count);
-        nya_assert(vertex->weights[w] >= 0.0F, "vertex %u has a negative weight", v);
 
         sum += vertex->weights[w];
+        if (vertex->weights[w] > 0) influences++;
       }
 
-      if (sum < lowest) lowest = sum;
-      if (sum > highest) highest = sum;
+      // The raw file runs as low as 0.982, so an exact byte sum says both normalisation and quantisation held.
+      nya_assert(sum == 255, "vertex %u has weights summing to %u of 255", v, sum);
+
+      if (influences > 1) blended++;
     }
 
-    // The raw file runs as low as 0.982, so this is the check that says the normalisation happened.
-    nya_assert(fabsf(lowest - 1.0F) < 0.001F, "the lowest weight sum is %.6f, so weights were not normalised", (f64)lowest);
-    nya_assert(fabsf(highest - 1.0F) < 0.001F, "the highest weight sum is %.6f", (f64)highest);
+    // the joint is weighted to both bones, so rounding to bytes must not snap every vertex to one.
+    nya_assert(blended > 0, "no vertex kept more than one influence");
 
-    printf("  sums in [%.6f, %.6f]\n", (f64)lowest, (f64)highest);
+    printf("  every sum is 255, %u of %u vertices blend two bones or more\n", blended, asset->as_mesh.vertex_count);
     printf("  PASSED\n");
   }
 
