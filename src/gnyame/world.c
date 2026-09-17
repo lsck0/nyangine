@@ -263,7 +263,7 @@ void gny_overlay_toggle(void) {
     if (gny_world()->overlay_enabled) nya_arena_stats_report();
 }
 
-void gny_bloom_pipeline_ensure(NYA_Window* window) {
+void gny_post_pipelines_ensure(NYA_Window* window) {
     /* The bloom pass: one fragment shader, paired with the batch's vertex stage. */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
         .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
@@ -287,6 +287,24 @@ void gny_bloom_pipeline_ensure(NYA_Window* window) {
             .vertex_layout = NYA_VERTEX_LAYOUT_2D,
         },
     }), "while queueing the bloom pipeline");
+
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+        .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
+        .handle    = NYA_ASSET_SHADER_EFFECT_GRAYSCALE_FRAG,
+        .as_shader = { .num_samplers = 1 },
+    }), "while queueing the grayscale fragment shader");
+
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+        .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
+        .handle               = GNY_PIPELINE_GRAYSCALE,
+        .as_graphics_pipeline = {
+            .window                 = window,
+            .vertex_shader_handle   = NYA_ASSET_SHADER_BATCH2D_VERT,
+            .fragment_shader_handle = NYA_ASSET_SHADER_EFFECT_GRAYSCALE_FRAG,
+            .blend                  = true,
+            .vertex_layout          = NYA_VERTEX_LAYOUT_2D,
+        },
+    }), "while queueing the grayscale pipeline");
 }
 
 f32x2 gny_screen_to_world(const NYA_Window* window, f32x2 screen) {

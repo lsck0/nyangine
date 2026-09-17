@@ -66,7 +66,7 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
     };
 
     // queued, not waited on: the model draws once it loads. a missing model leaves the primitives.
-    gny_bloom_pipeline_ensure(window);
+    gny_post_pipelines_ensure(window);
 
     // queued here too so the scene works in any visit order; a second load is a no-op. predecoded, since
     // decoding at the moment of impact is when a hitch is audible.
@@ -992,6 +992,9 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
      */
     // minimised or mid resize, nya_post_begin fails and the scene goes straight to the window like the
     // 2D path does, rather than skipping the frame.
+    // the chain is shared with the 2D world, which drops the depth this scene needs.
+    bloom_world->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED };
+
     if (!bloom_world->bloom_enabled || !nya_post_begin(window, &bloom_world->post)) {
         _gny_cube3d_draw_scene(window);
     } else {

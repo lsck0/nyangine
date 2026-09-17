@@ -81,8 +81,8 @@ void gny_terrain_generate(u64 seed);
 /** Draws the 2D world through `camera`: terrain, map, entities, sparks, then lights. */
 void gny_world_draw(NYA_Window* window, NYA_Camera2DTopDown camera);
 
-/** Queues the bloom shader and pipeline. Safe to call more than once. */
-void gny_bloom_pipeline_ensure(NYA_Window* window);
+/** Queues the bloom and grayscale shaders and pipelines. Safe to call more than once. */
+void gny_post_pipelines_ensure(NYA_Window* window);
 
 /** Shows or hides the debug overlay. Showing it also logs every arena with its resident bytes. */
 void gny_overlay_toggle(void);

@@ -8,6 +8,8 @@ nya 2 0
 {
     engine: object {
         renderer: object {
+            // 1 off, 2, 4 or 8. See NYA_RenderOptions.msaa_samples.
+            msaa_samples: u32 4;
             // See NYA_RENDER3D_SHADOW_BIAS.
             shadow_bias: f32 0.0015;
             // See NYA_RENDER3D_SHADOW_CASCADES.

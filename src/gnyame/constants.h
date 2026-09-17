@@ -92,6 +92,9 @@
 /** The handle the bloom pipeline asset is registered under. */
 #define GNY_PIPELINE_BLOOM "gny_bloom_pipeline"
 
+/** The pass that greys out the 2D world while the pause menu is open. */
+#define GNY_PIPELINE_GRAYSCALE "gny_grayscale_pipeline"
+
 /**
  * Luminance a pixel needs before it glows in the 2D world. Half is about a lit crate; the terrain fill (~0.15)
  * stays under it, and a sleeping crate's tint drops below it.

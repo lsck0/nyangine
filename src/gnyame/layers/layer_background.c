@@ -65,7 +65,10 @@ void gny_layer_background_on_event(NYA_Window* window, NYA_Event* event) {
  */
 
 void gny_layer_background_on_update(NYA_Window* window, f32 delta_time_s) {
-    nya_unused(window, delta_time_s);
+    nya_unused(delta_time_s);
+
+    // every tick, so an edit to the config file shows at the next frame. This layer is under every screen.
+    nya_render_options_set(window, (NYA_RenderOptions){ .msaa_samples = NYA_CONFIG.engine.renderer.msaa_samples });
 
     // Nothing to advance for the drawing: the motes are a function of uptime, read at render.
 }

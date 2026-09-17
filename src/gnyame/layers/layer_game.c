@@ -42,7 +42,7 @@ void gny_layer_game_on_create(NYA_Window* window) {
     if (!sound.ok) nya_log_warn("%s", (NYA_ConstCString)sound.message);
 
     // Shared with the 3D scene, which composites through the same pipeline. See layers.c.
-    gny_bloom_pipeline_ensure(window);
+    gny_post_pipelines_ensure(window);
 
 
     // guarded, because hot reload re-resolves callbacks without re-running on_create. Regenerating the
