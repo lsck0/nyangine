@@ -14,8 +14,12 @@
  * A run holds glyph indices, not codepoints. One codepoint can shape into several glyphs (a mark
  * cluster) and several into one (a ligature), so an atlas must be keyed by glyph index too.
  *
- * Each call does one allocating `TTF_CreateText`. Shape once per string and walk the run, never per
- * character.
+ * nya_text_shape does one allocating `TTF_CreateText` per call. Shape once per string and walk the run,
+ * never per character.
+ *
+ * Text drawn every frame goes through nya_text_shape_with_font instead, which keeps the laid out text in a
+ * cache keyed on (face, size, text, wrap width) and tagged with the font asset's generation, so a label
+ * that does not change is shaped once and a reloaded face shapes again.
  * */
 #pragma once
 
@@ -50,6 +54,22 @@
 
 /** Longest derived font asset handle: a path, an '@', and a point size. */
 #define NYA_TEXT_FONT_HANDLE_MAX 256
+
+/**
+ * Laid out strings kept by nya_text_shape_with_font, across every face. The main menu holds 6 and the HUD about
+ * 20; strings that change every frame (a frame time) cycle out least recently used.
+ * */
+#ifndef NYA_TEXT_RUN_CACHE_CAPACITY
+#define NYA_TEXT_RUN_CACHE_CAPACITY 128
+#endif
+
+/**
+ * Longest cache key: the wrap width, the face handle and the text. Every entry reserves this much. Longer
+ * strings are shaped on every call.
+ * */
+#ifndef NYA_TEXT_RUN_CACHE_KEY_MAX
+#define NYA_TEXT_RUN_CACHE_KEY_MAX 256
+#endif
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -157,3 +177,16 @@ NYA_API void nya_text_font_handle(NYA_ConstCString path, f32 point_size, OUT cha
  * The `TTF_Font` for a face at a size, queueing the load on the first ask.
  * */
 NYA_API TTF_Font* nya_text_font_for(NYA_ConstCString path, f32 point_size);
+
+/**
+ * nya_text_shape for a face at a size, laid out once and then read back from the cache. False while the face
+ * is still loading. A change to the face itself (a distance field, a style) lays the text out again, since
+ * SDL_ttf marks every text of a face it changes.
+ * */
+NYA_API b8 nya_text_shape_with_font(NYA_ConstCString path, f32 point_size, NYA_ConstCString text, s32 wrap_width, OUT NYA_TextRun* out_run);
+
+/** nya_text_measure_font through the same cache. Zero while the face is still loading. */
+NYA_API f32x2 nya_text_measure_with_font(NYA_ConstCString path, f32 point_size, NYA_ConstCString text, s32 wrap_width) __attr_no_discard;
+
+/** Destroys every cached text. Before TTF_Quit, and before the asset system's arena goes. */
+NYA_API void nya_text_run_cache_destroy(void);

@@ -1,5 +1,5 @@
 /**
- * Shaping: what a frame of text costs now that every string is laid out from scratch.
+ * Shaping: what a frame of text costs laid out from scratch, and read back from the run cache.
  **/
 
 #include "nyangine/nyangine.c"
@@ -46,9 +46,31 @@ static NYA_ConstCString hud_lines[] = {
     "Human negligence made the machines take over. You go back down for what is left: ore, power "                                                  \
     "cells, and whatever the last expedition did not carry out with them."
 
+/** Runs frames until the cached cases' faces have loaded. */
+static b8 faces_load(void) {
+    for (u32 i = 0; i < 16; i++) {
+        if (nya_text_font_for(FACE, HUD_POINT_SIZE) != nullptr && nya_text_font_for(FACE, TITLE_POINT_SIZE) != nullptr) return true;
+
+        nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_FRAME_ENDED });
+    }
+
+    return false;
+}
+
 s32 main(void) {
+    _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
+
     b8 sdl_ok = SDL_Init(0);
     nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
+
+    // the cached cases resolve faces through the asset system.
+    nya_system_callback_init();
+    NYA_EXPECT(nya_system_events_init());
+    nya_system_asset_init();
+
+    defer nya_system_asset_deinit();
+    defer nya_system_events_deinit();
+    defer nya_system_callback_deinit();
 
     nya_assert(TTF_Init(), "TTF_Init failed: %s", SDL_GetError());
     defer TTF_Quit();
@@ -107,6 +129,36 @@ s32 main(void) {
     // The same paragraph unwrapped, so the pair prices the wrapping alone.
     nya_bench("paragraph, unwrapped", nya_utf8_count(PARAGRAPH), {
         nya_bench_keep(nya_text_shape(hud, PARAGRAPH, 0, 0, &run));
+    });
+
+    if (nya_bench_end() != 0) return 1;
+
+    nya_assert(faces_load(), "the faces did not load through the asset system");
+
+    nya_bench_begin("shaping, cached");
+
+    /*
+     * The same cases through nya_text_shape_with_font once the first call has filled the cache: the handle, the
+     * lookup, and copying the laid out text into the run.
+     */
+    nya_bench("hud frame, 20 lines", hud_glyphs, {
+        for (u32 i = 0; i < hud_line_count; i++) {
+            nya_bench_keep(nya_text_shape_with_font(FACE, HUD_POINT_SIZE, hud_lines[i], 0, &run));
+        }
+    });
+
+    nya_bench("one hud line", nya_utf8_count(hud_lines[0]), {
+        nya_bench_keep(nya_text_shape_with_font(FACE, HUD_POINT_SIZE, hud_lines[0], 0, &run));
+    });
+
+    nya_bench("measure one hud line", nya_utf8_count(hud_lines[0]), {
+        nya_bench_keep(nya_text_measure_with_font(FACE, HUD_POINT_SIZE, hud_lines[0], 0).x);
+    });
+
+    nya_bench("title, 6 glyphs", 6, { nya_bench_keep(nya_text_shape_with_font(FACE, TITLE_POINT_SIZE, "AVATAR", 0, &run)); });
+
+    nya_bench("paragraph, wrapped to 320px", nya_utf8_count(PARAGRAPH), {
+        nya_bench_keep(nya_text_shape_with_font(FACE, HUD_POINT_SIZE, PARAGRAPH, 320, &run));
     });
 
     return nya_bench_end();

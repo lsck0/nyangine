@@ -209,7 +209,7 @@ f32x2 nya_render2d_text_box_measure(NYA_ConstCString text, NYA_Render2DTextBox p
     static NYA_TextRun run;
 
     s32 wrap_width = params.width > 0.0F ? (s32)params.width : 0;
-    if (!nya_text_shape(font, text, 0, wrap_width, &run)) return f32x2_zero;
+    if (!nya_text_shape_with_font(font_path, point_size, text, wrap_width, &run)) return f32x2_zero;
 
     f32 line_height = nya_text_line_height(font) * (params.line_spacing > 0.0F ? params.line_spacing : 1.0F);
 
@@ -245,7 +245,7 @@ f32x2 nya_render2d_text_measure(NYA_ConstCString text) {
 f32x2 nya_render2d_text_measure_with_font(NYA_ConstCString font_path, f32 point_size, NYA_ConstCString text) {
     if (text == nullptr) return f32x2_zero;
 
-    return nya_text_measure_font(nya_text_font_for(font_path, point_size), text, 0);
+    return nya_text_measure_with_font(font_path, point_size, text, 0);
 }
 
 f32 nya_render2d_text_width(NYA_ConstCString text) {

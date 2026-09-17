@@ -293,6 +293,9 @@ void nya_system_asset_init(void) {
 void nya_system_asset_deinit(void) {
     NYA_App* app = nya_app_get();
 
+    // shaped text lives in this arena and belongs to the faces unloaded below.
+    nya_text_run_cache_destroy();
+
     nya_dict_foreach_value(app->asset_system.assets, asset) {
         if (asset && asset->status != NYA_ASSET_STATUS_UNLOADED) { /**/
             nya_array_push_back(app->asset_system.unloading_queue, asset->handle);

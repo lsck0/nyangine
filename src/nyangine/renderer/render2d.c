@@ -1003,11 +1003,8 @@ void nya_render2d_text_with_font(NYA_Window* window, NYA_ConstCString font_path,
     NYA_FontAtlas* atlas = _nya_render2d_font_atlas(window, font_path, point_size);
     if (atlas == nullptr) return;
 
-    TTF_Font* font = _nya_render2d_atlas_font(atlas);
-    if (font == nullptr) return;
-
-    /* Shaped once; the rest is placement. */
-    if (!nya_text_shape(font, text, 0, 0, &_nya_render2d_run)) return;
+    /* Shaped once and kept; the rest is placement. The atlas's size has the default applied. */
+    if (!nya_text_shape_with_font(font_path, atlas->point_size, text, 0, &_nya_render2d_run)) return;
 
     _nya_render2d_run_bake(window, atlas, &_nya_render2d_run);
 
@@ -1035,10 +1032,7 @@ f32x2 nya_render2d_text_measure_with_font(NYA_ConstCString font_path, f32 point_
     if (text == nullptr) return f32x2_zero;
 
     /* The face, not the atlas. */
-    TTF_Font* font = nya_text_font_for(font_path, point_size);
-    if (font == nullptr) return f32x2_zero;
-
-    return nya_text_measure_font(font, text, 0);
+    return nya_text_measure_with_font(font_path, point_size, text, 0);
 }
 
 f32 nya_render2d_text_width(NYA_ConstCString text) {
@@ -1453,7 +1447,7 @@ f32x2 _nya_render2d_text_box_layout(NYA_Window* window, NYA_ConstCString text, N
     /* The shaper does the wrapping. */
     s32 wrap_width = params.width > 0.0F ? (s32)params.width : 0;
 
-    if (!nya_text_shape(font, text, 0, wrap_width, &_nya_render2d_run)) return f32x2_zero;
+    if (!nya_text_shape_with_font(font_path, point_size, text, wrap_width, &_nya_render2d_run)) return f32x2_zero;
 
     const NYA_TextRun* run = &_nya_render2d_run;
 
@@ -1478,7 +1472,7 @@ f32x2 _nya_render2d_text_box_layout(NYA_Window* window, NYA_ConstCString text, N
         if (truncated && params.ellipsis) {
             static NYA_TextRun ellipsis_run;
 
-            if (nya_text_shape(font, "...", 0, 0, &ellipsis_run)) _nya_render2d_run_bake(window, atlas, &ellipsis_run);
+            if (nya_text_shape_with_font(font_path, point_size, "...", 0, &ellipsis_run)) _nya_render2d_run_bake(window, atlas, &ellipsis_run);
         }
     }
 
@@ -1520,7 +1514,7 @@ f32x2 _nya_render2d_text_box_layout(NYA_Window* window, NYA_ConstCString text, N
         if (!truncated || !params.ellipsis || line_index + 1 != lines) continue;
 
         static NYA_TextRun ellipsis_run;
-        if (!nya_text_shape(font, "...", 0, 0, &ellipsis_run)) continue;
+        if (!nya_text_shape_with_font(font_path, point_size, "...", 0, &ellipsis_run)) continue;
 
         for (u32 i = 0; i < ellipsis_run.glyph_count; i++) {
             if (!_nya_render2d_glyph_emit(window, atlas, &ellipsis_run.glyphs[i], origin_x + (f32)line->width, origin_y, params.color)) {
