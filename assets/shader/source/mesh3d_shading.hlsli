@@ -96,7 +96,7 @@ cbuffer Uniforms : register(b0, space3) {
   float fog_height_falloff;
   float fog_height_base;
   float fog_sun_amount;
-  float fog_pad;
+  float fog_aerial;
 
   // the ambient's colour on surfaces facing up and down. See NYA_Render3DLight.sky.
   float3 ambient_sky;
@@ -393,14 +393,23 @@ float3 mesh3d_fog(float3 colour, float3 world_position) {
    * instead of a loop.
    */
   float above = max(world_position.y - fog_height_base, 0.0);
-  float amount = saturate(1.0 - exp(-fog_density * length(to_camera) * exp(-fog_height_falloff * above)));
+  float optical = fog_density * length(to_camera) * exp(-fog_height_falloff * above);
+  float amount = saturate(1.0 - exp(-optical));
 
   /*
-   * Aerial perspective: looking toward the light tints fog toward the light's colour. Squared, so the warmth stays
-   * near the sun, as NYA_Render3DSky.sun_halo does.
+   * Looking toward the light tints fog toward the light's colour. Squared, so the warmth stays near the sun, as
+   * NYA_Render3DSky.sun_halo does.
    */
   float alignment = saturate(dot(-normalize(to_camera), light_direction));
   float3 tint = lerp(fog_color, light_color, fog_sun_amount * alignment * alignment);
+
+  // aerial perspective: the fog's hue at the surface's own brightness, reached sooner than the fog itself.
+  if (fog_aerial > 0.0) {
+    float3 luma = float3(0.2126, 0.7152, 0.0722);
+    float3 hue = tint * (dot(colour, luma) / max(dot(tint, luma), 1e-3));
+
+    colour = lerp(colour, hue, 1.0 - exp(-optical * fog_aerial));
+  }
 
   return lerp(colour, tint, amount);
 }

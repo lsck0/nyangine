@@ -769,16 +769,15 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     );
 
     // fog in the sky's horizon colour, so the terrain's rim dissolves into the sky. tinted toward the light, which
-    // matters at dawn.
-    nya_render3d_fog_set(
-        window,
-        (NYA_Render3DFog){
-            .color          = sky.bottom,
-            .density        = GNY_SKY3D_FOG_DENSITY,
-            .height_falloff = GNY_SKY3D_FOG_HEIGHT_FALLOFF,
-            .sun_amount     = GNY_SKY3D_FOG_SUN_AMOUNT,
-        }
-    );
+    // matters at dawn. the config's fields win where it sets them.
+    NYA_Render3DFog fog = NYA_CONFIG.engine.renderer.fog;
+
+    if (fog.color.a <= 0.0F) fog.color = sky.bottom;
+    if (fog.density <= 0.0F) fog.density = GNY_SKY3D_FOG_DENSITY;
+    if (fog.height_falloff <= 0.0F) fog.height_falloff = GNY_SKY3D_FOG_HEIGHT_FALLOFF;
+    if (fog.sun_amount <= 0.0F) fog.sun_amount = GNY_SKY3D_FOG_SUN_AMOUNT;
+
+    nya_render3d_fog_set(window, fog);
 
     // material is per flush, so two materials cost two draw calls however many objects use them. lamps are
     // re-added every frame because they orbit; the clear keeps a re-entered scene from doubling them.

@@ -161,7 +161,7 @@ struct NYA_ShaderMesh3DUniform {
     f32 fog_height_falloff;
     f32 fog_height_base;
     f32 fog_sun_amount;
-    f32 fog_pad;
+    f32 fog_aerial;
 
     /* Colour of the ambient and the shade, three rows. See NYA_Render3DLight.sky and NYA_Render3DShadowOptions.color. */
 

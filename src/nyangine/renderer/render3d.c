@@ -415,6 +415,9 @@ void nya_render3d_fog_set(NYA_Window* window, NYA_Render3DFog fog) {
     // part of the per-draw fragment uniform, as with nya_render3d_light_set.
     nya_render3d_flush(window);
 
+    // usually from a config file.
+    fog.aerial = nya_clamp(fog.aerial, 0.0F, 16.0F);
+
     window->render_system.mesh_batch.fog = fog;
 }
 
@@ -1427,6 +1430,7 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
         uniform.fog_height_falloff = batch->fog.height_falloff;
         uniform.fog_height_base    = batch->fog.height_base;
         uniform.fog_sun_amount     = batch->fog.sun_amount;
+        uniform.fog_aerial         = batch->fog.aerial;
     }
 
     // field by field: f32x3 is sixteen bytes and the uniform block must match the HLSL layout exactly.
