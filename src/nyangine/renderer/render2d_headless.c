@@ -304,8 +304,15 @@ NYA_RenderTexture nya_render_texture_create(NYA_Window* window, u32 width, u32 h
 }
 
 NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, u32 height, NYA_RenderTextureOptions options) {
-    nya_unused(window, options);
-    return (NYA_RenderTexture){ .texture = nullptr, .width = width, .height = height };
+    nya_unused(window);
+    return (NYA_RenderTexture){ .texture = nullptr, .width = width, .height = height, .options = options };
+}
+
+b8 nya_render_texture_is_current(const NYA_RenderTexture* render_texture, u32 width, u32 height) {
+    nya_assert(render_texture != nullptr);
+
+    // nothing is ever created here, so only the size can be current.
+    return render_texture->width == width && render_texture->height == height;
 }
 
 void nya_render_texture_destroy(NYA_RenderTexture* render_texture) {

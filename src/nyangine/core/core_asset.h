@@ -346,7 +346,19 @@ struct NYA_Asset {
         } as_shader;
 
         struct {
-            SDL_GPUGraphicsPipeline* pipeline;
+            /**
+             * [0] for single sampled targets, [1] for the renderer's sample count. Built on first use and rebuilt when
+             * the sample count or depth format they were built for changes. Reach them through
+             * nya_asset_graphics_pipeline.
+             * */
+            struct {
+                SDL_GPUGraphicsPipeline* pipeline;
+                SDL_GPUSampleCount       sample_count;
+                SDL_GPUTextureFormat     depth_format;
+
+                /** Tried, even if SDL refused, so a refusal is logged once. */
+                b8 built;
+            } variants[2];
         } as_graphics_pipeline;
 
         struct {
@@ -538,6 +550,13 @@ NYA_API NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHa
 
 /** NYA_ASSET_STATUS_FAILED for anything that could not load, so a caller can react without a hook. */
 NYA_API NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) __attr_no_discard;
+
+/**
+ * The pipeline to bind for a target of `sample_count`, built the first time a target of that kind asks, so a single
+ * sampled render texture or a changed MSAA setting needs no second asset. Null while the asset is not loaded or when
+ * SDL refuses the build. A `single_sampled` pipeline ignores `sample_count`.
+ * */
+NYA_API SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

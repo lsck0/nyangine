@@ -86,6 +86,11 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
 
 /** Runs every staged upload in one copy pass, then releases the transfer buffers. */
 NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending);
+
+/** A pipeline from `parameters` for targets of `sample_count`. Null when a shader is missing or SDL refuses. */
+NYA_INTERNAL SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoadParameters* parameters, SDL_GPUSampleCount sample_count)
+    __attr_no_discard;
+
 NYA_INTERNAL void      _nya_asset_unload_raw(NYA_Asset* asset);
 NYA_INTERNAL void      _nya_asset_cancel_queued_unload(NYA_Asset* asset);
 
@@ -500,6 +505,35 @@ NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) {
     return asset ? asset->status : NYA_ASSET_STATUS_UNLOADED;
 }
 
+SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count) {
+    if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return nullptr;
+    nya_assert(asset->type == NYA_ASSET_TYPE_GRAPHICS_PIPELINE, "'%s' is not a graphics pipeline", asset->handle);
+
+    // a single sampled pipeline, such as the shadow map's, is only ever bound to a single sampled target.
+    if (asset->load_parameters.as_graphics_pipeline.single_sampled) sample_count = SDL_GPU_SAMPLECOUNT_1;
+
+    NYA_RenderSystem* render_system = &nya_app_get()->render_system;
+
+    typeof(asset->as_graphics_pipeline.variants[0])* variant = &asset->as_graphics_pipeline.variants[sample_count == SDL_GPU_SAMPLECOUNT_1 ? 0 : 1];
+
+    // a refused build is remembered too, so it is logged once rather than retried every draw.
+    if (variant->built && variant->sample_count == sample_count && variant->depth_format == render_system->depth_format) return variant->pipeline;
+
+    // the renderer's sample count or depth format changed since this was built.
+    if (variant->pipeline != nullptr) SDL_ReleaseGPUGraphicsPipeline(render_system->gpu_device, variant->pipeline);
+
+    *variant = (typeof(*variant)){
+        .built        = true,
+        .pipeline     = _nya_asset_graphics_pipeline_create(&asset->load_parameters, sample_count),
+        .sample_count = sample_count,
+        .depth_format = render_system->depth_format,
+    };
+
+    if (variant->pipeline == nullptr) nya_log_error("Could not build '%s' for %u samples per pixel: %s", asset->handle, 1U << (u32)sample_count, SDL_GetError());
+
+    return variant->pipeline;
+}
+
 b8 nya_asset_unload(NYA_AssetHandle handle) {
     if (handle == nullptr) return false;
 
@@ -784,6 +818,137 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Array�
     out_asset->as_texture.height  = height;
 
     return NYA_OK;
+}
+
+SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoadParameters* parameters, SDL_GPUSampleCount sample_count) {
+    NYA_RenderSystem* render_system = &nya_app_get()->render_system;
+
+    NYA_Asset* vertex_shader_asset   = nya_asset_get(parameters->as_graphics_pipeline.vertex_shader_handle);
+    NYA_Asset* fragment_shader_asset = nya_asset_get(parameters->as_graphics_pipeline.fragment_shader_handle);
+
+    // a variant asked for mid reload can find its shaders unloaded.
+    if (vertex_shader_asset == nullptr || vertex_shader_asset->as_shader.shader == nullptr) return nullptr;
+    if (fragment_shader_asset == nullptr || fragment_shader_asset->as_shader.shader == nullptr) return nullptr;
+
+    /*
+     * Straight alpha, matching the fragment shaders. The whole struct is zeroed when blending is off, since SDL
+     * reads the fields regardless.
+     */
+    SDL_GPUColorTargetBlendState blend_state = { 0 };
+
+    if (parameters->as_graphics_pipeline.blend == NYA_BLEND_ADDITIVE) {
+        blend_state = (SDL_GPUColorTargetBlendState){
+            .enable_blend          = true,
+            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+            // ONE: overlapping glows saturate toward white.
+            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+            .color_blend_op        = SDL_GPU_BLENDOP_ADD,
+            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+            .alpha_blend_op        = SDL_GPU_BLENDOP_ADD,
+        };
+    } else if (parameters->as_graphics_pipeline.blend == NYA_BLEND_MULTIPLY) {
+        blend_state = (SDL_GPUColorTargetBlendState){
+            .enable_blend = true,
+            // source times destination: a light map darkens what it covers.
+            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_DST_COLOR,
+            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+            .color_blend_op        = SDL_GPU_BLENDOP_ADD,
+            // alpha untouched, or a light map would eat a render texture's opacity.
+            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+            .alpha_blend_op        = SDL_GPU_BLENDOP_ADD,
+        };
+    } else if (parameters->as_graphics_pipeline.blend != NYA_BLEND_NONE) {
+        blend_state = (SDL_GPUColorTargetBlendState){
+            .enable_blend          = true,
+            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .color_blend_op        = SDL_GPU_BLENDOP_ADD,
+            // the swapchain's alpha is unused, but this stays correct for a texture composited later.
+            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            .alpha_blend_op        = SDL_GPU_BLENDOP_ADD,
+        };
+    }
+
+    /* The layout tables, chosen once. The instanced layout also differs in buffer count. */
+    const SDL_GPUVertexBufferDescription* buffer_descriptions = &vertex_buffer_description;
+    const SDL_GPUVertexAttribute*         attributes          = vertex_attributes;
+
+    u32 buffer_description_count = 1;
+    u32 attribute_count          = (u32)nya_carray_length(vertex_attributes);
+
+    switch (parameters->as_graphics_pipeline.vertex_layout) {
+        case NYA_VERTEX_LAYOUT_2D: {
+            buffer_descriptions = &vertex_buffer_description_2d;
+            attributes          = vertex_attributes_2d;
+            attribute_count     = (u32)nya_carray_length(vertex_attributes_2d);
+        } break;
+
+        case NYA_VERTEX_LAYOUT_3D_INSTANCED: {
+            buffer_descriptions      = vertex_buffer_descriptions_3d_instanced;
+            buffer_description_count = (u32)nya_carray_length(vertex_buffer_descriptions_3d_instanced);
+            attributes               = vertex_attributes_3d_instanced;
+            attribute_count          = (u32)nya_carray_length(vertex_attributes_3d_instanced);
+        } break;
+
+        case NYA_VERTEX_LAYOUT_3D_SKINNED: {
+            buffer_descriptions = &vertex_buffer_description_3d_skinned;
+            attributes          = vertex_attributes_3d_skinned;
+            attribute_count     = (u32)nya_carray_length(vertex_attributes_3d_skinned);
+        } break;
+
+        case NYA_VERTEX_LAYOUT_3D:
+        case NYA_VERTEX_LAYOUT_COUNT:
+        default: break;
+    }
+
+    SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {
+        .target_info = {
+            // declared whenever the pipeline tests or writes depth. a depth pipeline in a pass without depth fails
+            // validation; the reverse is fine.
+            .has_depth_stencil_target  = parameters->as_graphics_pipeline.depth_test || parameters->as_graphics_pipeline.depth_write,
+            .depth_stencil_format      = render_system->depth_format,
+            .num_color_targets         = 1,
+            .color_target_descriptions = (SDL_GPUColorTargetDescription[]){
+                {
+                    // the named format, else the window's. see color_format.
+                    .format      = parameters->as_graphics_pipeline.color_format != 0
+                                       ? parameters->as_graphics_pipeline.color_format
+                                       : SDL_GetGPUSwapchainTextureFormat(render_system->gpu_device, parameters->as_graphics_pipeline.window->sdl_window),
+                    .blend_state = blend_state,
+                },
+            },
+        },
+        .primitive_type                 = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+        .vertex_shader                  = vertex_shader_asset->as_shader.shader,
+        .fragment_shader                = fragment_shader_asset->as_shader.shader,
+        // must match the target drawn into. see nya_asset_graphics_pipeline.
+        .multisample_state.sample_count = sample_count,
+        .rasterizer_state.fill_mode     = SDL_GPU_FILLMODE_FILL,
+        // counter-clockwise front, matching the 3D primitives.
+        .rasterizer_state.cull_mode = parameters->as_graphics_pipeline.cull_back_faces    ? SDL_GPU_CULLMODE_BACK
+                                      : parameters->as_graphics_pipeline.cull_front_faces ? SDL_GPU_CULLMODE_FRONT
+                                                                                          : SDL_GPU_CULLMODE_NONE,
+        .rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
+        /*
+         * LESS, not LESS_OR_EQUAL, so coplanar geometry does not flicker. Written even with depth off, since SDL
+         * reads the fields.
+         */
+        .depth_stencil_state = {
+            .compare_op         = SDL_GPU_COMPAREOP_LESS,
+            .enable_depth_test  = parameters->as_graphics_pipeline.depth_test,
+            .enable_depth_write = parameters->as_graphics_pipeline.depth_write,
+        },
+        .vertex_input_state.num_vertex_buffers         = buffer_description_count,
+        .vertex_input_state.vertex_buffer_descriptions = buffer_descriptions,
+        // every attribute of the layout; a short count leaves shaders reading garbage.
+        .vertex_input_state.num_vertex_attributes = attribute_count,
+        .vertex_input_state.vertex_attributes     = attributes,
+    };
+
+    return SDL_CreateGPUGraphicsPipeline(render_system->gpu_device, &pipelineCreateInfo);
 }
 
 NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending) {
@@ -1976,125 +2141,8 @@ void _nya_asset_loading_process(NYA_Event* event) {
                     break;
                 }
 
-                /*
-                 * Straight alpha, matching the fragment shaders. The whole struct is zeroed when blending is off, since SDL
-                 * reads the fields regardless.
-                 */
-                SDL_GPUColorTargetBlendState blend_state = { 0 };
-
-                if (parameters->as_graphics_pipeline.blend == NYA_BLEND_ADDITIVE) {
-                    blend_state = (SDL_GPUColorTargetBlendState){
-                        .enable_blend          = true,
-                        .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-                        // ONE: overlapping glows saturate toward white.
-                        .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-                        .color_blend_op        = SDL_GPU_BLENDOP_ADD,
-                        .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-                        .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-                        .alpha_blend_op        = SDL_GPU_BLENDOP_ADD,
-                    };
-                } else if (parameters->as_graphics_pipeline.blend == NYA_BLEND_MULTIPLY) {
-                    blend_state = (SDL_GPUColorTargetBlendState){
-                        .enable_blend = true,
-                        // source times destination: a light map darkens what it covers.
-                        .src_color_blendfactor = SDL_GPU_BLENDFACTOR_DST_COLOR,
-                        .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
-                        .color_blend_op        = SDL_GPU_BLENDOP_ADD,
-                        // alpha untouched, or a light map would eat a render texture's opacity.
-                        .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
-                        .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-                        .alpha_blend_op        = SDL_GPU_BLENDOP_ADD,
-                    };
-                } else if (parameters->as_graphics_pipeline.blend != NYA_BLEND_NONE) {
-                    blend_state = (SDL_GPUColorTargetBlendState){
-                        .enable_blend           = true,
-                        .src_color_blendfactor  = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-                        .dst_color_blendfactor  = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                        .color_blend_op         = SDL_GPU_BLENDOP_ADD,
-                        // the swapchain's alpha is unused, but this stays correct for a texture composited later.
-                        .src_alpha_blendfactor  = SDL_GPU_BLENDFACTOR_ONE,
-                        .dst_alpha_blendfactor  = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                        .alpha_blend_op         = SDL_GPU_BLENDOP_ADD,
-                    };
-                }
-
-                /* The layout tables, chosen once. The instanced layout also differs in buffer count. */
-                const SDL_GPUVertexBufferDescription* buffer_descriptions = &vertex_buffer_description;
-                const SDL_GPUVertexAttribute*         attributes          = vertex_attributes;
-
-                u32 buffer_description_count = 1;
-                u32 attribute_count          = (u32)nya_carray_length(vertex_attributes);
-
-                switch (parameters->as_graphics_pipeline.vertex_layout) {
-                    case NYA_VERTEX_LAYOUT_2D: {
-                        buffer_descriptions = &vertex_buffer_description_2d;
-                        attributes          = vertex_attributes_2d;
-                        attribute_count     = (u32)nya_carray_length(vertex_attributes_2d);
-                    } break;
-
-                    case NYA_VERTEX_LAYOUT_3D_INSTANCED: {
-                        buffer_descriptions      = vertex_buffer_descriptions_3d_instanced;
-                        buffer_description_count = (u32)nya_carray_length(vertex_buffer_descriptions_3d_instanced);
-                        attributes               = vertex_attributes_3d_instanced;
-                        attribute_count          = (u32)nya_carray_length(vertex_attributes_3d_instanced);
-                    } break;
-
-                    case NYA_VERTEX_LAYOUT_3D_SKINNED: {
-                        buffer_descriptions = &vertex_buffer_description_3d_skinned;
-                        attributes          = vertex_attributes_3d_skinned;
-                        attribute_count     = (u32)nya_carray_length(vertex_attributes_3d_skinned);
-                    } break;
-
-                    case NYA_VERTEX_LAYOUT_3D:
-                    case NYA_VERTEX_LAYOUT_COUNT:
-                    default: break;
-                }
-
-                SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {
-          .target_info = {
-            // declared whenever the pipeline tests or writes depth. a depth pipeline in a pass without depth fails
-            // validation; the reverse is fine.
-            .has_depth_stencil_target  = parameters->as_graphics_pipeline.depth_test || parameters->as_graphics_pipeline.depth_write,
-            .depth_stencil_format      = render_system->depth_format,
-            .num_color_targets = 1,
-            .color_target_descriptions = (SDL_GPUColorTargetDescription[]){
-              {
-                // the named format, else the window's. see color_format.
-                .format = parameters->as_graphics_pipeline.color_format != 0
-                            ? parameters->as_graphics_pipeline.color_format
-                            : SDL_GetGPUSwapchainTextureFormat(render_system->gpu_device, parameters->as_graphics_pipeline.window->sdl_window),
-                .blend_state = blend_state,
-              },
-            },
-          },
-          .primitive_type                                = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-          .vertex_shader                                 = vertex_shader_asset->as_shader.shader,
-          .fragment_shader                               = fragment_shader_asset->as_shader.shader,
-          // must match every target drawn into, so the renderer has one sample count.
-          .multisample_state.sample_count                = parameters->as_graphics_pipeline.single_sampled ? SDL_GPU_SAMPLECOUNT_1
-                                                                                                            : render_system->sample_count,
-          .rasterizer_state.fill_mode                    = SDL_GPU_FILLMODE_FILL,
-          // counter-clockwise front, matching the 3D primitives.
-          .rasterizer_state.cull_mode                    = parameters->as_graphics_pipeline.cull_back_faces  ? SDL_GPU_CULLMODE_BACK
-                                                           : parameters->as_graphics_pipeline.cull_front_faces ? SDL_GPU_CULLMODE_FRONT
-                                                                                                               : SDL_GPU_CULLMODE_NONE,
-          .rasterizer_state.front_face                   = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
-          /*
-           * LESS, not LESS_OR_EQUAL, so coplanar geometry does not flicker. Written even with depth off, since SDL
-           * reads the fields.
-           */
-          .depth_stencil_state = {
-            .compare_op         = SDL_GPU_COMPAREOP_LESS,
-            .enable_depth_test  = parameters->as_graphics_pipeline.depth_test,
-            .enable_depth_write = parameters->as_graphics_pipeline.depth_write,
-          },
-          .vertex_input_state.num_vertex_buffers         = buffer_description_count,
-          .vertex_input_state.vertex_buffer_descriptions = buffer_descriptions,
-          // every attribute of the layout; a short count leaves shaders reading garbage.
-          .vertex_input_state.num_vertex_attributes      = attribute_count,
-          .vertex_input_state.vertex_attributes          = attributes,
-        };
-                SDL_GPUGraphicsPipeline* pipeline = SDL_CreateGPUGraphicsPipeline(render_system->gpu_device, &pipelineCreateInfo);
+                SDL_GPUSampleCount sample_count = parameters->as_graphics_pipeline.single_sampled ? SDL_GPU_SAMPLECOUNT_1 : render_system->sample_count;
+                SDL_GPUGraphicsPipeline* pipeline = _nya_asset_graphics_pipeline_create(parameters, sample_count);
 
                 /*
                  * Reported, not asserted. Backends disagree about pipelines, so this can fail on one driver only; the log
@@ -2107,9 +2155,19 @@ void _nya_asset_loading_process(NYA_Event* event) {
                     break;
                 }
 
-                asset->type                          = NYA_ASSET_TYPE_GRAPHICS_PIPELINE;
-                asset->status                        = NYA_ASSET_STATUS_LOADED;
-                asset->as_graphics_pipeline.pipeline = pipeline;
+                // built now for the target it will most likely draw into, so a refusal is reported at load.
+                u32 variant = sample_count == SDL_GPU_SAMPLECOUNT_1 ? 0 : 1;
+
+                asset->type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE;
+                asset->status               = NYA_ASSET_STATUS_LOADED;
+                asset->as_graphics_pipeline = (typeof(asset->as_graphics_pipeline)){ 0 };
+
+                asset->as_graphics_pipeline.variants[variant] = (typeof(asset->as_graphics_pipeline.variants[0])){
+                    .built        = true,
+                    .pipeline     = pipeline,
+                    .sample_count = sample_count,
+                    .depth_format = render_system->depth_format,
+                };
             } break;
 
             default: {
@@ -2223,8 +2281,13 @@ void _nya_asset_unloading_process(NYA_Event* event) {
             } break;
 
             case NYA_ASSET_TYPE_GRAPHICS_PIPELINE: {
-                SDL_ReleaseGPUGraphicsPipeline(render_system->gpu_device, asset->as_graphics_pipeline.pipeline);
-                asset->status = NYA_ASSET_STATUS_UNLOADED;
+                for (u32 i = 0; i < nya_carray_length(asset->as_graphics_pipeline.variants); i++) {
+                    if (asset->as_graphics_pipeline.variants[i].pipeline == nullptr) continue;
+                    SDL_ReleaseGPUGraphicsPipeline(render_system->gpu_device, asset->as_graphics_pipeline.variants[i].pipeline);
+                }
+
+                asset->as_graphics_pipeline = (typeof(asset->as_graphics_pipeline)){ 0 };
+                asset->status               = NYA_ASSET_STATUS_UNLOADED;
             } break;
 
             case NYA_ASSET_TYPE_TEXTURE: {

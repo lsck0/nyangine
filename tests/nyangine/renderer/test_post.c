@@ -108,5 +108,44 @@ s32 main(void) {
         nya_check(!chain.capturing, "end should complete even when every pass is unusable");
     }
 
+    // ── The scene target follows the caller's options, and a one pass chain holds no second target.
+    {
+        NYA_PostChain chain = { .scene = { .depth = NYA_RENDER_TEXTURE_DEPTH_NONE } };
+        defer         nya_post_chain_destroy(&chain);
+
+        nya_check(nya_post_begin(&window, &chain), "begin");
+        nya_check(chain.targets[0].options.depth == NYA_RENDER_TEXTURE_DEPTH_NONE, "the scene target should be made as the chain asks");
+        nya_post_end(&window, &chain, (NYA_PostPass[]){ { .pipeline = "no_such_pipeline" } }, 1);
+        nya_check(chain.targets[1].width == 0, "no pass ran between targets, so there should be no second one");
+
+        // a 3D scene after a 2D one asks for depth back, which rebuilds the target at the same size.
+        chain.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED };
+        nya_check(nya_post_begin(&window, &chain), "begin with depth");
+        nya_check(chain.targets[0].options.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED, "a changed depth option should rebuild the scene target");
+        nya_post_end(&window, &chain, nullptr, 0);
+
+        nya_post_chain_destroy(&chain);
+        nya_check(chain.scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED, "destroying a chain should keep what the caller asked for");
+    }
+
+    // ── A render texture knows what it was made with, and whether it still fits.
+    {
+        NYA_RenderTexture target = nya_render_texture_create_with(&window, 64, 32, (NYA_RenderTextureOptions){ .single_sampled = true });
+        defer             nya_render_texture_destroy(&target);
+
+        nya_check(target.options.single_sampled, "the options should be kept on the texture");
+        nya_check(nya_render_texture_is_current(&target, 64, 32), "a texture of the asked for size should be current");
+        nya_check(!nya_render_texture_is_current(&target, 64, 64), "a resized window should make it stale");
+    }
+
+    // ── Render options are stored for the next frame, and a pipeline that never loaded has no build.
+    {
+        nya_render_options_set(&window, (NYA_RenderOptions){ .msaa_samples = 2 });
+        nya_check(nya_app_get()->render_system.options.msaa_samples == 2, "the request should wait for the next nya_render_begin");
+        nya_render_options_set(&window, (NYA_RenderOptions){ 0 });
+
+        nya_check(nya_asset_graphics_pipeline(nya_asset_get("no_such_pipeline"), SDL_GPU_SAMPLECOUNT_4) == nullptr, "nothing loaded, nothing to bind");
+    }
+
     return nya_check_failures() == 0 ? 0 : 1;
 }

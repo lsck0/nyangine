@@ -418,14 +418,15 @@ void nya_render2d_flush(NYA_Window* window) {
         NYA_Asset* pipeline_asset = range->pipeline != nullptr ? nya_asset_get(range->pipeline) : nullptr;
 
         // still loading; skipped so one pipeline does not hold up the frame.
-        if (pipeline_asset == nullptr || pipeline_asset->status != NYA_ASSET_STATUS_LOADED) continue;
+        SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(pipeline_asset, batch->target_sample_count);
+        if (pipeline == nullptr) continue;
 
         // per range, since target and camera belong to the range.
         f32_4x4 range_projection = _nya_render2d_range_projection(range);
 
         _nya_render2d_range_apply_scissor(window, range);
 
-        SDL_BindGPUGraphicsPipeline(render->render_pass, pipeline_asset->as_graphics_pipeline.pipeline);
+        SDL_BindGPUGraphicsPipeline(render->render_pass, pipeline);
         SDL_PushGPUVertexUniformData(render->render_commands, 0, &range_projection, sizeof(range_projection));
 
         // only for a custom shader: the built-in pipelines declare no fragment uniforms, and pushing one is a
@@ -1116,8 +1117,8 @@ void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handl
 
     if (pipeline_handle == nullptr || vertex_count == 0) return;
 
-    NYA_Asset* asset = nya_asset_get((NYA_CString)pipeline_handle);
-    if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->as_graphics_pipeline.pipeline == nullptr) {
+    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get((NYA_CString)pipeline_handle), batch->target_sample_count);
+    if (pipeline == nullptr) {
         batch->frame_dropped_draws++;
         return;
     }
@@ -1130,7 +1131,7 @@ void nya_render2d_procedural(NYA_Window* window, NYA_ConstCString pipeline_handl
         return;
     }
 
-    SDL_BindGPUGraphicsPipeline(render->render_pass, asset->as_graphics_pipeline.pipeline);
+    SDL_BindGPUGraphicsPipeline(render->render_pass, pipeline);
 
     if (uniform_data != nullptr && uniform_size > 0) {
         SDL_PushGPUVertexUniformData(render->render_commands, 0, uniform_data, uniform_size);
@@ -1224,11 +1225,12 @@ NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, 
     );
     nya_assert(texture != nullptr, "SDL_CreateGPUTexture() failed for a render texture: %s", SDL_GetError());
 
-    // a multisampled companion, since the pipelines are built for the renderer's sample count. drawing resolves
-    // onto the sampled texture when the pass ends.
-    SDL_GPUTexture* msaa_texture = nullptr;
+    // a multisampled companion at the renderer's sample count, unless asked for without. drawing resolves onto the
+    // sampled texture when the pass ends.
+    SDL_GPUSampleCount sample_count = options.single_sampled ? SDL_GPU_SAMPLECOUNT_1 : nya_app_get()->render_system.sample_count;
+    SDL_GPUTexture*    msaa_texture = nullptr;
 
-    if (nya_app_get()->render_system.sample_count != SDL_GPU_SAMPLECOUNT_1) {
+    if (sample_count != SDL_GPU_SAMPLECOUNT_1) {
         msaa_texture = nya_gpu_texture_create(
             gpu_device,
             &(SDL_GPUTextureCreateInfo){
@@ -1239,13 +1241,13 @@ NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, 
                 .height               = height,
                 .layer_count_or_depth = 1,
                 .num_levels           = 1,
-                .sample_count         = nya_app_get()->render_system.sample_count,
+                .sample_count         = sample_count,
             }
         );
         nya_assert(msaa_texture != nullptr, "SDL_CreateGPUTexture() failed for a render texture's MSAA buffer: %s", SDL_GetError());
     }
 
-    // the window's depth format and sample count, which are baked into the pipelines.
+    // the window's depth format and the colour target's sample count, which are baked into the pipelines.
     SDL_GPUTexture* depth_texture = nullptr;
 
     if (options.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED) {
@@ -1259,18 +1261,20 @@ NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, 
                 .height               = height,
                 .layer_count_or_depth = 1,
                 .num_levels           = 1,
-                .sample_count         = nya_app_get()->render_system.sample_count,
+                .sample_count         = sample_count,
             }
         );
         nya_assert(depth_texture != nullptr, "SDL_CreateGPUTexture() failed for a render texture's depth buffer: %s", SDL_GetError());
     }
 
     return (NYA_RenderTexture){
-        .texture       = texture,
-        .msaa_texture  = msaa_texture,
-        .depth_texture = depth_texture,
-        .width         = width,
-        .height        = height,
+        .texture        = texture,
+        .msaa_texture   = msaa_texture,
+        .depth_texture  = depth_texture,
+        .width          = width,
+        .height         = height,
+        .sample_count   = sample_count,
+        .options        = options,
     };
 }
 
@@ -1286,6 +1290,15 @@ void nya_render_texture_destroy(NYA_RenderTexture* render_texture) {
     if (render_texture->depth_texture != nullptr) nya_gpu_texture_release(gpu_device, render_texture->depth_texture);
 
     *render_texture = (NYA_RenderTexture){ 0 };
+}
+
+b8 nya_render_texture_is_current(const NYA_RenderTexture* render_texture, u32 width, u32 height) {
+    nya_assert(render_texture != nullptr);
+
+    if (render_texture->texture == nullptr) return false;
+    if (render_texture->width != width || render_texture->height != height) return false;
+
+    return render_texture->options.single_sampled || render_texture->sample_count == nya_app_get()->render_system.sample_count;
 }
 
 void nya_render_texture_begin(NYA_Window* window, NYA_RenderTexture* render_texture, NYA_Color clear) {
@@ -1331,8 +1344,9 @@ void nya_render_texture_begin(NYA_Window* window, NYA_RenderTexture* render_text
     nya_assert(render->render_pass != nullptr, "SDL_BeginGPURenderPass() failed for a render texture: %s", SDL_GetError());
 
     batch->target_texture    = render_texture->texture;
-    batch->target_msaa       = render_texture->msaa_texture;
-    batch->target_depth      = render_texture->depth_texture;
+    batch->target_msaa         = render_texture->msaa_texture;
+    batch->target_sample_count = render_texture->sample_count;
+    batch->target_depth        = render_texture->depth_texture;
     batch->target_width      = render_texture->width;
     batch->target_height     = render_texture->height;
     batch->target_is_texture = true;
@@ -1354,8 +1368,9 @@ void nya_render_texture_end(NYA_Window* window) {
     render->render_pass = nullptr;
 
     batch->target_texture    = render->swapchain_texture;
-    batch->target_msaa       = render->msaa_texture;
-    batch->target_depth      = render->depth_texture;
+    batch->target_msaa         = render->msaa_texture;
+    batch->target_sample_count = render->msaa_texture != nullptr ? render->msaa_sample_count : SDL_GPU_SAMPLECOUNT_1;
+    batch->target_depth        = render->depth_texture;
     batch->target_width      = window->screen_width;
     batch->target_height     = window->screen_height;
     batch->target_is_texture = false;
@@ -1924,8 +1939,8 @@ void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, co
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render2DBatch*      batch  = &render->draw_batch;
 
-    NYA_Asset* asset = nya_asset_get(NYA_RENDER2D_PIPELINE_LIGHT);
-    if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->as_graphics_pipeline.pipeline == nullptr) {
+    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get(NYA_RENDER2D_PIPELINE_LIGHT), batch->target_sample_count);
+    if (pipeline == nullptr) {
         // still loading. an unlit frame beats an all-dark one.
         batch->frame_dropped_draws++;
         return;
@@ -1971,7 +1986,7 @@ void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, co
 
     uniform.count = (f32)kept;
 
-    SDL_BindGPUGraphicsPipeline(render->render_pass, asset->as_graphics_pipeline.pipeline);
+    SDL_BindGPUGraphicsPipeline(render->render_pass, pipeline);
 
     // fragment only: the fullscreen vertex shader declares no uniforms.
     SDL_PushGPUFragmentUniformData(render->render_commands, 0, &uniform, sizeof(uniform));

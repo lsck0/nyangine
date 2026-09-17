@@ -516,29 +516,6 @@ NYA_API void nya_render2d_scissor_end(NYA_Window* window);
  */
 
 /**
- * Whether a render texture carries a depth buffer.
- * */
-enum NYA_RenderTextureDepth {
-    /** The default, and what a 3D scene needs. Costs width * height * 4 * the renderer's sample count. */
-    NYA_RENDER_TEXTURE_DEPTH_ATTACHED = 0,
-
-    /**
-     * No depth buffer, for a target only render2d draws into. 2D pipelines declare no depth target, so a post
-     * chain's ping-pong target would carry an unreachable 33 MB at 1080p and 4x.
-     * */
-    NYA_RENDER_TEXTURE_DEPTH_NONE,
-
-    NYA_RENDER_TEXTURE_DEPTH_COUNT,
-};
-
-/**
- * Anything about a render texture that is not its size.
- * */
-struct NYA_RenderTextureOptions {
-    NYA_RenderTextureDepth depth;
-};
-
-/**
  * Creates an offscreen target that can be drawn into and then drawn with. It has a depth buffer; use
  * nya_render_texture_create_with to drop it for a 2D-only target.
  * */
@@ -558,6 +535,19 @@ NYA_API NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32
                                                          NYA_RenderTextureOptions options) __attr_no_discard;
 
 NYA_API void nya_render_texture_destroy(NYA_RenderTexture* render_texture);
+
+/**
+ * Whether `render_texture` can be drawn into as it is: created, `width` by `height`, and at the renderer's sample
+ * count unless made single sampled. The check before recreating a target.
+ *
+ * ```c
+ * if (!nya_render_texture_is_current(&view->target, width, height)) {
+ *     nya_render_texture_destroy(&view->target);
+ *     view->target = nya_render_texture_create(window, width, height);
+ * }
+ * ```
+ * */
+NYA_API b8 nya_render_texture_is_current(const NYA_RenderTexture* render_texture, u32 width, u32 height) __attr_no_discard;
 
 /**
  * Points subsequent drawing at `render_texture`, clearing it to `clear`.

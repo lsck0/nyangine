@@ -43,6 +43,19 @@ NYA_Color nya_render_clear_color(NYA_Window* window) {
     return window->render_system.clear_color;
 }
 
+void nya_render_options_set(NYA_Window* window, NYA_RenderOptions options) {
+    nya_assert(window != nullptr);
+    nya_assert(options.msaa_samples <= 8, "msaa_samples is 0 for the default, or 1, 2, 4 or 8, got %u", options.msaa_samples);
+
+    nya_app_get()->render_system.options = options;
+}
+
+NYA_RenderOptions nya_render_options_get(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return (NYA_RenderOptions){ .msaa_samples = 1U << (u32)nya_app_get()->render_system.sample_count };
+}
+
 NYA_Vertex3D nya_vertex3d(f32x3 position, NYA_Color color, f32x3 normal, f32x2 uv) {
     /*
      * Colour is not clamped, unlike _nya_render2d_pack_color: values above one lift an emissive surface past the
@@ -178,23 +191,37 @@ void nya_system_renderer_deinit(void) {
 }
 
 /**
- * Rebuilds the window's multisampled colour buffer if the swapchain has changed size.
- * */
-/**
  * Builds or rebuilds the window's depth buffer for a swapchain of this size.
  * */
 NYA_INTERNAL void _nya_renderer_ensure_depth_texture(NYA_Window* window, u32 width, u32 height);
 
+/**
+ * The most samples per pixel up to `samples` that the window's colour format and the depth format both take. Zero
+ * asks for NYA_RENDER_MSAA_SAMPLES_DEFAULT.
+ * */
+NYA_INTERNAL SDL_GPUSampleCount _nya_renderer_sample_count_for(NYA_Window* window, u32 samples) __attr_no_discard;
+
+/** Takes up a changed NYA_RenderOptions.msaa_samples. Only between frames, since a pass bakes in its count. */
+NYA_INTERNAL void _nya_renderer_options_apply(NYA_Window* window);
+
+/**
+ * Rebuilds the window's multisampled colour buffer if the swapchain has changed size or the sample count changed,
+ * and releases it when multisampling is off.
+ * */
 NYA_INTERNAL void _nya_renderer_ensure_msaa_texture(NYA_Window* window, u32 width, u32 height) {
     NYA_App* app = nya_app_get();
 
-    if (app->render_system.sample_count == SDL_GPU_SAMPLECOUNT_1) return;
-    if (window->render_system.msaa_texture != nullptr && window->render_system.msaa_width == width && window->render_system.msaa_height == height) {
+    if (window->render_system.msaa_texture != nullptr && window->render_system.msaa_width == width && window->render_system.msaa_height == height
+        && window->render_system.msaa_sample_count == app->render_system.sample_count) {
         return;
     }
 
     // SDL frees a released texture once it is safe, so no wait.
     if (window->render_system.msaa_texture != nullptr) nya_gpu_texture_release(app->render_system.gpu_device, window->render_system.msaa_texture);
+
+    window->render_system.msaa_texture = nullptr;
+
+    if (app->render_system.sample_count == SDL_GPU_SAMPLECOUNT_1) return;
 
     window->render_system.msaa_texture = nya_gpu_texture_create(
         app->render_system.gpu_device,
@@ -212,15 +239,16 @@ NYA_INTERNAL void _nya_renderer_ensure_msaa_texture(NYA_Window* window, u32 widt
     );
     nya_assert(window->render_system.msaa_texture != nullptr, "SDL_CreateGPUTexture() failed for the MSAA buffer: %s", SDL_GetError());
 
-    window->render_system.msaa_width  = width;
-    window->render_system.msaa_height = height;
+    window->render_system.msaa_width        = width;
+    window->render_system.msaa_height       = height;
+    window->render_system.msaa_sample_count = app->render_system.sample_count;
 }
 
 void _nya_renderer_ensure_depth_texture(NYA_Window* window, u32 width, u32 height) {
     NYA_App* app = nya_app_get();
 
     if (window->render_system.depth_texture != nullptr && window->render_system.depth_width == width
-        && window->render_system.depth_height == height) {
+        && window->render_system.depth_height == height && window->render_system.depth_sample_count == app->render_system.sample_count) {
         return;
     }
 
@@ -244,8 +272,48 @@ void _nya_renderer_ensure_depth_texture(NYA_Window* window, u32 width, u32 heigh
     );
     nya_assert(window->render_system.depth_texture != nullptr, "SDL_CreateGPUTexture() failed for the depth buffer: %s", SDL_GetError());
 
-    window->render_system.depth_width  = width;
-    window->render_system.depth_height = height;
+    window->render_system.depth_width        = width;
+    window->render_system.depth_height       = height;
+    window->render_system.depth_sample_count = app->render_system.sample_count;
+}
+
+SDL_GPUSampleCount _nya_renderer_sample_count_for(NYA_Window* window, u32 samples) {
+    NYA_RenderSystem* render_system = &nya_app_get()->render_system;
+
+    if (samples == 0) samples = NYA_RENDER_MSAA_SAMPLES_DEFAULT;
+
+    SDL_GPUTextureFormat color_format = SDL_GetGPUSwapchainTextureFormat(render_system->gpu_device, window->sdl_window);
+    if (color_format == SDL_GPU_TEXTUREFORMAT_INVALID) return SDL_GPU_SAMPLECOUNT_1;
+
+    for (SDL_GPUSampleCount count = SDL_GPU_SAMPLECOUNT_8; count > SDL_GPU_SAMPLECOUNT_1; count--) {
+        if ((1U << (u32)count) > samples) continue;
+        if (!SDL_GPUTextureSupportsSampleCount(render_system->gpu_device, color_format, count)) continue;
+
+        // before the first window the depth format is still open, and it is picked to suit this count.
+        if (render_system->sample_count_decided && !SDL_GPUTextureSupportsSampleCount(render_system->gpu_device, render_system->depth_format, count)) {
+            continue;
+        }
+
+        return count;
+    }
+
+    return SDL_GPU_SAMPLECOUNT_1;
+}
+
+void _nya_renderer_options_apply(NYA_Window* window) {
+    NYA_RenderSystem* render_system = &nya_app_get()->render_system;
+
+    if (render_system->options.msaa_samples == render_system->applied_msaa_samples) return;
+
+    render_system->applied_msaa_samples = render_system->options.msaa_samples;
+
+    SDL_GPUSampleCount sample_count = _nya_renderer_sample_count_for(window, render_system->options.msaa_samples);
+    if (sample_count == render_system->sample_count) return;
+
+    nya_log_info("Multisampling: %ux, was %ux.", 1U << (u32)sample_count, 1U << (u32)render_system->sample_count);
+
+    // the window's buffers, render textures and pipelines each rebuild at their next use.
+    render_system->sample_count = sample_count;
 }
 
 void nya_system_renderer_for_window_init(NYA_Window* window) {
@@ -261,16 +329,12 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     window->render_system.clear_color = NYA_COLOR_BLACK;
 
     /*
-     * Four samples if the device takes them, otherwise one. Decided on the first window, whose swapchain format
-     * everything resolves onto.
+     * The asked for sample count as far as the device takes it. Decided on the first window, whose swapchain format
+     * everything resolves onto; later changes go through nya_render_options_set.
      */
     if (!app->render_system.sample_count_decided) {
-        SDL_GPUTextureFormat swapchain_format = SDL_GetGPUSwapchainTextureFormat(app->render_system.gpu_device, window->sdl_window);
-
-        if (swapchain_format != SDL_GPU_TEXTUREFORMAT_INVALID
-            && SDL_GPUTextureSupportsSampleCount(app->render_system.gpu_device, swapchain_format, SDL_GPU_SAMPLECOUNT_4)) {
-            app->render_system.sample_count = SDL_GPU_SAMPLECOUNT_4;
-        }
+        app->render_system.sample_count         = _nya_renderer_sample_count_for(window, app->render_system.options.msaa_samples);
+        app->render_system.applied_msaa_samples = app->render_system.options.msaa_samples;
 
         /* The depth format, settled here because pipelines bake it in. */
         app->render_system.depth_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
@@ -287,7 +351,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
 
         app->render_system.sample_count_decided = true;
 
-        nya_log_info("Multisampling: %s.", app->render_system.sample_count == SDL_GPU_SAMPLECOUNT_4 ? "4x" : "unsupported, falling back to none");
+        nya_log_info("Multisampling: %ux.", 1U << (u32)app->render_system.sample_count);
         nya_log_info("Depth buffer: %s.", app->render_system.depth_format == SDL_GPU_TEXTUREFORMAT_D32_FLOAT ? "D32_FLOAT" : "D24_UNORM_S8_UINT");
     }
 
@@ -1126,6 +1190,7 @@ b8 nya_render_begin(NYA_Window* window) {
     }
 #endif
 
+    _nya_renderer_options_apply(window);
     _nya_renderer_ensure_msaa_texture(window, swapchain_width, swapchain_height);
     _nya_renderer_ensure_depth_texture(window, swapchain_width, swapchain_height);
 
@@ -1196,6 +1261,7 @@ b8 nya_render_begin(NYA_Window* window) {
 
     window->render_system.draw_batch.target_texture    = swapchain_texture;
     window->render_system.draw_batch.target_msaa       = msaa;
+    window->render_system.draw_batch.target_sample_count = msaa != nullptr ? window->render_system.msaa_sample_count : SDL_GPU_SAMPLECOUNT_1;
     window->render_system.draw_batch.target_depth      = window->render_system.depth_texture;
     window->render_system.draw_batch.target_width      = swapchain_width;
     window->render_system.draw_batch.target_height     = swapchain_height;

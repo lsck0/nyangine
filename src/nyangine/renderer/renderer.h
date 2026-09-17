@@ -18,6 +18,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+typedef struct NYA_RenderOptions      NYA_RenderOptions;
 typedef struct NYA_RenderSystem       NYA_RenderSystem;
 typedef struct NYA_RenderSystemWindow NYA_RenderSystemWindow;
 typedef struct NYA_Vertex3D             NYA_Vertex3D;
@@ -91,6 +92,24 @@ enum NYA_TextureFilter {
     NYA_TEXTURE_FILTER_COUNT,
 };
 
+/** What a zero NYA_RenderOptions.msaa_samples means. */
+#ifndef NYA_RENDER_MSAA_SAMPLES_DEFAULT
+#define NYA_RENDER_MSAA_SAMPLES_DEFAULT 4
+#endif
+
+/**
+ * What a game can change about rendering while it runs. Zeroed is the default look.
+ * */
+struct NYA_RenderOptions {
+    /**
+     * Samples per pixel: 1 turns multisampling off, then 2, 4 or 8. Zero means NYA_RENDER_MSAA_SAMPLES_DEFAULT, and a
+     * count the device cannot do falls back to the next lower one. At n samples the window holds n colour and n depth
+     * images of its size, 3.5 MB each at 1280x720, where one sample holds a depth image alone. Render textures pay
+     * the same again.
+     * */
+    u32 msaa_samples;
+};
+
 /*
  * ─────────────────────────────────────────────────────────
  * SYSTEM STRUCT
@@ -114,19 +133,56 @@ struct NYA_RenderSystem {
     SDL_GPUSampler* samplers[NYA_TEXTURE_FILTER_COUNT];
 
     /**
-     * Samples per pixel for every pipeline and target, decided at startup. Four is asked for, falling back to
-     * one if the driver refuses. One value for everything, because a pipeline bakes its sample count in.
+     * Samples per pixel for windows and render textures, from `options` as the device allows. One value for
+     * everything, so each pipeline needs one multisampled build. Changed only at nya_render_begin, so a frame never
+     * mixes two counts.
      * */
     SDL_GPUSampleCount sample_count;
 
-    /** Whether sample_count has been settled. */
+    /** Whether sample_count and depth_format have been settled by the first window. */
     b8 sample_count_decided;
+
+    /** What nya_render_options_set asked for. Applied at the next nya_render_begin. */
+    NYA_RenderOptions options;
+
+    /** `options.msaa_samples` as last applied, so an unchanged request is not revalidated every frame. */
+    u32 applied_msaa_samples;
 
     /**
      * The depth format of every depth buffer and depth-testing pipeline, negotiated once for the same reason
      * as the sample count. D24_UNORM first, D32_FLOAT as the fallback every backend has.
      * */
     SDL_GPUTextureFormat depth_format;
+};
+
+/**
+ * Whether a render texture carries a depth buffer.
+ * */
+enum NYA_RenderTextureDepth {
+    /** The default, and what a 3D scene needs. Costs width * height * 4 * the renderer's sample count. */
+    NYA_RENDER_TEXTURE_DEPTH_ATTACHED = 0,
+
+    /**
+     * No depth buffer, for a target only render2d draws into. 2D pipelines declare no depth target, so a post
+     * chain's ping-pong target would carry an unreachable 33 MB at 1080p and 4x.
+     * */
+    NYA_RENDER_TEXTURE_DEPTH_NONE,
+
+    NYA_RENDER_TEXTURE_DEPTH_COUNT,
+};
+
+/**
+ * Anything about a render texture that is not its size.
+ * */
+struct NYA_RenderTextureOptions {
+    NYA_RenderTextureDepth depth;
+
+    /**
+     * No multisampled companion, whatever NYA_RenderOptions.msaa_samples says. For targets that only ever take
+     * fullscreen passes, where there are no edges to smooth: a 1280x720 target then costs 3.5 MB instead of 17.5 MB
+     * at 4x. Pipelines drawing into it are built single sampled on first use.
+     * */
+    b8 single_sampled;
 };
 
 /**
@@ -151,6 +207,12 @@ struct NYA_RenderTexture {
 
     u32 width;
     u32 height;
+
+    /** What `msaa_texture` and `depth_texture` were built with; one without a multisampled companion. */
+    SDL_GPUSampleCount sample_count;
+
+    /** What it was made with, so a caller can tell whether it still fits. See nya_render_texture_is_current. */
+    NYA_RenderTextureOptions options;
 };
 
 /** The 2D shape batch for one window. Only render2d.c touches it. */
@@ -300,6 +362,9 @@ struct NYA_Render2DBatch {
 
     /** What the pass draws into when multisampling is on. */
     SDL_GPUTexture* target_msaa;
+
+    /** Samples per pixel of whatever the pass draws into, which picks each pipeline's build. */
+    SDL_GPUSampleCount target_sample_count;
 
     /**
      * The depth buffer for the current target. A render texture has its own, and a reopened pass must attach
@@ -575,18 +640,20 @@ struct NYA_RenderSystemWindow {
     SDL_GPUCommandBuffer* render_commands;
     SDL_GPUTexture*       swapchain_texture;
 
-    /* The window's multisampled colour buffer and the size it was built for. */
-    SDL_GPUTexture* msaa_texture;
-    u32             msaa_width;
-    u32             msaa_height;
+    /* The window's multisampled colour buffer and the size and sample count it was built for. */
+    SDL_GPUTexture*    msaa_texture;
+    u32                msaa_width;
+    u32                msaa_height;
+    SDL_GPUSampleCount msaa_sample_count;
 
     /*
      * The window's depth buffer, attached to every window pass so 2D and 3D share one pass; the attachment is
      * fixed when a pass opens. A 2D-only game pays one unused texture.
      */
-    SDL_GPUTexture* depth_texture;
-    u32             depth_width;
-    u32             depth_height;
+    SDL_GPUTexture*    depth_texture;
+    u32                depth_width;
+    u32                depth_height;
+    SDL_GPUSampleCount depth_sample_count;
 
     NYA_Render2DBatch draw_batch;
     NYA_Render3DBatch mesh_batch;
@@ -641,6 +708,19 @@ NYA_API void nya_render_clear_color_set(NYA_Window* window, NYA_Color color);
 
 /** What this window clears to. See nya_render_clear_color_set. */
 NYA_API NYA_Color nya_render_clear_color(NYA_Window* window) __attr_no_discard;
+
+/**
+ * Changes how `window` renders, from its next nya_render_begin. Cheap when nothing changed, so a game can feed its
+ * config every frame. Windows share pipelines, so the sample count is every window's.
+ *
+ * ```c
+ * nya_render_options_set(window, (NYA_RenderOptions){ .msaa_samples = NYA_CONFIG.engine.renderer.msaa_samples });
+ * ```
+ * */
+NYA_API void nya_render_options_set(NYA_Window* window, NYA_RenderOptions options);
+
+/** The options in effect: `msaa_samples` is what the device took, not what was asked for. */
+NYA_API NYA_RenderOptions nya_render_options_get(NYA_Window* window) __attr_no_discard;
 
 /** The position as a vector. */
 NYA_API f32x3 nya_vertex3d_position(NYA_Vertex3D vertex) __attr_no_discard;

@@ -51,7 +51,14 @@ struct NYA_PostPass {
  * The pair of targets a chain ping-pongs between. Zero-initialise it and hand it to nya_post_begin.
  * */
 struct NYA_PostChain {
+    /**
+     * [0] holds the scene, at the renderer's sample count. [1] exists only while more than one pass runs, single
+     * sampled and without depth, so a one pass chain such as a bloom costs one target.
+     * */
     NYA_RenderTexture targets[2];
+
+    /** How the scene target is made. Zeroed attaches depth for a 3D scene; a 2D world saves it with DEPTH_NONE. */
+    NYA_RenderTextureOptions scene;
 
     /** What the targets were built for. A change means they are recreated. */
     u32 width, height;
