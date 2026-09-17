@@ -280,8 +280,8 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
     }
 
     f32x2 size = {
-        panel.width > 0.0F ? panel.width : state->size.x,
-        panel.height > 0.0F ? panel.height : state->size.y,
+        nya_max(panel.width, state->size.x),
+        nya_max(panel.height, state->size.y),
     };
 
     NYA_Rectf bounds;
@@ -327,8 +327,11 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
     NYA_Window* window = ui->window;
 
     if (!panel.frameless) {
+        NYA_Color fill = panel.fill;
+        if (fill.r == 0.0F && fill.g == 0.0F && fill.b == 0.0F && fill.a == 0.0F) fill = style->panel;
+
         nya_render2d_rect_rounded(window, bounds.x, bounds.y + style->depth, bounds.width, bounds.height, style->radius, style->ink);
-        nya_render2d_rect_rounded(window, bounds.x, bounds.y, bounds.width, bounds.height, style->radius, style->panel);
+        nya_render2d_rect_rounded(window, bounds.x, bounds.y, bounds.width, bounds.height, style->radius, fill);
         nya_render2d_rect_rounded_outline(window, bounds.x, bounds.y, bounds.width, bounds.height, style->radius, style->outline, style->ink);
     }
 
@@ -359,8 +362,8 @@ void nya_ui_panel_end(NYA_UI* ui) {
     };
 
     f32x2 size = {
-        layout->options.width > 0.0F ? layout->options.width : natural.x,
-        layout->options.height > 0.0F ? layout->options.height : natural.y,
+        nya_max(layout->options.width, natural.x),
+        nya_max(layout->options.height, natural.y),
     };
 
     // a face still loading measures zero, and that size must not stick.
@@ -556,7 +559,7 @@ b8 nya_ui_slider(NYA_UI* ui, NYA_ConstCString label, f32* value, f32 min, f32 ma
     f32 knob   = height * 0.2F;
 
     f32       text_width = nya_font_width(layout->font, label);
-    NYA_Rectf rect       = _nya_ui_place((f32x2){ text_width + (style->padding * 3.0F) + (height * 3.0F), height }, true);
+    NYA_Rectf rect       = _nya_ui_place((f32x2){ text_width + (style->padding * 3.0F) + (height * 2.0F), height }, true);
 
     // the right part of the row, past the label, inset by the knob so it can reach both ends.
     f32 track_x     = rect.x + nya_max(rect.width * 0.5F, text_width + (style->padding * 2.0F)) + knob;

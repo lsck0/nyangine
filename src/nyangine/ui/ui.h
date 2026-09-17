@@ -213,7 +213,7 @@ struct NYA_UIPanel {
     /** Pixels in from the anchored edges. Ignored on the axis an anchor centres. */
     f32x2 offset;
 
-    /** Zero fits the content, from the previous pass. */
+    /** The least the panel takes. It grows to fit its content, as measured in the previous pass. */
     f32 width;
     f32 height;
 
@@ -224,6 +224,9 @@ struct NYA_UIPanel {
 
     /** Overrides the style's font for everything inside. NYA_FONT_NONE keeps it. */
     NYA_Font font;
+
+    /** Overrides the style's panel colour. All four channels zero keeps it. */
+    NYA_Color fill;
 
     /** No background, outline or padding: a plain column. */
     b8 frameless;
