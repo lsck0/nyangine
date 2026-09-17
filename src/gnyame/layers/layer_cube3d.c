@@ -819,7 +819,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
         );
     }
 
-    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 1.0F, .edge = GNY_CUBE3D_EDGE });
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 1.0F });
 
     // the landscape is a few thousand flat triangles in the shared batch. the facets show relief better than a
     // grid.
@@ -888,14 +888,14 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     }
 
     // back to the pile's material, or the models below get glass highlights.
-    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 1.0F, .edge = GNY_CUBE3D_EDGE });
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 1.0F });
 
     if (cube != nullptr) {
         // brushed metal while held, matte plastic otherwise: material belongs to the draw, not the object.
         nya_render3d_material_set(
             window,
-            scene->dragging ? (NYA_Render3DMaterial){ .metallic = 1.0F, .roughness = 0.6F, .edge = GNY_CUBE3D_EDGE }
-                            : (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 0.9F, .edge = GNY_CUBE3D_EDGE }
+            scene->dragging ? (NYA_Render3DMaterial){ .metallic = 1.0F, .roughness = 0.6F }
+                            : (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 0.9F }
         );
 
         nya_render3d_cube(
@@ -909,7 +909,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
 
     // the loaded model shares the batch, light and material with the primitives. smooth shaded, since its normals
     // come from the file.
-    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.1F, .roughness = 0.85F, .edge = GNY_CUBE3D_EDGE });
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.1F, .roughness = 0.85F });
 
     // placed and turned by the solver, so the models fall and roll like the cubes.
     const NYA_Entity* model_entity = nya_entity_get(scene->model);
@@ -926,7 +926,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     }
 
     // the pill gets a different roughness, showing material varies per draw within one batch.
-    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.55F, .roughness = 0.7F, .edge = GNY_CUBE3D_EDGE });
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.55F, .roughness = 0.7F });
 
     const NYA_Entity* pill_entity = nya_entity_get(scene->pill);
 
@@ -960,7 +960,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
         f32_4x4 placement = nya_matrix_transform(base, nya_quaternion_to_matrix3(nya_quaternion_identity),
                                                  (f32x3){ GNY_CUBE3D_BENDER_SCALE, GNY_CUBE3D_BENDER_SCALE, GNY_CUBE3D_BENDER_SCALE });
 
-        nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.2F, .roughness = 0.85F, .edge = GNY_CUBE3D_EDGE });
+        nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.2F, .roughness = 0.85F });
         nya_render3d_skinned_mesh(window, GNY_CUBE3D_BENDER, palette, scene->bender_bone_count, placement,
                                   GNY_CUBE3D_BENDER_COLOR);
     }

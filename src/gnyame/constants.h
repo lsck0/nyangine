@@ -863,11 +863,6 @@
 #define GNY_CUBE3D_LAMP_MARKER_RADIUS 0.16F
 #define GNY_CUBE3D_LAMP_EMISSION      1.6F
 
-/**
- * How strongly curved edges are inked. See NYA_Render3DMaterial.edge. Visible on the models and spheres; the
- * hard-faced cube shows nothing, a limit of the technique.
- * */
-#define GNY_CUBE3D_EDGE 0.15F
 
 /*
  * ─────────────────────────────────────────────────────────
