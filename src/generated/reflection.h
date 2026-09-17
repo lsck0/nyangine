@@ -11,6 +11,7 @@
  * macro is what makes a misspelling a link error instead of a null at runtime.
  */
 
+extern const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigRobots;
 extern const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame;
 extern const NYA_TypeReflection _NYA_REFLECT_GNY_Config;
 extern const NYA_TypeReflection _NYA_REFLECT_GNY_EntityKind;
@@ -23,7 +24,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_NetPeerId;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Color;
 
 /** Every annotated type, for an editor that needs to enumerate them. */
-#define NYA_REFLECT_TYPE_COUNT 10
+#define NYA_REFLECT_TYPE_COUNT 11
 
 extern const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT];
 

@@ -22,6 +22,9 @@
   "hud_paused": "PHYSIK ANGEHALTEN",
   "hud_greeting": "Hallo, %s!",
   "hud_score": "%s erzielte %d Punkte",
+  "hud_robots_neat": "neat  generation %u  arten %u  beste %.3f",
+  "hud_robots_dqn": "dqn  schritte %u  wertung %.3f  erkundet %.0f%%",
+  "hud_robots_run": "lauf %u  rekord %.3f  training %.1f ms",
   "hud_keys": "klick ablegen   rechtsklick entfernen   leertaste schwall   c leeren   r gelände   p physik   m musik   b bloom   t statistik   esc menü",
 
   "cube3d_title": "3d-demo",

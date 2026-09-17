@@ -59,6 +59,9 @@ enum GNY_EntityKind {
      * */
     GNY_ENTITY_PLAYER,
 
+    /** A learning drone. Moved by the robots system, which owns its body. See robots.h. */
+    GNY_ENTITY_ROBOT,
+
     GNY_ENTITY_KIND_COUNT,
 };
 
@@ -247,6 +250,18 @@ u32 gny_entity_ledge_drop_everything_through(f32 seconds);
 void gny_entity_ledge_on_render(NYA_Entity* entity, NYA_Window* window);
 void gny_entity_ledge_marker_on_update(NYA_Entity* entity, f32 delta_time_s);
 void gny_entity_ledge_marker_on_animation(NYA_Entity* entity, NYA_SpriteAnimationSignal signal);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * ROBOT
+ * ─────────────────────────────────────────────────────────
+ */
+
+/** Spawns a drone. It has no body and no update: gny_robots_update moves it. */
+NYA_EntityHandle gny_entity_robot_create(f32x2 position);
+
+/** Draws a drone pointing where it flies, and a line to where it is flying to. */
+void gny_entity_robot_on_render(NYA_Entity* entity, NYA_Window* window);
 
 /** What `camera` is watching, or NYA_ENTITY_HANDLE_NONE. */
 NYA_EntityHandle gny_entity_camera_target(NYA_EntityHandle camera);

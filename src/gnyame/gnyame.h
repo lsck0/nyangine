@@ -28,19 +28,20 @@
  * | File                          | Shows                                                                   |
  * | :---------------------------- | :---------------------------------------------------------------------- |
  * | gnyame.c                      | app init options, locale loading, startup order, hot reload restore     |
- * | actions.c                     | named input actions, default bindings, settings load and save           |
+ * | actions.c                     | named input actions, key and gamepad bindings, settings load and save   |
  * | config.h                      | a reflected config struct kept in sync with a file (nya_config_watch)   |
  * | world.c                       | game state in the engine world, Lua VM and scripts, fonts, 2D terrain   |
  * | screens.c                     | pushing and popping layers at the barrier, a reusable menu widget       |
  * | layers/layer_game.c           | the 2D scene: tilemap, crates, cameras, bloom post chain, music         |
  * | layers/layer_cube3d.c         | the 3D scene: meshes, 3D physics, picking, particles, 3D audio, shadows |
- * | layers/layer_ui.c             | HUD text, frame stats, perf span overlay                                |
+ * | layers/layer_ui.c             | HUD text, frame stats, perf span overlay, a NEAT genome drawn live      |
  * | layers/layer_background.c     | procedural immediate mode 2D drawing                                    |
  * | entities/entity_box.c         | entity kinds, spawn options, 2D bodies, collision, click, lights        |
  * | entities/entity_camera.c      | cameras as entities, following, render-to-texture views                |
  * | entities/entity_ledge.c       | one-way platforms, kinematic motion, parented entities                  |
  * | systems/                      | systems registered by name with ordering (nya_system_register)          |
  * | sim.c                         | recording facts in callbacks and deciding once per frame in an observer |
+ * | robots.c                      | NEAT and DQN trained on jobs, a nav flow field, saves, a sqlite history |
  * | net.c                         | single player, listen server, dedicated server and client in one path   |
  *
  * ## A new entity kind
@@ -86,6 +87,7 @@
 /**/
 #include "gnyame/systems/systems.h"
 #include "gnyame/sim.h"
+#include "gnyame/robots.h"
 /**/
 #include "gnyame/world.h"
 #include "gnyame/screens.h"

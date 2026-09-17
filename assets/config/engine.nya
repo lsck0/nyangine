@@ -31,5 +31,15 @@ nya 2 0
         player_spawn_spacing: f32 64.0;
         // See GNY_ANIMATION_SPEED.
         animation_speed: f32 1.0;
+        // The learning drones in the 2D scene. See src/gnyame/robots.h.
+        robots: object {
+            enabled: b8 true;
+            // Genomes per generation, read when training starts.
+            population: u32 48;
+            // What training may cost: both run on one job every quarter second.
+            generations_per_second: f32 2.0;
+            dqn_steps_per_second: f32 240.0;
+            show_brain: b8 true;
+        };
     };
 }

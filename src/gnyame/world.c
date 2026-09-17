@@ -152,6 +152,9 @@ void gny_world_clear(void) {
     GNY_World* world = gny_world();
     if (world == nullptr) return;
 
+    // first, so the brain is saved and its drones go before the scene they fly in.
+    gny_robots_destroy();
+
     /* Immediate rather than deferred, unlike the rest of this file. */
     for (u32 slot = 0; slot < nya_entity_slot_count(); slot++) {
         NYA_Entity* entity = nya_entity_at_slot(slot);

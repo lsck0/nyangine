@@ -22,6 +22,9 @@
   "hud_paused": "PHYSICS PAUSED",
   "hud_greeting": "Hello, %s!",
   "hud_score": "%s scored %d points",
+  "hud_robots_neat": "neat  generation %u  species %u  best %.3f",
+  "hud_robots_dqn": "dqn  steps %u  score %.3f  exploring %.0f%%",
+  "hud_robots_run": "run %u  record %.3f  training %.1f ms",
   "hud_keys": "click drop   right click remove   space burst   c clear   r terrain   p physics   m music   b bloom   t stats   esc menu",
 
   "cube3d_title": "3d demo",

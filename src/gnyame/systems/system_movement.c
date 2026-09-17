@@ -108,5 +108,8 @@ void gny_systems_register_all(void) {
 
     nya_system_register((NYA_SystemEntry){ .name = "music", .update = gny_system_music_update });
 
+    // after player_input, so the drones chase where the player is this tick.
+    nya_system_register((NYA_SystemEntry){ .name = "robots", .after = "player_input", .update = gny_robots_update });
+
     NYA_EXPECT(nya_system_registry_finalize());
 }

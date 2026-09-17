@@ -33,12 +33,32 @@ const NYA_TypeReflection _NYA_REFLECT_f32x2 = { .name = "f32x2", .kind = NYA_REF
 const NYA_TypeReflection _NYA_REFLECT_f32x3 = { .name = "f32x3", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x3), .alignment = alignof(f32x3), .element = &_NYA_REFLECT_f32, .element_count = 3 };
 const NYA_TypeReflection _NYA_REFLECT_f32x4 = { .name = "f32x4", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x4), .alignment = alignof(f32x4), .element = &_NYA_REFLECT_f32, .element_count = 4 };
 
+/* GNY_ConfigRobots, src/gnyame/config.h */
+
+static const NYA_ReflectField _NYA_REFLECT_GNY_ConfigRobots_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(GNY_ConfigRobots, enabled), .hint = NYA_HINT_NONE },
+    { .name = "population", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(GNY_ConfigRobots, population), .hint = NYA_HINT_NONE },
+    { .name = "generations_per_second", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigRobots, generations_per_second), .hint = NYA_HINT_NONE },
+    { .name = "dqn_steps_per_second", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigRobots, dqn_steps_per_second), .hint = NYA_HINT_NONE },
+    { .name = "show_brain", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(GNY_ConfigRobots, show_brain), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigRobots = {
+    .name = "GNY_ConfigRobots",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(GNY_ConfigRobots),
+    .alignment = alignof(GNY_ConfigRobots),
+    .fields = _NYA_REFLECT_GNY_ConfigRobots_FIELDS,
+    .field_count = 5,
+};
+
 /* GNY_ConfigGame, src/gnyame/config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_GNY_ConfigGame_FIELDS[] = {
     { .name = "player_speed", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, player_speed), .hint = NYA_HINT_NONE },
     { .name = "player_spawn_spacing", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, player_spawn_spacing), .hint = NYA_HINT_NONE },
     { .name = "animation_speed", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(GNY_ConfigGame, animation_speed), .hint = NYA_HINT_NONE },
+    { .name = "robots", .type = &_NYA_REFLECT_GNY_ConfigRobots, .offset = nya_offsetof(GNY_ConfigGame, robots), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame = {
@@ -47,7 +67,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame = {
     .size = sizeof(GNY_ConfigGame),
     .alignment = alignof(GNY_ConfigGame),
     .fields = _NYA_REFLECT_GNY_ConfigGame_FIELDS,
-    .field_count = 3,
+    .field_count = 4,
 };
 
 /* GNY_Config, src/gnyame/config.h */
@@ -77,6 +97,7 @@ static const NYA_ReflectVariant _NYA_REFLECT_GNY_EntityKind_VARIANTS[] = {
     { .name = "GNY_ENTITY_TILEMAP", .value = (s64)(GNY_ENTITY_TILEMAP) },
     { .name = "GNY_ENTITY_LEDGE", .value = (s64)(GNY_ENTITY_LEDGE) },
     { .name = "GNY_ENTITY_PLAYER", .value = (s64)(GNY_ENTITY_PLAYER) },
+    { .name = "GNY_ENTITY_ROBOT", .value = (s64)(GNY_ENTITY_ROBOT) },
     { .name = "GNY_ENTITY_KIND_COUNT", .value = (s64)(GNY_ENTITY_KIND_COUNT) },
 };
 
@@ -90,7 +111,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_EntityKind = {
                 : sizeof(GNY_EntityKind) == 1 ? NYA_TYPE_S8
                                   : NYA_TYPE_S32),
     .variants = _NYA_REFLECT_GNY_EntityKind_VARIANTS,
-    .variant_count = 9,
+    .variant_count = 10,
     .is_bitflags = false,
 };
 
@@ -237,6 +258,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Color = {
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
+    &_NYA_REFLECT_GNY_ConfigRobots,
     &_NYA_REFLECT_GNY_ConfigGame,
     &_NYA_REFLECT_GNY_Config,
     &_NYA_REFLECT_GNY_EntityKind,

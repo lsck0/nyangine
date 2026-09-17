@@ -925,3 +925,86 @@
  * GNY_PLAYER_SPAWN_SPACING, so simultaneous spawns are visibly apart.
  * */
 #define GNY_PLAYER_SIZE 24.0F
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * ROBOTS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * One task for both brains: thrust toward a point. The drones fly it on screen with a nav waypoint as the point,
+ * and training flies it offline with made up points, so these numbers are shared and a change retrains both.
+ */
+
+/** Drones flying the evolved genome, and all of them with the one DQN drone. */
+#define GNY_ROBOT_NEAT_DRONES 5
+#define GNY_ROBOT_DRONES      (GNY_ROBOT_NEAT_DRONES + 1)
+
+#define GNY_ROBOT_ACCELERATION 900.0F
+#define GNY_ROBOT_MAX_SPEED    260.0F
+
+/** Fraction of velocity lost per second, so a brain that stops thrusting drifts to a halt. */
+#define GNY_ROBOT_DRAG 1.5F
+
+/** Offsets and speeds are divided by these before a brain sees them, so every sense sits in [-1, 1]. */
+#define GNY_ROBOT_SENSE_RANGE 160.0F
+
+/** Close enough to count as reached, for the DQN's terminal reward. */
+#define GNY_ROBOT_REACH 12.0F
+
+/** The fixed step both training loops simulate at, the game's own tick. */
+#define GNY_ROBOT_TRAIN_DT (1.0F / 60.0F)
+
+/** Steps in one scripted NEAT trial episode and in one DQN episode before it gives up on a target. */
+#define GNY_ROBOT_TRIAL_STEPS   90
+#define GNY_ROBOT_EPISODE_STEPS 120
+
+/** What a brain senses (offset and velocity), and the DQN's choices: coast, or thrust one of eight ways. */
+#define GNY_ROBOT_SENSES      4
+#define GNY_ROBOT_DQN_ACTIONS 9
+
+/** Seconds between training jobs. Each job runs whatever generations and gradient steps the rates have earned. */
+#define GNY_ROBOT_TRAIN_INTERVAL_S 0.25F
+
+/** The most one job may catch up on, so a long pause does not turn into one long job. */
+#define GNY_ROBOT_MAX_GENERATIONS_PER_JOB 2
+#define GNY_ROBOT_MAX_DQN_STEPS_PER_JOB   128
+
+/** Gradient steps between two scorings of the DQN on the trial. */
+#define GNY_ROBOT_DQN_SCORE_EVERY 500
+
+/** Past this from the player a drone is brought back above them. */
+#define GNY_ROBOT_RECALL_DISTANCE 1400.0F
+#define GNY_ROBOT_RECALL_HEIGHT   240.0F
+
+/** Cells of the nav grid over the 2D world, from this height down to the lowest the terrain reaches. */
+#define GNY_ROBOT_NAV_CELL    40.0F
+#define GNY_ROBOT_NAV_TOP     (-760.0F)
+#define GNY_ROBOT_NAV_COLUMNS ((u32)((GNY_TERRAIN_HALF_WIDTH * 2.0F) / GNY_ROBOT_NAV_CELL))
+#define GNY_ROBOT_NAV_ROWS    ((u32)((GNY_TERRAIN_BASE_Y + GNY_TERRAIN_AMPLITUDE - GNY_ROBOT_NAV_TOP) / GNY_ROBOT_NAV_CELL))
+
+/** Cells ahead along the flow a drone aims at, so it cuts corners the grid would make it turn. */
+#define GNY_ROBOT_NAV_LOOKAHEAD 2
+
+/** Within this of the player, drones stop following the flow and circle. */
+#define GNY_ROBOT_ORBIT_RADIUS 70.0F
+#define GNY_ROBOT_ORBIT_SPEED  0.9F
+
+#define GNY_ROBOT_SIZE       14.0F
+#define GNY_ROBOT_NEAT_COLOR ((NYA_Color){ 0.45F, 0.95F, 0.60F, 1.0F })
+#define GNY_ROBOT_DQN_COLOR  ((NYA_Color){ 1.00F, 0.70F, 0.30F, 1.0F })
+
+/** Where the best genome and the run history live under the save root. */
+#define GNY_ROBOT_SAVE_FILE     "robots.nya"
+#define GNY_ROBOT_DATABASE_FILE "robots.db"
+#define GNY_ROBOT_SAVE_VERSION  1
+
+/** The training panel under the HUD's status panel, and the genome drawn under that. */
+#define GNY_ROBOT_PANEL_WIDTH  420.0F
+#define GNY_ROBOT_BRAIN_HEIGHT 160.0F
+
+/** Defaults for GNY_ConfigRobots fields left zero. */
+#define GNY_ROBOT_POPULATION             48
+#define GNY_ROBOT_GENERATIONS_PER_SECOND 2.0F
+#define GNY_ROBOT_DQN_STEPS_PER_SECOND   240.0F

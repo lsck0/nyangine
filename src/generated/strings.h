@@ -25,6 +25,9 @@ typedef enum {
     NYA_STRING_HUD_OFFLINE,
     NYA_STRING_HUD_PAUSED,
     NYA_STRING_HUD_PLAYERS,
+    NYA_STRING_HUD_ROBOTS_DQN,
+    NYA_STRING_HUD_ROBOTS_NEAT,
+    NYA_STRING_HUD_ROBOTS_RUN,
     NYA_STRING_HUD_SCORE,
     NYA_STRING_MENU_2D_SCENE,
     NYA_STRING_MENU_3D_SCENE,
@@ -41,30 +44,10 @@ typedef enum {
 
 /** The JSON key each id came from, in id order. Read by nya_i18n_load. */
 static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unused = {
-    "cube3d_hint_animation",
-    "cube3d_hint_camera",
-    "cube3d_hint_click",
-    "cube3d_hint_drag",
-    "cube3d_keys",
-    "cube3d_title",
-    "hud_boxes",
-    "hud_greeting",
-    "hud_hosting",
-    "hud_hovering",
-    "hud_keys",
-    "hud_offline",
-    "hud_paused",
-    "hud_players",
-    "hud_score",
-    "menu_2d_scene",
-    "menu_3d_scene",
-    "menu_main_menu",
-    "menu_master_volume",
-    "menu_music_volume",
-    "menu_quit",
-    "menu_restart",
-    "menu_resume",
-    "menu_start",
+    "cube3d_hint_animation", "cube3d_hint_camera", "cube3d_hint_click", "cube3d_hint_drag", "cube3d_keys",   "cube3d_title",  "hud_boxes",
+    "hud_greeting",          "hud_hosting",        "hud_hovering",      "hud_keys",         "hud_offline",   "hud_paused",    "hud_players",
+    "hud_robots_dqn",        "hud_robots_neat",    "hud_robots_run",    "hud_score",        "menu_2d_scene", "menu_3d_scene", "menu_main_menu",
+    "menu_master_volume",    "menu_music_volume",  "menu_quit",         "menu_restart",     "menu_resume",   "menu_start",
 };
 
 /** `cube3d_hint_animation` */
@@ -135,6 +118,21 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_hud_paused(void) {
 /** `hud_players` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_hud_players(u32 a0) {
     return _nya_i18n_format(NYA_STRING_HUD_PLAYERS, a0);
+}
+
+/** `hud_robots_dqn` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_hud_robots_dqn(u32 a0, f64 a1, f64 a2) {
+    return _nya_i18n_format(NYA_STRING_HUD_ROBOTS_DQN, a0, a1, a2);
+}
+
+/** `hud_robots_neat` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_hud_robots_neat(u32 a0, u32 a1, f64 a2) {
+    return _nya_i18n_format(NYA_STRING_HUD_ROBOTS_NEAT, a0, a1, a2);
+}
+
+/** `hud_robots_run` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_hud_robots_run(u32 a0, f64 a1, f64 a2) {
+    return _nya_i18n_format(NYA_STRING_HUD_ROBOTS_RUN, a0, a1, a2);
 }
 
 /** `hud_score` */

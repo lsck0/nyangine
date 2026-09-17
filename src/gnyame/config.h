@@ -30,8 +30,30 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-typedef struct GNY_ConfigGame GNY_ConfigGame;
-typedef struct GNY_Config     GNY_Config;
+typedef struct GNY_ConfigRobots GNY_ConfigRobots;
+typedef struct GNY_ConfigGame   GNY_ConfigGame;
+typedef struct GNY_Config       GNY_Config;
+
+/**
+ * The learning drones in the 2D scene. See robots.h. Off unless the file turns them on.
+ * */
+// @reflect
+struct GNY_ConfigRobots {
+    /** Drones, training and nav. Turning it off waits for the running job, saves, and frees everything. */
+    b8 enabled;
+
+    /** Genomes per NEAT generation. Read when training starts. Zero falls back to GNY_ROBOT_POPULATION. */
+    u32 population;
+
+    /** NEAT generations trained per second on a job. Zero falls back to GNY_ROBOT_GENERATIONS_PER_SECOND. */
+    f32 generations_per_second;
+
+    /** DQN gradient steps per second on the same job. Zero falls back to GNY_ROBOT_DQN_STEPS_PER_SECOND. */
+    f32 dqn_steps_per_second;
+
+    /** Draw the best genome under the HUD. */
+    b8 show_brain;
+};
 
 /**
  * Gameplay tunables worth reaching without a rebuild. Mirrors constants.h's own GNY_PLAYER_* defaults,
@@ -47,6 +69,8 @@ struct GNY_ConfigGame {
 
     /** Multiplies the demos' skeleton and sprite animation clocks. Zero falls back to GNY_ANIMATION_SPEED. */
     f32 animation_speed;
+
+    GNY_ConfigRobots robots;
 };
 
 /**

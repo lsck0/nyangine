@@ -5,6 +5,7 @@
 #include "gnyame/entities/entities.c"
 #include "gnyame/net.c"
 #include "gnyame/sim.c"
+#include "gnyame/robots.c"
 #include "gnyame/world.c"
 #include "gnyame/screens.c"
 #include "gnyame/systems/systems.c"
@@ -128,6 +129,9 @@ void gnyame_deinit(void) {
     // before the engine goes down, since saving settings needs the save system, and a crash in teardown
     // should not lose a rebound key.
     gny_actions_deinit();
+
+    // while the job system and the save root are still up: it waits for training, then saves.
+    gny_robots_destroy();
 
     // before the engine, since stopping despawns player entities, and a client should disconnect cleanly
     // rather than time out.

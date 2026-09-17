@@ -58,6 +58,9 @@ typedef struct GNY_World {
 
     /** The engine's debug overlay, toggled with `t` in either scene. */
     b8 overlay_enabled;
+
+    /** The learning drones, while the 2D scene runs and the config has them on. See robots.h. */
+    GNY_Robots* robots;
 } GNY_World;
 
 /** Null until gny_world_create has run. */
