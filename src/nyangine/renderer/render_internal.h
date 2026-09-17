@@ -21,6 +21,22 @@ typedef struct NYA_Asset NYA_Asset;
  * */
 NYA_INTERNAL SDL_GPUGraphicsPipeline* _nya_render_pipeline(NYA_Window* window, NYA_Asset* asset) __attr_no_discard;
 
+/** The present mode the app's vsync option asks for, falling back to vsync where the window lacks it. */
+NYA_INTERNAL __attr_allow_unused SDL_GPUPresentMode _nya_render_present_mode(NYA_Window* window);
+
+/*
+ * Defined in render_output.c. Allow-unused because only the build with a device calls them.
+ */
+
+/** Switches the swapchain to what NYA_RenderOutput asks for, if that changed. Called before a frame acquires its image. */
+NYA_INTERNAL __attr_allow_unused void _nya_render_output_apply(NYA_Window* window);
+
+/** What a frame draws into instead of `swapchain` while presenting in HDR, which is `swapchain` itself in SDR. */
+NYA_INTERNAL __attr_allow_unused SDL_GPUTexture* _nya_render_output_target(NYA_Window* window, SDL_GPUTexture* swapchain, u32 width, u32 height);
+
+/** Encodes the frame onto the swapchain while presenting in HDR. Called with no pass open. */
+NYA_INTERNAL __attr_allow_unused void _nya_render_output_present(NYA_Window* window);
+
 /*
  * Defined in render3d_decal.c, which the unity build includes after render3d.c. Allow-unused because only the build
  * with a device calls them.

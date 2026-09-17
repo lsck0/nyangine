@@ -939,10 +939,9 @@ SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoad
             .num_color_targets         = normals ? 2 : 1,
             .color_target_descriptions = (SDL_GPUColorTargetDescription[]){
                 {
-                    // the named format, else the window's. see color_format.
-                    .format      = parameters->as_graphics_pipeline.color_format != 0
-                                       ? parameters->as_graphics_pipeline.color_format
-                                       : SDL_GetGPUSwapchainTextureFormat(render_system->gpu_device, parameters->as_graphics_pipeline.window->sdl_window),
+                    // the named format, else the window's. see NYA_RenderSystemWindow.color_format.
+                    .format      = parameters->as_graphics_pipeline.color_format != 0 ? parameters->as_graphics_pipeline.color_format
+                                                                                      : parameters->as_graphics_pipeline.window->render_system.color_format,
                     .blend_state = blend_state,
                 },
                 {

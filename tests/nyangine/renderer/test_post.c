@@ -175,6 +175,11 @@ s32 main(void) {
         nya_check(lines.amount == 1.0F && lines.center_x == -0.5F && lines.density == 0.0F, "speed lines clamp");
         nya_post_speed_lines_set(&window, (NYA_PostSpeedLines){ 0 });
 
+        // a headless window has no swapchain, so HDR is kept as asked and never presented.
+        nya_render_output_set(&window, (NYA_RenderOutput){ .hdr = true, .peak = 4.0F });
+        nya_check(nya_render_output(&window).hdr && nya_render_output(&window).peak == 4.0F, "the output reads back as given");
+        nya_check(!nya_render_output_hdr_active(&window), "a headless window never presents in HDR");
+
         nya_post_debug_view_set(&window, (NYA_PostDebugView)99);
         nya_check(nya_post_debug_view(&window) == NYA_POST_DEBUG_VIEW_NONE, "an unknown debug view reads as none");
 

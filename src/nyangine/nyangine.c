@@ -49,6 +49,7 @@
 #endif
 // After render3d.c, whose flush draws them and whose internals they bind through.
 #include "nyangine/renderer/render3d_decal.c"
+#include "nyangine/renderer/render_output.c"
 // After both 2D renderers: the post chain draws through whichever one the build selected.
 #include "nyangine/renderer/render_post.c"
 // After whichever 2D renderer was selected: it forwards to that renderer's text API.

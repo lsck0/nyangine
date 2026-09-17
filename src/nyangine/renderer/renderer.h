@@ -230,8 +230,9 @@ struct NYA_RenderTexture {
 
 // after NYA_RenderTexture, which the post chain is built from, and before the window state, which holds its options.
 #include "nyangine/renderer/render_post.h"
-// the window holds the decal options and what they allocate.
+// the window holds the decal and output options and what they allocate.
 #include "nyangine/renderer/render3d_decal.h"
+#include "nyangine/renderer/render_output.h"
 
 /** The 2D shape batch for one window. Only render2d.c touches it. */
 /** Bytes of custom fragment uniform a deferred range can carry inline. */
@@ -674,6 +675,12 @@ struct NYA_RenderSystemWindow {
     SDL_GPUTexture*       swapchain_texture;
 
     /**
+     * The format every pipeline and target of this window is built for: the swapchain's when it was claimed, which
+     * is SDR. It stays when the output switches to HDR; see render_output.h.
+     * */
+    SDL_GPUTextureFormat color_format;
+
+    /**
      * Whether the open pass, or the one the next resume opens, attaches the target's normal buffer. 3D draws set
      * it and 2D draws clear it, since their pipelines are built for different targets. See
      * _nya_render2d_pass_normals_set.
@@ -701,6 +708,10 @@ struct NYA_RenderSystemWindow {
     /** See nya_render3d_decals_set. */
     NYA_Render3DDecals    decals;
     NYA_Render3DDecalsGPU decals_gpu;
+
+    /** See nya_render_output_set. */
+    NYA_RenderOutput    output;
+    NYA_RenderOutputGPU output_gpu;
 
     /* The cartoon post passes. See render_post.h. */
 

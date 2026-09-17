@@ -115,6 +115,9 @@ struct NYA_ConfigEngineRenderer {
     /** See nya_render3d_decals_set. */
     NYA_Render3DDecals decals;
 
+    /** See nya_render_output_set. */
+    NYA_RenderOutput output;
+
     NYA_PostDebugView        debug_view;
 
     /** The hue shade leans toward, alpha as how far. See NYA_Render3DShadowOptions.color. */

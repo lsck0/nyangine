@@ -350,6 +350,18 @@ struct NYA_ShaderDepthOfFieldUniform {
     f32 pad[2];
 };
 
+/** effect_output_hdr.frag.hlsl, from NYA_RenderOutput with the defaults resolved. */
+struct NYA_ShaderOutputUniform {
+    /** 0 for extended linear sRGB, 1 for HDR10. */
+    f32 encoding;
+
+    f32 peak;
+    f32 highlight;
+
+    /** SDR white in nits, which HDR10 needs and linear output ignores. */
+    f32 paper_white;
+};
+
 /** effect_speed_lines.frag.hlsl. See NYA_PostSpeedLines. */
 struct NYA_ShaderSpeedLinesUniform {
     /** Where the lines converge, in uv. */

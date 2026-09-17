@@ -160,6 +160,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
     { .name = "depth_of_field", .type = &_NYA_REFLECT_NYA_PostDepthOfField, .offset = nya_offsetof(NYA_ConfigEngineRenderer, depth_of_field), .hint = NYA_HINT_NONE },
     { .name = "speed_lines", .type = &_NYA_REFLECT_NYA_PostSpeedLines, .offset = nya_offsetof(NYA_ConfigEngineRenderer, speed_lines), .hint = NYA_HINT_NONE },
     { .name = "decals", .type = &_NYA_REFLECT_NYA_Render3DDecals, .offset = nya_offsetof(NYA_ConfigEngineRenderer, decals), .hint = NYA_HINT_NONE },
+    { .name = "output", .type = &_NYA_REFLECT_NYA_RenderOutput, .offset = nya_offsetof(NYA_ConfigEngineRenderer, output), .hint = NYA_HINT_NONE },
     { .name = "debug_view", .type = &_NYA_REFLECT_NYA_PostDebugView, .offset = nya_offsetof(NYA_ConfigEngineRenderer, debug_view), .hint = NYA_HINT_NONE },
     { .name = "shadow_color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_color), .hint = NYA_HINT_NONE },
     { .name = "grade_lut", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer_grade_lut_ARRAY, .offset = nya_offsetof(NYA_ConfigEngineRenderer, grade_lut), .hint = NYA_HINT_NONE },
@@ -172,7 +173,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .size = sizeof(NYA_ConfigEngineRenderer),
     .alignment = alignof(NYA_ConfigEngineRenderer),
     .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
-    .field_count = 14,
+    .field_count = 15,
 };
 
 /* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
@@ -288,6 +289,22 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Color = {
     .alignment = alignof(NYA_Color),
     .fields = _NYA_REFLECT_NYA_Color_FIELDS,
     .field_count = 4,
+};
+
+/* NYA_RenderOutput, src/nyangine/renderer/render_output.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_RenderOutput_FIELDS[] = {
+    { .name = "hdr", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_RenderOutput, hdr), .hint = NYA_HINT_NONE },
+    { .name = "peak", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_RenderOutput, peak), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_RenderOutput = {
+    .name = "NYA_RenderOutput",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_RenderOutput),
+    .alignment = alignof(NYA_RenderOutput),
+    .fields = _NYA_REFLECT_NYA_RenderOutput_FIELDS,
+    .field_count = 2,
 };
 
 /* NYA_PostInk, src/nyangine/renderer/render_post.h */
@@ -449,6 +466,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_NetPeerId,
     &_NYA_REFLECT_NYA_Render3DDecals,
     &_NYA_REFLECT_NYA_Color,
+    &_NYA_REFLECT_NYA_RenderOutput,
     &_NYA_REFLECT_NYA_PostInk,
     &_NYA_REFLECT_NYA_PostAmbientOcclusion,
     &_NYA_REFLECT_NYA_PostAntialias,

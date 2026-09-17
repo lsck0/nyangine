@@ -1324,8 +1324,8 @@ NYA_RenderTexture nya_render_texture_create_with(NYA_Window* window, u32 width, 
 
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
-    // the swapchain's format, so the window's pipelines can draw here.
-    SDL_GPUTextureFormat format = SDL_GetGPUSwapchainTextureFormat(gpu_device, window->sdl_window);
+    // the window's format, so its pipelines can draw here.
+    SDL_GPUTextureFormat format = window->render_system.color_format;
 
     SDL_GPUTexture* texture = nya_gpu_texture_create(
         gpu_device,

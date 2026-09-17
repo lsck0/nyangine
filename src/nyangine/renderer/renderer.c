@@ -227,7 +227,7 @@ NYA_INTERNAL void _nya_renderer_ensure_msaa_texture(NYA_Window* window, u32 widt
         app->render_system.gpu_device,
         &(SDL_GPUTextureCreateInfo){
             .type                 = SDL_GPU_TEXTURETYPE_2D,
-            .format               = SDL_GetGPUSwapchainTextureFormat(app->render_system.gpu_device, window->sdl_window),
+            .format               = window->render_system.color_format,
             // COLOR_TARGET only: a multisampled texture is never sampled, and some backends reject SAMPLER on one.
             .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET,
             .width                = width,
@@ -282,7 +282,7 @@ SDL_GPUSampleCount _nya_renderer_sample_count_for(NYA_Window* window, u32 sample
 
     if (samples == 0) samples = NYA_RENDER_MSAA_SAMPLES_DEFAULT;
 
-    SDL_GPUTextureFormat color_format = SDL_GetGPUSwapchainTextureFormat(render_system->gpu_device, window->sdl_window);
+    SDL_GPUTextureFormat color_format = window->render_system.color_format;
     if (color_format == SDL_GPU_TEXTUREFORMAT_INVALID) return SDL_GPU_SAMPLECOUNT_1;
 
     for (SDL_GPUSampleCount count = SDL_GPU_SAMPLECOUNT_8; count > SDL_GPU_SAMPLECOUNT_1; count--) {
@@ -325,8 +325,9 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     nya_assert(ok, "SDL_ClaimWindowForGPUDevice() failed: %s", SDL_GetError());
 
     // opaque black, not the zeroed struct's transparent.
-    window->render_system             = (NYA_RenderSystemWindow){ 0 };
-    window->render_system.clear_color = NYA_COLOR_BLACK;
+    window->render_system              = (NYA_RenderSystemWindow){ 0 };
+    window->render_system.clear_color  = NYA_COLOR_BLACK;
+    window->render_system.color_format = SDL_GetGPUSwapchainTextureFormat(app->render_system.gpu_device, window->sdl_window);
 
     /*
      * The asked for sample count as far as the device takes it. Decided on the first window, whose swapchain format
@@ -979,14 +980,7 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
         return;
     }
 
-    // MAILBOX is the low latency choice and drivers often lack it. VSYNC is always supported.
-    SDL_GPUPresentMode present_mode = app->options.vsync_enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_MAILBOX;
-    if (!SDL_WindowSupportsGPUPresentMode(app->render_system.gpu_device, window->sdl_window, present_mode)) {
-        nya_log_warn("Present mode %d is unsupported for window '%s'; falling back to vsync.", (int)present_mode, window->title);
-        present_mode = SDL_GPU_PRESENTMODE_VSYNC;
-    }
-
-    if (!SDL_SetGPUSwapchainParameters(app->render_system.gpu_device, window->sdl_window, composition, present_mode)) {
+    if (!SDL_SetGPUSwapchainParameters(app->render_system.gpu_device, window->sdl_window, composition, _nya_render_present_mode(window))) {
         nya_log_warn("SDL_SetGPUSwapchainParameters() failed for window '%s', keeping the default: %s", window->title, SDL_GetError());
     }
 
@@ -1039,6 +1033,7 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
 
     // decals allocate only while on, so switching them off is their release.
     nya_render3d_decals_set(window, (NYA_Render3DDecals){ 0 });
+    nya_gpu_texture_release(gpu_device, window->render_system.output_gpu.scene);
 
     if (window->render_system.msaa_texture != nullptr) {
         nya_gpu_texture_release(app->render_system.gpu_device, window->render_system.msaa_texture);
@@ -1066,12 +1061,9 @@ void nya_system_renderer_set_vsync(b8 enabled) {
             NYA_Window* window = nya_window_at_slot(slot);
             if (window == nullptr) continue;
 
-            SDL_GPUPresentMode present_mode = enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_MAILBOX;
-            if (!SDL_WindowSupportsGPUPresentMode(app->render_system.gpu_device, window->sdl_window, present_mode)) {
-                present_mode = SDL_GPU_PRESENTMODE_VSYNC;
-            }
-
-            if (!SDL_SetGPUSwapchainParameters(app->render_system.gpu_device, window->sdl_window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, present_mode)) {
+            // the output's composition, so toggling vsync does not drop HDR.
+            if (!SDL_SetGPUSwapchainParameters(app->render_system.gpu_device, window->sdl_window, window->render_system.output_gpu.composition,
+                                               _nya_render_present_mode(window))) {
                 nya_log_warn("Could not change the present mode for window '%s': %s", window->title, SDL_GetError());
             }
         }
@@ -1094,6 +1086,8 @@ b8 nya_render_begin(NYA_Window* window) {
     window->render_system.render_commands   = nullptr;
     window->render_system.render_pass       = nullptr;
     window->render_system.swapchain_texture = nullptr;
+
+    _nya_render_output_apply(window);
 
     SDL_GPUCommandBuffer* command_buffer = SDL_AcquireGPUCommandBuffer(app->render_system.gpu_device);
     nya_assert(command_buffer != nullptr, "SDL_AcquireGPUCommandBuffer() failed: %s", SDL_GetError());
@@ -1158,6 +1152,9 @@ b8 nya_render_begin(NYA_Window* window) {
         }
     }
 #endif
+
+    // in HDR the frame is drawn in SDR and encoded onto the swapchain by nya_render_end.
+    swapchain_texture = _nya_render_output_target(window, swapchain_texture, swapchain_width, swapchain_height);
 
     _nya_renderer_options_apply(window);
     _nya_renderer_ensure_msaa_texture(window, swapchain_width, swapchain_height);
@@ -1269,6 +1266,8 @@ void nya_render_end(NYA_Window* window) {
     SDL_EndGPURenderPass(window->render_system.render_pass);
     window->render_system.render_pass = nullptr;
 
+    _nya_render_output_present(window);
+
     SDL_SubmitGPUCommandBuffer(window->render_system.render_commands);
 
     window->render_system.render_pass       = nullptr;
@@ -1296,6 +1295,19 @@ __attr_maybe_unused SDL_GPUSampler* _nya_render_sampler_for(NYA_TextureFilter fi
     if (filter >= NYA_TEXTURE_FILTER_COUNT) filter = NYA_TEXTURE_FILTER_LINEAR;
 
     return nya_app_get()->render_system.samplers[filter];
+}
+
+// maybe-unused: the headless build creates no swapchain.
+__attr_maybe_unused SDL_GPUPresentMode _nya_render_present_mode(NYA_Window* window) {
+    SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
+
+    // MAILBOX is the low latency choice and drivers often lack it. VSYNC is always supported.
+    SDL_GPUPresentMode present_mode = nya_app_get()->options.vsync_enabled ? SDL_GPU_PRESENTMODE_VSYNC : SDL_GPU_PRESENTMODE_MAILBOX;
+
+    if (SDL_WindowSupportsGPUPresentMode(gpu_device, window->sdl_window, present_mode)) return present_mode;
+
+    nya_log_warn("Present mode %d is unsupported for window '%s'; falling back to vsync.", (int)present_mode, window->title);
+    return SDL_GPU_PRESENTMODE_VSYNC;
 }
 
 // maybe-unused for the same reason as _nya_render_sampler_for.

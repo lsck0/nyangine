@@ -2205,7 +2205,7 @@ b8 _nya_render3d_refraction_capture(NYA_Window* window) {
             gpu_device,
             &(SDL_GPUTextureCreateInfo){
                 .type   = SDL_GPU_TEXTURETYPE_2D,
-                .format = SDL_GetGPUSwapchainTextureFormat(gpu_device, window->sdl_window),
+                .format = window->render_system.color_format,
 
                 // a colour target as well, because SDL_BlitGPUTexture writes through a render pass.
                 .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,

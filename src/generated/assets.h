@@ -1415,6 +1415,7 @@
 #define NYA_ASSET_SHADER_EFFECT_LUT_FRAG                    "./assets/shader/source/effect_lut.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_OCCLUSION_FRAG              "./assets/shader/source/effect_occlusion.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_OCCLUSION_APPLY_FRAG        "./assets/shader/source/effect_occlusion_apply.frag.hlsl"
+#define NYA_ASSET_SHADER_EFFECT_OUTPUT_HDR_FRAG             "./assets/shader/source/effect_output_hdr.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_PIXELATE_FRAG               "./assets/shader/source/effect_pixelate.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_SCENE_HLSLI                 "./assets/shader/source/effect_scene.hlsli"
 #define NYA_ASSET_SHADER_EFFECT_SCENE_DEBUG_FRAG            "./assets/shader/source/effect_scene_debug.frag.hlsl"
