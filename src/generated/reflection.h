@@ -35,7 +35,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated type, for an editor that needs to enumerate them. */
-#define NYA_REFLECT_TYPE_COUNT 21
+#define NYA_REFLECT_TYPE_COUNT 22
 
 extern const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT];
 
