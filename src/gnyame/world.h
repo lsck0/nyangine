@@ -76,7 +76,7 @@ GNY_World* gny_world(void);
 /** Allocates the world, the Lua VM and the named fonts, and registers the game systems. Once per process. */
 void gny_world_create(NYA_NetLaunchConfig launch);
 
-/** Registers "ui", "title", "menu" and "menu_title", with their distance field modes. Called by gny_world_create. */
+/** Registers "ui", "menu" and "menu_title", with their distance field modes. Called by gny_world_create. */
 void gny_fonts_register(void);
 
 /** Nothing to release: the engine world's arena owns everything. The partner of gny_world_create. */

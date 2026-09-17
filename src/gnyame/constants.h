@@ -267,15 +267,12 @@
 #define GNY_UI_FONT      NYA_ASSET_FONTS_ALDRICH_TTF
 #define GNY_UI_FONT_SIZE 17.0F
 
-/** The larger face registered as "title". One face at two sizes is two atlases; see render_font.h. */
-#define GNY_UI_TITLE_FONT_SIZE 28.0F
-
 /** How often the startup script's optional hook runs, in seconds. See gny_world_script_tick. */
 #define GNY_LUA_TICK_INTERVAL_S 1.0F
 
 /* The panels themselves take their look from `engine.ui` in the config, see NYA_UIStyle. */
 #define GNY_UI_MARGIN  16.0F
-#define GNY_UI_WARNING ((NYA_Color){ 0.85F, 0.25F, 0.10F, 1.0F })
+#define GNY_UI_WARNING ((NYA_Color){ 0.95F, 0.42F, 0.32F, 1.0F })
 
 /** The HUD's status panel, and the space kept free at the top right for the debug overlay. */
 #define GNY_UI_PANEL_WIDTH   300.0F
@@ -287,13 +284,21 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/* Registered as "menu" and "menu_title" by gny_fonts_register. */
+/* Registered as "menu" and "menu_title" by gny_fonts_register, at the sizes engine.ui asks for at scale 1. */
 #define GNY_MENU_FONT       NYA_ASSET_FONTS_ALDRICH_TTF
 #define GNY_MENU_TITLE_SIZE 44.0F
 #define GNY_MENU_ITEM_SIZE  22.0F
 
-/* The panel is centred and as tall as its rows. */
-#define GNY_MENU_WIDTH 360.0F
+/* The panel is centred and as tall as its rows, scrolling past the window. Pixels at the UI's reference height. */
+#define GNY_MENU_WIDTH 420.0F
+
+/* The look panel beside the pause menu: its width, what the animate toggle turns on, the largest scale it offers,
+ * and the sheet its skinned look is cut from. */
+#define GNY_LOOK_WIDTH      300.0F
+#define GNY_UI_TRANSITION_S 0.08F
+#define GNY_UI_APPEAR_S     0.15F
+#define GNY_UI_SCALE_MAX    2.0F
+#define GNY_MENU_SHEET      NYA_ASSET_UI_SHEET_PNG
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1008,8 +1013,8 @@
 #define GNY_ROBOT_NEAT_COLOR ((NYA_Color){ 0.45F, 0.95F, 0.60F, 1.0F })
 #define GNY_ROBOT_DQN_COLOR  ((NYA_Color){ 1.00F, 0.70F, 0.30F, 1.0F })
 
-/** The DQN colour dark enough to read on a light panel. */
-#define GNY_ROBOT_DQN_TEXT ((NYA_Color){ 0.78F, 0.40F, 0.05F, 1.0F })
+/** The DQN colour light enough to read on a dark panel. */
+#define GNY_ROBOT_DQN_TEXT ((NYA_Color){ 0.95F, 0.66F, 0.32F, 1.0F })
 
 /** Where the best genome and the run history live under the save root. */
 #define GNY_ROBOT_SAVE_FILE     "robots.nya"
@@ -1019,7 +1024,8 @@
 /** The training panel under the HUD's status panel, and the genome drawn under that. */
 #define GNY_ROBOT_PANEL_WIDTH  420.0F
 #define GNY_ROBOT_BRAIN_HEIGHT 160.0F
-#define GNY_ROBOT_BRAIN_FILL   ((NYA_Color){ 0.16F, 0.13F, 0.22F, 0.94F })
+#define GNY_ROBOT_NODE_RADIUS  7.0F
+#define GNY_ROBOT_BRAIN_FILL   ((NYA_Color){ 0.06F, 0.07F, 0.09F, 0.94F })
 
 /** Defaults for GNY_ConfigRobots fields left zero. */
 #define GNY_ROBOT_POPULATION             48

@@ -70,6 +70,9 @@ struct GNY_ConfigGame {
     /** Multiplies the demos' skeleton and sprite animation clocks. Zero falls back to GNY_ANIMATION_SPEED. */
     f32 animation_speed;
 
+    /** The texture the pause menu's skins are cut from, by the regions in `engine.ui`. Empty draws the menu flat. */
+    char menu_sheet[NYA_UI_SKIN_TEXTURE_MAX];
+
     GNY_ConfigRobots robots;
 };
 

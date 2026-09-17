@@ -35,8 +35,6 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
      */
     NYA_NetLaunchConfig launch = nya_net_config_from_args(argc, argv);
 
-    nya_net_config_report(&launch);
-
     /*
      * The tick rate, from the command line where one was given.
      */
@@ -62,6 +60,11 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
     // before the window, since a layer's on_create may ask for key bindings, and before anything reads a
     // volume, since this loads the player's settings.
     gny_actions_init();
+
+    // the name typed in the pause menu last time, unless the command line gives one.
+    if (!launch.named && nya_settings_player_name()[0] != '\0') (void)snprintf(launch.name, sizeof(launch.name), "%s", nya_settings_player_name());
+
+    nya_net_config_report(&launch);
 
     /*
      * The base locale, and only the base locale.

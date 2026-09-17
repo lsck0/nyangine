@@ -76,21 +76,36 @@ nya 2 0
             // See NYA_PHYSICS2D_SUB_STEPS / NYA_PHYSICS3D_SUB_STEPS.
             sub_steps: u32 4;
         };
-        // The menus and HUD panels. A field left out or zero takes its NYA_UI_* default; see ui.h.
+        // The menus and HUD panels. A field left out or zero takes its NYA_UI_* default, which is flat and quiet;
+        // outline, depth and pop dress it up. Sizes are pixels in a 720 tall window, scaled with the window. See ui.h.
         ui: object {
-            // Registered names, see gny_fonts_register.
+            // A registered font name for the face, see gny_fonts_register, and the text sizes cut from it.
             font: string "menu";
             title_font: string "menu_title";
-            padding: f32 16.0;
-            spacing: f32 10.0;
-            radius: f32 14.0;
-            outline: f32 3.0;
-            depth: f32 5.0;
-            item_height: f32 42.0;
-            accent: object { r: f32 1.0; g: f32 0.74; b: f32 0.25; a: f32 1.0; };
+            // Focus and press fade, and a panel slides in when it shows. Zero for either turns it off.
+            transition_s: f32 0.08;
+            appear_s: f32 0.15;
+            easing: string "NYA_EASE_CUBIC_OUT";
+            body_size: f32 22.0;
+            small_size: f32 17.0;
+            title_size: f32 44.0;
+            // Regions of a sheet for nine-slices. With no texture they stay flat; game.menu_sheet names one for the pause menu.
+            // A white tint draws the sheet's own colours; a zero one tints it with the flat colour, as the track does
+            // to fill a slider with the accent.
+            panel_skin: object { source_width: f32 24.0; source_height: f32 24.0; left: f32 7.0; right: f32 7.0; top: f32 7.0; bottom: f32 7.0; tint: object { r: f32 1.0; g: f32 1.0; b: f32 1.0; a: f32 1.0; }; };
+            button_skin: object {
+                normal: object { source_x: f32 24.0; source_width: f32 24.0; source_height: f32 24.0; left: f32 5.0; right: f32 5.0; top: f32 5.0; bottom: f32 5.0; tint: object { r: f32 1.0; g: f32 1.0; b: f32 1.0; a: f32 1.0; }; };
+                focused: object { source_x: f32 48.0; source_width: f32 24.0; source_height: f32 24.0; left: f32 5.0; right: f32 5.0; top: f32 5.0; bottom: f32 5.0; tint: object { r: f32 1.0; g: f32 1.0; b: f32 1.0; a: f32 1.0; }; };
+                pressed: object { source_x: f32 72.0; source_width: f32 24.0; source_height: f32 24.0; left: f32 5.0; right: f32 5.0; top: f32 5.0; bottom: f32 5.0; tint: object { r: f32 1.0; g: f32 1.0; b: f32 1.0; a: f32 1.0; }; };
+                disabled: object { tint: object { r: f32 0.55; g: f32 0.55; b: f32 0.55; a: f32 1.0; }; };
+            };
+            track_skin: object { source_y: f32 24.0; source_width: f32 16.0; source_height: f32 16.0; left: f32 5.0; right: f32 5.0; top: f32 5.0; bottom: f32 5.0; };
+            knob_skin: object { source_x: f32 16.0; source_y: f32 24.0; source_width: f32 16.0; source_height: f32 16.0; tint: object { r: f32 1.0; g: f32 1.0; b: f32 1.0; a: f32 1.0; }; };
         };
     };
     game: object {
+        // The sheet the pause menu is skinned from, cut by the regions in engine.ui: "./assets/ui/sheet.png". Empty draws it flat.
+        menu_sheet: string "";
         // See GNY_PLAYER_SPEED.
         player_speed: f32 220.0;
         // See GNY_PLAYER_SPAWN_SPACING.

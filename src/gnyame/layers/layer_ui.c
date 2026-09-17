@@ -54,13 +54,11 @@ void gny_layer_ui_on_render(NYA_Window* window) {
         nya_string_hud_hovering(hovered != nullptr ? hovered->name : "-"),
     };
 
-    NYA_UI*     ui    = gny_ui_begin(window, NYA_UI_PASS_DRAW);
-    NYA_UIStyle style = nya_ui_style_get(window);
-    NYA_Font    font  = nya_font_named("ui");
+    NYA_UI* ui = gny_ui_begin(window, NYA_UI_PASS_DRAW);
 
     // a frameless column, so the status, training and brain panels stack without adding up heights by hand.
-    if (nya_ui_panel_begin(ui, "hud", (NYA_UIPanel){ .offset = { GNY_UI_MARGIN, GNY_UI_MARGIN }, .font = font, .frameless = true })) {
-        if (nya_ui_panel_begin(ui, "status", (NYA_UIPanel){ .width = GNY_UI_PANEL_WIDTH })) {
+    if (nya_ui_panel_begin(ui, "hud", (NYA_UIPanel){ .text = NYA_UI_TEXT_SMALL, .frameless = true })) {
+        if (nya_ui_panel_begin(ui, "status", (NYA_UIPanel){ .width = nya_ui_fixed(GNY_UI_PANEL_WIDTH) })) {
             for (u32 i = 0; i < nya_carray_length(lines); i++) nya_ui_label(ui, lines[i]);
 
             // kept as an empty line while running, so the panel does not jump when physics stops.
@@ -75,10 +73,11 @@ void gny_layer_ui_on_render(NYA_Window* window) {
         nya_ui_panel_end(ui);
     }
 
-    NYA_UIPanel keys = { .anchor = NYA_UI_ANCHOR_BOTTOM_LEFT, .offset = { GNY_UI_MARGIN, GNY_UI_MARGIN }, .font = font };
+    // wrapped, since a translation of the hints can be wider than the window.
+    NYA_UIPanel keys = { .anchor = NYA_UI_ANCHOR_BOTTOM_LEFT, .overflow = NYA_UI_OVERFLOW_WRAP, .text = NYA_UI_TEXT_SMALL };
 
     if (nya_ui_panel_begin(ui, "keys", keys)) {
-        nya_ui_label(ui, nya_string_hud_keys(), style.text_dim);
+        nya_ui_label(ui, nya_string_hud_keys(), nya_ui_style_get(window).text_dim);
         nya_ui_panel_end(ui);
     }
 
@@ -91,7 +90,10 @@ void gny_layer_ui_on_render(NYA_Window* window) {
 }
 
 void _gny_ui_robots(NYA_Window* window, NYA_UI* ui, const GNY_Robots* robots) {
-    if (nya_ui_panel_begin(ui, "robots", (NYA_UIPanel){ .width = GNY_ROBOT_PANEL_WIDTH })) {
+    // held to its width, so a line whose numbers grow shrinks instead of the panel jumping wider.
+    NYA_UIPanel training = { .width = nya_ui_fixed(GNY_ROBOT_PANEL_WIDTH), .overflow = NYA_UI_OVERFLOW_SHRINK };
+
+    if (nya_ui_panel_begin(ui, "robots", training)) {
         nya_ui_label(ui, nya_string_hud_robots_neat(robots->generations_before + robots->generation, robots->species, robots->brain_fitness));
         nya_ui_label(ui, nya_string_hud_robots_dqn((u32)robots->dqn_steps, robots->dqn_score, (f64)robots->dqn_exploration * 100.0), GNY_ROBOT_DQN_TEXT);
         nya_ui_label(ui, nya_string_hud_robots_run(robots->runs + 1, nya_max(robots->record, robots->brain_fitness), robots->job_ms));
@@ -101,22 +103,23 @@ void _gny_ui_robots(NYA_Window* window, NYA_UI* ui, const GNY_Robots* robots) {
     if (!NYA_CONFIG.game.robots.show_brain || robots->brain == nullptr) return;
 
     // dark, since the network's labels are drawn light.
-    if (!nya_ui_panel_begin(ui, "brain", (NYA_UIPanel){ .width = GNY_ROBOT_PANEL_WIDTH, .fill = GNY_ROBOT_BRAIN_FILL })) return;
+    if (!nya_ui_panel_begin(ui, "brain", (NYA_UIPanel){ .width = nya_ui_fixed(GNY_ROBOT_PANEL_WIDTH), .fill = GNY_ROBOT_BRAIN_FILL })) return;
 
     NYA_Rectf area = nya_ui_space(ui, 0.0F, GNY_ROBOT_BRAIN_HEIGHT);
     nya_ui_panel_end(ui);
 
-    // the HUD's own face and size, so the labels share its glyph atlas instead of building another.
-    NYA_Font font = nya_font_named("ui");
+    // the HUD's own face at its small size and scale, so the labels share its glyph atlas instead of building another.
+    NYA_UIStyle style = nya_ui_style_get(window);
+    f32         scale = nya_ui_scale(window);
 
     nya_nn_neat_draw(window, robots->brain, (NYA_NeatDrawStyle){
         .x           = area.x,
         .y           = area.y,
         .width       = area.width,
         .height      = area.height,
-        .node_radius = 7.0F,
+        .node_radius = roundf(GNY_ROBOT_NODE_RADIUS * scale),
         .hide_values = true,
-        .font        = font.path,
-        .font_size   = font.point_size,
+        .font        = nya_font_resolve(nya_font_named(style.font)).path,
+        .font_size   = roundf(style.small_size * scale),
     });
 }

@@ -145,7 +145,7 @@ s32 main(void) {
     NYA_EXPECT(nya_i18n_load(NYA_I18N_BASE_LOCALE, NYA_STRING_KEYS, NYA_STRING_COUNT));
 
     // what assets/config/engine.nya sets for the menus, without watching the file.
-    NYA_CONFIG.engine.ui = (NYA_UIStyle){ .font = "menu", .title_font = "menu_title", .item_height = 42.0F };
+    NYA_CONFIG.engine.ui = (NYA_UIStyle){ .font = "menu", .title_font = "menu_title", .body_size = GNY_MENU_ITEM_SIZE, .title_size = GNY_MENU_TITLE_SIZE, .item_height = 42.0F };
 
     GNY_LAYER_GAME   = layer_stub(GNY_LAYER_GAME_ID);
     GNY_LAYER_UI     = layer_stub(GNY_LAYER_UI_ID);
@@ -269,25 +269,28 @@ s32 main(void) {
         press(NYA_KEY_LEFT, pause_menu);
         nya_check(!world->overlay_enabled, "and left turns it off");
 
+        // past the name field to the language row, whose choices sit side by side.
         press(NYA_KEY_DOWN, pause_menu);
         press(NYA_KEY_DOWN, pause_menu);
+        press(NYA_KEY_RIGHT, pause_menu);
         press(NYA_KEY_RETURN, pause_menu);
         nya_check(nya_string_equals(nya_i18n_locale(), "de") && nya_string_equals(nya_string_menu_resume(), "fortsetzen"), "picking Deutsch loads it, got '%s'",
                   nya_i18n_locale());
 
-        // every other label changed, and focus kept its place, so up is English again.
-        press(NYA_KEY_UP, pause_menu);
+        // every other label changed, and focus kept its place, so left is English again.
+        press(NYA_KEY_LEFT, pause_menu);
         press(NYA_KEY_RETURN, pause_menu);
         nya_check(nya_string_equals(nya_i18n_locale(), "en"), "and English loads back, got '%s'", nya_i18n_locale());
     }
 
-    // ── Confirm requests the row's screen at the barrier, from the bottom row reached by wrapping upward.
+    // ── Confirm requests the row's screen at the barrier, from the menu's last row reached by wrapping upward through
+    //    the look panel's accent, scale, animate and skin lines.
     {
         gny_screen_request(GNY_SCREEN_RESUME);
         gny_screen_request(GNY_SCREEN_PAUSE);
         barrier();
 
-        press(NYA_KEY_UP, pause_menu);
+        for (u32 i = 0; i < 5; i++) press(NYA_KEY_UP, pause_menu);
 
         tap(NYA_KEY_RETURN);
         pause_menu();
@@ -347,8 +350,8 @@ s32 main(void) {
 
         NYA_UIStyle style   = nya_ui_style_get(window);
         f32         frame   = style.padding + style.outline;
-        f32         header  = nya_font_metrics(nya_font_named("menu_title")).line_height + style.spacing;
-        f32         line    = nya_font_metrics(nya_font_named("menu")).line_height;
+        f32         header  = ceilf(nya_font_metrics(nya_font_named("menu_title")).line_height) + style.spacing;
+        f32         line    = ceilf(nya_font_metrics(nya_font_named("menu")).line_height);
         f32         content = line + (3.0F * (style.item_height + style.spacing));
         f32         top     = (WINDOW_HEIGHT - ((frame * 2.0F) + header + content)) * 0.5F;
         f32x2       quit    = { WINDOW_WIDTH * 0.5F, top + frame + header + line + (style.spacing * 3.0F) + (style.item_height * 2.5F) };

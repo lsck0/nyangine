@@ -63,3 +63,4 @@
 #define NYA_ASSET_SOUNDS_HIT_WAV                         "./assets/sounds/hit.wav"
 #define NYA_ASSET_TEXTURES_DECALS_PNG                    "./assets/textures/decals.png"
 #define NYA_ASSET_TEXTURES_PUFF_PNG                      "./assets/textures/puff.png"
+#define NYA_ASSET_UI_SHEET_PNG                           "./assets/ui/sheet.png"

@@ -1086,7 +1086,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     };
 
     NYA_UI*     ui  = gny_ui_begin(window, NYA_UI_PASS_DRAW);
-    NYA_UIPanel hud = { .offset = { GNY_UI_MARGIN, GNY_UI_MARGIN }, .font = nya_font_named("ui") };
+    NYA_UIPanel hud = { .overflow = NYA_UI_OVERFLOW_WRAP, .text = NYA_UI_TEXT_SMALL };
 
     if (nya_ui_panel_begin(ui, "cube3d_hud", hud)) {
         nya_ui_label(ui, nya_string_cube3d_title());

@@ -70,12 +70,10 @@ void gny_world_create(NYA_NetLaunchConfig launch) {
 
 void gny_fonts_register(void) {
     (void)nya_font_register("ui", GNY_UI_FONT, GNY_UI_FONT_SIZE);
-    (void)nya_font_register("title", GNY_UI_FONT, GNY_UI_TITLE_FONT_SIZE);
     (void)nya_font_register("menu", GNY_MENU_FONT, GNY_MENU_ITEM_SIZE);
     (void)nya_font_register("menu_title", GNY_MENU_FONT, GNY_MENU_TITLE_SIZE);
 
     /* Titles are distance fields; the HUD and menu rows are not. */
-    (void)nya_font_sdf_set(nya_font_named("title"), true);
     (void)nya_font_sdf_set(nya_font_named("menu_title"), true);
 
     nya_font_default_set(nya_font_named("ui"));

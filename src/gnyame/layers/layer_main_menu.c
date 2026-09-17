@@ -36,7 +36,7 @@ void _gny_main_menu(NYA_Window* window, NYA_UIPass pass) {
     NYA_UI* ui = gny_ui_begin(window, pass);
     nya_ui_scrim(ui);
 
-    NYA_UIPanel panel = { .anchor = NYA_UI_ANCHOR_CENTER, .width = GNY_MENU_WIDTH, .align = NYA_UI_ALIGN_CENTER, .title = "nyangine" };
+    NYA_UIPanel panel = { .anchor = NYA_UI_ANCHOR_CENTER, .width = nya_ui_fixed(GNY_MENU_WIDTH), .align = NYA_UI_ALIGN_CENTER, .title = "nyangine" };
 
     // cancel does nothing here: there is nothing to go back to, and quitting on the dismiss key would surprise people.
     if (nya_ui_panel_begin(ui, "main_menu", panel)) {
