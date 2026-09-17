@@ -308,6 +308,14 @@
 /* The look panel beside the pause menu: its width, what the animate toggle turns on, the largest scale it offers,
  * and the sheet its skinned look is cut from. */
 #define GNY_LOOK_WIDTH      300.0F
+
+/* The graphics panel on the other side: its width, and the field of view and render scale its sliders cover. */
+#define GNY_GRAPHICS_WIDTH      370.0F
+#define GNY_GRAPHICS_FOV_MIN    40.0F
+#define GNY_GRAPHICS_FOV_MAX    110.0F
+#define GNY_GRAPHICS_FOV_STEP   5.0F
+#define GNY_GRAPHICS_SCALE_MIN  0.5F
+#define GNY_GRAPHICS_SCALE_STEP 0.05F
 #define GNY_UI_TRANSITION_S 0.08F
 #define GNY_UI_APPEAR_S     0.15F
 #define GNY_UI_SCALE_MAX    2.0F

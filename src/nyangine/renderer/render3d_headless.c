@@ -16,7 +16,7 @@ void nya_render3d_begin(NYA_Window* window, NYA_Camera3DPerspective camera) {
 
     // the same defaults as the real path, repeated because render3d.c is compiled instead of this file.
     if (camera.up.x == 0.0F && camera.up.y == 0.0F && camera.up.z == 0.0F) camera.up = (f32x3){ 0.0F, 1.0F, 0.0F };
-    if (camera.fov_y <= 0.0F) camera.fov_y = (f32)M_PI / 3.0F;
+    if (camera.fov_y <= 0.0F) camera.fov_y = nya_render_fov_y();
     if (camera.near_plane <= 0.0F) camera.near_plane = 0.1F;
     if (camera.far_plane <= camera.near_plane) camera.far_plane = 1000.0F;
 

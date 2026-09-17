@@ -21,6 +21,12 @@ NYA_INTERNAL void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass);
 /** Every widget the UI has, editing the style in NYA_CONFIG that gny_ui_begin hands the window. */
 NYA_INTERNAL void _gny_look_panel(NYA_UI* ui);
 
+/** The player's graphics settings, saved on quit and laid over both scenes' renderer options every frame. */
+NYA_INTERNAL void _gny_graphics_panel(NYA_UI* ui);
+
+/** A label and a row of choices sharing the rest, with `*selected` the index of the chosen one. */
+NYA_INTERNAL void _gny_choice_row(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* choices, u32 count, u32* selected);
+
 /** A volume row that writes back to the settings when it moves. */
 NYA_INTERNAL void _gny_volume_slider(NYA_UI* ui, NYA_ConstCString label, NYA_VolumeChannel channel);
 
@@ -108,6 +114,7 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
     }
 
     _gny_look_panel(ui);
+    _gny_graphics_panel(ui);
 
     nya_ui_style_pop(ui);
     nya_ui_end(ui);
@@ -147,6 +154,55 @@ void _gny_look_panel(NYA_UI* ui) {
     if (!changed) nya_ui_disabled_begin(ui);
     if (nya_ui_button(ui, nya_string_menu_reset())) style->accent = (NYA_Color){ 0 };
     if (!changed) nya_ui_disabled_end(ui);
+
+    nya_ui_panel_end(ui);
+}
+
+void _gny_graphics_panel(NYA_UI* ui) {
+    NYA_UIPanel panel = { .anchor = NYA_UI_ANCHOR_LEFT, .width = nya_ui_fixed(GNY_GRAPHICS_WIDTH), .text = NYA_UI_TEXT_SMALL, .title = nya_string_menu_graphics() };
+    if (!nya_ui_panel_begin(ui, "graphics", panel)) return;
+
+    NYA_SettingsGraphics graphics = nya_settings_graphics();
+
+    // one sample is multisampling off.
+    NYA_ConstCString samples[] = { nya_string_menu_off(), "2x", "4x", "8x" };
+    u32              sample    = (u32)log2((f64)graphics.msaa_samples);
+
+    _gny_choice_row(ui, nya_string_menu_antialiasing(), samples, nya_carray_length(samples), &sample);
+    graphics.msaa_samples = 1U << sample;
+
+    NYA_ConstCString qualities[] = { nya_string_menu_off(), nya_string_menu_low(), nya_string_menu_medium(), nya_string_menu_high() };
+    u32              quality     = (u32)graphics.shadows;
+
+    _gny_choice_row(ui, nya_string_menu_shadows(), qualities, nya_carray_length(qualities), &quality);
+    graphics.shadows = (NYA_GraphicsQuality)quality;
+
+    (void)nya_ui_toggle(ui, nya_string_menu_fxaa(), &graphics.fxaa);
+    (void)nya_ui_toggle(ui, nya_string_menu_occlusion(), &graphics.ambient_occlusion);
+    (void)nya_ui_toggle(ui, nya_string_menu_bloom(), &graphics.bloom);
+    (void)nya_ui_toggle(ui, nya_string_menu_depth_of_field(), &graphics.depth_of_field);
+    (void)nya_ui_toggle(ui, nya_string_menu_eye_adaptation(), &graphics.eye_adaptation);
+    (void)nya_ui_toggle(ui, nya_string_menu_light_shafts(), &graphics.light_shafts);
+    (void)nya_ui_toggle(ui, nya_string_menu_motion_blur(), &graphics.motion_blur);
+
+    (void)nya_ui_slider(ui, nya_string_menu_field_of_view(), &graphics.fov, GNY_GRAPHICS_FOV_MIN, GNY_GRAPHICS_FOV_MAX, GNY_GRAPHICS_FOV_STEP);
+    (void)nya_ui_slider(ui, nya_string_menu_render_scale(), &graphics.render_scale, GNY_GRAPHICS_SCALE_MIN, 1.0F, GNY_GRAPHICS_SCALE_STEP);
+
+    nya_settings_graphics_set(graphics);
+
+    nya_ui_panel_end(ui);
+}
+
+void _gny_choice_row(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* choices, u32 count, u32* selected) {
+    // named by its label, so two rows can both offer "off".
+    if (!nya_ui_panel_begin(ui, label, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .align = NYA_UI_ALIGN_CENTER, .frameless = true })) return;
+
+    nya_ui_label(ui, label);
+
+    for (u32 i = 0; i < count; i++) {
+        nya_ui_size(ui, nya_ui_grow(1));
+        if (nya_ui_selectable(ui, choices[i], *selected == i)) *selected = i;
+    }
 
     nya_ui_panel_end(ui);
 }

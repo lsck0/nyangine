@@ -8,8 +8,6 @@ nya 2 0
 {
     engine: object {
         renderer: object {
-            // 1 off, 2, 4 or 8. See NYA_RenderOptions.msaa_samples.
-            msaa_samples: u32 4;
             // See NYA_RENDER3D_SHADOW_BIAS.
             shadow_bias: f32 0.0015;
             // See NYA_Render3DShadowOptions. Each cascade is a scene pass.
@@ -71,9 +69,9 @@ nya 2 0
                 length: f32 0.9;
                 threshold: f32 0.85;
             };
-            // Camera motion blur, off unless the player turns it on. See NYA_PostMotionBlur.
+            // Camera motion blur. The player's graphics settings keep it off until turned on. See NYA_PostMotionBlur.
             motion_blur: object {
-                enabled: b8 false;
+                enabled: b8 true;
                 strength: f32 0.5;
             };
             // The 3D demo's fog; a zero field keeps the sky's colour and the scene's numbers. aerial turns distant

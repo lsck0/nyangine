@@ -31,6 +31,8 @@ void gny_config_renderer_apply(NYA_Window* window) {
     nya_post_eye_adaptation_set(window, renderer->eye_adaptation);
     nya_post_light_shafts_set(window, renderer->light_shafts);
     nya_post_motion_blur_set(window, renderer->motion_blur);
+
+    nya_settings_graphics_apply(window);
 }
 
 void gny_config_audio_apply(void) {

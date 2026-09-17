@@ -94,7 +94,10 @@ extern GNY_Config NYA_CONFIG;
 /** Loads GNY_CONFIG_FILE into NYA_CONFIG and watches it. Called again after a code reload. */
 void gny_config_attach(void);
 
-/** Hands the renderer knobs in NYA_CONFIG to `window`. Cheap, so a scene calls it every frame and edits show live. */
+/**
+ * Hands the renderer knobs in NYA_CONFIG to `window`, then lays the player's graphics settings over them. Cheap, so a
+ * scene calls it every frame, after setting its own, and edits show live.
+ * */
 void gny_config_renderer_apply(NYA_Window* window);
 
 /** Hands each bus its effects from NYA_CONFIG. Cheap when nothing changed, so it runs every tick under every screen. */

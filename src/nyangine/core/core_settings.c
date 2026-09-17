@@ -19,6 +19,27 @@ NYA_INTERNAL NYA_ConstCString _NYA_VOLUME_CHANNEL_NAMES[NYA_VOLUME_CHANNEL_COUNT
     [NYA_VOLUME_CHANNEL_UI]     = "ui",
 };
 
+static_assert(sizeof(NYA_GraphicsQuality) == sizeof(u32), "the graphics quality is written and read as a u32");
+
+/** The graphics settings as the file names them: a b8, a u32 or an f32 each. */
+NYA_INTERNAL const struct {
+    NYA_ConstCString name;
+    NYA_Type         type;
+    u64              offset;
+} _NYA_SETTINGS_GRAPHICS_FIELDS[] = {
+    { "msaa_samples", NYA_TYPE_U32, offsetof(NYA_SettingsGraphics, msaa_samples) },
+    { "fxaa", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, fxaa) },
+    { "ambient_occlusion", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, ambient_occlusion) },
+    { "bloom", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, bloom) },
+    { "depth_of_field", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, depth_of_field) },
+    { "eye_adaptation", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, eye_adaptation) },
+    { "light_shafts", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, light_shafts) },
+    { "motion_blur", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, motion_blur) },
+    { "shadows", NYA_TYPE_U32, offsetof(NYA_SettingsGraphics, shadows) },
+    { "fov", NYA_TYPE_F32, offsetof(NYA_SettingsGraphics, fov) },
+    { "render_scale", NYA_TYPE_F32, offsetof(NYA_SettingsGraphics, render_scale) },
+};
+
 /**
  * A binding as one editable string: `"Space"`, `"Ctrl+S"`, `"Shift+Left Alt+F1"`.
  * */
@@ -127,6 +148,20 @@ NYA_Object* nya_settings_to_object(NYA_Arena* arena) {
     NYA_ConstCString name = nya_settings_player_name();
     if (name[0] != '\0') nya_object_set(root, "player_name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)name });
 
+    NYA_Object* graphics = nya_object_create(arena);
+
+    for (u32 i = 0; i < nya_carray_length(_NYA_SETTINGS_GRAPHICS_FIELDS); i++) {
+        const u8* field = (const u8*)&nya_settings()->graphics + _NYA_SETTINGS_GRAPHICS_FIELDS[i].offset;
+        NYA_Value value = { .type = _NYA_SETTINGS_GRAPHICS_FIELDS[i].type };
+
+        // the union's members share its first bytes, so a field copies into it at its own size.
+        nya_memcpy(&value.as_u32, field, value.type == NYA_TYPE_B8 ? sizeof(b8) : sizeof(u32));
+
+        nya_object_set(graphics, (NYA_CString)_NYA_SETTINGS_GRAPHICS_FIELDS[i].name, value);
+    }
+
+    nya_object_set(root, "graphics", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *graphics });
+
     return root;
 }
 
@@ -162,6 +197,34 @@ void nya_settings_from_object(const NYA_Object* object) {
 
     NYA_Value* name = nya_object_get(object, "player_name");
     if (name != nullptr && name->type == NYA_TYPE_STRING) nya_settings_player_name_set(name->as_string);
+
+    // over the current options, so a field the file lacks keeps its value, and then through the setter's clamps.
+    NYA_Value* graphics_value = nya_object_get(object, "graphics");
+
+    if (graphics_value != nullptr && graphics_value->type == NYA_TYPE_OBJECT) {
+        NYA_SettingsGraphics graphics = nya_settings()->graphics;
+
+        for (u32 i = 0; i < nya_carray_length(_NYA_SETTINGS_GRAPHICS_FIELDS); i++) {
+            NYA_Value* value = nya_object_get(&graphics_value->as_object, (NYA_CString)_NYA_SETTINGS_GRAPHICS_FIELDS[i].name);
+            u8*        field = (u8*)&graphics + _NYA_SETTINGS_GRAPHICS_FIELDS[i].offset;
+            f32        number = 0.0F;
+
+            if (value == nullptr) continue;
+
+            if (_NYA_SETTINGS_GRAPHICS_FIELDS[i].type == NYA_TYPE_B8) {
+                if (value->type == NYA_TYPE_B8) nya_memcpy(field, &value->as_b8, sizeof(b8));
+                continue;
+            }
+
+            if (!_nya_settings_value_as_f32(value, &number)) continue;
+
+            u32 whole = (u32)nya_clamp(number, 0.0F, 1024.0F);
+
+            nya_memcpy(field, _NYA_SETTINGS_GRAPHICS_FIELDS[i].type == NYA_TYPE_F32 ? (const void*)&number : (const void*)&whole, sizeof(u32));
+        }
+
+        nya_settings_graphics_set(graphics);
+    }
 
     NYA_Value* bindings = nya_object_get(object, "bindings");
     if (bindings == nullptr || bindings->type != NYA_TYPE_OBJECT) return;
@@ -275,6 +338,84 @@ void nya_settings_reset(void) {
 
     // NYA_KEY_UNKNOWN is the unbound marker, and it is zero, so this clears the whole table.
     nya_memset(settings->bindings, 0, sizeof(settings->bindings));
+
+    settings->graphics = NYA_SETTINGS_GRAPHICS_DEFAULT;
+}
+
+NYA_SettingsGraphics nya_settings_graphics(void) {
+    return nya_settings()->graphics;
+}
+
+void nya_settings_graphics_set(NYA_SettingsGraphics graphics) {
+    // the largest power of two sample count at or under the one asked for.
+    u32 samples = 1;
+    while (samples * 2 <= nya_min(graphics.msaa_samples, 8U)) samples *= 2;
+
+    graphics.msaa_samples = samples;
+    graphics.shadows      = (u32)graphics.shadows < NYA_GRAPHICS_QUALITY_COUNT ? graphics.shadows : NYA_GRAPHICS_QUALITY_MEDIUM;
+    graphics.fov          = nya_clamp(graphics.fov, 30.0F, 120.0F);
+    graphics.render_scale = nya_clamp(graphics.render_scale, 0.25F, 1.0F);
+
+    nya_settings()->graphics = graphics;
+}
+
+void nya_settings_graphics_apply(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    const NYA_SettingsGraphics* graphics = &nya_settings()->graphics;
+
+    nya_render_options_set(
+        window,
+        (NYA_RenderOptions){ .msaa_samples = graphics->msaa_samples, .fov_y = graphics->fov * (f32)M_PI / 180.0F, .render_scale = graphics->render_scale }
+    );
+
+    NYA_PostAntialias antialias = nya_post_antialias(window);
+    antialias.enabled           = antialias.enabled && graphics->fxaa;
+    nya_post_antialias_set(window, antialias);
+
+    NYA_PostAmbientOcclusion occlusion = nya_post_ambient_occlusion(window);
+    occlusion.enabled                  = occlusion.enabled && graphics->ambient_occlusion;
+    nya_post_ambient_occlusion_set(window, occlusion);
+
+    NYA_PostBloom bloom = nya_post_bloom(window);
+    bloom.enabled       = bloom.enabled && graphics->bloom;
+    nya_post_bloom_set(window, bloom);
+
+    NYA_PostEyeAdaptation adaptation = nya_post_eye_adaptation(window);
+    adaptation.enabled               = adaptation.enabled && graphics->eye_adaptation;
+    nya_post_eye_adaptation_set(window, adaptation);
+
+    NYA_PostLightShafts shafts = nya_post_light_shafts(window);
+    shafts.enabled             = shafts.enabled && graphics->light_shafts;
+    nya_post_light_shafts_set(window, shafts);
+
+    NYA_PostMotionBlur motion_blur = nya_post_motion_blur(window);
+    motion_blur.enabled            = motion_blur.enabled && graphics->motion_blur;
+    nya_post_motion_blur_set(window, motion_blur);
+
+    if (!graphics->depth_of_field) {
+        NYA_PostDepthOfField depth_of_field = nya_post_depth_of_field(window);
+        depth_of_field.focus                = NYA_POST_FOCUS_OFF;
+        nya_post_depth_of_field_set(window, depth_of_field);
+    }
+
+    if (graphics->shadows == NYA_GRAPHICS_QUALITY_MEDIUM) return;
+
+    if (graphics->shadows == NYA_GRAPHICS_QUALITY_OFF) {
+        NYA_Render3DShadowFit fit = nya_render3d_shadow(window);
+        fit.strength              = 0.0F;
+        nya_render3d_shadow_set(window, fit);
+        return;
+    }
+
+    // relative to what the game asked for, which is what medium means.
+    NYA_Render3DShadowOptions shadow = nya_render3d_shadow_options(window);
+    b8                        high   = graphics->shadows == NYA_GRAPHICS_QUALITY_HIGH;
+
+    shadow.cascades = high ? shadow.cascades + 1 : 1;
+    shadow.map_size = high ? shadow.map_size * 2 : shadow.map_size / 2;
+
+    nya_render3d_shadow_options_set(window, shadow);
 }
 
 /*

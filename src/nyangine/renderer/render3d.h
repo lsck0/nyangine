@@ -41,6 +41,9 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
  * */
 #define NYA_RENDER3D_MAX_POINT_LIGHTS 4
 
+/** The vertical field of view, in radians, of a camera that sets none, unless NYA_RenderOptions.fov_y does. */
+#define NYA_RENDER3D_FOV_Y ((f32)M_PI / 3.0F)
+
 /**
  * What NYA_Render3DFog.color falls back to: a pale desaturated blue.
  * */

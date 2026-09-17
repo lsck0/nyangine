@@ -93,12 +93,15 @@ NYA_INTERNAL b8 _nya_post_pass_ready(const NYA_PostPass* pass) {
  * into.
  */
 NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chain) {
-    const u32 width  = window->screen_width;
-    const u32 height = window->screen_height;
-
     // Minimised or mid resize. The GPU will not make a target of no size, and the caller falls back
     // to drawing straight to the window.
-    if (width == 0 || height == 0) return false;
+    if (window->screen_width == 0 || window->screen_height == 0) return false;
+
+    // a 3D scene at the render scale, stretched over the window by the last pass. a 2D world is drawn in window pixels.
+    f32 scale = chain->scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED ? nya_render_options_get(window).render_scale : 1.0F;
+
+    const u32 width  = nya_max((u32)roundf((f32)window->screen_width * scale), 1U);
+    const u32 height = nya_max((u32)roundf((f32)window->screen_height * scale), 1U);
 
     const NYA_RenderSystemWindow* render = &window->render_system;
 
@@ -211,7 +214,11 @@ NYA_INTERNAL void _nya_post_draw_pass(NYA_Window* window, const NYA_RenderTextur
         nya_render2d_shader_set_uniform(window, pass->uniform, pass->uniform_size);
     }
 
-    nya_render2d_render_texture(window, source, 0.0F, 0.0F, (f32)window->screen_width, (f32)window->screen_height, tint);
+    // the target's size, which is the chain's between passes and the window's for the last.
+    u32 width, height;
+    nya_render2d_target_size(window, &width, &height);
+
+    nya_render2d_render_texture(window, source, 0.0F, 0.0F, (f32)width, (f32)height, tint);
 
     nya_render2d_shader_end(window);
 }

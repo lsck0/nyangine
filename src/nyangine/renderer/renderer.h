@@ -114,6 +114,15 @@ struct NYA_RenderOptions {
      * the same again.
      * */
     u32 msaa_samples;
+
+    /** The vertical field of view, in radians, of a 3D camera that sets none. Zero is NYA_RENDER3D_FOV_Y. */
+    f32 fov_y;
+
+    /**
+     * The 3D scene's resolution as a share of the window's, in [0.25, 1], drawn through a post chain and stretched over
+     * the window by its last pass. Zero is one. A 2D scene stays whole, since its camera works in window pixels.
+     * */
+    f32 render_scale;
 };
 
 /**
@@ -704,6 +713,9 @@ struct NYA_Render3DBatch {
     /** As the caller set them. Resolve through nya_render3d_shadow_options, which applies the defaults. */
     NYA_Render3DShadowOptions shadow_options;
 
+    /** What the atlas was allocated for, while there is one. */
+    NYA_Render3DShadowOptions shadow_atlas;
+
     /** As the caller set it. See nya_render3d_shadow_set. */
     NYA_Render3DShadowFit shadow_fit;
 
@@ -947,6 +959,9 @@ NYA_API void nya_render_options_set(NYA_Window* window, NYA_RenderOptions option
 
 /** The options in effect: `msaa_samples` is what the device took, not what was asked for. */
 NYA_API NYA_RenderOptions nya_render_options_get(NYA_Window* window) __attr_no_discard;
+
+/** What a 3D camera that sets no field of view is drawn with: NYA_RenderOptions.fov_y, else NYA_RENDER3D_FOV_Y. */
+NYA_API f32 nya_render_fov_y(void) __attr_no_discard;
 
 /**
  * The last finished frame's draw calls, render passes and uploads, so a regression shows as a number that moved.
