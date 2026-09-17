@@ -1,6 +1,6 @@
 /**
- * The menu widget and screen changes, headless: keys and the mouse drive a menu, and a request rearranges
- * the layer stack only at the barrier.
+ * The menus and screen changes, headless: keys, the pointer and the pause action drive the real menu layers,
+ * and a request rearranges the layer stack only at the barrier.
  **/
 
 #include "nyangine/nyangine.c"
@@ -11,25 +11,50 @@
 #define WINDOW_WIDTH  1280
 #define WINDOW_HEIGHT 720
 
-static NYA_Event key(NYA_Keycode keycode) {
-    return (NYA_Event){ .type = NYA_EVENT_KEY_DOWN, .as_key_event = { .is_down = true, .key = keycode } };
+static NYA_Event key(NYA_Keycode keycode, b8 down) {
+    return (NYA_Event){ .type = down ? NYA_EVENT_KEY_DOWN : NYA_EVENT_KEY_UP, .as_key_event = { .is_down = down, .key = keycode } };
 }
 
-static NYA_Event mouse_moved(f32x2 point) {
-    return (NYA_Event){ .type = NYA_EVENT_MOUSE_MOVED, .as_mouse_moved_event = { .x = point.x, .y = point.y } };
+/** A key going down and up before the next tick, as the input system sees a quick press. */
+static void tap(NYA_Keycode keycode) {
+    NYA_Event down = key(keycode, true);
+    NYA_Event up   = key(keycode, false);
+    nya_system_input_handle_event(&down);
+    nya_system_input_handle_event(&up);
 }
 
-static NYA_Event mouse_down(NYA_MouseButton button, f32x2 point) {
-    return (NYA_Event){ .type = NYA_EVENT_MOUSE_BUTTON_DOWN, .as_mouse_button_event = { .is_down = true, .button = button, .x = point.x, .y = point.y } };
+static void pointer_move(f32x2 point) {
+    f32x2     from  = nya_input_mouse_position();
+    NYA_Event event = { .type = NYA_EVENT_MOUSE_MOVED, .as_mouse_moved_event = { .x = point.x, .y = point.y, .delta_x = point.x - from.x, .delta_y = point.y - from.y } };
+    nya_system_input_handle_event(&event);
 }
 
-static b8 menu_event(const NYA_Window* window, GNY_Menu* menu, NYA_Event event) {
-    return gny_menu_handle_event(window, menu, &event);
+static void pointer_button(NYA_MouseButton button, b8 down) {
+    f32x2     at    = nya_input_mouse_position();
+    NYA_Event event = { .type = down ? NYA_EVENT_MOUSE_BUTTON_DOWN : NYA_EVENT_MOUSE_BUTTON_UP, .as_mouse_button_event = { .is_down = down, .button = button, .x = at.x, .y = at.y } };
+    nya_system_input_handle_event(&event);
 }
 
-static f32x2 row_center(const NYA_Window* window, const GNY_Menu* menu, u32 index) {
-    NYA_Rectf bounds = gny_menu_item_bounds(window, menu, index);
-    return (f32x2){ bounds.x + (bounds.width * 0.5F), bounds.y + (bounds.height * 0.5F) };
+/** The rest of a tick after the layers updated: the barrier, then the edges roll. */
+static void barrier(void) {
+    nya_system_sim_apply_commands();
+    nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_UPDATING_ENDED });
+    nya_world()->sim_system.tick++;
+}
+
+static void main_menu(void) {
+    gny_layer_main_menu_on_update(nya_window_get(GNY_WINDOW_MAIN), 0.0F);
+}
+
+static void pause_menu(void) {
+    gny_layer_pause_menu_on_update(nya_window_get(GNY_WINDOW_MAIN), 0.0F);
+}
+
+/** `keycode` tapped, then a whole tick of `menu`. */
+static void press(NYA_Keycode keycode, void (*menu)(void)) {
+    tap(keycode);
+    menu();
+    barrier();
 }
 
 /** The layer ids from the bottom of the main window's stack, joined by spaces. */
@@ -60,12 +85,6 @@ static NYA_Layer layer_stub(NYA_ConstCString id) {
     (void)snprintf(layer.id, sizeof(layer.id), "%s", id);
     return layer;
 }
-
-static const GNY_MenuItem items[] = {
-    { .label = nya_string_menu_resume,       .screen = GNY_SCREEN_RESUME                                      },
-    { .label = nya_string_menu_music_volume, .kind = GNY_MENU_ITEM_KIND_VOLUME, .channel = NYA_VOLUME_CHANNEL_MUSIC },
-    { .label = nya_string_menu_quit,         .screen = GNY_SCREEN_QUIT                                        },
-};
 
 s32 main(void) {
     SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
@@ -98,6 +117,7 @@ s32 main(void) {
     NYA_EXPECT(nya_system_events_init());
     nya_system_input_init();
     nya_system_asset_init();
+    nya_system_i18n_init();
     nya_system_window_init();
 
     NYA_World* engine_world = nya_world_create();
@@ -110,6 +130,7 @@ s32 main(void) {
     defer nya_system_events_deinit();
     defer nya_system_input_deinit();
     defer nya_system_asset_deinit();
+    defer nya_system_i18n_deinit();
     defer nya_system_window_deinit();
     defer nya_world_destroy(engine_world);
 
@@ -121,6 +142,10 @@ s32 main(void) {
     gny_actions_init();
     gny_fonts_register();
     gny_layers_init();
+    NYA_EXPECT(nya_i18n_load(NYA_I18N_BASE_LOCALE, NYA_STRING_KEYS, NYA_STRING_COUNT));
+
+    // what assets/config/engine.nya sets for the menus, without watching the file.
+    NYA_CONFIG.engine.ui = (NYA_UIStyle){ .font = "menu", .title_font = "menu_title", .item_height = 42.0F };
 
     GNY_LAYER_GAME   = layer_stub(GNY_LAYER_GAME_ID);
     GNY_LAYER_UI     = layer_stub(GNY_LAYER_UI_ID);
@@ -133,106 +158,144 @@ s32 main(void) {
     window->screen_width  = WINDOW_WIDTH;
     window->screen_height = WINDOW_HEIGHT;
 
-    // ── Up and down move the selection and wrap at both ends, on either binding.
-    {
-        GNY_Menu menu = { .title = "menu", .items = items, .item_count = nya_carray_length(items) };
+    NYA_ConstCString title  = "gny_layer_background gny_layer_main_menu";
+    NYA_ConstCString game   = "gny_layer_background gny_layer_game gny_layer_ui";
+    NYA_ConstCString paused = "gny_layer_background gny_layer_game gny_layer_ui gny_layer_pause_menu";
 
-        nya_check(menu_event(window, &menu, key(NYA_KEY_DOWN)), "a key belongs to the menu");
-        nya_check(menu.selected == 1, "down selects the next row, got " FMTu32, menu.selected);
-
-        (void)menu_event(window, &menu, key(NYA_KEY_S));
-        nya_check(menu.selected == 2, "and so does the alternative key, got " FMTu32, menu.selected);
-
-        (void)menu_event(window, &menu, key(NYA_KEY_DOWN));
-        nya_check(menu.selected == 0, "down on the last row wraps to the first, got " FMTu32, menu.selected);
-
-        (void)menu_event(window, &menu, key(NYA_KEY_UP));
-        nya_check(menu.selected == 2, "up on the first row wraps to the last, got " FMTu32, menu.selected);
-
-        (void)menu_event(window, &menu, key(NYA_KEY_W));
-        nya_check(menu.selected == 1, "and up moves back, got " FMTu32, menu.selected);
-
-        nya_check(menu_event(window, &menu, key(NYA_KEY_X)), "an unbound key is swallowed too, the menu is modal");
-        nya_check(menu.selected == 1, "without moving anything");
-
-        GNY_Menu empty = { .title = "empty" };
-        nya_check(!menu_event(window, &empty, key(NYA_KEY_DOWN)), "a menu with no rows takes nothing");
-    }
-
-    // ── Left and right edit a volume row in place and clamp; confirm on it requests nothing.
-    {
-        GNY_Menu menu = { .title = "menu", .items = items, .item_count = nya_carray_length(items), .selected = 1 };
-
-        nya_settings_volume_set(NYA_VOLUME_CHANNEL_MUSIC, 0.5F);
-
-        (void)menu_event(window, &menu, key(NYA_KEY_RIGHT));
-        nya_check(fabsf(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) - (0.5F + GNY_VOLUME_STEP)) < 1e-4F, "right raises by a step, got %f",
-                  (f64)nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC));
-
-        (void)menu_event(window, &menu, key(NYA_KEY_A));
-        (void)menu_event(window, &menu, key(NYA_KEY_LEFT));
-        nya_check(fabsf(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) - (0.5F - GNY_VOLUME_STEP)) < 1e-4F, "left lowers by a step, got %f",
-                  (f64)nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC));
-
-        for (u32 i = 0; i < 40; i++) (void)menu_event(window, &menu, key(NYA_KEY_RIGHT));
-        nya_check(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 1.0F, "and it clamps at full");
-
-        (void)menu_event(window, &menu, key(NYA_KEY_RETURN));
-        nya_system_sim_apply_commands();
-        // a volume row's screen is NONE, which gny_screen_request asserts on, so reaching here is the check.
-        nya_check(!nya_app_get()->should_quit, "confirm on a volume row requests no screen");
-
-        (void)menu_event(window, &menu, key(NYA_KEY_RIGHT));
-        nya_check(menu.selected == 1, "and editing does not move the selection");
-    }
-
-    // ── Confirm requests the row's screen, applied at the barrier and not before.
-    {
-        GNY_Menu menu = { .title = "menu", .items = items, .item_count = nya_carray_length(items), .selected = 2 };
-
-        (void)menu_event(window, &menu, key(NYA_KEY_RETURN));
-        nya_check(!nya_app_get()->should_quit, "the request waits for the barrier");
-
-        nya_system_sim_apply_commands();
-        nya_check(nya_app_get()->should_quit, "quit applies at the barrier");
-
-        nya_app_get()->should_quit = false;
-
-        menu.selected = 2;
-        (void)menu_event(window, &menu, key(NYA_KEY_SPACE));
-        nya_system_sim_apply_commands();
-        nya_check(nya_app_get()->should_quit, "the alternative confirm key activates too");
-
-        nya_app_get()->should_quit = false;
-    }
-
-    // ── Cancel requests on_cancel, ignores a repeat, and NONE swallows it.
+    // ── Up and down move through the title screen and wrap at both ends, on either binding, and confirm waits for the barrier.
     {
         stack_reset();
 
-        GNY_Menu title = { .title = "title", .items = items, .item_count = nya_carray_length(items), .on_cancel = GNY_SCREEN_NONE };
-        nya_check(menu_event(window, &title, key(NYA_KEY_ESCAPE)), "cancel with nothing to go back to is swallowed");
-        nya_system_sim_apply_commands();
-        nya_check(!nya_app_get()->should_quit && nya_string_equals(stack(), "gny_layer_background gny_layer_main_menu"),
-                  "and changes nothing, stack '%s'", stack());
+        press(NYA_KEY_DOWN, main_menu);
+        press(NYA_KEY_S, main_menu);
+        press(NYA_KEY_DOWN, main_menu);
+        press(NYA_KEY_W, main_menu);
+        nya_check(nya_string_equals(stack(), title) && !nya_app_get()->should_quit, "moving requests nothing, stack '%s'", stack());
 
+        tap(NYA_KEY_RETURN);
+        main_menu();
+        nya_check(!nya_app_get()->should_quit, "the request waits for the barrier");
+
+        barrier();
+        nya_check(nya_app_get()->should_quit, "down, down, down wrapping to the top, then up wrapping to the bottom, is quit");
+        nya_app_get()->should_quit = false;
+
+        press(NYA_KEY_SPACE, main_menu);
+        nya_check(nya_app_get()->should_quit, "the alternative confirm key activates too");
+        nya_app_get()->should_quit = false;
+
+        press(NYA_KEY_ESCAPE, main_menu);
+        nya_check(!nya_app_get()->should_quit && nya_string_equals(stack(), title), "cancel on the title screen changes nothing, stack '%s'", stack());
+
+        NYA_Event unbound = key(NYA_KEY_X, true);
+        gny_layer_main_menu_on_event(window, &unbound);
+        nya_check(unbound.was_handled, "an unbound key is swallowed too, the menu is modal");
+
+        NYA_Event moved = { .type = NYA_EVENT_MOUSE_MOVED };
+        gny_layer_main_menu_on_event(window, &moved);
+        nya_check(!moved.was_handled, "hover is left for layers below");
+    }
+
+    // ── The HUD pauses on the pause action, and while paused leaves it to the menu, which resumes.
+    {
         gny_screen_request(GNY_SCREEN_START_GAME);
-        nya_system_sim_apply_commands();
+        barrier();
+
+        tap(NYA_KEY_ESCAPE);
+        gny_layer_ui_on_update(window, 0.0F);
+        barrier();
+        nya_check(nya_string_equals(stack(), paused) && !nya_physics2d_enabled(), "escape pauses, stack '%s'", stack());
+
+        tap(NYA_KEY_ESCAPE);
+        gny_layer_ui_on_update(window, 0.0F);
+        pause_menu();
+        barrier();
+        nya_check(nya_string_equals(stack(), game) && nya_physics2d_enabled(), "and escape in the pause menu resumes once, stack '%s'", stack());
+
         gny_screen_request(GNY_SCREEN_PAUSE);
-        nya_system_sim_apply_commands();
+        barrier();
 
-        GNY_Menu menu = { .title = "paused", .items = items, .item_count = nya_carray_length(items), .on_cancel = GNY_SCREEN_RESUME };
+        NYA_Event held = key(NYA_KEY_ESCAPE, true);
+        nya_system_input_handle_event(&held);
+        pause_menu();
+        barrier();
+        nya_check(nya_string_equals(stack(), game), "a pressed escape resumes, stack '%s'", stack());
 
-        NYA_Event repeat              = key(NYA_KEY_ESCAPE);
+        gny_screen_request(GNY_SCREEN_PAUSE);
+        barrier();
+
+        NYA_Event repeat = key(NYA_KEY_ESCAPE, true);
         repeat.as_key_event.is_repeat = true;
+        nya_system_input_handle_event(&repeat);
+        pause_menu();
+        barrier();
+        nya_check(nya_string_equals(stack(), paused), "but the same escape held into the reopened menu does not, stack '%s'", stack());
 
-        nya_check(gny_menu_handle_event(window, &menu, &repeat), "a held cancel is still the menu's");
-        nya_system_sim_apply_commands();
-        nya_check(nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_PAUSE_MENU_ID) != nullptr, "but a repeat does not resume, stack '%s'", stack());
+        NYA_Event released = key(NYA_KEY_ESCAPE, false);
+        nya_system_input_handle_event(&released);
+        barrier();
+    }
 
-        nya_check(menu_event(window, &menu, key(NYA_KEY_ESCAPE)), "cancel belongs to the menu");
-        nya_system_sim_apply_commands();
-        nya_check(nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_PAUSE_MENU_ID) == nullptr, "cancel resumes, stack '%s'", stack());
+    // ── The pause menu's options: volumes step and clamp, the stats toggle flips, and the language row reloads the strings.
+    {
+        gny_screen_request(GNY_SCREEN_RESUME);
+        gny_screen_request(GNY_SCREEN_PAUSE);
+        barrier();
+        nya_check(nya_string_equals(stack(), paused), "a fresh pause menu, stack '%s'", stack());
+
+        nya_settings_volume_set(NYA_VOLUME_CHANNEL_MUSIC, 0.5F);
+
+        for (u32 i = 0; i < 3; i++) press(NYA_KEY_DOWN, pause_menu);
+
+        press(NYA_KEY_RIGHT, pause_menu);
+        nya_check(fabsf(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) - (0.5F + GNY_VOLUME_STEP)) < 1e-4F, "right raises the music by a step, got %f",
+                  (f64)nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC));
+
+        press(NYA_KEY_A, pause_menu);
+        press(NYA_KEY_LEFT, pause_menu);
+        nya_check(fabsf(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) - (0.5F - GNY_VOLUME_STEP)) < 1e-4F, "left lowers it, on either key, got %f",
+                  (f64)nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC));
+
+        for (u32 i = 0; i < 40; i++) press(NYA_KEY_RIGHT, pause_menu);
+        nya_check(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 1.0F, "and it clamps at full");
+        nya_check(nya_settings_volume(NYA_VOLUME_CHANNEL_MASTER) == 1.0F, "without touching master");
+
+        press(NYA_KEY_RETURN, pause_menu);
+        nya_check(nya_string_equals(stack(), paused) && !nya_app_get()->should_quit, "confirm on a volume row requests nothing, stack '%s'", stack());
+
+        press(NYA_KEY_DOWN, pause_menu);
+        press(NYA_KEY_RETURN, pause_menu);
+        nya_check(world->overlay_enabled, "confirm on stats turns the overlay on");
+        press(NYA_KEY_LEFT, pause_menu);
+        nya_check(!world->overlay_enabled, "and left turns it off");
+
+        press(NYA_KEY_DOWN, pause_menu);
+        press(NYA_KEY_DOWN, pause_menu);
+        press(NYA_KEY_RETURN, pause_menu);
+        nya_check(nya_string_equals(nya_i18n_locale(), "de") && nya_string_equals(nya_string_menu_resume(), "fortsetzen"), "picking Deutsch loads it, got '%s'",
+                  nya_i18n_locale());
+
+        // every other label changed, and focus kept its place, so up is English again.
+        press(NYA_KEY_UP, pause_menu);
+        press(NYA_KEY_RETURN, pause_menu);
+        nya_check(nya_string_equals(nya_i18n_locale(), "en"), "and English loads back, got '%s'", nya_i18n_locale());
+    }
+
+    // ── Confirm requests the row's screen at the barrier, from the bottom row reached by wrapping upward.
+    {
+        gny_screen_request(GNY_SCREEN_RESUME);
+        gny_screen_request(GNY_SCREEN_PAUSE);
+        barrier();
+
+        press(NYA_KEY_UP, pause_menu);
+
+        tap(NYA_KEY_RETURN);
+        pause_menu();
+        nya_check(!nya_app_get()->should_quit, "the request waits for the barrier");
+
+        barrier();
+        nya_check(nya_app_get()->should_quit, "quit applies at the barrier");
+        nya_app_get()->should_quit = false;
     }
 
     // ── The menus and movement resolve to a gamepad as well as keys, and a menu polls it without a device.
@@ -252,55 +315,82 @@ s32 main(void) {
         nya_check(left.kind == NYA_INPUT_BINDING_GAMEPAD_AXIS && left.axis == NYA_GAMEPAD_AXIS_LEFT_X && left.axis_threshold < 0.0F,
                   "and walks left on the stick");
 
-        nya_check(!gny_action_pad_held(NYA_INPUT_ACTION_CONFIRM), "with no pad connected nothing is held");
+        nya_check(!nya_input_action_pressed(NYA_INPUT_ACTION_CONFIRM), "with no pad connected nothing is held");
 
-        GNY_Menu menu = { .title = "menu", .items = items, .item_count = nya_carray_length(items), .selected = 2, .pad_held = U32_MAX };
-        gny_menu_update(&menu);
-        nya_system_sim_apply_commands();
-        nya_check(menu.pad_held == 0 && menu.selected == 2 && !nya_app_get()->should_quit, "and polling changes nothing");
+        pause_menu();
+        barrier();
+        nya_check(nya_string_equals(stack(), paused) && !nya_app_get()->should_quit, "and polling changes nothing, stack '%s'", stack());
     }
 
-    // ── The mouse: hover selects without consuming, a left click activates a row, anything else is swallowed.
+    // ── The menus lay out through the registered fonts, and the title is a distance field.
     {
-        GNY_Menu menu = { .title = "menu", .subtitle = "sub", .items = items, .item_count = nya_carray_length(items) };
+        NYA_Font title_font = nya_font_named("menu_title");
+        NYA_Font item_font  = nya_font_named("menu");
 
-        NYA_Rectf first  = gny_menu_item_bounds(window, &menu, 0);
-        NYA_Rectf second = gny_menu_item_bounds(window, &menu, 1);
-        nya_check(fabsf(second.y - (first.y + GNY_MENU_ITEM_HEIGHT)) < 1e-3F, "rows stack one row height apart");
-        nya_check(first.x + (first.width * 0.5F) == WINDOW_WIDTH * 0.5F, "and are centred in the window");
+        nya_check(nya_font_valid(title_font) && title_font.point_size == GNY_MENU_TITLE_SIZE, "menu_title is registered at the title size");
+        nya_check(nya_font_valid(item_font) && item_font.point_size == GNY_MENU_ITEM_SIZE, "menu is registered at the row size");
+        nya_check(nya_font_sdf(title_font) && !nya_font_sdf(item_font), "the title asks for a distance field and the rows do not");
 
-        nya_check(!menu_event(window, &menu, mouse_moved(row_center(window, &menu, 2))), "hover is left for layers below");
-        nya_check(menu.selected == 2, "and selects the row under the pointer, got " FMTu32, menu.selected);
+        for (u32 i = 0; i < 16 && nya_font_metrics(title_font).line_height * nya_font_metrics(item_font).line_height == 0.0F; i++) {
+            nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_FRAME_ENDED });
+        }
 
-        (void)menu_event(window, &menu, mouse_moved((f32x2){ 1.0F, 1.0F }));
-        nya_check(menu.selected == 2, "off every row the selection stays");
+        nya_check(nya_font_metrics(title_font).line_height > nya_font_metrics(item_font).line_height, "both faces load, the title the larger");
+    }
 
-        nya_check(menu_event(window, &menu, mouse_down(NYA_MOUSE_BUTTON_LEFT, row_center(window, &menu, 1))), "a click is the menu's");
-        nya_check(menu.selected == 1, "a click selects its row");
-        nya_system_sim_apply_commands();
-        nya_check(!nya_app_get()->should_quit, "and on a volume row requests nothing");
+    // ── The pointer on the title screen: hover focuses, a left click on a row activates it, anything else does not.
+    {
+        stack_reset();
 
-        nya_check(menu_event(window, &menu, mouse_down(NYA_MOUSE_BUTTON_RIGHT, row_center(window, &menu, 2))), "a right click is swallowed");
-        nya_system_sim_apply_commands();
-        nya_check(menu.selected == 1 && !nya_app_get()->should_quit, "without selecting or activating");
+        // one pass to measure the centred panel, then where its third button is from the style and the fonts.
+        gny_layer_main_menu_on_render(window);
 
-        nya_check(menu_event(window, &menu, mouse_down(NYA_MOUSE_BUTTON_LEFT, (f32x2){ 1.0F, 1.0F })), "a click off the rows is swallowed");
-        nya_system_sim_apply_commands();
-        nya_check(!nya_app_get()->should_quit, "and requests nothing");
+        NYA_UIStyle style   = nya_ui_style_get(window);
+        f32         frame   = style.padding + style.outline;
+        f32         header  = nya_font_metrics(nya_font_named("menu_title")).line_height + style.spacing;
+        f32         line    = nya_font_metrics(nya_font_named("menu")).line_height;
+        f32         content = line + (3.0F * (style.item_height + style.spacing));
+        f32         top     = (WINDOW_HEIGHT - ((frame * 2.0F) + header + content)) * 0.5F;
+        f32x2       quit    = { WINDOW_WIDTH * 0.5F, top + frame + header + line + (style.spacing * 3.0F) + (style.item_height * 2.5F) };
 
-        (void)menu_event(window, &menu, mouse_down(NYA_MOUSE_BUTTON_LEFT, row_center(window, &menu, 2)));
-        nya_system_sim_apply_commands();
-        nya_check(nya_app_get()->should_quit, "a left click on a screen row requests it");
+        NYA_Event click = { .type = NYA_EVENT_MOUSE_BUTTON_DOWN };
+        gny_layer_main_menu_on_event(window, &click);
+        nya_check(click.was_handled, "a click is the menu's, so nothing drops behind it");
 
+        pointer_move(quit);
+        pointer_button(NYA_MOUSE_BUTTON_RIGHT, true);
+        pointer_button(NYA_MOUSE_BUTTON_RIGHT, false);
+        main_menu();
+        barrier();
+        nya_check(!nya_app_get()->should_quit, "a right click activates nothing");
+
+        pointer_move((f32x2){ WINDOW_WIDTH * 0.5F, WINDOW_HEIGHT - 4.0F });
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
+        main_menu();
+        barrier();
+        nya_check(!nya_app_get()->should_quit && nya_string_equals(stack(), title), "nor does a click off the rows, stack '%s'", stack());
+
+        pointer_move(quit);
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
+        main_menu();
+        barrier();
+
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
+        main_menu();
+        nya_check(!nya_app_get()->should_quit, "a click waits for the barrier too");
+
+        barrier();
+        nya_check(nya_app_get()->should_quit, "a left click on the quit row quits");
         nya_app_get()->should_quit = false;
+
+        press(NYA_KEY_UP, main_menu);
+        press(NYA_KEY_RETURN, main_menu);
+        nya_check(nya_string_equals(stack(), "gny_layer_background gny_layer_cube3d"), "and the keys carry on from the row the pointer focused, stack '%s'", stack());
     }
 
     // ── Screen requests rearrange the stack at the barrier, and only from the screen they belong to.
     {
-        NYA_ConstCString title = "gny_layer_background gny_layer_main_menu";
-        NYA_ConstCString game  = "gny_layer_background gny_layer_game gny_layer_ui";
-        NYA_ConstCString pause = "gny_layer_background gny_layer_game gny_layer_ui gny_layer_pause_menu";
-
         stack_reset();
         nya_check(gny_modal_active(), "the title screen is modal");
 
@@ -319,7 +409,7 @@ s32 main(void) {
         gny_screen_request(GNY_SCREEN_PAUSE);
         gny_screen_request(GNY_SCREEN_PAUSE);
         nya_system_sim_apply_commands();
-        nya_check(nya_string_equals(stack(), pause), "pausing twice pushes one pause menu, stack '%s'", stack());
+        nya_check(nya_string_equals(stack(), paused), "pausing twice pushes one pause menu, stack '%s'", stack());
         nya_check(!nya_physics2d_enabled(), "and stops the solver");
 
         gny_screen_request(GNY_SCREEN_RESUME);
@@ -327,11 +417,13 @@ s32 main(void) {
         nya_check(nya_string_equals(stack(), game), "resume pops the pause menu, stack '%s'", stack());
         nya_check(nya_physics2d_enabled(), "and restarts the solver");
 
+        u64 seed = world->terrain_seed;
+
         gny_screen_request(GNY_SCREEN_PAUSE);
         gny_screen_request(GNY_SCREEN_RESTART);
         nya_system_sim_apply_commands();
         nya_check(nya_string_equals(stack(), game), "restart closes the pause menu, stack '%s'", stack());
-        nya_check(world->terrain_seed == 2, "and moves to the next terrain seed, got " FMTu64, world->terrain_seed);
+        nya_check(world->terrain_seed == seed + 1, "and moves to the next terrain seed, got " FMTu64, world->terrain_seed);
         nya_check(nya_physics2d_enabled(), "with the solver running");
 
         gny_screen_request(GNY_SCREEN_PAUSE);
@@ -351,32 +443,6 @@ s32 main(void) {
         gny_screen_request(GNY_SCREEN_MAIN_MENU);
         nya_system_sim_apply_commands();
         nya_check(nya_string_equals(stack(), title), "main menu on the title changes nothing, stack '%s'", stack());
-    }
-
-    // ── The menu lays out through the registered fonts, and the title is a distance field.
-    {
-        GNY_Menu menu = { .title = "nyangine", .subtitle = "physics sandbox", .items = items, .item_count = nya_carray_length(items) };
-
-        NYA_Font title_font = nya_font_named("menu_title");
-        NYA_Font item_font  = nya_font_named("menu");
-
-        nya_check(nya_font_valid(title_font) && title_font.point_size == GNY_MENU_TITLE_SIZE, "menu_title is registered at the title size");
-        nya_check(nya_font_valid(item_font) && item_font.point_size == GNY_MENU_ITEM_SIZE, "menu is registered at the row size");
-        nya_check(nya_font_sdf(title_font) && !nya_font_sdf(item_font), "the title asks for a distance field and the rows do not");
-
-        for (u32 i = 0; i < 16 && nya_font_height(title_font, menu.title) * nya_font_height(item_font, menu.subtitle) == 0.0F; i++) {
-            nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_FRAME_ENDED });
-        }
-
-        f32 title_height    = nya_font_height(title_font, menu.title);
-        f32 subtitle_height = nya_font_height(item_font, menu.subtitle);
-        nya_check(title_height > subtitle_height && subtitle_height > 0.0F, "both faces load and measure, got %f and %f", (f64)title_height,
-                  (f64)subtitle_height);
-
-        NYA_Rectf first    = gny_menu_item_bounds(window, &menu, 0);
-        f32       expected = ((WINDOW_HEIGHT - ((GNY_MENU_PADDING * 2.0F) + title_height + subtitle_height + GNY_MENU_TITLE_GAP + (GNY_MENU_ITEM_HEIGHT * 3.0F))) * 0.5F)
-                           + GNY_MENU_PADDING + title_height + subtitle_height + GNY_MENU_TITLE_GAP;
-        nya_check(fabsf(first.y - expected) < 1e-3F, "the first row sits under the measured title, %f against %f", (f64)first.y, (f64)expected);
     }
 
     return nya_check_failures() == 0 ? 0 : 1;

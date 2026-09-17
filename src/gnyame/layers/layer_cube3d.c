@@ -1126,11 +1126,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
 
     // the HUD in screen pixels over the flushed scene. render2d has no depth test, so it lands in front.
-    nya_render2d_font_set(GNY_UI_FONT, GNY_UI_FONT_SIZE);
-
-    f32              line  = nya_render2d_font_line_height();
-    NYA_ConstCString hud[] = {
-        nya_string_cube3d_title(),
+    NYA_ConstCString hints[] = {
         scene->grabbed_once ? nya_string_cube3d_hint_drag() : nya_string_cube3d_hint_click(),
         nya_string_cube3d_hint_camera(),
         nya_string_cube3d_hint_animation(),
@@ -1138,9 +1134,19 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         nya_string_cube3d_render_keys(),
     };
 
-    for (u32 i = 0; i < nya_carray_length(hud); i++) {
-        nya_render2d_text(window, hud[i], GNY_UI_PADDING, GNY_UI_PADDING + (line * (f32)i), i == 0 ? GNY_UI_TEXT : GNY_UI_DIM);
+    NYA_UI*     ui  = gny_ui_begin(window, NYA_UI_PASS_DRAW);
+    NYA_UIPanel hud = { .offset = { GNY_UI_MARGIN, GNY_UI_MARGIN }, .font = nya_font_named("ui") };
+
+    if (nya_ui_panel_begin(ui, "cube3d_hud", hud)) {
+        nya_ui_label(ui, nya_string_cube3d_title());
+        for (u32 i = 0; i < nya_carray_length(hints); i++) nya_ui_label(ui, hints[i], nya_ui_style_get(window).text_dim);
+        nya_ui_panel_end(ui);
     }
+
+    nya_ui_end(ui);
+
+    // the overlay reads the current font.
+    nya_render2d_font_set(GNY_UI_FONT, GNY_UI_FONT_SIZE);
 
     if (gny_world()->overlay_enabled) {
         nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = (f32)window->screen_width - GNY_UI_MARGIN - GNY_UI_OVERLAY_WIDTH, .y = GNY_UI_MARGIN });

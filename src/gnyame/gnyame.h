@@ -31,10 +31,11 @@
  * | actions.c                     | named input actions, key and gamepad bindings, settings load and save   |
  * | config.h                      | a reflected config struct kept in sync with a file (nya_config_watch)   |
  * | world.c                       | game state in the engine world, Lua VM and scripts, fonts, 2D terrain   |
- * | screens.c                     | pushing and popping layers at the barrier, a reusable menu widget       |
+ * | screens.c                     | pushing and popping layers at the barrier                               |
+ * | layers/layer_pause_menu.c     | UI buttons, sliders, a toggle and a selectable row, switching locale    |
  * | layers/layer_game.c           | the 2D scene: tilemap, crates, cameras, bloom post chain, music         |
  * | layers/layer_cube3d.c         | the 3D scene: meshes, 3D physics, picking, particles, 3D audio, shadows |
- * | layers/layer_ui.c             | HUD text, frame stats, perf span overlay, a NEAT genome drawn live      |
+ * | layers/layer_ui.c             | HUD panels, frame stats, perf span overlay, a NEAT genome drawn live    |
  * | layers/layer_background.c     | procedural immediate mode 2D drawing                                    |
  * | entities/entity_box.c         | entity kinds, spawn options, 2D bodies, collision, click, lights        |
  * | entities/entity_camera.c      | cameras as entities, following, render-to-texture views                |

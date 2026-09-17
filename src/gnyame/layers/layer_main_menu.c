@@ -1,34 +1,15 @@
 /**
  * @file layer_main_menu.c
  *
- * The title screen. A whole layer made of the shared menu widget: rows, event forwarding, drawing.
+ * The title screen: one panel of buttons over the background. The same function reads input on update and draws
+ * on render, see ui.h.
  * */
 #include "gnyame/gnyame.h"
 
-NYA_INTERNAL const GNY_MenuItem _GNY_MAIN_MENU_ITEMS[] = {
-    { .label = nya_string_menu_2d_scene, .screen = GNY_SCREEN_START_GAME },
-    { .label = nya_string_menu_3d_scene, .screen = GNY_SCREEN_CUBE3D     },
-    { .label = nya_string_menu_quit,     .screen = GNY_SCREEN_QUIT       },
-};
-
-// a DLL static, not world state: selection starts on the first row every time the menu opens anyway.
-NYA_INTERNAL GNY_Menu _gny_main_menu = {
-    .title      = "nyangine",
-    .subtitle   = "physics sandbox",
-    .items      = _GNY_MAIN_MENU_ITEMS,
-    .item_count = (u32)nya_carray_length(_GNY_MAIN_MENU_ITEMS),
-
-    // nothing to go back to, and quitting on the dismiss key would surprise people.
-    .on_cancel = GNY_SCREEN_NONE,
-};
+NYA_INTERNAL void _gny_main_menu(NYA_Window* window, NYA_UIPass pass);
 
 void gny_layer_main_menu_on_create(NYA_Window* window) {
-    nya_unused(window);
-
-    _gny_main_menu.selected = 0;
-
-    // the start or confirm press that opened this menu is still held.
-    _gny_main_menu.pad_held = U32_MAX;
+    nya_ui_focus_reset(window);
 }
 
 void gny_layer_main_menu_on_destroy(NYA_Window* window) {
@@ -36,15 +17,37 @@ void gny_layer_main_menu_on_destroy(NYA_Window* window) {
 }
 
 void gny_layer_main_menu_on_event(NYA_Window* window, NYA_Event* event) {
-    if (gny_menu_handle_event(window, &_gny_main_menu, event)) event->was_handled = true;
+    nya_unused(window);
+
+    (void)nya_ui_modal_event(event);
 }
 
 void gny_layer_main_menu_on_update(NYA_Window* window, f32 delta_time_s) {
-    nya_unused(window, delta_time_s);
+    nya_unused(delta_time_s);
 
-    gny_menu_update(&_gny_main_menu);
+    _gny_main_menu(window, NYA_UI_PASS_INPUT);
 }
 
 void gny_layer_main_menu_on_render(NYA_Window* window) {
-    gny_menu_draw(window, &_gny_main_menu);
+    _gny_main_menu(window, NYA_UI_PASS_DRAW);
+}
+
+void _gny_main_menu(NYA_Window* window, NYA_UIPass pass) {
+    NYA_UI* ui = gny_ui_begin(window, pass);
+    nya_ui_scrim(ui);
+
+    NYA_UIPanel panel = { .anchor = NYA_UI_ANCHOR_CENTER, .width = GNY_MENU_WIDTH, .align = NYA_UI_ALIGN_CENTER, .title = "nyangine" };
+
+    // cancel does nothing here: there is nothing to go back to, and quitting on the dismiss key would surprise people.
+    if (nya_ui_panel_begin(ui, "main_menu", panel)) {
+        nya_ui_label(ui, nya_string_menu_subtitle(), nya_ui_style_get(window).text_dim);
+
+        if (nya_ui_button(ui, nya_string_menu_2d_scene())) gny_screen_request(GNY_SCREEN_START_GAME);
+        if (nya_ui_button(ui, nya_string_menu_3d_scene())) gny_screen_request(GNY_SCREEN_CUBE3D);
+        if (nya_ui_button(ui, nya_string_menu_quit())) gny_screen_request(GNY_SCREEN_QUIT);
+
+        nya_ui_panel_end(ui);
+    }
+
+    nya_ui_end(ui);
 }

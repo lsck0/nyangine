@@ -23,3 +23,9 @@ void gny_config_renderer_apply(NYA_Window* window) {
         }
     );
 }
+
+NYA_UI* gny_ui_begin(NYA_Window* window, NYA_UIPass pass) {
+    nya_ui_style_set(window, NYA_CONFIG.engine.ui);
+
+    return nya_ui_begin(window, pass);
+}

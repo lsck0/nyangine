@@ -10,6 +10,9 @@
   "menu_main_menu": "main menu",
   "menu_master_volume": "master volume",
   "menu_music_volume": "music volume",
+  "menu_stats": "stats",
+  "menu_paused": "paused",
+  "menu_subtitle": "physics sandbox",
 
   "menu_2d_scene": "2d scene",
   "menu_3d_scene": "3d scene",

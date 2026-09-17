@@ -1,5 +1,5 @@
 /**
- * The game's menus and movement driven by a virtual gamepad: SDL events in, a menu selection and a walking
+ * The title screen and movement driven by a virtual gamepad: SDL events in, a menu choice and a walking
  * direction out, with no device attached to the machine.
  **/
 
@@ -10,11 +10,16 @@
 #include "SDL3/SDL_init.h"
 #include "SDL3/SDL_joystick.h"
 
-static const GNY_MenuItem items[] = {
-    { .label = nya_string_menu_resume,       .screen = GNY_SCREEN_RESUME                                          },
-    { .label = nya_string_menu_music_volume, .kind = GNY_MENU_ITEM_KIND_VOLUME, .channel = NYA_VOLUME_CHANNEL_MUSIC },
-    { .label = nya_string_menu_quit,         .screen = GNY_SCREEN_QUIT                                            },
-};
+/** The title screen needs a window only for its size and its UI state. */
+static NYA_Window window = { .handle = { .index = 1, .generation = 1 }, .screen_width = 1280, .screen_height = 720 };
+
+/** One update tick of the title screen: its input pass, the barrier, and the edges rolling. */
+static void tick(void) {
+    gny_layer_main_menu_on_update(&window, 0.0F);
+    nya_system_sim_apply_commands();
+    nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_UPDATING_ENDED });
+    nya_world()->sim_system.tick++;
+}
 
 /** Hands every queued SDL event to the gamepad system, as a frame's event drain does. */
 static void pump(void) {
@@ -102,38 +107,40 @@ s32 main(void) {
     pump();
     nya_check(nya_gamepad_count() == 1, "the virtual pad connects, got %u", nya_gamepad_count());
 
-    // ── The d-pad and the stick move the selection once per press, and the press that opened the menu is ignored.
+    // ── The d-pad and the stick move focus once per press, a press held from before the menu does not, and south confirms.
     {
-        GNY_Menu menu = { .title = "menu", .items = items, .item_count = nya_carray_length(items), .pad_held = U32_MAX };
-
         button(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN, true);
-        gny_menu_update(&menu);
-        nya_check(menu.selected == 0, "a button already down when the menu opened does nothing, got " FMTu32, menu.selected);
+        nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_UPDATING_ENDED });
+
+        gny_layer_main_menu_on_create(&window);
+        tick();
 
         button(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN, false);
-        gny_menu_update(&menu);
+        tick();
+
+        // held over two ticks, and a zero tick length, so no repeat.
         button(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN, true);
-        gny_menu_update(&menu);
-        gny_menu_update(&menu);
-        nya_check(menu.selected == 1, "a fresh press moves down once however long it is held, got " FMTu32, menu.selected);
+        tick();
+        tick();
 
         button(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN, false);
-        gny_menu_update(&menu);
+        tick();
 
         axis(pad, SDL_GAMEPAD_AXIS_LEFTY, 30000);
-        gny_menu_update(&menu);
-        nya_check(menu.selected == 2, "pushing the stick down moves too, got " FMTu32, menu.selected);
+        tick();
 
         axis(pad, SDL_GAMEPAD_AXIS_LEFTY, 0);
-        gny_menu_update(&menu);
+        tick();
+        nya_check(!nya_app_get()->should_quit, "moving requests nothing");
 
+        // the held press was ignored and the fresh one moved once, so the stick lands on quit rather than past it.
         button(pad, SDL_GAMEPAD_BUTTON_SOUTH, true);
-        gny_menu_update(&menu);
-        nya_system_sim_apply_commands();
+        tick();
         nya_check(nya_app_get()->should_quit, "south confirms the quit row");
 
         nya_app_get()->should_quit = false;
         button(pad, SDL_GAMEPAD_BUTTON_SOUTH, false);
+        tick();
     }
 
     // ── Walking reads the stick and the d-pad through the ordinary action query.

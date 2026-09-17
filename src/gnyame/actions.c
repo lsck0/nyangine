@@ -132,14 +132,3 @@ void gny_actions_deinit(void) {
     (void)nya_error_format(&saved, message, sizeof(message));
     nya_log_warn("Could not write the settings file: %s", (NYA_CString)message);
 }
-
-b8 gny_action_pad_held(NYA_InputAction action) {
-    for (u32 slot = 0; slot < NYA_INPUT_BINDINGS_PER_ACTION; slot++) {
-        NYA_InputBinding binding = nya_input_action_get(action, slot);
-
-        if (binding.kind == NYA_INPUT_BINDING_KEY || binding.kind == NYA_INPUT_BINDING_NONE) continue;
-        if (nya_input_binding_gamepad_pressed(binding)) return true;
-    }
-
-    return false;
-}

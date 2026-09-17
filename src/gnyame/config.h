@@ -93,3 +93,6 @@ void gny_config_attach(void);
 
 /** Hands the renderer knobs in NYA_CONFIG to `window`. Cheap, so a scene calls it every frame and edits show live. */
 void gny_config_renderer_apply(NYA_Window* window);
+
+/** nya_ui_begin with the style in NYA_CONFIG, so every menu and HUD pass follows edits to the file. */
+NYA_UI* gny_ui_begin(NYA_Window* window, NYA_UIPass pass);

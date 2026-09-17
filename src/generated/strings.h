@@ -35,22 +35,50 @@ typedef enum {
     NYA_STRING_MENU_MAIN_MENU,
     NYA_STRING_MENU_MASTER_VOLUME,
     NYA_STRING_MENU_MUSIC_VOLUME,
+    NYA_STRING_MENU_PAUSED,
     NYA_STRING_MENU_QUIT,
     NYA_STRING_MENU_RESTART,
     NYA_STRING_MENU_RESUME,
     NYA_STRING_MENU_START,
+    NYA_STRING_MENU_STATS,
+    NYA_STRING_MENU_SUBTITLE,
 
     NYA_STRING_COUNT,
 } NYA_StringId;
 
 /** The JSON key each id came from, in id order. Read by nya_i18n_load. */
 static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unused = {
-    "cube3d_hint_animation", "cube3d_hint_camera", "cube3d_hint_click",  "cube3d_hint_drag",  "cube3d_keys",
-    "cube3d_render_keys",    "cube3d_title",       "hud_boxes",          "hud_greeting",      "hud_hosting",
-    "hud_hovering",          "hud_keys",           "hud_offline",        "hud_paused",        "hud_players",
-    "hud_robots_dqn",        "hud_robots_neat",    "hud_robots_run",     "hud_score",         "menu_2d_scene",
-    "menu_3d_scene",         "menu_main_menu",     "menu_master_volume", "menu_music_volume", "menu_quit",
-    "menu_restart",          "menu_resume",        "menu_start",
+    "cube3d_hint_animation",
+    "cube3d_hint_camera",
+    "cube3d_hint_click",
+    "cube3d_hint_drag",
+    "cube3d_keys",
+    "cube3d_render_keys",
+    "cube3d_title",
+    "hud_boxes",
+    "hud_greeting",
+    "hud_hosting",
+    "hud_hovering",
+    "hud_keys",
+    "hud_offline",
+    "hud_paused",
+    "hud_players",
+    "hud_robots_dqn",
+    "hud_robots_neat",
+    "hud_robots_run",
+    "hud_score",
+    "menu_2d_scene",
+    "menu_3d_scene",
+    "menu_main_menu",
+    "menu_master_volume",
+    "menu_music_volume",
+    "menu_paused",
+    "menu_quit",
+    "menu_restart",
+    "menu_resume",
+    "menu_start",
+    "menu_stats",
+    "menu_subtitle",
 };
 
 /** `cube3d_hint_animation` */
@@ -173,6 +201,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_music_volume(
     return _nya_i18n_format(NYA_STRING_MENU_MUSIC_VOLUME);
 }
 
+/** `menu_paused` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_paused(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_PAUSED);
+}
+
 /** `menu_quit` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_quit(void) {
     return _nya_i18n_format(NYA_STRING_MENU_QUIT);
@@ -191,4 +224,14 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_resume(void) 
 /** `menu_start` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_start(void) {
     return _nya_i18n_format(NYA_STRING_MENU_START);
+}
+
+/** `menu_stats` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_stats(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_STATS);
+}
+
+/** `menu_subtitle` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_subtitle(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_SUBTITLE);
 }

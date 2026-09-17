@@ -79,11 +79,3 @@ void gny_actions_init(void);
 
 /** Writes the settings back out, bindings and volumes together. Called from gnyame_deinit. */
 void gny_actions_deinit(void);
-
-/**
- * Whether a gamepad binding of `action` is held, ignoring its keys.
- *
- * Keys reach a menu as events, which a pad does not send, so a menu polls this once a tick and keeps the
- * previous answer to find the press. See gny_menu_update.
- * */
-b8 gny_action_pad_held(NYA_InputAction action);

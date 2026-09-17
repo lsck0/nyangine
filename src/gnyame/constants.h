@@ -279,14 +279,9 @@
 /** How often the startup script's optional hook runs, in seconds. See gny_world_script_tick. */
 #define GNY_LUA_TICK_INTERVAL_S 1.0F
 
+/* The panels themselves take their look from `engine.ui` in the config, see NYA_UIStyle. */
 #define GNY_UI_MARGIN  16.0F
-#define GNY_UI_PADDING 12.0F
-
-#define GNY_UI_PANEL   ((NYA_Color){ 0.04F, 0.05F, 0.07F, 0.78F })
-#define GNY_UI_BORDER  ((NYA_Color){ 0.35F, 0.62F, 0.42F, 0.55F })
-#define GNY_UI_TEXT    ((NYA_Color){ 0.90F, 0.92F, 0.95F, 1.0F })
-#define GNY_UI_DIM     ((NYA_Color){ 0.58F, 0.62F, 0.70F, 1.0F })
-#define GNY_UI_WARNING ((NYA_Color){ 1.0F, 0.72F, 0.30F, 1.0F })
+#define GNY_UI_WARNING ((NYA_Color){ 0.85F, 0.25F, 0.10F, 1.0F })
 
 /** The HUD's status panel, and the space kept free at the top right for the debug overlay. */
 #define GNY_UI_PANEL_WIDTH   300.0F
@@ -303,20 +298,8 @@
 #define GNY_MENU_TITLE_SIZE 44.0F
 #define GNY_MENU_ITEM_SIZE  22.0F
 
-/* The panel is centred and sized from its contents. */
-#define GNY_MENU_WIDTH       360.0F
-#define GNY_MENU_ITEM_HEIGHT 42.0F
-#define GNY_MENU_PADDING     28.0F
-#define GNY_MENU_TITLE_GAP   22.0F
-
-#define GNY_MENU_SCRIM     ((NYA_Color){ 0.02F, 0.02F, 0.04F, 0.72F })
-#define GNY_MENU_PANEL     ((NYA_Color){ 0.05F, 0.06F, 0.09F, 0.94F })
-#define GNY_MENU_BORDER    ((NYA_Color){ 0.35F, 0.62F, 0.42F, 0.70F })
-#define GNY_MENU_TITLE     ((NYA_Color){ 0.94F, 0.96F, 0.98F, 1.0F })
-#define GNY_MENU_SUBTITLE  ((NYA_Color){ 0.52F, 0.57F, 0.65F, 1.0F })
-#define GNY_MENU_ITEM      ((NYA_Color){ 0.70F, 0.75F, 0.82F, 1.0F })
-#define GNY_MENU_ITEM_ON   ((NYA_Color){ 0.06F, 0.08F, 0.06F, 1.0F })
-#define GNY_MENU_HIGHLIGHT ((NYA_Color){ 0.45F, 0.78F, 0.53F, 1.0F })
+/* The panel is centred and as tall as its rows. */
+#define GNY_MENU_WIDTH 360.0F
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1045,6 +1028,9 @@
 #define GNY_ROBOT_NEAT_COLOR ((NYA_Color){ 0.45F, 0.95F, 0.60F, 1.0F })
 #define GNY_ROBOT_DQN_COLOR  ((NYA_Color){ 1.00F, 0.70F, 0.30F, 1.0F })
 
+/** The DQN colour dark enough to read on a light panel. */
+#define GNY_ROBOT_DQN_TEXT ((NYA_Color){ 0.78F, 0.40F, 0.05F, 1.0F })
+
 /** Where the best genome and the run history live under the save root. */
 #define GNY_ROBOT_SAVE_FILE     "robots.nya"
 #define GNY_ROBOT_DATABASE_FILE "robots.db"
@@ -1053,6 +1039,7 @@
 /** The training panel under the HUD's status panel, and the genome drawn under that. */
 #define GNY_ROBOT_PANEL_WIDTH  420.0F
 #define GNY_ROBOT_BRAIN_HEIGHT 160.0F
+#define GNY_ROBOT_BRAIN_FILL   ((NYA_Color){ 0.16F, 0.13F, 0.22F, 0.94F })
 
 /** Defaults for GNY_ConfigRobots fields left zero. */
 #define GNY_ROBOT_POPULATION             48

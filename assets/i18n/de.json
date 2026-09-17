@@ -10,6 +10,9 @@
   "menu_main_menu": "hauptmenü",
   "menu_master_volume": "gesamtlautstärke",
   "menu_music_volume": "musiklautstärke",
+  "menu_stats": "statistik",
+  "menu_paused": "pause",
+  "menu_subtitle": "physik-sandkasten",
 
   "menu_2d_scene": "2d-szene",
   "menu_3d_scene": "3d-szene",
