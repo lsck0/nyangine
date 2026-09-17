@@ -178,7 +178,7 @@ struct NYA_AudioPropagation {
     /** Echo level, 0 to 1, off the surfaces the room probes hit. Zero is off. Needs `environment`. */
     f32 reflections;
 
-    /** World units per second, which sets how late each echo returns. */
+    /** World units per second, which sets how late each echo returns and how hard a detour is on the level. */
     f32 speed_of_sound;
 };
 

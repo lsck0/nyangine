@@ -26,6 +26,12 @@
 #define _NYA_AUDIO_PROPAGATION_ECHO_NEAR_HZ 9000.0F
 #define _NYA_AUDIO_PROPAGATION_ECHO_FAR_HZ  1800.0F
 
+/** The frequency diffraction loss is judged at, hertz. The middle of what a game's sounds carry. */
+#define _NYA_AUDIO_PROPAGATION_DIFFRACTION_HZ 500.0F
+
+/** A diffraction loss this many decibels deep is as dull as one thin surface. */
+#define _NYA_AUDIO_PROPAGATION_DIFFRACTION_DULL_DB 15.0F
+
 /** How much quieter an echo from the edge of range is than one from beside the ear. */
 #define _NYA_AUDIO_PROPAGATION_ECHO_FAR_GAIN 0.3F
 
@@ -526,7 +532,7 @@ void _nya_audio_trace_read(
     f32   blocked_muffle = 1.0F + (thickness / propagation->thickness);
     f32x3 heard          = source;
 
-    // a way around: both legs of a probe clear. the least bent wins, heard from the corner at the detour's length.
+    // a way around: both legs of a probe clear. the shortest detour wins, heard from the corner at the detour's length.
     for (u32 p = 0; p < trace->probe_count; p++) {
         f32 to_corner   = fractions[n + 1 + (2 * p)];
         f32 from_corner = fractions[n + 2 + (2 * p)];
@@ -541,15 +547,17 @@ void _nya_audio_trace_read(
 
         if (first_length < NYA_EPSILON || second_length < NYA_EPSILON) continue;
 
-        f32 bend_cosine = nya_clamp(nya_vector_dot(first_leg, second_leg) / (first_length * second_length), -1.0F, 1.0F);
-
-        // half at a right angle, nothing doubling back. dulled like one thin surface at a right angle.
-        f32 gain = (1.0F + bend_cosine) * 0.5F;
+        // Maekawa's screen: the detour in half wavelengths sets the loss, about 5 dB grazing the edge and 13 dB a
+        // wavelength around it. Treble bends worse, so the loss dulls it too.
+        f32 detour  = nya_max(first_length + second_length - trace->length, 0.0F);
+        f32 fresnel = 2.0F * detour * _NYA_AUDIO_PROPAGATION_DIFFRACTION_HZ / propagation->speed_of_sound;
+        f32 loss_db = 10.0F * log10f(3.0F + (20.0F * fresnel));
+        f32 gain    = powf(10.0F, -loss_db / 20.0F);
 
         if (gain <= blocked_gain) continue;
 
         blocked_gain   = gain;
-        blocked_muffle = acosf(bend_cosine) / ((f32)M_PI * 0.5F);
+        blocked_muffle = loss_db / _NYA_AUDIO_PROPAGATION_DIFFRACTION_DULL_DB;
         heard          = ear + ((first_leg / first_length) * (first_length + second_length + radius));
     }
 

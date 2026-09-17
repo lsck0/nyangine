@@ -149,8 +149,9 @@ s32 main(void) {
   // TEST: diffraction finds the way around a wall's edge and moves the sound toward it
   // ─────────────────────────────────────────────────────────────────────────────
   {
-    NYA_AudioPropagation without = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true });
-    NYA_AudioPropagation with    = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true, .diffraction = true, .diffraction_reach = 3.0F });
+    // a solid wall: little gets through, so the way round is what is heard.
+    NYA_AudioPropagation without = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true, .transmission = 0.1F });
+    NYA_AudioPropagation with    = _nya_audio_propagation_validate((NYA_AudioPropagation){ .enabled = true, .transmission = 0.1F, .diffraction = true, .diffraction_reach = 2.0F });
     f32x3                source  = { 0.0F, 0.0F, -10.0F };
 
     // everything to the left of x = 1.5 is wall, floor to ceiling; the way round is to the right.
@@ -162,7 +163,8 @@ s32 main(void) {
 
     _nya_audio_tracer_reset(&tracer);
     for (u32 i = 0; i < 4; i++) _nya_audio_tracer_step(&tracer, &without, scene_trace, &right_open, EAR, RIGHT, one_emitter(source, 0.25F), STEP);
-    f32 through = tracer.paths[0].target_gain;
+    f32 through        = tracer.paths[0].target_gain;
+    f32 through_muffle = tracer.paths[0].target_muffle;
 
     _nya_audio_tracer_reset(&tracer);
     for (u32 i = 0; i < 4; i++) _nya_audio_tracer_step(&tracer, &with, scene_trace, &right_open, EAR, RIGHT, one_emitter(source, 0.25F), STEP);
@@ -171,7 +173,10 @@ s32 main(void) {
     nya_assert(around.occlusion == 1.0F, "the direct path is still blocked");
     nya_assert(around.target_gain > through * 1.5F, "a way around must be louder than through, %f against %f", (f64)around.target_gain, (f64)through);
     nya_assert(around.target_offset.x > 1.0F, "the sound must move toward the opening on the right, offset %f", (f64)around.target_offset.x);
-    nya_assert(around.target_muffle < 1.0F, "a shallow bend is brighter than a wall, muffle %f", (f64)around.target_muffle);
+    nya_assert(around.target_muffle < through_muffle, "round the edge is brighter than through, muffle %f against %f", (f64)around.target_muffle, (f64)through_muffle);
+
+    // the detour is 0.78 m: 2.27 half wavelengths at 500 Hz, a 16.7 dB loss.
+    nya_assert(fabsf(around.target_gain - 0.146F) < 0.01F, "a 0.78 m detour loses 16.7 dB, 0.146, got %f", (f64)around.target_gain);
 
     _nya_audio_tracer_reset(&tracer);
     for (u32 i = 0; i < 4; i++) _nya_audio_tracer_step(&tracer, &with, scene_trace, &left_open, EAR, RIGHT, one_emitter(source, 0.25F), STEP);
