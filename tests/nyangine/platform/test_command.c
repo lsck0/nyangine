@@ -120,16 +120,32 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Command cmd = {
+      .arena       = arena,
+      .flags       = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
+      .program     = "sh",
+      .arguments   = { "-c", "printf %s \"$NYA_TEST_COMMAND_VARIABLE\"", nullptr },
+      .environment = { "NYA_TEST_COMMAND_VARIABLE=from the child", nullptr },
+    };
+    NYA_EXPECT(nya_command_run(&cmd));
+    nya_assert(cmd.exit_code == 0);
+    nya_assert(nya_string_equals(cmd.stdout_content, "from the child"));
+    // the variable is the child's alone.
+    nya_assert(getenv("NYA_TEST_COMMAND_VARIABLE") == nullptr);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: Arguments with quotes, backslashes and tabs arrive unchanged
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Command cmd = {
       .arena     = arena,
       .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
-      .program   = "sh",
-      .arguments = { "-c", "echo $TEST_VAR", nullptr },
+      .program   = "printf",
+      .arguments = { "%s|%s|%s|%s", "say \"hi\"", "back\\slash\\", "tab\there", "", nullptr },
     };
-    // Note: Setting environment variables in NYA_Command would require
-    // setting up the environment array, which might not be fully supported
-    // This test just verifies the basic structure works
     NYA_EXPECT(nya_command_run(&cmd));
-    // Exit code should be 0 regardless of whether the var is set
+    nya_assert(cmd.exit_code == 0);
+    nya_assert(nya_string_equals(cmd.stdout_content, "say \"hi\"|back\\slash\\|tab\there|"));
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

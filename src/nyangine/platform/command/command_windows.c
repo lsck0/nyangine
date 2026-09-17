@@ -21,39 +21,89 @@ NYA_INTERNAL void _nya_command_drain(NYA_Command* command, b8 block);
 /** Fills in the results of an exited child and releases its handles. */
 NYA_INTERNAL void _nya_command_finish(NYA_Command* command);
 
+/**
+ * Appends one argument quoted the way the CRT and msys runtimes split a command line: backslashes only
+ * escape when they run into a quote, and any whitespace, not only a space, splits unquoted text.
+ * */
+NYA_INTERNAL void _nya_command_append_argument(NYA_String* cmdline, NYA_ConstCString argument) {
+    nya_assert(cmdline != nullptr);
+    nya_assert(argument != nullptr);
+
+    b8 needs_quotes = argument[0] == '\0';
+    for (NYA_ConstCString c = argument; *c != '\0'; c++) {
+        if (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\v' || *c == '"') needs_quotes = true;
+    }
+    if (!needs_quotes) {
+        nya_string_extend(cmdline, argument);
+        return;
+    }
+
+    nya_string_extend(cmdline, "\"");
+    u64 backslashes = 0;
+    for (NYA_ConstCString c = argument; *c != '\0'; c++) {
+        if (*c == '\\') {
+            backslashes++;
+            continue;
+        }
+        // a quote doubles the backslashes before it and gets one of its own.
+        u64 repeat = *c == '"' ? backslashes * 2 + 1 : backslashes;
+        for (u64 i = 0; i < repeat; i++) nya_string_extend(cmdline, "\\");
+        backslashes = 0;
+        nya_string_extend(cmdline, &(NYA_String){ .items = (u8*)c, .length = 1 });
+    }
+    // the closing quote would otherwise be escaped by a trailing backslash.
+    for (u64 i = 0; i < backslashes * 2; i++) nya_string_extend(cmdline, "\\");
+    nya_string_extend(cmdline, "\"");
+}
+
 NYA_INTERNAL NYA_String* _nya_command_build_command_line(NYA_Command* command, NYA_Arena* arena) {
     NYA_String* cmdline = nya_string_create(arena);
 
-    // Start with program name (quote it if it contains spaces)
-    b8 needs_quotes = nya_string_contains(command->program, " ");
-    if (needs_quotes) nya_string_extend(cmdline, "\"");
-    nya_string_extend(cmdline, command->program);
-    if (needs_quotes) nya_string_extend(cmdline, "\"");
-
-    // Add arguments
+    _nya_command_append_argument(cmdline, command->program);
     for (u32 i = 0; i < NYA_COMMAND_MAX_ARGUMENTS; i++) {
         if (command->arguments[i] == nullptr) break;
-
         nya_string_extend(cmdline, " ");
-
-        // Check if argument needs quotes (contains space or special chars)
-        b8 arg_needs_quotes = nya_string_contains(command->arguments[i], " ");
-        if (arg_needs_quotes) nya_string_extend(cmdline, "\"");
-        nya_string_extend(cmdline, command->arguments[i]);
-        if (arg_needs_quotes) nya_string_extend(cmdline, "\"");
+        _nya_command_append_argument(cmdline, command->arguments[i]);
     }
 
-    // Null terminate
     nya_string_extend(cmdline, &(NYA_String){ .items = (u8[]){ '\0' }, .length = 1 });
     return cmdline;
 }
 
-NYA_INTERNAL void _nya_command_setup_environment(NYA_Command* command) {
-    // Set environment variables for the child process
-    for (u32 i = 0; i < NYA_COMMAND_MAX_ENV_VARS; i++) {
-        if (command->environment[i] == nullptr) break;
-        (void)_putenv(command->environment[i]);
+/**
+ * The parent's environment with the command's `NAME=value` entries replacing or adding to it, as the
+ * double terminated block CreateProcess takes. Built rather than set with _putenv, which would leak
+ * every variable into the parent.
+ * */
+NYA_INTERNAL NYA_String* _nya_command_build_environment(NYA_Command* command, NYA_Arena* arena) {
+    nya_assert(command->environment[0] != nullptr);
+
+    NYA_String* block  = nya_string_create(arena);
+    NYA_String  nul    = { .items = (u8[]){ '\0' }, .length = 1 };
+    LPCH        parent = GetEnvironmentStringsA();
+    nya_assert(parent != nullptr);
+
+    for (LPCH entry = parent; *entry != '\0'; entry += strlen(entry) + 1) {
+        // entries starting with '=' are per drive working directories and have no name to override.
+        u64 name_length = *entry == '=' ? 0 : strcspn(entry, "=");
+        b8  overridden  = false;
+        for (u32 i = 0; i < NYA_COMMAND_MAX_ENV_VARS && command->environment[i] != nullptr; i++) {
+            NYA_ConstCString candidate = command->environment[i];
+            if (name_length > 0 && _strnicmp(candidate, entry, name_length) == 0 && candidate[name_length] == '=') overridden = true;
+        }
+        if (overridden) continue;
+        nya_string_extend(block, entry);
+        nya_string_extend(block, &nul);
     }
+    FreeEnvironmentStringsA(parent);
+
+    for (u32 i = 0; i < NYA_COMMAND_MAX_ENV_VARS && command->environment[i] != nullptr; i++) {
+        nya_assert(strchr(command->environment[i], '=') != nullptr, "Environment entries are NAME=value.");
+        nya_string_extend(block, command->environment[i]);
+        nya_string_extend(block, &nul);
+    }
+    nya_string_extend(block, &nul);
+    return block;
 }
 
 NYA_Error nya_command_run(NYA_Command* command) {
@@ -134,12 +184,8 @@ NYA_Error nya_command_spawn(NYA_Command* command) {
     PROCESS_INFORMATION pi;
     ZeroMemory(&pi, sizeof(pi));
 
-    // Setup environment if needed
     LPVOID env = nullptr;
-    if (command->environment[0] != nullptr) {
-        _nya_command_setup_environment(command);
-        env = GetEnvironmentStringsA();
-    }
+    if (command->environment[0] != nullptr) env = _nya_command_build_environment(command, arena)->items;
 
     // Change working directory if specified
     LPCSTR working_dir = command->working_directory;
@@ -167,14 +213,12 @@ NYA_Error nya_command_spawn(NYA_Command* command) {
     if (!created) {
         if (stdout_read) CloseHandle(stdout_read);
         if (stderr_read) CloseHandle(stderr_read);
-        if (env) FreeEnvironmentStringsA((LPCH)env);
         return nya_error(NYA_ERROR_IO, "failed to create process for '%s'", command->program);
     }
 
     /*
      * Handed to nya_command_wait, which drains and closes them.
      */
-    if (env) FreeEnvironmentStringsA((LPCH)env);
 
     command->process_handle = (u64)(uintptr_t)pi.hProcess;
     command->thread_handle  = (u64)(uintptr_t)pi.hThread;
