@@ -205,6 +205,9 @@ void gny_robots_destroy(void) {
 
     _gny_robots_save(robots);
 
+    nya_log_info("Robots down after %u generations and " FMTu64 " DQN steps; the best genome scored %.3f.", robots->generation, robots->dqn_steps,
+                 robots->brain_fitness);
+
     for (u32 i = 0; i < GNY_ROBOT_DRONES; i++) {
         if (nya_entity_is_valid(robots->drones[i])) nya_entity_despawn(robots->drones[i]);
     }
