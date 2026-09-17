@@ -22,12 +22,42 @@
 #define SDL_INCLUDES_LINUX_X86_64 "-I./vendor/sdl/include/"
 #define SDL_LINKER_LINUX_X86_64   "-L" SDL_BUILD_LINUX_X86_64, "-lSDL3"
 
+/*
+ * Off is what the engine never calls: the 2D renderer (drawing is SDL_GPU), OpenGL, camera, haptic,
+ * dialogs, tray, notifications, OpenXR and io_uring. Video is wayland and x11 (see nya_app_create),
+ * so no KMSDRM; offscreen and dummy stay for headless runs. Audio keeps pipewire, pulse and alsa.
+ *
+ * Lean and mean drops the software blitters, RLE and YUV. SDL_HAVE_BLIT_N keeps the fast format
+ * conversion that decoded images and glyphs go through on their way to RGBA32.
+ *
+ * SDL_DYNAPI stays on, so a Steam runtime can still swap in a newer SDL. It references every public
+ * function, which is why most of SDL survives --gc-sections and only options shrink it.
+ */
 #define SDL_CMAKE_COMMON                        \
     "-GNinja",                                  \
     "-DCMAKE_BUILD_TYPE=Release",               \
     "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",     \
     "-DSDL_SHARED=OFF",                         \
-    "-DSDL_STATIC=ON"
+    "-DSDL_STATIC=ON",                          \
+    "-DSDL_TEST_LIBRARY=OFF",                   \
+    "-DSDL_TESTS=OFF",                          \
+    "-DSDL_INSTALL=OFF",                        \
+    "-DSDL_RENDER=OFF",                         \
+    "-DSDL_OPENGL=OFF",                         \
+    "-DSDL_OPENGLES=OFF",                       \
+    "-DSDL_CAMERA=OFF",                         \
+    "-DSDL_HAPTIC=OFF",                         \
+    "-DSDL_DIALOG=OFF",                         \
+    "-DSDL_TRAY=OFF",                           \
+    "-DSDL_NOTIFICATION=OFF",                   \
+    "-DSDL_GPU_OPENXR=OFF",                     \
+    "-DSDL_LIBURING=OFF",                       \
+    "-DSDL_KMSDRM=OFF",                         \
+    "-DSDL_JACK=OFF",                           \
+    "-DSDL_SNDIO=OFF",                          \
+    "-DSDL_DISKAUDIO=OFF",                      \
+    "-DSDL_LEAN_AND_MEAN=ON",                   \
+    "-DCMAKE_C_FLAGS=-DSDL_HAVE_BLIT_N=1"
 
 // clang-format on
 
