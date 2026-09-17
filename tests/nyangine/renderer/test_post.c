@@ -165,6 +165,11 @@ s32 main(void) {
         nya_post_antialias_set(&window, (NYA_PostAntialias){ .enabled = true, .subpixel = 5.0F });
         nya_check(nya_post_antialias(&window).subpixel == 1.0F, "the subpixel amount clamps to one");
 
+        nya_post_depth_of_field_set(&window, (NYA_PostDepthOfField){ .focus = (NYA_PostFocus)7, .radius = 400.0F, .band_offset = -3.0F });
+        NYA_PostDepthOfField depth_of_field = nya_post_depth_of_field(&window);
+        nya_check(depth_of_field.focus == NYA_POST_FOCUS_OFF, "an unknown focus reads as off");
+        nya_check(depth_of_field.radius == NYA_POST_DEPTH_OF_FIELD_RADIUS_MAX && depth_of_field.band_offset == -0.5F, "radius and band offset clamp");
+
         nya_post_debug_view_set(&window, (NYA_PostDebugView)99);
         nya_check(nya_post_debug_view(&window) == NYA_POST_DEBUG_VIEW_NONE, "an unknown debug view reads as none");
 
@@ -208,6 +213,22 @@ s32 main(void) {
         nya_check(nya_post_begin(&window, &chain), "both off again");
         nya_post_end(&window, &chain, nullptr, 0);
         nya_check(!chain.targets[0].options.normals && chain.half.width == 0, "turning them off releases both");
+
+        // tilt shift reads only the image; distance focus reads the normal buffer. both blur at half resolution.
+        nya_post_depth_of_field_set(&window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_TILT_SHIFT });
+        nya_check(nya_post_begin(&window, &chain), "tilt shift on");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(!chain.targets[0].options.normals && chain.blur.width == 160 && chain.half.width == 0, "tilt shift adds only a blur target");
+
+        nya_post_depth_of_field_set(&window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_DISTANCE });
+        nya_check(nya_post_begin(&window, &chain), "distance focus on");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(chain.targets[0].options.normals && chain.blur.width == 160, "distance focus adds the normal buffer too");
+
+        nya_post_depth_of_field_set(&window, (NYA_PostDepthOfField){ 0 });
+        nya_check(nya_post_begin(&window, &chain), "depth of field off");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(!chain.targets[0].options.normals && chain.blur.width == 0, "turning it off releases the blur and the normal buffer");
 
         nya_post_antialias_set(&window, (NYA_PostAntialias){ 0 });
     }

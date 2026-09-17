@@ -107,6 +107,7 @@ struct NYA_ConfigEngineRenderer {
     NYA_PostInk              ink;
     NYA_PostAmbientOcclusion ambient_occlusion;
     NYA_PostAntialias        antialias;
+    NYA_PostDepthOfField     depth_of_field;
     NYA_PostDebugView        debug_view;
 
     /** The hue shade leans toward, alpha as how far. See NYA_Render3DShadowOptions.color. */

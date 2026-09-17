@@ -330,6 +330,26 @@ struct NYA_ShaderAntialiasUniform {
     f32 threshold;
 };
 
+/** effect_depth_of_field_blur.frag.hlsl and its composite. See NYA_PostDepthOfField. */
+struct NYA_ShaderDepthOfFieldUniform {
+    /** One texel of the full image, since the blur is measured in those. */
+    f32 texel_x, texel_y;
+
+    f32 radius;
+
+    /** A NYA_PostFocus, as a float for the row. */
+    f32 focus;
+
+    /** Tilt shift, in uv: where the sharp band is centred and half its height. */
+    f32 band_center, band;
+
+    f32 falloff;
+    f32 layers;
+
+    f32 focus_distance, focus_range;
+    f32 pad[2];
+};
+
 /** effect_scene_debug.frag.hlsl: the ink's settings for the ink view, then the view and the cascades. */
 struct NYA_ShaderSceneDebugUniform {
     struct NYA_ShaderInkUniform ink;

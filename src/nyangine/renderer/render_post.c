@@ -13,6 +13,8 @@
 #define _NYA_POST_PIPELINE_OCCLUSION_APPLY "nya_post_occlusion_apply_pipeline"
 #define _NYA_POST_PIPELINE_INK             "nya_post_ink_pipeline"
 #define _NYA_POST_PIPELINE_ANTIALIAS       "nya_post_antialias_pipeline"
+#define _NYA_POST_PIPELINE_BLUR            "nya_post_depth_of_field_blur_pipeline"
+#define _NYA_POST_PIPELINE_FOCUS           "nya_post_depth_of_field_pipeline"
 #define _NYA_POST_PIPELINE_DEBUG           "nya_post_debug_pipeline"
 
 /** Near black with a little blue, what NYA_PostInk.color falls back to. */
@@ -23,6 +25,7 @@ typedef enum {
     _NYA_POST_INPUT_SOURCE  = 1 << 0,
     _NYA_POST_INPUT_NORMALS = 1 << 1,
     _NYA_POST_INPUT_HALF    = 1 << 2,
+    _NYA_POST_INPUT_BLUR    = 1 << 3,
 } _NYA_PostInput;
 
 /** One pass as nya_post_end runs it. */
@@ -40,16 +43,17 @@ typedef struct {
     /** _NYA_PostInput bits. */
     u32 inputs;
 
-    /** Draws the half resolution occlusion instead of the next image in the chain. */
-    b8 half;
+    /** Draws into this half resolution target instead of the next image in the chain. */
+    NYA_RenderTexture* target;
 } _NYA_PostStep;
 
-/** The built-in passes one frame can queue: occlusion twice, ink, antialiasing, and the debug view. */
-#define _NYA_POST_BUILT_IN_MAX 5
+/** The built-in passes one frame can queue: occlusion twice, ink, depth of field twice, antialiasing, the debug view. */
+#define _NYA_POST_BUILT_IN_MAX 7
 
 /** Whether any option on the window reads the scene normal buffer. */
 NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_RenderSystemWindow* render) {
-    return render->post_ink.enabled || render->post_ambient_occlusion.enabled || render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE;
+    return render->post_ink.enabled || render->post_ambient_occlusion.enabled || render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE
+        || render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE;
 }
 
 /** Whether any option on the window draws the half resolution occlusion. Every debug view binds it. */
@@ -112,6 +116,18 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
         );
     }
 
+    // its own, since the debug view reads the occlusion after depth of field has run.
+    b8 wants_blur   = render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF;
+    b8 blur_matches = chain->blur.width == half_width && chain->blur.height == half_height;
+
+    if (!wants_blur || !blur_matches) nya_render_texture_destroy(&chain->blur);
+
+    if (wants_blur && chain->blur.width == 0) {
+        chain->blur = nya_render_texture_create_with(
+            window, half_width, half_height, (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE, .single_sampled = true }
+        );
+    }
+
     return true;
 }
 
@@ -157,12 +173,16 @@ NYA_INTERNAL void _nya_post_draw_pass(NYA_Window* window, const NYA_RenderTextur
 
 /** Draws a built-in pass as one fullscreen triangle, binding the inputs it names. */
 NYA_INTERNAL void _nya_post_draw_step(NYA_Window* window, const NYA_PostChain* chain, u32 source, const _NYA_PostStep* step) {
-    SDL_GPUTexture* textures[3];
+    SDL_GPUTexture* textures[4];
     u32             count = 0;
 
+    // a scene without normals gets the image in their place. only tilt shift asks then, and it never samples them.
+    SDL_GPUTexture* normals = chain->targets[0].normal_texture != nullptr ? chain->targets[0].normal_texture : chain->targets[source].texture;
+
     if (step->inputs & _NYA_POST_INPUT_SOURCE) textures[count++] = chain->targets[source].texture;
-    if (step->inputs & _NYA_POST_INPUT_NORMALS) textures[count++] = chain->targets[0].normal_texture;
+    if (step->inputs & _NYA_POST_INPUT_NORMALS) textures[count++] = normals;
     if (step->inputs & _NYA_POST_INPUT_HALF) textures[count++] = chain->half.texture;
+    if (step->inputs & _NYA_POST_INPUT_BLUR) textures[count++] = chain->blur.texture;
 
     nya_render2d_fullscreen(window, step->pipeline, textures, count, step->uniform, step->uniform_size);
 }
@@ -246,6 +266,29 @@ NYA_INTERNAL struct NYA_ShaderSceneView _nya_post_scene_view(const NYA_Window* w
     };
 }
 
+/** The depth of field block with every zero field replaced by its default. */
+NYA_INTERNAL struct NYA_ShaderDepthOfFieldUniform _nya_post_depth_of_field_uniform(NYA_PostDepthOfField options, const NYA_PostChain* chain) {
+    b8 distance = options.focus == NYA_POST_FOCUS_DISTANCE;
+
+    f32 band  = options.band > 0.0F ? options.band : NYA_POST_DEPTH_OF_FIELD_BAND;
+    f32 range = options.focus_range > 0.0F ? options.focus_range : NYA_POST_DEPTH_OF_FIELD_RANGE;
+
+    return (struct NYA_ShaderDepthOfFieldUniform){
+        .texel_x = 1.0F / (f32)chain->width,
+        .texel_y = 1.0F / (f32)chain->height,
+        .radius  = options.radius > 0.0F ? options.radius : NYA_POST_DEPTH_OF_FIELD_RADIUS,
+        .focus   = (f32)options.focus,
+
+        .band_center = 0.5F + options.band_offset,
+        .band        = band,
+        .falloff     = options.falloff > 0.0F ? options.falloff : (distance ? range * 2.0F : band * 3.0F),
+        .layers      = (f32)(options.layers > 0 ? options.layers : NYA_POST_DEPTH_OF_FIELD_LAYERS),
+
+        .focus_distance = options.focus_distance > 0.0F ? options.focus_distance : NYA_POST_DEPTH_OF_FIELD_DISTANCE,
+        .focus_range    = range,
+    };
+}
+
 /** The ink block with every zero field replaced by its default. */
 NYA_INTERNAL struct NYA_ShaderInkUniform _nya_post_ink_uniform(NYA_PostInk ink, struct NYA_ShaderSceneView view) {
     NYA_Color color = ink.color.a > 0.0F ? ink.color : _NYA_POST_INK_COLOR;
@@ -319,6 +362,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     struct NYA_ShaderAmbientOcclusionUniform  occlusion = { 0 };
     struct NYA_ShaderInkUniform               ink       = { 0 };
     struct NYA_ShaderAntialiasUniform         antialias = { 0 };
+    struct NYA_ShaderDepthOfFieldUniform      focus     = { 0 };
     struct NYA_ShaderSceneDebugUniform        debug     = { 0 };
 
     const NYA_PostAmbientOcclusion* occlusion_options = &render->post_ambient_occlusion;
@@ -337,7 +381,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
                 .uniform      = &occlusion,
                 .uniform_size = sizeof(occlusion),
                 .inputs       = _NYA_POST_INPUT_NORMALS,
-                .half         = true,
+                .target       = &chain->half,
             };
         }
     }
@@ -363,6 +407,31 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             .uniform      = &ink,
             .uniform_size = sizeof(ink),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS,
+        };
+    }
+
+    // distance focus needs the normal buffer this frame; tilt shift works on any image.
+    const NYA_PostDepthOfField* focus_options = &render->post_depth_of_field;
+
+    b8 focus_on = focus_options->focus == NYA_POST_FOCUS_TILT_SHIFT || (scene && focus_options->focus == NYA_POST_FOCUS_DISTANCE);
+
+    if (focus_on && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLUR, NYA_ASSET_SHADER_EFFECT_DEPTH_OF_FIELD_BLUR_FRAG, 2, true)
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_FOCUS, NYA_ASSET_SHADER_EFFECT_DEPTH_OF_FIELD_FRAG, 3, false)) {
+        focus = _nya_post_depth_of_field_uniform(*focus_options, chain);
+
+        before[before_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_BLUR,
+            .uniform      = &focus,
+            .uniform_size = sizeof(focus),
+            .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS,
+            .target       = &chain->blur,
+        };
+
+        before[before_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_FOCUS,
+            .uniform      = &focus,
+            .uniform_size = sizeof(focus),
+            .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS | _NYA_POST_INPUT_BLUR,
         };
     }
 
@@ -413,7 +482,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
      */
     u32 usable = after_count;
 
-    for (u32 i = 0; i < before_count; i++) usable += before[i].half ? 0 : 1;
+    for (u32 i = 0; i < before_count; i++) usable += before[i].target != nullptr ? 0 : 1;
 
     for (u32 i = 0; i < pass_count; i++) {
         if (_nya_post_pass_ready(&passes[i])) usable++;
@@ -455,9 +524,9 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             step = after[i - before_count - pass_count];
         }
 
-        // the occlusion goes to its own target and leaves the chain's image where it was.
-        if (step.half) {
-            nya_render_texture_begin(window, &chain->half, NYA_COLOR_TRANSPARENT);
+        // the occlusion and the blur go to their own targets and leave the chain's image where it was.
+        if (step.target != nullptr) {
+            nya_render_texture_begin(window, step.target, NYA_COLOR_TRANSPARENT);
             _nya_post_draw_step(window, chain, source, &step);
             nya_render_texture_end(window);
             continue;
@@ -492,6 +561,7 @@ void nya_post_chain_destroy(NYA_PostChain* chain) {
     for (u32 i = 0; i < nya_carray_length(chain->targets); i++) nya_render_texture_destroy(&chain->targets[i]);
 
     nya_render_texture_destroy(&chain->half);
+    nya_render_texture_destroy(&chain->blur);
 
     // the scene options are the caller's choice, not state, so they survive.
     *chain = (NYA_PostChain){ .scene = chain->scene };
@@ -551,6 +621,29 @@ NYA_PostAntialias nya_post_antialias(NYA_Window* window) {
     nya_assert(window != nullptr);
 
     return window->render_system.post_antialias;
+}
+
+void nya_post_depth_of_field_set(NYA_Window* window, NYA_PostDepthOfField depth_of_field) {
+    nya_assert(window != nullptr);
+
+    // a config file can hold any number.
+    if ((u32)depth_of_field.focus >= NYA_POST_FOCUS_COUNT) depth_of_field.focus = NYA_POST_FOCUS_OFF;
+
+    depth_of_field.band_offset    = nya_clamp(depth_of_field.band_offset, -0.5F, 0.5F);
+    depth_of_field.band           = nya_clamp(depth_of_field.band, 0.0F, 0.5F);
+    depth_of_field.focus_distance = nya_max(depth_of_field.focus_distance, 0.0F);
+    depth_of_field.focus_range    = nya_max(depth_of_field.focus_range, 0.0F);
+    depth_of_field.falloff        = nya_max(depth_of_field.falloff, 0.0F);
+    depth_of_field.radius         = nya_clamp(depth_of_field.radius, 0.0F, NYA_POST_DEPTH_OF_FIELD_RADIUS_MAX);
+    depth_of_field.layers         = nya_min(depth_of_field.layers, 16U);
+
+    window->render_system.post_depth_of_field = depth_of_field;
+}
+
+NYA_PostDepthOfField nya_post_depth_of_field(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.post_depth_of_field;
 }
 
 void nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view) {

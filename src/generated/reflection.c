@@ -157,6 +157,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
     { .name = "ink", .type = &_NYA_REFLECT_NYA_PostInk, .offset = nya_offsetof(NYA_ConfigEngineRenderer, ink), .hint = NYA_HINT_NONE },
     { .name = "ambient_occlusion", .type = &_NYA_REFLECT_NYA_PostAmbientOcclusion, .offset = nya_offsetof(NYA_ConfigEngineRenderer, ambient_occlusion), .hint = NYA_HINT_NONE },
     { .name = "antialias", .type = &_NYA_REFLECT_NYA_PostAntialias, .offset = nya_offsetof(NYA_ConfigEngineRenderer, antialias), .hint = NYA_HINT_NONE },
+    { .name = "depth_of_field", .type = &_NYA_REFLECT_NYA_PostDepthOfField, .offset = nya_offsetof(NYA_ConfigEngineRenderer, depth_of_field), .hint = NYA_HINT_NONE },
     { .name = "debug_view", .type = &_NYA_REFLECT_NYA_PostDebugView, .offset = nya_offsetof(NYA_ConfigEngineRenderer, debug_view), .hint = NYA_HINT_NONE },
     { .name = "shadow_color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_color), .hint = NYA_HINT_NONE },
     { .name = "grade_lut", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer_grade_lut_ARRAY, .offset = nya_offsetof(NYA_ConfigEngineRenderer, grade_lut), .hint = NYA_HINT_NONE },
@@ -169,7 +170,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .size = sizeof(NYA_ConfigEngineRenderer),
     .alignment = alignof(NYA_ConfigEngineRenderer),
     .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
-    .field_count = 11,
+    .field_count = 12,
 };
 
 /* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
@@ -326,6 +327,51 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostAntialias = {
     .field_count = 3,
 };
 
+/* NYA_PostFocus, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectVariant _NYA_REFLECT_NYA_PostFocus_VARIANTS[] = {
+    { .name = "NYA_POST_FOCUS_OFF", .value = (s64)(NYA_POST_FOCUS_OFF) },
+    { .name = "NYA_POST_FOCUS_TILT_SHIFT", .value = (s64)(NYA_POST_FOCUS_TILT_SHIFT) },
+    { .name = "NYA_POST_FOCUS_DISTANCE", .value = (s64)(NYA_POST_FOCUS_DISTANCE) },
+    { .name = "NYA_POST_FOCUS_COUNT", .value = (s64)(NYA_POST_FOCUS_COUNT) },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostFocus = {
+    .name = "NYA_PostFocus",
+    .kind = NYA_REFLECT_ENUM,
+    .size = sizeof(NYA_PostFocus),
+    .alignment = alignof(NYA_PostFocus),
+    .primitive = (sizeof(NYA_PostFocus) == 8 ? NYA_TYPE_S64
+                : sizeof(NYA_PostFocus) == 2 ? NYA_TYPE_S16
+                : sizeof(NYA_PostFocus) == 1 ? NYA_TYPE_S8
+                                  : NYA_TYPE_S32),
+    .variants = _NYA_REFLECT_NYA_PostFocus_VARIANTS,
+    .variant_count = 4,
+    .is_bitflags = false,
+};
+
+/* NYA_PostDepthOfField, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PostDepthOfField_FIELDS[] = {
+    { .name = "focus", .type = &_NYA_REFLECT_NYA_PostFocus, .offset = nya_offsetof(NYA_PostDepthOfField, focus), .hint = NYA_HINT_NONE },
+    { .name = "band_offset", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostDepthOfField, band_offset), .hint = NYA_HINT_NONE },
+    { .name = "band", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostDepthOfField, band), .hint = NYA_HINT_NONE },
+    { .name = "focus_distance", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostDepthOfField, focus_distance), .hint = NYA_HINT_NONE },
+    { .name = "focus_range", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostDepthOfField, focus_range), .hint = NYA_HINT_NONE },
+    { .name = "falloff", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostDepthOfField, falloff), .hint = NYA_HINT_NONE },
+    { .name = "radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostDepthOfField, radius), .hint = NYA_HINT_NONE },
+    { .name = "layers", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_PostDepthOfField, layers), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostDepthOfField = {
+    .name = "NYA_PostDepthOfField",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PostDepthOfField),
+    .alignment = alignof(NYA_PostDepthOfField),
+    .fields = _NYA_REFLECT_NYA_PostDepthOfField_FIELDS,
+    .field_count = 8,
+};
+
 /* NYA_PostDebugView, src/nyangine/renderer/render_post.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_PostDebugView_VARIANTS[] = {
@@ -367,6 +413,8 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostInk,
     &_NYA_REFLECT_NYA_PostAmbientOcclusion,
     &_NYA_REFLECT_NYA_PostAntialias,
+    &_NYA_REFLECT_NYA_PostFocus,
+    &_NYA_REFLECT_NYA_PostDepthOfField,
     &_NYA_REFLECT_NYA_PostDebugView,
 };
 

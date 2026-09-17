@@ -24,12 +24,15 @@
  * nya_post_ink_set(window, (NYA_PostInk){ .enabled = true });
  * nya_post_ambient_occlusion_set(window, (NYA_PostAmbientOcclusion){ .enabled = true, .strength = 0.4F });
  * nya_post_antialias_set(window, (NYA_PostAntialias){ .enabled = true });
+ * nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_TILT_SHIFT });
  * ```
  *
- * They run inside nya_post_end before the caller's passes, occlusion then ink then antialiasing, and the debug
- * view after them. A feature that is off has no pass, no pipeline and no target. Ink and occlusion read the scene
- * normal buffer (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only while one of them or a
- * debug view is on, and they skip a frame whose capture drew no 3D.
+ * They run inside nya_post_end before the caller's passes, occlusion then ink then depth of field then
+ * antialiasing, and the debug view after them. Depth of field follows the ink, so a line blurs with the surface it
+ * is drawn on, and comes before antialiasing, which smooths the cut between sharp and blurred. A feature that is off
+ * has no pass, no pipeline and no target. Ink, occlusion and distance focus read the scene normal buffer
+ * (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only while one of them or a debug view is on,
+ * and they skip a frame whose capture drew no 3D.
  * */
 #pragma once
 
@@ -69,6 +72,24 @@
 /** The smallest local contrast FXAA treats as an edge, when NYA_PostAntialias.threshold is zero. */
 #define NYA_POST_ANTIALIAS_THRESHOLD 0.125F
 
+/** Half the sharp band's height as a fraction of the screen, when NYA_PostDepthOfField.band is zero. */
+#define NYA_POST_DEPTH_OF_FIELD_BAND 0.08F
+
+/** Where distance focus is sharpest, in world units, when NYA_PostDepthOfField.focus_distance is zero. */
+#define NYA_POST_DEPTH_OF_FIELD_DISTANCE 10.0F
+
+/** World units either side of the focus kept sharp, when NYA_PostDepthOfField.focus_range is zero. */
+#define NYA_POST_DEPTH_OF_FIELD_RANGE 2.0F
+
+/** The widest blur in pixels of the full image, when NYA_PostDepthOfField.radius is zero. */
+#define NYA_POST_DEPTH_OF_FIELD_RADIUS 10.0F
+
+/** The widest blur allowed. The taps are fixed, so past this they separate into a visible pattern. */
+#define NYA_POST_DEPTH_OF_FIELD_RADIUS_MAX 24.0F
+
+/** Distinct amounts of blur, when NYA_PostDepthOfField.layers is zero. */
+#define NYA_POST_DEPTH_OF_FIELD_LAYERS 3
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -80,6 +101,8 @@ typedef struct NYA_PostChain            NYA_PostChain;
 typedef struct NYA_PostInk              NYA_PostInk;
 typedef struct NYA_PostAmbientOcclusion NYA_PostAmbientOcclusion;
 typedef struct NYA_PostAntialias        NYA_PostAntialias;
+typedef struct NYA_PostDepthOfField     NYA_PostDepthOfField;
+typedef enum NYA_PostFocus              NYA_PostFocus;
 typedef enum NYA_PostDebugView          NYA_PostDebugView;
 
 /** One full-screen effect: a pipeline, and the uniform it wants. */
@@ -159,6 +182,55 @@ struct NYA_PostAntialias {
     f32 threshold;
 };
 
+/** What decides how blurred a pixel is. */
+// @reflect
+enum NYA_PostFocus {
+    /** No blur, no pass and no target. */
+    NYA_POST_FOCUS_OFF = 0,
+
+    /** Sharp in a horizontal band, blurring toward the top and bottom: the miniature look. Reads no depth. */
+    NYA_POST_FOCUS_TILT_SHIFT,
+
+    /** Sharp at a distance from the camera, read from the scene normal buffer, which it turns on. */
+    NYA_POST_FOCUS_DISTANCE,
+
+    NYA_POST_FOCUS_COUNT,
+};
+
+/**
+ * A toy-like depth of field. Gathered at half resolution through a hexagon of flat weighted taps, so bright points
+ * open into flat hexagons, with the amount stepped into a few layers so the scene reads as cut-out planes rather than
+ * a lens. Where the blur applies is decided again at full resolution, so what is in focus keeps a clean edge.
+ * */
+// @reflect
+struct NYA_PostDepthOfField {
+    NYA_PostFocus focus;
+
+    /** Tilt shift: the middle of the sharp band as an offset from the middle of the screen, down positive. */
+    f32 band_offset;
+
+    /** Tilt shift: half the sharp band's height as a fraction of the screen. See NYA_POST_DEPTH_OF_FIELD_BAND. */
+    f32 band;
+
+    /** Distance: how far from the camera is sharpest, in world units. See NYA_POST_DEPTH_OF_FIELD_DISTANCE. */
+    f32 focus_distance;
+
+    /** Distance: world units either side of `focus_distance` still sharp. See NYA_POST_DEPTH_OF_FIELD_RANGE. */
+    f32 focus_range;
+
+    /**
+     * How far past the sharp zone the blur is full: a fraction of the screen for tilt shift, world units for distance.
+     * Zero is three times the band, or twice the range.
+     * */
+    f32 falloff;
+
+    /** The widest blur in pixels of the full image. See NYA_POST_DEPTH_OF_FIELD_RADIUS. */
+    f32 radius;
+
+    /** Distinct amounts of blur. See NYA_POST_DEPTH_OF_FIELD_LAYERS. */
+    u32 layers;
+};
+
 /** A buffer shown in place of the image, for looking at what the cartoon passes read. */
 // @reflect
 enum NYA_PostDebugView {
@@ -195,6 +267,9 @@ struct NYA_PostChain {
 
     /** The half resolution occlusion, single sampled. Exists only while occlusion or a debug view is on. */
     NYA_RenderTexture half;
+
+    /** The half resolution depth of field blur, single sampled. Exists only while depth of field is on. */
+    NYA_RenderTexture blur;
 
     /**
      * How the scene target is made. Zeroed attaches depth for a 3D scene; a 2D world saves it with DEPTH_NONE. The
@@ -243,6 +318,10 @@ NYA_API NYA_PostAmbientOcclusion nya_post_ambient_occlusion(NYA_Window* window) 
 /** Sets this window's antialiasing, clamped like the ink. */
 NYA_API void              nya_post_antialias_set(NYA_Window* window, NYA_PostAntialias antialias);
 NYA_API NYA_PostAntialias nya_post_antialias(NYA_Window* window) __attr_no_discard;
+
+/** Sets this window's depth of field, clamped like the ink. An unknown focus reads as off. */
+NYA_API void                 nya_post_depth_of_field_set(NYA_Window* window, NYA_PostDepthOfField depth_of_field);
+NYA_API NYA_PostDepthOfField nya_post_depth_of_field(NYA_Window* window) __attr_no_discard;
 
 /** Shows a buffer instead of the image. An unknown view reads as none. */
 NYA_API void              nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view);
