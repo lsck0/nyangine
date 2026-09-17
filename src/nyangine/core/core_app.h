@@ -158,6 +158,13 @@ NYA_API void     nya_app_deinit(void);
 NYA_API void     nya_app_run(void);
 NYA_API NYA_App* nya_app_get(void);
 
+/**
+ * How far this frame sits between the last update tick and the next, in [0, 1]. Anything that moves per tick draws
+ * from its previous tick toward its current one by this, so motion stays smooth when the display rate and the tick
+ * rate do not line up. One outside a running app, so a draw shows the current tick.
+ * */
+NYA_API f32 nya_app_tick_alpha(void) __attr_no_discard;
+
 /** What nya_app_get returns. Declared so a test can stand up an app without nya_app_init. */
 NYA_API NYA_App _NYA_APP_INSTANCE;
 

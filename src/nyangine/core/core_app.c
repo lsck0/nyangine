@@ -285,6 +285,13 @@ u64 nya_app_uptime_ns(void) {
     return nya_clock_get_monotonic_ns() - app->frame_stats.started_ns;
 }
 
+f32 nya_app_tick_alpha(void) {
+    NYA_App* app = nya_app_get();
+    if (!app->initialized || app->options.time_step_ns == 0) return 1.0F;
+
+    return nya_clamp((f32)app->frame_stats.time_behind_ns / (f32)app->options.time_step_ns, 0.0F, 1.0F);
+}
+
 f64 nya_app_uptime_s(void) {
     return (f64)nya_app_uptime_ns() / 1'000'000'000.0;
 }

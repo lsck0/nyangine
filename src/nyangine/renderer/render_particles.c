@@ -150,7 +150,8 @@ u32 nya_particles_emit(NYA_ParticleSystem* system, NYA_ParticleBurst burst) {
         f32 size_start = _nya_particles_range(system, burst.size, (f32x2){ 2.0F, 4.0F });
 
         *particle = (NYA_Particle){
-            .position     = burst.position + offset,
+            .position          = burst.position + offset,
+            .position_previous = burst.position + offset,
             .velocity     = direction * speed,
             .acceleration = burst.gravity,
             .lifetime_s   = _nya_particles_range(system, burst.lifetime_s, (f32x2){ 0.5F, 1.0F }),
@@ -179,6 +180,7 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
     if (delta_time_s <= 0.0F) return;
 
     system->dropped = 0;
+    system->tick_s  = delta_time_s;
 
     for (u32 i = 0; i < system->count;) {
         NYA_Particle* particle = &system->particles[i];
@@ -191,7 +193,8 @@ void nya_particles_update(NYA_ParticleSystem* system, f32 delta_time_s) {
             continue;
         }
 
-        particle->velocity += particle->acceleration * delta_time_s;
+        particle->position_previous = particle->position;
+        particle->velocity         += particle->acceleration * delta_time_s;
 
         /* Damping as an exponential, not a subtraction, so it is frame-rate independent and never overshoots zero. */
         if (particle->damping > 0.0F) particle->velocity *= expf(-particle->damping * delta_time_s);
@@ -233,10 +236,15 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
     NYA_Render3DTextureBinding texture = system->space == NYA_PARTICLE_SPACE_3D ? nya_render3d_texture_resolve(system->texture)
                                                                                : (NYA_Render3DTextureBinding){ 0 };
 
+    // drawn between the previous tick and this one, so particles move smoothly when frames and ticks do not line up.
+    f32 alpha = nya_app_tick_alpha();
+
     for (u32 i = 0; i < system->count; i++) {
         const NYA_Particle* particle = &system->particles[i];
 
-        f32 t = particle->lifetime_s > 0.0F ? particle->age_s / particle->lifetime_s : 1.0F;
+        f32   age      = nya_max(particle->age_s - (1.0F - alpha) * system->tick_s, 0.0F);
+        f32   t        = particle->lifetime_s > 0.0F ? age / particle->lifetime_s : 1.0F;
+        f32x3 position = nya_lerp(particle->position_previous, particle->position, alpha);
 
         f32 size = nya_lerp(particle->size_start, particle->size_end, t);
         if (size <= 0.0F) continue;
@@ -251,11 +259,11 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
         if (system->space == NYA_PARTICLE_SPACE_3D) {
             /* A billboard. */
             /* With the system's texture. */
-            nya_render3d_billboard_resolved(window, texture, particle->position, (f32x2){ size, size }, particle->rotation, color);
+            nya_render3d_billboard_resolved(window, texture, position, (f32x2){ size, size }, particle->rotation, color);
             continue;
         }
 
-        f32x2 center = { particle->position.x, particle->position.y };
+        f32x2 center = { position.x, position.y };
 
         if (system->texture != nullptr) {
             nya_render2d_texture_ex(

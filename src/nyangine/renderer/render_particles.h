@@ -80,6 +80,9 @@ enum NYA_ParticleShape {
  * */
 struct NYA_Particle {
     f32x3 position;
+
+    /** Where it was a tick ago. Draws interpolate from here, see nya_app_tick_alpha. */
+    f32x3 position_previous;
     f32x3 velocity;
 
     /** Applied every tick. Copied from the burst so one system can hold several behaviours. */
@@ -198,6 +201,9 @@ struct NYA_ParticleSystem {
 
     /** Particles asked for and refused because the pool was full, since the last update. */
     u32 dropped;
+
+    /** The last update's step, which a draw between ticks takes a fraction of. */
+    f32 tick_s;
 };
 
 /*
