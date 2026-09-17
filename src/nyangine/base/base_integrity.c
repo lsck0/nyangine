@@ -1,6 +1,10 @@
 #include "nyangine/base/base_basic.h"
 #include "nyangine/nyangine.h"
 
+#if OS_LINUX
+#include <elf.h>
+#endif
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
@@ -192,16 +196,34 @@ NYA_INTERNAL b8 _nya_integrity_code_region(OUT const u8** out_start, OUT u64* ou
 
     return false;
 #elif OS_LINUX
-    // linker provided bounds of the text segment: cheaper and more predictable than dl_iterate_phdr, and
-    // exactly the code this executable was built with. Hooks inside shared libraries are out of scope.
+    // the executable segment from the program headers mapped at __executable_start: cheaper and more predictable
+    // than dl_iterate_phdr, and exactly the code this executable was built with. not up to etext, which can span the
+    // unmapped page between the read-only and code segments. hooks inside shared libraries are out of scope.
     extern char __executable_start[];
-    extern char etext[];
 
-    if ((const u8*)etext <= (const u8*)__executable_start) return false;
+    const Elf64_Ehdr* header = (const Elf64_Ehdr*)__executable_start;
+    if (memcmp(header->e_ident, ELFMAG, SELFMAG) != 0) return false;
 
-    *out_start = (const u8*)__executable_start;
-    *out_size  = (u64)((const u8*)etext - (const u8*)__executable_start);
-    return true;
+    const Elf64_Phdr* segments = (const Elf64_Phdr*)((const u8*)header + header->e_phoff);
+
+    // where the segment holding the headers was placed, so a position independent address resolves.
+    const u8* base = nullptr;
+
+    for (u16 i = 0; i < header->e_phnum; i++) {
+        if (segments[i].p_type == PT_LOAD && segments[i].p_offset == 0) base = (const u8*)header - segments[i].p_vaddr;
+    }
+
+    if (base == nullptr) return false;
+
+    for (u16 i = 0; i < header->e_phnum; i++) {
+        if (segments[i].p_type != PT_LOAD || (segments[i].p_flags & PF_X) == 0) continue;
+
+        *out_start = base + segments[i].p_vaddr;
+        *out_size  = segments[i].p_memsz;
+        return true;
+    }
+
+    return false;
 #else
     nya_unused(out_start, out_size);
     return false;
