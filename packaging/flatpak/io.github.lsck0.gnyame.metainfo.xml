@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.lsck0.gnyame</id>
+  <name>gnyame</name>
+  <summary>A physics sandbox built on nyangine</summary>
+  <developer id="io.github.lsck0">
+    <name>Luca Sandrock</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <url type="homepage">https://github.com/lsck0/nyangine</url>
+  <url type="bugtracker">https://github.com/lsck0/nyangine/issues</url>
+  <description>
+    <p>A physics sandbox built on nyangine.</p>
+  </description>
+  <launchable type="desktop-id">io.github.lsck0.gnyame.desktop</launchable>
+  <categories>
+    <category>Game</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.0.0" date="2026-09-17"/>
+  </releases>
+</component>
