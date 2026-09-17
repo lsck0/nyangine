@@ -28,8 +28,12 @@ per draw, instancing, cascaded sun shadows, MSAA and glass.
 
 In progress:
 
-- `[~]` Colour grading through a `.cube` LUT, tuned for clean saturated palettes (see below).
-- `[~]` Coloured shadows and a sky/ground ambient instead of flat `ambient`.
+- Grading through a `.cube` LUT (`NYA_ASSET_TYPE_LUT`, an RGBA8 3D texture), after ink, occlusion and FXAA
+  and before bloom. `toon.cube` saturates muted colours and keeps black and white exact; mean saturation in
+  the 3D demo 49 to 63, about 0.35 ms at 1280x720. Key 4 in both scenes, `grade_lut` and `grade_strength`
+  in the config.
+- A cool shade colour gathers in cast shadow and the dark band; sky and ground ambient colours replace flat
+  `ambient`; highlight and rim soften over exactly one pixel.
 - Screen-space ink from depth and normal discontinuities replaces the inverted hull: silhouettes, hard
   creases past 40°, thinning with distance and fading into fog. Banded ambient occlusion at half resolution,
   FXAA, and debug views (normals, depth, occlusion, ink, cascades). The 3D pass writes an RGBA16F normal and
@@ -51,35 +55,25 @@ In progress:
 
 Not started:
 
-- `[ ]` Point and spot light shadows.
 - `[ ]` Indirect draws and GPU culling; build the shadow casters once per frame instead of once per pass.
 - `[ ]` Pipeline cache on disk. SDL GPU exposes none, so check what each backend allows first.
 - A render graph is not planned: the pass order is fixed and short, and a graph would be more code than
   the passes it orders.
 
-## `[ ]` Colour grading through a LUT
+## `[~]` Shadows
 
-The post chain (`render_post.h`) ships bloom, blur, crt, grayscale and pixelate. `mesh3d_tonemap` is a
-per-material display curve, not grading. Nothing samples a colour lookup table.
+Cascades are fitted to slices of the camera frustum by bounding sphere. The crossfade is verified on screen.
+The light basis snaps to 0.5° steps, which halved the pixels changing per frame under a still camera. Taps
+filter bilinearly and the edge is cut crisp. Cascade count, map size and shade colour are per window
+(`NYA_Render3DShadowOptions`), fed live from the config with `shadow_bias`. Two cascades by default: the
+third cost 0.3 ms with no visible gain.
 
-- A `effect_lut.frag.hlsl` sampling a 3D LUT, or a 2D strip if `SDL_GPU_TEXTURETYPE_3D` support is
-  uneven (the reason the shadow map is a colour target, see `mesh3d_shadow.frag.hlsl`).
-- The asset system has no LUT type. Load `.cube`, the format colourists hand over.
-- It goes after tonemapping and before the bloom composite.
-- Decide first whether grading fits a renderer built on flat authored colour. The `mesh3d_tonemap` note
-  on why ACES was rejected applies here too.
-
-## `[~]` Shadows: fit rebuilt, crossfade unverified
-
-Cascades are fitted to slices of the camera frustum by bounding sphere (`nya_render3d_shadow_for_camera`,
-`NYA_Render3DShadowFit.range`). The pass plumbing bugs that hid the fit are fixed: `nya_render3d_end` had
-no shadow pass guard, `_nya_render2d_pass_resume` did not restore the cascade viewport, and the shadow
-depth target was `DONT_CARE` while resume `LOAD`ed it.
-
-- `[ ]` Verify the crossfade by eye. The outer 15% of each cascade blends, and the PCF penumbra is
-  constant in world units. Neither is confirmed on screen.
-- `[ ]` The sun moves. `system_sky.c` turns the light every frame, so the snap grid rotates and edges
-  crawl even with a still camera. Snap the light basis to discrete steps.
+- `[ ]` Cascade selection by depth switches hard, and casters more than two extents toward the light from a
+  cascade's centre are clipped out of it. Neither shows in the demo.
+- `[ ]` A faint checker on steep terrain walls under the water.
+- `[ ]` Ink draws dashed streaks along the steep terrain slope and dotted along a cube's bottom edge in the
+  close 3D shot.
+- Point and spot light shadows are not planned: six scene passes per light.
 
 ## `[~]` Ceiling auditing: HUD done, config over macros blocked
 
@@ -117,7 +111,7 @@ of transfer buffers, now 7 KB.
 
 ### The scene is emitted four times a frame
 
-Three cascades plus the camera pass, regenerated from scratch each time.
+Two cascades plus the camera pass by default, regenerated from scratch each time.
 
 | Symbol                        | Share | Note                           |
 | :---------------------------- | ----: | :----------------------------- |
@@ -131,8 +125,6 @@ physics is a heightfield.
 
 - A depth-only shadow vertex format was tried and reverted after it broke shadows. Look at the vertex
   layout the shadow pipeline is built with before retrying.
-- `[ ]` Cascade count multiplies all of the above. Three may be one too many now that the fit follows the
-  frustum.
 
 ### Vertex formats
 
