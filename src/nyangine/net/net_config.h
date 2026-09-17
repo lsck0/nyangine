@@ -49,6 +49,9 @@ struct NYA_NetLaunchConfig {
     /** From `--name`, or a platform default. What other players see. */
     char name[NYA_NET_MAX_NAME];
 
+    /** Whether `--name` set it, so a game can put a saved name in place of the default. */
+    b8 named;
+
     /**
      * From `--max-players`. Zero means the engine's maximum.
      * */

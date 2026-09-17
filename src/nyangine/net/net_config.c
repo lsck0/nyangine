@@ -104,6 +104,7 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
             // Truncated rather than refused. A name is cosmetic, and a player with a long one should
             // get a short one rather than no game.
             (void)snprintf(config.name, sizeof(config.name), "%s", value);
+            config.named = true;
             continue;
         }
 

@@ -96,6 +96,21 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a name too long is cut, and never inside a character
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: player name\n");
+  {
+    nya_assert(nya_settings_player_name()[0] == '\0', "no name until one is picked");
+
+    // thirty ASCII bytes and then a two byte character, which the thirty one bytes of room would split.
+    nya_settings_player_name_set("abcdefghijklmnopqrstuvwxyzabcdé");
+    nya_assert(nya_string_equals(nya_settings_player_name(), "abcdefghijklmnopqrstuvwxyzabcd"), "got '%s'", nya_settings_player_name());
+
+    nya_settings_player_name_set("");
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: master scales the others, and does not scale itself
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: effective volume\n");
@@ -353,6 +368,7 @@ s32 main(void) {
     nya_input_action_name_set(ACTION_FIRE, "fire");
 
     nya_settings_volume_set(NYA_VOLUME_CHANNEL_MUSIC, 0.25F);
+    nya_settings_player_name_set("Zoë");
     nya_input_action_rebind(ACTION_JUMP, NYA_KEY_SPACE);
     nya_input_action_bind(ACTION_JUMP, NYA_KEY_W);
     nya_input_action_rebind(ACTION_FIRE, NYA_KEY_S, NYA_KEYMOD_CTRL);
@@ -366,12 +382,14 @@ s32 main(void) {
     // Everything back to defaults, so a successful load is the only thing that could restore it.
     nya_settings_reset();
     nya_assert(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 1.0F, "reset put the volume back");
+    nya_assert(nya_settings_player_name()[0] == '\0', "reset forgot the name");
     nya_assert(!nya_input_action_bound(ACTION_JUMP), "reset cleared the bindings");
 
     NYA_EXPECT(nya_settings_load());
 
     nya_assert(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 0.25F, "the volume came back, got %f",
                (f64)nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC));
+    nya_assert(nya_string_equals(nya_settings_player_name(), "Zoë"), "the name came back, got '%s'", nya_settings_player_name());
 
     nya_assert(nya_input_action_get(ACTION_JUMP, 0).key == NYA_KEY_SPACE, "the primary binding came back");
     nya_assert(nya_input_action_get(ACTION_JUMP, 1).key == NYA_KEY_W, "and so did the alternative");

@@ -34,6 +34,7 @@ s32 main(void) {
     nya_assert(config.address[0] == '\0');
     nya_assert(config.port == NYA_NET_DEFAULT_PORT, "the port defaults even when unused");
     nya_assert(config.name[0] != '\0', "there is always a name");
+    nya_assert(!config.named, "but nobody gave it");
 
     nya_net_config_report(&config);
   }
@@ -77,6 +78,7 @@ s32 main(void) {
     nya_assert(nya_string_equals(config.address, "192.168.1.5"));
     nya_assert(config.port == 27017);
     nya_assert(nya_string_equals(config.name, "Luca"));
+    nya_assert(config.named, "a given name is marked as given");
 
     nya_net_config_report(&config);
   }
@@ -172,6 +174,7 @@ s32 main(void) {
 
     // An empty name keeps the default rather than leaving the player nameless.
     nya_assert(PARSE("--name=").name[0] != '\0', "an empty name keeps the default");
+    nya_assert(!PARSE("--name=").named, "and is not a name given");
 
     // A --connect with no address is not a client.
     nya_assert(PARSE("--connect").role == NYA_NET_ROLE_SERVER, "a --connect with no address stays single player");

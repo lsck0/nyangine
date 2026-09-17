@@ -14,6 +14,9 @@
 
 typedef struct NYA_SettingsSystem NYA_SettingsSystem;
 
+/** The longest name a player goes by, terminator included. The same as a network name holds. */
+#define NYA_SETTINGS_NAME_MAX 32
+
 /**
  * The mixes a player expects to control separately.
  *
@@ -39,6 +42,9 @@ struct NYA_SettingsSystem {
      * Key bindings, indexed by action.
      * */
     NYA_InputBinding bindings[NYA_INPUT_ACTION_MAX][NYA_INPUT_BINDINGS_PER_ACTION];
+
+    /** UTF-8, empty until the player picks one. Set through nya_settings_player_name_set, which truncates. */
+    char player_name[NYA_SETTINGS_NAME_MAX];
 };
 
 /*
@@ -115,5 +121,11 @@ NYA_API void nya_settings_volume_set(NYA_VolumeChannel channel, f32 volume);
  * */
 NYA_API f32 nya_settings_volume_effective(NYA_VolumeChannel channel) __attr_no_discard;
 
-/** Puts every volume back to 1.0 and drops every binding. */
+/** What the player wants to be called, or an empty string. */
+NYA_API NYA_ConstCString nya_settings_player_name(void) __attr_no_discard;
+
+/** Cut to NYA_SETTINGS_NAME_MAX on a character boundary rather than refused, since a name is cosmetic. */
+NYA_API void nya_settings_player_name_set(NYA_ConstCString name);
+
+/** Puts every volume back to 1.0, drops every binding and forgets the name. */
 NYA_API void nya_settings_reset(void);

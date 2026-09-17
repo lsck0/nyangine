@@ -124,6 +124,9 @@ NYA_Object* nya_settings_to_object(NYA_Arena* arena) {
 
     nya_object_set(root, "bindings", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *bindings });
 
+    NYA_ConstCString name = nya_settings_player_name();
+    if (name[0] != '\0') nya_object_set(root, "player_name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)name });
+
     return root;
 }
 
@@ -156,6 +159,9 @@ void nya_settings_from_object(const NYA_Object* object) {
             nya_settings_volume_set((NYA_VolumeChannel)channel, volume);
         }
     }
+
+    NYA_Value* name = nya_object_get(object, "player_name");
+    if (name != nullptr && name->type == NYA_TYPE_STRING) nya_settings_player_name_set(name->as_string);
 
     NYA_Value* bindings = nya_object_get(object, "bindings");
     if (bindings == nullptr || bindings->type != NYA_TYPE_OBJECT) return;
@@ -241,8 +247,29 @@ f32 nya_settings_volume_effective(NYA_VolumeChannel channel) {
     return nya_settings()->volumes[NYA_VOLUME_CHANNEL_MASTER] * nya_settings()->volumes[channel];
 }
 
+NYA_ConstCString nya_settings_player_name(void) {
+    return nya_settings()->player_name;
+}
+
+void nya_settings_player_name_set(NYA_ConstCString name) {
+    nya_assert(name != nullptr);
+
+    char* stored = nya_settings()->player_name;
+    u64   length = nya_min(strlen(name), (u64)(NYA_SETTINGS_NAME_MAX - 1));
+
+    // a cut mid-character would store invalid UTF-8.
+    if (name[length] != '\0') {
+        while (length > 0 && ((u8)name[length] & 0xC0) == 0x80) length--;
+    }
+
+    nya_memcpy(stored, name, length);
+    stored[length] = '\0';
+}
+
 void nya_settings_reset(void) {
     NYA_SettingsSystem* settings = nya_settings();
+
+    settings->player_name[0] = '\0';
 
     for (u32 channel = 0; channel < NYA_VOLUME_CHANNEL_COUNT; channel++) settings->volumes[channel] = 1.0F;
 
