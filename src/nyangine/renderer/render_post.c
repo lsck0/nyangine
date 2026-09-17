@@ -29,6 +29,9 @@ typedef enum {
 typedef struct {
     NYA_ConstCString pipeline;
 
+    /** A caller's pass's second image. See NYA_PostPass.texture. */
+    NYA_ConstCString texture;
+
     const void* uniform;
     u32         uniform_size;
 
@@ -52,6 +55,14 @@ NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_RenderSystemWindow* render) {
 /** Whether any option on the window draws the half resolution occlusion. Every debug view binds it. */
 NYA_INTERNAL b8 _nya_post_wants_half(const NYA_RenderSystemWindow* render) {
     return render->post_ambient_occlusion.enabled || render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE;
+}
+
+/** Whether `pass` can draw this frame: its pipeline, and its texture if it names one, have loaded. */
+NYA_INTERNAL b8 _nya_post_pass_ready(const NYA_PostPass* pass) {
+    // cast because the asset API takes a mutable handle while only reading it. See nya_render2d_texture.
+    if (pass->pipeline == nullptr || nya_asset_status((NYA_CString)pass->pipeline) != NYA_ASSET_STATUS_LOADED) return false;
+
+    return pass->texture == nullptr || nya_asset_status((NYA_CString)pass->texture) == NYA_ASSET_STATUS_LOADED;
 }
 
 /**
@@ -132,6 +143,8 @@ NYA_INTERNAL void _nya_post_draw_pass(NYA_Window* window, const NYA_RenderTextur
     if (tint.a == 0) tint = NYA_COLOR_WHITE;
 
     nya_render2d_shader_begin(window, pass->pipeline);
+
+    if (pass->texture != nullptr) (void)nya_render2d_shader_set_texture(window, pass->texture);
 
     if (pass->uniform != nullptr && pass->uniform_size > 0) {
         nya_render2d_shader_set_uniform(window, pass->uniform, pass->uniform_size);
@@ -398,14 +411,12 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
      * A caller's pass whose pipeline has not finished loading is skipped rather than drawn. The built-in ones were
      * only queued once loaded.
      */
-    // Cast because the asset API takes a mutable handle while only reading it; every call site in the
-    // tree does the same. See nya_render2d_texture.
     u32 usable = after_count;
 
     for (u32 i = 0; i < before_count; i++) usable += before[i].half ? 0 : 1;
 
     for (u32 i = 0; i < pass_count; i++) {
-        if (passes[i].pipeline != nullptr && nya_asset_status((NYA_CString)passes[i].pipeline) == NYA_ASSET_STATUS_LOADED) usable++;
+        if (_nya_post_pass_ready(&passes[i])) usable++;
     }
 
     // only a chain of two or more passes has a between, and one pass costs no second target.
@@ -431,9 +442,15 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
         } else if (i < before_count + pass_count) {
             const NYA_PostPass* pass = &passes[i - before_count];
 
-            if (pass->pipeline == nullptr || nya_asset_status((NYA_CString)pass->pipeline) != NYA_ASSET_STATUS_LOADED) continue;
+            if (!_nya_post_pass_ready(pass)) continue;
 
-            step = (_NYA_PostStep){ .pipeline = pass->pipeline, .uniform = pass->uniform, .uniform_size = pass->uniform_size, .tint = pass->tint };
+            step = (_NYA_PostStep){
+                .pipeline     = pass->pipeline,
+                .texture      = pass->texture,
+                .uniform      = pass->uniform,
+                .uniform_size = pass->uniform_size,
+                .tint         = pass->tint,
+            };
         } else {
             step = after[i - before_count - pass_count];
         }

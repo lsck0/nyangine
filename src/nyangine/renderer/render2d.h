@@ -430,6 +430,18 @@ NYA_API void nya_render2d_shader_begin(NYA_Window* window, NYA_ConstCString pipe
  * */
 NYA_API void nya_render2d_shader_set_uniform(NYA_Window* window, const void* data, u32 size);
 
+/**
+ * Binds a second image at t1 for the current custom shader, beside the texture being drawn: a texture or a lookup
+ * table asset, sampled linearly and clamped. Returns false, binding nothing, while it is not loaded.
+ *
+ * ```c
+ * nya_render2d_shader_begin(window, "grade_pipeline");
+ * if (nya_render2d_shader_set_texture(window, NYA_ASSET_TEXTURES_GRADE_CUBE)) nya_render2d_render_texture(window, &scene, ...);
+ * nya_render2d_shader_end(window);
+ * ```
+ * */
+NYA_API b8 nya_render2d_shader_set_texture(NYA_Window* window, NYA_ConstCString texture_handle);
+
 /** Returns to the built in pipelines, flushing whatever the custom one still has queued. */
 NYA_API void nya_render2d_shader_end(NYA_Window* window);
 

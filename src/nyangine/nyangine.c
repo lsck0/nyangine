@@ -22,6 +22,8 @@
 #include "nyangine/renderer/render_glyph_atlas.c"
 // where a shadow cascade goes, not how it is rasterised. Pure math, so both builds get it.
 #include "nyangine/renderer/render_shadow.c"
+// parsing a lookup table is CPU only, and the asset loader in both builds reaches it.
+#include "nyangine/renderer/render_lut.c"
 #include "nyangine/renderer/render_sort.c"
 #include "nyangine/renderer/render_lod.c"
 #include "nyangine/renderer/render_occlusion.c"

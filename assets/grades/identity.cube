@@ -1,0 +1,13 @@
+# The identity grade: every colour maps to itself. Two entries are enough, since the
+# interpolation between them is exact.
+TITLE "identity"
+LUT_3D_SIZE 2
+
+0.0000 0.0000 0.0000
+1.0000 0.0000 0.0000
+0.0000 1.0000 0.0000
+1.0000 1.0000 0.0000
+0.0000 0.0000 1.0000
+1.0000 0.0000 1.0000
+0.0000 1.0000 1.0000
+1.0000 1.0000 1.0000

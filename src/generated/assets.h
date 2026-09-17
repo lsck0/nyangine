@@ -4,6 +4,8 @@
 
 #define NYA_ASSET_CONFIG_ENGINE_NYA                         "./assets/config/engine.nya"
 #define NYA_ASSET_FONTS_ALDRICH_TTF                         "./assets/fonts/Aldrich.ttf"
+#define NYA_ASSET_GRADES_IDENTITY_CUBE                      "./assets/grades/identity.cube"
+#define NYA_ASSET_GRADES_TOON_CUBE                          "./assets/grades/toon.cube"
 #define NYA_ASSET_I18N_DE_JSON                              "./assets/i18n/de.json"
 #define NYA_ASSET_I18N_EN_JSON                              "./assets/i18n/en.json"
 #define NYA_ASSET_ICON_ICON_BMP                             "./assets/icon/icon.bmp"
@@ -1407,6 +1409,7 @@
 #define NYA_ASSET_SHADER_EFFECT_CRT_FRAG                    "./assets/shader/source/effect_crt.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_GRAYSCALE_FRAG              "./assets/shader/source/effect_grayscale.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_INK_FRAG                    "./assets/shader/source/effect_ink.frag.hlsl"
+#define NYA_ASSET_SHADER_EFFECT_LUT_FRAG                    "./assets/shader/source/effect_lut.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_OCCLUSION_FRAG              "./assets/shader/source/effect_occlusion.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_OCCLUSION_APPLY_FRAG        "./assets/shader/source/effect_occlusion_apply.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_PIXELATE_FRAG               "./assets/shader/source/effect_pixelate.frag.hlsl"

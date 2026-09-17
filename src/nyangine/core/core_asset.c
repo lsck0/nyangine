@@ -70,12 +70,20 @@ typedef struct {
     SDL_GPUTexture*        texture;
     u32                    width;
     u32                    height;
+    u32                    depth;
 } _NYA_AssetPendingUpload;
 
 nya_derive_array(_NYA_AssetPendingUpload);
 
 /** Creates the texture and fills a transfer buffer with its pixels. Records no GPU commands. */
 NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayá¸_NYA_AssetPendingUploadá³* pending, OUT NYA_Asset* out_asset);
+
+/**
+ * Creates an RGBA8 texture of `type` and stages `rows`, `height * depth` of them `pitch` bytes apart, for the
+ * frame's copy pass. What _nya_asset_stage_texture and the lookup table path share.
+ * */
+NYA_INTERNAL NYA_Error _nya_asset_stage_pixels(SDL_GPUTextureType type, u32 width, u32 height, u32 depth, const u8* rows, u32 pitch,
+                                               NYA_Arrayá¸_NYA_AssetPendingUploadá³* pending, OUT SDL_GPUTexture** out_texture);
 
 /**
  * Turns FBX bytes into NYA_Asset.as_mesh. Takes the pending-upload list so the material's texture goes
@@ -744,9 +752,6 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayá
     nya_assert(pending != nullptr);
     nya_assert(out_asset != nullptr);
 
-    NYA_RenderSystem* render_system = &nya_app_get()->render_system;
-    if (render_system->gpu_device == nullptr) return nya_error(NYA_ERROR_NOT_SUPPORTED, "no GPU device; cannot upload a texture");
-
     SDL_Surface* rgba      = surface;
     b8           converted = false;
     if (surface->format != SDL_PIXELFORMAT_RGBA32) {
@@ -758,31 +763,52 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayá
     u32 width  = (u32)rgba->w;
     u32 height = (u32)rgba->h;
 
+    SDL_GPUTexture* texture = nullptr;
+
+    NYA_Error staged = _nya_asset_stage_pixels(SDL_GPU_TEXTURETYPE_2D, width, height, 1, rgba->pixels, (u32)rgba->pitch, pending, &texture);
+
+    if (converted) SDL_DestroySurface(rgba);
+
+    NYA_TRY(staged);
+
+    out_asset->as_texture.texture = texture;
+    out_asset->as_texture.width   = width;
+    out_asset->as_texture.height  = height;
+
+    return NYA_OK;
+}
+
+NYA_INTERNAL NYA_Error _nya_asset_stage_pixels(SDL_GPUTextureType type, u32 width, u32 height, u32 depth, const u8* rows, u32 pitch,
+                                               NYA_Arrayá¸_NYA_AssetPendingUploadá³* pending, OUT SDL_GPUTexture** out_texture) {
+    nya_assert(rows != nullptr);
+    nya_assert(pending != nullptr);
+    nya_assert(out_texture != nullptr);
+    nya_assert(pitch >= width * 4);
+
+    NYA_RenderSystem* render_system = &nya_app_get()->render_system;
+    if (render_system->gpu_device == nullptr) return nya_error(NYA_ERROR_NOT_SUPPORTED, "no GPU device; cannot upload a texture");
+
     // computed wide: the transfer buffer size is a u32, which four bytes per pixel overflows around 32k square.
-    u64 size_wide = (u64)width * (u64)height * 4ULL;
+    u64 size_wide = (u64)width * (u64)height * (u64)depth * 4ULL;
     if (size_wide == 0 || size_wide > U32_MAX) {
-        if (converted) SDL_DestroySurface(rgba);
-        return nya_error(NYA_ERROR_NOT_SUPPORTED, "image is %ux%u, which does not fit a single GPU transfer buffer", width, height);
+        return nya_error(NYA_ERROR_NOT_SUPPORTED, "image is %ux%ux%u, which does not fit a single GPU transfer buffer", width, height, depth);
     }
     u32 size = (u32)size_wide;
 
     SDL_GPUTexture* texture = nya_gpu_texture_create(
         render_system->gpu_device,
         &(SDL_GPUTextureCreateInfo){
-            .type                 = SDL_GPU_TEXTURETYPE_2D,
+            .type                 = type,
             .format               = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
             .usage                = SDL_GPU_TEXTUREUSAGE_SAMPLER,
             .width                = width,
             .height               = height,
-            .layer_count_or_depth = 1,
+            .layer_count_or_depth = depth,
             .num_levels           = 1,
         }
     );
 
-    if (texture == nullptr) {
-        if (converted) SDL_DestroySurface(rgba);
-        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_CreateGPUTexture() failed: %s", SDL_GetError());
-    }
+    if (texture == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_CreateGPUTexture() failed: %s", SDL_GetError());
 
     SDL_GPUTransferBuffer* transfer = nya_gpu_transfer_buffer_create(
         render_system->gpu_device,
@@ -791,7 +817,6 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayá
 
     if (transfer == nullptr) {
         nya_gpu_texture_release(render_system->gpu_device, texture);
-        if (converted) SDL_DestroySurface(rgba);
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_CreateGPUTransferBuffer() failed: %s", SDL_GetError());
     }
 
@@ -799,7 +824,6 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayá
     if (mapped == nullptr) {
         nya_gpu_transfer_buffer_release(render_system->gpu_device, transfer);
         nya_gpu_texture_release(render_system->gpu_device, texture);
-        if (converted) SDL_DestroySurface(rgba);
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_MapGPUTransferBuffer() failed: %s", SDL_GetError());
     }
 
@@ -808,20 +832,16 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayá
      * last row.
      */
     u32 row_bytes = width * 4;
-    for (u32 row = 0; row < height; row++) {
-        nya_memcpy((u8*)mapped + ((u64)row * row_bytes), (const u8*)rgba->pixels + ((u64)row * (u64)rgba->pitch), row_bytes);
+    for (u64 row = 0; row < (u64)height * depth; row++) {
+        nya_memcpy((u8*)mapped + (row * row_bytes), rows + (row * pitch), row_bytes);
     }
 
     SDL_UnmapGPUTransferBuffer(render_system->gpu_device, transfer);
 
-    if (converted) SDL_DestroySurface(rgba);
-
     // handed over before the copy: the asset is only marked loaded after the flush.
-    nya_array_push_back(pending, ((_NYA_AssetPendingUpload){ .transfer = transfer, .texture = texture, .width = width, .height = height }));
+    nya_array_push_back(pending, ((_NYA_AssetPendingUpload){ .transfer = transfer, .texture = texture, .width = width, .height = height, .depth = depth }));
 
-    out_asset->as_texture.texture = texture;
-    out_asset->as_texture.width   = width;
-    out_asset->as_texture.height  = height;
+    *out_texture = texture;
 
     return NYA_OK;
 }
@@ -986,7 +1006,7 @@ NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayá¸_NYA_AssetPendingUploadá
         SDL_UploadToGPUTexture(
             copy_pass,
             &(SDL_GPUTextureTransferInfo){ .transfer_buffer = upload->transfer, .offset = 0 },
-            &(SDL_GPUTextureRegion){ .texture = upload->texture, .w = upload->width, .h = upload->height, .d = 1 },
+            &(SDL_GPUTextureRegion){ .texture = upload->texture, .w = upload->width, .h = upload->height, .d = upload->depth },
             false
         );
     }
@@ -1807,7 +1827,8 @@ NYA_INTERNAL b8 _nya_asset_get_modification_time(NYA_Asset* asset, OUT u64* out_
         case NYA_ASSET_TYPE_FONT:
         case NYA_ASSET_TYPE_SOUND:
         case NYA_ASSET_TYPE_MESH:
-        case NYA_ASSET_TYPE_TEXTURE: {
+        case NYA_ASSET_TYPE_TEXTURE:
+        case NYA_ASSET_TYPE_LUT: {
             NYA_AssetHandle path = asset->load_parameters.source != nullptr ? (NYA_AssetHandle)asset->load_parameters.source : asset->handle;
 
             result = nya_filesystem_last_modified(path, out_modification_time);
@@ -2024,6 +2045,41 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 asset->type              = NYA_ASSET_TYPE_TEXTURE;
                 asset->status            = NYA_ASSET_STATUS_LOADED;
                 asset->as_texture.filter = parameters->as_texture_load.filter;
+            } break;
+
+            case NYA_ASSET_TYPE_LUT: {
+                NYA_Error result = _nya_asset_load_raw(parameters->source != nullptr ? (NYA_AssetHandle)parameters->source : parameters->handle, parameters->external, asset);
+                if (!result.ok) {
+                    _nya_asset_fail(asset, &result);
+                    break;
+                }
+
+                // the texels only live until the upload is staged.
+                NYA_Arena scratch = nya_arena_create_on_stack(.name = "lut_parse");
+                defer     nya_arena_destroy_on_stack(&scratch);
+
+                NYA_Lut   lut    = { 0 };
+                NYA_Error parsed = nya_lut_parse(&scratch, asset->as_text.data, asset->as_text.size, &lut);
+
+                _nya_asset_unload_raw(asset);
+
+                if (!parsed.ok) {
+                    _nya_asset_fail(asset, &parsed);
+                    break;
+                }
+
+                // a 3D texture, so the GPU interpolates between entries in all three channels with one sample.
+                SDL_GPUTexture* texture = nullptr;
+                NYA_Error staged = _nya_asset_stage_pixels(SDL_GPU_TEXTURETYPE_3D, lut.size, lut.size, lut.size, lut.texels, lut.size * 4, &pending_uploads, &texture);
+
+                if (!staged.ok) {
+                    _nya_asset_fail(asset, &staged);
+                    break;
+                }
+
+                asset->as_lut = (typeof(asset->as_lut)){ .texture = texture, .size = lut.size };
+                asset->type   = NYA_ASSET_TYPE_LUT;
+                asset->status = NYA_ASSET_STATUS_LOADED;
             } break;
 
             case NYA_ASSET_TYPE_SOUND: {
@@ -2307,6 +2363,12 @@ void _nya_asset_unloading_process(NYA_Event* event) {
                 nya_gpu_texture_release(render_system->gpu_device, asset->as_texture.texture);
                 asset->as_texture = (typeof(asset->as_texture)){ 0 };
                 asset->status     = NYA_ASSET_STATUS_UNLOADED;
+            } break;
+
+            case NYA_ASSET_TYPE_LUT: {
+                nya_gpu_texture_release(render_system->gpu_device, asset->as_lut.texture);
+                asset->as_lut = (typeof(asset->as_lut)){ 0 };
+                asset->status = NYA_ASSET_STATUS_UNLOADED;
             } break;
 
             case NYA_ASSET_TYPE_SOUND: {

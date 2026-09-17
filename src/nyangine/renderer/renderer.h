@@ -260,6 +260,9 @@ struct NYA_Render2DDrawRange {
     SDL_GPUTexture* texture;
     SDL_GPUSampler* sampler;
 
+    /** The custom shader's second texture, bound at t1. Null for none. */
+    SDL_GPUTexture* shader_texture;
+
     /**
      * A copy of the custom fragment uniform, since the caller's struct is usually gone by replay. A larger
      * uniform forces an immediate draw instead of being truncated.
@@ -368,6 +371,9 @@ struct NYA_Render2DBatch {
      */
     u8  shader_uniform[NYA_RENDER2D_MAX_UNIFORM_BYTES];
     u32 shader_uniform_size;
+
+    /** Bound at t1 beside the drawn texture, for a custom shader that samples a second image. */
+    SDL_GPUTexture* shader_texture;
 
     /*
      * Render target. The swapchain until nya_render_texture_begin, held here because the projection has to
@@ -834,6 +840,7 @@ NYA_API void nya_render_end(NYA_Window* window);
 
 // after NYA_Render3DSortKey, which it sorts.
 #include "nyangine/renderer/render_sort.h"
+#include "nyangine/renderer/render_lut.h"
 #include "nyangine/renderer/render_lod.h"
 #include "nyangine/renderer/render_gpu_memory.h"
 #include "nyangine/renderer/render_text.h"

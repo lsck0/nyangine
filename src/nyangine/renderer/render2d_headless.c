@@ -294,6 +294,13 @@ void nya_render2d_shader_set_uniform(NYA_Window* window, const void* data, u32 s
     nya_unused(window, data, size);
 }
 
+b8 nya_render2d_shader_set_texture(NYA_Window* window, NYA_ConstCString texture_handle) {
+    nya_unused(window);
+
+    // loaded is all a caller can observe headless, so that is what decides.
+    return nya_asset_status((NYA_CString)texture_handle) == NYA_ASSET_STATUS_LOADED;
+}
+
 void nya_render2d_shader_end(NYA_Window* window) {
     nya_unused(window);
 }

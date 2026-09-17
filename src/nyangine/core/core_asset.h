@@ -187,6 +187,9 @@ enum NYA_AssetType {
     // processed data on gpu vram
     NYA_ASSET_TYPE_TEXTURE,
 
+    /** A `.cube` colour lookup table, as a 3D texture. See nya_lut_parse and effect_lut.frag.hlsl. */
+    NYA_ASSET_TYPE_LUT,
+
     /** A 3D model read with ufbx. See nya_render3d_mesh. */
     NYA_ASSET_TYPE_MESH,
     NYA_ASSET_TYPE_SHADER_VERTEX,
@@ -373,6 +376,12 @@ struct NYA_Asset {
         struct {
             TTF_Font* font;
         } as_font;
+
+        struct {
+            /** RGBA8, `size` texels along each of three axes. */
+            SDL_GPUTexture* texture;
+            u32             size;
+        } as_lut;
 
         /** Triangles, de-indexed by ufbx into one array per attribute. */
         struct {

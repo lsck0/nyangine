@@ -21,6 +21,7 @@
 typedef struct NYA_ShaderBlurUniform     NYA_ShaderBlurUniform;
 typedef struct NYA_ShaderPixelateUniform NYA_ShaderPixelateUniform;
 typedef struct NYA_ShaderBloomUniform    NYA_ShaderBloomUniform;
+typedef struct NYA_ShaderLutUniform      NYA_ShaderLutUniform;
 typedef struct NYA_ShaderCrtUniform      NYA_ShaderCrtUniform;
 typedef struct NYA_ShaderSkyUniform      NYA_ShaderSkyUniform;
 typedef struct NYA_ShaderGlassUniform    NYA_ShaderGlassUniform;
@@ -50,6 +51,14 @@ struct NYA_ShaderBloomUniform {
 
     /** How strongly the glow is added back. 1.0 is a soft halo; past 2 it blows out. */
     f32 intensity;
+};
+
+/** effect_lut.frag.hlsl. The table itself is the pass's texture; see NYA_PostPass.texture. */
+struct NYA_ShaderLutUniform {
+    /** How much of the graded colour replaces the original, in [0, 1]. */
+    f32 strength;
+
+    f32 _padding[3];
 };
 
 /** effect_crt.frag.hlsl. */

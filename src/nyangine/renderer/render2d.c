@@ -290,8 +290,9 @@ NYA_INTERNAL void _nya_render2d_range_close(NYA_Window* window) {
         // resolved now, so replay makes no decisions. shader mode belongs to this range.
         .pipeline = batch->shader_override != nullptr ? batch->shader_override : batch->pipeline,
 
-        .texture = batch->texture,
-        .sampler = batch->sampler,
+        .texture        = batch->texture,
+        .sampler        = batch->sampler,
+        .shader_texture = batch->shader_override != nullptr ? batch->shader_texture : nullptr,
 
         .target_width  = batch->target_width,
         .target_height = batch->target_height,
@@ -452,8 +453,11 @@ void nya_render2d_flush(NYA_Window* window) {
             SDL_BindGPUFragmentSamplers(
                 render->render_pass,
                 0,
-                &(SDL_GPUTextureSamplerBinding){ .texture = range->texture, .sampler = range->sampler },
-                1
+                (SDL_GPUTextureSamplerBinding[]){
+                    { .texture = range->texture, .sampler = range->sampler },
+                    { .texture = range->shader_texture, .sampler = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR) },
+                },
+                range->shader_texture != nullptr ? 2 : 1
             );
         }
 
@@ -1106,6 +1110,34 @@ void nya_render2d_shader_set_uniform(NYA_Window* window, const void* data, u32 s
     batch->shader_uniform_size = size;
 }
 
+b8 nya_render2d_shader_set_texture(NYA_Window* window, NYA_ConstCString texture_handle) {
+    nya_assert(window != nullptr);
+    nya_assert(texture_handle != nullptr);
+
+    NYA_Render2DBatch* batch = &window->render_system.draw_batch;
+
+    nya_assert(batch->shader_override != nullptr, "nya_render2d_shader_set_texture needs a custom shader; call nya_render2d_shader_begin first");
+
+    NYA_Asset* asset = nya_asset_get((NYA_CString)texture_handle);
+
+    SDL_GPUTexture* texture = nullptr;
+
+    if (asset != nullptr && asset->status == NYA_ASSET_STATUS_LOADED) {
+        if (asset->type == NYA_ASSET_TYPE_TEXTURE) texture = asset->as_texture.texture;
+        if (asset->type == NYA_ASSET_TYPE_LUT) texture = asset->as_lut.texture;
+    }
+
+    if (texture == nullptr) return false;
+    if (texture == batch->shader_texture) return true;
+
+    // a binding is per draw call, so what is queued goes out with the old one.
+    _nya_render2d_flush_for(window, NYA_RENDER2D_FLUSH_TEXTURE);
+
+    batch->shader_texture = texture;
+
+    return true;
+}
+
 void nya_render2d_shader_end(NYA_Window* window) {
     nya_assert(window != nullptr);
 
@@ -1114,6 +1146,7 @@ void nya_render2d_shader_end(NYA_Window* window) {
     window->render_system.draw_batch.shader_override    = nullptr;
     // cleared with the shader so the next custom pipeline does not inherit these.
     window->render_system.draw_batch.shader_uniform_size = 0;
+    window->render_system.draw_batch.shader_texture      = nullptr;
 }
 
 /*

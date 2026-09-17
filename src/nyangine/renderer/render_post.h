@@ -87,6 +87,12 @@ struct NYA_PostPass {
     /** Asset handle of a 2D graphics pipeline. A pass whose pipeline is not loaded yet is skipped. */
     NYA_ConstCString pipeline;
 
+    /**
+     * Asset handle of a texture or lookup table bound at t1 beside the image being processed. Null for none. A pass
+     * whose texture is not loaded yet is skipped, like one whose pipeline is not.
+     * */
+    NYA_ConstCString texture;
+
     /** Pushed once for the single draw this pass makes. Null for a pipeline that takes no uniform. */
     const void* uniform;
     u32         uniform_size;

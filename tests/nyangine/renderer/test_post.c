@@ -103,8 +103,9 @@ s32 main(void) {
                      (NYA_PostPass[]){
                          { .pipeline = "no_such_pipeline" },
                          { .pipeline = nullptr },
+                         { .pipeline = "no_such_pipeline", .texture = "no_such_table" },
                      },
-                     2);
+                     3);
         nya_check(!chain.capturing, "end should complete even when every pass is unusable");
     }
 
