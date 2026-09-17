@@ -30,10 +30,17 @@ In progress:
 
 - `[~]` Colour grading through a `.cube` LUT, tuned for clean saturated palettes (see below).
 - `[~]` Coloured shadows and a sky/ground ambient instead of flat `ambient`.
-- `[~]` Screen-space ink outlines from depth and normal discontinuities, catching the hard creases the
-  inverted hull and `mesh3d_edge` miss.
-- `[~]` Banded ambient occlusion, FXAA for single sampled targets, debug views (normals, depth, AO,
-  outline mask, cascade colours).
+- Screen-space ink from depth and normal discontinuities replaces the inverted hull: silhouettes, hard
+  creases past 40°, thinning with distance and fading into fog. Banded ambient occlusion at half resolution,
+  FXAA, and debug views (normals, depth, occlusion, ink, cascades). The 3D pass writes an RGBA16F normal and
+  distance buffer as a second colour target, only into render textures created with `.normals`; pipelines
+  build that variant on first use. Keys 1, 2, 3 and v in the 3D demo, fed from `engine.renderer` in the
+  config. Release 1280x720: +0.11 ms and +39.5 MiB at 4x MSAA, +0.06 ms and +11.4 MiB at 1x.
+- `[ ]` Short ink dashes on distant grazing terrain folds; scale the silhouette threshold with the slope of
+  the distance buffer.
+- `[ ]` The occlusion band is subtle at the default orbit distance; consider a screen-space minimum radius.
+- `[ ]` A smaller normal buffer: view space normal only, or sample the multisampled buffer where backends
+  allow and skip the resolve.
 - `[~]` Tilt-shift depth of field, projected decals, HDR swapchain output when the display supports it,
   cartoon speed lines.
 - A skinned, animated bar (bender.fbx) in the 3D demo, lit and shadow casting, posed once per tick so
