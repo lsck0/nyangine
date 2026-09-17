@@ -173,7 +173,15 @@ s32 main(void) {
         gny_robots_update(0.0F);
         nya_check(robots->job == 0 && robots->generation == 2, "a finished job is collected, generation %u", robots->generation);
         nya_check(nya_nn_dqn_replay_count(robots->dqn) == 16, "the DQN practised a step for each gradient step it was owed");
-        nya_check(robots->brain != nullptr && robots->brain_fitness > 0.0, "and the fittest genome is what the drones fly");
+
+        // the game seeds evolution randomly, and the first generations can all score zero, so train until one does not.
+        for (u32 i = 0; i < 64 && robots->brain == nullptr; i++) {
+            gny_robots_update(GNY_ROBOT_TRAIN_INTERVAL_S);
+            nya_job_wait(robots->job);
+        }
+
+        gny_robots_update(0.0F);
+        nya_check(robots->brain != nullptr && robots->brain_fitness > 0.0, "the fittest genome is what the drones fly");
 
         f32x2 before = robots->bodies[0].position;
         gny_robots_update(GNY_ROBOT_TRAIN_DT);
