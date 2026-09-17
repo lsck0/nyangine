@@ -251,8 +251,9 @@ release per channel.
   OpenSSL static, or target Steam Linux Runtime 4.0, where the binary already runs.
 - `[ ]` A real code signing certificate; the signing hook uses the sample `.pfx`, and an unsigned browser
   download warns under SmartScreen. winget and scoop installs do not.
-- `[ ]` Logs go to `./logs` in the working directory and saves to a directory named "nyangine" whatever the
-  game is. Both should follow the game's app id.
+- Saves and logs go under the app id in the user data directory (`~/.local/share/gnyame`, `logs/` inside),
+  not the working directory, which is the install folder on Steam. Settings saved under the old `nyangine`
+  directory are not migrated.
 
 ## `[ ]` Steam is dead code
 
