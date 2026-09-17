@@ -871,6 +871,7 @@ struct NYA_RenderSystemWindow {
     NYA_PostBloom            post_bloom;
     NYA_PostEyeAdaptation    post_eye_adaptation;
     NYA_PostLightShafts      post_light_shafts;
+    NYA_PostMotionBlur       post_motion_blur;
     NYA_PostDebugView        post_debug_view;
 
     /** This frame so far, and the last finished one. The draw calls are filled in when a frame finishes. */

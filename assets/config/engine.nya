@@ -71,6 +71,11 @@ nya 2 0
                 length: f32 0.9;
                 threshold: f32 0.85;
             };
+            // Camera motion blur, off unless the player turns it on. See NYA_PostMotionBlur.
+            motion_blur: object {
+                enabled: b8 false;
+                strength: f32 0.5;
+            };
             // The 3D demo's fog; a zero field keeps the sky's colour and the scene's numbers. aerial turns distant
             // ground toward the sky's hue before the fog covers it. See NYA_Render3DFog.
             fog: object {

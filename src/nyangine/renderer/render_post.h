@@ -29,15 +29,16 @@
  * nya_post_bloom_set(window, (NYA_PostBloom){ .enabled = true });
  * nya_post_eye_adaptation_set(window, (NYA_PostEyeAdaptation){ .enabled = true });
  * nya_post_light_shafts_set(window, (NYA_PostLightShafts){ .enabled = true });
+ * nya_post_motion_blur_set(window, (NYA_PostMotionBlur){ .enabled = true });
  * ```
  *
- * They run inside nya_post_end before the caller's passes, occlusion then ink then depth of field then light shafts
- * then eye adaptation then antialiasing, and the debug view after them. Depth of field follows the ink, so a line blurs
- * with the surface it is drawn on, and comes before antialiasing, which smooths the cut between sharp and blurred. A
- * feature that is off has no pass, no pipeline and no target. Ink, occlusion, light shafts and distance focus read the
- * scene normal buffer (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only while one of them or a
- * debug view is on, and they skip a frame whose capture drew no 3D. Bloom and speed lines are drawn after the caller's
- * passes, so a grade shapes what glows and leaves the lines as drawn.
+ * They run inside nya_post_end before the caller's passes, occlusion then ink then motion blur then depth of field then
+ * light shafts then eye adaptation then antialiasing, and the debug view after them. Depth of field follows the ink, so
+ * a line blurs with the surface it is drawn on, and comes before antialiasing, which smooths the cut between sharp and
+ * blurred. A feature that is off has no pass, no pipeline and no target. Ink, occlusion, motion blur, light shafts and
+ * distance focus read the scene normal buffer (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only
+ * while one of them or a debug view is on, and they skip a frame whose capture drew no 3D. Bloom and speed lines are
+ * drawn after the caller's passes, so a grade shapes what glows and leaves the lines as drawn.
  * */
 #pragma once
 
@@ -145,6 +146,12 @@
 /** Sky brightness above which light streams, when NYA_PostLightShafts.threshold is zero. */
 #define NYA_POST_LIGHT_SHAFTS_THRESHOLD 0.85F
 
+/** How much of a sixtieth of a second's camera motion is smeared, when NYA_PostMotionBlur.strength is zero. */
+#define NYA_POST_MOTION_BLUR_STRENGTH 0.5F
+
+/** The longest smear, a fraction of the screen, so a camera cut does not smear the whole frame. */
+#define NYA_POST_MOTION_BLUR_MAX 0.04F
+
 /** Lines around the full circle, when NYA_PostSpeedLines.density is zero. */
 #define NYA_POST_SPEED_LINES_DENSITY 140.0F
 
@@ -170,6 +177,7 @@ typedef struct NYA_PostSpeedLines       NYA_PostSpeedLines;
 typedef struct NYA_PostBloom            NYA_PostBloom;
 typedef struct NYA_PostEyeAdaptation    NYA_PostEyeAdaptation;
 typedef struct NYA_PostLightShafts      NYA_PostLightShafts;
+typedef struct NYA_PostMotionBlur       NYA_PostMotionBlur;
 typedef enum NYA_PostFocus              NYA_PostFocus;
 typedef enum NYA_PostDebugView          NYA_PostDebugView;
 
@@ -400,6 +408,19 @@ struct NYA_PostLightShafts {
     f32 threshold;
 };
 
+/**
+ * Camera motion blur: each pixel smeared along the way the point it shows moved on screen since the last frame, found
+ * from the normal buffer's distance and the last frame's camera, in eight taps. Moving objects under a still camera stay
+ * sharp. Scaled by the frame's time, so it looks the same at any frame rate.
+ * */
+// @reflect
+struct NYA_PostMotionBlur {
+    b8 enabled;
+
+    /** How much of a sixtieth of a second's motion is smeared, in [0, 4]. See NYA_POST_MOTION_BLUR_STRENGTH. */
+    f32 strength;
+};
+
 /** A buffer shown in place of the image, for looking at what the scene passes read. */
 // @reflect
 enum NYA_PostDebugView {
@@ -449,6 +470,9 @@ struct NYA_PostChain {
      * */
     NYA_RenderTexture adaptation[2];
     u32               adaptation_latest;
+
+    /** The camera the last scene was drawn with, for motion blur. Zero until a 3D scene drew, which blurs nothing. */
+    f32_4x4 previous_view_projection;
 
     /**
      * How the scene target is made. Zeroed attaches depth for a 3D scene; a 2D world saves it with DEPTH_NONE. The
@@ -520,6 +544,10 @@ NYA_API NYA_PostEyeAdaptation nya_post_eye_adaptation(NYA_Window* window) __attr
 /** Sets this window's light shafts, clamped like the ink. */
 NYA_API void                nya_post_light_shafts_set(NYA_Window* window, NYA_PostLightShafts shafts);
 NYA_API NYA_PostLightShafts nya_post_light_shafts(NYA_Window* window) __attr_no_discard;
+
+/** Sets this window's motion blur, clamped like the ink. */
+NYA_API void               nya_post_motion_blur_set(NYA_Window* window, NYA_PostMotionBlur motion_blur);
+NYA_API NYA_PostMotionBlur nya_post_motion_blur(NYA_Window* window) __attr_no_discard;
 
 /** Shows a buffer instead of the image. An unknown view reads as none. */
 NYA_API void              nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view);
