@@ -1422,6 +1422,7 @@
 #define NYA_ASSET_SHADER_LIGHT2D_FRAG                       "./assets/shader/source/light2d.frag.hlsl"
 #define NYA_ASSET_SHADER_MESH3D_FRAG                        "./assets/shader/source/mesh3d.frag.hlsl"
 #define NYA_ASSET_SHADER_MESH3D_VERT                        "./assets/shader/source/mesh3d.vert.hlsl"
+#define NYA_ASSET_SHADER_MESH3D_DECAL_FRAG                  "./assets/shader/source/mesh3d_decal.frag.hlsl"
 #define NYA_ASSET_SHADER_MESH3D_GLASS_FRAG                  "./assets/shader/source/mesh3d_glass.frag.hlsl"
 #define NYA_ASSET_SHADER_MESH3D_INSTANCED_VERT              "./assets/shader/source/mesh3d_instanced.vert.hlsl"
 #define NYA_ASSET_SHADER_MESH3D_NORMALS_HLSLI               "./assets/shader/source/mesh3d_normals.hlsli"

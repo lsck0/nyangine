@@ -1037,6 +1037,9 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
 
     *mesh_batch = (NYA_Render3DBatch){ 0 };
 
+    // decals allocate only while on, so switching them off is their release.
+    nya_render3d_decals_set(window, (NYA_Render3DDecals){ 0 });
+
     if (window->render_system.msaa_texture != nullptr) {
         nya_gpu_texture_release(app->render_system.gpu_device, window->render_system.msaa_texture);
         window->render_system.msaa_texture = nullptr;
@@ -1225,6 +1228,7 @@ b8 nya_render_begin(NYA_Window* window) {
     window->render_system.mesh_batch.frame_culled        = 0;
     window->render_system.mesh_batch.frame_occluded      = 0;
     window->render_system.mesh_batch.frame_dropped_draws = 0;
+    window->render_system.decals_gpu.frame_count         = 0;
 
     window->render_system.draw_batch.target_texture    = swapchain_texture;
     window->render_system.draw_batch.target_msaa       = msaa;

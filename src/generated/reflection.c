@@ -159,6 +159,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
     { .name = "antialias", .type = &_NYA_REFLECT_NYA_PostAntialias, .offset = nya_offsetof(NYA_ConfigEngineRenderer, antialias), .hint = NYA_HINT_NONE },
     { .name = "depth_of_field", .type = &_NYA_REFLECT_NYA_PostDepthOfField, .offset = nya_offsetof(NYA_ConfigEngineRenderer, depth_of_field), .hint = NYA_HINT_NONE },
     { .name = "speed_lines", .type = &_NYA_REFLECT_NYA_PostSpeedLines, .offset = nya_offsetof(NYA_ConfigEngineRenderer, speed_lines), .hint = NYA_HINT_NONE },
+    { .name = "decals", .type = &_NYA_REFLECT_NYA_Render3DDecals, .offset = nya_offsetof(NYA_ConfigEngineRenderer, decals), .hint = NYA_HINT_NONE },
     { .name = "debug_view", .type = &_NYA_REFLECT_NYA_PostDebugView, .offset = nya_offsetof(NYA_ConfigEngineRenderer, debug_view), .hint = NYA_HINT_NONE },
     { .name = "shadow_color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_color), .hint = NYA_HINT_NONE },
     { .name = "grade_lut", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer_grade_lut_ARRAY, .offset = nya_offsetof(NYA_ConfigEngineRenderer, grade_lut), .hint = NYA_HINT_NONE },
@@ -171,7 +172,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .size = sizeof(NYA_ConfigEngineRenderer),
     .alignment = alignof(NYA_ConfigEngineRenderer),
     .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
-    .field_count = 13,
+    .field_count = 14,
 };
 
 /* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
@@ -252,6 +253,22 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_NetPeerId = {
     .size = sizeof(NYA_NetPeerId),
     .alignment = alignof(NYA_NetPeerId),
     .fields = _NYA_REFLECT_NYA_NetPeerId_FIELDS,
+    .field_count = 2,
+};
+
+/* NYA_Render3DDecals, src/nyangine/renderer/render3d_decal.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_Render3DDecals_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_Render3DDecals, enabled), .hint = NYA_HINT_NONE },
+    { .name = "lift", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_Render3DDecals, lift), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_Render3DDecals = {
+    .name = "NYA_Render3DDecals",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_Render3DDecals),
+    .alignment = alignof(NYA_Render3DDecals),
+    .fields = _NYA_REFLECT_NYA_Render3DDecals_FIELDS,
     .field_count = 2,
 };
 
@@ -430,6 +447,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_ConfigEngine,
     &_NYA_REFLECT_NYA_NetChatMessage,
     &_NYA_REFLECT_NYA_NetPeerId,
+    &_NYA_REFLECT_NYA_Render3DDecals,
     &_NYA_REFLECT_NYA_Color,
     &_NYA_REFLECT_NYA_PostInk,
     &_NYA_REFLECT_NYA_PostAmbientOcclusion,

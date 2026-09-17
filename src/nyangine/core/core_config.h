@@ -112,6 +112,9 @@ struct NYA_ConfigEngineRenderer {
     /** A game driving the lines by speed reads `amount` as their most. */
     NYA_PostSpeedLines speed_lines;
 
+    /** See nya_render3d_decals_set. */
+    NYA_Render3DDecals decals;
+
     NYA_PostDebugView        debug_view;
 
     /** The hue shade leans toward, alpha as how far. See NYA_Render3DShadowOptions.color. */

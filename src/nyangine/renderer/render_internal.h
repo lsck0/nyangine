@@ -20,3 +20,16 @@ typedef struct NYA_Asset NYA_Asset;
  * buffer. Null while the asset is not loaded. See nya_asset_graphics_pipeline.
  * */
 NYA_INTERNAL SDL_GPUGraphicsPipeline* _nya_render_pipeline(NYA_Window* window, NYA_Asset* asset) __attr_no_discard;
+
+/*
+ * Defined in render3d_decal.c, which the unity build includes after render3d.c. Allow-unused because only the build
+ * with a device calls them.
+ */
+
+struct NYA_ShaderMesh3DUniform;
+
+/** Releases everything decals hold, keeping the probe. */
+NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_release(NYA_Window* window);
+
+/** Draws the staged decals in the open pass. Called by nya_render3d_flush, which has the shading uniform ready. */
+NYA_INTERNAL __attr_allow_unused void _nya_render3d_decals_flush(NYA_Window* window, const struct NYA_ShaderMesh3DUniform* uniform);

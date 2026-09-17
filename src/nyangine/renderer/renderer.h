@@ -230,6 +230,8 @@ struct NYA_RenderTexture {
 
 // after NYA_RenderTexture, which the post chain is built from, and before the window state, which holds its options.
 #include "nyangine/renderer/render_post.h"
+// the window holds the decal options and what they allocate.
+#include "nyangine/renderer/render3d_decal.h"
 
 /** The 2D shape batch for one window. Only render2d.c touches it. */
 /** Bytes of custom fragment uniform a deferred range can carry inline. */
@@ -695,6 +697,10 @@ struct NYA_RenderSystemWindow {
 
     NYA_Render2DBatch draw_batch;
     NYA_Render3DBatch mesh_batch;
+
+    /** See nya_render3d_decals_set. */
+    NYA_Render3DDecals    decals;
+    NYA_Render3DDecalsGPU decals_gpu;
 
     /* The cartoon post passes. See render_post.h. */
 

@@ -1550,15 +1550,16 @@ void nya_render3d_flush(NYA_Window* window) {
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DBatch*      batch  = &render->mesh_batch;
 
-    if (batch->opaque.index_count == 0 && batch->transparent.index_count == 0 && batch->instance_count == 0) return;
+    if (batch->opaque.index_count == 0 && batch->transparent.index_count == 0 && batch->instance_count == 0 && render->decals_gpu.count == 0) return;
 
     // no pass: the window is occluded or minimised. dropped rather than drawn stale later.
     if (render->render_pass == nullptr) {
         batch->opaque      = (NYA_Render3DStream){ .vertices = batch->opaque.vertices, .indices = batch->opaque.indices };
         batch->transparent = (NYA_Render3DStream){ .vertices = batch->transparent.vertices, .indices = batch->transparent.indices };
 
-        batch->instance_count   = 0;
-        batch->mesh_group_count = 0;
+        batch->instance_count    = 0;
+        batch->mesh_group_count  = 0;
+        render->decals_gpu.count = 0;
         return;
     }
 
@@ -1570,6 +1571,9 @@ void nya_render3d_flush(NYA_Window* window) {
 
     _nya_render3d_flush_immediate(window, &uniform);
     _nya_render3d_flush_instanced(window, &uniform);
+
+    // last, over the ground they lie on, whichever of the two paths drew it.
+    _nya_render3d_decals_flush(window, &uniform);
 }
 
 /*
