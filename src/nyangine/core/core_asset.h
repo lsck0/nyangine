@@ -117,7 +117,9 @@ struct NYA_AssetBlobExpanded {
 
 struct NYA_AssetBlobHeader {
     NYA_ConstCString path;
-    u64              start;
+
+    /** The entry's bytes inside the executable, `compressed_size` of them. */
+    const u8* data;
 
     /** The asset's real size, whatever form it is stored in. */
     u64 size;

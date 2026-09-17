@@ -10,8 +10,22 @@ NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_walk(NYA_ConstCString directo
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_enumerate(void) __attr_no_discard;
 NYA_INTERNAL b8                     _nya_asset_collect(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL s32                    _nya_asset_path_compare(const NYA_String* a, const NYA_String* b);
+NYA_INTERNAL u32                    _nya_asset_blob_group(const NYA_String* file) __attr_no_discard;
+NYA_INTERNAL NYA_String*            _nya_asset_blob_name(u32 group) __attr_no_discard;
 NYA_INTERNAL NYA_BuildRulePolicy    _nya_asset_shader_policy(u64 newest_include, NYA_ConstCString target) __attr_no_discard;
 NYA_INTERNAL b8 _nya_asset_shader_outdated(NYA_BuildRulePolicy policy, NYA_ConstCString source, NYA_ConstCString target) __attr_no_discard;
+
+/**
+ * Every format shaders compile to: the name shadercross takes, the file suffix, and the targets that bake it into
+ * the release blob, which are the ones with an SDL GPU backend that accepts it. Vulkan takes SPIR-V, Direct3D 12
+ * DXIL, Metal MSL. The loader picks by what the device accepts (_nya_asset_pick_correct_compiled_shader), so a
+ * Linux build carries SPIR-V only and a Windows build SPIR-V and DXIL.
+ * */
+NYA_INTERNAL const NYA_ConstCString _NYA_ASSET_SHADER_FORMATS[][3] = {
+    { "dxil", ".dxil", "OS_WINDOWS" },
+    { "msl", ".msl", "OS_MAC" },
+    { "spirv", ".spv", "OS_LINUX || OS_WINDOWS" },
+};
 
 /** Memo behind _nya_asset_enumerate. See the note there for why it is safe to share. */
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
@@ -52,8 +66,6 @@ void nya_asset_compile_shaders(void) {
     // predate its own outputs.
     NYA_ArrayᐸNYA_Stringᐳ* shaders = _nya_asset_walk(SHADER_SOURCE_DIRECTORY);
 
-    NYA_ConstCString formats[][2] = { { "dxil", ".dxil" }, { "msl", ".msl" }, { "spirv", ".spv" } };
-
     NYA_EXPECT(nya_filesystem_create_directory("./assets/shader/compiled/"));
 
     nya_array_foreach (shaders, shader) {
@@ -64,8 +76,8 @@ void nya_asset_compile_shaders(void) {
         nya_string_strip_suffix(shader, ".hlsl");
         nya_string_extend_front(shader, "./assets/shader/compiled/");
 
-        for (u32 i = 0; i < nya_carray_length(formats); i++) {
-            NYA_CString target = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s%s", (int)shader->length, shader->items, formats[i][1]));
+        for (u32 i = 0; i < nya_carray_length(_NYA_ASSET_SHADER_FORMATS); i++) {
+            NYA_CString target = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s%s", (int)shader->length, shader->items, _NYA_ASSET_SHADER_FORMATS[i][1]));
             NYA_BuildRulePolicy policy = _nya_asset_shader_policy(newest_include, target);
 
             // a Windows host cannot build shadercross (DXC does not compile under MinGW), so it relies on
@@ -87,7 +99,7 @@ void nya_asset_compile_shaders(void) {
                         source,
                         "-o", target,
                         "-s", "hlsl",
-                        "-d", formats[i][0],
+                        "-d", _NYA_ASSET_SHADER_FORMATS[i][0],
 
                         // shadercross compiles from a temporary file, so relative `#include`s need the source root.
                         "-I", SHADER_SOURCE_DIRECTORY,
@@ -156,24 +168,30 @@ void nya_asset_bundle(void) {
 
     NYA_ConstCString output_file = NYA_ASSET_BUNDLE_OUTPUT;
 
-    NYA_Arena*  arena               = nya_arena_global;
-    NYA_String* result              = nya_string_create(arena);
-    NYA_String* header_string       = nya_string_create(arena);
-    NYA_String* blob_string         = nya_string_create(arena);
+    NYA_Arena*  arena         = nya_arena_global;
+    NYA_String* result        = nya_string_create(arena);
+    NYA_String* header_string = nya_string_create(arena);
+
+    /*
+     * One byte array per group: group 0 is what every target bakes, group i + 1 the shaders compiled to format i,
+     * behind that format's target condition. The headers stay in path order, each behind its group's condition.
+     */
+    u32         group_count                                                  = nya_carray_length(_NYA_ASSET_SHADER_FORMATS) + 1;
+    NYA_String* blob_strings[nya_carray_length(_NYA_ASSET_SHADER_FORMATS) + 1];
+    u64         cursors[nya_carray_length(_NYA_ASSET_SHADER_FORMATS) + 1]      = { 0 };
+    u64         emitted[nya_carray_length(_NYA_ASSET_SHADER_FORMATS) + 1]      = { 0 };
+    for (u32 group = 0; group < group_count; group++) blob_strings[group] = nya_string_create(arena);
 
     // the same list nya_asset_index built its handles from. A second walk could see a file appear or
     // vanish and emit a handle with no blob entry.
     NYA_ArrayᐸNYA_Stringᐳ* files = _nya_asset_enumerate();
     nya_string_extend(result, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
     nya_string_extend(result, "#include \"nyangine/nyangine.h\"\n\n");
-    NYA_String* header_count_string = nya_string_sprintf(arena, "static const u64 NYA_ASSET_BLOB_HEADER_COUNT = " FMTu64 ";\n", files->length);
     nya_string_extend(header_string, "static const NYA_AssetBlobHeader NYA_ASSET_BLOB_HEADER[] = {\n");
-    nya_string_extend(blob_string, "static const u8 NYA_ASSET_BLOB[] = {\n");
 
     NYA_ConstCString HEX = "0123456789ABCDEF";
 
-    u64 cursor           = 0;
-    u64 emitted          = 0;
+    u32 header_group     = 0;
     u64 total_raw        = 0;
     u64 total_stored     = 0;
     u64 compressed_count = 0;
@@ -211,18 +229,28 @@ void nya_asset_bundle(void) {
         total_raw += content->length;
         total_stored += stored_size;
 
-        nya_string_extend_sprintf(header_string, "  { \"%.*s\", " FMTu64 ", " FMTu64 ", " FMTu64 " },\n", NYA_FMT_STRING_ARG(file), cursor,
-                                  content->length, stored_size);
+        u32 group = _nya_asset_blob_group(file);
+
+        if (group != header_group) {
+            if (header_group != 0) nya_string_extend(header_string, "#endif\n");
+            if (group != 0) nya_string_extend_sprintf(header_string, "#if %s\n", _NYA_ASSET_SHADER_FORMATS[group - 1][2]);
+            header_group = group;
+        }
+
+        NYA_String* blob_name = _nya_asset_blob_name(group);
+        nya_string_extend_sprintf(header_string, "  { \"%.*s\", " NYA_FMT_STRING " + " FMTu64 ", " FMTu64 ", " FMTu64 " },\n",
+                                  NYA_FMT_STRING_ARG(file), NYA_FMT_STRING_ARG(blob_name), cursors[group], content->length, stored_size);
 
         // A byte costs at most the indent plus "0xAB" plus a separator, so the room for a whole file
         // is known before writing any of it and the buffer grows once rather than per byte.
+        NYA_String* blob_string = blob_strings[group];
         nya_array_reserve(blob_string, blob_string->length + stored_size * (NYA_ASSET_BLOB_INDENT + 6) + 1);
 
         for (u64 byte_index = 0; byte_index < stored_size; byte_index++) {
             const u8* c = &stored[byte_index];
             u8* out = blob_string->items + blob_string->length;
 
-            if (emitted % NYA_ASSET_BLOB_BYTES_PER_LINE == 0) {
+            if (emitted[group] % NYA_ASSET_BLOB_BYTES_PER_LINE == 0) {
                 for (u64 i = 0; i < NYA_ASSET_BLOB_INDENT; i++) *out++ = ' ';
                 blob_string->length += NYA_ASSET_BLOB_INDENT;
             }
@@ -232,26 +260,40 @@ void nya_asset_bundle(void) {
             out[2] = (u8)HEX[*c >> 4];
             out[3] = (u8)HEX[*c & 0x0F];
             out[4] = ',';
-            out[5] = (emitted % NYA_ASSET_BLOB_BYTES_PER_LINE == NYA_ASSET_BLOB_BYTES_PER_LINE - 1) ? '\n' : ' ';
+            out[5] = (emitted[group] % NYA_ASSET_BLOB_BYTES_PER_LINE == NYA_ASSET_BLOB_BYTES_PER_LINE - 1) ? '\n' : ' ';
 
             blob_string->length += 6;
-            emitted++;
+            emitted[group]++;
         }
 
-        cursor += stored_size;
+        cursors[group] += stored_size;
     }
 
-    // A blob whose last line was full already ends in a newline. One that did not ends in the
-    // separator space written after its final byte, which becomes that newline rather than being
-    // left behind as trailing whitespace.
-    if (emitted % NYA_ASSET_BLOB_BYTES_PER_LINE != 0) blob_string->items[blob_string->length - 1] = '\n';
-
-    nya_string_extend(blob_string, "};\n\n");
+    if (header_group != 0) nya_string_extend(header_string, "#endif\n");
     nya_string_extend(header_string, "};\n\n");
 
-    nya_string_extend(result, header_count_string);
+    for (u32 group = 0; group < group_count; group++) {
+        NYA_String* blob_string = blob_strings[group];
+
+        // no bytes, no array: a group with nothing in it would be an empty initializer.
+        if (emitted[group] == 0) continue;
+
+        // A blob whose last line was full already ends in a newline. One that did not ends in the
+        // separator space written after its final byte, which becomes that newline rather than being
+        // left behind as trailing whitespace.
+        if (emitted[group] % NYA_ASSET_BLOB_BYTES_PER_LINE != 0) blob_string->items[blob_string->length - 1] = '\n';
+
+        NYA_String* blob_name = _nya_asset_blob_name(group);
+        if (group != 0) nya_string_extend_sprintf(result, "#if %s\n", _NYA_ASSET_SHADER_FORMATS[group - 1][2]);
+        nya_string_extend_sprintf(result, "static const u8 " NYA_FMT_STRING "[] = {\n", NYA_FMT_STRING_ARG(blob_name));
+        nya_string_extend(result, blob_string);
+        nya_string_extend(result, "};\n");
+        if (group != 0) nya_string_extend(result, "#endif\n");
+        nya_string_extend(result, "\n");
+    }
+
     nya_string_extend(result, header_string);
-    nya_string_extend(result, blob_string);
+    nya_string_extend(result, "static const u64 NYA_ASSET_BLOB_HEADER_COUNT = nya_carray_length(NYA_ASSET_BLOB_HEADER);\n");
 
     NYA_EXPECT(nya_file_write(output_file, result));
 
@@ -311,9 +353,35 @@ NYA_INTERNAL b8 _nya_asset_collect(NYA_ConstCString path, const NYA_DirectoryEnt
     if (nya_string_ends_with(file, ".c")) return true;
     if (nya_string_ends_with(file, ".h")) return true;
     if (nya_string_ends_with(file, ".keep")) return true;
+    if (nya_string_starts_with(file, NYA_ASSET_UNUSED_DIRECTORY)) return true;
 
     nya_array_push_back(files, *file);
     return true;
+}
+
+/** Which blob group a file bakes into: 0 for every target, i + 1 for a shader compiled to format i. */
+NYA_INTERNAL u32 _nya_asset_blob_group(const NYA_String* file) {
+    nya_assert(file != nullptr);
+
+    if (!nya_string_contains(file, "/shader/compiled/")) return 0;
+
+    for (u32 i = 0; i < nya_carray_length(_NYA_ASSET_SHADER_FORMATS); i++) {
+        if (nya_string_ends_with(file, _NYA_ASSET_SHADER_FORMATS[i][1])) return i + 1;
+    }
+
+    return 0;
+}
+
+/** NYA_ASSET_BLOB for group 0, NYA_ASSET_BLOB_<FORMAT> for the group of a shader format. */
+NYA_INTERNAL NYA_String* _nya_asset_blob_name(u32 group) {
+    nya_assert(group <= nya_carray_length(_NYA_ASSET_SHADER_FORMATS));
+
+    NYA_String* name = nya_string_from(nya_arena_global, "NYA_ASSET_BLOB");
+    if (group == 0) return name;
+
+    nya_string_extend_sprintf(name, "_%s", _NYA_ASSET_SHADER_FORMATS[group - 1][0]);
+    nya_string_to_upper(name);
+    return name;
 }
 
 NYA_INTERNAL s32 _nya_asset_path_compare(const NYA_String* a, const NYA_String* b) {

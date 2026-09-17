@@ -22,6 +22,12 @@
 #define SHADER_SOURCE_DIRECTORY "./assets/shader/source"
 
 /**
+ * A directory under ./assets/ that holds no assets: no code loads from it, so it is neither indexed nor baked into
+ * the release blob. The icon set is 1383 SVGs kept for picking from. Remove the line once something loads one.
+ * */
+#define NYA_ASSET_UNUSED_DIRECTORY "./assets/icons/"
+
+/**
  * Where the generated asset sources land.
  */
 #define NYA_ASSET_INDEX_OUTPUT  "./src/generated/assets.h"

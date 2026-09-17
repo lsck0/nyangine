@@ -24,7 +24,7 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
 
 /**
  * Handles the memo in front of the asset dictionary holds, least recently used dropped first. gnyame's menu
- * looks up 27 distinct handles over a run, and the generated index has 1428, so this leaves room for a busy
+ * looks up 27 distinct handles over a run, and the generated index has 49, so this leaves room for a busy
  * scene while a cold handle only costs a dictionary lookup.
  * */
 #ifndef NYA_ASSET_LOOKUP_CAPACITY
@@ -618,7 +618,7 @@ NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT N
         NYA_AssetBlobHeader asset_header = NYA_ASSET_BLOB_HEADER[asset_header_index];
         if (!nya_string_equals(asset_header.path, path)) continue;
 
-        const u8* stored = (const u8*)NYA_ASSET_BLOB + asset_header.start;
+        const u8* stored = asset_header.data;
 
         // stored verbatim (LZ4 could not shrink it): pointed at directly, no allocation and no copy.
         if (asset_header.compressed_size == asset_header.size) {
