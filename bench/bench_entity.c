@@ -64,5 +64,24 @@ s32 main(void) {
         nya_bench_keep(nya_entity_get(handles[0])->position.x);
     });
 
+    // the copy at the top of every tick, which a draw between ticks starts from.
+    nya_bench("transforms capture 1024", ENTITIES, {
+        nya_system_entity_transforms_capture();
+        nya_bench_keep(nya_entity_get(handles[0])->position_previous.x);
+    });
+
+    // halfway between ticks, so the draw takes the interpolating path.
+    _NYA_APP_INSTANCE.options.time_step_ns       = 16'000'000;
+    _NYA_APP_INSTANCE.frame_stats.time_behind_ns = 8'000'000;
+
+    nya_bench("render transform x1024", ENTITIES, {
+        f32 sum = 0.0F;
+        for (u32 i = 0; i < ENTITIES; i++) {
+            const NYA_Entity* entity = nya_entity_get(handles[i]);
+            sum += nya_entity_render_position(entity).x + nya_entity_render_rotation(entity).w;
+        }
+        nya_bench_keep(sum);
+    });
+
     return nya_bench_end();
 }
