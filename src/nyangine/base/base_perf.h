@@ -208,6 +208,6 @@ NYA_API void _nya_perf_report(void);
 NYA_API void _nya_perf_frame_report(u64 frame);
 #endif // NYA_PERF_ENABLED
 
-NYA_API inline void _nya_perf_cleanup(NYA_CString* name_ptr) {
+static inline void _nya_perf_cleanup(NYA_CString* name_ptr) {
     if (name_ptr && *name_ptr) nya_perf_timer_stop(*name_ptr);
 }

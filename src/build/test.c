@@ -232,7 +232,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
         // the vendor archives are spliced in after every argument, so they still follow the engine object.
         // base_perf.h defines an extern inline function, which C emits once in every object including the
         // header, so the test and the engine each carry an identical copy.
-        if (shares_engine) _test_append_arguments(link_test_rule, (NYA_ConstCString[]){ TEST_ENGINE_OBJECT, "-Wl,--allow-multiple-definition", nullptr });
+        if (shares_engine) _test_append_arguments(link_test_rule, (NYA_ConstCString[]){ TEST_ENGINE_OBJECT, nullptr });
         if (coverage) _test_append_arguments(link_test_rule, (NYA_ConstCString[]){ FLAGS_COVERAGE, nullptr });
 
         NYA_String*    run_test_name = nya_string_sprintf(nya_arena_global, "run_test:%s", test_binary);

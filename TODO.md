@@ -263,9 +263,6 @@ build jobs restore it.
 
   Warm, the 27 s is about 19 s of running tests one at a time and the links. Release stays slow warm
   because both executables are LTO, and LTO codegen happens in the link.
-- Shared engine tests link with `--allow-multiple-definition`: `_nya_perf_cleanup` in base_perf.h is
-  `NYA_API inline`, which C emits in every object that includes the header. `[ ]` Make it `static inline`
-  and drop the flag.
 - `-DGIT_COMMIT` changes on every commit, so ccache's direct mode misses on a new commit and finds the
   hit by preprocessing instead: the warm test run on a fresh commit was 164 of 164 preprocessed hits in
   28 s. Nothing reads NYA_GIT_COMMIT yet, so keeping it off compile commands would make those direct.
