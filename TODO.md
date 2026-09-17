@@ -30,8 +30,8 @@ it. Scope is the engine: no editor, no game; gnyame stays a minimal example exer
 | Post processing | a composable chain | `[x]` occlusion, ink, depth of field, FXAA, grade, bloom, speed lines, HDR output |
 | Graphics options | antialiasing, motion blur, fov, ... toggleable | `[~]` MSAA and FXAA at runtime; motion blur and a settings level fov missing |
 | Renderer debug | physics hitboxes and other debug views | `[~]` buffer views exist; physics shapes missing |
-| Audio | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing | `[~]` in progress |
-| UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[~]` in progress |
+| Audio | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's) |
+| UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` containers with fixed/fit/grow sizes, window scale, per state colours, style push/pop, nine-slice skins, transitions, text input, colour picker, merged draw calls. Open: selection and clipboard, alpha fade |
 | Core | events, entities, input, settings, cache, ... solid | `[~]` |
 | Pipelines | build, assets, reflection | `[x]` |
 | Hot reload | assets, code, configuration | `[x]` |
@@ -113,6 +113,21 @@ Next:
   frame; warm, 0.8 ms. SDL does not document pipeline creation as thread safe.
 - A render graph is not planned: the pass order is fixed and short, and a graph would be more code than
   the passes it orders.
+
+## `[~]` Audio propagation and effects
+
+Positional voices are traced through a batched ray callback the app wires to Box3D or Box2D: rays over a source's
+extent give partial occlusion, a reverse ray gives blocker thickness for transmission, and four probes find a way
+around with a Maekawa detour loss that pulls the sound toward the opening. Fourteen listener probes, four a frame,
+estimate enclosure and distance, drive the sound bus reverb and place six panned echo taps. One ray budget (64,
+ceiling `audio_rays`) is shared round robin, nothing is allocated per frame, nothing is cast when off. Every bus
+runs a lock-free chain: high/low pass, 3-band EQ, compressor, echo, echo taps, reverb, limiter, eased per 32
+frames. Config under `engine.audio`. Cost: full chain 22.9 µs per 10 ms buffer; 16 hidden voices 5.4 µs a frame.
+Behind the basin rim the fire drops 20 dB and its spectral centroid goes from 3238 to 233 Hz.
+
+- `[ ]` Interaural time delay and head shadow need our own stereo panner in place of SDL_mixer's mono 3D path.
+- `[ ]` Thickness is the span between first hits, so two thin walls read as one thick one.
+- `[ ]` Echo taps do not check that the source sees the surface; one diffraction reach.
 
 ## `[~]` Interpolation between ticks
 
