@@ -29,6 +29,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEnginePhysics;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineAudio;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_EaseType;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_NetPeerId;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Render3DDecals;
@@ -42,10 +43,14 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDepthOfField;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostSpeedLines;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostBloom;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIOverflow;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateColors;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_UISkin;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated type, for an editor that needs to enumerate them. */
-#define NYA_REFLECT_TYPE_COUNT 32
+#define NYA_REFLECT_TYPE_COUNT 37
 
 extern const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT];
 
