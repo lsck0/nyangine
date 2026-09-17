@@ -18,6 +18,29 @@
 
 ---
 
+# Definition of done
+
+The engine is finished when all of this holds, in the existing style (see the style guide), with lines of code,
+file size, RAM, VRAM, CPU, GPU and startup time kept to a minimum, and nothing a player or a peer does can crash
+it. Scope is the engine: no editor, no game; gnyame stays a minimal example exercising every feature.
+
+| Area | Wanted | State |
+| :--- | :--- | :--- |
+| 2D/3D renderer | animation, particles, atmosphere, liquids, opacity, reflections, dynamic LOD, eye adaptation | `[~]` animation, particles, fog, glass, terrain and mesh LOD exist; volumetrics, liquids, reflections, eye adaptation missing |
+| Post processing | a composable chain | `[x]` occlusion, ink, depth of field, FXAA, grade, bloom, speed lines, HDR output |
+| Graphics options | antialiasing, motion blur, fov, ... toggleable | `[~]` MSAA and FXAA at runtime; motion blur and a settings level fov missing |
+| Renderer debug | physics hitboxes and other debug views | `[~]` buffer views exist; physics shapes missing |
+| Audio | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing | `[~]` in progress |
+| UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[~]` in progress |
+| Core | events, entities, input, settings, cache, ... solid | `[~]` |
+| Pipelines | build, assets, reflection | `[x]` |
+| Hot reload | assets, code, configuration | `[x]` |
+| Tracing | time and memory per feature (shadows, antialiasing, particles, ...) | `[~]` CPU spans and GPU allocation counters; per feature attribution missing |
+| CI/CD | tests and builds with caching | `[x]` green on Linux and Windows |
+| Anti-tamper | integrity checks like the CRC | `[~]` code segment hash; more missing |
+| Networking | attack and cheat resistant, optional end to end public key encryption | `[~]` in progress |
+| Targets | Linux, Windows, Steam Linux, Steam Windows | `[~]` Linux and Windows; Steam variants missing |
+
 # Open
 
 ## `[~]` Stylized renderer

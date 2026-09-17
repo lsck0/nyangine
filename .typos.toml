@@ -1,4 +1,5 @@
 # format: wrong = "correct"
 
 [default.extend-words]
+gnyame = "gnyame"
 nyangine = "nyangine"
