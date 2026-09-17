@@ -19,6 +19,7 @@
  */
 
 typedef struct NYA_RenderOptions      NYA_RenderOptions;
+typedef struct NYA_RenderFrameStats   NYA_RenderFrameStats;
 typedef struct NYA_RenderSystem       NYA_RenderSystem;
 typedef struct NYA_RenderSystemWindow NYA_RenderSystemWindow;
 typedef struct NYA_Vertex3D             NYA_Vertex3D;
@@ -111,6 +112,20 @@ struct NYA_RenderOptions {
      * the same again.
      * */
     u32 msaa_samples;
+};
+
+/**
+ * What one frame of a window asked of the GPU, 2D and 3D together. See nya_render_frame_stats.
+ * */
+struct NYA_RenderFrameStats {
+    u32 draw_calls;
+
+    /** Render passes begun, each reopening after a copy or a target change included. */
+    u32 passes;
+
+    /** Copies to GPU buffers and textures, and the bytes they moved. */
+    u32 uploads;
+    u64 upload_bytes;
 };
 
 /*
@@ -800,6 +815,10 @@ struct NYA_RenderSystemWindow {
     NYA_PostDepthOfField     post_depth_of_field;
     NYA_PostSpeedLines       post_speed_lines;
     NYA_PostDebugView        post_debug_view;
+
+    /** This frame so far, and the last finished one. The draw calls are filled in when a frame finishes. */
+    NYA_RenderFrameStats frame_stats;
+    NYA_RenderFrameStats frame_stats_last;
 };
 
 /*
@@ -863,6 +882,11 @@ NYA_API void nya_render_options_set(NYA_Window* window, NYA_RenderOptions option
 
 /** The options in effect: `msaa_samples` is what the device took, not what was asked for. */
 NYA_API NYA_RenderOptions nya_render_options_get(NYA_Window* window) __attr_no_discard;
+
+/**
+ * The last finished frame's draw calls, render passes and uploads, so a regression shows as a number that moved.
+ * */
+NYA_API NYA_RenderFrameStats nya_render_frame_stats(NYA_Window* window) __attr_no_discard;
 
 /** The position as a vector. */
 NYA_API f32x3 nya_vertex3d_position(NYA_Vertex3D vertex) __attr_no_discard;

@@ -1603,31 +1603,24 @@ void _nya_render3d_playback(NYA_Window* window) {
 
         SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(render->render_commands);
 
-        if (vertex_size > 0) {
-            SDL_UploadToGPUBuffer(
-                copy_pass,
-                &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->transfer_buffer },
-                &(SDL_GPUBufferRegion){ .buffer = batch->vertex_buffer, .size = vertex_size },
-                true
-            );
-        }
+        const struct {
+            SDL_GPUTransferBuffer* transfer;
+            SDL_GPUBuffer*         buffer;
+            u32                    size;
+        } uploads[] = {
+            { batch->transfer_buffer, batch->vertex_buffer, vertex_size },
+            { batch->index_transfer_buffer, batch->index_buffer, index_size },
+            { batch->instance_transfer_buffer, batch->instance_buffer, instance_size },
+        };
 
-        if (index_size > 0) {
-            SDL_UploadToGPUBuffer(
-                copy_pass,
-                &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->index_transfer_buffer },
-                &(SDL_GPUBufferRegion){ .buffer = batch->index_buffer, .size = index_size },
-                true
-            );
-        }
+        for (u32 i = 0; i < nya_carray_length(uploads); i++) {
+            if (uploads[i].size == 0) continue;
 
-        if (instance_size > 0) {
-            SDL_UploadToGPUBuffer(
-                copy_pass,
-                &(SDL_GPUTransferBufferLocation){ .transfer_buffer = batch->instance_transfer_buffer },
-                &(SDL_GPUBufferRegion){ .buffer = batch->instance_buffer, .size = instance_size },
-                true
-            );
+            SDL_UploadToGPUBuffer(copy_pass, &(SDL_GPUTransferBufferLocation){ .transfer_buffer = uploads[i].transfer },
+                                  &(SDL_GPUBufferRegion){ .buffer = uploads[i].buffer, .size = uploads[i].size }, true);
+
+            render->frame_stats.uploads++;
+            render->frame_stats.upload_bytes += uploads[i].size;
         }
 
         _nya_render3d_decals_upload(window, copy_pass);
@@ -1718,6 +1711,8 @@ void _nya_render3d_pass_draw(NYA_Window* window, u32 pass) {
             nya_log_error("SDL_BeginGPURenderPass() failed for shadow cascade %u: %s", cascade, SDL_GetError());
             return;
         }
+
+        render->frame_stats.passes++;
 
         f32 size = (f32)nya_render3d_shadow_options(window).map_size;
 
@@ -2184,6 +2179,9 @@ b8 _nya_render3d_refraction_capture(NYA_Window* window) {
         }
     );
 
+    // a blit is a render pass of its own.
+    render->frame_stats.passes++;
+
     _nya_render2d_pass_resume(window);
 
     return true;
@@ -2294,6 +2292,9 @@ void _nya_render3d_registered_flush_upload(NYA_Window* window, NYA_Render3DRegis
 
     SDL_EndGPUCopyPass(copy_pass);
 
+    render->frame_stats.uploads++;
+    render->frame_stats.upload_bytes += mesh->pending_size;
+
     _nya_render2d_pass_resume(window);
 
     nya_gpu_transfer_buffer_release(nya_app_get()->render_system.gpu_device, mesh->pending_upload);
@@ -2364,6 +2365,9 @@ b8 _nya_render3d_mesh_upload(NYA_Window* window, NYA_Asset* asset) {
     );
 
     SDL_EndGPUCopyPass(copy_pass);
+
+    render->frame_stats.uploads++;
+    render->frame_stats.upload_bytes += size;
 
     _nya_render2d_pass_resume(window);
 

@@ -416,6 +416,9 @@ void nya_render2d_flush(NYA_Window* window) {
         &(SDL_GPUBufferRegion){ .buffer = batch->index_buffer, .offset = 0, .size = index_upload_size },
         true
     );
+    render->frame_stats.uploads      += 2;
+    render->frame_stats.upload_bytes += (u64)upload_size + index_upload_size;
+
     SDL_EndGPUCopyPass(copy_pass);
 
     // reopened without the normal buffer, which no 2D pipeline is built for. see _nya_render2d_pass_normals_set.
@@ -1594,6 +1597,8 @@ void nya_render_texture_begin(NYA_Window* window, NYA_RenderTexture* render_text
     );
     nya_assert(render->render_pass != nullptr, "SDL_BeginGPURenderPass() failed for a render texture: %s", SDL_GetError());
 
+    render->frame_stats.passes++;
+
     batch->target_texture    = render_texture->texture;
     batch->target_msaa         = render_texture->msaa_texture;
     batch->target_sample_count = render_texture->sample_count;
@@ -2025,6 +2030,8 @@ void _nya_render2d_pass_resume(NYA_Window* window) {
     );
     nya_assert(render->render_pass != nullptr, "SDL_BeginGPURenderPass() failed while resuming: %s", SDL_GetError());
 
+    render->frame_stats.passes++;
+
     // a new pass clips to nothing, so the batch's clip goes back on.
     _nya_render2d_apply_scissor(window);
 }
@@ -2062,6 +2069,8 @@ void _nya_render2d_normals_resolve(NYA_Window* window) {
         nullptr
     );
     nya_assert(pass != nullptr, "SDL_BeginGPURenderPass() failed resolving the normal buffer: %s", SDL_GetError());
+
+    render->frame_stats.passes++;
 
     SDL_EndGPURenderPass(pass);
 }
@@ -2415,6 +2424,14 @@ void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
     }
 
     SDL_EndGPUCopyPass(copy_pass);
+
+    // a coverage byte per texel, counted on the window whose frame it was.
+    if (window != nullptr) {
+        u32 cells = atlas->glyph_count - atlas->uploaded_count;
+
+        window->render_system.frame_stats.uploads      += cells;
+        window->render_system.frame_stats.upload_bytes += (u64)cells * (u32)atlas->grid.cell_width * (u32)atlas->grid.cell_height;
+    }
 
     if (borrowed_pass) {
         _nya_render2d_pass_resume(window);

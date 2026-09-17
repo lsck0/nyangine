@@ -78,7 +78,7 @@ struct NYA_DebugOverlayStyle {
 
     b8 hide_graph;
 
-    /** Hides the draw call and vertex counts, which come from the 2D batch. */
+    /** Hides the 2D batch's draw call and vertex counts, and the whole renderer's draws, passes and upload bytes. */
     b8 hide_draw_stats;
 
     /**

@@ -56,6 +56,12 @@ NYA_RenderOptions nya_render_options_get(NYA_Window* window) {
     return (NYA_RenderOptions){ .msaa_samples = 1U << (u32)nya_app_get()->render_system.sample_count };
 }
 
+NYA_RenderFrameStats nya_render_frame_stats(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.frame_stats_last;
+}
+
 NYA_Vertex3D nya_vertex3d(f32x3 position, NYA_Color color, f32x3 normal, f32x2 uv) {
     /*
      * Colour is not clamped, unlike _nya_render2d_pack_color: values above one lift an emissive surface past the
@@ -1219,6 +1225,8 @@ b8 nya_render_begin(NYA_Window* window) {
     SDL_GPURenderPass* render_pass = SDL_BeginGPURenderPass(command_buffer, &target_info, 1, &depth_info);
     nya_assert(render_pass != nullptr, "SDL_BeginGPURenderPass() failed: %s", SDL_GetError());
 
+    window->render_system.frame_stats.passes++;
+
     window->render_system.render_commands     = command_buffer;
     window->render_system.swapchain_texture   = swapchain_texture;
     window->render_system.render_pass         = render_pass;
@@ -1290,6 +1298,13 @@ void nya_render_end(NYA_Window* window) {
     _nya_render_output_present(window);
 
     SDL_SubmitGPUCommandBuffer(window->render_system.render_commands);
+
+    NYA_RenderSystemWindow* render = &window->render_system;
+
+    // kept whole for the overlay, which draws before its own frame has finished counting.
+    render->frame_stats_last            = render->frame_stats;
+    render->frame_stats_last.draw_calls = render->draw_batch.frame_flushes + render->mesh_batch.frame_draw_calls;
+    render->frame_stats                 = (NYA_RenderFrameStats){ 0 };
 
     window->render_system.render_pass       = nullptr;
     window->render_system.render_commands   = nullptr;

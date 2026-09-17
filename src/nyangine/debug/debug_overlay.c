@@ -151,7 +151,7 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
     if (!style.hide_ceilings) ceiling_count = nya_min(nya_ceiling_count(), (u32)NYA_DEBUG_OVERLAY_CEILINGS);
 
     u32 line_count = 2;
-    if (!style.hide_draw_stats) line_count++;
+    if (!style.hide_draw_stats) line_count += 2;
     if (style.show_batch_breakdown) line_count++;
     if (!style.hide_memory) line_count += memory_count + 1 + gauge_count;
     if (ceiling_count > 0) line_count += ceiling_count + 1;
@@ -186,6 +186,13 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     if (!style.hide_draw_stats) {
         nya_render2d_textf_with_font(window, style.font, style.font_size, text_x, text_y, style.text_color, "%5u draws   %7u verts", draw_stats.draw_calls, draw_stats.vertices);
+        text_y += line_height;
+
+        // the whole renderer's last finished frame, 3D and post passes included, so a batching regression shows here.
+        NYA_RenderFrameStats frame_stats = nya_render_frame_stats(window);
+
+        nya_render2d_textf_with_font(window, style.font, style.font_size, text_x, text_y, style.text_color, "%5u gpu draws %3u passes %9s up",
+                                     frame_stats.draw_calls, frame_stats.passes, _nya_debug_format_bytes(frame_stats.upload_bytes));
         text_y += line_height;
     }
 

@@ -327,6 +327,9 @@ void _nya_render3d_decals_upload(NYA_Window* window, SDL_GPUCopyPass* copy_pass)
         SDL_UploadToGPUBuffer(copy_pass, &(SDL_GPUTransferBufferLocation){ .transfer_buffer = staging },
                               &(SDL_GPUBufferRegion){ .buffer = gpu->index_buffer, .size = index_size }, false);
 
+        window->render_system.frame_stats.uploads++;
+        window->render_system.frame_stats.upload_bytes += index_size;
+
         // released once the copy has run.
         nya_gpu_transfer_buffer_release(gpu_device, staging);
 
@@ -340,8 +343,13 @@ void _nya_render3d_decals_upload(NYA_Window* window, SDL_GPUCopyPass* copy_pass)
     nya_memcpy(mapped, gpu->vertices, (u64)vertex_count * sizeof(NYA_Vertex3D));
     SDL_UnmapGPUTransferBuffer(gpu_device, gpu->transfer_buffer);
 
+    u32 upload_size = vertex_count * (u32)sizeof(NYA_Vertex3D);
+
     SDL_UploadToGPUBuffer(copy_pass, &(SDL_GPUTransferBufferLocation){ .transfer_buffer = gpu->transfer_buffer },
-                          &(SDL_GPUBufferRegion){ .buffer = gpu->vertex_buffer, .size = vertex_count * (u32)sizeof(NYA_Vertex3D) }, true);
+                          &(SDL_GPUBufferRegion){ .buffer = gpu->vertex_buffer, .size = upload_size }, true);
+
+    window->render_system.frame_stats.uploads++;
+    window->render_system.frame_stats.upload_bytes += upload_size;
 }
 
 void _nya_render3d_decals_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform) {

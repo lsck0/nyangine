@@ -158,6 +158,8 @@ void _nya_render_output_present(NYA_Window* window) {
         nullptr
     );
 
+    render->frame_stats.passes++;
+
     // single sampled, like the swapchain image itself.
     SDL_GPUGraphicsPipeline* pipeline =
         nya_asset_graphics_pipeline(nya_asset_get(linear ? NYA_RENDER_PIPELINE_OUTPUT_LINEAR : NYA_RENDER_PIPELINE_OUTPUT_PQ), SDL_GPU_SAMPLECOUNT_1, false);
