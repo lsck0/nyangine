@@ -51,4 +51,12 @@
 #include "nyangine/renderer/render_font.c"
 #include "nyangine/renderer/renderer.c"
 // #include "nyangine/ui/ui.c"
+
+// windows.h defines these empty, which would silently erase any variable of that name in code after the engine.
+#if OS_WINDOWS
+#undef near
+#undef far
+#undef NEAR
+#undef FAR
+#endif
 #endif
