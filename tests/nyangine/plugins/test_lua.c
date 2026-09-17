@@ -227,7 +227,8 @@ s32 main(void) {
 
         // Reaching inside for this is the point: there is no public way to ask, and no other way to
         // tell an imbalance from a program that simply used more memory.
-        nya_check(lua_gettop(vm->state) == 0, "the Lua stack should be empty between calls, got %d", lua_gettop(vm->state));
+        s32 depth = _nya_lua_stack_depth_for_test(vm);
+        nya_check(depth == 0, "the Lua stack should be empty between calls, got %d", depth);
     }
 
     // ── Restricted mode removes what reaches outside the process.

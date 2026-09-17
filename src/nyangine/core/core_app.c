@@ -9,7 +9,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_INTERNAL NYA_App _NYA_APP_INSTANCE;
+NYA_App _NYA_APP_INSTANCE;
 
 /**
  * Most fixed timestep ticks one frame is allowed to run to catch up.

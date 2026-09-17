@@ -217,3 +217,8 @@ NYA_API u64 nya_lua_memory_bytes(const NYA_LuaVM* vm) __attr_no_discard;
 
 /** Runs a full garbage collection cycle. Rarely wanted; the collector is incremental on its own. */
 NYA_API void nya_lua_collect(NYA_LuaVM* vm);
+
+#ifdef NYA_TESTING
+/** Values left on the Lua stack. Zero between calls; test-only, since nothing else can tell an imbalance from use. */
+NYA_INTERNAL s32 _nya_lua_stack_depth_for_test(const NYA_LuaVM* vm);
+#endif

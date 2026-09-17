@@ -3,6 +3,7 @@
 /** An array template needs a plain type name, and `NYA_BuildRule*` is not one. */
 typedef NYA_BuildRule* NYA_BuildRulePointer;
 nya_derive_array(NYA_BuildRulePointer);
+nya_derive_dict(b8);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -22,6 +23,12 @@ nya_derive_array(NYA_BuildRulePointer);
 /** Most lines the engine sharing scan reads from one test. */
 #define TEST_SCAN_MAX_LINES 4096
 
+/** Longest `_nya_` or `_NYA_` identifier the engine sharing scan looks up. A longer one compiles its own engine. */
+#define TEST_SCAN_MAX_NAME 256
+
+/** The headers that decide which internal identifiers a test can name and still share the engine. */
+#define TEST_ENGINE_HEADER_DIRECTORY "./src/nyangine"
+
 #if OS_WINDOWS
 #define TEST_VENDORS NYA_PROJECT_VENDORS_WINDOWS_X86_64
 #else
@@ -29,15 +36,25 @@ nya_derive_array(NYA_BuildRulePointer);
 #endif
 
 NYA_INTERNAL b8  _test_collect_sources(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
+NYA_INTERNAL b8  _test_collect_headers(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL s32 _test_compare_paths(const NYA_String* a, const NYA_String* b);
+
+/** Whether a token is an identifier starting `_nya_` or `_NYA_`. */
+NYA_INTERNAL b8 _test_token_is_internal_name(const NYA_Lexer* lexer, const NYA_Token* token) __attr_no_discard;
+
+/**
+ * Every `_nya_` and `_NYA_` identifier the engine headers name outside comments, mapped to whether a test
+ * compiled against the headers alone can use it: false once a header names it on a NYA_INTERNAL line.
+ * */
+NYA_INTERNAL NYA_Dictᐸb8ᐳ* _test_scan_header_identifiers(void) __attr_no_discard;
 
 /**
  * Whether a test can link the shared engine object. Not when it defines or undefines anything before
  * including the engine, since that changes what the engine compiles to, not when it never includes the
- * engine, and not when it names an internal `_nya_` or `_NYA_` identifier, which may be static to an
- * engine source and so only reachable from inside the unity build.
+ * engine, and not when it names a `_nya_` or `_NYA_` identifier that `header_identifiers` does not mark
+ * usable. Those are static to an engine source or defined in one, so only the unity build reaches them.
  * */
-NYA_INTERNAL b8 _test_shares_engine(NYA_ConstCString source);
+NYA_INTERNAL b8 _test_shares_engine(NYA_ConstCString source, NYA_Dictᐸb8ᐳ* header_identifiers);
 
 /** Appends a nullptr terminated argument list to a rule's command. */
 NYA_INTERNAL void _test_append_arguments(NYA_BuildRule* rule, NYA_ConstCString const* arguments);
@@ -122,7 +139,8 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
     };
     if (coverage) _test_append_arguments(compile_engine_rule, (NYA_ConstCString[]){ FLAGS_COVERAGE, nullptr });
 
-    b8 any_test_shares_engine = false;
+    u32           tests_sharing_engine = 0;
+    NYA_Dictᐸb8ᐳ* header_identifiers   = _test_scan_header_identifiers();
 
     nya_array_foreach (tests, original_test) {
         NYA_String* test      = nya_string_clone(nya_arena_global, original_test);
@@ -149,8 +167,8 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
         nya_string_extend(test, HOST_EXECUTABLE_SUFFIX);
         NYA_CString test_binary = nya_string_to_cstring(nya_arena_global, test);
 
-        b8 shares_engine        = _test_shares_engine(test_cstr);
-        any_test_shares_engine |= shares_engine;
+        b8 shares_engine      = _test_shares_engine(test_cstr, header_identifiers);
+        tests_sharing_engine += shares_engine ? 1 : 0;
 
         NYA_String*    compile_test_name = nya_string_sprintf(nya_arena_global, "compile_test:%s", test_binary);
         NYA_BuildRule* compile_test_rule = nya_arena_alloc(nya_arena_global, sizeof(NYA_BuildRule));
@@ -280,8 +298,10 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
 
     if (compile_rules->length == 0) return;
 
+    nya_log_info("%u of %u tests link the shared engine object.", tests_sharing_engine, (u32)compile_rules->length);
+
     // First, so the longest compile starts before the short ones queue behind it.
-    if (any_test_shares_engine) nya_array_push_front(compile_rules, compile_engine_rule);
+    if (tests_sharing_engine > 0) nya_array_push_front(compile_rules, compile_engine_rule);
 
     // Zero jobs means one per hardware thread.
     NYA_EXPECT(nya_build_parallel(compile_rules->items, (u32)compile_rules->length, 0));
@@ -389,14 +409,98 @@ NYA_INTERNAL s32 _test_compare_paths(const NYA_String* a, const NYA_String* b) {
     return a->length < b->length ? -1 : 1;
 }
 
-NYA_INTERNAL b8 _test_shares_engine(NYA_ConstCString source) {
+NYA_INTERNAL b8 _test_collect_headers(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
+    NYA_ArrayᐸNYA_Stringᐳ* headers = (NYA_ArrayᐸNYA_Stringᐳ*)user_data;
+
+    if (entry->type != NYA_FILE_TYPE_FILE) return true;
+
+    NYA_String* file = nya_string_from(nya_arena_global, path);
+    if (nya_string_ends_with(file, ".h")) nya_array_push_back(headers, *file);
+
+    return true;
+}
+
+NYA_INTERNAL b8 _test_token_is_internal_name(const NYA_Lexer* lexer, const NYA_Token* token) {
+    nya_assert(lexer != nullptr);
+    nya_assert(token != nullptr);
+
+    if (token->type != NYA_TOKEN_IDENT || token->length <= 5) return false;
+
+    NYA_ConstCString spelling = lexer->source + token->source_location;
+    return nya_memcmp(spelling, "_nya_", 5) == 0 || nya_memcmp(spelling, "_NYA_", 5) == 0;
+}
+
+NYA_INTERNAL NYA_Dictᐸb8ᐳ* _test_scan_header_identifiers(void) {
+    NYA_ArrayᐸNYA_Stringᐳ* headers = nya_array_create(nya_arena_global, NYA_String);
+    NYA_EXPECT(nya_filesystem_walk(nya_arena_global, TEST_ENGINE_HEADER_DIRECTORY, _test_collect_headers, headers));
+
+    NYA_Dictᐸb8ᐳ* identifiers = nya_dict_create(nya_arena_global, b8);
+
+    nya_array_foreach (headers, header) {
+        NYA_CString path = nya_string_to_cstring(nya_arena_global, header);
+        NYA_String* text = nya_string_create(nya_arena_global);
+        NYA_EXPECT(nya_file_read(path, text), "while reading '%s'", path);
+
+        NYA_Lexer lexer = nya_lexer_create(nya_string_to_cstring(nya_arena_global, text), NYA_LEXER_UTF8_IDENTS);
+        nya_lexer_run(&lexer);
+        defer nya_lexer_destroy(&lexer);
+
+        // a declaration keeps its storage class on the line that names it.
+        u32 internal_line = 0;
+
+        nya_array_foreach (lexer.tokens, token) {
+            if (token->type != NYA_TOKEN_IDENT) continue;
+
+            NYA_ConstCString spelling = lexer.source + token->source_location;
+            if (token->length == strlen("NYA_INTERNAL") && nya_memcmp(spelling, "NYA_INTERNAL", token->length) == 0) {
+                internal_line = token->line_number;
+                continue;
+            }
+
+            if (!_test_token_is_internal_name(&lexer, token)) continue;
+
+            NYA_CString name = nya_arena_alloc(nya_arena_global, token->length + 1);
+            nya_memcpy(name, spelling, token->length);
+            name[token->length] = '\0';
+
+            b8  usable = token->line_number != internal_line;
+            b8* known  = nya_dict_get(identifiers, name);
+
+            if (known == nullptr) {
+                nya_dict_set(identifiers, name, usable);
+            } else {
+                *known = *known && usable;
+            }
+        }
+    }
+
+    return identifiers;
+}
+
+NYA_INTERNAL b8 _test_shares_engine(NYA_ConstCString source, NYA_Dictᐸb8ᐳ* header_identifiers) {
     nya_assert(source != nullptr);
+    nya_assert(header_identifiers != nullptr);
 
     NYA_String* text = nya_string_create(nya_arena_global);
     NYA_EXPECT(nya_file_read(source, text), "while reading '%s'", source);
 
-    // Coarse on purpose: a false match only costs that test its own engine compile.
-    if (nya_string_contains(text, "_nya_") || nya_string_contains(text, "_NYA_")) return false;
+    {
+        NYA_Lexer lexer = nya_lexer_create(nya_string_to_cstring(nya_arena_global, text), NYA_LEXER_UTF8_IDENTS);
+        nya_lexer_run(&lexer);
+        defer nya_lexer_destroy(&lexer);
+
+        nya_array_foreach (lexer.tokens, token) {
+            if (!_test_token_is_internal_name(&lexer, token)) continue;
+            if (token->length >= TEST_SCAN_MAX_NAME) return false;
+
+            char name[TEST_SCAN_MAX_NAME];
+            nya_memcpy(name, lexer.source + token->source_location, token->length);
+            name[token->length] = '\0';
+
+            b8* usable = nya_dict_get(header_identifiers, name);
+            if (usable == nullptr || !*usable) return false;
+        }
+    }
 
     NYA_ArrayᐸNYA_Stringᐳ* lines = nya_string_split_lines(nya_arena_global, text);
     nya_assert(lines->length <= TEST_SCAN_MAX_LINES, "'%s' is longer than the engine sharing scan reads", source);

@@ -530,3 +530,11 @@ void nya_lua_collect(NYA_LuaVM* vm) {
 
     (void)lua_gc(vm->state, LUA_GCCOLLECT, 0);
 }
+
+#ifdef NYA_TESTING
+__attr_maybe_unused s32 _nya_lua_stack_depth_for_test(const NYA_LuaVM* vm) {
+    nya_assert(vm != nullptr && vm->state != nullptr);
+
+    return lua_gettop(vm->state);
+}
+#endif

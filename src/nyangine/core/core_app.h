@@ -158,6 +158,9 @@ NYA_API void     nya_app_deinit(void);
 NYA_API void     nya_app_run(void);
 NYA_API NYA_App* nya_app_get(void);
 
+/** What nya_app_get returns. Declared so a test can stand up an app without nya_app_init. */
+NYA_API NYA_App _NYA_APP_INSTANCE;
+
 /*
  * The game's root pointer lives in nya_world_user_data, so the world arena, entities and game state
  * share one lifetime. See core_world.h.
