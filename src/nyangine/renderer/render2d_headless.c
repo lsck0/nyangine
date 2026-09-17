@@ -46,6 +46,10 @@ void nya_render2d_rect(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, 
     nya_unused(window, x, y, width, height, color);
 }
 
+void nya_render2d_rect_gradient(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, const NYA_Color corners[4]) {
+    nya_unused(window, x, y, width, height, corners);
+}
+
 void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 thickness, NYA_Color color) {
     nya_unused(window, x, y, width, height, thickness, color);
 }

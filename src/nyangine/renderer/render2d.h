@@ -96,6 +96,9 @@ NYA_API void nya_render2d_flush(NYA_Window* window);
 /** A filled axis aligned rectangle, `x`/`y` being its top left corner. */
 NYA_API void nya_render2d_rect(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, NYA_Color color);
 
+/** A filled rectangle blending between the colours at its corners: top left, top right, bottom right, bottom left. */
+NYA_API void nya_render2d_rect_gradient(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, const NYA_Color corners[4]);
+
 /** A rectangle outline of `thickness`, drawn inside the given bounds. */
 NYA_API void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 thickness, NYA_Color color);
 
@@ -249,7 +252,7 @@ NYA_API void nya_render2d_texture_rect(
 );
 
 /**
- * A nine-slice: a bordered image stretched to any size without stretching its corners.
+ * A nine-slice: a bordered image drawn at any size without stretching its corners.
  *
  * ```c
  * nya_render2d_nine_slice(window, NYA_ASSET_UI_PANEL_PNG, (NYA_NineSlice){
@@ -258,7 +261,21 @@ NYA_API void nya_render2d_texture_rect(
  * });
  * ```
  * */
-typedef struct NYA_NineSlice NYA_NineSlice;
+typedef struct NYA_NineSlice     NYA_NineSlice;
+typedef struct NYA_NineSliceAxis NYA_NineSliceAxis;
+
+/** The most middle pieces a tiled nine-slice cuts along one axis. Past it the tiles stretch to fit this many. */
+#define NYA_NINE_SLICE_TILES_MAX 16
+
+/** How the edges and the centre cover the length between the corners. */
+typedef enum NYA_NineSliceFill {
+    NYA_NINE_SLICE_STRETCH = 0,
+
+    /** Repeated at the source's size times the scale, the last piece cut short. */
+    NYA_NINE_SLICE_TILE,
+
+    NYA_NINE_SLICE_FILL_COUNT,
+} NYA_NineSliceFill;
 
 struct NYA_NineSlice {
     /**
@@ -269,6 +286,14 @@ struct NYA_NineSlice {
     /** Destination rectangle, in the current coordinate space. */
     f32 x, y, width, height;
 
+    /** The region of the texture the slice is cut from, in its pixels, for a sheet or an atlas. A zero size is all of it. */
+    f32 source_x, source_y, source_width, source_height;
+
+    /** Destination pixels per source pixel, for the borders and the tiles, snapped to whole pixels. Zero is one. */
+    f32 scale;
+
+    NYA_NineSliceFill fill;
+
     /**
      * Leave the middle patch undrawn.
      * */
@@ -278,10 +303,41 @@ struct NYA_NineSlice {
     NYA_Color tint;
 };
 
+/** A nine-slice cut along one axis: the start border, the middle pieces, and the end border, in order. */
+struct NYA_NineSliceAxis {
+    u32 count;
+
+    f32 source[NYA_NINE_SLICE_TILES_MAX + 2];
+    f32 source_size[NYA_NINE_SLICE_TILES_MAX + 2];
+    f32 destination[NYA_NINE_SLICE_TILES_MAX + 2];
+    f32 destination_size[NYA_NINE_SLICE_TILES_MAX + 2];
+
+    /** Whether a piece is between the borders, which a hollow slice skips where both axes say so. */
+    b8 middle[NYA_NINE_SLICE_TILES_MAX + 2];
+};
+
 /**
  * Draws `texture_handle` as a nine-slice. See NYA_NineSlice.
  * */
 NYA_API void nya_render2d_nine_slice(NYA_Window* window, NYA_ConstCString texture_handle, NYA_NineSlice params);
+
+/**
+ * Cuts one axis of a nine-slice: `source_length` source pixels from `source_start`, with borders `border_start` and
+ * `border_end`, onto `destination_length` pixels from `destination_start`. Corners keep their scaled size unless the
+ * destination is shorter than both, when they shrink in proportion rather than overlap. Both builds, since it is only
+ * arithmetic.
+ * */
+NYA_API void nya_render2d_nine_slice_axis(
+    f32                    source_start,
+    f32                    source_length,
+    f32                    border_start,
+    f32                    border_end,
+    f32                    destination_start,
+    f32                    destination_length,
+    f32                    scale,
+    NYA_NineSliceFill      fill,
+    OUT NYA_NineSliceAxis* out_axis
+);
 
 /*
  * ─────────────────────────────────────────────────────────

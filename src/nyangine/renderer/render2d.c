@@ -526,6 +526,23 @@ void nya_render2d_rect(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, 
     _nya_render2d_quad(batch, x, y, width, height, 0.0F, 0.0F, 0.0F, 0.0F, color);
 }
 
+void nya_render2d_rect_gradient(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, const NYA_Color corners[4]) {
+    nya_assert(window != nullptr && corners != nullptr);
+
+    if (!_nya_render2d_prepare(window, NYA_RENDER2D_PIPELINE_SHAPES, nullptr, nullptr, 4, 6)) return;
+
+    NYA_Render2DBatch* batch = &window->render_system.draw_batch;
+    u32                base  = batch->vertex_count;
+
+    _nya_render2d_vertex(batch, x, y, 0.0F, 0.0F, corners[0]);
+    _nya_render2d_vertex(batch, x + width, y, 0.0F, 0.0F, corners[1]);
+    _nya_render2d_vertex(batch, x + width, y + height, 0.0F, 0.0F, corners[2]);
+    _nya_render2d_vertex(batch, x, y + height, 0.0F, 0.0F, corners[3]);
+
+    _nya_render2d_triangle_indices(batch, base, 0, 1, 2);
+    _nya_render2d_triangle_indices(batch, base, 0, 2, 3);
+}
+
 void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 thickness, NYA_Color color) {
     nya_assert(window != nullptr);
 
@@ -954,80 +971,43 @@ f32 nya_render2d_font_size_get(void) {
 
 void nya_render2d_nine_slice(NYA_Window* window, NYA_ConstCString texture_handle, NYA_NineSlice params) {
     nya_assert(window != nullptr);
+    nya_assert(params.fill < NYA_NINE_SLICE_FILL_COUNT);
 
     NYA_Asset* asset = nya_asset_get((NYA_CString)texture_handle);
 
     // missing or still loading, normal right after a load.
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->type != NYA_ASSET_TYPE_TEXTURE) return;
 
-    f32 texture_width  = (f32)asset->as_texture.width;
-    f32 texture_height = (f32)asset->as_texture.height;
-
-    if (texture_width <= 0.0F || texture_height <= 0.0F) return;
-    if (params.width <= 0.0F || params.height <= 0.0F) return;
+    b8  region = params.source_width > 0.0F && params.source_height > 0.0F;
+    f32 width  = region ? params.source_width : (f32)asset->as_texture.width;
+    f32 height = region ? params.source_height : (f32)asset->as_texture.height;
 
     // a zero tint means white. nya_render2d_texture_rect passes colours through unchanged, so the substitution
     // has to happen here or a default panel draws invisible.
     NYA_Color tint = params.tint;
-
     if (tint.r == 0.0F && tint.g == 0.0F && tint.b == 0.0F && tint.a == 0.0F) tint = (NYA_Color){ 1.0F, 1.0F, 1.0F, 1.0F };
 
-    f32 left   = nya_max(params.left, 0.0F);
-    f32 right  = nya_max(params.right, 0.0F);
-    f32 top    = nya_max(params.top, 0.0F);
-    f32 bottom = nya_max(params.bottom, 0.0F);
+    NYA_NineSliceAxis columns;
+    NYA_NineSliceAxis rows;
+    nya_render2d_nine_slice_axis(params.source_x, width, params.left, params.right, params.x, params.width, params.scale, params.fill, &columns);
+    nya_render2d_nine_slice_axis(params.source_y, height, params.top, params.bottom, params.y, params.height, params.scale, params.fill, &rows);
 
-    /*
-     * Borders shrink with a destination smaller than them. Otherwise a panel animating open from zero draws
-     * inside-out quads. Scaled proportionally, so uneven borders stay uneven.
-     */
-    f32 horizontal = left + right;
-    f32 vertical   = top + bottom;
-
-    if (horizontal > params.width && horizontal > 0.0F) {
-        f32 shrink  = params.width / horizontal;
-        left       *= shrink;
-        right      *= shrink;
-    }
-
-    if (vertical > params.height && vertical > 0.0F) {
-        f32 shrink  = params.height / vertical;
-        top        *= shrink;
-        bottom     *= shrink;
-    }
-
-    // source borders name the authored image; destination borders may be shrunk. corners keep their size and
-    // the middle absorbs the rest.
-    f32 source_x[4]   = { 0.0F, params.left, texture_width - params.right, texture_width };
-    f32 source_y[4]   = { 0.0F, params.top, texture_height - params.bottom, texture_height };
-    f32 destination_x[4] = { params.x, params.x + left, params.x + params.width - right, params.x + params.width };
-    f32 destination_y[4] = { params.y, params.y + top, params.y + params.height - bottom, params.y + params.height };
-
-    for (u32 row = 0; row < 3; row++) {
-        for (u32 column = 0; column < 3; column++) {
-            // the centre patch is skipped for a frame. see NYA_NineSlice.hollow.
-            if (params.hollow && row == 1 && column == 1) continue;
-
-            f32 source_width       = source_x[column + 1] - source_x[column];
-            f32 source_height      = source_y[row + 1] - source_y[row];
-            f32 destination_width  = destination_x[column + 1] - destination_x[column];
-            f32 destination_height = destination_y[row + 1] - destination_y[row];
-
-            // a zero border makes a valid three-slice. skipped so it costs no vertices.
-            if (source_width <= 0.0F || source_height <= 0.0F) continue;
-            if (destination_width <= 0.0F || destination_height <= 0.0F) continue;
+    for (u32 row = 0; row < rows.count; row++) {
+        for (u32 column = 0; column < columns.count; column++) {
+            // see NYA_NineSlice.hollow.
+            if (params.hollow && rows.middle[row] && columns.middle[column]) continue;
 
             nya_render2d_texture_rect(
                 window,
                 texture_handle,
-                source_x[column],
-                source_y[row],
-                source_width,
-                source_height,
-                destination_x[column],
-                destination_y[row],
-                destination_width,
-                destination_height,
+                columns.source[column],
+                rows.source[row],
+                columns.source_size[column],
+                rows.source_size[row],
+                columns.destination[column],
+                rows.destination[row],
+                columns.destination_size[column],
+                rows.destination_size[row],
                 tint
             );
         }

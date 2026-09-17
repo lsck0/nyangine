@@ -29,6 +29,8 @@
 #include "nyangine/renderer/render_occlusion.c"
 // after the occlusion buffer it tests against. CPU only, so headless tests reach the culling render3d.c runs.
 #include "nyangine/renderer/render_cull.c"
+// both builds: where a nine-slice's pieces go is arithmetic a headless test checks.
+#include "nyangine/renderer/render_nine_slice.c"
 #if NYA_HEADLESS_ENABLED
 #include "nyangine/renderer/render2d_headless.c"
 #else
