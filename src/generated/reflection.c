@@ -197,6 +197,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEnginePhysics = {
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngine_FIELDS[] = {
     { .name = "renderer", .type = &_NYA_REFLECT_NYA_ConfigEngineRenderer, .offset = nya_offsetof(NYA_ConfigEngine, renderer), .hint = NYA_HINT_NONE },
     { .name = "physics", .type = &_NYA_REFLECT_NYA_ConfigEnginePhysics, .offset = nya_offsetof(NYA_ConfigEngine, physics), .hint = NYA_HINT_NONE },
+    { .name = "ui", .type = &_NYA_REFLECT_NYA_UIStyle, .offset = nya_offsetof(NYA_ConfigEngine, ui), .hint = NYA_HINT_NONE },
 };
 
 const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
@@ -205,7 +206,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
     .size = sizeof(NYA_ConfigEngine),
     .alignment = alignof(NYA_ConfigEngine),
     .fields = _NYA_REFLECT_NYA_ConfigEngine_FIELDS,
-    .field_count = 2,
+    .field_count = 3,
 };
 
 /* NYA_NetChatMessage, src/nyangine/net/net_chat.h */
@@ -453,6 +454,51 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView = {
     .is_bitflags = false,
 };
 
+/* NYA_UIStyle, src/nyangine/ui/ui.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle_font_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_UIStyle*)nullptr)->font),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_UI_FONT_NAME_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle_title_font_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_UIStyle*)nullptr)->title_font),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_UI_FONT_NAME_MAX),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_UIStyle_FIELDS[] = {
+    { .name = "font", .type = &_NYA_REFLECT_NYA_UIStyle_font_ARRAY, .offset = nya_offsetof(NYA_UIStyle, font), .hint = NYA_HINT_NONE },
+    { .name = "title_font", .type = &_NYA_REFLECT_NYA_UIStyle_title_font_ARRAY, .offset = nya_offsetof(NYA_UIStyle, title_font), .hint = NYA_HINT_NONE },
+    { .name = "padding", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, padding), .hint = NYA_HINT_NONE },
+    { .name = "spacing", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, spacing), .hint = NYA_HINT_NONE },
+    { .name = "radius", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, radius), .hint = NYA_HINT_NONE },
+    { .name = "outline", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, outline), .hint = NYA_HINT_NONE },
+    { .name = "depth", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, depth), .hint = NYA_HINT_NONE },
+    { .name = "pop", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, pop), .hint = NYA_HINT_NONE },
+    { .name = "item_height", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, item_height), .hint = NYA_HINT_NONE },
+    { .name = "scrim", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, scrim), .hint = NYA_HINT_NONE },
+    { .name = "panel", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, panel), .hint = NYA_HINT_NONE },
+    { .name = "ink", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, ink), .hint = NYA_HINT_NONE },
+    { .name = "text", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, text), .hint = NYA_HINT_NONE },
+    { .name = "text_dim", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, text_dim), .hint = NYA_HINT_NONE },
+    { .name = "button", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, button), .hint = NYA_HINT_NONE },
+    { .name = "accent", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, accent), .hint = NYA_HINT_NONE },
+    { .name = "accent_text", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, accent_text), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle = {
+    .name = "NYA_UIStyle",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_UIStyle),
+    .alignment = alignof(NYA_UIStyle),
+    .fields = _NYA_REFLECT_NYA_UIStyle_FIELDS,
+    .field_count = 17,
+};
+
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_GNY_ConfigRobots,
     &_NYA_REFLECT_GNY_ConfigGame,
@@ -474,6 +520,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostDepthOfField,
     &_NYA_REFLECT_NYA_PostSpeedLines,
     &_NYA_REFLECT_NYA_PostDebugView,
+    &_NYA_REFLECT_NYA_UIStyle,
 };
 
 const NYA_TypeReflection* nya_reflect_find(NYA_ConstCString name) {

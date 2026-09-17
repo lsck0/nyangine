@@ -55,7 +55,7 @@
 // After whichever 2D renderer was selected: it forwards to that renderer's text API.
 #include "nyangine/renderer/render_font.c"
 #include "nyangine/renderer/renderer.c"
-// #include "nyangine/ui/ui.c"
+#include "nyangine/ui/ui.c"
 
 // windows.h defines these empty, which would silently erase any variable of that name in code after the engine.
 #if OS_WINDOWS

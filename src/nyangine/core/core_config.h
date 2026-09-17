@@ -14,6 +14,7 @@
 #include "nyangine/base/base_reflection.h"
 #include "nyangine/core/core_asset.h"
 #include "nyangine/core/core_event.h"
+#include "nyangine/ui/ui.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -153,6 +154,9 @@ struct NYA_ConfigEnginePhysics {
 struct NYA_ConfigEngine {
     NYA_ConfigEngineRenderer renderer;
     NYA_ConfigEnginePhysics  physics;
+
+    /** See nya_ui_style_set. */
+    NYA_UIStyle ui;
 };
 
 /*
