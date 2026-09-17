@@ -151,13 +151,18 @@ and shared by reference count.
 
 - `[ ]` Bake less: nothing checks whether an asset is ever loaded.
 
+### Binary size
+
+Linux release 21.6 MB, Windows 24 MB. `.text` is 13.2 MB, `.rodata` 3.8 MB, `.eh_frame` 1.1 MB. `[~]` Being
+attributed by vendor and cut.
+
 ### Static memory
 
 From `nm --size-sort -S` on the release binary. `.bss` went from 2.45 MB to 0.77 MB.
 
 | Object                                | Size         |                                          |
 | :------------------------------------ | -----------: | :--------------------------------------- |
-| `NYA_ASSET_BLOB`                      | 12.4 MB      | `.rodata`                                |
+| `NYA_ASSET_BLOB`                      | 2.4 MB       | `.rodata`, LZ4 per entry                 |
 | `b3_worlds` / `b2_worlds`             | 37 + 21 KB   | 8 worlds each via the vendor rules (was 596 + 344 KB) |
 | `_nya_audio_system`                   | 3.6 KB       | reverb lines allocated per bus on first use (was 446 KB) |
 | `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` | 4 + 3 KB     | replica map only for remote clients, peers per used slot |
