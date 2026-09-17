@@ -69,6 +69,17 @@ void hook_remove_output_file(NYA_BuildRule* rule);
 /** Deletes the rule's input file. Used to drop an intermediate once the rule has consumed it. */
 void hook_remove_input_file(NYA_BuildRule* rule);
 
+#if !OS_WINDOWS
+/**
+ * Rewrites every absolute symlink under the rule's working directory to point inside it. An unpacked sysroot links
+ * into / and would otherwise resolve against the host.
+ * */
+void hook_relativize_symlinks(NYA_BuildRule* rule);
+
+/** Derives and builds the Steam Runtime vendors. See vendor_steamrt.h. */
+void hook_build_steamrt_vendors(NYA_BuildRule* rule);
+#endif
+
 /** Converts perf.data into plain text next to it. */
 void hook_convert_perf_data_to_plain(NYA_BuildRule* rule);
 

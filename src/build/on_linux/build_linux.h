@@ -179,6 +179,102 @@ NYA_INTERNAL NYA_BuildRule build_project_linux_x86_64 = {
 
 /*
  * ─────────────────────────────────────────────────────────
+ * STEAM
+ * ─────────────────────────────────────────────────────────
+ */
+
+/*
+ * The release build with the Steamworks plugin, for the Steam Linux Runtime: compiled and linked against the sniper
+ * sysroot, see vendor_steamrt.h. Its vendors are built by the rule that needs them rather than up front, since nothing
+ * else wants the sysroot.
+ */
+
+#define STEAM_LINUX_X86_64_OBJECT OBJECT_DIRECTORY "/" STEAM_LINUX_X86_64_DIRECTORY OBJECT_SUFFIX
+#define FLAGS_STEAMRT             "--sysroot=" STEAMRT_SYSROOT
+
+// glibc 2.31 keeps dlopen in libdl, and gcc 10's libgcc has no long double to half float conversion, which
+// compiler-rt's builtins do. Unwinding stays with libgcc_s, which the runtime carries.
+#define FLAGS_STEAMRT_LINK "-ldl", "-rtlib=compiler-rt", "-unwindlib=libgcc"
+
+NYA_INTERNAL NYA_BuildRule build_steamrt_vendors = {
+    .name            = "build_steamrt_vendors",
+    .is_metarule     = true,
+    .pre_build_hooks = { &hook_build_steamrt_vendors, },
+};
+
+NYA_INTERNAL NYA_BuildRule compile_project_steam_linux_x86_64 = {
+    .name        = "compile_project_steam_linux_x86_64",
+    .policy      = NYA_BUILD_ALWAYS,
+    .output_file = STEAM_LINUX_X86_64_OBJECT,
+
+    .command = {
+        .program   = CC,
+        .arguments = {
+            BINARY_SOURCE_PATH,
+            "-c", "-o", STEAM_LINUX_X86_64_OBJECT,
+            CFLAGS,
+            WARNINGS,
+            INCLUDE_PATHS,
+            FLAGS_PLUGINS,
+            FLAGS_STEAM,
+            FLAGS_STEAMRT,
+        },
+    },
+
+    .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .vendors         = { NYA_PROJECT_VENDORS_STEAMRT_X86_64, },
+    .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
+    .dependencies    = { &build_steamrt_vendors, &bundle_assets, },
+};
+
+NYA_INTERNAL NYA_BuildRule link_project_steam_linux_x86_64 = {
+    .name        = "link_project_steam_linux_x86_64",
+    .policy      = NYA_BUILD_ALWAYS,
+    .output_file = STEAM_LINUX_X86_64_BINARY,
+
+    .command = {
+        .program   = CC,
+        .arguments = {
+            STEAM_LINUX_X86_64_OBJECT,
+            "-o", STEAM_LINUX_X86_64_BINARY,
+            CFLAGS,
+            LINKER_FLAGS,
+            FLAGS_STEAM,
+            FLAGS_STEAMRT,
+            FLAGS_STEAMRT_LINK,
+            FLAGS_RELEASE_LINK,
+            FLAGS_RELEASE_LINK_LINUX_X86_64,
+            FLAGS_LINUX_X86_64,
+        },
+    },
+
+    .pre_build_hooks  = { &hook_create_output_directory, },
+    .vendors          = { NYA_PROJECT_VENDORS_STEAMRT_X86_64, &vendor_steam_linux_x86_64, },
+    .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
+    .dependencies     = { &compile_project_steam_linux_x86_64, },
+    .post_build_hooks = { &hook_insert_integrity_hash, },
+};
+
+/** libsteam_api.so beside the executable, where its $ORIGIN rpath finds it. */
+NYA_INTERNAL NYA_BuildRule copy_steam_library_linux_x86_64 = {
+    .name        = "copy_steam_library_linux_x86_64",
+    .policy      = NYA_BUILD_IF_OUTDATED,
+    .is_metarule = true,
+    .input_file  = STEAM_LIBRARY_LINUX_X86_64,
+    .output_file = STEAM_LINUX_X86_64_LIBRARY,
+
+    .pre_build_hooks  = { &hook_create_output_directory, },
+    .post_build_hooks = { &hook_copy_file, },
+};
+
+NYA_INTERNAL NYA_BuildRule build_project_steam_linux_x86_64 = {
+    .name         = "build_project_steam_linux_x86_64",
+    .is_metarule  = true,
+    .dependencies = { &link_project_steam_linux_x86_64, &copy_steam_library_linux_x86_64, },
+};
+
+/*
+ * ─────────────────────────────────────────────────────────
  * DEVELOPER
  * ─────────────────────────────────────────────────────────
  */

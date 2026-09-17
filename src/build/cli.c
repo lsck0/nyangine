@@ -256,9 +256,21 @@ NYA_INTERNAL NYA_ArgCommand build = {
             .description = "Build the windows release executable.",
             .build_rule  = &build_project_windows_x86_64,
         },
+#if !OS_WINDOWS
+        &(NYA_ArgCommand){
+            .name        = "steam-linux",
+            .description = "Build the Steam Linux Runtime executable and libsteam_api.so. Downloads the sniper SDK sysroot once.",
+            .build_rule  = &build_project_steam_linux_x86_64,
+        },
+#endif
+        &(NYA_ArgCommand){
+            .name        = "steam-windows",
+            .description = "Build the Steam windows executable and steam_api64.dll.",
+            .build_rule  = &build_project_steam_windows_x86_64,
+        },
         &(NYA_ArgCommand){
             .name        = "release",
-            .description = "Build every release executable.",
+            .description = "Build every release executable, Steam windows included. steam-linux is separate.",
             .build_rule  = &build_project_release,
         },
         &(NYA_ArgCommand){

@@ -15,7 +15,10 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Every release artifact this host can produce. A Windows host produces only the Windows one, see build.h. */
+/**
+ * Every release artifact this host can produce. A Windows host produces only the Windows ones, see build.h. Steam Linux
+ * is left out: its first build downloads a sysroot and rebuilds every vendor against it.
+ * */
 NYA_INTERNAL NYA_BuildRule build_project_release = {
     .name         = "build_project_release",
     .is_metarule  = true,
@@ -24,6 +27,7 @@ NYA_INTERNAL NYA_BuildRule build_project_release = {
         &build_project_linux_x86_64,
 #endif
         &build_project_windows_x86_64,
+        &build_project_steam_windows_x86_64,
     },
 };
 

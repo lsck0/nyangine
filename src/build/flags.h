@@ -26,6 +26,16 @@
 #define WINDOWS_X86_64_BINARY       PROJECT_NAME "." VERSION ".windows-x86_64.exe"
 
 /*
+ * A Steam build is a directory, since the Steamworks library ships beside the executable. Its contents are the depot.
+ */
+#define STEAM_LINUX_X86_64_DIRECTORY   PROJECT_NAME "." VERSION ".steam-linux-x86_64"
+#define STEAM_LINUX_X86_64_BINARY      STEAM_LINUX_X86_64_DIRECTORY "/" PROJECT_NAME
+#define STEAM_LINUX_X86_64_LIBRARY     STEAM_LINUX_X86_64_DIRECTORY "/libsteam_api.so"
+#define STEAM_WINDOWS_X86_64_DIRECTORY PROJECT_NAME "." VERSION ".steam-windows-x86_64"
+#define STEAM_WINDOWS_X86_64_BINARY    STEAM_WINDOWS_X86_64_DIRECTORY "/" PROJECT_NAME ".exe"
+#define STEAM_WINDOWS_X86_64_LIBRARY   STEAM_WINDOWS_X86_64_DIRECTORY "/steam_api64.dll"
+
+/*
  * Where split rules compile to before linking, one object per artifact. Nothing reads an object from a
  * previous build: every compile runs, and a compiler cache is what makes an unchanged one cheap.
  */
@@ -95,9 +105,11 @@
 
 // -g1 so libbacktrace can print lines in shipped crash reports. The debug sections are covered by the
 // integrity CRC, so never strip after hook_insert_integrity_hash.
+#define FLAGS_SHIPPING "-O3", "-flto", "-fPIE", "-g1", "-DNYA_ASSET_PREFER_BLOB", "-D_FORTIFY_SOURCE=2", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
+
 // -DNYA_EXECUTION_MODE=2 is required: NYA_DEBUG is (NYA_EXECUTION_MODE == 0) and the default is 0, so
 // without it a release binary compiles the hot reload entry point and skips the integrity check.
-#define FLAGS_RELEASE  "-O3", "-flto", "-fPIE", "-g1", "-DNYA_EXECUTION_MODE=2", "-DNYA_ASSET_PREFER_BLOB", "-D_FORTIFY_SOURCE=2", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
+#define FLAGS_RELEASE  "-DNYA_EXECUTION_MODE=2", FLAGS_SHIPPING
 
 // --gc-sections drops the vendor functions nothing reaches, which NYA_VENDOR_OPTIMIZE put in sections of their own.
 #define FLAGS_RELEASE_LINK "-fuse-ld=lld", "-Wl,--gc-sections"
@@ -107,14 +119,10 @@
 #define FLAGS_RELEASE_LINK_WINDOWS_X86_64 "-Xlinker", "-Xlink=-debug:dwarf,nosymtab"
 
 /*
- * Steam is release plus the Steam runtime. Same deploy shape, different execution mode, so the mode
- * can gate overlay and achievements without a second set of build rules.
+ * Steam is release plus the Steamworks plugin. Same shipping flags, a mode of its own, so the mode can gate overlay and
+ * achievements without a second set of build rules.
  */
-#define FLAGS_STEAM_LINUX_X86_64                                                                                                                     \
-    "-DNYA_EXECUTION_MODE=3", "-DNYA_PLUGIN_STEAM", "-L./vendor/steam/redistributable_bin/linux64/", "-Wl,-rpath,$ORIGIN", "-lsteam_api"
-
-#define FLAGS_STEAM_WINDOWS_X86_64                                                                                                                   \
-    "-DNYA_EXECUTION_MODE=3", "-DNYA_PLUGIN_STEAM", "-L./vendor/steam/redistributable_bin/win64/", "-lsteam_api64"
+#define FLAGS_STEAM "-DNYA_EXECUTION_MODE=3", "-DNYA_PLUGIN_STEAM", FLAGS_SHIPPING
 
 #define FLAGS_LINUX_X86_64   "-Wl,-rpath,$ORIGIN"
 #define FLAGS_WINDOWS_X86_64 "-Wl,-subsystem,windows", "-static"

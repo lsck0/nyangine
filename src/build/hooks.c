@@ -1,5 +1,9 @@
 #include "build/build.h"
 
+#if !OS_WINDOWS
+#include <ftw.h>
+#endif
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -256,6 +260,46 @@ void hook_remove_input_file(NYA_BuildRule* rule) {
 
     NYA_EXPECT(nya_filesystem_delete(rule->input_file));
 }
+
+#if !OS_WINDOWS
+NYA_INTERNAL NYA_ConstCString _hook_relativize_root = nullptr;
+
+NYA_INTERNAL s32 _hook_relativize_symlink(NYA_ConstCString path, const struct stat* status, s32 type, struct FTW* position) {
+    nya_unused(status, position);
+    if (type != FTW_SL) return 0;
+
+    char target[4096];
+    ssize_t length = readlink(path, target, sizeof(target) - 1);
+    if (length <= 0 || target[0] != '/') return 0;
+    target[length] = '\0';
+
+    // one ".." per directory between the link and the root, then the target as the root sees it.
+    NYA_String* relative = nya_string_create(nya_arena_global);
+    for (NYA_ConstCString cursor = path + strlen(_hook_relativize_root) + 1; (cursor = strchr(cursor, '/')) != nullptr; cursor++) {
+        nya_string_extend(relative, "../");
+    }
+    nya_string_extend(relative, target + 1);
+
+    if (unlink(path) != 0 || symlink(nya_string_to_cstring(nya_arena_global, relative), path) != 0) return -1;
+    return 0;
+}
+
+void hook_relativize_symlinks(NYA_BuildRule* rule) {
+    nya_assert(rule != nullptr);
+    nya_assert(rule->command.working_directory != nullptr, "hook_relativize_symlinks walks the rule's working_directory.");
+
+    _hook_relativize_root = rule->command.working_directory;
+
+    s32 walked = nftw(_hook_relativize_root, _hook_relativize_symlink, 64, FTW_PHYS);
+    nya_assert(walked == 0, "Could not relativize the symlinks under '%s': %s", _hook_relativize_root, strerror(errno));
+}
+
+void hook_build_steamrt_vendors(NYA_BuildRule* rule) {
+    nya_unused(rule);
+
+    NYA_EXPECT(nya_vendor_steamrt_build(), "while building the Steam Runtime vendors");
+}
+#endif
 
 void hook_convert_perf_data_to_plain(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);

@@ -207,6 +207,86 @@ NYA_INTERNAL NYA_BuildRule build_project_windows_x86_64 = {
 
 /*
  * ─────────────────────────────────────────────────────────
+ * STEAM
+ * ─────────────────────────────────────────────────────────
+ */
+
+/* The release build with the Steamworks plugin, and steam_api64.dll beside it where the loader looks first. */
+
+#define STEAM_WINDOWS_X86_64_OBJECT OBJECT_DIRECTORY "/" STEAM_WINDOWS_X86_64_DIRECTORY OBJECT_SUFFIX
+
+NYA_INTERNAL NYA_BuildRule compile_project_steam_windows_x86_64 = {
+    .name        = "compile_project_steam_windows_x86_64",
+    .policy      = NYA_BUILD_ALWAYS,
+    .output_file = STEAM_WINDOWS_X86_64_OBJECT,
+
+    .command = {
+        .program   = CC,
+        .arguments = {
+            BINARY_SOURCE_PATH,
+            "-c", "-o", STEAM_WINDOWS_X86_64_OBJECT,
+            CFLAGS,
+            WARNINGS,
+            INCLUDE_PATHS,
+            FLAGS_PLUGINS,
+            FLAGS_STEAM,
+            FLAGS_TARGET_WINDOWS_X86_64
+        },
+    },
+
+    .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
+    .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
+    .dependencies    = { &bundle_assets, },
+};
+
+NYA_INTERNAL NYA_BuildRule link_project_steam_windows_x86_64 = {
+    .name        = "link_project_steam_windows_x86_64",
+    .policy      = NYA_BUILD_ALWAYS,
+    .output_file = STEAM_WINDOWS_X86_64_BINARY,
+
+    .command = {
+        .program   = CC,
+        .arguments = {
+            STEAM_WINDOWS_X86_64_OBJECT,
+            "-o", STEAM_WINDOWS_X86_64_BINARY,
+            CFLAGS,
+            LINKER_FLAGS,
+            FLAGS_STEAM,
+            FLAGS_RELEASE_LINK,
+            FLAGS_RELEASE_LINK_WINDOWS_X86_64,
+            FLAGS_TARGET_WINDOWS_X86_64
+            FLAGS_WINDOWS_X86_64,
+            WINDOWS_X86_64_RESOURCES,
+        },
+    },
+
+    .pre_build_hooks  = { &hook_create_output_directory, },
+    .vendors          = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, &vendor_steam_windows_x86_64, },
+    .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
+    .dependencies     = { &compile_project_steam_windows_x86_64, &build_windows_resources, },
+    .post_build_hooks = { &hook_insert_integrity_hash, &hook_sign_windows_executable, },
+};
+
+NYA_INTERNAL NYA_BuildRule copy_steam_library_windows_x86_64 = {
+    .name        = "copy_steam_library_windows_x86_64",
+    .policy      = NYA_BUILD_IF_OUTDATED,
+    .is_metarule = true,
+    .input_file  = STEAM_LIBRARY_WINDOWS_X86_64,
+    .output_file = STEAM_WINDOWS_X86_64_LIBRARY,
+
+    .pre_build_hooks  = { &hook_create_output_directory, },
+    .post_build_hooks = { &hook_copy_file, },
+};
+
+NYA_INTERNAL NYA_BuildRule build_project_steam_windows_x86_64 = {
+    .name         = "build_project_steam_windows_x86_64",
+    .is_metarule  = true,
+    .dependencies = { &link_project_steam_windows_x86_64, &copy_steam_library_windows_x86_64, },
+};
+
+/*
+ * ─────────────────────────────────────────────────────────
  * DEVELOPER
  * ─────────────────────────────────────────────────────────
  */
