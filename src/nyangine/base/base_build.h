@@ -18,7 +18,7 @@
  * Most commands nya_build_parallel will have in flight at once.
  * */
 #define NYA_BUILD_MAX_PARALLEL_JOBS 64
-#define NYA_BUILD_MAX_VENDORS      16
+#define NYA_BUILD_MAX_VENDORS      24
 #define NYA_VENDOR_MAX_PARTS       8
 #define NYA_VENDOR_MAX_FLAGS       32
 
