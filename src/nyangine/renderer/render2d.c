@@ -101,12 +101,15 @@ struct NYA_FontAtlas {
     u32 glyph_count;
 
     /**
-     * One byte of coverage per texel, `atlas_width * atlas_height`. Kept after the first upload so later
-     * glyphs can be baked in without rasterising the whole atlas again. The shaders read one channel.
+     * One byte of coverage per texel, `atlas_width * atlas_height`. Holds glyphs baked by a run until the run
+     * uploads them. The shaders read one channel.
      * */
     u8* coverage;
 
-    /** Reused for every upload rather than created per glyph. Sized for the whole atlas. */
+    /**
+     * One cell, reused for every glyph. Mapped with cycling, since each glyph's copy in a pass still owns the
+     * previous contents until the command buffer runs.
+     * */
     SDL_GPUTransferBuffer* transfer_buffer;
 
     s32 atlas_width;
@@ -114,8 +117,8 @@ struct NYA_FontAtlas {
     s32 cell_width;
     s32 cell_height;
 
-    /** Set when a glyph is baked and cleared by the upload. See _nya_render2d_atlas_upload. */
-    b8 upload_pending;
+    /** Slots already on the GPU. Glyphs are never evicted, so the ones to upload are the slots from here on. */
+    u32 uploaded_count;
 
     /** Whether the glyphs are a distance field rather than coverage. */
     b8 sdf;
@@ -193,7 +196,7 @@ NYA_INTERNAL u32 _nya_render2d_glyph_bucket(u32 glyph_index) __attr_no_discard;
  * */
 NYA_INTERNAL TTF_Font* _nya_render2d_atlas_font(const NYA_FontAtlas* atlas) __attr_no_discard;
 
-/** Uploads the atlas if anything was baked since the last upload. */
+/** Uploads the cells baked since the last upload, one rect each. */
 NYA_INTERNAL void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas);
 
 
@@ -2000,15 +2003,12 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
 
     slot->transfer_buffer = SDL_CreateGPUTransferBuffer(
         gpu_device,
-        &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = (u32)(atlas_width * atlas_height) }
+        &(SDL_GPUTransferBufferCreateInfo){ .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = (u32)(cell_width * cell_height) }
     );
     nya_assert(slot->transfer_buffer != nullptr, "SDL_CreateGPUTransferBuffer() failed for a glyph atlas: %s", SDL_GetError());
 
+    // not uploaded empty: a glyph quad samples inside its own cell, and a cell reaches the GPU whole with its glyph.
     slot->texture = texture;
-
-    // the empty atlas is uploaded anyway, or text drawn before the first bake samples undefined memory.
-    slot->upload_pending = true;
-    _nya_render2d_atlas_upload(window, slot);
 
     // compared later to notice a reload; set with the texture so the two agree.
     slot->source_font = font;
@@ -2232,25 +2232,20 @@ void _nya_render2d_glyph_bake(NYA_FontAtlas* atlas, TTF_Font* font, u32 glyph_in
         .width  = (f32)width,
         .height = (f32)height,
     };
-
-    atlas->upload_pending = true;
 }
 
 void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
-    if (!atlas->upload_pending) return;
+    nya_assert(atlas != nullptr);
+    nya_assert(atlas->uploaded_count <= atlas->glyph_count);
+
+    if (atlas->uploaded_count == atlas->glyph_count) return;
     if (atlas->texture == nullptr || atlas->coverage == nullptr) return;
 
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
-    u32 upload_size = (u32)(atlas->atlas_width * atlas->atlas_height);
-
-    void* mapped = SDL_MapGPUTransferBuffer(gpu_device, atlas->transfer_buffer, false);
-    nya_memcpy(mapped, atlas->coverage, upload_size);
-    SDL_UnmapGPUTransferBuffer(gpu_device, atlas->transfer_buffer);
-
     /*
      * This runs inside a render pass, and a copy pass cannot open inside one, so the pass is suspended as a vertex
-     * flush does. It happens a handful of times per run.
+     * flush does. Only a text run that brings new glyphs gets here.
      */
     b8 borrowed_pass = window != nullptr && window->render_system.render_pass != nullptr;
     if (borrowed_pass) _nya_render2d_pass_suspend(window);
@@ -2258,10 +2253,39 @@ void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
     SDL_GPUCommandBuffer* command_buffer = borrowed_pass ? window->render_system.render_commands : SDL_AcquireGPUCommandBuffer(gpu_device);
 
     SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(command_buffer);
-    SDL_UploadToGPUTexture(
-        copy_pass, &(SDL_GPUTextureTransferInfo){ .transfer_buffer = atlas->transfer_buffer, .offset = 0 },
-        &(SDL_GPUTextureRegion){ .texture = atlas->texture, .w = (u32)atlas->atlas_width, .h = (u32)atlas->atlas_height, .d = 1 }, false
-    );
+
+    for (u32 slot = atlas->uploaded_count; slot < atlas->glyph_count; slot++) {
+        s32 cell_x = (s32)(slot % NYA_RENDER2D_GLYPH_COLUMNS) * atlas->cell_width;
+        s32 cell_y = (s32)(slot / NYA_RENDER2D_GLYPH_COLUMNS) * atlas->cell_height;
+
+        nya_assert(cell_x + atlas->cell_width <= atlas->atlas_width && cell_y + atlas->cell_height <= atlas->atlas_height);
+
+        // cycled: the previous glyph's copy is only recorded, so it still reads the buffer this would overwrite.
+        u8* mapped = SDL_MapGPUTransferBuffer(gpu_device, atlas->transfer_buffer, true);
+        nya_assert(mapped != nullptr, "SDL_MapGPUTransferBuffer() failed for a glyph cell: %s", SDL_GetError());
+
+        for (s32 row = 0; row < atlas->cell_height; row++) {
+            const u8* source = atlas->coverage + ((size_t)(cell_y + row) * (size_t)atlas->atlas_width) + (size_t)cell_x;
+            nya_memcpy(mapped + ((size_t)row * (size_t)atlas->cell_width), source, (size_t)atlas->cell_width);
+        }
+
+        SDL_UnmapGPUTransferBuffer(gpu_device, atlas->transfer_buffer);
+
+        SDL_UploadToGPUTexture(
+            copy_pass,
+            &(SDL_GPUTextureTransferInfo){ .transfer_buffer = atlas->transfer_buffer, .offset = 0 },
+            &(SDL_GPUTextureRegion){
+                .texture = atlas->texture,
+                .x       = (u32)cell_x,
+                .y       = (u32)cell_y,
+                .w       = (u32)atlas->cell_width,
+                .h       = (u32)atlas->cell_height,
+                .d       = 1,
+            },
+            false
+        );
+    }
+
     SDL_EndGPUCopyPass(copy_pass);
 
     if (borrowed_pass) {
@@ -2270,5 +2294,5 @@ void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* atlas) {
         SDL_SubmitGPUCommandBuffer(command_buffer);
     }
 
-    atlas->upload_pending = false;
+    atlas->uploaded_count = atlas->glyph_count;
 }

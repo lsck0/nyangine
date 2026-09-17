@@ -103,10 +103,10 @@ Open questions:
 ### Glyph atlas
 
 Atlases are R8 coverage (58 MB down to 14.5 MB across RAM and VRAM), with `NYA_RENDER2D_PIPELINE_TEXT`
-for coverage text.
+for coverage text. Glyphs upload one cell at a time through a cell sized transfer buffer: the menu and HUD
+fonts (`@44`, `@22`, `@17`) staged 3.4 MB of transfer buffers, now 7 KB. The 2D game and 3D demo report
+about 220 KiB less GTT through fdinfo; `@44` alone was over SDL's 2 MiB large allocation threshold.
 
-- `[ ]` The transfer buffer is sized for the whole atlas while one glyph bakes at a time. A cell sized
-  buffer with a rect upload saves 4.8 MB.
 - `[ ]` 512 cells sized to the largest glyph: `@44` is 1152x2176. A smaller NYA_RENDER2D_GLYPH_CAPACITY
   costs only a ceiling.
 
