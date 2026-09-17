@@ -15,8 +15,8 @@
  * nya_render3d_mesh(window, MESH_CRATE, position, scale, rotation, tint);
  * ```
  *
- * Runs after frustum culling, not instead of it. `_nya_render3d_visible` does the cheap frustum test
- * first and only tests occlusion for what survived.
+ * Runs after frustum culling, not instead of it. `_nya_render3d_visible` (render_cull.c) does the cheap
+ * frustum test first and only tests occlusion for what survived.
  *
  * Occluders must be solid and opaque. A fence or window submitted as an occluder hides what is behind
  * it.

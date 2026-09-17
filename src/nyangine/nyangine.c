@@ -23,6 +23,8 @@
 #include "nyangine/renderer/render_sort.c"
 #include "nyangine/renderer/render_lod.c"
 #include "nyangine/renderer/render_occlusion.c"
+// after the occlusion buffer it tests against. CPU only, so headless tests reach the culling render3d.c runs.
+#include "nyangine/renderer/render_cull.c"
 #if NYA_HEADLESS_ENABLED
 #include "nyangine/renderer/render2d_headless.c"
 #else
