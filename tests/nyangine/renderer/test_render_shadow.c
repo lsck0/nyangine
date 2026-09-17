@@ -483,5 +483,21 @@ s32 main(void) {
                   (f64)tiny.extent);
     }
 
+    // ── The window keeps the fit for its next scene, and what is drawn casts until told otherwise.
+    {
+        nya_render3d_shadow_set(&window, fit);
+
+        NYA_Render3DShadowFit kept = nya_render3d_shadow(&window);
+        nya_check(kept.range == RANGE && kept.strength == 0.45F, "the fit is kept as set");
+
+        nya_render3d_shadow_set(&window, (NYA_Render3DShadowFit){ 0 });
+        nya_check(nya_render3d_shadow(&window).strength == 0.0F, "zero strength turns shadows off");
+
+        nya_render3d_begin(&window, camera_at(0.0F));
+        nya_render3d_shadow_cast_set(&window, false);
+        nya_check(!window.render_system.mesh_batch.casts_shadow, "a draw can opt out of the cascades");
+        nya_render3d_end(&window);
+    }
+
     return nya_check_failures() == 0 ? 0 : 1;
 }
