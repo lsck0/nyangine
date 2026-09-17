@@ -91,7 +91,7 @@ void gny_terrain_generate(u64 seed);
 /** Draws the 2D world through `camera`: terrain, map, entities, sparks, then lights. */
 void gny_world_draw(NYA_Window* window, NYA_Camera2DTopDown camera);
 
-/** Queues the bloom and grayscale shaders and pipelines. Safe to call more than once. */
+/** Queues the grayscale shader and pipeline. Safe to call more than once. */
 void gny_post_pipelines_ensure(NYA_Window* window);
 
 /** Shows or hides the debug overlay. Showing it also logs every arena with its resident bytes. */
@@ -99,10 +99,16 @@ void gny_overlay_toggle(void);
 
 /**
  * Fills `out_passes` with this frame's post passes, at most GNY_POST_PASSES_MAX: the grade when the config names
- * a table and the key has it on, then bloom when on. Loads the table on first use and releases it once grading is
- * off, so a disabled grade holds no texture. Returns how many were written.
+ * a table and the key has it on. Loads the table on first use and releases it once grading is off, so a disabled
+ * grade holds no texture. Returns how many were written.
  * */
-u32 gny_post_passes(NYA_Window* window, const NYA_ShaderBloomUniform* bloom, OUT NYA_PostPass* out_passes);
+u32 gny_post_passes(NYA_Window* window, OUT NYA_PostPass* out_passes);
+
+/**
+ * Hands the config's bloom to the renderer, off while the key has it off. A zero field takes `scene`'s number, so
+ * each scene keeps its own look until the config sets one.
+ * */
+void gny_bloom_apply(NYA_Window* window, NYA_PostBloom scene);
 
 /** The inset camera, created on first use. */
 NYA_EntityHandle gny_world_inset_camera(void);

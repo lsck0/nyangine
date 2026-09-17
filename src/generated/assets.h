@@ -22,6 +22,7 @@
 #define NYA_ASSET_SHADER_BATCH2D_VERT                    "./assets/shader/source/batch2d.vert.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_ANTIALIAS_FRAG           "./assets/shader/source/effect_antialias.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG               "./assets/shader/source/effect_bloom.frag.hlsl"
+#define NYA_ASSET_SHADER_EFFECT_BLOOM_GATHER_FRAG        "./assets/shader/source/effect_bloom_gather.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_BLUR_FRAG                "./assets/shader/source/effect_blur.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_CRT_FRAG                 "./assets/shader/source/effect_crt.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_DEPTH_OF_FIELD_FRAG      "./assets/shader/source/effect_depth_of_field.frag.hlsl"

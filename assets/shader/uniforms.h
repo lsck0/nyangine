@@ -41,15 +41,12 @@ struct NYA_ShaderPixelateUniform {
     f32 blocks_x, blocks_y;
 };
 
-/** effect_bloom.frag.hlsl. */
+/** effect_bloom_gather.frag.hlsl and effect_bloom.frag.hlsl. See NYA_PostBloom. */
 struct NYA_ShaderBloomUniform {
-    /** One texel in uv, so the sample offsets are resolution independent. */
-    f32 texel_x, texel_y;
+    /** The spacing between the gather's taps, in uv of the full image. */
+    f32 spread_x, spread_y;
 
-    /** Luminance above which a pixel contributes to the glow. Around 0.6 for text on a dark panel. */
     f32 threshold;
-
-    /** How strongly the glow is added back. 1.0 is a soft halo; past 2 it blows out. */
     f32 intensity;
 };
 

@@ -113,6 +113,8 @@ struct NYA_ConfigEngineRenderer {
     /** A game driving the lines by speed reads `amount` as their most. */
     NYA_PostSpeedLines speed_lines;
 
+    NYA_PostBloom bloom;
+
     /** See nya_render3d_decals_set. */
     NYA_Render3DDecals decals;
 

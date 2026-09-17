@@ -816,6 +816,7 @@ struct NYA_RenderSystemWindow {
     NYA_PostAntialias        post_antialias;
     NYA_PostDepthOfField     post_depth_of_field;
     NYA_PostSpeedLines       post_speed_lines;
+    NYA_PostBloom            post_bloom;
     NYA_PostDebugView        post_debug_view;
 
     /** This frame so far, and the last finished one. The draw calls are filled in when a frame finishes. */

@@ -89,17 +89,14 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** The handle the bloom pipeline asset is registered under. */
-#define GNY_PIPELINE_BLOOM "gny_bloom_pipeline"
-
 /** The pass that greys out the 2D world while the pause menu is open. */
 #define GNY_PIPELINE_GRAYSCALE "gny_grayscale_pipeline"
 
 /** The handle the colour grading pipeline is registered under. See gny_post_passes. */
 #define GNY_PIPELINE_GRADE "gny_grade_pipeline"
 
-/** Passes a scene's chain can hold: the grade and bloom from gny_post_passes, and the pause grey. */
-#define GNY_POST_PASSES_MAX 3
+/** Passes a scene's chain can hold: the grade from gny_post_passes, and the pause grey. */
+#define GNY_POST_PASSES_MAX 2
 
 /**
  * Luminance a pixel needs before it glows in the 2D world. Half is about a lit crate; the terrain fill (~0.15)
@@ -110,10 +107,7 @@
 /** How hard the glow is added back. Below one, so a glowing crate keeps its edges and colour. */
 #define GNY_BLOOM_2D_INTENSITY 0.70F
 
-/**
- * Spacing of the bloom kernel's samples, in pixels. The 5x5 kernel steps ±2 texels, which at the true texel
- * size is an invisible halo; too large and the taps separate into a boxy star. Three looks right.
- * */
+/** Pixels between the bloom's taps. See NYA_PostBloom.spread. */
 #define GNY_BLOOM_2D_SPREAD 3.0F
 
 /*

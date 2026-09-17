@@ -101,6 +101,9 @@ void _gny_camera_render_primary(NYA_Window* window, NYA_Camera2DTopDown camera) 
     // no depth: nothing in the 2D world tests it, and at 4x it is 14 MB.
     world->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_NONE };
 
+    // before the chain begins, which makes the glow's target. the 2D world's numbers; see GNY_BLOOM_2D_THRESHOLD.
+    gny_bloom_apply(window, (NYA_PostBloom){ .threshold = GNY_BLOOM_2D_THRESHOLD, .intensity = GNY_BLOOM_2D_INTENSITY, .spread = GNY_BLOOM_2D_SPREAD });
+
     if (!nya_post_begin(window, &world->post)) {
         gny_world_draw(window, camera);
         return;
@@ -108,19 +111,10 @@ void _gny_camera_render_primary(NYA_Window* window, NYA_Camera2DTopDown camera) 
 
     gny_world_draw(window, camera);
 
-    // the 2D world's numbers; the 3D scene runs the same pipeline with its own. See GNY_BLOOM_2D_THRESHOLD.
-    NYA_ShaderBloomUniform bloom = {
-        .texel_x   = GNY_BLOOM_2D_SPREAD / (f32)world->post.width,
-        .texel_y   = GNY_BLOOM_2D_SPREAD / (f32)world->post.height,
-        .threshold = GNY_BLOOM_2D_THRESHOLD,
-        .intensity = GNY_BLOOM_2D_INTENSITY,
-    };
-
     NYA_PostPass passes[GNY_POST_PASSES_MAX];
-    u32          pass_count = gny_post_passes(window, &bloom, passes);
+    u32          pass_count = gny_post_passes(window, passes);
 
-    // greyed out behind the pause menu. with bloom on that is two passes, and only then does the chain hold a second
-    // target.
+    // greyed out behind the pause menu. with bloom or a grade on the chain holds a second target.
     if (nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_PAUSE_MENU_ID) != nullptr) passes[pass_count++] = (NYA_PostPass){ .pipeline = GNY_PIPELINE_GRAYSCALE };
 
     // zero passes puts the captured world back on the window unchanged.

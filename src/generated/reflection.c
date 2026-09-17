@@ -159,6 +159,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
     { .name = "antialias", .type = &_NYA_REFLECT_NYA_PostAntialias, .offset = nya_offsetof(NYA_ConfigEngineRenderer, antialias), .hint = NYA_HINT_NONE },
     { .name = "depth_of_field", .type = &_NYA_REFLECT_NYA_PostDepthOfField, .offset = nya_offsetof(NYA_ConfigEngineRenderer, depth_of_field), .hint = NYA_HINT_NONE },
     { .name = "speed_lines", .type = &_NYA_REFLECT_NYA_PostSpeedLines, .offset = nya_offsetof(NYA_ConfigEngineRenderer, speed_lines), .hint = NYA_HINT_NONE },
+    { .name = "bloom", .type = &_NYA_REFLECT_NYA_PostBloom, .offset = nya_offsetof(NYA_ConfigEngineRenderer, bloom), .hint = NYA_HINT_NONE },
     { .name = "decals", .type = &_NYA_REFLECT_NYA_Render3DDecals, .offset = nya_offsetof(NYA_ConfigEngineRenderer, decals), .hint = NYA_HINT_NONE },
     { .name = "output", .type = &_NYA_REFLECT_NYA_RenderOutput, .offset = nya_offsetof(NYA_ConfigEngineRenderer, output), .hint = NYA_HINT_NONE },
     { .name = "debug_view", .type = &_NYA_REFLECT_NYA_PostDebugView, .offset = nya_offsetof(NYA_ConfigEngineRenderer, debug_view), .hint = NYA_HINT_NONE },
@@ -173,7 +174,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .size = sizeof(NYA_ConfigEngineRenderer),
     .alignment = alignof(NYA_ConfigEngineRenderer),
     .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
-    .field_count = 15,
+    .field_count = 16,
 };
 
 /* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
@@ -430,6 +431,24 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_PostSpeedLines = {
     .field_count = 7,
 };
 
+/* NYA_PostBloom, src/nyangine/renderer/render_post.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PostBloom_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_PostBloom, enabled), .hint = NYA_HINT_NONE },
+    { .name = "threshold", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostBloom, threshold), .hint = NYA_HINT_NONE },
+    { .name = "intensity", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostBloom, intensity), .hint = NYA_HINT_NONE },
+    { .name = "spread", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_PostBloom, spread), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PostBloom = {
+    .name = "NYA_PostBloom",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PostBloom),
+    .alignment = alignof(NYA_PostBloom),
+    .fields = _NYA_REFLECT_NYA_PostBloom_FIELDS,
+    .field_count = 4,
+};
+
 /* NYA_PostDebugView, src/nyangine/renderer/render_post.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_PostDebugView_VARIANTS[] = {
@@ -521,6 +540,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_PostFocus,
     &_NYA_REFLECT_NYA_PostDepthOfField,
     &_NYA_REFLECT_NYA_PostSpeedLines,
+    &_NYA_REFLECT_NYA_PostBloom,
     &_NYA_REFLECT_NYA_PostDebugView,
     &_NYA_REFLECT_NYA_UIStyle,
 };

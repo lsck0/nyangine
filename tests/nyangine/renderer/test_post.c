@@ -199,6 +199,11 @@ s32 main(void) {
 
         window.render_system.mesh_batch.camera = (NYA_Camera3DPerspective){ 0 };
 
+        nya_post_bloom_set(&window, (NYA_PostBloom){ .enabled = true, .threshold = -1.0F, .intensity = 9.0F, .spread = 100.0F });
+        NYA_PostBloom bloom = nya_post_bloom(&window);
+        nya_check(bloom.threshold == 0.0F && bloom.intensity == 4.0F && bloom.spread == NYA_POST_BLOOM_SPREAD_MAX, "bloom clamps");
+        nya_post_bloom_set(&window, (NYA_PostBloom){ 0 });
+
         // a headless window has no swapchain, so HDR is kept as asked and never presented.
         nya_render_output_set(&window, (NYA_RenderOutput){ .hdr = true, .peak = 4.0F });
         nya_check(nya_render_output(&window).hdr && nya_render_output(&window).peak == 4.0F, "the output reads back as given");
@@ -263,6 +268,17 @@ s32 main(void) {
         nya_check(nya_post_begin(&window, &chain), "depth of field off");
         nya_post_end(&window, &chain, nullptr, 0);
         nya_check(!chain.targets[0].options.normals && chain.blur.width == 0, "turning it off releases the blur and the normal buffer");
+
+        // bloom gathers into the same half resolution target, and reads no normals.
+        nya_post_bloom_set(&window, (NYA_PostBloom){ .enabled = true });
+        nya_check(nya_post_begin(&window, &chain), "bloom on");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(!chain.targets[0].options.normals && chain.blur.width == 160 && chain.blur.height == 100, "bloom adds only the half blur target");
+
+        nya_post_bloom_set(&window, (NYA_PostBloom){ 0 });
+        nya_check(nya_post_begin(&window, &chain), "bloom off");
+        nya_post_end(&window, &chain, nullptr, 0);
+        nya_check(chain.blur.width == 0, "turning bloom off releases the blur target");
 
         nya_post_antialias_set(&window, (NYA_PostAntialias){ 0 });
     }

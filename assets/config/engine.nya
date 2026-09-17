@@ -48,6 +48,10 @@ nya 2 0
             speed_lines: object {
                 amount: f32 0.0;
             };
+            // A zero field keeps the scene's own number. See NYA_PostBloom; b toggles it in both scenes.
+            bloom: object {
+                enabled: b8 true;
+            };
             // See NYA_Render3DDecals.
             decals: object {
                 enabled: b8 true;

@@ -268,30 +268,6 @@ void gny_overlay_toggle(void) {
 }
 
 void gny_post_pipelines_ensure(NYA_Window* window) {
-    /* The bloom pass: one fragment shader, paired with the batch's vertex stage. */
-    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
-        .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
-        .handle    = NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG,
-        .as_shader = { .num_samplers = 1, .num_uniform_buffers = 1 },
-    }), "while queueing the bloom fragment shader");
-
-    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
-        .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
-        .handle               = GNY_PIPELINE_BLOOM,
-        .as_graphics_pipeline = {
-            .window                 = window,
-            .vertex_shader_handle   = NYA_ASSET_SHADER_BATCH2D_VERT,
-            .fragment_shader_handle = NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG,
-
-            // the halo spreads onto transparent pixels, so it blends.
-            .blend = true,
-
-            // required, and silently wrong if missing: the default 3D layout would read twenty-byte vertices at a 36-byte
-            // stride.
-            .vertex_layout = NYA_VERTEX_LAYOUT_2D,
-        },
-    }), "while queueing the bloom pipeline");
-
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
         .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
         .handle    = NYA_ASSET_SHADER_EFFECT_GRAYSCALE_FRAG,
@@ -311,9 +287,8 @@ void gny_post_pipelines_ensure(NYA_Window* window) {
     }), "while queueing the grayscale pipeline");
 }
 
-u32 gny_post_passes(NYA_Window* window, const NYA_ShaderBloomUniform* bloom, OUT NYA_PostPass* out_passes) {
+u32 gny_post_passes(NYA_Window* window, OUT NYA_PostPass* out_passes) {
     nya_assert(window != nullptr);
-    nya_assert(bloom != nullptr);
     nya_assert(out_passes != nullptr);
 
     GNY_World*                      world    = gny_world();
@@ -358,7 +333,7 @@ u32 gny_post_passes(NYA_Window* window, const NYA_ShaderBloomUniform* bloom, OUT
 
     u32 count = 0;
 
-    // graded before bloom, so the glow is added to the look rather than recoloured by it.
+    // the engine blooms after this, so the glow is added to the look rather than recoloured by it.
     if (grading) {
         world->grade_uniform = (NYA_ShaderLutUniform){ .strength = nya_clamp(renderer->grade_strength, 0.0F, 1.0F) };
 
@@ -370,17 +345,23 @@ u32 gny_post_passes(NYA_Window* window, const NYA_ShaderBloomUniform* bloom, OUT
         };
     }
 
-    if (world->bloom_enabled) {
-        out_passes[count++] = (NYA_PostPass){
-            .pipeline     = GNY_PIPELINE_BLOOM,
-            .uniform      = bloom,
-            .uniform_size = sizeof(*bloom),
-        };
-    }
-
     nya_assert(count <= GNY_POST_PASSES_MAX);
 
     return count;
+}
+
+void gny_bloom_apply(NYA_Window* window, NYA_PostBloom scene) {
+    nya_assert(window != nullptr);
+
+    NYA_PostBloom bloom = NYA_CONFIG.engine.renderer.bloom;
+
+    bloom.enabled = bloom.enabled && gny_world()->bloom_enabled;
+
+    if (bloom.threshold <= 0.0F) bloom.threshold = scene.threshold;
+    if (bloom.intensity <= 0.0F) bloom.intensity = scene.intensity;
+    if (bloom.spread <= 0.0F) bloom.spread = scene.spread;
+
+    nya_post_bloom_set(window, bloom);
 }
 
 f32x2 gny_screen_to_world(const NYA_Window* window, f32x2 screen) {

@@ -26,6 +26,7 @@
  * nya_post_antialias_set(window, (NYA_PostAntialias){ .enabled = true });
  * nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ .focus = NYA_POST_FOCUS_TILT_SHIFT });
  * nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ .amount = camera_speed / top_speed, .motion = camera_velocity });
+ * nya_post_bloom_set(window, (NYA_PostBloom){ .enabled = true });
  * ```
  *
  * They run inside nya_post_end before the caller's passes, occlusion then ink then depth of field then
@@ -33,8 +34,8 @@
  * is drawn on, and comes before antialiasing, which smooths the cut between sharp and blurred. A feature that is off
  * has no pass, no pipeline and no target. Ink, occlusion and distance focus read the scene normal buffer
  * (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only while one of them or a debug view is on,
- * and they skip a frame whose capture drew no 3D. Speed lines are drawn after the caller's passes, so a grade or a
- * bloom leaves them as drawn.
+ * and they skip a frame whose capture drew no 3D. Bloom and speed lines are drawn after the caller's passes, so a grade
+ * shapes what glows and leaves the lines as drawn.
  * */
 #pragma once
 
@@ -98,6 +99,18 @@
 /** Distinct amounts of blur, when NYA_PostDepthOfField.layers is zero. */
 #define NYA_POST_DEPTH_OF_FIELD_LAYERS 3
 
+/** Luma above which a pixel glows, when NYA_PostBloom.threshold is zero. */
+#define NYA_POST_BLOOM_THRESHOLD 0.75F
+
+/** How strongly the glow is added back, when NYA_PostBloom.intensity is zero. Past two it blows out. */
+#define NYA_POST_BLOOM_INTENSITY 1.0F
+
+/** Pixels of the full image between the glow's taps, when NYA_PostBloom.spread is zero. */
+#define NYA_POST_BLOOM_SPREAD 3.0F
+
+/** The widest spread allowed. The taps are fixed, so past this they separate into a grid. */
+#define NYA_POST_BLOOM_SPREAD_MAX 8.0F
+
 /** Lines around the full circle, when NYA_PostSpeedLines.density is zero. */
 #define NYA_POST_SPEED_LINES_DENSITY 140.0F
 
@@ -120,6 +133,7 @@ typedef struct NYA_PostAmbientOcclusion NYA_PostAmbientOcclusion;
 typedef struct NYA_PostAntialias        NYA_PostAntialias;
 typedef struct NYA_PostDepthOfField     NYA_PostDepthOfField;
 typedef struct NYA_PostSpeedLines       NYA_PostSpeedLines;
+typedef struct NYA_PostBloom            NYA_PostBloom;
 typedef enum NYA_PostFocus              NYA_PostFocus;
 typedef enum NYA_PostDebugView          NYA_PostDebugView;
 
@@ -284,6 +298,24 @@ struct NYA_PostSpeedLines {
     NYA_Color color;
 };
 
+/**
+ * A glow around what is brighter than a threshold. The bright parts are gathered and blurred at half resolution, in
+ * the target depth of field uses, and added back over the image.
+ * */
+// @reflect
+struct NYA_PostBloom {
+    b8 enabled;
+
+    /** Luma above which a pixel glows. See NYA_POST_BLOOM_THRESHOLD. */
+    f32 threshold;
+
+    /** How strongly the glow is added back. See NYA_POST_BLOOM_INTENSITY. */
+    f32 intensity;
+
+    /** Pixels between the blur's taps; wider carries the glow further. See NYA_POST_BLOOM_SPREAD. */
+    f32 spread;
+};
+
 /** A buffer shown in place of the image, for looking at what the cartoon passes read. */
 // @reflect
 enum NYA_PostDebugView {
@@ -321,7 +353,10 @@ struct NYA_PostChain {
     /** The half resolution occlusion, single sampled. Exists only while occlusion or a debug view is on. */
     NYA_RenderTexture half;
 
-    /** The half resolution depth of field blur, single sampled. Exists only while depth of field is on. */
+    /**
+     * The half resolution blur, single sampled: depth of field's, then bloom's after the caller's passes. Exists only
+     * while one of them is on.
+     * */
     NYA_RenderTexture blur;
 
     /**
@@ -379,6 +414,10 @@ NYA_API NYA_PostDepthOfField nya_post_depth_of_field(NYA_Window* window) __attr_
 /** Sets this window's speed lines, clamped like the ink. Cheap enough to drive every frame. */
 NYA_API void               nya_post_speed_lines_set(NYA_Window* window, NYA_PostSpeedLines speed_lines);
 NYA_API NYA_PostSpeedLines nya_post_speed_lines(NYA_Window* window) __attr_no_discard;
+
+/** Sets this window's bloom, clamped like the ink. */
+NYA_API void          nya_post_bloom_set(NYA_Window* window, NYA_PostBloom bloom);
+NYA_API NYA_PostBloom nya_post_bloom(NYA_Window* window) __attr_no_discard;
 
 /** Shows a buffer instead of the image. An unknown view reads as none. */
 NYA_API void              nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view);

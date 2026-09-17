@@ -208,6 +208,7 @@ void gny_layer_cube3d_on_destroy(NYA_Window* window) {
     nya_post_debug_view_set(window, NYA_POST_DEBUG_VIEW_NONE);
     nya_post_depth_of_field_set(window, (NYA_PostDepthOfField){ 0 });
     nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ 0 });
+    nya_post_bloom_set(window, (NYA_PostBloom){ 0 });
     nya_render3d_decals_set(window, (NYA_Render3DDecals){ 0 });
 
     // the bloom target is shared with the 2D game layer. released here too, since going from the menu into this
@@ -1060,8 +1061,11 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     _gny_cube3d_effects_apply(window, scene, eye);
 
+    // this scene's numbers; see GNY_BLOOM_3D_THRESHOLD.
+    gny_bloom_apply(window, (NYA_PostBloom){ .threshold = GNY_BLOOM_3D_THRESHOLD, .intensity = GNY_BLOOM_3D_INTENSITY, .spread = GNY_BLOOM_3D_SPREAD });
+
     b8 cartoon = look->ink.enabled || look->ambient_occlusion.enabled || look->antialias.enabled || look->debug_view != NYA_POST_DEBUG_VIEW_NONE
-              || look->depth_of_field.focus != NYA_POST_FOCUS_OFF || look->speed_lines.amount > 0.0F;
+              || look->depth_of_field.focus != NYA_POST_FOCUS_OFF || look->speed_lines.amount > 0.0F || nya_post_bloom(window).enabled;
 
     /*
      * Through the post chain when bloom or a cartoon pass wants it, otherwise straight to the window. The lamp beads
@@ -1070,16 +1074,8 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     // the chain is shared with the 2D world, which drops the depth this scene needs.
     bloom_world->post.scene = (NYA_RenderTextureOptions){ .depth = NYA_RENDER_TEXTURE_DEPTH_ATTACHED };
 
-    // this scene's numbers; see GNY_BLOOM_3D_THRESHOLD. the window's size, which the chain's targets match.
-    NYA_ShaderBloomUniform bloom = {
-        .texel_x   = GNY_BLOOM_3D_SPREAD / (f32)nya_max(window->screen_width, 1U),
-        .texel_y   = GNY_BLOOM_3D_SPREAD / (f32)nya_max(window->screen_height, 1U),
-        .threshold = GNY_BLOOM_3D_THRESHOLD,
-        .intensity = GNY_BLOOM_3D_INTENSITY,
-    };
-
     NYA_PostPass passes[GNY_POST_PASSES_MAX];
-    u32          pass_count = gny_post_passes(window, &bloom, passes);
+    u32          pass_count = gny_post_passes(window, passes);
 
     // minimised or mid resize, nya_post_begin fails and the scene goes straight to the window like the
     // 2D path does, rather than skipping the frame.

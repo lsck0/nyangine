@@ -16,6 +16,8 @@
 #define _NYA_POST_PIPELINE_BLUR            "nya_post_depth_of_field_blur_pipeline"
 #define _NYA_POST_PIPELINE_FOCUS           "nya_post_depth_of_field_pipeline"
 #define _NYA_POST_PIPELINE_SPEED_LINES     "nya_post_speed_lines_pipeline"
+#define _NYA_POST_PIPELINE_BLOOM_GATHER    "nya_post_bloom_gather_pipeline"
+#define _NYA_POST_PIPELINE_BLOOM           "nya_post_bloom_pipeline"
 #define _NYA_POST_PIPELINE_DEBUG           "nya_post_debug_pipeline"
 
 /** Near black with a little blue, what NYA_PostInk.color falls back to. */
@@ -117,8 +119,8 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
         );
     }
 
-    // its own, since the debug view reads the occlusion after depth of field has run.
-    b8 wants_blur   = render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF;
+    // its own, since the debug view reads the occlusion after depth of field has run. bloom reuses it later on.
+    b8 wants_blur   = render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF || render->post_bloom.enabled;
     b8 blur_matches = chain->blur.width == half_width && chain->blur.height == half_height;
 
     if (!wants_blur || !blur_matches) nya_render_texture_destroy(&chain->blur);
@@ -394,8 +396,8 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
      * The built-in passes, queued only for what is on. Their uniforms live here until the passes below have run.
      */
     _NYA_PostStep before[_NYA_POST_BUILT_IN_MAX];
-    // speed lines, then the debug view.
-    _NYA_PostStep after[2];
+    // the bloom's gather and apply, speed lines, then the debug view.
+    _NYA_PostStep after[4];
 
     u32 before_count = 0;
     u32 after_count  = 0;
@@ -406,6 +408,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     struct NYA_ShaderAntialiasUniform         antialias = { 0 };
     struct NYA_ShaderDepthOfFieldUniform      focus     = { 0 };
     struct NYA_ShaderSpeedLinesUniform        lines     = { 0 };
+    struct NYA_ShaderBloomUniform             bloom     = { 0 };
     struct NYA_ShaderSceneDebugUniform        debug     = { 0 };
 
     const NYA_PostAmbientOcclusion* occlusion_options = &render->post_ambient_occlusion;
@@ -498,6 +501,36 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
         };
     }
 
+    const NYA_PostBloom* bloom_options = &render->post_bloom;
+
+    // turned on between begin and end, the frame has no target to gather into yet.
+    if (bloom_options->enabled && chain->blur.texture != nullptr && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM_GATHER, NYA_ASSET_SHADER_EFFECT_BLOOM_GATHER_FRAG, 1, true)
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM, NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG, 2, false)) {
+        f32 spread = bloom_options->spread > 0.0F ? bloom_options->spread : NYA_POST_BLOOM_SPREAD;
+
+        bloom = (struct NYA_ShaderBloomUniform){
+            .spread_x  = spread / (f32)chain->width,
+            .spread_y  = spread / (f32)chain->height,
+            .threshold = bloom_options->threshold > 0.0F ? bloom_options->threshold : NYA_POST_BLOOM_THRESHOLD,
+            .intensity = bloom_options->intensity > 0.0F ? bloom_options->intensity : NYA_POST_BLOOM_INTENSITY,
+        };
+
+        after[after_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_BLOOM_GATHER,
+            .uniform      = &bloom,
+            .uniform_size = sizeof(bloom),
+            .inputs       = _NYA_POST_INPUT_SOURCE,
+            .target       = &chain->blur,
+        };
+
+        after[after_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_BLOOM,
+            .uniform      = &bloom,
+            .uniform_size = sizeof(bloom),
+            .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_BLUR,
+        };
+    }
+
     const NYA_PostSpeedLines* lines_options = &render->post_speed_lines;
 
     if (lines_options->amount > 0.0F
@@ -552,14 +585,16 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     }
 
     nya_assert(before_count <= _NYA_POST_BUILT_IN_MAX);
+    nya_assert(after_count <= nya_carray_length(after));
 
     /*
      * A caller's pass whose pipeline has not finished loading is skipped rather than drawn. The built-in ones were
      * only queued once loaded.
      */
-    u32 usable = after_count;
+    u32 usable = 0;
 
     for (u32 i = 0; i < before_count; i++) usable += before[i].target != nullptr ? 0 : 1;
+    for (u32 i = 0; i < after_count; i++) usable += after[i].target != nullptr ? 0 : 1;
 
     for (u32 i = 0; i < pass_count; i++) {
         if (_nya_post_pass_ready(&passes[i])) usable++;
@@ -744,6 +779,22 @@ NYA_PostSpeedLines nya_post_speed_lines(NYA_Window* window) {
     nya_assert(window != nullptr);
 
     return window->render_system.post_speed_lines;
+}
+
+void nya_post_bloom_set(NYA_Window* window, NYA_PostBloom bloom) {
+    nya_assert(window != nullptr);
+
+    bloom.threshold = nya_clamp(bloom.threshold, 0.0F, 4.0F);
+    bloom.intensity = nya_clamp(bloom.intensity, 0.0F, 4.0F);
+    bloom.spread    = nya_clamp(bloom.spread, 0.0F, NYA_POST_BLOOM_SPREAD_MAX);
+
+    window->render_system.post_bloom = bloom;
+}
+
+NYA_PostBloom nya_post_bloom(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.post_bloom;
 }
 
 void nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view) {

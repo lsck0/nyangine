@@ -30,6 +30,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostAntialias;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostFocus;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDepthOfField;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostSpeedLines;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostBloom;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostDebugView;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
