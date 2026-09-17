@@ -119,7 +119,6 @@ typedef struct {
 
     _NYA_UILayout layouts[NYA_UI_DEPTH_MAX];
     u32           depth;
-    NYA_Rectf     last_rect;
 
     _NYA_UIPanelState panels[NYA_UI_PANELS_MAX];
     u32               panel_count;
@@ -206,7 +205,6 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     _nya_ui.widget_count = 0;
     _nya_ui.focus_found  = U32_MAX;
     _nya_ui.depth        = 0;
-    _nya_ui.last_rect    = (NYA_Rectf){ 0 };
 
     _nya_ui_input_read(pass);
 
@@ -311,8 +309,6 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
         bounds = _nya_ui_place(size, false);
     }
 
-    _nya_ui.last_rect = bounds;
-
     _NYA_UILayout* layout = _nya_ui_layout_push();
     *layout               = (_NYA_UILayout){
         .origin      = { bounds.x + frame, bounds.y + frame + header },
@@ -378,8 +374,6 @@ void nya_ui_panel_end(NYA_UI* ui) {
     _NYA_UIPanelState* state = &_nya_ui.panels[layout->panel];
     state->size              = size;
     state->measured          = layout->line_height > 0.0F;
-
-    _nya_ui.last_rect = (NYA_Rectf){ layout->bounds.x, layout->bounds.y, size.x, size.y };
 }
 
 void nya_ui_row_begin(NYA_UI* ui, u32 columns) {
@@ -632,12 +626,6 @@ b8 nya_ui_cancelled(const NYA_UI* ui) {
     return _nya_ui.cancel;
 }
 
-NYA_Rectf nya_ui_last_rect(const NYA_UI* ui) {
-    nya_assert(ui != nullptr && ui == _nya_ui.open);
-
-    return _nya_ui.last_rect;
-}
-
 void nya_ui_focus_reset(NYA_Window* window) {
     nya_assert(window != nullptr);
 
@@ -862,8 +850,7 @@ NYA_Rectf _nya_ui_place(f32x2 natural, b8 fill) {
         layout->used.y += gap + natural.y;
     }
 
-    layout->count     += 1;
-    _nya_ui.last_rect  = rect;
+    layout->count += 1;
 
     return rect;
 }

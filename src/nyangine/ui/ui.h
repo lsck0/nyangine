@@ -18,7 +18,6 @@
  *   nya_ui_space                          room in the layout for custom drawing
  *   nya_ui_scrim                          dims the whole window
  *   nya_ui_cancelled                      whether cancel was pressed this pass
- *   nya_ui_last_rect                      where the last widget went
  *   nya_ui_focus_reset                    focus goes back to the first widget
  *   nya_ui_modal_event                    stops key and mouse events at a modal layer
  *   nya_ui_style_set, nya_ui_style_get    the look, per window
@@ -312,9 +311,6 @@ NYA_API b8 nya_ui_slider(NYA_UI* ui, NYA_ConstCString label, f32* value, f32 min
 
 /** Whether cancel was pressed this pass. Always false in a draw pass. */
 NYA_API b8 nya_ui_cancelled(const NYA_UI* ui) __attr_no_discard;
-
-/** The window rect the last widget, row or panel took. */
-NYA_API NYA_Rectf nya_ui_last_rect(const NYA_UI* ui) __attr_no_discard;
 
 /** Moves focus to the first widget of the next pass and drops any press. For a menu that opens fresh. */
 NYA_API void nya_ui_focus_reset(NYA_Window* window);

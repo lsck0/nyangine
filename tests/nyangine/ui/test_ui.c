@@ -44,15 +44,23 @@ static f32x2 center_of(NYA_Rectf rect) {
     return (f32x2){ rect.x + (rect.width * 0.5F), rect.y + (rect.height * 0.5F) };
 }
 
-/** Three buttons in a panel; which one activated this pass, or -1. Also where the second one went. */
-static s32 menu(NYA_UIPass pass, NYA_ConstCString labels[3], OUT NYA_Rectf* second) {
+/**
+ * Where `menu` puts its second button: the panel's offset, then its frame of padding and outline, then one button
+ * and a gap down, as wide as the panel inside its frame.
+ * */
+#define SECOND ((NYA_Rectf){ 20.0F + 12.0F, 30.0F + 12.0F + 40.0F + 6.0F, 300.0F - 24.0F, 40.0F })
+
+/** And its slider, alone at the top left of a 400 wide panel. */
+#define SLIDER ((NYA_Rectf){ 12.0F, 12.0F, 400.0F - 24.0F, 40.0F })
+
+/** Three buttons in a panel; which one activated this pass, or -1. */
+static s32 menu(NYA_UIPass pass, NYA_ConstCString labels[3]) {
     s32     activated = -1;
     NYA_UI* ui        = nya_ui_begin(&window, pass);
 
     if (nya_ui_panel_begin(ui, "menu", (NYA_UIPanel){ .offset = { 20.0F, 30.0F }, .width = 300.0F })) {
         for (u32 i = 0; i < 3; i++) {
             if (nya_ui_button(ui, labels[i])) activated = (s32)i;
-            if (i == 1 && second != nullptr) *second = nya_ui_last_rect(ui);
         }
         nya_ui_panel_end(ui);
     }
@@ -61,14 +69,13 @@ static s32 menu(NYA_UIPass pass, NYA_ConstCString labels[3], OUT NYA_Rectf* seco
     return activated;
 }
 
-/** An input pass over a slider and a toggle. Whether either changed, and where the slider went. */
-static b8 options(f32* value, b8* on, OUT NYA_Rectf* slider) {
+/** An input pass over a slider and a toggle. Whether either changed. */
+static b8 options(f32* value, b8* on) {
     b8      changed = false;
     NYA_UI* ui      = nya_ui_begin(&window, NYA_UI_PASS_INPUT);
 
     if (nya_ui_panel_begin(ui, "options", (NYA_UIPanel){ .width = 400.0F })) {
         changed = nya_ui_slider(ui, "volume", value, 0.0F, 1.0F, 0.25F);
-        *slider = nya_ui_last_rect(ui);
         changed = nya_ui_toggle(ui, "fullscreen", on) || changed;
         nya_ui_panel_end(ui);
     }
@@ -133,43 +140,53 @@ s32 main(void) {
         nya_check(nya_ui_style_get(&other).padding == NYA_UI_PADDING, "a new window in the same slot starts over");
     }
 
-    // ── Layout: a top left panel stacks full width buttons inside its frame, a pass later it can centre.
+    // ── Layout: a top left panel stacks full width buttons inside its frame, a pass later it can centre, and rows split it.
     {
-        NYA_Rectf second = { 0 };
-        (void)menu(NYA_UI_PASS_INPUT, abc, &second);
+        // the pointer finds the second button exactly where the frame, the first button and the gap put it.
+        pointer_move((f32x2){ SECOND.x + 1.0F, SECOND.y + 1.0F });
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 1, "a click just inside the second button's corner is on it");
+        tick();
+
+        pointer_move((f32x2){ SECOND.x + 1.0F, SECOND.y - 3.0F });
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == -1, "and one in the gap above it is on nothing");
+        tick();
 
         f32 frame = 10.0F + 2.0F;
-        nya_check(second.x == 20.0F + frame && second.width == 300.0F - (frame * 2.0F), "inside the frame, got x %f width %f", (f64)second.x, (f64)second.width);
-        nya_check(second.y == 30.0F + frame + 40.0F + 6.0F && second.height == 40.0F, "one item and a gap down, got y %f", (f64)second.y);
 
         for (u32 pass = 0; pass < 2; pass++) {
-            NYA_UI* ui = nya_ui_begin(&window, NYA_UI_PASS_DRAW);
+            NYA_UI*   ui    = nya_ui_begin(&window, NYA_UI_PASS_DRAW);
+            NYA_Rectf inner = { 0 };
+
             if (nya_ui_panel_begin(ui, "centred", (NYA_UIPanel){ .anchor = NYA_UI_ANCHOR_CENTER, .width = 300.0F })) {
-                nya_ui_label(ui, "hello");
+                inner = nya_ui_space(ui, 0.0F, 50.0F);
                 nya_ui_panel_end(ui);
             }
 
-            NYA_Rectf panel = nya_ui_last_rect(ui);
             nya_ui_end(ui);
 
-            f32 height = (frame * 2.0F) + nya_font_metrics(NYA_FONT_NONE).line_height;
-            if (pass == 1) nya_check(panel.x == 250.0F && fabsf(panel.y - ((600.0F - height) * 0.5F)) < 1e-3F, "centred from its measured size, got %f %f", (f64)panel.x, (f64)panel.y);
+            f32 height = (frame * 2.0F) + 50.0F;
+            if (pass == 1) {
+                nya_check(inner.x == 250.0F + frame && inner.y == ((600.0F - height) * 0.5F) + frame && inner.width == 300.0F - (frame * 2.0F),
+                          "centred from its measured size, got %f %f %f", (f64)inner.x, (f64)inner.y, (f64)inner.width);
+            }
         }
 
         NYA_UI* ui = nya_ui_begin(&window, NYA_UI_PASS_DRAW);
         if (nya_ui_panel_begin(ui, "row", (NYA_UIPanel){ .width = 300.0F })) {
             nya_ui_row_begin(ui, 2);
             (void)nya_ui_button(ui, "left");
-            (void)nya_ui_button(ui, "right");
-            NYA_Rectf right = nya_ui_last_rect(ui);
+            NYA_Rectf right = nya_ui_space(ui, 0.0F, 40.0F);
             nya_ui_row_end(ui);
-            nya_ui_label(ui, "under");
-            NYA_Rectf under = nya_ui_last_rect(ui);
+            NYA_Rectf under = nya_ui_space(ui, 0.0F, 10.0F);
             nya_ui_panel_end(ui);
 
             f32 cell = (276.0F - 6.0F) * 0.5F;
             nya_check(right.x == frame + cell + 6.0F && right.width == cell && right.y == frame, "a row splits the width into cells, got %f %f", (f64)right.x, (f64)right.width);
-            nya_check(under.y == frame + 40.0F + 6.0F, "and what follows goes under the row, got %f", (f64)under.y);
+            nya_check(under.y == frame + 40.0F + 6.0F && under.x == frame, "and what follows goes under the row, got %f", (f64)under.y);
         }
         nya_ui_end(ui);
     }
@@ -180,31 +197,31 @@ s32 main(void) {
         tick();
 
         tap(NYA_KEY_RETURN);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == 0, "the first pass can already confirm the first button");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 0, "the first pass can already confirm the first button");
         tick();
 
         tap(NYA_KEY_UP);
-        (void)menu(NYA_UI_PASS_INPUT, abc, nullptr);
+        (void)menu(NYA_UI_PASS_INPUT, abc);
         tick();
         tap(NYA_KEY_RETURN);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == 2, "up on the first wraps to the last");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 2, "up on the first wraps to the last");
         tick();
 
         tap(NYA_KEY_DOWN);
-        (void)menu(NYA_UI_PASS_INPUT, abc, nullptr);
+        (void)menu(NYA_UI_PASS_INPUT, abc);
         tick();
         tap(NYA_KEY_RETURN);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == 0, "down on the last wraps to the first");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 0, "down on the last wraps to the first");
         tick();
     }
 
     // ── A press acts once: not in a draw pass, not again after the tick that saw it, and cancel reads the same way.
     {
         tap(NYA_KEY_RETURN);
-        nya_check(menu(NYA_UI_PASS_DRAW, abc, nullptr) == -1, "a draw pass never activates");
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == 0, "the tick after it does");
+        nya_check(menu(NYA_UI_PASS_DRAW, abc) == -1, "a draw pass never activates");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 0, "the tick after it does");
         tick();
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == -1, "and the next tick has nothing left to act on");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == -1, "and the next tick has nothing left to act on");
 
         tap(NYA_KEY_ESCAPE);
 
@@ -224,23 +241,23 @@ s32 main(void) {
         nya_app_get()->frame_stats.delta_time_s = 0.1F;
 
         key(NYA_KEY_DOWN, true);
-        (void)menu(NYA_UI_PASS_INPUT, abc, nullptr);
+        (void)menu(NYA_UI_PASS_INPUT, abc);
         tick();
 
         for (u32 i = 0; i < 4; i++) {
-            (void)menu(NYA_UI_PASS_INPUT, abc, nullptr);
-            (void)menu(NYA_UI_PASS_INPUT, abc, nullptr);
+            (void)menu(NYA_UI_PASS_INPUT, abc);
+            (void)menu(NYA_UI_PASS_INPUT, abc);
             tick();
         }
 
         tap(NYA_KEY_RETURN);
         key(NYA_KEY_DOWN, true);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == 1, "half a second held has moved only once");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 1, "half a second held has moved only once");
         tick();
 
         tap(NYA_KEY_RETURN);
         key(NYA_KEY_DOWN, true);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == 2, "then it repeats");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 2, "then it repeats");
         tick();
 
         key(NYA_KEY_DOWN, false);
@@ -252,18 +269,18 @@ s32 main(void) {
     {
         nya_ui_focus_reset(&window);
         tap(NYA_KEY_DOWN);
-        (void)menu(NYA_UI_PASS_INPUT, abc, nullptr);
+        (void)menu(NYA_UI_PASS_INPUT, abc);
         tick();
 
         NYA_ConstCString xyz[3] = { "x", "y", "z" };
-        (void)menu(NYA_UI_PASS_DRAW, xyz, nullptr);
+        (void)menu(NYA_UI_PASS_DRAW, xyz);
         tap(NYA_KEY_RETURN);
-        nya_check(menu(NYA_UI_PASS_INPUT, xyz, nullptr) == 1, "new labels in the same places keep the focused position");
+        nya_check(menu(NYA_UI_PASS_INPUT, xyz) == 1, "new labels in the same places keep the focused position");
         tick();
 
         NYA_ConstCString zxy[3] = { "z", "x", "y" };
         tap(NYA_KEY_RETURN);
-        nya_check(menu(NYA_UI_PASS_INPUT, zxy, nullptr) == 2, "a moved label takes its focus with it");
+        nya_check(menu(NYA_UI_PASS_INPUT, zxy) == 2, "a moved label takes its focus with it");
         tick();
 
         // the same label in two panels is two widgets, so this does not assert.
@@ -279,35 +296,32 @@ s32 main(void) {
 
     // ── The pointer: moving focuses, press and release on the same widget activates, anything else does not.
     {
-        NYA_Rectf second = { 0 };
-        (void)menu(NYA_UI_PASS_DRAW, abc, &second);
-
-        pointer_move(center_of(second));
+        pointer_move(center_of(SECOND));
         pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == -1, "a press alone does nothing");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == -1, "a press alone does nothing");
         tick();
 
         pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == 1, "the release over it activates");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 1, "the release over it activates");
         tick();
 
         tap(NYA_KEY_RETURN);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == 1, "and the keys carry on from where the pointer left focus");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 1, "and the keys carry on from where the pointer left focus");
         tick();
 
         pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
-        (void)menu(NYA_UI_PASS_INPUT, abc, nullptr);
+        (void)menu(NYA_UI_PASS_INPUT, abc);
         tick();
 
         pointer_move((f32x2){ 700.0F, 500.0F });
         pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == -1, "released somewhere else, nothing activates");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == -1, "released somewhere else, nothing activates");
         tick();
 
-        pointer_move(center_of(second));
+        pointer_move(center_of(SECOND));
         pointer_button(NYA_MOUSE_BUTTON_RIGHT, true);
         pointer_button(NYA_MOUSE_BUTTON_RIGHT, false);
-        nya_check(menu(NYA_UI_PASS_INPUT, abc, nullptr) == -1, "a right click is not a click");
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == -1, "a right click is not a click");
         tick();
     }
 
@@ -315,9 +329,8 @@ s32 main(void) {
     {
         nya_ui_focus_reset(&window);
 
-        f32       value  = 0.9F;
-        b8        on     = false;
-        NYA_Rectf slider = { 0 };
+        f32 value = 0.9F;
+        b8  on    = false;
 
         struct {
             NYA_Keycode key;
@@ -336,7 +349,7 @@ s32 main(void) {
 
         for (u32 i = 0; i < nya_carray_length(steps); i++) {
             tap(steps[i].key);
-            b8 changed = options(&value, &on, &slider);
+            b8 changed = options(&value, &on);
             tick();
 
             nya_check(fabsf(value - steps[i].value) < 1e-5F && on == steps[i].on && changed == steps[i].changed, "step %u: got %f %d %d", i, (f64)value,
@@ -346,34 +359,34 @@ s32 main(void) {
 
     // ── A press on a slider's label only focuses it; one on its track grabs the knob, which follows the pointer off the row.
     {
-        f32       value  = 0.5F;
-        b8        on     = false;
-        NYA_Rectf slider = { 0 };
+        f32 value = 0.5F;
+        b8  on    = false;
 
-        (void)options(&value, &on, &slider);
+        (void)options(&value, &on);
         tick();
 
-        f32 middle = slider.y + (slider.height * 0.5F);
+        NYA_Rectf slider = SLIDER;
+        f32       middle = slider.y + (slider.height * 0.5F);
 
         pointer_move((f32x2){ slider.x + 4.0F, middle });
         pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
-        (void)options(&value, &on, &slider);
+        (void)options(&value, &on);
         tick();
         nya_check(value == 0.5F, "the label end leaves the value, got %f", (f64)value);
 
         pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
-        (void)options(&value, &on, &slider);
+        (void)options(&value, &on);
         tick();
 
         pointer_move((f32x2){ slider.x + slider.width - 60.0F, middle });
         pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
-        (void)options(&value, &on, &slider);
+        (void)options(&value, &on);
         tick();
 
         f32 grabbed = value;
 
         pointer_move((f32x2){ slider.x + slider.width + 80.0F, middle - 60.0F });
-        (void)options(&value, &on, &slider);
+        (void)options(&value, &on);
         tick();
 
         nya_check(grabbed > 0.5F && grabbed < 1.0F && fmodf(grabbed, 0.25F) == 0.0F, "the track snaps the pointer to a step, got %f", (f64)grabbed);
