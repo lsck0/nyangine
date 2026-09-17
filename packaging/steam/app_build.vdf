@@ -1,0 +1,14 @@
+"AppBuild"
+{
+	"AppID" "@APP_ID@"
+	"Desc" "@DESC@"
+	"Preview" "@PREVIEW@"
+	"ContentRoot" "../content/"
+	"BuildOutput" "../output/"
+
+	"Depots"
+	{
+		"@DEPOT_ID_LINUX@" "depot_build_linux.vdf"
+		"@DEPOT_ID_WINDOWS@" "depot_build_windows.vdf"
+	}
+}
