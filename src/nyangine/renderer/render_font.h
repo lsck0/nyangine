@@ -37,6 +37,9 @@
 typedef struct NYA_Font        NYA_Font;
 typedef struct NYA_FontMetrics NYA_FontMetrics;
 
+// defined with the text box in render2d.h.
+typedef enum NYA_TextAlign NYA_TextAlign;
+
 /**
  * A face at a size. Two of these naming the same pair are the same font.
  * */
@@ -116,6 +119,12 @@ NYA_API f32   nya_font_height(NYA_Font font, NYA_ConstCString text) __attr_no_di
 
 /** Draws `text` with `font`, at a baseline-agnostic top-left like the rest of render2d's text. */
 NYA_API void nya_font_draw(NYA_Window* window, NYA_Font font, NYA_ConstCString text, f32 x, f32 y, NYA_Color color);
+
+/** The size `text` takes broken into lines no wider than `width`, as nya_font_draw_wrapped lays it out. */
+NYA_API f32x2 nya_font_measure_wrapped(NYA_Font font, NYA_ConstCString text, f32 width) __attr_no_discard;
+
+/** Draws `text` broken into lines no wider than `width`, each placed across that width by `align`. */
+NYA_API void nya_font_draw_wrapped(NYA_Window* window, NYA_Font font, NYA_ConstCString text, f32 x, f32 y, f32 width, NYA_TextAlign align, NYA_Color color);
 
 /*
  * ─────────────────────────────────────────────────────────

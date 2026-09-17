@@ -350,3 +350,25 @@ void nya_font_draw(NYA_Window* window, NYA_Font font, NYA_ConstCString text, f32
 
     nya_render2d_text_with_font(window, font.path, font.point_size, text, x, y, color);
 }
+
+f32x2 nya_font_measure_wrapped(NYA_Font font, NYA_ConstCString text, f32 width) {
+    nya_assert(width >= 0.0F);
+
+    font = nya_font_resolve(font);
+    if (!nya_font_valid(font) || text == nullptr) return f32x2_zero;
+
+    _nya_font_sdf_apply_pending();
+
+    return nya_render2d_text_box_measure(text, (NYA_Render2DTextBox){ .width = width, .font_path = font.path, .point_size = font.point_size });
+}
+
+void nya_font_draw_wrapped(NYA_Window* window, NYA_Font font, NYA_ConstCString text, f32 x, f32 y, f32 width, NYA_TextAlign align, NYA_Color color) {
+    nya_assert(width >= 0.0F && align < NYA_TEXT_ALIGN_COUNT);
+
+    font = nya_font_resolve(font);
+    if (!nya_font_valid(font) || text == nullptr) return;
+
+    _nya_font_sdf_apply_pending();
+
+    (void)nya_render2d_text_box(window, text, (NYA_Render2DTextBox){ .x = x, .y = y, .width = width, .align = align, .color = color, .font_path = font.path, .point_size = font.point_size });
+}

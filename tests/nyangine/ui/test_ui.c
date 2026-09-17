@@ -44,21 +44,25 @@ static f32x2 center_of(NYA_Rectf rect) {
     return (f32x2){ rect.x + (rect.width * 0.5F), rect.y + (rect.height * 0.5F) };
 }
 
+/** How far a top level panel sits in from the window's edge by default, and the test style's padding and outline. */
+#define MARGIN 16.0F
+#define FRAME  12.0F
+
 /**
- * Where `menu` puts its second button: the panel's offset, then its frame of padding and outline, then one button
- * and a gap down, as wide as the panel inside its frame.
+ * Where `menu` puts its second button: the margin and the panel's offset, then its frame, then one button and a gap
+ * down, as wide as the panel inside its frame.
  * */
-#define SECOND ((NYA_Rectf){ 20.0F + 12.0F, 30.0F + 12.0F + 40.0F + 6.0F, 300.0F - 24.0F, 40.0F })
+#define SECOND ((NYA_Rectf){ MARGIN + 20.0F + FRAME, MARGIN + 30.0F + FRAME + 40.0F + 6.0F, 300.0F - (FRAME * 2.0F), 40.0F })
 
 /** And its slider, alone at the top left of a 400 wide panel. */
-#define SLIDER ((NYA_Rectf){ 12.0F, 12.0F, 400.0F - 24.0F, 40.0F })
+#define SLIDER ((NYA_Rectf){ MARGIN + FRAME, MARGIN + FRAME, 400.0F - (FRAME * 2.0F), 40.0F })
 
 /** Three buttons in a panel; which one activated this pass, or -1. */
 static s32 menu(NYA_UIPass pass, NYA_ConstCString labels[3]) {
     s32     activated = -1;
     NYA_UI* ui        = nya_ui_begin(&window, pass);
 
-    if (nya_ui_panel_begin(ui, "menu", (NYA_UIPanel){ .offset = { 20.0F, 30.0F }, .width = 300.0F })) {
+    if (nya_ui_panel_begin(ui, "menu", (NYA_UIPanel){ .offset = { 20.0F, 30.0F }, .width = nya_ui_fixed(300) })) {
         for (u32 i = 0; i < 3; i++) {
             if (nya_ui_button(ui, labels[i])) activated = (s32)i;
         }
@@ -74,7 +78,7 @@ static b8 options(f32* value, b8* on) {
     b8      changed = false;
     NYA_UI* ui      = nya_ui_begin(&window, NYA_UI_PASS_INPUT);
 
-    if (nya_ui_panel_begin(ui, "options", (NYA_UIPanel){ .width = 400.0F })) {
+    if (nya_ui_panel_begin(ui, "options", (NYA_UIPanel){ .width = nya_ui_fixed(400) })) {
         changed = nya_ui_slider(ui, "volume", value, 0.0F, 1.0F, 0.25F);
         changed = nya_ui_toggle(ui, "fullscreen", on) || changed;
         nya_ui_panel_end(ui);
@@ -140,7 +144,7 @@ s32 main(void) {
         nya_check(nya_ui_style_get(&other).padding == NYA_UI_PADDING, "a new window in the same slot starts over");
     }
 
-    // ── Layout: a top left panel stacks full width buttons inside its frame, a pass later it can centre, and rows split it.
+    // ── Layout: a top left panel stacks full width buttons inside its frame, a pass later it can centre, and a row splits it.
     {
         // the pointer finds the second button exactly where the frame, the first button and the gap put it.
         pointer_move((f32x2){ SECOND.x + 1.0F, SECOND.y + 1.0F });
@@ -155,13 +159,13 @@ s32 main(void) {
         nya_check(menu(NYA_UI_PASS_INPUT, abc) == -1, "and one in the gap above it is on nothing");
         tick();
 
-        f32 frame = 10.0F + 2.0F;
+        f32 frame = FRAME;
 
         for (u32 pass = 0; pass < 2; pass++) {
             NYA_UI*   ui    = nya_ui_begin(&window, NYA_UI_PASS_DRAW);
             NYA_Rectf inner = { 0 };
 
-            if (nya_ui_panel_begin(ui, "centred", (NYA_UIPanel){ .anchor = NYA_UI_ANCHOR_CENTER, .width = 300.0F })) {
+            if (nya_ui_panel_begin(ui, "centred", (NYA_UIPanel){ .anchor = NYA_UI_ANCHOR_CENTER, .width = nya_ui_fixed(300) })) {
                 inner = nya_ui_space(ui, 0.0F, 50.0F);
                 nya_ui_panel_end(ui);
             }
@@ -175,20 +179,30 @@ s32 main(void) {
             }
         }
 
-        NYA_UI* ui = nya_ui_begin(&window, NYA_UI_PASS_DRAW);
-        if (nya_ui_panel_begin(ui, "row", (NYA_UIPanel){ .width = 300.0F })) {
-            nya_ui_row_begin(ui, 2);
-            (void)nya_ui_button(ui, "left");
-            NYA_Rectf right = nya_ui_space(ui, 0.0F, 40.0F);
-            nya_ui_row_end(ui);
-            NYA_Rectf under = nya_ui_space(ui, 0.0F, 10.0F);
-            nya_ui_panel_end(ui);
+        NYA_Rectf right = { 0 };
+        NYA_Rectf under = { 0 };
 
-            f32 cell = (276.0F - 6.0F) * 0.5F;
-            nya_check(right.x == frame + cell + 6.0F && right.width == cell && right.y == frame, "a row splits the width into cells, got %f %f", (f64)right.x, (f64)right.width);
-            nya_check(under.y == frame + 40.0F + 6.0F && under.x == frame, "and what follows goes under the row, got %f", (f64)under.y);
+        // twice: a row hands out shares by the weights it saw in the pass before.
+        for (u32 pass = 0; pass < 2; pass++) {
+            NYA_UI* ui = nya_ui_begin(&window, NYA_UI_PASS_DRAW);
+
+            if (nya_ui_panel_begin(ui, "row", (NYA_UIPanel){ .width = nya_ui_fixed(300) })) {
+                if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .children = nya_ui_grow(1), .frameless = true })) {
+                    (void)nya_ui_button(ui, "left");
+                    right = nya_ui_space(ui, 0.0F, 40.0F);
+                    nya_ui_panel_end(ui);
+                }
+
+                under = nya_ui_space(ui, 0.0F, 10.0F);
+                nya_ui_panel_end(ui);
+            }
+
+            nya_ui_end(ui);
         }
-        nya_ui_end(ui);
+
+        f32 cell = (276.0F - 6.0F) * 0.5F;
+        nya_check(right.x == MARGIN + frame + cell + 6.0F && right.width == cell && right.y == MARGIN + frame, "a row splits the width into cells, got %f %f", (f64)right.x, (f64)right.width);
+        nya_check(under.y == MARGIN + frame + 40.0F + 6.0F && under.x == MARGIN + frame, "and what follows goes under the row, got %f", (f64)under.y);
     }
 
     // ── Focus starts on the first widget, moves with up and down, and wraps at both ends.
@@ -286,7 +300,7 @@ s32 main(void) {
         // the same label in two panels is two widgets, so this does not assert.
         NYA_UI* ui = nya_ui_begin(&window, NYA_UI_PASS_INPUT);
         for (u32 i = 0; i < 2; i++) {
-            if (nya_ui_panel_begin(ui, i == 0 ? "one" : "two", (NYA_UIPanel){ .width = 100.0F })) {
+            if (nya_ui_panel_begin(ui, i == 0 ? "one" : "two", (NYA_UIPanel){ .width = nya_ui_fixed(100) })) {
                 (void)nya_ui_button(ui, "same");
                 nya_ui_panel_end(ui);
             }
