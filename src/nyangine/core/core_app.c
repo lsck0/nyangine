@@ -427,8 +427,7 @@ void nya_app_run(void) {
                 .type = NYA_EVENT_FRAME_ENDED,
             });
 
-            // the sweep and a second copy of the watchdog, which also runs every tick, so neither is one patch away.
-            nya_integrity_sweep(app->frame_stats.frame_end_time_ns);
+            // a second copy of the watchdog, which also runs every tick, so it is not one patch away.
             nya_integrity_watchdog(app->frame_stats.frame_end_time_ns);
 
             if (!first_frame_reported) {
@@ -477,6 +476,9 @@ void _nya_app_advance_frame_clock(void) {
 
 void _nya_app_update(void) {
     NYA_App* app = nya_app_get();
+
+    // here rather than in the main loop, so a window dragged by its edge keeps sweeping while its ticks watch.
+    nya_integrity_sweep(app->frame_stats.frame_start_time_ns);
 
     while (app->frame_stats.time_behind_ns >= (s64)app->options.time_step_ns) {
         nya_perf_time_this_scope("frame_updating");
