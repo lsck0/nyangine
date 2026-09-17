@@ -22,11 +22,10 @@
 
 ## `[~]` Cartoon renderer
 
-The goal for the 3D renderer is a strong cartoon look. It already has banded wrapped diffuse, a hard
-highlight, rim, curvature edge darkening, inverted hull outlines, distance and height fog, four point lights
-per draw, instancing, cascaded sun shadows, MSAA and glass.
-
-In progress:
+The goal for the 3D renderer is a strong cartoon look: banded wrapped diffuse, a hard highlight, rim,
+curvature edge darkening, distance and height fog, four point lights per draw, instancing, cascaded sun
+shadows, runtime MSAA and glass, plus the passes below. Every feature is an options struct set per window,
+fed from `engine.renderer` in the config, and costs nothing when off.
 
 - Grading through a `.cube` LUT (`NYA_ASSET_TYPE_LUT`, an RGBA8 3D texture), after ink, occlusion and FXAA
   and before bloom. `toon.cube` saturates muted colours and keeps black and white exact; mean saturation in
@@ -45,15 +44,22 @@ In progress:
 - `[ ]` The occlusion band is subtle at the default orbit distance; consider a screen-space minimum radius.
 - `[ ]` A smaller normal buffer: view space normal only, or sample the multisampled buffer where backends
   allow and skip the resolve.
-- `[~]` Tilt-shift depth of field, projected decals, HDR swapchain output when the display supports it,
-  cartoon speed lines.
+- Depth of field (tilt shift, or distance focus read from the normal buffer's distance channel), speed lines
+  scaled by camera speed, projected box decals in one batched pass, and HDR output (extended linear or HDR10,
+  every pipeline still built for the SDR format). Keys 5 to 8. Post order: occlusion, ink, depth of field,
+  FXAA, caller passes (grade, bloom, pause grey), speed lines, debug view. Release, 1280x720, 4x: decals
+  +0.06 ms and +0.5 MiB, distance focus +0.05 ms and +0.9 MiB, speed lines +0.02 ms, HDR +0.02 ms and
+  +3.5 MiB; off costs nothing.
+- `[ ]` HDR10/PQ untested on hardware; pure white UI text lifts to the HDR peak.
+- `[ ]` Speed lines always converge on the screen centre, not the direction of motion.
+- `[ ]` Distance focus alone pays for the whole normal buffer.
 - A skinned, animated bar (bender.fbx) in the 3D demo, lit and shadow casting, posed once per tick so
   every cascade matches the camera; `f` freezes it. The 2D ledge marker is an animated sprite with a frame
   event. `game.animation_speed` sets both clocks live.
 - `[ ]` The skinned draw sets no bounds, so it is never culled, and ignores material parts and textures.
 - `[ ]` No test reaches the non-headless skinned draw.
 
-Not started:
+Next:
 
 - `[ ]` Indirect draws and GPU culling; build the shadow casters once per frame instead of once per pass.
 - `[ ]` Pipeline cache on disk. SDL GPU exposes none, so check what each backend allows first.
@@ -145,8 +151,23 @@ and shared by reference count.
 
 ### Binary size
 
-Linux release 21.6 MB, Windows 24 MB. `.text` is 13.2 MB, `.rodata` 3.8 MB, `.eh_frame` 1.1 MB. `[~]` Being
-attributed by vendor and cut.
+Linux release 21.5 to 11.5 MB, Windows 23.6 to 10.8 MB, with every plugin still built in:
+
+- Vendor options drop what the engine never calls: SDL's 2D renderer, GL, camera, haptic, dialog, tray,
+  KMSDRM and software blitters; WebP and libpng (SDL_image's stb_image decodes PNG and JPEG); plutosvg;
+  libgme, libxmp, WavPack, MIDI and the external Vorbis/FLAC/MP3 libraries (SDL_mixer's built-in decoders);
+  curl features the request plugin does not use. -5.7 MB Linux, -7.3 MB Windows.
+- Vendors build at -O2 with a section per function, collected in the release link. Frame times and benches
+  did not move; the engine stays -O3, 4.4% faster than -O2 on the benches.
+- A Windows release exe exports nothing (-1 MB), and Windows vendors cross compile with clang, since mingw
+  gcc's sections are not COMDAT and a PE link keeps them.
+- No local symbols (Linux) or COFF symbol table (Windows); traces are identical without them.
+- The blob bakes only the shader formats a target loads and leaves out `assets/icons`
+  (`NYA_ASSET_UNUSED_DIRECTORY`): 1525 entries to 142.
+- `.eh_frame` stays (0.74 MB): libbacktrace and LuaJIT unwind through vendor frames with it.
+- `[ ]` SDL's dynamic API off would save 0.66 MB but stops a Steam runtime swapping SDL.
+- `[ ]` harfbuzz is 1.2 MB; its HB_LEAN config, if shaping quality holds.
+- After pulling, delete the vendor build trees so they reconfigure; CI rekeys its cache on the recipes.
 
 ### Static memory
 
