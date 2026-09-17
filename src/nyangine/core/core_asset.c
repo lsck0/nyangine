@@ -887,6 +887,16 @@ NYA_INTERNAL ufbx_skin_deformer* _nya_asset_find_skin(ufbx_scene* scene) {
 }
 
 /**
+ * The skinned geometry's transform to world at bind time, the same through every cluster. Skinned vertices and
+ * root bones are moved through it, so a rigged file comes out y up and in metres like a static one.
+ * */
+NYA_INTERNAL ufbx_matrix _nya_asset_skin_geometry_bind(const ufbx_skin_deformer* skin) {
+    nya_assert(skin != nullptr && skin->clusters.count > 0);
+
+    return ufbx_matrix_mul(&skin->clusters.data[0]->bind_to_world, &skin->clusters.data[0]->geometry_to_bone);
+}
+
+/**
  * Builds the skeleton and bakes every clip, or returns null when the file is not rigged. `out_bone_nodes`
  * receives the node behind each bone, so another skinned mesh can map its clusters by node.
  * */
@@ -952,6 +962,9 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
 
     u32 bone_count = nya_min(cluster_count, (u32)NYA_SKELETON_MAX_BONES);
 
+    ufbx_matrix geometry_bind         = _nya_asset_skin_geometry_bind(skin);
+    ufbx_matrix geometry_bind_inverse = ufbx_matrix_invert(&geometry_bind);
+
     NYA_Skeleton* skeleton = nya_arena_alloc(arena, sizeof(NYA_Skeleton));
 
     *skeleton = (NYA_Skeleton){
@@ -970,8 +983,8 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
         *bone = (NYA_SkeletonBone){
             .parent = -1,
 
-            // geometry_to_bone is the inverse bind.
-            .inverse_bind = _nya_asset_matrix_from_ufbx(cluster->geometry_to_bone),
+            // geometry_to_bone is the inverse bind, taken from the space the vertices are moved into.
+            .inverse_bind = _nya_asset_matrix_from_ufbx(ufbx_matrix_mul(&cluster->geometry_to_bone, &geometry_bind_inverse)),
             .rest         = { .scale = { 1.0F, 1.0F, 1.0F } },
         };
 
@@ -997,27 +1010,12 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
 
         s32 parent = skeleton->bones[i].parent;
 
-        ufbx_matrix local = bone_to_geometry;
-
-        if (parent >= 0) {
-            // relative to the parent's bind transform.
-            ufbx_matrix parent_geometry_to_bone = skin->clusters.data[order[parent]]->geometry_to_bone;
-
-            local = ufbx_matrix_mul(&parent_geometry_to_bone, &bone_to_geometry);
-        }
+        // a child relative to its parent's bind transform, a root to the space the vertices are moved into.
+        ufbx_matrix outer = parent >= 0 ? skin->clusters.data[order[parent]]->geometry_to_bone : geometry_bind;
+        ufbx_matrix local = ufbx_matrix_mul(&outer, &bone_to_geometry);
 
         skeleton->bones[i].rest = _nya_asset_bone_transform(ufbx_matrix_to_transform(&local));
     }
-
-    /*
-     * The mesh's geometry-to-world at bind time, the same for every cluster. Needed for root bones only;
-     * between two bones it cancels.
-     */
-    ufbx_matrix bind_to_world     = skin->clusters.data[0]->bind_to_world;
-    ufbx_matrix geometry_to_bone0 = skin->clusters.data[0]->geometry_to_bone;
-    ufbx_matrix geometry_bind     = ufbx_matrix_mul(&bind_to_world, &geometry_to_bone0);
-
-    ufbx_matrix geometry_bind_inverse = ufbx_matrix_invert(&geometry_bind);
 
     // clips
     if (scene->anim_stacks.count > 0) {
@@ -1091,8 +1089,8 @@ NYA_INTERNAL NYA_Skeleton* _nya_asset_mesh_skeleton(NYA_Arena* arena, ufbx_scene
 
                         local = ufbx_matrix_mul(&parent_inverse, &world[b]);
                     } else {
-                        // a root bone is brought into geometry space by `geometry_bind`.
-                        local = ufbx_matrix_mul(&geometry_bind_inverse, &world[b]);
+                        // a root bone's world transform, since the vertices sit in bind time world space.
+                        local = world[b];
                     }
 
                     *out = _nya_asset_bone_transform(ufbx_matrix_to_transform(&local));
@@ -1235,7 +1233,13 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
     u32* bone_indices = nullptr;
     f32* bone_weights = nullptr;
 
+    ufbx_matrix skin_to_world     = ufbx_identity_matrix;
+    ufbx_matrix skin_to_world_dir = ufbx_identity_matrix;
+
     if (skeleton != nullptr) {
+        skin_to_world     = _nya_asset_skin_geometry_bind(reference_skin);
+        skin_to_world_dir = ufbx_matrix_for_normals(&skin_to_world);
+
         bone_indices = nya_arena_alloc(arena, (u64)total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(u32));
         bone_weights = nya_arena_alloc(arena, (u64)total * NYA_SKELETON_WEIGHTS_PER_VERTEX * sizeof(f32));
 
@@ -1462,8 +1466,8 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                         }
 
                         /*
-                         * The node transform is baked in for static meshes only. A skinned vertex stays in the geometry space its
-                         * inverse bind expects; baking the node in too applies the placement twice.
+                         * The node transform is baked in for static meshes only. A skinned vertex goes through the reference
+                         * skin's bind below, which is what its inverse bind expects.
                          */
                         if (skeleton == nullptr) {
                             position = ufbx_transform_position(&to_world, position);
@@ -1480,6 +1484,11 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                             // an unskinned mesh in a rigged file rides the root bone instead of collapsing under zero weights.
                             bone_indices[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX] = 0;
                             bone_weights[(u64)written * NYA_SKELETON_WEIGHTS_PER_VERTEX] = 1.0F;
+                        }
+
+                        if (skeleton != nullptr) {
+                            position = ufbx_transform_position(&skin_to_world, position);
+                            normal   = ufbx_transform_direction(&skin_to_world_dir, normal);
                         }
 
                         positions[written] = (f32x3){ (f32)position.x, (f32)position.y, (f32)position.z };

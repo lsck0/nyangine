@@ -129,6 +129,42 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the rig comes out y up, like a static mesh from the same file would
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: axes\n");
+  {
+    // modelled z up: a bar two metres long and half a metre thick.
+    f32x3 low  = asset->as_mesh.positions[0];
+    f32x3 high = low;
+
+    for (u32 v = 1; v < asset->as_mesh.vertex_count; v++) {
+      f32x3 position = asset->as_mesh.positions[v];
+
+      low  = (f32x3){ nya_min(low.x, position.x), nya_min(low.y, position.y), nya_min(low.z, position.z) };
+      high = (f32x3){ nya_max(high.x, position.x), nya_max(high.y, position.y), nya_max(high.z, position.z) };
+    }
+
+    f32x3 extent = high - low;
+
+    nya_assert(fabsf(extent.y - 2.0F) < 0.01F, "the bar is %.3f tall on y, so the vertices were not converted", (f64)extent.y);
+    nya_assert(extent.x < 0.6F && extent.z < 0.6F, "the bar is %.3f by %.3f across", (f64)extent.x, (f64)extent.z);
+
+    // the root bone converted too: the child sits a metre above it, not beside it.
+    NYA_SkeletonPose pose = { 0 };
+    nya_skeleton_pose_rest(skeleton, &pose);
+
+    f32_4x4 model[NYA_SKELETON_MAX_BONES];
+    nya_skeleton_model_transforms(skeleton, &pose, model);
+
+    f32 rise = model[upper][1][3] - model[lower][1][3];
+
+    nya_assert(fabsf(rise - 1.0F) < 0.01F, "'upper' is %.3f above 'lower'", (f64)rise);
+
+    printf("  extent " FMTf32x3 ", upper %.3f above lower\n", FMTf32x3_ARG(extent), (f64)rise);
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the rest palette is the identity
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: rest pose\n");
