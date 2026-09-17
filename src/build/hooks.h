@@ -49,11 +49,22 @@ void hook_expand_cwd(NYA_BuildRule* rule);
  * */
 void hook_copy_file(NYA_BuildRule* rule);
 
+/** Creates the directory the rule's output_file goes in. */
+void hook_create_output_directory(NYA_BuildRule* rule);
+
+/**
+ * Runs the rule's compiler through the compiler cache, when there is one. See COMPILER_CACHE_ENV.
+ * */
+void hook_use_compiler_cache(NYA_BuildRule* rule);
+
 /** Appends -DVERSION and -DGIT_COMMIT to the rule's compile command. */
 void hook_add_version_flag_and_git_hash(NYA_BuildRule* rule);
 
 /** Deletes the rule's output file. Used to clean up after a rule that only ran for its effect. */
 void hook_remove_output_file(NYA_BuildRule* rule);
+
+/** Deletes the rule's input file. Used to drop an intermediate once the rule has consumed it. */
+void hook_remove_input_file(NYA_BuildRule* rule);
 
 /** Converts perf.data into plain text next to it. */
 void hook_convert_perf_data_to_plain(NYA_BuildRule* rule);

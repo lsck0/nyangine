@@ -25,11 +25,26 @@
 #define WINDOWS_X86_64_DEV_IMPLIB   PROJECT_NAME ".dev.lib"
 #define WINDOWS_X86_64_BINARY       PROJECT_NAME "." VERSION ".windows-x86_64.exe"
 
+/*
+ * Where split rules compile to before linking, one object per artifact. Nothing reads an object from a
+ * previous build: every compile runs, and a compiler cache is what makes an unchanged one cheap.
+ */
+#define OBJECT_DIRECTORY "./.objects"
+#define OBJECT_SUFFIX    ".o"
+
 // CC and NPROCS come from build/vendor/vendor.h.
 // -mfma is not implied by -mavx2, and nn/nn_simd.h falls back to separate multiply and add without it.
 // Every AVX2 CPU has FMA3 (both came with Haswell), so this adds no requirement.
 #define CFLAGS        "-std=c2y", "-mavx", "-mavx2", "-mfma", "-fdefer-ts", "-fenable-matrix", "-ggdb"
 #define WARNINGS      "-Werror", "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro"
+/*
+ * A rule that compiles with `-c` takes only compile flags: under -Werror clang rejects a linker flag it
+ * cannot use. Link only are LINKER_FLAGS, every *_LINK macro, FLAGS_LINUX_X86_64, FLAGS_WINDOWS_X86_64
+ * and the FLAGS_*_WINDOWS_X86_64 and FLAGS_DEBUG_LINUX_X86_64 linker setups. A link repeats the mode
+ * flags, since optimisation, LTO, sanitizers and coverage all need them there too, and clang ignores
+ * the preprocessor flags among them.
+ */
+
 // Only the project's own paths. Everything a third party dependency needs lives on its
 // NYA_VendorRule instead, so this does not grow as dependencies are added.
 #define INCLUDE_PATHS "-I./", "-I./src/"
@@ -73,14 +88,17 @@
 // Runs the engine with the drawing compiled out. Everything else still runs, so a test exercises
 // the real frame loop; there is just no GPU device to create, which is what CI cannot provide.
 #define FLAGS_HEADLESS "-DNYA_HEADLESS"
-#define FLAGS_DLL      "-fPIC", "-shared"
+#define FLAGS_DLL_COMPILE "-fPIC"
+#define FLAGS_DLL_LINK    "-shared"
 #define FLAGS_SANITIZE "-fno-omit-frame-pointer", "-fno-optimize-sibling-calls", "-fno-sanitize-recover=all", "-fsanitize=address,leak,undefined,signed-integer-overflow,unsigned-integer-overflow,shift,float-cast-overflow,float-divide-by-zero,pointer-overflow"
 
 // -g1 so libbacktrace can print lines in shipped crash reports. The debug sections are covered by the
 // integrity CRC, so never strip after hook_insert_integrity_hash.
 // -DNYA_EXECUTION_MODE=2 is required: NYA_DEBUG is (NYA_EXECUTION_MODE == 0) and the default is 0, so
 // without it a release binary compiles the hot reload entry point and skips the integrity check.
-#define FLAGS_RELEASE  "-O3", "-flto", "-fPIE", "-fuse-ld=lld", "-g1", "-DNYA_EXECUTION_MODE=2", "-DNYA_ASSET_PREFER_BLOB", "-D_FORTIFY_SOURCE=2", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
+#define FLAGS_RELEASE  "-O3", "-flto", "-fPIE", "-g1", "-DNYA_EXECUTION_MODE=2", "-DNYA_ASSET_PREFER_BLOB", "-D_FORTIFY_SOURCE=2", "-fcf-protection=full", "-fstack-protector-strong", "-fno-omit-frame-pointer"
+
+#define FLAGS_RELEASE_LINK "-fuse-ld=lld"
 
 /*
  * Steam is release plus the Steam runtime. Same deploy shape, different execution mode, so the mode
@@ -119,5 +137,12 @@
 #define SIGNING_PFX_PATH_ENV      "NYA_SIGNING_PFX"
 #define SIGNING_PFX_PASSWORD_ENV  "NYA_SIGNING_PASSWORD"
 #define SIGNING_TIMESTAMP_URL_ENV "NYA_SIGNING_TIMESTAMP_URL"
+
+/*
+ * The compiler cache split compile rules launch through. Unset, ccache is used when it runs; empty,
+ * "0" or "off" never uses one; anything else names the launcher, which then has to exist.
+ */
+#define COMPILER_CACHE_PROGRAM "ccache"
+#define COMPILER_CACHE_ENV     "NYA_CCACHE"
 
 // clang-format on

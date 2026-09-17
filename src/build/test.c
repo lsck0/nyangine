@@ -10,8 +10,37 @@ nya_derive_array(NYA_BuildRulePointer);
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/*
+ * The engine a test links when it takes the engine as it is. Its own `#include "nyangine/nyangine.c"`
+ * then resolves to the shim under TEST_ENGINE_SHIM_DIRECTORY, which includes the headers only.
+ */
+#define TEST_ENGINE_SOURCE         "./src/nyangine/nyangine.c"
+#define TEST_ENGINE_OBJECT         OBJECT_DIRECTORY "/nyangine.test" OBJECT_SUFFIX
+#define TEST_ENGINE_SHIM_DIRECTORY "./src/build/prebuilt_engine"
+#define TEST_ENGINE_SHIM           TEST_ENGINE_SHIM_DIRECTORY "/nyangine/nyangine.c"
+
+/** Most lines the engine sharing scan reads from one test. */
+#define TEST_SCAN_MAX_LINES 4096
+
+#if OS_WINDOWS
+#define TEST_VENDORS NYA_PROJECT_VENDORS_WINDOWS_X86_64
+#else
+#define TEST_VENDORS NYA_PROJECT_VENDORS_LINUX_X86_64
+#endif
+
 NYA_INTERNAL b8  _test_collect_sources(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data);
 NYA_INTERNAL s32 _test_compare_paths(const NYA_String* a, const NYA_String* b);
+
+/**
+ * Whether a test can link the shared engine object. Not when it defines or undefines anything before
+ * including the engine, since that changes what the engine compiles to, not when it never includes the
+ * engine, and not when it names an internal `_nya_` or `_NYA_` identifier, which may be static to an
+ * engine source and so only reachable from inside the unity build.
+ * */
+NYA_INTERNAL b8 _test_shares_engine(NYA_ConstCString source);
+
+/** Appends a nullptr terminated argument list to a rule's command. */
+NYA_INTERNAL void _test_append_arguments(NYA_BuildRule* rule, NYA_ConstCString const* arguments);
 
 /**
  * Finds, builds and runs the tests, optionally under coverage instrumentation.
@@ -49,10 +78,12 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
     nya_array_sort(tests, _test_compare_paths);
 
     /*
-     * Two phases: compile everything at once, then run the binaries one at a time.
+     * Three phases: compile everything at once, link everything at once, then run the binaries one at a
+     * time. The engine is compiled once and linked into every test that takes it as it is.
      */
-    NYA_ArrayᐸNYA_BuildRulePointerᐳ* build_rules = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
-    NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules   = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
+    NYA_ArrayᐸNYA_BuildRulePointerᐳ* compile_rules = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
+    NYA_ArrayᐸNYA_BuildRulePointerᐳ* link_rules    = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
+    NYA_ArrayᐸNYA_BuildRulePointerᐳ* run_rules     = nya_array_create(nya_arena_global, NYA_BuildRulePointer);
 
     // The raw profiles land here, one per test, and the binaries have to survive the run for
     // llvm-cov to map counters back to source. Recreated each time so a deleted test cannot leave a
@@ -61,6 +92,37 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
         (void)nya_filesystem_delete_recursive(COVERAGE_DIRECTORY);
         NYA_EXPECT(nya_filesystem_create_directory(COVERAGE_DIRECTORY), "while creating the coverage directory");
     }
+
+    NYA_BuildRule* compile_engine_rule = nya_arena_alloc(nya_arena_global, sizeof(NYA_BuildRule));
+    *compile_engine_rule = (NYA_BuildRule){
+        .name        = "compile_test_engine",
+        .policy      = NYA_BUILD_ALWAYS,
+        .output_file = TEST_ENGINE_OBJECT,
+
+        // The same codegen the project rules get, and for the same reason.
+        .dependencies = { &build_shaders, &index_assets, },
+
+        .command = {
+            .program   = CC,
+            .arguments = {
+                TEST_ENGINE_SOURCE,
+                "-c", "-o", TEST_ENGINE_OBJECT,
+                CFLAGS,
+                WARNINGS,
+                INCLUDE_PATHS,
+                FLAGS_PLUGINS,
+                FLAGS_TEST,
+                FLAGS_HOST_NATIVE_COMPILE
+            },
+        },
+
+        .pre_build_hooks = { &hook_add_version_flag_and_git_hash, &hook_create_output_directory, &hook_use_compiler_cache, },
+        .vendors         = { TEST_VENDORS, },
+        .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
+    };
+    if (coverage) _test_append_arguments(compile_engine_rule, (NYA_ConstCString[]){ FLAGS_COVERAGE, nullptr });
+
+    b8 any_test_shares_engine = false;
 
     nya_array_foreach (tests, original_test) {
         NYA_String* test      = nya_string_clone(nya_arena_global, original_test);
@@ -78,97 +140,123 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
         if (!should_run) continue;
 
         nya_string_strip_suffix(test, ".c");
+
+        // the collected path starts with "./", which the object directory replaces.
+        nya_assert(nya_string_starts_with(test, "./"));
+        NYA_CString test_stem   = nya_string_to_cstring(nya_arena_global, test) + 2;
+        NYA_CString test_object = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, OBJECT_DIRECTORY "/%s" OBJECT_SUFFIX, test_stem));
+
         nya_string_extend(test, HOST_EXECUTABLE_SUFFIX);
         NYA_CString test_binary = nya_string_to_cstring(nya_arena_global, test);
 
-        NYA_String* build_test_name = nya_string_sprintf(nya_arena_global, "build_test:%s", test_binary);
-        NYA_BuildRule* build_test_rule = nya_arena_alloc(nya_arena_global, sizeof(NYA_BuildRule));
-        *build_test_rule = (NYA_BuildRule){
-        .name        = nya_string_to_cstring(nya_arena_global, build_test_name),
-        .policy      = NYA_BUILD_ALWAYS,
-        .output_file = test_binary,
+        b8 shares_engine        = _test_shares_engine(test_cstr);
+        any_test_shares_engine |= shares_engine;
 
-        /*
-         * The same codegen the project rules get, and for the same reason.
-         */
-        .dependencies = { &build_shaders, &index_assets, },
+        NYA_String*    compile_test_name = nya_string_sprintf(nya_arena_global, "compile_test:%s", test_binary);
+        NYA_BuildRule* compile_test_rule = nya_arena_alloc(nya_arena_global, sizeof(NYA_BuildRule));
+        *compile_test_rule = (NYA_BuildRule){
+            .name        = nya_string_to_cstring(nya_arena_global, compile_test_name),
+            .policy      = NYA_BUILD_ALWAYS,
+            .output_file = test_object,
 
-        .command = {
-            .program   = CC,
-            .arguments = {
-                test_cstr,
-                "-o", test_binary,
-                CFLAGS,
-                WARNINGS,
-                INCLUDE_PATHS,
-                LINKER_FLAGS,
-                // The same plugins the project compiles, so a test can exercise them. Without this
-                // a plugin test compiles to an empty file and reports a pass.
-                FLAGS_PLUGINS,
-                // FLAGS_TEST, not FLAGS_DEBUG: it sets NYA_EXECUTION_MODE=4, compiles in
-                // nya_expect_crash so a test can survive a deliberate panic, and runs headless so
-                // no GPU device is created. This rule used to spell out -DNYA_TESTING by hand and
-                // get neither of the other two, which is why a test could not run on CI.
-                FLAGS_TEST,
-                // Built to run here, so the same host flags the build tool uses. See build.h.
-                FLAGS_HOST_NATIVE,
-#if !OS_WINDOWS
-                // Where the Steam redistributable sits relative to a test binary. An rpath is an
-                // ELF concept; a Windows host would resolve the DLL by search path instead.
-                "-Wl,-rpath,$ORIGIN/../../../vendor/steam/redistributable_bin/linux64",
-#endif
+            .dependencies = { &build_shaders, &index_assets, },
+
+            .command = {
+                .program   = CC,
+                .arguments = {
+                    test_cstr,
+                    "-c", "-o", test_object,
+                    CFLAGS,
+                    WARNINGS,
+                    INCLUDE_PATHS,
+                    // The same plugins the project compiles, so a test can exercise them. Without this
+                    // a plugin test compiles to an empty file and reports a pass.
+                    FLAGS_PLUGINS,
+                    // FLAGS_TEST, not FLAGS_DEBUG: it sets NYA_EXECUTION_MODE=4, compiles in
+                    // nya_expect_crash so a test can survive a deliberate panic, and runs headless so
+                    // no GPU device is created.
+                    FLAGS_TEST,
+                    // Built to run here, so the same host flags the build tool uses. See build.h.
+                    FLAGS_HOST_NATIVE_COMPILE
+                },
             },
-        },
 
-        .pre_build_hooks = { &hook_add_version_flag_and_git_hash, },
-        // The same set the debug executable links, because a test includes the same engine. Two of
-        // them was the drift that made every test fail to compile on a missing SDL_image header.
-        // Exactly what the project links, by naming the same macro rather than repeating the list.
-        // Spelling it out separately is what previously drifted and made every test fail to compile
-        // on a missing SDL_image header; a hand copied list also silently omitted curl and sqlite,
-        // so a plugin test would compile and then fail to link.
-#if OS_WINDOWS
-        .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
-#else
-        .vendors         = { NYA_PROJECT_VENDORS_LINUX_X86_64, },
+            .pre_build_hooks = { &hook_add_version_flag_and_git_hash, &hook_create_output_directory, &hook_use_compiler_cache, },
+            // The same set the debug executable links, because a test includes the same engine.
+            .vendors         = { TEST_VENDORS, },
+            .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
+        };
+
+        // Searched before the -I paths, so the test's own include of the engine source finds the headers
+        // only and the definitions come from the engine object at link time. Also included up front, since
+        // a test that includes nyangine.h first would otherwise see the headers outside the shim.
+        if (shares_engine) {
+            _test_append_arguments(compile_test_rule, (NYA_ConstCString[]){ "-iquote", TEST_ENGINE_SHIM_DIRECTORY, "-include", TEST_ENGINE_SHIM, nullptr });
+        }
+        if (coverage) _test_append_arguments(compile_test_rule, (NYA_ConstCString[]){ FLAGS_COVERAGE, nullptr });
+
+        NYA_String*    link_test_name = nya_string_sprintf(nya_arena_global, "link_test:%s", test_binary);
+        NYA_BuildRule* link_test_rule = nya_arena_alloc(nya_arena_global, sizeof(NYA_BuildRule));
+        *link_test_rule = (NYA_BuildRule){
+            .name        = nya_string_to_cstring(nya_arena_global, link_test_name),
+            .policy      = NYA_BUILD_ALWAYS,
+            .input_file  = test_object,
+            .output_file = test_binary,
+
+            .command = {
+                .program   = CC,
+                .arguments = {
+                    test_object,
+                    "-o", test_binary,
+                    CFLAGS,
+                    FLAGS_TEST,
+                    FLAGS_HOST_NATIVE_LINK,
+                    LINKER_FLAGS,
+#if !OS_WINDOWS
+                    // Where the Steam redistributable sits relative to a test binary. An rpath is an
+                    // ELF concept; a Windows host would resolve the DLL by search path instead.
+                    "-Wl,-rpath,$ORIGIN/../../../vendor/steam/redistributable_bin/linux64",
 #endif
-    };
+                },
+            },
 
-        NYA_String* run_test_name = nya_string_sprintf(nya_arena_global, "run_test:%s", test_binary);
+            // Exactly what the project links, by naming the same macro. A hand copied list is what
+            // previously drifted and made a plugin test compile and then fail to link.
+            .vendors          = { TEST_VENDORS, },
+            .vendor_flags     = NYA_BUILD_VENDOR_FLAGS_LINK,
+            // A test that compiles the engine itself leaves an object as large as the engine's, one per
+            // test. The compiler cache keeps its own copy, so nothing is lost by dropping it.
+            .post_build_hooks = { &hook_remove_input_file, },
+        };
+
+        // the vendor archives are spliced in after every argument, so they still follow the engine object.
+        // base_perf.h defines an extern inline function, which C emits once in every object including the
+        // header, so the test and the engine each carry an identical copy.
+        if (shares_engine) _test_append_arguments(link_test_rule, (NYA_ConstCString[]){ TEST_ENGINE_OBJECT, "-Wl,--allow-multiple-definition", nullptr });
+        if (coverage) _test_append_arguments(link_test_rule, (NYA_ConstCString[]){ FLAGS_COVERAGE, nullptr });
+
+        NYA_String*    run_test_name = nya_string_sprintf(nya_arena_global, "run_test:%s", test_binary);
         NYA_BuildRule* run_test_rule = nya_arena_alloc(nya_arena_global, sizeof(NYA_BuildRule));
         *run_test_rule = (NYA_BuildRule){
-        .name        = nya_string_to_cstring(nya_arena_global, run_test_name),
-        .policy      = NYA_BUILD_ALWAYS,
-        .output_file = test_binary,
+            .name        = nya_string_to_cstring(nya_arena_global, run_test_name),
+            .policy      = NYA_BUILD_ALWAYS,
+            .output_file = test_binary,
 
-        .command = {
-            .program     = test_binary,
-            // The shared set from build.h. These four were spelled out here as well, identically,
-            // which is one edit away from a test running under different options than a profiled run.
-            .environment = { SANITIZER_ENVIRONMENT, },
-        },
+            .command = {
+                .program     = test_binary,
+                // The shared set from build.h, so a test runs under the same options as a profiled run.
+                .environment = { SANITIZER_ENVIRONMENT, },
+            },
 
-        // No dependency on the build rule any more: the whole batch is compiled below, before any
-        // of it runs, so a per-rule dependency would just rebuild what is already there.
-        //
-        // A coverage run keeps its binaries instead: llvm-cov reads the coverage mapping out of the
-        // executable, so deleting it leaves counts that cannot be attributed to any line.
-        .post_build_hooks  = { coverage ? nullptr : &hook_remove_output_file, },
-    };
+            // No dependency on the link rule: the whole batch is linked below, before any of it runs,
+            // so a per-rule dependency would just rebuild what is already there.
+            //
+            // A coverage run keeps its binaries instead: llvm-cov reads the coverage mapping out of the
+            // executable, so deleting it leaves counts that cannot be attributed to any line.
+            .post_build_hooks = { coverage ? nullptr : &hook_remove_output_file, },
+        };
 
         if (coverage) {
-            // Appended rather than written into the initializer above, because the argument list is
-            // a fixed array and the flags are conditional. Same shape as the libbacktrace splice in
-            // build.c.
-            u32 count = 0;
-            while (count < NYA_COMMAND_MAX_ARGUMENTS && build_test_rule->command.arguments[count] != nullptr) count++;
-
-            NYA_ConstCString extra[]   = { FLAGS_COVERAGE };
-            u32              extra_len = (u32)(sizeof(extra) / sizeof(extra[0]));
-
-            nya_assert(count + extra_len < NYA_COMMAND_MAX_ARGUMENTS, "no room to add the coverage flags to '%s'", build_test_rule->name);
-            for (u32 i = 0; i < extra_len; i++) build_test_rule->command.arguments[count + i] = extra[i];
-
             /*
              * One raw profile per test, named after it.
              */
@@ -185,14 +273,19 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
             run_test_rule->command.environment[env_count] = nya_string_to_cstring(nya_arena_global, profile);
         }
 
-        nya_array_push_back(build_rules, build_test_rule);
+        nya_array_push_back(compile_rules, compile_test_rule);
+        nya_array_push_back(link_rules, link_test_rule);
         nya_array_push_back(run_rules, run_test_rule);
     }
 
-    if (build_rules->length == 0) return;
+    if (compile_rules->length == 0) return;
+
+    // First, so the longest compile starts before the short ones queue behind it.
+    if (any_test_shares_engine) nya_array_push_front(compile_rules, compile_engine_rule);
 
     // Zero jobs means one per hardware thread.
-    NYA_EXPECT(nya_build_parallel(build_rules->items, (u32)build_rules->length, 0));
+    NYA_EXPECT(nya_build_parallel(compile_rules->items, (u32)compile_rules->length, 0));
+    NYA_EXPECT(nya_build_parallel(link_rules->items, (u32)link_rules->length, 0));
 
     nya_array_foreach (run_rules, run_rule) NYA_EXPECT(nya_build(*run_rule));
 
@@ -294,4 +387,46 @@ NYA_INTERNAL s32 _test_compare_paths(const NYA_String* a, const NYA_String* b) {
 
     if (a->length == b->length) return 0;
     return a->length < b->length ? -1 : 1;
+}
+
+NYA_INTERNAL b8 _test_shares_engine(NYA_ConstCString source) {
+    nya_assert(source != nullptr);
+
+    NYA_String* text = nya_string_create(nya_arena_global);
+    NYA_EXPECT(nya_file_read(source, text), "while reading '%s'", source);
+
+    // Coarse on purpose: a false match only costs that test its own engine compile.
+    if (nya_string_contains(text, "_nya_") || nya_string_contains(text, "_NYA_")) return false;
+
+    NYA_ArrayᐸNYA_Stringᐳ* lines = nya_string_split_lines(nya_arena_global, text);
+    nya_assert(lines->length <= TEST_SCAN_MAX_LINES, "'%s' is longer than the engine sharing scan reads", source);
+
+    nya_array_foreach (lines, line) {
+        nya_string_trim_whitespace(line);
+        if (!nya_string_starts_with(line, "#")) continue;
+
+        // the directive word, with any space the preprocessor allows after the hash skipped.
+        NYA_CString directive = nya_string_to_cstring(nya_arena_global, line) + 1;
+        while (*directive == ' ' || *directive == '\t') directive++;
+
+        if (nya_string_starts_with(directive, "include \"nyangine/nyangine.c\"")) return true;
+        if (nya_string_starts_with(directive, "define") || nya_string_starts_with(directive, "undef")) return false;
+    }
+
+    return false;
+}
+
+NYA_INTERNAL void _test_append_arguments(NYA_BuildRule* rule, NYA_ConstCString const* arguments) {
+    nya_assert(rule != nullptr);
+    nya_assert(arguments != nullptr);
+
+    u32 count = 0;
+    while (count < NYA_COMMAND_MAX_ARGUMENTS && rule->command.arguments[count] != nullptr) count++;
+
+    for (u32 i = 0; arguments[i] != nullptr; i++) {
+        nya_assert(count + 1 < NYA_COMMAND_MAX_ARGUMENTS, "no room to add '%s' to '%s'", arguments[i], rule->name);
+        rule->command.arguments[count++] = arguments[i];
+    }
+
+    nya_assert(rule->command.arguments[count] == nullptr);
 }

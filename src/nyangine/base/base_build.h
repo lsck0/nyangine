@@ -22,15 +22,30 @@
 #define NYA_VENDOR_MAX_PARTS       8
 #define NYA_VENDOR_MAX_FLAGS       32
 
-typedef enum NYA_BuildRulePolicy NYA_BuildRulePolicy;
-typedef struct NYA_BuildRule     NYA_BuildRule;
-typedef struct NYA_VendorRule    NYA_VendorRule;
+typedef enum NYA_BuildRulePolicy  NYA_BuildRulePolicy;
+typedef enum NYA_BuildVendorFlags NYA_BuildVendorFlags;
+typedef struct NYA_BuildRule      NYA_BuildRule;
+typedef struct NYA_VendorRule     NYA_VendorRule;
 
 enum NYA_BuildRulePolicy {
     NYA_BUILD_ALWAYS,
     NYA_BUILD_ONCE,
     NYA_BUILD_IF_OUTDATED,
     NYA_BUILD_COUNT,
+};
+
+/**
+ * Which of its vendors' flags a rule's command takes. A compile with `-c` fails on linker inputs under
+ * -Werror, so split compile and link rules each take their half.
+ * */
+enum NYA_BuildVendorFlags {
+    /** Includes, cflags and linker flags, for a command that compiles and links at once. */
+    NYA_BUILD_VENDOR_FLAGS_ALL,
+    /** Includes and cflags. */
+    NYA_BUILD_VENDOR_FLAGS_COMPILE,
+    /** Linker flags. */
+    NYA_BUILD_VENDOR_FLAGS_LINK,
+    NYA_BUILD_VENDOR_FLAGS_COUNT,
 };
 
 /**
@@ -52,6 +67,9 @@ struct NYA_BuildRule {
      * are appended to the command automatically.
      * */
     NYA_VendorRule* vendors[NYA_BUILD_MAX_VENDORS];
+
+    /** Which half of the vendor flags the command gets. */
+    NYA_BuildVendorFlags vendor_flags;
 
     void (*pre_build_hooks[NYA_BUILD_MAX_DEPENDENCIES])(NYA_BuildRule* rule);
     void (*post_build_hooks[NYA_BUILD_MAX_DEPENDENCIES])(NYA_BuildRule* rule);

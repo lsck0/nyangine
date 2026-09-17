@@ -151,6 +151,63 @@ void hook_copy_file(NYA_BuildRule* rule) {
     NYA_EXPECT(nya_filesystem_copy(rule->input_file, rule->output_file), "while copying a vendor artifact");
 }
 
+void hook_create_output_directory(NYA_BuildRule* rule) {
+    nya_assert(rule != nullptr);
+    nya_assert(rule->output_file != nullptr, "hook_create_output_directory needs an output_file.");
+
+    NYA_String* directory = nya_path_dirname(nya_arena_global, rule->output_file);
+    NYA_EXPECT(nya_filesystem_create_directory(nya_string_to_cstring(nya_arena_global, directory)), "while creating the directory for '%s'", rule->output_file);
+}
+
+/** The launcher COMPILER_CACHE_ENV asks for, or nullptr for none. Resolved once, since the probe spawns a process. */
+NYA_INTERNAL NYA_ConstCString _hook_compiler_cache_program(void) {
+    static b8               resolved = false;
+    static NYA_ConstCString program  = nullptr;
+
+    if (resolved) return program;
+    resolved = true;
+
+    NYA_ConstCString requested = getenv(COMPILER_CACHE_ENV);
+    if (requested != nullptr) {
+        b8 disabled = requested[0] == '\0' || nya_string_equals(requested, "0") || nya_string_equals(requested, "off");
+        program     = disabled ? nullptr : requested;
+    } else {
+        // the cache is optional, so a missing one is found out by running it rather than reported.
+        NYA_Command probe = {
+            .flags     = NYA_COMMAND_FLAG_OUTPUT_SUPPRESS,
+            .program   = COMPILER_CACHE_PROGRAM,
+            .arguments = { "--version" },
+        };
+        NYA_Error probed = nya_command_run(&probe);
+        if (probed.ok && probe.exit_code == 0) program = COMPILER_CACHE_PROGRAM;
+    }
+
+    if (program != nullptr) nya_log_info("Compiling through %s.", program);
+
+    return program;
+}
+
+void hook_use_compiler_cache(NYA_BuildRule* rule) {
+    nya_assert(rule != nullptr);
+    nya_assert(rule->command.program != nullptr);
+
+    NYA_ConstCString launcher = _hook_compiler_cache_program();
+    if (launcher == nullptr) return;
+
+    // a rule built a second time is already launched through it.
+    if (nya_string_equals(rule->command.program, launcher)) return;
+
+    u32 count = 0;
+    while (count < NYA_COMMAND_MAX_ARGUMENTS && rule->command.arguments[count] != nullptr) count++;
+    nya_assert(count + 1 < NYA_COMMAND_MAX_ARGUMENTS, "No room to launch '%s' through the compiler cache.", rule->name);
+
+    for (u32 i = count; i > 0; i--) rule->command.arguments[i] = rule->command.arguments[i - 1];
+    rule->command.arguments[0] = rule->command.program;
+    rule->command.program      = launcher;
+
+    nya_assert(rule->command.arguments[count + 1] == nullptr);
+}
+
 void hook_add_version_flag_and_git_hash(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
 
@@ -189,6 +246,13 @@ void hook_remove_output_file(NYA_BuildRule* rule) {
     nya_assert(rule->output_file);
 
     NYA_EXPECT(nya_filesystem_delete(rule->output_file));
+}
+
+void hook_remove_input_file(NYA_BuildRule* rule) {
+    nya_assert(rule != nullptr);
+    nya_assert(rule->input_file);
+
+    NYA_EXPECT(nya_filesystem_delete(rule->input_file));
 }
 
 void hook_convert_perf_data_to_plain(NYA_BuildRule* rule) {

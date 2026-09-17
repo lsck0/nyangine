@@ -95,11 +95,26 @@ jobs:
           persist-credentials: false
 
       - uses: ./.github/actions/setup-linux
+        id: setup
         with:
           llvm-version: 22
+          ccache-key: test
 
       - name: Run tests
         run: ./build run test
+
+      - name: Report compiler cache statistics
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        run: ccache --show-stats
+
+      # Even after a failure, so a broken test does not throw away the objects that did compile.
+      - name: Save compiler cache
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        with:
+          path: ${{ steps.setup.outputs.ccache-dir }}
+          key: ${{ steps.setup.outputs.ccache-cache-key }}
 
   build-linux:
     needs: vendor-linux
@@ -117,11 +132,26 @@ jobs:
           persist-credentials: false
 
       - uses: ./.github/actions/setup-linux
+        id: setup
         with:
           llvm-version: 22
+          ccache-key: build
 
       - name: Build release targets
         run: ./build build release
+
+      - name: Report compiler cache statistics
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        run: ccache --show-stats
+
+      # Even after a failure, so a broken test does not throw away the objects that did compile.
+      - name: Save compiler cache
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        with:
+          path: ${{ steps.setup.outputs.ccache-dir }}
+          key: ${{ steps.setup.outputs.ccache-cache-key }}
 
   # The Windows host path, which the Linux jobs above cannot cover.
   #
@@ -175,11 +205,26 @@ jobs:
           path: assets/shader/compiled/
 
       - uses: ./.github/actions/setup-windows
+        id: setup
         with:
           llvm-version: 22
+          ccache-key: test
 
       - name: Run tests
         run: ./build.exe run test
+
+      - name: Report compiler cache statistics
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        run: ccache --show-stats
+
+      # Even after a failure, so a broken test does not throw away the objects that did compile.
+      - name: Save compiler cache
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        with:
+          path: ${{ steps.setup.outputs.ccache-dir }}
+          key: ${{ steps.setup.outputs.ccache-cache-key }}
 
   build-windows:
     needs: [vendor-windows, vendor-linux]
@@ -205,8 +250,10 @@ jobs:
           path: assets/shader/compiled/
 
       - uses: ./.github/actions/setup-windows
+        id: setup
         with:
           llvm-version: 22
+          ccache-key: build
 
       # On this host `release` is the Windows executable alone; there is no Linux target to ask for.
       - name: Build release target
@@ -225,3 +272,16 @@ jobs:
           else
             echo "::notice::signtool not on PATH, executable is unsigned"
           fi
+
+      - name: Report compiler cache statistics
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        run: ccache --show-stats
+
+      # Even after a failure, so a broken test does not throw away the objects that did compile.
+      - name: Save compiler cache
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: always() && steps.setup.outputs.ccache-cache-key != ''
+        with:
+          path: ${{ steps.setup.outputs.ccache-dir }}
+          key: ${{ steps.setup.outputs.ccache-cache-key }}

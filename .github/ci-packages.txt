@@ -1,4 +1,5 @@
 build-essential
+ccache
 clang-22
 clang-format-22
 clang-tidy-22

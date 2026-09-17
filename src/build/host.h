@@ -84,6 +84,10 @@
  */
 #define FLAGS_HOST_NATIVE       "-fuse-ld=lld"
 
+/** FLAGS_HOST_NATIVE split for a compile and a link. Expands to nothing, comma included, like FLAGS_TARGET_WINDOWS_X86_64. */
+#define FLAGS_HOST_NATIVE_COMPILE
+#define FLAGS_HOST_NATIVE_LINK "-fuse-ld=lld"
+
 /** The same host flags without the sanitizers. See the Linux definition for why this exists. */
 #define FLAGS_HOST_NATIVE_BENCH "-fuse-ld=lld"
 
@@ -97,6 +101,10 @@
 #define HOST_EXECUTABLE_SUFFIX ""
 
 #define FLAGS_HOST_NATIVE       FLAGS_DEBUG_LINUX_X86_64, FLAGS_SANITIZE, FLAGS_LINUX_X86_64
+
+/** FLAGS_HOST_NATIVE split for a compile and a link. The compile half carries its own trailing comma, since on Windows it is empty. */
+#define FLAGS_HOST_NATIVE_COMPILE FLAGS_SANITIZE,
+#define FLAGS_HOST_NATIVE_LINK    FLAGS_DEBUG_LINUX_X86_64, FLAGS_SANITIZE, FLAGS_LINUX_X86_64
 
 /**
  * The same, minus FLAGS_SANITIZE. What a benchmark is built with.

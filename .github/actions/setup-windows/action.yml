@@ -14,6 +14,18 @@ inputs:
     description: LLVM major version to require. MSYS2 ships one clang; this asserts which.
     required: false
     default: "22"
+  ccache-key:
+    description: Names this job's compiler cache. Empty leaves ccache unconfigured and nothing restored.
+    required: false
+    default: ""
+
+outputs:
+  ccache-dir:
+    description: Where the compiler cache lives, empty without ccache-key. Pass to actions/cache/save.
+    value: ${{ steps.ccache.outputs.dir }}
+  ccache-cache-key:
+    description: The key to save the compiler cache under, empty without ccache-key.
+    value: ${{ steps.ccache.outputs.key }}
 
 runs:
   using: composite
@@ -43,6 +55,7 @@ runs:
           ninja:p
           pkg-config:p
           binutils:p
+          ccache:p
 
     # Through the environment rather than pasted into the script, for the reason setup-linux gives at
     # more length: a `${{ }}` in a `run:` block is expanded before the shell parses it, so an input is
@@ -95,6 +108,41 @@ runs:
       if: steps.vendor-cache.outputs.cache-hit == 'true'
       shell: msys2 {0}
       run: find vendor/*/build-windows-x86_64 vendor/lua/libluajit-windows.a vendor/lz4/liblz4-windows.a vendor/lua/src/luajit.h vendor/sqlvec/sqlite-vec.h -exec touch {} + 2>/dev/null || true
+
+    # Engine, game and test objects, through ccache. Restored from the newest cache of the same job, and
+    # saved by the workflow at the end of the job even when it fails, which a composite action cannot do.
+    - name: Configure compiler cache
+      id: ccache
+      if: inputs.ccache-key != ''
+      shell: msys2 {0}
+      env:
+        CCACHE_KEY: ${{ inputs.ccache-key }}
+        CCACHE_DIR: ${{ runner.temp }}/ccache
+        CCACHE_BASEDIR: ${{ github.workspace }}
+      run: |
+        {
+          echo "CCACHE_DIR=${CCACHE_DIR}"
+          echo "CCACHE_BASEDIR=${CCACHE_BASEDIR}"
+          echo "CCACHE_MAXSIZE=500M"
+        } >> "$GITHUB_ENV"
+        echo "dir=${CCACHE_DIR}" >> "$GITHUB_OUTPUT"
+        # unique per run, so every run saves; the prefix restores the newest earlier one.
+        prefix="ccache-${RUNNER_OS}-${CCACHE_KEY}-"
+        echo "prefix=${prefix}" >> "$GITHUB_OUTPUT"
+        echo "key=${prefix}${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+    - name: Restore compiler cache
+      if: inputs.ccache-key != ''
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.ccache.outputs.dir }}
+        key: ${{ steps.ccache.outputs.key }}
+        restore-keys: ${{ steps.ccache.outputs.prefix }}
+
+    - name: Reset compiler cache statistics
+      if: inputs.ccache-key != ''
+      shell: msys2 {0}
+      run: ccache --zero-stats
 
     - name: Bootstrap build system
       shell: msys2 {0}

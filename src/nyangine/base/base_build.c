@@ -510,9 +510,15 @@ NYA_INTERNAL u32 _nya_build_apply_vendors(NYA_BuildRule* build_rule) {
     u32 original_count = _nya_build_argument_count(&build_rule->command);
     if (build_rule->is_metarule || build_rule->vendors[0] == nullptr) return original_count;
 
+    nya_assert(build_rule->vendor_flags < NYA_BUILD_VENDOR_FLAGS_COUNT);
+    static_assert(NYA_BUILD_VENDOR_FLAGS_COUNT == 3, "Unhandled NYA_BuildVendorFlags enum value.");
+
+    b8 wants_compile = build_rule->vendor_flags != NYA_BUILD_VENDOR_FLAGS_LINK;
+    b8 wants_link    = build_rule->vendor_flags != NYA_BUILD_VENDOR_FLAGS_COMPILE;
+
     u32 count = original_count;
 
-    for (u32 i = 0; i < NYA_BUILD_MAX_VENDORS; i++) {
+    for (u32 i = 0; wants_compile && i < NYA_BUILD_MAX_VENDORS; i++) {
         NYA_VendorRule* vendor = build_rule->vendors[i];
         if (!vendor) break;
 
@@ -520,7 +526,7 @@ NYA_INTERNAL u32 _nya_build_apply_vendors(NYA_BuildRule* build_rule) {
         count = _nya_build_append_flags(build_rule, count, vendor->cflags);
     }
 
-    for (u32 i = 0; i < NYA_BUILD_MAX_VENDORS; i++) {
+    for (u32 i = 0; wants_link && i < NYA_BUILD_MAX_VENDORS; i++) {
         NYA_VendorRule* vendor = build_rule->vendors[i];
         if (!vendor) break;
 

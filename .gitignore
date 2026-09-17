@@ -70,3 +70,6 @@ bench/*
 # sources, since git cannot match "has no extension".
 tests/**/test_*
 !tests/**/test_*.c
+
+# Objects the split compile and link rules write, see OBJECT_DIRECTORY in src/build/flags.h.
+/.objects/

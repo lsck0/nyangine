@@ -249,9 +249,28 @@ build jobs restore it.
 - A Windows host does not build shadercross (DXC does not compile under MinGW). CI compiles shaders in
   the Linux vendor job and passes them on; a Windows developer needs `assets/shader/compiled/` from a
   Linux machine. `[ ]` A prebuilt DXC for Windows would remove that.
-- `[ ]` Engine, game and tests are not cached. Each rule is one `clang` call that compiles and links,
-  which ccache cannot help, and each test is its own unity build. Split compile and link, or build the
-  engine once as an object the tests link, then cache with ccache.
+- Engine, game and test rules compile to `.objects/` and link in a second rule, launched through ccache
+  when it runs (`NYA_CCACHE` overrides or disables). CI caches `$RUNNER_TEMP/ccache` per OS and job
+  (`test`, `build`), 500M each. Tests link one engine object compiled once, unless they define anything
+  before including the engine or name a `_nya_`/`_NYA_` identifier: 82 of 163 share it. Measured on the
+  8 thread dev machine, other builds running beside it:
+
+  | Command                       | Before | Split, no cache | ccache cold | ccache warm |
+  | :---------------------------- | -----: | --------------: | ----------: | ----------: |
+  | `./build run test`            |  106 s |            73 s |       123 s |        27 s |
+  | `./build build debug-linux`   |        |                 |       5.0 s |       1.6 s |
+  | `./build build release`       |        |                 |      18.8 s |      12.7 s |
+
+  Warm, the 27 s is about 19 s of running tests one at a time and the links. Release stays slow warm
+  because both executables are LTO, and LTO codegen happens in the link.
+- Shared engine tests link with `--allow-multiple-definition`: `_nya_perf_cleanup` in base_perf.h is
+  `NYA_API inline`, which C emits in every object that includes the header. `[ ]` Make it `static inline`
+  and drop the flag.
+- `-DGIT_COMMIT` changes on every commit, so ccache's direct mode misses on a new commit and finds the
+  hit by preprocessing instead: the warm test run on a fresh commit was 164 of 164 preprocessed hits in
+  28 s. Nothing reads NYA_GIT_COMMIT yet, so keeping it off compile commands would make those direct.
+- `[ ]` The shared engine scan is coarse: most of the 81 tests compiling their own engine only name a
+  public `_nya_` macro or function. Refining it roughly halves a cold test build again.
 - `nya_build_parallel` is a pool that starts the next rule as soon as any finishes. `./build run test` on
   the 8 thread dev machine: 111 s with batches, 106 s with the pool. The gain is small because test
   compiles all take 3.5 to 5 s; it grows with uneven rules.
