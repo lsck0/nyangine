@@ -99,6 +99,12 @@ NYA_API void nya_render2d_rect(NYA_Window* window, f32 x, f32 y, f32 width, f32 
 /** A rectangle outline of `thickness`, drawn inside the given bounds. */
 NYA_API void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 thickness, NYA_Color color);
 
+/** A filled rectangle with corners of `radius`, clamped to half the shorter side. One fan, so any alpha blends once. */
+NYA_API void nya_render2d_rect_rounded(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 radius, NYA_Color color);
+
+/** The outline of that rectangle, `thickness` wide and inside the bounds, as one ring. */
+NYA_API void nya_render2d_rect_rounded_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 radius, f32 thickness, NYA_Color color);
+
 /**
  * A filled rectangle turned about its own centre.
  *

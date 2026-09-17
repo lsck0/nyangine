@@ -133,6 +133,15 @@ NYA_INTERNAL void _nya_render2d_quad_corners(NYA_Render2DBatch* batch, const f32
  * */
 NYA_INTERNAL void _nya_render2d_rect_rotated_corners(f32x2 center, f32x2 size, f32 rotation, OUT f32x2 out_corners[4]);
 
+/** Segments per quarter circle of a rounded corner: about one per two pixels of radius, at least two. */
+NYA_INTERNAL u32 _nya_render2d_corner_segments(f32 radius);
+
+/**
+ * Appends the perimeter of a rounded rectangle `inset` inside its bounds, clockwise from the top left
+ * corner: 4 * (segments + 1) vertices. Corner centres stay put while the inset is under the radius.
+ * */
+NYA_INTERNAL void _nya_render2d_rounded_perimeter(NYA_Render2DBatch* batch, NYA_Rectf bounds, f32 radius, f32 inset, u32 segments, NYA_Color color);
+
 /*
  * Closes and reopens the render pass around work that needs a copy pass.
  */
@@ -527,6 +536,90 @@ void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 
     nya_render2d_rect(window, x, y + height - horizontal, width, horizontal, color);
     nya_render2d_rect(window, x, y + horizontal, vertical, height - (horizontal * 2.0F), color);
     nya_render2d_rect(window, x + width - vertical, y + horizontal, vertical, height - (horizontal * 2.0F), color);
+}
+
+void nya_render2d_rect_rounded(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 radius, NYA_Color color) {
+    nya_assert(window != nullptr);
+
+    if (width <= 0.0F || height <= 0.0F) return;
+
+    radius = nya_clamp(radius, 0.0F, nya_min(width, height) * 0.5F);
+    if (radius <= 0.0F) {
+        nya_render2d_rect(window, x, y, width, height, color);
+        return;
+    }
+
+    u32 segments  = _nya_render2d_corner_segments(radius);
+    u32 perimeter = 4 * (segments + 1);
+
+    // a fan from the centre, as nya_render2d_circle draws.
+    if (!_nya_render2d_prepare(window, NYA_RENDER2D_PIPELINE_SHAPES, nullptr, nullptr, perimeter + 1, perimeter * 3)) return;
+
+    NYA_Render2DBatch* batch = &window->render_system.draw_batch;
+    u32                base  = batch->vertex_count;
+
+    _nya_render2d_vertex(batch, x + (width * 0.5F), y + (height * 0.5F), 0.0F, 0.0F, color);
+    _nya_render2d_rounded_perimeter(batch, (NYA_Rectf){ x, y, width, height }, radius, 0.0F, segments, color);
+
+    for (u32 i = 0; i < perimeter; i++) _nya_render2d_triangle_indices(batch, base, 0, 1 + i, 1 + ((i + 1) % perimeter));
+}
+
+void nya_render2d_rect_rounded_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 radius, f32 thickness, NYA_Color color) {
+    nya_assert(window != nullptr);
+
+    if (width <= 0.0F || height <= 0.0F || thickness <= 0.0F) return;
+
+    radius    = nya_clamp(radius, 0.0F, nya_min(width, height) * 0.5F);
+    thickness = nya_min(thickness, nya_min(width, height) * 0.5F);
+
+    u32 segments  = _nya_render2d_corner_segments(radius);
+    u32 perimeter = 4 * (segments + 1);
+
+    if (!_nya_render2d_prepare(window, NYA_RENDER2D_PIPELINE_SHAPES, nullptr, nullptr, perimeter * 2, perimeter * 6)) return;
+
+    NYA_Render2DBatch* batch  = &window->render_system.draw_batch;
+    u32                base   = batch->vertex_count;
+    NYA_Rectf          bounds = { x, y, width, height };
+
+    // both rings sample the same angles, so vertex i outside pairs with vertex i inside.
+    _nya_render2d_rounded_perimeter(batch, bounds, radius, 0.0F, segments, color);
+    _nya_render2d_rounded_perimeter(batch, bounds, radius, thickness, segments, color);
+
+    for (u32 i = 0; i < perimeter; i++) {
+        u32 next = (i + 1) % perimeter;
+
+        _nya_render2d_triangle_indices(batch, base, i, next, perimeter + i);
+        _nya_render2d_triangle_indices(batch, base, next, perimeter + next, perimeter + i);
+    }
+}
+
+u32 _nya_render2d_corner_segments(f32 radius) {
+    return nya_clamp((u32)(radius * 0.5F), 2U, 16U);
+}
+
+void _nya_render2d_rounded_perimeter(NYA_Render2DBatch* batch, NYA_Rectf bounds, f32 radius, f32 inset, u32 segments, NYA_Color color) {
+    // past the radius the corner is square, so its centre moves inward with the edges.
+    f32 reach = nya_max(radius, inset);
+    f32 ring  = nya_max(radius - inset, 0.0F);
+
+    f32x2 centers[4] = {
+        { bounds.x + reach, bounds.y + reach },
+        { bounds.x + bounds.width - reach, bounds.y + reach },
+        { bounds.x + bounds.width - reach, bounds.y + bounds.height - reach },
+        { bounds.x + reach, bounds.y + bounds.height - reach },
+    };
+
+    f32 quarter = (f32)M_PI * 0.5F;
+
+    for (u32 corner = 0; corner < 4; corner++) {
+        // y points down, so starting at pi walks the top left corner from its left edge up to its top edge.
+        f32 start = (f32)M_PI + (quarter * (f32)corner);
+
+        for (u32 i = 0; i <= segments; i++) {
+            f32 angle = start + (quarter * (f32)i / (f32)segments);
+            _nya_render2d_vertex(batch, centers[corner][0] + (cosf(angle) * ring), centers[corner][1] + (sinf(angle) * ring), 0.0F, 0.0F, color);
+        }
+    }
 }
 
 void nya_render2d_rect_rotated(NYA_Window* window, f32x2 center, f32x2 size, f32 rotation, NYA_Color color) {

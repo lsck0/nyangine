@@ -50,6 +50,14 @@ void nya_render2d_rect_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 
     nya_unused(window, x, y, width, height, thickness, color);
 }
 
+void nya_render2d_rect_rounded(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 radius, NYA_Color color) {
+    nya_unused(window, x, y, width, height, radius, color);
+}
+
+void nya_render2d_rect_rounded_outline(NYA_Window* window, f32 x, f32 y, f32 width, f32 height, f32 radius, f32 thickness, NYA_Color color) {
+    nya_unused(window, x, y, width, height, radius, thickness, color);
+}
+
 void nya_render2d_target_size(NYA_Window* window, OUT u32* out_width, OUT u32* out_height) {
     nya_assert(window != nullptr);
     nya_assert(out_width != nullptr && out_height != nullptr);
