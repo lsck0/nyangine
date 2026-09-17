@@ -2,7 +2,8 @@
 //
 // The frame holds sRGB encoded colour with white at one. Decoded to linear light, it is what the compositor
 // shows as SDR white, so everything comes out as it did in SDR, and only colours past `highlight`, where the
-// scene tonemap squeezed lamps and fire against white, are lifted toward `peak`.
+// scene tonemap squeezed lamps and fire against white, are lifted toward `peak`. Once the frame marks where its scene
+// ends, alpha tells scene from what was drawn over it, and only the scene is lifted.
 
 struct FragInput {
   float4 position : SV_POSITION;
@@ -24,6 +25,10 @@ cbuffer OutputUniform : register(b0, space3) {
 
   // SDR white in nits, for HDR10, which is absolute.
   float paper_white;
+
+  // 1 when alpha marks the scene: zero where only the scene was drawn, raised by whatever covers it.
+  float masked;
+  float3 pad;
 };
 
 float3 srgb_to_linear(float3 colour) {
@@ -43,10 +48,13 @@ float3 pq_encode(float3 nits) {
 }
 
 float4 main(FragInput input) : SV_Target {
-  float3 colour = saturate(scene.Sample(scene_sampler, float2(input.uv.x, 1.0 - input.uv.y)).rgb);
+  float4 frame = scene.Sample(scene_sampler, float2(input.uv.x, 1.0 - input.uv.y));
+  float3 colour = saturate(frame.rgb);
+
+  float scene_share = masked > 0.5 ? 1.0 - saturate(frame.a) : 1.0;
 
   // by the brightest channel, so a lifted highlight keeps its hue.
-  float lift = lerp(1.0, peak, smoothstep(highlight, 1.0, max(colour.r, max(colour.g, colour.b))));
+  float lift = lerp(1.0, peak, smoothstep(highlight, 1.0, max(colour.r, max(colour.g, colour.b))) * scene_share);
 
   float3 light = srgb_to_linear(colour) * lift;
 

@@ -208,6 +208,8 @@ s32 main(void) {
         nya_render_output_set(&window, (NYA_RenderOutput){ .hdr = true, .peak = 4.0F });
         nya_check(nya_render_output(&window).hdr && nya_render_output(&window).peak == 4.0F, "the output reads back as given");
         nya_check(!nya_render_output_hdr_active(&window), "a headless window never presents in HDR");
+        nya_render_output_scene_end(&window);
+        nya_check(!window.render_system.output_gpu.scene_marked, "an SDR frame has no scene to mark");
 
         nya_post_debug_view_set(&window, (NYA_PostDebugView)99);
         nya_check(nya_post_debug_view(&window) == NYA_POST_DEBUG_VIEW_NONE, "an unknown debug view reads as none");

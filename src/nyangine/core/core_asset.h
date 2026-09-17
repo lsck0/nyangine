@@ -152,6 +152,9 @@ enum NYA_BlendMode {
     /** Multiply: DST_COLOR / ZERO. A light map darkens what it covers; see nya_render2d_lights_apply. */
     NYA_BLEND_MULTIPLY = 3,
 
+    /** Keeps colour and replaces alpha, to mark pixels without changing the picture. See nya_render_output_scene_end. */
+    NYA_BLEND_ALPHA_REPLACE = 4,
+
     NYA_BLEND_MODE_COUNT,
 };
 

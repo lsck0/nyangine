@@ -9,7 +9,18 @@
  * The frame is still drawn in SDR, into a copy of the window at the format everything was built for, and
  * written to an HDR swapchain at the end of the frame by one fullscreen pass. That pass decodes sRGB to linear
  * light and lifts only the brightest colours, the ones the scene's tonemap pushed against white, up to `peak`.
- * Authored colour and interface text below NYA_RENDER_OUTPUT_HIGHLIGHT come out exactly as in SDR.
+ * Authored colour below NYA_RENDER_OUTPUT_HIGHLIGHT comes out exactly as in SDR.
+ *
+ * Only the scene is lifted, so a white HUD stays at paper white. nya_post_end marks where the scene ends; a game
+ * drawing its scene without a post chain marks it itself:
+ *
+ * ```c
+ * draw_the_world(window);
+ * nya_render_output_scene_end(window);
+ * draw_the_hud(window);
+ * ```
+ *
+ * A frame that never marks it lifts everything.
  * */
 #pragma once
 
@@ -29,6 +40,9 @@ typedef struct NYA_Window NYA_Window;
 /** The encode pipelines, one per HDR swapchain format. Queued when HDR is first switched on. */
 #define NYA_RENDER_PIPELINE_OUTPUT_LINEAR "nya_output_linear_pipeline"
 #define NYA_RENDER_PIPELINE_OUTPUT_PQ     "nya_output_pq_pipeline"
+
+/** Marks the scene in the frame's alpha. Queued with the encode pipelines. See nya_render_output_scene_end. */
+#define NYA_RENDER_PIPELINE_OUTPUT_MASK "nya_output_mask_pipeline"
 
 /** How bright the brightest highlight gets when NYA_RenderOutput.peak is zero, in multiples of SDR white. */
 #ifndef NYA_RENDER_OUTPUT_PEAK
@@ -81,6 +95,9 @@ struct NYA_RenderOutputGPU {
 
     /** NYA_RenderOutput.hdr as last applied, so the swapchain is only reconsidered when it changes. */
     b8 hdr_requested;
+
+    /** Whether this frame marked where its scene ends, so the encode lifts by the frame's alpha. */
+    b8 scene_marked;
 };
 
 /*
@@ -97,3 +114,9 @@ NYA_API NYA_RenderOutput nya_render_output(NYA_Window* window) __attr_no_discard
 
 /** Whether the window is presenting in HDR now, which can differ from what was asked for. */
 NYA_API b8 nya_render_output_hdr_active(NYA_Window* window) __attr_no_discard;
+
+/**
+ * Marks everything drawn to the window so far as the scene, which HDR may lift; what is drawn after, such as a HUD,
+ * stays at paper white. One fullscreen triangle while presenting in HDR, nothing otherwise. nya_post_end calls it.
+ * */
+NYA_API void nya_render_output_scene_end(NYA_Window* window);

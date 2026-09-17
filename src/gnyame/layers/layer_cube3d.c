@@ -1081,6 +1081,9 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     // 2D path does, rather than skipping the frame.
     if (!(pass_count > 0 || cartoon) || !nya_post_begin(window, &bloom_world->post)) {
         _gny_cube3d_draw_scene(window);
+
+        // without the chain to mark it, so HDR lifts the scene and not the HUD.
+        nya_render_output_scene_end(window);
     } else {
         nya_perf_time_this_scope("gny_cube3d_post_pass");
 

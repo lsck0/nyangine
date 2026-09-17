@@ -607,6 +607,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     if (usable == 0) {
         nya_render2d_render_texture(window, &chain->targets[chain->scene_index], 0.0F, 0.0F, (f32)window->screen_width,
                                     (f32)window->screen_height, NYA_COLOR_WHITE);
+        nya_render_output_scene_end(window);
         return;
     }
 
@@ -651,6 +652,8 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             if (step.inputs == 0) _nya_post_draw_pass(window, &chain->targets[source], &step);
             else _nya_post_draw_step(window, chain, source, &step);
 
+            // what the caller draws next, a HUD, is not lifted in HDR.
+            nya_render_output_scene_end(window);
             return;
         }
 

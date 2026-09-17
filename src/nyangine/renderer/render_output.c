@@ -25,6 +25,22 @@ b8 nya_render_output_hdr_active(NYA_Window* window) {
     return window->render_system.output_gpu.composition != SDL_GPU_SWAPCHAINCOMPOSITION_SDR;
 }
 
+void nya_render_output_scene_end(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    NYA_RenderOutputGPU* gpu = &window->render_system.output_gpu;
+
+    // a render texture is not the frame, and a scene drawn into one is marked when it reaches the window.
+    if (gpu->composition == SDL_GPU_SWAPCHAINCOMPOSITION_SDR || window->render_system.draw_batch.target_is_texture) return;
+
+    if (nya_asset_status(NYA_RENDER_PIPELINE_OUTPUT_MASK) != NYA_ASSET_STATUS_LOADED) return;
+
+    // alpha is replaced under this pipeline, so what is drawn after raises it again by its own coverage.
+    nya_render2d_fullscreen(window, NYA_RENDER_PIPELINE_OUTPUT_MASK, nullptr, 0, nullptr, 0);
+
+    gpu->scene_marked = true;
+}
+
 void nya_render_output_set(NYA_Window* window, NYA_RenderOutput output) {
     nya_assert(window != nullptr);
 
@@ -98,6 +114,24 @@ void _nya_render_output_apply(NYA_Window* window) {
             .single_sampled         = true,
         },
     }), "while queueing the HDR output pipeline");
+
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+        .type = NYA_ASSET_TYPE_SHADER_FRAGMENT,
+        .handle = NYA_ASSET_SHADER_EFFECT_OUTPUT_MASK_FRAG,
+    }), "while queueing the HDR scene mask shader");
+
+    // drawn inside the frame's pass, so at the window's format and sample count like everything else there.
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+        .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
+        .handle               = NYA_RENDER_PIPELINE_OUTPUT_MASK,
+        .as_graphics_pipeline = {
+            .window                 = window,
+            .vertex_shader_handle   = NYA_ASSET_SHADER_PROCEDURAL_VERT,
+            .fragment_shader_handle = NYA_ASSET_SHADER_EFFECT_OUTPUT_MASK_FRAG,
+            .vertex_layout          = NYA_VERTEX_LAYOUT_2D,
+            .blend                  = NYA_BLEND_ALPHA_REPLACE,
+        },
+    }), "while queueing the HDR scene mask pipeline");
 }
 
 SDL_GPUTexture* _nya_render_output_target(NYA_Window* window, SDL_GPUTexture* swapchain, u32 width, u32 height) {
@@ -171,6 +205,7 @@ void _nya_render_output_present(NYA_Window* window) {
             .peak        = render->output.peak > 0.0F ? nya_min(render->output.peak, NYA_RENDER_OUTPUT_PEAK_MAX) : NYA_RENDER_OUTPUT_PEAK,
             .highlight   = NYA_RENDER_OUTPUT_HIGHLIGHT,
             .paper_white = NYA_RENDER_OUTPUT_PAPER_WHITE_NITS,
+            .masked      = gpu->scene_marked ? 1.0F : 0.0F,
         };
 
         SDL_BindGPUGraphicsPipeline(pass, pipeline);
@@ -181,7 +216,8 @@ void _nya_render_output_present(NYA_Window* window) {
 
     if (pass != nullptr) SDL_EndGPURenderPass(pass);
 
-    gpu->swapchain = nullptr;
+    gpu->swapchain    = nullptr;
+    gpu->scene_marked = false;
 }
 
 #endif // NYA_HEADLESS_ENABLED

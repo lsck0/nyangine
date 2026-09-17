@@ -873,6 +873,16 @@ SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoad
             .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
             .alpha_blend_op        = SDL_GPU_BLENDOP_ADD,
         };
+    } else if (parameters->as_graphics_pipeline.blend == NYA_BLEND_ALPHA_REPLACE) {
+        blend_state = (SDL_GPUColorTargetBlendState){
+            .enable_blend          = true,
+            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+            .color_blend_op        = SDL_GPU_BLENDOP_ADD,
+            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ZERO,
+            .alpha_blend_op        = SDL_GPU_BLENDOP_ADD,
+        };
     } else if (parameters->as_graphics_pipeline.blend == NYA_BLEND_MULTIPLY) {
         blend_state = (SDL_GPUColorTargetBlendState){
             .enable_blend = true,

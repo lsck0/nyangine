@@ -357,6 +357,11 @@ struct NYA_ShaderOutputUniform {
 
     /** SDR white in nits, which HDR10 needs and linear output ignores. */
     f32 paper_white;
+
+    /** 1 when the frame's alpha marks the scene, so only where alpha is low is lifted. See nya_render_output_scene_end. */
+    f32 masked;
+
+    f32 pad[3];
 };
 
 /** effect_speed_lines.frag.hlsl. See NYA_PostSpeedLines. */
