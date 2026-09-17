@@ -102,13 +102,14 @@ Open questions:
 
 ### Glyph atlas
 
-Atlases are R8 coverage (58 MB down to 14.5 MB across RAM and VRAM), with `NYA_RENDER2D_PIPELINE_TEXT`
-for coverage text. Glyphs upload one cell at a time through a cell sized transfer buffer: the menu and HUD
-fonts (`@44`, `@22`, `@17`) staged 3.4 MB of transfer buffers, now 7 KB. The 2D game and 3D demo report
-about 220 KiB less GTT through fdinfo; `@44` alone was over SDL's 2 MiB large allocation threshold.
+Atlases are R8 coverage with `NYA_RENDER2D_PIPELINE_TEXT` for coverage text, 128 cells each (was 512). The
+busiest atlas fills 53 (game HUD plus debug overlay), the menu's `@44` 10 and `@22` 28. `@44` is 1152x544
+(was 1152x2176); across the three fonts the texture and its CPU coverage are 0.85 MB each (were 3.4 MB).
+A full atlas warns once and draws new glyphs blank.
 
-- `[ ]` 512 cells sized to the largest glyph: `@44` is 1152x2176. A smaller NYA_RENDER2D_GLYPH_CAPACITY
-  costs only a ceiling.
+Glyphs upload one cell at a time through a cell sized transfer buffer: the menu and HUD fonts staged 3.4 MB
+of transfer buffers, now 7 KB. The 2D game and 3D demo report about 220 KiB less GTT through fdinfo; `@44`
+alone was over SDL's 2 MiB large allocation threshold.
 
 ### The scene is emitted four times a frame
 
@@ -157,7 +158,7 @@ From `nm --size-sort -S` on the release binary:
 | `_nya_audio_system`                   | 446 KB       | `.bss`                        |
 | `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` | 266 + 80 KB  | resident in single player     |
 | `dphaseTable` / `tllTable`            | 256 + 128 KB | vendored audio decoder tables |
-| `_nya_render2d_font_cache`            | 150 KB       | atlas metadata                |
+| `_nya_render2d_font_cache`            | 40 KB        | atlas metadata                |
 
 - `[ ]` The solver pools are the largest statics and do not shrink when a scene uses one dimension.
 
@@ -167,7 +168,7 @@ From `nm --size-sort -S` on the release binary:
 | :---------------------------- | -----------: | :-------------------------------- |
 | Swapchain MSAA colour + depth | 28 MB        | 4x, D24S8                         |
 | Shadow atlas colour + depth   | 19 MB        | strip, R16_UNORM + D24S8          |
-| Glyph atlases                 | 4.8 MB       | R8                                |
+| Glyph atlases                 | 0.85 MB      | R8, three fonts                   |
 | Each offscreen render texture | up to 32 MB  | colour plus its own MSAA and depth |
 | Refraction capture            | 3.5 MB       | full resolution copy              |
 | Batch + transfer buffers      | 3.8 MB       |                                   |

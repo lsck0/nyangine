@@ -21,10 +21,13 @@
 #define NYA_RENDER2D_GLYPH_LAST  126
 
 /**
- * Glyphs one atlas can hold in total.
+ * Glyphs one atlas can hold, which sets the atlas height. The busiest atlas in gnyame fills 53 (HUD plus debug
+ * overlay) and printable ASCII is 95, so 128 leaves room for accents and ligatures. A full atlas warns once and
+ * draws new glyphs blank. Not grown, since baked uvs and queued vertices depend on the texture size. A power of
+ * two, because the lookup is a masked hash.
  * */
 #ifndef NYA_RENDER2D_GLYPH_CAPACITY
-#define NYA_RENDER2D_GLYPH_CAPACITY 512
+#define NYA_RENDER2D_GLYPH_CAPACITY 128
 #endif
 
 /** Buckets in an atlas's glyph-index lookup. A power of two, because the index is a masked hash. */
@@ -119,6 +122,9 @@ struct NYA_FontAtlas {
 
     /** Slots already on the GPU. Glyphs are never evicted, so the ones to upload are the slots from here on. */
     u32 uploaded_count;
+
+    /** Whether running out of slots was logged, so a full atlas warns once instead of every frame. */
+    b8 full_warned;
 
     /** Whether the glyphs are a distance field rather than coverage. */
     b8 sdf;
@@ -2144,8 +2150,12 @@ const NYA_Glyph* _nya_render2d_glyph(NYA_FontAtlas* atlas, u32 glyph_index) {
     }
 
     if (atlas->glyph_count >= NYA_RENDER2D_GLYPH_CAPACITY) {
-        // full, not evicting, for the font cache's reason.
-        nya_log_warn("glyph atlas for '%s' is full at %d glyphs; raise NYA_RENDER2D_GLYPH_CAPACITY", atlas->path, NYA_RENDER2D_GLYPH_CAPACITY);
+        // full, not evicting, for the font cache's reason. the glyph draws blank and its advance is kept.
+        if (!atlas->full_warned) {
+            nya_log_warn("glyph atlas for '%s' is full at %d glyphs; raise NYA_RENDER2D_GLYPH_CAPACITY", atlas->handle, NYA_RENDER2D_GLYPH_CAPACITY);
+            atlas->full_warned = true;
+        }
+
         return nullptr;
     }
 
