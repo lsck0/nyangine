@@ -398,6 +398,8 @@ void nya_physics2d_teleport(NYA_Entity* entity, f32x2 position, f32 rotation) {
     entity->position.x = position.x;
     entity->position.y = position.y;
     entity->rotation   = nya_quaternion_from_euler(0.0F, 0.0F, rotation);
+
+    nya_entity_transform_snap(entity);
 }
 
 f32 nya_physics2d_rotation(const NYA_Entity* entity) {

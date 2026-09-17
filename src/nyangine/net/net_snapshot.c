@@ -449,6 +449,9 @@ void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f32 delta_time_s, f32 s
         // normalising afterwards takes the short way round but at a varying rate, so a spinning object
         // visibly speeds up and slows down between snapshots.
         entity->rotation = nya_quaternion_slerp(replica->from_rotation, replica->to_rotation, alpha);
+
+        // already smoothed per frame, so drawn as written rather than from the previous tick.
+        nya_entity_transform_snap(entity);
     }
 }
 

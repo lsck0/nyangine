@@ -345,6 +345,8 @@ void nya_physics3d_teleport(NYA_Entity* entity, f32x3 position, NYA_Quaternion r
     // readback loop and would never report it.
     entity->position = position;
     entity->rotation = rotation;
+
+    nya_entity_transform_snap(entity);
 }
 
 b8 nya_physics3d_grounded(const NYA_Entity* entity) {

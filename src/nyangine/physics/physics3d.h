@@ -350,7 +350,7 @@ NYA_API f32x3 nya_physics3d_velocity(const NYA_Entity* entity) __attr_no_discard
 NYA_API void  nya_physics3d_angular_velocity_set(NYA_Entity* entity, f32x3 radians_per_second);
 NYA_API f32x3 nya_physics3d_angular_velocity(const NYA_Entity* entity) __attr_no_discard;
 
-/** Moves a body without simulating the move: no sweep, no contacts along the way. */
+/** Moves a body without simulating the move: no sweep, no contacts along the way, and no interpolation from where it was. */
 NYA_API void nya_physics3d_teleport(NYA_Entity* entity, f32x3 position, NYA_Quaternion rotation);
 
 /**

@@ -374,6 +374,51 @@ f32_4x4 nya_entity_world_matrix(const NYA_Entity* entity) {
 
 /*
  * ─────────────────────────────────────────────────────────
+ * INTERPOLATION BETWEEN TICKS
+ * ─────────────────────────────────────────────────────────
+ */
+
+void nya_system_entity_transforms_capture(void) {
+    nya_perf_time_this_function();
+
+    NYA_EntitySystem* system = &nya_world()->entity_system;
+
+    // every slot below the mark, occupied or not: a free slot is zeroed, and skipping the branch is cheaper.
+    for (u32 slot = 0; slot < system->high_water_mark; slot++) {
+        NYA_Entity* entity = &system->entities[slot];
+
+        entity->position_previous = entity->position;
+        entity->rotation_previous = entity->rotation;
+    }
+}
+
+f32x3 nya_entity_render_position(const NYA_Entity* entity) {
+    nya_assert(entity != nullptr);
+
+    return nya_lerp(entity->position_previous, entity->position, nya_app_tick_alpha());
+}
+
+NYA_Quaternion nya_entity_render_rotation(const NYA_Entity* entity) {
+    nya_assert(entity != nullptr);
+
+    return nya_quaternion_nlerp(entity->rotation_previous, entity->rotation, nya_app_tick_alpha());
+}
+
+void nya_entity_transform_snap(NYA_Entity* entity) {
+    nya_assert(entity != nullptr);
+
+    entity->position_previous = entity->position;
+    entity->rotation_previous = entity->rotation;
+
+    // composed now rather than at the end of the tick, or the children would sweep after their parent.
+    for (NYA_Entity* child = nya_entity_get(entity->first_child); child != nullptr; child = nya_entity_get(child->next_sibling)) {
+        _nya_entity_compose(child, entity);
+        nya_entity_transform_snap(child);
+    }
+}
+
+/*
+ * ─────────────────────────────────────────────────────────
  * INTERPOLATED MOTION
  * ─────────────────────────────────────────────────────────
  */
@@ -399,8 +444,12 @@ void nya_entity_move_to_with_options(NYA_Entity* entity, f32x3 target, f32 durat
 
     // zero duration teleports, without spending a tween slot and a frame.
     if (duration_s <= 0.0F) {
-        if (entity->physics2d.attached) nya_physics2d_teleport(entity, target.xy, nya_physics2d_rotation(entity));
-        else entity->position = target;
+        if (entity->physics2d.attached) {
+            nya_physics2d_teleport(entity, target.xy, nya_physics2d_rotation(entity));
+        } else {
+            entity->position = target;
+            nya_entity_transform_snap(entity);
+        }
 
         entity->move_position = target;
         return;
@@ -729,6 +778,11 @@ NYA_EntityHandle nya_entity_spawn_with_options(NYA_EntitySpawnOptions options) {
         .position         = options.position,
         .rotation         = options.rotation,
         .scale            = options.scale,
+
+        // where it spawned, so the first frames draw it there instead of sweeping in from the origin.
+        .position_previous = options.position,
+        .rotation_previous = options.rotation,
+
         .velocity         = options.velocity,
         .angular_velocity = options.angular_velocity,
         .user_data        = options.user_data,
@@ -1203,14 +1257,16 @@ void _nya_entity_visual_draw(NYA_Entity* entity, NYA_Window* window) {
             // null until the texture loads.
             if (entity->visual.sprite.texture == nullptr) return;
 
-            nya_render2d_sprite(window, &entity->visual.sprite, entity->position.xy);
+            nya_render2d_sprite(window, &entity->visual.sprite, nya_entity_render_position(entity).xy);
         } break;
 
         case NYA_ENTITY_VISUAL_CUBE: {
             // only with a 3D camera set; the 2D projection would put the cube somewhere arbitrary.
             if (!nya_render3d_active(window)) return;
 
-            nya_render3d_cube(window, entity->position, entity->visual.size, entity->rotation, entity->visual.color);
+            nya_render3d_cube(
+                window, nya_entity_render_position(entity), entity->visual.size, nya_entity_render_rotation(entity), entity->visual.color
+            );
         } break;
 
         case NYA_ENTITY_VISUAL_NONE:
@@ -1267,7 +1323,8 @@ u32 nya_system_entity_lights(f32x2 min, f32x2 max, OUT NYA_Light2D* out, OUT f32
         if (entity->light.radius <= 0.0F) continue;
         if (entity->light.intensity <= 0.0F) continue;
 
-        f32x2 position = entity->position.xy + entity->light.offset;
+        // where the entity draws, so a light moves with it between ticks.
+        f32x2 position = nya_entity_render_position(entity).xy + entity->light.offset;
 
         // widened by the light's radius, since an off-screen light can still spill onto the view.
         f32 reach = entity->light.radius;

@@ -327,6 +327,13 @@ struct NYA_Entity {
     NYA_Quaternion rotation;
     f32x3          scale;
 
+    /**
+     * The transform at the start of this tick, before anything moved it. Draws interpolate from here, see
+     * nya_entity_render_position; something that jumps calls nya_entity_transform_snap.
+     * */
+    f32x3          position_previous;
+    NYA_Quaternion rotation_previous;
+
     /*
      * Hierarchy, by handle so links survive despawns.
      *
@@ -628,6 +635,48 @@ NYA_API void nya_system_entity_transforms_update(void);
  * The entity's world transform as a matrix, for handing to a renderer.
  * */
 NYA_API f32_4x4 nya_entity_world_matrix(const NYA_Entity* entity) __attr_no_discard;
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * INTERPOLATION BETWEEN TICKS
+ * ─────────────────────────────────────────────────────────
+ *
+ * ```c
+ * void crate_on_render(NYA_Entity* entity, NYA_Window* window) {
+ *     nya_render3d_cube(window, nya_entity_render_position(entity), size, nya_entity_render_rotation(entity), color);
+ * }
+ *
+ * entity->position = spawn_point;
+ * nya_entity_transform_snap(entity);   // a respawn draws there at once instead of sweeping across the map
+ * ```
+ *
+ * Frames land between ticks, so a draw of `position` holds still on frames without a tick and jumps on the
+ * next. Draws read the render transform instead, which moves from the previous tick toward the current one
+ * by nya_app_tick_alpha. A child interpolates its own world transform, so it moves in step with its parent
+ * and cuts the arc of a turning parent by a chord no wider than a tick's worth of turn.
+ */
+
+/**
+ * Copies every entity's transform into its previous one. Called at the top of each tick, before physics or
+ * anything else moves an entity.
+ * */
+NYA_API void nya_system_entity_transforms_capture(void);
+
+/**
+ * Where to draw the entity this frame, between its previous tick and its current one. The current position
+ * during a tick.
+ * */
+NYA_API f32x3 nya_entity_render_position(const NYA_Entity* entity) __attr_no_discard;
+
+/** The rotation to draw with this frame. Normalized linear, which a tick's worth of turn cannot tell from slerp. */
+NYA_API NYA_Quaternion nya_entity_render_rotation(const NYA_Entity* entity) __attr_no_discard;
+
+/**
+ * Makes the entity and its subtree draw where they are now, without sweeping there from the previous tick.
+ * For anything that jumps: teleports, respawns, a snapshot correction. Spawning and the physics teleports
+ * already do it. Children are composed from the entity first, so they land with it.
+ * */
+NYA_API void nya_entity_transform_snap(NYA_Entity* entity);
 
 /*
  * ─────────────────────────────────────────────────────────

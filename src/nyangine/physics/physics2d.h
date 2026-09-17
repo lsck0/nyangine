@@ -392,7 +392,7 @@ NYA_API void nya_physics2d_angular_velocity_set(NYA_Entity* entity, f32 radians_
 NYA_API f32  nya_physics2d_angular_velocity(const NYA_Entity* entity) __attr_no_discard;
 
 /**
- * Moves a body without simulating the move: no sweep, no contacts along the way.
+ * Moves a body without simulating the move: no sweep, no contacts along the way, and no interpolation from where it was.
  * */
 NYA_API void nya_physics2d_teleport(NYA_Entity* entity, f32x2 position, f32 rotation);
 

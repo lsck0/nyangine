@@ -460,6 +460,9 @@ void _nya_app_update(void) {
         // tick's value.
         app->frame_stats.delta_time_s = (f32)nya_time_ns_to_s(app->options.time_step_ns);
 
+        // before anything moves an entity, so a draw between this tick and the next starts from here.
+        nya_system_entity_transforms_capture();
+
         /* The solver runs at the top of the tick, before anything reads the world. */
         nya_system_physics2d_update(app->frame_stats.delta_time_s);
 
