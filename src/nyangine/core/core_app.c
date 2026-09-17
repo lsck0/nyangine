@@ -423,6 +423,8 @@ void nya_app_run(void) {
 
             nya_arena_free_all(app->frame_allocator);
 
+            nya_trace_frame_end();
+
             nya_event_dispatch((NYA_Event){
                 .type = NYA_EVENT_FRAME_ENDED,
             });

@@ -10,7 +10,8 @@
  * ```
  *
  * Counts what the engine asks SDL for, not what the driver reserves: SDL rounds allocations up into
- * larger pages, and a transfer buffer mapped with cycling can hold more than one copy.
+ * larger pages, and a transfer buffer mapped with cycling can hold more than one copy. Each object is also counted
+ * against the trace feature whose scope created it; see debug_trace.h.
  * */
 #pragma once
 
@@ -18,6 +19,7 @@
 
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/debug/debug_trace.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -73,6 +75,9 @@ NYA_API void                   nya_gpu_transfer_buffer_release(SDL_GPUDevice* de
 
 /** Bytes live in one kind. */
 NYA_API u64 nya_gpu_memory_bytes(NYA_GPUMemoryKind kind) __attr_no_discard;
+
+/** Bytes live, of every kind, created inside `feature`'s trace scopes. */
+NYA_API u64 nya_gpu_memory_feature_bytes(NYA_TraceFeature feature) __attr_no_discard;
 
 /** What a texture created from `info` holds: every mip level, layer and sample. */
 NYA_API u64 nya_gpu_texture_bytes(const SDL_GPUTextureCreateInfo* info) __attr_no_discard;

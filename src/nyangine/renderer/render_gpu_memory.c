@@ -18,6 +18,9 @@ typedef struct {
 
     u64               bytes;
     NYA_GPUMemoryKind kind;
+
+    /** The trace feature open when it was created. Fits in the padding, so a slot stays 24 bytes. */
+    NYA_TraceFeature feature;
 } _NYA_GPUAllocation;
 
 typedef struct {
@@ -28,6 +31,8 @@ typedef struct {
     u32 count;
 
     u64 bytes[NYA_GPU_MEMORY_KIND_COUNT];
+
+    u64 feature_bytes[NYA_TRACE_FEATURE_MAX];
 
     /** A full table warns once, since every later create would repeat it. */
     b8 full_warned;
@@ -114,6 +119,12 @@ u64 nya_gpu_memory_bytes(NYA_GPUMemoryKind kind) {
     return _nya_gpu_memory.bytes[kind];
 }
 
+u64 nya_gpu_memory_feature_bytes(NYA_TraceFeature feature) {
+    nya_assert(feature < NYA_TRACE_FEATURE_MAX);
+
+    return _nya_gpu_memory.feature_bytes[feature];
+}
+
 u64 nya_gpu_texture_bytes(const SDL_GPUTextureCreateInfo* info) {
     nya_assert(info != nullptr);
 
@@ -181,9 +192,12 @@ void _nya_gpu_memory_track(NYA_GPUMemoryKind kind, const void* handle, u64 bytes
         slot = (slot + 1) & (NYA_GPU_MEMORY_SLOTS - 1);
     }
 
-    _nya_gpu_memory.slots[slot] = (_NYA_GPUAllocation){ .handle = handle, .bytes = bytes, .kind = kind };
+    NYA_TraceFeature feature = nya_trace_feature_current();
+
+    _nya_gpu_memory.slots[slot] = (_NYA_GPUAllocation){ .handle = handle, .bytes = bytes, .kind = kind, .feature = feature };
     _nya_gpu_memory.count++;
-    _nya_gpu_memory.bytes[kind] += bytes;
+    _nya_gpu_memory.bytes[kind]             += bytes;
+    _nya_gpu_memory.feature_bytes[feature] += bytes;
 }
 
 void _nya_gpu_memory_untrack(const void* handle) {
@@ -202,7 +216,8 @@ void _nya_gpu_memory_untrack(const void* handle) {
     const _NYA_GPUAllocation* found = &_nya_gpu_memory.slots[hole];
     nya_assert(_nya_gpu_memory.bytes[found->kind] >= found->bytes, "GPU memory count went negative");
 
-    _nya_gpu_memory.bytes[found->kind] -= found->bytes;
+    _nya_gpu_memory.bytes[found->kind]             -= found->bytes;
+    _nya_gpu_memory.feature_bytes[found->feature] -= found->bytes;
     _nya_gpu_memory.count--;
 
     /*
