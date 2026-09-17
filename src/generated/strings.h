@@ -11,6 +11,7 @@
  */
 
 typedef enum {
+    NYA_STRING_CUBE3D_HINT_ANIMATION,
     NYA_STRING_CUBE3D_HINT_CAMERA,
     NYA_STRING_CUBE3D_HINT_CLICK,
     NYA_STRING_CUBE3D_HINT_DRAG,
@@ -40,10 +41,36 @@ typedef enum {
 
 /** The JSON key each id came from, in id order. Read by nya_i18n_load. */
 static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unused = {
-    "cube3d_hint_camera", "cube3d_hint_click",  "cube3d_hint_drag",  "cube3d_keys", "cube3d_title", "hud_boxes",   "hud_greeting",  "hud_hosting",
-    "hud_hovering",       "hud_keys",           "hud_offline",       "hud_paused",  "hud_players",  "hud_score",   "menu_2d_scene", "menu_3d_scene",
-    "menu_main_menu",     "menu_master_volume", "menu_music_volume", "menu_quit",   "menu_restart", "menu_resume", "menu_start",
+    "cube3d_hint_animation",
+    "cube3d_hint_camera",
+    "cube3d_hint_click",
+    "cube3d_hint_drag",
+    "cube3d_keys",
+    "cube3d_title",
+    "hud_boxes",
+    "hud_greeting",
+    "hud_hosting",
+    "hud_hovering",
+    "hud_keys",
+    "hud_offline",
+    "hud_paused",
+    "hud_players",
+    "hud_score",
+    "menu_2d_scene",
+    "menu_3d_scene",
+    "menu_main_menu",
+    "menu_master_volume",
+    "menu_music_volume",
+    "menu_quit",
+    "menu_restart",
+    "menu_resume",
+    "menu_start",
 };
+
+/** `cube3d_hint_animation` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_hint_animation(void) {
+    return _nya_i18n_format(NYA_STRING_CUBE3D_HINT_ANIMATION);
+}
 
 /** `cube3d_hint_camera` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_hint_camera(void) {

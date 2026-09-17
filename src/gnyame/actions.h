@@ -39,6 +39,9 @@ enum {
     /** Opens a drop-through window on every crate, so anything on a one-way ledge falls off it. */
     GNY_ACTION_DROP_THROUGH,
 
+    /** Stops and restarts the 3D scene's skinned animation clock. */
+    GNY_ACTION_FREEZE_ANIMATION,
+
     GNY_ACTION_COUNT,
 };
 

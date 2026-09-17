@@ -28,5 +28,6 @@
   "cube3d_hint_click": "click the cube",
   "cube3d_hint_drag": "drag the cube to spin it",
   "cube3d_hint_camera": "right drag orbits, wheel zooms, r resets",
+  "cube3d_hint_animation": "f freezes the bending bar",
   "cube3d_keys": "space drop   c clear   r terrain   b bloom   t stats   esc menu"
 }

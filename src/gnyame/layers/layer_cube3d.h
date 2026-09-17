@@ -56,4 +56,15 @@ typedef struct GNY_Cube3DScene {
 
     /** Seconds since the plume last emitted. */
     f32 plume_timer_s;
+
+    /** The skinned bar's clock, and which of its clips it is on. */
+    NYA_SkeletonAnimator bender;
+    u32                  bender_clip;
+
+    /** Stops the bar's clock where it is. */
+    b8 bender_frozen;
+
+    /** Posed once a tick, read by every pass of the draw. Zero bones until the model loads. */
+    f32_4x4 bender_palette[NYA_SKELETON_MAX_BONES];
+    u32     bender_bone_count;
 } GNY_Cube3DScene;

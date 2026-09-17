@@ -836,6 +836,23 @@
 #define GNY_CUBE3D_PILL_COLOR ((NYA_Color){ 0.96F, 0.56F, 0.52F, 1.0F })
 
 /*
+ * The skinned model: a two bone bar that bends, posed from its clips every tick. No body, since its shape
+ * changes with the pose.
+ */
+#define GNY_CUBE3D_BENDER NYA_ASSET_MODELS_BENDER_FBX
+
+/** Ground position on xz, in front of the row, where the default orbit sees it side on. */
+#define GNY_CUBE3D_BENDER_X (-2.0F)
+#define GNY_CUBE3D_BENDER_Z 3.5F
+
+#define GNY_CUBE3D_BENDER_SCALE 1.0F
+
+/** bender.fbx spans a metre either side of its origin, so this stands it on the ground. */
+#define GNY_CUBE3D_BENDER_LIFT 1.0F
+
+#define GNY_CUBE3D_BENDER_COLOR ((NYA_Color){ 0.93F, 0.78F, 0.36F, 1.0F })
+
+/*
  * ─────────────────────────────────────────────────────────
  * THE 3D SCENE'S LIGHTS
  * ─────────────────────────────────────────────────────────

@@ -39,6 +39,9 @@ NYA_INTERNAL GNY_FallingCube _gny_cube3d_cube_spawn(u32 index);
 /** Teleports a body to `position`, upright and at rest. No-op for a handle that does not resolve. */
 NYA_INTERNAL void _gny_cube3d_body_reset(NYA_EntityHandle handle, f32x3 position);
 
+/** Advances the skinned bar's clock and rebuilds its palette. Clips play once each, in turn. */
+NYA_INTERNAL void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * ON CREATE
@@ -76,7 +79,7 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
     // not fatal: without an audio device the scene still runs and play calls are no-ops.
     if (!sound.ok) nya_log_warn("%s", (NYA_ConstCString)sound.message);
 
-    NYA_AssetHandle models[] = { GNY_CUBE3D_MODEL, GNY_CUBE3D_PILL };
+    NYA_AssetHandle models[] = { GNY_CUBE3D_MODEL, GNY_CUBE3D_PILL, GNY_CUBE3D_BENDER };
 
     for (u64 i = 0; i < sizeof(models) / sizeof(models[0]); i++) {
         NYA_Error queued = nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_MESH, .handle = models[i] });
@@ -347,6 +350,13 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
                 break;
             }
 
+            if (nya_input_action_matches(GNY_ACTION_FREEZE_ANIMATION, key->key, key->modifier_flags)) {
+                scene->bender_frozen = !scene->bender_frozen;
+
+                event->was_handled = true;
+                break;
+            }
+
             // the 2D scene's keys and flags, so b and t mean the same in both.
             if (nya_input_action_matches(GNY_ACTION_TOGGLE_BLOOM, key->key, key->modifier_flags)) {
                 gny_world()->bloom_enabled = !gny_world()->bloom_enabled;
@@ -612,6 +622,8 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
     // Gives the two models bodies once their meshes finish loading; a no-op every frame after.
     gny_layer_cube3d_models_attach(window);
 
+    _gny_cube3d_bender_pose(scene, delta_time_s);
+
     // once a tick, so a sound un-muffles as the view swings clear of a hill.
     nya_audio_occlusion_update();
 
@@ -863,6 +875,19 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     // outline off before the lamps: an outlined glowing bead reads as a hole.
     nya_render3d_outline_set(window, 0.0F, GNY_CUBE3D_OUTLINE_COLOR);
 
+    // posed in on_update, so the shadow cascades and the camera pass draw the same frame of the clip.
+    if (scene->bender_bone_count > 0) {
+        f32x3 base = { GNY_CUBE3D_BENDER_X, gny_terrain3d_height_at(GNY_CUBE3D_BENDER_X, GNY_CUBE3D_BENDER_Z) + GNY_CUBE3D_BENDER_LIFT,
+                       GNY_CUBE3D_BENDER_Z };
+
+        f32_4x4 placement = nya_matrix_transform(base, nya_quaternion_to_matrix3(nya_quaternion_identity),
+                                                 (f32x3){ GNY_CUBE3D_BENDER_SCALE, GNY_CUBE3D_BENDER_SCALE, GNY_CUBE3D_BENDER_SCALE });
+
+        nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.2F, .roughness = 0.5F, .edge = GNY_CUBE3D_EDGE });
+        nya_render3d_skinned_mesh(window, GNY_CUBE3D_BENDER, scene->bender_palette, scene->bender_bone_count, placement,
+                                  GNY_CUBE3D_BENDER_COLOR);
+    }
+
     /*
      * Water is the scene's translucent surface. The three panes are drawn nearest first on purpose, to show the
      * renderer sorts them: unsorted, the nearer pane would hide the far one. See NYA_Render3DStream.
@@ -1004,6 +1029,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         nya_string_cube3d_title(),
         scene->grabbed_once ? nya_string_cube3d_hint_drag() : nya_string_cube3d_hint_click(),
         nya_string_cube3d_hint_camera(),
+        nya_string_cube3d_hint_animation(),
         nya_string_cube3d_keys(),
     };
 
@@ -1162,6 +1188,35 @@ f32x3 _gny_cube3d_camera_position(const GNY_Cube3DScene* scene) {
         (sinf(scene->orbit_pitch) * scene->orbit_range) + pivot,
         cosf(scene->orbit_yaw) * horizontal,
     };
+}
+
+void _gny_cube3d_bender_pose(GNY_Cube3DScene* scene, f32 delta_time_s) {
+    NYA_Asset* asset = nya_asset_get(GNY_CUBE3D_BENDER);
+
+    // still loading, or a reload freed the skeleton the animator points into.
+    if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->as_mesh.skeleton == nullptr) {
+        scene->bender            = (NYA_SkeletonAnimator){ 0 };
+        scene->bender_bone_count = 0;
+        return;
+    }
+
+    const NYA_Skeleton* skeleton = asset->as_mesh.skeleton;
+
+    if (skeleton->clip_count == 0) return;
+
+    if (scene->bender.skeleton != skeleton) {
+        scene->bender_clip = 0;
+        nya_skeleton_animator_play(&scene->bender, skeleton, &skeleton->clips[0], false);
+    } else if (scene->bender.finished) {
+        scene->bender_clip = (scene->bender_clip + 1) % skeleton->clip_count;
+        nya_skeleton_animator_play(&scene->bender, skeleton, &skeleton->clips[scene->bender_clip], false);
+    }
+
+    NYA_SkeletonPose pose;
+    nya_skeleton_animator_update(&scene->bender, scene->bender_frozen ? 0.0F : delta_time_s, &pose);
+
+    nya_skeleton_palette(skeleton, &pose, scene->bender_palette);
+    scene->bender_bone_count = skeleton->bone_count;
 }
 
 void _gny_cube3d_body_reset(NYA_EntityHandle handle, f32x3 position) {

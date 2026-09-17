@@ -158,6 +158,11 @@ void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center
     nya_unused(color);
 }
 
+void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, const f32_4x4* palette, u32 bone_count, f32_4x4 model,
+                               NYA_Color tint) {
+    nya_unused(window, handle, palette, bone_count, model, tint);
+}
+
 void nya_render3d_cube(NYA_Window* window, f32x3 center, f32x3 size, NYA_Quaternion rotation, NYA_Color color) {
     nya_unused(window, center, size, rotation, color);
 }
