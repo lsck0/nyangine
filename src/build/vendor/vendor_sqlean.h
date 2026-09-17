@@ -132,11 +132,11 @@ NYA_VendorRule vendor_sqlean_windows_x86_64 = {
             .input_file  = SQLEAN_GLUE_SOURCE,
             .output_file = SQLEAN_O_WINDOWS_X86_64,
 
-            // No -fPIC: position independent code is the default and meaningless for a PE, and
-            // mingw-w64's gcc warns that the flag is ignored.
+            // No -fPIC: position independent code is the default and meaningless for a PE.
             .command = {
-                .program   = NYA_WINDOWS_CC,
+                .program   = CC,
                 .arguments = {
+                    FLAGS_TARGET_WINDOWS_X86_64
                     SQLEAN_CFLAGS,
                     "-I" SQLITE_BUILD_WINDOWS_X86_64,
                     SQLEAN_GLUE_SOURCE,

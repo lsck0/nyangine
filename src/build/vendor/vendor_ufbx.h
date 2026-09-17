@@ -124,8 +124,8 @@ NYA_VendorRule vendor_ufbx_windows_x86_64 = {
             .output_file = UFBX_O_WINDOWS_X86_64,
 
             .command = {
-                .program   = NYA_WINDOWS_CC,
-                .arguments = { UFBX_CFLAGS, UFBX_SOURCE, "-o", UFBX_O_WINDOWS_X86_64, },
+                .program   = CC,
+                .arguments = { FLAGS_TARGET_WINDOWS_X86_64 UFBX_CFLAGS, UFBX_SOURCE, "-o", UFBX_O_WINDOWS_X86_64, },
             },
         },
         &(NYA_BuildRule){
