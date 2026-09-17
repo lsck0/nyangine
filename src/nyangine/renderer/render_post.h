@@ -28,15 +28,16 @@
  * nya_post_speed_lines_set(window, (NYA_PostSpeedLines){ .amount = camera_speed / top_speed, .motion = camera_velocity });
  * nya_post_bloom_set(window, (NYA_PostBloom){ .enabled = true });
  * nya_post_eye_adaptation_set(window, (NYA_PostEyeAdaptation){ .enabled = true });
+ * nya_post_light_shafts_set(window, (NYA_PostLightShafts){ .enabled = true });
  * ```
  *
- * They run inside nya_post_end before the caller's passes, occlusion then ink then depth of field then eye adaptation
- * then antialiasing, and the debug view after them. Depth of field follows the ink, so a line blurs with the surface it
- * is drawn on, and comes before antialiasing, which smooths the cut between sharp and blurred. A feature that is off
- * has no pass, no pipeline and no target. Ink, occlusion and distance focus read the scene normal buffer
- * (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only while one of them or a debug view is on,
- * and they skip a frame whose capture drew no 3D. Bloom and speed lines are drawn after the caller's passes, so a grade
- * shapes what glows and leaves the lines as drawn.
+ * They run inside nya_post_end before the caller's passes, occlusion then ink then depth of field then light shafts
+ * then eye adaptation then antialiasing, and the debug view after them. Depth of field follows the ink, so a line blurs
+ * with the surface it is drawn on, and comes before antialiasing, which smooths the cut between sharp and blurred. A
+ * feature that is off has no pass, no pipeline and no target. Ink, occlusion, light shafts and distance focus read the
+ * scene normal buffer (NYA_RENDER3D_NORMAL_FORMAT), which the chain's scene target carries only while one of them or a
+ * debug view is on, and they skip a frame whose capture drew no 3D. Bloom and speed lines are drawn after the caller's
+ * passes, so a grade shapes what glows and leaves the lines as drawn.
  * */
 #pragma once
 
@@ -135,6 +136,15 @@
 /** How far saturation follows the exposure, when NYA_PostEyeAdaptation.saturation is zero. */
 #define NYA_POST_ADAPTATION_SATURATION 0.2F
 
+/** How strongly light shafts are added over the image, when NYA_PostLightShafts.intensity is zero. */
+#define NYA_POST_LIGHT_SHAFTS_INTENSITY 0.35F
+
+/** How far back toward the sun a shaft gathers, a fraction of the way there, when NYA_PostLightShafts.length is zero. */
+#define NYA_POST_LIGHT_SHAFTS_LENGTH 0.9F
+
+/** Sky brightness above which light streams, when NYA_PostLightShafts.threshold is zero. */
+#define NYA_POST_LIGHT_SHAFTS_THRESHOLD 0.85F
+
 /** Lines around the full circle, when NYA_PostSpeedLines.density is zero. */
 #define NYA_POST_SPEED_LINES_DENSITY 140.0F
 
@@ -159,6 +169,7 @@ typedef struct NYA_PostDepthOfField     NYA_PostDepthOfField;
 typedef struct NYA_PostSpeedLines       NYA_PostSpeedLines;
 typedef struct NYA_PostBloom            NYA_PostBloom;
 typedef struct NYA_PostEyeAdaptation    NYA_PostEyeAdaptation;
+typedef struct NYA_PostLightShafts      NYA_PostLightShafts;
 typedef enum NYA_PostFocus              NYA_PostFocus;
 typedef enum NYA_PostDebugView          NYA_PostDebugView;
 
@@ -369,6 +380,26 @@ struct NYA_PostEyeAdaptation {
     f32 saturation;
 };
 
+/**
+ * Light shafts from the sun, the direction of the 3D scene's light. Bright sky seen past the scene's silhouettes is
+ * smeared toward the sun on screen at half resolution, in the target bloom uses, and added back, so rays fan out
+ * between hills. The sky is wherever the normal buffer holds no surface. Nothing is drawn while the sun is behind the
+ * camera or the camera is orthographic.
+ * */
+// @reflect
+struct NYA_PostLightShafts {
+    b8 enabled;
+
+    /** How strongly the shafts are added. See NYA_POST_LIGHT_SHAFTS_INTENSITY. */
+    f32 intensity;
+
+    /** How far back toward the sun each pixel gathers, in [0, 1]. See NYA_POST_LIGHT_SHAFTS_LENGTH. */
+    f32 length;
+
+    /** Sky brightness above which light streams. See NYA_POST_LIGHT_SHAFTS_THRESHOLD. */
+    f32 threshold;
+};
+
 /** A buffer shown in place of the image, for looking at what the scene passes read. */
 // @reflect
 enum NYA_PostDebugView {
@@ -485,6 +516,10 @@ NYA_API NYA_PostBloom nya_post_bloom(NYA_Window* window) __attr_no_discard;
 /** Sets this window's eye adaptation, clamped like the ink. */
 NYA_API void                  nya_post_eye_adaptation_set(NYA_Window* window, NYA_PostEyeAdaptation adaptation);
 NYA_API NYA_PostEyeAdaptation nya_post_eye_adaptation(NYA_Window* window) __attr_no_discard;
+
+/** Sets this window's light shafts, clamped like the ink. */
+NYA_API void                nya_post_light_shafts_set(NYA_Window* window, NYA_PostLightShafts shafts);
+NYA_API NYA_PostLightShafts nya_post_light_shafts(NYA_Window* window) __attr_no_discard;
 
 /** Shows a buffer instead of the image. An unknown view reads as none. */
 NYA_API void              nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view);

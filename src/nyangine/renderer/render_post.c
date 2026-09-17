@@ -21,6 +21,7 @@
 #define _NYA_POST_PIPELINE_DEBUG           "nya_post_debug_pipeline"
 #define _NYA_POST_PIPELINE_ADAPTATION_MEASURE "nya_post_adaptation_measure_pipeline"
 #define _NYA_POST_PIPELINE_ADAPTATION         "nya_post_adaptation_pipeline"
+#define _NYA_POST_PIPELINE_LIGHT_SHAFTS       "nya_post_light_shafts_pipeline"
 
 /** Eye adaptation's history: log brightness wants more than eight bits, or easing stalls short of its target. */
 #define _NYA_POST_ADAPTATION_FORMAT NYA_RENDER3D_NORMAL_FORMAT
@@ -59,15 +60,15 @@ typedef struct {
 } _NYA_PostStep;
 
 /**
- * The built-in passes one frame can queue before the caller's: occlusion twice, ink, depth of field twice, eye
- * adaptation twice, antialiasing.
+ * The built-in passes one frame can queue before the caller's: occlusion twice, ink, depth of field twice, light
+ * shafts twice, eye adaptation twice, antialiasing.
  * */
-#define _NYA_POST_BUILT_IN_MAX 8
+#define _NYA_POST_BUILT_IN_MAX 10
 
 /** Whether any option on the window reads the scene normal buffer. */
 NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_RenderSystemWindow* render) {
     return render->post_ink.enabled || render->post_ambient_occlusion.enabled || render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE
-        || render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE;
+        || render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE || render->post_light_shafts.enabled;
 }
 
 /** Whether any option on the window draws the half resolution occlusion. Every debug view binds it. A 2D scene has none. */
@@ -131,8 +132,10 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
         );
     }
 
-    // its own, since the debug view reads the occlusion after depth of field has run. bloom reuses it later on.
-    b8 wants_blur   = render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF || render->post_bloom.enabled;
+    // its own, since the debug view reads the occlusion after depth of field has run. light shafts and bloom reuse it
+    // after it, and shafts only over a 3D scene.
+    b8 shafts       = render->post_light_shafts.enabled && chain->scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED;
+    b8 wants_blur   = render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF || render->post_bloom.enabled || shafts;
     b8 blur_matches = chain->blur.width == half_width && chain->blur.height == half_height;
 
     if (!wants_blur || !blur_matches) nya_render_texture_destroy(&chain->blur);
@@ -340,6 +343,30 @@ NYA_INTERNAL f32x2 _nya_post_speed_lines_center(const NYA_Window* window, const 
     return result;
 }
 
+/**
+ * Where the sun sits on screen, in uv, from the 3D scene's light, and how squarely the camera faces it: one looking
+ * straight at it, fading to zero sideways and behind, and zero for an orthographic camera.
+ * */
+NYA_INTERNAL f32 _nya_post_sun(const NYA_Window* window, OUT f32x2* out_uv) {
+    nya_assert(out_uv != nullptr);
+
+    const NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    if (batch->camera_is_ortho || nya_vector_length(batch->light.direction) < NYA_EPSILON) return 0.0F;
+
+    f32x3 toward  = -nya_vector_normalize(batch->light.direction);
+    f32x3 forward = nya_vector_normalize(batch->camera.target - batch->camera.position);
+
+    // a direction, not a point: the sun's vanishing point.
+    f32x4 clip = nya_matrix_times_vector(batch->view_projection, (f32x4){ toward.x, toward.y, toward.z, 0.0F });
+
+    if (clip.w <= NYA_EPSILON) return 0.0F;
+
+    *out_uv = (f32x2){ 0.5F + ((clip.x / clip.w) * 0.5F), 0.5F - ((clip.y / clip.w) * 0.5F) };
+
+    return nya_clamp(nya_vector_dot(forward, toward) / 0.5F, 0.0F, 1.0F);
+}
+
 /** The depth of field block with every zero field replaced by its default. */
 NYA_INTERNAL struct NYA_ShaderDepthOfFieldUniform _nya_post_depth_of_field_uniform(NYA_PostDepthOfField options, const NYA_PostChain* chain) {
     b8 distance = options.focus == NYA_POST_FOCUS_DISTANCE;
@@ -469,6 +496,8 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     struct NYA_ShaderBloomUniform             bloom     = { 0 };
     struct NYA_ShaderSceneDebugUniform        debug     = { 0 };
     struct NYA_ShaderEyeAdaptationUniform     adaptation = { 0 };
+    struct NYA_ShaderLightShaftsUniform       shafts     = { 0 };
+    struct NYA_ShaderBloomUniform             shafts_add = { 0 };
 
     // what a pass drawing into a half resolution target is built for.
     SDL_GPUTextureFormat half = window->render_system.color_format;
@@ -542,6 +571,42 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
             .uniform      = &focus,
             .uniform_size = sizeof(focus),
             .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS | _NYA_POST_INPUT_BLUR,
+        };
+    }
+
+    const NYA_PostLightShafts* shafts_options = &render->post_light_shafts;
+
+    f32x2 sun    = { 0 };
+    f32   facing = scene && shafts_options->enabled && chain->blur.texture != nullptr ? _nya_post_sun(window, &sun) : 0.0F;
+
+    if (facing > 0.0F && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_LIGHT_SHAFTS, NYA_ASSET_SHADER_EFFECT_LIGHT_SHAFTS_FRAG, 2, half)
+        && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM, NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG, 2, 0)) {
+        shafts = (struct NYA_ShaderLightShaftsUniform){
+            .sun_x     = sun.x,
+            .sun_y     = sun.y,
+            .length    = shafts_options->length > 0.0F ? shafts_options->length : NYA_POST_LIGHT_SHAFTS_LENGTH,
+            .threshold = shafts_options->threshold > 0.0F ? shafts_options->threshold : NYA_POST_LIGHT_SHAFTS_THRESHOLD,
+            .aspect    = (f32)chain->width / (f32)chain->height,
+        };
+
+        // added back the way bloom is, fading as the sun leaves the view.
+        shafts_add = (struct NYA_ShaderBloomUniform){
+            .intensity = (shafts_options->intensity > 0.0F ? shafts_options->intensity : NYA_POST_LIGHT_SHAFTS_INTENSITY) * facing,
+        };
+
+        before[before_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_LIGHT_SHAFTS,
+            .uniform      = &shafts,
+            .uniform_size = sizeof(shafts),
+            .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_NORMALS,
+            .target       = &chain->blur,
+        };
+
+        before[before_count++] = (_NYA_PostStep){
+            .pipeline     = _NYA_POST_PIPELINE_BLOOM,
+            .uniform      = &shafts_add,
+            .uniform_size = sizeof(shafts_add),
+            .inputs       = _NYA_POST_INPUT_SOURCE | _NYA_POST_INPUT_BLUR,
         };
     }
 
@@ -921,6 +986,22 @@ NYA_PostEyeAdaptation nya_post_eye_adaptation(NYA_Window* window) {
     nya_assert(window != nullptr);
 
     return window->render_system.post_eye_adaptation;
+}
+
+void nya_post_light_shafts_set(NYA_Window* window, NYA_PostLightShafts shafts) {
+    nya_assert(window != nullptr);
+
+    shafts.intensity = nya_clamp(shafts.intensity, 0.0F, 4.0F);
+    shafts.length    = nya_clamp(shafts.length, 0.0F, 1.0F);
+    shafts.threshold = nya_clamp(shafts.threshold, 0.0F, 4.0F);
+
+    window->render_system.post_light_shafts = shafts;
+}
+
+NYA_PostLightShafts nya_post_light_shafts(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.post_light_shafts;
 }
 
 void nya_post_debug_view_set(NYA_Window* window, NYA_PostDebugView view) {

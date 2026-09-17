@@ -64,6 +64,13 @@ nya 2 0
                 bright_seconds: f32 0.6;
                 saturation: f32 0.2;
             };
+            // Rays of sky light fanning out from the sun past the terrain's silhouette. See NYA_PostLightShafts.
+            light_shafts: object {
+                enabled: b8 true;
+                intensity: f32 0.35;
+                length: f32 0.9;
+                threshold: f32 0.85;
+            };
             // See NYA_Render3DDecals.
             decals: object {
                 enabled: b8 true;
