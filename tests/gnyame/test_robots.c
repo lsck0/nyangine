@@ -183,9 +183,13 @@ s32 main(void) {
         gny_robots_update(0.0F);
         nya_check(robots->brain != nullptr && robots->brain_fitness > 0.0, "the fittest genome is what the drones fly");
 
-        f32x2 before = robots->bodies[0].position;
+        // any drone: an evolved genome can hold one still, which is a valid choice for a single body.
+        f32x2 before[GNY_ROBOT_DRONES];
+        for (u32 i = 0; i < GNY_ROBOT_DRONES; i++) before[i] = robots->bodies[i].position;
         gny_robots_update(GNY_ROBOT_TRAIN_DT);
-        nya_check(nya_vector_length(robots->bodies[0].position - before) > 0.0F, "the drones move");
+        b8 moved = false;
+        for (u32 i = 0; i < GNY_ROBOT_DRONES; i++) moved |= nya_vector_length(robots->bodies[i].position - before[i]) > 0.0F;
+        nya_check(moved, "the drones move");
 
         u32 generation = robots->generation;
         f64 fitness    = robots->brain_fitness;
