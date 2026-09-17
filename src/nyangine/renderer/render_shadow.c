@@ -65,15 +65,15 @@ f32_4x4 nya_render3d_shadow_view_projection(f32x3 center, f32x3 light_direction,
 /**
  * Where cascade `index`'s slice of the view starts and ends, in world units down the view axis.
  * */
-NYA_INTERNAL void _nya_render3d_cascade_slice(f32 near_plane, f32 range, u32 index, OUT f32* out_near, OUT f32* out_far) {
-    const f32 blend = 0.75F;
+NYA_INTERNAL void _nya_render3d_cascade_slice(f32 near_plane, f32 range, u32 index, u32 cascades, OUT f32* out_near, OUT f32* out_far) {
+    nya_assert(index < cascades && cascades <= NYA_RENDER3D_SHADOW_CASCADES);
 
-    f32 count = (f32)NYA_RENDER3D_SHADOW_CASCADES;
+    const f32 blend = 0.75F;
 
     f32 bounds[NYA_RENDER3D_SHADOW_CASCADES + 1];
 
-    for (u32 i = 0; i <= NYA_RENDER3D_SHADOW_CASCADES; i++) {
-        f32 fraction = (f32)i / count;
+    for (u32 i = 0; i <= cascades; i++) {
+        f32 fraction = (f32)i / (f32)cascades;
 
         f32 logarithmic = near_plane * powf(range / near_plane, fraction);
         f32 uniform     = near_plane + ((range - near_plane) * fraction);
@@ -85,8 +85,13 @@ NYA_INTERNAL void _nya_render3d_cascade_slice(f32 near_plane, f32 range, u32 ind
     *out_far  = bounds[index + 1];
 }
 
-NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera, f32x3 light_direction, u32 cascade, NYA_Render3DShadowFit fit) {
-    cascade = nya_min(cascade, (u32)(NYA_RENDER3D_SHADOW_CASCADES - 1));
+NYA_Render3DShadow nya_render3d_shadow_for_camera(const NYA_Window* window, NYA_Camera3DPerspective camera, f32x3 light_direction, u32 cascade,
+                                                  NYA_Render3DShadowFit fit) {
+    nya_assert(window != nullptr);
+
+    NYA_Render3DShadowOptions options = nya_render3d_shadow_options(window);
+
+    cascade = nya_min(cascade, options.cascades - 1);
 
     b8 light_is_unset = light_direction.x == 0.0F && light_direction.y == 0.0F && light_direction.z == 0.0F;
     if (light_is_unset) light_direction = NYA_RENDER3D_LIGHT_DIRECTION_DEFAULT;
@@ -113,7 +118,7 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
     if (range <= shadow_near) range = shadow_near * 1.001F;
 
     f32 slice_near, slice_far;
-    _nya_render3d_cascade_slice(shadow_near, range, cascade, &slice_near, &slice_far);
+    _nya_render3d_cascade_slice(shadow_near, range, cascade, options.cascades, &slice_near, &slice_far);
 
     f32x3 view_direction = camera.target - camera.position;
 
@@ -155,7 +160,7 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
         f32x3 light_forward, light_right, light_up;
         nya_render3d_light_basis(light_direction, &light_forward, &light_right, &light_up);
 
-        f32 texel_world_size = (extent * 2.0F) / (f32)NYA_RENDER3D_SHADOW_MAP_SIZE;
+        f32 texel_world_size = (extent * 2.0F) / (f32)options.map_size;
 
         f32 along_right = nya_vector_dot(center, light_right);
         f32 along_up    = nya_vector_dot(center, light_up);
@@ -176,5 +181,50 @@ NYA_Render3DShadow nya_render3d_shadow_for_camera(NYA_Camera3DPerspective camera
         .strength = fit.strength,
         .bias     = fit.bias,
         .cascade  = cascade,
+    };
+}
+
+void nya_render3d_shadow_options_set(NYA_Window* window, NYA_Render3DShadowOptions options) {
+    nya_assert(window != nullptr);
+
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    NYA_Render3DShadowOptions before = _nya_render3d_shadow_options_resolve(batch->shadow_options);
+    NYA_Render3DShadowOptions after  = _nya_render3d_shadow_options_resolve(options);
+
+    batch->shadow_options = options;
+
+    if (before.cascades == after.cascades && before.map_size == after.map_size) return;
+
+    nya_assert(!batch->shadow_pass_active, "shadow options cannot change inside a shadow pass");
+
+    _nya_render3d_shadow_release(window);
+}
+
+NYA_Render3DShadowOptions nya_render3d_shadow_options(const NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return _nya_render3d_shadow_options_resolve(window->render_system.mesh_batch.shadow_options);
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API IMPLEMENTATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+NYA_Render3DShadowOptions _nya_render3d_shadow_options_resolve(NYA_Render3DShadowOptions options) {
+    u32 cascades = options.cascades > 0 ? options.cascades : NYA_RENDER3D_SHADOW_CASCADES_DEFAULT;
+    u32 map_size = options.map_size > 0 ? options.map_size : NYA_RENDER3D_SHADOW_MAP_SIZE;
+
+    map_size = nya_clamp(map_size, (u32)NYA_RENDER3D_SHADOW_MAP_SIZE_MIN, (u32)NYA_RENDER3D_SHADOW_MAP_SIZE_MAX);
+
+    // rounded up, so a texel is an exact binary fraction of the map and the snap grid does not drift.
+    u32 power = NYA_RENDER3D_SHADOW_MAP_SIZE_MIN;
+    while (power < map_size) power *= 2;
+
+    return (NYA_Render3DShadowOptions){
+        .cascades = nya_clamp(cascades, 1U, (u32)NYA_RENDER3D_SHADOW_CASCADES),
+        .map_size = power,
     };
 }

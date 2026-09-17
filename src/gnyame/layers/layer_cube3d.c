@@ -946,6 +946,8 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     GNY_SkyState sky = gny_sky_state();
 
+    gny_config_renderer_apply(window);
+
     // the sun is set before the shadow pass, which builds its matrix from the current light.
     nya_render3d_light_set(
         window,
@@ -983,15 +985,18 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     f32 shadow_near = nya_max(subject_distance - subject_reach, 0.1F);
     f32 shadow_far  = subject_distance + subject_reach;
 
-    for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
+    u32 cascades = nya_render3d_shadow_options(window).cascades;
+
+    for (u32 cascade = 0; cascade < cascades; cascade++) {
         nya_render3d_shadow_begin(
             window,
-            nya_render3d_shadow_for_camera(shadow_camera, sky.direction, cascade,
+            nya_render3d_shadow_for_camera(window, shadow_camera, sky.direction, cascade,
                                            (NYA_Render3DShadowFit){
                                                .near_distance = shadow_near,
                                                .range    = shadow_far,
                                                .aspect   = aspect,
                                                .strength = GNY_CUBE3D_SHADOW_STRENGTH,
+                                               .bias     = NYA_CONFIG.engine.renderer.shadow_bias,
                                            })
         );
 

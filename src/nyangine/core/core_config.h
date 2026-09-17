@@ -92,11 +92,11 @@ struct NYA_ConfigEngineRenderer {
      *  much and a shadow visibly detaches from the object casting it ("peter-panning"). */
     f32 shadow_bias;
 
-    /** How many cascades the directional shadow splits into. See NYA_RENDER3D_SHADOW_CASCADES: more
+    /** How many cascades the directional shadow splits into. See NYA_Render3DShadowOptions: more
      *  is sharper shadows at a distance, at one extra scene pass each. */
     u32 shadow_cascades;
 
-    /** Shadow map resolution per cascade, texels on a side. See NYA_RENDER3D_SHADOW_MAP_SIZE. */
+    /** Shadow map resolution per cascade, texels on a side. See NYA_Render3DShadowOptions. */
     u32 shadow_map_size;
 
     /* The cartoon post passes, handed to nya_post_ink_set and its siblings as they are. */

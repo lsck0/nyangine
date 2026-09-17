@@ -90,3 +90,6 @@ extern GNY_Config NYA_CONFIG;
 
 /** Loads GNY_CONFIG_FILE into NYA_CONFIG and watches it. Called again after a code reload. */
 void gny_config_attach(void);
+
+/** Hands the renderer knobs in NYA_CONFIG to `window`. Cheap, so a scene calls it every frame and edits show live. */
+void gny_config_renderer_apply(NYA_Window* window);

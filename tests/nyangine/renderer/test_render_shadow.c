@@ -44,6 +44,10 @@ static b8 covers(NYA_Render3DShadow shadow, f32x3 point) {
 }
 
 s32 main(void) {
+    // every cascade the uniform holds, so the tiling below is tested at its finest.
+    NYA_Window window = { 0 };
+    nya_render3d_shadow_options_set(&window, (NYA_Render3DShadowOptions){ .cascades = NYA_RENDER3D_SHADOW_CASCADES });
+
     NYA_Render3DShadowFit fit = { .range = RANGE, .strength = 0.45F, .aspect = 16.0F / 9.0F };
 
     NYA_Render3DShadowFit unsnapped = { .range = RANGE, .strength = 0.45F, .aspect = 16.0F / 9.0F, .no_texel_snap = true };
@@ -61,7 +65,7 @@ s32 main(void) {
         f32 previous_distance = 0.0F;
 
         for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
-            NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(camera, SUN, cascade, unsnapped);
+            NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(&window, camera, SUN, cascade, unsnapped);
 
             // Forward is +z, so how far down the view this cascade sits reads straight off z.
             f32 distance = shadow.center.z - camera.position.z;
@@ -90,8 +94,8 @@ s32 main(void) {
      */
     {
         for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
-            NYA_Render3DShadow close = nya_render3d_shadow_for_camera(camera_looking_at_origin(4.0F), SUN, cascade, unsnapped);
-            NYA_Render3DShadow distant = nya_render3d_shadow_for_camera(camera_looking_at_origin(40.0F), SUN, cascade, unsnapped);
+            NYA_Render3DShadow close = nya_render3d_shadow_for_camera(&window, camera_looking_at_origin(4.0F), SUN, cascade, unsnapped);
+            NYA_Render3DShadow distant = nya_render3d_shadow_for_camera(&window, camera_looking_at_origin(40.0F), SUN, cascade, unsnapped);
 
             nya_check(fabsf(close.extent - distant.extent) < 0.001F,
                       "cascade " FMTu32 " must be the same size from four units away as from forty, got %f against %f", cascade,
@@ -120,7 +124,7 @@ s32 main(void) {
         for (u32 i = 0; i < nya_carray_length(distances); i++) {
             NYA_Camera3DPerspective camera = camera_looking_at_origin(distances[i]);
 
-            NYA_Render3DShadow first = nya_render3d_shadow_for_camera(camera, SUN, 0, fit);
+            NYA_Render3DShadow first = nya_render3d_shadow_for_camera(&window, camera, SUN, 0, fit);
 
             // A point two units ahead of the camera, on the view axis.
             f32x3 ahead = { 0.0F, 0.0F, camera.position.z + 2.0F };
@@ -146,7 +150,7 @@ s32 main(void) {
         b8 outside_covered = false;
 
         for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
-            NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(camera, SUN, cascade, fit);
+            NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(&window, camera, SUN, cascade, fit);
 
             if (covers(shadow, inside)) inside_covered = true;
             if (covers(shadow, outside)) outside_covered = true;
@@ -174,7 +178,7 @@ s32 main(void) {
             for (u32 i = 0; i < nya_carray_length(targets); i++) {
                 NYA_Camera3DPerspective camera = { .position = { 0.0F, 0.0F, 0.0F }, .target = targets[i], .fov_y = 1.05F };
 
-                NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(camera, SUN, cascade, unsnapped);
+                NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(&window, camera, SUN, cascade, unsnapped);
 
                 if (i == 0) first = shadow.extent;
 
@@ -197,8 +201,8 @@ s32 main(void) {
         narrow.fov_y = 0.6F;
         wide.fov_y   = 1.6F;
 
-        NYA_Render3DShadow narrow_shadow = nya_render3d_shadow_for_camera(narrow, SUN, 1, unsnapped);
-        NYA_Render3DShadow wide_shadow   = nya_render3d_shadow_for_camera(wide, SUN, 1, unsnapped);
+        NYA_Render3DShadow narrow_shadow = nya_render3d_shadow_for_camera(&window, narrow, SUN, 1, unsnapped);
+        NYA_Render3DShadow wide_shadow   = nya_render3d_shadow_for_camera(&window, wide, SUN, 1, unsnapped);
 
         nya_check(wide_shadow.extent > narrow_shadow.extent, "a wider field of view needs a wider cascade, got %f against %f",
                   (f64)wide_shadow.extent, (f64)narrow_shadow.extent);
@@ -323,7 +327,7 @@ s32 main(void) {
      */
     {
         // One texel of the cascade being measured, whose size the fit is what decides.
-        f32 extent = nya_render3d_shadow_for_camera(camera_at(0.0F), SUN, 0, unsnapped).extent;
+        f32 extent = nya_render3d_shadow_for_camera(&window, camera_at(0.0F), SUN, 0, unsnapped).extent;
         f32 texel  = (extent * 2.0F) / (f32)NYA_RENDER3D_SHADOW_MAP_SIZE;
 
         enum { SAMPLES = 100 };
@@ -337,8 +341,8 @@ s32 main(void) {
             // Across exactly one texel, so at most one boundary per axis can be crossed.
             f32 offset = ((f32)i / (f32)SAMPLES) * texel;
 
-            NYA_Render3DShadow snapped = nya_render3d_shadow_for_camera(camera_at(offset), SUN, 0, fit);
-            NYA_Render3DShadow raw     = nya_render3d_shadow_for_camera(camera_at(offset), SUN, 0, unsnapped);
+            NYA_Render3DShadow snapped = nya_render3d_shadow_for_camera(&window, camera_at(offset), SUN, 0, fit);
+            NYA_Render3DShadow raw     = nya_render3d_shadow_for_camera(&window, camera_at(offset), SUN, 0, unsnapped);
 
             f32x3 snapped_delta = snapped.center - last_snapped;
             f32x3 raw_delta     = raw.center - last_raw;
@@ -366,7 +370,7 @@ s32 main(void) {
      * several texels checks the other half: it moves, and every place it stops is on the grid.
      */
     {
-        f32 extent = nya_render3d_shadow_for_camera(camera_at(0.0F), SUN, 0, unsnapped).extent;
+        f32 extent = nya_render3d_shadow_for_camera(&window, camera_at(0.0F), SUN, 0, unsnapped).extent;
         f32 texel  = (extent * 2.0F) / (f32)NYA_RENDER3D_SHADOW_MAP_SIZE;
 
         f32x3 forward, right, up;
@@ -376,7 +380,7 @@ s32 main(void) {
         f32 previous = 0.0F;
 
         for (u32 step = 0; step < 64; step++) {
-            NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(camera_at((f32)step * texel * 0.5F), SUN, 0, fit);
+            NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(&window, camera_at((f32)step * texel * 0.5F), SUN, 0, fit);
 
             // On the grid means: the centre's coordinate along each of the light's lateral axes is a
             // whole number of texels.
@@ -395,12 +399,57 @@ s32 main(void) {
         nya_check(distinct > 1, "walking the camera across texels should move the volume, got " FMTu32 " distinct positions", distinct);
     }
 
+    /*
+     * ── Options take defaults for zeroes and clamp the rest, so a config file cannot size the atlas wrongly.
+     */
+    {
+        NYA_Window fresh = { 0 };
+
+        NYA_Render3DShadowOptions defaults = nya_render3d_shadow_options(&fresh);
+
+        nya_check(defaults.cascades == NYA_RENDER3D_SHADOW_CASCADES_DEFAULT && defaults.map_size == NYA_RENDER3D_SHADOW_MAP_SIZE,
+                  "a zeroed window should get the default options, got " FMTu32 " cascades of " FMTu32, defaults.cascades, defaults.map_size);
+
+        struct {
+            NYA_Render3DShadowOptions set;
+            u32                       cascades;
+            u32                       map_size;
+        } cases[] = {
+            { { .cascades = 99, .map_size = 1000 }, NYA_RENDER3D_SHADOW_CASCADES, 1024 },
+            { { .cascades = 1, .map_size = 1 }, 1, NYA_RENDER3D_SHADOW_MAP_SIZE_MIN },
+            { { .cascades = 2, .map_size = 1U << 30 }, 2, NYA_RENDER3D_SHADOW_MAP_SIZE_MAX },
+            { { .map_size = 2048 }, NYA_RENDER3D_SHADOW_CASCADES_DEFAULT, 2048 },
+        };
+
+        for (u32 i = 0; i < nya_carray_length(cases); i++) {
+            nya_render3d_shadow_options_set(&fresh, cases[i].set);
+
+            NYA_Render3DShadowOptions resolved = nya_render3d_shadow_options(&fresh);
+
+            nya_check(resolved.cascades == cases[i].cascades && resolved.map_size == cases[i].map_size,
+                      "case " FMTu32 " resolved to " FMTu32 " cascades of " FMTu32, i, resolved.cascades, resolved.map_size);
+        }
+
+        // fewer cascades divide the same range: the last one still reaches the far end.
+        NYA_Camera3DPerspective camera = camera_at(0.0F);
+
+        f32x3 far_point = camera.position + (f32x3){ 0.0F, 0.0F, RANGE * 0.95F };
+
+        for (u32 count = 1; count <= NYA_RENDER3D_SHADOW_CASCADES; count++) {
+            nya_render3d_shadow_options_set(&fresh, (NYA_Render3DShadowOptions){ .cascades = count });
+
+            NYA_Render3DShadow last = nya_render3d_shadow_for_camera(&fresh, camera, SUN, count - 1, unsnapped);
+
+            nya_check(covers(last, far_point), "with " FMTu32 " cascades the last should reach the range", count);
+        }
+    }
+
     // ── The degenerate cases.
     {
         // a camera aimed at itself has no direction. The volume sits on it, wrong but bounded and not NaN.
         NYA_Camera3DPerspective still = { .position = { 3.0F, 4.0F, 5.0F }, .target = { 3.0F, 4.0F, 5.0F } };
 
-        NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(still, SUN, 0, (NYA_Render3DShadowFit){ .strength = 0.4F });
+        NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(&window, still, SUN, 0, (NYA_Render3DShadowFit){ .strength = 0.4F });
 
         nya_check(!isnan(shadow.center.x) && !isnan(shadow.center.y) && !isnan(shadow.center.z),
                   "a camera aimed at itself must not produce NaN, got (%f, %f, %f)", (f64)shadow.center.x, (f64)shadow.center.y,
@@ -408,20 +457,20 @@ s32 main(void) {
 
         // A zero light direction is read as the default sun rather than dividing by zero.
         NYA_Render3DShadow defaulted =
-            nya_render3d_shadow_for_camera(camera_at(0.0F), f32x3_zero, 0, (NYA_Render3DShadowFit){ .strength = 0.4F });
+            nya_render3d_shadow_for_camera(&window, camera_at(0.0F), f32x3_zero, 0, (NYA_Render3DShadowFit){ .strength = 0.4F });
 
         nya_check(!isnan(defaulted.center.x), "and neither must a light with no direction");
 
         // Past the compiled-in cascade count, clamped rather than reading off the end of the arrays.
         NYA_Render3DShadow clamped =
-            nya_render3d_shadow_for_camera(camera_at(0.0F), SUN, 99, (NYA_Render3DShadowFit){ .strength = 0.4F });
+            nya_render3d_shadow_for_camera(&window, camera_at(0.0F), SUN, 99, (NYA_Render3DShadowFit){ .strength = 0.4F });
 
         nya_check(clamped.cascade == NYA_RENDER3D_SHADOW_CASCADES - 1, "a cascade past the last is clamped, got " FMTu32,
                   clamped.cascade);
 
         // a range inside the near plane names no slice and is clamped: ramping shadow distance to nothing gives
         // no shadows, not a crash.
-        NYA_Render3DShadow tiny = nya_render3d_shadow_for_camera(camera_at(0.0F), SUN, 0,
+        NYA_Render3DShadow tiny = nya_render3d_shadow_for_camera(&window, camera_at(0.0F), SUN, 0,
                                                                  (NYA_Render3DShadowFit){ .range = 0.001F, .strength = 0.4F });
 
         nya_check(!isnan(tiny.extent) && tiny.extent > 0.0F, "a range inside the near plane must still give a usable volume, got %f",

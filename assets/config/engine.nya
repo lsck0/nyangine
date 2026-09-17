@@ -12,9 +12,9 @@ nya 2 0
             msaa_samples: u32 4;
             // See NYA_RENDER3D_SHADOW_BIAS.
             shadow_bias: f32 0.0015;
-            // See NYA_RENDER3D_SHADOW_CASCADES.
-            shadow_cascades: u32 3;
-            // See NYA_RENDER3D_SHADOW_MAP_SIZE.
+            // See NYA_Render3DShadowOptions. Each cascade is a scene pass.
+            shadow_cascades: u32 2;
+            // Texels per cascade side, a power of two. See NYA_Render3DShadowOptions.
             shadow_map_size: u32 1024;
             // The cartoon post passes, read by the 3D demo every frame. A field left out or zero takes its
             // NYA_POST_* default; see render_post.h.

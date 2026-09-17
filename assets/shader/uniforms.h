@@ -139,8 +139,11 @@ struct NYA_ShaderMesh3DUniform {
     /** How many cascades actually ran this frame. A float, for the reason `point_light_count` is one. */
     f32 cascade_count;
 
+    /** How many cascades the atlas strip is divided into, which can exceed how many ran. */
+    f32 atlas_cascades;
+
     /** Padding to close the row. */
-    f32 cascade_pad[3];
+    f32 cascade_pad[2];
 
     /* Fog, two rows. See NYA_Render3DFog. */
 

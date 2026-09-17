@@ -1033,11 +1033,7 @@ void nya_system_renderer_for_window_deinit(NYA_Window* window) {
     mesh_batch->refraction_capture = nullptr;
 
     // the shadow map, created by the first pass.
-    if (mesh_batch->shadow_color != nullptr) nya_gpu_texture_release(gpu_device, mesh_batch->shadow_color);
-    if (mesh_batch->shadow_depth != nullptr) nya_gpu_texture_release(gpu_device, mesh_batch->shadow_depth);
-
-    mesh_batch->shadow_color = nullptr;
-    mesh_batch->shadow_depth = nullptr;
+    _nya_render3d_shadow_release(window);
 
     *mesh_batch = (NYA_Render3DBatch){ 0 };
 

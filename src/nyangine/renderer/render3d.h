@@ -127,13 +127,18 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 #define NYA_RENDER3D_PIPELINE_ADDITIVE_TEXTURED "nya_mesh3d_additive_textured_pipeline"
 
 /**
- * Resolution of the shadow map, per side.
- * */
-/**
- * Cascades the shadow map is split into. Between one and four.
+ * The most cascades a window's shadow can be split into, which sizes the uniform arrays. Between one and four.
  * */
 #ifndef NYA_RENDER3D_SHADOW_CASCADES
 #define NYA_RENDER3D_SHADOW_CASCADES 3
+#endif
+
+/**
+ * Cascades used when NYA_Render3DShadowOptions.cascades is zero. Two, since the fit follows the frustum: a
+ * third cost a scene pass and 0.3 ms a frame in the 3D demo for no visible gain.
+ * */
+#ifndef NYA_RENDER3D_SHADOW_CASCADES_DEFAULT
+#define NYA_RENDER3D_SHADOW_CASCADES_DEFAULT 2
 #endif
 
 static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES <= 4,
@@ -145,9 +150,14 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
  * */
 #define NYA_RENDER3D_LIGHT_DIRECTION_DEFAULT (nya_vector_normalize((f32x3){ -0.4F, -1.0F, -0.6F }))
 
+/** Texels per side of one cascade when NYA_Render3DShadowOptions.map_size is zero. */
 #ifndef NYA_RENDER3D_SHADOW_MAP_SIZE
 #define NYA_RENDER3D_SHADOW_MAP_SIZE 1024
 #endif
+
+/** The range NYA_Render3DShadowOptions.map_size is clamped into. */
+#define NYA_RENDER3D_SHADOW_MAP_SIZE_MIN 256
+#define NYA_RENDER3D_SHADOW_MAP_SIZE_MAX 4096
 
 /** Half-width of the shadow volume when NYA_Render3DShadow.extent is zero, in world units. */
 #ifndef NYA_RENDER3D_SHADOW_EXTENT
@@ -248,6 +258,7 @@ static_assert(NYA_RENDER3D_SHADOW_CASCADES >= 1 && NYA_RENDER3D_SHADOW_CASCADES 
 typedef struct NYA_Render3DLight      NYA_Render3DLight;
 typedef struct NYA_Render3DPointLight NYA_Render3DPointLight;
 typedef struct NYA_Render3DShadowFit NYA_Render3DShadowFit;
+typedef struct NYA_Render3DShadowOptions NYA_Render3DShadowOptions;
 typedef struct NYA_Render3DShadow     NYA_Render3DShadow;
 typedef struct NYA_Render3DMaterial NYA_Render3DMaterial;
 typedef struct NYA_Render3DFog      NYA_Render3DFog;
@@ -447,6 +458,18 @@ struct NYA_Render3DPointLight {
 
     /** Scales the light. One is neutral; zero is off, which is cheaper expressed by not adding it. */
     f32 intensity;
+};
+
+/**
+ * A window's shadow quality: what the atlas is allocated for. Zeroed fields take the defaults, so a zeroed struct
+ * is a valid one. See nya_render3d_shadow_options_set.
+ * */
+struct NYA_Render3DShadowOptions {
+    /** How many slices of the view get their own map, up to NYA_RENDER3D_SHADOW_CASCADES. Each costs a scene pass. */
+    u32 cascades;
+
+    /** Texels per side of one cascade, rounded up to a power of two. Memory grows with its square. */
+    u32 map_size;
 };
 
 /**
@@ -667,18 +690,6 @@ NYA_API void nya_render3d_point_lights_clear(NYA_Window* window);
 NYA_API void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow);
 
 /**
- * A cascade's shadow volume, fitted to a camera and snapped to the shadow map's texel grid.
- *
- * ```c
- * for (u32 cascade = 0; cascade < NYA_RENDER3D_SHADOW_CASCADES; cascade++) {
- *     nya_render3d_shadow_begin(window, nya_render3d_shadow_for_camera(camera, sun, cascade,
- *                                                                     (NYA_Render3DShadowFit){ .strength = 0.45F }));
- *     draw_scene(window);
- *     nya_render3d_shadow_end(window);
- * }
- * ```
- * */
-/**
  * The light's own axes: where it points, and an up that is not parallel to it. The direction is snapped to
  * NYA_RENDER3D_SHADOW_ANGLE_STEP first, so everything built on the basis moves in steps.
  * */
@@ -695,7 +706,20 @@ NYA_API f32_4x4 nya_render3d_shadow_view_projection(
     OUT f32x3*  out_eye
 );
 
+/**
+ * A cascade's shadow volume, fitted to a camera over the window's cascade count and snapped to its texel grid.
+ *
+ * ```c
+ * for (u32 cascade = 0; cascade < nya_render3d_shadow_options(window).cascades; cascade++) {
+ *     nya_render3d_shadow_begin(window, nya_render3d_shadow_for_camera(window, camera, sun, cascade,
+ *                                                                     (NYA_Render3DShadowFit){ .strength = 0.45F }));
+ *     draw_scene(window);
+ *     nya_render3d_shadow_end(window);
+ * }
+ * ```
+ * */
 NYA_API NYA_Render3DShadow nya_render3d_shadow_for_camera(
+    const NYA_Window*       window,
     NYA_Camera3DPerspective camera,
     f32x3                   light_direction,
     u32                     cascade,
@@ -704,6 +728,20 @@ NYA_API NYA_Render3DShadow nya_render3d_shadow_for_camera(
 
 /** Ends the shadow pass and restores the previous render target. */
 NYA_API void nya_render3d_shadow_end(NYA_Window* window);
+
+/**
+ * Sets how many cascades the window's shadow uses and how large each is, with zeroes taking the defaults and the
+ * rest clamped into range. A change releases the atlas and the next pass allocates it at the new size, so this is
+ * cheap to call every frame from a config.
+ *
+ * ```c
+ * nya_render3d_shadow_options_set(window, (NYA_Render3DShadowOptions){ .cascades = 2, .map_size = 2048 });
+ * ```
+ * */
+NYA_API void nya_render3d_shadow_options_set(NYA_Window* window, NYA_Render3DShadowOptions options);
+
+/** The window's shadow options with defaults and clamping applied. Loop cascades up to `.cascades`. */
+NYA_API NYA_Render3DShadowOptions nya_render3d_shadow_options(const NYA_Window* window) __attr_no_discard;
 
 /**
  * Whether a shadow pass has already run this frame, meaning the scene is shadowed.

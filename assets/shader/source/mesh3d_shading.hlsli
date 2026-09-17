@@ -21,9 +21,6 @@
  * */
 #define MESH3D_SHADOW_CASCADES 3
 
-/** The atlas is a strip of MESH3D_SHADOW_CASCADES cascades across and one tall. */
-#define MESH3D_SHADOW_ATLAS_SPLIT ((float)MESH3D_SHADOW_CASCADES)
-
 cbuffer Uniforms : register(b0, space3) {
   // points from the surface toward the light, normalized on the CPU. the other convention needs a negation here,
   // and forgetting it lights shapes from behind.
@@ -87,7 +84,10 @@ cbuffer Uniforms : register(b0, space3) {
 
   /** How many cascades ran this frame. Zero means none; the lookup then returns lit. */
   float cascade_count;
-  float3 cascade_pad;
+
+  /** The atlas is a strip this many cascades across and one tall. */
+  float atlas_cascades;
+  float2 cascade_pad;
 
   // Fog. Two rows, matching NYA_ShaderMesh3DUniform exactly. See NYA_Render3DFog.
   float3 fog_color;
@@ -219,7 +219,7 @@ float mesh3d_shadow_in_cascade(Texture2D map, SamplerState smp, int cascade, flo
    * Folded into this cascade's slice of the atlas, clamped in [0, 1] first so taps read this cascade's map, not
    * the neighbour's.
    */
-  float2 cascade_origin = float2((float)cascade / MESH3D_SHADOW_ATLAS_SPLIT, 0.0);
+  float2 cascade_origin = float2((float)cascade / atlas_cascades, 0.0);
 
   // nothing past the far plane or outside the volume was recorded, and unrecorded is lit.
   if (projected.z > 1.0 || projected.z < 0.0) return 1.0;
@@ -256,7 +256,7 @@ float mesh3d_shadow_in_cascade(Texture2D map, SamplerState smp, int cascade, flo
       float2 weight = texel - floor(texel);
 
       // x folds into this cascade's column; y spans the one-cascade-tall strip.
-      float4 occluders = map.GatherRed(smp, cascade_origin + (corner * shadow_texel) / float2(MESH3D_SHADOW_ATLAS_SPLIT, 1.0));
+      float4 occluders = map.GatherRed(smp, cascade_origin + (corner * shadow_texel) / float2(atlas_cascades, 1.0));
 
       // the map holds the depth the light saw first; anything further is behind it.
       float4 lit = step(projected.z - bias, occluders);

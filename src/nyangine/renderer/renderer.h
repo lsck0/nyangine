@@ -552,6 +552,9 @@ struct NYA_Render3DBatch {
     SDL_GPUTexture* shadow_color;
     SDL_GPUTexture* shadow_depth;
 
+    /** As the caller set them. Resolve through nya_render3d_shadow_options, which applies the defaults. */
+    NYA_Render3DShadowOptions shadow_options;
+
     NYA_Render3DShadow shadow;
 
     /** One matrix per cascade and its reach, filled as each pass runs and read by the scene pass later. */
@@ -725,6 +728,12 @@ static_assert(sizeof(NYA_Vertex3D) == 36, "the 3D vertex layout in core_asset.c 
  * compiles neither caller.
  * */
 NYA_INTERNAL __attr_allow_unused void _nya_render3d_shadow_viewport_apply(NYA_Window* window, u32 cascade);
+
+/** Releases the shadow atlas, which the next pass creates again at the current options. A no-op headless. */
+NYA_INTERNAL __attr_allow_unused void _nya_render3d_shadow_release(NYA_Window* window);
+
+/** `options` with zeroes defaulted, cascades clamped and the map size clamped to a power of two. */
+NYA_INTERNAL __attr_allow_unused NYA_Render3DShadowOptions _nya_render3d_shadow_options_resolve(NYA_Render3DShadowOptions options) __attr_no_discard;
 
 NYA_API NYA_Vertex3D nya_vertex3d(f32x3 position, NYA_Color color, f32x3 normal, f32x2 uv) __attr_no_discard;
 

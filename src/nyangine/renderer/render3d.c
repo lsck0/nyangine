@@ -35,14 +35,6 @@ NYA_INTERNAL b8 _nya_render3d_shadow_ensure(NYA_Window* window);
 /** nya_render3d_mesh_register without the reserved-handle check, so the renderer can fill its own slots. */
 NYA_INTERNAL b8 _nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString handle, const NYA_Vertex3D* vertices, u32 vertex_count);
 
-/*
- * The shadow atlas is a strip, one cascade wide per cascade. A texture array would need array-texture
- * support on every backend, and a square atlas wastes a quadrant at three cascades. mesh3d_shadow insets
- * the filter so a cascade's kernel does not read its neighbour.
- */
-#define _NYA_RENDER3D_SHADOW_ATLAS_WIDTH  (NYA_RENDER3D_SHADOW_MAP_SIZE * NYA_RENDER3D_SHADOW_CASCADES)
-#define _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT (NYA_RENDER3D_SHADOW_MAP_SIZE)
-
 /** A quad with real texture coordinates and a texture bound. The billboard path. */
 NYA_INTERNAL void _nya_render3d_quad_textured(
     NYA_Window*     window,
@@ -492,8 +484,8 @@ void nya_render3d_shadow_begin(NYA_Window* window, NYA_Render3DShadow shadow) {
     if (render->render_pass == nullptr) return;
     if (!_nya_render3d_shadow_ensure(window)) return;
 
-    // clamped: looping past the compiled-in count refills the last cascade instead of writing out of bounds.
-    u32 cascade = nya_min(shadow.cascade, (u32)(NYA_RENDER3D_SHADOW_CASCADES - 1));
+    // clamped: looping past the window's count refills the last cascade instead of writing outside the atlas.
+    u32 cascade = nya_min(shadow.cascade, nya_render3d_shadow_options(window).cascades - 1);
 
     // `extent` already covers this cascade's frustum slice; see NYA_Render3DShadowFit.range.
     if (shadow.extent <= 0.0F) shadow.extent = NYA_RENDER3D_SHADOW_EXTENT;
@@ -582,14 +574,16 @@ void _nya_render3d_shadow_viewport_apply(NYA_Window* window, u32 cascade) {
 
     if (render->render_pass == nullptr) return;
 
+    f32 size = (f32)nya_render3d_shadow_options(window).map_size;
+
     /* A viewport rather than a scissor, because it has to map clip space onto the slice, not just clip it. */
     SDL_SetGPUViewport(
         render->render_pass,
         &(SDL_GPUViewport){
-            .x         = (f32)(cascade * NYA_RENDER3D_SHADOW_MAP_SIZE),
+            .x         = (f32)cascade * size,
             .y         = 0.0F,
-            .w         = (f32)NYA_RENDER3D_SHADOW_MAP_SIZE,
-            .h         = (f32)NYA_RENDER3D_SHADOW_MAP_SIZE,
+            .w         = size,
+            .h         = size,
             .min_depth = 0.0F,
             .max_depth = 1.0F,
         }
@@ -630,6 +624,21 @@ b8 nya_render3d_shadow_pass_active(NYA_Window* window) {
     return window->render_system.mesh_batch.shadow_pass_active;
 }
 
+void _nya_render3d_shadow_release(NYA_Window* window) {
+    NYA_Render3DBatch* batch      = &window->render_system.mesh_batch;
+    SDL_GPUDevice*     gpu_device = nya_app_get()->render_system.gpu_device;
+
+    if (batch->shadow_color != nullptr) nya_gpu_texture_release(gpu_device, batch->shadow_color);
+    if (batch->shadow_depth != nullptr) nya_gpu_texture_release(gpu_device, batch->shadow_depth);
+
+    batch->shadow_color = nullptr;
+    batch->shadow_depth = nullptr;
+
+    // the matrices were fitted to the released atlas, so this frame's scene pass must not sample it.
+    batch->shadow_valid         = false;
+    batch->shadow_cascade_count = 0;
+}
+
 b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
@@ -638,6 +647,16 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
     if (gpu_device == nullptr) return false;
 
+    /*
+     * The atlas is a strip, one cascade wide per cascade. A texture array would need array-texture support on
+     * every backend, and a square atlas wastes a quadrant at three cascades. mesh3d_shadow insets the filter so a
+     * cascade's kernel does not read its neighbour.
+     */
+    NYA_Render3DShadowOptions options = nya_render3d_shadow_options(window);
+
+    u32 atlas_width  = options.map_size * options.cascades;
+    u32 atlas_height = options.map_size;
+
     // single sampled: a depth map has nothing to antialias, and multisampling would need a resolve to read.
     batch->shadow_color = nya_gpu_texture_create(
         gpu_device,
@@ -645,8 +664,8 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
             .type                 = SDL_GPU_TEXTURETYPE_2D,
             .format               = NYA_RENDER3D_SHADOW_FORMAT,
             .usage                = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER,
-            .width                = _NYA_RENDER3D_SHADOW_ATLAS_WIDTH,
-            .height               = _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT,
+            .width                = atlas_width,
+            .height               = atlas_height,
             .layer_count_or_depth = 1,
             .num_levels           = 1,
             .sample_count         = SDL_GPU_SAMPLECOUNT_1,
@@ -664,8 +683,8 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
             .type                 = SDL_GPU_TEXTURETYPE_2D,
             .format               = nya_app_get()->render_system.depth_format,
             .usage                = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
-            .width                = _NYA_RENDER3D_SHADOW_ATLAS_WIDTH,
-            .height               = _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT,
+            .width                = atlas_width,
+            .height               = atlas_height,
             .layer_count_or_depth = 1,
             .num_levels           = 1,
             .sample_count         = SDL_GPU_SAMPLECOUNT_1,
@@ -680,8 +699,8 @@ b8 _nya_render3d_shadow_ensure(NYA_Window* window) {
         return false;
     }
 
-    nya_log_debug("Shadow atlas created at %dx%d: %d cascades of %dx%d.", _NYA_RENDER3D_SHADOW_ATLAS_WIDTH, _NYA_RENDER3D_SHADOW_ATLAS_HEIGHT,
-              NYA_RENDER3D_SHADOW_CASCADES, NYA_RENDER3D_SHADOW_MAP_SIZE, NYA_RENDER3D_SHADOW_MAP_SIZE);
+    nya_log_debug("Shadow atlas created at %ux%u: %u cascades of %ux%u.", atlas_width, atlas_height, options.cascades, options.map_size,
+                  options.map_size);
 
     return true;
 }
@@ -1560,6 +1579,8 @@ void nya_render3d_flush(NYA_Window* window) {
  */
 
 struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DBatch* batch) {
+    NYA_Render3DShadowOptions shadow_options = _nya_render3d_shadow_options_resolve(batch->shadow_options);
+
     struct NYA_ShaderMesh3DUniform uniform = {
         // negated so the shader gets surface-to-light. callers think in the direction light travels.
         .light_direction_x = -batch->light.direction.x,
@@ -1588,10 +1609,11 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
         .shadow_strength = batch->shadow_valid ? batch->shadow.strength : 0.0F,
         // one cascade's texel, not the atlas's: the shader offsets its kernel in cascade-local uv. the atlas
         // texel would shrink the kernel and harden every contact shadow.
-        .shadow_texel = 1.0F / (f32)NYA_RENDER3D_SHADOW_MAP_SIZE,
+        .shadow_texel = 1.0F / (f32)shadow_options.map_size,
         .shadow_bias  = batch->shadow.bias,
 
-        .cascade_count = (f32)batch->shadow_cascade_count,
+        .cascade_count  = (f32)batch->shadow_cascade_count,
+        .atlas_cascades = (f32)shadow_options.cascades,
     };
 
     /* Fog defaults are resolved here once per flush, since the shader only tests `density`. */

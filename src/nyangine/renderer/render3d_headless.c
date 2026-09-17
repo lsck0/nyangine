@@ -92,6 +92,10 @@ void nya_render3d_shadow_end(NYA_Window* window) {
     nya_assert(window != nullptr);
 }
 
+void _nya_render3d_shadow_release(NYA_Window* window) {
+    nya_assert(window != nullptr);
+}
+
 b8 nya_render3d_shadow_active(NYA_Window* window) {
     nya_assert(window != nullptr);
 
