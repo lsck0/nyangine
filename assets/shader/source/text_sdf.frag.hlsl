@@ -33,10 +33,11 @@ static const float TEXT_SDF_EDGE = 0.5;
  * point of a distance field, and the reason this is not a fixed constant like the SDL_ttf example's
  * one sixteenth. But it goes to nearly zero when a glyph is drawn at close to the size it was
  * rasterised at, and a zero-width smoothstep is a hard `step`: every edge aliases, which is worse than
- * the blur this path exists to remove. A floor of about a quarter of a field unit keeps one pixel of
- * anti-aliasing at 1:1 and gets out of the way as soon as the derivative exceeds it.
+ * the blur this path exists to remove. FreeType's default spread of 8 pixels puts one pixel at 1/16 of
+ * the range, so this floor is half a pixel either side of the edge: one pixel of anti-aliasing at 1:1,
+ * as the coverage atlas has.
  * */
-static const float TEXT_SDF_MIN_SMOOTHING = 0.0625;
+static const float TEXT_SDF_MIN_SMOOTHING = 0.03125;
 
 float4 main(FragInput input) : SV_Target {
   /*
