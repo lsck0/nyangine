@@ -323,18 +323,6 @@ void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky) {
     nya_render2d_procedural(window, NYA_RENDER3D_PIPELINE_SKY, 3, &uniform, sizeof(uniform));
 }
 
-void nya_render3d_outline_set(NYA_Window* window, f32 thickness, NYA_Color color) {
-    nya_assert(window != nullptr);
-
-    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
-
-    // batch state: queued instances were recorded under the previous outline.
-    if (thickness != batch->outline_thickness) nya_render3d_flush(window);
-
-    batch->outline_thickness = nya_max(thickness, 0.0F);
-    batch->outline_color     = color;
-}
-
 void nya_render3d_blend_set(NYA_Window* window, NYA_Render3DBlend blend) {
     nya_assert(window != nullptr);
 
@@ -2067,45 +2055,6 @@ void _nya_render3d_flush_instanced(NYA_Window* window, const struct NYA_ShaderMe
             NYA_Asset* pipeline_asset = nya_asset_get((NYA_AssetHandle)pipeline_handle);
             if (pipeline_asset == nullptr || pipeline_asset->status != NYA_ASSET_STATUS_LOADED) continue;
 
-            /*
-             * Ink first, then the model. The expanded shell is drawn with front faces culled, so only its back remains
-             * around the silhouette, and the model covers the rest. Skipped in a shadow pass, where the ink would
-             * enlarge every shadow.
-             */
-            if (batch->outline_thickness > 0.0F && !batch->shadow_pass_active && !group->transparent) {
-                NYA_Asset* outline_asset = nya_asset_get((NYA_AssetHandle)NYA_RENDER3D_PIPELINE_OUTLINE);
-
-                if (outline_asset != nullptr && outline_asset->status == NYA_ASSET_STATUS_LOADED) {
-                    struct NYA_ShaderOutlineUniform outline = {
-                        .color_r   = batch->outline_color.r,
-                        .color_g   = batch->outline_color.g,
-                        .color_b   = batch->outline_color.b,
-                        .color_a   = batch->outline_color.a,
-                        .thickness = batch->outline_thickness,
-                    };
-
-                    SDL_BindGPUGraphicsPipeline(render->render_pass, nya_asset_graphics_pipeline(outline_asset, render->draw_batch.target_sample_count));
-
-                    SDL_BindGPUVertexBuffers(
-                        render->render_pass,
-                        0,
-                        (SDL_GPUBufferBinding[]){
-                            { .buffer = mesh_vertices, .offset = 0 },
-                            { .buffer = batch->instance_buffer, .offset = (u32)(group->first_instance * sizeof(NYA_Render3DInstance)) },
-                        },
-                        2
-                    );
-
-                    // slot 1, beside the view-projection at slot 0.
-                    SDL_PushGPUVertexUniformData(render->render_commands, 0, &batch->view_projection, sizeof(batch->view_projection));
-                    SDL_PushGPUVertexUniformData(render->render_commands, 1, &outline, sizeof(outline));
-
-                    SDL_DrawGPUPrimitives(render->render_pass, part->vertex_count, group->instance_count, part->first_vertex, 0);
-
-                    batch->frame_draw_calls++;
-                }
-            }
-
             SDL_BindGPUGraphicsPipeline(render->render_pass, nya_asset_graphics_pipeline(pipeline_asset, render->draw_batch.target_sample_count));
 
             // the instance buffer is bound from this group's first instance, so the draw's first-instance stays zero.
@@ -2122,7 +2071,6 @@ void _nya_render3d_flush_instanced(NYA_Window* window, const struct NYA_ShaderMe
 
             if (!_nya_render3d_bind_samplers(window, texture, sampler)) break;
 
-            // pushed per part because the outline pass above pushes its own vertex uniforms.
             SDL_PushGPUVertexUniformData(render->render_commands, 0, &batch->view_projection, sizeof(batch->view_projection));
             SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
 
@@ -2503,10 +2451,7 @@ void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection, f32x3
 
     batch->material = (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 1.0F, .reflectance = 0.5F };
 
-    // off for the same reason.
-    batch->outline_thickness = 0.0F;
-    batch->outline_color     = (NYA_Color){ 0.0F, 0.0F, 0.0F, 1.0F };
-    batch->blend             = NYA_RENDER3D_BLEND_ALPHA;
+    batch->blend = NYA_RENDER3D_BLEND_ALPHA;
 }
 
 b8 _nya_render3d_reserve(NYA_Window* window, u32 vertices, u32 indices, SDL_GPUTexture* texture, SDL_GPUSampler* sampler) {

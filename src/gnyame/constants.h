@@ -549,15 +549,6 @@
 /** Tint toward the light. High enough to see at dawn, low enough that midday does not look filtered. */
 #define GNY_SKY3D_FOG_SUN_AMOUNT 0.45F
 
-/**
- * Ink width around the loaded models, world units. See nya_render3d_outline_set. Small, since the hull expands in
- * world space and thick lines close concavities.
- * */
-#define GNY_CUBE3D_OUTLINE_THICKNESS 0.05F
-
-/** Near-black, so the ink stays in the palette. */
-#define GNY_CUBE3D_OUTLINE_COLOR ((NYA_Color){ 0.10F, 0.09F, 0.12F, 1.0F })
-
 /* Water, the scene's translucent geometry, there to exercise transparency ordering. */
 
 /** Where the surface sits. Below the terrain's mid height, so it pools in the basin rather than flooding. */

@@ -594,10 +594,6 @@ struct NYA_Render3DBatch {
     /** Geometry registered by the game: NYA_Render3DRegisteredMesh values keyed by handle text. */
     NYA_Cache* registered_meshes;
 
-    /** Ink width in world units, and its colour. Zero width switches the outline pass off. */
-    f32       outline_thickness;
-    NYA_Color outline_color;
-
     /** What the transparent stream does: blend or add. See nya_render3d_blend_set. */
     NYA_Render3DBlend blend;
 

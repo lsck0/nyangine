@@ -838,10 +838,6 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     // come from the file.
     nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.1F, .roughness = 0.45F, .edge = GNY_CUBE3D_EDGE });
 
-    // an ink outline on the models only. the material's edge term finds curvature, not silhouettes. the primitives
-    // have no hull to expand.
-    nya_render3d_outline_set(window, GNY_CUBE3D_OUTLINE_THICKNESS, GNY_CUBE3D_OUTLINE_COLOR);
-
     // placed and turned by the solver, so the models fall and roll like the cubes.
     const NYA_Entity* model_entity = nya_entity_get(scene->model);
 
@@ -871,9 +867,6 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
             GNY_CUBE3D_PILL_COLOR
         );
     }
-
-    // outline off before the lamps: an outlined glowing bead reads as a hole.
-    nya_render3d_outline_set(window, 0.0F, GNY_CUBE3D_OUTLINE_COLOR);
 
     // posed in on_update, so the shadow cascades and the camera pass draw the same frame of the clip.
     if (scene->bender_bone_count > 0) {

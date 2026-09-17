@@ -216,10 +216,6 @@ void nya_render3d_blend_set(NYA_Window* window, NYA_Render3DBlend blend) {
     nya_unused(window, blend);
 }
 
-void nya_render3d_outline_set(NYA_Window* window, f32 thickness, NYA_Color color) {
-    nya_unused(window, thickness, color);
-}
-
 // Real rather than stubbed, both of them: the culling path is CPU only and a headless test is the
 // only place it can be driven without a GPU. See render_occlusion.h.
 void nya_render3d_occlusion(NYA_Window* window, const NYA_OcclusionBuffer* buffer) {

@@ -81,9 +81,6 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 /** The fullscreen sky. See nya_render3d_sky_draw. */
 #define NYA_RENDER3D_PIPELINE_SKY "nya_sky3d_pipeline"
 
-/** The inverted-hull outline, for retained meshes. See nya_render3d_outline_set. */
-#define NYA_RENDER3D_PIPELINE_OUTLINE "nya_mesh3d_outline_pipeline"
-
 /*
  * Transparent pass. Same shaders as the opaque pipelines, but depth is tested and not written: a translucent
  * surface is still behind a wall, and writing depth would hide the pane behind it. Anything with alpha below
@@ -337,9 +334,6 @@ struct NYA_Render3DLight {
  * ```c
  * nya_render3d_fog_set(window, (NYA_Render3DFog){ .color = sky.horizon, .density = 0.02F });
  * ```
- *
- * The inverted-hull outline is not fogged, since its fragment shader reads no uniforms; at heavy density the
- * ink stays at full contrast.
  * */
 struct NYA_Render3DFog {
     /**
@@ -571,11 +565,6 @@ NYA_API b8 nya_render3d_active(NYA_Window* window) __attr_no_discard;
  * ```
  * */
 NYA_API void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky);
-
-/**
- * Draws an ink outline around every retained mesh, as an inverted hull.
- * */
-NYA_API void nya_render3d_outline_set(NYA_Window* window, f32 thickness, NYA_Color color);
 
 /**
  * Culls this pass against an occlusion buffer as well as the frustum. Null turns it back off.
@@ -839,7 +828,7 @@ typedef struct NYA_Render3DFrameStats NYA_Render3DFrameStats;
  * What the 3D batch did this frame.
  * */
 struct NYA_Render3DFrameStats {
-    /** Draw calls issued. Includes the outline and shadow passes, which are draws like any other. */
+    /** Draw calls issued. Includes the shadow passes, which are draws like any other. */
     u32 draw_calls;
 
     u32 vertices;

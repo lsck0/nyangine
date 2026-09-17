@@ -23,7 +23,6 @@ typedef struct NYA_ShaderPixelateUniform NYA_ShaderPixelateUniform;
 typedef struct NYA_ShaderBloomUniform    NYA_ShaderBloomUniform;
 typedef struct NYA_ShaderCrtUniform      NYA_ShaderCrtUniform;
 typedef struct NYA_ShaderSkyUniform      NYA_ShaderSkyUniform;
-typedef struct NYA_ShaderOutlineUniform  NYA_ShaderOutlineUniform;
 typedef struct NYA_ShaderGlassUniform    NYA_ShaderGlassUniform;
 
 /** effect_blur.frag.hlsl. One directional pass; run it twice, transposed, for a real gaussian. */
@@ -241,20 +240,6 @@ struct NYA_ShaderSkyUniform {
     /** Below the horizon: the colour distant ground reads as, not a lit surface. */
     f32 ground_r, ground_g, ground_b;
     f32 pad;
-};
-
-/**
- * mesh3d_outline.vert.hlsl: ink colour and hull push. Its own block, since the outline shader reads no light
- * or material.
- * */
-struct NYA_ShaderOutlineUniform {
-    f32 color_r, color_g, color_b, color_a;
-
-    /** World units at the model's own scale. See nya_render3d_outline_set. */
-    f32 thickness;
-
-    /** Pads the row. */
-    f32 pad[3];
 };
 
 /**

@@ -728,10 +728,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
       },
   }), "while queueing the sky pipeline");
 
-    /*
-     * The outline as an inverted hull: the mesh expanded along its normals, front faces discarded, so only the
-     * part past the silhouette remains.
-     */
     /* The skinned mesh pipeline. */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
@@ -777,32 +773,6 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
           .cull_back_faces        = true,
       },
   }), "while queueing the skinned mesh pipeline");
-
-    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
-      .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
-      .handle    = NYA_ASSET_SHADER_MESH3D_OUTLINE_VERT,
-      .as_shader = { .num_uniform_buffers = 2 },
-  }), "while queueing the outline vertex shader");
-
-    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
-      .type   = NYA_ASSET_TYPE_SHADER_FRAGMENT,
-      .handle = NYA_ASSET_SHADER_MESH3D_OUTLINE_FRAG,
-  }), "while queueing the outline fragment shader");
-
-    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
-      .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
-      .handle               = NYA_RENDER3D_PIPELINE_OUTLINE,
-      .as_graphics_pipeline = {
-          .window                 = window,
-          .vertex_shader_handle   = NYA_ASSET_SHADER_MESH3D_OUTLINE_VERT,
-          .fragment_shader_handle = NYA_ASSET_SHADER_MESH3D_OUTLINE_FRAG,
-          .blend                  = true,
-          .vertex_layout          = NYA_VERTEX_LAYOUT_3D_INSTANCED,
-          .depth_test             = true,
-          .depth_write            = true,
-          .cull_front_faces       = true,
-      },
-  }), "while queueing the outline pipeline");
 
     /* The transparent pass: the four pipelines above without depth writing. */
     /* The overlay pass: the transparent pipeline without depth testing either. */
