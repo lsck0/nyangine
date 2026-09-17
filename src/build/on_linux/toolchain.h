@@ -48,6 +48,8 @@
     "-DCMAKE_C_COMPILER_TARGET=x86_64-w64-mingw32",     \
     "-DCMAKE_CXX_COMPILER=" CC "++",                    \
     "-DCMAKE_CXX_COMPILER_TARGET=x86_64-w64-mingw32",   \
+    /* mingw-w64 before 12 defines __cpuidex, which clang's cpuid.h redefines static, an error in C++. */ \
+    "-DCMAKE_CXX_FLAGS=-D__INTRINSIC_DEFINED___cpuidex", \
     "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld",            \
     "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld",         \
     "-DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres",   \
