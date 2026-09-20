@@ -1,5 +1,7 @@
 #ifdef NYA_PLUGIN_CURL
 #include "nyangine/plugins/curl/request.c"
+// After request.c: it owns the one curl_global_init for the process.
+#include "nyangine/plugins/curl/websocket.c"
 #endif
 
 #ifdef NYA_PLUGIN_SQLITE
