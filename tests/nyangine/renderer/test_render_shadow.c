@@ -232,54 +232,68 @@ s32 main(void) {
     }
 
     /*
-     * ── The basis turns in steps. A light turned by less than half a step from a grid direction keeps the same
-     *    basis, so the shadow map does not move; a whole step moves it by about that angle.
+     * ── The basis follows the light exactly, and a turning sun moves the map smoothly.
+     *
+     * The basis used to round elevation and azimuth to half-degree steps. That froze the map for most frames and
+     * then jumped it, which reads as the shadows lagging the sun. Both halves are asserted: the basis is the
+     * direction given, and no frame of a turning sun moves a rim caster's shadow much further than the average
+     * one does.
      */
     {
-        f32 step = NYA_RENDER3D_SHADOW_ANGLE_STEP;
-
-        f32 azimuth   = 40.0F * step;
-        f32 elevation = -70.0F * step;
-
-        f32x3 on_grid = { cosf(elevation) * cosf(azimuth), sinf(elevation), cosf(elevation) * sinf(azimuth) };
-
         f32x3 forward, right, up;
-        nya_render3d_light_basis(on_grid, &forward, &right, &up);
 
-        f32 nudges[] = { -0.4F, -0.1F, 0.1F, 0.4F };
-
-        for (u32 i = 0; i < nya_carray_length(nudges); i++) {
-            f32 nudged_azimuth   = azimuth + (nudges[i] * step);
-            f32 nudged_elevation = elevation - (nudges[i] * step);
-
-            f32x3 nudged = { cosf(nudged_elevation) * cosf(nudged_azimuth), sinf(nudged_elevation), cosf(nudged_elevation) * sinf(nudged_azimuth) };
-
-            f32x3 nudged_forward, nudged_right, nudged_up;
-            nya_render3d_light_basis(nudged * 3.0F, &nudged_forward, &nudged_right, &nudged_up);
-
-            nya_check(nya_vector_length(nudged_forward - forward) < 1e-5F && nya_vector_length(nudged_right - right) < 1e-5F
-                          && nya_vector_length(nudged_up - up) < 1e-5F,
-                      "a light nudged by %.1f of a step should keep the basis", (f64)nudges[i]);
-        }
-
-        f32 stepped_azimuth = azimuth + step;
-
-        f32x3 stepped = { cosf(elevation) * cosf(stepped_azimuth), sinf(elevation), cosf(elevation) * sinf(stepped_azimuth) };
-
-        f32x3 stepped_forward, stepped_right, stepped_up;
-        nya_render3d_light_basis(stepped, &stepped_forward, &stepped_right, &stepped_up);
-
-        f32 turned = acosf(nya_clamp(nya_vector_dot(stepped_forward, forward), -1.0F, 1.0F));
-
-        nya_check(turned > step * 0.5F && turned < step * 1.5F, "a whole step in azimuth should turn the basis by about a step, got %f",
-                  (f64)turned);
-
-        // snapping never moves the light further than the diagonal of one cell.
         nya_render3d_light_basis(SUN, &forward, &right, &up);
 
-        f32 snapped_by = acosf(nya_clamp(nya_vector_dot(forward, nya_vector_normalize(SUN)), -1.0F, 1.0F));
+        f32 turned = acosf(nya_clamp(nya_vector_dot(forward, nya_vector_normalize(SUN)), -1.0F, 1.0F));
 
-        nya_check(snapped_by <= step, "the sun should snap by at most a step, moved %f", (f64)snapped_by);
+        nya_check(turned < 1e-5F, "the basis should point exactly where the light does, off by %f", (f64)turned);
+
+        // an arc of a degree a frame apart, the rate gnyame's two-minute day turns the sun at.
+        const f32 turn_per_frame = (f32)M_PI / 60.0F / 60.0F;
+
+        // a caster near the rim of cascade zero, where the lever arm of a turning grid is longest.
+        f32x3 caster = { 14.0F, 6.0F, 12.0F };
+
+        f32 map_size   = (f32)nya_render3d_shadow_options(&window).map_size;
+        f32 previous_x = 0.0F;
+        f32 previous_y = 0.0F;
+
+        f32 total = 0.0F;
+        f32 worst = 0.0F;
+
+        const u32 frames = 240;
+
+        for (u32 frame = 0; frame < frames; frame++) {
+            f32 angle = 0.6F + ((f32)frame * turn_per_frame);
+
+            f32x3 sun = nya_vector_normalize((f32x3){ -cosf(angle), -nya_max(sinf(angle), 0.12F), -0.45F });
+
+            NYA_Render3DShadow shadow = nya_render3d_shadow_for_camera(&window, camera_looking_at_origin(20.0F), sun, 0, fit);
+
+            f32_4x4 light = nya_render3d_shadow_view_projection(shadow.center, sun, shadow.extent, shadow.extent * 4.0F, nullptr);
+
+            f32x4 clip = nya_matrix_times_vector(light, (f32x4){ caster.x, caster.y, caster.z, 1.0F });
+
+            f32 x = (((clip.x / clip.w) * 0.5F) + 0.5F) * map_size;
+            f32 y = (((clip.y / clip.w) * 0.5F) + 0.5F) * map_size;
+
+            if (frame > 0) {
+                f32 step = sqrtf(((x - previous_x) * (x - previous_x)) + ((y - previous_y) * (y - previous_y)));
+
+                total += step;
+                if (step > worst) worst = step;
+            }
+
+            previous_x = x;
+            previous_y = y;
+        }
+
+        f32 mean = total / (f32)(frames - 1);
+
+        // three, not one: the cascade centre still snaps to whole texels, which lands on one frame rather than
+        // spreading over several. Snapped in angle the same run was 7.6 times its mean.
+        nya_check(worst < mean * 3.0F, "a turning sun should move the map evenly, worst %f texels against a mean of %f", (f64)worst,
+                  (f64)mean);
     }
 
     /*

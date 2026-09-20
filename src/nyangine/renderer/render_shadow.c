@@ -15,17 +15,14 @@
 void nya_render3d_light_basis(f32x3 direction, OUT f32x3* out_forward, OUT f32x3* out_right, OUT f32x3* out_up) {
     nya_assert(out_forward != nullptr && out_right != nullptr && out_up != nullptr);
 
-    f32x3 unit = nya_vector_normalize(direction);
-
     /*
-     * Snapped in elevation and azimuth. A sun that turns every frame turns the texel grid with it, and caster
-     * edges crawl even under a still camera; snapped, the grid holds between steps.
+     * The direction as given. This used to be rounded to half-degree steps in elevation and azimuth, to stop the
+     * texel grid turning with a moving sun. It halved the pixels changing per frame by freezing most of them: with
+     * gnyame's two-minute day (3 degrees a second) a rim caster's shadow held still for 197 of 240 frames and then
+     * moved 4.68 texels at once, against 0.62 a frame smoothly. A stutter reads as lag, and the grid only has to
+     * hold while the sun does, which it now does without rounding anything.
      */
-    f32 step      = NYA_RENDER3D_SHADOW_ANGLE_STEP;
-    f32 elevation = roundf(asinf(nya_clamp(unit.y, -1.0F, 1.0F)) / step) * step;
-    f32 azimuth   = roundf(atan2f(unit.z, unit.x) / step) * step;
-
-    f32x3 forward = { cosf(elevation) * cosf(azimuth), sinf(elevation), cosf(elevation) * sinf(azimuth) };
+    f32x3 forward = nya_vector_normalize(direction);
 
     // An up vector not parallel to the light: a look-at with the two collinear produces a degenerate
     // basis and a matrix of NaNs, and the light pointing straight down is the *common* case here.
