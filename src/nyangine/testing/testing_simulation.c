@@ -103,6 +103,16 @@ u32 nya_simulation_run(NYA_SimulationRun* run) {
     printf("SIMULATION: seed 0x%016llX, %llu steps, %u actions, %u invariants\n", (unsigned long long)run->seed,
            (unsigned long long)run->step_count, run->action_count, run->check_count);
 
+    /*
+     * Quiet for the duration unless the run asked to be watched.
+     *
+     * A simulation hands the engine nonsense on purpose, and the engine logs every refusal, which is
+     * it doing its job. Ten thousand of those lines per run is not a report anybody reads, and it
+     * buries the one line that matters. --verbose puts it back.
+     */
+    NYA_LogLevel level_before = nya_log_level_get();
+    if (!run->verbose) nya_log_level_set(NYA_LOG_LEVEL_PANIC);
+
     u32 failures_before = run->failures;
 
     for (run->step = 0; run->step < run->step_count; run->step++) {
@@ -126,6 +136,8 @@ u32 nya_simulation_run(NYA_SimulationRun* run) {
         // that broke it instead of the last one before the run finished.
         for (u32 i = 0; i < run->check_count; i++) run->checks[i].run(run);
     }
+
+    nya_log_level_set(level_before);
 
     /*
      * The mix, so a run that never reached an action is visible rather than reported as a pass.

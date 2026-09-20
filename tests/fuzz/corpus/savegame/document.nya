@@ -1,0 +1,15 @@
+nya 2 0
+{
+    version: u32 3;
+    name: string "MyApp";
+    fullscreen: b8 false;
+    ratio: f32 0.5625;
+    missing: null;
+    tags: string[] ["fast", "small"];
+    window: object {
+        width: u32 1920;
+        height: u32 1080;
+    };
+    grid: array[] [s32[] [1, 2], s32[] [3, 4]];
+    mixed: any[] [s32 1, string "two", b8 true];
+}

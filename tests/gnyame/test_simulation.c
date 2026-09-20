@@ -7,15 +7,16 @@
  * a failure report tells you to paste.
  **/
 
+// the game, not the engine alone: the generated reflection table describes the game's types next to
+// the engine's, and the simulation's reflection action needs all of them. gnyame.c is what compiles
+// it, so this test lives here rather than under tests/nyangine.
 #include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
-
-#include "generated/reflection.h"
+#include "gnyame/gnyame.c"
 
 #include "SDL3/SDL_init.h"
 
 /** Where the seeds that have ever failed live. Relative to the repository root, which tests run from. */
-#define SEED_FILE "tests/nyangine/testing/simulation_seeds.txt"
+#define SEED_FILE "tests/gnyame/simulation_seeds.txt"
 
 /** Steps a regression seed is replayed for. Long enough to reach a deep world, short enough to run 187 tests. */
 #define REGRESSION_STEPS 4000
@@ -89,6 +90,29 @@ s32 main(s32 argc, NYA_CString argv[]) {
     }
 
     nya_assert(steps > 0, "a run of zero steps proves nothing");
+
+    /*
+     * A scratch data directory, so the simulation's save file and its deliberate disk faults land
+     * somewhere disposable rather than in the player's own save root. The same thing test_screens
+     * does, and for the same reason.
+     */
+    NYA_Arena*  scratch   = nya_arena_create(.name = "test_simulation_scratch");
+    NYA_String* temp_root = nullptr;
+    NYA_EXPECT(nya_filesystem_temp_directory(scratch, &temp_root));
+
+    NYA_CString data_home = nya_string_to_cstring(scratch, nya_path_join(scratch, nya_string_to_cstring(scratch, temp_root), "gnyame-test-simulation"));
+    (void)nya_filesystem_delete_recursive(data_home);
+
+#if OS_WINDOWS
+    (void)_putenv_s("XDG_DATA_HOME", data_home);
+    (void)_putenv_s("APPDATA", data_home);
+#else
+    setenv("XDG_DATA_HOME", data_home, 1);
+    setenv("APPDATA", data_home, 1);
+#endif
+
+    defer (void)nya_filesystem_delete_recursive(data_home);
+    defer nya_arena_destroy(scratch);
 
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
