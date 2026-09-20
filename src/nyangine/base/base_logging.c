@@ -58,9 +58,29 @@ NYA_INTERNAL u32 _nya_log_file_buffer_length = 0;
 NYA_INTERNAL atomic_flag _nya_log_file_lock = ATOMIC_FLAG_INIT;
 
 /** Where the daily files go, and how many to keep. Empty directory means daily logging is off. */
-#define _NYA_LOG_DIRECTORY_MAX 512
-NYA_INTERNAL char _nya_log_directory[_NYA_LOG_DIRECTORY_MAX] = { 0 };
-NYA_INTERNAL u32  _nya_log_retention_days                    = 0;
+NYA_INTERNAL char _nya_log_directory_path[NYA_LOG_DIRECTORY_MAX] = { 0 };
+NYA_INTERNAL u32  _nya_log_retention_days                        = 0;
+
+/**
+ * The ring of recent lines. Written by _nya_log_emit, read by a crash report.
+ *
+ * A flat fixed array rather than base_ring.h's template: the ring has to be usable after an allocator has
+ * been corrupted, so it owns its storage outright, and the reader wants lines oldest first rather than a
+ * pop that consumes them.
+ * */
+typedef struct {
+    NYA_LogLevel level;
+    u8           text[NYA_LOG_RING_LINE_MAX];
+} _NYA_LogRingLine;
+
+NYA_INTERNAL _NYA_LogRingLine _nya_log_ring[NYA_LOG_RING_MAX] = { 0 };
+
+/** Where the next line goes, modulo the capacity, and how many slots hold a line. */
+NYA_INTERNAL u32 _nya_log_ring_next  = 0;
+NYA_INTERNAL u32 _nya_log_ring_count = 0;
+
+/** Its own lock, not the file's: a sink taking a while must not hold the ring against the crash path. */
+NYA_INTERNAL atomic_flag _nya_log_ring_lock = ATOMIC_FLAG_INIT;
 
 /** UTC days since the epoch of the file currently open, or -1 when none is. Drives the midnight roll. */
 NYA_INTERNAL s64 _nya_log_open_day = -1;
@@ -72,15 +92,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_LOG_LEVEL_NAME_MAP[NYA_LOG_LEVEL_COUNT] = {
     [NYA_LOG_LEVEL_WARN] = "WARN",   [NYA_LOG_LEVEL_ERROR] = "ERROR", [NYA_LOG_LEVEL_PANIC] = "PANIC",
 };
 
-NYA_INTERNAL NYA_ConstCString _NYA_CRASH_SOURCE_NAME_MAP[NYA_CRASH_SOURCE_COUNT] = {
-    [NYA_CRASH_SOURCE_ASSERT] = "ASSERTION FAILED",
-    [NYA_CRASH_SOURCE_PANIC]  = "PANIC",
-    [NYA_CRASH_SOURCE_ERROR]  = "ERROR THROWN",
-    [NYA_CRASH_SOURCE_FAULT]  = "FAULT",
-};
-
 NYA_INTERNAL void _nya_log_emit(NYA_LogLevel level, NYA_ConstCString message, u32 length);
-NYA_INTERNAL void _nya_crash_write_raw(NYA_ConstCString text, u32 length);
 NYA_INTERNAL void _nya_crash_report(const NYA_CrashInfo* info);
 NYA_INTERNAL void _nya_crash_terminate(const NYA_CrashInfo* info) __attr_noreturn;
 
@@ -140,6 +152,79 @@ void nya_log_sink_clear(void) {
     _nya_log_sink_count = 0;
 }
 
+/*
+ * ─────────────────────────────────────────────────────────
+ * RING
+ * ─────────────────────────────────────────────────────────
+ */
+
+/** Copies one rendered line into the ring, evicting the oldest once it is full. */
+NYA_INTERNAL void _nya_log_ring_push(NYA_LogLevel level, NYA_ConstCString message, u32 length) {
+#ifndef NYA_NO_SDL
+    /*
+     * See nya_log_sink_add's identical comment, including why this is skipped under -DNYA_NO_SDL.
+     *
+     * Two differences from every other ceiling, both because this is the only one registered from the
+     * log path itself. The flag is set before the call, not after, or a registration that logs arrives
+     * back here with the flag still false and recurses until the stack runs out. And room is asked for
+     * first, because a refusal warns, and a warning is a log line: best effort rather than a warning
+     * that would report itself.
+     */
+    static b8 ceiling_registered = false;
+    if (!ceiling_registered) {
+        ceiling_registered = true;
+        if (nya_ceiling_count() < NYA_CEILING_REGISTRY_MAX) nya_ceiling_register("log_ring", NYA_LOG_RING_MAX, &_nya_log_ring_count);
+    }
+#endif
+
+    if (length > NYA_LOG_RING_LINE_MAX - 1) length = NYA_LOG_RING_LINE_MAX - 1;
+
+    while (atomic_flag_test_and_set(&_nya_log_ring_lock)) {}
+
+    _NYA_LogRingLine* line = &_nya_log_ring[_nya_log_ring_next];
+
+    line->level = level;
+    nya_memcpy(line->text, message, length);
+    line->text[length] = '\0';
+
+    _nya_log_ring_next = (_nya_log_ring_next + 1) % NYA_LOG_RING_MAX;
+    if (_nya_log_ring_count < NYA_LOG_RING_MAX) _nya_log_ring_count++;
+
+    atomic_flag_clear(&_nya_log_ring_lock);
+}
+
+/** Which slot holds the `index`th oldest line. Only meaningful while `index < _nya_log_ring_count`. */
+NYA_INTERNAL u32 _nya_log_ring_slot(u32 index) {
+    // Before it wraps the oldest line is slot 0; after, it is wherever the next write is about to land.
+    const u32 oldest = _nya_log_ring_count < NYA_LOG_RING_MAX ? 0 : _nya_log_ring_next;
+    return (oldest + index) % NYA_LOG_RING_MAX;
+}
+
+u32 nya_log_ring_count(void) {
+    return _nya_log_ring_count;
+}
+
+NYA_ConstCString nya_log_ring_at(u32 index) {
+    if (index >= _nya_log_ring_count) return nullptr;
+
+    return (NYA_ConstCString)_nya_log_ring[_nya_log_ring_slot(index)].text;
+}
+
+NYA_LogLevel nya_log_ring_level_at(u32 index) {
+    if (index >= _nya_log_ring_count) return NYA_LOG_LEVEL_COUNT;
+
+    return _nya_log_ring[_nya_log_ring_slot(index)].level;
+}
+
+void nya_log_ring_clear(void) {
+    while (atomic_flag_test_and_set(&_nya_log_ring_lock)) {}
+
+    _nya_log_ring_next  = 0;
+    _nya_log_ring_count = 0;
+
+    atomic_flag_clear(&_nya_log_ring_lock);
+}
+
 NYA_Error nya_log_file_open(NYA_ConstCString path) {
     nya_log_file_close();
     if (path == nullptr) return NYA_OK;
@@ -189,29 +274,9 @@ void nya_log_file_close(void) {
 #endif
 }
 
-/*
- * Civil date from a day count, after Howard Hinnant's chrono algorithms.
- */
-NYA_INTERNAL void _nya_log_civil_from_days(s64 days, OUT s32* out_year, OUT u32* out_month, OUT u32* out_day) {
-    days += 719'468;
-
-    const s64 era          = (days >= 0 ? days : days - 146'096) / 146'097;
-    const u64 day_of_era   = (u64)(days - era * 146'097);
-    const u64 year_of_era  = (day_of_era - day_of_era / 1'460 + day_of_era / 36'524 - day_of_era / 146'096) / 365;
-    const s64 year         = (s64)year_of_era + era * 400;
-    const u64 day_of_year  = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    const u64 month_prime  = (5 * day_of_year + 2) / 153;
-    const u64 day          = day_of_year - (153 * month_prime + 2) / 5 + 1;
-    const u64 month        = month_prime < 10 ? month_prime + 3 : month_prime - 9;
-
-    *out_year  = (s32)(year + (month <= 2 ? 1 : 0));
-    *out_month = (u32)month;
-    *out_day   = (u32)day;
-}
-
 /** UTC days since the epoch, right now. */
 NYA_INTERNAL s64 _nya_log_day_now(void) {
-    return (s64)(nya_clock_get_timestamp_s() / 86'400);
+    return (s64)(nya_clock_get_timestamp_s() / NYA_CLOCK_SECONDS_PER_DAY);
 }
 
 /** Writes `<directory>/YYYY-MM-DD.log` for a day count. */
@@ -219,9 +284,9 @@ NYA_INTERNAL void _nya_log_path_for_day(OUT char* buffer, u32 size, s64 day) {
     s32 year  = 0;
     u32 month = 0;
     u32 date  = 0;
-    _nya_log_civil_from_days(day, &year, &month, &date);
+    nya_clock_civil_from_days(day, &year, &month, &date);
 
-    (void)snprintf(buffer, size, "%s/%04d-%02u-%02u.log", _nya_log_directory, year, month, date);
+    (void)snprintf(buffer, size, "%s/%04d-%02u-%02u.log", _nya_log_directory_path, year, month, date);
 }
 
 /**
@@ -240,14 +305,7 @@ NYA_INTERNAL b8 _nya_log_day_from_name(NYA_ConstCString name, OUT s64* out_day) 
     u32 date  = (u32)(((name[8] - '0') * 10) + (name[9] - '0'));
     if (month < 1 || month > 12 || date < 1 || date > 31) return false;
 
-    // The inverse of _nya_log_civil_from_days, same era shift.
-    const s64 shifted     = year - (month <= 2 ? 1 : 0);
-    const s64 era         = (shifted >= 0 ? shifted : shifted - 399) / 400;
-    const u64 year_of_era = (u64)(shifted - era * 400);
-    const u64 day_of_year = (u64)((153 * (month > 2 ? month - 3 : month + 9) + 2) / 5 + date - 1);
-    const u64 day_of_era  = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-
-    *out_day = era * 146'097 + (s64)day_of_era - 719'468;
+    *out_day = nya_clock_days_from_civil(year, month, date);
     return true;
 }
 
@@ -259,7 +317,7 @@ NYA_INTERNAL void _nya_log_retention_sweep(void) {
     defer     nya_arena_destroy_on_stack(&arena);
 
     NYA_ArrayᐸNYA_DirectoryEntryᐳ* entries = nullptr;
-    NYA_Error                      listed  = nya_filesystem_list(&arena, _nya_log_directory, &entries);
+    NYA_Error                      listed  = nya_filesystem_list(&arena, _nya_log_directory_path, &entries);
     if (!listed.ok) return;
 
     // Today counts as one of the retained days, so a 14 day window keeps today and the 13 before it.
@@ -274,8 +332,8 @@ NYA_INTERNAL void _nya_log_retention_sweep(void) {
         if (!_nya_log_day_from_name(name, &day)) continue;
         if (day >= oldest_kept) continue;
 
-        char path[_NYA_LOG_DIRECTORY_MAX + 32];
-        (void)snprintf(path, sizeof(path), "%s/%s", _nya_log_directory, name);
+        char path[NYA_LOG_DIRECTORY_MAX + 32];
+        (void)snprintf(path, sizeof(path), "%s/%s", _nya_log_directory_path, name);
 
         NYA_Error deleted = nya_filesystem_delete(path);
         if (!deleted.ok) nya_log_warn("Could not delete the expired log file '%s'.", path);
@@ -285,19 +343,19 @@ NYA_INTERNAL void _nya_log_retention_sweep(void) {
 NYA_Error nya_log_directory_open(NYA_ConstCString directory, u32 retention_days) {
     if (directory == nullptr) {
         nya_log_file_close();
-        _nya_log_directory[0] = 0;
+        _nya_log_directory_path[0] = 0;
         _nya_log_open_day     = -1;
         return NYA_OK;
     }
 
     if (!nya_filesystem_is_directory(directory)) NYA_TRY(nya_filesystem_create_directory(directory));
 
-    (void)snprintf(_nya_log_directory, sizeof(_nya_log_directory), "%s", directory);
+    (void)snprintf(_nya_log_directory_path, sizeof(_nya_log_directory_path), "%s", directory);
     _nya_log_retention_days = retention_days;
 
     const s64 today = _nya_log_day_now();
 
-    char path[_NYA_LOG_DIRECTORY_MAX + 32];
+    char path[NYA_LOG_DIRECTORY_MAX + 32];
     _nya_log_path_for_day(path, sizeof(path), today);
 
     NYA_TRY(nya_log_file_open(path));
@@ -309,13 +367,17 @@ NYA_Error nya_log_directory_open(NYA_ConstCString directory, u32 retention_days)
     return NYA_OK;
 }
 
+NYA_ConstCString nya_log_directory(void) {
+    return _nya_log_directory_path;
+}
+
 void nya_log_directory_roll(void) {
-    if (_nya_log_directory[0] == 0) return;
+    if (_nya_log_directory_path[0] == 0) return;
 
     const s64 today = _nya_log_day_now();
     if (today == _nya_log_open_day) return;
 
-    char path[_NYA_LOG_DIRECTORY_MAX + 32];
+    char path[NYA_LOG_DIRECTORY_MAX + 32];
     _nya_log_path_for_day(path, sizeof(path), today);
 
     // Flushes and closes the old file on the way, so nothing written yesterday is lost at the seam.
@@ -530,12 +592,15 @@ NYA_INTERNAL void _nya_log_emit(NYA_LogLevel level, NYA_ConstCString message, u3
     // stderr rather than stdout: crash output must not sit in a pipe buffer when the process dies.
     (void)fprintf(stderr, "%s\n", message);
 
+    // Before the sinks, so a sink that crashes leaves the line that provoked it in the report.
+    _nya_log_ring_push(level, message, length);
+
     _nya_log_file_write(level, message, length);
 
     for (u32 i = 0; i < _nya_log_sink_count; i++) { _nya_log_sinks[i].callback(level, message, length, _nya_log_sinks[i].user_data); }
 }
 
-NYA_INTERNAL void _nya_crash_write_raw(NYA_ConstCString text, u32 length) {
+void nya_log_write_stderr(NYA_ConstCString text, u32 length) {
 #if OS_WINDOWS
     DWORD ignored = 0;
     (void)WriteFile(GetStdHandle(STD_ERROR_HANDLE), text, (DWORD)length, &ignored, nullptr);
@@ -559,7 +624,7 @@ NYA_INTERNAL void _nya_crash_report(const NYA_CrashInfo* info) {
         (char*)buffer,
         sizeof(buffer),
         "\n[%s] %s (%s:%u): %s\n\nStack Trace:\n",
-        _NYA_CRASH_SOURCE_NAME_MAP[info->source],
+        NYA_CRASH_SOURCE_NAME_MAP[info->source],
         info->function,
         info->file,
         info->line,
@@ -579,7 +644,7 @@ NYA_INTERNAL void _nya_crash_report(const NYA_CrashInfo* info) {
     if (info->fault_path) {
         // Async signal context: bypass stdio and the sinks entirely.
         buffer[length++] = '\n';
-        _nya_crash_write_raw((NYA_ConstCString)buffer, length);
+        nya_log_write_stderr((NYA_ConstCString)buffer, length);
     } else {
         _nya_log_emit(NYA_LOG_LEVEL_PANIC, (NYA_ConstCString)buffer, length);
     }
@@ -595,7 +660,7 @@ NYA_INTERNAL void _nya_crash_terminate(const NYA_CrashInfo* info) {
     // An observer crashing must not loop forever. Second time through, say so and go straight out.
     if (_nya_crash_depth > 0) {
         NYA_ConstCString message = "\n[FATAL] Crashed while handling a crash. Terminating immediately.\n";
-        _nya_crash_write_raw(message, (u32)strlen(message));
+        nya_log_write_stderr(message, (u32)strlen(message));
         // Not the locking flush: whoever held the lock may be the thread that just died.
         _nya_log_file_flush_locked();
         _exit(EXIT_FAILURE);
@@ -616,7 +681,7 @@ NYA_INTERNAL void _nya_crash_terminate(const NYA_CrashInfo* info) {
         (void)fprintf(
             stderr,
             "[PREVENTED %s] %s (%s:%u): %s\n",
-            _NYA_CRASH_SOURCE_NAME_MAP[info->source],
+            NYA_CRASH_SOURCE_NAME_MAP[info->source],
             info->function,
             info->file,
             info->line,

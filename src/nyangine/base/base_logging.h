@@ -20,6 +20,26 @@
 #define NYA_LOG_SINK_MAX             8
 #define NYA_LOG_MESSAGE_MAX_LENGTH   2048
 
+/**
+ * Lines the ring holds, and how much of each it keeps.
+ *
+ * The ring is what a crash report prints as "what the program was doing", so it is sized by how far back
+ * that has to reach rather than by how much a log file holds. A frame that loads a level logs a few dozen
+ * lines, so 256 covers the seconds before a crash without covering a whole session; 256 bytes per line
+ * takes the header (`[LEVEL] function (file:line): `) plus a sentence, which is every line the engine
+ * emits bar a formatted stack trace, and those are rendered by the crash path itself.
+ *
+ * Statically allocated at 256 * 264 bytes, about 66 KiB, so there is no allocation on the log path and
+ * none on the crash path either.
+ * */
+#ifndef NYA_LOG_RING_MAX
+#define NYA_LOG_RING_MAX 256
+#endif
+
+#ifndef NYA_LOG_RING_LINE_MAX
+#define NYA_LOG_RING_LINE_MAX 256
+#endif
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -51,6 +71,14 @@ enum NYA_CrashSource {
     NYA_CRASH_SOURCE_FAULT,
 
     NYA_CRASH_SOURCE_COUNT,
+};
+
+/** What a crash calls itself, in a log line and at the top of a crash report. */
+__attr_allow_unused static NYA_ConstCString NYA_CRASH_SOURCE_NAME_MAP[NYA_CRASH_SOURCE_COUNT] = {
+    [NYA_CRASH_SOURCE_ASSERT] = "ASSERTION FAILED",
+    [NYA_CRASH_SOURCE_PANIC]  = "PANIC",
+    [NYA_CRASH_SOURCE_ERROR]  = "ERROR THROWN",
+    [NYA_CRASH_SOURCE_FAULT]  = "FAULT",
 };
 
 /**
@@ -125,6 +153,34 @@ NYA_API void nya_log_sink_add(NYA_LogSink sink, void* user_data);
 NYA_API b8 nya_log_sink_remove(NYA_LogSink sink, void* user_data);
 
 NYA_API void nya_log_sink_clear(void);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * RING
+ * ─────────────────────────────────────────────────────────
+ */
+
+/*
+ * The last NYA_LOG_RING_MAX lines, kept so that whoever reports a crash can print what led to it. Always
+ * on and never filtered further than nya_log_level_set already filters: a line the ring did not keep is a
+ * line nobody can get back once the process is gone.
+ *
+ * ```c
+ * for (u32 i = 0; i < nya_log_ring_count(); i++) printf("%s\n", nya_log_ring_at(i));
+ * ```
+ */
+
+/** Lines held, at most NYA_LOG_RING_MAX. */
+NYA_API u32 nya_log_ring_count(void) __attr_no_discard;
+
+/** Line `index`, oldest first. Null past the count. Points into the ring, so copy it before logging again. */
+NYA_API NYA_ConstCString nya_log_ring_at(u32 index) __attr_no_discard;
+
+/** The level line `index` was logged at. NYA_LOG_LEVEL_COUNT past the count. */
+NYA_API NYA_LogLevel nya_log_ring_level_at(u32 index) __attr_no_discard;
+
+/** Drops everything the ring holds. */
+NYA_API void nya_log_ring_clear(void);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

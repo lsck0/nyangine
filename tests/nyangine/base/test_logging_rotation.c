@@ -17,7 +17,7 @@ static void seed_log_for_day(s64 day) {
     s32 year  = 0;
     u32 month = 0;
     u32 date  = 0;
-    _nya_log_civil_from_days(day, &year, &month, &date);
+    nya_clock_civil_from_days(day, &year, &month, &date);
 
     char path[512];
     (void)snprintf(path, sizeof(path), TEST_DIRECTORY "/%04d-%02u-%02u.log", year, month, date);
@@ -29,7 +29,7 @@ static b8 exists_for_day(s64 day) {
     s32 year  = 0;
     u32 month = 0;
     u32 date  = 0;
-    _nya_log_civil_from_days(day, &year, &month, &date);
+    nya_clock_civil_from_days(day, &year, &month, &date);
 
     char path[512];
     (void)snprintf(path, sizeof(path), TEST_DIRECTORY "/%04d-%02u-%02u.log", year, month, date);
@@ -45,7 +45,7 @@ s32 main(void) {
         s32 year  = 0;
         u32 month = 0;
         u32 date  = 0;
-        _nya_log_civil_from_days(day, &year, &month, &date);
+        nya_clock_civil_from_days(day, &year, &month, &date);
 
         char name[64];
         (void)snprintf(name, sizeof(name), "%04d-%02u-%02u.log", year, month, date);
@@ -60,7 +60,7 @@ s32 main(void) {
         s32 year  = 0;
         u32 month = 0;
         u32 date  = 0;
-        _nya_log_civil_from_days(0, &year, &month, &date);
+        nya_clock_civil_from_days(0, &year, &month, &date);
         nya_check(year == 1970 && month == 1 && date == 1, "day 0 should be 1970-01-01, got %04d-%02u-%02u", year, month, date);
     }
 
@@ -117,7 +117,7 @@ s32 main(void) {
         s32 year  = 0;
         u32 month = 0;
         u32 date  = 0;
-        _nya_log_civil_from_days(now, &year, &month, &date);
+        nya_clock_civil_from_days(now, &year, &month, &date);
 
         char path[512];
         (void)snprintf(path, sizeof(path), TEST_DIRECTORY "/%04d-%02u-%02u.log", year, month, date);

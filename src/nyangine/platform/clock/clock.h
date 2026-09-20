@@ -48,3 +48,41 @@ NYA_API u64 nya_clock_get_timestamp_ns(void);
 NYA_API u64 nya_clock_get_monotonic_ms(void);
 NYA_API u64 nya_clock_get_monotonic_µs(void);
 NYA_API u64 nya_clock_get_monotonic_ns(void);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * CIVIL TIME
+ * ─────────────────────────────────────────────────────────
+ */
+
+#define NYA_CLOCK_SECONDS_PER_DAY 86'400ULL
+
+/** Longest string nya_clock_format_utc produces, terminator included. */
+#define NYA_CLOCK_FORMAT_MAX_LENGTH 32
+
+/**
+ * How nya_clock_format_utc spells a moment.
+ * */
+typedef enum {
+    /** `2026-09-20 14:03:11 UTC`, for a person to read. */
+    NYA_CLOCK_FORMAT_READABLE,
+
+    /** `2026-09-20-140311`, safe as a path component on every target. */
+    NYA_CLOCK_FORMAT_FILENAME,
+
+    NYA_CLOCK_FORMAT_COUNT,
+} NYA_ClockFormat;
+
+/**
+ * The proleptic Gregorian date a day count since the Unix epoch falls on, and back again. The pair is
+ * exact for every day either can represent, which a round trip property test relies on.
+ * */
+NYA_API void nya_clock_civil_from_days(s64 days, OUT s32* out_year, OUT u32* out_month, OUT u32* out_day);
+NYA_API s64  nya_clock_days_from_civil(s32 year, u32 month, u32 day) __attr_no_discard;
+
+/**
+ * Writes `timestamp_s` into `buffer` as UTC, null terminated, and returns the bytes written excluding
+ * the terminator. Touches no allocator, no stdio and no timezone database, so the crash path can call
+ * it from a signal handler.
+ * */
+NYA_API u32 nya_clock_format_utc(u64 timestamp_s, NYA_ClockFormat format, OUT u8* buffer, u32 capacity);

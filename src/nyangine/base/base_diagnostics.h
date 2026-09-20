@@ -33,11 +33,25 @@ NYA_API void nya_log_file_close(void);
 #define NYA_LOG_RETENTION_DAYS 14
 #endif
 
+/** Longest log directory path, terminator included. */
+#ifndef NYA_LOG_DIRECTORY_MAX
+#define NYA_LOG_DIRECTORY_MAX 512
+#endif
+
 /**
  * Writes the log into `directory`, one `YYYY-MM-DD.log` per day. Creates the directory and appends to
  * today's file, so a restart after a crash continues it.
  * */
 NYA_API NYA_Error nya_log_directory_open(NYA_ConstCString directory, u32 retention_days) __attr_no_discard;
+
+/**
+ * The directory in use, or an empty string when daily logging is off. Never null.
+ *
+ * The one place that knows where the engine may write diagnostic files: it is picked once, from the
+ * user data directory, because an install directory is often not writable. Anything else that wants to
+ * drop a file beside the logs, a crash report in particular, asks here rather than resolving it again.
+ * */
+NYA_API NYA_ConstCString nya_log_directory(void) __attr_no_discard;
 
 /**
  * Switches to the new day's file when the UTC date has changed. Cheap. Call once per frame, or a long
@@ -47,6 +61,14 @@ NYA_API void nya_log_directory_roll(void);
 
 /** Writes out whatever is buffered. Safe to call from a signal handler. */
 NYA_API void nya_log_file_flush(void);
+
+/**
+ * Writes `length` raw bytes to stderr, bypassing stdio. Adds no newline and formats nothing.
+ *
+ * What the crash path says things with: stdio is not async signal safe, so a fault handler cannot use
+ * fprintf, and a crash reporter needs one way to reach the terminal that always works.
+ * */
+NYA_API void nya_log_write_stderr(NYA_ConstCString text, u32 length);
 
 /**
  * Adds a crash observer, notified in registration order. Fails once NYA_CRASH_OBSERVER_MAX are

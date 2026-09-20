@@ -1,7 +1,8 @@
 #include "nyangine/base/base.h"
 
-// Before the per-platform sources: it declares the seven internals they define, and holds the half of
-// the ipc module that is the same on both.
+// Target independent halves, before the per target sources: ipc.c declares the seven internals they
+// define, and each of these holds the part of its module that is the same on both.
+#include "nyangine/platform/clock/clock.c"
 #include "nyangine/platform/ipc/ipc.c"
 
 #if OS_WINDOWS
