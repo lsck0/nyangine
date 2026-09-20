@@ -7,6 +7,8 @@ is a conventional commit subject, so fixing the wording means amending the commi
 
 ### Features
 
+- **secrets**: a committed secrets tree, encrypted with sops and gpg
+- **build**: a dist command, and one source of truth for the version
 - **settings**: player graphics settings for msaa, fxaa, shadows, post passes, field of view and render scale
 - **renderer**: camera motion blur from the normal buffer's distance and the last frame's camera
 - **render2d**: haze veils between parallax planes, the 2D match for fog
@@ -387,6 +389,7 @@ is a conventional commit subject, so fixing the wording means amending the commi
 
 ### Continuous Integration
 
+- build every release artifact in CD and move off the deprecated runtimes
 - build and verify the Steam targets, and publish both depots on tag
 - build vendors once per platform before the jobs that need them
 - save the vendor cache right after vendors build, and key it on the toolchains too

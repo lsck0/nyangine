@@ -436,7 +436,7 @@ void dist_runner(NYA_ArgCommand* command) {
 
     NYA_ArgParameter* wanted = command->parameters[0];
     nya_assert(wanted != nullptr);
-    nya_assert(nya_string_equals(wanted->name, "target"));
+    nya_assert(nya_string_equals(wanted->name, "targets"));
 
     NYA_Arena* arena = nya_arena_create(.name = "dist_runner");
     defer nya_arena_destroy(arena);
@@ -459,7 +459,8 @@ void dist_runner(NYA_ArgCommand* command) {
     // whenever someone last remembered to run it.
     _changelog_write(arena, false);
 
-    if (!wanted->was_matched) {
+    if (wanted->values_count == 0) {
+        // Everything, so dist/ is replaced rather than merged with whatever a previous run left.
         if (nya_filesystem_exists(DIST_DIRECTORY)) NYA_EXPECT(nya_filesystem_delete_recursive(DIST_DIRECTORY), "while clearing " DIST_DIRECTORY);
 
         for (u32 i = 0; i < nya_carray_length(DIST_TARGETS); i++) _dist_stage(arena, &DIST_TARGETS[i]);
@@ -470,20 +471,38 @@ void dist_runner(NYA_ArgCommand* command) {
         return;
     }
 
-    for (u32 i = 0; i < nya_carray_length(DIST_TARGETS); i++) {
-        if (!nya_string_equals(DIST_TARGETS[i].name, wanted->value.as_string)) continue;
+    /*
+     * Named targets are resolved before any of them is staged, so a typo in the fourth name fails
+     * before the first has spent five minutes compiling.
+     */
+    // Sized by what the parser can hand over rather than by the number of targets, since naming one
+    // twice is legal: staging is idempotent within a run, so it costs nothing and needs no rule.
+    const DistTarget* selected[NYA_ARG_MAX_PARAMETERS] = { nullptr };
 
-        _dist_stage(arena, &DIST_TARGETS[i]);
-        _dist_write_checksums(arena);
-        return;
+    for (u32 given = 0; given < wanted->values_count; given++) {
+        NYA_CString name = wanted->values[given].as_string;
+
+        const DistTarget* found = nullptr;
+        for (u32 i = 0; i < nya_carray_length(DIST_TARGETS); i++) {
+            if (nya_string_equals(DIST_TARGETS[i].name, name)) found = &DIST_TARGETS[i];
+        }
+
+        if (found == nullptr) {
+            // A misspelled target is user input, so it reads like one: the list of what was meant.
+            (void)fprintf(stderr, "Error: no distribution target '%s'.\n\nAvailable targets:\n", name);
+            for (u32 i = 0; i < nya_carray_length(DIST_TARGETS); i++) {
+                (void)fprintf(stderr, "  %-16s %s\n", DIST_TARGETS[i].name, DIST_TARGETS[i].description);
+            }
+            exit(EXIT_FAILURE);
+        }
+
+        nya_assert(given < nya_carray_length(selected), "more targets named than there are targets.");
+        selected[given] = found;
     }
 
-    // A misspelled target is user input, so it reads like one: the list of what was meant, not a panic.
-    (void)fprintf(stderr, "Error: no distribution target '%s'.\n\nAvailable targets:\n", wanted->value.as_string);
-    for (u32 i = 0; i < nya_carray_length(DIST_TARGETS); i++) {
-        (void)fprintf(stderr, "  %-16s %s\n", DIST_TARGETS[i].name, DIST_TARGETS[i].description);
-    }
-    exit(EXIT_FAILURE);
+    for (u32 given = 0; given < wanted->values_count; given++) _dist_stage(arena, selected[given]);
+
+    _dist_write_checksums(arena);
 }
 
 NYA_ConstCString dist_completion_target(u32 index) {
@@ -646,7 +665,30 @@ void _dist_archive(NYA_Arena* arena, const DistTarget* target) {
 
         NYA_EXPECT(nya_build(&rule), "while archiving '%s'", target->name);
     } else {
-        _dist_run("dist_archive", "tar", (const NYA_ConstCString[]){ "-C", staged, "-czf", archive, ".", nullptr });
+        /*
+         * Deterministic: entries sorted, ownership zeroed and every timestamp pinned, so the same
+         * tree archives to the same bytes and therefore the same checksum on any machine. Without it
+         * two runs of this command produce two digests for identical content, and a release that
+         * cannot be reproduced cannot be verified.
+         *
+         * The zip half above is not there yet: zip has no equivalent flag and stores an mtime per
+         * entry, so the Windows archives still differ run to run.
+         */
+        _dist_run(
+            "dist_archive",
+            "tar",
+            (const NYA_ConstCString[]){
+                "-C", staged,
+                "--sort=name",
+                "--owner=0", "--group=0", "--numeric-owner",
+                "--mtime=@0",
+                // gzip records the source mtime in its header unless told not to.
+                "--use-compress-program", "gzip -n",
+                "-cf", archive,
+                ".",
+                nullptr,
+            }
+        );
     }
 
     nya_log_info("Archived %s -> %s", target->name, archive);

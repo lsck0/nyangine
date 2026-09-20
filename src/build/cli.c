@@ -109,9 +109,13 @@ NYA_INTERNAL NYA_ArgParameter help_flag = {
 
 NYA_INTERNAL NYA_ArgParameter dist_target = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    // Several in one run, because a run is the unit a checksum is consistent over: each invocation
+    // rebuilds and rearchives what it stages, so two of them leave a manifest hashing an archive the
+    // second one has already replaced.
+    .variadic    = true,
     .value.type  = NYA_TYPE_STRING,
-    .name        = "target",
-    .description = "Which distribution to stage. If none specified, every one this host can produce.",
+    .name        = "targets",
+    .description = "Which distributions to stage. If none specified, every one this host can produce.",
     // Straight from the table in dist.c that also parses this argument, so a target added there is
     // offered here without this file learning its name.
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &dist_completion_target, },

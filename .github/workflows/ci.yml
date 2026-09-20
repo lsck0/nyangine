@@ -143,11 +143,13 @@ jobs:
       # Every distribution but the Steam Linux one, which has a job of its own because it needs the
       # sniper sysroot. This is what a release runs, so a manifest template that stopped rendering or
       # an archive that stopped being produced fails here rather than during a tag.
+      # One invocation, not one per target: a run is the unit a checksum is consistent over, since
+      # each one rebuilds and rearchives what it stages.
       - name: Stage the distributions
-        run: |
-          for target in linux windows steam-windows lua-api linux-pacman linux-nixos linux-flatpak windows-winget windows-scoop; do
-            ./build dist "${target}"
-          done
+        run: >
+          ./build dist
+          linux windows steam-windows lua-api
+          linux-pacman linux-nixos linux-flatpak windows-winget windows-scoop
 
       - name: Check what was staged
         run: |
