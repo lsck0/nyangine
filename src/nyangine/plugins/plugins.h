@@ -13,9 +13,10 @@
 #include "nyangine/plugins/sqlite/sql.h"
 #endif
 
-#ifdef NYA_PLUGIN_STEAM
+// Always: the module is a facade over a backend table, and only the backend is behind
+// NYA_PLUGIN_STEAM. A build without the Steamworks library installs no backend and every call answers
+// "not supported", which is what lets a game call it with no #ifdef of its own. See steam.h.
 #include "nyangine/plugins/steam/steam.h"
-#endif
 
 #ifdef NYA_PLUGIN_DISCORD
 #include "nyangine/plugins/discord/discord.h"
