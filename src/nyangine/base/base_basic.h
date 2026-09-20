@@ -46,6 +46,10 @@
 #include <wchar.h>
 #include <wctype.h>
 
+// The only engine header here, and it has no includes of its own: the name maps below are file scope
+// tables that every translation unit gets a copy of, so they need __attr_allow_unused.
+#include "nyangine/base/base_attributes.h"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * DEBUG AND VERSION
@@ -56,6 +60,15 @@
 #define NYA_VERSION VERSION
 #else
 #define NYA_VERSION "unknown"
+#endif
+
+/**
+ * The commit the binary was built from, with `-dirty` appended when the tree had uncommitted changes.
+ * Injected by hook_add_build_info_flag; "unknown" for anything built outside the build system, which
+ * includes the bootstrap compile of the build tool itself.
+ * */
+#ifndef NYA_BUILD_COMMIT
+#define NYA_BUILD_COMMIT "unknown"
 #endif
 
 #ifndef NYA_EXECUTION_MODE
@@ -110,6 +123,15 @@ typedef enum {
     NYA_EXECUTION_MODE_CURRENT = NYA_EXECUTION_MODE,
 } NYA_ExecutionMode;
 static_assert(NYA_EXECUTION_MODE_CURRENT < NYA_EXECUTION_MODE_COUNT, "Invalid execution mode");
+
+/** What a build calls itself in a log line, a window title or a crash report. */
+__attr_allow_unused static const char* const NYA_EXECUTION_MODE_NAME_MAP[NYA_EXECUTION_MODE_COUNT] = {
+    [NYA_EXECUTION_MODE_DEBUG]     = "debug",
+    [NYA_EXECUTION_MODE_DEVELOPER] = "dev",
+    [NYA_EXECUTION_MODE_RELEASE]   = "release",
+    [NYA_EXECUTION_MODE_STEAM]     = "steam",
+    [NYA_EXECUTION_MODE_TEST]      = "test",
+};
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

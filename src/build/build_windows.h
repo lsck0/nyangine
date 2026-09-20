@@ -41,7 +41,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_debug_executable_windows = {
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     // The codegen every translation unit here reads. The launcher compiles src/main.c, which pulls in
@@ -92,7 +92,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_debug_dll_windows = {
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     .dependencies    = { &build_shaders, &index_assets, },
@@ -171,7 +171,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_windows_x86_64 = {
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     .dependencies    = { &bundle_assets, }, // index_assets comes with it, in the right order
@@ -234,7 +234,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_steam_windows_x86_64 = {
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     .dependencies    = { &bundle_assets, },
@@ -312,7 +312,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_dev_executable_windows = {
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     // The same codegen as the debug executable, for the same reason.
@@ -361,7 +361,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_dev_dll_windows = {
         },
     },
 
-    .pre_build_hooks = { &hook_add_version_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
     .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
     .dependencies    = { &build_shaders, &index_assets, },

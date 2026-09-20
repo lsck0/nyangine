@@ -215,7 +215,6 @@ void hook_use_compiler_cache(NYA_BuildRule* rule) {
 void hook_add_version_flag(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
 
-    // the commit hash stays off: it changes with every commit, and ccache's direct mode hashes the command line.
     static NYA_CString VERSION_FLAG = nullptr;
     if (VERSION_FLAG == nullptr) VERSION_FLAG = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "-DVERSION=\"%s\"", VERSION));
 
@@ -223,6 +222,80 @@ void hook_add_version_flag(NYA_BuildRule* rule) {
     while (length < NYA_COMMAND_MAX_ARGUMENTS && rule->command.arguments[length] != nullptr) length++;
     nya_assert(length < NYA_COMMAND_MAX_ARGUMENTS - 1, "Not enough space to add the version flag.");
     rule->command.arguments[length] = VERSION_FLAG;
+}
+
+/**
+ * Runs a git command, capturing it. False when git is missing or the repository refuses the question;
+ * `out_exit_code` then says nothing. `out_stdout` is trimmed and may be empty.
+ * */
+NYA_INTERNAL b8 git_run(NYA_ConstCString const* arguments, OUT s32* out_exit_code, OUT NYA_String** out_stdout) {
+    NYA_Command command = {
+        .arena   = nya_arena_global,
+        .flags   = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
+        .program = "git",
+    };
+    for (u32 i = 0; i < NYA_COMMAND_MAX_ARGUMENTS && arguments[i] != nullptr; i++) command.arguments[i] = arguments[i];
+
+    NYA_Error result = nya_command_run(&command);
+    if (!result.ok) return false;
+
+    *out_exit_code = command.exit_code;
+
+    NYA_String* text = command.stdout_content != nullptr ? command.stdout_content : nya_string_create(nya_arena_global);
+    nya_string_trim_whitespace(text);
+    *out_stdout = text;
+
+    return true;
+}
+
+void hook_add_build_info_flag(NYA_BuildRule* rule) {
+    nya_assert(rule != nullptr);
+
+    /*
+     * Resolved once per build tool run, since each of these spawns a process.
+     *
+     * The commit hash used to stay off because ccache's direct mode hashes the command line. That worry
+     * does not survive a look at when it actually changes: every artifact is one unity translation unit,
+     * so a new commit means changed sources and a cache miss regardless, and going back to a commit that
+     * was built before produces the same hash and hits again. Only the `-dirty` suffix flips often, and it
+     * flips exactly when the tree changed.
+     *
+     * A build *timestamp* is the flag that would genuinely destroy the cache, because it differs on every
+     * invocation, so it is not injected. base_crash.h reads the executable's own modification time instead,
+     * which is when the linker wrote it, which is the build time.
+     */
+    static b8          resolved         = false;
+    static NYA_CString BUILD_INFO_FLAG  = nullptr;
+
+    if (!resolved) {
+        resolved = true;
+
+        s32         exit_code = 0;
+        NYA_String* commit    = nullptr;
+        b8          answered  = git_run((NYA_ConstCString[]){ "rev-parse", "--short=12", "HEAD", nullptr }, &exit_code, &commit);
+
+        if (answered && exit_code == 0 && commit->length > 0) {
+            // `--quiet` prints nothing and exits 1 when the working tree differs from HEAD, which is
+            // what marks the build dirty. An unavailable answer is read as clean rather than as dirty,
+            // so a shallow or grafted checkout does not permanently label itself modified.
+            NYA_String*      ignored = nullptr;
+            NYA_ConstCString dirty   = "";
+            if (git_run((NYA_ConstCString[]){ "diff", "--quiet", "HEAD", nullptr }, &exit_code, &ignored) && exit_code != 0) dirty = "-dirty";
+
+            NYA_String* flag = nya_string_sprintf(nya_arena_global, "-DNYA_BUILD_COMMIT=\"" NYA_FMT_STRING "%s\"", NYA_FMT_STRING_ARG(commit), dirty);
+            BUILD_INFO_FLAG  = nya_string_to_cstring(nya_arena_global, flag);
+        } else {
+            // A source tarball or an exported tree has no git. base_basic.h's default says "unknown".
+            nya_log_warn("No git commit available; the build will not know which revision it came from.");
+        }
+    }
+
+    if (BUILD_INFO_FLAG == nullptr) return;
+
+    u64 length = 0;
+    while (length < NYA_COMMAND_MAX_ARGUMENTS && rule->command.arguments[length] != nullptr) length++;
+    nya_assert(length < NYA_COMMAND_MAX_ARGUMENTS - 1, "Not enough space to add the build info flag.");
+    rule->command.arguments[length] = BUILD_INFO_FLAG;
 }
 
 void hook_add_version_resource_flags(NYA_BuildRule* rule) {

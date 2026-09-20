@@ -60,6 +60,12 @@ void hook_use_compiler_cache(NYA_BuildRule* rule);
 /** Appends -DVERSION to the rule's compile command. */
 void hook_add_version_flag(NYA_BuildRule* rule);
 
+/**
+ * Appends -DNYA_BUILD_COMMIT to the rule's compile command, so a shipped binary can say which revision
+ * it is. Pairs with hook_add_version_flag on every rule that compiles project sources.
+ * */
+void hook_add_build_info_flag(NYA_BuildRule* rule);
+
 /** Appends VERSION as -DNYA_RC_VERSION_MAJOR, _MINOR and _PATCH, for the numeric fields of the Windows version resource. */
 void hook_add_version_resource_flags(NYA_BuildRule* rule);
 
