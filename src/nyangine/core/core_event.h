@@ -8,12 +8,15 @@
 #include "nyangine/base/base_array.h"
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_hmap.h"
+#include "nyangine/base/base_object.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/core/core_callback.h"
 #include "nyangine/core/core_job.h"
 #include "nyangine/core/core_keys.h"
 #include "nyangine/core/core_mouse.h"
 #include "nyangine/core/core_types.h"
+// Names NYA_IpcPeerId, which NYA_ControlMessageEvent carries so a handler can answer the sender.
+#include "nyangine/platform/ipc/ipc.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -21,25 +24,26 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-typedef enum NYA_EventType            NYA_EventType;
-typedef enum NYA_EventHookType        NYA_EventHookType;
-typedef struct NYA_AssetEvent         NYA_AssetEvent;
-typedef struct NYA_DisplayEvent       NYA_DisplayEvent;
-typedef struct NYA_DropEvent          NYA_DropEvent;
-typedef struct NYA_DropPositionEvent  NYA_DropPositionEvent;
-typedef struct NYA_Event              NYA_Event;
-typedef struct NYA_EventHook          NYA_EventHook;
-typedef struct NYA_EventSystem        NYA_EventSystem;
-typedef struct NYA_JobEvent           NYA_JobEvent;
-typedef struct NYA_KeyEvent           NYA_KeyEvent;
-typedef struct NYA_MouseButtonEvent   NYA_MouseButtonEvent;
-typedef struct NYA_MouseMovedEvent    NYA_MouseMovedEvent;
-typedef struct NYA_MouseWheelEvent    NYA_MouseWheelEvent;
-typedef struct NYA_TextEditingEvent   NYA_TextEditingEvent;
-typedef struct NYA_TextInputEvent     NYA_TextInputEvent;
-typedef struct NYA_WindowEvent        NYA_WindowEvent;
-typedef struct NYA_WindowMovedEvent   NYA_WindowMovedEvent;
-typedef struct NYA_WindowResizedEvent NYA_WindowResizedEvent;
+typedef enum NYA_EventType             NYA_EventType;
+typedef enum NYA_EventHookType         NYA_EventHookType;
+typedef struct NYA_AssetEvent          NYA_AssetEvent;
+typedef struct NYA_ControlMessageEvent NYA_ControlMessageEvent;
+typedef struct NYA_DisplayEvent        NYA_DisplayEvent;
+typedef struct NYA_DropEvent           NYA_DropEvent;
+typedef struct NYA_DropPositionEvent   NYA_DropPositionEvent;
+typedef struct NYA_Event               NYA_Event;
+typedef struct NYA_EventHook           NYA_EventHook;
+typedef struct NYA_EventSystem         NYA_EventSystem;
+typedef struct NYA_JobEvent            NYA_JobEvent;
+typedef struct NYA_KeyEvent            NYA_KeyEvent;
+typedef struct NYA_MouseButtonEvent    NYA_MouseButtonEvent;
+typedef struct NYA_MouseMovedEvent     NYA_MouseMovedEvent;
+typedef struct NYA_MouseWheelEvent     NYA_MouseWheelEvent;
+typedef struct NYA_TextEditingEvent    NYA_TextEditingEvent;
+typedef struct NYA_TextInputEvent      NYA_TextInputEvent;
+typedef struct NYA_WindowEvent         NYA_WindowEvent;
+typedef struct NYA_WindowMovedEvent    NYA_WindowMovedEvent;
+typedef struct NYA_WindowResizedEvent  NYA_WindowResizedEvent;
 /*
  * ─────────────────────────────────────────────────────────
  * EVENT TYPE ENUM
@@ -61,6 +65,15 @@ enum NYA_EventType {
     NYA_EVENT_LIFECYCLE_EVENTS_END,
 
     NYA_EVENT_CLIPBOARD_UPDATE,
+
+    /**
+     * An external process sent a message over the control socket. See core_control.h.
+     *
+     * The one event type with no source inside the engine: it exists so a program can be driven from
+     * outside without the control surface needing to know anything about that program. Carries a free
+     * name and a free body, which is what makes it general instead of a command list.
+     * */
+    NYA_EVENT_CONTROL_MESSAGE,
 
     NYA_EVENT_DISPLAY_ADDED,
     NYA_EVENT_DISPLAY_CONTENT_SCALE_CHANGED,
@@ -167,6 +180,8 @@ __attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[NYA_EVENT_COUNT] 
 
     [NYA_EVENT_CLIPBOARD_UPDATE] = "CLIPBOARD_UPDATE",
 
+    [NYA_EVENT_CONTROL_MESSAGE] = "CONTROL_MESSAGE",
+
     [NYA_EVENT_DISPLAY_ADDED]                 = "DISPLAY_ADDED",
     [NYA_EVENT_DISPLAY_CONTENT_SCALE_CHANGED] = "DISPLAY_CONTENT_SCALE_CHANGED",
     [NYA_EVENT_DISPLAY_CURRENT_MODE_CHANGED]  = "DISPLAY_CURRENT_MODE_CHANGED",
@@ -184,7 +199,7 @@ __attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[NYA_EVENT_COUNT] 
     [NYA_EVENT_JOB_COMPLETED] = "JOB_COMPLETED",
 
     [NYA_EVENT_ASSET_LOAD_FAILED] = "ASSET_LOAD_FAILED",
-    [NYA_EVENT_DROP_TEXT]     = "DROP_TEXT",
+    [NYA_EVENT_DROP_TEXT]         = "DROP_TEXT",
 
     [NYA_EVENT_KEY_DOWN]       = "KEY_DOWN",
     [NYA_EVENT_KEY_UP]         = "KEY_UP",
@@ -232,6 +247,29 @@ __attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[NYA_EVENT_COUNT] 
 
 struct NYA_AssetEvent {
     NYA_CString asset_handle;
+};
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * CONTROL EVENT STRUCTS
+ * ─────────────────────────────────────────────────────────
+ */
+
+struct NYA_ControlMessageEvent {
+    /**
+     * What the sender called it. Never null and never empty; an empty name is refused at the socket.
+     * Points into the control surface's own scratch and is valid for the duration of the dispatch only,
+     * so a handler that wants to keep it copies it.
+     * */
+    NYA_ConstCString name;
+
+    /**
+     * Whatever the sender attached, or null when it attached nothing. Same lifetime as `name`.
+     * */
+    const NYA_Object* body;
+
+    /** Which connection sent it. */
+    NYA_IpcPeerId sender;
 };
 
 /*
@@ -394,20 +432,21 @@ struct NYA_Event {
     u64           timestamp;
 
     union {
-        NYA_AssetEvent         as_asset_event;
-        NYA_DisplayEvent       as_display_event;
-        NYA_DropEvent          as_drop_event;
-        NYA_DropPositionEvent  as_drop_position_event;
-        NYA_JobEvent           as_job_event;
-        NYA_KeyEvent           as_key_event;
-        NYA_MouseButtonEvent   as_mouse_button_event;
-        NYA_MouseMovedEvent    as_mouse_moved_event;
-        NYA_MouseWheelEvent    as_mouse_wheel_event;
-        NYA_TextEditingEvent   as_text_editing_event;
-        NYA_TextInputEvent     as_text_input_event;
-        NYA_WindowEvent        as_window_event;
-        NYA_WindowMovedEvent   as_window_moved_event;
-        NYA_WindowResizedEvent as_window_resized_event;
+        NYA_AssetEvent          as_asset_event;
+        NYA_ControlMessageEvent as_control_message_event;
+        NYA_DisplayEvent        as_display_event;
+        NYA_DropEvent           as_drop_event;
+        NYA_DropPositionEvent   as_drop_position_event;
+        NYA_JobEvent            as_job_event;
+        NYA_KeyEvent            as_key_event;
+        NYA_MouseButtonEvent    as_mouse_button_event;
+        NYA_MouseMovedEvent     as_mouse_moved_event;
+        NYA_MouseWheelEvent     as_mouse_wheel_event;
+        NYA_TextEditingEvent    as_text_editing_event;
+        NYA_TextInputEvent      as_text_input_event;
+        NYA_WindowEvent         as_window_event;
+        NYA_WindowMovedEvent    as_window_moved_event;
+        NYA_WindowResizedEvent  as_window_resized_event;
     };
 };
 

@@ -10,6 +10,7 @@
 #include "nyangine/core/core_audio.c"
 #include "nyangine/core/core_audio_propagation.c"
 #include "nyangine/core/core_callback.c"
+#include "nyangine/core/core_control.c"
 #include "nyangine/core/core_ceiling.c"
 #include "nyangine/core/core_entity.c"
 #include "nyangine/core/core_event.c"
