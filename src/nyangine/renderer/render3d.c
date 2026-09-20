@@ -453,6 +453,12 @@ void nya_render3d_shadow_cast_set(NYA_Window* window, b8 casts_shadow) {
     batch->casts_shadow = casts_shadow;
 }
 
+b8 nya_render3d_shadow_casts(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.mesh_batch.casts_shadow;
+}
+
 void _nya_render3d_passes_prepare(NYA_Window* window) {
     NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
 
@@ -1088,8 +1094,8 @@ void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center
         _nya_render3d_playback(window);
     }
 
-    // the tint's alpha picks the pass, as for primitives.
-    NYA_Render3DMeshGroup* group = _nya_render3d_mesh_group(batch, handle, color.a < 1.0F);
+    // the tint's alpha picks the pass, by the same rule as primitives.
+    NYA_Render3DMeshGroup* group = _nya_render3d_mesh_group(batch, handle, _nya_render3d_stream_transparent(color, batch->blend));
 
     /*
      * Appended at the end of the instance array. A group's instances must be contiguous because a draw names a
@@ -2510,8 +2516,13 @@ b8 _nya_render3d_object_begin(NYA_Window* window, NYA_Color color, f32x3 center,
 
     if (passes == 0) return false;
 
-    /* The colour's alpha decides the stream. */
-    batch->transparent_active = color.a < 1.0F;
+    /*
+     * Which stream records this draw. See _nya_render3d_stream_transparent: a fire particle is born at exactly
+     * alpha one, so for its first tick it used to go into the opaque stream and write depth over the plume behind
+     * it instead of adding to it. Two new particles every 45 ms punched a square hole in the flame for a tick
+     * each, which is what flickered.
+     */
+    batch->transparent_active = _nya_render3d_stream_transparent(color, batch->blend);
 
     if (!_nya_render3d_reserve(window, vertices, indices, texture, sampler)) return false;
 

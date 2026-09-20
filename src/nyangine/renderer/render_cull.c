@@ -1,9 +1,9 @@
 /**
  * @file render_cull.c
  *
- * Which passes see a draw. render3d.c asks once when a draw is recorded and keeps the answer as a pass mask, and each
- * pass then draws only what its bit is set in. No GPU state, so both builds include it and a headless test reaches the
- * real thing.
+ * Where a draw goes: which passes see it, and which of the two streams it is recorded into. render3d.c asks both once
+ * when a draw is recorded and keeps the answers. No GPU state, so both builds include this and a headless test reaches
+ * the real thing.
  * */
 #include "nyangine/nyangine.h"
 
@@ -12,6 +12,13 @@
  * PRIVATE API DECLARATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+/**
+ * Whether a draw of `color` under `blend` belongs in the transparent stream rather than the opaque one.
+ *
+ * Alpha decides it, except under addition: emission is never opaque, and a particle is born at exactly alpha one.
+ * */
+NYA_INTERNAL __attr_allow_unused b8 _nya_render3d_stream_transparent(NYA_Color color, NYA_Render3DBlend blend) __attr_no_discard;
 
 /** Extracts the six inward-facing clip planes of `view_projection`. Once per pass, not per draw. */
 NYA_INTERNAL __attr_allow_unused void _nya_render3d_frustum_build(NYA_Render3DFrustum* frustum, f32_4x4 view_projection);
@@ -40,6 +47,12 @@ NYA_INTERNAL __attr_allow_unused u32 _nya_render3d_pass_run(const u8* passes, u3
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+b8 _nya_render3d_stream_transparent(NYA_Color color, NYA_Render3DBlend blend) {
+    nya_assert(blend < NYA_RENDER3D_BLEND_COUNT, "a draw's blend mode is one of the declared ones");
+
+    return color.a < 1.0F || blend == NYA_RENDER3D_BLEND_ADDITIVE;
+}
 
 void _nya_render3d_frustum_build(NYA_Render3DFrustum* frustum, f32_4x4 view_projection) {
     nya_assert(frustum != nullptr);

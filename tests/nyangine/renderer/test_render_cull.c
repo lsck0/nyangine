@@ -267,5 +267,23 @@ s32 main(void) {
         nya_check(_nya_render3d_pass_run(passes, 0, 6, 2, &first) == 0 && first == 6, "no run leaves the start at the end");
     }
 
+    /*
+     * ── Which stream a draw is recorded into. Alpha decides it, except under addition.
+     *
+     * A flame particle is born at exactly alpha one. Recorded as opaque it drew through the opaque pipeline and
+     * wrote depth, so every new particle punched a hole in the plume behind it for a tick: the fire flickered.
+     */
+    {
+        NYA_Color solid     = { 1.0F, 1.0F, 1.0F, 1.0F };
+        NYA_Color faded     = { 1.0F, 1.0F, 1.0F, 0.5F };
+        NYA_Color emissive  = { 1.15F, 0.52F, 0.14F, 1.0F };
+
+        nya_check(!_nya_render3d_stream_transparent(solid, NYA_RENDER3D_BLEND_ALPHA), "a solid alpha-blended draw is opaque");
+        nya_check(_nya_render3d_stream_transparent(faded, NYA_RENDER3D_BLEND_ALPHA), "a faded one is not");
+
+        nya_check(_nya_render3d_stream_transparent(solid, NYA_RENDER3D_BLEND_ADDITIVE), "a solid additive draw must not be opaque");
+        nya_check(_nya_render3d_stream_transparent(emissive, NYA_RENDER3D_BLEND_ADDITIVE), "nor an emissive one past white");
+    }
+
     return nya_check_failures() == 0 ? 0 : 1;
 }

@@ -304,7 +304,10 @@ enum NYA_Render3DBlend {
     /** Blend over what is behind, by alpha. Sorted back to front. The default, and the zero value. */
     NYA_RENDER3D_BLEND_ALPHA = 0,
 
-    /** Add to what is behind, for anything emitting light rather than occluding. */
+    /**
+     * Add to what is behind, for anything emitting light rather than occluding. Geometry drawn under it is never
+     * opaque, however solid its colour: a flame at full alpha still adds rather than writing depth.
+     * */
     NYA_RENDER3D_BLEND_ADDITIVE,
 
     NYA_RENDER3D_BLEND_COUNT,
@@ -639,7 +642,8 @@ NYA_API void nya_render3d_occlusion(NYA_Window* window, const NYA_OcclusionBuffe
 NYA_API f32_4x4 nya_render3d_view_projection(NYA_Window* window) __attr_no_discard;
 
 /**
- * Switches later translucent geometry between alpha blending and adding.
+ * Switches later geometry between alpha blending and adding. Under NYA_RENDER3D_BLEND_ADDITIVE everything drawn is
+ * translucent, since an opaque draw would write depth instead of adding.
  * */
 NYA_API void nya_render3d_blend_set(NYA_Window* window, NYA_Render3DBlend blend);
 
