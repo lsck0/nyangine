@@ -273,13 +273,30 @@ b8 nya_net_server_running(void) {
 }
 
 NYA_Error nya_net_server_listen(u16 port) {
+    return nya_net_server_listen_on(NYA_NET_TRANSPORT_UDP, port);
+}
+
+NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port) {
     if (!_NYA_NET_SERVER.running) return nya_error(NYA_ERROR_NOT_OK, "no server is running");
     if (_NYA_NET_SERVER.udp != nullptr) return nya_error(NYA_ERROR_NOT_OK, "the server is already listening");
 
     NYA_NetTransport* transport = nullptr;
-    NYA_NetUdpOptions options = { .identity = _NYA_NET_SERVER.config.identity, .conditions = _NYA_NET_SERVER.config.conditions };
 
-    NYA_TRY(nya_net_transport_udp_create(_NYA_NET_SERVER.allocator, options, &transport));
+    switch (kind) {
+        case NYA_NET_TRANSPORT_UDP: {
+            NYA_NetUdpOptions options = { .identity = _NYA_NET_SERVER.config.identity, .conditions = _NYA_NET_SERVER.config.conditions };
+
+            NYA_TRY(nya_net_transport_udp_create(_NYA_NET_SERVER.allocator, options, &transport));
+        } break;
+
+        case NYA_NET_TRANSPORT_STEAM: NYA_TRY(nya_net_transport_steam_create(_NYA_NET_SERVER.allocator, &transport)); break;
+
+        // a loopback pair is joined at creation and has no second end to wait for, so there is nothing
+        // for it to listen on; nya_net_server_attach_local is the call that makes one.
+        case NYA_NET_TRANSPORT_LOOPBACK:
+        case NYA_NET_TRANSPORT_KIND_COUNT:
+        default:                         return nya_error(NYA_ERROR_NOT_SUPPORTED, "that transport cannot accept players");
+    }
 
     NYA_Error listening = nya_net_transport_listen(transport, port);
 

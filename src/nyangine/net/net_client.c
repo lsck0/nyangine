@@ -146,17 +146,33 @@ NYA_INTERNAL void _nya_net_client_reset(void);
  */
 
 NYA_Error nya_net_client_connect(NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config) {
+    return nya_net_client_connect_on(NYA_NET_TRANSPORT_UDP, address, port, name, config);
+}
+
+NYA_Error nya_net_client_connect_on(NYA_NetTransportKind kind, NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config) {
     if (_NYA_NET_CLIENT.active) return nya_error(NYA_ERROR_NOT_OK, "a client is already connected");
     if (address == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no address to connect to");
 
     NYA_Arena* allocator = nya_arena_create(.name = "net_client");
 
     NYA_NetTransport* transport = nullptr;
+    NYA_Error         created   = NYA_OK;
 
-    NYA_NetUdpOptions options = { .identity = config.identity, .conditions = config.conditions };
-    nya_memcpy(options.server_key, config.server_key, NYA_NET_KEY_SIZE);
+    switch (kind) {
+        case NYA_NET_TRANSPORT_UDP: {
+            NYA_NetUdpOptions options = { .identity = config.identity, .conditions = config.conditions };
+            nya_memcpy(options.server_key, config.server_key, NYA_NET_KEY_SIZE);
 
-    NYA_Error created = nya_net_transport_udp_create(allocator, options, &transport);
+            created = nya_net_transport_udp_create(allocator, options, &transport);
+        } break;
+
+        case NYA_NET_TRANSPORT_STEAM: created = nya_net_transport_steam_create(allocator, &transport); break;
+
+        case NYA_NET_TRANSPORT_LOOPBACK:
+        case NYA_NET_TRANSPORT_KIND_COUNT:
+        default:                         created = nya_error(NYA_ERROR_NOT_SUPPORTED, "that transport has no address to connect to"); break;
+    }
+
     if (!created.ok) {
         nya_arena_destroy(allocator);
         return created;

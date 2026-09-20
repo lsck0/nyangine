@@ -194,8 +194,21 @@ NYA_API b8 nya_net_server_running(void) __attr_no_discard;
 
 /**
  * Starts accepting players over UDP on `port`.
+ *
+ * The convenience call on top of nya_net_server_listen_on, since UDP is what a LAN game and a dedicated
+ * server want and what every existing caller asked for.
  * */
 NYA_API NYA_Error nya_net_server_listen(u16 port) __attr_no_discard;
+
+/**
+ * Starts accepting players over `kind`.
+ *
+ * NYA_NET_TRANSPORT_UDP binds `port`. NYA_NET_TRANSPORT_STEAM has nothing to bind and ignores it:
+ * players reach this process by Steam account, so what a friend needs is nya_steam_user_id, and the
+ * game publishes it through a lobby or a join secret. NYA_NET_TRANSPORT_LOOPBACK cannot listen, and
+ * says so; nya_net_server_attach_local is how a local player joins.
+ * */
+NYA_API NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port) __attr_no_discard;
 
 /** Whether a socket is open. False for single player, true once opened to the LAN. */
 NYA_API b8 nya_net_server_is_listening(void) __attr_no_discard;

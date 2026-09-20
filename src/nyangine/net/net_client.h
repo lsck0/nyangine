@@ -111,8 +111,25 @@ struct NYA_NetClientConfig {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Connects to a server over UDP. The handshake completes asynchronously; watch nya_net_client_state. */
+/**
+ * Connects to a server over UDP. The handshake completes asynchronously; watch nya_net_client_state.
+ *
+ * The convenience call on top of nya_net_client_connect_on.
+ * */
 NYA_API NYA_Error nya_net_client_connect(NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config) __attr_no_discard;
+
+/**
+ * Connects over `kind`.
+ *
+ * What `address` means follows the transport: a host name or IP literal for UDP, and the host's Steam
+ * id in decimal for Steam, which ignores `port` because there is nothing to dial. A loopback pair has
+ * no address at all, and is refused; nya_net_client_attach is how the local player joins.
+ *
+ * `config.server_key` only means anything over UDP. Over Steam the account is the identity and Valve's
+ * relay has already proved it, so a key there is ignored rather than silently unchecked.
+ * */
+NYA_API NYA_Error nya_net_client_connect_on(NYA_NetTransportKind kind, NYA_ConstCString address, u16 port, NYA_ConstCString name,
+                                            NYA_NetClientConfig config) __attr_no_discard;
 
 /** Attaches to a transport created elsewhere. This is how a listen server's host plays. */
 NYA_API NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString name, NYA_NetClientConfig config) __attr_no_discard;
