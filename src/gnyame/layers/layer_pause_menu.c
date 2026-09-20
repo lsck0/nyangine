@@ -142,7 +142,7 @@ void _gny_look_panel(NYA_UI* ui) {
         style->appear_s     = animated ? GNY_UI_APPEAR_S : 0.0F;
     }
 
-    // zero derives the scale from the window, which is what the leftmost step means.
+    // zero is scale 1, which is what the leftmost step means. the window's size never moves it.
     (void)nya_ui_slider(ui, nya_string_menu_scale(), &style->scale, 0.0F, GNY_UI_SCALE_MAX, NYA_UI_SCALE_STEP);
 
     NYA_Color accent = style->accent.a > 0.0F ? style->accent : NYA_UI_ACCENT;

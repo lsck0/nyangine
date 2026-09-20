@@ -1334,17 +1334,16 @@ NYA_UIStyle _nya_ui_style_resolve(NYA_UIStyle style) {
         f32* value;
         f32  fallback;
     } sizes[] = {
-        { &style.body_size,        NYA_UI_BODY_SIZE        },
-        { &style.small_size,       NYA_UI_SMALL_SIZE       },
-        { &style.title_size,       NYA_UI_TITLE_SIZE       },
-        { &style.reference_height, NYA_UI_REFERENCE_HEIGHT },
-        { &style.margin,           NYA_UI_MARGIN           },
-        { &style.padding,          NYA_UI_PADDING          },
-        { &style.spacing,          NYA_UI_SPACING          },
-        { &style.radius,           NYA_UI_RADIUS           },
-        { &style.outline,          NYA_UI_OUTLINE          },
-        { &style.depth,            NYA_UI_DEPTH            },
-        { &style.pop,              NYA_UI_POP              },
+        { &style.body_size,  NYA_UI_BODY_SIZE  },
+        { &style.small_size, NYA_UI_SMALL_SIZE },
+        { &style.title_size, NYA_UI_TITLE_SIZE },
+        { &style.margin,     NYA_UI_MARGIN     },
+        { &style.padding,    NYA_UI_PADDING    },
+        { &style.spacing,    NYA_UI_SPACING    },
+        { &style.radius,     NYA_UI_RADIUS     },
+        { &style.outline,    NYA_UI_OUTLINE    },
+        { &style.depth,      NYA_UI_DEPTH      },
+        { &style.pop,        NYA_UI_POP        },
     };
 
     for (u32 i = 0; i < nya_carray_length(sizes); i++) {
@@ -1391,12 +1390,22 @@ NYA_UIStyle _nya_ui_style_resolve(NYA_UIStyle style) {
 }
 
 f32 _nya_ui_scale_derive(const NYA_Window* window, const NYA_UIStyle* style) {
-    if (style->scale > 0.0F) return style->scale;
+    nya_assert(window != nullptr && style != nullptr);
+    nya_assert(style->scale >= 0.0F, "a resolved style's scale is never negative");
 
-    f32 display = window->sdl_window != nullptr ? nya_window_display_scale(window->handle) : 1.0F;
-    f32 scale   = nya_max((f32)window->screen_height / style->reference_height, display);
+    f32 scale = style->scale > 0.0F ? style->scale : 1.0F;
 
-    return nya_max(roundf(scale / NYA_UI_SCALE_STEP) * NYA_UI_SCALE_STEP, NYA_UI_SCALE_MIN);
+    /*
+     * The window's size is deliberately not in here. Each distinct scale rasterises its own glyph atlas per point
+     * size, so a scale that follows a drag mints one per step and empties the atlas cache mid-resize. The display
+     * scale is opt in and snapped for the same reason: a 1.15 desktop scale would otherwise bake sizes nothing else
+     * shares.
+     */
+    if (style->follow_display_scale && window->sdl_window != nullptr) {
+        scale *= roundf(nya_window_display_scale(window->handle) / NYA_UI_SCALE_STEP) * NYA_UI_SCALE_STEP;
+    }
+
+    return nya_max(scale, NYA_UI_SCALE_MIN);
 }
 
 _NYA_UILook _nya_ui_look_build(const NYA_UIStyle* style, f32 scale) {

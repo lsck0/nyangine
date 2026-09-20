@@ -77,10 +77,11 @@
  * - One container does both directions. Along its direction a child is fixed, fits, or grows into a weighted share;
  *   across it, panels and widgets that fill (buttons, sliders, toggles, fields) take the whole extent and the rest
  *   fit and follow the container's alignment. A spacer is a growing nya_ui_space.
- * - Sizes are written for a window `reference_height` tall and multiplied by a per window scale, derived from the
- *   window's height and never below the display's own scale, in quarter steps so a resize bakes few glyph atlases.
- *   Fonts are rasterised at the scaled size, so text stays crisp. Top level panels sit inside the window's safe area,
- *   `margin` in from it, and scroll when they would not fit.
+ * - Sizes are pixels at scale 1, multiplied by the style's `scale`, which is 1 unless a player picked another and
+ *   never follows the window. Deriving it from the window's height was tried and removed: every step minted a glyph
+ *   atlas per point size, so dragging a resize exhausted the atlas cache and text went blank. Fonts are rasterised
+ *   at the scaled size, so text stays crisp. Top level panels sit inside the window's safe area, `margin` in from
+ *   it, and scroll when they would not fit.
  * - Focus moves through rows as lines: up and down go to the next line, left and right between the focusable cells
  *   of one row. Sliders, toggles and a field being typed into keep left and right for themselves.
  * - A field types only after confirm or a click, because menu keys are letters too (W, A, S, D and space), and
@@ -169,13 +170,15 @@ typedef struct NYA_Window NYA_Window;
 #define NYA_UI_SCROLLBAR   4.0F
 #define NYA_UI_FOCUS_BAR   3.0F
 
-/** A derived scale moves in steps this size and never drops under the smallest. */
+/**
+ * The display scale is snapped to steps this size and the result never drops under the smallest. A style's own
+ * `scale` is taken as written, since a person who typed 1.1 meant 1.1.
+ * */
 #define NYA_UI_SCALE_STEP 0.25F
 #define NYA_UI_SCALE_MIN  0.5F
 
 /* What a zeroed style field becomes. A quiet dark card, flat fills, one accent, and no outline, shadow or pop. */
 
-#define NYA_UI_REFERENCE_HEIGHT 720.0F
 #define NYA_UI_BODY_SIZE        18.0F
 #define NYA_UI_SMALL_SIZE       14.0F
 #define NYA_UI_TITLE_SIZE       30.0F
@@ -384,9 +387,17 @@ struct NYA_UIStyle {
     f32 small_size;
     f32 title_size;
 
-    /** Multiplies every size. Zero derives it: the window's height against `reference_height`, at least the display's scale. */
+    /**
+     * Multiplies every size. Zero is 1, and nothing else moves it: resizing a window changes how much UI fits, not
+     * how big it is, so this is a setting a player picks once.
+     * */
     f32 scale;
-    f32 reference_height;
+
+    /**
+     * Also multiply by the OS display scale, snapped to NYA_UI_SCALE_STEP, for a HiDPI screen. Off by default,
+     * because a desktop scale a person set for their browser is not one they asked a game for.
+     * */
+    b8 follow_display_scale;
 
     /** Between the window's safe area and a top level panel. */
     f32 margin;
