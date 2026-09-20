@@ -2,14 +2,6 @@
 
 #include "monocypher.h"
 
-#if OS_WINDOWS
-#include <windows.h>
-/**/
-#include <bcrypt.h>
-#else
-#include <sys/random.h>
-#endif
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
@@ -18,9 +10,6 @@
 
 /** Poly1305 tag length, appended to every sealed packet. */
 #define _NYA_NET_MAC_SIZE 16
-
-/** Fills `out` from the operating system's random source. */
-NYA_INTERNAL b8 _nya_net_random_bytes(OUT u8* out, u64 size) __attr_no_discard;
 
 /**
  * X25519 of a secret and a public key. False when the result is all zero, which is what a low order public key
@@ -67,7 +56,7 @@ NYA_Error nya_net_key_pair_create(OUT NYA_NetKeyPair* out_key_pair) {
     *out_key_pair = (NYA_NetKeyPair){ 0 };
 
     u8 secret[NYA_NET_KEY_SIZE] = { 0 };
-    if (!_nya_net_random_bytes(secret, sizeof(secret))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
+    if (!nya_random_bytes(secret, sizeof(secret))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
 
     *out_key_pair = nya_net_key_pair_from_secret(secret);
     _nya_net_crypto_wipe(secret, sizeof(secret));
@@ -184,25 +173,6 @@ NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* o
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
-
-b8 _nya_net_random_bytes(OUT u8* out, u64 size) {
-    nya_assert(out != nullptr);
-
-#if OS_WINDOWS
-    return BCRYPT_SUCCESS(BCryptGenRandom(nullptr, out, (ULONG)size, BCRYPT_USE_SYSTEM_PREFERRED_RNG));
-#else
-    u64 filled = 0;
-
-    while (filled < size) {
-        ssize_t got = getrandom(out + filled, size - filled, 0);
-        if (got <= 0) return false;
-
-        filled += (u64)got;
-    }
-
-    return true;
-#endif
-}
 
 b8 _nya_net_crypto_exchange(OUT u8* shared, const u8* secret_key, const u8* public_key) {
     crypto_x25519(shared, secret_key, public_key);

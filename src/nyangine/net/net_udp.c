@@ -503,7 +503,7 @@ NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptions optio
 
     // the cookie key, then the dice seed, which has to be separate: the loss pattern is visible from outside.
     u8 cookie_key[24] = { 0 };
-    if (!_nya_net_random_bytes(cookie_key, sizeof(cookie_key))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
+    if (!nya_random_bytes(cookie_key, sizeof(cookie_key))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
 
     if (!NET_Init()) return nya_error(NYA_ERROR_NOT_OK, "SDL_net could not start: %s", SDL_GetError());
     _NYA_NET_UDP_INIT_COUNT++;
