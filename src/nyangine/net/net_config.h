@@ -32,6 +32,19 @@ typedef struct NYA_NetLaunchConfig NYA_NetLaunchConfig;
 /** How long an address may be, buffer included. Comfortably fits an IPv6 literal or a hostname. */
 #define NYA_NET_MAX_ADDRESS 128
 
+/**
+ * The tag a join secret starts with. A version, so a secret written by a later build is rejected here
+ * rather than half understood: the rule is reject by default, permit explicitly.
+ * */
+#define NYA_NET_JOIN_SECRET_TAG "nya1:"
+
+/**
+ * How long a join secret is, buffer included: the tag, the address, ':', five port digits, ':' and the
+ * server key in hex. Discord truncates a secret at 128 bytes, so a secret at this size with a long
+ * hostname will not survive it; see nya_net_config_to_join_secret.
+ * */
+#define NYA_NET_MAX_JOIN_SECRET (sizeof(NYA_NET_JOIN_SECRET_TAG) + NYA_NET_MAX_ADDRESS + NYA_NET_KEY_HEX_SIZE + 8)
+
 /** What the command line asked for. */
 struct NYA_NetLaunchConfig {
     /**
@@ -92,3 +105,43 @@ NYA_API NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv
 
 /** Logs what the config resolved to, at info. What a dedicated server's first line of output should be. */
 NYA_API void nya_net_config_report(const NYA_NetLaunchConfig* config);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * JOIN SECRETS
+ * ─────────────────────────────────────────────────────────
+ */
+
+/*
+ * A join secret is the one string a friend's client hands back when they accept an invite, over Discord
+ * or over Steam. Both sides of it live here rather than in a game, because it is the launch config on the
+ * wire and nothing else: a game that invented its own format would be parsing an address by hand at the
+ * one boundary where the bytes came from somebody else's client.
+ *
+ * ```c
+ * char secret[NYA_NET_MAX_JOIN_SECRET];
+ * if (nya_net_config_to_join_secret(&hosting, secret, sizeof(secret))) invite(secret);
+ *
+ * NYA_NetLaunchConfig joining = { 0 };
+ * if (nya_net_config_from_join_secret(secret, &joining)) reconnect(joining);
+ * ```
+ */
+
+/**
+ * Writes the address, port and server key of `config` as a join secret.
+ *
+ * False when the config has nothing to join (no listening port) or the buffer is too small, in which case
+ * `out_secret` is left an empty string. The caller is expected to be a listen server: a client's config
+ * names the server it joined, which is the same thing, but a single player config names nothing.
+ * */
+NYA_API b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* out_secret, u64 capacity) __attr_no_discard;
+
+/**
+ * Parses a join secret into the client half of a launch config: role, address, port and server key.
+ *
+ * Every byte of `secret` came from another player's client, so this refuses anything it does not fully
+ * understand rather than repairing it: a wrong tag, an empty or overlong address, an address with a
+ * character no hostname or IP literal has, a port outside 1..65535, or a key that is not 64 hex digits.
+ * False leaves `out_config` zeroed, and never logs on the caller's behalf.
+ * */
+NYA_API b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchConfig* out_config) __attr_no_discard;

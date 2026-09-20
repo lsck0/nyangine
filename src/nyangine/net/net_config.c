@@ -22,6 +22,14 @@ NYA_INTERNAL u64 _nya_net_config_number(NYA_ConstCString text, NYA_ConstCString 
 /** Parses a percentage, 0..100 with a fraction allowed, or reports zero with a warning. */
 NYA_INTERNAL f32 _nya_net_config_percent(NYA_ConstCString text, NYA_ConstCString what) __attr_no_discard;
 
+/**
+ * Whether every byte of `text` could appear in a hostname, an IPv4 literal or a bare IPv6 literal.
+ * */
+NYA_INTERNAL b8 _nya_net_config_address_is_plausible(NYA_ConstCString text, u64 length) __attr_no_discard;
+
+/** Parses exactly `length` decimal digits as a port, 1..65535. Zero means it was not one. */
+NYA_INTERNAL u16 _nya_net_config_port_from_text(NYA_ConstCString text, u64 length) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -221,10 +229,173 @@ void nya_net_config_report(const NYA_NetLaunchConfig* config) {
 }
 
 /*
+ * ─────────────────────────────────────────────────────────
+ * JOIN SECRETS
+ * ─────────────────────────────────────────────────────────
+ */
+
+b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* out_secret, u64 capacity) {
+    nya_assert(config != nullptr);
+    nya_assert(out_secret != nullptr);
+    nya_assert(capacity > 0);
+
+    out_secret[0] = '\0';
+
+    /* Which of the two ports is the one a friend would dial. */
+    u16 port = config->role == NYA_NET_ROLE_CLIENT ? config->port : config->listen_port;
+
+    // single player has no port open, so there is nothing to invite anybody to. reported rather than
+    // asserted: a presence update runs every frame and single player is the ordinary case.
+    if (port == 0) return false;
+
+    NYA_ConstCString address = config->address;
+
+    // a listen server does not know its own public address and does not try to guess one: the host's
+    // provider substitutes its own routing (a Steam lobby id, a Discord secret the host answers), and a
+    // guessed LAN address would send the guest somewhere real and wrong.
+    if (config->role != NYA_NET_ROLE_CLIENT) address = "";
+
+    char hex[NYA_NET_KEY_HEX_SIZE] = { 0 };
+    b8   keyed                      = nya_net_key_is_set(config->server_key);
+
+    if (keyed) nya_net_key_to_hex(config->server_key, hex);
+
+    s32 written = keyed ? snprintf(out_secret, capacity, NYA_NET_JOIN_SECRET_TAG "%s:%u:%s", address, port, hex)
+                        : snprintf(out_secret, capacity, NYA_NET_JOIN_SECRET_TAG "%s:%u", address, port);
+
+    // truncated: a half secret parses as a different address, so it is dropped rather than sent.
+    if (written < 0 || (u64)written >= capacity) {
+        out_secret[0] = '\0';
+        return false;
+    }
+
+    return true;
+}
+
+b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchConfig* out_config) {
+    nya_assert(out_config != nullptr);
+
+    *out_config = (NYA_NetLaunchConfig){ 0 };
+
+    if (secret == nullptr) return false;
+
+    /* Bounded before anything else reads it: everything below indexes inside this length. */
+    u64 length = strnlen(secret, NYA_NET_MAX_JOIN_SECRET);
+    if (length == 0 || length >= NYA_NET_MAX_JOIN_SECRET) return false;
+
+    u64 tag_length = sizeof(NYA_NET_JOIN_SECRET_TAG) - 1;
+    if (length <= tag_length) return false;
+    if (strncmp(secret, NYA_NET_JOIN_SECRET_TAG, tag_length) != 0) return false;
+
+    /*
+     * Split from the right, not the left: an IPv6 literal is full of colons, so the address is whatever
+     * is left once the two fixed-width tail fields have been taken off.
+     */
+    u64 body_start = tag_length;
+    u64 body_end   = length;
+
+    u8 server_key[NYA_NET_KEY_SIZE] = { 0 };
+    b8 keyed                        = false;
+
+    /* The optional key first, since it is the last field when it is there. */
+    u64 last_colon = body_end;
+    for (u64 i = body_end; i > body_start; i--) {
+        if (secret[i - 1] == ':') {
+            last_colon = i - 1;
+            break;
+        }
+    }
+
+    if (last_colon == body_end) return false;
+
+    if (body_end - last_colon - 1 == NYA_NET_KEY_HEX_SIZE - 1) {
+        char hex[NYA_NET_KEY_HEX_SIZE];
+        nya_memcpy(hex, secret + last_colon + 1, NYA_NET_KEY_HEX_SIZE - 1);
+        hex[NYA_NET_KEY_HEX_SIZE - 1] = '\0';
+
+        // a 64 character tail that is not hex is not a key, so the secret is refused rather than read as
+        // a very long port.
+        if (!nya_net_key_from_hex(hex, server_key)) return false;
+
+        keyed    = true;
+        body_end = last_colon;
+
+        last_colon = body_end;
+        for (u64 i = body_end; i > body_start; i--) {
+            if (secret[i - 1] == ':') {
+                last_colon = i - 1;
+                break;
+            }
+        }
+
+        if (last_colon == body_end) return false;
+    }
+
+    u16 port = _nya_net_config_port_from_text(secret + last_colon + 1, body_end - last_colon - 1);
+    if (port == 0) return false;
+
+    u64 address_length = last_colon - body_start;
+    if (address_length >= NYA_NET_MAX_ADDRESS) return false;
+    if (!_nya_net_config_address_is_plausible(secret + body_start, address_length)) return false;
+
+    out_config->role = NYA_NET_ROLE_CLIENT;
+    out_config->port = port;
+
+    if (address_length > 0) {
+        nya_memcpy(out_config->address, secret + body_start, address_length);
+        out_config->address[address_length] = '\0';
+    }
+
+    if (keyed) nya_memcpy(out_config->server_key, server_key, NYA_NET_KEY_SIZE);
+
+    (void)snprintf(out_config->name, sizeof(out_config->name), "%s", "player");
+
+    return true;
+}
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+b8 _nya_net_config_address_is_plausible(NYA_ConstCString text, u64 length) {
+    nya_assert(text != nullptr);
+
+    // an empty address is legal and means "the provider routes this", which is what a Steam lobby or a
+    // Discord host answering its own invite does.
+    for (u64 i = 0; i < length; i++) {
+        char character = text[i];
+
+        b8 letter = (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z');
+        b8 digit  = character >= '0' && character <= '9';
+
+        // the full set a hostname, an IPv4 literal and a bare IPv6 literal need, and nothing else: a
+        // '/' or a '%' here would be a path or a scope id going into getaddrinfo.
+        if (!letter && !digit && character != '.' && character != '-' && character != ':') return false;
+    }
+
+    return true;
+}
+
+u16 _nya_net_config_port_from_text(NYA_ConstCString text, u64 length) {
+    nya_assert(text != nullptr);
+
+    // five digits is 65535, so nothing longer can be a port and nothing here can overflow.
+    if (length == 0 || length > 5) return 0;
+
+    u32 value = 0;
+
+    for (u64 i = 0; i < length; i++) {
+        if (text[i] < '0' || text[i] > '9') return 0;
+
+        value = (value * 10) + (u32)(text[i] - '0');
+    }
+
+    if (value == 0 || value > 65535) return 0;
+
+    return (u16)value;
+}
 
 b8 _nya_net_config_matches(NYA_ConstCString argument, NYA_ConstCString name, OUT NYA_ConstCString* out_attached) {
     nya_assert(argument != nullptr);
