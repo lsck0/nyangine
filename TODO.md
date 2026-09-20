@@ -22,7 +22,13 @@
 
 The engine is finished when all of this holds, in the existing style (see the style guide), with lines of code,
 file size, RAM, VRAM, CPU, GPU and startup time kept to a minimum, and nothing a player or a peer does can crash
-it. Scope is the engine: no editor, no game; gnyame stays a minimal example exercising every feature.
+it. gnyame stays a minimal example exercising every feature.
+
+Scope was "a game engine". It is now **one stack for everything I write**: games, desktop UI, TUI, CLI,
+web servers and web clients, all in the same program and all composing. One nyangine program should be able to
+mix 2D and 3D rendering, put a UI over it, serve a web interface for its own metrics, accept messages from other
+programs, talk to OBS over WebSocket, and be driven from a CLI or a TUI, with plugins, optional end to end
+encryption and PGP-backed second factors. See "The stack" below for what that adds.
 
 | Area | Wanted | State |
 | :--- | :--- | :--- |
@@ -43,16 +49,220 @@ it. Scope is the engine: no editor, no game; gnyame stays a minimal example exer
 
 # Unmerged work
 
-The per-feature trace is merged (overlay trace page, Chrome trace capture); debug draw and physics hitboxes are not
-started.
+The per-feature trace is merged (overlay trace page, Chrome trace capture). The renderer atmosphere branch is
+merged too: eye adaptation measured on the GPU, light shafts at half resolution, aerial perspective, 2D haze
+veils, camera motion blur, and player graphics settings (MSAA, FXAA, shadows, post passes, fov, render scale).
 
-Stopped mid-task to save quota; committed on local branches, not yet verified against master. Rebase, run
-debug-linux, release, tests and `check --strict`, then merge.
+- `[ ]` Still not done from that branch: the pause menu graphics panel, water and reflections, dynamic mesh LOD.
+- `[ ]` Not started: debug draw and physics hitboxes, core systems audit.
 
-- `worktree-agent-acd7befc2c4291844` (conflicts with the merged trace scopes in `render_post.c`): eye adaptation measured on the GPU, light shafts at half resolution,
-  aerial perspective, 2D haze veils, camera motion blur, player graphics settings (MSAA, FXAA, shadows, post
-  passes, fov, render scale). Not done: the pause menu graphics panel, water and reflections, dynamic mesh LOD.
-- Not started: core systems audit and parser fuzzing.
+---
+
+# The stack
+
+What "one stack for everything" adds on top of the engine. Nothing here exists yet unless it says so.
+
+## `[ ]` Web
+
+In scope, deliberately: not only a server, but the client too.
+
+- `[ ]` An HTTP server in the engine: routing, middleware, typed request and response structs, JSON through
+  `serde`. One GET or POST per path, accepting an enum. Middleware for auth and logging. JWT, plus the PGP
+  pieces. Rate limits and the rest of the perimeter belong to a proxy in front, not to us.
+- `[ ]` OpenAPI generated from the handler definitions and the DTO types, served by the app. Never hand written.
+  See `~/projects/webapp-template` for the patterns to follow.
+- `[ ]` Compile to web: a bundle of HTML, CSS, JS and wasm. WebGPU where it exists, a canvas backend otherwise.
+- `[ ]` A UI backend that emits HTML, CSS and JS from the same `nya_ui_*` calls the native backend draws, ahead
+  of time or on the fly. **I never write HTML, CSS or JS by hand.** That is the whole point of the exercise.
+- `[ ]` Fully client side apps that talk to a nyangine server, with the types shared between the two rather than
+  restated.
+- `[ ]` Hot reloading on the web, matching what the native builds already do.
+
+## `[ ]` TUI
+
+- `[ ]` A terminal backend beside the GPU one: ncurses or equivalent, so a nyangine program can be a TUI that
+  wraps something like `gh`. The headless renderer pair is the existing precedent for a second backend.
+- `[ ]` Kitty image protocol, so a TUI can still show pictures.
+
+## `[ ]` IPC and talking to other programs
+
+- `[ ]` A local control socket, opt-in and off by default: a unix socket on Linux, a named pipe on Windows, so
+  an outside program can drive a running nyangine program. The motivating case is a small VTuber tool you
+  control from elsewhere.
+- `[ ]` An outgoing WebSocket client, so we can drive OBS and anything else speaking obs-websocket.
+- `[x]` An outgoing REST client exists (`plugins/curl/request.h`) but nothing calls it.
+
+## `[ ]` ruey
+
+`~/projects/ruey`, a Twitch client with integrations, gets rewritten into nyangine later. It needs the
+WebSocket client, a richer HTTP client and the TUI backend first. Not startable until those land.
+
+---
+
+# Requested
+
+Everything asked for that is not already covered by a section below. Android is explicitly out of scope and is
+not listed.
+
+## `[ ]` Plugins
+
+The model to copy is Dalamud's: a list of plugin repositories the user can add by URL, each serving a JSON
+index, with per-plugin enable and disable, download counts, and a blunt warning that a plugin is arbitrary code
+and can do anything the program can.
+
+- `[ ]` Lua plugins loaded from `plugins/<name>/` with `manifest.nya`, `main.lua`, `src/*.lua` and `assets/`.
+  The manifest carries author, license, plugin version, engine version, dependencies, conflicts, and a git repo
+  URL so it can update itself.
+- `[ ]` Custom plugin repositories: add a URL, it serves an index, plugins show up as installable.
+- `[ ]` A plugin repo of our own, holding plugins as submodules, listed in-game as downloadable.
+- `[ ]` Steam Workshop plugins. A plugin may be nothing more than a map or a character added to the selection.
+- `[ ]` Parity between the Lua plugin API and what can be written in C. All engine code stays C; Lua is for
+  plugins and user scripting only.
+- `[ ]` Lua bindings **autogenerated**, not hand written. Today there are ten hand-written functions in
+  `lua_engine.c:194-205` and the `nya` global is assembled from a literal, which is why the editor reports
+  "Undefined global `nya`". Generate the bindings and a definitions file from reflection.
+- `[ ]` Namespacing that survives a large plugin collection, so we do not end up where Minecraft did.
+- `[ ]` Per-plugin tracing: time per frame and memory held, per plugin.
+- `[ ]` Plugin errors reported to the plugin's own developer, and visibly distinct from engine errors.
+- `[ ]` A permission system the game fixes **once, at compile time**: plugins may show UI but not bind keys, or
+  may do everything, or are sandboxed away from the filesystem and the network.
+- `[ ]` Users can enable and disable engine systems and load their own assets. Depends on the system registry.
+
+## `[ ]` Distribution
+
+Modes, restated so they stop drifting:
+
+| Mode | Meaning |
+| :--- | :--- |
+| `debug` | Something is wrong in the code; find it. Sanitizers on. |
+| `dev` | Ordinary development. Sanitizers off. |
+| `release` | What users get. Optimized. |
+
+`debug` and `dev` both use filesystem assets with hot reload, and both produce perf data. `release` has
+submodes: plain release is native, `steam` is release through Steam, and flatpak, pacman, AUR, scoop and nix are
+the packager ones.
+
+- `[ ]` `dist/` with a folder per target: linux, windows, steam-linux, steam-windows, linux-pacman,
+  linux-nixos, web, plus the Lua bindings API. **Binary releases only — a user never compiles from source.**
+- `[ ]` A distribution contains: the executable; packager-specific files (manifests, desktop entry, Steam
+  library, man page, licence); an optional `assets/` if not bundled into the executable; a `data/` folder
+  holding user-editable settings and colour theme plus non-editable save data; and `plugins/`.
+- `[ ]` Assets on the filesystem are encrypted or obfuscated so they cannot be extracted or modified.
+- `[ ]` Settings must be user-editable, so bad settings need good errors naming the key, the value and what was
+  expected. Save data is the opposite and gets an integrity check.
+- `[ ]` `CHANGELOG.md`, generated from history, shipped with every release.
+- `[ ]` `secrets/` committed to GitHub, encrypted with sops and gpg, holding the signing key among other things.
+- `[ ]` CI/CD produces every release build so Steam and the packagers can pick up a new version.
+
+## `[ ]` Reported bugs
+
+- `[ ]` Resizing the window breaks the UI badly, and the fonts break on resize and rescale. Root cause found:
+  `_nya_ui_scale_derive` (`ui.c:1393`) derives scale from window height, `_nya_ui_look_build` (`ui.c:1430`)
+  then bakes fonts at `size * scale`, and the glyph atlas is keyed `path@points` with capacity 8 and eviction
+  `REFUSE` (`render2d.c:2107`). Each scale step mints a new atlas key until all 8 are gone and text draws
+  blank. Measured on a HiDPI display it is already broken at startup with no resize at all: 6813
+  "no free glyph atlas slot" warnings in a 25 second run, for `Aldrich.ttf@19` and `@16`.
+- `[ ]` The UI must not autoscale with screen size. Fixed scale.
+- `[ ]` Log spam, including things logged as errors that are not. Two known: the atlas warning above logs every
+  frame instead of once per key, and `nya_app_init_with_options` logs
+  "No supported SDL_GPU backend found" as an ERROR on headless test runs where it is the expected state.
+- `[ ]` Shadows move laggily.
+- `[ ]` The fire effect flickers.
+- `[ ]` RenderDoc closes immediately instead of capturing. Not the anti-tamper check — that early-returns
+  unless `NYA_SHIPPING_BUILD` (`base_integrity.c:148,172`). Cause still unknown.
+- `[x]` `monocypher.h` not found, `NYA_LuaVM` unknown, `windows.h` not found, and the
+  `modernize-redundant-void-arg` lint were all `.clangd` gaps. Fixed.
+- `[x]` `build-steam-linux` red in CI: monocypher was missing from the steamrt vendor set. Fixed.
+- `[x]` `test-windows` red on `test_replica`: a 624 KB `NYA_NetReplicaMap` on a 1 MB Windows stack. Fixed.
+
+## `[ ]` Crash reporting
+
+- `[ ]` On an assertion, a new window showing the assertion and the log leading up to it, with three buttons:
+  Close, Copy, and Send to developer. Reporting a bug should be as easy as it can possibly be.
+- `[ ]` The report carries build info (time, version, commit, kind), platform info (CPU, GPU, RAM, VRAM), the
+  log before the crash, and the error itself. Writing it locally for now; a transport comes later.
+
+## `[ ]` UI
+
+- `[ ]` Not two files.
+- `[ ]` Text input editing: selection, copy, cut, paste, delete previous word.
+- `[ ]` Missing widgets: draggable windows, tabs, a simple node editor, dropdowns, radio buttons, SVG buttons,
+  icons, tables, graphs and charts, subtree opacity.
+- `[ ]` A large text editor widget for writing code in-game, with treesitter syntax highlighting. Needed for
+  in-game scripting, and again for the ruey rewrite.
+- `[ ]` Animation: small bounces on click and similar.
+- `[ ]` Transitions between screens.
+
+## `[ ]` Renderer
+
+- `[ ]` A flag for every feature, so anything from culling and opacity to shadows and reflections can be turned
+  off, whether to debug or to create an effect deliberately. Culling, backface culling and sorting currently
+  have no toggle at all; reflections do not exist.
+- `[ ]` 2D and 3D fluids, Navier-Stokes.
+- `[ ]` Better 2D and 3D skyboxes. Fog in specific regions rather than only globally, rain, clouds, stars.
+- `[ ]` Placeholders for missing assets: log a warning once, then draw something obviously wrong rather than
+  nothing. Today a failed asset silently draws nothing (`render2d.c:853`).
+- `[ ]` Character customization: recolour, retexture and paint a loaded default model. Clothes and hair later.
+
+## `[ ]` Engine
+
+- `[ ]` One system registry for engine and game alike, with systems registered, started and stopped at runtime.
+  A game must be able to disable an engine system — turn off gravity for an effect, or a renderer capability —
+  and a plugin must be able to disable something in order to override it.
+- `[ ]` Fast-forward: run the simulation far faster than real time, so a DQN agent playing the game covers far
+  more ground than a human would.
+- `[ ]` DQN and NEAT driving the real application as a user, to find emergent behaviour and to find crashes.
+- `[ ]` Scene and settings persistence, for save files and for the editor.
+- `[ ]` Collision layers.
+- `[ ]` Reflection-driven parsing to and from objects and the `nya` format, used everywhere rather than only by
+  config.
+- `[ ]` Reflection data given at least token protection against reverse engineering. Today every struct and
+  field name sits in `.rodata` verbatim.
+- `[ ]` Use the config system more, starting with gnyame's `constants.h`.
+- `[ ]` A better debug UI.
+- `[ ]` The main menu shows build kind, commit hash, build time and version in the bottom left corner.
+
+## `[ ]` Steam
+
+- `[ ]` Lobbies and peer to peer multiplayer. `net_steam.c` still returns `NYA_ERROR_NOT_SUPPORTED`.
+- `[ ]` Achievements.
+- Note: `plugins/steam/steam.c` **is** compiled and linked for the steam targets; the "never been compiled"
+  claim below in "Steam is dead code" is stale and needs rewriting.
+
+## `[ ]` Discord
+
+- `[ ]` Rich presence wired up to real game state. The client exists in `plugins/discord/` and nothing calls it.
+- `[ ]` Invites: subscribe to `ACTIVITY_JOIN` and `ACTIVITY_JOIN_REQUEST`, accept a join secret into the net
+  client, and show the request in a proper menu.
+
+## `[ ]` Testing
+
+- `[ ]` Fuzzing through AFL, as a standing job rather than an exercise.
+- `[ ]` Deterministic simulation testing: atomic actions and action sequences, composed randomly with
+  well-shaped data, with faults injected and the assertions as the oracle. Generate the action set from the
+  reflection data rather than maintaining it by hand.
+- `[ ]` Property tests, starting with every round trip.
+
+## `[ ]` Docs and examples
+
+- `[ ]` `docs/CHEATSHEET.md`, in the shape of raylib's: every macro, struct and function worth using from
+  gnyame. Generated from the headers, not hand written.
+- `[ ]` `AGENTS.md` at the root pointing at the cheatsheet, with a short intro to the project.
+- `[ ]` More examples beside hello_world: multiplayer 2D pong, 3D pinball, one that is only plugins, a CLI app,
+  a TUI app, and a server plus client web app.
+- `[ ]` Make the 3D example nicer, and give it the graphics settings menu it currently lacks.
+
+## `[?]` Nyangine as a dependency
+
+Open question, deliberately unanswered for now. When a project uses nyangine and the engine changes, how do the
+patches move across? A submodule does not obviously work, because the engine and the game are deeply
+integrated — and splitting them is not wanted. Decision deferred until there is a second real project.
+
+## `[⏭]` Android
+
+Out of scope. Nothing android-related is planned or listed.
+
+---
 
 # Open
 

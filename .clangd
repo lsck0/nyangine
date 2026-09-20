@@ -83,11 +83,18 @@ Diagnostics:
         portability-*,
         readability-*,
       ]
-    # This list must mirror the disables in .clang-tidy exactly. clangd reads .clang-tidy, but the
-    # `Add:` above re-enables whole groups on top of it, which silently resurrects anything
-    # .clang-tidy turned off inside one of those groups — the editor showed
-    # modernize-redundant-void-arg for months while `./build check` did not. Adding a disable to
-    # .clang-tidy alone is therefore not enough; it goes in both.
+    # This list mirrors the disables in .clang-tidy. clangd reads .clang-tidy, but the `Add:` above
+    # re-enables whole groups on top of it, which silently resurrects anything .clang-tidy turned
+    # off inside one of those groups — the editor showed modernize-redundant-void-arg while
+    # `./build check` did not. Adding a disable to .clang-tidy alone is therefore not enough; it
+    # goes in both.
+    #
+    # Four of .clang-tidy's disables are deliberately absent here, because naming them makes clangd
+    # itself warn: it does not register clang-analyzer-optin.performance.Padding or
+    # clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling at all, and it has no
+    # latency data for bugprone-tagged-union-member-count or portability-avoid-pragma-once, so those
+    # two never run under the default FastCheckFilter anyway. Leaving them out is what keeps this
+    # file warning-free; .clang-tidy still disables all four for the command line run.
     Remove:
       [
         bugprone-assignment-in-if-condition,
@@ -100,15 +107,12 @@ Diagnostics:
         bugprone-signal-handler,
         bugprone-suspicious-include,
         bugprone-suspicious-missing-comma,
-        bugprone-tagged-union-member-count,
         cert-dcl37-c,
         cert-dcl51-cpp,
         cert-exp42-c,
         cert-int09-c,
         cert-msc54-cpp,
         cert-sig30-c,
-        clang-analyzer-optin.performance.Padding,
-        clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
         concurrency-mt-unsafe,
         misc-confusable-identifiers,
         misc-include-cleaner,
@@ -117,7 +121,6 @@ Diagnostics:
         modernize-redundant-void-arg,
         modernize-use-nullptr,
         performance-no-int-to-ptr,
-        portability-avoid-pragma-once,
         readability-avoid-nested-conditional-operator,
         readability-braces-around-statements,
         readability-enum-initial-value,
