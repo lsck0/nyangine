@@ -101,8 +101,10 @@ s32 main(void) {
         f32 landed  = nya_entity_get(lands)->position.y;
         f32 dropped = nya_entity_get(falls)->position.y;
 
-        nya_check(landed < 200.0F, "the lander should be resting on the floor, got y=%f", (f64)landed);
-        nya_check(dropped > 400.0F, "the ghost should have fallen straight through, got y=%f", (f64)dropped);
+        // the floor's top surface is at y = 190; positive y is down.
+        nya_check(landed < 190.0F, "the lander should be resting on the floor, got y=%f", (f64)landed);
+        nya_check(dropped > 210.0F, "the ghost should have fallen straight through the floor, got y=%f", (f64)dropped);
+        nya_check(dropped > landed + 100.0F, "the ghost should be far below the lander, got %f against %f", (f64)dropped, (f64)landed);
 
         printf("TEST: moving it onto the floor's mask stops it\n");
         {
@@ -179,8 +181,10 @@ s32 main(void) {
         f32 landed  = nya_entity_get(lands)->position.y;
         f32 dropped = nya_entity_get(falls)->position.y;
 
-        nya_check(landed > -4.0F, "the 3D lander should be resting on the floor, got y=%f", (f64)landed);
-        nya_check(dropped < -8.0F, "the 3D ghost should have fallen straight through, got y=%f", (f64)dropped);
+        // the floor's top surface is at y = 0.5; negative y is down in the 3D world.
+        nya_check(landed > 0.0F, "the 3D lander should be resting on the floor, got y=%f", (f64)landed);
+        nya_check(dropped < -0.5F, "the 3D ghost should have fallen straight through the floor, got y=%f", (f64)dropped);
+        nya_check(dropped < landed - 4.0F, "the 3D ghost should be far below the lander, got %f against %f", (f64)dropped, (f64)landed);
 
         NYA_Entity* ghost_entity = nya_entity_get(falls);
 
