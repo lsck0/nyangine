@@ -165,6 +165,23 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
             continue;
         }
 
+        if (_nya_net_config_matches(argument, "transport", &attached)) {
+            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
+
+            if (value != nullptr && nya_string_equals(value, NYA_NET_JOIN_SCHEME_STEAM)) {
+                config.transport = NYA_NET_TRANSPORT_STEAM;
+                continue;
+            }
+
+            if (value != nullptr && nya_string_equals(value, NYA_NET_JOIN_SCHEME_UDP)) {
+                config.transport = NYA_NET_TRANSPORT_UDP;
+                continue;
+            }
+
+            nya_log_warn("--transport takes '%s' or '%s'; using udp.", NYA_NET_JOIN_SCHEME_UDP, NYA_NET_JOIN_SCHEME_STEAM);
+            continue;
+        }
+
         if (_nya_net_config_matches(argument, "seed", &attached)) {
             NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
 
@@ -210,7 +227,17 @@ void nya_net_config_report(const NYA_NetLaunchConfig* config) {
     }
 
     if (config->role == NYA_NET_ROLE_CLIENT) {
+        if (config->transport == NYA_NET_TRANSPORT_STEAM) {
+            nya_log_info("Joining Steam account %s as '%s'.", config->address, config->name);
+            return;
+        }
+
         nya_log_info("Joining %s:%u as '%s'.", config->address, config->port, config->name);
+        return;
+    }
+
+    if (config->transport == NYA_NET_TRANSPORT_STEAM) {
+        nya_log_info("Listen server over Steam, playing as '%s'.", config->name);
         return;
     }
 
@@ -241,8 +268,14 @@ b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* ou
 
     out_secret[0] = '\0';
 
+    b8 steam = config->transport == NYA_NET_TRANSPORT_STEAM;
+
     /* Which of the two ports is the one a friend would dial. */
     u16 port = config->role == NYA_NET_ROLE_CLIENT ? config->port : config->listen_port;
+
+    // over Steam there is no port to dial and the default stands in for one, so that a secret always has
+    // the same five fields and the parser has no optional ones to get wrong.
+    if (steam) port = port == 0 ? NYA_NET_DEFAULT_PORT : port;
 
     // single player has no port open, so there is nothing to invite anybody to. reported rather than
     // asserted: a presence update runs every frame and single player is the ordinary case.
@@ -255,13 +288,28 @@ b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* ou
     // guessed LAN address would send the guest somewhere real and wrong.
     if (config->role != NYA_NET_ROLE_CLIENT) address = "";
 
+    char steam_address[24] = { 0 };
+
+    // over Steam the host does know how to be reached, because the address is its own account.
+    if (steam && address[0] == '\0') {
+        (void)snprintf(steam_address, sizeof(steam_address), "%llu", (unsigned long long)nya_steam_user_id().value);
+
+        if (steam_address[0] == '0') return false;
+
+        address = steam_address;
+    }
+
+    NYA_ConstCString scheme = steam ? NYA_NET_JOIN_SCHEME_STEAM : NYA_NET_JOIN_SCHEME_UDP;
+
+    // no key over Steam: the account is the identity and pinning is a UDP concept, so writing one would
+    // be a field the other side is told to ignore.
     char hex[NYA_NET_KEY_HEX_SIZE] = { 0 };
-    b8   keyed                      = nya_net_key_is_set(config->server_key);
+    b8   keyed                     = !steam && nya_net_key_is_set(config->server_key);
 
     if (keyed) nya_net_key_to_hex(config->server_key, hex);
 
-    s32 written = keyed ? snprintf(out_secret, capacity, NYA_NET_JOIN_SECRET_TAG "%s:%u:%s", address, port, hex)
-                        : snprintf(out_secret, capacity, NYA_NET_JOIN_SECRET_TAG "%s:%u", address, port);
+    s32 written = keyed ? snprintf(out_secret, capacity, NYA_NET_JOIN_SECRET_TAG "%s:%s:%u:%s", scheme, address, port, hex)
+                        : snprintf(out_secret, capacity, NYA_NET_JOIN_SECRET_TAG "%s:%s:%u", scheme, address, port);
 
     // truncated: a half secret parses as a different address, so it is dropped rather than sent.
     if (written < 0 || (u64)written >= capacity) {
@@ -288,11 +336,37 @@ b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchCon
     if (strncmp(secret, NYA_NET_JOIN_SECRET_TAG, tag_length) != 0) return false;
 
     /*
-     * Split from the right, not the left: an IPv6 literal is full of colons, so the address is whatever
+     * The scheme first, from the left: it is a fixed word with no colon in it.
+     */
+    u64 scheme_end = tag_length;
+    while (scheme_end < length && secret[scheme_end] != ':') scheme_end++;
+
+    if (scheme_end == length) return false;
+
+    u64 scheme_length = scheme_end - tag_length;
+
+    NYA_NetTransportKind transport = NYA_NET_TRANSPORT_KIND_COUNT;
+
+    if (scheme_length == sizeof(NYA_NET_JOIN_SCHEME_UDP) - 1 && strncmp(secret + tag_length, NYA_NET_JOIN_SCHEME_UDP, scheme_length) == 0) {
+        transport = NYA_NET_TRANSPORT_UDP;
+    }
+
+    if (scheme_length == sizeof(NYA_NET_JOIN_SCHEME_STEAM) - 1 && strncmp(secret + tag_length, NYA_NET_JOIN_SCHEME_STEAM, scheme_length) == 0) {
+        transport = NYA_NET_TRANSPORT_STEAM;
+    }
+
+    // a scheme this build has no transport for. refused rather than defaulted to UDP, which would dial
+    // an address meant for something else.
+    if (transport == NYA_NET_TRANSPORT_KIND_COUNT) return false;
+
+    /*
+     * Then from the right, not the left: an IPv6 literal is full of colons, so the address is whatever
      * is left once the two fixed-width tail fields have been taken off.
      */
-    u64 body_start = tag_length;
+    u64 body_start = scheme_end + 1;
     u64 body_end   = length;
+
+    if (body_start >= body_end) return false;
 
     u8 server_key[NYA_NET_KEY_SIZE] = { 0 };
     b8 keyed                        = false;
@@ -338,8 +412,13 @@ b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchCon
     if (address_length >= NYA_NET_MAX_ADDRESS) return false;
     if (!_nya_net_config_address_is_plausible(secret + body_start, address_length)) return false;
 
-    out_config->role = NYA_NET_ROLE_CLIENT;
-    out_config->port = port;
+    // an empty address only means something over UDP, where the provider routes the connection. Over
+    // Steam the address is the account to dial and there is nothing to substitute for it.
+    if (address_length == 0 && transport == NYA_NET_TRANSPORT_STEAM) return false;
+
+    out_config->role      = NYA_NET_ROLE_CLIENT;
+    out_config->port      = port;
+    out_config->transport = transport;
 
     if (address_length > 0) {
         nya_memcpy(out_config->address, secret + body_start, address_length);

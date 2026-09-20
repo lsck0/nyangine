@@ -8,6 +8,8 @@
  * gnyame --name Luca                          any of the above, with a name
  * gnyame --connect host --server-key 1f0c...  refuse any server but the one holding that key
  * gnyame --net-latency 60 --net-loss 5        and a bad network, to see how the game holds up
+ * gnyame --connect 76561197960287930 \
+ *        --transport steam                    join over Steam, where the address is an account
  * ```
  * */
 #pragma once
@@ -39,11 +41,20 @@ typedef struct NYA_NetLaunchConfig NYA_NetLaunchConfig;
 #define NYA_NET_JOIN_SECRET_TAG "nya1:"
 
 /**
- * How long a join secret is, buffer included: the tag, the address, ':', five port digits, ':' and the
- * server key in hex. Discord truncates a secret at 128 bytes, so a secret at this size with a long
- * hostname will not survive it; see nya_net_config_to_join_secret.
+ * How a join secret names its transport. The scheme is written out rather than inferred from the
+ * address: a Steam id is all digits and so is a bare IPv4 written without dots, and guessing which of
+ * the two a string is would send a player to a stranger's account.
  * */
-#define NYA_NET_MAX_JOIN_SECRET (sizeof(NYA_NET_JOIN_SECRET_TAG) + NYA_NET_MAX_ADDRESS + NYA_NET_KEY_HEX_SIZE + 8)
+#define NYA_NET_JOIN_SCHEME_UDP   "udp"
+#define NYA_NET_JOIN_SCHEME_STEAM "steam"
+
+/**
+ * How long a join secret is, buffer included: the tag, the scheme, the address, five port digits and
+ * the server key in hex, each separated by a colon. The slack covers the separators and the longest
+ * scheme. Discord truncates a secret at 128 bytes, so a secret at this size with a long hostname will
+ * not survive it; see nya_net_config_to_join_secret.
+ * */
+#define NYA_NET_MAX_JOIN_SECRET (sizeof(NYA_NET_JOIN_SECRET_TAG) + NYA_NET_MAX_ADDRESS + NYA_NET_KEY_HEX_SIZE + 24)
 
 /** What the command line asked for. */
 struct NYA_NetLaunchConfig {
@@ -90,6 +101,14 @@ struct NYA_NetLaunchConfig {
 
     /** From `--net-latency` and `--net-jitter` in milliseconds, `--net-loss`, `--net-duplicate` and `--net-reorder` in percent. */
     NYA_NetConditions conditions;
+
+    /**
+     * From `--transport`, and from a join secret. NYA_NET_TRANSPORT_UDP unless something said otherwise.
+     *
+     * Over NYA_NET_TRANSPORT_STEAM, `address` is the host's Steam id in decimal, `port` means nothing,
+     * and `server_key` is ignored: Valve's relay has already proved the account.
+     * */
+    NYA_NetTransportKind transport;
 };
 
 /*
@@ -130,9 +149,10 @@ NYA_API void nya_net_config_report(const NYA_NetLaunchConfig* config);
 /**
  * Writes the address, port and server key of `config` as a join secret.
  *
- * False when the config has nothing to join (no listening port) or the buffer is too small, in which case
- * `out_secret` is left an empty string. The caller is expected to be a listen server: a client's config
- * names the server it joined, which is the same thing, but a single player config names nothing.
+ * False when the config has nothing to join (no listening port, or a Steam transport with no client
+ * signed in) or the buffer is too small, in which case `out_secret` is left an empty string. The caller
+ * is expected to be a listen server: a client's config names the server it joined, which is the same
+ * thing, but a single player config names nothing.
  * */
 NYA_API b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* out_secret, u64 capacity) __attr_no_discard;
 
@@ -140,8 +160,9 @@ NYA_API b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT 
  * Parses a join secret into the client half of a launch config: role, address, port and server key.
  *
  * Every byte of `secret` came from another player's client, so this refuses anything it does not fully
- * understand rather than repairing it: a wrong tag, an empty or overlong address, an address with a
- * character no hostname or IP literal has, a port outside 1..65535, or a key that is not 64 hex digits.
- * False leaves `out_config` zeroed, and never logs on the caller's behalf.
+ * understand rather than repairing it: a wrong tag, a scheme this build has no transport for, an empty
+ * or overlong address, an address with a character no hostname or IP literal has, a port outside
+ * 1..65535, or a key that is not 64 hex digits. False leaves `out_config` zeroed, and never logs on the
+ * caller's behalf.
  * */
 NYA_API b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchConfig* out_config) __attr_no_discard;
