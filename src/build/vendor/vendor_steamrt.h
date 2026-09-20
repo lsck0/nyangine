@@ -21,6 +21,7 @@
 #include "build/vendor/vendor_libbacktrace.h"
 #include "build/vendor/vendor_lua.h"
 #include "build/vendor/vendor_lz4.h"
+#include "build/vendor/vendor_monocypher.h"
 #include "build/vendor/vendor_sdl.h"
 #include "build/vendor/vendor_sdl_image.h"
 #include "build/vendor/vendor_sdl_mixer.h"
@@ -130,6 +131,7 @@ NYA_VendorRule vendor_sqlean_steamrt_x86_64;
 NYA_VendorRule vendor_sqlvec_steamrt_x86_64;
 NYA_VendorRule vendor_sqlite_steamrt_x86_64;
 NYA_VendorRule vendor_ufbx_steamrt_x86_64;
+NYA_VendorRule vendor_monocypher_steamrt_x86_64;
 
 // clang-format off
 
@@ -139,7 +141,8 @@ NYA_VendorRule vendor_ufbx_steamrt_x86_64;
     &vendor_sdl_mixer_steamrt_x86_64, &vendor_sdl_net_steamrt_x86_64,  &vendor_libbacktrace_steamrt_x86_64, \
     &vendor_box2d_steamrt_x86_64,   &vendor_box3d_steamrt_x86_64,      &vendor_curl_steamrt_x86_64,     \
     &vendor_lua_steamrt_x86_64,     &vendor_lz4_steamrt_x86_64,        &vendor_sqlean_steamrt_x86_64,   \
-    &vendor_sqlvec_steamrt_x86_64,  &vendor_sqlite_steamrt_x86_64,     &vendor_ufbx_steamrt_x86_64
+    &vendor_sqlvec_steamrt_x86_64,  &vendor_sqlite_steamrt_x86_64,     &vendor_ufbx_steamrt_x86_64,     \
+    &vendor_monocypher_steamrt_x86_64
 
 // clang-format on
 
@@ -190,6 +193,7 @@ NYA_INTERNAL _NYA_SteamrtVendor _NYA_STEAMRT_VENDORS[] = {
     { .linux = &vendor_sqlvec_linux_x86_64, .steamrt = &vendor_sqlvec_steamrt_x86_64 },
     { .linux = &vendor_sqlite_linux_x86_64, .steamrt = &vendor_sqlite_steamrt_x86_64 },
     { .linux = &vendor_ufbx_linux_x86_64, .steamrt = &vendor_ufbx_steamrt_x86_64 },
+    { .linux = &vendor_monocypher_linux_x86_64, .steamrt = &vendor_monocypher_steamrt_x86_64 },
 };
 
 /** `text` with every "linux" made "steamrt", which is what moves names, build directories and archives aside. */
