@@ -46,7 +46,15 @@ s32 main(void) {
   defer nya_world_destroy(client_world);
   defer nya_world_destroy(server_world);
 
-  NYA_NetReplicaMap map = { 0 };
+  /*
+   * On the arena, not the stack: NYA_NetReplicaMap is 624 KB, and Windows gives a thread 1 MB by
+   * default against Linux's 8, so a stack copy overflowed and the test exited 0xC00000FD there
+   * while passing here. Every use below is already through a pointer.
+   */
+  NYA_NetReplicaMap* map = nya_arena_alloc(arena, sizeof(NYA_NetReplicaMap));
+  nya_assert(map != nullptr);
+
+  *map = (NYA_NetReplicaMap){ 0 };
 
   /*
    * The client's table is pushed out of step with the server's before anything is replicated.
@@ -91,13 +99,13 @@ s32 main(void) {
 
     u32 before = replicated_count();
 
-    nya_net_snapshot_apply(&received, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
+    nya_net_snapshot_apply(&received, FLAG_REPLICATED, map, NYA_ENTITY_HANDLE_NONE);
     nya_system_sim_apply_commands();
 
     nya_assert(replicated_count() == before + 2, "the client did not spawn the two entities the server described");
 
-    NYA_EntityHandle local_a = nya_net_replica_local(&map, server_a);
-    NYA_EntityHandle local_b = nya_net_replica_local(&map, server_b);
+    NYA_EntityHandle local_a = nya_net_replica_local(map, server_a);
+    NYA_EntityHandle local_b = nya_net_replica_local(map, server_b);
 
     nya_assert(nya_entity_is_valid(local_a) && nya_entity_is_valid(local_b), "both were mapped");
 
@@ -146,7 +154,7 @@ s32 main(void) {
       NYA_NetSnapshot received = { 0 };
       NYA_EXPECT(nya_net_snapshot_decode(arena, payload->items, payload->length, nullptr, &received));
 
-      nya_net_snapshot_apply(&received, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
+      nya_net_snapshot_apply(&received, FLAG_REPLICATED, map, NYA_ENTITY_HANDLE_NONE);
       nya_system_sim_apply_commands();
     }
 
@@ -158,7 +166,7 @@ s32 main(void) {
     nya_assert(replicated_count() == 2, "ten snapshots produced %u entities instead of 2", replicated_count());
 
     // And the movement was applied to the existing entity rather than to a fresh one.
-    NYA_Entity* moved = nya_entity_get(nya_net_replica_local(&map, server_a));
+    NYA_Entity* moved = nya_entity_get(nya_net_replica_local(map, server_a));
     nya_assert(moved != nullptr);
     nya_assert(moved->position.x == 110.0F, "the mapped entity tracked the server's movement (x = %f)", (f64)moved->position.x);
   }
@@ -185,20 +193,20 @@ s32 main(void) {
 
     (void)nya_world_set(client_world);
 
-    NYA_EntityHandle local_b = nya_net_replica_local(&map, server_b);
+    NYA_EntityHandle local_b = nya_net_replica_local(map, server_b);
     nya_assert(nya_entity_is_valid(local_b), "the barrel is still here before the snapshot arrives");
 
     NYA_NetSnapshot received = { 0 };
     NYA_EXPECT(nya_net_snapshot_decode(arena, payload->items, payload->length, nullptr, &received));
 
-    nya_net_snapshot_apply(&received, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
+    nya_net_snapshot_apply(&received, FLAG_REPLICATED, map, NYA_ENTITY_HANDLE_NONE);
     nya_system_sim_apply_commands();
 
     nya_assert(!nya_entity_is_valid(local_b), "the entity the server dropped was not despawned locally");
-    nya_assert(!nya_entity_is_valid(nya_net_replica_local(&map, server_b)), "and its mapping was forgotten");
+    nya_assert(!nya_entity_is_valid(nya_net_replica_local(map, server_b)), "and its mapping was forgotten");
 
     nya_assert(nya_entity_is_valid(client_owned), "the client's own entity was swept even though the server never knew it");
-    nya_assert(nya_entity_is_valid(nya_net_replica_local(&map, server_a)), "and the surviving replica survived");
+    nya_assert(nya_entity_is_valid(nya_net_replica_local(map, server_a)), "and the surviving replica survived");
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -208,17 +216,17 @@ s32 main(void) {
   {
     (void)nya_world_set(client_world);
 
-    NYA_EntityHandle survivor = nya_net_replica_local(&map, server_a);
+    NYA_EntityHandle survivor = nya_net_replica_local(map, server_a);
     nya_assert(nya_entity_is_valid(survivor));
 
-    nya_net_replica_map_despawn_all(&map);
+    nya_net_replica_map_despawn_all(map);
     nya_system_sim_apply_commands();
 
     /*
      * What reconnecting depends on.
      */
     nya_assert(!nya_entity_is_valid(survivor), "a torn down map left its entities behind");
-    nya_assert(!nya_entity_is_valid(nya_net_replica_local(&map, server_a)), "and left its mappings behind");
+    nya_assert(!nya_entity_is_valid(nya_net_replica_local(map, server_a)), "and left its mappings behind");
 
     // A client's own entity is not the connection's to remove.
     nya_assert(replicated_count() == 1, "only the client's own replicated entity remains, found %u", replicated_count());
@@ -237,7 +245,7 @@ s32 main(void) {
     NYA_NetSnapshot received = { 0 };
     NYA_EXPECT(nya_net_snapshot_decode(arena, payload->items, payload->length, nullptr, &received));
 
-    nya_net_snapshot_apply(&received, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
+    nya_net_snapshot_apply(&received, FLAG_REPLICATED, map, NYA_ENTITY_HANDLE_NONE);
     nya_system_sim_apply_commands();
 
     nya_assert(replicated_count() == 2, "after reconnecting the client has its own entity plus one replica, found %u", replicated_count());
@@ -264,10 +272,10 @@ s32 main(void) {
     NYA_EXPECT(nya_net_snapshot_decode(arena, payload->items, payload->length, nullptr, &received));
 
     // spawned normally the first time; nothing to spare until it exists.
-    nya_net_snapshot_apply(&received, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
+    nya_net_snapshot_apply(&received, FLAG_REPLICATED, map, NYA_ENTITY_HANDLE_NONE);
     nya_system_sim_apply_commands();
 
-    NYA_EntityHandle local_player = nya_net_replica_local(&map, server_player);
+    NYA_EntityHandle local_player = nya_net_replica_local(map, server_player);
     nya_assert(nya_entity_is_valid(local_player));
 
     // The client predicts it forward, away from where the server last said it was.
@@ -275,7 +283,7 @@ s32 main(void) {
     predicted->position.x = 999.0F;
 
     // The same snapshot again, now naming it as predicted. Its position must survive.
-    nya_net_snapshot_apply(&received, FLAG_REPLICATED, &map, server_player);
+    nya_net_snapshot_apply(&received, FLAG_REPLICATED, map, server_player);
     nya_system_sim_apply_commands();
 
     predicted = nya_entity_get(local_player);
@@ -298,7 +306,7 @@ s32 main(void) {
     NYA_NetSnapshot received_without = { 0 };
     NYA_EXPECT(nya_net_snapshot_decode(arena, second->items, second->length, nullptr, &received_without));
 
-    nya_net_snapshot_apply(&received_without, FLAG_REPLICATED, &map, server_player);
+    nya_net_snapshot_apply(&received_without, FLAG_REPLICATED, map, server_player);
     nya_system_sim_apply_commands();
 
     nya_assert(nya_entity_is_valid(local_player), "the predicted entity was swept by a snapshot that omitted it");
@@ -309,7 +317,7 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: replicas interpolate between snapshots\n");
   {
-    nya_net_replica_map_despawn_all(&map);
+    nya_net_replica_map_despawn_all(map);
     nya_system_sim_apply_commands();
 
     (void)nya_world_set(server_world);
@@ -321,7 +329,7 @@ s32 main(void) {
     NYA_EntityHandle mover = nya_entity_spawn(.name = "mover", .flags = FLAG_REPLICATED, .position = { 0.0F, 0.0F, 0.0F });
 
     /** Sends the server's current state to the client. */
-    #define REPLICATE(at_tick)                                                                                                                             do {                                                                                                                                                   (void)nya_world_set(server_world);                                                                                                                    NYA_NetSnapshot _snapshot = { 0 };                                                                                                                    NYA_EXPECT(nya_net_snapshot_capture(arena, FLAG_REPLICATED, (at_tick), &_snapshot));                                                                  NYA_String* _payload = nya_string_create(arena);                                                                                                      NYA_EXPECT(nya_net_snapshot_encode(arena, &_snapshot, nullptr, _payload));                                                                            (void)nya_world_set(client_world);                                                                                                                    NYA_NetSnapshot _received = { 0 };                                                                                                                    NYA_EXPECT(nya_net_snapshot_decode(arena, _payload->items, _payload->length, nullptr, &_received));                                                   nya_net_snapshot_apply(&_received, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);                                                                    nya_system_sim_apply_commands();                                                                                                                    } while (0)
+    #define REPLICATE(at_tick)                                                                                                                             do {                                                                                                                                                   (void)nya_world_set(server_world);                                                                                                                    NYA_NetSnapshot _snapshot = { 0 };                                                                                                                    NYA_EXPECT(nya_net_snapshot_capture(arena, FLAG_REPLICATED, (at_tick), &_snapshot));                                                                  NYA_String* _payload = nya_string_create(arena);                                                                                                      NYA_EXPECT(nya_net_snapshot_encode(arena, &_snapshot, nullptr, _payload));                                                                            (void)nya_world_set(client_world);                                                                                                                    NYA_NetSnapshot _received = { 0 };                                                                                                                    NYA_EXPECT(nya_net_snapshot_decode(arena, _payload->items, _payload->length, nullptr, &_received));                                                   nya_net_snapshot_apply(&_received, FLAG_REPLICATED, map, NYA_ENTITY_HANDLE_NONE);                                                                    nya_system_sim_apply_commands();                                                                                                                    } while (0)
 
     #define MOVE_TO(x, velocity_x)                                                                                                                         \
       do {                                                                                                                                             \
@@ -334,13 +342,13 @@ s32 main(void) {
     #define DRAWN_AT(render_tick)                                                                                                                          \
       ({                                                                                                                                             \
         (void)nya_world_set(client_world);                                                                                                             \
-        nya_net_replica_interpolate(&map, (render_tick), 1.0F / 60.0F, 0.1F, NYA_ENTITY_HANDLE_NONE);                                                   \
-        nya_entity_get(nya_net_replica_local(&map, mover))->position.x;                                                                                \
+        nya_net_replica_interpolate(map, (render_tick), 1.0F / 60.0F, 0.1F, NYA_ENTITY_HANDLE_NONE);                                                   \
+        nya_entity_get(nya_net_replica_local(map, mover))->position.x;                                                                                \
       })
 
     REPLICATE(300);
 
-    NYA_EntityHandle local_mover = nya_net_replica_local(&map, mover);
+    NYA_EntityHandle local_mover = nya_net_replica_local(map, mover);
     nya_assert(nya_entity_is_valid(local_mover));
 
     // one snapshot is a place, not motion: drawn there whatever the moment asked for.
@@ -383,7 +391,7 @@ s32 main(void) {
       // As if the client had predicted it somewhere else entirely.
       nya_entity_get(local_mover)->position = (f32x3){ 777.0F, 0.0F, 0.0F };
 
-      nya_net_replica_interpolate(&map, 310.0, 1.0F / 60.0F, 0.1F, mover);
+      nya_net_replica_interpolate(map, 310.0, 1.0F / 60.0F, 0.1F, mover);
 
       nya_assert(nya_entity_get(local_mover)->position.x == 777.0F, "the predicted entity was dragged back by interpolation");
     }

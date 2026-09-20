@@ -290,9 +290,16 @@ s32 main(void) {
     // And an unreplicated one, which must be left entirely alone.
     NYA_EntityHandle untouched = nya_entity_spawn(.position = { 7.0F, 7.0F, 7.0F });
 
-    NYA_NetReplicaMap map = { 0 };
+    /*
+     * On the arena, not the stack: NYA_NetReplicaMap is 624 KB, and Windows gives a thread 1 MB by
+     * default against Linux's 8. See the same note in test_replica.c.
+     */
+    NYA_NetReplicaMap* map = nya_arena_alloc(arena, sizeof(NYA_NetReplicaMap));
+    nya_assert(map != nullptr);
 
-    nya_net_snapshot_apply(&incoming, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
+    *map = (NYA_NetReplicaMap){ 0 };
+
+    nya_net_snapshot_apply(&incoming, FLAG_REPLICATED, map, NYA_ENTITY_HANDLE_NONE);
 
     // the despawn is deferred until the barrier, as the app loop runs at the end of every tick.
     nya_system_sim_apply_commands();
@@ -329,7 +336,7 @@ s32 main(void) {
       after_first++;
     }
 
-    nya_net_snapshot_apply(&incoming, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
+    nya_net_snapshot_apply(&incoming, FLAG_REPLICATED, map, NYA_ENTITY_HANDLE_NONE);
     nya_system_sim_apply_commands();
 
     u32 after_second = 0;
@@ -342,30 +349,30 @@ s32 main(void) {
 
     // And the mapping resolves in both directions.
     NYA_EntityHandle described_remote = { .index = 900, .generation = 1 };
-    NYA_EntityHandle described_local  = nya_net_replica_local(&map, described_remote);
+    NYA_EntityHandle described_local  = nya_net_replica_local(map, described_remote);
 
     nya_assert(nya_entity_is_valid(described_local), "the map resolves a server handle to a local one");
 
     NYA_Entity* resolved = nya_entity_get(described_local);
     nya_assert(resolved != nullptr && resolved->position.x == 11.0F, "and it resolves to the right entity");
 
-    NYA_EntityHandle round_trip = nya_net_replica_remote(&map, described_local);
+    NYA_EntityHandle round_trip = nya_net_replica_remote(map, described_local);
     nya_assert(round_trip.index == 900 && round_trip.generation == 1, "and back again");
 
-    nya_assert(!nya_entity_is_valid(nya_net_replica_local(&map, (NYA_EntityHandle){ .index = 4242, .generation = 1 })),
+    nya_assert(!nya_entity_is_valid(nya_net_replica_local(map, (NYA_EntityHandle){ .index = 4242, .generation = 1 })),
                "an unmapped server handle resolves to nothing");
 
     // ── an entity the server drops is despawned locally ──────────────────────
     {
       NYA_NetSnapshot shrunk = { .tick = 6, .entities = described, .entity_count = 1 };
 
-      nya_net_snapshot_apply(&shrunk, FLAG_REPLICATED, &map, NYA_ENTITY_HANDLE_NONE);
+      nya_net_snapshot_apply(&shrunk, FLAG_REPLICATED, map, NYA_ENTITY_HANDLE_NONE);
       nya_system_sim_apply_commands();
 
-      nya_assert(!nya_entity_is_valid(nya_net_replica_local(&map, (NYA_EntityHandle){ .index = 901, .generation = 1 })),
+      nya_assert(!nya_entity_is_valid(nya_net_replica_local(map, (NYA_EntityHandle){ .index = 901, .generation = 1 })),
                  "an entity the snapshot stopped mentioning was despawned and unmapped");
 
-      nya_assert(nya_entity_is_valid(nya_net_replica_local(&map, described_remote)), "and the one it still mentions survived");
+      nya_assert(nya_entity_is_valid(nya_net_replica_local(map, described_remote)), "and the one it still mentions survived");
     }
 
     nya_entity_despawn(untouched);
