@@ -20,6 +20,7 @@
 #include "nyangine/core/core_keys.h"
 #include "nyangine/core/core_mouse.h"
 #include "nyangine/core/core_save.h"
+#include "nyangine/core/core_scene.h"
 #include "nyangine/core/core_settings.h"
 #include "nyangine/core/core_sim.h"
 #include "nyangine/core/core_social.h"

@@ -20,6 +20,8 @@
 #include "nyangine/core/core_job.c"
 #include "nyangine/core/core_keys.c"
 #include "nyangine/core/core_save.c"
+// After core_save.c and core_world.c's header: a scene is a world written through the save root.
+#include "nyangine/core/core_scene.c"
 #include "nyangine/core/core_settings.c"
 #include "nyangine/core/core_sim.c"
 // After core_event.c, whose hook registry it registers a frame hook with, and after the plugins, which

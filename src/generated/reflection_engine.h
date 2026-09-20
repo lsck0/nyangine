@@ -51,6 +51,8 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineAudio;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_EntityState;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_EntityVisualKind;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_SceneVisual;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_SceneEntity;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsVolumes;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_GraphicsQuality;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics;
@@ -82,6 +84,6 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated engine type. The game's are in generated/reflection.h. */
-#define NYA_REFLECT_ENGINE_TYPE_COUNT 44
+#define NYA_REFLECT_ENGINE_TYPE_COUNT 46
 
 extern const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT];

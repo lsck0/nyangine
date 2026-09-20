@@ -361,6 +361,90 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_EntityVisualKind = {
     .is_bitflags = false,
 };
 
+/* NYA_SceneVisual, src/nyangine/core/core_scene.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_SceneVisual_sprite_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_SceneVisual*)nullptr)->sprite),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_SCENE_ASSET_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_SceneVisual_atlas_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_SceneVisual*)nullptr)->atlas),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_SCENE_ASSET_MAX),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_SceneVisual_FIELDS[] = {
+    { .name = "kind", .type = &_NYA_REFLECT_NYA_EntityVisualKind, .offset = nya_offsetof(NYA_SceneVisual, kind), .hint = NYA_HINT_NONE },
+    { .name = "sprite", .type = &_NYA_REFLECT_NYA_SceneVisual_sprite_ARRAY, .offset = nya_offsetof(NYA_SceneVisual, sprite), .hint = NYA_HINT_ASSET },
+    { .name = "source", .type = &_NYA_REFLECT_f32x4, .offset = nya_offsetof(NYA_SceneVisual, source), .hint = NYA_HINT_NONE },
+    { .name = "origin", .type = &_NYA_REFLECT_f32x2, .offset = nya_offsetof(NYA_SceneVisual, origin), .hint = NYA_HINT_NONE },
+    { .name = "sprite_scale", .type = &_NYA_REFLECT_f32x2, .offset = nya_offsetof(NYA_SceneVisual, sprite_scale), .hint = NYA_HINT_SCALE },
+    { .name = "sprite_rotation", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SceneVisual, sprite_rotation), .hint = NYA_HINT_NONE },
+    { .name = "flip_x", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SceneVisual, flip_x), .hint = NYA_HINT_NONE },
+    { .name = "flip_y", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SceneVisual, flip_y), .hint = NYA_HINT_NONE },
+    { .name = "tint", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_SceneVisual, tint), .hint = NYA_HINT_COLOR },
+    { .name = "atlas", .type = &_NYA_REFLECT_NYA_SceneVisual_atlas_ARRAY, .offset = nya_offsetof(NYA_SceneVisual, atlas), .hint = NYA_HINT_ASSET },
+    { .name = "frame_width", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SceneVisual, frame_width), .hint = NYA_HINT_NONE },
+    { .name = "frame_height", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SceneVisual, frame_height), .hint = NYA_HINT_NONE },
+    { .name = "columns", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SceneVisual, columns), .hint = NYA_HINT_NONE },
+    { .name = "rows", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SceneVisual, rows), .hint = NYA_HINT_NONE },
+    { .name = "spacing", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SceneVisual, spacing), .hint = NYA_HINT_NONE },
+    { .name = "margin", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SceneVisual, margin), .hint = NYA_HINT_NONE },
+    { .name = "size", .type = &_NYA_REFLECT_f32x3, .offset = nya_offsetof(NYA_SceneVisual, size), .hint = NYA_HINT_SCALE },
+    { .name = "color", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_SceneVisual, color), .hint = NYA_HINT_COLOR },
+    { .name = "z_order", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SceneVisual, z_order), .hint = NYA_HINT_NONE },
+    { .name = "y_sorted", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SceneVisual, y_sorted), .hint = NYA_HINT_NONE },
+    { .name = "y_sort_anchor", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_SceneVisual, y_sort_anchor), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_SceneVisual = {
+    .name = "NYA_SceneVisual",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_SceneVisual),
+    .alignment = alignof(NYA_SceneVisual),
+    .fields = _NYA_REFLECT_NYA_SceneVisual_FIELDS,
+    .field_count = 21,
+};
+
+/* NYA_SceneEntity, src/nyangine/core/core_scene.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_SceneEntity_name_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_SceneEntity*)nullptr)->name),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_SCENE_NAME_MAX),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_SceneEntity_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SceneEntity, id), .hint = NYA_HINT_NONE },
+    { .name = "parent_id", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SceneEntity, parent_id), .hint = NYA_HINT_NONE },
+    { .name = "parented", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_SceneEntity, parented), .hint = NYA_HINT_NONE },
+    { .name = "name", .type = &_NYA_REFLECT_NYA_SceneEntity_name_ARRAY, .offset = nya_offsetof(NYA_SceneEntity, name), .hint = NYA_HINT_NONE },
+    { .name = "type", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_SceneEntity, type), .hint = NYA_HINT_NONE },
+    { .name = "flags", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_SceneEntity, flags), .hint = NYA_HINT_NONE },
+    { .name = "state", .type = &_NYA_REFLECT_NYA_EntityState, .offset = nya_offsetof(NYA_SceneEntity, state), .hint = NYA_HINT_NONE },
+    { .name = "position", .type = &_NYA_REFLECT_f32x3, .offset = nya_offsetof(NYA_SceneEntity, position), .hint = NYA_HINT_POSITION },
+    { .name = "rotation", .type = &_NYA_REFLECT_NYA_Quaternion, .offset = nya_offsetof(NYA_SceneEntity, rotation), .hint = NYA_HINT_NONE },
+    { .name = "scale", .type = &_NYA_REFLECT_f32x3, .offset = nya_offsetof(NYA_SceneEntity, scale), .hint = NYA_HINT_SCALE },
+    { .name = "velocity", .type = &_NYA_REFLECT_f32x3, .offset = nya_offsetof(NYA_SceneEntity, velocity), .hint = NYA_HINT_NONE },
+    { .name = "angular_velocity", .type = &_NYA_REFLECT_f32x3, .offset = nya_offsetof(NYA_SceneEntity, angular_velocity), .hint = NYA_HINT_NONE },
+    { .name = "visual", .type = &_NYA_REFLECT_NYA_SceneVisual, .offset = nya_offsetof(NYA_SceneEntity, visual), .hint = NYA_HINT_NONE },
+    { .name = "light", .type = &_NYA_REFLECT_NYA_Light2D, .offset = nya_offsetof(NYA_SceneEntity, light), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_SceneEntity = {
+    .name = "NYA_SceneEntity",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_SceneEntity),
+    .alignment = alignof(NYA_SceneEntity),
+    .fields = _NYA_REFLECT_NYA_SceneEntity_FIELDS,
+    .field_count = 14,
+};
+
 /* NYA_SettingsVolumes, src/nyangine/core/core_settings.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_SettingsVolumes_FIELDS[] = {
@@ -1044,6 +1128,8 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_ConfigEngine,
     &_NYA_REFLECT_NYA_EntityState,
     &_NYA_REFLECT_NYA_EntityVisualKind,
+    &_NYA_REFLECT_NYA_SceneVisual,
+    &_NYA_REFLECT_NYA_SceneEntity,
     &_NYA_REFLECT_NYA_SettingsVolumes,
     &_NYA_REFLECT_NYA_GraphicsQuality,
     &_NYA_REFLECT_NYA_SettingsGraphics,
