@@ -10,6 +10,8 @@
 // After test.c: they borrow NYA_BuildRulePointer and its derived array, which test.c declares.
 #include "build/bench.c"
 #include "build/check.c"
+// Before dist.c: it defines build_capture, and writes the CHANGELOG.md every distribution ships.
+#include "build/changelog.c"
 #include "build/dist.c"
 #include "build/example.c"
 // Last: the commands it defines name rules and handlers from all of the above.

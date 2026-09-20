@@ -139,6 +139,7 @@ is a conventional commit subject, so fixing the wording means amending the commi
 
 ### Bug Fixes
 
+- **build**: stage several distributions in one run, and archive reproducibly
 - **build**: print the failing rule, not the usage block
 - **test**: the replica map on the arena, not the stack
 - **build**: monocypher in the steam runtime vendor set
@@ -275,6 +276,7 @@ is a conventional commit subject, so fixing the wording means amending the commi
 
 ### Documentation
 
+- **readme**: point at the encrypted signing key beside the sample one
 - **readme**: not every ci package is needed to build
 - **todo**: trace merged, renderer branch still to rebase
 - **todo**: list the unmerged renderer and tracing branches

@@ -8,10 +8,11 @@
  * it names. A command that has to discover something on disk, filter it, or write files itself gets a
  * handler, one .c file per handler beside this header:
  *
- *   bench.c    `./build run bench`
- *   check.c    `./build check`
- *   dist.c     `./build dist`, and the `version` and `changelog` a distribution is stamped with
- *   example.c  `./build run example`
+ *   bench.c      `./build run bench`
+ *   changelog.c  `./build version` and `./build changelog`
+ *   check.c      `./build check`
+ *   dist.c       `./build dist`
+ *   example.c    `./build run example`
  *   test.c     `./build run test` and `./build run coverage`
  * */
 #pragma once
@@ -86,4 +87,14 @@ void changelog_runner(NYA_ArgCommand* command);
  * Prints VERSION on stdout and nothing else. The one thing a shell script may parse.
  * */
 void version_runner(NYA_ArgCommand* command);
+
+/**
+ * Runs `program` with its output captured and hands back its stdout.
+ *
+ * For the commands above that need an answer rather than an effect: the version, a commit date, a
+ * checksum. A non-zero exit prints what the tool wrote and ends the process, because there is nothing
+ * sensible to return, and carrying on with an empty string renders a manifest with an empty version.
+ * A rule that only needs to *run* something is an NYA_BuildRule and reports through nya_build.
+ * */
+NYA_String* build_capture(NYA_Arena* arena, NYA_ConstCString program, const NYA_ConstCString* arguments);
 
