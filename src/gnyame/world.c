@@ -298,6 +298,22 @@ b8 gny_overlay_key(const NYA_KeyEvent* key) {
         return true;
     }
 
+    if (nya_input_action_matches(GNY_ACTION_TEST_CRASH, key->key, key->modifier_flags)) {
+        /*
+         * The crash reporter's caller in the game, so it is exercised by running rather than only by a
+         * test. Deliberately a real nya_assert through the real funnel: a reporter reached by a private
+         * back door would be a reporter nobody has proved catches an actual assertion.
+         *
+         * A couple of lines are logged first so the report's log pane has something recognisable in it.
+         */
+        nya_log_warn("Deliberate test crash requested from the debug keys.");
+        nya_log_info("Frame %llu, %.1f fps, uptime %.1f s.", (unsigned long long)nya_world()->sim_system.tick,
+                     (f64)nya_app_get()->frame_stats.fps, nya_app_uptime_s());
+
+        nya_assert(false, "deliberate test crash, triggered by the '%s' debug key", "test_crash");
+        return true;
+    }
+
     return false;
 }
 

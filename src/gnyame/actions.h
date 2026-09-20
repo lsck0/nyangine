@@ -67,6 +67,12 @@ enum {
     /** Stops and restarts the 3D scene's skinned animation clock. */
     GNY_ACTION_FREEZE_ANIMATION,
 
+    /**
+     * Fails an assertion on purpose, so the crash reporter can be looked at without waiting for a real
+     * bug. Bound to a key nothing else in the demo uses and needing a modifier, since it ends the process.
+     * */
+    GNY_ACTION_TEST_CRASH,
+
     GNY_ACTION_COUNT,
 };
 

@@ -22,6 +22,9 @@ typedef struct {
     /** NYA_KEY_UNKNOWN for an action with one key. */
     NYA_Keycode alternative;
 
+    /** Modifiers both keys need held. NYA_KEYMOD_NONE for the ordinary case of a bare key. */
+    NYA_KeyModFlag modifiers;
+
     /** A gamepad button and a stick direction, zeroed for an action the pad does not reach. */
     NYA_InputBinding button;
     NYA_InputBinding stick;
@@ -88,6 +91,10 @@ NYA_INTERNAL const GNY_ActionDefault _GNY_ACTION_DEFAULTS[] = {
     { .action = GNY_ACTION_TOGGLE_HDR,           .name = "toggle_hdr",           .primary = NYA_KEY_8     },
     { .action = GNY_ACTION_DROP_THROUGH,         .name = "drop_through",         .primary = NYA_KEY_G     },
     { .action = GNY_ACTION_FREEZE_ANIMATION,     .name = "freeze_animation",     .primary = NYA_KEY_F     },
+
+    // Ctrl and Shift together, because this one ends the process: every other row here is a bare key, so
+    // a bare key would be pressed by accident eventually.
+    { .action = GNY_ACTION_TEST_CRASH, .name = "test_crash", .primary = NYA_KEY_F12, .modifiers = NYA_KEYMOD_CTRL | NYA_KEYMOD_SHIFT },
 };
 
 /*
@@ -105,8 +112,8 @@ void gny_actions_init(void) {
         nya_input_action_name_set(entry->action, entry->name);
 
         // Rebind rather than bind: this runs again on a hot reload, and binding appends.
-        nya_input_action_rebind(entry->action, entry->primary);
-        if (entry->alternative != NYA_KEY_UNKNOWN) nya_input_action_bind(entry->action, entry->alternative);
+        nya_input_action_rebind(entry->action, entry->primary, entry->modifiers);
+        if (entry->alternative != NYA_KEY_UNKNOWN) nya_input_action_bind(entry->action, entry->alternative, entry->modifiers);
 
         // the settings file below replaces keys only, so these stay whatever the player rebinds.
         if (entry->button.kind != NYA_INPUT_BINDING_NONE) nya_input_action_bind_button(entry->action, entry->button.button);
