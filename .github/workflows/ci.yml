@@ -24,7 +24,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           lfs: true
@@ -54,7 +54,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           lfs: true
@@ -86,7 +86,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           lfs: true
@@ -110,7 +110,7 @@ jobs:
       # even after a failure, so the objects that did compile are kept.
       - name: Save compiler cache
         if: always() && steps.setup.outputs.ccache-cache-key != ''
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.setup.outputs.ccache-dir }}
           key: ${{ steps.setup.outputs.ccache-cache-key }}
@@ -122,7 +122,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           lfs: true
@@ -140,12 +140,30 @@ jobs:
       - name: Build release targets
         run: ./build build release
 
-      - name: Check the Steam Windows depot
+      # Every distribution but the Steam Linux one, which has a job of its own because it needs the
+      # sniper sysroot. This is what a release runs, so a manifest template that stopped rendering or
+      # an archive that stopped being produced fails here rather than during a tag.
+      - name: Stage the distributions
         run: |
-          depot="$(ls -d gnyame.*.steam-windows-x86_64)" || { echo "::error::no steam windows depot was produced"; exit 1; }
-          for file in gnyame.exe steam_api64.dll; do
-            [ -f "${depot}/${file}" ] || { echo "::error::${depot}/${file} is missing"; exit 1; }
+          for target in linux windows steam-windows lua-api linux-pacman linux-nixos linux-flatpak windows-winget windows-scoop; do
+            ./build dist "${target}"
           done
+
+      - name: Check what was staged
+        run: |
+          for file in dist/steam-windows/gnyame.exe dist/steam-windows/steam_api64.dll \
+                      dist/linux/gnyame dist/windows/gnyame.exe \
+                      dist/linux/data/settings.nya dist/linux/plugins/example/manifest.nya \
+                      dist/linux/CHANGELOG.md dist/SHA256SUMS; do
+            [ -f "${file}" ] || { echo "::error::${file} is missing"; exit 1; }
+          done
+
+          # A template token left in a rendered manifest means a substitution was dropped, which ships
+          # a package recipe pointing at a url with "@VERSION@" in it.
+          if grep -rn '@VERSION@\|@SHA256_LINUX@\|@SHA256_WINDOWS@\|@DATE@' dist/; then
+            echo "::error::a package manifest was staged with its template tokens unfilled"
+            exit 1
+          fi
 
       - name: Report compiler cache statistics
         if: always() && steps.setup.outputs.ccache-cache-key != ''
@@ -154,7 +172,7 @@ jobs:
       # even after a failure, so the objects that did compile are kept.
       - name: Save compiler cache
         if: always() && steps.setup.outputs.ccache-cache-key != ''
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.setup.outputs.ccache-dir }}
           key: ${{ steps.setup.outputs.ccache-cache-key }}
@@ -168,7 +186,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           lfs: true
@@ -186,11 +204,13 @@ jobs:
         with:
           llvm-version: 22
 
-      - name: Build the Steam Linux target
-        run: ./build build steam-linux
+      - name: Stage the Steam Linux distribution
+        run: ./build dist steam-linux
 
+      # Through `dist`, so CI exercises the staging every release goes through rather than only the
+      # compile that feeds it. A distribution that builds but cannot be staged is still broken.
       - name: Verify the Steam Linux depot
-        run: packaging/steam/verify-linux.sh "$(ls -d gnyame.*.steam-linux-x86_64)"
+        run: packaging/steam/verify-linux.sh dist/steam-linux
 
       - name: Report compiler cache statistics
         if: always() && steps.setup.outputs.ccache-cache-key != ''
@@ -199,7 +219,7 @@ jobs:
       # even after a failure, so the objects that did compile are kept.
       - name: Save compiler cache
         if: always() && steps.setup.outputs.ccache-cache-key != ''
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.setup.outputs.ccache-dir }}
           key: ${{ steps.setup.outputs.ccache-cache-key }}
@@ -220,7 +240,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           lfs: true
@@ -242,7 +262,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           lfs: true
@@ -271,7 +291,7 @@ jobs:
       # even after a failure, so the objects that did compile are kept.
       - name: Save compiler cache
         if: always() && steps.setup.outputs.ccache-cache-key != ''
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.setup.outputs.ccache-dir }}
           key: ${{ steps.setup.outputs.ccache-cache-key }}
@@ -286,7 +306,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           lfs: true
@@ -336,7 +356,7 @@ jobs:
       # even after a failure, so the objects that did compile are kept.
       - name: Save compiler cache
         if: always() && steps.setup.outputs.ccache-cache-key != ''
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.setup.outputs.ccache-dir }}
           key: ${{ steps.setup.outputs.ccache-cache-key }}

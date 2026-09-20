@@ -16,15 +16,21 @@ permissions: {}
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: write
+    # At job level so the signing step can be skipped on `env.GPG_PRIVATE_KEY == ''`: a secret cannot
+    # be read in a step level `if:`, but an environment variable holding one can.
+    env:
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           lfs: true
-          # Whole history, for the version and commit the build stamps into the binary.
+          # Whole history, for the version and commit the build stamps into the binary, and for the
+          # changelog, which is generated from every commit since the previous tag.
           fetch-depth: 0
           # Reading git locally needs no credentials, and nothing pushes; the release job writes
           # through the API.
@@ -34,72 +40,93 @@ jobs:
         with:
           llvm-version: 22
 
-      # The package manifests point at release urls built from the version, so a tag that disagrees
-      # with the VERSION the binaries are named after would publish manifests for files that do not exist.
-      - name: Check the tag matches VERSION
+      # After setup, which bootstraps ./build: the version comes out of the build system rather than
+      # out of a regex over one of its headers, so the tag is checked against the same value the
+      # artifacts are named after and the manifests point at.
+      - name: Check the tag matches the version
         if: github.ref_type == 'tag'
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          version="$(sed -n 's/^#define VERSION *"\([^"]*\)".*/\1/p' src/build/flags.h)"
+          version="$(./build version)"
           if [ "${TAG}" != "v${version}" ]; then
-            echo "::error::tag ${TAG} does not match VERSION ${version} in src/build/flags.h"
+            echo "::error::tag ${TAG} does not match version ${version}; bump VERSION in src/build/flags.h"
             exit 1
           fi
 
-      - name: Build release targets
-        run: ./build build release
+      # The signing certificate, decrypted to the runner's temporary directory rather than the
+      # workspace, which is archived. Skipped without the secrets, so a fork still builds and the
+      # release is signed by the sample certificate instead of failing. See secrets/README.md.
+      - name: Decrypt the signing certificate
+        if: env.GPG_PRIVATE_KEY != ''
+        run: |
+          if [ ! -f secrets/signing.pfx.enc ]; then
+            echo "::notice::no secrets/signing.pfx.enc, building with the sample certificate"
+            exit 0
+          fi
 
-      # CI saves the cache this restores; a tag rarely changes the vendors, and a miss only costs time.
+          # Pinned, like every other tool this repository depends on. The runner has gpg already.
+          sops_version=3.12.0
+          curl -fsSL -o "${RUNNER_TEMP}/sops" \
+            "https://github.com/getsops/sops/releases/download/v${sops_version}/sops-v${sops_version}.linux.amd64"
+          chmod +x "${RUNNER_TEMP}/sops"
+
+          printf '%s' "${GPG_PRIVATE_KEY}" | base64 -d | gpg --batch --quiet --import
+          "${RUNNER_TEMP}/sops" --decrypt --input-type binary --output-type binary \
+            secrets/signing.pfx.enc > "${RUNNER_TEMP}/signing.pfx"
+
+          # Through the environment, which is what flags.h documents these three overrides for. The
+          # password never reaches a command line, where it would be visible to every process.
+          {
+            echo "NYA_SIGNING_PFX=${RUNNER_TEMP}/signing.pfx"
+            echo "NYA_SIGNING_PASSWORD=${GPG_PASSPHRASE}"
+          } >> "$GITHUB_ENV"
+
+      # The sniper SDK sysroot and its vendors, so `dist` can build the Steam Linux target below. CI
+      # saves the cache this restores; a tag rarely changes the vendors, and a miss only costs time.
       - uses: ./.github/actions/setup-steamrt
         with:
           llvm-version: 22
           save: "false"
 
-      - name: Build the Steam Linux target
-        run: |
-          ./build build steam-linux
-          packaging/steam/verify-linux.sh "$(ls -d gnyame.*.steam-linux-x86_64)"
+      # One command, and the same one a developer runs. It builds every release target this host can
+      # produce — Linux, Windows and both Steam depots, the last two cross compiled — stages each
+      # distribution, regenerates the changelog, renders every package manifest with this version and
+      # the real archive checksums, and writes SHA256SUMS over the lot.
+      #
+      # That is what makes a packager's job possible: pacman, nix, flatpak, winget and scoop all come
+      # out of this run pointing at files it just hashed.
+      - name: Stage every distribution
+        run: ./build dist
 
-      # `release` on this host cross compiles both Windows targets too, so all four artifacts exist here and
-      # there is no second job to collect from.
-      - name: Collect artifacts
-        run: |
-          packaging/dist.sh
-          ls -l dist
+      - name: Verify the Steam Linux depot
+        run: packaging/steam/verify-linux.sh dist/steam-linux
 
-      # Notes come from the commits since the previous tag. Hand written notes go stale against the
-      # history they claim to describe; generated ones cannot.
+      - name: Report what was staged
+        run: |
+          find dist -maxdepth 1 -printf '%f\n' | sort
+          cat dist/SHA256SUMS
+
+      # The same generator that writes CHANGELOG.md, asked for one section instead of the file. Notes
+      # and changelog cannot describe the same tag differently, because there is only one of them.
       - name: Generate release notes
         if: github.ref_type == 'tag'
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
-          previous="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
-
           {
-            echo "## ${TAG}"
-            echo
-            if [ -n "${previous}" ]; then
-              echo "Changes since ${previous}:"
-              echo
-              git log --no-merges --pretty='- %s' "${previous}..${TAG}"
-            else
-              echo "First tagged release."
-            fi
+            ./build changelog --release
             echo
             echo '## Checksums'
             echo
             echo '```'
             cat dist/SHA256SUMS
             echo '```'
-          } > release-notes.md
+          } > "${RUNNER_TEMP}/release-notes.md"
 
-          cat release-notes.md
+          cat "${RUNNER_TEMP}/release-notes.md"
 
       # The gh CLI rather than a marketplace action: it ships on the runner, so this adds no third
       # party dependency to pin, and the same command runs locally against the same API.
-      # A manual run on a branch stops after collecting, as a dry run of everything above.
+      # A manual run on a branch stops after staging, as a dry run of everything above.
       - name: Publish release
         if: github.ref_type == 'tag'
         env:
@@ -108,5 +135,5 @@ jobs:
         run: |
           gh release create "${TAG}" \
             --title "${TAG}" \
-            --notes-file release-notes.md \
-            dist/*
+            --notes-file "${RUNNER_TEMP}/release-notes.md" \
+            dist/SHA256SUMS dist/*.tar.gz dist/*.zip

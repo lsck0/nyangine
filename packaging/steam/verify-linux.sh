@@ -3,7 +3,7 @@
 # nothing newer than its glibc 2.31, no OpenSSL, libsteam_api.so found through $ORIGIN, and, where docker runs, a start
 # inside Valve's sniper platform image without a Steam client.
 #
-#   packaging/steam/verify-linux.sh gnyame.0.0.0.steam-linux-x86_64
+#   packaging/steam/verify-linux.sh dist/steam-linux
 set -eu
 
 name=gnyame

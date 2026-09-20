@@ -80,6 +80,9 @@ tests/**/test_*
 # Objects the split compile and link rules write, see OBJECT_DIRECTORY in src/build/flags.h.
 /.objects/
 
+# Where packaging/steam/upload.sh assembles the depots for steamcmd.
+/.steam-upload/
+
 # Plaintext secrets.
 #
 # Everything under secrets/ is committed *encrypted*, so the rule is inverted there: refuse the key

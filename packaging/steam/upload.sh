@@ -1,6 +1,7 @@
 #!/bin/sh
-# Uploads the Steam builds through SteamPipe. Run from the repository root after `./build build release`
-# and `./build build steam-linux`, as a Steamworks account with build upload rights:
+# Uploads the Steam builds through SteamPipe. Run from the repository root after
+# `./build dist steam-linux` and `./build dist steam-windows`, as a Steamworks account with build
+# upload rights:
 #
 #   STEAM_USER=builder STEAM_APP_ID=480 STEAM_DEPOT_ID_LINUX=481 STEAM_DEPOT_ID_WINDOWS=482 packaging/steam/upload.sh
 #
@@ -10,22 +11,33 @@ set -eu
 
 name=gnyame
 here="$(dirname "$0")"
-work=dist/steam
+work=.steam-upload
 
 : "${STEAM_USER:?}" "${STEAM_APP_ID:?}" "${STEAM_DEPOT_ID_LINUX:?}" "${STEAM_DEPOT_ID_WINDOWS:?}"
 preview="${STEAM_PREVIEW:-0}"
 
-version="$(sed -n 's/^#define VERSION *"\([^"]*\)".*/\1/p' src/build/flags.h)"
+# From the build system, not from a regex over one of its headers. See src/build/dist.c.
+version="$(./build version)"
 description="${name} ${version} ($(git rev-parse --short HEAD))"
 
+linux_depot=dist/steam-linux
+windows_depot=dist/steam-windows
+
+for depot in "${linux_depot}" "${windows_depot}"; do
+    [ -d "${depot}" ] || { echo "no ${depot}; run './build dist $(basename "${depot}")' first" >&2; exit 1; }
+done
+
 rm -rf "${work}"
-mkdir -p "${work}/scripts" "${work}/content/linux" "${work}/content/windows" "${work}/output"
+mkdir -p "${work}/scripts" "${work}/content" "${work}/output"
+
+# The staged distributions go up whole: the executable, the Steamworks library, LICENSE, CHANGELOG.md
+# and the data/ and plugins/ trees. A depot that is a subset of what a player downloads anywhere else
+# is a depot that behaves differently for no reason anyone can see.
+cp -r "${linux_depot}" "${work}/content/linux"
+cp -r "${windows_depot}" "${work}/content/windows"
 
 # steampipe keeps the executable bit only for files uploaded from linux or macos.
-install -m755 "${name}.${version}.steam-linux-x86_64/${name}" "${work}/content/linux/${name}"
-install -m644 "${name}.${version}.steam-linux-x86_64/libsteam_api.so" "${work}/content/linux/"
-install -m644 "${name}.${version}.steam-windows-x86_64/${name}.exe" "${name}.${version}.steam-windows-x86_64/steam_api64.dll" \
-    "${work}/content/windows/"
+chmod 755 "${work}/content/linux/${name}"
 
 for script in app_build depot_build_linux depot_build_windows; do
     sed -e "s|@APP_ID@|${STEAM_APP_ID}|" \
