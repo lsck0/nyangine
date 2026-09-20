@@ -17,11 +17,16 @@
 
 
 /**
- * Glyph atlases held at once, one per face and point size. gnyame bakes four (the UI at 17 and 28, the menu at
- * 22 and 44), and every atlas is a texture sized to its largest glyph, so this stays small.
+ * Glyph atlases held at once, one per face and point size, evicted least recently used when full.
+ *
+ * gnyame's busiest frame wants a dozen: the UI's three typography sizes on two faces, the menu's title and body,
+ * the HUD's two, the debug overlay's two, and whatever a shrink-to-fit label lands on. Every atlas is one texture
+ * sized to the face's largest glyph, about 90 KB at body size, so twenty four costs a couple of megabytes and
+ * leaves room for a second face without thrashing. Eviction keeps a miss cheap rather than fatal, so this number
+ * is a memory budget, not a correctness bound.
  * */
 #ifndef NYA_RENDER2D_FONT_CACHE_MAX
-#define NYA_RENDER2D_FONT_CACHE_MAX 8
+#define NYA_RENDER2D_FONT_CACHE_MAX 24
 #endif
 
 /** Longest derived font asset handle: a path, an '@', and a point size. */
@@ -183,6 +188,9 @@ NYA_INTERNAL void _nya_render2d_atlas_upload(NYA_Window* window, NYA_FontAtlas* 
 /** The glyph cache's destructor: texture, transfer buffer and CPU coverage. Callers flush first. */
 NYA_INTERNAL void _nya_render2d_atlas_destroy(void* value, void* user_data);
 
+/** True the first time an atlas failure is reported for `handle`, so a per-frame failure prints one line. */
+NYA_INTERNAL b8 _nya_render2d_atlas_warn_once(NYA_ConstCString handle) __attr_no_discard;
+
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -201,6 +209,14 @@ NYA_INTERNAL NYA_Cache* _nya_render2d_font_cache = nullptr;
  * NYA_RENDER2D_GLYPH_CAPACITY is per atlas, so the ceiling registry needs a single number to watch.
  * */
 NYA_INTERNAL u32 _nya_render2d_glyph_count_worst = 0;
+
+/**
+ * Font handles an atlas failure was already reported for. Everything here is reached once per text draw, so a
+ * failure that persists would otherwise print thousands of lines a minute. Hashes, not text: all this has to do is
+ * tell one handle from another. Once full it stops reporting, which is the right trade for a diagnostic.
+ * */
+#define NYA_RENDER2D_FONT_WARNED_MAX 16
+NYA_INTERNAL u64 _nya_render2d_font_warned[NYA_RENDER2D_FONT_WARNED_MAX] = { 0 };
 
 
 /** The font nya_render2d_text and the measurements use, set by nya_render2d_font_set. */
@@ -2106,8 +2122,12 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
             .name         = "glyph_atlases",
             .capacity     = NYA_RENDER2D_FONT_CACHE_MAX,
             .key_size_max = NYA_TEXT_FONT_HANDLE_MAX,
-            // full, not evicting: eviction would need to know no queued vertex still references the texture.
-            .eviction     = NYA_CACHE_EVICTION_REFUSE,
+            /*
+             * Least recent, not refuse: refusing left a window that walked through enough point sizes, a resize or a
+             * HiDPI display, drawing blank text for the rest of the run. Eviction needs to know no queued vertex
+             * still names the texture about to be released, which the batch flush below guarantees.
+             */
+            .eviction     = NYA_CACHE_EVICTION_LEAST_RECENT,
             .destructor   = _nya_render2d_atlas_destroy,
         );
     }
@@ -2132,6 +2152,23 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
         _nya_render2d_flush_for(window, NYA_RENDER2D_FLUSH_STATE);
     }
 
+    /*
+     * A new key in a full cache evicts the least recently used atlas, whose texture this frame's queued vertices may
+     * still name, so the batch is drawn first. Without a window there is no batch to flush and no way to make that
+     * safe, so a measurement made before anything drew is refused instead; the next call with a window builds it.
+     */
+    if (lookup == NYA_CACHE_LOOKUP_MISS && nya_cache_count(_nya_render2d_font_cache) == nya_cache_capacity(_nya_render2d_font_cache)) {
+        if (window == nullptr) {
+            if (_nya_render2d_atlas_warn_once(derived)) {
+                nya_log_warn("no free glyph atlas slot for '%s' and no window to flush before evicting one", derived);
+            }
+
+            return nullptr;
+        }
+
+        _nya_render2d_flush_for(window, NYA_RENDER2D_FLUSH_STATE);
+    }
+
     TTF_Font*      font       = asset->as_font.font;
     SDL_GPUDevice* gpu_device = nya_app_get()->render_system.gpu_device;
 
@@ -2145,14 +2182,15 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     // zeroed, so the space between glyphs blends away.
     u8* coverage = SDL_calloc(1, (size_t)grid.atlas_width * (size_t)grid.atlas_height);
     if (coverage == nullptr) {
-        nya_log_warn("could not allocate a glyph atlas for '%s': out of memory", derived);
+        if (_nya_render2d_atlas_warn_once(derived)) nya_log_warn("could not allocate a glyph atlas for '%s': out of memory", derived);
         return nullptr;
     }
 
     void*     claimed = nullptr;
     NYA_Error claim   = nya_cache_insert(_nya_render2d_font_cache, derived, derived_length, asset->generation, &claimed);
     if (!claim.ok) {
-        nya_log_warn("no free glyph atlas slot for '%s'; raise NYA_RENDER2D_FONT_CACHE_MAX (%d)", derived, NYA_RENDER2D_FONT_CACHE_MAX);
+        // the capacity was handled above, so this is a handle longer than the cache's key.
+        if (_nya_render2d_atlas_warn_once(derived)) nya_log_warn("could not claim a glyph atlas slot for '%s': %s", derived, (NYA_ConstCString)claim.message);
         SDL_free(coverage);
         return nullptr;
     }
@@ -2310,6 +2348,26 @@ void _nya_render2d_atlas_destroy(void* value, void* user_data) {
 
     // kept for the whole run so glyphs can be baked in later; this is the one place it is freed.
     SDL_free(atlas->coverage);
+}
+
+b8 _nya_render2d_atlas_warn_once(NYA_ConstCString handle) {
+    nya_assert(handle != nullptr);
+
+    // never zero, which is a free slot.
+    u64 hash = nya_hash_fnv1a(handle) | 1U;
+
+    for (u32 i = 0; i < NYA_RENDER2D_FONT_WARNED_MAX; i++) {
+        if (_nya_render2d_font_warned[i] == hash) return false;
+
+        if (_nya_render2d_font_warned[i] == 0) {
+            _nya_render2d_font_warned[i] = hash;
+            return true;
+        }
+    }
+
+    nya_assert(_nya_render2d_font_warned[0] != 0, "a full warned table has no free slot");
+
+    return false;
 }
 
 TTF_Font* _nya_render2d_atlas_font(const NYA_FontAtlas* atlas) {
