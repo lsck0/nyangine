@@ -15,6 +15,22 @@ typedef struct NYA_WindowHandle NYA_WindowHandle;
 typedef struct NYA_EntityHandle NYA_EntityHandle;
 typedef enum NYA_InputDeviceKind NYA_InputDeviceKind;
 typedef struct NYA_InputSource   NYA_InputSource;
+typedef enum NYA_SocialProvider  NYA_SocialProvider;
+
+/**
+ * Which friends service an invite, a join or a presence card went through.
+ *
+ * Here rather than in core_social.h because the event that carries it (core_event.h) is declared before
+ * the module that produces it, and a game switching on it should not have to include the module.
+ * */
+enum NYA_SocialProvider {
+    NYA_SOCIAL_PROVIDER_NONE = 0,
+
+    NYA_SOCIAL_PROVIDER_DISCORD,
+    NYA_SOCIAL_PROVIDER_STEAM,
+
+    NYA_SOCIAL_PROVIDER_COUNT,
+};
 
 /**
  * Identifies a window for as long as it exists.

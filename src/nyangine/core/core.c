@@ -22,6 +22,9 @@
 #include "nyangine/core/core_save.c"
 #include "nyangine/core/core_settings.c"
 #include "nyangine/core/core_sim.c"
+// After core_event.c, whose hook registry it registers a frame hook with, and after the plugins, which
+// are included before core in nyangine.c and are what it is a facade over.
+#include "nyangine/core/core_social.c"
 #include "nyangine/core/core_terrain2d.c"
 #include "nyangine/core/core_terrain3d.c"
 #include "nyangine/core/core_skeleton_layer.c"

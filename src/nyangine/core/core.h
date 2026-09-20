@@ -22,6 +22,7 @@
 #include "nyangine/core/core_save.h"
 #include "nyangine/core/core_settings.h"
 #include "nyangine/core/core_sim.h"
+#include "nyangine/core/core_social.h"
 #include "nyangine/core/core_terrain2d.h"
 #include "nyangine/core/core_terrain3d.h"
 #include "nyangine/core/core_skeleton_layer.h"

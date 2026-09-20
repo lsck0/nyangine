@@ -39,6 +39,7 @@ typedef struct NYA_KeyEvent            NYA_KeyEvent;
 typedef struct NYA_MouseButtonEvent    NYA_MouseButtonEvent;
 typedef struct NYA_MouseMovedEvent     NYA_MouseMovedEvent;
 typedef struct NYA_MouseWheelEvent     NYA_MouseWheelEvent;
+typedef struct NYA_SocialEvent        NYA_SocialEvent;
 typedef struct NYA_TextEditingEvent    NYA_TextEditingEvent;
 typedef struct NYA_TextInputEvent      NYA_TextInputEvent;
 typedef struct NYA_WindowEvent         NYA_WindowEvent;
@@ -105,6 +106,17 @@ enum NYA_EventType {
     NYA_EVENT_MOUSE_WHEEL_MOVED,
 
     NYA_EVENT_QUIT,
+
+    /**
+     * The player accepted a friend's invite. See NYA_SocialEvent.secret and nya_social_pump.
+     * */
+    NYA_EVENT_SOCIAL_JOIN,
+
+    /**
+     * Somebody asked to join this player's game. The game shows a prompt and answers with
+     * nya_social_join_reply; nothing happens if it does not, and the provider expires the request.
+     * */
+    NYA_EVENT_SOCIAL_JOIN_REQUEST,
 
     NYA_EVENT_TEXT_INPUT,
     NYA_EVENT_TEXT_EDITING,
@@ -211,6 +223,9 @@ __attr_allow_unused static NYA_ConstCString NYA_EVENT_NAME_MAP[NYA_EVENT_COUNT] 
     [NYA_EVENT_MOUSE_WHEEL_MOVED] = "MOUSE_WHEEL_MOVED",
 
     [NYA_EVENT_QUIT] = "QUIT",
+
+    [NYA_EVENT_SOCIAL_JOIN]         = "SOCIAL_JOIN",
+    [NYA_EVENT_SOCIAL_JOIN_REQUEST] = "SOCIAL_JOIN_REQUEST",
 
     [NYA_EVENT_TEXT_INPUT]   = "TEXT_INPUT",
     [NYA_EVENT_TEXT_EDITING] = "TEXT_EDITING",
@@ -382,6 +397,38 @@ struct NYA_MouseWheelEvent {
 
 /*
  * ─────────────────────────────────────────────────────────
+ * SOCIAL EVENT STRUCTS
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * An invite accepted, or a friend asking to join. Produced by nya_social_pump; see core_social.h.
+ *
+ * The strings point into the social module's own storage and stay valid until the next nya_social_pump,
+ * which is one frame. A handler that wants to keep one copies it, exactly as NYA_DropEvent's path is.
+ * */
+struct NYA_SocialEvent {
+    /** Which service this came through, so a game can word its prompt after the right one. */
+    NYA_SocialProvider provider;
+
+    /**
+     * Who is asking, for a JOIN_REQUEST. Opaque to the game: hand it straight back to
+     * nya_social_join_reply. Null for a JOIN, which nobody has to be answered about.
+     * */
+    NYA_ConstCString user_id;
+
+    /** That person's display name, for the prompt. Null when the provider did not give one. */
+    NYA_ConstCString user_name;
+
+    /**
+     * What to join, for a JOIN. Whatever the host published, so for this engine a join secret; see
+     * nya_net_config_from_join_secret. Null for a JOIN_REQUEST.
+     * */
+    NYA_ConstCString secret;
+};
+
+/*
+ * ─────────────────────────────────────────────────────────
  * WINDOW EVENT STRUCTS
  * ─────────────────────────────────────────────────────────
  */
@@ -442,6 +489,7 @@ struct NYA_Event {
         NYA_MouseButtonEvent    as_mouse_button_event;
         NYA_MouseMovedEvent     as_mouse_moved_event;
         NYA_MouseWheelEvent     as_mouse_wheel_event;
+        NYA_SocialEvent        as_social_event;
         NYA_TextEditingEvent    as_text_editing_event;
         NYA_TextInputEvent      as_text_input_event;
         NYA_WindowEvent         as_window_event;
