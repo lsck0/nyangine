@@ -65,6 +65,21 @@
 #endif
 
 /**
+ * Bytes the smallest case gets.
+ *
+ * Case `n` is `MIN + (n % (MAX - MIN))` bytes long, so the early cases are small and the later ones
+ * large: starting every case at the full buffer means the first failure found is always a large one
+ * and the shrinker does all the work. Sixty-four rather than eight, because a law that draws a length
+ * and then that many items exhausts eight bytes immediately and then draws nothing but zeroes, which
+ * tests one shape very thoroughly and no others.
+ * */
+#ifndef NYA_PROPERTY_ENTROPY_MIN
+#define NYA_PROPERTY_ENTROPY_MIN 64
+#endif
+
+static_assert(NYA_PROPERTY_ENTROPY_MIN < NYA_PROPERTY_ENTROPY_MAX, "a case cannot be smaller than the smallest and larger than the largest");
+
+/**
  * Shrink attempts before the smallest found so far is reported.
  *
  * Every accepted shrink restarts the budget, so this bounds a plateau rather than the whole search. A

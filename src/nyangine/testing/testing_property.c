@@ -30,14 +30,21 @@ u32 nya_property_check(NYA_ConstCString name, u32 case_count, u64 seed, NYA_Prop
     nya_assert(law != nullptr);
     nya_assert(case_count > 0, "a property with no cases proves nothing");
 
-    NYA_Arena* allocator = nya_arena_create(.name = "property");
-    defer      nya_arena_destroy(allocator);
+    /*
+     * Two arenas, not one. The case arena is emptied before every replay, and the property struct
+     * cannot live in the thing that is emptied: it holds the entropy the replay is about to read.
+     */
+    NYA_Arena* harness = nya_arena_create(.name = "property");
+    defer      nya_arena_destroy(harness);
+
+    NYA_Arena* cases = nya_arena_create(.name = "property_case");
+    defer      nya_arena_destroy(cases);
 
     // the struct is a kilobyte of entropy plus change, which is more than belongs on a stack shared
     // with a law that allocates.
-    NYA_Property* property = nya_arena_alloc(allocator, sizeof(NYA_Property));
+    NYA_Property* property = nya_arena_alloc(harness, sizeof(NYA_Property));
 
-    *property = (NYA_Property){ .name = name, .allocator = allocator };
+    *property = (NYA_Property){ .name = name, .allocator = cases };
 
     for (u32 index = 0; index < case_count; index++) {
         _nya_property_case_fill(property, seed, index);
@@ -197,7 +204,7 @@ void _nya_property_case_fill(NYA_Property* property, u64 seed, u32 index) {
      * Starting every case at the full buffer would mean the first failure is always a large one and
      * the shrinker does all the work; starting small finds the small failures first.
      */
-    u32 length = 8 + (index % (NYA_PROPERTY_ENTROPY_MAX - 8));
+    u32 length = NYA_PROPERTY_ENTROPY_MIN + (index % (NYA_PROPERTY_ENTROPY_MAX - NYA_PROPERTY_ENTROPY_MIN));
 
     for (u32 at = 0; at < length; at += 8) {
         u64 coordinate[3] = { seed, index, at };

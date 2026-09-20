@@ -64,10 +64,18 @@ static b8 law_compress_round_trips(NYA_Property* property) {
     nya_property_draw_bytes(property, bytes, count);
 
     u64 bound      = nya_compress_bound(count);
-    u8* compressed = nya_arena_alloc(property->allocator, bound);
+    u8* compressed = nya_arena_alloc(property->allocator, bound + 1);
 
     u64 written = nya_compress(bytes, count, compressed, bound);
-    if (written == 0 && count > 0) {
+
+    // documented: an empty input does not compress, and the caller stores it as it is. The round trip
+    // is a law about blocks that exist.
+    if (count == 0) {
+        nya_property_note(property, "an empty input compressed to %llu bytes", (unsigned long long)written);
+        return written == 0;
+    }
+
+    if (written == 0) {
         nya_property_note(property, "compressing %u bytes produced nothing", count);
         return false;
     }
@@ -79,7 +87,35 @@ static b8 law_compress_round_trips(NYA_Property* property) {
         return false;
     }
 
-    return count == 0 || nya_memcmp(restored, bytes, count) == 0;
+    return nya_memcmp(restored, bytes, count) == 0;
+}
+
+/**
+ * A key drawn from the property's entropy: a letter and then identifier characters.
+ *
+ * Not the printable range the string values use. A key is an identifier in all three formats, and the
+ * .nya grammar has no escape for a ':' or a '{' inside one, so a law that generated them would state
+ * something the formats never claimed. What an arbitrary byte sequence does to a *parser* is a fuzz
+ * question, and tests/fuzz asks it.
+ * */
+static NYA_CString draw_key(NYA_Property* property, u32 length_max) {
+    static const char ALPHABET[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+
+    /** Letters in ALPHABET, which a key has to start with. */
+    static const u32 LETTER_COUNT = 52;
+
+    u32 length = 1 + (u32)nya_property_draw_below(property, length_max);
+
+    NYA_CString key = nya_arena_alloc(property->allocator, (u64)length + 1);
+
+    // a letter first, so a key is never something a reader could take for a number.
+    key[0] = ALPHABET[nya_property_draw_u8(property) % LETTER_COUNT];
+
+    for (u32 i = 1; i < length; i++) key[i] = ALPHABET[nya_property_draw_u8(property) % (nya_carray_length(ALPHABET) - 1)];
+
+    key[length] = '\0';
+
+    return key;
 }
 
 /** A document drawn from the property's entropy: flat, but with every value type in it. */
@@ -89,10 +125,7 @@ static NYA_Object* draw_object(NYA_Property* property) {
     u32 fields = (u32)nya_property_draw_below(property, 12);
 
     for (u32 i = 0; i < fields; i++) {
-        NYA_CString key = nya_property_draw_text(property, 12);
-
-        // an empty key is not a key; serde has nothing to write it as.
-        if (key[0] == '\0') continue;
+        NYA_CString key = draw_key(property, 12);
 
         switch (nya_property_draw_u8(property) % 5) {
             case 0: nya_object_set(object, key, (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_property_draw_u64(property) }); break;
@@ -110,22 +143,96 @@ static NYA_Object* draw_object(NYA_Property* property) {
     return object;
 }
 
-/** Whether two values carry the same thing. Compared per type, since the union's spare bits are not written. */
+/** The magnitude of a signed integer, in u64. Negating S64_MIN within s64 overflows; in u64 it does not. */
+static u64 magnitude_of(s64 value) {
+    return value < 0 ? (u64)(-(value + 1)) + 1 : (u64)value;
+}
+
+/**
+ * An integer pulled out of a value, as a sign and a magnitude.
+ *
+ * Not as an s64: a u64 past S64_MAX casts to a negative one, and two values that differ only in that
+ * cast compare equal to each other and unequal to the real number. The whole point of this comparison
+ * is that it does not lie about large numbers.
+ * */
+typedef struct {
+    b8  negative;
+    u64 magnitude;
+} PropertyInteger;
+
+/** Whether a value came back as an integer at all, and what it says. */
+static b8 value_as_integer(NYA_Value value, OUT PropertyInteger* out_integer) {
+    *out_integer = (PropertyInteger){ 0 };
+
+    switch (value.type) {
+        case NYA_TYPE_U8:  out_integer->magnitude = value.as_u8; return true;
+        case NYA_TYPE_U16: out_integer->magnitude = value.as_u16; return true;
+        case NYA_TYPE_U32: out_integer->magnitude = value.as_u32; return true;
+        case NYA_TYPE_U64: out_integer->magnitude = value.as_u64; return true;
+
+        case NYA_TYPE_S8:  out_integer->negative = value.as_s8 < 0; out_integer->magnitude = magnitude_of(value.as_s8); return true;
+        case NYA_TYPE_S16: out_integer->negative = value.as_s16 < 0; out_integer->magnitude = magnitude_of(value.as_s16); return true;
+        case NYA_TYPE_S32: out_integer->negative = value.as_s32 < 0; out_integer->magnitude = magnitude_of(value.as_s32); return true;
+        case NYA_TYPE_S64: out_integer->negative = value.as_s64 < 0; out_integer->magnitude = magnitude_of(value.as_s64); return true;
+
+        default: return false;
+    }
+}
+
+/** Whether a value came back as a real number, and what it says. */
+static b8 value_as_real(NYA_Value value, OUT f64* out_real) {
+    switch (value.type) {
+        case NYA_TYPE_F32: *out_real = (f64)value.as_f32; return true;
+        case NYA_TYPE_F64: *out_real = value.as_f64; return true;
+
+        default: return false;
+    }
+}
+
+/**
+ * Whether two values carry the same thing.
+ *
+ * Neither the width nor the integer-ness is part of the law. JSON has one number type: 0.5 comes back
+ * as a real, 0.0 comes back as the integer zero because that is what "0" is, and an integer past
+ * 2^53 comes back as the nearest real because that is as much as the format records. What a document
+ * stores is a number, and what has to survive is its value.
+ * */
 static b8 values_match(NYA_Value a, NYA_Value b) {
+    PropertyInteger left_integer  = { 0 };
+    PropertyInteger right_integer = { 0 };
+
+    b8 a_is_integer = value_as_integer(a, &left_integer);
+    b8 b_is_integer = value_as_integer(b, &right_integer);
+
+    // two integers compare exactly: there is no rounding to allow for, and a tolerance wide enough
+    // for a u64 would swallow sixteen digits of difference.
+    if (a_is_integer && b_is_integer) {
+        return left_integer.magnitude == right_integer.magnitude && (left_integer.negative == right_integer.negative || left_integer.magnitude == 0);
+    }
+
+    f64 left_real  = 0.0;
+    f64 right_real = 0.0;
+
+    b8 a_is_number = a_is_integer || value_as_real(a, &left_real);
+    b8 b_is_number = b_is_integer || value_as_real(b, &right_real);
+
+    if (a_is_number || b_is_number) {
+        if (!a_is_number || !b_is_number) return false;
+
+        if (a_is_integer) left_real = left_integer.negative ? -(f64)left_integer.magnitude : (f64)left_integer.magnitude;
+        if (b_is_integer) right_real = right_integer.negative ? -(f64)right_integer.magnitude : (f64)right_integer.magnitude;
+
+        // a real survives the decimal text formats only within the digits they print, so this is the
+        // one comparison with a tolerance and it is relative.
+        f64 scale = nya_max(1.0, fabs(left_real));
+        return fabs(left_real - right_real) <= (f64)TOLERANCE * scale;
+    }
+
     if (a.type != b.type) return false;
 
     switch (a.type) {
-        case NYA_TYPE_U64:    return a.as_u64 == b.as_u64;
-        case NYA_TYPE_S64:    return a.as_s64 == b.as_s64;
         case NYA_TYPE_B8:     return a.as_b8 == b.as_b8;
         case NYA_TYPE_STRING: return nya_string_equals(a.as_string, b.as_string);
-
-        // a double survives the decimal text formats exactly only within the digits they print, so
-        // this is the one comparison with a tolerance and it is relative.
-        case NYA_TYPE_F64: {
-            f64 scale = nya_max(1.0, fabs(a.as_f64));
-            return fabs(a.as_f64 - b.as_f64) <= (f64)TOLERANCE * scale;
-        }
 
         default: return false;
     }
@@ -171,7 +278,11 @@ static b8 serde_round_trips(NYA_Property* property, NYA_SerdeFormat format) {
         }
 
         if (!values_match(*before, *after)) {
-            nya_property_note(property, "%s changed the field '%s'", NYA_SERDE_FORMAT_NAME_MAP[format], key);
+            // the two type names, because "changed" without them is a counterexample nobody can act
+            // on: a number that came back narrower is a different finding from one that came back
+            // as a string.
+            nya_property_note(property, "%s changed the field '%s': %s in, %s out", NYA_SERDE_FORMAT_NAME_MAP[format],
+                              key, NYA_TYPE_NAME_MAP[before->type], NYA_TYPE_NAME_MAP[after->type]);
             return false;
         }
     }
