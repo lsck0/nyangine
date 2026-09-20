@@ -63,6 +63,8 @@
 #include "nyangine/renderer/render_trace.c"
 #endif
 #include "nyangine/ui/ui.c"
+// Last, for the reason testing.h is included last.
+#include "nyangine/testing/testing.c"
 
 // windows.h defines these empty, which would silently erase any variable of that name in code after the engine.
 #if OS_WINDOWS
