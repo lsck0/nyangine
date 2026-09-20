@@ -1,15 +1,5 @@
 /**
- * @file pp/pp.h
- *
- * The preprocessor: everything that turns files on disk into generated C before anything compiles,
- * and the build rules that run it.
- *
- * The passes themselves live one per file below. The rules at the bottom are metarules with no
- * command of their own; they exist so the rest of the build system can depend on a pass by name and
- * get the ordering that comes with it. Shaders compile, locales become strings.h, the @reflect
- * annotations become reflection.{h,c}, the asset tree becomes assets.h, and only then does the blob
- * get bundled. They live here rather than beside the project rules because the hooks they hang off
- * are the ones declared in this directory.
+ * @file asset_rules.h
  * */
 #pragma once
 
@@ -17,19 +7,17 @@
 
 // For the hooks the rules below hang the pipeline off.
 #include "build/hooks.h"
-
-// First: every pass below opens by calling it.
-#include "build/pp/stale.h"
-/**/
+// For SHADER_SOURCE_DIRECTORY, which the shader rules walk.
 #include "build/pp/asset.h"
-#include "build/pp/cheatsheet.h"
-#include "build/pp/i18n.h"
-#include "build/pp/reflection.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * BUILD RULES
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * The asset pipeline expressed as build rules.
  */
 
 NYA_INTERNAL NYA_BuildRule build_shaders = {
@@ -59,13 +47,27 @@ NYA_INTERNAL NYA_BuildRule generate_reflection = {
     .post_build_hooks = { &hook_generate_reflection, },
 };
 
+/**
+ * Regenerates docs/CHEATSHEET.md from the public headers.
+ * */
+NYA_INTERNAL NYA_BuildRule generate_cheatsheet = {
+    .name             = "generate_cheatsheet",
+    .policy           = NYA_BUILD_ALWAYS,
+    .is_metarule      = true,
+    .post_build_hooks = { &hook_generate_cheatsheet, },
+};
+
 NYA_INTERNAL NYA_BuildRule index_assets = {
     .name             = "index_assets",
     .is_metarule      = true,
     // generate_reflection is here for the same reason generate_strings is: it writes *source* that
     // the compile rules then consume, and everything that compiles depends on this rule. It has
     // nothing to do with indexing assets beyond that shared ordering requirement.
-    .dependencies     = { &build_shaders, &generate_strings, &generate_reflection, },
+    //
+    // generate_cheatsheet writes no source at all, and hangs here so that a header edit and the
+    // reference to it land in the same build. A document that regenerates only when asked is a
+    // document that is wrong by the time anyone asks.
+    .dependencies     = { &build_shaders, &generate_strings, &generate_reflection, &generate_cheatsheet, },
     .post_build_hooks = { &hook_index_assets, },
 };
 
@@ -78,3 +80,4 @@ NYA_INTERNAL NYA_BuildRule bundle_assets = {
     .dependencies     = { &build_shaders, &index_assets, },
     .post_build_hooks = { &hook_bundle_assets, },
 };
+
