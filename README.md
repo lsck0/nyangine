@@ -41,6 +41,10 @@ Dependencies are listed in ./.github/ci-packages.txt. Not all of those are manda
 
 ## Signing Key
 
+The real one lives encrypted in `./secrets`; see `secrets/README.md` for how to make it, add it and
+let CI decrypt it. The sample below is what a build falls back to without it, and is a real signature
+by an authority nobody trusts.
+
 ```bash
 openssl req -x509 -newkey rsa:3072 -nodes -days 3650 \
     -keyout sample.key -out sample.crt \
