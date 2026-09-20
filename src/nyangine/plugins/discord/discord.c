@@ -45,6 +45,13 @@
 #define _NYA_DISCORD_HANDSHAKE_TIMEOUT_MS 5000
 
 /*
+ * The two events worth subscribing to. Presence is pushed; these are the only things the client ever
+ * says on its own, and without a SUBSCRIBE it says neither.
+ */
+#define _NYA_DISCORD_EVENT_ACTIVITY_JOIN         "ACTIVITY_JOIN"
+#define _NYA_DISCORD_EVENT_ACTIVITY_JOIN_REQUEST "ACTIVITY_JOIN_REQUEST"
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -83,6 +90,17 @@ typedef struct {
 
     /** Filled from the READY payload. Empty until the handshake completes. */
     char user_name[NYA_DISCORD_MAX_TEXT];
+
+    /**
+     * Inbound events, oldest first, drained by nya_discord_poll. A plain array rather than a ring: it
+     * holds eight entries and is emptied every frame, so the shift on drain moves nothing worth a
+     * second index.
+     * */
+    NYA_DiscordEvent events[NYA_DISCORD_MAX_EVENTS];
+    u32              event_count;
+
+    /** How many events were dropped because the queue was full. Logged once, not per drop. */
+    u64 events_dropped;
 
     /** Partial frame carried between pumps. */
     u8  read_buffer[_NYA_DISCORD_MAX_FRAME];
@@ -138,6 +156,31 @@ NYA_INTERNAL void _nya_discord_flush_activity(void);
 /** The process id, which SET_ACTIVITY requires; Discord uses it to notice the game exit. */
 NYA_INTERNAL s64 _nya_discord_process_id(void) __attr_no_discard;
 
+/** Asks the client to start sending `event`. Without this the client reports nothing at all. */
+NYA_INTERNAL void _nya_discord_subscribe(NYA_ConstCString event);
+
+/** Sends one command whose only argument is a user id. SEND_ACTIVITY_JOIN_INVITE and CLOSE_ACTIVITY_REQUEST. */
+NYA_INTERNAL NYA_Error _nya_discord_send_user_command(NYA_ConstCString command, NYA_ConstCString user_id) __attr_no_discard;
+
+/** Appends an event, dropping the oldest when the queue is full. */
+NYA_INTERNAL void _nya_discord_event_push(NYA_DiscordEvent event);
+
+/** Turns one dispatched `evt` frame into a queued event. Does nothing for an event it does not know. */
+NYA_INTERNAL void _nya_discord_handle_event(NYA_ConstCString event, const NYA_Object* data);
+
+/**
+ * Copies a string the client sent into a fixed buffer, or refuses it.
+ * */
+NYA_INTERNAL b8 _nya_discord_parse_text(const NYA_Value* value, OUT char* out, u64 capacity) __attr_no_discard;
+
+/**
+ * Copies a Discord user id, which is a snowflake written in decimal and nothing else.
+ * */
+NYA_INTERNAL b8 _nya_discord_parse_user_id(const NYA_Value* value, OUT char* out, u64 capacity) __attr_no_discard;
+
+/** Whether `text` is one to twenty decimal digits. What a user id has to be before it is sent back. */
+NYA_INTERNAL b8 _nya_discord_user_id_is_valid(NYA_ConstCString text) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -184,6 +227,12 @@ void nya_discord_pump(void) {
 
         // retrying every frame would fail connect() sixty times a second for everyone without Discord open.
         if (!_nya_discord_connect()) {
+            // once, on the first attempt only: an optional dependency that is missing says so and then
+            // stays quiet, rather than writing a line every two seconds for a player who has no Discord.
+            if (_NYA_DISCORD.retry_delay_ms == _NYA_DISCORD_RETRY_MIN_MS && _NYA_DISCORD.next_retry_ms == 0) {
+                nya_log_warn("No Discord client is running; rich presence and Discord invites are off. Start Discord before the game to enable them.");
+            }
+
             _nya_discord_arm_retry();
             return;
         }
@@ -265,10 +314,216 @@ NYA_Error nya_discord_activity_clear(void) {
 }
 
 /*
+ * ─────────────────────────────────────────────────────────
+ * INBOUND
+ * ─────────────────────────────────────────────────────────
+ */
+
+b8 nya_discord_poll(OUT NYA_DiscordEvent* out_event) {
+    nya_assert(out_event != nullptr);
+
+    *out_event = (NYA_DiscordEvent){ 0 };
+
+    if (_NYA_DISCORD.event_count == 0) return false;
+
+    nya_assert(_NYA_DISCORD.event_count <= NYA_DISCORD_MAX_EVENTS);
+
+    *out_event = _NYA_DISCORD.events[0];
+
+    _NYA_DISCORD.event_count--;
+    nya_memmove(&_NYA_DISCORD.events[0], &_NYA_DISCORD.events[1], _NYA_DISCORD.event_count * sizeof(NYA_DiscordEvent));
+
+    // the vacated slot, so a stale user id cannot be read out of the tail of the array.
+    _NYA_DISCORD.events[_NYA_DISCORD.event_count] = (NYA_DiscordEvent){ 0 };
+
+    nya_assert(out_event->kind > NYA_DISCORD_EVENT_NONE && out_event->kind < NYA_DISCORD_EVENT_KIND_COUNT);
+
+    return true;
+}
+
+NYA_Error nya_discord_join_reply(NYA_ConstCString user_id, b8 accept) {
+    if (_NYA_DISCORD.status == NYA_DISCORD_STATUS_OFF) return nya_error(NYA_ERROR_NOT_OK, "the Discord plugin is not initialized");
+
+    // refused rather than asserted: the id travels through a menu the player took a while to answer, and
+    // a reload or a bad copy is an operating error.
+    if (!_nya_discord_user_id_is_valid(user_id)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a Discord user id that is not decimal digits");
+
+    // the request cannot still be open across a reconnect, since Discord forgets it with the connection.
+    if (_NYA_DISCORD.status != NYA_DISCORD_STATUS_CONNECTED) return nya_error(NYA_ERROR_NOT_OK, "no Discord connection to answer a join request on");
+
+    return _nya_discord_send_user_command(accept ? "SEND_ACTIVITY_JOIN_INVITE" : "CLOSE_ACTIVITY_REQUEST", user_id);
+}
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+void _nya_discord_event_push(NYA_DiscordEvent event) {
+    nya_assert(event.kind > NYA_DISCORD_EVENT_NONE && event.kind < NYA_DISCORD_EVENT_KIND_COUNT);
+    nya_assert(_NYA_DISCORD.event_count <= NYA_DISCORD_MAX_EVENTS);
+
+    if (_NYA_DISCORD.event_count == NYA_DISCORD_MAX_EVENTS) {
+        // the oldest goes, not the newest: the newest is the one whose request is still open.
+        nya_memmove(&_NYA_DISCORD.events[0], &_NYA_DISCORD.events[1], (NYA_DISCORD_MAX_EVENTS - 1) * sizeof(NYA_DiscordEvent));
+        _NYA_DISCORD.event_count = NYA_DISCORD_MAX_EVENTS - 1;
+
+        // once per connection, not per drop: a client sending faster than the game drains would otherwise
+        // write the log as fast as it sends.
+        if (_NYA_DISCORD.events_dropped == 0) {
+            nya_log_warn("Discord: more than %d unread events; the oldest are being dropped.", NYA_DISCORD_MAX_EVENTS);
+        }
+
+        _NYA_DISCORD.events_dropped++;
+    }
+
+    _NYA_DISCORD.events[_NYA_DISCORD.event_count] = event;
+    _NYA_DISCORD.event_count++;
+}
+
+b8 _nya_discord_user_id_is_valid(NYA_ConstCString text) {
+    if (text == nullptr) return false;
+
+    u64 length = strnlen(text, NYA_DISCORD_MAX_USER_ID);
+
+    // twenty digits is the most a 64 bit snowflake can be written in, and the buffer holds twenty-three.
+    if (length == 0 || length >= NYA_DISCORD_MAX_USER_ID) return false;
+
+    for (u64 i = 0; i < length; i++) {
+        if (text[i] < '0' || text[i] > '9') return false;
+    }
+
+    return true;
+}
+
+b8 _nya_discord_parse_text(const NYA_Value* value, OUT char* out, u64 capacity) {
+    nya_assert(out != nullptr);
+    nya_assert(capacity > 0);
+
+    out[0] = '\0';
+
+    if (value == nullptr || value->type != NYA_TYPE_STRING || value->as_string == nullptr) return false;
+
+    u64 length = strnlen(value->as_string, capacity);
+
+    // refused rather than truncated: this is a secret or a name that is compared and echoed back, and
+    // half of either is a different value.
+    if (length == 0 || length >= capacity) return false;
+
+    // printable ASCII only. the string goes back out inside a JSON frame and, for a secret, into an
+    // address parser; a control byte belongs in neither and nothing legitimate sends one.
+    for (u64 i = 0; i < length; i++) {
+        unsigned char character = (unsigned char)value->as_string[i];
+        if (character < 0x20 || character > 0x7E) return false;
+    }
+
+    nya_memcpy(out, value->as_string, length);
+    out[length] = '\0';
+
+    return true;
+}
+
+b8 _nya_discord_parse_user_id(const NYA_Value* value, OUT char* out, u64 capacity) {
+    nya_assert(out != nullptr);
+    nya_assert(capacity >= NYA_DISCORD_MAX_USER_ID);
+
+    out[0] = '\0';
+
+    if (value == nullptr || value->type != NYA_TYPE_STRING) return false;
+    if (!_nya_discord_user_id_is_valid(value->as_string)) return false;
+
+    (void)snprintf(out, capacity, "%s", value->as_string);
+
+    return true;
+}
+
+void _nya_discord_subscribe(NYA_ConstCString event) {
+    nya_assert(event != nullptr);
+    nya_assert(_NYA_DISCORD.status == NYA_DISCORD_STATUS_CONNECTED);
+
+    NYA_Arena* scratch = nya_arena_create(.name = "discord_subscribe");
+    defer      nya_arena_destroy(scratch);
+
+    /* The nonce shares the counter with SET_ACTIVITY, since it only has to be unique per connection. */
+    static u64 nonce = 0;
+    nonce++;
+
+    // SUBSCRIBE takes no args for these two, but the field is not optional: the client answers a frame
+    // without it with an error and never sends the event.
+    NYA_String* payload =
+        nya_string_sprintf(scratch, "{\"cmd\":\"SUBSCRIBE\",\"evt\":\"%s\",\"nonce\":\"sub-%llu\",\"args\":{}}", event, (unsigned long long)nonce);
+
+    if (!_nya_discord_write(_NYA_DISCORD_OPCODE_FRAME, nya_string_to_cstring(scratch, payload), (u32)payload->length)) _nya_discord_disconnect();
+}
+
+NYA_Error _nya_discord_send_user_command(NYA_ConstCString command, NYA_ConstCString user_id) {
+    nya_assert(command != nullptr);
+    nya_assert(_nya_discord_user_id_is_valid(user_id));
+
+    NYA_Arena* scratch = nya_arena_create(.name = "discord_reply");
+    defer      nya_arena_destroy(scratch);
+
+    static u64 nonce = 0;
+    nonce++;
+
+    // the id is digits only, checked above, so it needs no escaping and cannot break out of the string.
+    NYA_String* payload = nya_string_sprintf(scratch, "{\"cmd\":\"%s\",\"nonce\":\"reply-%llu\",\"args\":{\"user_id\":\"%s\"}}", command,
+                                             (unsigned long long)nonce, user_id);
+
+    if (!_nya_discord_write(_NYA_DISCORD_OPCODE_FRAME, nya_string_to_cstring(scratch, payload), (u32)payload->length)) {
+        _nya_discord_disconnect();
+        return nya_error(NYA_ERROR_NOT_OK, "the Discord connection closed while answering a join request");
+    }
+
+    return NYA_OK;
+}
+
+void _nya_discord_handle_event(NYA_ConstCString event, const NYA_Object* data) {
+    nya_assert(event != nullptr);
+
+    /*
+     * Reject by default: an event this build does not know is ignored, not guessed at.
+     */
+    if (nya_string_equals(event, _NYA_DISCORD_EVENT_ACTIVITY_JOIN)) {
+        if (data == nullptr) return;
+
+        NYA_DiscordEvent queued = { .kind = NYA_DISCORD_EVENT_JOIN };
+
+        // a join with no secret is nothing to join, so it is dropped rather than queued empty.
+        if (!_nya_discord_parse_text(nya_object_get(data, "secret"), queued.secret, sizeof(queued.secret))) {
+            nya_log_warn("Discord: an ACTIVITY_JOIN arrived without a usable secret; ignoring it.");
+            return;
+        }
+
+        _nya_discord_event_push(queued);
+        return;
+    }
+
+    if (nya_string_equals(event, _NYA_DISCORD_EVENT_ACTIVITY_JOIN_REQUEST)) {
+        if (data == nullptr) return;
+
+        NYA_Value* user = nya_object_get(data, "user");
+        if (user == nullptr || user->type != NYA_TYPE_OBJECT) return;
+
+        NYA_DiscordEvent queued = { .kind = NYA_DISCORD_EVENT_JOIN_REQUEST };
+
+        // without an id there is nothing to answer, so the request is unanswerable and dropped.
+        if (!_nya_discord_parse_user_id(nya_object_get(&user->as_object, "id"), queued.user_id, sizeof(queued.user_id))) {
+            nya_log_warn("Discord: an ACTIVITY_JOIN_REQUEST arrived without a usable user id; ignoring it.");
+            return;
+        }
+
+        // the name is decoration: a request from somebody whose display name this build cannot render is
+        // still a request, and the menu falls back to the id.
+        if (!_nya_discord_parse_text(nya_object_get(&user->as_object, "global_name"), queued.user_name, sizeof(queued.user_name))) {
+            (void)_nya_discord_parse_text(nya_object_get(&user->as_object, "username"), queued.user_name, sizeof(queued.user_name));
+        }
+
+        _nya_discord_event_push(queued);
+        return;
+    }
+}
 
 void _nya_discord_flush_activity(void) {
     if (!_NYA_DISCORD.has_pending) return;
@@ -507,7 +762,24 @@ void _nya_discord_handle_frame(u32 opcode, const u8* payload, u32 length) {
 
     NYA_Value* event = nya_object_get(root, "evt");
     if (event == nullptr || event->type != NYA_TYPE_STRING) return;
-    if (!nya_string_equals(event->as_string, "READY")) return;
+
+    NYA_Value*  data_value = nya_object_get(root, "data");
+    NYA_Object* data       = data_value != nullptr && data_value->type == NYA_TYPE_OBJECT ? &data_value->as_object : nullptr;
+
+    // the client's own errors, which arrive as a frame like any other. logged, never acted on: a refused
+    // SUBSCRIBE means the feature is off for this session, not that the connection is broken.
+    if (nya_string_equals(event->as_string, "ERROR")) {
+        NYA_Value* message = data == nullptr ? nullptr : nya_object_get(data, "message");
+
+        nya_log_warn("Discord refused a command: %s", message != nullptr && message->type == NYA_TYPE_STRING ? message->as_string : "(no reason given)");
+        return;
+    }
+
+    if (!nya_string_equals(event->as_string, "READY")) {
+        // everything after the handshake: a join, or a friend asking to join.
+        _nya_discord_handle_event(event->as_string, data);
+        return;
+    }
 
     _NYA_DISCORD.status = NYA_DISCORD_STATUS_CONNECTED;
 
@@ -518,10 +790,18 @@ void _nya_discord_handle_frame(u32 opcode, const u8* payload, u32 length) {
     _NYA_DISCORD.has_sent       = false;
     _NYA_DISCORD.last_update_ms = 0;
 
-    NYA_Value* data = nya_object_get(root, "data");
-    if (data == nullptr || data->type != NYA_TYPE_OBJECT) return;
+    // and where it re-subscribes: the client forgets a subscription with the connection, so a Discord
+    // restart mid-session would otherwise leave the game connected and permanently deaf.
+    _NYA_DISCORD.events_dropped = 0;
+    _nya_discord_subscribe(_NYA_DISCORD_EVENT_ACTIVITY_JOIN);
 
-    NYA_Value* user = nya_object_get(&data->as_object, "user");
+    // the second only if the first did not take the connection down with it.
+    if (_NYA_DISCORD.status != NYA_DISCORD_STATUS_CONNECTED) return;
+    _nya_discord_subscribe(_NYA_DISCORD_EVENT_ACTIVITY_JOIN_REQUEST);
+
+    if (data == nullptr) return;
+
+    NYA_Value* user = nya_object_get(data, "user");
     if (user == nullptr || user->type != NYA_TYPE_OBJECT) return;
 
     // `username`, not `global_name`, which is null for accounts without a display name.
@@ -700,6 +980,25 @@ void _nya_discord_disconnect(void) {
 
     _NYA_DISCORD.read_length  = 0;
     _NYA_DISCORD.user_name[0] = '\0';
+
+    /*
+     * Unanswered join requests go, accepted joins stay.
+     */
+    // a request is a live conversation with a client that is no longer there: replying to it would be
+    // refused and the asker has already been told nothing happened. A join is just a secret, and the
+    // player asked for it, so it survives to be acted on.
+    u32 kept = 0;
+
+    for (u32 i = 0; i < _NYA_DISCORD.event_count; i++) {
+        if (_NYA_DISCORD.events[i].kind == NYA_DISCORD_EVENT_JOIN_REQUEST) continue;
+
+        _NYA_DISCORD.events[kept] = _NYA_DISCORD.events[i];
+        kept++;
+    }
+
+    for (u32 i = kept; i < _NYA_DISCORD.event_count; i++) _NYA_DISCORD.events[i] = (NYA_DiscordEvent){ 0 };
+
+    _NYA_DISCORD.event_count = kept;
 
     // OFF means deinit was called; a dropped connection retries.
     if (_NYA_DISCORD.status == NYA_DISCORD_STATUS_OFF) return;
