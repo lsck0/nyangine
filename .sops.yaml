@@ -1,0 +1,19 @@
+# Which key encrypts what. sops reads this from the repository root, so `sops secrets/<file>` needs no
+# arguments and nobody can encrypt a secret to the wrong recipient by forgetting one.
+#
+# Replace the fingerprint below with your own before the first real secret goes in. See secrets/README.md.
+creation_rules:
+  # Binary secrets — a signing certificate, a keystore — as one base64 blob under `data`. sops has no
+  # structure to walk in a binary file, so the whole thing is the value.
+  - path_regex: ^secrets/.*\.(pfx|p12|jks|keystore|bin)$
+    input_type: binary
+    output_type: binary
+    pgp: &recipients >-
+      0000000000000000000000000000000000000000
+
+  # Everything else: yaml, json, env, dotenv. Keys stay in the clear and only values are encrypted, so a
+  # diff shows which secret changed without showing what it changed to.
+  - path_regex: ^secrets/.*$
+    # The comments in a committed secrets file are the documentation for it, so they are left readable.
+    unencrypted_regex: ^(_comment|description)$
+    pgp: *recipients

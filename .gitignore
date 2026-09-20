@@ -79,3 +79,17 @@ tests/**/test_*
 
 # Objects the split compile and link rules write, see OBJECT_DIRECTORY in src/build/flags.h.
 /.objects/
+
+# Plaintext secrets.
+#
+# Everything under secrets/ is committed *encrypted*, so the rule is inverted there: refuse the key
+# and certificate extensions outright, and let the .enc and .yaml sops produces through. This is a
+# backstop and not the check that matters; see secrets/README.md.
+secrets/**/*.pfx
+secrets/**/*.p12
+secrets/**/*.key
+secrets/**/*.pem
+secrets/**/*.jks
+secrets/**/*.keystore
+!secrets/**/*.enc
+!secrets/**/*.example

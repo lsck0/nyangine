@@ -21,6 +21,17 @@
  * (FLAGS_SHIPPING sets NYA_ASSET_PREFER_BLOB), so shipping them again beside it would ship them twice.
  * The rule is "assets/ when it is not bundled", and today it always is.
  *
+ * What that does and does not buy, since it is easy to read as more than it is. Modification is
+ * covered: _nya_asset_load_raw_from_blob verifies every entry against a *keyed* hash on first load and
+ * calls nya_integrity_fail, so an edited asset stops the game rather than loading. Extraction is not
+ * covered at all: the entries are LZ4 compressed, not encrypted, and NYA_ASSET_BLOB_HEADER carries each
+ * one's original path and size in plaintext, so listing and unpacking the lot is a short script.
+ * Encrypting them is a real change and not this file's to make, so it is written down rather than
+ * attempted: monocypher is vendored and linked into every target, so XChaCha20-Poly1305 with a per
+ * entry nonce would replace the siphash MAC with an AEAD tag and cost one pass over the bytes. The
+ * honest part is the key, which would have to ship inside the binary that reads it. That is
+ * obfuscation, not secrecy, and it should be chosen deliberately with that said out loud.
+ *
  * Beside the directories sit the archives the release publishes and one SHA256SUMS over them, because a
  * package manifest needs a checksum of the file a user will actually download and a directory has none.
  *
