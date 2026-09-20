@@ -10,4 +10,8 @@
 
 #ifdef NYA_TESTING
 #include "nyangine/testing/testing_property.h"
+#include "nyangine/testing/testing_simulation.h"
+/**/
+#include "nyangine/testing/testing_actions.h"
+#include "nyangine/testing/testing_session.h"
 #endif

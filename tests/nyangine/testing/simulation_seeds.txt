@@ -1,0 +1,13 @@
+# Seeds that have failed at least once, replayed by test_simulation on every run.
+#
+# A seed goes in here the moment a simulation finds something with it, and never comes out: a seed is
+# eight bytes and a regression that can reproduce itself is worth more than the line it costs. The
+# comment after each one says what it found, so a line whose reason is gone can be read and kept
+# deliberately rather than deleted by somebody guessing.
+#
+# One seed per line, hexadecimal, with an optional "# what it found" after it.
+
+0x0000000000000001  # the floor: the simplest run there is, and the first thing to break when the action set changes
+0x6E79616E67696E65  # a long mixed run over every action and fault
+0x00000000DEADBEEF  # spawn-heavy, reaches the entity ceiling and keeps going
+0xFFFFFFFFFFFFFFFF  # the opposite corner of the seed space from 1

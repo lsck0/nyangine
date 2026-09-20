@@ -21,6 +21,9 @@ NYA_INTERNAL void _nya_app_handle_shutdown_signal(NYA_Signal signal);
 /** Samples the clock once for the frame and books the time since the last one against the update debt. */
 NYA_INTERNAL void _nya_app_advance_frame_clock(void);
 
+/** Monotonic nanoseconds from whichever clock is installed. The one place the loop reads time. */
+NYA_INTERNAL u64 _nya_app_now_ns(void);
+
 /** Runs the fixed timestep update until the debt is paid off. */
 NYA_INTERNAL void _nya_app_update(void);
 
@@ -312,7 +315,24 @@ unwind:
 
 u64 nya_app_uptime_ns(void) {
     NYA_App* app = nya_app_get();
-    return nya_clock_get_monotonic_ns() - app->frame_stats.started_ns;
+    return _nya_app_now_ns() - app->frame_stats.started_ns;
+}
+
+void nya_app_time_source_set(NYA_AppTimeSource source) {
+    NYA_App* app = nya_app_get();
+
+    u64 now = source.now_ns != nullptr ? source.now_ns() : nya_clock_get_monotonic_ns();
+
+    // the next frame's elapsed time is this clock's reading minus the previous frame's start, which
+    // the outgoing clock wrote. A source starting behind that makes the unsigned subtraction wrap and
+    // the loop believes it is six hundred years behind.
+    nya_assert(now >= app->frame_stats.prev_frame_time_ns, "a time source must not start behind the frame the last one ended");
+
+    app->time_source = source;
+}
+
+NYA_AppTimeSource nya_app_time_source(void) {
+    return nya_app_get()->time_source;
 }
 
 f32 nya_app_tick_alpha(void) {
@@ -424,7 +444,7 @@ void nya_app_run(void) {
         _nya_app_render();
 
         {
-            app->frame_stats.frame_end_time_ns  = nya_clock_get_monotonic_ns();
+            app->frame_stats.frame_end_time_ns  = _nya_app_now_ns();
             app->frame_stats.prev_frame_time_ns = app->frame_stats.frame_start_time_ns;
             app->frame_stats.fps                = 1.0F / (f32)nya_time_ns_to_s(app->frame_stats.elapsed_ns);
 
@@ -465,6 +485,10 @@ void nya_app_run(void) {
             floor_ns = app->frame_stats.min_frame_time_ns;
         }
 
+        // a simulated clock never earns a sleep: its frames take no time at all, so every one of them
+        // would sleep the whole frame budget and the session would run at the frame rate limit.
+        if (app->time_source.never_sleep) floor_ns = 0;
+
         if (floor_ns > 0 && app->frame_stats.work_ns < floor_ns) {
             app->frame_stats.sleep_ns = floor_ns - app->frame_stats.work_ns;
             SDL_DelayNS(app->frame_stats.sleep_ns);
@@ -472,17 +496,29 @@ void nya_app_run(void) {
     }
 }
 
+u64 _nya_app_now_ns(void) {
+    NYA_App* app = &_NYA_APP_INSTANCE;
+
+    // read straight off the instance rather than through nya_app_get: this runs before the app is
+    // initialized, from nya_app_uptime_ns in the startup log line.
+    if (app->time_source.now_ns != nullptr) return app->time_source.now_ns();
+
+    return nya_clock_get_monotonic_ns();
+}
+
 void _nya_app_advance_frame_clock(void) {
     NYA_App* app = nya_app_get();
 
     app->frame_stats.uptime_ns            = nya_app_uptime_ns();
     app->frame_stats.uptime_s             = (f32)nya_time_ns_to_s(app->frame_stats.uptime_ns);
-    app->frame_stats.frame_start_time_ns  = nya_clock_get_monotonic_ns();
+    app->frame_stats.frame_start_time_ns  = _nya_app_now_ns();
     app->frame_stats.elapsed_ns           = app->frame_stats.frame_start_time_ns - app->frame_stats.prev_frame_time_ns;
     app->frame_stats.time_behind_ns      += (s64)app->frame_stats.elapsed_ns;
 
     // unpaid debt is dropped; carrying it turns one slow frame into permanent catch-up.
-    s64 max_debt_ns = (s64)app->options.time_step_ns * _NYA_APP_MAX_CATCH_UP_TICKS;
+    u32 catch_up_ticks = app->time_source.catch_up_ticks_max > 0 ? app->time_source.catch_up_ticks_max : _NYA_APP_MAX_CATCH_UP_TICKS;
+
+    s64 max_debt_ns = (s64)app->options.time_step_ns * catch_up_ticks;
     if (app->frame_stats.time_behind_ns > max_debt_ns) app->frame_stats.time_behind_ns = max_debt_ns;
 }
 
@@ -649,7 +685,7 @@ void _nya_app_frame_step(b8 live_resize) {
 
     // the outer loop's end-of-frame bookkeeping, without the allocator reset. otherwise the whole drag arrives as
     // one delta and the fixed step catches up in a burst.
-    app->frame_stats.frame_end_time_ns  = nya_clock_get_monotonic_ns();
+    app->frame_stats.frame_end_time_ns  = _nya_app_now_ns();
     app->frame_stats.prev_frame_time_ns = app->frame_stats.frame_start_time_ns;
     if (app->frame_stats.elapsed_ns > 0) app->frame_stats.fps = 1.0F / (f32)nya_time_ns_to_s(app->frame_stats.elapsed_ns);
 

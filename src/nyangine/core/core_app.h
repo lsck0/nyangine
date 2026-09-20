@@ -26,8 +26,9 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-typedef struct NYA_App        NYA_App;
-typedef struct NYA_AppOptions NYA_AppOptions;
+typedef struct NYA_App           NYA_App;
+typedef struct NYA_AppOptions    NYA_AppOptions;
+typedef struct NYA_AppTimeSource NYA_AppTimeSource;
 typedef struct NYA_FrameStats NYA_FrameStats;
 
 #define _NYA_APP_DEFAULT_OPTIONS                                                                                                             \
@@ -107,6 +108,39 @@ struct NYA_FrameStats {
     s64 time_behind_ns;
 };
 
+/**
+ * Where the frame loop reads time, and whether it may sleep for the frame rate limit.
+ *
+ * The one seam through which the loop's dependency on the wall clock is replaced. A simulation
+ * installs a clock it advances itself, so a session runs as fast as the CPU allows and every frame
+ * books exactly one tick of debt, which is what makes a seeded session replay the same way on a fast
+ * machine and a slow one. Zeroed is the real clock and the real limiter, which is what a game runs
+ * with and what costs it nothing.
+ *
+ * See nya_app_time_source_set, and testing_session.h for the harness that installs one.
+ * */
+struct NYA_AppTimeSource {
+    /**
+     * Monotonic nanoseconds. Null means nya_clock_get_monotonic_ns, the real one.
+     *
+     * It must never go backwards, exactly as the real clock must not: a frame's elapsed time is the
+     * unsigned difference of two readings, and one reading behind the last is an enormous delta.
+     * */
+    u64 (*now_ns)(void);
+
+    /**
+     * Ticks the fixed step may catch up in one frame. Zero means the loop's own default.
+     *
+     * A simulation sets this to one: with a clock that advances by exactly one step per frame there is
+     * never more than one tick of debt, and a cap of one turns a mistake about that into a visible
+     * stall rather than a burst of ticks nobody asked for.
+     * */
+    u32 catch_up_ticks_max;
+
+    /** True to skip the frame rate limiter's sleep. A simulated clock never earns one anyway. */
+    b8 never_sleep;
+};
+
 struct NYA_App {
     b8 initialized;
     b8 should_quit;
@@ -129,6 +163,9 @@ struct NYA_App {
     NYA_Arena* live_resize_allocator;
 
     NYA_FrameStats frame_stats;
+
+    /** Zeroed is the real clock and the real frame rate limiter. See NYA_AppTimeSource. */
+    NYA_AppTimeSource time_source;
 
     NYA_AssetSystem    asset_system;
     NYA_CallbackSystem callback_system;
@@ -163,6 +200,22 @@ NYA_API f64      nya_app_uptime_s(void) __attr_no_discard;
 NYA_API void     nya_app_deinit(void);
 NYA_API void     nya_app_run(void);
 NYA_API NYA_App* nya_app_get(void);
+
+/**
+ * Replaces where the frame loop reads time. A zeroed source restores the real clock and the limiter.
+ *
+ * ```c
+ * nya_app_time_source_set((NYA_AppTimeSource){ .now_ns = simulated_clock, .catch_up_ticks_max = 1, .never_sleep = true });
+ * nya_app_run();
+ * nya_app_time_source_set((NYA_AppTimeSource){ 0 });
+ * ```
+ *
+ * A source whose clock starts behind the frame the previous one ended is a programmer error and is
+ * asserted: the next frame's elapsed time is this clock's reading minus the previous frame's start,
+ * and an unsigned subtraction that wraps reads as centuries of debt.
+ * */
+NYA_API void              nya_app_time_source_set(NYA_AppTimeSource source);
+NYA_API NYA_AppTimeSource nya_app_time_source(void) __attr_no_discard;
 
 /**
  * How far this frame sits between the last update tick and the next, in [0, 1]. Anything that moves per tick draws
