@@ -719,6 +719,9 @@ NYA_API NYA_Render3DShadowFit nya_render3d_shadow(NYA_Window* window) __attr_no_
  * */
 NYA_API void nya_render3d_shadow_cast_set(NYA_Window* window, b8 casts_shadow);
 
+/** Whether what is drawn now casts a shadow, so a caller can restore what it found. */
+NYA_API b8 nya_render3d_shadow_casts(NYA_Window* window) __attr_no_discard;
+
 /**
  * The light's own axes: where it points, and an up that is not parallel to it. The direction is followed exactly,
  * so a turning sun moves the shadow map smoothly rather than in steps.

@@ -232,6 +232,8 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
      * Systems that opt out stay out of the shadow cascades: they have no alpha, so a translucent billboard would cast
      * a solid square. See NYA_ParticleSystem.casts_shadow.
      */
+    b8 casts_shadow_before = nya_render3d_shadow_casts(window);
+
     if (system->space == NYA_PARTICLE_SPACE_3D) nya_render3d_shadow_cast_set(window, system->casts_shadow);
 
     /* The system's texture, resolved once. */
@@ -288,8 +290,8 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
         nya_render2d_rect_rotated(window, center, (f32x2){ size, size }, particle->rotation, color);
     }
 
-    // back on, so what the scene draws next casts as it would have.
-    if (system->space == NYA_PARTICLE_SPACE_3D) nya_render3d_shadow_cast_set(window, true);
+    // back to what the scene had, not to on: a scene that had casting off keeps it off.
+    if (system->space == NYA_PARTICLE_SPACE_3D) nya_render3d_shadow_cast_set(window, casts_shadow_before);
 }
 
 void nya_particles_clear(NYA_ParticleSystem* system) {

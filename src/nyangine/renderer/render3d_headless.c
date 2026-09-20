@@ -82,6 +82,12 @@ void nya_render3d_shadow_cast_set(NYA_Window* window, b8 casts_shadow) {
     window->render_system.mesh_batch.casts_shadow = casts_shadow;
 }
 
+b8 nya_render3d_shadow_casts(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.mesh_batch.casts_shadow;
+}
+
 void _nya_render3d_shadow_release(NYA_Window* window) {
     nya_assert(window != nullptr);
 }
