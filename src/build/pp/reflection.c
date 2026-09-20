@@ -59,6 +59,14 @@ typedef struct {
     _NYA_ReflectTypeDecl* types;
     u32                   type_count;
 
+    /**
+     * Where the engine's types end and the game's begin. The engine tree is scanned first, so
+     * `types[0 .. engine_type_count)` is what goes into the engine's generated pair and the rest into
+     * the game's. A field of an engine type may only resolve against the first part; see the `limit`
+     * argument threaded through the emitters.
+     * */
+    u32 engine_type_count;
+
     NYA_Arena* arena;
 } _NYA_ReflectSet;
 
@@ -70,13 +78,20 @@ NYA_INTERNAL b8   _nya_reflect_comment_has(const NYA_Lexer* lexer, u32 index, NY
 NYA_INTERNAL b8   _nya_reflect_annotation_argument(const NYA_Lexer* lexer, u32 index, NYA_ConstCString marker, OUT char* out, u64 capacity);
 NYA_INTERNAL NYA_ConstCString _nya_reflect_hint_from_comment(const NYA_Lexer* lexer, u32 index);
 NYA_INTERNAL NYA_ConstCString _nya_reflect_builtin_symbol(NYA_ConstCString spelling);
-NYA_INTERNAL b8   _nya_reflect_is_known(const _NYA_ReflectSet* set, NYA_ConstCString name);
+
+/** Whether `name` is annotated within the first `limit` types. See _NYA_ReflectSet.engine_type_count. */
+NYA_INTERNAL b8   _nya_reflect_is_known(const _NYA_ReflectSet* set, NYA_ConstCString name, u32 limit);
 NYA_INTERNAL s32  _nya_reflect_compare_paths(const NYA_String* a, const NYA_String* b);
+NYA_INTERNAL void _nya_reflect_emit_builtin_declarations(NYA_String* out);
 NYA_INTERNAL void _nya_reflect_emit_builtins(NYA_String* out);
-NYA_INTERNAL void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _NYA_ReflectTypeDecl* decl);
+NYA_INTERNAL void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _NYA_ReflectTypeDecl* decl, u32 limit);
 NYA_INTERNAL u32  _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexer, u32 start, NYA_ConstCString path);
 NYA_INTERNAL u32  _nya_reflect_parse_variants(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexer, u32 start, NYA_ConstCString path);
-NYA_INTERNAL NYA_ConstCString _nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NYA_ReflectFieldDecl* field, OUT char* buffer, u64 capacity);
+NYA_INTERNAL NYA_ConstCString
+_nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NYA_ReflectFieldDecl* field, u32 limit, OUT char* buffer, u64 capacity);
+
+/** Walks one tree, sorted, and scans every header in it into `set`. */
+NYA_INTERNAL void _nya_reflect_scan_tree(_NYA_ReflectSet* set, NYA_ConstCString directory);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -91,7 +106,9 @@ void nya_reflection_generate(void) {
         "./src/build/pp/reflection.c",
         nullptr,
     };
-    NYA_ConstCString outputs[] = { NYA_REFLECT_OUTPUT_HEADER, NYA_REFLECT_OUTPUT_SOURCE, nullptr };
+    NYA_ConstCString outputs[] = {
+        NYA_REFLECT_OUTPUT_ENGINE_HEADER, NYA_REFLECT_OUTPUT_ENGINE_SOURCE, NYA_REFLECT_OUTPUT_HEADER, NYA_REFLECT_OUTPUT_SOURCE, nullptr,
+    };
     if (nya_pp_is_current("generate_reflection", inputs, outputs)) return;
 
     NYA_Arena* arena = nya_arena_create(.name = "reflection_generate");
@@ -104,63 +121,110 @@ void nya_reflection_generate(void) {
 
     nya_memset(set.types, 0, sizeof(_NYA_ReflectTypeDecl) * NYA_REFLECT_MAX_TYPES);
 
-    /*
-     * Sources are collected and sorted before any of them is read.
-     */
-    NYA_ArrayᐸNYA_Stringᐳ* sources = nya_array_create(arena, NYA_String);
+    // The engine tree first, so its types land in the first part of the set and a game type can never
+    // end up as a field of an engine type's description. See _NYA_ReflectSet.engine_type_count.
+    _nya_reflect_scan_tree(&set, NYA_REFLECT_ENGINE_DIRECTORY);
+    set.engine_type_count = set.type_count;
 
-    NYA_EXPECT(nya_filesystem_walk(arena, NYA_REFLECT_ENGINE_DIRECTORY, _nya_reflect_collect_sources, sources));
-    NYA_EXPECT(nya_filesystem_walk(arena, NYA_REFLECT_GAME_DIRECTORY, _nya_reflect_collect_sources, sources));
+    _nya_reflect_scan_tree(&set, NYA_REFLECT_GAME_DIRECTORY);
 
-    nya_array_sort(sources, _nya_reflect_compare_paths);
+    nya_log_info("nya_reflection_generate: %u annotated types, %u of them the engine's.", set.type_count, set.engine_type_count);
 
-    nya_array_foreach (sources, source) {
-        _nya_reflect_scan_file(&set, nya_string_to_cstring(arena, source));
-    }
+    // ── the engine header ───────────────────────────────────────────────────────────────────────
+    NYA_String* engine_header = nya_string_create(arena);
 
-    nya_log_info("nya_reflection_generate: %u annotated types across %llu headers.", set.type_count,
-             (unsigned long long)sources->length);
-
-    // ── the header ──────────────────────────────────────────────────────────────────────────────
-    NYA_String* header = nya_string_create(arena);
-
-    nya_string_extend(header, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n#pragma once\n\n");
-    nya_string_extend(header, "#include \"nyangine/base/base_reflection.h\"\n\n");
-    nya_string_extend(header,
+    nya_string_extend(engine_header, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n#pragma once\n\n");
+    nya_string_extend(engine_header, "#include \"nyangine/base/base_reflection.h\"\n\n");
+    nya_string_extend(engine_header,
                       "/*\n"
-                      " * Generated by src/build/reflection.c from the @reflect annotations in the tree.\n"
+                      " * Generated by src/build/pp/reflection.c from the @reflect annotations under src/nyangine.\n"
                       " *\n"
                       " * Reach one of these through nya_reflect_of(TypeName) rather than by naming the symbol: the\n"
                       " * macro is what makes a misspelling a link error instead of a null at runtime.\n"
                       " */\n\n");
 
-    for (u32 i = 0; i < set.type_count; i++) {
+    _nya_reflect_emit_builtin_declarations(engine_header);
+
+    for (u32 i = 0; i < set.engine_type_count; i++) {
+        nya_string_extend_sprintf(engine_header, "extern const NYA_TypeReflection _NYA_REFLECT_%s;\n", set.types[i].name);
+    }
+
+    nya_string_extend(engine_header, "\n/** Every annotated engine type. The game's are in generated/reflection.h. */\n");
+    nya_string_extend_sprintf(engine_header, "#define NYA_REFLECT_ENGINE_TYPE_COUNT %u\n\n", set.engine_type_count);
+    nya_string_extend(engine_header, "extern const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT];\n");
+
+    NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_ENGINE_HEADER, engine_header), "while writing the generated engine reflection header");
+
+    // ── the engine source ───────────────────────────────────────────────────────────────────────
+    NYA_String* engine_source = nya_string_create(arena);
+
+    nya_string_extend(engine_source, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
+    nya_string_extend(engine_source, "#include \"nyangine/nyangine.h\"\n\n");
+    // Its own header too, so every symbol below is declared before it is defined whatever order the
+    // unity build happens to reach this file in.
+    nya_string_extend(engine_source, "#include \"generated/reflection_engine.h\"\n\n");
+    nya_string_extend(engine_source,
+                      "/*\n"
+                      " * Every size and offset below is an expression rather than a number, so the compiler that is\n"
+                      " * already compiling these structs is what computes the layout. See src/build/pp/reflection.h.\n"
+                      " */\n\n");
+
+    // Here rather than in the game's file: the primitives are shared by both, and a definition in each
+    // would be a duplicate symbol the moment the launcher compiles them into one translation unit.
+    _nya_reflect_emit_builtins(engine_source);
+
+    for (u32 i = 0; i < set.engine_type_count; i++) {
+        _nya_reflect_emit_type(&set, engine_source, &set.types[i], set.engine_type_count);
+    }
+
+    nya_string_extend(engine_source, "const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT] = {\n");
+    for (u32 i = 0; i < set.engine_type_count; i++) {
+        nya_string_extend_sprintf(engine_source, "    &_NYA_REFLECT_%s,\n", set.types[i].name);
+    }
+    nya_string_extend(engine_source, "};\n");
+
+    NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_ENGINE_SOURCE, engine_source), "while writing the generated engine reflection source");
+
+    // ── the game header ─────────────────────────────────────────────────────────────────────────
+    NYA_String* header = nya_string_create(arena);
+
+    nya_string_extend(header, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n#pragma once\n\n");
+    nya_string_extend(header, "#include \"generated/reflection_engine.h\"\n\n");
+    nya_string_extend(header,
+                      "/*\n"
+                      " * Generated by src/build/pp/reflection.c from the @reflect annotations under src/gnyame.\n"
+                      " *\n"
+                      " * Reach one of these through nya_reflect_of(TypeName) rather than by naming the symbol: the\n"
+                      " * macro is what makes a misspelling a link error instead of a null at runtime.\n"
+                      " */\n\n");
+
+    for (u32 i = set.engine_type_count; i < set.type_count; i++) {
         nya_string_extend_sprintf(header, "extern const NYA_TypeReflection _NYA_REFLECT_%s;\n", set.types[i].name);
     }
 
-    nya_string_extend(header, "\n/** Every annotated type, for an editor that needs to enumerate them. */\n");
-    nya_string_extend_sprintf(header, "#define NYA_REFLECT_TYPE_COUNT %u\n\n", set.type_count);
+    nya_string_extend(header, "\n/** Every annotated type, the engine's and the game's, for an editor that needs to enumerate them. */\n");
+    nya_string_extend_sprintf(header, "#define NYA_REFLECT_GAME_TYPE_COUNT %u\n", set.type_count - set.engine_type_count);
+    nya_string_extend(header, "#define NYA_REFLECT_TYPE_COUNT      (NYA_REFLECT_ENGINE_TYPE_COUNT + NYA_REFLECT_GAME_TYPE_COUNT)\n\n");
     nya_string_extend(header, "extern const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT];\n\n");
     nya_string_extend(header, "/** The type called `name`, or null. Linear: this is an editor path, not a hot one. */\n");
     nya_string_extend(header, "NYA_API const NYA_TypeReflection* nya_reflect_find(NYA_ConstCString name) __attr_no_discard;\n");
 
     NYA_EXPECT(nya_file_write(NYA_REFLECT_OUTPUT_HEADER, header), "while writing the generated reflection header");
 
-    // ── the source ──────────────────────────────────────────────────────────────────────────────
+    // ── the game source ─────────────────────────────────────────────────────────────────────────
     NYA_String* out = nya_string_create(arena);
 
     nya_string_extend(out, "/* THIS FILE IS GENERATED. DO NYAT TOUCH. */\n\n");
     nya_string_extend(out, "#include \"nyangine/nyangine.h\"\n\n");
+    nya_string_extend(out, "#include \"generated/reflection.h\"\n\n");
     nya_string_extend(out,
                       "/*\n"
                       " * Every size and offset below is an expression rather than a number, so the compiler that is\n"
-                      " * already compiling these structs is what computes the layout. See src/build/reflection.h.\n"
+                      " * already compiling these structs is what computes the layout. See src/build/pp/reflection.h.\n"
                       " */\n\n");
 
-    _nya_reflect_emit_builtins(out);
-
-    for (u32 i = 0; i < set.type_count; i++) {
-        _nya_reflect_emit_type(&set, out, &set.types[i]);
+    for (u32 i = set.engine_type_count; i < set.type_count; i++) {
+        _nya_reflect_emit_type(&set, out, &set.types[i], set.type_count);
     }
 
     // ── the table and the lookup ────────────────────────────────────────────────────────────────
@@ -358,26 +422,66 @@ NYA_ConstCString _nya_reflect_builtin_symbol(NYA_ConstCString spelling) {
     return nullptr;
 }
 
-b8 _nya_reflect_is_known(const _NYA_ReflectSet* set, NYA_ConstCString name) {
-    for (u32 i = 0; i < set->type_count; i++) {
+b8 _nya_reflect_is_known(const _NYA_ReflectSet* set, NYA_ConstCString name, u32 limit) {
+    for (u32 i = 0; i < limit; i++) {
         if (nya_string_equals(set->types[i].name, name)) return true;
     }
 
     return false;
 }
 
+void _nya_reflect_scan_tree(_NYA_ReflectSet* set, NYA_ConstCString directory) {
+    /*
+     * Sources are collected and sorted before any of them is read, so the generated file's order is
+     * the tree's rather than the filesystem's.
+     */
+    NYA_ArrayᐸNYA_Stringᐳ* sources = nya_array_create(set->arena, NYA_String);
+
+    NYA_EXPECT(nya_filesystem_walk(set->arena, directory, _nya_reflect_collect_sources, sources));
+
+    nya_array_sort(sources, _nya_reflect_compare_paths);
+
+    nya_array_foreach (sources, source) {
+        _nya_reflect_scan_file(set, nya_string_to_cstring(set->arena, source));
+    }
+}
+
+/**
+ * The primitives that get a reflection of their own. One table, read by both the declaration emitter
+ * and the definition emitter, so the two cannot drift apart.
+ * */
+NYA_INTERNAL const struct {
+    NYA_ConstCString name;
+    NYA_ConstCString primitive;
+} PRIMITIVES[] = {
+    { "b8", "NYA_TYPE_B8" },     { "b16", "NYA_TYPE_B16" }, { "b32", "NYA_TYPE_B32" }, { "b64", "NYA_TYPE_B64" },
+    { "u8", "NYA_TYPE_U8" },     { "u16", "NYA_TYPE_U16" }, { "u32", "NYA_TYPE_U32" }, { "u64", "NYA_TYPE_U64" },
+    { "s8", "NYA_TYPE_S8" },     { "s16", "NYA_TYPE_S16" }, { "s32", "NYA_TYPE_S32" }, { "s64", "NYA_TYPE_S64" },
+    { "f32", "NYA_TYPE_F32" },   { "f64", "NYA_TYPE_F64" },  { "char", "NYA_TYPE_CHAR" },
+};
+
+/**
+ * The externs for the builtins, so the game's generated file can name the same ones the engine's file
+ * defines rather than defining a second copy of each.
+ * */
+void _nya_reflect_emit_builtin_declarations(NYA_String* out) {
+    nya_string_extend(out, "/* ── primitives, defined in generated/reflection_engine.c ── */\n\n");
+
+    for (u64 i = 0; i < sizeof(PRIMITIVES) / sizeof(PRIMITIVES[0]); i++) {
+        nya_string_extend_sprintf(out, "extern const NYA_TypeReflection _NYA_REFLECT_%s;\n", PRIMITIVES[i].name);
+    }
+
+    nya_string_extend(out, "extern const NYA_TypeReflection _NYA_REFLECT_string;\n\n");
+
+    for (u32 count = 2; count <= 4; count++) {
+        nya_string_extend_sprintf(out, "extern const NYA_TypeReflection _NYA_REFLECT_f32x%u;\n", count);
+    }
+
+    nya_string_extend(out, "\n/* ── annotated types ── */\n\n");
+}
+
 /** The fixed prelude: one reflection per primitive the tree actually uses, plus the vectors. */
 void _nya_reflect_emit_builtins(NYA_String* out) {
-    static const struct {
-        NYA_ConstCString name;
-        NYA_ConstCString primitive;
-    } PRIMITIVES[] = {
-        { "b8", "NYA_TYPE_B8" },     { "b16", "NYA_TYPE_B16" }, { "b32", "NYA_TYPE_B32" }, { "b64", "NYA_TYPE_B64" },
-        { "u8", "NYA_TYPE_U8" },     { "u16", "NYA_TYPE_U16" }, { "u32", "NYA_TYPE_U32" }, { "u64", "NYA_TYPE_U64" },
-        { "s8", "NYA_TYPE_S8" },     { "s16", "NYA_TYPE_S16" }, { "s32", "NYA_TYPE_S32" }, { "s64", "NYA_TYPE_S64" },
-        { "f32", "NYA_TYPE_F32" },   { "f64", "NYA_TYPE_F64" },  { "char", "NYA_TYPE_CHAR" },
-    };
-
     nya_string_extend(out, "/* ── primitives ── */\n\n");
 
     for (u64 i = 0; i < sizeof(PRIMITIVES) / sizeof(PRIMITIVES[0]); i++) {
@@ -412,6 +516,29 @@ void _nya_reflect_emit_builtins(NYA_String* out) {
  * */
 u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexer, u32 start, NYA_ConstCString path) {
     u32 index = start;
+
+    // A bitfield has no address, so there is no offsetof to emit and nothing that could describe it.
+    // Named rather than dropped in silence; see the limits block in base_reflection.h.
+    for (u32 look = index; look < lexer->tokens->length; look++) {
+        NYA_Token token = lexer->tokens->items[look];
+
+        if (token.type == NYA_TOKEN_EOF) break;
+        if (token.type == NYA_TOKEN_SYMBOL && token.symbol == ';') break;
+        if (!(token.type == NYA_TOKEN_SYMBOL && token.symbol == ':')) continue;
+
+        nya_log_warn("%s:%u: '%s' has a bitfield member, which has no address to describe; skipped.", path, token.line_number, decl->name);
+
+        while (look < lexer->tokens->length) {
+            NYA_Token end = lexer->tokens->items[look];
+
+            if (end.type == NYA_TOKEN_EOF) return look;
+            if (end.type == NYA_TOKEN_SYMBOL && end.symbol == ';') return look + 1;
+
+            look++;
+        }
+
+        return look;
+    }
 
     // Find where the declarators begin.
     u32 first_declarator = index;
@@ -462,10 +589,23 @@ u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexe
     index = first_declarator;
 
     // Then each declarator in turn, sharing that base type.
+    u32 declarator_count = 0;
+
     while (index < lexer->tokens->length) {
         NYA_Token token = lexer->tokens->items[index];
 
         if (token.type != NYA_TOKEN_IDENT) break;
+
+        declarator_count++;
+
+        // `T *a, b;` gives a and b different types, and the star is bound to the declarator rather
+        // than to the base, which these tokens cannot tell apart from `T* a, b;`. Refused with a
+        // name rather than described wrongly; a struct written that way wants rewriting.
+        if (pointer_depth > 0 && declarator_count > 1) {
+            nya_log_warn("%s:%u: '%s' declares several names off one pointer type; only the first is described.", path,
+                         token.line_number, decl->name);
+            break;
+        }
 
         _NYA_ReflectFieldDecl field = { .pointer_depth = pointer_depth, .hint = "NYA_HINT_NONE" };
 
@@ -755,7 +895,7 @@ void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
             continue;
         }
 
-        if (_nya_reflect_is_known(set, decl.name)) {
+        if (_nya_reflect_is_known(set, decl.name, set->type_count)) {
             nya_log_warn("%s: '%s' is annotated more than once; the later one is ignored.", path, decl.name);
             continue;
         }
@@ -768,11 +908,12 @@ void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
 }
 
 /** The symbol a field's type resolves to, or null when nothing describes it. */
-NYA_ConstCString _nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NYA_ReflectFieldDecl* field, OUT char* buffer,
+NYA_ConstCString _nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NYA_ReflectFieldDecl* field, u32 limit, OUT char* buffer,
                                            u64 capacity) {
     // An explicit @enum or @flags wins: the field is an integer and only the annotation knows which
-    // enum's names belong to it.
-    if (field->enum_override[0] != '\0') {
+    // enum's names belong to it. Checked against `limit` like any other named type, so an engine
+    // struct cannot be annotated with a game enum it could never link against.
+    if (field->enum_override[0] != '\0' && _nya_reflect_is_known(set, field->enum_override, limit)) {
         (void)snprintf(buffer, capacity, "_NYA_REFLECT_%s", field->enum_override);
         return buffer;
     }
@@ -788,7 +929,7 @@ NYA_ConstCString _nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NY
     NYA_ConstCString builtin = _nya_reflect_builtin_symbol(field->type_spelling);
     if (builtin != nullptr) return builtin;
 
-    if (_nya_reflect_is_known(set, field->type_spelling)) {
+    if (_nya_reflect_is_known(set, field->type_spelling, limit)) {
         (void)snprintf(buffer, capacity, "_NYA_REFLECT_%s", field->type_spelling);
         return buffer;
     }
@@ -796,7 +937,7 @@ NYA_ConstCString _nya_reflect_field_symbol(const _NYA_ReflectSet* set, const _NY
     return nullptr;
 }
 
-void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _NYA_ReflectTypeDecl* decl) {
+void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _NYA_ReflectTypeDecl* decl, u32 limit) {
     nya_string_extend_sprintf(out, "/* %s, %s */\n\n", decl->name, decl->source_file);
 
     if (decl->kind == _NYA_REFLECT_DECL_ENUM) {
@@ -844,7 +985,7 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
 
         char buffer[NYA_REFLECT_MAX_NAME * 2] = { 0 };
 
-        NYA_ConstCString element = _nya_reflect_field_symbol(set, field, buffer, sizeof(buffer));
+        NYA_ConstCString element = _nya_reflect_field_symbol(set, field, limit, buffer, sizeof(buffer));
         if (element == nullptr) continue;
 
         nya_string_extend_sprintf(out,
@@ -869,7 +1010,7 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
         NYA_ConstCString symbol                           = nullptr;
 
         if (field->array_extent[0] != '\0') {
-            NYA_ConstCString element = _nya_reflect_field_symbol(set, field, buffer, sizeof(buffer));
+            NYA_ConstCString element = _nya_reflect_field_symbol(set, field, limit, buffer, sizeof(buffer));
 
             if (element != nullptr) {
                 char array_symbol[NYA_REFLECT_MAX_NAME * 2] = { 0 };
@@ -887,7 +1028,7 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
             continue;
         }
 
-        symbol = _nya_reflect_field_symbol(set, field, buffer, sizeof(buffer));
+        symbol = _nya_reflect_field_symbol(set, field, limit, buffer, sizeof(buffer));
 
         if (symbol == nullptr) {
             // Named rather than silently dropped: a forgotten @reflect on a nested struct is the

@@ -25,9 +25,18 @@
 /** The marker. Anywhere inside a comment directly above a type declaration. */
 #define NYA_REFLECT_MARKER "@reflect"
 
-/** Where the generated pair lands. Committed, like assets.h, so a fresh clone builds. */
-#define NYA_REFLECT_OUTPUT_HEADER "./src/generated/reflection.h"
-#define NYA_REFLECT_OUTPUT_SOURCE "./src/generated/reflection.c"
+/**
+ * Where the generated files land. Committed, like assets.h, so a fresh clone builds.
+ *
+ * Two pairs rather than one, split along the same line the source tree is: the engine's types are
+ * compiled into the engine and the game's into the game. A single table would have to live in the
+ * game, and then no engine module could name its own type's description, which is exactly what
+ * core_scene.c and core_settings.c do.
+ * */
+#define NYA_REFLECT_OUTPUT_ENGINE_HEADER "./src/generated/reflection_engine.h"
+#define NYA_REFLECT_OUTPUT_ENGINE_SOURCE "./src/generated/reflection_engine.c"
+#define NYA_REFLECT_OUTPUT_HEADER        "./src/generated/reflection.h"
+#define NYA_REFLECT_OUTPUT_SOURCE        "./src/generated/reflection.c"
 
 /** Trees walked for annotations, in this order. The game's own types matter as much as the engine's. */
 #define NYA_REFLECT_ENGINE_DIRECTORY "./src/nyangine"

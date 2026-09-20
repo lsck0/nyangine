@@ -1,15 +1,67 @@
 /**
  * @file base_reflection.h
  *
+ * One generated description per annotated type, and everything generic over a struct it was not
+ * written for reads it: property panels, scene and save files, config reload, undo snapshots, debug
+ * dumps. The alternative is a per-field conversion in each consumer, which is the code that rots.
+ *
+ * The tables are `const` data emitted by src/build/pp/reflection.c from `@reflect` comments in the
+ * headers themselves. Nothing registers anything, nothing runs at startup, and the layout numbers are
+ * `sizeof` and `offsetof` expressions the compiler evaluates rather than numbers the generator
+ * guessed.
+ *
  * ```
- * NYA_Entity                       STRUCT
+ * NYA_SceneEntity                  STRUCT
  *   position   f32x3               VECTOR    -> f32   PRIMITIVE  x3
- *   visual     NYA_EntityVisual    STRUCT    -> ...
+ *   visual     NYA_SceneVisual     STRUCT    -> ...
  *     color    NYA_Color           STRUCT
  *       r      f32                 PRIMITIVE
- *   type       GNY_EntityType      ENUM      -> u32   PRIMITIVE
- *   name       NYA_ConstCString    PRIMITIVE (NYA_TYPE_STRING)
+ *   state      NYA_EntityState     ENUM      -> s32   PRIMITIVE, bitflags
+ *   name       char[64]            ARRAY     -> char  PRIMITIVE, written as text
  * ```
+ *
+ * ```c
+ * NYA_Object* document = nya_reflect_to_object(arena, nya_reflect_of(NYA_SettingsGraphics), &graphics);
+ * NYA_TRY(nya_reflect_from_object(nya_reflect_of(NYA_SettingsGraphics), &graphics, document));
+ *
+ * // Or straight to and from a file, which is the same pair with the serde layer folded in.
+ * NYA_TRY(nya_reflect_save_file(nya_reflect_of(NYA_SettingsGraphics), &graphics, path, NYA_SERDE_PRETTY));
+ * ```
+ *
+ * ─────────────────────────────────────────────────────────
+ * WHAT REFLECTION CANNOT DESCRIBE
+ * ─────────────────────────────────────────────────────────
+ *
+ * Stated here rather than discovered as a field that silently never appears in a file. The generator
+ * warns on the build's output for each of these when it meets one, naming the type and the field.
+ *
+ * - **Untagged unions.** A union without `@tag(field)` has no way to say which member is live, so
+ *   nya_reflect_to_object writes nothing for it rather than writing an arbitrary member's bytes. Add
+ *   `@tag`, or `@skip` the field and persist it by hand.
+ * - **Bitfields.** `u32 flags : 3` has no address and no `offsetof`, so no field of one is described.
+ *   Use a whole integer with `@flags(TheEnum)`.
+ * - **Pointers.** Followed for nothing but `char*`, which is a string. A pointer is an address in one
+ *   run of one process; anything a file has to name needs a name, a handle or an index instead.
+ *   `void*`, callback handles and live physics bodies are therefore `@skip` territory, and the
+ *   engine's own answer to that is a persistable projection type; see core_scene.h.
+ * - **Anything of unknown length.** `NYA_Array`, a dictionary, a `T*` plus a count: a description
+ *   carries one `element_count`, fixed at compile time, so only a real C array round trips. A list
+ *   whose length is data is the caller's to write as an array of objects; see nya_scene_to_object.
+ * - **Arrays indexed by an enum.** `f32 volumes[NYA_VOLUME_CHANNEL_COUNT]` is written as positions,
+ *   not as names, so inserting a channel silently reinterprets an old file. Where the index *is* the
+ *   meaning, use a struct with one named field per entry.
+ * - **Types the generator never saw.** A field whose type carries no `@reflect` is skipped, with a
+ *   warning naming it. Only the engine's own types describe engine types and only the game's describe
+ *   the game's; see src/build/pp/reflection.h.
+ * - **Anonymous structs and unions**, and `T *a, b;` declaring two different types in one statement.
+ *   Both are rejected with a warning rather than half described.
+ *
+ * Two further behaviours that are choices rather than limits, and are relied on:
+ *
+ * - A field the document does not mention is left alone, not zeroed. That is what lets an old save
+ *   load into a struct that has grown a field.
+ * - A string longer than the `char[N]` it loads into is truncated on a character boundary rather
+ *   than refused, since the array is the struct's own storage and running past it is not an option.
  * */
 #pragma once
 
@@ -209,3 +261,42 @@ NYA_API NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflec
  * The inverse, in place.
  * */
 NYA_API NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance, const NYA_Object* object) __attr_no_discard;
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * CHECKING A DOCUMENT BEFORE IT IS APPLIED
+ * ─────────────────────────────────────────────────────────
+ *
+ * nya_reflect_from_object skips what it cannot write, which is what keeps one bad line in a hand
+ * edited file from costing the user the rest of it. Skipping in silence is the other half of the
+ * problem, so nya_reflect_check walks the same document first and says exactly what it found.
+ *
+ * ```c
+ * static void report(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data) {
+ *     nya_log_warn("%s: '%s' is %s, expected %s; ignoring it.", (NYA_ConstCString)user_data, path, found, expected);
+ * }
+ *
+ * (void)nya_reflect_check(nya_reflect_of(NYA_SettingsGraphics), document, report, NYA_SETTINGS_FILE);
+ * NYA_TRY(nya_reflect_from_object(nya_reflect_of(NYA_SettingsGraphics), &graphics, document));
+ * ```
+ */
+
+/** Longest dotted path a report carries, terminator included. Deep enough for any described tree; a document nested past it is reported at the depth that fits. */
+#define NYA_REFLECT_PATH_MAX 256
+
+/**
+ * One problem found in a document. `path` is dotted from the root ("graphics.fov"), `found` describes
+ * what the document holds there and `expected` what the type wanted. All three are only valid for the
+ * duration of the call.
+ * */
+typedef void (*NYA_ReflectReportFn)(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data);
+
+/**
+ * Walks `object` against `type` and reports every key that names no field and every value that
+ * nya_reflect_from_object would refuse to write. Returns how many problems it found, so a caller that
+ * only wants to know whether the document is clean need not install a reporter.
+ *
+ * Reads nothing and writes nothing: this is a check over the document alone, so it can run before any
+ * instance is touched. Allocates nothing; the path is built in a NYA_REFLECT_PATH_MAX buffer.
+ * */
+NYA_API u32 nya_reflect_check(const NYA_TypeReflection* type, const NYA_Object* object, NYA_ReflectReportFn report, void* user_data);

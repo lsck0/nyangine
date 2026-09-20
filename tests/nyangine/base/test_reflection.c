@@ -50,39 +50,11 @@ typedef struct {
  * ─────────────────────────────────────────────────────────
  */
 
-static const NYA_TypeReflection _NYA_REFLECT_f32 = {
-  .name = "f32", .kind = NYA_REFLECT_PRIMITIVE, .size = sizeof(f32), .alignment = alignof(f32), .primitive = NYA_TYPE_F32,
-};
-
-static const NYA_TypeReflection _NYA_REFLECT_f64 = {
-  .name = "f64", .kind = NYA_REFLECT_PRIMITIVE, .size = sizeof(f64), .alignment = alignof(f64), .primitive = NYA_TYPE_F64,
-};
-
-static const NYA_TypeReflection _NYA_REFLECT_s32 = {
-  .name = "s32", .kind = NYA_REFLECT_PRIMITIVE, .size = sizeof(s32), .alignment = alignof(s32), .primitive = NYA_TYPE_S32,
-};
-
-__attr_maybe_unused static const NYA_TypeReflection _NYA_REFLECT_u64 = {
-  .name = "u64", .kind = NYA_REFLECT_PRIMITIVE, .size = sizeof(u64), .alignment = alignof(u64), .primitive = NYA_TYPE_U64,
-};
-
-static const NYA_TypeReflection _NYA_REFLECT_b8 = {
-  .name = "b8", .kind = NYA_REFLECT_PRIMITIVE, .size = sizeof(b8), .alignment = alignof(b8), .primitive = NYA_TYPE_B8,
-};
-
-static const NYA_TypeReflection _NYA_REFLECT_char = {
-  .name = "char", .kind = NYA_REFLECT_PRIMITIVE, .size = sizeof(char), .alignment = alignof(char), .primitive = NYA_TYPE_CHAR,
-};
-
-/** A clang extended vector: three floats in sixteen bytes. See NYA_REFLECT_VECTOR. */
-static const NYA_TypeReflection _NYA_REFLECT_f32x3 = {
-  .name          = "f32x3",
-  .kind          = NYA_REFLECT_VECTOR,
-  .size          = sizeof(f32x3),
-  .alignment     = alignof(f32x3),
-  .element       = &_NYA_REFLECT_f32,
-  .element_count = 3,
-};
+/*
+ * The primitives and the vectors are not hand written here: the engine defines exactly one of each,
+ * in generated/reflection_engine.c, and a second copy under the same name would be a different table
+ * describing the same type. Only the types this file invents get tables of their own below.
+ */
 
 static const NYA_ReflectVariant _NYA_REFLECT_TestKind_VARIANTS[] = {
   { .name = "TEST_KIND_NONE", .value = 0 },

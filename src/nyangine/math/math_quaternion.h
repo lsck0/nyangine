@@ -22,6 +22,7 @@
 
 typedef struct NYA_Quaternion NYA_Quaternion;
 
+// @reflect
 /**
  * `x`, `y`, `z` are the vector part, `w` the scalar part. A struct rather than an f32x4 typedef so it
  * can't be passed where a vector is wanted and __attr_overloaded functions can tell them apart; it is

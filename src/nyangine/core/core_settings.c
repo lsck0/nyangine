@@ -8,37 +8,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/**
- * What each volume channel is called in the settings file.
- * */
-NYA_INTERNAL NYA_ConstCString _NYA_VOLUME_CHANNEL_NAMES[NYA_VOLUME_CHANNEL_COUNT] = {
-    [NYA_VOLUME_CHANNEL_MASTER] = "master",
-    [NYA_VOLUME_CHANNEL_SOUND]  = "sound",
-    [NYA_VOLUME_CHANNEL_MUSIC]  = "music",
-    [NYA_VOLUME_CHANNEL_VOICE]  = "voice",
-    [NYA_VOLUME_CHANNEL_UI]     = "ui",
-};
-
 static_assert(sizeof(NYA_GraphicsQuality) == sizeof(u32), "the graphics quality is written and read as a u32");
-
-/** The graphics settings as the file names them: a b8, a u32 or an f32 each. */
-NYA_INTERNAL const struct {
-    NYA_ConstCString name;
-    NYA_Type         type;
-    u64              offset;
-} _NYA_SETTINGS_GRAPHICS_FIELDS[] = {
-    { "msaa_samples", NYA_TYPE_U32, offsetof(NYA_SettingsGraphics, msaa_samples) },
-    { "fxaa", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, fxaa) },
-    { "ambient_occlusion", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, ambient_occlusion) },
-    { "bloom", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, bloom) },
-    { "depth_of_field", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, depth_of_field) },
-    { "eye_adaptation", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, eye_adaptation) },
-    { "light_shafts", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, light_shafts) },
-    { "motion_blur", NYA_TYPE_B8, offsetof(NYA_SettingsGraphics, motion_blur) },
-    { "shadows", NYA_TYPE_U32, offsetof(NYA_SettingsGraphics, shadows) },
-    { "fov", NYA_TYPE_F32, offsetof(NYA_SettingsGraphics, fov) },
-    { "render_scale", NYA_TYPE_F32, offsetof(NYA_SettingsGraphics, render_scale) },
-};
 
 /**
  * A binding as one editable string: `"Space"`, `"Ctrl+S"`, `"Shift+Left Alt+F1"`.
@@ -48,8 +18,21 @@ NYA_INTERNAL NYA_String* _nya_settings_binding_to_string(NYA_Arena* arena, NYA_I
 /** The inverse. Leaves `out_binding` untouched and returns false when the string names no key. */
 NYA_INTERNAL b8 _nya_settings_binding_from_string(NYA_ConstCString text, OUT NYA_InputBinding* out_binding);
 
-/** Reads whatever a value holds as an f32, across every numeric type a format could give it back as. */
-NYA_INTERNAL b8 _nya_settings_value_as_f32(const NYA_Value* value, OUT f32* out_number);
+/**
+ * Reads one described block out of the settings document, saying exactly what it could not use.
+ *
+ * `instance` is only written where the document is good, and a key that names no field or holds the
+ * wrong kind of value is named and skipped. That is the whole contract of this file: one bad line
+ * costs the player that line, never the rest of their settings. See nya_reflect_check.
+ * */
+NYA_INTERNAL void _nya_settings_section_read(NYA_ConstCString section, const NYA_TypeReflection* type, void* instance, const NYA_Object* object);
+
+/** What _nya_settings_report needs to name where a problem is. */
+typedef struct {
+    NYA_ConstCString section;
+} _NYA_SettingsReportContext;
+
+NYA_INTERNAL void _nya_settings_report(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -88,9 +71,9 @@ NYA_Error nya_settings_save(void) {
     NYA_Arena* scratch = nya_arena_create(.name = "settings_save_scratch");
     defer nya_arena_destroy(scratch);
 
-    // PRETTY because this is the one file a player is invited to open. The native format's checksum
-    // is over the object tree rather than the bytes, so reformatting it by hand does not break it.
-    return nya_save_write(NYA_SETTINGS_FILE, nya_settings_to_object(scratch), NYA_SERDE_PRETTY);
+    // NYA_SAVE_FLAGS_EDITABLE because this is the one file a player is invited to open. See the note
+    // on that constant, and nya_settings_load for the other half of the bargain.
+    return nya_save_write(NYA_SETTINGS_FILE, nya_settings_to_object(scratch), NYA_SAVE_FLAGS_EDITABLE);
 }
 
 NYA_Error nya_settings_load(void) {
@@ -98,7 +81,11 @@ NYA_Error nya_settings_load(void) {
     defer nya_arena_destroy(scratch);
 
     NYA_Object* object = nullptr;
-    NYA_TRY(nya_save_read(scratch, NYA_SETTINGS_FILE, NYA_SERDE_NONE, &object));
+
+    // NYA_SAVE_FLAGS_EDITABLE, so the checksum is not enforced: this is the one file a player is
+    // invited to open, the checksum is over the contents, and an honest edit changes it. Enforcing it
+    // would throw away every setting a player had the moment they corrected one of them by hand.
+    NYA_TRY(nya_save_read(scratch, NYA_SETTINGS_FILE, NYA_SAVE_FLAGS_EDITABLE, &object));
 
     nya_settings_from_object(object);
 
@@ -112,12 +99,14 @@ NYA_Object* nya_settings_to_object(NYA_Arena* arena) {
 
     nya_object_set(root, NYA_SAVE_VERSION_KEY, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = NYA_SETTINGS_VERSION });
 
-    NYA_Object* volumes = nya_object_create(arena);
-    for (u32 channel = 0; channel < NYA_VOLUME_CHANNEL_COUNT; channel++) {
-        nya_object_set(volumes, (NYA_CString)_NYA_VOLUME_CHANNEL_NAMES[channel], (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = nya_settings_volume(channel) });
-    }
+    // Copied rather than cast: the two are the same bytes by static_assert, and a copy says so without
+    // asking the compiler to believe an f32 array and a struct of f32 alias.
+    NYA_SettingsVolumes volumes = { 0 };
+    nya_memcpy(&volumes, nya_settings()->volumes, sizeof(volumes));
 
-    nya_object_set(root, "volumes", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *volumes });
+    NYA_Object* volumes_object = nya_reflect_to_object(arena, nya_reflect_of(NYA_SettingsVolumes), &volumes);
+
+    nya_object_set(root, "volumes", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *volumes_object });
 
     NYA_Object* bindings = nya_object_create(arena);
     for (u32 action = 1; action < NYA_INPUT_ACTION_MAX; action++) {
@@ -148,17 +137,7 @@ NYA_Object* nya_settings_to_object(NYA_Arena* arena) {
     NYA_ConstCString name = nya_settings_player_name();
     if (name[0] != '\0') nya_object_set(root, "player_name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)name });
 
-    NYA_Object* graphics = nya_object_create(arena);
-
-    for (u32 i = 0; i < nya_carray_length(_NYA_SETTINGS_GRAPHICS_FIELDS); i++) {
-        const u8* field = (const u8*)&nya_settings()->graphics + _NYA_SETTINGS_GRAPHICS_FIELDS[i].offset;
-        NYA_Value value = { .type = _NYA_SETTINGS_GRAPHICS_FIELDS[i].type };
-
-        // the union's members share its first bytes, so a field copies into it at its own size.
-        nya_memcpy(&value.as_u32, field, value.type == NYA_TYPE_B8 ? sizeof(b8) : sizeof(u32));
-
-        nya_object_set(graphics, (NYA_CString)_NYA_SETTINGS_GRAPHICS_FIELDS[i].name, value);
-    }
+    NYA_Object* graphics = nya_reflect_to_object(arena, nya_reflect_of(NYA_SettingsGraphics), &nya_settings()->graphics);
 
     nya_object_set(root, "graphics", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *graphics });
 
@@ -177,57 +156,55 @@ void nya_settings_from_object(const NYA_Object* object) {
                  (u32)NYA_SETTINGS_VERSION);
     }
 
-    NYA_Value* volumes = nya_object_get(object, "volumes");
-    if (volumes != nullptr && volumes->type == NYA_TYPE_OBJECT) {
+    // Over the values the settings already hold, so a block the file omits keeps its defaults, and
+    // then back through the setters, which clamp: a hand-edited volume of 11 becomes 1 rather than a
+    // mix that clips, and a field of movement of 400 degrees becomes 120.
+    NYA_Value* volumes_value = nya_object_get(object, "volumes");
+
+    if (volumes_value != nullptr && volumes_value->type == NYA_TYPE_OBJECT) {
+        NYA_SettingsVolumes volumes = { 0 };
+        nya_memcpy(&volumes, nya_settings()->volumes, sizeof(volumes));
+
+        _nya_settings_section_read("volumes", nya_reflect_of(NYA_SettingsVolumes), &volumes, &volumes_value->as_object);
+
+        f32 levels[NYA_VOLUME_CHANNEL_COUNT] = { 0 };
+        nya_memcpy(levels, &volumes, sizeof(levels));
+
         for (u32 channel = 0; channel < NYA_VOLUME_CHANNEL_COUNT; channel++) {
-            NYA_Value* value = nya_object_get(&volumes->as_object, (NYA_CString)_NYA_VOLUME_CHANNEL_NAMES[channel]);
-            if (value == nullptr) continue;
-
-            f32 volume = 0.0F;
-            if (!_nya_settings_value_as_f32(value, &volume)) {
-                nya_log_warn("Settings volume '%s' is not a number; leaving it alone.", _NYA_VOLUME_CHANNEL_NAMES[channel]);
-                continue;
-            }
-
-            // nya_settings_volume_set clamps, which is the validation: a hand-edited 11 becomes 1
-            // rather than a mix that clips.
-            nya_settings_volume_set((NYA_VolumeChannel)channel, volume);
+            nya_settings_volume_set((NYA_VolumeChannel)channel, levels[channel]);
         }
+    } else if (volumes_value != nullptr) {
+        nya_log_warn("%s: 'volumes' is not a block of settings; leaving every channel alone.", NYA_SETTINGS_FILE);
     }
 
     NYA_Value* name = nya_object_get(object, "player_name");
-    if (name != nullptr && name->type == NYA_TYPE_STRING) nya_settings_player_name_set(name->as_string);
 
-    // over the current options, so a field the file lacks keeps its value, and then through the setter's clamps.
+    if (name != nullptr && name->type == NYA_TYPE_STRING) {
+        nya_settings_player_name_set(name->as_string);
+    } else if (name != nullptr) {
+        nya_log_warn("%s: 'player_name' is a %s, expected text; keeping the current name.", NYA_SETTINGS_FILE,
+                     NYA_TYPE_NAME_MAP[name->type]);
+    }
+
     NYA_Value* graphics_value = nya_object_get(object, "graphics");
 
     if (graphics_value != nullptr && graphics_value->type == NYA_TYPE_OBJECT) {
         NYA_SettingsGraphics graphics = nya_settings()->graphics;
 
-        for (u32 i = 0; i < nya_carray_length(_NYA_SETTINGS_GRAPHICS_FIELDS); i++) {
-            NYA_Value* value = nya_object_get(&graphics_value->as_object, (NYA_CString)_NYA_SETTINGS_GRAPHICS_FIELDS[i].name);
-            u8*        field = (u8*)&graphics + _NYA_SETTINGS_GRAPHICS_FIELDS[i].offset;
-            f32        number = 0.0F;
-
-            if (value == nullptr) continue;
-
-            if (_NYA_SETTINGS_GRAPHICS_FIELDS[i].type == NYA_TYPE_B8) {
-                if (value->type == NYA_TYPE_B8) nya_memcpy(field, &value->as_b8, sizeof(b8));
-                continue;
-            }
-
-            if (!_nya_settings_value_as_f32(value, &number)) continue;
-
-            u32 whole = (u32)nya_clamp(number, 0.0F, 1024.0F);
-
-            nya_memcpy(field, _NYA_SETTINGS_GRAPHICS_FIELDS[i].type == NYA_TYPE_F32 ? (const void*)&number : (const void*)&whole, sizeof(u32));
-        }
+        _nya_settings_section_read("graphics", nya_reflect_of(NYA_SettingsGraphics), &graphics, &graphics_value->as_object);
 
         nya_settings_graphics_set(graphics);
+    } else if (graphics_value != nullptr) {
+        nya_log_warn("%s: 'graphics' is not a block of settings; leaving every option alone.", NYA_SETTINGS_FILE);
     }
 
     NYA_Value* bindings = nya_object_get(object, "bindings");
-    if (bindings == nullptr || bindings->type != NYA_TYPE_OBJECT) return;
+    if (bindings == nullptr) return;
+
+    if (bindings->type != NYA_TYPE_OBJECT) {
+        nya_log_warn("%s: 'bindings' is not a block of bindings; leaving every action alone.", NYA_SETTINGS_FILE);
+        return;
+    }
 
     nya_dict_foreach_key (&bindings->as_object, key_slot) {
         NYA_ConstCString name   = *key_slot;
@@ -235,12 +212,18 @@ void nya_settings_from_object(const NYA_Object* object) {
         if (action == NYA_INPUT_ACTION_NONE) {
             // An action this build does not have. Normal when a settings file outlives a rename, and
             // exactly what skipping unnamed actions on write is meant to keep rare.
-            nya_log_warn("Settings file binds '%s', which is not an action in this build; ignoring it.", name);
+            nya_log_warn("%s: 'bindings.%s' is not an action in this build; ignoring it.", NYA_SETTINGS_FILE, name);
             continue;
         }
 
         NYA_Value* keys = nya_object_get(&bindings->as_object, (NYA_CString)name);
-        if (keys == nullptr || keys->type != NYA_TYPE_ARRAY) continue;
+        if (keys == nullptr) continue;
+
+        if (keys->type != NYA_TYPE_ARRAY) {
+            nya_log_warn("%s: 'bindings.%s' is a %s, expected a list of key names such as [\"Space\", \"Ctrl+S\"]; leaving it alone.",
+                         NYA_SETTINGS_FILE, name, NYA_TYPE_NAME_MAP[keys->type]);
+            continue;
+        }
 
         /*
          * Cleared before the first slot is written, and only once the file has actually offered
@@ -254,12 +237,23 @@ void nya_settings_from_object(const NYA_Object* object) {
         for (u32 i = 0; i < NYA_INPUT_BINDINGS_PER_ACTION; i++) previous[i] = nya_input_action_get(action, i);
 
         nya_array_foreach (&keys->as_array, key) {
-            if (key->type != NYA_TYPE_STRING) continue;
-            if (slot >= NYA_INPUT_BINDINGS_PER_ACTION) break;
+            if (slot >= NYA_INPUT_BINDINGS_PER_ACTION) {
+                nya_log_warn("%s: 'bindings.%s' lists more than " FMTu32 " keys; the rest are ignored.", NYA_SETTINGS_FILE, name,
+                             (u32)NYA_INPUT_BINDINGS_PER_ACTION);
+                break;
+            }
+
+            if (key->type != NYA_TYPE_STRING) {
+                nya_log_warn("%s: 'bindings.%s' holds a %s, expected the name of a key; ignoring it.", NYA_SETTINGS_FILE, name,
+                             NYA_TYPE_NAME_MAP[key->type]);
+                continue;
+            }
 
             NYA_InputBinding binding = { 0 };
             if (!_nya_settings_binding_from_string(key->as_string, &binding)) {
-                nya_log_warn("Settings file binds '%s' to '%s', which names no key; ignoring it.", name, key->as_string);
+                nya_log_warn("%s: 'bindings.%s' is \"%s\", which names no key; ignoring it. Keys are SDL's own spelling: "
+                             "\"Space\", \"F1\", \"Ctrl+S\".",
+                             NYA_SETTINGS_FILE, name, key->as_string);
                 continue;
             }
 
@@ -500,19 +494,31 @@ b8 _nya_settings_binding_from_string(NYA_ConstCString text, OUT NYA_InputBinding
     return true;
 }
 
-b8 _nya_settings_value_as_f32(const NYA_Value* value, OUT f32* out_number) {
-    nya_assert(out_number != nullptr);
+void _nya_settings_report(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data) {
+    const _NYA_SettingsReportContext* context = user_data;
 
-    /*
-     * Every numeric type, not just F32.
-     */
-    switch (value->type) {
-        case NYA_TYPE_F32: *out_number = value->as_f32; return true;
-        case NYA_TYPE_F64: *out_number = (f32)value->as_f64; return true;
-        case NYA_TYPE_S32: *out_number = (f32)value->as_s32; return true;
-        case NYA_TYPE_S64: *out_number = (f32)value->as_s64; return true;
-        case NYA_TYPE_U32: *out_number = (f32)value->as_u32; return true;
-        case NYA_TYPE_U64: *out_number = (f32)value->as_u64; return true;
-        default:           return false;
+    nya_log_warn("%s: '%s.%s' is %s, expected %s; leaving it alone.", NYA_SETTINGS_FILE, context->section, path, found, expected);
+}
+
+void _nya_settings_section_read(NYA_ConstCString section, const NYA_TypeReflection* type, void* instance, const NYA_Object* object) {
+    nya_assert(section != nullptr);
+    nya_assert(type != nullptr);
+    nya_assert(instance != nullptr);
+    nya_assert(object != nullptr);
+
+    _NYA_SettingsReportContext context = { .section = section };
+
+    // Before the write, not instead of it: the check says what is wrong and the write takes everything
+    // that is right. A file with one bad line loses that line and nothing else.
+    (void)nya_reflect_check(type, object, _nya_settings_report, &context);
+
+    // Cannot fail on a settings block: these types carry no @on_apply, and a value that will not fit
+    // has already been named above and is skipped by the write itself.
+    NYA_Error applied = nya_reflect_from_object(type, instance, object);
+
+    if (!applied.ok) {
+        u8 message[256];
+        (void)nya_error_format(&applied, message, sizeof(message));
+        nya_log_warn("%s: could not read the '%s' settings: %s", NYA_SETTINGS_FILE, section, (NYA_CString)message);
     }
 }

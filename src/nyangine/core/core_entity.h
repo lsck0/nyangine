@@ -107,6 +107,7 @@ typedef struct NYA_EntitySpawnOptions NYA_EntitySpawnOptions;
 typedef enum NYA_EntityVisualKind      NYA_EntityVisualKind;
 typedef struct NYA_EntityVisual        NYA_EntityVisual;
 
+// @reflect
 enum NYA_EntityState {
     NYA_ENTITY_STATE_NONE = 0,
 
@@ -241,6 +242,7 @@ struct NYA_EntitySystem {
  * on_render still runs after the visual, for health bars, debug outlines and anything no enum covers.
  */
 
+// @reflect
 enum NYA_EntityVisualKind {
     /** Nothing drawn automatically; on_render is the whole appearance. */
     NYA_ENTITY_VISUAL_NONE = 0,

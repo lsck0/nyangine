@@ -35,8 +35,33 @@ typedef enum {
 } NYA_VolumeChannel;
 
 typedef struct NYA_SettingsGraphics NYA_SettingsGraphics;
+typedef struct NYA_SettingsVolumes  NYA_SettingsVolumes;
 typedef enum NYA_GraphicsQuality    NYA_GraphicsQuality;
 
+// @reflect
+/**
+ * The mixes again, one named field each, in NYA_VolumeChannel order.
+ *
+ * The live copy is an array indexed by the channel, because that is what a mixer wants; a file wants
+ * names, since a channel inserted in the middle would otherwise silently turn every player's music
+ * level into their voice level. Reflection describes a C array as positions and not as names, so the
+ * two shapes are laid out identically and copied between rather than converted field by field. The
+ * assertion below is what keeps them identical.
+ * */
+struct NYA_SettingsVolumes {
+    f32 master;
+    f32 sound;
+    f32 music;
+    f32 voice;
+    f32 ui;
+};
+
+static_assert(
+    sizeof(NYA_SettingsVolumes) == sizeof(f32) * NYA_VOLUME_CHANNEL_COUNT,
+    "NYA_SettingsVolumes needs one field per NYA_VolumeChannel, in the enum's order"
+);
+
+// @reflect
 /** How much of a costly feature a player asks for. */
 enum NYA_GraphicsQuality {
     NYA_GRAPHICS_QUALITY_OFF = 0,
@@ -49,9 +74,13 @@ enum NYA_GraphicsQuality {
     NYA_GRAPHICS_QUALITY_COUNT,
 };
 
+// @reflect
 /**
  * The graphics options a player may change, saved with the rest and laid over a window's renderer options by
  * nya_settings_graphics_apply. A switch only turns a feature off: how it looks when on is the game's to decide.
+ *
+ * Written to and read from the settings file by its own description, so adding an option here is the whole
+ * change: nothing else lists these fields.
  * */
 struct NYA_SettingsGraphics {
     /** Samples per pixel, 1, 2, 4 or 8. See NYA_RenderOptions.msaa_samples. */

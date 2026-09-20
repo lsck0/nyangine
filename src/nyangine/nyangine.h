@@ -31,7 +31,13 @@
 #include "nyangine/debug/debug.h"
 #include "nyangine/renderer/renderer.h"
 #include "nyangine/ui/ui.h"
-// Last, and only under NYA_TESTING: the simulation harness drives entities, physics, storage and the
-// frame loop, so it has to see all of them.
+// Only under NYA_TESTING: the simulation harness drives entities, physics, storage and the frame
+// loop, so it has to see all of them.
 #include "nyangine/testing/testing.h"
+
+/*
+ * Last, and inside the guard: it describes types declared above it, and the types it describes only
+ * exist in an SDL build. See src/build/pp/reflection.h for why the engine has a table of its own.
+ */
+#include "generated/reflection_engine.h"
 #endif

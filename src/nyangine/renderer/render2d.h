@@ -538,6 +538,7 @@ NYA_API void nya_render2d_fullscreen(
 
 typedef struct NYA_Light2D NYA_Light2D;
 
+// @reflect
 /**
  * What an entity emits, if anything. Zeroed means it emits nothing, which is almost every entity.
  * */

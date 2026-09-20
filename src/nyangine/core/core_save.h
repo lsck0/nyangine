@@ -35,6 +35,27 @@
 #endif
 
 /*
+ * Two kinds of file live under this root and they want opposite treatment, so the pair of flag sets
+ * is named here rather than spelled out at each call.
+ *
+ * Settings are the player's, and a player who opens the file and corrects a line must not be
+ * punished for it: written laid out to be read, read without enforcing the checksum, and every entry
+ * that cannot be used is named and skipped rather than taken as evidence the file is ruined.
+ *
+ * Save data is not the player's to edit. It is written obfuscated so a text editor shows nothing
+ * useful, and read with the checksum enforced, so a file altered outside the game is refused with
+ * NYA_ERROR_CORRUPT instead of loading a world that half makes sense. The checksum is an integrity
+ * check and not a signature: it catches a torn write, a truncated cloud sync and a casual edit, and
+ * it is not meant to stop someone determined to cheat in their own single player game.
+ */
+
+/** For a file the player is invited to edit. See nya_settings_save. */
+#define NYA_SAVE_FLAGS_EDITABLE ((NYA_SerdeFlags)(NYA_SERDE_PRETTY | NYA_SERDE_NO_CHECKSUM))
+
+/** For a file the game owns. See nya_scene_save. */
+#define NYA_SAVE_FLAGS_DATA ((NYA_SerdeFlags)NYA_SERDE_OBFUSCATE)
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

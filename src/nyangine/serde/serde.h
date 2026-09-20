@@ -53,3 +53,4 @@ NYA_API NYA_Error nya_serde_load_file(NYA_Arena* arena, NYA_ConstCString path, N
 #include "nyangine/serde/serde_json.h"
 #include "nyangine/serde/serde_jsonc.h"
 #include "nyangine/serde/serde_nya.h"
+#include "nyangine/serde/serde_reflect.h"

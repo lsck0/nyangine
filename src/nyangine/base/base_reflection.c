@@ -23,6 +23,45 @@ NYA_INTERNAL b8 _nya_reflect_is_char_array(const NYA_TypeReflection* type);
 NYA_INTERNAL NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflection* element, const void* address);
 
 /*
+ * The check. See nya_reflect_check.
+ */
+
+/** Longest rendering of one value a report carries: a type name and a little of its contents. */
+#define _NYA_REFLECT_FOUND_MAX 96
+
+/** Longest rendering of what a field wanted. Holds a handful of enum variant names before it elides. */
+#define _NYA_REFLECT_EXPECTED_MAX 192
+
+/** Appends `.name` (or `name` at the root) to `path`, and answers the new length. Truncates rather than overflowing. */
+NYA_INTERNAL u64 _nya_reflect_path_push(OUT char* path, u64 length, NYA_ConstCString name, char separator);
+
+/** What the document holds, in a few words: `string "fast"`, `f32 0.5`, `an object`. */
+NYA_INTERNAL void _nya_reflect_describe_value(const NYA_Value* value, OUT char* out, u64 capacity);
+
+/** What the described type wanted there: a primitive's name, an enum's variants, `an object`, `a list of 3`. */
+NYA_INTERNAL void _nya_reflect_describe_expected(const NYA_TypeReflection* type, OUT char* out, u64 capacity);
+
+/** One value against one described type, recursing into objects and lists. Returns the problems found. */
+NYA_INTERNAL u32 _nya_reflect_check_value(
+    const NYA_TypeReflection* type,
+    const NYA_Value*          value,
+    NYA_ReflectReportFn       report,
+    void*                     user_data,
+    OUT char*                 path,
+    u64                       length
+);
+
+/** The struct or union case of the above, walking the document's keys rather than the type's fields. */
+NYA_INTERNAL u32 _nya_reflect_check_object(
+    const NYA_TypeReflection* type,
+    const NYA_Object*         object,
+    NYA_ReflectReportFn       report,
+    void*                     user_data,
+    OUT char*                 path,
+    u64                       length
+);
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -429,7 +468,14 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
 
                     // Truncated to fit, and always terminated: the array is the struct's own storage
                     // and a longer string in the file must not run past it.
-                    if (length >= field_type->element_count) length = field_type->element_count - 1;
+                    if (length >= field_type->element_count) {
+                        length = field_type->element_count - 1;
+
+                        // Back off any continuation bytes, since a cut mid-character would store
+                        // invalid UTF-8 for anything downstream to trip over. Same rule as
+                        // nya_settings_player_name_set.
+                        while (length > 0 && ((u8)value->as_string[length] & 0xC0) == 0x80) length--;
+                    }
 
                     nya_memcpy(destination, value->as_string, length);
                     destination[length] = '\0';
@@ -473,11 +519,270 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
     return NYA_OK;
 }
 
+u32 nya_reflect_check(const NYA_TypeReflection* type, const NYA_Object* object, NYA_ReflectReportFn report, void* user_data) {
+    if (type == nullptr || object == nullptr) return 0;
+    if (type->kind != NYA_REFLECT_STRUCT && type->kind != NYA_REFLECT_UNION) return 0;
+
+    char path[NYA_REFLECT_PATH_MAX] = { 0 };
+
+    return _nya_reflect_check_object(type, object, report, user_data, path, 0);
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+u64 _nya_reflect_path_push(OUT char* path, u64 length, NYA_ConstCString name, char separator) {
+    nya_assert(path != nullptr);
+    nya_assert(length < NYA_REFLECT_PATH_MAX);
+
+    if (length > 0 && length + 1 < NYA_REFLECT_PATH_MAX) {
+        path[length] = separator;
+        length++;
+    }
+
+    u64 name_length = strlen(name);
+
+    // Truncated rather than grown: a report is a message, and a path deep enough to overflow this is
+    // already past the point where a longer string would help anyone.
+    if (length + name_length >= NYA_REFLECT_PATH_MAX) name_length = NYA_REFLECT_PATH_MAX - 1 - length;
+
+    nya_memcpy(path + length, name, name_length);
+    length       += name_length;
+    path[length]  = '\0';
+
+    return length;
+}
+
+void _nya_reflect_describe_value(const NYA_Value* value, OUT char* out, u64 capacity) {
+    switch (value->type) {
+        case NYA_TYPE_NULL:   (void)snprintf(out, capacity, "null"); return;
+        case NYA_TYPE_OBJECT: (void)snprintf(out, capacity, "an object"); return;
+
+        case NYA_TYPE_ARRAY:
+            (void)snprintf(out, capacity, "a list of " FMTu64, (u64)value->as_array.length);
+            return;
+
+        // Quoted, so an empty string and a missing one do not read the same in a log line.
+        case NYA_TYPE_STRING:
+            (void)snprintf(out, capacity, "the text \"%s\"", value->as_string != nullptr ? value->as_string : "");
+            return;
+
+        case NYA_TYPE_B8: (void)snprintf(out, capacity, "%s", value->as_b8 ? "true" : "false"); return;
+
+        case NYA_TYPE_F32: (void)snprintf(out, capacity, "the number " FMTf32, (f64)value->as_f32); return;
+        case NYA_TYPE_F64: (void)snprintf(out, capacity, "the number " FMTf64, value->as_f64); return;
+
+        default: break;
+    }
+
+    s64 integer = 0;
+    if (_nya_reflect_value_to_s64(*value, &integer)) {
+        (void)snprintf(out, capacity, "the number " FMTs64, integer);
+        return;
+    }
+
+    (void)snprintf(out, capacity, "a %s", NYA_TYPE_NAME_MAP[value->type]);
+}
+
+void _nya_reflect_describe_expected(const NYA_TypeReflection* type, OUT char* out, u64 capacity) {
+    if (_nya_reflect_is_char_array(type)) {
+        (void)snprintf(out, capacity, "text of at most " FMTu32 " bytes", type->element_count - 1);
+        return;
+    }
+
+    switch (type->kind) {
+        case NYA_REFLECT_PRIMITIVE:
+            if (type->primitive == NYA_TYPE_STRING) {
+                (void)snprintf(out, capacity, "text");
+                return;
+            }
+
+            (void)snprintf(out, capacity, "a %s", NYA_TYPE_NAME_MAP[type->primitive]);
+            return;
+
+        case NYA_REFLECT_STRUCT:
+        case NYA_REFLECT_UNION:   (void)snprintf(out, capacity, "an object"); return;
+
+        case NYA_REFLECT_ARRAY:
+        case NYA_REFLECT_VECTOR:
+            (void)snprintf(out, capacity, "a list of at most " FMTu32 " values", type->element_count);
+            return;
+
+        case NYA_REFLECT_POINTER: (void)snprintf(out, capacity, "nothing this build can load"); return;
+
+        case NYA_REFLECT_ENUM:    break;
+
+        case NYA_REFLECT_COUNT:
+        default:                  nya_unreachable();
+    }
+
+    u64 written = (u64)snprintf(out, capacity, type->is_bitflags ? "any of " : "one of ");
+
+    for (u32 i = 0; i < type->variant_count && written + 1 < capacity; i++) {
+        s32 added = snprintf(out + written, capacity - written, i == 0 ? "%s" : ", %s", type->variants[i].name);
+        if (added < 0) break;
+
+        written += (u64)added;
+    }
+}
+
+u32 _nya_reflect_check_value(
+    const NYA_TypeReflection* type,
+    const NYA_Value*          value,
+    NYA_ReflectReportFn       report,
+    void*                     user_data,
+    OUT char*                 path,
+    u64                       length
+) {
+    char found[_NYA_REFLECT_FOUND_MAX]       = { 0 };
+    char expected[_NYA_REFLECT_EXPECTED_MAX] = { 0 };
+
+    b8 accepted = false;
+
+    if (type->kind == NYA_REFLECT_STRUCT || type->kind == NYA_REFLECT_UNION) {
+        if (value->type != NYA_TYPE_OBJECT) {
+            _nya_reflect_describe_value(value, found, sizeof(found));
+            _nya_reflect_describe_expected(type, expected, sizeof(expected));
+            if (report != nullptr) report(path, found, expected, user_data);
+
+            return 1;
+        }
+
+        return _nya_reflect_check_object(type, &value->as_object, report, user_data, path, length);
+    }
+
+    if (type->kind == NYA_REFLECT_ENUM) {
+        if (type->is_bitflags && value->type == NYA_TYPE_ARRAY) {
+            u32 problems = 0;
+            u32 index    = 0;
+
+            nya_array_foreach (&value->as_array, element) {
+                char element_path[NYA_REFLECT_PATH_MAX] = { 0 };
+                char index_text[16]                     = { 0 };
+
+                (void)snprintf(index_text, sizeof(index_text), FMTu32, index);
+                nya_memcpy(element_path, path, length + 1);
+
+                (void)_nya_reflect_path_push(element_path, length, index_text, '.');
+
+                index++;
+
+                s64 flag = 0;
+                if (element->type == NYA_TYPE_STRING && element->as_string != nullptr &&
+                    nya_reflect_variant_value(type, element->as_string, &flag)) {
+                    continue;
+                }
+
+                _nya_reflect_describe_value(element, found, sizeof(found));
+                _nya_reflect_describe_expected(type, expected, sizeof(expected));
+                if (report != nullptr) report(element_path, found, expected, user_data);
+
+                problems++;
+            }
+
+            return problems;
+        }
+
+        if (value->type == NYA_TYPE_STRING) {
+            s64 named = 0;
+            accepted  = value->as_string != nullptr && nya_reflect_variant_value(type, value->as_string, &named);
+        } else {
+            // The same widening the writer does, so the check cannot be stricter than what follows it.
+            u8 scratch[sizeof(u64)] = { 0 };
+            accepted                = nya_reflect_write(type, scratch, *value);
+        }
+    } else if (_nya_reflect_is_char_array(type)) {
+        accepted = value->type == NYA_TYPE_STRING && value->as_string != nullptr && strlen(value->as_string) < type->element_count;
+    } else if (type->kind == NYA_REFLECT_ARRAY || type->kind == NYA_REFLECT_VECTOR) {
+        accepted = value->type == NYA_TYPE_ARRAY && value->as_array.length <= type->element_count;
+    } else if (type->kind == NYA_REFLECT_POINTER) {
+        accepted = false;
+    } else {
+        // Written into a scratch cell rather than judged by a second copy of the writer's rules: the
+        // one that decides is the one that runs.
+        u8 scratch[sizeof(u64)] = { 0 };
+
+        nya_assert(type->size <= sizeof(scratch), "'%s' is a primitive wider than the check's scratch cell", type->name);
+
+        accepted = nya_reflect_write(type, scratch, *value);
+    }
+
+    if (accepted) {
+        if (type->kind != NYA_REFLECT_ARRAY && type->kind != NYA_REFLECT_VECTOR) return 0;
+        if (_nya_reflect_is_char_array(type) || type->element == nullptr) return 0;
+
+        u32 problems = 0;
+        u32 index    = 0;
+
+        nya_array_foreach (&value->as_array, element) {
+            char element_path[NYA_REFLECT_PATH_MAX] = { 0 };
+            char index_text[16]                     = { 0 };
+
+            (void)snprintf(index_text, sizeof(index_text), FMTu32, index);
+            nya_memcpy(element_path, path, length + 1);
+
+            u64 element_length = _nya_reflect_path_push(element_path, length, index_text, '.');
+
+            problems += _nya_reflect_check_value(type->element, element, report, user_data, element_path, element_length);
+            index++;
+        }
+
+        return problems;
+    }
+
+    _nya_reflect_describe_value(value, found, sizeof(found));
+    _nya_reflect_describe_expected(type, expected, sizeof(expected));
+    if (report != nullptr) report(path, found, expected, user_data);
+
+    return 1;
+}
+
+u32 _nya_reflect_check_object(
+    const NYA_TypeReflection* type,
+    const NYA_Object*         object,
+    NYA_ReflectReportFn       report,
+    void*                     user_data,
+    OUT char*                 path,
+    u64                       length
+) {
+    u32 problems = 0;
+
+    nya_dict_foreach_key (object, key_slot) {
+        NYA_ConstCString key = *key_slot;
+
+        char child_path[NYA_REFLECT_PATH_MAX] = { 0 };
+        nya_memcpy(child_path, path, length + 1);
+
+        u64 child_length = _nya_reflect_path_push(child_path, length, key, '.');
+
+        const NYA_ReflectField* field = nya_reflect_field(type, key);
+        NYA_Value*              value = nya_object_get(object, (NYA_CString)key);
+
+        if (value == nullptr) continue;
+
+        // Reported rather than ignored: an unknown key is usually a typo or a setting that was
+        // renamed, and both are invisible to whoever wrote the file if nothing says so.
+        if (field == nullptr || field->type == nullptr) {
+            char found[_NYA_REFLECT_FOUND_MAX]       = { 0 };
+            char expected[_NYA_REFLECT_EXPECTED_MAX] = { 0 };
+
+            (void)snprintf(found, sizeof(found), "not a key this build knows");
+            (void)snprintf(expected, sizeof(expected), "one of the fields of '%s'", type->name);
+
+            if (report != nullptr) report(child_path, found, expected, user_data);
+
+            problems++;
+            continue;
+        }
+
+        problems += _nya_reflect_check_value(field->type, value, report, user_data, child_path, child_length);
+    }
+
+    return problems;
+}
 
 b8 _nya_reflect_is_char_array(const NYA_TypeReflection* type) {
     return type->kind == NYA_REFLECT_ARRAY && type->element != nullptr && type->element->kind == NYA_REFLECT_PRIMITIVE &&
