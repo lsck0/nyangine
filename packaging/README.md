@@ -57,6 +57,27 @@ names, descriptions, urls and identifiers in the manifests.
 3. CD checks the tag against `./build version`, runs `./build dist`, and publishes the archives, the
    `SHA256SUMS` and release notes from `./build changelog --release`.
 
+## Signing the Windows executable
+
+The build signs `gnyame.exe` with `.signing/sample.pfx` when the signing tool is installed, and
+leaves it unsigned when it is not. A self-signed certificate for local use:
+
+```bash
+openssl req -x509 -newkey rsa:3072 -nodes -days 3650 \
+    -keyout sample.key -out sample.crt \
+    -subj "/CN=nyangine sample/O=nyangine/C=DE" \
+    -addext "keyUsage=critical,digitalSignature" \
+    -addext "extendedKeyUsage=critical,codeSigning" \
+    -addext "basicConstraints=critical,CA:FALSE"
+
+openssl pkcs12 -export -inkey sample.key -in sample.crt \
+    -out .signing/sample.pfx -name "nyangine sample" \
+    -passout pass:nyangine-sample-certificate
+```
+
+A self-signed certificate is not a real one: a browser download of an executable signed with it
+still warns under SmartScreen. winget and scoop installs do not.
+
 ## AUR
 
 ```sh
