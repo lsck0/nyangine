@@ -72,6 +72,9 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_logfile(void) {
     return NYA_OK;
 }
 
+NYA_INTERNAL NYA_Error _nya_app_bring_up_crash_reporter(void) { return nya_crash_reporter_init(); }
+NYA_INTERNAL void      _nya_app_tear_down_crash_reporter(void) { nya_crash_reporter_deinit(); }
+
 NYA_INTERNAL NYA_Error _nya_app_bring_up_save(void) { (void)nya_system_save_init(); return NYA_OK; }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_settings(void) { nya_system_settings_init(); return NYA_OK; }
 NYA_INTERNAL NYA_Error _nya_app_bring_up_job(void) { return nya_system_job_init(); }
@@ -136,9 +139,16 @@ void _nya_app_register_subsystems(void) {
     // first up and last down, so every other subsystem's log lines reach the file.
     nya_system_register((NYA_SystemEntry){ .name = "logfile", .init = _nya_app_bring_up_logfile, .deinit = _nya_app_tear_down_logfile });
 
+    // straight after the log file, and before anything that can fail: a subsystem that dies during bring-up
+    // is exactly the crash a report is worth having for, and the report is written beside that log file.
+    nya_system_register((NYA_SystemEntry){ .name   = "crash_reporter",
+                                            .after  = "logfile",
+                                            .init   = _nya_app_bring_up_crash_reporter,
+                                            .deinit = _nya_app_tear_down_crash_reporter });
+
     // before settings, which it feeds. settings cannot fail: it owns no memory and loads defaults when nothing
     // was saved. on the way out it writes into the save system's directory.
-    nya_system_register((NYA_SystemEntry){ .name = "save", .after = "logfile", .init = _nya_app_bring_up_save, .deinit = _nya_app_tear_down_save });
+    nya_system_register((NYA_SystemEntry){ .name = "save", .after = "crash_reporter", .init = _nya_app_bring_up_save, .deinit = _nya_app_tear_down_save });
     nya_system_register((NYA_SystemEntry){ .name         = "settings",
                                             .after        = "save",
                                             .init         = _nya_app_bring_up_settings,

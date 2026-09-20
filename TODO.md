@@ -43,6 +43,7 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | Hot reload | assets, code, configuration | `[x]` |
 | Tracing | time and memory per feature (shadows, antialiasing, particles, ...) | `[~]` CPU spans and GPU allocation counters; per feature attribution missing |
 | CI/CD | tests and builds with caching | `[x]` green on Linux and Windows |
+| Crash reporting | one funnel, a window a player can act on, everything a triage needs in it | `[~]` log ring, composed report (crash, build, machine, stack, log), its own SDL window with close, copy and send, and a file under the log directory. Open: a transport behind `nya_crash_report_submit`, and a window on the fault path (SDL from a signal handler can deadlock) |
 | Anti-tamper | integrity checks like the CRC | `[x]` executable stamp, chunked code baseline and a sweep every 250 ms, per blob entry hashes, a watchdog at two inlined sites; failure logs and exits 86 |
 | Networking | attack and cheat resistant, optional end to end public key encryption | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders |
 | Targets | Linux, Windows, Steam Linux, Steam Windows | `[x]` all four build in CI; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS) |
