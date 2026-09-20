@@ -116,6 +116,23 @@ struct NYA_VendorRule {
 NYA_API NYA_Error nya_build(NYA_BuildRule* build_rule) __attr_no_discard;
 
 /**
+ * The rule whose command failed in the most recent build, or nullptr when the last one succeeded.
+ *
+ * Reset when a top level build starts, so it always describes the build that just ran.
+ * */
+NYA_API const NYA_BuildRule* nya_build_last_failure(void) __attr_no_discard;
+
+/**
+ * Reprints what the failing rule was and what its tool wrote, or nothing when nothing failed.
+ *
+ * For the caller that is about to give up: by then the diagnostic is somewhere above the last few
+ * hundred lines of a build log, and the one thing a reader needs is the compiler's own words, last.
+ * A rule built in parallel has its output captured and gets it verbatim; a serial rule streamed
+ * straight to the terminal, so only the summary line is repeated.
+ * */
+NYA_API void nya_build_print_last_failure(void);
+
+/**
  * Builds `count` independent rules, running up to `max_jobs` of their commands at once.
  * */
 NYA_API NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_jobs) __attr_no_discard;

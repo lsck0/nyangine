@@ -16,6 +16,12 @@
 NYA_INTERNAL u64 _nya_build_epoch = 1;
 NYA_INTERNAL u64 _nya_build_depth = 0;
 
+/**
+ * The first rule whose command failed in the build currently running, so the caller that gives up can
+ * say which one it was and show what the tool wrote. Cleared when a top level build starts.
+ * */
+NYA_INTERNAL const NYA_BuildRule* _nya_build_failed_rule = nullptr;
+
 NYA_INTERNAL NYA_Error _nya_build_dispatch(NYA_BuildRule* build_rule);
 NYA_INTERNAL NYA_Error _nya_build_always(NYA_BuildRule* build_rule);
 NYA_INTERNAL NYA_Error _nya_build_run(NYA_BuildRule* build_rule);
@@ -42,7 +48,10 @@ NYA_Error nya_build(NYA_BuildRule* build_rule) {
 
     // a new top level build starts a new epoch and nested calls share it, so the memo below lasts one
     // invocation. NYA_BUILD_ALWAYS still runs once per graph walk.
-    if (_nya_build_depth == 0) _nya_build_epoch++;
+    if (_nya_build_depth == 0) {
+        _nya_build_epoch++;
+        _nya_build_failed_rule = nullptr;
+    }
 
     if (build_rule->last_built_epoch == _nya_build_epoch) return NYA_OK;
 
@@ -68,7 +77,10 @@ NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_job
 
     // A new epoch, exactly as nya_build starts one, so the shared dependencies below are built once
     // for this whole call rather than once per rule.
-    if (_nya_build_depth == 0) _nya_build_epoch++;
+    if (_nya_build_depth == 0) {
+        _nya_build_epoch++;
+        _nya_build_failed_rule = nullptr;
+    }
 
     /*
      * Preparation is sequential; only the commands overlap.
@@ -413,13 +425,43 @@ NYA_INTERNAL NYA_Error _nya_build_run(NYA_BuildRule* build_rule) {
     }
     printf("\n");
 
+    // A streamed command writes to an unbuffered stderr while these lines sit in stdout's buffer, so
+    // without this the compiler's diagnostic lands *above* the [BUILDING] line that introduces it.
+    (void)fflush(stdout);
+
     NYA_TRY(nya_command_run(&build_rule->command));
 
     _nya_build_report(build_rule);
 
     if (build_rule->command.exit_code == 0) return NYA_OK;
 
+    if (_nya_build_failed_rule == nullptr) _nya_build_failed_rule = build_rule;
+
     return nya_error(NYA_ERROR_NOT_OK, "build rule '%s' failed with exit code %d", build_rule->name, build_rule->command.exit_code);
+}
+
+const NYA_BuildRule* nya_build_last_failure(void) { return _nya_build_failed_rule; }
+
+void nya_build_print_last_failure(void) {
+    const NYA_BuildRule* rule = _nya_build_failed_rule;
+    if (rule == nullptr) return;
+
+    (void)fflush(stdout);
+
+    // The rule's name and what its tool said, and deliberately not its command line: the splice of
+    // vendor flags is undone by the time a build has given up, so echoing the arguments here would
+    // print a shorter command than the one that actually ran. The [CMD] line printed before the run
+    // is the complete one.
+    (void)fprintf(stderr, "\n------- FAILED RULE -------\n");
+    (void)fprintf(stderr, "%s, exit code %d\n", rule->name, rule->command.exit_code);
+
+    // Only a captured command has anything left to show. A streamed one already wrote its diagnostic
+    // to this terminal, and printing an empty block under a heading would read as "it said nothing".
+    if (rule->command.stderr_content != nullptr && rule->command.stderr_content->length > 0) {
+        (void)fprintf(stderr, NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(rule->command.stderr_content));
+    }
+
+    (void)fflush(stderr);
 }
 
 /**
@@ -439,6 +481,7 @@ NYA_INTERNAL void _nya_build_finish_parallel(NYA_BuildRule* build_rule, NYA_Erro
     _nya_build_report(build_rule);
 
     if (build_rule->command.exit_code != 0) {
+        if (_nya_build_failed_rule == nullptr) _nya_build_failed_rule = build_rule;
         if (result->ok) {
             *result = nya_error(NYA_ERROR_NOT_OK, "build rule '%s' failed with exit code %d", build_rule->name, build_rule->command.exit_code);
         }
@@ -456,8 +499,7 @@ NYA_INTERNAL void _nya_build_finish_parallel(NYA_BuildRule* build_rule, NYA_Erro
 
 /** Prints how a finished rule went. Shared, so serial and parallel builds report identically. */
 NYA_INTERNAL void _nya_build_report(NYA_BuildRule* build_rule) {
-    NYA_String         empty_str = { .length = 0, .items = (u8*)"" };
-    const NYA_Command* command   = &build_rule->command;
+    const NYA_Command* command = &build_rule->command;
 
     if (command->exit_code == 0) {
         printf("[OK] %s took " FMTu64 " ms.\n", build_rule->name, command->execution_time_ms);
@@ -475,10 +517,15 @@ NYA_INTERNAL void _nya_build_report(NYA_BuildRule* build_rule) {
         (void)fprintf(stderr, "[FAILED] %s exit code: %d\n", build_rule->name, command->exit_code);
     }
 
-    const NYA_String* stdout_to_print = command->stdout_content ? command->stdout_content : &empty_str;
-    (void)fprintf(stderr, "------- STDOUT -------\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(stdout_to_print));
-    const NYA_String* stderr_to_print = command->stderr_content ? command->stderr_content : &empty_str;
-    (void)fprintf(stderr, "------- STDERR -------\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(stderr_to_print));
+    // Only what there is. A serial rule streams straight to this terminal and captures nothing, so
+    // the two headings used to appear over two blank lines on every single failure, which reads as
+    // the compiler having said nothing at all about why it stopped.
+    if (command->stdout_content != nullptr && command->stdout_content->length > 0) {
+        (void)fprintf(stderr, "------- STDOUT -------\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(command->stdout_content));
+    }
+    if (command->stderr_content != nullptr && command->stderr_content->length > 0) {
+        (void)fprintf(stderr, "------- STDERR -------\n" NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(command->stderr_content));
+    }
 
     (void)fflush(stderr);
 }

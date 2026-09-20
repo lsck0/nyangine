@@ -71,8 +71,22 @@ s32 main(s32 argc, NYA_CString argv[]) {
 
     NYA_Error run_result = nya_args_run_command(command);
     if (!run_result.ok) {
-        (void)fprintf(stderr, "Error: %s\n\n", run_result.message);
-        nya_args_print_usage(&parser, command);
+        /*
+         * Usage is for arguments, and only for arguments. A rule that ran and failed has already
+         * printed a compiler's diagnostic somewhere above; following it with the command's flag
+         * table pushes the one thing worth reading off the end of the log, which is exactly how a
+         * failed steam-linux compile came back from CI as "Usage: ./build build steam-linux".
+         *
+         * So: the failing rule, its command line and its captured output last, nothing else.
+         */
+        if (run_result.kind == NYA_ERROR_INVALID_ARGUMENT) {
+            (void)fprintf(stderr, "Error: %s\n\n", run_result.message);
+            nya_args_print_usage(&parser, command);
+            return EXIT_FAILURE;
+        }
+
+        nya_build_print_last_failure();
+        (void)fprintf(stderr, "\nError: %s\n", run_result.message);
         return EXIT_FAILURE;
     }
 

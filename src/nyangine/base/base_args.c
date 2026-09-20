@@ -302,8 +302,11 @@ subcommand_matching:
 NYA_Error nya_args_run_command(NYA_ArgCommand* command) {
     nya_assert(command);
 
+    // INVALID_ARGUMENT, and the only kind this function produces itself: it is what tells a caller
+    // that the command line was wrong, as against the command having been understood and then having
+    // failed. Everything below propagates the handler's or the rule's own kind unchanged.
     if (command->incomplete) {
-        return nya_error(NYA_ERROR_NOT_OK, "no subcommand provided for command '%s'", command->name ? command->name : "root");
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "no subcommand provided for command '%s'", command->name ? command->name : "root");
     }
 
     if (command->handler != nullptr) {

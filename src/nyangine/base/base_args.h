@@ -67,8 +67,13 @@
  *
  *   NYA_Error run_result = nya_args_run_command(command);
  *   if (!run_result.ok) {
- *     (void)fprintf(stderr, "Error: %s\n\n", run_result.message);
- *     nya_args_print_usage(&parser, command);
+ *     // Usage is for a command line that could not be understood, and nothing else. A command that
+ *     // ran and failed gets its own error and whatever its tool wrote; burying that under thirty
+ *     // lines of flag descriptions is how a compiler diagnostic goes missing in a CI log.
+ *     if (run_result.kind == NYA_ERROR_INVALID_ARGUMENT) nya_args_print_usage(&parser, command);
+ *     else nya_build_print_last_failure();
+ *
+ *     (void)fprintf(stderr, "Error: %s\n", run_result.message);
  *     return EXIT_FAILURE;
  *   }
  *
