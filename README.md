@@ -37,7 +37,7 @@ to get the available commands.
 
 ## Dependencies
 
-Dependencies are listed in ./.github/ci-packages.txt
+Dependencies are listed in ./.github/ci-packages.txt. Not all of those are mandatory for building.
 
 ## Signing Key
 
