@@ -11,7 +11,7 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-#include "build/toolchain.h"
+#include "build/flags.h"
 #include "build/vendor/vendor_box2d.h"
 #include "build/vendor/vendor_box3d.h"
 #include "build/vendor/vendor_common.h"
@@ -29,7 +29,6 @@
 #include "build/vendor/vendor_sqlean.h"
 #include "build/vendor/vendor_sqlite.h"
 #include "build/vendor/vendor_sqlvec.h"
-#include "build/vendor/vendor_steam.h"
 // a Linux host target: the sysroot is unpacked with symlinks, and the rules run make and configure directly.
 #if !OS_WINDOWS
 #include "build/vendor/vendor_steamrt.h"

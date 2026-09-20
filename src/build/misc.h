@@ -1,13 +1,18 @@
 /**
  * @file misc.h
+ *
+ * Every rule that is not the project itself: the release metarule, running what was built, opening a
+ * report, touching the repository, and the tool's own rebuild.
  * */
 #pragma once
 
 #include "nyangine/nyangine.h"
-// For host_build_debug, HOST_DEBUG_BINARY, SANITIZER_ENVIRONMENT and the per host project rules.
-#include "build/host.h"
+// For host_build_debug, HOST_DEBUG_BINARY, SANITIZER_ENVIRONMENT and BUILD_TOOL_BINARY.
+#include "build/flags.h"
 // For hook_convert_perf_data_to_plain.
 #include "build/hooks.h"
+// For CC.
+#include "build/vendor/vendor_common.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -190,5 +195,31 @@ NYA_INTERNAL NYA_BuildRule update_submodules = {
         // SDL_mixer and SDL_ttf build their codecs from external/, and with those directories
         // empty cmake fails at configure time complaining about a missing CMakeLists.txt.
         .arguments = { "submodule", "update", "--init", "--recursive", },
+    },
+};
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE TOOL ITSELF
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Builds the host's own build tool. Read only by main, which hands it to nya_rebuild_yourself after
+ * appending libbacktrace to it when there is one.
+ * */
+NYA_INTERNAL NYA_Command build_rebuild_command = {
+    .program   = CC,
+    .arguments = {
+        "build.c",
+        "-o", BUILD_TOOL_BINARY,
+        CFLAGS,
+        WARNINGS,
+        INCLUDE_PATHS,
+        LINKER_FLAGS,
+        FLAGS_DEBUG,
+        FLAGS_HOST_NATIVE,
+        FLAGS_BUILD_TOOL,
+        "-fsanitize-ignorelist=src/build/sanitizer_ignorelist.txt",
     },
 };

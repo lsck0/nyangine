@@ -9,7 +9,7 @@
 
 #include "nyangine/nyangine.h"
 #include "build/hooks.h"
-#include "build/toolchain.h"
+#include "build/flags.h"
 #include "build/vendor/vendor_common.h"
 
 #define SQLITE_BUILD_LINUX_X86_64   "./vendor/sqlite/build-linux-x86_64/"

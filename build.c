@@ -3,11 +3,9 @@
  *
  * The build system's entry point, and nothing else.
  *
- * What can be built lives in src/build: the per host project rules under on_linux/ and on_windows/,
- * the asset pipeline in asset/, the tool's own rebuild in rebuild.h, everything else in misc.h, and
- * the command line that dispatches them in cli.h and cli.c. This file is what runs them in the
- * right order — parse, rebuild, bring up the vendors, dispatch — and it is deliberately the only
- * place where that order is written down.
+ * What can be built lives in src/build, and src/build/build.h is the map of it. This file is what
+ * runs it in the right order — parse, rebuild, bring up the vendors, dispatch — and it is
+ * deliberately the only place where that order is written down.
  *
  * Bootstrap it with the command in the README. It recompiles itself from then on.
  * */

@@ -8,7 +8,7 @@
 
 #include "nyangine/nyangine.h"
 #include "build/hooks.h"
-#include "build/toolchain.h"
+#include "build/flags.h"
 #include "build/vendor/vendor_common.h"
 
 #define LZ4_LIB "./vendor/lz4/lib"

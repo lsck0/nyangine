@@ -1,11 +1,15 @@
-#include "build/pp/pp.c"
+// The preprocessor passes, in the order they depend on each other: stale.c first, since every other
+// pass opens by calling it.
+#include "build/pp/stale.c"
+#include "build/pp/asset.c"
+#include "build/pp/i18n.c"
+#include "build/pp/reflection.c"
+/**/
 #include "build/hooks.c"
 #include "build/test.c"
-// After test.c, for the same NYA_BuildRulePointer reason check.c is.
+// After test.c: they borrow NYA_BuildRulePointer and its derived array, which test.c declares.
 #include "build/bench.c"
-// After test.c: it borrows NYA_BuildRulePointer and its derived array, which test.c declares.
 #include "build/check.c"
-// After host.h has been seen via build.h: it names FLAGS_HOST_NATIVE and SANITIZER_ENVIRONMENT.
 #include "build/example.c"
-// Last: the commands it defines name rules and handlers from all four above.
+// Last: the commands it defines name rules and handlers from all of the above.
 #include "build/cli.c"

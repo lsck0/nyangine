@@ -22,7 +22,7 @@
 
 #include "nyangine/nyangine.h"
 #include "build/hooks.h"
-#include "build/toolchain.h"
+#include "build/flags.h"
 #include "build/vendor/vendor_common.h"
 // For SQLITE_BUILD_*: sqlite-vec compiles against sqlite3.h, which only exists once sqlite has been
 // configured, so the path to it belongs to that vendor rather than being spelled out again here.
