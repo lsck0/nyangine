@@ -1,0 +1,48 @@
+// What the host reads before it loads any Lua. Everything it needs in order to decide whether to load
+// this plugin at all has to be here, because deciding that by running the plugin is not deciding it.
+//
+// Copy this file. Every field below is required except `after` and `conflicts`.
+nya 2 0
+{
+    // The identifier, and what the log calls it. Must match the directory name, so two plugins cannot
+    // claim the same id without one of them being in the wrong directory.
+    id: string "example";
+    name: string "Example";
+    description: string "Logs a line on load and moves one entity, to show the shape of a plugin.";
+
+    author: string "nyangine";
+
+    // SPDX identifier. Shown in the plugin list, so a player can see what they are running under.
+    license: string "MIT";
+
+    // The plugin's own version, semver. Bumped by its author; means nothing to the engine except when
+    // another plugin depends on a range of it.
+    version: string "1.0.0";
+
+    // The engine API this was written against, semver. The host refuses a plugin asking for an API
+    // newer than its own and warns about one more than a major version behind, rather than loading it
+    // and letting it fail on a function that no longer exists.
+    engine_version: string "1.0.0";
+
+    // Where updates come from. A git URL, so checking for one is a fetch of refs and nothing else: no
+    // account, no registry, no service that can go away and take every plugin with it. Empty means the
+    // plugin does not update itself.
+    repository: string "https://github.com/lsck0/nyangine-plugin-example.git";
+
+    // Relative to this file. The only Lua the host loads itself; everything else is require()d.
+    entry: string "main.lua";
+
+    // Plugin ids that must load first, each with the version range it needs. A missing dependency
+    // disables this plugin with both names in the log; it does not disable the game.
+    dependencies: array [
+        // object { id: string "some_other_plugin"; version: string ">=2.1.0"; };
+    ];
+
+    // Plugin ids this one cannot run beside. Both are disabled and both are named, rather than one
+    // winning by load order and the other misbehaving in a way nobody can attribute.
+    conflicts: array [];
+
+    // Plugin ids that must load first where they are present, and that are fine to be absent. Ordering
+    // only; unlike `dependencies`, nothing is disabled over it.
+    after: array [];
+}

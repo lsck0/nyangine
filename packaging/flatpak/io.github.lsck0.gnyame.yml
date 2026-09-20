@@ -25,9 +25,17 @@ modules:
       - install -Dm644 gnyame.desktop /app/share/applications/gnyame.desktop
       - install -Dm644 gnyame.png /app/share/icons/hicolor/48x48/apps/gnyame.png
       - install -Dm644 io.github.lsck0.gnyame.metainfo.xml /app/share/metainfo/io.github.lsck0.gnyame.metainfo.xml
+      - install -Dm644 LICENSE /app/share/licenses/gnyame/LICENSE
+      - install -Dm644 CHANGELOG.md /app/share/doc/gnyame/CHANGELOG.md
+      # /app is read only, so these are the defaults a first run copies into the player's own data
+      # directory, not the files they edit. See data/README.md.
+      - cp -r data /app/share/gnyame/data
+      - cp -r plugins /app/share/gnyame/plugins
     sources:
       - type: archive
-        url: https://github.com/lsck0/nyangine/releases/download/v0.0.0/gnyame.0.0.0.linux-x86_64.tar.gz
-        sha256: 0000000000000000000000000000000000000000000000000000000000000000
+        url: https://github.com/lsck0/nyangine/releases/download/v@VERSION@/gnyame.@VERSION@.linux-x86_64.tar.gz
+        sha256: @SHA256_LINUX@
+        # The archive carries its contents at its root, so there is no leading component to strip.
+        strip-components: 0
       - type: file
         path: io.github.lsck0.gnyame.metainfo.xml

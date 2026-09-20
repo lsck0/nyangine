@@ -107,6 +107,23 @@ NYA_INTERNAL NYA_ArgParameter help_flag = {
     .description = "Show this message.",
 };
 
+NYA_INTERNAL NYA_ArgParameter dist_target = {
+    .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    .value.type  = NYA_TYPE_STRING,
+    .name        = "target",
+    .description = "Which distribution to stage. If none specified, every one this host can produce.",
+    // Straight from the table in dist.c that also parses this argument, so a target added there is
+    // offered here without this file learning its name.
+    .completion  = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &dist_completion_target, },
+};
+
+NYA_INTERNAL NYA_ArgParameter changelog_release_flag = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_B8,
+    .name        = "release",
+    .description = "Print only the newest version's section, on stdout. The release notes CD publishes.",
+};
+
 NYA_INTERNAL NYA_ArgParameter completions_shell = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .value.type  = NYA_TYPE_STRING,
@@ -307,6 +324,26 @@ NYA_INTERNAL NYA_ArgCommand check = {
     .parameters  = { &check_sources, &check_strict_flag, },
 };
 
+NYA_INTERNAL NYA_ArgCommand dist = {
+    .name        = "dist",
+    .description = "Stage the distributions under dist/: one directory per target, plus the archives a release publishes.",
+    .handler     = &dist_runner,
+    .parameters  = { &dist_target, },
+};
+
+NYA_INTERNAL NYA_ArgCommand changelog = {
+    .name        = "changelog",
+    .description = "Regenerate CHANGELOG.md from the conventional commits in the history.",
+    .handler     = &changelog_runner,
+    .parameters  = { &changelog_release_flag, },
+};
+
+NYA_INTERNAL NYA_ArgCommand version = {
+    .name        = "version",
+    .description = "Print the version on stdout. The only place anything outside this tool may read it from.",
+    .handler     = &version_runner,
+};
+
 NYA_INTERNAL NYA_ArgCommand perf = {
     .name        = "perf",
     .description = "Open Profiler with last profiling data.",
@@ -358,7 +395,10 @@ NYA_INTERNAL NYA_ArgParser parser = {
         .subcommands = {
             &run,
             &build,
+            &dist,
             &check,
+            &changelog,
+            &version,
             &perf,
             &docs,
             &stats,

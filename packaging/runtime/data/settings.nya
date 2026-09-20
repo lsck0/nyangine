@@ -1,0 +1,41 @@
+// The settings a fresh installation starts with. Edit anything here; the game rewrites this file when
+// you change a setting in its own menus, keeping the values and dropping these comments.
+//
+// Every volume is 0.0 to 1.0. Every graphics switch is true or false. A key binding names an action
+// and the key bound to it; an action left out is unbound.
+//
+// The checksum in the header below is not checked on load (NYA_SERDE_NO_CHECKSUM), because this file is
+// meant to be hand edited. A save file is not, and is checked.
+nya 2 0
+{
+    version: u32 1;
+
+    audio: object {
+        // Scales every channel below it rather than being a channel of its own.
+        master: f32 1.0;
+        music: f32 0.7;
+        effects: f32 1.0;
+        interface: f32 0.8;
+        voice: f32 1.0;
+    };
+
+    graphics: object {
+        // Each of these only turns a feature off. How it looks when on is the game's to decide.
+        msaa: b8 true;
+        fxaa: b8 true;
+        shadows: b8 true;
+        post_processing: b8 true;
+
+        // Degrees, vertical. 60 to 110 is the range the camera accepts.
+        field_of_view: f32 90.0;
+
+        // Fraction of the window the 3D scene renders at before being scaled up. 0.5 to 1.0.
+        // Below 1.0 buys frame rate on a weak GPU at the cost of sharpness.
+        render_scale: f32 1.0;
+    };
+
+    player: object {
+        // UTF-8, shown to other players. Empty until you pick one.
+        name: string "";
+    };
+}

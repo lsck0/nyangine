@@ -1,12 +1,12 @@
 {
-    "version": "0.0.0",
+    "version": "@VERSION@",
     "description": "A physics sandbox built on nyangine",
     "homepage": "https://github.com/lsck0/nyangine",
     "license": "MIT",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/lsck0/nyangine/releases/download/v0.0.0/gnyame.0.0.0.windows-x86_64.zip",
-            "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+            "url": "https://github.com/lsck0/nyangine/releases/download/v@VERSION@/gnyame.@VERSION@.windows-x86_64.zip",
+            "hash": "@SHA256_WINDOWS@"
         }
     },
     "bin": "gnyame.exe",

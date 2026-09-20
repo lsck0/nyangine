@@ -1,6 +1,6 @@
 pkgbase = gnyame-bin
 	pkgdesc = A physics sandbox built on nyangine
-	pkgver = 0.0.0
+	pkgver = @VERSION@
 	pkgrel = 1
 	url = https://github.com/lsck0/nyangine
 	arch = x86_64
@@ -17,7 +17,7 @@ pkgbase = gnyame-bin
 	conflicts = gnyame
 	options = !strip
 	options = !debug
-	source = https://github.com/lsck0/nyangine/releases/download/v0.0.0/gnyame.0.0.0.linux-x86_64.tar.gz
-	sha256sums = SKIP
+	source = https://github.com/lsck0/nyangine/releases/download/v@VERSION@/gnyame.@VERSION@.linux-x86_64.tar.gz
+	sha256sums = @SHA256_LINUX@
 
 pkgname = gnyame-bin

@@ -1,0 +1,24 @@
+// The interface colours. Edit freely; nothing here can break the game, only make it ugly.
+//
+// Every colour is r, g, b, a in 0.0 to 1.0, linear, not sRGB. A colour left out takes the built in
+// default for that one entry rather than falling back to the whole default theme.
+nya 2 0
+{
+    version: u32 1;
+
+    // The flat stylized look: few colours, high contrast, no gradients.
+    surface: object { r: f32 0.09; g: f32 0.10; b: f32 0.13; a: f32 0.95; };
+    surface_raised: object { r: f32 0.14; g: f32 0.16; b: f32 0.20; a: f32 1.00; };
+    outline: object { r: f32 0.26; g: f32 0.29; b: f32 0.36; a: f32 1.00; };
+
+    text: object { r: f32 0.93; g: f32 0.94; b: f32 0.96; a: f32 1.00; };
+    text_muted: object { r: f32 0.60; g: f32 0.63; b: f32 0.70; a: f32 1.00; };
+
+    // One accent, used for focus, selection and the primary action, so the eye has a single thing to follow.
+    accent: object { r: f32 0.42; g: f32 0.50; b: f32 0.95; a: f32 1.00; };
+    accent_text: object { r: f32 0.02; g: f32 0.03; b: f32 0.05; a: f32 1.00; };
+
+    success: object { r: f32 0.36; g: f32 0.73; b: f32 0.45; a: f32 1.00; };
+    warning: object { r: f32 0.91; g: f32 0.68; b: f32 0.27; a: f32 1.00; };
+    danger: object { r: f32 0.86; g: f32 0.34; b: f32 0.34; a: f32 1.00; };
+}
