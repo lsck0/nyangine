@@ -708,12 +708,20 @@ u32 nya_entity_query_radius(f32x2 center, f32 radius, OUT NYA_EntityHandle* out,
 }
 
 NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button) __attr_overloaded {
+    return nya_entity_click(world_point, button, NYA_PHYSICS_LAYER_ALL);
+}
+
+NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button, NYA_PhysicsLayerMask layers) __attr_overloaded {
     // z zero: the 2D world is the z = 0 plane.
-    return _nya_entity_click_deliver(nya_physics2d_entity_at(world_point), (f32x3){ world_point.x, world_point.y, 0.0F }, button);
+    return _nya_entity_click_deliver(nya_physics2d_entity_at(world_point, layers), (f32x3){ world_point.x, world_point.y, 0.0F }, button);
 }
 
 NYA_EntityHandle nya_entity_hover(f32x2 world_point) __attr_overloaded {
-    return _nya_entity_hover_move(nya_physics2d_entity_at(world_point));
+    return nya_entity_hover(world_point, NYA_PHYSICS_LAYER_ALL);
+}
+
+NYA_EntityHandle nya_entity_hover(f32x2 world_point, NYA_PhysicsLayerMask layers) __attr_overloaded {
+    return _nya_entity_hover_move(nya_physics2d_entity_at(world_point, layers));
 }
 
 NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction) __attr_overloaded {

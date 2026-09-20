@@ -16,6 +16,7 @@
 
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/physics/physics_layer.h"
 #include "nyangine/physics/physics_types.h"
 #include "nyangine/core/core_types.h"
 #include "nyangine/math/math_quaternion.h"
@@ -68,6 +69,15 @@ typedef struct NYA_Entity NYA_Entity;
 /** Contacts inspected when answering nya_physics3d_grounded. A stack buffer; this is the whole cost. */
 #ifndef NYA_PHYSICS3D_MAX_CONTACTS_PER_BODY
 #define NYA_PHYSICS3D_MAX_CONTACTS_PER_BODY 16
+#endif
+
+/**
+ * Shapes a body may have and still be refiltered whole by nya_physics3d_layers_set. This API attaches
+ * exactly one shape per body, so four is slack rather than a limit anything reaches, and the bound is
+ * asserted rather than logged.
+ * */
+#ifndef NYA_PHYSICS3D_MAX_SHAPES_PER_BODY
+#define NYA_PHYSICS3D_MAX_SHAPES_PER_BODY 4
 #endif
 
 /*
@@ -181,6 +191,16 @@ struct NYA_Physics3DBody {
      * */
     void* height_field;
 
+    /*
+     * Mirrored from the shapes, as in the 2D body and for the same reason.
+     */
+
+    /** Which layers this body is in. See physics_layer.h. */
+    NYA_PhysicsLayerMask layers;
+
+    /** Which layers it will meet. Both sides have to agree for a contact to survive. */
+    NYA_PhysicsLayerMask collides_with;
+
     b8 attached;
 
     /* ── Cached grounded state ── Same arrangement as the 2D body: computed on demand, remembered
@@ -235,6 +255,18 @@ struct NYA_Physics3DBodyOptions {
     /** HEIGHTFIELD: world size of one cell, on x and z. Both must be positive. */
     f32x2 height_cell_size;
 
+    /**
+     * Which layers this body is in, as a mask from nya_physics_layer. NYA_PHYSICS_LAYER_DEFAULT unless
+     * given. See the 2D field of the same name.
+     * */
+    NYA_PhysicsLayerMask layers;
+
+    /**
+     * Which layers this body will meet. NYA_PHYSICS_LAYER_ALL unless given, and taken literally:
+     * NYA_PHYSICS_LAYER_NONE is a body that meets nothing.
+     * */
+    NYA_PhysicsLayerMask collides_with;
+
     /** Kilograms per cubic metre. Ignored on a static or kinematic body, which have no mass. */
     f32 density;
 
@@ -268,7 +300,7 @@ struct NYA_Physics3DBodyOptions {
 // clang-format off
 #define _NYA_PHYSICS3D_BODY_DEFAULT_OPTIONS                                                                                                          \
     .type = NYA_PHYSICS_BODY_DYNAMIC, .shape = NYA_PHYSICS3D_SHAPE_BOX, .density = 1000.0F, .friction = 0.6F, .restitution = 0.05F,                   \
-    .gravity_scale = 1.0F
+    .gravity_scale = 1.0F, .layers = NYA_PHYSICS_LAYER_DEFAULT, .collides_with = NYA_PHYSICS_LAYER_ALL
 // clang-format on
 
 /*
@@ -363,6 +395,24 @@ NYA_API void nya_physics3d_wake(NYA_Entity* entity);
 
 /*
  * ─────────────────────────────────────────────────────────
+ * COLLISION LAYERS
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * Moves an attached body onto other layers, which takes effect on the next step. See the 2D call of
+ * the same name; every shape on the body is refiltered.
+ * */
+NYA_API void nya_physics3d_layers_set(NYA_Entity* entity, NYA_PhysicsLayerMask layers, NYA_PhysicsLayerMask collides_with);
+
+/** Which layers this body is in. NYA_PHYSICS_LAYER_NONE for an entity with no body. */
+NYA_API NYA_PhysicsLayerMask nya_physics3d_layers(const NYA_Entity* entity) __attr_no_discard;
+
+/** Which layers this body meets. NYA_PHYSICS_LAYER_NONE for an entity with no body. */
+NYA_API NYA_PhysicsLayerMask nya_physics3d_collides_with(const NYA_Entity* entity) __attr_no_discard;
+
+/*
+ * ─────────────────────────────────────────────────────────
  * HITS
  * ─────────────────────────────────────────────────────────
  */
@@ -383,5 +433,12 @@ NYA_API f32  nya_physics3d_hit_threshold(void) __attr_no_discard;
 
 /**
  * The first entity a ray strikes, or NYA_ENTITY_HANDLE_NONE.
+ *
+ * The masked overload sees only bodies in `layers`. The plain one is that call with
+ * NYA_PHYSICS_LAYER_ALL.
  * */
-NYA_API NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, OUT f32x3* out_point, OUT f32x3* out_normal) __attr_no_discard;
+NYA_API NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, OUT f32x3* out_point, OUT f32x3* out_normal)
+    __attr_no_discard __attr_overloaded;
+
+NYA_API NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, NYA_PhysicsLayerMask layers, OUT f32x3* out_point,
+                                               OUT f32x3* out_normal) __attr_no_discard __attr_overloaded;

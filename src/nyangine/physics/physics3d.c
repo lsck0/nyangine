@@ -239,15 +239,17 @@ b8 nya_physics3d_body_attach_with_options(NYA_EntityHandle handle, NYA_Physics3D
     b3Body_EnableHitEvents(body, !options.ignore_hits);
 
     entity->physics3d = (NYA_Physics3DBody){
-        .id       = body,
-        .type     = options.type,
-        .shape    = options.shape,
-        .size     = options.size,
-        .radius   = options.radius,
-        .length   = options.length,
+        .id           = body,
+        .type         = options.type,
+        .shape        = options.shape,
+        .size         = options.size,
+        .radius       = options.radius,
+        .length       = options.length,
         .mesh         = mesh,
         .height_field = height_field,
-        .attached = true,
+        .layers        = options.layers,
+        .collides_with = options.collides_with,
+        .attached     = true,
     };
 
     system->body_count++;
@@ -401,6 +403,56 @@ void nya_physics3d_wake(NYA_Entity* entity) {
 
 /*
  * ─────────────────────────────────────────────────────────
+ * COLLISION LAYERS
+ * ─────────────────────────────────────────────────────────
+ */
+
+void nya_physics3d_layers_set(NYA_Entity* entity, NYA_PhysicsLayerMask layers, NYA_PhysicsLayerMask collides_with) {
+    NYA_Physics3DBody* body = _nya_physics3d_body_of(entity, "set the collision layers of");
+    if (body == nullptr) return;
+
+    body->layers        = layers;
+    body->collides_with = collides_with;
+
+    if (!b3Body_IsValid(body->id)) return;
+
+    b3ShapeId shapes[NYA_PHYSICS3D_MAX_SHAPES_PER_BODY];
+
+    int count = b3Body_GetShapes(body->id, shapes, NYA_PHYSICS3D_MAX_SHAPES_PER_BODY);
+    nya_assert(count >= 0);
+
+    // this API attaches exactly one shape per body, so the bound is a statement about that rather than
+    // a guess; a body past it would be one Box3D grew behind our back.
+    nya_assert(count < NYA_PHYSICS3D_MAX_SHAPES_PER_BODY, "a 3D body has more shapes than this API can create");
+
+    for (int i = 0; i < count; i++) {
+        b3Filter filter = b3Shape_GetFilter(shapes[i]);
+
+        filter.categoryBits = layers;
+        filter.maskBits     = collides_with;
+
+        // true: contacts the new filter forbids are dropped now rather than surviving until the pair
+        // next leaves the broadphase, which for a resting body is never.
+        b3Shape_SetFilter(shapes[i], filter, true);
+    }
+
+    b3Body_SetAwake(body->id, true);
+}
+
+NYA_PhysicsLayerMask nya_physics3d_layers(const NYA_Entity* entity) {
+    if (entity == nullptr || !entity->physics3d.attached) return NYA_PHYSICS_LAYER_NONE;
+
+    return entity->physics3d.layers;
+}
+
+NYA_PhysicsLayerMask nya_physics3d_collides_with(const NYA_Entity* entity) {
+    if (entity == nullptr || !entity->physics3d.attached) return NYA_PHYSICS_LAYER_NONE;
+
+    return entity->physics3d.collides_with;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────
  * HITS
  * ─────────────────────────────────────────────────────────
  */
@@ -433,15 +485,27 @@ f32 nya_physics3d_hit_threshold(void) {
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, OUT f32x3* out_point, OUT f32x3* out_normal) {
+NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, OUT f32x3* out_point, OUT f32x3* out_normal) __attr_overloaded {
+    return nya_physics3d_raycast(origin, direction, NYA_PHYSICS_LAYER_ALL, out_point, out_normal);
+}
+
+NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, NYA_PhysicsLayerMask layers, OUT f32x3* out_point, OUT f32x3* out_normal)
+    __attr_overloaded {
     NYA_Physics3DSystem* system = &nya_world()->physics3d_system;
     if (!system->initialized) return NYA_ENTITY_HANDLE_NONE;
+
+    // the ray is in every layer and meets the ones asked for, so a body's own mask cannot hide it from
+    // a query that named its layer.
+    b3QueryFilter filter = b3DefaultQueryFilter();
+
+    filter.categoryBits = NYA_PHYSICS_LAYER_ALL;
+    filter.maskBits     = layers;
 
     b3RayResult result = b3World_CastRayClosest(
         system->world,
         b3ToPos(_nya_physics3d_to_meters(origin)),
         _nya_physics3d_to_meters(direction),
-        b3DefaultQueryFilter()
+        filter
     );
 
     // a zero fraction with no shape means no hit. b3Shape_IsValid is the documented check.
@@ -519,6 +583,11 @@ b8 _nya_physics3d_shape_create(b3BodyId body, const NYA_Entity* entity, const NY
     shape_def.baseMaterial.restitution   = options->restitution;
     shape_def.isSensor                   = options->is_sensor;
     shape_def.enableContactEvents        = true;
+
+    // the whole point of layers: Box3D rejects the pair in the broadphase, so a filtered pair never
+    // reaches the narrowphase, the hit list or on_collision.
+    shape_def.filter.categoryBits = options->layers;
+    shape_def.filter.maskBits     = options->collides_with;
 
     // on every shape: Box3D needs it on both sides of a pair and defaults it off.
     shape_def.enableSensorEvents = true;

@@ -296,14 +296,16 @@ b8 nya_physics2d_body_attach_with_options(NYA_EntityHandle entity_handle, NYA_Ph
     }
 
     entity->physics2d = (NYA_Physics2DBody){
-        .id       = body,
-        .type     = options.type,
-        .shape    = options.shape,
-        .size     = options.size,
-        .radius   = options.radius,
-        .length   = options.length,
-        .one_way  = options.one_way,
-        .attached = true,
+        .id            = body,
+        .type          = options.type,
+        .shape         = options.shape,
+        .size          = options.size,
+        .radius        = options.radius,
+        .length        = options.length,
+        .layers        = options.layers,
+        .collides_with = options.collides_with,
+        .one_way       = options.one_way,
+        .attached      = true,
     };
 
     system->body_count++;
@@ -466,6 +468,59 @@ void nya_physics2d_wake(NYA_Entity* entity) {
     b2Body_SetAwake(body->id, true);
 }
 
+/*
+ * ─────────────────────────────────────────────────────────
+ * COLLISION LAYERS
+ * ─────────────────────────────────────────────────────────
+ */
+
+void nya_physics2d_layers_set(NYA_Entity* entity, NYA_PhysicsLayerMask layers, NYA_PhysicsLayerMask collides_with) {
+    NYA_Physics2DBody* body = _nya_physics2d_body_of(entity, "set the collision layers");
+    if (body == nullptr) return;
+
+    body->layers        = layers;
+    body->collides_with = collides_with;
+
+    if (!b2Body_IsValid(body->id)) return;
+
+    b2ShapeId shapes[NYA_PHYSICS2D_MAX_SHAPES_PER_BODY];
+
+    int count = b2Body_GetShapes(body->id, shapes, NYA_PHYSICS2D_MAX_SHAPES_PER_BODY);
+    nya_assert(count >= 0);
+
+    // logged rather than silently partial: half a chain on the old layers would collide where the
+    // caller believes it cannot.
+    if (count == NYA_PHYSICS2D_MAX_SHAPES_PER_BODY && b2Body_GetShapeCount(body->id) > count) {
+        nya_log_warn("Entity '%s' has more than the %d shapes a layer change refilters; the rest keep their old layers.",
+                     entity->name ? entity->name : "(unnamed)", NYA_PHYSICS2D_MAX_SHAPES_PER_BODY);
+    }
+
+    for (int i = 0; i < count; i++) {
+        b2Filter filter = b2Shape_GetFilter(shapes[i]);
+
+        filter.categoryBits = layers;
+        filter.maskBits     = collides_with;
+
+        b2Shape_SetFilter(shapes[i], filter);
+    }
+
+    // woken: a sleeping body solves nothing, so a body that just became solid to the player would not
+    // meet it until something else disturbed it.
+    b2Body_SetAwake(body->id, true);
+}
+
+NYA_PhysicsLayerMask nya_physics2d_layers(const NYA_Entity* entity) {
+    if (entity == nullptr || !entity->physics2d.attached) return NYA_PHYSICS_LAYER_NONE;
+
+    return entity->physics2d.layers;
+}
+
+NYA_PhysicsLayerMask nya_physics2d_collides_with(const NYA_Entity* entity) {
+    if (entity == nullptr || !entity->physics2d.attached) return NYA_PHYSICS_LAYER_NONE;
+
+    return entity->physics2d.collides_with;
+}
+
 void nya_physics2d_one_way_set(NYA_Entity* entity, NYA_Physics2DOneWay direction) {
     NYA_Physics2DBody* body = _nya_physics2d_body_of(entity, "set a one-way direction");
     if (body == nullptr) return;
@@ -530,15 +585,24 @@ f32 nya_physics2d_hit_threshold(void) {
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, OUT f32x2* out_point, OUT f32x2* out_normal) {
+NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, OUT f32x2* out_point, OUT f32x2* out_normal) __attr_overloaded {
+    return nya_physics2d_raycast(origin, direction, NYA_PHYSICS_LAYER_ALL, out_point, out_normal);
+}
+
+NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, NYA_PhysicsLayerMask layers, OUT f32x2* out_point, OUT f32x2* out_normal)
+    __attr_overloaded {
     NYA_Physics2DSystem* system = &nya_world()->physics2d_system;
     if (!system->initialized) return NYA_ENTITY_HANDLE_NONE;
+
+    // the ray is in every layer and meets the ones asked for, so a body's own mask cannot hide it from
+    // a query that named its layer.
+    b2QueryFilter filter = { .categoryBits = NYA_PHYSICS_LAYER_ALL, .maskBits = layers };
 
     b2RayResult result = b2World_CastRayClosest(
         system->world,
         b2ToPos(_nya_physics2d_to_meters(origin)),
         _nya_physics2d_to_meters(direction),
-        b2DefaultQueryFilter()
+        filter
     );
 
     if (!result.hit) return NYA_ENTITY_HANDLE_NONE;
@@ -554,7 +618,11 @@ NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, OUT f32x2*
     return entity->handle;
 }
 
-NYA_EntityHandle nya_physics2d_entity_at(f32x2 point) {
+NYA_EntityHandle nya_physics2d_entity_at(f32x2 point) __attr_overloaded {
+    return nya_physics2d_entity_at(point, NYA_PHYSICS_LAYER_ALL);
+}
+
+NYA_EntityHandle nya_physics2d_entity_at(f32x2 point, NYA_PhysicsLayerMask layers) __attr_overloaded {
     NYA_Physics2DSystem* system = &nya_world()->physics2d_system;
     if (!system->initialized) return NYA_ENTITY_HANDLE_NONE;
 
@@ -568,7 +636,9 @@ NYA_EntityHandle nya_physics2d_entity_at(f32x2 point) {
 
     NYA_Physics2DPointQuery query = { .point = b2ToPos(meters), .result = NYA_ENTITY_HANDLE_NONE };
 
-    (void)b2World_OverlapAABB(system->world, b2Pos_zero, aabb, b2DefaultQueryFilter(), _nya_physics2d_point_query_callback, &query);
+    b2QueryFilter filter = { .categoryBits = NYA_PHYSICS_LAYER_ALL, .maskBits = layers };
+
+    (void)b2World_OverlapAABB(system->world, b2Pos_zero, aabb, filter, _nya_physics2d_point_query_callback, &query);
 
     return query.result;
 }
@@ -618,6 +688,11 @@ b8 _nya_physics2d_shape_create(b2BodyId body, const NYA_Entity* entity, const NY
     shape_def.material.restitution = options->restitution;
     shape_def.isSensor             = options->is_sensor;
     shape_def.enableContactEvents  = true;
+
+    // the whole point of layers: Box2D rejects the pair in the broadphase, so a filtered pair never
+    // reaches the narrowphase, pre-solve, the hit list or on_collision.
+    shape_def.filter.categoryBits = options->layers;
+    shape_def.filter.maskBits     = options->collides_with;
 
     /*
      * Pre-solve events, which one-way surfaces need and Box2D leaves off because they run per contact per step.
@@ -702,6 +777,10 @@ b8 _nya_physics2d_shape_create(b2BodyId body, const NYA_Entity* entity, const NY
             chain_def.materials     = &material;
             chain_def.materialCount = 1;
             chain_def.isLoop        = false;
+
+            // a chain carries the filter on the def rather than on each segment's shape def.
+            chain_def.filter.categoryBits = options->layers;
+            chain_def.filter.maskBits     = options->collides_with;
 
             // terrain is where pickups land, so a chain sensors cannot see would make ground triggers inert.
             chain_def.enableSensorEvents = true;

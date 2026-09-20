@@ -36,6 +36,8 @@ NYA_World* nya_world_create(void) {
      */
     NYA_World* previous = nya_world_set(world);
 
+    // before both solvers: a body attached during bring-up resolves its layers through this registry.
+    nya_system_physics_layer_init();
     nya_system_physics2d_init();
     nya_system_physics3d_init();
     nya_system_entity_init();
@@ -57,6 +59,7 @@ void nya_world_destroy(NYA_World* world) {
     nya_system_entity_deinit();
     nya_system_physics3d_deinit();
     nya_system_physics2d_deinit();
+    nya_system_physics_layer_deinit();
 
     // destroying the current world leaves none current, rather than a pointer to freed memory.
     (void)nya_world_set(previous == world ? nullptr : previous);

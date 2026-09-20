@@ -30,6 +30,10 @@ struct NYA_World {
     NYA_Arena* allocator;
 
     NYA_EntitySystem  entity_system;
+
+    /** The layer names both solvers filter through. Shared, since a layer is not 2D or 3D. */
+    NYA_PhysicsLayerSystem physics_layer_system;
+
     NYA_Physics2DSystem physics2d_system;
     NYA_Physics3DSystem physics3d_system;
     NYA_SimSystem     sim_system;

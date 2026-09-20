@@ -60,6 +60,9 @@ NYA_EntityHandle gny_entity_box_create(f32x2 position, GNY_EntityFlags flags) {
         .density     = 1.0F,
         .friction    = 0.5F,
         .restitution = 0.15F,
+
+        // the layer the cursor asks for, so right clicking the ground does not resolve to the terrain.
+        .layers = nya_physics_layer(GNY_LAYER_CRATE),
     );
 
     if (!attached) {

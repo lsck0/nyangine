@@ -722,6 +722,26 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * COLLISION LAYERS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * The names the game registers with nya_physics_layer. Everything still collides with everything, so
+ * these buy nothing in the solver; what they buy is queries that can say what they are looking for,
+ * which is why picking names GNY_LAYER_CRATE and no longer resolves a click on the ground to the
+ * terrain chain. See physics_layer.h.
+ */
+
+/** The ground: the terrain chain and the tilemap's solid cells. */
+#define GNY_LAYER_TERRAIN "terrain"
+
+/** The one-way platforms. */
+#define GNY_LAYER_LEDGE "ledge"
+
+/** The crates, and the only layer the cursor looks at. */
+#define GNY_LAYER_CRATE "crate"
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TILEMAP
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */

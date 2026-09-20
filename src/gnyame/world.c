@@ -219,6 +219,11 @@ void gny_terrain_generate(u64 seed) {
 
     world->terrain_seed = seed;
     world->terrain      = world->terrain2d->entity;
+
+    // moved onto its own layer after creation rather than through a terrain option: a body's layers
+    // belong to the body, and nya_terrain2d_create has no business growing a field for every caller
+    // who wants one.
+    nya_physics2d_layers_set(nya_entity_get(world->terrain), nya_physics_layer(GNY_LAYER_TERRAIN), NYA_PHYSICS_LAYER_ALL);
 }
 
 void _gny_lights_apply(NYA_Window* window) {

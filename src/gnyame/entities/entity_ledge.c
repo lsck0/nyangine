@@ -60,7 +60,9 @@ NYA_EntityHandle gny_entity_ledge_create(f32x2 position, f32x2 size, f32 patrol_
         .friction = GNY_LEDGE_FRICTION,
 
         // Passable from below: a crate thrown up through it goes through and lands back on top.
-        .one_way = NYA_PHYSICS2D_ONE_WAY_UP
+        .one_way = NYA_PHYSICS2D_ONE_WAY_UP,
+
+        .layers = nya_physics_layer(GNY_LAYER_LEDGE)
     );
 
     if (!moving) return ledge;

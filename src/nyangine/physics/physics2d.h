@@ -16,6 +16,7 @@
 
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/physics/physics_layer.h"
 #include "nyangine/physics/physics_types.h"
 #include "nyangine/core/core_types.h"
 #include "nyangine/math/math_vector.h"
@@ -55,6 +56,16 @@ typedef struct NYA_Entity NYA_Entity;
  * */
 #ifndef NYA_PHYSICS2D_MAX_CONTACTS_PER_BODY
 #define NYA_PHYSICS2D_MAX_CONTACTS_PER_BODY 16
+#endif
+
+/**
+ * Shapes a body may have and still be refiltered whole by nya_physics2d_layers_set. A stack buffer,
+ * and the only cost of the call. This API attaches one shape per body, so the only way past it is a
+ * chain, whose segments are shapes; a chain longer than this keeps its old layers on the remainder
+ * and says so.
+ * */
+#ifndef NYA_PHYSICS2D_MAX_SHAPES_PER_BODY
+#define NYA_PHYSICS2D_MAX_SHAPES_PER_BODY NYA_PHYSICS2D_CHAIN_MAX_POINTS
 #endif
 
 /**
@@ -218,6 +229,17 @@ struct NYA_Physics2DBody {
     /** The step `grounded` was computed on, plus one. Zero means never. */
     u64 grounded_step;
 
+    /*
+     * Mirrored from the shapes so a reader does not have to walk them, and so the two sides of a pair
+     * can be compared without asking Box2D twice.
+     */
+
+    /** Which layers this body is in. See physics_layer.h. */
+    NYA_PhysicsLayerMask layers;
+
+    /** Which layers it will meet. Both sides have to agree for a contact to survive. */
+    NYA_PhysicsLayerMask collides_with;
+
     /** Which way this surface lets bodies through, if any. See nya_physics2d_one_way_set. */
     NYA_Physics2DOneWay one_way;
 
@@ -246,6 +268,28 @@ struct NYA_Physics2DBodyOptions {
     /** CHAIN: the polyline, in world units relative to the entity's position. Copied during the call. */
     const f32x2* points;
     u32          point_count;
+
+    /**
+     * Which layers this body is in, as a mask from nya_physics_layer. NYA_PHYSICS_LAYER_DEFAULT unless
+     * given, so a game that never names a layer behaves exactly as it did before layers existed.
+     *
+     * ```c
+     * nya_physics2d_body_attach(bullet, .radius = 2, .shape = NYA_PHYSICS2D_SHAPE_CIRCLE,
+     *                           .layers = nya_physics_layer("bullet"),
+     *                           .collides_with = nya_physics_layers("terrain", "enemy"));
+     * ```
+     * */
+    NYA_PhysicsLayerMask layers;
+
+    /**
+     * Which layers this body will meet. NYA_PHYSICS_LAYER_ALL unless given, and taken literally:
+     * NYA_PHYSICS_LAYER_NONE is a body that meets nothing, not a body that meets everything.
+     *
+     * Filtering happens in the broadphase, so a pair the masks reject costs nothing: no manifold, no
+     * pre-solve call, no hit event, no on_collision. That is the whole reason this is a filter rather
+     * than an early return in a callback.
+     * */
+    NYA_PhysicsLayerMask collides_with;
 
     /** Kilograms per square metre. Ignored on a static or kinematic body, which have no mass. */
     f32 density;
@@ -301,7 +345,8 @@ struct NYA_Physics2DBodyOptions {
 
 // clang-format off
 #define _NYA_PHYSICS_BODY_DEFAULT_OPTIONS                                                                                                            \
-    .type = NYA_PHYSICS_BODY_DYNAMIC, .shape = NYA_PHYSICS2D_SHAPE_BOX, .density = 1.0F, .friction = 0.6F, .restitution = 0.05F, .gravity_scale = 1.0F
+    .type = NYA_PHYSICS_BODY_DYNAMIC, .shape = NYA_PHYSICS2D_SHAPE_BOX, .density = 1.0F, .friction = 0.6F, .restitution = 0.05F, .gravity_scale = 1.0F, \
+    .layers = NYA_PHYSICS_LAYER_DEFAULT, .collides_with = NYA_PHYSICS_LAYER_ALL
 // clang-format on
 
 /*
@@ -412,6 +457,31 @@ NYA_API void nya_physics2d_wake(NYA_Entity* entity);
 
 /*
  * ─────────────────────────────────────────────────────────
+ * COLLISION LAYERS
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * Moves an attached body onto other layers, which takes effect on the next step.
+ *
+ * ```c
+ * // the player is untouchable for a moment after being hit, without being despawned or disabled.
+ * nya_physics2d_layers_set(player, nya_physics_layer("player"), nya_physics_layer("terrain"));
+ * ```
+ *
+ * Every shape on the body is refiltered, chain segments included, since a body's layers are a
+ * property of the body and not of whichever shape happens to be first.
+ * */
+NYA_API void nya_physics2d_layers_set(NYA_Entity* entity, NYA_PhysicsLayerMask layers, NYA_PhysicsLayerMask collides_with);
+
+/** Which layers this body is in. NYA_PHYSICS_LAYER_NONE for an entity with no body. */
+NYA_API NYA_PhysicsLayerMask nya_physics2d_layers(const NYA_Entity* entity) __attr_no_discard;
+
+/** Which layers this body meets. NYA_PHYSICS_LAYER_NONE for an entity with no body. */
+NYA_API NYA_PhysicsLayerMask nya_physics2d_collides_with(const NYA_Entity* entity) __attr_no_discard;
+
+/*
+ * ─────────────────────────────────────────────────────────
  * ONE-WAY SURFACES
  * ─────────────────────────────────────────────────────────
  */
@@ -483,12 +553,21 @@ NYA_API f32  nya_physics2d_hit_threshold(void) __attr_no_discard;
  */
 
 /**
- * The entity whose body covers `point`, or NYA_ENTITY_HANDLE_NONE.
- * */
-/**
  * The nearest body along `origin + direction`, or NYA_ENTITY_HANDLE_NONE.
+ *
+ * The masked overload sees only bodies in `layers`, so a bullet trace can ignore the pickups and the
+ * corpses it flies through. The plain one sees every layer and is that call with
+ * NYA_PHYSICS_LAYER_ALL.
  * */
 NYA_API NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, OUT f32x2* out_point, OUT f32x2* out_normal)
-    __attr_no_discard;
+    __attr_no_discard __attr_overloaded;
 
-NYA_API NYA_EntityHandle nya_physics2d_entity_at(f32x2 point) __attr_no_discard;
+NYA_API NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, NYA_PhysicsLayerMask layers, OUT f32x2* out_point,
+                                               OUT f32x2* out_normal) __attr_no_discard __attr_overloaded;
+
+/**
+ * The entity whose body covers `point`, or NYA_ENTITY_HANDLE_NONE.
+ * */
+NYA_API NYA_EntityHandle nya_physics2d_entity_at(f32x2 point) __attr_no_discard __attr_overloaded;
+
+NYA_API NYA_EntityHandle nya_physics2d_entity_at(f32x2 point, NYA_PhysicsLayerMask layers) __attr_no_discard __attr_overloaded;

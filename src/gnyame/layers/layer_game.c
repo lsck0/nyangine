@@ -70,6 +70,12 @@ void gny_layer_game_on_create(NYA_Window* window) {
         // The invisible "collision" layer becomes static bodies. Merged into runs, so the map's three
         // solid rows are three wide boxes rather than sixty one-tile ones a crate could catch on.
         (void)nya_tilemap_collision_build(world->tilemap, "collision", GNY_TILEMAP_COLLIDER_KIND);
+
+        // the same layer the terrain chain is on: to everything that queries, the map's solid cells
+        // and the ground are the same thing.
+        NYA_PhysicsLayerMask terrain = nya_physics_layer(GNY_LAYER_TERRAIN);
+
+        nya_entity_foreach_kind (GNY_TILEMAP_COLLIDER_KIND, collider) nya_physics2d_layers_set(collider, terrain, NYA_PHYSICS_LAYER_ALL);
     }
 
     /*
@@ -133,7 +139,9 @@ void gny_layer_game_on_event(NYA_Window* window, NYA_Event* event) {
              * Every other button goes to whatever is under the cursor.
              */
             else {
-                (void)nya_entity_click(point, mouse->button);
+                // crates only: without the layer this resolves to the terrain chain under the cursor
+                // and the click is swallowed by a body that has no on_click.
+                (void)nya_entity_click(point, mouse->button, nya_physics_layer(GNY_LAYER_CRATE));
 
                 event->was_handled = true;
             }
@@ -145,7 +153,7 @@ void gny_layer_game_on_event(NYA_Window* window, NYA_Event* event) {
             /*
              * Where the cursor is, every time it moves. nya_entity_hover does the rest.
              */
-            (void)nya_entity_hover(gny_screen_to_world(window, (f32x2){ moved->x, moved->y }));
+            (void)nya_entity_hover(gny_screen_to_world(window, (f32x2){ moved->x, moved->y }), nya_physics_layer(GNY_LAYER_CRATE));
         } break;
 
         /*

@@ -549,6 +549,12 @@ NYA_API void nya_system_entity_render(NYA_Window* window);
 NYA_API NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button) __attr_overloaded;
 
 /**
+ * The same, restricted to bodies in `layers`, so clicking the ground does not resolve to the terrain.
+ * The call above is this one with NYA_PHYSICS_LAYER_ALL.
+ * */
+NYA_API NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button, NYA_PhysicsLayerMask layers) __attr_overloaded;
+
+/**
  * The same for a 3D scene: the first entity along a ray. A click is a point in 2D and a line in 3D, as in
  * nya_physics2d_entity_at and nya_physics3d_raycast.
  *
@@ -564,6 +570,9 @@ NYA_API NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 butt
  * Callbacks fire on the edges, so calling it every frame is the intended use.
  * */
 NYA_API NYA_EntityHandle nya_entity_hover(f32x2 world_point) __attr_overloaded;
+
+/** The same, restricted to bodies in `layers`. See nya_entity_click. */
+NYA_API NYA_EntityHandle nya_entity_hover(f32x2 world_point, NYA_PhysicsLayerMask layers) __attr_overloaded;
 
 /** The same for a 3D scene. See nya_entity_click. */
 NYA_API NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction) __attr_overloaded;
