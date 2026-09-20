@@ -30,3 +30,52 @@ NYA_API u64 nya_siphash(const void* data, u64 size, u64 key_low, u64 key_high) _
 
 NYA_API f32 nya_ihash2(s32 x, s32 y, u32 seed);
 NYA_API f32 nya_ihash3(s32 x, s32 y, s32 z, u32 seed);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * SHA-256
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * The digest, in bytes. FIPS 180-4 fixes it at 32 and nothing about it is configurable.
+ * */
+#define NYA_SHA256_BYTES 32
+
+/** One SHA-256 block, which is also the key length HMAC pads to. */
+#define NYA_SHA256_BLOCK_BYTES 64
+
+/**
+ * SHA-256 of `size` bytes.
+ *
+ * The one hash here with real collision resistance, and the one to reach for when something outside
+ * this process has to agree on the answer: an authentication challenge, a token signature, a content
+ * address. Everything above it is for in-memory tables and is not that.
+ *
+ * ```c
+ * u8 digest[NYA_SHA256_BYTES] = { 0 };
+ * nya_sha256((const u8*)text, strlen(text), digest);
+ * ```
+ * */
+NYA_API void nya_sha256(const u8* data, u64 size, OUT u8 out_digest[NYA_SHA256_BYTES]);
+
+/**
+ * HMAC-SHA256, RFC 2104. What a signed token is signed with.
+ *
+ * A key longer than NYA_SHA256_BLOCK_BYTES is hashed first, as the RFC requires, so any key length is
+ * accepted and no caller has to know that rule.
+ *
+ * ```c
+ * u8 tag[NYA_SHA256_BYTES] = { 0 };
+ * nya_hmac_sha256(secret, secret_size, (const u8*)message, message_size, tag);
+ * ```
+ * */
+NYA_API void nya_hmac_sha256(const u8* key, u64 key_size, const u8* data, u64 size, OUT u8 out_tag[NYA_SHA256_BYTES]);
+
+/**
+ * Whether two tags are equal, in time that does not depend on where they first differ.
+ *
+ * A plain memcmp returns early, and how early is a measurable fact about the secret. Use this and
+ * nothing else to check a signature or an authentication tag.
+ * */
+NYA_API b8 nya_hash_equals_constant_time(const u8* a, const u8* b, u64 size) __attr_no_discard;
