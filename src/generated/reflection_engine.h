@@ -59,6 +59,17 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_SceneEntity;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsVolumes;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_GraphicsQuality;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpScope;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpIdentity;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpMetricsDto;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingDto;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingsDto;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenaDto;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenasDto;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpOwnerDto;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpSystemsDto;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpAccountingDto;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_HttpProblem;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Quaternion;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_EaseType;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_NetChatMessage;
@@ -89,6 +100,6 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated engine type. The game's are in generated/reflection.h. */
-#define NYA_REFLECT_ENGINE_TYPE_COUNT 51
+#define NYA_REFLECT_ENGINE_TYPE_COUNT 62
 
 extern const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT];
