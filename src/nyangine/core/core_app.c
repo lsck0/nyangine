@@ -481,10 +481,10 @@ void nya_app_events_pump(void) {
     nya_system_event_drain_sdl_events();
 
 #if NYA_TERMINAL_ENABLED
-            // beside the SDL drain and not instead of it: under -DNYA_TERMINAL the keyboard and the
-            // mouse come from the terminal, and SDL still delivers everything that is not input.
-            // Both feed nya_event_dispatch, so the loop below cannot tell which produced what.
-            nya_system_event_drain_terminal_events();
+    // beside the SDL drain and not instead of it: under -DNYA_TERMINAL the keyboard and the mouse
+    // come from the terminal, and SDL still delivers everything that is not input. Both feed
+    // nya_event_dispatch, so the loop below cannot tell which produced what.
+    nya_system_event_drain_terminal_events();
 #endif
 
     NYA_Event event;

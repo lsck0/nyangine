@@ -3348,61 +3348,6 @@ NYA_FluidRenderOptions nya_fluid_render_options(const NYA_Window* window)
 void nya_fluid_draw(NYA_Window* window, const NYA_Fluid* fluid)
 ```
 
-### render_fluid.h
-
-Eulerian fluid: a grid of velocity, density and temperature stepped with the incompressible
-
-```c
-// types
-enum NYA_FluidSpace { NYA_FLUID_SPACE_2D = 0, NYA_FLUID_SPACE_3D, NYA_FLUID_SPACE_COUNT, }  // Which renderer a volume draws through, and how its grid is laid out in the world.
-struct NYA_FluidOptions { NYA_FluidSpace space; u32 width; u32 height; u32 depth; f32 cell_size; f32x3 origin; f32x3 up; f32 buoyancy; f32 weight; f32 vorticity; f32 viscosity; f32 diffusion; f32 dissipation; f32 cooling; f32 ambient_temperature; f32x3 gravity; u32 pressure_iterations; }  // What a volume is and how it behaves.
-struct NYA_FluidEmitter { f32x3 position; f32 radius; f32 density; f32 temperature; f32x3 velocity; }  // A ball of fluid pushed into the grid.
-struct NYA_FluidRenderOptions { b8 enabled; f32 opacity; f32 threshold; f32 density_full; NYA_Color cool; NYA_Color hot; f32 hot_temperature; u32 stride; }  // What a window does with fluid volumes.
-struct NYA_Fluid { NYA_Arena* allocator; NYA_FluidOptions options; u32 width; u32 height; u32 depth; u32 stride_x; u32 stride_y; u32 stride_z; u32 cell_count; f32* velocity_x; f32* velocity_y; f32* velocity_z; f32* velocity_x_previous; f32* velocity_y_previous; f32* velocity_z_previous; f32* density; f32* density_previous; f32* temperature; f32* temperature_previous; f32* pressure; f32* divergence; f32* curl_magnitude; u8* obstacle; u32 obstacle_count; u64 step_count; f32 step_time_s; }  // One volume.
-
-// macros
-NYA_FLUID_VOLUMES_MAX 8  // Volumes that may exist at once.
-NYA_FLUID_DIMENSION_MAX 256  // The most cells an edge may have.
-NYA_FLUID_CELLS_MAX (4ULL * 1024ULL * 1024ULL)  // The most cells one volume may hold, borders included.
-NYA_FLUID_PRESSURE_ITERATIONS 20  // Gauss-Seidel sweeps in the pressure projection, when NYA_FluidOptions.pressure_iterations is zero.
-NYA_FLUID_PRESSURE_ITERATIONS_MAX 128  // The most sweeps the solve will ever run, whatever it is asked for.
-NYA_FLUID_STEP_SECONDS_MAX 0.1F  // The largest timestep one call to nya_fluid_step integrates, in seconds.
-NYA_FLUID_CELL_SIZE 1.0F  // World units per cell when NYA_FluidOptions.cell_size is zero.
-NYA_FLUID_FIELD_MAX 1000.0F  // The ceiling every field is clamped to after a step.
-NYA_FLUID_BUOYANCY 0.0F  // Buoyancy, vorticity, dissipation and cooling when their option fields are zero.
-NYA_FLUID_VORTICITY 0.0F
-NYA_FLUID_DISSIPATION 0.0F
-NYA_FLUID_COOLING 0.0F
-NYA_FLUID_DRAW_THRESHOLD 0.02F  // How much density a cell needs before it is drawn at all, when the render option is zero.
-NYA_FLUID_DRAW_OPACITY 0.85F  // How opaque the densest cell is drawn, when NYA_FluidRenderOptions.opacity is zero.
-NYA_FLUID_DRAW_DENSITY_FULL 1.0F  // The density that draws at full opacity, when NYA_FluidRenderOptions.density_full is zero.
-
-// functions
-NYA_Fluid* nya_fluid_create(NYA_Arena* arena, NYA_FluidOptions options)  // Allocates a volume at the size in `options` and registers it in the live table.
-void nya_fluid_destroy(NYA_Fluid* fluid)  // Removes the volume from the live table.
-void nya_fluid_clear(NYA_Fluid* fluid)  // Zeroes every field, keeping the obstacles and the options.
-void nya_fluid_options_set(NYA_Fluid* fluid, NYA_FluidOptions options)  // Replaces the solver's knobs.
-NYA_FluidOptions nya_fluid_options(const NYA_Fluid* fluid)
-void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s)
-void nya_fluid_emit(NYA_Fluid* fluid, NYA_FluidEmitter emitter)  // Pushes density, heat and velocity into a ball of the grid.
-void nya_fluid_obstacle_box_set(NYA_Fluid* fluid, f32x3 min, f32x3 max)
-void nya_fluid_obstacle_box_clear(NYA_Fluid* fluid, f32x3 min, f32x3 max)  // Unmarks the same box.
-void nya_fluid_obstacles_clear(NYA_Fluid* fluid)  // Clears every obstacle in one pass, for a body that moved or a level that changed.
-f32 nya_fluid_density_at(const NYA_Fluid* fluid, f32x3 position)  // The fields at a world point, interpolated between the surrounding cells.
-f32 nya_fluid_temperature_at(const NYA_Fluid* fluid, f32x3 position)
-f32x3 nya_fluid_velocity_at(const NYA_Fluid* fluid, f32x3 position)
-b8 nya_fluid_cell_index(const NYA_Fluid* fluid, f32x3 position, OUT u32* out_index)  // The index of the cell a world point falls in, or false when the point is outside the interior.
-u64 nya_fluid_checksum(const NYA_Fluid* fluid)  // A hash of every field, so a replay test can assert two runs agree without comparing megabytes.
-u32 nya_fluid_cell_count(const NYA_Fluid* fluid)  // Cells including borders, bytes held, and how long the last step took.
-u64 nya_fluid_memory_bytes(const NYA_Fluid* fluid)
-f32 nya_fluid_step_time_s(const NYA_Fluid* fluid)
-u32 nya_fluid_count(void)  // The live volumes, in creation order.
-NYA_Fluid* nya_fluid_at(u32 index)
-void nya_fluid_render_options_set(NYA_Window* window, NYA_FluidRenderOptions options)  // What this window draws fluid as.
-NYA_FluidRenderOptions nya_fluid_render_options(const NYA_Window* window)
-void nya_fluid_draw(NYA_Window* window, const NYA_Fluid* fluid)
-```
-
 ### render_font.h
 
 ```c
