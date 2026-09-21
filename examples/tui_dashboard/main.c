@@ -1,26 +1,40 @@
 /**
  * @file examples/tui_dashboard/main.c
  *
- * A live arena dashboard drawn through the engine's terminal backend: occupancy bars that rise and
- * fall while the arenas below them fill and empty, keys and mouse clicks read from the terminal, a
- * resize handled while it runs, and a picture through the kitty graphics protocol where the terminal
- * has one.
+ * A live arena dashboard drawn through the engine's terminal backend and built out of `nya_ui_*`
+ * widgets: occupancy bars that rise and fall while the arenas below them fill and empty, a panel of
+ * controls beside them, and the whole thing driven from the keyboard, because a TUI with no keyboard
+ * is not a TUI.
  *
  * ```
  * ./build run example tui_dashboard
  * ```
  *
- * `q` or escape quits, space empties the worker arena, and clicking a bar selects it.
+ * Tab and shift-tab step through every widget, the arrows move within a panel and between them,
+ * enter activates, escape quits, and the mouse still works where the terminal reports one.
  *
  * ## How a program picks the terminal backend
  *
  * `NYA_TERMINAL`, defined before the engine is included. It implies `NYA_HEADLESS` (see
  * base_basic.h), so this program has no GPU device, no swapchain and no window server connection,
  * and `nyangine.c` compiles `render2d_terminal.c` in place of `render2d.c`. Every
- * `nya_render2d_*` call below is the same call a program against a window makes; only the backend
- * under it differs. `-DNYA_TERMINAL` on the compiler's command line does exactly the same thing, and
- * is how a project that is a TUI would do it; it is defined here because the example builds under
- * the shared example flags.
+ * `nya_render2d_*` and `nya_ui_*` call below is the same call a program against a window makes; only
+ * the backend under it differs. `-DNYA_TERMINAL` on the compiler's command line does exactly the
+ * same thing, and is how a project that is a TUI would do it; it is defined here because the example
+ * builds under the shared example flags.
+ *
+ * ## What a TUI has to stand up, and what it must not
+ *
+ * The callback, event and input systems, and no more: those three are what `nya_event_dispatch`,
+ * `nya_input_*` and every `nya_ui_*` widget above them read, and they are the same three the SDL
+ * backend feeds. `nya_app_init` would bring up the whole frame loop and with it SDL's video
+ * subsystem, which a program over ssh has no display for.
+ *
+ * Two things follow from there and are easy to get wrong. The input system rolls its just-pressed
+ * edges on `NYA_EVENT_UPDATING_ENDED`, so a program with no frame loop dispatches that itself once
+ * per frame or every key is pressed forever. And a terminal reports a key press and never a release,
+ * so each key is dispatched as a down and an up in the same drain: `just_pressed` is the call that
+ * works here, and `pressed` is true for no time at all. See terminal.h.
  * */
 
 /*
@@ -44,7 +58,7 @@
  */
 
 /** Frames drawn before the program exits on its own. Bounded, because an example must end. */
-#define FRAME_COUNT 240
+#define FRAME_COUNT 600
 
 /** Wall clock between frames. Thirty a second is smooth to watch and leaves the terminal idle. */
 #define FRAME_INTERVAL_MS 33
@@ -52,38 +66,48 @@
 /** How much the worker arena holds when full, which is what its bar is a fraction of. */
 #define WORKER_BUDGET_BYTES nya_kibyte_to_byte(256)
 
-/** Bytes taken per frame while filling. The budget over a quarter of the frames, so it fills four times. */
-#define WORKER_STEP_BYTES (WORKER_BUDGET_BYTES / (FRAME_COUNT / 4))
+/** Bytes taken per frame while filling. The budget over a tenth of the frames, so it fills ten times. */
+#define WORKER_STEP_BYTES (WORKER_BUDGET_BYTES / (FRAME_COUNT / 10))
 
 /*
- * The layout, in pixels, because that is what the renderer takes. One cell is
- * NYA_TERMINAL_CELL_WIDTH_PX by NYA_TERMINAL_CELL_HEIGHT_PX, so these are cell counts times the cell.
+ * The layout, in pixels at scale 1, because that is what the UI takes. One cell is
+ * NYA_TERMINAL_CELL_WIDTH_PX by NYA_TERMINAL_CELL_HEIGHT_PX of them, so every size here is a whole
+ * number of cells: a size that is not lands between two and the cell it rounds to is nobody's
+ * choice. That is the one thing a terminal asks of a layout written for pixels.
  */
 #define CELL_W ((f32)NYA_TERMINAL_CELL_WIDTH_PX)
 #define CELL_H ((f32)NYA_TERMINAL_CELL_HEIGHT_PX)
 
-/** Rows the title takes, and the row the first bar starts on. */
-#define HEADER_ROWS 3
-#define FOOTER_ROWS 2
+/** A widget is one row, gaps are one row, and a panel's edge is one row and two columns. */
+#define ROW_HEIGHT CELL_H
+#define GAP        CELL_H
+#define PADDING    CELL_H
 
-/** Columns before a bar starts, leaving room for the arena's name beside it. */
-#define LABEL_COLUMNS 20
+/**
+ * The focus mark, in pixels, which here is one whole cell. Anything narrower falls between two cells
+ * and the only sign of what has focus is a colour the terminal may not have. See NYA_UIStyle.
+ * */
+#define FOCUS_BAR CELL_W
 
-/** The swatch sent through the kitty protocol, in pixels. Small, because it is a demonstration. */
-#define SWATCH_SIZE_PX 64
+/** The controls beside the arenas, and the widest an arena's name may be. Both in columns. */
+#define CONTROLS_COLUMNS 28.0F
+#define NAME_COLUMNS     18.0F
 
 /*
- * The palette. Named because a hex triple in the middle of a draw call says nothing about what it is
- * for, and because these are the only colours this program has.
+ * The palette. Every colour is opaque: the terminal backend keeps the character under a translucent
+ * fill and only dims it, which is what makes a scrim read as a scrim, and which would leave a panel
+ * showing the text it was drawn over.
  */
-#define COLOR_GROUND  ((NYA_Color){ 0.06F, 0.06F, 0.09F, 1.0F })
-#define COLOR_HEADER  ((NYA_Color){ 0.16F, 0.14F, 0.30F, 1.0F })
-#define COLOR_TRACK   ((NYA_Color){ 0.13F, 0.13F, 0.17F, 1.0F })
-#define COLOR_FILL    ((NYA_Color){ 0.35F, 0.75F, 0.55F, 1.0F })
-#define COLOR_HOT     ((NYA_Color){ 0.90F, 0.45F, 0.35F, 1.0F })
-#define COLOR_TEXT    ((NYA_Color){ 0.88F, 0.88F, 0.92F, 1.0F })
-#define COLOR_DIM     ((NYA_Color){ 0.50F, 0.50F, 0.58F, 1.0F })
-#define COLOR_SELECT  ((NYA_Color){ 0.25F, 0.22F, 0.42F, 1.0F })
+#define COLOR_GROUND ((NYA_Color){ 0.06F, 0.06F, 0.09F, 1.0F })
+#define COLOR_PANEL  ((NYA_Color){ 0.11F, 0.11F, 0.16F, 1.0F })
+#define COLOR_BUTTON ((NYA_Color){ 0.16F, 0.16F, 0.22F, 1.0F })
+#define COLOR_FOCUS  ((NYA_Color){ 0.22F, 0.26F, 0.38F, 1.0F })
+#define COLOR_TRACK  ((NYA_Color){ 0.13F, 0.13F, 0.17F, 1.0F })
+#define COLOR_FILL   ((NYA_Color){ 0.35F, 0.75F, 0.55F, 1.0F })
+#define COLOR_HOT    ((NYA_Color){ 0.90F, 0.45F, 0.35F, 1.0F })
+#define COLOR_ACCENT ((NYA_Color){ 0.45F, 0.65F, 0.95F, 1.0F })
+#define COLOR_TEXT   ((NYA_Color){ 0.88F, 0.88F, 0.92F, 1.0F })
+#define COLOR_DIM    ((NYA_Color){ 0.50F, 0.50F, 0.58F, 1.0F })
 
 /** Share of a bar above which it is drawn hot rather than calm. */
 #define HOT_SHARE 0.85F
@@ -94,16 +118,32 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/** What a bar is a share of, which is the dropdown's two options in its order. */
+typedef enum {
+    MEASURE_USED = 0,
+    MEASURE_FREE_LIST,
+
+    MEASURE_COUNT,
+} Measure;
+
 /** Everything the frame needs that is not an arena. Plain data, passed down rather than global. */
 typedef struct {
     u32 frame;
     u64 elapsed_ms;
 
-    /** Which bar the last click landed on, or the row count when none. */
+    /** Which arena row is chosen, or U32_MAX when none is. */
     u32 selected;
 
-    /** Whether the terminal has been resized since the program started, for the footer to say so. */
+    /** Whether the worker arena is still being filled, and what the bars are a share of. */
+    b8  filling;
+    u32 measure;
+
+    /** Whether the terminal panel is folded away, and how many resizes the run has seen. */
+    b8  terminal_open;
     u32 resizes;
+
+    /** Set when a widget asked to stop, since a UI pass reports rather than exits. */
+    b8 quit;
 } Dashboard;
 
 /*
@@ -112,97 +152,144 @@ typedef struct {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** One bar: the arena's name, a track, the filled share of it, and the numbers. */
-static void bar_draw(NYA_Window* window, u32 index, NYA_ConstCString label, u64 used, u64 capacity, b8 selected) {
-    nya_assert(window != nullptr && label != nullptr);
+/** One arena: a row that takes focus, a track behind it, and the filled share of it. */
+static void arena_row(NYA_UI* ui, NYA_Window* window, Dashboard* dashboard, u32 index, const NYA_ArenaStats* stats) {
+    nya_assert(ui != nullptr && window != nullptr && dashboard != nullptr && stats != nullptr);
 
-    f32 y = (f32)(HEADER_ROWS + index) * CELL_H;
+    NYA_ConstCString name = stats->name != nullptr ? stats->name : "(unnamed)";
+    u64              part = dashboard->measure == MEASURE_USED ? stats->used_bytes : stats->free_list_bytes;
 
     // an empty arena has no capacity yet, and dividing by it would be the one crash this can have.
-    f32 share = capacity > 0 ? (f32)used / (f32)capacity : 0.0F;
+    f32 share = stats->reserved_bytes > 0 ? (f32)part / (f32)stats->reserved_bytes : 0.0F;
     share     = nya_clamp(share, 0.0F, 1.0F);
 
-    f32 track_x     = LABEL_COLUMNS * CELL_W;
-    f32 numbers     = 24.0F * CELL_W;
-    f32 track_width = nya_max((f32)window->screen_width - track_x - numbers, CELL_W);
+    // named by its place in the registry rather than by the arena: two arenas may share a name, and two rows
+    // sharing an id would share their widgets' ids with them.
+    char id[16];
+    (void)snprintf(id, sizeof(id), "arena%u", index);
 
-    if (selected) nya_render2d_rect(window, 0.0F, y, (f32)window->screen_width, CELL_H, COLOR_SELECT);
+    if (!nya_ui_panel_begin(ui, id, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .frameless = true })) return;
 
-    nya_render2d_text(window, label, CELL_W, y, selected ? COLOR_TEXT : COLOR_DIM);
+    nya_ui_size(ui, nya_ui_fixed(NAME_COLUMNS * CELL_W));
+    if (nya_ui_selectable(ui, name, dashboard->selected == index)) dashboard->selected = index;
 
-    nya_render2d_rect(window, track_x, y, track_width, CELL_H, COLOR_TRACK);
-    nya_render2d_rect(window, track_x, y, track_width * share, CELL_H, share >= HOT_SHARE ? COLOR_HOT : COLOR_FILL);
+    // the bar is drawn into room the layout gave it, which is what nya_ui_space is for: the widgets
+    // above it are the engine's, this is the program's, and they share one column of pixels.
+    nya_ui_size(ui, nya_ui_grow(1));
+    NYA_Rectf track = nya_ui_space(ui, 0.0F, ROW_HEIGHT);
 
-    nya_render2d_textf(window, track_x + track_width + CELL_W, y, COLOR_DIM, "%5.1f%%  " FMTu64 " B", (f64)share * 100.0, used);
+    if (track.width > 0.0F) {
+        nya_render2d_rect(window, track.x, track.y, track.width, track.height, COLOR_TRACK);
+        nya_render2d_rect(window, track.x, track.y, roundf(track.width * share), track.height, share >= HOT_SHARE ? COLOR_HOT : COLOR_FILL);
+    }
+
+    nya_ui_panel_end(ui);
 }
 
-/** The whole frame. Nothing here knows it is a terminal; these are the calls a window takes. */
-static void frame_draw(NYA_Window* window, const Dashboard* dashboard) {
-    nya_assert(window != nullptr && dashboard != nullptr);
+/** The controls beside the arenas: what the bars show, what the worker arena does, and the way out. */
+static void controls_panel(NYA_UI* ui, Dashboard* dashboard, NYA_Arena* worker) {
+    nya_assert(ui != nullptr && dashboard != nullptr && worker != nullptr);
 
-    nya_render2d_terminal_frame_begin(window, COLOR_GROUND);
+    NYA_UIPanel panel = { .width = nya_ui_fixed(CONTROLS_COLUMNS * CELL_W), .height = nya_ui_grow(1) };
+    if (!nya_ui_panel_begin(ui, "controls", panel)) return;
 
-    f32 width = (f32)window->screen_width;
+    NYA_ConstCString measures[MEASURE_COUNT] = {
+        [MEASURE_USED]      = "used",
+        [MEASURE_FREE_LIST] = "free list",
+    };
 
-    nya_render2d_rect(window, 0.0F, 0.0F, width, CELL_H, COLOR_HEADER);
-    nya_render2d_text(window, "nyangine — arenas", CELL_W, 0.0F, COLOR_TEXT);
-    nya_render2d_textf(window, width - (28.0F * CELL_W), 0.0F, COLOR_TEXT, "frame %3u/%u  " FMTu64 " ms", dashboard->frame + 1, FRAME_COUNT,
-                       dashboard->elapsed_ms);
+    // the list hangs over the widgets under it instead of pushing them down the panel.
+    (void)nya_ui_dropdown(ui, "bars show", measures, nya_carray_length(measures), &dashboard->measure);
 
-    // straight off the registry, so every arena alive right now appears, the engine's included.
-    u32 rows = nya_arena_registry_count();
+    (void)nya_ui_toggle(ui, "filling", &dashboard->filling);
 
-    for (u32 i = 0; i < rows; i++) {
-        NYA_Arena* arena = nya_arena_registry_at(i);
-        if (arena == nullptr) continue;
+    if (nya_ui_button(ui, "free worker")) nya_arena_free_all(worker);
 
-        NYA_ArenaStats stats = nya_arena_stats(arena);
+    if (nya_ui_section_begin(ui, "terminal", &dashboard->terminal_open)) {
+        NYA_TerminalCapabilities capabilities = nya_terminal_capabilities();
 
-        bar_draw(window, i, stats.name != nullptr ? stats.name : "(unnamed)", stats.used_bytes, stats.reserved_bytes, dashboard->selected == i);
+        NYA_ConstCString depth = "no colour";
+        switch (capabilities.color_depth) {
+            case NYA_TERMINAL_COLOR_16:   depth = "16 colours"; break;
+            case NYA_TERMINAL_COLOR_256:  depth = "256 colours"; break;
+            case NYA_TERMINAL_COLOR_TRUE: depth = "truecolor"; break;
+            case NYA_TERMINAL_COLOR_NONE: break;
+            case NYA_TERMINAL_COLOR_COUNT:
+            default:                      nya_unreachable();
+        }
+
+        char line[64];
+
+        (void)snprintf(line, sizeof(line), "%ux%u cells", nya_terminal_columns(), nya_terminal_rows());
+        nya_ui_label(ui, line, COLOR_DIM);
+        nya_ui_label(ui, depth, COLOR_DIM);
+        nya_ui_label(ui, capabilities.kitty_images ? "kitty images" : "no images", COLOR_DIM);
+
+        (void)snprintf(line, sizeof(line), "%u resize(s)", dashboard->resizes);
+        nya_ui_label(ui, line, COLOR_DIM);
+
+        nya_ui_section_end(ui);
     }
 
-    NYA_TerminalCapabilities capabilities = nya_terminal_capabilities();
+    // a spacer, so the way out sits at the bottom of the panel however tall the terminal is.
+    nya_ui_size(ui, nya_ui_grow(1));
+    (void)nya_ui_space(ui, 0.0F, 0.0F);
 
-    NYA_ConstCString depth = "no colour";
-    switch (capabilities.color_depth) {
-        case NYA_TERMINAL_COLOR_16:    depth = "16 colours"; break;
-        case NYA_TERMINAL_COLOR_256:   depth = "256 colours"; break;
-        case NYA_TERMINAL_COLOR_TRUE:  depth = "truecolor"; break;
-        case NYA_TERMINAL_COLOR_NONE:  break;
-        case NYA_TERMINAL_COLOR_COUNT:
-        default:                       nya_unreachable();
-    }
+    if (nya_ui_button(ui, "quit")) dashboard->quit = true;
 
-    f32 footer_y = (f32)(window->screen_height) - (FOOTER_ROWS * CELL_H);
-
-    nya_render2d_textf(window, CELL_W, footer_y, COLOR_DIM, "%ux%u cells · %s · %s · %u resize(s)", nya_terminal_columns(), nya_terminal_rows(), depth,
-                       capabilities.kitty_images ? "kitty images" : "no images", dashboard->resizes);
-
-    nya_render2d_text(window, "q quit · space free the worker arena · click a bar to select it", CELL_W, footer_y + CELL_H, COLOR_DIM);
+    nya_ui_panel_end(ui);
 }
 
 /**
- * A colour swatch through the kitty protocol, to the right of the footer.
- *
- * Generated rather than loaded, so the example needs no asset and the bytes are obviously RGBA. On a
- * terminal without the protocol this draws nothing and says false, which is the documented
- * degradation: the rest of the dashboard is unaffected.
+ * The whole frame, run twice: once from the input pass, which moves focus and returns what widgets
+ * did, and once from the draw pass, which draws it. Nothing here knows it is a terminal.
  * */
-static b8 swatch_draw(NYA_Window* window, f32 x, f32 y) {
-    static u8 pixels[SWATCH_SIZE_PX * SWATCH_SIZE_PX * 4];
+static void frame_pass(NYA_Window* window, NYA_UIPass pass, Dashboard* dashboard, NYA_Arena* worker) {
+    nya_assert(window != nullptr && dashboard != nullptr && worker != nullptr);
 
-    for (u32 row = 0; row < SWATCH_SIZE_PX; row++) {
-        for (u32 column = 0; column < SWATCH_SIZE_PX; column++) {
-            u32 at = ((row * SWATCH_SIZE_PX) + column) * 4;
+    NYA_UI* ui = nya_ui_begin(window, pass);
 
-            pixels[at + 0] = (u8)((column * 255U) / (SWATCH_SIZE_PX - 1U));
-            pixels[at + 1] = (u8)((row * 255U) / (SWATCH_SIZE_PX - 1U));
-            pixels[at + 2] = 0x80;
-            pixels[at + 3] = 0xFF;
+    NYA_UIPanel root = { .width = nya_ui_grow(1), .height = nya_ui_grow(1), .frameless = true };
+
+    if (nya_ui_panel_begin(ui, "root", root)) {
+        char header[80];
+        (void)snprintf(header, sizeof(header), "nyangine arenas — frame %u/%u — " FMTu64 " ms", dashboard->frame + 1, FRAME_COUNT, dashboard->elapsed_ms);
+        nya_ui_label(ui, header, COLOR_ACCENT);
+
+        NYA_UIPanel body = { .direction = NYA_UI_DIRECTION_ROW, .height = nya_ui_grow(1), .frameless = true };
+
+        if (nya_ui_panel_begin(ui, "body", body)) {
+            // the arenas scroll when there are more of them than rows, which is the wheel and the
+            // focus following the keys, both for free.
+            NYA_UIPanel arenas = { .width = nya_ui_grow(1), .height = nya_ui_grow(1) };
+
+            if (nya_ui_panel_begin(ui, "arenas", arenas)) {
+                u32 rows = nya_arena_registry_count();
+
+                // straight off the registry, so every arena alive right now appears, the engine's included.
+                for (u32 i = 0; i < rows; i++) {
+                    NYA_Arena* arena = nya_arena_registry_at(i);
+                    if (arena == nullptr) continue;
+
+                    NYA_ArenaStats stats = nya_arena_stats(arena);
+                    arena_row(ui, window, dashboard, i, &stats);
+                }
+
+                nya_ui_panel_end(ui);
+            }
+
+            controls_panel(ui, dashboard, worker);
+            nya_ui_panel_end(ui);
         }
+
+        nya_ui_label(ui, "tab / shift-tab and the arrows move · enter activates · escape quits", COLOR_DIM);
+        nya_ui_panel_end(ui);
     }
 
-    return nya_render2d_terminal_image(window, x, y, pixels, SWATCH_SIZE_PX, SWATCH_SIZE_PX);
+    // escape reaches here as a cancel, and only once a dropdown has had its chance at it.
+    if (nya_ui_cancelled(ui)) dashboard->quit = true;
+
+    nya_ui_end(ui);
 }
 
 /*
@@ -211,9 +298,9 @@ static b8 swatch_draw(NYA_Window* window, f32 x, f32 y) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Drains the terminal and acts on what came out. False when the program was asked to stop. */
-static b8 input_pump(Dashboard* dashboard, NYA_Arena* worker) {
-    nya_assert(dashboard != nullptr && worker != nullptr);
+/** Drains the terminal and feeds the input system every widget above it reads. */
+static void input_pump(Dashboard* dashboard) {
+    nya_assert(dashboard != nullptr);
 
     /*
      * The terminal's keys and mouse reports become NYA_Events here, and this loop is the same one a
@@ -223,39 +310,33 @@ static b8 input_pump(Dashboard* dashboard, NYA_Arena* worker) {
      */
     nya_system_event_drain_terminal_events();
 
-    b8 running = true;
-
     NYA_Event event;
     while (nya_system_event_poll(&event)) {
         // the input system is what nya_input_* and every nya_ui_* widget read, and it is fed by the
         // events, not by the terminal.
         nya_system_input_handle_event(&event);
 
-        switch (event.type) {
-            case NYA_EVENT_KEY_DOWN: {
-                if (event.as_key_event.key == NYA_KEY_ESCAPE || event.as_key_event.key == NYA_KEY_Q) running = false;
-                if (event.as_key_event.key == NYA_KEY_SPACE) nya_arena_free_all(worker);
-            } break;
-
-            case NYA_EVENT_MOUSE_BUTTON_DOWN: {
-                u32 row = (u32)(event.as_mouse_button_event.y / CELL_H);
-
-                // the header is above the bars, so a click on it selects nothing.
-                if (row >= HEADER_ROWS) dashboard->selected = row - HEADER_ROWS;
-            } break;
-
-            case NYA_EVENT_WINDOW_RESIZED: {
-                dashboard->resizes += 1;
-            } break;
-
-            // everything else the terminal can produce is dispatched and this program has no use for
-            // it. A TUI with a text field would read NYA_EVENT_TEXT_INPUT; one that scrolls would
-            // read NYA_EVENT_MOUSE_WHEEL_MOVED.
-            default: break;
-        }
+        // the UI reads its own keys out of the input system; the only event this program wants for
+        // itself is the one that says the grid changed under it.
+        if (event.type == NYA_EVENT_WINDOW_RESIZED) dashboard->resizes += 1;
     }
+}
 
-    return running;
+/** The look: one row per widget, one row between them, and a focus mark a whole cell wide. */
+static NYA_UIStyle dashboard_style(void) {
+    return (NYA_UIStyle){
+        .margin      = CELL_H,
+        .padding     = PADDING,
+        .spacing     = GAP,
+        .item_height = ROW_HEIGHT,
+        .focus_bar   = FOCUS_BAR,
+        .panel       = COLOR_PANEL,
+        .track       = COLOR_TRACK,
+        .accent      = COLOR_ACCENT,
+        .text_dim    = COLOR_DIM,
+        .button      = { .normal = COLOR_PANEL, .focused = COLOR_FOCUS, .pressed = COLOR_BUTTON, .disabled = COLOR_PANEL },
+        .text        = { .normal = COLOR_TEXT, .focused = COLOR_TEXT, .pressed = COLOR_TEXT, .disabled = COLOR_DIM },
+    };
 }
 
 /*
@@ -288,20 +369,21 @@ s32 main(s32 argc, NYA_CString* argv) {
     NYA_Window* window = nya_render2d_terminal_window();
 
     /*
-     * The two engine subsystems a TUI needs, and no more. `nya_app_init` would bring up the whole
-     * frame loop and with it SDL's video subsystem, which a program running over ssh has no display
-     * for; not needing one is the point of the terminal backend. So the app struct is stood up
-     * directly, which is what `_NYA_APP_INSTANCE` is exported for, and only the event and input
-     * systems are started on top of it. Those two are what `nya_event_dispatch`, `nya_input_*` and
-     * every `nya_ui_*` widget above them read, and they are the same two the SDL backend feeds.
-     *
-     * The callback system comes first because the input system registers a hook by name through it.
+     * The three engine subsystems a TUI needs, and no more; see the file header. The callback system
+     * comes first because the input system registers a hook by name through it.
      */
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true, .frame_allocator = nya_arena_create(.name = "frame_allocator") };
 
     nya_system_callback_init();
     NYA_EXPECT(nya_system_events_init());
     nya_system_input_init();
+
+    // what the UI reads confirm and cancel from. A TUI has no gamepad and no rebinding screen, so
+    // this is the whole of its input configuration.
+    nya_input_action_rebind(NYA_INPUT_ACTION_CONFIRM, NYA_KEY_RETURN);
+    nya_input_action_rebind(NYA_INPUT_ACTION_CANCEL, NYA_KEY_ESCAPE);
+
+    nya_ui_style_set(window, dashboard_style());
 
     // the arena the dashboard watches. Named, because the name is the label on its bar, and sized to
     // the budget so the bar is a fraction of a number this file chose.
@@ -319,45 +401,36 @@ s32 main(s32 argc, NYA_CString* argv) {
      */
 
     u64       started_ms = nya_clock_get_monotonic_ms();
-    Dashboard dashboard  = { .selected = UINT32_MAX };
-
-    /** The resize count the swatch on screen was drawn at, so it is re-sent exactly when it is gone. */
-    u32 swatch_resizes = 0;
+    Dashboard dashboard  = { .selected = U32_MAX, .filling = true, .terminal_open = true };
 
     for (u32 frame = 0; frame < FRAME_COUNT; frame++) {
-        if (!input_pump(&dashboard, worker)) break;
+        input_pump(&dashboard);
 
-        // fills, is released at each quarter mark, and fills again, so the bars move rather than sit.
-        if (frame > 0 && frame % (FRAME_COUNT / 4) == 0) nya_arena_free_all(worker);
-        (void)nya_arena_alloc(worker, WORKER_STEP_BYTES);
+        dashboard.frame      = frame;
+        dashboard.elapsed_ms = nya_clock_get_monotonic_ms() - started_ms;
+
+        // the input pass, before the edges roll: this is where a key press becomes a focus move and a
+        // click becomes a button. It draws nothing.
+        frame_pass(window, NYA_UI_PASS_INPUT, &dashboard, worker);
+
+        // what a frame loop would dispatch. Without it every key stays just-pressed for the rest of
+        // the run and the first arrow walks the whole list.
+        nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_UPDATING_ENDED });
+
+        if (dashboard.quit) break;
+
+        // fills, is released at each tenth mark, and fills again, so the bars move rather than sit.
+        if (frame > 0 && frame % (FRAME_COUNT / 10) == 0) nya_arena_free_all(worker);
+        if (dashboard.filling) (void)nya_arena_alloc(worker, WORKER_STEP_BYTES);
 
         // a per frame scratch: taken, used, and given back whole at the end of the frame. Its bar
         // never climbs, which is the point of showing it beside the other.
         NYA_String* line = nya_string_sprintf(scratch, "frame %u of %u", frame + 1, FRAME_COUNT);
         nya_assert(line->length > 0, "sprintf produced nothing");
 
-        dashboard.frame      = frame;
-        dashboard.elapsed_ms = nya_clock_get_monotonic_ms() - started_ms;
-
-        /*
-         * A kitty placement stays on screen until it is deleted, so the swatch is sent once and then
-         * only when the screen it sits on has been thrown away: on the first frame, and after a
-         * resize. Sending it every frame would stack two hundred placements and five megabytes of
-         * base64 to do it, which is what the first version of this example did.
-         */
-        b8 resend_swatch = frame == 0 || dashboard.resizes != swatch_resizes;
-        if (resend_swatch) nya_terminal_image_clear();
-
-        frame_draw(window, &dashboard);
+        nya_render2d_terminal_frame_begin(window, COLOR_GROUND);
+        frame_pass(window, NYA_UI_PASS_DRAW, &dashboard, worker);
         nya_render2d_terminal_frame_end(window);
-
-        // after the present, so the cells it paints do not land on top of the picture.
-        if (resend_swatch) {
-            (void)swatch_draw(window, (f32)window->screen_width - (SWATCH_SIZE_PX + (2 * NYA_TERMINAL_CELL_WIDTH_PX)),
-                              (f32)window->screen_height - (f32)SWATCH_SIZE_PX);
-
-            swatch_resizes = dashboard.resizes;
-        }
 
         nya_arena_free_all(scratch);
 
