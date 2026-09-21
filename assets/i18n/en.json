@@ -78,6 +78,7 @@
   "cube3d_keys": "space drop   c clear   r terrain   b bloom   t stats   y trace   u sort   l log   k capture   esc menu",
   "cube3d_render_keys": "1 ink   2 occlusion   3 fxaa   4 grade   5 depth of field   6 speed lines   7 decals   8 hdr   9 fluid   0 render features   v debug view",
   "cube3d_features": "render features",
+  "cube3d_culling": "%u culled   %u of %u hidden by the ring   stone lod %u to %u",
 
   "presence_menu": "in the menu",
   "presence_sandbox": "physics sandbox",

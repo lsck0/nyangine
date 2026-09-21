@@ -36,6 +36,7 @@
  * | layers/layer_game.c           | the 2D scene: tilemap, crates, cameras, bloom post chain, music         |
  * | layers/layer_cube3d.c         | the 3D scene: meshes, 3D physics, picking, particles, 3D audio, shadows |
  * | layers/layer_cube3d_features.c| the switchboard over every NYA_RenderFeature, live in the 3D scene      |
+ * | layers/layer_cube3d_stones.c  | built meshes, a detail chain, occluders, static bodies on a layer       |
  * | layers/layer_ui.c             | HUD panels, frame stats, perf span overlay, a NEAT genome drawn live    |
  * | layers/layer_background.c     | procedural immediate mode 2D drawing                                    |
  * | entities/entity_box.c         | entity kinds, spawn options, 2D bodies, collision, click, lights        |

@@ -769,6 +769,12 @@
 /** The crates, and the only layer the cursor looks at. */
 #define GNY_LAYER_CRATE "crate"
 
+/** The 3D scene's standing stones: scenery the cursor must look past, like the ground. */
+#define GNY_LAYER_STONE "stone"
+
+/** The 3D scene's draggable cube and its two models: what a click there is allowed to find. */
+#define GNY_LAYER_PROP "prop"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TILEMAP
@@ -922,6 +928,82 @@
 #define GNY_CUBE3D_LAMP_MARKER_RADIUS 0.16F
 #define GNY_CUBE3D_LAMP_EMISSION      1.6F
 
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * THE 3D SCENE'S STANDING STONES
+ * ─────────────────────────────────────────────────────────
+ *
+ * A ring of faceted slabs around the basin. They are the scene's only solid, opaque, static geometry, which is
+ * what three renderer features needed before anything in the game could call them: the slabs are the occluders
+ * the camera's occlusion buffer rasterizes, they carry the only mesh detail chain, and their bodies are the
+ * only 3D ones on a named collision layer. See layer_cube3d_stones.c.
+ */
+
+/** How many stand in the ring. Six leaves five sixths of the basin open from any angle. */
+#define GNY_CUBE3D_STONE_COUNT 6
+
+/** The ring's radius, just outside GNY_TERRAIN3D_CUBE_SPREAD so the pile lands inside it rather than on it. */
+#define GNY_CUBE3D_STONE_RADIUS 5.9F
+
+/** How far a stone may sit off its even share of the ring, in radians and in metres of radius. */
+#define GNY_CUBE3D_STONE_ANGLE_JITTER  0.22F
+#define GNY_CUBE3D_STONE_RADIUS_JITTER 0.5F
+
+/** How far a slab may be turned away from facing the middle, radians. */
+#define GNY_CUBE3D_STONE_YAW_JITTER 0.5F
+
+/** A slab's full width and height in metres, hashed per stone between the two. */
+#define GNY_CUBE3D_STONE_WIDTH  ((f32x2){ 1.5F, 2.3F })
+#define GNY_CUBE3D_STONE_HEIGHT ((f32x2){ 2.6F, 3.9F })
+
+/** How thick it is, as a fraction of its width. Thin enough to read as a slab from the side. */
+#define GNY_CUBE3D_STONE_THICKNESS 0.34F
+
+/** What the section shrinks to at the top, so a slab is not a machined block. */
+#define GNY_CUBE3D_STONE_TAPER 0.78F
+
+/** How much of each corner is cut away, in units of the half section. The flat faces keep the rest. */
+#define GNY_CUBE3D_STONE_CHAMFER 0.3F
+
+/** Metres of the base buried, so a slab on a slope meets the ground on every side. */
+#define GNY_CUBE3D_STONE_SINK 0.3F
+
+/** Cold grey-green, a shade off the terrain's own. The mesh's per-face shade multiplies it. */
+#define GNY_CUBE3D_STONE_COLOR ((NYA_Color){ 0.56F, 0.57F, 0.54F, 1.0F })
+
+/** How far a face's shade may sit either side of one, so the facets read without turning into noise. */
+#define GNY_CUBE3D_STONE_SHADE_JITTER 0.07F
+
+#define GNY_CUBE3D_STONE_FRICTION    0.8F
+#define GNY_CUBE3D_STONE_RESTITUTION 0.05F
+
+/** Its own hash seed, so a stone's size does not follow the pile's. */
+#define GNY_CUBE3D_STONE_SEED 0x57012E
+
+/**
+ * The three detail levels, registered under these handles and chained on the first. The near one splits the
+ * slab up its height and cuts all four corners; the middle one drops the split; the far one is a plain
+ * rectangular block. See NYA_Render3DLodLevel.
+ * */
+#define GNY_CUBE3D_STONE_MESH_NEAR "gny_stone_near"
+#define GNY_CUBE3D_STONE_MESH_MID  "gny_stone_mid"
+#define GNY_CUBE3D_STONE_MESH_FAR  "gny_stone_far"
+
+/**
+ * Where each level gives way, in metres. The camera orbits between GNY_CUBE3D_RANGE_MIN and _MAX around a ring
+ * of radius GNY_CUBE3D_STONE_RADIUS, so at the default range the near stones are on the first level and the far
+ * ones on the second, and zooming out puts the whole ring on the third.
+ * */
+#define GNY_CUBE3D_STONE_LOD_NEAR 18.0F
+#define GNY_CUBE3D_STONE_LOD_MID  30.0F
+#define GNY_CUBE3D_STONE_LOD_FAR  90.0F
+
+/**
+ * The most vertices any level emits: the near one, at eight section points over three bands, six vertices a
+ * wall quad, plus a three vertex triangle per point in each of the two caps.
+ * */
+#define GNY_CUBE3D_STONE_VERTICES_MAX ((8 * 3 * 6) + (8 * 3 * 2))
 
 /*
  * ─────────────────────────────────────────────────────────

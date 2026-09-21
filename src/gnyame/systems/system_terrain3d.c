@@ -66,6 +66,9 @@ void gny_terrain3d_generate(NYA_Window* window, NYA_Arena* arena, u64 seed) {
     }
 
     nya_terrain3d_generate(world->cube3d.terrain, window, seed);
+
+    // named like the 2D ground, so a ray asking for props or crates passes straight through it.
+    nya_physics3d_layers_set(nya_entity_get(world->cube3d.terrain->entity), nya_physics_layer(GNY_LAYER_TERRAIN), NYA_PHYSICS_LAYER_ALL);
 }
 
 void gny_terrain3d_destroy(NYA_Window* window) {

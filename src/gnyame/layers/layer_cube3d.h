@@ -35,6 +35,20 @@ typedef struct GNY_Cube3DMark {
     f32 lifetime_s;
 } GNY_Cube3DMark;
 
+/** One slab of the ring around the basin. See layer_cube3d_stones.c and GNY_CUBE3D_STONE_COUNT. */
+typedef struct GNY_Cube3DStone {
+    NYA_EntityHandle entity;
+
+    /** Where the slab meets the ground, sunk by GNY_CUBE3D_STONE_SINK. The mesh stands on it. */
+    f32x3 base;
+
+    /** Full width, height and depth in metres. */
+    f32x3 size;
+
+    /** How far it is turned about y, radians. */
+    f32 yaw;
+} GNY_Cube3DStone;
+
 typedef struct GNY_Cube3DScene {
     NYA_EntityHandle cube;
     NYA_EntityHandle model;
@@ -99,6 +113,16 @@ typedef struct GNY_Cube3DScene {
 
     /** The render feature switchboard is up. See layer_cube3d_features.c. */
     b8 features_open;
+
+    /** The ring of standing stones. See layer_cube3d_stones.c. */
+    GNY_Cube3DStone stones[GNY_CUBE3D_STONE_COUNT];
+    u32             stone_count;
+
+    /**
+     * What the stones are rasterized into for the camera pass, tens of kilobytes, so it is allocated from the
+     * world's arena once and kept across a visit like `terrain` rather than taken again each time.
+     * */
+    NYA_OcclusionBuffer* occlusion;
 } GNY_Cube3DScene;
 
 /**
@@ -106,3 +130,33 @@ typedef struct GNY_Cube3DScene {
  * NYA_CONFIG.engine.renderer.features. Only while `features_open`; `0` toggles it.
  * */
 void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window);
+
+/**
+ * Registers the standing stones' three meshes and their detail chain, once per run and again after a code
+ * reload has emptied the LOD registry. Cheap enough to call every frame; it asks the registry, not a flag.
+ * */
+void gny_layer_cube3d_stones_register(NYA_Window* window);
+
+/** Builds the ring: the meshes, the detail chain and one static body per slab. */
+void gny_layer_cube3d_stones_create(NYA_Window* window);
+
+/** Takes the bodies, the meshes and the chain back down. */
+void gny_layer_cube3d_stones_destroy(NYA_Window* window);
+
+/** Puts every slab back on the ground, for when `r` has regenerated the terrain under the ring. */
+void gny_layer_cube3d_stones_place(void);
+
+/**
+ * Rasterizes each slab's far face into the scene's occlusion buffer and hands it to the camera pass, so what
+ * the ring hides is rejected before it is recorded. Costs nothing while occlusion culling is off.
+ * */
+void gny_layer_cube3d_stones_occlude(NYA_Window* window, f32x3 eye);
+
+/** Draws the ring. One call per slab, all resolving through the detail chain to the same few meshes. */
+void gny_layer_cube3d_stones_draw(NYA_Window* window);
+
+/**
+ * The nearest and the farthest detail level any slab is drawn at from `eye`, for the HUD row. Both are
+ * NYA_RENDER3D_LOD_LEVELS and zero when there is no ring.
+ * */
+void gny_layer_cube3d_stones_levels(f32x3 eye, OUT u32* out_nearest, OUT u32* out_farthest);

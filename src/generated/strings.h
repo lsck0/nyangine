@@ -11,6 +11,7 @@
  */
 
 typedef enum {
+    NYA_STRING_CUBE3D_CULLING,
     NYA_STRING_CUBE3D_FEATURES,
     NYA_STRING_CUBE3D_HINT_ANIMATION,
     NYA_STRING_CUBE3D_HINT_CAMERA,
@@ -98,6 +99,7 @@ typedef enum {
 
 /** The JSON key each id came from, in id order. Read by nya_i18n_load. */
 static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unused = {
+    "cube3d_culling",
     "cube3d_features",
     "cube3d_hint_animation",
     "cube3d_hint_camera",
@@ -180,6 +182,11 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "social_join_request",
     "social_wants_to_join",
 };
+
+/** `cube3d_culling` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_culling(u32 a0, u32 a1, u32 a2, u32 a3, u32 a4) {
+    return _nya_i18n_format(NYA_STRING_CUBE3D_CULLING, a0, a1, a2, a3, a4);
+}
 
 /** `cube3d_features` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_features(void) {

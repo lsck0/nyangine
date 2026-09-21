@@ -507,6 +507,19 @@ nothing when off.
   event. `game.animation_speed` sets both clocks live.
 - `[ ]` The skinned draw sets no bounds, so it is never culled, and ignores material parts and textures.
 - `[ ]` No test reaches the non-headless skinned draw.
+- A ring of six standing stones around the basin in the 3D demo, which is what gave three features their first
+  caller in the game. Each slab is built here rather than loaded, at three detail levels registered with
+  `nya_render3d_mesh_register` and chained with `nya_render3d_lod_register` (8 section points over 3 bands, then
+  over 1, then a plain 4 point block: 192, 96 and 48 vertices, 11.8 KiB of vertex data in all). Each is convex
+  and opaque, so its far face is an exact occluder: `nya_occlusion_quad` takes it and `nya_render3d_occlusion`
+  hands the buffer to the camera pass. The bodies are static, on `GNY_LAYER_STONE`, so the audio trace finds
+  them and the pick ray does not. The HUD row shows what all three did. Release, 1280x720, 4x, camera at its
+  reset orbit: frame work 0.51 to 0.54 ms average, 61 to 67 GPU draws, 31 passes either way, uploads 297.7 to
+  298.7 KiB, GPU memory unchanged at the overlay's 0.1 MiB resolution; +57.7 KiB in the world arena for the
+  occlusion buffer, which is kept across a visit rather than taken again. First frame 68.5 to 66.1 ms. At that
+  camera the ring hides about 60 of 650 tests a frame.
+- `[ ]` The occluder is the slab's far face, so the ring rejects things behind a stone and nothing else; a scene
+  wanting occlusion culling to pay would need an occluder the size of a wall.
 
 Next:
 
@@ -973,7 +986,9 @@ joystick.
 
 - Gamepad edges now roll at the end of each update tick like keys; per frame, a frame without a tick lost
   a press. `[ ]` The menus still detect pad presses from held state themselves and could use the edges.
-- `[ ]` Nothing in the game calls render occlusion (`nya_occlusion_*`) or mesh LOD (`nya_render3d_lod_*`).
+- Render occlusion (`nya_occlusion_*`) and mesh LOD (`nya_render3d_lod_*`) are called now: the 3D demo's ring of
+  standing stones rasterizes its far faces as occluders and carries the only detail chain. See the stylized
+  renderer section for the numbers.
 - curl, Discord and Steam stay unwired: each needs a network, a running client or an app id.
 
 ---

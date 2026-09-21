@@ -61,6 +61,9 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
 
     GNY_Cube3DScene* scene = _gny_cube3d_scene();
 
+    // kept across the zeroing below, like the terrain's sample grid: see GNY_Cube3DScene.occlusion.
+    NYA_OcclusionBuffer* occlusion = scene->occlusion;
+
     *scene = (GNY_Cube3DScene){
         .orbit_yaw   = GNY_CUBE3D_ORBIT_YAW,
         .orbit_pitch = GNY_CUBE3D_ORBIT_PITCH,
@@ -138,6 +141,14 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
     // sample grid outlives this call. seeded from the launch seed, mixed with a constant so 2D and 3D differ.
     gny_terrain3d_generate(window, nya_world()->allocator, GNY_LAUNCH.world_seed ^ GNY_TERRAIN3D_SEED);
 
+    scene->occlusion = occlusion != nullptr ? occlusion : nya_arena_alloc(nya_world()->allocator, sizeof(NYA_OcclusionBuffer));
+
+    // not fatal: a null buffer leaves occlusion culling with nothing to reject, which is how it started.
+    if (scene->occlusion == nullptr) nya_log_warn("Could not take an occlusion buffer; the stone ring will hide nothing.");
+
+    // after the terrain, whose height each slab stands on, and before the pile, which falls inside the ring.
+    gny_layer_cube3d_stones_create(window);
+
     // the cube, dropped from a height so the solver shows immediately. its rotation belongs to the solver; the drag
     // spins it with angular impulses.
     scene->cube = nya_entity_spawn(
@@ -159,7 +170,10 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
         .restitution     = 0.2F,
         // never sleeps, or the drag would do nothing after a few idle seconds.
         .never_sleep     = true,
-        .angular_damping = 1.5F
+        .angular_damping = 1.5F,
+        // what the cursor is allowed to find; see GNY_LAYER_PROP.
+        .layers          = nya_physics_layer(GNY_LAYER_PROP),
+        .collides_with   = NYA_PHYSICS_LAYER_ALL
     );
 
     // the two models, spawned without bodies: their size comes from vertices still loading, so
@@ -215,15 +229,21 @@ void gny_layer_cube3d_on_destroy(NYA_Window* window) {
 
     gny_layer_cube3d_cubes_clear();
 
+    // the bodies, the three registered meshes and their detail chain.
+    gny_layer_cube3d_stones_destroy(window);
+
     // takes the terrain body and its triangle mesh. the sample grid is kept for reuse.
     gny_terrain3d_destroy(window);
 
-    // zeroed after the terrain teardown, keeping the terrain's sample grid for the next visit.
-    NYA_Terrain3D* keep = scene->terrain;
+    // zeroed after the terrain teardown, keeping the terrain's sample grid and the occlusion buffer for the next
+    // visit; both are arena memory that would otherwise be taken again.
+    NYA_Terrain3D*       keep      = scene->terrain;
+    NYA_OcclusionBuffer* occlusion = scene->occlusion;
 
     *scene = (GNY_Cube3DScene){ 0 };
 
-    scene->terrain = keep;
+    scene->terrain   = keep;
+    scene->occlusion = occlusion;
 }
 
 /*
@@ -243,8 +263,15 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             // a ray: in 3D the pixel under the cursor is a line.
             NYA_Render3DRay ray = nya_render3d_screen_ray(window, (f32x2){ mouse->x, mouse->y });
 
-            // through nya_entity_click, so a click runs the entity's on_click as in 2D. the ground has none.
-            NYA_EntityHandle hit = nya_entity_click(ray.origin, ray.direction * GNY_CUBE3D_PICK_RANGE, mouse->button);
+            /*
+             * Through nya_entity_click, so a click runs the entity's on_click as in 2D, and masked the way the
+             * 2D scene masks its own: the cursor is looking for something movable, so the ground and the stone
+             * ring are not in the mask and the ray goes straight through them. Before the mask a click on the
+             * ground resolved to the terrain and turned the "click the cube" hint off without anything grabbed.
+             */
+            NYA_PhysicsLayerMask pickable = nya_physics_layers(GNY_LAYER_PROP, GNY_LAYER_CRATE);
+
+            NYA_EntityHandle hit = nya_entity_click(ray.origin, ray.direction * GNY_CUBE3D_PICK_RANGE, mouse->button, pickable);
 
             scene->grabbed_once = scene->grabbed_once || nya_entity_is_valid(hit);
 
@@ -270,7 +297,8 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             // the same hover as 2D, before the drag, so a spinning cube still counts as hovered.
             NYA_Render3DRay hover_ray = nya_render3d_screen_ray(window, (f32x2){ mouse->x, mouse->y });
 
-            (void)nya_entity_hover(hover_ray.origin, hover_ray.direction * GNY_CUBE3D_PICK_RANGE);
+            (void)nya_entity_hover(hover_ray.origin, hover_ray.direction * GNY_CUBE3D_PICK_RANGE,
+                                   nya_physics_layers(GNY_LAYER_PROP, GNY_LAYER_CRATE));
 
             if (scene->dragging) {
                 // an angular impulse, not a written rotation, which would fight the solver. horizontal motion turns about world
@@ -332,6 +360,9 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
 
                 nya_render3d_decal_probe_set(window, nya_callback(gny_terrain3d_decal_probe), nullptr);
 
+                // the ring stands on ground that has just moved.
+                gny_layer_cube3d_stones_place();
+
                 // teleported rather than respawned, so handles and on_click stay valid. the models too, or they would be
                 // embedded in a new hill.
                 f32 top = gny_terrain3d()->max_height;
@@ -340,6 +371,11 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
                 _gny_cube3d_body_reset(scene->pill, (f32x3){ GNY_CUBE3D_PILL_OFFSET, top + GNY_CUBE3D_PILL_LIFT, 0.0F });
 
                 gny_layer_cube3d_cubes_drop();
+
+                // the HUD says `r` resets, and leaving the camera wherever it had been orbited to made that a lie.
+                scene->orbit_yaw   = GNY_CUBE3D_ORBIT_YAW;
+                scene->orbit_pitch = GNY_CUBE3D_ORBIT_PITCH;
+                scene->orbit_range = GNY_CUBE3D_ORBIT_RANGE;
 
                 event->was_handled = true;
                 break;
@@ -580,7 +616,9 @@ void gny_layer_cube3d_models_attach(NYA_Window* window) {
                 .size        = size,
                 .density     = GNY_TERRAIN3D_CUBE_DENSITY,
                 .friction    = GNY_TERRAIN3D_CUBE_FRICTION,
-                .restitution = GNY_TERRAIN3D_CUBE_RESTITUTION
+                .restitution = GNY_TERRAIN3D_CUBE_RESTITUTION,
+                .layers        = nya_physics_layer(GNY_LAYER_PROP),
+                .collides_with = NYA_PHYSICS_LAYER_ALL
             );
         } else {
             /*
@@ -598,7 +636,9 @@ void gny_layer_cube3d_models_attach(NYA_Window* window) {
                 .length      = length,
                 .density     = GNY_TERRAIN3D_CUBE_DENSITY,
                 .friction    = GNY_TERRAIN3D_CUBE_FRICTION,
-                .restitution = GNY_TERRAIN3D_CUBE_RESTITUTION
+                .restitution = GNY_TERRAIN3D_CUBE_RESTITUTION,
+                .layers        = nya_physics_layer(GNY_LAYER_PROP),
+                .collides_with = NYA_PHYSICS_LAYER_ALL
             );
         }
 
@@ -743,6 +783,9 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
 
     // Gives the two models bodies once their meshes finish loading; a no-op every frame after.
     gny_layer_cube3d_models_attach(window);
+
+    // Likewise a no-op, except after a code reload, which empties the LOD registry the stones chain into.
+    gny_layer_cube3d_stones_register(window);
 
     _gny_cube3d_bender_advance(scene, delta_time_s);
 
@@ -891,6 +934,17 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     gny_terrain3d_draw(window);
 
     _gny_cube3d_decals_draw(window, scene);
+
+    /*
+     * The ring, and then the buffer it fills. Drawn first among the solids so what it hides is hidden from
+     * everything recorded after it; the occluders themselves are never tested against their own faces.
+     */
+    gny_layer_cube3d_stones_draw(window);
+
+    gny_layer_cube3d_stones_occlude(window, eye);
+
+    // back to the terrain's material, so the pile batches with the ground again.
+    nya_render3d_material_set(window, (NYA_Render3DMaterial){ .metallic = 0.0F, .roughness = 1.0F });
 
     // the pile shares the terrain's material, so both batch into one draw call.
     for (u32 i = 0; i < scene->cube_count; i++) {
@@ -1145,6 +1199,19 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     }
 
 
+    /*
+     * What the two culls and the detail chain did this frame. Read here because nya_render_begin resets it, and
+     * the scene above has already been recorded; without a row the three of them are invisible by design.
+     */
+    NYA_Render3DFrameStats drawn = nya_render3d_frame_stats(window);
+
+    // the buffer's own tally, so the row says the ring was consulted even on a frame where it hid nothing.
+    NYA_OcclusionStats hidden = scene->occlusion != nullptr ? nya_occlusion_stats(scene->occlusion) : (NYA_OcclusionStats){ 0 };
+
+    u32 nearest_level  = 0;
+    u32 farthest_level = 0;
+    gny_layer_cube3d_stones_levels(eye, &nearest_level, &farthest_level);
+
     // the HUD in screen pixels over the flushed scene. render2d has no depth test, so it lands in front.
     NYA_ConstCString hints[] = {
         scene->grabbed_once ? nya_string_cube3d_hint_drag() : nya_string_cube3d_hint_click(),
@@ -1152,6 +1219,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         nya_string_cube3d_hint_animation(),
         nya_string_cube3d_keys(),
         nya_string_cube3d_render_keys(),
+        nya_string_cube3d_culling(drawn.culled, drawn.occluded, hidden.tests, nearest_level, farthest_level),
     };
 
     NYA_UI*     ui  = gny_ui_begin(window, NYA_UI_PASS_DRAW);
@@ -1249,7 +1317,10 @@ GNY_FallingCube _gny_cube3d_cube_spawn(u32 index) {
         .size        = { size, size, size },
         .density     = GNY_TERRAIN3D_CUBE_DENSITY,
         .friction    = GNY_TERRAIN3D_CUBE_FRICTION,
-        .restitution = GNY_TERRAIN3D_CUBE_RESTITUTION
+        .restitution = GNY_TERRAIN3D_CUBE_RESTITUTION,
+        // the same name the 2D crates carry, and the other half of what the cursor looks at.
+        .layers        = nya_physics_layer(GNY_LAYER_CRATE),
+        .collides_with = NYA_PHYSICS_LAYER_ALL
     );
 
     if (!attached) {

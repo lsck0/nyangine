@@ -725,8 +725,12 @@ NYA_EntityHandle nya_entity_hover(f32x2 world_point, NYA_PhysicsLayerMask layers
 }
 
 NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction) __attr_overloaded {
+    return nya_entity_hover(origin, direction, NYA_PHYSICS_LAYER_ALL);
+}
+
+NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction, NYA_PhysicsLayerMask layers) __attr_overloaded {
     // the point is dropped; on_hover takes none.
-    return _nya_entity_hover_move(nya_physics3d_raycast(origin, direction, nullptr, nullptr));
+    return _nya_entity_hover_move(nya_physics3d_raycast(origin, direction, layers, nullptr, nullptr));
 }
 
 void nya_entity_hover_clear(void) {
@@ -738,9 +742,13 @@ NYA_EntityHandle nya_entity_hovered(void) {
 }
 
 NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button) __attr_overloaded {
+    return nya_entity_click(origin, direction, button, NYA_PHYSICS_LAYER_ALL);
+}
+
+NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button, NYA_PhysicsLayerMask layers) __attr_overloaded {
     f32x3 point = { 0 };
 
-    NYA_EntityHandle hit = nya_physics3d_raycast(origin, direction, &point, nullptr);
+    NYA_EntityHandle hit = nya_physics3d_raycast(origin, direction, layers, &point, nullptr);
 
     /* The point on the struck surface, not the ray origin, so a click knows which face was hit. */
     return _nya_entity_click_deliver(hit, point, button);

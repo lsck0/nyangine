@@ -568,6 +568,12 @@ NYA_API NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button, NYA_Phys
 NYA_API NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button) __attr_overloaded;
 
 /**
+ * The same, restricted to bodies in `layers`, so a ray through scenery finds what the cursor is for. The call
+ * above is this one with NYA_PHYSICS_LAYER_ALL.
+ * */
+NYA_API NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button, NYA_PhysicsLayerMask layers) __attr_overloaded;
+
+/**
  * Updates the hovered entity from a world-space cursor, running on_hover on changes. Returns who is hovered.
  * Callbacks fire on the edges, so calling it every frame is the intended use.
  * */
@@ -578,6 +584,9 @@ NYA_API NYA_EntityHandle nya_entity_hover(f32x2 world_point, NYA_PhysicsLayerMas
 
 /** The same for a 3D scene. See nya_entity_click. */
 NYA_API NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction) __attr_overloaded;
+
+/** The same along a ray, restricted to bodies in `layers`. See nya_entity_click. */
+NYA_API NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction, NYA_PhysicsLayerMask layers) __attr_overloaded;
 
 /**
  * Says the cursor is on nothing, running on_hover(false) for the current entity. For a cursor leaving the

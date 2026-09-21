@@ -14,6 +14,7 @@
 #include "gnyame/layers/layer_background.c"
 #include "gnyame/layers/layer_cube3d.c"
 #include "gnyame/layers/layer_cube3d_features.c"
+#include "gnyame/layers/layer_cube3d_stones.c"
 #include "gnyame/layers/layer_game.c"
 #include "gnyame/layers/layer_main_menu.c"
 #include "gnyame/layers/layer_pause_menu.c"

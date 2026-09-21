@@ -1373,9 +1373,11 @@ void nya_system_entity_render(NYA_Window* window)  // Runs on_render for every v
 NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button)  // Finds the entity whose body covers `world_point` and runs its on_click.
 NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button, NYA_PhysicsLayerMask layers)  // The same, restricted to bodies in `layers`, so clicking the ground does not resolve to the terrain.
 NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button)  // The same for a 3D scene: the first entity along a ray.
+NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button, NYA_PhysicsLayerMask layers)  // The same, restricted to bodies in `layers`, so a ray through scenery finds what the cursor is for.
 NYA_EntityHandle nya_entity_hover(f32x2 world_point)  // Updates the hovered entity from a world-space cursor, running on_hover on changes.
 NYA_EntityHandle nya_entity_hover(f32x2 world_point, NYA_PhysicsLayerMask layers)  // The same, restricted to bodies in `layers`.
 NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction)  // The same for a 3D scene.
+NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction, NYA_PhysicsLayerMask layers)  // The same along a ray, restricted to bodies in `layers`.
 void nya_entity_hover_clear(void)  // Says the cursor is on nothing, running on_hover(false) for the current entity.
 NYA_EntityHandle nya_entity_hovered(void)  // Who the cursor is on, or NYA_ENTITY_HANDLE_NONE.
 f32 nya_entity_sort_key(const NYA_Entity* entity)  // The value an entity sorts on: `z_order`, or where its feet are.
