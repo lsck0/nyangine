@@ -9,6 +9,22 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * CONSTANTS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * What a HEAD answers from when the resource wrote no HEAD of its own, most preferred first.
+ *
+ * A HEAD is a read whose body is dropped on the way out, so it answers from a read route. The GET
+ * first, because a GET route is written to be answered with nothing but its path; the QUERY second,
+ * because a HEAD carries no body and its handler therefore sees an empty request document. Neither is
+ * a write, which the assertion in nya_http_router_find is there to keep true.
+ * */
+NYA_INTERNAL const NYA_HttpMethod _NYA_HTTP_HEAD_FALLBACK[] = { NYA_HTTP_METHOD_GET, NYA_HTTP_METHOD_QUERY };
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -87,6 +103,32 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
             }
         }
 
+        /*
+         * A request DTO on a verb that carries no body is a route nothing can call: the parser refuses
+         * the body before the dispatcher is reached. It is what a QUERY route turned back into a GET
+         * looks like, so it is caught at merge rather than at the first request.
+         */
+        if (route->request_type != nullptr && !nya_http_method_allows_body(route->method)) {
+            return nya_error(
+                NYA_ERROR_INVALID_ARGUMENT,
+                "%s %s takes a %s, and a %s carries no body; QUERY is the read that does",
+                nya_http_method_text(route->method),
+                route->path,
+                route->request_type->name,
+                nya_http_method_text(route->method)
+            );
+        }
+
+        // the other half of that mistake: a safe verb that says it creates things.
+        if (nya_http_method_is_safe(route->method) && _nya_http_route_declares(route, NYA_HTTP_STATUS_CREATED)) {
+            return nya_error(
+                NYA_ERROR_INVALID_ARGUMENT,
+                "%s %s answers 201, which a verb that changes nothing cannot",
+                nya_http_method_text(route->method),
+                route->path
+            );
+        }
+
         if (route->statuses[0] == NYA_HTTP_STATUS_NONE) {
             return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%s %s lists no statuses", nya_http_method_text(route->method), route->path);
         }
@@ -129,11 +171,10 @@ nya_http_router_find(const NYA_HttpRouter* const* routers, u32 router_count, NYA
 
     *out_path_exists = false;
 
-    // a HEAD is a GET whose body is dropped on the way out, so it matches the GET route unless the
-    // resource wrote a HEAD of its own.
-    NYA_HttpMethod fallback = method == NYA_HTTP_METHOD_HEAD ? NYA_HTTP_METHOD_GET : method;
-
     const NYA_HttpRoute* matched = nullptr;
+
+    // how far down _NYA_HTTP_HEAD_FALLBACK the best match so far sits; the length of it means "none".
+    u32 rank = nya_carray_length(_NYA_HTTP_HEAD_FALLBACK);
 
     for (u32 index = 0; index < router_count && index < NYA_HTTP_MAX_ROUTERS; index++) {
         const NYA_HttpRouter* router = routers[index];
@@ -148,7 +189,18 @@ nya_http_router_find(const NYA_HttpRouter* const* routers, u32 router_count, NYA
 
             if (route->method == method) return route;
 
-            if (route->method == fallback && matched == nullptr) matched = route;
+            if (method != NYA_HTTP_METHOD_HEAD) continue;
+
+            for (u32 candidate = 0; candidate < rank; candidate++) {
+                if (_NYA_HTTP_HEAD_FALLBACK[candidate] != route->method) continue;
+
+                nya_assert(nya_http_method_is_safe(route->method), "a HEAD would answer from a route that changes something");
+
+                matched = route;
+                rank    = candidate;
+
+                break;
+            }
         }
     }
 

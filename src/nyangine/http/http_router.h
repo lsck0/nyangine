@@ -26,16 +26,30 @@
  *
  * NYA_INTERNAL const NYA_HttpRoute _ROUTES[] = {
  *     {
- *         .method        = NYA_HTTP_METHOD_GET,
+ *         .method        = NYA_HTTP_METHOD_QUERY,
  *         .path          = NYA_HTTP_METRICS_PATH,
  *         .auth          = NYA_HTTP_AUTH_NONE,
- *         .handler       = metrics_get,
+ *         .handler       = metrics_query,
  *         .summary       = "This program's frame time and ceilings",
  *         .response_type = nya_reflect_of(NYA_HttpMetricsDto),
  *         .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
  *     },
  * };
  * ```
+ *
+ * ── QUERY, POST, PUT, DELETE ──
+ *
+ * Those four are what a resource is written in: read, create, update, remove. A read is a QUERY
+ * because a request here is a reflected DTO and a GET has nowhere to put one; see NYA_HttpMethod.
+ *
+ * GET is not gone and is not deprecated. It is parsed, routed and served, /docs and /openapi.json are
+ * two GET routes and stay that way because a browser has no other verb, and a resource that answers a
+ * read with no parameters at all is free to be one. What changed is which verb a new route reaches
+ * for first. A HEAD with no HEAD route of its own answers from the GET, and from the QUERY when there
+ * is no GET, with no body to carry a request document.
+ *
+ * nya_http_router_check refuses the two halves of getting this wrong: a `request_type` on a verb that
+ * carries no body, and a 201 on a verb that changes nothing.
  *
  * ── preconditions are extractors ──
  *
@@ -217,9 +231,9 @@ struct NYA_HttpRoute {
     /**
      * The whole path, absolute and matched exactly: "/api/metrics". No patterns and no parameters.
      *
-     * One GET or POST per path, with the variant chosen by a query parameter that parses to an enum,
-     * is the shape every resource here takes; a path pattern is a second way to say the same thing and
-     * a second place for a traversal bug to live.
+     * One verb per path per shape is what every resource here takes, with which instance being asked
+     * for coming out of the request document a QUERY carries; a path pattern is a second way to say
+     * the same thing and a second place for a traversal bug to live.
      * */
     NYA_ConstCString path;
 
@@ -279,7 +293,8 @@ struct NYA_HttpRouter {
 /**
  * Whether `router` is a table this server will serve, and an error naming the offending route when it
  * is not: a missing path or summary, a path that is not absolute, a handler in the wrong slot for the
- * route's `auth`, an empty status list, or a status the server cannot answer with.
+ * route's `auth`, a request DTO on a verb that carries no body, a 201 on a verb that changes nothing,
+ * an empty status list, or a status the server cannot answer with.
  *
  * Called by nya_http_server_merge, and separately so a test can check a table without a socket.
  * */
@@ -289,7 +304,9 @@ NYA_API NYA_Error nya_http_router_check(const NYA_HttpRouter* router) __attr_no_
  * The route for `method` and `path`, or null.
  *
  * `out_path_exists` says whether any method is registered on that path, which is the difference
- * between 404 and 405. HEAD falls back to the GET route, since a HEAD is a GET whose body is dropped.
+ * between 404 and 405. A HEAD with no HEAD route of its own falls back to the path's GET, and failing
+ * that to its QUERY: a HEAD is a read whose body is dropped on the way out, and the two read verbs are
+ * the ones it may be answered from. A QUERY answering a HEAD sees a request with no body.
  * */
 NYA_API const NYA_HttpRoute*
 nya_http_router_find(const NYA_HttpRouter* const* routers, u32 router_count, NYA_HttpMethod method, NYA_ConstCString path, OUT b8* out_path_exists)

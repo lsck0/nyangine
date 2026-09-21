@@ -26,14 +26,21 @@ static void record(char mark) {
 
 /* ── the handlers under test ── */
 
-static NYA_HttpStatus open_get(NYA_HttpExchange* exchange) {
+static NYA_HttpStatus open_query(NYA_HttpExchange* exchange) {
     record('h');
 
     return nya_http_response_text(exchange->response, "open", NYA_HTTP_MEDIA_TEXT).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
+/** The verb a browser has. Still routed, still served; it is only not what a new route is written as. */
+static NYA_HttpStatus legacy_get(NYA_HttpExchange* exchange) {
+    record('g');
+
+    return nya_http_response_text(exchange->response, "legacy", NYA_HTTP_MEDIA_TEXT).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
+}
+
 /** Takes a caller. There is no way to register this on a route that would not produce one. */
-static NYA_HttpStatus closed_post(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity) {
+static NYA_HttpStatus closed_put(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity) {
     record('H');
 
     nya_assert(identity != nullptr && identity->subject[0] != '\0', "the extractor handed a handler an empty identity");
@@ -74,22 +81,30 @@ static const NYA_HttpLayerFn RESOURCE_LAYERS[] = { inner_layer };
 
 static const NYA_HttpRoute ROUTES[] = {
     {
-     .method  = NYA_HTTP_METHOD_GET,
+     .method  = NYA_HTTP_METHOD_QUERY,
      .path    = "/api/thing",
      .auth    = NYA_HTTP_AUTH_NONE,
-     .handler = open_get,
-     .summary = "An open route",
+     .handler = open_query,
+     .summary = "An open read",
      // 403 because a layer can answer with one; a route declares what its whole chain can produce.
         .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
-     .method             = NYA_HTTP_METHOD_POST,
+     .method             = NYA_HTTP_METHOD_PUT,
      .path               = "/api/thing",
      .auth               = NYA_HTTP_AUTH_BEARER,
      .scope              = NYA_HTTP_SCOPE_WRITE,
-     .handler_identified = closed_post,
+     .handler_identified = closed_put,
      .summary            = "A route behind the extractor",
      .statuses           = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     },
+    {
+     .method   = NYA_HTTP_METHOD_GET,
+     .path     = "/api/legacy",
+     .auth     = NYA_HTTP_AUTH_NONE,
+     .handler  = legacy_get,
+     .summary  = "A read a browser can reach",
+     .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
 };
 
@@ -212,6 +227,28 @@ s32 main(void) {
 
         NYA_HttpRouter hopeful = { .name = "x", .routes = &optimistic, .route_count = 1 };
         nya_assert(!nya_http_router_check(&hopeful).ok);
+
+        /*
+         * The two halves of writing a read as a GET again: a request DTO on a verb whose body the
+         * parser refuses, and a verb that changes nothing claiming to have created something.
+         */
+        NYA_HttpRoute bodiless = ROUTES[2];
+        bodiless.request_type  = nya_reflect_of(NYA_HttpAccountingDto);
+
+        NYA_HttpRouter unreachable = { .name = "x", .routes = &bodiless, .route_count = 1 };
+        nya_assert(!nya_http_router_check(&unreachable).ok, "a GET taking a body is a route no request can reach");
+
+        NYA_HttpRoute reading = ROUTES[0];
+        reading.request_type  = nya_reflect_of(NYA_HttpAccountingDto);
+
+        NYA_HttpRouter parameterised = { .name = "x", .routes = &reading, .route_count = 1 };
+        nya_assert(nya_http_router_check(&parameterised).ok, "a QUERY taking a request document is the point of it");
+
+        NYA_HttpRoute creative = ROUTES[0];
+        creative.statuses[1]   = NYA_HTTP_STATUS_CREATED;
+
+        NYA_HttpRouter productive = { .name = "x", .routes = &creative, .route_count = 1 };
+        nya_assert(!nya_http_router_check(&productive).ok, "a safe verb cannot report having created anything");
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -222,30 +259,40 @@ s32 main(void) {
 
         b8 exists = false;
 
-        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_GET, "/api/thing", &exists) == &ROUTES[0]);
+        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_QUERY, "/api/thing", &exists) == &ROUTES[0]);
         nya_assert(exists);
 
-        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_POST, "/api/thing", &exists) == &ROUTES[1]);
+        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_PUT, "/api/thing", &exists) == &ROUTES[1]);
 
-        // a HEAD falls back to the GET, because a HEAD is a GET whose body is dropped.
+        // a HEAD is a read whose body is dropped, so it answers from the read route: the GET where
+        // there is one, and the QUERY where there is not.
+        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_HEAD, "/api/legacy", &exists) == &ROUTES[2]);
         nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_HEAD, "/api/thing", &exists) == &ROUTES[0]);
+
+        // and never from the write on the same path, whichever order the table is in.
+        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_HEAD, "/api/thing", &exists) != &ROUTES[1]);
 
         nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_DELETE, "/api/thing", &exists) == nullptr);
         nya_assert(exists, "the path exists, so this is a 405 and not a 404");
 
-        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_GET, "/api/other", &exists) == nullptr);
+        // GET is still routed; it is only not what these routes are written as.
+        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_GET, "/api/legacy", &exists) == &ROUTES[2]);
+        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_GET, "/api/thing", &exists) == nullptr);
+        nya_assert(exists, "a path that answers QUERY and not GET is a 405");
+
+        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_QUERY, "/api/other", &exists) == nullptr);
         nya_assert(!exists);
 
         // matching is exact: no prefixes, no patterns.
-        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_GET, "/api/thing/", &exists) == nullptr);
-        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_GET, "/api/thing/sub", &exists) == nullptr);
+        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_QUERY, "/api/thing/", &exists) == nullptr);
+        nya_assert(nya_http_router_find(routers, 1, NYA_HTTP_METHOD_QUERY, "/api/thing/sub", &exists) == nullptr);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the chain is an onion, root layers outside the resource's own.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        make_request(request, NYA_HTTP_METHOD_GET, "/api/thing", nullptr);
+        make_request(request, NYA_HTTP_METHOD_QUERY, "/api/thing", nullptr);
 
         nya_assert(dispatch(arena, request, &response, root_layers, nya_carray_length(root_layers)) == NYA_HTTP_STATUS_OK);
 
@@ -254,12 +301,29 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a browser's two verbs still reach a read.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        make_request(request, NYA_HTTP_METHOD_GET, "/api/legacy", nullptr);
+
+        nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_OK);
+        nya_assert(nya_string_equals((NYA_ConstCString)response.body, "legacy"), "GET is not gone, it is only not the default");
+
+        // a HEAD on a path that answers only QUERY runs the QUERY handler, with no body to read from:
+        // the server drops the bytes on the way out, which is what makes it a HEAD.
+        make_request(request, NYA_HTTP_METHOD_HEAD, "/api/thing", nullptr);
+
+        nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_OK);
+        nya_assert(nya_string_equals(ORDER, "bhB"));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a layer that answers on its own never reaches the handler.
     // ─────────────────────────────────────────────────────────────────────────────
     {
         const NYA_HttpLayerFn refusing[] = { short_circuit_layer };
 
-        make_request(request, NYA_HTTP_METHOD_GET, "/api/thing", nullptr);
+        make_request(request, NYA_HTTP_METHOD_QUERY, "/api/thing", nullptr);
 
         nya_assert(dispatch(arena, request, &response, refusing, nya_carray_length(refusing)) == NYA_HTTP_STATUS_FORBIDDEN);
         nya_assert(nya_string_equals(ORDER, "s"), "nothing inside a layer that does not call next may run");
@@ -274,7 +338,7 @@ s32 main(void) {
     // TEST: a route that does not exist, and one that does not answer this method.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        make_request(request, NYA_HTTP_METHOD_GET, "/api/nothing", nullptr);
+        make_request(request, NYA_HTTP_METHOD_QUERY, "/api/nothing", nullptr);
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_NOT_FOUND);
         nya_assert(response.body_size > 0, "a refusal always carries a body a client can parse");
 
@@ -287,7 +351,7 @@ s32 main(void) {
     // ─────────────────────────────────────────────────────────────────────────────
     {
         // no token at all.
-        make_request(request, NYA_HTTP_METHOD_POST, "/api/thing", nullptr);
+        make_request(request, NYA_HTTP_METHOD_PUT, "/api/thing", nullptr);
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_UNAUTHORIZED);
         nya_assert(nya_string_equals(ORDER, "bB"), "the layers ran around the refusal; only the handler did not run");
 
@@ -299,7 +363,7 @@ s32 main(void) {
         nya_assert(announced);
 
         // a token that is not this server's.
-        make_request(request, NYA_HTTP_METHOD_POST, "/api/thing", "not.a.token");
+        make_request(request, NYA_HTTP_METHOD_PUT, "/api/thing", "not.a.token");
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_UNAUTHORIZED);
 
         // a valid token without the scope the route needs.
@@ -311,7 +375,7 @@ s32 main(void) {
         (void)snprintf(reader.subject, sizeof(reader.subject), "reader");
         nya_assert(nya_http_jwt_encode(&reader, SECRET, SECRET_SIZE, bearer, sizeof(bearer)).ok);
 
-        make_request(request, NYA_HTTP_METHOD_POST, "/api/thing", bearer);
+        make_request(request, NYA_HTTP_METHOD_PUT, "/api/thing", bearer);
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_FORBIDDEN, "a verified caller without the scope is forbidden");
 
         // and one that carries it.
@@ -319,13 +383,13 @@ s32 main(void) {
         (void)snprintf(writer.subject, sizeof(writer.subject), "writer");
         nya_assert(nya_http_jwt_encode(&writer, SECRET, SECRET_SIZE, bearer, sizeof(bearer)).ok);
 
-        make_request(request, NYA_HTTP_METHOD_POST, "/api/thing", bearer);
+        make_request(request, NYA_HTTP_METHOD_PUT, "/api/thing", bearer);
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_OK);
         nya_assert(nya_string_equals(ORDER, "bHB"));
         nya_assert(nya_string_equals((NYA_ConstCString)response.body, "writer"), "the handler was handed the identity the extractor produced");
 
         // an expired token is refused with the same answer as a forged one.
-        make_request(request, NYA_HTTP_METHOD_POST, "/api/thing", bearer);
+        make_request(request, NYA_HTTP_METHOD_PUT, "/api/thing", bearer);
 
         const NYA_HttpRouter* routers[] = { &ROUTER };
 
@@ -348,7 +412,7 @@ s32 main(void) {
     {
         const NYA_HttpRouter* routers[] = { &ROUTER };
 
-        make_request(request, NYA_HTTP_METHOD_POST, "/api/thing", "anything");
+        make_request(request, NYA_HTTP_METHOD_PUT, "/api/thing", "anything");
 
         NYA_HttpExchange secretless = {
             .request  = request,
