@@ -342,11 +342,12 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             NYA_KeyEvent* key = &event->as_key_event;
             if (key->is_repeat) break;
 
-            if (nya_input_action_matches(NYA_INPUT_ACTION_CANCEL, key->key, key->modifier_flags)) {
-                gny_screen_request(GNY_SCREEN_MAIN_MENU);
-                event->was_handled = true;
-                break;
-            }
+            /*
+             * No cancel handler here on purpose. Cancel and pause are both bound to escape, so this scene used to
+             * ask for the main menu from the event and for the pause menu from the update, both deferred to the
+             * same barrier; the main menu ran first and tore the scene down, and the pause request then found
+             * nothing to pause. Escape opens the pause menu, which has a main menu button, as in the 2D scene.
+             */
 
             // a new landscape with everything put back. the pile is dropped again, since its bodies rest on ground about to
             // change. the seed advances by one, as in 2D.
