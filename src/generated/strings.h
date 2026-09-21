@@ -41,6 +41,7 @@ typedef enum {
     NYA_STRING_MENU_BARS,
     NYA_STRING_MENU_BLOOM,
     NYA_STRING_MENU_CHART,
+    NYA_STRING_MENU_CLOSE,
     NYA_STRING_MENU_DEPTH_OF_FIELD,
     NYA_STRING_MENU_DRAWS,
     NYA_STRING_MENU_EYE_ADAPTATION,
@@ -129,6 +130,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_bars",
     "menu_bloom",
     "menu_chart",
+    "menu_close",
     "menu_depth_of_field",
     "menu_draws",
     "menu_eye_adaptation",
@@ -331,6 +333,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_bloom(void) {
 /** `menu_chart` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_chart(void) {
     return _nya_i18n_format(NYA_STRING_MENU_CHART);
+}
+
+/** `menu_close` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_close(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_CLOSE);
 }
 
 /** `menu_depth_of_field` */

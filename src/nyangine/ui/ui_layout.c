@@ -16,11 +16,16 @@
  */
 
 b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
+    return _nya_ui_panel_open(ui, id, panel, nullptr);
+}
+
+b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const NYA_Rectf* at) {
     nya_assert(ui != nullptr && ui == _nya_ui.open);
     nya_assert(panel.anchor < NYA_UI_ANCHOR_COUNT && panel.direction < NYA_UI_DIRECTION_COUNT && panel.align < NYA_UI_ALIGN_COUNT);
     nya_assert(panel.overflow < NYA_UI_OVERFLOW_COUNT && panel.text < NYA_UI_TEXT_COUNT);
     nya_assert(panel.width.kind < NYA_UI_SIZE_COUNT && panel.height.kind < NYA_UI_SIZE_COUNT && panel.children.kind < NYA_UI_SIZE_COUNT);
     nya_assert(panel.gap >= 0.0F && panel.padding >= 0.0F);
+    nya_assert(at == nullptr || id != nullptr, "a float takes no place in its container, so it is named");
 
     const _NYA_UILayout* parent = &_nya_ui.layouts[_nya_ui.depth - 1];
     const _NYA_UILook*   look   = _nya_ui_look();
@@ -37,8 +42,9 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
     _NYA_UIPanelState* state = &_nya_ui.panels[index];
     state->pass              = _nya_ui.pass_serial;
 
-    b8 top_level = _nya_ui.depth == 1;
-    b8 covered   = parent->covered;
+    b8 floating  = at != nullptr;
+    b8 top_level = !floating && _nya_ui.depth == 1;
+    b8 covered   = !floating && parent->covered;
 
     // written every pass, so a container moved inside another leaves the stack the pass it moves.
     state->top_level = top_level;
@@ -83,7 +89,24 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
     NYA_Rectf bounds;
     f32x2     room;
 
-    if (_nya_ui.depth == 1) {
+    if (floating) {
+        const NYA_Rectf* screen = &_nya_ui.layouts[0].clip;
+
+        f32x2 size = {
+            at->width > 0.0F ? at->width : _nya_ui_extent(panel.width, state->size.x, screen->width),
+            at->height > 0.0F ? at->height : _nya_ui_extent(panel.height, state->size.y, screen->height),
+        };
+
+        // pushed back inside the window rather than hanging off it, so a list opened on the last row is still whole.
+        bounds = (NYA_Rectf){
+            .x      = nya_clamp(at->x, screen->x, nya_max(screen->x + screen->width - size.x, screen->x)),
+            .y      = nya_clamp(at->y, screen->y, nya_max(screen->y + screen->height - size.y, screen->y)),
+            .width  = size.x,
+            .height = size.y,
+        };
+
+        room = size;
+    } else if (_nya_ui.depth == 1) {
         const NYA_Rectf* safe = &_nya_ui.safe;
 
         f32x2 size = {
@@ -158,19 +181,30 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
         }
     }
 
+    s32 layer = parent->layer;
+
     if (top_level) {
         state->bounds = bounds;
 
         // a press anywhere in the topmost panel under the pointer raises it, chrome and widgets alike, which is
         // what makes a dragged panel behave: it comes forward the moment it is touched and stays there.
-        if (ui->pass == NYA_UI_PASS_INPUT && _nya_ui.pointer_pressed && !covered && nya_rect_contains(bounds, _nya_ui.pointer)) {
+        if (ui->pass == NYA_UI_PASS_INPUT && _nya_ui.pointer_pressed && !covered && !_nya_ui_claimed(_nya_ui.pointer) &&
+            nya_rect_contains(bounds, _nya_ui.pointer)) {
             _nya_ui_panel_raise(ui, index);
         }
 
         // the renderer paints layers low to high whatever order the calls came in, so a raised panel declared
         // first still draws over the ones after it. See nya_render2d_layer_set.
-        _nya_ui_layer_set(ui, _nya_ui.layer_base + 1 + (s32)_nya_ui_panel_rank(ui, index));
+        layer = _nya_ui.layer_base + 1 + (s32)_nya_ui_panel_rank(ui, index);
     }
+
+    // over every panel whatever it was raised to: a list belongs over the thing that opened it, and that thing is
+    // already the panel in front when the list is open at all.
+    if (floating) layer = _nya_ui.layer_base + 1 + (s32)NYA_UI_PANELS_MAX;
+
+    // only when it moves: an ordinary nested container draws in its parent's layer, and the backends treat a set as
+    // a reason to end the batch they were filling.
+    if (layer != parent->layer) _nya_ui_layer_set(ui, layer);
 
     f32x2 extent = { nya_max(bounds.width - chrome.x, 0.0F), nya_max(bounds.height - chrome.y, 0.0F) };
     u32   main   = panel.direction == NYA_UI_DIRECTION_ROW ? 0 : 1;
@@ -185,7 +219,8 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
     f32x2 scroll = { scrolls[0] ? state->scroll.x : 0.0F, scrolls[1] ? state->scroll.y : 0.0F };
     f32   top    = bounds.y + before.y + header;
 
-    NYA_Rectf clip = parent->clip;
+    // a float is cut by the window, not by the container that opened it, which is half of what floating means.
+    NYA_Rectf clip = floating ? _nya_ui.layouts[0].clip : parent->clip;
 
     if (scrolls[0] || scrolls[1]) {
         // inside the outline, and a little above the content so a focused widget's edge is not cut.
@@ -193,7 +228,7 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
         f32       above     = panel.frameless ? top : top - roundf(before.y * 0.5F);
         NYA_Rectf view_clip = { bounds.x + inset, above, bounds.width - (inset * 2.0F), bounds.y + bounds.height - inset - above };
 
-        clip = nya_rect_intersection(parent->clip, view_clip);
+        clip = nya_rect_intersection(clip, view_clip);
     }
 
     f32 gaps = state->count > 1 ? gap * (f32)(state->count - 1) : 0.0F;
@@ -217,6 +252,9 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
         .panel       = index,
         .options     = panel,
         .bounds      = bounds,
+        .root_panel  = top_level ? index : parent->root_panel,
+        .layer       = layer,
+        .floating    = floating,
         .before      = before,
         .after       = after,
         .header      = header,
@@ -227,6 +265,9 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
         .scrolls     = { scrolls[0], scrolls[1] },
         .hidden      = parent->hidden || !state->measured || look->line_heights[text] <= 0.0F,
     };
+
+    // a float over a scrolling panel is not the scrolling panel's, so the scissor that panel set comes off first.
+    if (floating && ui->pass == NYA_UI_PASS_DRAW) _nya_ui_scissor(ui, clip);
 
     if (!_nya_ui_drawing()) return true;
 
@@ -304,7 +345,8 @@ void nya_ui_panel_end(NYA_UI* ui) {
     };
 
     // the innermost scrolling container under the pointer takes the wheel, since it ends first.
-    if (!layout->covered && (reach.x > 0.0F || reach.y > 0.0F) && nya_rect_contains(nya_rect_intersection(layout->bounds, parent->clip), _nya_ui.pointer)) {
+    if (!layout->covered && !_nya_ui_claimed(_nya_ui.pointer) && (reach.x > 0.0F || reach.y > 0.0F) &&
+        nya_rect_contains(nya_rect_intersection(layout->bounds, layout->floating ? layout->clip : parent->clip), _nya_ui.pointer)) {
         f32 step = _nya_ui_px(NYA_UI_SCROLL_STEP);
 
         // shift turns the wheel sideways, and so does a container that only has somewhere to go across.
@@ -327,16 +369,50 @@ void nya_ui_panel_end(NYA_UI* ui) {
     state->scroll.y = nya_clamp(state->scroll.y, 0.0F, reach.y);
 
     if (layout->clipping) {
-        _nya_ui_scissor(ui, parent->clip);
+        _nya_ui_scissor(ui, layout->floating ? layout->clip : parent->clip);
 
         for (u32 axis = 0; axis < 2; axis++) {
             if (layout->scrolls[axis]) _nya_ui_scrollbar_draw(ui, layout, axis);
         }
     }
 
-    // after the scrollbars, which belong to the panel, and back to where the pass was called, so anything the
-    // caller draws between two panels lands in the layer it asked for rather than in the last panel's.
-    if (_nya_ui.depth == 1) _nya_ui_layer_set(ui, _nya_ui.layer_base);
+    // after the scrollbars, which belong to the panel, and back to where the container was opened from, so anything
+    // the caller draws between two panels lands in the layer it asked for rather than in the last panel's.
+    if (layout->layer != parent->layer) _nya_ui_layer_set(ui, parent->layer);
+}
+
+b8 _nya_ui_float_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, NYA_Rectf at) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open && id != nullptr);
+    nya_assert(_nya_ui.claim_count < NYA_UI_CLAIMS_MAX, "more than NYA_UI_CLAIMS_MAX floats in one pass");
+
+    // whatever the row before it asked for is the row's, not the list's.
+    _nya_ui.next_set = false;
+
+    return _nya_ui_panel_open(ui, id, panel, &at);
+}
+
+void _nya_ui_float_end(NYA_UI* ui) {
+    nya_assert(ui != nullptr && ui == _nya_ui.open);
+    nya_assert(_nya_ui.layouts[_nya_ui.depth - 1].floating, "_nya_ui_float_end without a _nya_ui_float_begin");
+
+    NYA_Rectf bounds = _nya_ui.layouts[_nya_ui.depth - 1].bounds;
+
+    nya_ui_panel_end(ui);
+
+    // claimed as it closes, so its own widgets were reached and everything declared after it is not. See ui.h.
+    nya_assert(_nya_ui.claim_count < NYA_UI_CLAIMS_MAX);
+    _nya_ui.claims[_nya_ui.claim_count++] = bounds;
+
+    // the scissor the container under it had set is back on, since that container is still open.
+    if (ui->pass == NYA_UI_PASS_DRAW) _nya_ui_scissor(ui, _nya_ui.layouts[_nya_ui.depth - 1].clip);
+}
+
+b8 _nya_ui_claimed(f32x2 point) {
+    for (u32 i = 0; i < _nya_ui.claim_count; i++) {
+        if (nya_rect_contains(_nya_ui.claims[i], point)) return true;
+    }
+
+    return false;
 }
 
 void nya_ui_size(NYA_UI* ui, NYA_UISize size) {
@@ -703,9 +779,10 @@ void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf
     f32       grip_height = header > 0.0F ? header : _nya_ui_look()->line_heights[NYA_UI_TEXT_BODY];
     NYA_Rectf grip        = { bounds.x, bounds.y, bounds.width, grip_height };
 
-    if (_nya_ui.pointer_pressed && !covered && ui->drag_panel == 0 && nya_rect_contains(grip, _nya_ui.pointer)) {
-        ui->drag_panel = key;
-        ui->drag_grip  = (f32x2){ _nya_ui.pointer.x - state->drag.x, _nya_ui.pointer.y - state->drag.y };
+    if (_nya_ui.pointer_pressed && !covered && !_nya_ui_claimed(_nya_ui.pointer) && ui->drag_panel == 0 && nya_rect_contains(grip, _nya_ui.pointer)) {
+        ui->drag_panel       = key;
+        ui->drag_grip        = (f32x2){ _nya_ui.pointer.x - state->drag.x, _nya_ui.pointer.y - state->drag.y };
+        _nya_ui.drag_started = true;
     }
 
     if (ui->drag_panel != key) return;

@@ -21,6 +21,10 @@ NYA_INTERNAL const _NYA_UIPress _NYA_UI_PRESSES[_NYA_UI_PRESS_COUNT] = {
     { .action = NYA_INPUT_ACTION_DOWN },
     { .action = NYA_INPUT_ACTION_LEFT },
     { .action = NYA_INPUT_ACTION_RIGHT },
+
+    // a raw key and not an action: tab is not something a player rebinds, and a gamepad has no tab.
+    { .key = NYA_KEY_TAB },
+
     { .key = NYA_KEY_LEFT },
     { .key = NYA_KEY_RIGHT },
     { .key = NYA_KEY_BACKSPACE },
@@ -50,10 +54,21 @@ void _nya_ui_input_read(NYA_UI* ui) {
     _nya_ui.wheel            = input ? nya_input_mouse_wheel_scroll().y : 0.0F;
     _nya_ui.wheel_x          = input ? nya_input_mouse_wheel_scroll().x : 0.0F;
 
+    // escape backs out one step: it closes an open list here, before any widget or layer can read it as a cancel,
+    // so the same key that leaves a dropdown does not also leave the menu the dropdown is in.
+    if (_nya_ui.cancel && ui->open != 0) {
+        ui->open       = 0;
+        _nya_ui.cancel = false;
+    }
+
     nya_memset(_nya_ui.presses, 0, sizeof(_nya_ui.presses));
     if (!input) return;
 
-    u64 tick = nya_world()->sim_system.tick + 1;
+    /*
+     * Presses are worked out once per tick so two windows cannot repeat twice as fast. A program with no world has
+     * no tick, and a TUI is the case: its passes are the only clock there is, and it opens one input pass per frame.
+     */
+    u64 tick = nya_world_exists() ? nya_world()->sim_system.tick + 1 : _nya_ui.pass_serial;
 
     if (tick != _nya_ui.press_tick) {
         _nya_ui.press_tick = tick;
@@ -130,6 +145,7 @@ _NYA_UIWidget _nya_ui_widget(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect,
     u32 index                        = _nya_ui.widget_count++;
     _nya_ui.widgets[index]           = id;
     _nya_ui.widget_groups[index]     = layout->group != U32_MAX ? layout->group : index;
+    _nya_ui.widget_panels[index]     = layout->root_panel;
     _nya_ui.widget_horizontal[index] = horizontal;
     if (ui->focus == id) _nya_ui.focus_found = index;
 
@@ -144,7 +160,8 @@ _NYA_UIWidget _nya_ui_widget(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect,
          * barrier in nya_ui_end was the alternative: a press and its release arrive in the same tick, so a widget
          * that only learned at the barrier could not report its own activation until a tick later.
          */
-        b8 inside = !layout->covered && nya_rect_contains(rect, _nya_ui.pointer) && nya_rect_contains(layout->clip, _nya_ui.pointer);
+        b8 inside = !layout->covered && !_nya_ui_claimed(_nya_ui.pointer) && nya_rect_contains(rect, _nya_ui.pointer) &&
+                    nya_rect_contains(layout->clip, _nya_ui.pointer);
 
         // hover moves the same focus as the keys, so the two never disagree. only on movement, so a resting pointer
         // does not take focus back from the keys, and not while typing, where confirm belongs to the field.
@@ -153,7 +170,16 @@ _NYA_UIWidget _nya_ui_widget(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect,
             _nya_ui.focus_found = index;
         }
 
-        if (inside && _nya_ui.pointer_pressed) ui->active = id;
+        if (inside && _nya_ui.pointer_pressed) {
+            ui->active = id;
+
+            // a panel grabbed by its grip this pass lets go again: the chrome buttons of a window sit in its title
+            // bar, and pressing one has to be a press on the button rather than the start of a drag.
+            if (_nya_ui.drag_started) {
+                ui->drag_panel       = 0;
+                _nya_ui.drag_started = false;
+            }
+        }
 
         widget.activated = (ui->focus == id && _nya_ui.confirm) || (ui->active == id && _nya_ui.pointer_released && inside);
 

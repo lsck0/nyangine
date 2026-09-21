@@ -82,6 +82,7 @@
 #include "nyangine/ui/ui_style.c"
 #include "nyangine/ui/ui_text.c"
 #include "nyangine/ui/ui_widgets.c"
+#include "nyangine/ui/ui_window.c"
 
 // For the reason testing.h is included last.
 #include "nyangine/testing/testing.c"

@@ -16,17 +16,32 @@ NYA_INTERNAL const struct {
     { "de", "Deutsch" },
 };
 
+/**
+ * The two tool windows' state, which is the caller's by design: the close button in a title bar writes false here
+ * and nothing in the UI can ever write true, so the menu below is what puts them back. See NYA_UIWindowState.
+ * */
+NYA_INTERNAL NYA_UIWindowState _GNY_LOOK_WINDOW    = { .open = true };
+NYA_INTERNAL NYA_UIWindowState _GNY_WIDGETS_WINDOW = { .open = true };
+
+/** What both windows' hamburger offers, in the order NYA_UIWindowState.menu_picked indexes. */
+enum {
+    _GNY_WINDOW_MENU_RESET = 0,
+    _GNY_WINDOW_MENU_CLOSE,
+    _GNY_WINDOW_MENU_COUNT,
+};
+
 NYA_INTERNAL void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass);
 
-/** Every widget the UI has, editing the style in NYA_CONFIG that gny_ui_begin hands the window. */
+/** A window editing the style in NYA_CONFIG that gny_ui_begin hands the platform window. */
 NYA_INTERNAL void _gny_look_panel(NYA_UI* ui);
 
 /** The player's graphics settings, saved on quit and laid over both scenes' renderer options every frame. */
 NYA_INTERNAL void _gny_graphics_panel(NYA_UI* ui);
 
 /**
- * A draggable panel over the widgets the menus above do not use: tabs, a table, a dropdown, radio buttons, a chart
- * and an opacity group. It shows real counters, so it is a debug readout as well as the thing that exercises them.
+ * A window over the widgets the menus above do not use: tabs, a table, a folding section, a dropdown, radio
+ * buttons, a chart and an opacity group. It shows real counters, so it is a debug readout as well as the thing
+ * that exercises them, and with the look window beside it, two windows that can be dragged onto each other.
  * */
 NYA_INTERNAL void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui);
 
@@ -127,6 +142,17 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
 
         if (!social) nya_ui_disabled_end(ui);
 
+        // only while they are gone, since a window that is showing has its own close button and needs no second
+        // switch. This is the whole of what "the caller owns the flag" buys: the UI cannot show a window again.
+        if (!_GNY_LOOK_WINDOW.open || !_GNY_WIDGETS_WINDOW.open) {
+            if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .children = nya_ui_grow(1), .frameless = true })) {
+                if (!_GNY_LOOK_WINDOW.open && nya_ui_button(ui, nya_string_menu_look())) _GNY_LOOK_WINDOW = (NYA_UIWindowState){ .open = true };
+                if (!_GNY_WIDGETS_WINDOW.open && nya_ui_button(ui, nya_string_menu_widgets())) _GNY_WIDGETS_WINDOW = (NYA_UIWindowState){ .open = true };
+
+                nya_ui_panel_end(ui);
+            }
+        }
+
         if (nya_ui_button(ui, nya_string_menu_main_menu())) gny_screen_request(GNY_SCREEN_MAIN_MENU);
         if (nya_ui_button(ui, nya_string_menu_quit())) gny_screen_request(GNY_SCREEN_QUIT);
 
@@ -149,11 +175,13 @@ void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui) {
     static f32 draws[GNY_WIDGETS_SAMPLES]    = { 0 };
     static u32 samples                       = 0;
 
-    // which tab is showing, what the chart plots and how, and how far the whole panel is faded.
-    static u32 tab     = 0;
-    static u32 metric  = 0;
-    static u32 kind    = 0;
-    static f32 opacity = 1.0F;
+    // which tab is showing, what the chart plots and how, how far the whole panel is faded, and whether the plot's
+    // settings are folded away.
+    static u32 tab      = 0;
+    static u32 metric   = 0;
+    static u32 kind     = 0;
+    static f32 opacity  = 1.0F;
+    static b8  settings = true;
 
     NYA_Render2DFrameStats batch = nya_render2d_frame_stats(window);
     u32                    slot  = samples % GNY_WIDGETS_SAMPLES;
@@ -168,15 +196,26 @@ void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui) {
     nya_ui_opacity_begin(ui, opacity);
     defer nya_ui_opacity_end(ui);
 
-    NYA_UIPanel panel = {
-        .anchor    = NYA_UI_ANCHOR_BOTTOM_RIGHT,
-        .width     = nya_ui_fixed(GNY_WIDGETS_WIDTH),
-        .text      = NYA_UI_TEXT_SMALL,
-        .title     = nya_string_menu_widgets(),
-        .draggable = true,
+    NYA_ConstCString items[_GNY_WINDOW_MENU_COUNT] = {
+        [_GNY_WINDOW_MENU_RESET] = nya_string_menu_reset(),
+        [_GNY_WINDOW_MENU_CLOSE] = nya_string_menu_close(),
     };
 
-    if (!nya_ui_panel_begin(ui, "widgets", panel)) return;
+    NYA_UIWindow widgets = {
+        .panel      = { .anchor = NYA_UI_ANCHOR_BOTTOM_RIGHT, .width = nya_ui_fixed(GNY_WIDGETS_WIDTH), .text = NYA_UI_TEXT_SMALL },
+        .title      = nya_string_menu_widgets(),
+        .close      = true,
+        .collapse   = true,
+        .resize     = true,
+        .menu       = items,
+        .menu_count = nya_carray_length(items),
+    };
+
+    if (!nya_ui_window_begin(ui, "widgets", widgets, &_GNY_WIDGETS_WINDOW)) return;
+
+    // the hamburger reports an index for the one pass it was picked on, and the caller decides what it means.
+    if (_GNY_WIDGETS_WINDOW.menu_picked == _GNY_WINDOW_MENU_RESET) _GNY_WIDGETS_WINDOW = (NYA_UIWindowState){ .open = true };
+    if (_GNY_WIDGETS_WINDOW.menu_picked == _GNY_WINDOW_MENU_CLOSE) _GNY_WIDGETS_WINDOW.open = false;
 
     NYA_ConstCString tabs[] = { nya_string_menu_table(), nya_string_menu_chart() };
     (void)nya_ui_tabs(ui, "pages", tabs, nya_carray_length(tabs), &tab);
@@ -211,14 +250,20 @@ void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui) {
             nya_ui_table_end(ui);
         }
     } else {
-        NYA_ConstCString metrics[] = { nya_string_menu_frame_ms(), nya_string_menu_draws() };
-        (void)nya_ui_dropdown(ui, nya_string_menu_metric(), metrics, nya_carray_length(metrics), &metric);
+        // the dropdown's list and the radio pair land on each other, which is what makes this the place to look at
+        // a float: the list hangs over the radios and takes the clicks they would otherwise have had.
+        if (nya_ui_section_begin(ui, nya_string_menu_metric(), &settings)) {
+            NYA_ConstCString metrics[] = { nya_string_menu_frame_ms(), nya_string_menu_draws() };
+            (void)nya_ui_dropdown(ui, nya_string_menu_metric(), metrics, nya_carray_length(metrics), &metric);
 
-        // a radio pair rather than a selectable pair, since the two own one variable between them.
-        if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .children = nya_ui_grow(1), .frameless = true })) {
-            (void)nya_ui_radio(ui, nya_string_menu_line(), &kind, NYA_UI_CHART_LINE);
-            (void)nya_ui_radio(ui, nya_string_menu_bars(), &kind, NYA_UI_CHART_BAR);
-            nya_ui_panel_end(ui);
+            // a radio pair rather than a selectable pair, since the two own one variable between them.
+            if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .children = nya_ui_grow(1), .frameless = true })) {
+                (void)nya_ui_radio(ui, nya_string_menu_line(), &kind, NYA_UI_CHART_LINE);
+                (void)nya_ui_radio(ui, nya_string_menu_bars(), &kind, NYA_UI_CHART_BAR);
+                nya_ui_panel_end(ui);
+            }
+
+            nya_ui_section_end(ui);
         }
 
         nya_ui_chart(ui, "plot",
@@ -232,14 +277,36 @@ void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui) {
 
     (void)nya_ui_slider(ui, nya_string_menu_fade(), &opacity, GNY_WIDGETS_FADE_MIN, 1.0F, GNY_WIDGETS_FADE_STEP);
 
-    nya_ui_panel_end(ui);
+    nya_ui_window_end(ui);
 }
 
 void _gny_look_panel(NYA_UI* ui) {
     NYA_UIStyle* style = &NYA_CONFIG.engine.ui;
 
-    NYA_UIPanel panel = { .anchor = NYA_UI_ANCHOR_RIGHT, .width = nya_ui_fixed(GNY_LOOK_WIDTH), .align = NYA_UI_ALIGN_CENTER, .title = nya_string_menu_look() };
-    if (!nya_ui_panel_begin(ui, "look", panel)) return;
+    NYA_ConstCString items[_GNY_WINDOW_MENU_COUNT] = {
+        [_GNY_WINDOW_MENU_RESET] = nya_string_menu_reset(),
+        [_GNY_WINDOW_MENU_CLOSE] = nya_string_menu_close(),
+    };
+
+    NYA_UIWindow look = {
+        .panel      = { .anchor = NYA_UI_ANCHOR_RIGHT, .width = nya_ui_fixed(GNY_LOOK_WIDTH), .align = NYA_UI_ALIGN_CENTER },
+        .title      = nya_string_menu_look(),
+        .close      = true,
+        .collapse   = true,
+        .resize     = true,
+        .menu       = items,
+        .menu_count = nya_carray_length(items),
+    };
+
+    if (!nya_ui_window_begin(ui, "look", look, &_GNY_LOOK_WINDOW)) return;
+
+    // reset puts the accent back as well as the window, since that is what this window is for.
+    if (_GNY_LOOK_WINDOW.menu_picked == _GNY_WINDOW_MENU_RESET) {
+        _GNY_LOOK_WINDOW = (NYA_UIWindowState){ .open = true };
+        style->accent    = (NYA_Color){ 0 };
+    }
+
+    if (_GNY_LOOK_WINDOW.menu_picked == _GNY_WINDOW_MENU_CLOSE) _GNY_LOOK_WINDOW.open = false;
 
     char* sheet  = NYA_CONFIG.game.menu_sheet;
     b8    skinned = sheet[0] != '\0';
@@ -270,7 +337,7 @@ void _gny_look_panel(NYA_UI* ui) {
     if (nya_ui_button(ui, nya_string_menu_reset())) style->accent = (NYA_Color){ 0 };
     if (!changed) nya_ui_disabled_end(ui);
 
-    nya_ui_panel_end(ui);
+    nya_ui_window_end(ui);
 }
 
 void _gny_graphics_panel(NYA_UI* ui) {

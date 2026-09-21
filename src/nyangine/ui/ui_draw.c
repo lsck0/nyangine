@@ -176,7 +176,7 @@ NYA_Rectf _nya_ui_body_draw(NYA_UI* ui, NYA_Rectf rect, _NYA_UIWidget widget) {
 
     // clear of the rounded corners, fading with the focus.
     if (widget.focus > 0.0F) {
-        f32       bar    = _nya_ui_px(NYA_UI_FOCUS_BAR);
+        f32       bar    = look->focus_bar;
         NYA_Color accent = { style->accent.r, style->accent.g, style->accent.b, style->accent.a * widget.focus };
 
         nya_render2d_rect(ui->window, rect.x + look->outline, rect.y + look->radius, bar, nya_max(rect.height - (look->radius * 2.0F), 0.0F), _nya_ui_fade(accent));

@@ -77,6 +77,7 @@ NYA_UIStyle _nya_ui_style_resolve(NYA_UIStyle style) {
         { &style.outline,    NYA_UI_OUTLINE    },
         { &style.depth,      NYA_UI_DEPTH      },
         { &style.pop,        NYA_UI_POP        },
+        { &style.focus_bar,  NYA_UI_FOCUS_BAR  },
     };
 
     for (u32 i = 0; i < nya_carray_length(sizes); i++) {
@@ -151,6 +152,7 @@ _NYA_UILook _nya_ui_look_build(const NYA_UIStyle* style, f32 scale) {
         .outline     = roundf(style->outline * scale),
         .depth       = roundf(style->depth * scale),
         .pop         = roundf(style->pop * scale),
+        .focus_bar   = nya_max(roundf(style->focus_bar * scale), 1.0F),
         .item_height = roundf(style->item_height * scale),
     };
 

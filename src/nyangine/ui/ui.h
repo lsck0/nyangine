@@ -9,6 +9,8 @@
  *
  *   nya_ui_begin, nya_ui_end                    one pass over a window's UI, reading input or drawing
  *   nya_ui_panel_begin, nya_ui_panel_end        a container stacking its children down or across, framed or plain
+ *   nya_ui_window_begin, nya_ui_window_end      a panel with a title bar: a menu, a collapse chevron, a close X, a resize grip
+ *   nya_ui_section_begin, nya_ui_section_end    a labelled part of a panel the caller can fold away
  *   nya_ui_size                                 the next child's size along its container's direction
  *   nya_ui_space                                room in the layout for custom drawing, or a spacer
  *   nya_ui_scrim                                dims the whole window
@@ -103,8 +105,16 @@
  *   covers nothing for one pass. Collecting the presses and resolving them at a barrier in nya_ui_end was the
  *   alternative and lost: a press and its release arrive in the same tick, so a widget has to know whether it took
  *   the pointer while it is still running, and a barrier could only answer a tick late.
+ * - Something that floats over what follows it, a dropdown's list or a window's menu, does not need the panel stack
+ *   or last pass's rectangles at all: it is declared before everything it covers, so it claims its rectangle on the
+ *   spot and every widget declared after it refuses a pointer inside one. That is the whole of it, and it is exact
+ *   rather than a pass behind. It only works downward, which is why it is not how panels occlude each other.
  * - Focus moves through rows as lines: up and down go to the next line, left and right between the focusable cells
- *   of one row. Sliders, toggles and a field being typed into keep left and right for themselves.
+ *   of one row. Sliders, toggles and a field being typed into keep left and right for themselves. Tab goes to the
+ *   next widget whatever line it is on and shift-tab to the one before, which is the only way through a UI that is
+ *   all rows and the only one a terminal, where there is no hover, can be driven by. Focus entering a top level
+ *   panel raises it, so the keyboard and the pointer never disagree about which of two overlapping windows is in
+ *   front. Cancel closes an open list before a layer sees it, so escape backs out one step at a time.
  * - A field types only after confirm or a click, because menu keys are letters too (W, A, S, D and space), and
  *   stops on return, cancel or a click elsewhere. A confirm that also typed text is the space bar, not confirm.
  * - The default look is flat and quiet: no outline, no shadow, no pop, neutral fills and one accent marking focus
@@ -114,6 +124,12 @@
  *   in over `appear_s` when it shows again, on the wall clock so a paused simulation still animates. Each widget's
  *   progress sits in a small direct mapped table by id; a collision only snaps a transition. Zero durations never
  *   touch the table.
+ * - A window is a panel with chrome, and it owns none of what the chrome reports. An immediate mode widget that held
+ *   its own visibility could never be shown again, because the call that would reopen it is the call that is not
+ *   being made; so the caller keeps one NYA_UIWindowState, the close button writes false into it, and the caller is
+ *   the only thing that can write true. Collapsing and the size a resize grip left are the same deal. What the
+ *   module does keep is the menu, because only one list may be open at a time and that is a fact about the pass
+ *   rather than about any one window.
  * - A field selects, copies and pastes. This was left out once, on the grounds that a name or a seed does not need
  *   it; that was wrong, because a field people can only retype is a field they avoid, and the whole cost is a
  *   second offset beside the caret.
@@ -154,6 +170,12 @@ typedef struct NYA_Window NYA_Window;
 #ifndef NYA_UI_DEPTH_MAX
 #define NYA_UI_DEPTH_MAX 8
 #endif
+
+/**
+ * Rectangles floating lists may claim in one pass. One list is open at a time, so a pass claims one, and a window
+ * whose menu is open while a list inside it is claims two. Four leaves room and is asserted rather than grown.
+ * */
+#define NYA_UI_CLAIMS_MAX 4
 
 /** Styles pushed on top of the window's at once. */
 #define NYA_UI_STYLE_DEPTH_MAX 4
@@ -222,6 +244,13 @@ typedef struct NYA_Window NYA_Window;
 #define NYA_UI_SCROLL_STEP 40.0F
 #define NYA_UI_SCROLLBAR   4.0F
 #define NYA_UI_FOCUS_BAR   3.0F
+
+/**
+ * A window's resize grip, and the least it may be dragged to, in pixels at scale 1. The minimum is a title bar and
+ * a row under it, which is the smallest thing still recognisable as a window rather than as a dropped frame.
+ * */
+#define NYA_UI_GRIP        12.0F
+#define NYA_UI_WINDOW_MIN  ((f32x2){ 96.0F, 64.0F })
 
 /**
  * The display scale is snapped to steps this size and the result never drops under the smallest. A style's own
@@ -472,6 +501,13 @@ struct NYA_UIStyle {
     /** How much a newly focused widget grows before settling. None by default. */
     f32 pop;
 
+    /**
+     * The accent mark along a focused widget's leading edge. Zero is NYA_UI_FOCUS_BAR. A backend whose pixels come
+     * in blocks wants this at least one block wide, or the mark falls between two and the only sign of focus is a
+     * colour: the terminal's cell is 8 pixels, so a TUI sets 8.
+     * */
+    f32 focus_bar;
+
     /** A button, slider, toggle, selectable or field's height. Zero is the text's line height plus padding. */
     f32 item_height;
 
@@ -567,6 +603,61 @@ struct NYA_UIPanel {
     s32 z;
 };
 
+/**
+ * What a window's chrome reports, and what it is asked to be. The caller owns every field: the widget writes, and
+ * only the caller can write back. Zeroed, it is a closed window, so a window that starts open says `.open = true`.
+ *
+ * It lives wherever the caller keeps its own state and outlives the pass, exactly as the b8 behind a toggle does.
+ * */
+typedef struct NYA_UIWindowState NYA_UIWindowState;
+
+struct NYA_UIWindowState {
+    /** Whether the window is declared at all. The close button writes false; nothing here ever writes true. */
+    b8 open;
+
+    /** Whether the body is folded away and only the title bar is left. The chevron flips it. */
+    b8 collapsed;
+
+    /** Where the resize grip left it, in pixels at scale 1. Zero on an axis fits the content on that axis. */
+    f32x2 size;
+
+    /** The menu item picked this pass, or NYA_UI_MENU_NONE. Written every pass, so it is read right after the begin. */
+    u32 menu_picked;
+};
+
+/** What NYA_UIWindowState.menu_picked holds on a pass that picked nothing. */
+#define NYA_UI_MENU_NONE U32_MAX
+
+/** A window: everything a panel is, plus the title bar and the chrome in it. */
+typedef struct NYA_UIWindow NYA_UIWindow;
+
+struct NYA_UIWindow {
+    /**
+     * Placed, sized, filled and stacked like any top level panel. Its `title` and `draggable` are written here from
+     * the fields below, since a window is titled and moves by its bar by definition.
+     * */
+    NYA_UIPanel panel;
+
+    /** Drawn in the title bar. A window without one is a panel; this is asserted. */
+    NYA_ConstCString title;
+
+    /** An X at the right of the bar. Activating it writes false to `open` and nothing else. */
+    b8 close;
+
+    /** A chevron at the right of the bar, pointing down when open and right when folded. */
+    b8 collapse;
+
+    /** A grip in the bottom right corner that drags `size`. Ignored while collapsed. */
+    b8 resize;
+
+    /**
+     * A hamburger at the left of the bar opening a list of these under it. Null or a zero count leaves it out.
+     * Picking one writes its index to `menu_picked` for that pass; cancel and a click elsewhere close the list.
+     * */
+    const NYA_ConstCString* menu;
+    u32                     menu_count;
+};
+
 /** What a chart draws. */
 typedef enum NYA_UIChartKind {
     /** A line through every point. */
@@ -649,6 +740,49 @@ NYA_API void nya_ui_end(NYA_UI* ui);
  * */
 NYA_API b8   nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) __attr_no_discard;
 NYA_API void nya_ui_panel_end(NYA_UI* ui);
+
+/**
+ * Opens a window: a top level panel with a title bar, moved by that bar and stacked like any other panel.
+ *
+ * False, with nothing opened and no end to call, when `state->open` is false, when the window is collapsed, or when
+ * the container table is full. `state` is the caller's and outlives the pass; see NYA_UIWindowState for why the
+ * window cannot hold it.
+ *
+ * ```c
+ * static NYA_UIWindowState inspector = { .open = true };
+ * static const NYA_ConstCString items[] = { "reset", "close" };
+ *
+ * // shown again from somewhere else, because closing it only wrote the flag.
+ * if (!inspector.open && nya_ui_button(ui, "inspector")) inspector = (NYA_UIWindowState){ .open = true };
+ *
+ * if (nya_ui_window_begin(ui, "inspector", (NYA_UIWindow){
+ *         .panel      = { .anchor = NYA_UI_ANCHOR_TOP_RIGHT, .width = nya_ui_fixed(280) },
+ *         .title      = "inspector",
+ *         .close      = true,
+ *         .collapse   = true,
+ *         .resize     = true,
+ *         .menu       = items,
+ *         .menu_count = nya_carray_length(items),
+ *     }, &inspector)) {
+ *     if (inspector.menu_picked == 0) reset();
+ *     if (inspector.menu_picked == 1) inspector.open = false;
+ *
+ *     if (nya_ui_button(ui, "apply")) apply();
+ *     nya_ui_window_end(ui);
+ * }
+ * ```
+ * */
+NYA_API b8   nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA_UIWindowState* state) __attr_no_discard;
+NYA_API void nya_ui_window_end(NYA_UI* ui);
+
+/**
+ * A labelled part of a panel: a header row that flips `*open` when it is activated, and what follows until the end
+ * indented under it while it is open. The caller owns the flag, for the reason a window's does.
+ *
+ * False, with nothing opened and no end to call, when it is folded or when the container table is full.
+ * */
+NYA_API b8   nya_ui_section_begin(NYA_UI* ui, NYA_ConstCString label, b8* open) __attr_no_discard;
+NYA_API void nya_ui_section_end(NYA_UI* ui);
 
 /** The size of the next child, widget or container, along its container's direction. */
 NYA_API void nya_ui_size(NYA_UI* ui, NYA_UISize size);
@@ -767,16 +901,19 @@ NYA_API b8 nya_ui_text_input(NYA_UI* ui, NYA_ConstCString label, char* buffer, u
 NYA_API b8 nya_ui_tabs(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected);
 
 /**
- * A closed row showing `options[*selected]`; activating it opens the list, and picking closes it again. True when
- * `*selected` changed.
+ * A closed row showing `options[*selected]`; activating it opens the list, and picking closes it again. Cancel and
+ * a press anywhere else close it too. True when `*selected` changed.
  *
- * The open list takes room in the layout instead of floating over what follows. Z order is no longer what stops
- * it: panels stack and draw back to front, so the list could draw over what follows in a layer of its own with
- * nothing replayed, and the old objection, holding the caller's `options` pointer past the call, went with the
- * replay. What is left is layout. A floating list has to take a rectangle without taking room, without being
- * measured into the panel holding it and without being cut by that panel's clip, and it has to occlude the widgets
- * declared after it, which the panel stack cannot do because those share its panel. That is four changes across
- * layout, drawing and input for one widget, so the list still opens downward.
+ * The list floats: it hangs under the row over whatever follows, takes no room in the layout, is measured into
+ * nothing and is cut by the window rather than by the panel holding it. It used to take room instead, because a
+ * floating list needs all four of those and has to keep the pointer off the widgets it covers, which the panel
+ * stack cannot do for widgets that share its panel. It turned out that last part is the easy half: a float is
+ * declared before everything it covers, so it claims its rectangle as it closes and what comes after refuses a
+ * pointer inside one. The other three are a placement that skips nya_ui_place. Only one list is open per window,
+ * so the claim table is four rectangles.
+ *
+ * Near the bottom of the window the list is pushed up to fit rather than hanging off; a list taller than the
+ * window is cut by it.
  * */
 NYA_API b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* options, u32 count, u32* selected);
 

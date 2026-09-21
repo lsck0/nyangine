@@ -1573,6 +1573,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_UIStyle_FIELDS[] = {
     { .name = "outline", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, outline), .hint = NYA_HINT_NONE },
     { .name = "depth", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, depth), .hint = NYA_HINT_NONE },
     { .name = "pop", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, pop), .hint = NYA_HINT_NONE },
+    { .name = "focus_bar", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, focus_bar), .hint = NYA_HINT_NONE },
     { .name = "item_height", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, item_height), .hint = NYA_HINT_NONE },
     { .name = "overflow", .type = &_NYA_REFLECT_NYA_UIOverflow, .offset = nya_offsetof(NYA_UIStyle, overflow), .hint = NYA_HINT_NONE },
     { .name = "transition_s", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_UIStyle, transition_s), .hint = NYA_HINT_NONE },
@@ -1599,7 +1600,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle = {
     .size = sizeof(NYA_UIStyle),
     .alignment = alignof(NYA_UIStyle),
     .fields = _NYA_REFLECT_NYA_UIStyle_FIELDS,
-    .field_count = 32,
+    .field_count = 33,
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT] = {

@@ -66,9 +66,13 @@ typedef struct {
     NYA_Rectf row;
     NYA_Rectf chart;
     b8        changed;
+
+    /** Where the button after the dropdown starts, and whether it was activated. An open list hangs over it. */
+    NYA_Rectf under;
+    b8        under_hit;
 } Taken;
 
-/** A panel with a radio pair, a tab strip and a dropdown; `pass` picks input or draw. */
+/** A panel with a radio pair, a tab strip, a dropdown and a button under it; `pass` picks input or draw. */
 static Taken menu(NYA_UIPass pass) {
     Taken   taken = { 0 };
     NYA_UI* ui    = nya_ui_begin(&window, pass);
@@ -80,6 +84,10 @@ static Taken menu(NYA_UIPass pass) {
 
         taken.changed = nya_ui_tabs(ui, "pages", LABELS, 2, &tab) || taken.changed;
         taken.changed = nya_ui_dropdown(ui, "pick", LABELS, 3, &option) || taken.changed;
+
+        // the marker is where the button starts, so the checks read the layout rather than guessing at it.
+        taken.under     = nya_ui_space(ui, 0.0F, 0.0F);
+        taken.under_hit = nya_ui_button(ui, "under");
 
         nya_ui_panel_end(ui);
     }
@@ -224,8 +232,9 @@ s32 main(void) {
         (void)menu(NYA_UI_PASS_INPUT);
         nya_check(tab == 1, "clicking the second tab selects it, got %u", tab);
 
-        // the closed dropdown is the fourth row; opening it puts the options under it.
+        // the closed dropdown is the fourth row, and the button is the fifth.
         NYA_Rectf closed = { laid.first.x, laid.first.y + ((ITEM + GAP) * 3.0F), width, ITEM };
+        NYA_Rectf shut   = laid.under;
 
         click_at(center_of(closed));
         (void)menu(NYA_UI_PASS_INPUT);
@@ -233,17 +242,33 @@ s32 main(void) {
 
         // twice, so the open list is measured before it is clicked.
         (void)menu(NYA_UI_PASS_DRAW);
-        (void)menu(NYA_UI_PASS_DRAW);
+        Taken opened = menu(NYA_UI_PASS_DRAW);
 
-        f32 share = roundf((width - (GAP * 2.0F)) / 3.0F);
-        click_at((f32x2){ closed.x + share + GAP + (share * 0.5F), closed.y + ITEM + GAP + (ITEM * 0.5F) });
+        // ── The list floats: it takes no room, so nothing under it moved, and it hangs over the button instead.
+        nya_check(opened.under.y == shut.y, "an open list does not push the button down, got %f against %f", (f64)opened.under.y, (f64)shut.y);
+
+        // the list hangs from the bottom of the row, which is one gap above the marker, and is a framed column: its
+        // own padding, then one option per item height. The button starts one gap under the marker.
+        f32 first_option = shut.y - GAP + FRAME + (ITEM * 0.5F);
+
+        f32x2 second_option = { closed.x + (width * 0.5F), first_option + ITEM + GAP };
+        f32x2 over_button   = { closed.x + (width * 0.5F), shut.y + GAP + (ITEM * 0.5F) };
+
+        // ── A click where the list covers the button goes to the list, and the button never sees it. The same point
+        //    activates the button once the list is gone, which is what makes this a covering test and not a miss.
+        click_at(over_button);
+        Taken covered = menu(NYA_UI_PASS_INPUT);
+        nya_check(!covered.under_hit, "a click on the list does not fall through to the button under it");
+
+        click_at(second_option);
         (void)menu(NYA_UI_PASS_INPUT);
         nya_check(option == 1, "clicking the second option picks it, got %u", option);
 
-        // and picking closes the list, so the row under the dropdown is free again.
-        click_at((f32x2){ closed.x + share + GAP + (share * 0.5F), closed.y + ITEM + GAP + (ITEM * 0.5F) });
-        (void)menu(NYA_UI_PASS_INPUT);
+        // and picking closes the list, so the room under the dropdown is the button's again.
+        click_at(over_button);
+        Taken freed = menu(NYA_UI_PASS_INPUT);
         nya_check(option == 1, "a click where the list was does not reach it once closed, got %u", option);
+        nya_check(freed.under_hit, "and reaches the button instead");
     }
 
     // ── A table sizes its cells by its columns, so one row lines up with the next, and never sizes anything else.

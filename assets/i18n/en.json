@@ -21,6 +21,7 @@
   "menu_scale": "scale",
   "menu_accent": "accent",
   "menu_reset": "reset",
+  "menu_close": "close",
   "menu_paused": "paused",
   "menu_subtitle": "physics sandbox",
   "menu_graphics": "graphics",

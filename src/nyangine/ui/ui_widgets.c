@@ -467,9 +467,14 @@ b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* o
 
     if (!open || widget.disabled) return false;
 
-    // the list takes room under the row rather than floating over what follows; see ui.h for why.
-    u32 picked  = chosen;
-    b8  changed = _nya_ui_choice_row(ui, label, options, count, &picked, false);
+    // the list hangs under the row and over whatever follows it; see ui.h for what that costs and what it does not.
+    u32   picked  = chosen;
+    f32x2 at      = { rect.x, rect.y + rect.height };
+    b8    changed = _nya_ui_choice_list(ui, label, options, count, &picked, at, rect.width);
+
+    // a press anywhere but the row and the list closes it, which is what every other menu does. The list claimed its
+    // own rectangle as it closed, so this reads that rather than guessing where it went.
+    if (_nya_ui.pointer_pressed && !nya_rect_contains(rect, _nya_ui.pointer) && !_nya_ui_claimed(_nya_ui.pointer)) ui->open = 0;
 
     if (!changed) return false;
 
@@ -583,6 +588,28 @@ void nya_ui_icon(NYA_UI* ui, NYA_UIIcon icon, f32 size) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width) {
+    nya_assert(ui != nullptr && id != nullptr && labels != nullptr && selected != nullptr);
+    nya_assert(count > 0 && width > 0.0F);
+
+    // framed, unlike the row, because a list hanging over other widgets has to hide them to be read at all.
+    if (!_nya_ui_float_begin(ui, id, (NYA_UIPanel){ 0 }, (NYA_Rectf){ at.x, at.y, width, 0.0F })) return false;
+
+    u32 chosen  = nya_min(*selected, count - 1);
+    b8  changed = false;
+
+    for (u32 i = 0; i < count; i++) {
+        if (nya_ui_selectable(ui, labels[i], i == chosen) && i != chosen) {
+            *selected = i;
+            changed   = true;
+        }
+    }
+
+    _nya_ui_float_end(ui);
+
+    return changed;
+}
+
 b8 _nya_ui_choice_row(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, b8 underline) {
     nya_assert(ui != nullptr && id != nullptr && labels != nullptr && selected != nullptr);
     nya_assert(count > 0);
@@ -606,7 +633,7 @@ b8 _nya_ui_choice_row(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* l
     // the accent under the chosen cell, which is what makes a row of choices read as a strip of tabs.
     if (underline && _nya_ui_drawing()) {
         const _NYA_UILayout* row  = &_nya_ui.layouts[_nya_ui.depth - 1];
-        f32                  bar  = nya_max(_nya_ui_px(NYA_UI_FOCUS_BAR), 1.0F);
+        f32                  bar  = look->focus_bar;
         f32                  slot = row->extent.x > 0.0F ? (row->extent.x - (row->gap * (f32)(count - 1))) / (f32)count : 0.0F;
 
         if (slot > 0.0F) {

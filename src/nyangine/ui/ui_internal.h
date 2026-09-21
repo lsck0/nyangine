@@ -34,6 +34,7 @@ typedef struct {
     f32 outline;
     f32 depth;
     f32 pop;
+    f32 focus_bar;
     f32 item_height;
 
     /** Indexed by NYA_UIText, INHERIT holding the body's. */
@@ -93,6 +94,15 @@ typedef struct {
     u32         panel;
     NYA_UIPanel options;
     NYA_Rectf   bounds;
+
+    /** The top level panel everything here belongs to, U32_MAX outside one. What focus raises when it moves in. */
+    u32 root_panel;
+
+    /** The renderer layer drawing lands in while this container is open, so its end can put the layer back. */
+    s32 layer;
+
+    /** Placed at a rectangle of its own, taking no room in its container and cut by the window instead. */
+    b8 floating;
 
     /** The padding and outline before the content on each axis, and after it. */
     f32x2 before;
@@ -223,6 +233,10 @@ struct NYA_UI {
     u64 open;
     u64 drag_panel;
 
+    /** The window being resized by its corner grip, and where in that corner the pointer took hold. */
+    u64   resize_panel;
+    f32x2 resize_grip;
+
     /** The widget that was last activated and when, for the bounce. One at a time, since one pointer clicks one. */
     u64 bounce_id;
     f64 bounce_s;
@@ -244,11 +258,17 @@ typedef struct {
     NYA_Keycode     key;
 } _NYA_UIPress;
 
+/**
+ * The menu presses come first and the caret ones after, because a field being typed into keeps the letters and the
+ * arrows for itself: everything before _NYA_UI_CARET_LEFT is cleared while the keyboard belongs to a field, which
+ * is also what stops tab from leaving a half typed value behind.
+ * */
 enum {
     _NYA_UI_UP = 0,
     _NYA_UI_DOWN,
     _NYA_UI_LEFT,
     _NYA_UI_RIGHT,
+    _NYA_UI_TAB,
     _NYA_UI_CARET_LEFT,
     _NYA_UI_CARET_RIGHT,
     _NYA_UI_BACKSPACE,
@@ -298,10 +318,18 @@ typedef struct {
 
     u64 widgets[NYA_UI_WIDGETS_MAX];
     u32 widget_groups[NYA_UI_WIDGETS_MAX];
+    u32 widget_panels[NYA_UI_WIDGETS_MAX];
     b8  widget_horizontal[NYA_UI_WIDGETS_MAX];
     u32 widget_count;
     u32 widget_count_worst;
     u32 focus_found;
+
+    /** Rectangles floating containers took this pass. A pointer inside one never reaches what was declared after it. */
+    NYA_Rectf claims[NYA_UI_CLAIMS_MAX];
+    u32       claim_count;
+
+    /** Whether a panel was grabbed by its grip this pass, so a widget taking the same press can call the grab off. */
+    b8 drag_started;
 
     _NYA_UILayout layouts[NYA_UI_DEPTH_MAX];
     u32           depth;
@@ -402,6 +430,25 @@ NYA_INTERNAL void _nya_ui_panel_raise(const NYA_UI* ui, u32 index);
 /** How many standing panels the one in slot `index` sits over, which is the layer it draws in above the pass's. */
 NYA_INTERNAL u32 _nya_ui_panel_rank(const NYA_UI* ui, u32 index) __attr_no_discard;
 
+/**
+ * What nya_ui_panel_begin is. `at` null places the container in its parent as a top level or nested panel; non-null
+ * floats it there instead, in window pixels, with a zero width or height resolved from `panel`'s own sizes.
+ * */
+NYA_INTERNAL b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const NYA_Rectf* at) __attr_no_discard;
+
+/**
+ * A container that hangs over what follows it: placed at `at`, taking no room, cut by the window rather than by the
+ * panel that opened it, drawn over every panel, and claiming its rectangle for the rest of the pass as it ends.
+ *
+ * False when the container table is full; skip the contents and the end. Named, since it takes no place in its
+ * container to be remembered by.
+ * */
+NYA_INTERNAL b8   _nya_ui_float_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, NYA_Rectf at) __attr_no_discard;
+NYA_INTERNAL void _nya_ui_float_end(NYA_UI* ui);
+
+/** Whether a float already took `point` this pass, so nothing declared since may have it. */
+NYA_INTERNAL b8 _nya_ui_claimed(f32x2 point) __attr_no_discard;
+
 NYA_INTERNAL _NYA_UILayout* _nya_ui_layout_push(void);
 
 /** A size spec resolved against what was measured and what is available, bounded by its min and max. */
@@ -494,6 +541,35 @@ NYA_INTERNAL b8 _nya_ui_icon_draw(const NYA_UI* ui, const NYA_UIIcon* icon, NYA_
 
 /**
  * A row of `count` cells sharing the container, each named by `id` and its index, with the chosen one marked. True
- * when `*selected` changed. Tabs and an open dropdown are the same row with a different mark.
+ * when `*selected` changed.
  * */
 NYA_INTERNAL b8 _nya_ui_choice_row(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, b8 underline);
+
+/**
+ * The same cells as a column floating at `at`, `width` wide, for a dropdown's list and a window's menu. True when
+ * `*selected` changed, which is also when the caller closes the list.
+ * */
+NYA_INTERNAL b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width);
+
+/** The X, chevron, hamburger and corner grip a window's chrome is drawn from. */
+typedef enum {
+    _NYA_UI_MARK_CLOSE = 0,
+    _NYA_UI_MARK_COLLAPSED,
+    _NYA_UI_MARK_EXPANDED,
+    _NYA_UI_MARK_MENU,
+    _NYA_UI_MARK_GRIP,
+
+    _NYA_UI_MARK_COUNT,
+} _NYA_UIMark;
+
+/** Draws `mark` centred in `rect` from lines and triangles, since chrome must not need a glyph the face may lack. */
+NYA_INTERNAL void _nya_ui_mark_draw(NYA_UI* ui, _NYA_UIMark mark, NYA_Rectf rect, NYA_Color color);
+
+/** One square chrome button in a window's title bar, named `label` and drawn as `mark`. True when activated. */
+NYA_INTERNAL b8 _nya_ui_chrome_button(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect, _NYA_UIMark mark) __attr_no_discard;
+
+/**
+ * Drags a window's bottom right corner by the pointer on `grip`, writing what it leaves to `state->size` in pixels
+ * at scale 1. The next pass is what places the window at it, which is this pass's draw pass.
+ * */
+NYA_INTERNAL void _nya_ui_window_resize(NYA_UI* ui, u64 key, NYA_UIWindowState* state, NYA_Rectf bounds, NYA_Rectf grip);

@@ -54,6 +54,8 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     _nya_ui.look_depth      = 0;
     _nya_ui.next_set        = false;
     _nya_ui.disabled        = 0;
+    _nya_ui.claim_count     = 0;
+    _nya_ui.drag_started    = false;
     _nya_ui.opacities[0]    = 1.0F;
     _nya_ui.opacity_depth   = 0;
     _nya_ui.layer_base      = _nya_ui_layer_get(ui);
@@ -81,18 +83,20 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
 
     _NYA_UILayout* root = _nya_ui_layout_push();
     *root               = (_NYA_UILayout){
-        .extent   = { screen.width, screen.height },
-        .room     = { screen.width, screen.height },
-        .main     = 1,
-        .gap      = _nya_ui.looks[0].spacing,
-        .overflow = ui->style.overflow,
-        .text     = NYA_UI_TEXT_BODY,
-        .key      = (u64)window->handle.index + 1,
-        .scope    = (u64)window->handle.index + 1,
-        .group    = U32_MAX,
-        .panel    = U32_MAX,
-        .clip     = screen,
-        .hidden   = _nya_ui.looks[0].line_heights[NYA_UI_TEXT_BODY] <= 0.0F,
+        .extent     = { screen.width, screen.height },
+        .room       = { screen.width, screen.height },
+        .main       = 1,
+        .gap        = _nya_ui.looks[0].spacing,
+        .overflow   = ui->style.overflow,
+        .text       = NYA_UI_TEXT_BODY,
+        .key        = (u64)window->handle.index + 1,
+        .scope      = (u64)window->handle.index + 1,
+        .group      = U32_MAX,
+        .panel      = U32_MAX,
+        .root_panel = U32_MAX,
+        .layer      = _nya_ui.layer_base,
+        .clip       = screen,
+        .hidden     = _nya_ui.looks[0].line_heights[NYA_UI_TEXT_BODY] <= 0.0F,
     };
 
     return ui;
@@ -136,12 +140,24 @@ void nya_ui_end(NYA_UI* ui) {
             index -= 1;
         } else if (press[_NYA_UI_RIGHT] && !_nya_ui.widget_horizontal[index] && index + 1 < count && groups[index + 1] == first) {
             index += 1;
+        } else if (press[_NYA_UI_TAB]) {
+            // every widget in declaration order, lines and panels alike: the one move that reaches a whole UI, and
+            // the only one a terminal has. adding count - 1 wraps backward without an unsigned 0 - 1.
+            b8 backward = (nya_input_modifiers() & NYA_KEYMOD_SHIFT) != 0;
+            index       = (index + (backward ? count - 1 : 1)) % count;
         }
 
         _nya_ui_focus_set(ui, _nya_ui.widgets[index]);
         ui->focus_index = index;
 
-        if (index != before) ui->reveal = true;
+        if (index != before) {
+            ui->reveal = true;
+
+            // the panel focus moved into comes forward, so the keyboard and the pointer never disagree about which
+            // of two overlapping windows is the one in front.
+            u32 panel = _nya_ui.widget_panels[index];
+            if (ui->pass == NYA_UI_PASS_INPUT && panel != U32_MAX) _nya_ui_panel_raise(ui, panel);
+        }
     }
 
     if (ui->pass == NYA_UI_PASS_INPUT) {
@@ -205,14 +221,15 @@ void nya_ui_focus_reset(NYA_Window* window) {
     NYA_UI* ui = _nya_ui_context(window);
     if (ui->editing != 0) _nya_ui_typing_stop(ui);
 
-    ui->focus       = 0;
-    ui->focus_index = 0;
-    ui->active      = 0;
-    ui->dragging    = false;
-    ui->typing      = false;
-    ui->reveal      = true;
-    ui->open        = 0;
-    ui->drag_panel  = 0;
+    ui->focus        = 0;
+    ui->focus_index  = 0;
+    ui->active       = 0;
+    ui->dragging     = false;
+    ui->typing       = false;
+    ui->reveal       = true;
+    ui->open         = 0;
+    ui->drag_panel   = 0;
+    ui->resize_panel = 0;
 }
 
 b8 nya_ui_modal_event(NYA_Event* event) {

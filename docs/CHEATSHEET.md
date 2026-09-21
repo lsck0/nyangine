@@ -3046,6 +3046,9 @@ void nya_render2d_sprite(NYA_Window* window, const NYA_Sprite* sprite, f32x2 pos
 The terminal 2D backend's own lifetime, and the two things a caller can do in a terminal that it
 
 ```c
+// macros
+NYA_RENDER2D_TERMINAL_FONT "terminal"  // The name and path the terminal's one face is registered under at open.
+
 // functions
 NYA_Error nya_render2d_terminal_open(NYA_TerminalOptions options)
 void nya_render2d_terminal_close(void)  // Closes the terminal and puts it back.
@@ -3712,8 +3715,10 @@ struct NYA_UISize { NYA_UISizeKind kind; f32 value; f32 min; f32 max; }  // How 
 struct NYA_UIStateColors { NYA_Color normal; NYA_Color focused; NYA_Color pressed; NYA_Color disabled; }  // A colour for each state a widget can be in.
 struct NYA_UISkin { char texture[NYA_UI_SKIN_TEXTURE_MAX]; f32 source_x; f32 source_y; f32 source_width; f32 source_height; f32 left; f32 right; f32 top; f32 bottom; b8 tile; b8 hollow; NYA_Color tint; }  // How one part of the UI draws: flat, or a nine-slice cut from a texture.
 struct NYA_UIStateSkins { NYA_UISkin normal; NYA_UISkin focused; NYA_UISkin pressed; NYA_UISkin disabled; }  // A skin for each state a widget can be in.
-struct NYA_UIStyle { char font[NYA_UI_FONT_NAME_MAX]; char title_font[NYA_UI_FONT_NAME_MAX]; f32 body_size; f32 small_size; f32 title_size; f32 scale; b8 follow_display_scale; f32 margin; f32 padding; f32 spacing; f32 radius; f32 outline; f32 depth; f32 pop; f32 item_height; NYA_UIOverflow overflow; f32 transition_s; f32 appear_s; NYA_EaseType easing; NYA_Color scrim; NYA_Color panel; NYA_Color ink; NYA_Color track; NYA_Color accent; NYA_Color text_dim; NYA_UIStateColors button; NYA_UIStateColors text; char icon_sheet[NYA_UI_SKIN_TEXTURE_MAX]; NYA_UISkin panel_skin; NYA_UIStateSkins button_skin; NYA_UISkin track_skin; NYA_UISkin knob_skin; }  // The look of every widget in a window.
+struct NYA_UIStyle { char font[NYA_UI_FONT_NAME_MAX]; char title_font[NYA_UI_FONT_NAME_MAX]; f32 body_size; f32 small_size; f32 title_size; f32 scale; b8 follow_display_scale; f32 margin; f32 padding; f32 spacing; f32 radius; f32 outline; f32 depth; f32 pop; f32 focus_bar; f32 item_height; NYA_UIOverflow overflow; f32 transition_s; f32 appear_s; NYA_EaseType easing; NYA_Color scrim; NYA_Color panel; NYA_Color ink; NYA_Color track; NYA_Color accent; NYA_Color text_dim; NYA_UIStateColors button; NYA_UIStateColors text; char icon_sheet[NYA_UI_SKIN_TEXTURE_MAX]; NYA_UISkin panel_skin; NYA_UIStateSkins button_skin; NYA_UISkin track_skin; NYA_UISkin knob_skin; }  // The look of every widget in a window.
 struct NYA_UIPanel { NYA_UIAnchor anchor; f32x2 offset; NYA_UISize width; NYA_UISize height; NYA_UIDirection direction; NYA_UISize children; NYA_UIAlign align; f32 gap; f32 padding; NYA_UIOverflow overflow; NYA_UIText text; NYA_ConstCString title; NYA_Color fill; b8 frameless; b8 draggable; s32 z; }  // A container.
+struct NYA_UIWindowState { b8 open; b8 collapsed; f32x2 size; u32 menu_picked; }
+struct NYA_UIWindow { NYA_UIPanel panel; NYA_ConstCString title; b8 close; b8 collapse; b8 resize; const NYA_ConstCString* menu; u32 menu_count; }
 typedef enum NYA_UIChartKind { NYA_UI_CHART_LINE = 0, NYA_UI_CHART_BAR, NYA_UI_CHART_KIND_COUNT, } NYA_UIChartKind  // What a chart draws.
 struct NYA_UIChart { const f32* values; u32 count; NYA_UIChartKind kind; f32 min; f32 max; f32 height; NYA_Color color; }
 struct NYA_UIIcon { NYA_ConstCString texture; f32 source_x; f32 source_y; f32 source_width; f32 source_height; NYA_Color tint; }
@@ -3723,6 +3728,7 @@ struct NYA_UITable { const f32* widths; u32 columns; const NYA_ConstCString* hea
 NYA_UI_WIDGETS_MAX 64  // Focusable widgets in one pass.
 NYA_UI_PANELS_MAX 64  // Container measurements remembered across every window.
 NYA_UI_DEPTH_MAX 8  // Containers open inside each other at once.
+NYA_UI_CLAIMS_MAX 4  // Rectangles floating lists may claim in one pass.
 NYA_UI_STYLE_DEPTH_MAX 4  // Styles pushed on top of the window's at once.
 NYA_UI_OPACITY_DEPTH_MAX 4  // Opacity groups open inside each other at once.
 NYA_UI_TABLE_COLUMNS_MAX 8  // Columns a table may have.
@@ -3750,6 +3756,8 @@ NYA_UI_BOUNCE_S 0.18F
 NYA_UI_SCROLL_STEP 40.0F
 NYA_UI_SCROLLBAR 4.0F
 NYA_UI_FOCUS_BAR 3.0F
+NYA_UI_GRIP 12.0F  // A window's resize grip, and the least it may be dragged to, in pixels at scale 1.
+NYA_UI_WINDOW_MIN ((f32x2){ 96.0F, 64.0F })
 NYA_UI_SCALE_STEP 0.25F  // The display scale is snapped to steps this size and the result never drops under the smallest.
 NYA_UI_SCALE_MIN 0.5F
 NYA_UI_BODY_SIZE 18.0F
@@ -3779,12 +3787,17 @@ NYA_UI_TEXT_DISABLED ((NYA_Color){ 0.44F, 0.45F, 0.48F, 1.0F })
 nya_ui_fit()
 nya_ui_fixed(pixels)
 nya_ui_grow(weight)
+NYA_UI_MENU_NONE U32_MAX  // What NYA_UIWindowState.menu_picked holds on a pass that picked nothing.
 
 // functions
 NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass)  // Starts a pass over `window`'s UI.
 void nya_ui_end(NYA_UI* ui)  // Closes the pass.
 b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel)  // Opens a container.
 void nya_ui_panel_end(NYA_UI* ui)
+b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA_UIWindowState* state)  // Opens a window: a top level panel with a title bar, moved by that bar and stacked like any other panel.
+void nya_ui_window_end(NYA_UI* ui)
+b8 nya_ui_section_begin(NYA_UI* ui, NYA_ConstCString label, b8* open)
+void nya_ui_section_end(NYA_UI* ui)
 void nya_ui_size(NYA_UI* ui, NYA_UISize size)  // The size of the next child, widget or container, along its container's direction.
 NYA_Rectf nya_ui_space(NYA_UI* ui, f32 width, f32 height)  // Takes room in the layout and returns it, in window pixels, for drawing into during the draw pass.
 void nya_ui_scrim(NYA_UI* ui)  // Dims the whole window in the style's scrim colour, under whatever is drawn after it.
@@ -3826,14 +3839,15 @@ What the ui_*.c files share: the per window state, the open pass's scratch, and 
 
 ```c
 // types
-typedef struct { NYA_UIStyle style; f32 margin; f32 padding; f32 spacing; f32 radius; f32 outline; f32 depth; f32 pop; f32 item_height; NYA_Font fonts[NYA_UI_TEXT_COUNT]; f32 line_heights[NYA_UI_TEXT_COUNT]; } _NYA_UILook  // A style with its sizes multiplied by the pass's scale, in whole pixels, and its fonts resolved.
-typedef struct { f32x2 origin; f32x2 extent; f32x2 room; u32 main; f32 gap; NYA_UISize children; NYA_UIAlign align; NYA_UIOverflow overflow; NYA_UIText text; f32 used; f32 across; u32 count; f32 fixed; f32 grow; f32 grow_placed; f32 grow_space; f32 grow_total; u64 key; u64 scope; u32 group; const f32* columns; u32 column_count; b8 striped; u32 panel; NYA_UIPanel options; NYA_Rectf bounds; f32x2 before; f32x2 after; f32 header; f32 title_width; f32x2 scroll; NYA_Rectf clip; b8 covered; b8 scrolls[2]; b8 clipping; b8 hidden; } _NYA_UILayout  // One open container.
+typedef struct { NYA_UIStyle style; f32 margin; f32 padding; f32 spacing; f32 radius; f32 outline; f32 depth; f32 pop; f32 focus_bar; f32 item_height; NYA_Font fonts[NYA_UI_TEXT_COUNT]; f32 line_heights[NYA_UI_TEXT_COUNT]; } _NYA_UILook  // A style with its sizes multiplied by the pass's scale, in whole pixels, and its fonts resolved.
+typedef struct { f32x2 origin; f32x2 extent; f32x2 room; u32 main; f32 gap; NYA_UISize children; NYA_UIAlign align; NYA_UIOverflow overflow; NYA_UIText text; f32 used; f32 across; u32 count; f32 fixed; f32 grow; f32 grow_placed; f32 grow_space; f32 grow_total; u64 key; u64 scope; u32 group; const f32* columns; u32 column_count; b8 striped; u32 panel; NYA_UIPanel options; NYA_Rectf bounds; u32 root_panel; s32 layer; b8 floating; f32x2 before; f32x2 after; f32 header; f32 title_width; f32x2 scroll; NYA_Rectf clip; b8 covered; b8 scrolls[2]; b8 clipping; b8 hidden; } _NYA_UILayout  // One open container.
 typedef struct { u64 id; u64 pass; f32x2 size; b8 measured; f32x2 content; f32 fixed; f32 grow; u32 count; f32x2 scroll; f32x2 drag; f64 shown_s; f64 seen_s; b8 top_level; NYA_Rectf bounds; s32 z; u64 order; } _NYA_UIPanelState
 typedef struct { u64 id; b8 refused; b8 disabled; b8 focused; b8 held; b8 activated; f32 focus; f32 press; } _NYA_UIWidget  // A widget's standing in the current pass.
 typedef struct { u64 id; f64 time_s; f32 focus; f32 press; } _NYA_UIAnimation  // Where one widget's transitions stand, and when they were last stepped.
-struct NYA_UI { b8 claimed; NYA_WindowHandle handle; NYA_Window* window; NYA_UIPass pass; NYA_UIStyle style; f32 scale; u64 focus; u32 focus_index; f64 focus_changed_s; b8 reveal; u64 active; b8 dragging; u32 grab; u64 hue_id; f32 hue; char hex[10]; u64 editing; u32 caret; b8 typing; u32 select; u64 click_id; f64 click_s; u64 open; u64 drag_panel; u64 bounce_id; f64 bounce_s; f32x2 drag_grip; u64 pass_current; u64 pass_previous; }  // What persists per window.
+struct NYA_UI { b8 claimed; NYA_WindowHandle handle; NYA_Window* window; NYA_UIPass pass; NYA_UIStyle style; f32 scale; u64 focus; u32 focus_index; f64 focus_changed_s; b8 reveal; u64 active; b8 dragging; u32 grab; u64 hue_id; f32 hue; char hex[10]; u64 editing; u32 caret; b8 typing; u32 select; u64 click_id; f64 click_s; u64 open; u64 drag_panel; u64 resize_panel; f32x2 resize_grip; u64 bounce_id; f64 bounce_s; f32x2 drag_grip; u64 pass_current; u64 pass_previous; }  // What persists per window.
 typedef struct { NYA_InputAction action; NYA_Keycode key; } _NYA_UIPress  // What a press is read from: an action, or a raw key when the action is NONE.
-typedef struct { NYA_UI windows[NYA_WINDOW_MAX]; NYA_UI* open; u64 pass_serial; b8 registered; NYA_TraceScope trace; b8 confirm; b8 cancel; b8 confirm_down; b8 presses[_NYA_UI_PRESS_COUNT]; f32x2 pointer; b8 pointer_moved; b8 pointer_pressed; b8 pointer_down; b8 pointer_released; f32 wheel; f32 wheel_x; b8 editing_seen; b8 typing_at_begin; u64 press_tick; b8 tick_presses[_NYA_UI_PRESS_COUNT]; u32 repeat_press; f32 repeat_s; u64 widgets[NYA_UI_WIDGETS_MAX]; u32 widget_groups[NYA_UI_WIDGETS_MAX]; b8 widget_horizontal[NYA_UI_WIDGETS_MAX]; u32 widget_count; u32 widget_count_worst; u32 focus_found; _NYA_UILayout layouts[NYA_UI_DEPTH_MAX]; u32 depth; _NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 look_depth; NYA_Rectf safe; NYA_UISize next; b8 next_set; u32 disabled; f32 opacities[NYA_UI_OPACITY_DEPTH_MAX + 1]; u32 opacity_depth; s32 layer_base; _NYA_UIPanelState panels[NYA_UI_PANELS_MAX]; u32 panel_count; u64 raise_serial; _NYA_UIAnimation animations[NYA_UI_ANIMATIONS_MAX]; } _NYA_UISystem
+typedef struct { NYA_UI windows[NYA_WINDOW_MAX]; NYA_UI* open; u64 pass_serial; b8 registered; NYA_TraceScope trace; b8 confirm; b8 cancel; b8 confirm_down; b8 presses[_NYA_UI_PRESS_COUNT]; f32x2 pointer; b8 pointer_moved; b8 pointer_pressed; b8 pointer_down; b8 pointer_released; f32 wheel; f32 wheel_x; b8 editing_seen; b8 typing_at_begin; u64 press_tick; b8 tick_presses[_NYA_UI_PRESS_COUNT]; u32 repeat_press; f32 repeat_s; u64 widgets[NYA_UI_WIDGETS_MAX]; u32 widget_groups[NYA_UI_WIDGETS_MAX]; u32 widget_panels[NYA_UI_WIDGETS_MAX]; b8 widget_horizontal[NYA_UI_WIDGETS_MAX]; u32 widget_count; u32 widget_count_worst; u32 focus_found; NYA_Rectf claims[NYA_UI_CLAIMS_MAX]; u32 claim_count; b8 drag_started; _NYA_UILayout layouts[NYA_UI_DEPTH_MAX]; u32 depth; _NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 look_depth; NYA_Rectf safe; NYA_UISize next; b8 next_set; u32 disabled; f32 opacities[NYA_UI_OPACITY_DEPTH_MAX + 1]; u32 opacity_depth; s32 layer_base; _NYA_UIPanelState panels[NYA_UI_PANELS_MAX]; u32 panel_count; u64 raise_serial; _NYA_UIAnimation animations[NYA_UI_ANIMATIONS_MAX]; } _NYA_UISystem
+typedef enum { _NYA_UI_MARK_CLOSE = 0, _NYA_UI_MARK_COLLAPSED, _NYA_UI_MARK_EXPANDED, _NYA_UI_MARK_MENU, _NYA_UI_MARK_GRIP, _NYA_UI_MARK_COUNT, } _NYA_UIMark  // The X, chevron, hamburger and corner grip a window's chrome is drawn from.
 ```
 
 ## physics
