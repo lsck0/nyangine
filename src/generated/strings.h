@@ -11,6 +11,7 @@
  */
 
 typedef enum {
+    NYA_STRING_CUBE3D_FEATURES,
     NYA_STRING_CUBE3D_HINT_ANIMATION,
     NYA_STRING_CUBE3D_HINT_CAMERA,
     NYA_STRING_CUBE3D_HINT_CLICK,
@@ -35,6 +36,7 @@ typedef enum {
     NYA_STRING_MENU_ACCENT,
     NYA_STRING_MENU_ANIMATE,
     NYA_STRING_MENU_ANTIALIASING,
+    NYA_STRING_MENU_AUTO,
     NYA_STRING_MENU_BARS,
     NYA_STRING_MENU_BLOOM,
     NYA_STRING_MENU_CHART,
@@ -63,6 +65,7 @@ typedef enum {
     NYA_STRING_MENU_NAME,
     NYA_STRING_MENU_OCCLUSION,
     NYA_STRING_MENU_OFF,
+    NYA_STRING_MENU_ON,
     NYA_STRING_MENU_PAUSED,
     NYA_STRING_MENU_QUIT,
     NYA_STRING_MENU_RENDER_SCALE,
@@ -95,6 +98,7 @@ typedef enum {
 
 /** The JSON key each id came from, in id order. Read by nya_i18n_load. */
 static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unused = {
+    "cube3d_features",
     "cube3d_hint_animation",
     "cube3d_hint_camera",
     "cube3d_hint_click",
@@ -119,6 +123,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_accent",
     "menu_animate",
     "menu_antialiasing",
+    "menu_auto",
     "menu_bars",
     "menu_bloom",
     "menu_chart",
@@ -147,6 +152,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_name",
     "menu_occlusion",
     "menu_off",
+    "menu_on",
     "menu_paused",
     "menu_quit",
     "menu_render_scale",
@@ -174,6 +180,11 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "social_join_request",
     "social_wants_to_join",
 };
+
+/** `cube3d_features` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_features(void) {
+    return _nya_i18n_format(NYA_STRING_CUBE3D_FEATURES);
+}
 
 /** `cube3d_hint_animation` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_hint_animation(void) {
@@ -293,6 +304,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_animate(void)
 /** `menu_antialiasing` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_antialiasing(void) {
     return _nya_i18n_format(NYA_STRING_MENU_ANTIALIASING);
+}
+
+/** `menu_auto` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_auto(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_AUTO);
 }
 
 /** `menu_bars` */
@@ -433,6 +449,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_occlusion(voi
 /** `menu_off` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_off(void) {
     return _nya_i18n_format(NYA_STRING_MENU_OFF);
+}
+
+/** `menu_on` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_on(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_ON);
 }
 
 /** `menu_paused` */

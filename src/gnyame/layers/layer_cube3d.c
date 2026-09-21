@@ -409,6 +409,9 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
                 // the same flag the 2D scene reads, since one key means one thing wherever it is pressed.
                 gny_world()->fluid_enabled = !gny_world()->fluid_enabled;
                 event->was_handled         = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_FEATURES, key->key, key->modifier_flags)) {
+                scene->features_open = !scene->features_open;
+                event->was_handled   = true;
             }
         } break;
 
@@ -1159,6 +1162,8 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         for (u32 i = 0; i < nya_carray_length(hints); i++) nya_ui_label(ui, hints[i], nya_ui_style_get(window).text_dim);
         nya_ui_panel_end(ui);
     }
+
+    if (scene->features_open) gny_layer_cube3d_features_draw(ui, window);
 
     nya_ui_end(ui);
 

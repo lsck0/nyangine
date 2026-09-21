@@ -437,7 +437,12 @@ the packager ones.
   (server and client over the UDP transport), `pong_multiplayer` (one authority, predicted paddles,
   interpolated replicas) and `pinball3d` (3D physics with joints, impulses and collision events).
   `[ ]` Still to do: a server plus client web app, now that the HTTP server exists.
-- `[ ]` Make the 3D example nicer, and give it the graphics settings menu it currently lacks.
+- `[x]` The 3D demo's graphics menu. It gets no settings menu of its own: the pause menu's graphics panel owns
+  `NYA_SettingsGraphics` and escape reaches it from the 3D scene now, and a second panel over the same values
+  would be two places that can disagree. What it got instead is the switchboard nothing else drove: `0` opens a
+  panel with one row per `NYA_RenderFeature`, cycling auto/on/off into `engine.renderer.features`, which
+  `gny_config_renderer_apply` already feeds to `nya_render_features_set` every frame. Until now only a config
+  file edit reached those 28 switches.
 
 ## `[?]` Nyangine as a dependency
 

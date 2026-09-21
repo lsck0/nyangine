@@ -72,6 +72,12 @@ enum {
     /** The fluid volume in whichever scene is up. Off costs nothing; see nya_fluid_render_options_set. */
     GNY_ACTION_TOGGLE_FLUID,
 
+    /**
+     * The 3D demo's switchboard over every NYA_RenderFeature. The end of the same number row the individual
+     * effects sit on, since it is the switch above all of them. See layer_cube3d_features.c.
+     * */
+    GNY_ACTION_TOGGLE_FEATURES,
+
     /** Opens a drop-through window on every crate, so anything on a one-way ledge falls off it. */
     GNY_ACTION_DROP_THROUGH,
 

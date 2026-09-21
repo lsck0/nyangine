@@ -983,6 +983,21 @@
 /** What `6` switches the lines to when the config has them off. */
 #define GNY_CUBE3D_SPEED_LINES_AMOUNT 0.8F
 
+/*
+ * The render feature switchboard
+ *
+ * See layer_cube3d_features.c. Two columns of NYA_RENDER_FEATURE_COUNT rows between them, so the width is what
+ * holds the longest name ("ambient occlusion") beside its button twice over.
+ */
+
+#define GNY_CUBE3D_FEATURES_WIDTH 560.0F
+
+/** Wide enough for "auto", the longest of the three states. */
+#define GNY_CUBE3D_FEATURE_STATE_WIDTH 52.0F
+
+/** Between the two columns, so a left button does not sit against a right label. */
+#define GNY_CUBE3D_FEATURES_GAP 18.0F
+
 /** World units per second a networked player moves. See gny_net_apply_command. */
 #define GNY_PLAYER_SPEED 220.0F
 

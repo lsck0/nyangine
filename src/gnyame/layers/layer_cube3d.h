@@ -96,4 +96,13 @@ typedef struct GNY_Cube3DScene {
     /** Where the camera was last frame and when, for the speed lines. */
     f32x3 camera_previous;
     f32   camera_previous_s;
+
+    /** The render feature switchboard is up. See layer_cube3d_features.c. */
+    b8 features_open;
 } GNY_Cube3DScene;
+
+/**
+ * Draws the render feature switchboard over the scene: one row per NYA_RenderFeature, writing
+ * NYA_CONFIG.engine.renderer.features. Only while `features_open`; `0` toggles it.
+ * */
+void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window);

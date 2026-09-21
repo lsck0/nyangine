@@ -1,0 +1,126 @@
+/**
+ * @file layer_cube3d_features.c
+ *
+ * The 3D demo's render feature switchboard: one row per NYA_RenderFeature, cycling the tri-state switch the
+ * renderer reads. It writes NYA_CONFIG.engine.renderer.features, which gny_config_renderer_apply already hands
+ * to nya_render_features_set every frame, so there is no second copy of the state anywhere.
+ *
+ * Deliberately not a second graphics settings menu. The pause menu's panel owns NYA_SettingsGraphics, the
+ * player's settings, and escape reaches it from this scene; these are the developer switches above them, which
+ * until now only a config file edit could reach.
+ * */
+#include "gnyame/gnyame.h"
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API DECLARATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/** What one switch reads as on its button. */
+NYA_INTERNAL NYA_ConstCString _gny_cube3d_toggle_label(NYA_RenderToggle toggle);
+
+/** One row: the feature's name, and the button that cycles its switch. */
+NYA_INTERNAL void _gny_cube3d_feature_row(NYA_UI* ui, NYA_Window* window, NYA_RenderToggle* switches, NYA_RenderFeature feature);
+
+/** The rows from `first` up to but not including `end`, as one column. */
+NYA_INTERNAL void _gny_cube3d_feature_column(NYA_UI* ui, NYA_Window* window, NYA_ConstCString id, u32 first, u32 end);
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PUBLIC API IMPLEMENTATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window) {
+    nya_assert(ui != nullptr && window != nullptr);
+
+    NYA_UIPanel panel = {
+        .anchor    = NYA_UI_ANCHOR_RIGHT,
+        .width     = nya_ui_fixed(GNY_CUBE3D_FEATURES_WIDTH),
+        .text      = NYA_UI_TEXT_SMALL,
+        .title     = nya_string_cube3d_features(),
+        .draggable = true,
+    };
+
+    if (!nya_ui_panel_begin(ui, "cube3d_features", panel)) return;
+
+    NYA_UIPanel columns = { .direction = NYA_UI_DIRECTION_ROW, .gap = GNY_CUBE3D_FEATURES_GAP, .frameless = true };
+
+    if (nya_ui_panel_begin(ui, "cube3d_feature_columns", columns)) {
+        /*
+         * Split where NYA_RenderFeature itself splits: everything up to the post chain's master switch is
+         * geometry and shading, and POST and what follows are the full-screen passes.
+         */
+        _gny_cube3d_feature_column(ui, window, "cube3d_features_scene", 0, NYA_RENDER_FEATURE_POST);
+        _gny_cube3d_feature_column(ui, window, "cube3d_features_post", NYA_RENDER_FEATURE_POST, NYA_RENDER_FEATURE_COUNT);
+
+        nya_ui_panel_end(ui);
+    }
+
+    // nothing to put back while every switch is already on default.
+    NYA_RenderToggle* switches = (NYA_RenderToggle*)&NYA_CONFIG.engine.renderer.features;
+
+    b8 changed = false;
+    for (u32 feature = 0; feature < NYA_RENDER_FEATURE_COUNT; feature++) changed = changed || switches[feature] != NYA_RENDER_TOGGLE_DEFAULT;
+
+    if (!changed) nya_ui_disabled_begin(ui);
+    if (nya_ui_button(ui, nya_string_menu_reset())) NYA_CONFIG.engine.renderer.features = (NYA_RenderFeatures){ 0 };
+    if (!changed) nya_ui_disabled_end(ui);
+
+    nya_ui_panel_end(ui);
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRIVATE API IMPLEMENTATION
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+NYA_ConstCString _gny_cube3d_toggle_label(NYA_RenderToggle toggle) {
+    switch (toggle) {
+        case NYA_RENDER_TOGGLE_DEFAULT: return nya_string_menu_auto();
+        case NYA_RENDER_TOGGLE_ON: return nya_string_menu_on();
+        case NYA_RENDER_TOGGLE_OFF: return nya_string_menu_off();
+
+        case NYA_RENDER_TOGGLE_COUNT:
+        default: nya_unreachable();
+    }
+}
+
+void _gny_cube3d_feature_row(NYA_UI* ui, NYA_Window* window, NYA_RenderToggle* switches, NYA_RenderFeature feature) {
+    NYA_ConstCString name = nya_render_feature_name(feature);
+
+    // named by the feature, so no two rows share an id however the columns are split.
+    if (!nya_ui_panel_begin(ui, name, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .align = NYA_UI_ALIGN_CENTER, .frameless = true })) return;
+
+    // dim while the feature decides for itself, so the switches somebody has moved stand out.
+    nya_ui_size(ui, nya_ui_grow(1));
+
+    if (switches[feature] == NYA_RENDER_TOGGLE_DEFAULT) {
+        nya_ui_label(ui, name, nya_ui_style_get(window).text_dim);
+    } else {
+        nya_ui_label(ui, name);
+    }
+
+    nya_ui_size(ui, nya_ui_fixed(GNY_CUBE3D_FEATURE_STATE_WIDTH));
+
+    if (nya_ui_selectable(ui, _gny_cube3d_toggle_label(switches[feature]), switches[feature] != NYA_RENDER_TOGGLE_DEFAULT)) {
+        switches[feature] = (NYA_RenderToggle)(((u32)switches[feature] + 1) % (u32)NYA_RENDER_TOGGLE_COUNT);
+    }
+
+    nya_ui_panel_end(ui);
+}
+
+void _gny_cube3d_feature_column(NYA_UI* ui, NYA_Window* window, NYA_ConstCString id, u32 first, u32 end) {
+    nya_assert(first < end && end <= NYA_RENDER_FEATURE_COUNT);
+
+    if (!nya_ui_panel_begin(ui, id, (NYA_UIPanel){ .width = nya_ui_grow(1), .frameless = true })) return;
+
+    // read as an array, which the static asserts in render_features.h make legal.
+    NYA_RenderToggle* switches = (NYA_RenderToggle*)&NYA_CONFIG.engine.renderer.features;
+
+    for (u32 feature = first; feature < end; feature++) _gny_cube3d_feature_row(ui, window, switches, (NYA_RenderFeature)feature);
+
+    nya_ui_panel_end(ui);
+}
