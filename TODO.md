@@ -64,6 +64,7 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | Crash reporting | one funnel, a window a player can act on, everything a triage needs in it | `[~]` log ring, composed report (crash, build, machine, stack, log), its own SDL window with close, copy and send, and a file under the log directory. Open: a transport behind `nya_crash_report_submit`, and a window on the fault path (SDL from a signal handler can deadlock) |
 | Anti-tamper | integrity checks like the CRC | `[x]` executable stamp, chunked code baseline and a sweep every 250 ms, per blob entry hashes, a watchdog at two inlined sites; failure logs and exits 86 |
 | Networking | attack and cheat resistant, optional end to end public key encryption | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders |
+| Web server | an HTTP server, middleware, typed DTOs, generated OpenAPI | `[~]` `src/nyangine/http/`: router per resource, layer chain, identity extractor, JWT over HMAC-SHA256, OpenAPI and a page generated from the route tables, a metrics resource over the app's own numbers. Open: a login route, and the PGP half of the second factor |
 | Targets | Linux, Windows, Steam Linux, Steam Windows | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). A terminal is now a fifth target through `-DNYA_TERMINAL`, verified on Linux only. Web is wanted and not started; Android is out |
 
 # Unmerged work
@@ -96,15 +97,27 @@ of them on the strength of having been written.
 
 What "one stack for everything" adds on top of the engine. Nothing here exists yet unless it says so.
 
-## `[ ]` Web
+## `[~]` Web
 
 In scope, deliberately: not only a server, but the client too.
 
-- `[ ]` An HTTP server in the engine: routing, middleware, typed request and response structs, JSON through
-  `serde`. One GET or POST per path, accepting an enum. Middleware for auth and logging. JWT, plus the PGP
-  pieces. Rate limits and the rest of the perimeter belong to a proxy in front, not to us.
-- `[ ]` OpenAPI generated from the handler definitions and the DTO types, served by the app. Never hand written.
-  See `~/projects/webapp-template` for the patterns to follow.
+- `[x]` An HTTP server in the engine: `src/nyangine/http/`, off until `nya_system_http_init` and drained once a
+  frame on the event input arrives on. A router per resource over a `static const` route table, an onion of
+  layers, the identity extractor as a precondition rather than a layer, and DTOs as the only thing crossing
+  the wire, in and out through their reflections. One GET or POST per path, matched exactly: a query parameter
+  picks between instances of one shape, and two shapes are two paths. Every bound is in `http_types.h` with its
+  size argued, the request parser is fuzzed from a committed corpus, and rate limits and TLS stay with a proxy
+  in front. See `docs/http.md`.
+- `[x]` OpenAPI generated from the handler definitions and the DTO types, served by the app at `/openapi.json`,
+  with `/docs` as a page generated from the same walk. Nothing is stored and nothing is hand written: unmount a
+  resource and it leaves the document. A debug build asserts a route never answers with a status it did not
+  declare, so the schema cannot drift from the code.
+- `[~]` Auth: JWT over HMAC-SHA256 is real, with the signature checked before the payload is parsed and `alg`
+  compared whole. The PGP second factor is half done: the challenge is real and stateless, the signature check
+  is a seam (`nya_http_second_factor_set`) and a route that needs one with no verifier installed answers 501.
+  An OpenPGP parser is its own piece of work and does not belong inside an HTTP server.
+- `[ ]` A login route. There is no way to *get* a token over HTTP yet, only to present one; tokens are minted
+  in-process with `nya_http_jwt_encode`. That wants a user store, which nothing here has.
 - `[ ]` Compile to web: a bundle of HTML, CSS, JS and wasm. WebGPU where it exists, a canvas backend otherwise.
 - `[ ]` A UI backend that emits HTML, CSS and JS from the same `nya_ui_*` calls the native backend draws, ahead
   of time or on the fly. **I never write HTML, CSS or JS by hand.** That is the whole point of the exercise.
@@ -145,12 +158,13 @@ In scope, deliberately: not only a server, but the client too.
 - `[x]` An outgoing WebSocket client over ws and wss (`plugins/curl/websocket.h`), framing, ping/pong and
   close, fuzzed. `[ ]` Nothing drives OBS with it yet, which is the point of having it.
 - `[x]` An outgoing REST client exists (`plugins/curl/request.h`) but nothing calls it.
-- `[ ]` An HTTP server, and OpenAPI generated from the handlers. Not started.
+- `[x]` An HTTP server with OpenAPI generated from the handlers; see "Web" above. Its first resource is this
+  program's own metrics, which `gnyame` serves when `GNYAME_WEB_PORT` names a port.
 
 ## `[ ]` ruey
 
-`~/projects/ruey`, a Twitch client with integrations, gets rewritten into nyangine later. The WebSocket client
-and the terminal backend now exist; it still needs the HTTP server. Not startable until that lands.
+`~/projects/ruey`, a Twitch client with integrations, gets rewritten into nyangine later. The WebSocket client,
+the terminal backend and the HTTP server all exist now, so it is startable.
 
 ---
 
@@ -970,6 +984,43 @@ With the scenes stubbed down to an id in the agent runner, the 3D scene was a de
 wandered in spent the rest of its run there. Nothing asserted, nothing crashed, and every kind scored
 zero. The stub keeps that one hook now. Worth recording because it is the shape of the bug this whole
 facility is for: not a crash, a place a player can get stuck.
+
+### "-0" was parsed by wrapping U128_MAX, and the fix is not to negate at all
+
+`_nya_type_try_parse_s128` built a negative from its magnitude as `~magnitude + 1`. For a magnitude of
+zero that is `~0 + 1`, an unsigned overflow back to zero: the right answer by undefined means, and
+`-fsanitize=unsigned-integer-overflow` says so. It had never fired because nothing fed the parser a
+"-0" until an HTTP body did.
+
+The fix is to stop negating through unsigned arithmetic. `S128_MIN` is the one value with no positive
+counterpart, so it is *built* rather than negated into; everything else is known to fit `s128` by the
+limit check above it and negates as a signed value. Found by AFL on `fuzz_http_request` at 1.5 million
+executions, reached through serde's JSON numbers, and kept as a regression input.
+
+### An idle timeout that reads the clock before the work measures the wrong interval
+
+The HTTP drain read the monotonic clock once at the top of the tick and compared it against each
+connection's last-activity stamp. Receiving stamps the connection with a *fresh* reading, so on any
+connection that had just been read from, the subtraction was "earlier minus later" on two unsigned
+times: an enormous number, and an immediate drop of a perfectly healthy peer.
+
+The clock is read after the work now, and the comparison is ordered before it is done. The general
+shape: a duration between two timestamps is only a duration if you know which one came first, and
+`u64` will not tell you.
+
+### AFL could not run any target, for three reasons at once
+
+`./build run fuzz` had never worked. `tests/fuzz/fuzz.h` defines two replay helpers that `__AFL_INIT`
+makes unreachable, so the target failed `-Werror,-Wunused-function` before it linked; and afl-fuzz
+refuses to start when `ASAN_OPTIONS` is set without `abort_on_error=1` (it watches for the child dying
+on a signal, and asan exiting quietly with a status is a crash it never hears about) or without
+`symbolize=0` (resolving a backtrace per crash costs more than the rest of an iteration). Each one is
+a hard abort with a different message, so they surfaced one at a time.
+
+All three are fixed, plus `AFL_SKIP_CPUFREQ`, which otherwise stops the fuzzer on any machine whose
+governor is not `performance`. The corpus replay under `./build run test` had always worked, which is
+why nobody noticed: replaying a corpus is not fuzzing, and the difference was five million executions
+and two real defects.
 
 ### A content keyed cache costs a hash, and only inlining keeps it near a pointer memo
 

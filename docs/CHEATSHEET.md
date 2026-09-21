@@ -18,6 +18,7 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 - [`ui`](#ui) — Immediate mode widgets: panels, rows, buttons, sliders, toggles and focus navigation.
 - [`physics`](#physics) — Box2D and Box3D behind one interface: bodies, shapes, queries and a character controller.
 - [`net`](#net) — Encrypted UDP client and server: handshake, commands, delta snapshots and prediction.
+- [`http`](#http) — An HTTP/1.1 server, its router and layers, JWT auth, and OpenAPI generated from both.
 - [`serde`](#serde) — One dynamic value type, serialized to and from json, jsonc and the engine's own format.
 - [`nn`](#nn) — Tensors, layers, optimizers, DQN and NEAT, with draw helpers for both.
 - [`debug`](#debug) — The overlay and the trace: scoped spans, counters and a Chrome trace capture.
@@ -4272,6 +4273,214 @@ NYA_NET_PEER_NONE ((NYA_NetPeerId){ .index = 0, .generation = 0 })
 // functions
 b8 nya_net_peer_equals(NYA_NetPeerId a, NYA_NetPeerId b)  // Whether two peer ids name the same connection.
 b8 nya_net_peer_is_set(NYA_NetPeerId peer)  // Whether an id names a peer at all.
+```
+
+## http
+
+An HTTP/1.1 server, its router and layers, JWT auth, and OpenAPI generated from both.
+
+### http_auth.h
+
+Who is calling, proved by a signed token rather than asserted by a header.
+
+```c
+// types
+enum NYA_HttpScope { NYA_HTTP_SCOPE_NONE = 0, NYA_HTTP_SCOPE_READ = 1 << 0, NYA_HTTP_SCOPE_WRITE = 1 << 1, NYA_HTTP_SCOPE_ADMIN = 1 << 2, NYA_HTTP_SCOPE_SECOND_FACTOR = 1 << 3, }  // What a caller is allowed to do.
+struct NYA_HttpIdentity { char subject[NYA_HTTP_MAX_SUBJECT]; NYA_HttpScope scope; u64 issued_at_s; u64 expires_at_s; }  // A caller whose token verified.
+typedef NYA_Error (*NYA_HttpSecondFactorFn)( NYA_ConstCString subject, const u8* challenge, u64 challenge_size, const u8* signature, u64 signature_size )  // Verifies a detached signature over `challenge` for `subject`.
+
+// macros
+NYA_HTTP_MAX_SUBJECT 64  // Longest subject, terminator included.
+NYA_HTTP_MAX_TOKEN_BYTES 512  // Longest token this server will encode or look at, terminator included.
+NYA_HTTP_MAX_SECRET_BYTES 64  // Longest signing secret.
+NYA_HTTP_MIN_SECRET_BYTES 32  // Shortest secret that will be accepted.
+NYA_HTTP_CHALLENGE_WINDOW_S 30  // How long a second factor challenge stays valid, and the granularity it is minted at.
+
+// functions
+NYA_Error nya_http_jwt_encode(const NYA_HttpIdentity* identity, const u8* secret, u64 secret_size, OUT char* out_token, u64 capacity)  // Signs `identity` into `out_token` as a compact JWS.
+NYA_Error nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* secret, u64 secret_size, u64 now_s, OUT NYA_HttpIdentity* out_identity)  // Verifies `token` and parses what it claims.
+b8 nya_http_bearer_token(const NYA_HttpRequest* request, OUT const char** out_token, OUT u64* out_size)  // The token out of `Authorization: Bearer <token>`, pointing into the request and copying nothing.
+b8 nya_http_scope_contains(const NYA_HttpIdentity* identity, NYA_HttpScope required)  // Whether `identity` carries every bit in `required`.
+NYA_Error nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, OUT u8 out_challenge[NYA_SHA256_BYTES])  // A challenge for `subject`, valid for the window `now_s` falls in.
+b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, const u8 challenge[NYA_SHA256_BYTES])  // Whether `challenge` is one this server issued for `subject`, in the current window or the one before it.
+void nya_http_second_factor_set(NYA_HttpSecondFactorFn verify)  // Installs the signature verifier.
+NYA_HttpSecondFactorFn nya_http_second_factor(void)  // What nya_http_second_factor_set last installed, or null.
+```
+
+### http_message.h
+
+The wire boundary: bytes a stranger sent, in; bytes this program will send, out. Nothing here
+
+```c
+// types
+enum NYA_HttpParse { NYA_HTTP_PARSE_INCOMPLETE = 0, NYA_HTTP_PARSE_DONE, NYA_HTTP_PARSE_REFUSED, }  // What one call to nya_http_request_parse decided.
+
+// macros
+NYA_HTTP_MAX_RESPONSE_HEAD_BYTES 4864  // Bytes the rendered status line and headers may take.
+
+// functions
+NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, OUT NYA_HttpRequest* out_request, OUT u64* out_consumed, OUT NYA_HttpStatus* out_status)  // Parses one request out of the front of `data`.
+NYA_ConstCString nya_http_request_header(const NYA_HttpRequest* request, NYA_ConstCString name)  // The value of the header called `name`, or null when there is none.
+b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString name, OUT char* buffer, u64 capacity)  // Percent-decodes the query parameter called `name` into `buffer`, null terminated.
+NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object)  // The body as a serde document, allocated from `arena`.
+NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, OUT void* out_dto)  // The body straight into `out_dto`, by the DTO's own reflection.
+void nya_http_response_create(OUT NYA_HttpResponse* response, u8* buffer, u64 capacity)
+void nya_http_response_destroy(NYA_HttpResponse* response)  // Unbinds it.
+void nya_http_response_reset(NYA_HttpResponse* response)  // Empties the body, the headers and the media type, keeping the buffer.
+NYA_Error nya_http_response_bytes(NYA_HttpResponse* response, const u8* data, u64 size, NYA_HttpMediaType media_type)  // NYA_ERROR_OUT_OF_MEMORY when the body would not fit, which is a bug in the handler and not in the request.
+NYA_Error nya_http_response_text(NYA_HttpResponse* response, NYA_ConstCString text, NYA_HttpMediaType media_type)
+NYA_Error nya_http_response_printf(NYA_HttpResponse* response, NYA_HttpMediaType media_type, NYA_ConstCString format, ...)
+NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object)  // Renders `object` as JSON into the body.
+NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto)  // Renders `dto` as JSON through its reflection.
+NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString name, NYA_ConstCString value)  // Adds one header.
+NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Renders the status line and every header into `buffer`, ending with the blank line.
+```
+
+### http_metrics.h
+
+The first resource: this program, over HTTP. Frame time, the ceilings, the arenas, and the system
+
+```c
+// types
+struct NYA_HttpMetricsDto { u64 measured_at_s; u64 uptime_ns; f32 fps; f32 delta_time_s; u64 work_ns; u64 sleep_ns; u64 elapsed_ns; u64 min_frame_time_ns; u32 connection_count; u64 request_count; b8 accounting_enabled; }  // What GET /api/metrics answers: the frame, and what the server itself has done.
+struct NYA_HttpCeilingDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u32 capacity; u32 live; f32 fullness; }  // One fixed capacity array and how full it is.
+struct NYA_HttpCeilingsDto { u32 count; u32 truncated; NYA_HttpCeilingDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What GET /api/metrics/ceilings answers.
+struct NYA_HttpArenaDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u64 region_count; u64 used_bytes; u64 reserved_bytes; u64 free_list_bytes; f32 fragmentation; }  // One live arena.
+struct NYA_HttpArenasDto { u32 count; u32 truncated; NYA_HttpArenaDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What GET /api/metrics/arenas answers.
+struct NYA_HttpOwnerDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u32 system_count; u32 enabled_count; u64 time_ns; u64 memory_bytes; }  // One owner's systems: the engine's, the game's, or a plugin's.
+struct NYA_HttpSystemsDto { u32 count; u32 truncated; b8 accounting_enabled; NYA_HttpOwnerDto rows[NYA_SYSTEM_OWNER_MAX]; }  // What GET /api/metrics/systems answers.
+struct NYA_HttpAccountingDto { b8 enabled; }
+
+// macros
+NYA_HTTP_METRICS_PATH "/api/metrics"
+NYA_HTTP_METRICS_CEILINGS_PATH "/api/metrics/ceilings"
+NYA_HTTP_METRICS_ARENAS_PATH "/api/metrics/arenas"
+NYA_HTTP_METRICS_SYSTEMS_PATH "/api/metrics/systems"
+NYA_HTTP_METRICS_ACCOUNTING_PATH "/api/metrics/accounting"
+NYA_HTTP_METRICS_MAX_ROWS 48  // Rows one list answer carries.
+NYA_HTTP_METRICS_MAX_NAME 64  // Longest name in a row, terminator included.
+
+// functions
+const NYA_HttpRouter* nya_http_metrics_router(void)  // Static storage, so it outlives any mount and needs no lifetime from the caller.
+```
+
+### http_openapi.h
+
+The schema, generated from the route tables and the DTO reflections, and served by the program it
+
+```c
+// macros
+NYA_HTTP_OPENAPI_PATH "/openapi.json"
+NYA_HTTP_DOCS_PATH "/docs"
+NYA_HTTP_OPENAPI_VERSION "3.1.0"  // The version of the OpenAPI specification the document claims.
+NYA_HTTP_OPENAPI_MAX_DEPTH 8  // How deep nya_http_openapi_schema follows nested types.
+
+// functions
+const NYA_HttpRouter* nya_http_openapi_router(void)  // The routes that serve the document and the page.
+NYA_Error nya_http_openapi_document(NYA_Arena* arena, OUT NYA_String** out_json)  // Builds the document for everything mounted on the server right now, allocated from `arena`.
+NYA_Error nya_http_openapi_page(NYA_Arena* arena, OUT NYA_String** out_html)  // The same walk, rendered as a page.
+NYA_Object* nya_http_openapi_schema(NYA_Arena* arena, const NYA_TypeReflection* type)  // One type's JSON Schema, as the serializer would write it.
+```
+
+### http_router.h
+
+Which handler answers a request, what runs around it, and what has to be true before it runs.
+
+```c
+// types
+enum NYA_HttpAuth { NYA_HTTP_AUTH_NONE = 0, NYA_HTTP_AUTH_BEARER, }  // What a route demands of its caller before the handler is reached.
+struct NYA_HttpProblem { u32 status; char error[48]; char detail[192]; }  // The body every refusal carries, so a client parses one shape whatever went wrong.
+struct NYA_HttpExchange { const NYA_HttpRequest* request; NYA_HttpResponse* response; const NYA_HttpRoute* route; NYA_Arena* arena; NYA_HttpIdentity identity; b8 identified; const u8* secret; u64 secret_size; u64 now_s; u64 started_ns; }  // One request being answered.
+typedef NYA_HttpStatus (*NYA_HttpHandlerFn)(NYA_HttpExchange* exchange)  // A handler on a route that demands nothing of its caller.
+typedef NYA_HttpStatus (*NYA_HttpIdentifiedFn)(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity)  // A handler on a route that demands an identity.
+typedef NYA_HttpStatus (*NYA_HttpLayerFn)(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // One layer of the onion.
+struct NYA_HttpChain { const NYA_HttpLayerFn* layers; u32 count; u32 index; }  // Where a dispatch has got to in the layer chain.
+struct NYA_HttpRoute { NYA_HttpMethod method; NYA_ConstCString path; NYA_HttpAuth auth; NYA_HttpScope scope; NYA_HttpHandlerFn handler; NYA_HttpIdentifiedFn handler_identified; NYA_ConstCString summary; NYA_ConstCString description; const NYA_TypeReflection* request_type; const NYA_TypeReflection* response_type; NYA_HttpStatus statuses[NYA_HTTP_MAX_STATUSES]; }  // One path and one method, with everything true of it beside it.
+struct NYA_HttpRouter { NYA_ConstCString name; const NYA_HttpRoute* routes; u32 route_count; const NYA_HttpLayerFn* layers; u32 layer_count; }  // One resource's routes, plus whatever wraps only them.
+
+// macros
+NYA_HTTP_MAX_STATUSES 8  // Statuses one route may declare.
+NYA_HTTP_MAX_LAYERS 8  // Layers one router may carry, and the same again at the root.
+NYA_HTTP_MAX_ROUTERS 8  // Routers merged at the root: one per resource, so this is a count of resources.
+
+// functions
+NYA_Error nya_http_router_check(const NYA_HttpRouter* router)
+const NYA_HttpRoute* nya_http_router_find(const NYA_HttpRouter* const* routers, u32 router_count, NYA_HttpMethod method, NYA_ConstCString path, OUT b8* out_path_exists)  // The route for `method` and `path`, or null.
+NYA_HttpStatus nya_http_router_dispatch( NYA_HttpExchange* exchange, const NYA_HttpRouter* const* routers, u32 router_count, const NYA_HttpLayerFn* layers, u32 layer_count )
+NYA_HttpStatus nya_http_chain_next(NYA_HttpExchange* exchange, NYA_HttpChain* chain)  // Runs the rest of the chain.
+NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // One log line per request: method, path, status and how long the rest of the chain took.
+NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_ConstCString detail)  // Replaces the response body with a NYA_HttpProblem for `status`.
+```
+
+### http_server.h
+
+The listener: a TCP port, a handful of connections, and one drain a frame that reads whatever has
+
+```c
+// types
+struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 max_connections; const u8* secret; u64 secret_size; const NYA_HttpLayerFn* layers; u32 layer_count; }
+
+// macros
+NYA_HTTP_MAX_ADDRESS 48  // Longest bind address, terminator included.
+NYA_HTTP_IDLE_TIMEOUT_MS 5000  // How long a connection may sit without a complete request before it is dropped.
+NYA_HTTP_MAX_REQUESTS_PER_TICK 16  // Requests answered in one tick, across every connection.
+NYA_HTTP_MAX_ACCEPTS_PER_TICK 4  // Connections accepted in one tick.
+NYA_HTTP_MAX_PENDING_WRITE_BYTES ((u64)NYA_HTTP_MAX_RESPONSE_BYTES * 4ULL)  // Bytes SDL_net may hold queued for one connection before it is dropped.
+
+// functions
+NYA_Error nya_system_http_init(NYA_HttpConfig config)
+void nya_system_http_deinit(void)  // Closes every connection and unbinds the port.
+void nya_system_http_tick(void)  // Accepts, reads, answers and closes, within every bound at the top of this file.
+NYA_Error nya_http_server_merge(const NYA_HttpRouter* router)  // Mounts one resource's router at the root, after checking it with nya_http_router_check.
+void nya_http_server_unmerge(const NYA_HttpRouter* router)  // Removes a mount.
+b8 nya_http_server_is_running(void)
+u16 nya_http_server_port(void)  // The bound port, or zero when the server is not running.
+u32 nya_http_server_connection_count(void)
+u64 nya_http_server_request_count(void)  // Requests answered since init, refusals included.
+u32 nya_http_server_router_count(void)  // What is mounted.
+const NYA_HttpRouter* nya_http_server_router_at(u32 index)
+NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Reads a signing secret out of the environment variable `variable`.
+```
+
+### http_types.h
+
+The vocabulary of one HTTP exchange: what a client may ask, what this program may answer, and the
+
+```c
+// types
+enum NYA_HttpMethod { NYA_HTTP_METHOD_NONE = 0, NYA_HTTP_METHOD_GET, NYA_HTTP_METHOD_HEAD, NYA_HTTP_METHOD_POST, NYA_HTTP_METHOD_PUT, NYA_HTTP_METHOD_PATCH, NYA_HTTP_METHOD_DELETE, NYA_HTTP_METHOD_OPTIONS, NYA_HTTP_METHOD_COUNT, }  // The verb.
+enum NYA_HttpStatus { NYA_HTTP_STATUS_NONE = 0, NYA_HTTP_STATUS_OK = 200, NYA_HTTP_STATUS_CREATED = 201, NYA_HTTP_STATUS_NO_CONTENT = 204, NYA_HTTP_STATUS_BAD_REQUEST = 400, NYA_HTTP_STATUS_UNAUTHORIZED = 401, NYA_HTTP_STATUS_FORBIDDEN = 403, NYA_HTTP_STATUS_NOT_FOUND = 404, NYA_HTTP_STATUS_METHOD_NOT_ALLOWED = 405, NYA_HTTP_STATUS_REQUEST_TIMEOUT = 408, NYA_HTTP_STATUS_LENGTH_REQUIRED = 411, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE = 413, NYA_HTTP_STATUS_URI_TOO_LONG = 414, NYA_HTTP_STATUS_UNSUPPORTED_MEDIA = 415, NYA_HTTP_STATUS_UNPROCESSABLE = 422, NYA_HTTP_STATUS_HEADERS_TOO_LARGE = 431, NYA_HTTP_STATUS_INTERNAL_ERROR = 500, NYA_HTTP_STATUS_NOT_IMPLEMENTED = 501, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE = 503, NYA_HTTP_STATUS_HTTP_VERSION = 505, }  // Every status this server can produce, and the only values a handler may return.
+enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
+struct NYA_HttpHeader { char name[NYA_HTTP_MAX_HEADER_NAME]; char value[NYA_HTTP_MAX_HEADER_VALUE]; }  // One header, both halves bounded and null terminated.
+struct NYA_HttpRequest { NYA_HttpMethod method; char path[NYA_HTTP_MAX_PATH]; char query[NYA_HTTP_MAX_QUERY]; NYA_HttpHeader headers[NYA_HTTP_MAX_HEADERS]; u32 header_count; NYA_HttpMediaType media_type; b8 keep_alive; u8 body[NYA_HTTP_MAX_BODY_BYTES + 1]; u64 body_size; }  // A request that parsed.
+struct NYA_HttpResponse { NYA_HttpStatus status; NYA_HttpMediaType media_type; NYA_HttpHeader headers[NYA_HTTP_MAX_RESPONSE_HEADERS]; u32 header_count; u8* body; u64 body_capacity; u64 body_size; }  // What a handler fills in.
+
+// macros
+NYA_HTTP_MAX_CONNECTIONS 8  // Connections held at once.
+NYA_HTTP_MAX_HEAD_BYTES 4096  // Bytes of request line and headers together.
+NYA_HTTP_MAX_BODY_BYTES 8192  // Bytes of request body, after any chunked encoding is undone.
+NYA_HTTP_MAX_CHUNKS 64  // Chunks one chunked body may be built from.
+NYA_HTTP_MAX_CHUNK_LINE_BYTES 32  // Longest chunk size line, "1fff;ext=value" and its CRLF.
+NYA_HTTP_MAX_TRAILERS 4  // Trailer lines after the last chunk.
+NYA_HTTP_MAX_TRAILER_BYTES 256  // Longest trailer line, its CRLF included.
+NYA_HTTP_MAX_FRAMING_BYTES
+NYA_HTTP_MAX_REQUEST_BYTES  // What one connection may hold of a request in flight, which is its entire memory cost.
+NYA_HTTP_MAX_RESPONSE_BYTES 65536  // Bytes of response body a handler may write.
+NYA_HTTP_MAX_HEADERS 24  // Headers kept from one request.
+NYA_HTTP_MAX_HEADER_NAME 48  // Longest header name kept, terminator included.
+NYA_HTTP_MAX_HEADER_VALUE 512  // Longest header value kept, terminator included.
+NYA_HTTP_MAX_RESPONSE_HEADERS 8  // Headers a handler may add beyond the ones the server always writes.
+NYA_HTTP_MAX_PATH 256  // Longest path after percent-decoding, terminator included.
+NYA_HTTP_MAX_QUERY 256  // Longest query string, terminator included.
+
+// functions
+NYA_ConstCString nya_http_method_text(NYA_HttpMethod method)  // "GET", "POST", ...
+NYA_HttpMethod nya_http_method_parse(const char* text, u64 size)  // The method `text` names, or NYA_HTTP_METHOD_NONE.
+b8 nya_http_method_is_valid(NYA_HttpMethod method)  // Whether `method` names a verb at all, i.e.
+NYA_ConstCString nya_http_status_text(NYA_HttpStatus status)  // "OK", "Not Found", ...
+b8 nya_http_status_is_valid(NYA_HttpStatus status)  // Whether `status` is one of the listed codes, i.e.
+NYA_ConstCString nya_http_media_type_text(NYA_HttpMediaType media_type)  // The full Content-Type header value, charset included.
+NYA_HttpMediaType nya_http_media_type_parse(const char* text, u64 size)  // The media type `text` names, ignoring any parameters after a ';' and ignoring case.
 ```
 
 ## serde

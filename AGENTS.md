@@ -35,6 +35,7 @@ packaging/             AUR, Flatpak, winget, scoop and SteamPipe manifests
 plugins/<name>/        Lua plugins: manifest.nya, main.lua, src/, assets/
 docs/CHEATSHEET.md     generated API reference
 docs/lua/nya.lua       generated Lua definitions for the `nya` table
+docs/*.md              prose per subject, published through GitBook
 ```
 
 Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that includes the rest:
@@ -49,15 +50,16 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | `ui`       | immediate mode widgets                                                       |
 | `physics`  | Box2D and Box3D behind one interface                                         |
 | `net`      | encrypted UDP client and server, snapshots, prediction                        |
+| `http`     | an HTTP/1.1 server, routing and layers, JWT, OpenAPI generated from both       |
 | `serde`    | one dynamic value type, to and from json, jsonc and the `.nya` format         |
 | `nn`       | tensors, layers, optimizers, DQN, NEAT                                       |
 | `debug`    | the overlay and the trace                                                    |
 | `plugins`  | optional dependencies behind a flag: curl, sqlite, lua, discord, steam        |
 | `editor`   | empty. `editor.c` and `editor.h` contain nothing.                             |
 
-Not in the engine yet, and wanted: an HTTP server with OpenAPI generated from its handlers, a wasm
-and WebGPU/canvas target, and a UI backend emitting HTML/CSS/JS from the same `nya_ui_*` calls.
-`TODO.md` has the detail. Do not describe any of it as if it exists.
+Not in the engine yet, and wanted: a wasm and WebGPU/canvas target, and a UI backend emitting
+HTML/CSS/JS from the same `nya_ui_*` calls. `TODO.md` has the detail. Do not describe any of it as if
+it exists.
 
 ### The three 2D backends
 
