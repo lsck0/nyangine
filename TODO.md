@@ -75,9 +75,9 @@ registry. 211 tests pass, `check --strict` is clean, and debug, release and stea
 
 What is written and NOT merged, sitting as stashes in `.claude/worktrees/`:
 
-- `[ ]` `renderflags-wip-lc` — renderer feature flags (`render_features.c`, a toggle per feature including
-  frustum culling, backface culling and sorting, which have none today) and asset placeholders. Its worktree
-  never had its vendor submodules initialised, so it was never built or verified.
+- `[x]` `renderflags-wip-lc` landed: 37 feature switches including frustum culling, backface culling, draw
+  sorting and the depth test, which had none. It carried no asset placeholders after all, so that item is
+  still open under "Renderer".
 - `[ ]` `serde-wip-lc` — hashing the reflection names in release builds, so `strings` on the binary stops
   handing over the whole type layout.
 - `[ ]` `social-wip-lc` — the gnyame side of the join-request prompt (`layer_social.c`, `social.c`).
@@ -267,9 +267,11 @@ the packager ones.
 
 ## `[ ]` Renderer
 
-- `[~]` A flag for every feature, so anything from culling and opacity to shadows and reflections can be turned
-  off, whether to debug or to create an effect deliberately. Culling, backface culling and sorting currently
-  have no toggle at all; reflections do not exist. Written but not merged, see "Unmerged work".
+- `[x]` A flag for every feature: 37 switches per window in `render_features.h`, fed from
+  `engine.renderer.features` and hot reloaded. Frustum culling, backface culling, draw sorting and the depth
+  test had no toggle before. Tri-state rather than `b8`, so a zeroed struct overrides nothing and no name
+  carries a negation. Nothing in it is backend specific, which is what a terminal or web backend needs.
+- `[ ]` Reflections still do not exist; the switch is there and answers off.
 - `[~]` 2D and 3D fluids, Navier-Stokes. In progress.
 - `[ ]` Better 2D and 3D skyboxes. Fog in specific regions rather than only globally, rain, clouds, stars.
 - `[ ]` Placeholders for missing assets: log a warning once, then draw something obviously wrong rather than
