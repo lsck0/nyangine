@@ -6,7 +6,7 @@
 
 ## Where it stands
 
-214 tests pass, `check --strict` reports nothing, and debug, release and steam-windows build. The title
+227 tests pass, `check --strict` reports nothing, and debug, release and steam-windows build. The title
 screen logs one line in twenty seconds, where it logged 6813.
 
 Landed since the scope widened: the build system reorganised with `./build dist`, a `secrets/` tree encrypted
@@ -55,7 +55,7 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | Graphics options | antialiasing, motion blur, fov, ... toggleable | `[x]` MSAA, FXAA, shadows, post passes, fov and render scale are player settings, and 37 feature switches cover everything else including culling, sorting and the depth test |
 | Renderer debug | physics hitboxes and other debug views | `[~]` buffer views exist; physics shapes missing |
 | Audio | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's) |
-| UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns, radio, tabs, draggable panels, tables, charts, icons, opacity groups, scrolling. Open: a floating dropdown, a node editor, SVG, the code editor widget |
+| UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns that float, radio, tabs, draggable and resizable windows with title bar chrome, tables, charts, icons, opacity groups, scrolling, and tab/shift-tab focus for a terminal that has no pointer. Open: a node editor, SVG, the code editor widget |
 | Core | events, entities, input, settings, cache, ... solid | `[x]` one system registry drives frame, tick and render for engine and game, with runtime enable/disable and per-owner accounting, and its entries are callback handles with copied names, so a system registered from a reloaded image survives the reload. Scenes and settings persist through reflection |
 | Pipelines | build, assets, reflection | `[x]` |
 | Hot reload | assets, code, configuration | `[x]` |
@@ -447,7 +447,9 @@ the packager ones.
 - `[~]` More examples beside hello_world. Landed: `cli_tool` (no window), `plugin_scripting` (the Lua
   surface as it is today), `tui_dashboard` (a real TUI on the terminal backend), `net_echo`
   (server and client over the UDP transport), `pong_multiplayer` (one authority, predicted paddles,
-  interpolated replicas) and `pinball3d` (3D physics with joints, impulses and collision events).
+  interpolated replicas) and `pinball3d` (3D physics with joints, impulses and collision events; the
+  flippers are driven by their velocity so the sweep throws the ball, see "A teleported body has no
+  speed to give away").
   `[ ]` Still to do: a server plus client web app, now that the HTTP server exists.
 - `[x]` The 3D demo's graphics menu. It gets no settings menu of its own: the pause menu's graphics panel owns
   `NYA_SettingsGraphics` and escape reaches it from the 3D scene now, and a second panel over the same values
@@ -1006,6 +1008,25 @@ joystick.
 ---
 
 # Findings
+
+### A teleported body has no speed to give away
+
+The pinball flippers were driven by `nya_physics3d_teleport`, which sets the transform without
+simulating the move: no sweep, no contacts along the way. The solver therefore read a flipper that had
+never moved and resolved the ball against it as if against a wall, so holding a flipper lifted the ball
+and let it roll off again. The code even claimed "the speed of the sweep is what throws the ball" while
+doing the opposite, which is what made it hard to see.
+
+A kinematic body has to be given its velocity and left to the solver, which integrates it and carries
+the contact. Measured both ways over the same path at the same speed: a paddle sweeping at 6 m/s into a
+ball with 0.35 restitution sends it off at 8.1 m/s, and the same paddle teleported leaves it at exactly
+0. That pair is a test now, because the difference is invisible in a screenshot and the wrong one looks
+like a physics tuning problem rather than a wrong call.
+
+The general rule: teleport is for putting something somewhere, never for moving it. Anything that has to
+push what it meets is driven by `nya_physics3d_velocity_set` and
+`nya_physics3d_angular_velocity_set`. Since integration lands near the intended pose rather than on it,
+a driven body that has stopped wants one corrective teleport, and only one, or it never sleeps.
 
 ### A simulated clock handed back is a clock that ran ahead
 
