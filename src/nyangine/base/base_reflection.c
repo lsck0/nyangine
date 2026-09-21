@@ -562,7 +562,7 @@ void _nya_reflect_describe_value(const NYA_Value* value, OUT char* out, u64 capa
         case NYA_TYPE_OBJECT: (void)snprintf(out, capacity, "an object"); return;
 
         case NYA_TYPE_ARRAY:
-            (void)snprintf(out, capacity, "a list of " FMTu64, (u64)value->as_array.length);
+            (void)snprintf(out, capacity, "a list of " FMTu64, value->as_array.length);
             return;
 
         // Quoted, so an empty string and a missing one do not read the same in a log line.
