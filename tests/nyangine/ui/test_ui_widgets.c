@@ -36,6 +36,13 @@ static void pointer_button(b8 down) {
     nya_system_input_handle_event(&event);
 }
 
+static void tap(NYA_Keycode keycode) {
+    for (u32 i = 0; i < 2; i++) {
+        NYA_Event event = { .type = i == 0 ? NYA_EVENT_KEY_DOWN : NYA_EVENT_KEY_UP, .as_key_event = { .is_down = i == 0, .key = keycode } };
+        nya_system_input_handle_event(&event);
+    }
+}
+
 static void click_at(f32x2 point) {
     pointer_move(point);
     pointer_button(true);
@@ -70,6 +77,9 @@ typedef struct {
     /** Where the button after the dropdown starts, and whether it was activated. An open list hangs over it. */
     NYA_Rectf under;
     b8        under_hit;
+
+    /** Whether cancel reached the pass, which an open list is supposed to have taken first. */
+    b8 cancelled;
 } Taken;
 
 /** A panel with a radio pair, a tab strip, a dropdown and a button under it; `pass` picks input or draw. */
@@ -91,6 +101,8 @@ static Taken menu(NYA_UIPass pass) {
 
         nya_ui_panel_end(ui);
     }
+
+    taken.cancelled = nya_ui_cancelled(ui);
 
     nya_ui_end(ui);
     if (pass == NYA_UI_PASS_INPUT) tick();
@@ -269,6 +281,25 @@ s32 main(void) {
         Taken freed = menu(NYA_UI_PASS_INPUT);
         nya_check(option == 1, "a click where the list was does not reach it once closed, got %u", option);
         nya_check(freed.under_hit, "and reaches the button instead");
+
+        // ── Cancel backs out one step: it closes the list, and the layer around it never sees that press.
+        click_at(center_of(closed));
+        (void)menu(NYA_UI_PASS_INPUT);
+        for (u32 pass = 0; pass < 2; pass++) (void)menu(NYA_UI_PASS_DRAW);
+
+        tap(NYA_KEY_ESCAPE);
+        Taken escaped = menu(NYA_UI_PASS_INPUT);
+        nya_check(!escaped.cancelled, "cancel with a list open is the list's, not the layer's");
+
+        for (u32 pass = 0; pass < 2; pass++) (void)menu(NYA_UI_PASS_DRAW);
+
+        click_at(over_button);
+        Taken reached = menu(NYA_UI_PASS_INPUT);
+        nya_check(reached.under_hit, "and the list really is gone");
+
+        tap(NYA_KEY_ESCAPE);
+        Taken plain = menu(NYA_UI_PASS_INPUT);
+        nya_check(plain.cancelled, "with nothing open it reaches the layer as it did");
     }
 
     // ── A table sizes its cells by its columns, so one row lines up with the next, and never sizes anything else.

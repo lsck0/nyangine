@@ -22,6 +22,18 @@ static void tap(NYA_Keycode keycode) {
     key(keycode, false);
 }
 
+/** A key with modifiers held, which the platform reports on the event rather than as a key of its own. */
+static void tap_with(NYA_Keycode keycode, NYA_KeyModFlag modifiers) {
+    for (u32 i = 0; i < 2; i++) {
+        NYA_Event event = {
+            .type         = i == 0 ? NYA_EVENT_KEY_DOWN : NYA_EVENT_KEY_UP,
+            .as_key_event = { .is_down = i == 0, .key = keycode, .modifier_flags = modifiers },
+        };
+
+        nya_system_input_handle_event(&event);
+    }
+}
+
 static void pointer_move(f32x2 point) {
     f32x2     from  = nya_input_mouse_position();
     NYA_Event event = { .type = NYA_EVENT_MOUSE_MOVED, .as_mouse_moved_event = { .x = point.x, .y = point.y, .delta_x = point.x - from.x, .delta_y = point.y - from.y } };
@@ -226,6 +238,37 @@ s32 main(void) {
         tick();
         tap(NYA_KEY_RETURN);
         nya_check(menu(NYA_UI_PASS_INPUT, abc) == 0, "down on the last wraps to the first");
+        tick();
+    }
+
+    // ── Tab goes to the next widget whatever line it is on, and shift-tab to the one before, both wrapping.
+    {
+        nya_ui_focus_reset(&window);
+        tick();
+
+        tap(NYA_KEY_TAB);
+        (void)menu(NYA_UI_PASS_INPUT, abc);
+        tick();
+        tap(NYA_KEY_RETURN);
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 1, "tab moves on by one");
+        tick();
+
+        tap_with(NYA_KEY_TAB, NYA_KEYMOD_LSHIFT);
+        (void)menu(NYA_UI_PASS_INPUT, abc);
+        tick();
+        tap(NYA_KEY_RETURN);
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 0, "and shift-tab back again");
+        tick();
+
+        tap_with(NYA_KEY_TAB, NYA_KEYMOD_LSHIFT);
+        (void)menu(NYA_UI_PASS_INPUT, abc);
+        tick();
+        tap(NYA_KEY_RETURN);
+        nya_check(menu(NYA_UI_PASS_INPUT, abc) == 2, "shift-tab on the first wraps to the last");
+        tick();
+
+        // back where the blocks after this one expect to find it.
+        nya_ui_focus_reset(&window);
         tick();
     }
 
