@@ -609,7 +609,7 @@ b8 _nya_http_is_token_char(char character) {
 b8 _nya_http_is_field_char(char character) {
     if (character == '\t') return true;
 
-    return (u8)character >= 0x20 && (u8)character != 0x7f;
+    return (u8)character >= 0x20 && (u8)character != 0x7F;
 }
 
 b8 _nya_http_hex_digit(char character, u8* out_value) {
@@ -713,15 +713,16 @@ b8 _nya_http_decode_path(const char* text, u64 size, char* out_path, u64 capacit
             if (!_nya_http_hex_digit(text[index + 1], &high)) return false;
             if (!_nya_http_hex_digit(text[index + 2], &low)) return false;
 
-            u8 byte = (u8)((u32)high * 16u + (u32)low);
+            u8 byte = (u8)((u32)high * 16U + (u32)low);
 
-            // a decoded NUL would end the path early for anything that treats it as a C string, and a
-            // decoded control byte has no meaning in a path. Neither is repaired into something else.
-            if (byte == 0 || byte < 0x20 || byte == 0x7f) return false;
+            // a decoded NUL would end the path early for anything that treats it as a C string, and it
+            // is caught by the same rule as every other control byte. Neither is repaired into something
+            // else.
+            if (byte < 0x20 || byte == 0x7F) return false;
 
             decoded  = (char)byte;
             index   += 2;
-        } else if ((u8)decoded < 0x20 || (u8)decoded == 0x7f) {
+        } else if ((u8)decoded < 0x20 || (u8)decoded == 0x7F) {
             return false;
         }
 
@@ -773,7 +774,7 @@ b8 _nya_http_decode_form(const char* text, u64 size, char* out_value, u64 capaci
             if (!_nya_http_hex_digit(text[index + 1], &high)) return false;
             if (!_nya_http_hex_digit(text[index + 2], &low)) return false;
 
-            u8 byte = (u8)((u32)high * 16u + (u32)low);
+            u8 byte = (u8)((u32)high * 16U + (u32)low);
             if (byte == 0) return false;
 
             decoded  = (char)byte;
@@ -1000,7 +1001,7 @@ b8 _nya_http_head_append(u8* buffer, u64 capacity, u64* size, NYA_ConstCString t
 
     if (*size + length > capacity) return false;
 
-    memcpy(buffer + *size, text, length);
+    nya_memcpy(buffer + *size, text, length);
     *size += length;
 
     return true;

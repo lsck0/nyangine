@@ -49,7 +49,10 @@ NYA_INTERNAL NYA_HttpSecondFactorFn _NYA_HTTP_SECOND_FACTOR = nullptr;
  * */
 NYA_INTERNAL b8 _nya_http_base64url_encode(const u8* data, u64 size, OUT char* out_text, u64 capacity, OUT u64* out_size);
 
-/** The inverse. False for a character outside the alphabet, for padding, and for a length that cannot be one. */
+/**
+ * The inverse. False for a character outside the alphabet, for padding, for a length that cannot be
+ * one, and for a final group whose spare bits are not zero; see the note at that check.
+ * */
 NYA_INTERNAL b8 _nya_http_base64url_decode(const char* text, u64 size, OUT u8* out_data, u64 capacity, OUT u64* out_size);
 
 /** The value of one base64url character, or 64 for anything else. */
@@ -397,11 +400,11 @@ b8 _nya_http_base64url_encode(const u8* data, u64 size, char* out_text, u64 capa
         if (remaining > 1) chunk |= (u32)data[index + 1] << 8;
         if (remaining > 2) chunk |= (u32)data[index + 2];
 
-        out_text[written++] = alphabet[(chunk >> 18) & 0x3fu];
-        out_text[written++] = alphabet[(chunk >> 12) & 0x3fu];
+        out_text[written++] = alphabet[(chunk >> 18) & 0x3FU];
+        out_text[written++] = alphabet[(chunk >> 12) & 0x3FU];
 
-        if (remaining > 1) out_text[written++] = alphabet[(chunk >> 6) & 0x3fu];
-        if (remaining > 2) out_text[written++] = alphabet[chunk & 0x3fu];
+        if (remaining > 1) out_text[written++] = alphabet[(chunk >> 6) & 0x3FU];
+        if (remaining > 2) out_text[written++] = alphabet[chunk & 0x3FU];
     }
 
     out_text[written] = '\0';
@@ -434,11 +437,19 @@ b8 _nya_http_base64url_decode(const char* text, u64 size, u8* out_data, u64 capa
             if (values[offset] == 64) return false;
         }
 
+        /*
+         * A short final group carries bits that encode nothing: two characters hold one byte and four
+         * spare bits, three hold two bytes and two spare. Those have to be zero, or one signature has
+         * several spellings and a token can be edited into a different string that still verifies.
+         */
+        if (group == 2 && (values[1] & 0x0FU) != 0) return false;
+        if (group == 3 && (values[2] & 0x03U) != 0) return false;
+
         u32 chunk = ((u32)values[0] << 18) | ((u32)values[1] << 12) | ((u32)values[2] << 6) | (u32)values[3];
 
-        out_data[written++] = (u8)((chunk >> 16) & 0xffu);
-        if (group > 2) out_data[written++] = (u8)((chunk >> 8) & 0xffu);
-        if (group > 3) out_data[written++] = (u8)(chunk & 0xffu);
+        out_data[written++] = (u8)((chunk >> 16) & 0xFFU);
+        if (group > 2) out_data[written++] = (u8)((chunk >> 8) & 0xFFU);
+        if (group > 3) out_data[written++] = (u8)(chunk & 0xFFU);
     }
 
     *out_size = written;

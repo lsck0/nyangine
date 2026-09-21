@@ -113,8 +113,6 @@ const NYA_HttpRouter* nya_http_metrics_router(void) {
  */
 
 NYA_HttpStatus _nya_http_metrics_get(NYA_HttpExchange* exchange) {
-    const NYA_App* app = nya_app_get();
-
     NYA_HttpMetricsDto metrics = {
         .measured_at_s      = exchange->now_s,
         .connection_count   = nya_http_server_connection_count(),
@@ -122,16 +120,25 @@ NYA_HttpStatus _nya_http_metrics_get(NYA_HttpExchange* exchange) {
         .accounting_enabled = nya_system_accounting_is_enabled(),
     };
 
-    // a program that serves metrics before nya_app_init answers the server's own counters and zeroes
-    // for the frame, rather than reading a struct that has never been filled.
-    if (app != nullptr && app->initialized) {
-        metrics.uptime_ns         = app->frame_stats.uptime_ns;
-        metrics.fps               = app->frame_stats.fps;
-        metrics.delta_time_s      = app->frame_stats.delta_time_s;
-        metrics.work_ns           = app->frame_stats.work_ns;
-        metrics.sleep_ns          = app->frame_stats.sleep_ns;
-        metrics.elapsed_ns        = app->frame_stats.elapsed_ns;
-        metrics.min_frame_time_ns = app->frame_stats.min_frame_time_ns;
+    /*
+     * A program can serve metrics before nya_app_init: a headless tool that drives the drain itself
+     * has no frame at all. It gets the server's own counters and zeroes for the frame rather than a
+     * struct that has never been filled.
+     *
+     * Read through the instance rather than nya_app_get, which asserts the app is up. That assertion
+     * is right for the rest of the engine, where an app is a precondition; here "is there an app" is
+     * the question being answered, and a request may not reach an assertion.
+     */
+    if (_NYA_APP_INSTANCE.initialized) {
+        const NYA_FrameStats* frame = &_NYA_APP_INSTANCE.frame_stats;
+
+        metrics.uptime_ns         = frame->uptime_ns;
+        metrics.fps               = frame->fps;
+        metrics.delta_time_s      = frame->delta_time_s;
+        metrics.work_ns           = frame->work_ns;
+        metrics.sleep_ns          = frame->sleep_ns;
+        metrics.elapsed_ns        = frame->elapsed_ns;
+        metrics.min_frame_time_ns = frame->min_frame_time_ns;
     }
 
     if (!nya_http_response_reflect(exchange->response, exchange->arena, nya_reflect_of(NYA_HttpMetricsDto), &metrics).ok) {
@@ -168,7 +175,7 @@ NYA_HttpStatus _nya_http_metrics_ceilings_get(NYA_HttpExchange* exchange) {
 
         row->capacity = capacity;
         row->live     = live;
-        row->fullness = capacity > 0 ? (f32)live / (f32)capacity : 0.0f;
+        row->fullness = capacity > 0 ? (f32)live / (f32)capacity : 0.0F;
 
         ceilings->count++;
     }

@@ -1,0 +1,12 @@
+POST /api/metrics/accounting HTTP/1.1
+Host: localhost
+Content-Type: application/json
+Transfer-Encoding: chunked
+
+8
+{"enable
+9
+d":true}
+
+0
+

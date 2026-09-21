@@ -6,6 +6,7 @@
 #include "gnyame/net.c"
 #include "gnyame/sim.c"
 #include "gnyame/robots.c"
+#include "gnyame/web.c"
 #include "gnyame/world.c"
 #include "gnyame/screens.c"
 #include "gnyame/systems/systems.c"
@@ -100,6 +101,10 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
 
     gny_net_start();
 
+    // after the systems and the world exist, so the first request already describes a running program
+    // rather than a half built one. Off unless GNYAME_WEB_PORT says otherwise.
+    gny_web_start();
+
     /*
      * A dedicated server stops here: no layers, no window.
      */
@@ -156,6 +161,10 @@ void gnyame_deinit(void) {
     // before the engine, since stopping despawns player entities, and a client should disconnect cleanly
     // rather than time out.
     gny_net_stop();
+
+    // before the engine: the server's drain is hooked onto an engine event, and an event system that
+    // has gone down cannot unhook it.
+    gny_web_stop();
 
     nya_app_deinit();
 

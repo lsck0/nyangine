@@ -1,0 +1,11 @@
+POST /aptrics/accounting HTTP/1.1
+Host:st
+Content-Type: applica
+Host:st
+Content-Type: apption/json
+Content-Length: 17
+Authn: B
+Host: l0.A
+Content-Length: 17AAA
+
+{

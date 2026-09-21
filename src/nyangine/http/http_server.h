@@ -104,7 +104,7 @@
  * document repeatedly and never reads would be an unbounded allocation. This is where that stops:
  * four of the largest response, and then the connection goes.
  * */
-#define NYA_HTTP_MAX_PENDING_WRITE_BYTES (NYA_HTTP_MAX_RESPONSE_BYTES * 4)
+#define NYA_HTTP_MAX_PENDING_WRITE_BYTES ((u64)NYA_HTTP_MAX_RESPONSE_BYTES * 4ULL)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

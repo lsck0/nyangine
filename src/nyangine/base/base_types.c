@@ -291,9 +291,26 @@ NYA_INTERNAL b8 _nya_type_try_parse_s128(const u8* data, u64 length, OUT s128* o
     u128 limit = is_negative ? (u128)S128_MAX + 1 : (u128)S128_MAX;
     if (magnitude > limit) return false;
 
-    // Negated as unsigned and converted afterwards, so S128_MIN never exists as a positive s128 on
-    // the way to itself.
-    *out_value = is_negative ? (s128)(~magnitude + 1) : (s128)magnitude;
+    if (!is_negative) {
+        *out_value = (s128)magnitude;
+        return true;
+    }
+
+    /*
+     * S128_MIN is built rather than negated into: there is no positive s128 to negate, so any route
+     * through one is wrong. Everything else is inside S128_MAX by the check above and negates safely.
+     *
+     * The two's complement trick this used to be, `~magnitude + 1`, is an unsigned overflow for a
+     * magnitude of zero: "-0" wrapped U128_MAX back to zero, which is the right answer arrived at by
+     * undefined means, and the sanitizer said so. Found by fuzzing the HTTP body parser, which reaches
+     * this through serde's JSON numbers.
+     */
+    if (magnitude == (u128)S128_MAX + 1) {
+        *out_value = S128_MIN;
+        return true;
+    }
+
+    *out_value = -(s128)magnitude;
 
     return true;
 }

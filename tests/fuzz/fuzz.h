@@ -74,8 +74,14 @@
 __AFL_FUZZ_INIT();
 #endif
 
-/** Feeds one file through the target. Missing or unreadable files are the walk's problem, not this one. */
-NYA_INTERNAL b8 _fuzz_replay_file(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
+/**
+ * Feeds one file through the target. Missing or unreadable files are the walk's problem, not this one.
+ *
+ * Marked unused because under AFL it is: __AFL_INIT takes over main and the replay path is compiled
+ * and never called, which -Werror,-Wunused-function otherwise makes a build failure of. That is the
+ * whole reason `./build run fuzz` could not build a target.
+ * */
+__attr_allow_unused NYA_INTERNAL b8 _fuzz_replay_file(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data) {
     u32* count = (u32*)user_data;
 
     if (entry->type != NYA_FILE_TYPE_FILE) return true;
@@ -97,8 +103,8 @@ NYA_INTERNAL b8 _fuzz_replay_file(NYA_ConstCString path, const NYA_DirectoryEntr
     return true;
 }
 
-/** Replays every file under `directory`. A directory that does not exist yet is not a failure. */
-NYA_INTERNAL u32 _fuzz_replay_directory(NYA_ConstCString directory) {
+/** Replays every file under `directory`. A directory that does not exist yet is not a failure. Unused under AFL; see above. */
+__attr_allow_unused NYA_INTERNAL u32 _fuzz_replay_directory(NYA_ConstCString directory) {
     if (!nya_filesystem_exists(directory)) return 0;
 
     u32 count = 0;

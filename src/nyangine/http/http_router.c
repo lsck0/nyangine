@@ -330,10 +330,14 @@ NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* exchange) {
     u64         token_size = 0;
 
     if (!nya_http_bearer_token(exchange->request, &token, &token_size)) {
+        NYA_HttpStatus status = nya_http_response_problem(exchange, NYA_HTTP_STATUS_UNAUTHORIZED, "this route needs a bearer token");
+
+        // after the body, not before: writing the problem empties the response, headers included, so
+        // that a layer replacing an answer cannot leave half of the previous one behind.
         NYA_Error announced = nya_http_response_header(exchange->response, "WWW-Authenticate", "Bearer");
         if (!announced.ok) nya_log_warn("The WWW-Authenticate header could not be added to a 401.");
 
-        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_UNAUTHORIZED, "this route needs a bearer token");
+        return status;
     }
 
     NYA_Error verified =

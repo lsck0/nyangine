@@ -80,6 +80,10 @@ tests/**/test_*
 # Objects the split compile and link rules write, see OBJECT_DIRECTORY in src/build/flags.h.
 /.objects/
 
+# Where `./build run fuzz` puts the instrumented binaries and afl-fuzz's own findings directory. The
+# inputs worth keeping are copied by hand into tests/fuzz/corpus and tests/fuzz/crashes, which are.
+/.fuzz/
+
 # Where packaging/steam/upload.sh assembles the depots for steamcmd.
 /.steam-upload/
 

@@ -138,13 +138,30 @@ void fuzz_runner(NYA_ArgCommand* command) {
             .arguments = { "-i", corpus, "-o", findings, "--", binary },
 
             .environment = {
-                SANITIZER_ENVIRONMENT,
+                /*
+                 * The shared sanitizer settings plus the two AFL refuses to start without, which is
+                 * why `./build run fuzz` could not run one: abort_on_error, because the driver watches
+                 * for a child dying on a signal and asan exiting quietly with a status is a crash it
+                 * never hears about, and symbolize=0, because resolving a backtrace per crash is far
+                 * slower than the rest of an iteration. Spelled out here rather than added to
+                 * SANITIZER_ENVIRONMENT: everything else that runs an instrumented binary wants asan's
+                 * own symbolized report and not a bare SIGABRT.
+                 */
+                "ASAN_OPTIONS=suppressions=./.sanitizers/asan.supp:detect_leaks=1:strict_string_checks=1:halt_on_error=1:abort_on_error=1:symbolize=0",
+                "LSAN_OPTIONS=suppressions=./.sanitizers/lsan.supp:symbolize=0",
+                "TSAN_OPTIONS=suppressions=./.sanitizers/tsan.supp:symbolize=0",
+                "UBSAN_OPTIONS=suppressions=./.sanitizers/ubsan.supp:print_stacktrace=1:halt_on_error=1:abort_on_error=1:symbolize=0",
 
                 // AFL refuses to start against an asan build unless it is told the memory limit is
                 // deliberate: asan reserves terabytes of address space, which looks like a runaway
                 // target to the driver's own accounting.
                 "AFL_MAP_SIZE=262144",
                 "AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1",
+
+                // AFL stops on a CPU governor that is not `performance`, which is every laptop. It is
+                // a warning about throughput and not about correctness, and refusing to fuzz at all
+                // because the machine might fuzz slowly is worse than fuzzing slowly.
+                "AFL_SKIP_CPUFREQ=1",
             },
         },
     };

@@ -220,8 +220,6 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
         state->layers[state->layer_count++] = config.layers[index];
     }
 
-    state->frame_hook = nya_callback(_nya_http_on_frame);
-
     _NYA_HTTP = state;
 
     nya_ceiling_register("http_connections", _NYA_HTTP->max_connections, &_NYA_HTTP->connection_count);
@@ -229,12 +227,22 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     /*
      * Drained where input is drained, for the same reason the control socket is: a request is input
      * like a keypress, so it lands at the same point in the frame.
+     *
+     * Only when there is a frame. A callback and an event hook both live in the app, so a program with
+     * no app — a headless tool, a test — cannot register one, and drives nya_system_http_tick itself.
+     * Serving over HTTP is not a reason to require a window and a frame loop.
      */
-    nya_event_hook_register((NYA_EventHook){
-        .event_type = NYA_EVENT_HANDLING_STARTED,
-        .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
-        .fn         = state->frame_hook,
-    });
+    if (_NYA_APP_INSTANCE.initialized) {
+        state->frame_hook = nya_callback(_nya_http_on_frame);
+
+        nya_event_hook_register((NYA_EventHook){
+            .event_type = NYA_EVENT_HANDLING_STARTED,
+            .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
+            .fn         = state->frame_hook,
+        });
+    } else {
+        nya_log_debug("No app is running, so the HTTP drain is the caller's to run; see nya_system_http_tick.");
+    }
 
     nya_log_info("HTTP server listening on http://%s:%u", requested, (u32)config.port);
 
@@ -244,11 +252,14 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 void nya_system_http_deinit(void) {
     if (_NYA_HTTP == nullptr) return;
 
-    nya_event_hook_unregister((NYA_EventHook){
-        .event_type = NYA_EVENT_HANDLING_STARTED,
-        .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
-        .fn         = _NYA_HTTP->frame_hook,
-    });
+    // only if one was registered, and only while the app that owns it is still up; see init.
+    if (_NYA_HTTP->frame_hook != 0 && _NYA_APP_INSTANCE.initialized) {
+        nya_event_hook_unregister((NYA_EventHook){
+            .event_type = NYA_EVENT_HANDLING_STARTED,
+            .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
+            .fn         = _NYA_HTTP->frame_hook,
+        });
+    }
 
     for (u32 index = 0; index < NYA_HTTP_MAX_CONNECTIONS; index++) _nya_http_close(&_NYA_HTTP->connections[index]);
 
@@ -273,7 +284,6 @@ void nya_system_http_tick(void) {
     _nya_http_accept();
 
     u32 budget = NYA_HTTP_MAX_REQUESTS_PER_TICK;
-    u64 now_ns = nya_clock_get_monotonic_ns();
 
     for (u32 index = 0; index < NYA_HTTP_MAX_CONNECTIONS; index++) {
         _NYA_HttpConnection* connection = &_NYA_HTTP->connections[index];
@@ -295,7 +305,14 @@ void nya_system_http_tick(void) {
          * request, and it has stopped reading what we already sent. Both are bounds rather than
          * checks, because neither has a version that is safe to wait out.
          */
-        if (now_ns - connection->active_at_ns > (u64)NYA_HTTP_IDLE_TIMEOUT_MS * 1000000ULL) {
+        /*
+         * Read after the work rather than once at the top of the tick: receiving stamps the connection
+         * with a fresh reading, so a timestamp taken before it is behind the one being subtracted from
+         * it, and the difference of two unsigned times in that order is an enormous number.
+         */
+        u64 now_ns = nya_clock_get_monotonic_ns();
+
+        if (now_ns > connection->active_at_ns && now_ns - connection->active_at_ns > (u64)NYA_HTTP_IDLE_TIMEOUT_MS * 1000000ULL) {
             _nya_http_close(connection);
             continue;
         }
@@ -407,7 +424,7 @@ NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, u8* buffer
 
     if (size > capacity) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%s is longer than %llu bytes", variable, (unsigned long long)capacity);
 
-    memcpy(buffer, value, size);
+    nya_memcpy(buffer, value, size);
     *out_size = size;
 
     return NYA_OK;

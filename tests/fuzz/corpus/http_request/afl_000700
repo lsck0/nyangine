@@ -1,0 +1,7 @@
+POST /aptrics/accounting HTTP/1.1
+Host: lo¶st
+Content-Type: application/json
+Content-Length: 17
+Authorization: BeareR5cCI6Yk‡AAAA
+
+{"etinnabled":0XVCJ

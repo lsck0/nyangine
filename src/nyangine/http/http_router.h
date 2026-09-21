@@ -77,8 +77,13 @@
  *
  * `auth`, `scope`, `summary`, `request_type`, `response_type` and `statuses` are not documentation
  * beside the code, they are the route. The OpenAPI document is generated from them, and in a debug
- * build a handler that returns a status its route did not list trips an assertion: a status list that
- * drifts from the handler is caught by the test suite rather than by a reader.
+ * build an exchange that ends in a status its route did not list trips an assertion: a status list
+ * that drifts from the code is caught by the test suite rather than by a reader of the schema.
+ *
+ * `statuses` covers the whole chain, so a route wrapped in a layer that can refuse declares that
+ * refusal, and a route behind the extractor is required to declare 401 and 403 because the extractor
+ * can produce them. The three server statuses, 500 and up, are exempt: they say this program is
+ * broken, which is true of every route and is not a thing a schema usefully repeats.
  * */
 #pragma once
 
@@ -242,8 +247,12 @@ struct NYA_HttpRoute {
     const NYA_TypeReflection* response_type;
 
     /**
-     * Every status this handler can produce, the refusals included, ending at the first
-     * NYA_HTTP_STATUS_NONE. In a debug build a status that is not in here is an assertion.
+     * Every status this route can answer with, the refusals included, ending at the first
+     * NYA_HTTP_STATUS_NONE.
+     *
+     * The route's, not the handler's: a layer that answers on its own answers for this route, so what
+     * it can produce belongs here too. In a debug build a status that is not in here is an assertion,
+     * which is what stops the generated schema from describing a route that cannot refuse.
      * */
     NYA_HttpStatus statuses[NYA_HTTP_MAX_STATUSES];
 };

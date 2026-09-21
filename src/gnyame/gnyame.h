@@ -41,6 +41,7 @@
  * | entities/entity_camera.c      | cameras as entities, following, render-to-texture views                |
  * | entities/entity_ledge.c       | one-way platforms, kinematic motion, parented entities                  |
  * | systems/                      | systems registered by name with ordering (nya_system_register)          |
+ * | web.c                         | the HTTP server, its metrics resource and the generated OpenAPI schema  |
  * | sim.c                         | recording facts in callbacks and deciding once per frame in an observer |
  * | robots.c                      | NEAT and DQN trained on jobs, a nav flow field, saves, a sqlite history |
  * | net.c                         | single player, listen server, dedicated server and client in one path   |
@@ -142,6 +143,24 @@ NYA_EntityHandle gny_net_spawn_player(NYA_NetPeerId peer, NYA_ConstCString name)
  * Draws one player. Registered as the player entity's on_render by gny_net_spawn_player.
  * */
 void gny_net_player_on_render(NYA_Entity* entity, NYA_Window* window);
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE WEB INTERFACE
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Starts the engine's HTTP server and mounts the metrics and schema resources, when
+ * `GNYAME_WEB_PORT` names a port.
+ *
+ * Off unless that variable is set, which is the point: with it unset nothing here binds, allocates or
+ * registers anything, and the game runs exactly as it did before the server existed.
+ * */
+void gny_web_start(void);
+
+/** The pair. A no-op when the server was never started. */
+void gny_web_stop(void);
 
 /*
  * The generated reflection tables.
