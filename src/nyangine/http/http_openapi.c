@@ -49,6 +49,11 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_docs_get(NYA_HttpExchange* exchange);
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/*
+ * The two GET routes in a module whose resources are otherwise written in QUERY, POST, PUT and DELETE.
+ * A browser opening /docs and a generator fetching /openapi.json both send GET and neither has any
+ * parameters to carry, which is the only thing QUERY buys; see the note in http_openapi.h.
+ */
 NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_OPENAPI_ROUTES[] = {
     {
      .method      = NYA_HTTP_METHOD_GET,
@@ -145,7 +150,11 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
                 item = nya_object_create(arena);
             }
 
-            // lowercase, which is what the specification requires of a method key.
+            /*
+             * Lowercase, which is what the specification requires of a method key. "query" is a field
+             * of the Path Item Object as of OpenAPI 3.2.0 and of nothing before it, which is why
+             * NYA_HTTP_OPENAPI_VERSION says 3.2.0; the reasoning is in http_openapi.h.
+             */
             char method[16] = { 0 };
 
             NYA_ConstCString text = nya_http_method_text(route->method);

@@ -18,6 +18,34 @@
  * // GET /docs          the page
  * ```
  *
+ * ── these two routes are GET, and stay GET ──
+ *
+ * Every other resource here is written in QUERY, POST, PUT and DELETE; these two are the exception and
+ * it is not an oversight. A person types /docs into a browser and a browser sends GET, a generator
+ * fetches /openapi.json with GET because that is what every one of them does, and neither request has
+ * parameters to carry, which is the only thing QUERY buys. A schema that could not be fetched by the
+ * tools that fetch schemas would be a schema nobody reads.
+ *
+ * ── where QUERY goes in the document ──
+ *
+ * OpenAPI 3.1's Path Item Object has a fixed set of method fields and `query` is not one of them, so a
+ * 3.1 document has three ways to carry a QUERY route and all three are bad: an `x-query` extension,
+ * which every validator accepts and every generator ignores, so the verb this server reads through
+ * would be missing from every generated client; a bare `query` key, which a 3.1 validator rejects and
+ * which would be this file lying about which version it wrote; or leaving the route out, which is a
+ * generated document that does not describe what is mounted.
+ *
+ * OpenAPI 3.2.0 added `query` to that fixed set, for exactly this method, so the document says 3.2.0
+ * and the operation sits in the field the specification gives it. Nothing else this file emits differs
+ * between 3.1 and 3.2, so the version is the whole of the change.
+ *
+ * What it costs: a tool that only understands 3.1 refuses the document over its version string rather
+ * than reading it and quietly dropping the routes. That is the trade — a loud no from an old tool
+ * instead of a silent hole in a generated client — and it is why the version is a `#define` with this
+ * paragraph beside it. QUERY itself is still an IETF draft
+ * (draft-ietf-httpbis-safe-method-w-body); if it were to change name or meaning, this and
+ * NYA_HttpMethod are the two places that would.
+ *
  * ── where each part comes from ──
  *
  * ```
@@ -67,8 +95,12 @@
 #define NYA_HTTP_OPENAPI_PATH "/openapi.json"
 #define NYA_HTTP_DOCS_PATH    "/docs"
 
-/** The version of the OpenAPI specification the document claims. */
-#define NYA_HTTP_OPENAPI_VERSION "3.1.0"
+/**
+ * The version of the OpenAPI specification the document claims, and the one decision in this file
+ * that is a judgement call rather than a walk of the route table. See "where QUERY goes" above; this
+ * is the line to change if the trade stops being worth it.
+ * */
+#define NYA_HTTP_OPENAPI_VERSION "3.2.0"
 
 /**
  * How deep nya_http_openapi_schema follows nested types.
