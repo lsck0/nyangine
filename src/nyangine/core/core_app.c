@@ -24,10 +24,10 @@ NYA_INTERNAL void _nya_app_advance_frame_clock(void);
 /** Monotonic nanoseconds from whichever clock is installed. The one place the loop reads time. */
 NYA_INTERNAL u64 _nya_app_now_ns(void);
 
-/** Runs the fixed timestep update until the debt is paid off. */
+/** Runs the registry's tick phase until the debt is paid off. */
 NYA_INTERNAL void _nya_app_update(void);
 
-/** Draws every window that has something to draw into. */
+/** Runs the registry's render phase, once. */
 NYA_INTERNAL void _nya_app_render(void);
 
 /**
@@ -102,6 +102,7 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_audio(void) {
 // never fails: a player without the client still plays.
 NYA_INTERNAL NYA_Error _nya_app_bring_up_steam(void) { if (nya_app_get()->options.steam_app_id != 0) (void)nya_system_steam_init(); return NYA_OK; }
 NYA_INTERNAL void _nya_app_tear_down_steam(void) { nya_system_steam_deinit(); }
+NYA_INTERNAL void _nya_app_frame_steam(f32 delta_time_s) { nya_unused(delta_time_s); nya_system_steam_update(); }
 #endif
 
 NYA_INTERNAL NYA_Error _nya_app_bring_up_world(void) {
@@ -134,13 +135,117 @@ NYA_INTERNAL void _nya_app_tear_down_world(void) {
     app->world = nullptr;
 }
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PHASES
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * The frame is a list of registered systems rather than a list of calls, so a plugin can slot into it and a
+ * game can switch one off. Each of these is one line of what used to be hardcoded in _nya_app_update,
+ * _nya_app_render and nya_app_run, in the same order.
+ */
+
+NYA_INTERNAL void _nya_app_frame_logfile(f32 delta_time_s) {
+    nya_unused(delta_time_s);
+
+    // does nothing until the UTC date changes; without it a run across midnight logs every later day into the
+    // first file.
+    nya_log_directory_roll();
+}
+
+NYA_INTERNAL void _nya_app_frame_gamepad(f32 delta_time_s) {
+    nya_unused(delta_time_s);
+    nya_system_gamepad_frame_begin();
+}
+
+NYA_INTERNAL void _nya_app_tick_entity_transforms(f32 delta_time_s) {
+    nya_unused(delta_time_s);
+
+    // before anything moves an entity, so a draw between this tick and the next starts from here.
+    nya_system_entity_transforms_capture();
+}
+
+/* The solver runs at the top of the tick, before anything reads the world. */
+NYA_INTERNAL void _nya_app_tick_physics2d(f32 delta_time_s) { nya_system_physics2d_update(delta_time_s); }
+
+/* both worlds every tick; an empty one returns immediately. */
+NYA_INTERNAL void _nya_app_tick_physics3d(f32 delta_time_s) { nya_system_physics3d_update(delta_time_s); }
+
+NYA_INTERNAL void _nya_app_tick_layers(f32 delta_time_s) {
+    for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
+        NYA_Window* window = nya_window_at_slot(slot);
+        if (window == nullptr) continue;
+
+        nya_array_foreach (window->layer_stack, layer) {
+            NYA_LayerOnUpdateFn on_update_fn = nya_callback_get(layer->on_update);
+            if (!layer->enabled || on_update_fn == nullptr) continue;
+
+            // a layer's id is its span name, so the breakdown says which layer.
+            nya_perf_time_this_scope(layer->id);
+
+            on_update_fn(window, delta_time_s);
+        }
+    }
+}
+
+/*
+ * Tweens after the layers and before the entities: layers start tweens this tick, and entities read the
+ * values tweens write.
+ */
+NYA_INTERNAL void _nya_app_tick_tween(f32 delta_time_s) { nya_system_tween_update(delta_time_s); }
+
+/* entities after the layers, so something a layer spawns is simulated this tick. */
+NYA_INTERNAL void _nya_app_tick_entity(f32 delta_time_s) { nya_system_entity_update(delta_time_s); }
+
+#ifndef NYA_NO_SDL
+/* Networking, after everything that changes the world and before the barrier. */
+NYA_INTERNAL void _nya_app_tick_net_server(f32 delta_time_s) { nya_net_server_tick(nya_world()->sim_system.tick, delta_time_s); }
+NYA_INTERNAL void _nya_app_tick_net_client(f32 delta_time_s) { nya_net_client_tick(nya_world()->sim_system.tick, delta_time_s); }
+#endif
+
+NYA_INTERNAL void _nya_app_render_layers(f32 delta_time_s) {
+    nya_unused(delta_time_s);
+
+    for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
+        NYA_Window* window = nya_window_at_slot(slot);
+        if (window == nullptr) continue;
+
+        // nothing to draw into: minimised, occluded or mid resize. drawing anyway would target last frame's pass.
+        if (!nya_render_begin(window)) continue;
+
+        nya_array_foreach (window->layer_stack, layer) {
+            NYA_LayerOnRenderFn on_render_fn = nya_callback_get(layer->on_render);
+            if (!layer->enabled || on_render_fn == nullptr) continue;
+
+            // the layer's id names its span.
+            nya_perf_time_this_scope(layer->id);
+
+            on_render_fn(window);
+        }
+
+        nya_render_end(window);
+    }
+}
+
+/* after drawing, which is where layers place the listener. once a frame: it is heard, not simulated. */
+NYA_INTERNAL void _nya_app_render_audio(f32 delta_time_s) { nya_system_audio_update(delta_time_s); }
+
 /**
  * Registers every engine subsystem in bring-up order, each chained `after` the previous one so
  * nya_system_registry_finalize can only produce this order. Teardown runs in reverse.
+ *
+ * One order serves every phase, so a subsystem whose per-frame position differs from its bring-up
+ * position is registered twice: the lifetime under its own name, the phase work under `<name>_<phase>`.
+ * Steam initializes before the renderer but pumps after the gamepad, and tween initializes before the
+ * renderer but ticks after the layers, which is two positions each and therefore two entries each.
  * */
 void _nya_app_register_subsystems(void) {
-    // first up and last down, so every other subsystem's log lines reach the file.
-    nya_system_register((NYA_SystemEntry){ .name = "logfile", .init = _nya_app_bring_up_logfile, .deinit = _nya_app_tear_down_logfile });
+    // first up and last down, so every other subsystem's log lines reach the file. its frame work is the
+    // midnight roll, which has to happen before anything else writes a line this frame.
+    nya_system_register((NYA_SystemEntry){ .name   = "logfile",
+                                           .init   = _nya_app_bring_up_logfile,
+                                           .deinit = _nya_app_tear_down_logfile,
+                                           .frame  = _nya_app_frame_logfile });
 
     // straight after the log file, and before anything that can fail: a subsystem that dies during bring-up
     // is exactly the crash a report is worth having for, and the report is written beside that log file.
@@ -172,18 +277,32 @@ void _nya_app_register_subsystems(void) {
     // After the callback registry, whose handles a tween's on_complete resolves through.
     nya_system_register((NYA_SystemEntry){ .name = "tween", .after = "job", .init = _nya_app_bring_up_tween, .deinit = _nya_app_tear_down_tween });
 
-    nya_system_register((NYA_SystemEntry){ .name         = "renderer",
-                                            .after        = "tween",
-                                            .init         = _nya_app_bring_up_renderer,
-                                            .deinit       = _nya_app_tear_down_renderer });
+    /*
+     * Optional only in a headless run, where there is no display to make a GPU device for and no window to
+     * draw into: that is a correct dedicated server, not a failure, so it is skipped at debug level. The
+     * same failure in a windowed run is still loud and still stops bring-up. See NYA_SystemEntry.optional.
+     */
+    nya_system_register((NYA_SystemEntry){ .name     = "renderer",
+                                            .after    = "tween",
+                                            .init     = _nya_app_bring_up_renderer,
+                                            .deinit   = _nya_app_tear_down_renderer,
+                                            .optional = nya_app_get()->options.headless });
     nya_system_register((NYA_SystemEntry){ .name = "events", .after = "renderer", .init = _nya_app_bring_up_events, .deinit = _nya_app_tear_down_events });
     nya_system_register((NYA_SystemEntry){ .name = "input", .after = "events", .init = _nya_app_bring_up_input, .deinit = _nya_app_tear_down_input });
 
-    // After events, whose drain loop hands it the SDL events it consumes.
+    // After events, whose drain loop hands it the SDL events it consumes. Its frame work rolls the held
+    // buttons over, so it comes before anything that reads them.
     nya_system_register((NYA_SystemEntry){ .name         = "gamepad",
                                             .after        = "input",
                                             .init         = _nya_app_bring_up_gamepad,
-                                            .deinit       = _nya_app_tear_down_gamepad });
+                                            .deinit       = _nya_app_tear_down_gamepad,
+                                            .frame        = _nya_app_frame_gamepad });
+
+#ifdef NYA_PLUGIN_STEAM
+    // the pump only, after the gamepad. `steam` itself is far earlier, because it has to be up before the
+    // renderer; see the note on this function.
+    nya_system_register((NYA_SystemEntry){ .name = "steam_frame", .after = "gamepad", .frame = _nya_app_frame_steam });
+#endif
 
     nya_system_register((NYA_SystemEntry){ .name = "asset", .after = "gamepad", .init = _nya_app_bring_up_asset, .deinit = _nya_app_tear_down_asset });
 
@@ -200,6 +319,36 @@ void _nya_app_register_subsystems(void) {
 
     // last up, first down. the world is entities, physics and the simulation barrier as one lifetime.
     nya_system_register((NYA_SystemEntry){ .name = "window", .after = "world", .init = _nya_app_bring_up_window, .deinit = _nya_app_tear_down_window });
+
+    /*
+     * ── the frame, in order ──────────────────────────────────────────────────────────────────────────
+     *
+     * Nothing here owns a lifetime; they are the work that used to be a hardcoded call list in
+     * _nya_app_update and _nya_app_render. Chained one after the next because the order between them is
+     * the whole point, and registered last so a game or a plugin can name any of them in its own `after`.
+     */
+    nya_system_register((NYA_SystemEntry){ .name = "entity_transforms", .after = "window", .tick = _nya_app_tick_entity_transforms });
+    nya_system_register((NYA_SystemEntry){ .name = "physics2d", .after = "entity_transforms", .tick = _nya_app_tick_physics2d });
+    nya_system_register((NYA_SystemEntry){ .name = "physics3d", .after = "physics2d", .tick = _nya_app_tick_physics3d });
+
+    // the layer stack, updated and drawn. Everything a game registers of its own belongs either side of
+    // this, which is why it is a system rather than a call the loop makes around them.
+    nya_system_register((NYA_SystemEntry){ .name   = "layers",
+                                           .after  = "physics3d",
+                                           .tick   = _nya_app_tick_layers,
+                                           .render = _nya_app_render_layers });
+
+    nya_system_register((NYA_SystemEntry){ .name = "tween_tick", .after = "layers", .tick = _nya_app_tick_tween });
+    nya_system_register((NYA_SystemEntry){ .name = "entity", .after = "tween_tick", .tick = _nya_app_tick_entity });
+
+#ifndef NYA_NO_SDL
+    nya_system_register((NYA_SystemEntry){ .name = "net_server", .after = "entity", .tick = _nya_app_tick_net_server });
+    nya_system_register((NYA_SystemEntry){ .name = "net_client", .after = "net_server", .tick = _nya_app_tick_net_client });
+#endif
+
+    // after "layers" in the render phase, which is what `after = entity` buys it: the only other render
+    // system is the layer stack, and it sits well before this.
+    nya_system_register((NYA_SystemEntry){ .name = "audio_render", .after = "entity", .render = _nya_app_render_audio });
 
     // a finalize failure is a typo in an `after` string above, which only this function writes, so it asserts.
     NYA_Error finalized = nya_system_registry_finalize();
@@ -269,19 +418,20 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
 
     _nya_app_register_subsystems();
 
-    // Brought up in order and unwound in reverse of however far it got, so a failure leaves nothing half built.
-    // Not nya_system_registry_run_init, because its deinit tears down everything registered, not just what came
-    // up; see core_system.h.
-    NYA_Error result     = NYA_OK;
-    u32       brought_up = 0;
+    // Brought up in order and unwound in reverse of however far it got, so a failure leaves nothing half
+    // built. An optional subsystem that this run has no use for is skipped rather than fatal; see
+    // NYA_SystemEntry.optional.
+    NYA_Error result = nya_system_registry_run_init();
 
-    for (; brought_up < nya_system_registry_count(); brought_up++) {
-        NYA_SystemInitFn init       = nya_system_registry_init_at(brought_up);
-        u64              init_start = nya_clock_get_monotonic_ns();
-        result                      = init != nullptr ? init() : NYA_OK;
-        if (!result.ok) goto unwind;
+    if (!result.ok) {
+        nya_arena_destroy(app->frame_allocator);
+        nya_arena_destroy(app->live_resize_allocator);
+        app->initialized = false;
 
-        nya_log_debug("Brought up '%s' in %.1f ms.", nya_system_registry_name_at(brought_up), nya_time_ns_to_ms(nya_clock_get_monotonic_ns() - init_start));
+        SDL_Quit();
+        nya_signals_deinit();
+
+        return result;
     }
 
     // after the renderer and windows, since the watcher draws. not fatal: it only costs frames during a resize
@@ -292,25 +442,6 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
 
     nya_log_info("Subsystems initialized after %.1f ms.", nya_time_ns_to_ms(nya_app_uptime_ns()));
     return NYA_OK;
-
-unwind:
-    nya_log_error("Subsystem initialization failed at '%s'; unwinding. %s", nya_system_registry_name_at(brought_up),
-                  (NYA_ConstCString)result.message);
-
-    // Reverse, skipping the one that failed and everything after it.
-    for (u32 i = brought_up; i > 0; i--) {
-        NYA_SystemDeinitFn deinit = nya_system_registry_deinit_at(i - 1);
-        if (deinit != nullptr) deinit();
-    }
-
-    nya_arena_destroy(app->frame_allocator);
-    nya_arena_destroy(app->live_resize_allocator);
-    app->initialized = false;
-
-    SDL_Quit();
-    nya_signals_deinit();
-
-    return result;
 }
 
 u64 nya_app_uptime_ns(void) {
@@ -391,15 +522,9 @@ void nya_app_run(void) {
 
             _nya_app_advance_frame_clock();
 
-            // does nothing until the UTC date changes; without it a run across midnight logs every later day into the
-            // first file.
-            nya_log_directory_roll();
-
-            nya_system_gamepad_frame_begin();
-
-#ifdef NYA_PLUGIN_STEAM
-            nya_system_steam_update();
-#endif
+            // the log roll, the gamepad's frame edge and Steam's pump, in that order. See
+            // _nya_app_register_subsystems.
+            nya_system_registry_run(NYA_SYSTEM_PHASE_FRAME, (f32)nya_time_ns_to_s(app->frame_stats.elapsed_ns));
         }
 
         {
@@ -450,6 +575,10 @@ void nya_app_run(void) {
 
             // observers read the frame's records, which are then dropped, before the frame allocator resets.
             nya_system_sim_end_frame();
+
+            // the frame's per system times become "the last frame" here, since no single phase run is
+            // the frame boundary. A no-op unless something asked for the numbers.
+            nya_system_accounting_frame_end();
 
             nya_arena_free_all(app->frame_allocator);
 
@@ -540,44 +669,12 @@ void _nya_app_update(void) {
 
         nya_integrity_watchdog(app->frame_stats.frame_start_time_ns);
 
-        // before anything moves an entity, so a draw between this tick and the next starts from here.
-        nya_system_entity_transforms_capture();
-
-        /* The solver runs at the top of the tick, before anything reads the world. */
-        nya_system_physics2d_update(app->frame_stats.delta_time_s);
-
-        // both worlds every tick; an empty one returns immediately.
-        nya_system_physics3d_update(app->frame_stats.delta_time_s);
-
-        for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
-            NYA_Window* window = nya_window_at_slot(slot);
-            if (window == nullptr) continue;
-
-            nya_array_foreach (window->layer_stack, layer) {
-                NYA_LayerOnUpdateFn on_update_fn = nya_callback_get(layer->on_update);
-                if (!layer->enabled || on_update_fn == nullptr) continue;
-
-                // a layer's id is its span name, so the breakdown says which layer.
-                nya_perf_time_this_scope(layer->id);
-
-                on_update_fn(window, app->frame_stats.delta_time_s);
-            }
-        }
-
         /*
-         * Tweens after the layers and before the entities: layers start tweens this tick, and entities read the
-         * values tweens write.
+         * Every registered tick, engine and game alike, in the one order the registry holds: transform
+         * capture, both solvers, the layer stack, tweens, entities, networking, and whatever a game or a
+         * plugin ordered between them. See _nya_app_register_subsystems.
          */
-        nya_system_tween_update(app->frame_stats.delta_time_s);
-
-        // entities after the layers, so something a layer spawns is simulated this tick.
-        nya_system_entity_update(app->frame_stats.delta_time_s);
-
-#ifndef NYA_NO_SDL
-        /* Networking, after everything that changes the world and before the barrier. */
-        nya_net_server_tick(nya_world()->sim_system.tick, app->frame_stats.delta_time_s);
-        nya_net_client_tick(nya_world()->sim_system.tick, app->frame_stats.delta_time_s);
-#endif
+        nya_system_registry_run(NYA_SYSTEM_PHASE_TICK, app->frame_stats.delta_time_s);
 
         // the barrier: every update has run, so queued mutations apply without disturbing iteration.
         nya_system_sim_apply_commands();
@@ -607,32 +704,13 @@ void _nya_app_render(void) {
         .type = NYA_EVENT_RENDERING_STARTED,
     });
 
-    for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
-        NYA_Window* window = nya_window_at_slot(slot);
-        if (window == nullptr) continue;
-
-        // nothing to draw into: minimised, occluded or mid resize. drawing anyway would target last frame's pass.
-        if (!nya_render_begin(window)) continue;
-
-        nya_array_foreach (window->layer_stack, layer) {
-            NYA_LayerOnRenderFn on_render_fn = nya_callback_get(layer->on_render);
-            if (!layer->enabled || on_render_fn == nullptr) continue;
-
-            // the layer's id names its span.
-            nya_perf_time_this_scope(layer->id);
-
-            on_render_fn(window);
-        }
-
-        nya_render_end(window);
-    }
+    // the layer stack, then the audio listener it placed. Wall clock, not the fixed tick: what is drawn
+    // and what is heard both advance in real time.
+    nya_system_registry_run(NYA_SYSTEM_PHASE_RENDER, (f32)nya_time_ns_to_s(nya_app_get()->frame_stats.elapsed_ns));
 
     nya_event_dispatch((NYA_Event){
         .type = NYA_EVENT_RENDERING_ENDED,
     });
-
-    // after drawing, which is where layers place the listener. once a frame: it is heard, not simulated.
-    nya_system_audio_update((f32)nya_time_ns_to_s(nya_app_get()->frame_stats.elapsed_ns));
 }
 
 void _nya_app_audio_rays_3d(const NYA_AudioRay* rays, f32* out_fractions, u32 count, void* user_data) {

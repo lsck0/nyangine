@@ -55,6 +55,16 @@ struct NYA_AppOptions {
     u8  max_concurrent_jobs;
 
     /**
+     * No display and no window: a dedicated server, a smoke run or CI.
+     *
+     * Subsystems that only make sense with one are registered optional, so a missing GPU backend is a
+     * subsystem reported unavailable at debug level rather than a failed start. Left false, the same
+     * failure is loud and stops bring-up, which is what a player's machine wants. See
+     * NYA_SystemEntry.optional.
+     * */
+    b8 headless;
+
+    /**
      * Reverse-DNS or plain application id, such as "gnyame". Null leaves SDL's default. On Wayland this
      * is the app_id a desktop file is matched by, which is where the window's icon and name come from.
      * */

@@ -70,6 +70,12 @@ typedef struct GNY_World {
     NYA_DebugOverlayPage overlay_page;
     NYA_TraceSort        trace_sort;
 
+    /**
+     * Which row the systems page marks, moved with `n` and switched on and off with `o`. An index into
+     * the registry's run order, clamped as it moves, so registering a system never leaves it dangling.
+     * */
+    u32 overlay_system;
+
     /** The learning drones, while the 2D scene runs and the config has them on. See robots.h. */
     GNY_Robots* robots;
 } GNY_World;

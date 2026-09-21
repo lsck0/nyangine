@@ -80,6 +80,8 @@ NYA_INTERNAL const GNY_ActionDefault _GNY_ACTION_DEFAULTS[] = {
     { .action = GNY_ACTION_CYCLE_TRACE_SORT,     .name = "cycle_trace_sort",     .primary = NYA_KEY_U     },
     { .action = GNY_ACTION_TRACE_REPORT,         .name = "trace_report",         .primary = NYA_KEY_L     },
     { .action = GNY_ACTION_TRACE_CAPTURE,        .name = "trace_capture",        .primary = NYA_KEY_K     },
+    { .action = GNY_ACTION_SELECT_SYSTEM,        .name = "select_system",        .primary = NYA_KEY_N     },
+    { .action = GNY_ACTION_TOGGLE_SYSTEM,        .name = "toggle_system",        .primary = NYA_KEY_O     },
     { .action = GNY_ACTION_TOGGLE_INK,           .name = "toggle_ink",           .primary = NYA_KEY_1     },
     { .action = GNY_ACTION_TOGGLE_OCCLUSION,     .name = "toggle_occlusion",     .primary = NYA_KEY_2     },
     { .action = GNY_ACTION_TOGGLE_ANTIALIAS,     .name = "toggle_antialias",     .primary = NYA_KEY_3     },

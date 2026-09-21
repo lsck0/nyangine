@@ -292,6 +292,36 @@ b8 gny_overlay_key(const NYA_KeyEvent* key) {
         return true;
     }
 
+    if (nya_input_action_matches(GNY_ACTION_SELECT_SYSTEM, key->key, key->modifier_flags)) {
+        // the page the cursor belongs to, since moving a cursor nobody can see is a key that does nothing.
+        world->overlay_enabled = true;
+        world->overlay_page    = NYA_DEBUG_OVERLAY_PAGE_SYSTEMS;
+
+        u32 count             = nya_system_registry_count();
+        world->overlay_system = count > 0 ? (world->overlay_system + 1) % count : 0;
+        return true;
+    }
+
+    if (nya_input_action_matches(GNY_ACTION_TOGGLE_SYSTEM, key->key, key->modifier_flags)) {
+        u32 count = nya_system_registry_count();
+
+        if (world->overlay_system < count) {
+            NYA_ConstCString name = nya_system_registry_at(world->overlay_system)->name;
+
+            // Said out loud: turning gravity off for an effect is a thing to find in the log afterwards,
+            // and so is having left it off by accident.
+            if (nya_system_is_enabled(name)) {
+                nya_system_disable(name);
+                nya_log_info("System '%s' disabled.", name);
+            } else {
+                nya_system_enable(name);
+                nya_log_info("System '%s' enabled.", name);
+            }
+        }
+
+        return true;
+    }
+
     if (nya_input_action_matches(GNY_ACTION_TRACE_REPORT, key->key, key->modifier_flags)) {
         nya_trace_report();
         return true;
@@ -328,14 +358,18 @@ void gny_overlay_draw(NYA_Window* window) {
     const GNY_World* world = gny_world();
     if (!world->overlay_enabled) return;
 
-    // the trace page's table is wider than the stats, so it is placed by its own width.
-    f32 width = world->overlay_page == NYA_DEBUG_OVERLAY_PAGE_TRACE ? GNY_UI_TRACE_WIDTH : GNY_UI_OVERLAY_WIDTH;
+    // the trace and systems tables are wider than the stats, so the panel is placed by its own width.
+    f32 width = GNY_UI_OVERLAY_WIDTH;
+    if (world->overlay_page == NYA_DEBUG_OVERLAY_PAGE_TRACE) width = GNY_UI_TRACE_WIDTH;
+    if (world->overlay_page == NYA_DEBUG_OVERLAY_PAGE_SYSTEMS) width = GNY_UI_SYSTEMS_WIDTH;
 
     nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){
-        .x    = (f32)window->screen_width - GNY_UI_MARGIN - width,
-        .y    = GNY_UI_MARGIN,
-        .page = world->overlay_page,
-        .sort = world->trace_sort,
+        .x               = (f32)window->screen_width - GNY_UI_MARGIN - width,
+        .y               = GNY_UI_MARGIN,
+        .width           = width,
+        .page            = world->overlay_page,
+        .sort            = world->trace_sort,
+        .selected_system = world->overlay_system,
     });
 }
 

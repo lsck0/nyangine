@@ -8,6 +8,9 @@
 
 #include "nyangine/nyangine.h"
 
+/** What every system this game registers is tagged with, so the overlay separates its cost from the engine's. */
+#define GNY_SYSTEM_OWNER ((NYA_SystemOwner){ .kind = NYA_SYSTEM_OWNER_GAME })
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * MOVEMENT
@@ -25,10 +28,19 @@ void gny_system_player_input_update(f32 delta_time_s);
 void gny_system_camera_follow_update(f32 delta_time_s);
 
 /**
- * Registers every per-frame system with the engine's system registry, in the order they have to run
+ * Registers every per-tick system with the engine's system registry, in the order they have to run
  * in, and finalizes the schedule. See system_movement.c for why follow has to come after input.
+ *
+ * They are registered disabled; the game layer turns them on. Once per process.
  * */
 void gny_systems_register_all(void);
+
+/**
+ * Turns the gameplay systems on and off as the game layer is pushed and popped, so the menu and the 3D
+ * demo tick nothing of the 2D game's. Their state survives: disabling is not unregistering.
+ * */
+void gny_systems_gameplay_enable(void);
+void gny_systems_gameplay_disable(void);
 
 /** Queues the background track, then starts it once loaded. See system_music.c. */
 void gny_system_music_update(f32 delta_time_s);

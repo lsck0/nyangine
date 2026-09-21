@@ -40,6 +40,11 @@ s32 main(void) {
   NYA_World* world = nya_world_create();
   (void)nya_world_set(world);
 
+  // The frame loop runs its phases through the system registry, which refuses to run before it has
+  // been ordered. Empty and finalized is the right shape here: this test is about the clock, the
+  // accumulator and the arenas, so a tick that runs no systems is exactly what it wants to measure.
+  NYA_EXPECT(nya_system_registry_finalize());
+
   defer nya_world_destroy(world);
 
   defer nya_arena_destroy(app->live_resize_allocator);

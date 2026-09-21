@@ -54,6 +54,9 @@ NYA_INTERNAL void _nya_debug_overlay_graph_draw(NYA_Window* window, const NYA_De
 /** The trace page: the table, a total, and the graph. */
 NYA_INTERNAL void _nya_debug_overlay_trace_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style, f32 work_ms, b8 refresh);
 
+/** The systems page: one row per registered system, in run order. */
+NYA_INTERNAL void _nya_debug_overlay_systems_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style);
+
 /**
  * Bytes as a fixed width string in a readable unit. Returns one of a few static buffers, so several
  * calls work in one format string. Not thread safe.
@@ -141,6 +144,20 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
 
     if (style.page == NYA_DEBUG_OVERLAY_PAGE_TRACE) {
         _nya_debug_overlay_trace_draw(window, &style, work_ms, refresh);
+        return;
+    }
+
+    // Per system timing runs while the page that shows it is up, the way tracing runs while the trace
+    // page is up: two clock reads per system per phase is not a bill to pay for numbers nobody reads.
+    b8 wants_accounting = style.page == NYA_DEBUG_OVERLAY_PAGE_SYSTEMS;
+
+    if (nya_system_accounting_is_enabled() != wants_accounting) {
+        if (wants_accounting) nya_system_accounting_enable();
+        else nya_system_accounting_disable();
+    }
+
+    if (style.page == NYA_DEBUG_OVERLAY_PAGE_SYSTEMS) {
+        _nya_debug_overlay_systems_draw(window, &style);
         return;
     }
 
@@ -522,8 +539,79 @@ void _nya_debug_overlay_trace_draw(NYA_Window* window, const NYA_DebugOverlaySty
     if (!style->hide_graph) _nya_debug_overlay_graph_draw(window, style, text_x, text_y);
 }
 
+void _nya_debug_overlay_systems_draw(NYA_Window* window, const NYA_DebugOverlayStyle* style) {
+    u32 count       = nya_system_registry_count();
+    u32 owner_count = nya_system_owner_count();
+
+    f32 line_height = nya_render2d_font_line_height();
+    if (line_height <= 0.0F) line_height = 16.0F;
+
+    f32 padding = 8.0F;
+
+    u32 shown = nya_min(count, (u32)NYA_DEBUG_OVERLAY_SYSTEM_ROWS);
+
+    // scrolled to keep the marked row on screen, and clamped so the last page is full rather than short.
+    u32 first = 0;
+    if (style->selected_system < count && style->selected_system >= shown) first = style->selected_system - shown + 1;
+
+    // a header, the rows, a blank, an owner header and one line per owner.
+    f32 panel_height = (line_height * (f32)(shown + owner_count + 3)) + (padding * 2.0F);
+
+    if (style->background.a > 0.0F) nya_render2d_rect(window, style->x, style->y, style->width + (padding * 2.0F), panel_height, style->background);
+
+    f32 text_x = style->x + padding;
+    f32 text_y = style->y + padding;
+
+    nya_render2d_textf_with_font(window, style->font, style->font_size, text_x, text_y, style->text_color, "  %-20s %-8s %-6s %-4s %-4s %s", "system",
+                                 "owner", "phases", "up", "on", "ms");
+    text_y += line_height;
+
+    NYA_Color dim      = (NYA_Color){ 0.72F, 0.76F, 0.82F, 1.0F };
+    NYA_Color disabled = (NYA_Color){ 0.95F, 0.80F, 0.45F, 1.0F };
+
+    for (u32 row = 0; row < shown; row++) {
+        u32 index = first + row;
+        if (index >= count) break;
+
+        const NYA_SystemEntry* entry   = nya_system_registry_at(index);
+        b8                     enabled = nya_system_registry_enabled_at(index);
+
+        // one column per phase, the letter where the system has work and a dot where it has none, so the
+        // shape of the frame is readable straight down the column.
+        char phases[] = { entry->frame != nullptr ? 'f' : '.', entry->tick != nullptr ? 't' : '.', entry->render != nullptr ? 'r' : '.', '\0' };
+
+        // amber for one someone switched off, full brightness for the row the keys are on.
+        NYA_Color color = enabled ? dim : disabled;
+        if (index == style->selected_system) color = style->text_color;
+
+        nya_render2d_textf_with_font(window, style->font, style->font_size, text_x, text_y, color, "%s %-20s %-8s %-6s %-4s %-4s %5.3f",
+                                     index == style->selected_system ? ">" : " ", entry->name, nya_system_owner_name(entry->owner), phases,
+                                     nya_system_registry_initialized_at(index) ? "up" : "-", enabled ? "on" : "OFF",
+                                     nya_time_ns_to_ms(nya_system_registry_time_ns_at(index)));
+        text_y += line_height;
+    }
+
+    text_y += line_height;
+
+    nya_render2d_textf_with_font(window, style->font, style->font_size, text_x, text_y, style->text_color, "  %-20s %-8s %-6s %-4s %s", "owner",
+                                 "systems", "on", "ms", "memory");
+    text_y += line_height;
+
+    // grouped by owner, because "which plugin is costing the frame" is the question a list of forty
+    // rows cannot answer.
+    for (u32 i = 0; i < owner_count; i++) {
+        NYA_SystemOwnerStats owner = nya_system_owner_stats_at(i);
+
+        nya_render2d_textf_with_font(window, style->font, style->font_size, text_x, text_y, dim, "  %-20s %-8u %-6u %-4.3f %s", owner.name,
+                                     owner.system_count, owner.enabled_count, nya_time_ns_to_ms(owner.time_ns),
+                                     _nya_debug_format_bytes(owner.memory_bytes));
+        text_y += line_height;
+    }
+}
+
 void _nya_debug_overlay_apply_style_defaults(NYA_DebugOverlayStyle* style) {
     if (style->width <= 0.0F) style->width = style->page == NYA_DEBUG_OVERLAY_PAGE_TRACE ? 460.0F : 300.0F;
+    if (style->page == NYA_DEBUG_OVERLAY_PAGE_SYSTEMS) style->width = nya_max(style->width, 360.0F);
     if (style->height <= 0.0F) style->height = 48.0F;
 
     // 33.3 ms is two frames at 60 Hz, so the top of the graph means a deadline missed twice.

@@ -7,6 +7,9 @@
  *
  * // time, GPU time and memory by feature, most expensive first. tracing runs while this page is drawn.
  * nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = 16, .y = 16, .page = NYA_DEBUG_OVERLAY_PAGE_TRACE, .sort = NYA_TRACE_SORT_GPU });
+ *
+ * // every registered system in run order, with its phases and whether it is on. See core_system.h.
+ * nya_debug_overlay_draw(window, (NYA_DebugOverlayStyle){ .x = 16, .y = 16, .page = NYA_DEBUG_OVERLAY_PAGE_SYSTEMS, .selected_system = cursor });
  * ```
  * */
 #pragma once
@@ -59,6 +62,14 @@ typedef enum NYA_DebugOverlayPage    NYA_DebugOverlayPage;
 #define NYA_DEBUG_OVERLAY_TRACE_ROWS 16
 #endif
 
+/**
+ * Systems listed on the systems page at once. The registry holds up to NYA_SYSTEM_REGISTRY_MAX, which
+ * is more rows than a screen, so the list scrolls to keep the selected one in view.
+ * */
+#ifndef NYA_DEBUG_OVERLAY_SYSTEM_ROWS
+#define NYA_DEBUG_OVERLAY_SYSTEM_ROWS 20
+#endif
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -72,6 +83,12 @@ enum NYA_DebugOverlayPage {
     /** One row per trace feature: CPU and GPU time, VRAM, RAM and draw calls. See debug_trace.h. */
     NYA_DEBUG_OVERLAY_PAGE_TRACE,
 
+    /**
+     * One row per registered system, in the order the frame runs them: which phases it has, whether it
+     * came up, and whether it is enabled. See core_system.h.
+     * */
+    NYA_DEBUG_OVERLAY_PAGE_SYSTEMS,
+
     NYA_DEBUG_OVERLAY_PAGE_COUNT,
 };
 
@@ -83,6 +100,12 @@ struct NYA_DebugOverlayStyle {
 
     /** The trace page's order. */
     NYA_TraceSort sort;
+
+    /**
+     * Which row the systems page marks, as an index into the registry's run order. The caller owns the
+     * cursor, since which key moves it is the game's to decide; out of range simply marks nothing.
+     * */
+    u32 selected_system;
 
     /** Graph width. Zero means 300 on the stats page and 460 on the trace page, whose table is wider. */
     f32 width;

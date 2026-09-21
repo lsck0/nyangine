@@ -52,9 +52,15 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
     // the message and a backtrace through the crash sink.
     // Alt-tabbing away drops to GNY_UNFOCUSED_FRAME_RATE instead of drawing at full rate in the
     // background.
+    // `--server` is headless by definition: it opens no window, so a machine with no GPU backend is a
+    // correct place to run one and the renderer is skipped instead of failing the start.
     NYA_EXPECT(
         nya_app_init(
-            .time_step_ns = time_step_ns, .unfocused_frame_rate_limit = GNY_UNFOCUSED_FRAME_RATE, .app_id = "gnyame", .steam_app_id = GNY_STEAM_APP_ID
+            .time_step_ns               = time_step_ns,
+            .unfocused_frame_rate_limit = GNY_UNFOCUSED_FRAME_RATE,
+            .app_id                     = "gnyame",
+            .steam_app_id               = GNY_STEAM_APP_ID,
+            .headless                   = launch.dedicated
         ),
         "while starting the engine"
     );

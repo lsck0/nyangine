@@ -28,6 +28,11 @@ NYA_INTERNAL void _gny_box_burst(u32 count);
 void gny_layer_game_on_create(NYA_Window* window) {
     nya_unused(window);
 
+    // The 2D game's tick, which the engine's registry runs between the layer stack and the tweens.
+    // On here rather than at registration, so the menu and the 3D demo do not tick a world they have
+    // nothing to do with. See gny_systems_register_all.
+    gny_systems_gameplay_enable();
+
     // Queued, not loaded: the asset system resolves it at the end of the frame. Predecoded because
     // it is short and played often, and decoding on the audio thread at the moment of an impact is
     // exactly when a hitch is audible.
@@ -99,6 +104,9 @@ void gny_layer_game_on_create(NYA_Window* window) {
 
 void gny_layer_game_on_destroy(NYA_Window* window) {
     nya_unused(window);
+
+    // the partner of the enable in on_create: registered and initialized still, simply not ticking.
+    gny_systems_gameplay_disable();
 
     /*
      * The offscreen target, and nothing else.
@@ -237,9 +245,10 @@ void gny_layer_game_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_unused(window);
 
     /*
-     * The per-frame systems, in the order gny_systems_register_all gave them.
+     * The gameplay systems are not run from here any more: they are registered with the engine's
+     * registry and run by it, in the same place in the tick this call used to sit. See
+     * gny_systems_register_all.
      */
-    nya_system_registry_run_update(delta_time_s);
 
     /*
      * The map's animation clock.

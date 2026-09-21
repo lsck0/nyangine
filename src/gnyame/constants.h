@@ -287,6 +287,9 @@
 /** The overlay's trace page, with its padding. */
 #define GNY_UI_TRACE_WIDTH 500.0F
 
+/** The overlay's systems page: name, owner, phases, three flags and a millisecond column. */
+#define GNY_UI_SYSTEMS_WIDTH 520.0F
+
 /** Frames `k` captures, and where the Chrome trace goes. Two seconds at 60 Hz. */
 #define GNY_TRACE_CAPTURE_FRAMES 120
 #define GNY_TRACE_CAPTURE_PATH   "./logs/trace.json"

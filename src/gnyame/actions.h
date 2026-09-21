@@ -45,6 +45,14 @@ enum {
     GNY_ACTION_TRACE_REPORT,
     GNY_ACTION_TRACE_CAPTURE,
 
+    /**
+     * The overlay's systems page: move the cursor down the list, and switch the marked system off or
+     * back on. Disabling `physics2d` is a freeze frame with everything else still running; disabling
+     * `player_input` takes the keys away without touching the camera. See core_system.h.
+     * */
+    GNY_ACTION_SELECT_SYSTEM,
+    GNY_ACTION_TOGGLE_SYSTEM,
+
     /*
      * The 3D demo's render features, on the number row. They flip NYA_CONFIG.engine.renderer, so the config file sets
      * where they start.
