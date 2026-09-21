@@ -35,21 +35,28 @@ typedef enum {
     NYA_STRING_MENU_ACCENT,
     NYA_STRING_MENU_ANIMATE,
     NYA_STRING_MENU_ANTIALIASING,
+    NYA_STRING_MENU_BARS,
     NYA_STRING_MENU_BLOOM,
+    NYA_STRING_MENU_CHART,
     NYA_STRING_MENU_DEPTH_OF_FIELD,
+    NYA_STRING_MENU_DRAWS,
     NYA_STRING_MENU_EYE_ADAPTATION,
+    NYA_STRING_MENU_FADE,
     NYA_STRING_MENU_FIELD_OF_VIEW,
     NYA_STRING_MENU_FLAT,
+    NYA_STRING_MENU_FRAME_MS,
     NYA_STRING_MENU_FXAA,
     NYA_STRING_MENU_GRAPHICS,
     NYA_STRING_MENU_HIGH,
     NYA_STRING_MENU_LANGUAGE,
     NYA_STRING_MENU_LIGHT_SHAFTS,
+    NYA_STRING_MENU_LINE,
     NYA_STRING_MENU_LOOK,
     NYA_STRING_MENU_LOW,
     NYA_STRING_MENU_MAIN_MENU,
     NYA_STRING_MENU_MASTER_VOLUME,
     NYA_STRING_MENU_MEDIUM,
+    NYA_STRING_MENU_METRIC,
     NYA_STRING_MENU_MOTION_BLUR,
     NYA_STRING_MENU_MUSIC_VOLUME,
     NYA_STRING_MENU_NAME,
@@ -67,6 +74,10 @@ typedef enum {
     NYA_STRING_MENU_START,
     NYA_STRING_MENU_STATS,
     NYA_STRING_MENU_SUBTITLE,
+    NYA_STRING_MENU_TABLE,
+    NYA_STRING_MENU_VALUE,
+    NYA_STRING_MENU_VERTICES,
+    NYA_STRING_MENU_WIDGETS,
 
     NYA_STRING_COUNT,
 } NYA_StringId;
@@ -97,21 +108,28 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_accent",
     "menu_animate",
     "menu_antialiasing",
+    "menu_bars",
     "menu_bloom",
+    "menu_chart",
     "menu_depth_of_field",
+    "menu_draws",
     "menu_eye_adaptation",
+    "menu_fade",
     "menu_field_of_view",
     "menu_flat",
+    "menu_frame_ms",
     "menu_fxaa",
     "menu_graphics",
     "menu_high",
     "menu_language",
     "menu_light_shafts",
+    "menu_line",
     "menu_look",
     "menu_low",
     "menu_main_menu",
     "menu_master_volume",
     "menu_medium",
+    "menu_metric",
     "menu_motion_blur",
     "menu_music_volume",
     "menu_name",
@@ -129,6 +147,10 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_start",
     "menu_stats",
     "menu_subtitle",
+    "menu_table",
+    "menu_value",
+    "menu_vertices",
+    "menu_widgets",
 };
 
 /** `cube3d_hint_animation` */
@@ -251,9 +273,19 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_antialiasing(
     return _nya_i18n_format(NYA_STRING_MENU_ANTIALIASING);
 }
 
+/** `menu_bars` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_bars(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_BARS);
+}
+
 /** `menu_bloom` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_bloom(void) {
     return _nya_i18n_format(NYA_STRING_MENU_BLOOM);
+}
+
+/** `menu_chart` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_chart(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_CHART);
 }
 
 /** `menu_depth_of_field` */
@@ -261,9 +293,19 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_depth_of_fiel
     return _nya_i18n_format(NYA_STRING_MENU_DEPTH_OF_FIELD);
 }
 
+/** `menu_draws` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_draws(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_DRAWS);
+}
+
 /** `menu_eye_adaptation` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_eye_adaptation(void) {
     return _nya_i18n_format(NYA_STRING_MENU_EYE_ADAPTATION);
+}
+
+/** `menu_fade` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_fade(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_FADE);
 }
 
 /** `menu_field_of_view` */
@@ -274,6 +316,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_field_of_view
 /** `menu_flat` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_flat(void) {
     return _nya_i18n_format(NYA_STRING_MENU_FLAT);
+}
+
+/** `menu_frame_ms` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_frame_ms(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_FRAME_MS);
 }
 
 /** `menu_fxaa` */
@@ -301,6 +348,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_light_shafts(
     return _nya_i18n_format(NYA_STRING_MENU_LIGHT_SHAFTS);
 }
 
+/** `menu_line` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_line(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_LINE);
+}
+
 /** `menu_look` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_look(void) {
     return _nya_i18n_format(NYA_STRING_MENU_LOOK);
@@ -324,6 +376,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_master_volume
 /** `menu_medium` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_medium(void) {
     return _nya_i18n_format(NYA_STRING_MENU_MEDIUM);
+}
+
+/** `menu_metric` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_metric(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_METRIC);
 }
 
 /** `menu_motion_blur` */
@@ -409,4 +466,24 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_stats(void) {
 /** `menu_subtitle` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_subtitle(void) {
     return _nya_i18n_format(NYA_STRING_MENU_SUBTITLE);
+}
+
+/** `menu_table` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_table(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_TABLE);
+}
+
+/** `menu_value` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_value(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_VALUE);
+}
+
+/** `menu_vertices` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_vertices(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_VERTICES);
+}
+
+/** `menu_widgets` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_widgets(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_WIDGETS);
 }

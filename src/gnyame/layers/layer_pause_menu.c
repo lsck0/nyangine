@@ -24,6 +24,12 @@ NYA_INTERNAL void _gny_look_panel(NYA_UI* ui);
 /** The player's graphics settings, saved on quit and laid over both scenes' renderer options every frame. */
 NYA_INTERNAL void _gny_graphics_panel(NYA_UI* ui);
 
+/**
+ * A draggable panel over the widgets the menus above do not use: tabs, a table, a dropdown, radio buttons, a chart
+ * and an opacity group. It shows real counters, so it is a debug readout as well as the thing that exercises them.
+ * */
+NYA_INTERNAL void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui);
+
 /** A label and a row of choices sharing the rest, with `*selected` the index of the chosen one. */
 NYA_INTERNAL void _gny_choice_row(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* choices, u32 count, u32* selected);
 
@@ -115,9 +121,102 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
 
     _gny_look_panel(ui);
     _gny_graphics_panel(ui);
+    _gny_widgets_panel(window, ui);
 
     nya_ui_style_pop(ui);
     nya_ui_end(ui);
+}
+
+void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui) {
+    // a ring of the last frames, sampled once per pass so the chart moves while the world is stopped.
+    static f32 frame_ms[GNY_WIDGETS_SAMPLES] = { 0 };
+    static f32 draws[GNY_WIDGETS_SAMPLES]    = { 0 };
+    static u32 samples                       = 0;
+
+    // which tab is showing, what the chart plots and how, and how far the whole panel is faded.
+    static u32 tab     = 0;
+    static u32 metric  = 0;
+    static u32 kind    = 0;
+    static f32 opacity = 1.0F;
+
+    NYA_Render2DFrameStats batch = nya_render2d_frame_stats(window);
+    u32                    slot  = samples % GNY_WIDGETS_SAMPLES;
+
+    frame_ms[slot] = nya_app_get()->frame_stats.delta_time_s * 1000.0F;
+    draws[slot]    = (f32)batch.draw_calls;
+    samples       += 1;
+
+    u32 count = nya_min(samples, (u32)GNY_WIDGETS_SAMPLES);
+
+    // the panel itself fades, frame and all, which is what an opacity group is for.
+    nya_ui_opacity_begin(ui, opacity);
+    defer nya_ui_opacity_end(ui);
+
+    NYA_UIPanel panel = {
+        .anchor    = NYA_UI_ANCHOR_BOTTOM_RIGHT,
+        .width     = nya_ui_fixed(GNY_WIDGETS_WIDTH),
+        .text      = NYA_UI_TEXT_SMALL,
+        .title     = nya_string_menu_widgets(),
+        .draggable = true,
+    };
+
+    if (!nya_ui_panel_begin(ui, "widgets", panel)) return;
+
+    NYA_ConstCString tabs[] = { nya_string_menu_table(), nya_string_menu_chart() };
+    (void)nya_ui_tabs(ui, "pages", tabs, nya_carray_length(tabs), &tab);
+
+    if (tab == 0) {
+        // one row per counter, the value column as wide as its digits and the name column taking the rest.
+        const f32        widths[]  = { 0.0F, GNY_WIDGETS_VALUE_WIDTH };
+        NYA_ConstCString headers[] = { nya_string_menu_metric(), nya_string_menu_value() };
+
+        if (nya_ui_table_begin(ui, "counters", (NYA_UITable){ .widths = widths, .columns = 2, .headers = headers, .striped = true })) {
+            struct {
+                NYA_ConstCString name;
+                f32              value;
+            } rows[] = {
+                { nya_string_menu_frame_ms(), frame_ms[slot]        },
+                { nya_string_menu_draws(),    (f32)batch.draw_calls },
+                { nya_string_menu_vertices(), (f32)batch.vertices   },
+            };
+
+            for (u32 i = 0; i < nya_carray_length(rows); i++) {
+                if (!nya_ui_table_row_begin(ui)) continue;
+
+                char value[GNY_WIDGETS_VALUE_MAX];
+                (void)snprintf(value, sizeof(value), "%.2f", (f64)rows[i].value);
+
+                nya_ui_label(ui, rows[i].name);
+                nya_ui_label(ui, value);
+
+                nya_ui_table_row_end(ui);
+            }
+
+            nya_ui_table_end(ui);
+        }
+    } else {
+        NYA_ConstCString metrics[] = { nya_string_menu_frame_ms(), nya_string_menu_draws() };
+        (void)nya_ui_dropdown(ui, nya_string_menu_metric(), metrics, nya_carray_length(metrics), &metric);
+
+        // a radio pair rather than a selectable pair, since the two own one variable between them.
+        if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .children = nya_ui_grow(1), .frameless = true })) {
+            (void)nya_ui_radio(ui, nya_string_menu_line(), &kind, NYA_UI_CHART_LINE);
+            (void)nya_ui_radio(ui, nya_string_menu_bars(), &kind, NYA_UI_CHART_BAR);
+            nya_ui_panel_end(ui);
+        }
+
+        nya_ui_chart(ui, "plot",
+                     (NYA_UIChart){
+                         .values = metric == 0 ? frame_ms : draws,
+                         .count  = count,
+                         .kind   = (NYA_UIChartKind)kind,
+                         .height = GNY_WIDGETS_CHART_HEIGHT,
+                     });
+    }
+
+    (void)nya_ui_slider(ui, nya_string_menu_fade(), &opacity, GNY_WIDGETS_FADE_MIN, 1.0F, GNY_WIDGETS_FADE_STEP);
+
+    nya_ui_panel_end(ui);
 }
 
 void _gny_look_panel(NYA_UI* ui) {

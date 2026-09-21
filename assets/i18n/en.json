@@ -39,6 +39,18 @@
   "menu_medium": "mid",
   "menu_high": "high",
 
+  "menu_widgets": "widgets",
+  "menu_table": "table",
+  "menu_chart": "chart",
+  "menu_fade": "fade",
+  "menu_value": "value",
+  "menu_metric": "metric",
+  "menu_line": "line",
+  "menu_bars": "bars",
+  "menu_frame_ms": "frame ms",
+  "menu_draws": "draws",
+  "menu_vertices": "vertices",
+
   "menu_2d_scene": "2d scene",
   "menu_3d_scene": "3d scene",
 

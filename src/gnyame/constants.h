@@ -316,6 +316,19 @@
 #define GNY_GRAPHICS_FOV_STEP   5.0F
 #define GNY_GRAPHICS_SCALE_MIN  0.5F
 #define GNY_GRAPHICS_SCALE_STEP 0.05F
+/*
+ * The widgets panel in the bottom right: its width and its chart's height, how many frames the chart keeps (about
+ * two seconds at 120 fps, enough to see a spike without the line turning to noise), how wide its value column is,
+ * how long a formatted counter can be, and how far its fade slider goes before the panel stops being findable.
+ */
+#define GNY_WIDGETS_WIDTH        260.0F
+#define GNY_WIDGETS_CHART_HEIGHT 70.0F
+#define GNY_WIDGETS_SAMPLES      240
+#define GNY_WIDGETS_VALUE_WIDTH  70.0F
+#define GNY_WIDGETS_VALUE_MAX    16
+#define GNY_WIDGETS_FADE_MIN     0.2F
+#define GNY_WIDGETS_FADE_STEP    0.1F
+
 #define GNY_UI_TRANSITION_S 0.08F
 #define GNY_UI_APPEAR_S     0.15F
 #define GNY_UI_SCALE_MAX    2.0F
