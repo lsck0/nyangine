@@ -69,6 +69,8 @@ Each is one self-contained `main.c` under `examples/`, run with `./build run exa
 | `hello_world` | The smallest program that opens a window and draws |
 | `cli_tool` | No window at all: the engine as a command line program |
 | `net_echo` | A server and a client over the UDP transport |
+| `pong_multiplayer` | A game over the netcode: one authority, predicted paddles, interpolated replicas |
+| `pinball3d` | 3D physics: joints, impulses, collision events and a camera over a table |
 | `plugin_scripting` | Embedding Lua |
 | `tui_dashboard` | Text output |
 

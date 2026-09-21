@@ -69,25 +69,48 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 
 # Unmerged work
 
-Everything from the parallel session is merged: the build reorganisation and `dist`, IPC and WebSocket, the
-crash reporter, the generated cheatsheet and four examples, collision layers and the simulation harness,
-Steam and Discord, scene persistence, the renderer bug fixes, the UI split and its widgets, and the system
-registry, and the renderer feature switches. 212 tests pass, `check --strict` is clean, and debug, release
-and steam-windows all build.
+Everything from the parallel session is merged. 224 tests pass, `check --strict` is clean, and debug-linux,
+debug-windows and release all build. The five stashes are dealt with; none was dropped, so they are all still
+on the stack and all of them are now either landed or dead.
 
-What is written and NOT merged, sitting as stashes in `.claude/worktrees/`:
+- `[x]` `renderflags-wip-lc` — landed earlier as `d4700dd`. Re-checked against master line by line: the only
+  differences left are in `src/generated/reflection*`, which the preprocessor rewrites anyway. Nothing in it
+  is unlanded, asset placeholders included — it never carried any, so that item is still open under
+  "Renderer". **Nothing to do; the stash can go.**
+- `[x]` `afl-wip-lc` — dead. Every hunk is on master: `build/fuzz.c` and `build/simulation.c` in `build.c`,
+  the two commands in `cli.c`, `tests/fuzz/fuzz.h` included by its full path everywhere, `FUZZ_INPUT_MAX`
+  gone, `nya_unused(argc, argv)` under `__AFL_HAVE_MANUAL_CONTROL`, the lexer corpus as `.txt`, and the defer
+  order in `test_simulation.c`. **Nothing to do; the stash can go.**
+- `[x]` `social-wip-lc` — landed. The UI split needed one change and it was not a UI one: `NYA_SystemEntry`
+  has `frame`/`tick`/`render` callback handles now rather than an `update` function pointer, and the presence
+  card wants `frame` and no ordering constraint. Every `nya_ui_*` call in it still exists unchanged. It also
+  carried a fix for `discord.h`'s example, which called a `nya_clock_unix_seconds` that does not exist.
+- `[x]` `serde-wip-lc` — landed, but **it is not what its name says**. It does not hash the reflection names
+  and never did. What it contains is the argument for why that cannot be done, and the argument is right:
+  `nya_reflect_to_object` hands `field->name` straight to `nya_object_set` as the document key and writes an
+  enum as its variant's name, so hashing the names in a release build hashes the keys of every settings file,
+  every save and `assets/config/engine.nya`. Hashing only the *lookup* key does not help, because the lookup
+  key and the written key are the same string. That reasoning is in `base_reflection.h` now, with the sizes
+  measured on this tree (6220 bytes of names, 1339 of them type names). The rest of the stash is a better
+  report for an unknown key, which now lists the keys rather than naming the type, and two settings tests.
+  **If the type layout in a shipping binary is still a worry, the answer is the save format, not reflection.**
+- `[x]` `crashtest-wip-lc` — landed, and it paid for itself immediately. The vendored SDL was configured with
+  `SDL_RENDER=OFF`, so `nya_crash_window_show` had been failing at `SDL_CreateWindowAndRenderer` in every
+  build ever shipped and every crash fell through to the plain message box. Turning the option on was not
+  enough either: vendor rules are `NYA_BUILD_ONCE` keyed on their own archive, so a changed cmake option
+  rebuilds nothing on a machine that has built before. SDL's rules are `NYA_BUILD_IF_OUTDATED` against
+  `vendor_sdl.h` now.
+- `[x]` Both example directories landed: `pong_multiplayer` built and ran as written; `pinball3d` needed its
+  action enum made anonymous, since a named one makes every `nya_input_action_*` call a conversion between
+  two enumeration types and the build rejects that.
 
-- `[x]` `renderflags-wip-lc` landed: 37 feature switches including frustum culling, backface culling, draw
-  sorting and the depth test, which had none. It carried no asset placeholders after all, so that item is
-  still open under "Renderer".
-- `[ ]` `serde-wip-lc` — hashing the reflection names in release builds, so `strings` on the binary stops
-  handing over the whole type layout.
-- `[ ]` `social-wip-lc` — the gnyame side of the join-request prompt (`layer_social.c`, `social.c`).
-- `[ ]` `crashtest-wip-lc` — a test that opens the crash window and dismisses it from another thread.
-- `[ ]` Two untracked example directories in the docs worktree: `pong_multiplayer` and `pinball3d`.
+Found on the way, not fixed:
 
-Each needs its branch rebased onto master, built, and `check --strict` run before it lands. Do not merge any
-of them on the strength of having been written.
+- `[ ]` Every vendor header except `vendor_sdl.h` still has the staleness gap: change a cmake option in one
+  and nothing rebuilds. The fix is the same four lines per file, `NYA_BUILD_IF_OUTDATED` against the header
+  that holds the options.
+- `[ ]` `hook_invalidate_stale_cmake_cache` only notices a missing compiler or make program. It does not
+  notice that the arguments changed, which is the case that actually bites.
 
 - `[ ]` Not started: debug draw and physics hitboxes, core systems audit.
 
@@ -411,8 +434,9 @@ the packager ones.
 - `[x]` `AGENTS.md` at the root pointing at the cheatsheet.
 - `[~]` More examples beside hello_world. Landed: `cli_tool` (no window), `plugin_scripting` (the Lua
   surface as it is today), `tui_dashboard` (a real TUI on the terminal backend), `net_echo`
-  (server and client over the UDP transport). `[ ]` Still to do: multiplayer 2D pong, 3D pinball, and a
-  server plus client web app once the HTTP server exists.
+  (server and client over the UDP transport), `pong_multiplayer` (one authority, predicted paddles,
+  interpolated replicas) and `pinball3d` (3D physics with joints, impulses and collision events).
+  `[ ]` Still to do: a server plus client web app, now that the HTTP server exists.
 - `[ ]` Make the 3D example nicer, and give it the graphics settings menu it currently lacks.
 
 ## `[?]` Nyangine as a dependency
