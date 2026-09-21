@@ -54,6 +54,12 @@ typedef struct {
     u32                pending_count;
 } _NYA_SystemRegistry;
 
+/**
+ * One schedule line, before it is truncated. Sixty-four names at an average of sixteen characters plus
+ * four for the arrow, which is the whole registry in one line with room to spare.
+ * */
+#define _NYA_SYSTEM_REPORT_LINE_MAX 1536
+
 /* No init: a zeroed registry is already a valid empty one, so there is nothing to bring up. */
 NYA_INTERNAL _NYA_SystemRegistry _nya_system_registry = { 0 };
 
@@ -318,6 +324,32 @@ NYA_ConstCString nya_system_owner_name(NYA_SystemOwner owner) {
 
 b8 nya_system_registry_is_running(void) {
     return _nya_system_registry.running;
+}
+
+void nya_system_registry_report(void) {
+    for (u32 phase = 0; phase < (u32)NYA_SYSTEM_PHASE_COUNT; phase++) {
+        // One line per phase rather than one per system: the order is the thing being read, and forty
+        // lines is a list where one line is a sentence.
+        char line[_NYA_SYSTEM_REPORT_LINE_MAX];
+        u64  length = 0;
+        u32  shown  = 0;
+
+        for (u32 i = 0; i < _nya_system_registry.count && length < sizeof(line); i++) {
+            if (_nya_system_phase_fn(&_nya_system_registry.entries[i], (NYA_SystemPhase)phase) == nullptr) continue;
+
+            // marked rather than dropped: a system missing from the list and a system switched off are
+            // different problems and would otherwise read the same.
+            s32 written = snprintf(&line[length], sizeof(line) - length, "%s%s%s", shown > 0 ? " -> " : "", _nya_system_registry.entries[i].name,
+                                   _nya_system_registry.enabled[i] ? "" : " (off)");
+
+            if (written > 0) length += (u64)written;
+            shown++;
+        }
+
+        if (shown == 0) continue;
+
+        nya_log_debug("System schedule, %s: %s", nya_system_phase_name((NYA_SystemPhase)phase), (NYA_ConstCString)line);
+    }
 }
 
 u32 nya_system_registry_count(void) {

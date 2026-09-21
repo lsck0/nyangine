@@ -132,6 +132,10 @@ void gny_systems_register_all(void) {
     gny_systems_gameplay_disable();
 
     NYA_EXPECT(nya_system_registry_finalize());
+
+    // once, with the game's systems in: the schedule is what an ordering bug shows up in, and working
+    // it back out of the `after` and `before` strings by hand is the slow way to find one.
+    nya_system_registry_report();
 }
 
 void gny_systems_gameplay_enable(void) {

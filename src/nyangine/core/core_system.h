@@ -23,6 +23,7 @@
  *   nya_system_registry_run               runs one phase, in order, skipping disabled systems
  *   nya_system_registry_run_deinit        tears down what came up, in reverse order
  *   nya_system_registry_is_running        whether a phase run is in progress right now
+ *   nya_system_registry_report            logs the schedule, one line per phase, at debug level
  *   nya_system_registry_count             how many are registered
  *   nya_system_registry_at                the entry at an index, in run order
  *   nya_system_registry_enabled_at        whether the entry at an index is enabled
@@ -340,6 +341,14 @@ NYA_API NYA_ConstCString nya_system_owner_name(NYA_SystemOwner owner) __attr_no_
 
 /** Whether a phase run is in progress, which is what makes a mutation queue instead of apply. */
 NYA_API b8 nya_system_registry_is_running(void) __attr_no_discard;
+
+/**
+ * Logs the schedule at debug level, one line per phase, in run order, with a disabled system marked.
+ *
+ * The answer to "why did my system run after that one", which is otherwise only readable by working
+ * the `after` and `before` edges out by hand. Call it after the registrations are in.
+ * */
+NYA_API void nya_system_registry_report(void);
 
 /** How many systems are registered. */
 NYA_API u32 nya_system_registry_count(void) __attr_no_discard;
