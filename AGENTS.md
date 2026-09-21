@@ -32,7 +32,9 @@ examples/<name>/main.c one self contained example each
 assets/                shaders, fonts, sounds, locales, config
 vendor/                third-party submodules, built by ./build, never edited in place
 packaging/             AUR, Flatpak, winget, scoop and SteamPipe manifests
+plugins/<name>/        Lua plugins: manifest.nya, main.lua, src/, assets/
 docs/CHEATSHEET.md     generated API reference
+docs/lua/nya.lua       generated Lua definitions for the `nya` table
 ```
 
 Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that includes the rest:
@@ -159,6 +161,8 @@ From `TODO.md`, which is the planning document and lives in the repository with 
 | Config       | `NYA_CONFIG` hot reloads from `assets/config/engine.nya`, backed by reflection.              |
 | Ceilings     | Fixed capacity arrays register with `nya_ceiling_register`.                                 |
 | Verification | Every engine feature gets a caller in `gnyame`, not only a test. Verify by running the game. |
+| Plugins      | `core_plugin.h` loads `plugins/<name>/`. Permissions are fixed at compile time by `-DNYA_PLUGIN_PERMISSION_PROFILE`. |
+| Lua bindings | Generated from `@lua` annotations by `src/build/pp/luabind.c`. Never hand written unless they cannot be generated. |
 
 That last one is load-bearing. **A feature with no caller in `gnyame` is not finished**, however
 green its tests are: this codebase is verified by running the game and looking at it, and a test
@@ -176,6 +180,7 @@ inputs have not moved, and each runs as part of an ordinary build:
 - `i18n.c` → `src/generated/strings.h`, from `assets/i18n/*.json`.
 - `asset.c` → `src/generated/assets.{h,c}`, the asset handles and the baked blob.
 - `cheatsheet.c` → `docs/CHEATSHEET.md`, from the public headers.
+- `luabind.c` → `src/generated/lua_bindings.c` and `docs/lua/nya.lua`, from `@lua` annotations.
 
 Never hand-edit any of those outputs, `docs/CHEATSHEET.md` included: change the header and rebuild.
 

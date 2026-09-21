@@ -9,33 +9,30 @@
  * ./build run example plugin_scripting
  * ```
  *
- * ## What a plugin is here, today
+ * ## Two senses of the word, and this is the smaller one
  *
- * Not what the word usually means. A nyangine plugin is an optional *dependency* compiled in behind
- * a `-DNYA_PLUGIN_*` flag, declared in `src/nyangine/plugins/plugins.h`, and absent from the binary
- * when the flag is not set. The flags in `src/build/flags.h` are the whole mechanism. Five exist:
+ * A *plugin* in `src/nyangine/plugins/` is an optional dependency compiled in behind a
+ * `-DNYA_PLUGIN_*` flag and absent from the binary without it. The flags in `src/build/flags.h` are
+ * the whole mechanism. Five exist:
  *
  * | Plugin  | Flag                 | State                                                      |
  * | :------ | :------------------- | :--------------------------------------------------------- |
- * | lua     | `NYA_PLUGIN_LUA`     | VM, bindings, the engine's `nya` table                      |
+ * | lua     | `NYA_PLUGIN_LUA`     | the VM below, and the generated `nya` table                 |
  * | curl    | `NYA_PLUGIN_CURL`    | blocking HTTP requests, client side only; nothing calls it  |
  * | sqlite  | `NYA_PLUGIN_SQLITE`  | works                                                      |
  * | discord | `NYA_PLUGIN_DISCORD` | built, never wired to a running client                      |
  * | steam   | `NYA_PLUGIN_STEAM`   | compiled and linked for the steam targets only              |
  *
- * ## What is missing
+ * A *plugin* in the sense a user means — a folder somebody else wrote, dropped into `plugins/` — is
+ * `core_plugin.h`, and it is built on what this example shows. `plugins/hello/` in the repository
+ * is a working one, loaded by gnyame at startup. Read core_plugin.h for the manifest, the compile
+ * time permission grant and what it does and does not guarantee; this file is the layer underneath,
+ * where a VM is a VM and nobody has decided yet who is allowed to call what.
  *
- * Everything a user would call a plugin. Per TODO.md, the model to copy is Dalamud's, and none of
- * it exists: no `plugins/<name>/` directory with a `manifest.nya`, no loading at runtime, no
- * per-plugin enable and disable, no repositories added by URL, no permission system, no per-plugin
- * tracing, no namespacing. There is no host-side plugin interface at all.
+ * ## What is still missing
  *
- * The Lua surface below is also smaller than it should be: `nya_lua_open_engine` registers ten
- * hand-written functions and assembles the `nya` table from a string literal
- * (`lua_engine.c:194-205`), which is why an editor reports `nya` as an undefined global. Those
- * bindings are meant to be generated from the reflection data, with a definitions file beside them.
- *
- * So "a plugin example" is, today, a Lua embedding example.
+ * The repository side of Dalamud's model: adding a repository by URL, an index served over HTTP,
+ * per-plugin install and update from inside the game. TODO.md has it.
  * */
 #include "nyangine/nyangine.h"
 
@@ -168,6 +165,25 @@ s32 main(s32 argc, NYA_CString* argv) {
     NYA_EXPECT(nya_lua_run(vm, "print('lua sees verdict = ' .. verdict)", "verdict"), "while printing the verdict");
 
     nya_log_info("LuaJIT holds %llu bytes.", (unsigned long long)nya_lua_memory_bytes(vm));
+
+    // ── what a plugin's VM looks like ───────────────────────────────────────────────────────────
+    //
+    // The same call the plugin host makes for every plugin it loads. A permission the plugin did not
+    // get is not a call that refuses: the name is never put in the VM, so `nya.entity` is nil and
+    // indexing it is an ordinary Lua error in the plugin's own chunk. That is the whole enforcement
+    // mechanism, and it is why there is nothing for a script to reach around.
+    NYA_LuaVM* sandboxed = nullptr;
+    NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .restricted = true }, &sandboxed), "while creating the second VM");
+    defer nya_lua_destroy(sandboxed);
+
+    nya_lua_open_engine_permitted(sandboxed, NYA_PLUGIN_PERMISSION_INPUT);
+
+    NYA_ConstCString probe =
+        "nya.log.info('logging needs no permission, so it is here')\n"
+        "nya.log.info('input was granted: nya.input.action_pressed is ' .. type(nya.input.action_pressed))\n"
+        "nya.log.info('entities were not: nya.entity is ' .. type(nya.entity))\n";
+
+    NYA_EXPECT(nya_lua_run(sandboxed, probe, "permissions.lua"), "while probing what the VM was given");
 
     nya_backtrace_deinit();
     return EXIT_SUCCESS;
