@@ -23,6 +23,7 @@ Each is a directory under `src/nyangine/` with a `<module>.h` that includes the 
 | `ui` | Immediate mode UI, split by domain across seven files |
 | `physics` | Box2D and Box3D behind one interface, with collision layers |
 | `net` | UDP transport, encryption, snapshots, prediction, chat |
+| `http` | An HTTP/1.1 server, routing and layers, JWT, OpenAPI generated from both |
 | `serde` | Text to and from a dynamic object tree, plus the reflection bridge |
 | `testing` | Property tests, deterministic simulation, sessions, agents |
 | `nn` | Tensors, DQN, NEAT |
@@ -112,6 +113,7 @@ typedef struct { f32 gravity; u32 substeps; } MyOptions;
 
 ## What to read next
 
+- [The HTTP server](http.md) for the one module with a page of its own so far.
 - [Cheatsheet](CHEATSHEET.md) for the signatures.
 - The headers themselves for the reasoning — each opens with what the module is for, every function
   in it, an example, and what was rejected.

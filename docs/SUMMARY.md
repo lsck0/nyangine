@@ -10,6 +10,10 @@
 - [Drawing a UI](tutorials/drawing-a-ui.md)
 - [Adding a system](tutorials/adding-a-system.md)
 
+## Guides
+
+- [The HTTP server](http.md)
+
 ## Reference
 
 - [Cheatsheet](CHEATSHEET.md)
