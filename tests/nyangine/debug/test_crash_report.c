@@ -1,31 +1,50 @@
 /**
- * The crash reporter's report: nya_crash_report_compose and nya_crash_report_submit.
+ * The crash reporter's report: nya_crash_report_compose and nya_crash_report_submit, and the window
+ * that shows it.
  *
- * The window is not exercised here on purpose. A test build is headless and has no video subsystem, so
- * nya_crash_window_show returns without opening anything; what a test can hold to account is the text,
- * which is also exactly what the window shows and what both of its buttons hand over.
+ * Most of what a test can hold to account is the text, which is also exactly what the window shows and
+ * what both of its buttons hand over. The window itself is opened twice: once with no video subsystem,
+ * where it must decline rather than fail, and once for real, where it must come up, draw and go away
+ * again when it is dismissed. That second one is what caught SDL_RENDER being off in the vendored SDL,
+ * which had left the window unable to open in any build ever shipped; see vendor_sdl.h.
  * */
 
-#include "SDL3/SDL_events.h"
-#include "SDL3/SDL_hints.h"
-#include "SDL3/SDL_init.h"
-#include "SDL3/SDL_thread.h"
-#include "SDL3/SDL_timer.h"
-
+// after the engine, which is what decides how SDL is configured; see the fuzz targets for the same rule.
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
+
+#include "SDL3/SDL_events.h"
+#include "SDL3/SDL_init.h"
+#include "SDL3/SDL_render.h"
+#include "SDL3/SDL_thread.h"
+#include "SDL3/SDL_timer.h"
+#include "SDL3/SDL_video.h"
 
 #define TEST_DIRECTORY "./.test_crash_reports"
 
 /** Long enough for the window to have come up and drawn at least once. */
 #define DISMISS_DELAY_MS 300
 
+/**
+ * How many dismissals are sent before the test stops trying, bounding it at six seconds.
+ *
+ * The window waits for an input and there is nobody at a CI runner to give it one, so a dismissal that
+ * never arrived would hang the whole suite rather than fail it. One is enough in practice; the rest are
+ * there so that a dropped or filtered event costs a slow test instead of a stuck one.
+ * */
+#define DISMISS_ATTEMPTS_MAX 20
+
+/** Cleared once nya_crash_window_show has returned, so the dismisser stops knocking. */
+static atomic_bool window_open = false;
+
 /** Dismisses the crash window from outside it, the way a person clicking the close box would. */
 static int SDLCALL dismiss_after_a_moment(void* user_data) {
     nya_unused(user_data);
 
-    SDL_Delay(DISMISS_DELAY_MS);
-    (void)SDL_PushEvent(&(SDL_Event){ .type = SDL_EVENT_QUIT });
+    for (u32 attempt = 0; attempt < DISMISS_ATTEMPTS_MAX && atomic_load(&window_open); attempt++) {
+        SDL_Delay(DISMISS_DELAY_MS);
+        (void)SDL_PushEvent(&(SDL_Event){ .type = SDL_EVENT_QUIT });
+    }
 
     return 0;
 }
@@ -168,21 +187,40 @@ s32 main(void) {
     nya_crash_window_show(&assertion, (NYA_ConstCString)report);
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: and opens, draws and closes where there is one. SDL's dummy driver
-    //       gives a real window and a real software renderer with no display, so
-    //       this runs in CI; the quit comes from a thread because the window blocks
-    //       until it is dismissed, which is what it is supposed to do.
+    // TEST: and opens, draws and closes where there is one. The quit comes from a
+    //       thread because the window blocks until it is dismissed, which is what
+    //       it is supposed to do.
     // ─────────────────────────────────────────────────────────────────────────────
-    SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        nya_log_warn("No video subsystem even under the dummy driver, skipping the window: %s", SDL_GetError());
+        nya_log_warn("No video subsystem here, skipping the crash window: %s", SDL_GetError());
     } else {
-        SDL_Thread* dismiss = SDL_CreateThread(dismiss_after_a_moment, "dismiss_crash_window", nullptr);
-        nya_check(dismiss != nullptr, "the dismissing thread should start: %s", SDL_GetError());
+        /*
+         * Probed rather than assumed, and skipped rather than failed. The window draws through
+         * SDL_Renderer and the only render drivers this build of SDL carries want a real display, so a
+         * machine with none is one this test cannot run on rather than a reporter that is broken. It has
+         * to be a probe and not a try: where the window cannot open, nya_crash_window_show falls through
+         * to a modal message box, and a test that opens one waits for a person who is not there.
+         */
+        SDL_Window*   probe          = nullptr;
+        SDL_Renderer* probe_renderer = nullptr;
 
-        if (dismiss != nullptr) {
-            nya_crash_window_show(&assertion, (NYA_ConstCString)report);
-            SDL_WaitThread(dismiss, nullptr);
+        if (!SDL_CreateWindowAndRenderer("probe", 64, 64, 0, &probe, &probe_renderer)) {
+            nya_log_warn("No render driver here, skipping the crash window: %s", SDL_GetError());
+        } else {
+            SDL_DestroyRenderer(probe_renderer);
+            SDL_DestroyWindow(probe);
+
+            atomic_store(&window_open, true);
+
+            SDL_Thread* dismiss = SDL_CreateThread(dismiss_after_a_moment, "dismiss_crash_window", nullptr);
+            nya_check(dismiss != nullptr, "the dismissing thread should start: %s", SDL_GetError());
+
+            if (dismiss != nullptr) {
+                nya_crash_window_show(&assertion, (NYA_ConstCString)report);
+
+                atomic_store(&window_open, false);
+                SDL_WaitThread(dismiss, nullptr);
+            }
         }
 
         SDL_Quit();

@@ -23,9 +23,33 @@
 #define SDL_LINKER_LINUX_X86_64   "-L" SDL_BUILD_LINUX_X86_64, "-lSDL3"
 
 /*
- * Off is what the engine never calls: the 2D renderer (drawing is SDL_GPU), OpenGL, camera, haptic,
- * dialogs, tray, notifications, OpenXR and io_uring. Video is wayland and x11 (see nya_app_init_with_options),
- * so no KMSDRM; offscreen and dummy stay for headless runs. Audio keeps pipewire, pulse and alsa.
+ * This file, as an input the built library depends on.
+ *
+ * A vendor rule is NYA_BUILD_ONCE keyed on its own archive, so changing a cmake option here used to
+ * change nothing at all: the archive was still there, the rule was skipped, and the option quietly
+ * applied to nobody who had built once already. Turning SDL_RENDER on is exactly that kind of change,
+ * and one that does nothing until a rebuild is not a change. NYA_BUILD_IF_OUTDATED against this file
+ * is the dependency that was always there and was never written down.
+ *
+ * It costs about 160 ms on a build where this file is the newer of the two, since cmake and ninja are
+ * then asked and both answer "nothing to do". That is the price of asking the tool rather than
+ * guessing from the archive's existence, and it is the right way round.
+ *
+ * Only SDL carries it, because only SDL's options moved. Every other vendor header has the same gap;
+ * see TODO.md.
+ */
+#define SDL_OPTIONS_FILE "./src/build/vendor/vendor_sdl.h"
+
+/*
+ * Off is what the engine never calls: OpenGL, camera, haptic, dialogs, tray, notifications, OpenXR and
+ * io_uring. Video is wayland and x11 (see nya_app_init_with_options), so no KMSDRM; offscreen and dummy
+ * stay for headless runs. Audio keeps pipewire, pulse and alsa.
+ *
+ * SDL_RENDER is on for exactly one caller: the crash window, which draws through SDL_Renderer because
+ * it has to come up after the GPU device it would otherwise draw with is gone. It was off here until a
+ * test opened the window and found SDL_CreateWindowAndRenderer answering "SDL not built with rendering
+ * support" in every build ever shipped, which meant every crash fell through to the plain message box.
+ * Everything else draws through SDL_GPU; see tests/nyangine/debug/test_crash_report.c.
  *
  * Lean and mean drops the software blitters, RLE and YUV. SDL_HAVE_BLIT_N keeps the fast format
  * conversion that decoded images and glyphs go through on their way to RGBA32.
@@ -43,7 +67,7 @@
     "-DSDL_TEST_LIBRARY=OFF",                   \
     "-DSDL_TESTS=OFF",                          \
     "-DSDL_INSTALL=OFF",                        \
-    "-DSDL_RENDER=OFF",                         \
+    "-DSDL_RENDER=ON",                          \
     "-DSDL_OPENGL=OFF",                         \
     "-DSDL_OPENGLES=OFF",                       \
     "-DSDL_CAMERA=OFF",                         \
@@ -71,7 +95,8 @@ NYA_VendorRule vendor_sdl_linux_x86_64 = {
     .parts = {
         &(NYA_BuildRule){
             .name        = "vendor_sdl_linux_x86_64_configure",
-            .policy      = NYA_BUILD_ONCE,
+            .policy      = NYA_BUILD_IF_OUTDATED,
+            .input_file  = SDL_OPTIONS_FILE,
             .output_file = SDL_A_LINUX_X86_64,
 
             .command = {
@@ -87,7 +112,8 @@ NYA_VendorRule vendor_sdl_linux_x86_64 = {
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_linux_x86_64_compile",
-            .policy      = NYA_BUILD_ONCE,
+            .policy      = NYA_BUILD_IF_OUTDATED,
+            .input_file  = SDL_OPTIONS_FILE,
             .output_file = SDL_A_LINUX_X86_64,
 
             .command = {
@@ -122,7 +148,8 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
     .parts = {
         &(NYA_BuildRule){
             .name        = "vendor_sdl_windows_x86_64_configure",
-            .policy      = NYA_BUILD_ONCE,
+            .policy      = NYA_BUILD_IF_OUTDATED,
+            .input_file  = SDL_OPTIONS_FILE,
             .output_file = SDL_A_WINDOWS_X86_64,
 
             .command = {
@@ -144,7 +171,8 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_windows_x86_64_compile",
-            .policy      = NYA_BUILD_ONCE,
+            .policy      = NYA_BUILD_IF_OUTDATED,
+            .input_file  = SDL_OPTIONS_FILE,
             .output_file = SDL_A_WINDOWS_X86_64,
 
             .command = {
