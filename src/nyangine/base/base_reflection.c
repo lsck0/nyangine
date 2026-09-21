@@ -12,13 +12,6 @@
 NYA_INTERNAL b8 _nya_reflect_read_integer(NYA_Type primitive, const void* instance, OUT s64* out_value);
 NYA_INTERNAL b8 _nya_reflect_write_integer(NYA_Type primitive, void* instance, s64 value);
 
-/** The numeric content of a value, however it was spelled. See the note in nya_reflect_write. */
-NYA_INTERNAL b8 _nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value);
-NYA_INTERNAL b8 _nya_reflect_value_to_f64(NYA_Value value, OUT f64* out_value);
-
-/** Whether an array of these is text rather than a list of numbers. See nya_reflect_to_object. */
-NYA_INTERNAL b8 _nya_reflect_is_char_array(const NYA_TypeReflection* type);
-
 /** One element of an array or vector, as a value. Shared by both, which differ only in their stride. */
 NYA_INTERNAL NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflection* element, const void* address);
 
@@ -166,6 +159,61 @@ b8 nya_reflect_variant_value(const NYA_TypeReflection* type, NYA_ConstCString na
     return false;
 }
 
+b8 nya_reflect_is_char_array(const NYA_TypeReflection* type) {
+    if (type == nullptr) return false;
+
+    return type->kind == NYA_REFLECT_ARRAY && type->element != nullptr && type->element->kind == NYA_REFLECT_PRIMITIVE &&
+           type->element->primitive == NYA_TYPE_CHAR;
+}
+
+b8 nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value) {
+    switch (value.type) {
+        case NYA_TYPE_B8:  *out_value = value.as_b8; return true;
+        case NYA_TYPE_B16: *out_value = value.as_b16; return true;
+        case NYA_TYPE_B32: *out_value = value.as_b32; return true;
+        case NYA_TYPE_B64: *out_value = (s64)value.as_b64; return true;
+
+        case NYA_TYPE_U8:  *out_value = value.as_u8; return true;
+        case NYA_TYPE_U16: *out_value = value.as_u16; return true;
+        case NYA_TYPE_U32: *out_value = value.as_u32; return true;
+        case NYA_TYPE_U64: *out_value = (s64)value.as_u64; return true;
+
+        case NYA_TYPE_S8:  *out_value = (s64)value.as_s8; return true; // NOLINT(bugprone-signed-char-misuse): sign extension is the point
+        case NYA_TYPE_S16: *out_value = value.as_s16; return true;
+        case NYA_TYPE_S32: *out_value = value.as_s32; return true;
+        case NYA_TYPE_S64: *out_value = value.as_s64; return true;
+
+        case NYA_TYPE_CHAR: *out_value = (u8)value.as_char; return true;
+
+        // A whole number written with a decimal point is still a whole number. Truncation is
+        // deliberate rather than an error, so "count": 3.0 loads.
+        case NYA_TYPE_F32: *out_value = (s64)value.as_f32; return true;
+        case NYA_TYPE_F64: *out_value = (s64)value.as_f64; return true;
+
+        default: return false;
+    }
+}
+
+b8 nya_reflect_value_to_f64(NYA_Value value, OUT f64* out_value) {
+    if (value.type == NYA_TYPE_F32) {
+        *out_value = (f64)value.as_f32;
+        return true;
+    }
+
+    if (value.type == NYA_TYPE_F64) {
+        *out_value = value.as_f64;
+        return true;
+    }
+
+    // Integers widen into a float without complaint, which is the case that matters: a hand written
+    // 1 has to load into an f32 field.
+    s64 integer = 0;
+    if (!nya_reflect_value_to_s64(value, &integer)) return false;
+
+    *out_value = (f64)integer;
+    return true;
+}
+
 NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance) {
     NYA_Value none = { .type = NYA_TYPE_NULL };
 
@@ -217,7 +265,7 @@ b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value v
 
     if (type->kind == NYA_REFLECT_ENUM) {
         s64 integer = 0;
-        if (!_nya_reflect_value_to_s64(value, &integer)) return false;
+        if (!nya_reflect_value_to_s64(value, &integer)) return false;
 
         return _nya_reflect_write_integer(type->primitive, instance, integer);
     }
@@ -242,7 +290,7 @@ b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value v
             }
 
             s64 integer = 0;
-            if (!_nya_reflect_value_to_s64(value, &integer)) return false;
+            if (!nya_reflect_value_to_s64(value, &integer)) return false;
 
             *(char*)instance = (char)integer;
             return true;
@@ -250,7 +298,7 @@ b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value v
 
         case NYA_TYPE_F32: {
             f64 number = 0.0;
-            if (!_nya_reflect_value_to_f64(value, &number)) return false;
+            if (!nya_reflect_value_to_f64(value, &number)) return false;
 
             *(f32*)instance = (f32)number;
             return true;
@@ -258,7 +306,7 @@ b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value v
 
         case NYA_TYPE_F64: {
             f64 number = 0.0;
-            if (!_nya_reflect_value_to_f64(value, &number)) return false;
+            if (!nya_reflect_value_to_f64(value, &number)) return false;
 
             *(f64*)instance = number;
             return true;
@@ -266,7 +314,7 @@ b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value v
 
         default: {
             s64 integer = 0;
-            if (!_nya_reflect_value_to_s64(value, &integer)) return false;
+            if (!nya_reflect_value_to_s64(value, &integer)) return false;
 
             return _nya_reflect_write_integer(type->primitive, instance, integer);
         }
@@ -358,7 +406,7 @@ NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* ty
             case NYA_REFLECT_VECTOR: {
                 // A char array is text, not a list of numbers. `char name[32]` written as thirty two
                 // integers is technically complete and useless to read.
-                if (_nya_reflect_is_char_array(field_type)) {
+                if (nya_reflect_is_char_array(field_type)) {
                     const char* text = (const char*)address;
 
                     u64 length = 0;
@@ -471,7 +519,7 @@ NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance
 
             case NYA_REFLECT_ARRAY:
             case NYA_REFLECT_VECTOR: {
-                if (_nya_reflect_is_char_array(field_type)) {
+                if (nya_reflect_is_char_array(field_type)) {
                     if (value->type != NYA_TYPE_STRING || value->as_string == nullptr) break;
 
                     char* destination = (char*)address;
@@ -591,7 +639,7 @@ void _nya_reflect_describe_value(const NYA_Value* value, OUT char* out, u64 capa
     }
 
     s64 integer = 0;
-    if (_nya_reflect_value_to_s64(*value, &integer)) {
+    if (nya_reflect_value_to_s64(*value, &integer)) {
         (void)snprintf(out, capacity, "the number " FMTs64, integer);
         return;
     }
@@ -600,7 +648,7 @@ void _nya_reflect_describe_value(const NYA_Value* value, OUT char* out, u64 capa
 }
 
 void _nya_reflect_describe_expected(const NYA_TypeReflection* type, OUT char* out, u64 capacity) {
-    if (_nya_reflect_is_char_array(type)) {
+    if (nya_reflect_is_char_array(type)) {
         (void)snprintf(out, capacity, "text of at most " FMTu32 " bytes", type->element_count - 1);
         return;
     }
@@ -733,7 +781,7 @@ u32 _nya_reflect_check_value(
             u8 scratch[sizeof(u64)] = { 0 };
             accepted                = nya_reflect_write(type, scratch, *value);
         }
-    } else if (_nya_reflect_is_char_array(type)) {
+    } else if (nya_reflect_is_char_array(type)) {
         accepted = value->type == NYA_TYPE_STRING && value->as_string != nullptr && strlen(value->as_string) < type->element_count;
     } else if (type->kind == NYA_REFLECT_ARRAY || type->kind == NYA_REFLECT_VECTOR) {
         accepted = value->type == NYA_TYPE_ARRAY && value->as_array.length <= type->element_count;
@@ -751,7 +799,7 @@ u32 _nya_reflect_check_value(
 
     if (accepted) {
         if (type->kind != NYA_REFLECT_ARRAY && type->kind != NYA_REFLECT_VECTOR) return 0;
-        if (_nya_reflect_is_char_array(type) || type->element == nullptr) return 0;
+        if (nya_reflect_is_char_array(type) || type->element == nullptr) return 0;
 
         u32 problems = 0;
         u32 index    = 0;
@@ -827,11 +875,6 @@ u32 _nya_reflect_check_object(
     return problems;
 }
 
-b8 _nya_reflect_is_char_array(const NYA_TypeReflection* type) {
-    return type->kind == NYA_REFLECT_ARRAY && type->element != nullptr && type->element->kind == NYA_REFLECT_PRIMITIVE &&
-           type->element->primitive == NYA_TYPE_CHAR;
-}
-
 NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflection* element, const void* address) {
     if (element->kind == NYA_REFLECT_STRUCT || element->kind == NYA_REFLECT_UNION) {
         NYA_Object* nested = nya_reflect_to_object(arena, element, address);
@@ -891,52 +934,4 @@ b8 _nya_reflect_write_integer(NYA_Type primitive, void* instance, s64 value) {
 
         default: return false;
     }
-}
-
-b8 _nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value) {
-    switch (value.type) {
-        case NYA_TYPE_B8:  *out_value = value.as_b8; return true;
-        case NYA_TYPE_B16: *out_value = value.as_b16; return true;
-        case NYA_TYPE_B32: *out_value = value.as_b32; return true;
-        case NYA_TYPE_B64: *out_value = (s64)value.as_b64; return true;
-
-        case NYA_TYPE_U8:  *out_value = value.as_u8; return true;
-        case NYA_TYPE_U16: *out_value = value.as_u16; return true;
-        case NYA_TYPE_U32: *out_value = value.as_u32; return true;
-        case NYA_TYPE_U64: *out_value = (s64)value.as_u64; return true;
-
-        case NYA_TYPE_S8:  *out_value = (s64)value.as_s8; return true; // NOLINT(bugprone-signed-char-misuse): sign extension is the point
-        case NYA_TYPE_S16: *out_value = value.as_s16; return true;
-        case NYA_TYPE_S32: *out_value = value.as_s32; return true;
-        case NYA_TYPE_S64: *out_value = value.as_s64; return true;
-
-        case NYA_TYPE_CHAR: *out_value = (u8)value.as_char; return true;
-
-        // A whole number written with a decimal point is still a whole number. Truncation is
-        // deliberate rather than an error, so "count": 3.0 loads.
-        case NYA_TYPE_F32: *out_value = (s64)value.as_f32; return true;
-        case NYA_TYPE_F64: *out_value = (s64)value.as_f64; return true;
-
-        default: return false;
-    }
-}
-
-b8 _nya_reflect_value_to_f64(NYA_Value value, OUT f64* out_value) {
-    if (value.type == NYA_TYPE_F32) {
-        *out_value = (f64)value.as_f32;
-        return true;
-    }
-
-    if (value.type == NYA_TYPE_F64) {
-        *out_value = value.as_f64;
-        return true;
-    }
-
-    // Integers widen into a float without complaint, which is the case that matters: a hand written
-    // 1 has to load into an f32 field.
-    s64 integer = 0;
-    if (!_nya_reflect_value_to_s64(value, &integer)) return false;
-
-    *out_value = (f64)integer;
-    return true;
 }

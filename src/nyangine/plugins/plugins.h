@@ -11,6 +11,8 @@
 
 #ifdef NYA_PLUGIN_SQLITE
 #include "nyangine/plugins/sqlite/sql.h"
+// After sql.h: a table binds a described type to a connection and takes its key as an NYA_SqlValue.
+#include "nyangine/plugins/sqlite/orm.h"
 #endif
 
 // Always: the module is a facade over a backend table, and only the backend is behind

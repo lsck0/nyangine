@@ -6,6 +6,8 @@
 
 #ifdef NYA_PLUGIN_SQLITE
 #include "nyangine/plugins/sqlite/sql.c"
+// After sql.c, whose connection and bound values it is written in terms of.
+#include "nyangine/plugins/sqlite/orm.c"
 #endif
 
 // Always, for the reason in plugins.h. steam.c includes steam_steamworks.c itself, under

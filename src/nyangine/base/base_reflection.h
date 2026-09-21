@@ -277,6 +277,26 @@ NYA_API NYA_ConstCString nya_reflect_variant_name(const NYA_TypeReflection* type
 NYA_API b8 nya_reflect_variant_value(const NYA_TypeReflection* type, NYA_ConstCString name, OUT s64* out_value);
 
 /**
+ * Whether a described type is a `char[N]`, which is text rather than a list of numbers and is written
+ * and read as such everywhere. The one place that decides it, since a consumer that decided otherwise
+ * would write a field out in a shape nothing reads back.
+ * */
+NYA_API b8 nya_reflect_is_char_array(const NYA_TypeReflection* type) __attr_no_discard;
+
+/**
+ * The numeric content of a value, however it was spelled: every integer width and every boolean
+ * widens, a char reads as its byte, and a whole number written with a decimal point truncates, so
+ * `3.0` reads as `3`. False when the value holds nothing numeric at all.
+ *
+ * Public because it is what decides whether a value fits a field, and a second implementation of that
+ * rule anywhere else would be a second answer. nya_reflect_write and the sqlite ORM both read it.
+ * */
+NYA_API b8 nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value);
+
+/** The same for a real. Integers widen into one without complaint, since a hand written 1 must load. */
+NYA_API b8 nya_reflect_value_to_f64(NYA_Value value, OUT f64* out_value);
+
+/**
  * Reads one primitive field out of `instance` as an NYA_Value.
  * */
 NYA_API NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance) __attr_no_discard;
