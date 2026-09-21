@@ -1129,8 +1129,8 @@ void nya_audio_play_music_with(NYA_ConstCString music_handle, NYA_MusicParams pa
 void nya_audio_crossfade_music(NYA_ConstCString music_handle, NYA_MusicParams params, u32 duration_ms)  // Fades the current track out while fading the new one in, over `duration_ms`.
 NYA_SoundVoice nya_audio_music_voice(void)  // The music track as a voice, so the effect functions below apply to it.
 void nya_audio_stop_music(u32 fade_out_ms)  // Stops the music, fading out over `fade_out_ms`.
-void nya_audio_pause_music(void)
-void nya_audio_resume_music(void)
+void nya_audio_pause_music(void)  // Pauses the music where it is.
+void nya_audio_resume_music(void)  // Resumes it from there.
 b8 nya_audio_music_playing(void)  // Whether the music track is sounding.
 b8 nya_audio_voice_valid(NYA_SoundVoice voice)  // Whether the sound this handle names is still the one in that slot, and still sounding.
 void nya_audio_voice_set_gain(NYA_SoundVoice voice, f32 gain)  // This voice's own gain, on top of the category and master gains.
@@ -1414,8 +1414,8 @@ NYA_EntityHandle nya_entity_spawn_with_options(NYA_EntitySpawnOptions options)  
 void nya_entity_despawn(NYA_EntityHandle entity)  // Removes an entity immediately.
 void nya_entity_despawn_deferred(NYA_EntityHandle entity)  // Removes an entity at the next simulation barrier, so iteration is never disturbed.
 NYA_Entity* nya_entity_get(NYA_EntityHandle entity)  // Null once the entity is gone.
-b8 nya_entity_is_valid(NYA_EntityHandle entity)
-u32 nya_entity_count(void)
+b8 nya_entity_is_valid(NYA_EntityHandle entity)  // Whether the handle still resolves to a live entity.
+u32 nya_entity_count(void)  // How many entities are alive.
 void nya_entity_clear(void)  // Removes every entity.
 NYA_Entity* nya_entity_at_slot(u32 index)  // Null for an empty slot.
 u32 nya_entity_slot_count(void)
@@ -1576,14 +1576,14 @@ NYA_InputBinding nya_input_action_get(NYA_InputAction action, u32 slot)  // The 
 void nya_input_action_bind_button(NYA_InputAction action, NYA_GamepadButton button)  // Binds a gamepad button, or an axis past a threshold, into the next free slot.
 void nya_input_action_bind_axis(NYA_InputAction action, NYA_GamepadAxis axis, f32 threshold)
 b8 nya_input_binding_gamepad_pressed(NYA_InputBinding binding)  // Whether `binding` is currently satisfied by any connected pad, ignoring the keyboard half.
-void nya_input_action_unbind(NYA_InputAction action)
+void nya_input_action_unbind(NYA_InputAction action)  // Drops every binding `action` has.
 b8 nya_input_action_bound(NYA_InputAction action)  // Whether `action` has any key bound to it at all.
 void nya_input_action_name_set(NYA_InputAction action, NYA_ConstCString name)  // Gives `action` a name.
 NYA_ConstCString nya_input_action_name(NYA_InputAction action)  // What `action` is called, or null when nothing has named it.
 NYA_InputAction nya_input_action_from_name(NYA_ConstCString name)  // The action called `name`, or NYA_INPUT_ACTION_NONE.
-b8 nya_input_action_just_pressed(NYA_InputAction action)  // True when any of the action's bindings is satisfied.
-b8 nya_input_action_pressed(NYA_InputAction action)
-b8 nya_input_action_just_released(NYA_InputAction action)
+b8 nya_input_action_just_pressed(NYA_InputAction action)  // True on the frame any of the action's bindings became satisfied.
+b8 nya_input_action_pressed(NYA_InputAction action)  // True while any of the action's bindings is satisfied.
+b8 nya_input_action_just_released(NYA_InputAction action)  // True on the frame the last of the action's bindings stopped being satisfied.
 b8 nya_input_action_just_pressed_by(u32 player, NYA_InputAction action)  // The same three, restricted to one player's devices.
 b8 nya_input_action_pressed_by(u32 player, NYA_InputAction action)
 b8 nya_input_action_just_released_by(u32 player, NYA_InputAction action)
@@ -1960,6 +1960,70 @@ void nya_nav_flow_build(NYA_NavFlow* flow, NYA_NavPoint goal)  // Recomputes the
 u32 nya_nav_flow_distance(const NYA_NavFlow* flow, s32 x, s32 y)  // Total cost from `point` to the goal, or NYA_NAV_UNREACHABLE.
 NYA_NavPoint nya_nav_flow_step(const NYA_NavFlow* flow, NYA_NavPoint from)  // The neighbouring cell to step into from `from`, or `from` itself at the goal or when stuck.
 f32x2 nya_nav_flow_direction(const NYA_NavFlow* flow, NYA_NavPoint from)  // The same step as a normalised direction, or zero when there is nowhere to go.
+```
+
+### core_plugin.h
+
+Lua plugins: a directory on disk becomes a manifest, a permission set and a VM of its own, and the
+
+```c
+// types
+enum NYA_PluginPermission : u64
+enum NYA_PluginPermission : u64 { NYA_PLUGIN_PERMISSION_NONE = 0, NYA_PLUGIN_PERMISSION_UI = 1ULL << 0, NYA_PLUGIN_PERMISSION_INPUT = 1ULL << 1, NYA_PLUGIN_PERMISSION_KEYBINDING = 1ULL << 2, NYA_PLUGIN_PERMISSION_ENTITIES = 1ULL << 3, NYA_PLUGIN_PERMISSION_AUDIO = 1ULL << 4, NYA_PLUGIN_PERMISSION_ASSETS = 1ULL << 5, NYA_PLUGIN_PERMISSION_FILESYSTEM = 1ULL << 6, NYA_PLUGIN_PERMISSION_NETWORK = 1ULL << 7, }  // What a plugin may touch.
+struct NYA_PluginDependency { char name[NYA_PLUGIN_NAME_MAX]; char version[NYA_PLUGIN_VERSION_MAX]; }  // One entry of a manifest's `dependencies` or `conflicts` list.
+struct NYA_PluginManifest { char name[NYA_PLUGIN_NAME_MAX]; char version[NYA_PLUGIN_VERSION_MAX]; char engine_version[NYA_PLUGIN_VERSION_MAX]; char author[NYA_PLUGIN_AUTHOR_MAX]; char license[NYA_PLUGIN_LICENSE_MAX]; char description[NYA_PLUGIN_DESCRIPTION_MAX]; char repository[NYA_PLUGIN_URL_MAX]; NYA_PluginPermission permissions; NYA_PluginDependency dependencies[NYA_PLUGIN_DEPENDENCY_MAX]; NYA_PluginDependency conflicts[NYA_PLUGIN_DEPENDENCY_MAX]; }
+struct NYA_Plugin { NYA_PluginManifest manifest; char directory[NYA_PLUGIN_PATH_MAX]; NYA_PluginPermission permissions; b8 enabled; u32 error_count; b8 has_frame; b8 has_tick; b8 has_render; void* _state; }  // One loaded plugin.
+
+// macros
+NYA_PLUGIN_DIRECTORY "./plugins"  // Where nya_plugin_load_all looks.
+NYA_PLUGIN_MAX 8  // How many plugins may be loaded at once.
+NYA_PLUGIN_ERROR_MAX 8  // Errors one plugin may raise before it is disabled.
+NYA_PLUGIN_NAME_MAX 64  // Names, versions and prose in a manifest, terminator included.
+NYA_PLUGIN_VERSION_MAX 32
+NYA_PLUGIN_AUTHOR_MAX 96
+NYA_PLUGIN_LICENSE_MAX 48
+NYA_PLUGIN_DESCRIPTION_MAX 192
+NYA_PLUGIN_URL_MAX 192
+NYA_PLUGIN_PATH_MAX 512  // A path this module builds: `plugins/<name>/src/<file>.lua` plus room for a deep working directory.
+NYA_PLUGIN_DEPENDENCY_MAX 8  // Dependencies and conflicts one manifest may name.
+NYA_PLUGIN_SOURCE_MAX 32  // Files under `src/` one plugin may have.
+NYA_PLUGIN_CANDIDATE_MAX (NYA_PLUGIN_MAX * 4)
+NYA_PLUGIN_QUALIFIED_MAX (NYA_PLUGIN_NAME_MAX + NYA_PLUGIN_NAME_MAX + 1)  // A qualified name: `<plugin>:<name>`, terminator included.
+NYA_PLUGIN_MANIFEST_FILE "manifest.nya"
+NYA_PLUGIN_ENTRY_FILE "main.lua"
+NYA_PLUGIN_SOURCE_DIRECTORY "src"
+NYA_PLUGIN_ASSET_DIRECTORY "assets"
+NYA_PLUGIN_SOURCE_EXTENSION ".lua"
+NYA_PLUGIN_HOOK_LOAD "on_load"
+NYA_PLUGIN_HOOK_UNLOAD "on_unload"
+NYA_PLUGIN_HOOK_FRAME "on_frame"
+NYA_PLUGIN_HOOK_TICK "on_tick"
+NYA_PLUGIN_HOOK_RENDER "on_render"
+NYA_PLUGIN_PERMISSION_PROFILE_LOCKED 0  // Nothing but logging and the clock.
+NYA_PLUGIN_PERMISSION_PROFILE_UI 1  // Draw and read, change nothing: UI and input state, no key bindings, no entities.
+NYA_PLUGIN_PERMISSION_PROFILE_GAMEPLAY 2  // UI, key bindings, entities, audio and the engine's assets.
+NYA_PLUGIN_PERMISSION_PROFILE_ALL 3  // Everything, the plugin's own directory and the network included.
+NYA_PLUGIN_PERMISSION_PROFILE NYA_PLUGIN_PERMISSION_PROFILE_UI  // Conservative by default: a build that says nothing gets plugins that can draw and read and change nothing.
+
+// functions
+NYA_PluginPermission nya_plugin_permissions_granted(void)  // Everything this build lets a plugin have, derived from NYA_PLUGIN_PERMISSION_PROFILE at compile time.
+NYA_ConstCString nya_plugin_permission_name(NYA_PluginPermission permission)  // One permission as a manifest spells it: "NYA_PLUGIN_PERMISSION_UI".
+NYA_Error nya_plugin_manifest_load(NYA_ConstCString directory, OUT NYA_PluginManifest* out_manifest)
+NYA_Error nya_plugin_load_all(void)  // Loads every plugin directory under NYA_PLUGIN_DIRECTORY, dependencies before dependents.
+NYA_Error nya_plugin_load(NYA_ConstCString directory)
+void nya_plugin_unload(NYA_ConstCString name)  // Unloads the plugin called `name`: `on_unload`, then its systems, then its VM and its arena.
+void nya_plugin_unload_all(void)  // Unloads everything, in reverse load order, so a dependency outlives its dependents.
+void nya_plugin_enable(NYA_ConstCString name)  // Whether the plugin's per-frame hooks run.
+void nya_plugin_disable(NYA_ConstCString name)
+b8 nya_plugin_is_enabled(NYA_ConstCString name)  // What those two last set.
+u32 nya_plugin_count(void)  // How many plugins are loaded.
+const NYA_Plugin* nya_plugin_at(u32 index)  // The plugin at `index`, in load order.
+const NYA_Plugin* nya_plugin_find(NYA_ConstCString name)  // The plugin called `name`, or null.
+NYA_ConstCString nya_plugin_current(void)  // Which plugin's code is running right now, or null when the answer is the engine or the game.
+NYA_SystemOwnerStats nya_plugin_stats(NYA_ConstCString name)  // What `name`'s systems cost, straight out of the system registry's per-owner accounting.
+NYA_Error nya_plugin_call( NYA_ConstCString name, NYA_ConstCString function, NYA_Arena* arena, const NYA_Value* arguments, u32 argument_count, OUT NYA_Value* out_result )
+void nya_plugin_error(NYA_ConstCString name, NYA_ConstCString what, NYA_ConstCString detail)
+NYA_ConstCString nya_plugin_qualify(NYA_ConstCString plugin, NYA_ConstCString name, OUT char* out, u64 capacity)  // Writes `<plugin>:<name>` into `out`, which is how every name a plugin hands to an engine registry is spelled.
 ```
 
 ### core_save.h
@@ -4661,8 +4725,11 @@ NYA_Error nya_discord_join_reply(NYA_ConstCString user_id, b8 accept)
 
 ### lua.h
 
+A LuaJIT VM, values crossing in both directions as NYA_Value, and C functions callable from a
+
 ```c
 // types
+enum NYA_PluginPermission : u64
 struct NYA_LuaCall { NYA_Arena* arena; const NYA_Value* arguments; u32 argument_count; void* user_data; NYA_Value results[NYA_LUA_MAX_ARGUMENTS]; u32 result_count; }  // What a bound C function receives and answers with.
 typedef void (*NYA_LuaFn)(NYA_LuaCall* call)  // A function a script may call.
 struct NYA_LuaOptions { b8 no_standard_library; b8 restricted; b8 engine_api; }  // Everything optional about a VM.
@@ -4686,7 +4753,9 @@ NYA_Value nya_lua_boolean(b8 value)
 NYA_Value nya_lua_string(NYA_ConstCString value)
 NYA_Value nya_lua_nil(void)
 void nya_lua_register(NYA_LuaVM* vm, NYA_ConstCString name, NYA_LuaFn fn, void* user_data)  // Makes `fn` callable from Lua as a global named `name`.
+void nya_lua_register_path(NYA_LuaVM* vm, NYA_ConstCString path, NYA_LuaFn fn, void* user_data)
 void nya_lua_open_engine(NYA_LuaVM* vm)  // Puts the engine's `nya` table in front of scripts.
+void nya_lua_open_engine_permitted(NYA_LuaVM* vm, NYA_PluginPermission permissions)  // The same table with only the calls `permissions` allows, which is what a plugin gets.
 u64 nya_lua_memory_bytes(const NYA_LuaVM* vm)  // Bytes LuaJIT currently has allocated.
 void nya_lua_collect(NYA_LuaVM* vm)  // Runs a full garbage collection cycle.
 ```
