@@ -50,6 +50,21 @@
  * Text is monospace by definition, so `nya_render2d_text_measure` returns cells times the cell size
  * rather than asking a font. A layout measured here lands exactly where it is drawn, which is not
  * true of measuring a proportional font and then drawing into a grid.
+ *
+ * ## The one font
+ *
+ * A terminal has exactly one face and it belongs to whoever configured the terminal, so
+ * `nya_render2d_terminal_open` registers `NYA_RENDER2D_TERMINAL_FONT` and makes it the default face
+ * unless a caller already set one. Without that a TUI would have to name a `.ttf` nothing opens
+ * before `nya_ui_*` would measure anything at all, since an invalid face measures zero and the UI
+ * lays out without drawing while it does. A caller that names another font gets the same cells.
+ *
+ * ## Layers do not sort here
+ *
+ * `nya_render2d_layer_set` is recorded and read back, and changes nothing: cells are painted where
+ * they are drawn. The UI's stacking of top level panels is therefore hit tested correctly and drawn
+ * in call order, so two overlapping panels in a TUI show the one declared last. Put a TUI's panels
+ * beside each other rather than over each other until there is a sorted cell buffer.
  * */
 #pragma once
 
@@ -63,6 +78,18 @@
 #if NYA_TERMINAL_ENABLED
 
 typedef struct NYA_Window NYA_Window;
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * CONSTANTS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * The name and path the terminal's one face is registered under at open. Not a file: nothing loads it, and every
+ * measurement of it is cells. It exists because a face has to be valid for the UI to measure with it at all.
+ * */
+#define NYA_RENDER2D_TERMINAL_FONT "terminal"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

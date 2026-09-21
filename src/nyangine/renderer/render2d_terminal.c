@@ -263,6 +263,17 @@ NYA_Error nya_render2d_terminal_open(NYA_TerminalOptions options) {
         nya_log_info("Terminal renderer: %s are off; a terminal has no pass to run them in.", disabled);
     }
 
+    /*
+     * The terminal is one face at one size, so it is registered as one and becomes the default unless a caller
+     * already chose. Nothing opens the path: every measurement of it is cells. Without a valid default face
+     * nya_font_metrics answers zero, and the UI lays a zero line height out without ever drawing it, which is what
+     * a TUI built on nya_ui_* hit before this.
+     */
+    NYA_Font face = nya_font(NYA_RENDER2D_TERMINAL_FONT, (f32)NYA_TERMINAL_CELL_HEIGHT_PX);
+
+    (void)nya_font_register(NYA_RENDER2D_TERMINAL_FONT, face.path, face.point_size);
+    if (!nya_font_valid(nya_font_default())) nya_font_default_set(face);
+
     return NYA_OK;
 }
 
