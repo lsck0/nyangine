@@ -6,10 +6,29 @@
  * which is also exactly what the window shows and what both of its buttons hand over.
  * */
 
+#include "SDL3/SDL_events.h"
+#include "SDL3/SDL_hints.h"
+#include "SDL3/SDL_init.h"
+#include "SDL3/SDL_thread.h"
+#include "SDL3/SDL_timer.h"
+
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
 #define TEST_DIRECTORY "./.test_crash_reports"
+
+/** Long enough for the window to have come up and drawn at least once. */
+#define DISMISS_DELAY_MS 300
+
+/** Dismisses the crash window from outside it, the way a person clicking the close box would. */
+static int SDLCALL dismiss_after_a_moment(void* user_data) {
+    nya_unused(user_data);
+
+    SDL_Delay(DISMISS_DELAY_MS);
+    (void)SDL_PushEvent(&(SDL_Event){ .type = SDL_EVENT_QUIT });
+
+    return 0;
+}
 
 static u8 report[NYA_CRASH_REPORT_MAX_BYTES];
 
@@ -147,6 +166,27 @@ s32 main(void) {
     //       than failing. A headless build and a test are both that case.
     // ─────────────────────────────────────────────────────────────────────────────
     nya_crash_window_show(&assertion, (NYA_ConstCString)report);
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: and opens, draws and closes where there is one. SDL's dummy driver
+    //       gives a real window and a real software renderer with no display, so
+    //       this runs in CI; the quit comes from a thread because the window blocks
+    //       until it is dismissed, which is what it is supposed to do.
+    // ─────────────────────────────────────────────────────────────────────────────
+    SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        nya_log_warn("No video subsystem even under the dummy driver, skipping the window: %s", SDL_GetError());
+    } else {
+        SDL_Thread* dismiss = SDL_CreateThread(dismiss_after_a_moment, "dismiss_crash_window", nullptr);
+        nya_check(dismiss != nullptr, "the dismissing thread should start: %s", SDL_GetError());
+
+        if (dismiss != nullptr) {
+            nya_crash_window_show(&assertion, (NYA_ConstCString)report);
+            SDL_WaitThread(dismiss, nullptr);
+        }
+
+        SDL_Quit();
+    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the observer registers once and comes back out again

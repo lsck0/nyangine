@@ -666,8 +666,10 @@ NYA_Rectf _nya_ui_place(NYA_UISize own, f32x2 natural, b8 fill) {
 }
 
 void _nya_ui_reveal(NYA_Rectf rect) {
-    f32x2 near = { rect.x, rect.y };
-    f32x2 far  = { rect.x + rect.width, rect.y + rect.height + _nya_ui_look()->depth };
+    // not `near` and `far`: windows.h still defines both as empty macros, and the Windows build fails
+    // here with "expected identifier" rather than with anything that names the collision.
+    f32x2 top_left     = { rect.x, rect.y };
+    f32x2 bottom_right = { rect.x + rect.width, rect.y + rect.height + _nya_ui_look()->depth };
 
     for (u32 depth = _nya_ui.depth; depth > 1; depth--) {
         const _NYA_UILayout* layout = &_nya_ui.layouts[depth - 1];
@@ -682,8 +684,8 @@ void _nya_ui_reveal(NYA_Rectf rect) {
             f32 start = layout->origin[axis] + layout->scroll[axis];
             f32 end   = start + layout->extent[axis];
 
-            if (near[axis] < start) state->scroll[axis] -= start - near[axis];
-            if (far[axis] > end && near[axis] >= start) state->scroll[axis] += far[axis] - end;
+            if (top_left[axis] < start) state->scroll[axis] -= start - top_left[axis];
+            if (bottom_right[axis] > end && top_left[axis] >= start) state->scroll[axis] += bottom_right[axis] - end;
         }
 
         return;
