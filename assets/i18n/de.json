@@ -8,6 +8,7 @@
   "menu_resume": "fortsetzen",
   "menu_restart": "neu starten",
   "menu_main_menu": "hauptmenü",
+  "menu_invite": "freunde einladen",
   "menu_master_volume": "gesamtlautstärke",
   "menu_music_volume": "musiklautstärke",
   "menu_stats": "statistik",
@@ -73,5 +74,17 @@
   "cube3d_hint_camera": "rechtsziehen dreht, mausrad zoomt, r setzt zurück",
   "cube3d_hint_animation": "f hält den biegebalken an",
   "cube3d_keys": "leertaste ablegen   c leeren   r gelände   b bloom   t statistik   y trace   u sortierung   l log   k aufnahme   esc menü",
-  "cube3d_render_keys": "1 tusche   2 verdeckung   3 fxaa   4 farbkorrektur   5 tiefenschärfe   6 tempolinien   7 abdrücke   8 hdr   v debug-ansicht"
+  "cube3d_render_keys": "1 tusche   2 verdeckung   3 fxaa   4 farbkorrektur   5 tiefenschärfe   6 tempolinien   7 abdrücke   8 hdr   v debug-ansicht",
+
+  "presence_menu": "im menü",
+  "presence_sandbox": "physik-sandkasten",
+  "presence_3d": "3d-demo",
+  "presence_alone": "spielt allein",
+  "presence_hosting": "hostet",
+  "presence_joined": "im spiel eines freundes",
+
+  "social_join_request": "beitrittsanfrage",
+  "social_wants_to_join": "möchte deinem spiel beitreten",
+  "social_accept": "annehmen",
+  "social_decline": "ablehnen"
 }

@@ -90,6 +90,18 @@ void _gny_screen_apply(void* data) {
             nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_CUBE3D);
         } break;
 
+        case GNY_SCREEN_SOCIAL_PROMPT: {
+            // pushed once: a second request while one is up replaces the name behind the same layer,
+            // and two prompts stacked would each have to be answered.
+            if (nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_SOCIAL_ID) != nullptr) return;
+
+            nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_SOCIAL);
+        } break;
+
+        case GNY_SCREEN_SOCIAL_DISMISS: {
+            (void)_gny_layer_pop_if(GNY_LAYER_SOCIAL_ID);
+        } break;
+
         case GNY_SCREEN_QUIT: {
             nya_app_get()->should_quit = true;
         } break;
@@ -101,7 +113,8 @@ void _gny_screen_apply(void* data) {
 }
 
 b8 gny_modal_active(void) {
-    return nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU_ID) != nullptr || nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_PAUSE_MENU_ID) != nullptr;
+    return nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU_ID) != nullptr || nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_PAUSE_MENU_ID) != nullptr
+        || nya_layer_get(GNY_WINDOW_MAIN, GNY_LAYER_SOCIAL_ID) != nullptr;
 }
 
 b8 _gny_layer_pop_if(NYA_ConstCString layer_id) {

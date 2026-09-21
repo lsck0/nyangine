@@ -145,6 +145,19 @@
  * */
 #define GNY_STEAM_APP_ID 480
 
+/**
+ * The Discord application id the presence card is published under, from the Discord developer portal.
+ * Zero leaves Discord alone, which is what a fork without its own application wants.
+ *
+ * Zero here: this is a demo game and there is no application registered for it, so the code path is
+ * wired and the card is off until somebody puts a real id in. Everything below it is exercised by
+ * tests/nyangine/plugins/test_discord.c against a fake client.
+ * */
+#define GNY_DISCORD_APP_ID 0ULL
+
+/** The artwork key on that card, uploaded under the same application. Empty while there is none. */
+#define GNY_DISCORD_LARGE_IMAGE ""
+
 /** Level the background track sits at, under the master and music gains. */
 #define GNY_MUSIC_GAIN 0.45F
 

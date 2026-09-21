@@ -111,6 +111,22 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
             nya_ui_panel_end(ui);
         }
 
+        // greyed rather than hidden when no friends service is up, so the menu does not change shape
+        // when a player starts Discord mid-session.
+        b8 social = nya_social_available();
+
+        if (!social) nya_ui_disabled_begin(ui);
+
+        if (nya_ui_button(ui, nya_string_menu_invite())) {
+            NYA_Error opened = nya_social_invite_open();
+
+            // the Steam overlay is the only provider with a picker; on Discord the invite is sent from
+            // the chat window and the presence card is what makes it possible, so this says so once.
+            if (!opened.ok) nya_log_info("No invite dialog here: %s", (NYA_ConstCString)opened.message);
+        }
+
+        if (!social) nya_ui_disabled_end(ui);
+
         if (nya_ui_button(ui, nya_string_menu_main_menu())) gny_screen_request(GNY_SCREEN_MAIN_MENU);
         if (nya_ui_button(ui, nya_string_menu_quit())) gny_screen_request(GNY_SCREEN_QUIT);
 

@@ -27,6 +27,11 @@ typedef enum GNY_Screen {
     GNY_SCREEN_RESTART,
     GNY_SCREEN_MAIN_MENU,
     GNY_SCREEN_CUBE3D,
+
+    /** The join request prompt, over whatever is on screen. */
+    GNY_SCREEN_SOCIAL_PROMPT,
+    GNY_SCREEN_SOCIAL_DISMISS,
+
     GNY_SCREEN_QUIT,
     GNY_SCREEN_COUNT,
 } GNY_Screen;

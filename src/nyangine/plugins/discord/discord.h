@@ -8,7 +8,7 @@
  * NYA_EXPECT(nya_discord_activity_set((NYA_DiscordActivity){
  *     .details      = "Competitive | In a Match",
  *     .state        = "In a Group",
- *     .start_time_s = nya_clock_unix_seconds(),
+ *     .start_time_s = (s64)nya_clock_get_timestamp_s(),
  *     .large_image  = "numbani_map",
  *     .large_text   = "Numbani",
  *     .party_size   = 3,

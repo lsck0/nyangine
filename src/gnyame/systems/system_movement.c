@@ -127,6 +127,13 @@ void gny_systems_register_all(void) {
     // after player_input, so the drones chase where the player is this tick.
     nya_system_register((NYA_SystemEntry){ .name = "robots", .after = "player_input", .before = "tween_tick", .tick = nya_callback(gny_robots_update), .owner = GNY_SYSTEM_OWNER });
 
+    /*
+     * Frame rather than tick, and not in the gameplay group: the presence card describes the whole
+     * session, which is still a session on the menu and in the 3D demo, and a friends service has no
+     * use for it more often than a frame. Unconstrained because nothing else reads what it writes.
+     */
+    nya_system_register((NYA_SystemEntry){ .name = "social", .frame = nya_callback(gny_social_update), .owner = GNY_SYSTEM_OWNER });
+
     // Off until the game layer is up. They used to be driven from that layer's on_update, so they never
     // ran on the menu or in the 3D demo, and the music would start on the title screen if they did now.
     gny_systems_gameplay_disable();

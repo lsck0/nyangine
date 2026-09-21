@@ -4,6 +4,7 @@
 #include "gnyame/actions.c"
 #include "gnyame/entities/entities.c"
 #include "gnyame/net.c"
+#include "gnyame/social.c"
 #include "gnyame/sim.c"
 #include "gnyame/robots.c"
 #include "gnyame/web.c"
@@ -15,6 +16,7 @@
 #include "gnyame/layers/layer_game.c"
 #include "gnyame/layers/layer_main_menu.c"
 #include "gnyame/layers/layer_pause_menu.c"
+#include "gnyame/layers/layer_social.c"
 #include "gnyame/layers/layer_ui.c"
 #include "gnyame/layers/layers.c"
 #include "gnyame/windows.c"
@@ -116,6 +118,10 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
     gny_layers_init();
     gny_window_main_create();
 
+    // after the window, since a join request pushes a layer onto it, and never on a dedicated server,
+    // which has no player to show a card for and nobody to prompt.
+    gny_social_start();
+
     // straight into a scene when asked, so a profile or a smoke run does not have to drive the menu.
     NYA_ConstCString screen = getenv("GNYAME_SCREEN");
     if (screen != nullptr && nya_string_equals(screen, "cube3d")) gny_screen_request(GNY_SCREEN_CUBE3D);
@@ -157,6 +163,9 @@ void gnyame_deinit(void) {
 
     // while the job system and the save root are still up: it waits for training, then saves.
     gny_robots_destroy();
+
+    // before the net stops, so a friend's list stops offering "join game" before the port closes.
+    gny_social_stop();
 
     // before the engine, since stopping despawns player entities, and a client should disconnect cleanly
     // rather than time out.

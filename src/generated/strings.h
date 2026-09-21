@@ -48,6 +48,7 @@ typedef enum {
     NYA_STRING_MENU_FXAA,
     NYA_STRING_MENU_GRAPHICS,
     NYA_STRING_MENU_HIGH,
+    NYA_STRING_MENU_INVITE,
     NYA_STRING_MENU_LANGUAGE,
     NYA_STRING_MENU_LIGHT_SHAFTS,
     NYA_STRING_MENU_LINE,
@@ -78,6 +79,16 @@ typedef enum {
     NYA_STRING_MENU_VALUE,
     NYA_STRING_MENU_VERTICES,
     NYA_STRING_MENU_WIDGETS,
+    NYA_STRING_PRESENCE_3D,
+    NYA_STRING_PRESENCE_ALONE,
+    NYA_STRING_PRESENCE_HOSTING,
+    NYA_STRING_PRESENCE_JOINED,
+    NYA_STRING_PRESENCE_MENU,
+    NYA_STRING_PRESENCE_SANDBOX,
+    NYA_STRING_SOCIAL_ACCEPT,
+    NYA_STRING_SOCIAL_DECLINE,
+    NYA_STRING_SOCIAL_JOIN_REQUEST,
+    NYA_STRING_SOCIAL_WANTS_TO_JOIN,
 
     NYA_STRING_COUNT,
 } NYA_StringId;
@@ -121,6 +132,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_fxaa",
     "menu_graphics",
     "menu_high",
+    "menu_invite",
     "menu_language",
     "menu_light_shafts",
     "menu_line",
@@ -151,6 +163,16 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "menu_value",
     "menu_vertices",
     "menu_widgets",
+    "presence_3d",
+    "presence_alone",
+    "presence_hosting",
+    "presence_joined",
+    "presence_menu",
+    "presence_sandbox",
+    "social_accept",
+    "social_decline",
+    "social_join_request",
+    "social_wants_to_join",
 };
 
 /** `cube3d_hint_animation` */
@@ -338,6 +360,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_high(void) {
     return _nya_i18n_format(NYA_STRING_MENU_HIGH);
 }
 
+/** `menu_invite` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_menu_invite(void) {
+    return _nya_i18n_format(NYA_STRING_MENU_INVITE);
+}
+
 /** `menu_language` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_language(void) {
     return _nya_i18n_format(NYA_STRING_MENU_LANGUAGE);
@@ -486,4 +513,54 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_menu_vertices(void
 /** `menu_widgets` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_menu_widgets(void) {
     return _nya_i18n_format(NYA_STRING_MENU_WIDGETS);
+}
+
+/** `presence_3d` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_presence_3d(void) {
+    return _nya_i18n_format(NYA_STRING_PRESENCE_3D);
+}
+
+/** `presence_alone` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_presence_alone(void) {
+    return _nya_i18n_format(NYA_STRING_PRESENCE_ALONE);
+}
+
+/** `presence_hosting` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_presence_hosting(void) {
+    return _nya_i18n_format(NYA_STRING_PRESENCE_HOSTING);
+}
+
+/** `presence_joined` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_presence_joined(void) {
+    return _nya_i18n_format(NYA_STRING_PRESENCE_JOINED);
+}
+
+/** `presence_menu` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_presence_menu(void) {
+    return _nya_i18n_format(NYA_STRING_PRESENCE_MENU);
+}
+
+/** `presence_sandbox` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_presence_sandbox(void) {
+    return _nya_i18n_format(NYA_STRING_PRESENCE_SANDBOX);
+}
+
+/** `social_accept` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_social_accept(void) {
+    return _nya_i18n_format(NYA_STRING_SOCIAL_ACCEPT);
+}
+
+/** `social_decline` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_social_decline(void) {
+    return _nya_i18n_format(NYA_STRING_SOCIAL_DECLINE);
+}
+
+/** `social_join_request` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_social_join_request(void) {
+    return _nya_i18n_format(NYA_STRING_SOCIAL_JOIN_REQUEST);
+}
+
+/** `social_wants_to_join` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_social_wants_to_join(void) {
+    return _nya_i18n_format(NYA_STRING_SOCIAL_WANTS_TO_JOIN);
 }

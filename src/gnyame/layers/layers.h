@@ -84,6 +84,17 @@ void             gny_layer_game_on_event(NYA_Window* window, NYA_Event* event);
 void             gny_layer_game_on_update(NYA_Window* window, f32 delta_time_s);
 void             gny_layer_game_on_render(NYA_Window* window);
 
+/**
+ * "Somebody wants to join", over whatever is on screen. Pushed by a join request, popped when answered.
+ * */
+NYA_ConstCString GNY_LAYER_SOCIAL_ID = "gny_layer_social";
+NYA_Layer        GNY_LAYER_SOCIAL;
+void             gny_layer_social_on_create(NYA_Window* window);
+void             gny_layer_social_on_destroy(NYA_Window* window);
+void             gny_layer_social_on_event(NYA_Window* window, NYA_Event* event);
+void             gny_layer_social_on_update(NYA_Window* window, f32 delta_time_s);
+void             gny_layer_social_on_render(NYA_Window* window);
+
 /** Screen space only: the counters, the frame cost and the key bindings. */
 NYA_ConstCString GNY_LAYER_UI_ID = "gny_layer_ui";
 NYA_Layer        GNY_LAYER_UI;

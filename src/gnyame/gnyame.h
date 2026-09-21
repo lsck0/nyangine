@@ -162,6 +162,34 @@ void gny_web_start(void);
 /** The pair. A no-op when the server was never started. */
 void gny_web_stop(void);
 
+/**
+ * Tears the current session down and brings `config` up in its place. What accepting an invite does.
+ * */
+void gny_net_rejoin(NYA_NetLaunchConfig config);
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * PRESENCE AND INVITES
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/** Brings up presence and invites, and starts listening for joins. After nya_app_init. See social.c. */
+void gny_social_start(void);
+
+void gny_social_stop(void);
+
+/** Rebuilds the presence card from real state. Registered as a per-tick system. */
+void gny_social_update(f32 delta_time_s);
+
+/** Whether somebody is waiting to be let in, which is what puts GNY_LAYER_SOCIAL on screen. */
+b8 gny_social_request_pending(void);
+
+/** Who is asking, for the prompt. Their display name, or their id when the provider gave no name. */
+NYA_ConstCString gny_social_request_name(void);
+
+/** Answers them and takes the prompt down. */
+void gny_social_request_answer(b8 accept);
+
 /*
  * The generated reflection tables.
  */

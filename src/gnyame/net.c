@@ -44,7 +44,7 @@ void gny_net_start(void) {
         NYA_Error identified = nya_net_key_pair_load(GNY_NET_PLAYER_IDENTITY, &config.identity);
         if (!identified.ok) nya_log_warn("Connecting anonymously: %s", (NYA_ConstCString)identified.message);
 
-        NYA_Error connected = nya_net_client_connect(GNY_LAUNCH.address, GNY_LAUNCH.port, GNY_LAUNCH.name, config);
+        NYA_Error connected = nya_net_client_connect_on(GNY_LAUNCH.transport, GNY_LAUNCH.address, GNY_LAUNCH.port, GNY_LAUNCH.name, config);
 
         /*
          * A failed connection is not a crash.
@@ -79,7 +79,7 @@ void gny_net_start(void) {
 
     // Single player is this same server with nothing after it. That is the whole architecture; see net.h.
     if (GNY_LAUNCH.listen_port != 0) {
-        NYA_Error listening = nya_net_server_listen(GNY_LAUNCH.listen_port);
+        NYA_Error listening = nya_net_server_listen_on(GNY_LAUNCH.transport, GNY_LAUNCH.listen_port);
 
         if (!listening.ok) {
             /*
@@ -110,6 +110,18 @@ void gny_net_start(void) {
 void gny_net_stop(void) {
     nya_net_client_disconnect();
     nya_net_server_stop();
+}
+
+void gny_net_rejoin(NYA_NetLaunchConfig config) {
+    // every player entity the old session spawned goes with it, replicated or local, or the new one
+    // would replicate onto handles that already belong to somebody.
+    gny_net_stop();
+
+    GNY_LAUNCH = config;
+
+    // the same path a cold start takes, including its fallback: a friend whose game has already ended
+    // leaves this player in single player rather than in nothing at all.
+    gny_net_start();
 }
 
 void gny_net_apply_command(NYA_Entity* entity, const NYA_NetCommand* command, f32 delta_time_s) {
