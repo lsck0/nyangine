@@ -6,8 +6,9 @@
  * from the future all have to be refused, and refused without the claims ever being believed.
  **/
 
-#include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
+
+#include "nyangine/nyangine.c"
 
 /** Long enough to be accepted, and obviously not a real secret. */
 static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";
@@ -94,18 +95,20 @@ s32 main(void) {
         nya_assert(verified.subject[0] == '\0', "a refused token leaves no claims behind");
 
         // one character of the signature.
-        NYA_String* tampered = nya_string_from(arena, token);
+        NYA_String* tampered                  = nya_string_from(arena, token);
         tampered->items[tampered->length - 5] = tampered->items[tampered->length - 5] == 'A' ? 'B' : 'A';
 
-        nya_assert(nya_http_jwt_decode(arena, (const char*)tampered->items, tampered->length, SECRET, SECRET_SIZE, NOW_S, &verified).kind
-                   == NYA_ERROR_PERMISSION_DENIED);
+        nya_assert(
+            nya_http_jwt_decode(arena, (const char*)tampered->items, tampered->length, SECRET, SECRET_SIZE, NOW_S, &verified).kind ==
+            NYA_ERROR_PERMISSION_DENIED
+        );
 
         /*
          * And the last character, which is the malleability case: its low bits encode nothing, so an
          * encoder that left them set would give one signature two spellings. Refused rather than
          * ignored, so a token has exactly one form.
          */
-        NYA_String* spare = nya_string_from(arena, token);
+        NYA_String* spare               = nya_string_from(arena, token);
         spare->items[spare->length - 1] = spare->items[spare->length - 1] == 'A' ? 'B' : 'A';
 
         nya_assert(!nya_http_jwt_decode(arena, (const char*)spare->items, spare->length, SECRET, SECRET_SIZE, NOW_S, &verified).ok);
@@ -172,8 +175,8 @@ s32 main(void) {
         nya_string_replace(encoded_header, "/", "_");
         nya_string_replace(encoded_payload, "/", "_");
 
-        NYA_String* signing_input = nya_string_sprintf(arena, "%s.%s", nya_string_to_cstring(arena, encoded_header),
-                                                       nya_string_to_cstring(arena, encoded_payload));
+        NYA_String* signing_input =
+            nya_string_sprintf(arena, "%s.%s", nya_string_to_cstring(arena, encoded_header), nya_string_to_cstring(arena, encoded_payload));
 
         u8 tag[NYA_SHA256_BYTES] = { 0 };
         nya_hmac_sha256(SECRET, SECRET_SIZE, (const u8*)signing_input->items, signing_input->length, tag);
@@ -184,7 +187,8 @@ s32 main(void) {
         nya_string_replace(encoded_tag, "+", "-");
         nya_string_replace(encoded_tag, "/", "_");
 
-        NYA_String* forged = nya_string_sprintf(arena, "%s.%s", nya_string_to_cstring(arena, signing_input), nya_string_to_cstring(arena, encoded_tag));
+        NYA_String* forged =
+            nya_string_sprintf(arena, "%s.%s", nya_string_to_cstring(arena, signing_input), nya_string_to_cstring(arena, encoded_tag));
 
         NYA_Error refused = nya_http_jwt_decode(arena, (const char*)forged->items, forged->length, SECRET, SECRET_SIZE, NOW_S, &verified);
 

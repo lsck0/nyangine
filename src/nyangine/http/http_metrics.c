@@ -37,8 +37,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
      .handler       = _nya_http_metrics_get,
      .summary       = "Frame time and this server's own counters",
      .description   = "A read of nya_app_get's frame statistics and the HTTP server's connection and request counts. "
-                      "Measures nothing: every number is one the program already keeps.",
-     .response_type = nya_reflect_of(NYA_HttpMetricsDto),
+                         "Measures nothing: every number is one the program already keeps.", .response_type = nya_reflect_of(NYA_HttpMetricsDto),
      .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
@@ -48,8 +47,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
      .handler       = _nya_http_metrics_ceilings_get,
      .summary       = "Every fixed capacity array and how full it is",
      .description   = "The ceiling registry, which is what every `nya_ceiling_register` in the engine publishes into. "
-                      "Sorted by fullness, so the one about to overflow is first.",
-     .response_type = nya_reflect_of(NYA_HttpCeilingsDto),
+                         "Sorted by fullness, so the one about to overflow is first.", .response_type = nya_reflect_of(NYA_HttpCeilingsDto),
      .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
@@ -59,8 +57,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
      .handler       = _nya_http_metrics_arenas_get,
      .summary       = "Every live arena: used, reserved and fragmentation",
      .description   = "The arena registry. Resident bytes are not here on purpose: reading them is a system call per "
-                      "region, which is a report's cost and not a poll's.",
-     .response_type = nya_reflect_of(NYA_HttpArenasDto),
+                         "region, which is a report's cost and not a poll's.", .response_type = nya_reflect_of(NYA_HttpArenasDto),
      .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
@@ -70,8 +67,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
      .handler       = _nya_http_metrics_systems_get,
      .summary       = "Per owner: how many systems, what they cost, what they hold",
      .description   = "The system registry grouped by owner: the engine, the game, and one per plugin. The times read "
-                      "zero until accounting is turned on; see POST /api/metrics/accounting.",
-     .response_type = nya_reflect_of(NYA_HttpSystemsDto),
+                         "zero until accounting is turned on; see POST /api/metrics/accounting.", .response_type = nya_reflect_of(NYA_HttpSystemsDto),
      .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
@@ -82,11 +78,14 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
      .handler_identified = _nya_http_metrics_accounting_post,
      .summary            = "Turn the registry's per system timing on or off",
      .description        = "Accounting costs a clock read per system per phase, so it is off by default and is asked "
-                           "for rather than reported. Answers with the state that was reached.",
-     .request_type       = nya_reflect_of(NYA_HttpAccountingDto),
+                              "for rather than reported. Answers with the state that was reached.", .request_type       = nya_reflect_of(NYA_HttpAccountingDto),
      .response_type      = nya_reflect_of(NYA_HttpAccountingDto),
-     .statuses           = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN,
-                             NYA_HTTP_STATUS_UNSUPPORTED_MEDIA, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     .statuses           = { NYA_HTTP_STATUS_OK,
+                                NYA_HTTP_STATUS_BAD_REQUEST,
+                                NYA_HTTP_STATUS_UNAUTHORIZED,
+                                NYA_HTTP_STATUS_FORBIDDEN,
+                                NYA_HTTP_STATUS_UNSUPPORTED_MEDIA,
+                                NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
 };
 

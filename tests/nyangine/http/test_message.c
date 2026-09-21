@@ -6,8 +6,9 @@
  * covers the shapes nobody thought to write down.
  **/
 
-#include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
+
+#include "nyangine/nyangine.c"
 
 /** One parse, with the request on the heap: NYA_HttpRequest is twenty kilobytes. */
 static NYA_HttpParse parse(NYA_Arena* arena, NYA_ConstCString text, NYA_HttpRequest** out_request, u64* out_consumed, NYA_HttpStatus* out_status) {
@@ -68,7 +69,8 @@ s32 main(void) {
         u64              consumed = 0;
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
 
-        NYA_ConstCString text = "POST /api/thing?name=a%20b&flag=1 HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n{\"enabled\":true}";
+        NYA_ConstCString text =
+            "POST /api/thing?name=a%20b&flag=1 HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n{\"enabled\":true}";
 
         nya_assert(parse(arena, text, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
 
@@ -122,8 +124,8 @@ s32 main(void) {
         u64              consumed = 0;
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
 
-        NYA_ConstCString first  = "GET /a HTTP/1.1\r\nHost: x\r\n\r\n";
-        NYA_ConstCString text   = "GET /a HTTP/1.1\r\nHost: x\r\n\r\nGET /b HTTP/1.1\r\nHost: x\r\n\r\n";
+        NYA_ConstCString first = "GET /a HTTP/1.1\r\nHost: x\r\n\r\n";
+        NYA_ConstCString text  = "GET /a HTTP/1.1\r\nHost: x\r\n\r\nGET /b HTTP/1.1\r\nHost: x\r\n\r\n";
 
         nya_assert(parse(arena, text, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
 
@@ -147,8 +149,9 @@ s32 main(void) {
         nya_assert(parse(arena, "POST /a HTTP/1.1\r\nContent-Length: 10\r\n\r\nshort", &request, &consumed, &status) == NYA_HTTP_PARSE_INCOMPLETE);
 
         // and a chunked body that stops mid chunk.
-        nya_assert(parse(arena, "POST /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n8\r\nfour", &request, &consumed, &status)
-                   == NYA_HTTP_PARSE_INCOMPLETE);
+        nya_assert(
+            parse(arena, "POST /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n8\r\nfour", &request, &consumed, &status) == NYA_HTTP_PARSE_INCOMPLETE
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -183,14 +186,20 @@ s32 main(void) {
     // TEST: the framing a smuggler wants is refused rather than preferred.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
-                   "a request carrying both framings has no safe interpretation");
+        nya_assert(
+            refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
+            "a request carrying both framings has no safe interpretation"
+        );
 
-        nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\nhello") == NYA_HTTP_STATUS_BAD_REQUEST,
-                   "two Content-Lengths is the same disagreement in one header");
+        nya_assert(
+            refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\nhello") == NYA_HTTP_STATUS_BAD_REQUEST,
+            "two Content-Lengths is the same disagreement in one header"
+        );
 
-        nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED,
-                   "a coding this server cannot undo is not a body it may read raw");
+        nya_assert(
+            refusal(arena, "POST /a HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED,
+            "a coding this server cannot undo is not a body it may read raw"
+        );
 
         // an obsolete folded header could fold anything into anything.
         nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: x\r\n Content-Length: 5\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
@@ -200,11 +209,15 @@ s32 main(void) {
     // TEST: every bound refuses with the status that names it.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 99999\r\n\r\n") == NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE,
-                   "a body over the bound is refused before a byte of it is read");
+        nya_assert(
+            refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 99999\r\n\r\n") == NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE,
+            "a body over the bound is refused before a byte of it is read"
+        );
 
-        nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 99999999999999999999999\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
-                   "a length that does not fit a u64 is not a length");
+        nya_assert(
+            refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 99999999999999999999999\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
+            "a length that does not fit a u64 is not a length"
+        );
 
         nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: -1\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
         nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 0x10\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
@@ -218,9 +231,15 @@ s32 main(void) {
         u64              consumed = 0;
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
 
-        nya_assert(nya_http_request_parse((const u8*)long_head->items, long_head->length, nya_arena_alloc(arena, sizeof(NYA_HttpRequest)), &consumed,
-                                          &status)
-                   == NYA_HTTP_PARSE_REFUSED);
+        nya_assert(
+            nya_http_request_parse(
+                (const u8*)long_head->items,
+                long_head->length,
+                nya_arena_alloc(arena, sizeof(NYA_HttpRequest)),
+                &consumed,
+                &status
+            ) == NYA_HTTP_PARSE_REFUSED
+        );
         nya_assert(status == NYA_HTTP_STATUS_HEADERS_TOO_LARGE);
 
         // a path longer than the buffer that holds it.
@@ -229,9 +248,15 @@ s32 main(void) {
         while (long_path->length < NYA_HTTP_MAX_PATH + 16) nya_string_push_back(long_path, 'a');
         nya_string_extend(long_path, " HTTP/1.1\r\nHost: x\r\n\r\n");
 
-        nya_assert(nya_http_request_parse((const u8*)long_path->items, long_path->length, nya_arena_alloc(arena, sizeof(NYA_HttpRequest)), &consumed,
-                                          &status)
-                   == NYA_HTTP_PARSE_REFUSED);
+        nya_assert(
+            nya_http_request_parse(
+                (const u8*)long_path->items,
+                long_path->length,
+                nya_arena_alloc(arena, sizeof(NYA_HttpRequest)),
+                &consumed,
+                &status
+            ) == NYA_HTTP_PARSE_REFUSED
+        );
         nya_assert(status == NYA_HTTP_STATUS_URI_TOO_LONG);
 
         nya_unused(request);
@@ -289,15 +314,23 @@ s32 main(void) {
         nya_assert(!nya_http_request_json(request, arena, &document).ok, "a body this server was not told the type of is not parsed as one");
 
         // and a type it does not speak is the same refusal.
-        nya_assert(parse(arena, "POST /a HTTP/1.1\r\nContent-Type: text/xml\r\nContent-Length: 2\r\n\r\n{}", &request, &consumed, &status)
-                   == NYA_HTTP_PARSE_DONE);
+        nya_assert(
+            parse(arena, "POST /a HTTP/1.1\r\nContent-Type: text/xml\r\nContent-Length: 2\r\n\r\n{}", &request, &consumed, &status) ==
+            NYA_HTTP_PARSE_DONE
+        );
         nya_assert(request->media_type == NYA_HTTP_MEDIA_OTHER);
         nya_assert(!nya_http_request_json(request, arena, &document).ok);
 
         // parameters after the essence do not change which type it is.
-        nya_assert(parse(arena, "POST /a HTTP/1.1\r\nContent-Type: application/json ; charset=utf-8\r\nContent-Length: 2\r\n\r\n{}", &request,
-                         &consumed, &status)
-                   == NYA_HTTP_PARSE_DONE);
+        nya_assert(
+            parse(
+                arena,
+                "POST /a HTTP/1.1\r\nContent-Type: application/json ; charset=utf-8\r\nContent-Length: 2\r\n\r\n{}",
+                &request,
+                &consumed,
+                &status
+            ) == NYA_HTTP_PARSE_DONE
+        );
         nya_assert(request->media_type == NYA_HTTP_MEDIA_JSON);
     }
 

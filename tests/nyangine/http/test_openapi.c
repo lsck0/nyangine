@@ -6,8 +6,9 @@
  * the schema for a DTO has to describe what the serializer actually writes rather than the C layout.
  **/
 
-#include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
+
+#include "nyangine/nyangine.c"
 
 /** Whichever port is free. A busy one would be a flaky test rather than a failure. */
 #define FIRST_PORT 47960
@@ -148,7 +149,7 @@ s32 main(void) {
         NYA_String* early = nullptr;
         nya_assert(!nya_http_openapi_document(arena, &early).ok);
 
-        u16 port = start_server();
+        u16   port = start_server();
         defer nya_system_http_deinit();
 
         nya_unused(port);
@@ -224,7 +225,7 @@ s32 main(void) {
     // TEST: the page is generated from the same walk and escapes what it prints.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        u16 port = start_server();
+        u16   port = start_server();
         defer nya_system_http_deinit();
 
         nya_unused(port);

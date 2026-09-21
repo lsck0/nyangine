@@ -7,13 +7,16 @@
  * bytes: a peer that goes quiet, a peer that fills the buffer, and one more peer than there are slots.
  **/
 
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include "SDL3/SDL_init.h"
+
+#include "nyangine/nyangine.h"
 #include "SDL3_net/SDL_net.h"
 
 #include "nyangine/nyangine.c"
-#include "nyangine/nyangine.h"
 
 #define FIRST_PORT 47940
 #define LAST_PORT  47956
@@ -54,26 +57,40 @@ static NET_StreamSocket* connect_to(u16 port) {
     return socket;
 }
 
-/** Sends `text` and drains the server until an answer arrives or the attempts run out. */
+/**
+ * Sends `text`, drains the server, and reads back a whole answer: the head, and then exactly the body
+ * Content-Length promised.
+ *
+ * Reading until the socket goes quiet is not the same thing and was wrong: the head and the body are
+ * two queued writes, so a read between them returns nothing and says only that the kernel has not
+ * caught up yet. The length in the head is what says when an answer is complete, which is why HTTP
+ * carries one.
+ * */
 static u64 exchange(NET_StreamSocket* socket, NYA_ConstCString text, OUT char* buffer, u64 capacity) {
     nya_assert(NET_WriteToStreamSocket(socket, text, (s32)strlen(text)));
 
-    u64 filled = 0;
+    u64 filled   = 0;
+    u64 expected = 0;
 
-    for (u32 attempt = 0; attempt < 200 && filled + 1 < capacity; attempt++) {
+    for (u32 attempt = 0; attempt < 400 && filled + 1 < capacity; attempt++) {
         nya_system_http_tick();
 
         s32 read = NET_ReadFromStreamSocket(socket, buffer + filled, (s32)(capacity - filled - 1));
 
-        if (read > 0) {
-            filled += (u64)read;
+        if (read < 0) break;
 
-            // the head has arrived and so has whatever Content-Length promised, near enough: this is a
-            // test client and the server's answers are small.
-            if (filled > 4 && memcmp(buffer + filled - 4, "\r\n\r\n", 4) != 0) continue;
+        filled         += (u64)read;
+        buffer[filled]  = '\0';
+
+        if (expected == 0) {
+            const char* blank  = strstr(buffer, "\r\n\r\n");
+            const char* length = strstr(buffer, "Content-Length: ");
+
+            // the head is complete and says how much follows it, so from here the answer has a size.
+            if (blank != nullptr && length != nullptr) { expected = (u64)(blank + 4 - buffer) + strtoull(length + 16, nullptr, 10); }
         }
 
-        if (filled > 0 && read <= 0) break;
+        if (expected > 0 && filled >= expected) break;
 
         sleep_ms(2);
     }
@@ -115,7 +132,7 @@ s32 main(void) {
     // TEST: a GET, answered.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        u16 port = start_server((NYA_HttpConfig){ .secret = SECRET, .secret_size = SECRET_SIZE });
+        u16   port = start_server((NYA_HttpConfig){ .secret = SECRET, .secret_size = SECRET_SIZE });
         defer nya_system_http_deinit();
 
         nya_assert(nya_http_server_is_running());
@@ -126,7 +143,7 @@ s32 main(void) {
         nya_assert(nya_http_server_router_count() == 1);
 
         NET_StreamSocket* client = connect_to(port);
-        defer NET_DestroyStreamSocket(client);
+        defer             NET_DestroyStreamSocket(client);
 
         nya_assert(exchange(client, "GET " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
 
@@ -169,20 +186,24 @@ s32 main(void) {
     // TEST: the authenticated route, from outside.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        u16 port = start_server((NYA_HttpConfig){ .secret = SECRET, .secret_size = SECRET_SIZE });
+        u16   port = start_server((NYA_HttpConfig){ .secret = SECRET, .secret_size = SECRET_SIZE });
         defer nya_system_http_deinit();
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
         NET_StreamSocket* client = connect_to(port);
-        defer NET_DestroyStreamSocket(client);
+        defer             NET_DestroyStreamSocket(client);
 
         // without a token.
-        nya_assert(exchange(client,
-                            "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n"
-                            "Content-Length: 16\r\n\r\n{\"enabled\":true}",
-                            answer, sizeof(answer))
-                   > 0);
+        nya_assert(
+            exchange(
+                client,
+                "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n"
+                "Content-Length: 16\r\n\r\n{\"enabled\":true}",
+                answer,
+                sizeof(answer)
+            ) > 0
+        );
 
         nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 401 Unauthorized\r\n"));
         nya_assert(nya_string_contains(nya_string_from(arena, answer), "WWW-Authenticate: Bearer"));
@@ -199,11 +220,13 @@ s32 main(void) {
         char token[NYA_HTTP_MAX_TOKEN_BYTES] = { 0 };
         nya_assert(nya_http_jwt_encode(&writer, SECRET, SECRET_SIZE, token, sizeof(token)).ok);
 
-        NYA_String* request = nya_string_sprintf(arena,
-                                                 "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
-                                                 "Authorization: Bearer %s\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n"
-                                                 "{\"enabled\":true}",
-                                                 token);
+        NYA_String* request = nya_string_sprintf(
+            arena,
+            "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
+            "Authorization: Bearer %s\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n"
+            "{\"enabled\":true}",
+            token
+        );
 
         nya_assert(exchange(client, nya_string_to_cstring(arena, request), answer, sizeof(answer)) > 0);
 
@@ -212,20 +235,24 @@ s32 main(void) {
         nya_assert(nya_system_accounting_is_enabled(), "the handler reached the registry");
 
         // and back off again, so the suite leaves the registry as it found it.
-        NYA_String* off = nya_string_sprintf(arena,
-                                             "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
-                                             "Authorization: Bearer %s\r\nContent-Type: application/json\r\nContent-Length: 17\r\n\r\n"
-                                             "{\"enabled\":false}",
-                                             token);
+        NYA_String* off = nya_string_sprintf(
+            arena,
+            "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
+            "Authorization: Bearer %s\r\nContent-Type: application/json\r\nContent-Length: 17\r\n\r\n"
+            "{\"enabled\":false}",
+            token
+        );
 
         nya_assert(exchange(client, nya_string_to_cstring(arena, off), answer, sizeof(answer)) > 0);
         nya_assert(!nya_system_accounting_is_enabled());
 
         // a body that is not the DTO the route takes.
-        NYA_String* nonsense = nya_string_sprintf(arena,
-                                                  "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
-                                                  "Authorization: Bearer %s\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello",
-                                                  token);
+        NYA_String* nonsense = nya_string_sprintf(
+            arena,
+            "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
+            "Authorization: Bearer %s\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello",
+            token
+        );
 
         nya_assert(exchange(client, nya_string_to_cstring(arena, nonsense), answer, sizeof(answer)) > 0);
         nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 415 "));
@@ -235,13 +262,13 @@ s32 main(void) {
     // TEST: a request the parser refuses is answered and the connection closes.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        u16 port = start_server((NYA_HttpConfig){ 0 });
+        u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
         NET_StreamSocket* client = connect_to(port);
-        defer NET_DestroyStreamSocket(client);
+        defer             NET_DestroyStreamSocket(client);
 
         nya_assert(exchange(client, "GET /../etc/passwd HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
 
@@ -263,13 +290,13 @@ s32 main(void) {
     // TEST: a peer that connects and says nothing is dropped, not held.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        u16 port = start_server((NYA_HttpConfig){ .max_connections = 2 });
+        u16   port = start_server((NYA_HttpConfig){ .max_connections = 2 });
         defer nya_system_http_deinit();
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
         NET_StreamSocket* silent = connect_to(port);
-        defer NET_DestroyStreamSocket(silent);
+        defer             NET_DestroyStreamSocket(silent);
 
         for (u32 attempt = 0; attempt < 50 && nya_http_server_connection_count() == 0; attempt++) {
             nya_system_http_tick();
@@ -288,30 +315,32 @@ s32 main(void) {
         }
 
         NET_StreamSocket* other = connect_to(port);
-        defer NET_DestroyStreamSocket(other);
+        defer             NET_DestroyStreamSocket(other);
 
         nya_assert(exchange(other, "GET " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
-        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"),
-                   "one peer sitting on a half written request may not stop the others");
+        nya_assert(
+            nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"),
+            "one peer sitting on a half written request may not stop the others"
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // TEST: one more peer than there are slots is closed rather than queued.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        u16 port = start_server((NYA_HttpConfig){ .max_connections = 1 });
+        u16   port = start_server((NYA_HttpConfig){ .max_connections = 1 });
         defer nya_system_http_deinit();
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
 
         NET_StreamSocket* first = connect_to(port);
-        defer NET_DestroyStreamSocket(first);
+        defer             NET_DestroyStreamSocket(first);
 
         nya_assert(exchange(first, "GET " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
         nya_assert(nya_http_server_connection_count() == 1);
 
         NET_StreamSocket* second = connect_to(port);
-        defer NET_DestroyStreamSocket(second);
+        defer             NET_DestroyStreamSocket(second);
 
         for (u32 attempt = 0; attempt < 50; attempt++) {
             nya_system_http_tick();
@@ -325,14 +354,14 @@ s32 main(void) {
     // TEST: the schema and the page, served by the program they describe.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        u16 port = start_server((NYA_HttpConfig){ 0 });
+        u16   port = start_server((NYA_HttpConfig){ 0 });
         defer nya_system_http_deinit();
 
         nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
         nya_assert(nya_http_server_merge(nya_http_openapi_router()).ok);
 
         NET_StreamSocket* client = connect_to(port);
-        defer NET_DestroyStreamSocket(client);
+        defer             NET_DestroyStreamSocket(client);
 
         nya_assert(exchange(client, "GET " NYA_HTTP_OPENAPI_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
 
@@ -357,13 +386,16 @@ s32 main(void) {
         u8  buffer[NYA_HTTP_MAX_SECRET_BYTES] = { 0 };
         u64 size                              = 0;
 
-        nya_assert(nya_http_secret_from_environment("NYANGINE_TEST_SECRET_THAT_IS_NOT_SET", buffer, sizeof(buffer), &size).kind
-                   == NYA_ERROR_NOT_FOUND);
+        nya_assert(
+            nya_http_secret_from_environment("NYANGINE_TEST_SECRET_THAT_IS_NOT_SET", buffer, sizeof(buffer), &size).kind == NYA_ERROR_NOT_FOUND
+        );
         nya_assert(size == 0);
 
         nya_assert(setenv("NYANGINE_TEST_SECRET", "short", 1) == 0);
-        nya_assert(nya_http_secret_from_environment("NYANGINE_TEST_SECRET", buffer, sizeof(buffer), &size).kind == NYA_ERROR_INVALID_ARGUMENT,
-                   "a guessable secret is refused rather than accepted and quietly useless");
+        nya_assert(
+            nya_http_secret_from_environment("NYANGINE_TEST_SECRET", buffer, sizeof(buffer), &size).kind == NYA_ERROR_INVALID_ARGUMENT,
+            "a guessable secret is refused rather than accepted and quietly useless"
+        );
 
         nya_assert(setenv("NYANGINE_TEST_SECRET", (const char*)SECRET, 1) == 0);
         nya_assert(nya_http_secret_from_environment("NYANGINE_TEST_SECRET", buffer, sizeof(buffer), &size).ok);

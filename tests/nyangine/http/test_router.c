@@ -6,8 +6,9 @@
  * public: a route table and an exchange are data, and testing them needs no port.
  **/
 
-#include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
+
+#include "nyangine/nyangine.c"
 
 static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";
 #define SECRET_SIZE (sizeof(SECRET) - 1)
@@ -15,7 +16,7 @@ static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";
 #define NOW_S 1700000000ULL
 
 /* What the layers below record, so the order they ran in is checkable afterwards. */
-static char ORDER[64] = { 0 };
+static char ORDER[64]    = { 0 };
 static u32  ORDER_LENGTH = 0;
 
 static void record(char mark) {
@@ -73,13 +74,13 @@ static const NYA_HttpLayerFn RESOURCE_LAYERS[] = { inner_layer };
 
 static const NYA_HttpRoute ROUTES[] = {
     {
-     .method   = NYA_HTTP_METHOD_GET,
-     .path     = "/api/thing",
-     .auth     = NYA_HTTP_AUTH_NONE,
-     .handler  = open_get,
-     .summary  = "An open route",
+     .method  = NYA_HTTP_METHOD_GET,
+     .path    = "/api/thing",
+     .auth    = NYA_HTTP_AUTH_NONE,
+     .handler = open_get,
+     .summary = "An open route",
      // 403 because a layer can answer with one; a route declares what its whole chain can produce.
-     .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR },
+        .statuses = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
      .method             = NYA_HTTP_METHOD_POST,
@@ -114,8 +115,8 @@ static void make_request(OUT NYA_HttpRequest* request, NYA_HttpMethod method, NY
 }
 
 /** One dispatch, with the root layers named. */
-static NYA_HttpStatus dispatch(NYA_Arena* arena, const NYA_HttpRequest* request, NYA_HttpResponse* response, const NYA_HttpLayerFn* layers,
-                               u32 layer_count) {
+static NYA_HttpStatus
+dispatch(NYA_Arena* arena, const NYA_HttpRequest* request, NYA_HttpResponse* response, const NYA_HttpLayerFn* layers, u32 layer_count) {
     const NYA_HttpRouter* routers[] = { &ROUTER };
 
     NYA_HttpExchange exchange = {
@@ -186,8 +187,8 @@ s32 main(void) {
         NYA_HttpRouter open_behind_auth = { .name = "x", .routes = &both, .route_count = 1 };
         nya_assert(!nya_http_router_check(&open_behind_auth).ok, "a handler taking no caller behind the extractor would never see one");
 
-        NYA_HttpRoute undocumented   = ROUTES[0];
-        undocumented.statuses[0]     = NYA_HTTP_STATUS_NONE;
+        NYA_HttpRoute undocumented = ROUTES[0];
+        undocumented.statuses[0]   = NYA_HTTP_STATUS_NONE;
 
         NYA_HttpRouter silent = { .name = "x", .routes = &undocumented, .route_count = 1 };
         nya_assert(!nya_http_router_check(&silent).ok, "a route that lists no statuses would generate a schema that describes nothing");
@@ -205,9 +206,9 @@ s32 main(void) {
         nya_assert(!nya_http_router_check(&unanchored).ok);
 
         // a route behind the extractor has to say it can refuse, since the extractor can.
-        NYA_HttpRoute optimistic       = ROUTES[1];
-        optimistic.statuses[1]         = NYA_HTTP_STATUS_INTERNAL_ERROR;
-        optimistic.statuses[2]         = NYA_HTTP_STATUS_NONE;
+        NYA_HttpRoute optimistic = ROUTES[1];
+        optimistic.statuses[1]   = NYA_HTTP_STATUS_INTERNAL_ERROR;
+        optimistic.statuses[2]   = NYA_HTTP_STATUS_NONE;
 
         NYA_HttpRouter hopeful = { .name = "x", .routes = &optimistic, .route_count = 1 };
         nya_assert(!nya_http_router_check(&hopeful).ok);
@@ -302,8 +303,8 @@ s32 main(void) {
         nya_assert(dispatch(arena, request, &response, nullptr, 0) == NYA_HTTP_STATUS_UNAUTHORIZED);
 
         // a valid token without the scope the route needs.
-        char             token    = 0;
-        NYA_HttpIdentity reader   = { .scope = NYA_HTTP_SCOPE_READ, .issued_at_s = NOW_S, .expires_at_s = NOW_S + 60 };
+        char             token                            = 0;
+        NYA_HttpIdentity reader                           = { .scope = NYA_HTTP_SCOPE_READ, .issued_at_s = NOW_S, .expires_at_s = NOW_S + 60 };
         char             bearer[NYA_HTTP_MAX_TOKEN_BYTES] = { 0 };
 
         nya_unused(token);
@@ -358,8 +359,10 @@ s32 main(void) {
 
         nya_http_response_reset(&response);
 
-        nya_assert(nya_http_router_dispatch(&secretless, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_SERVICE_UNAVAILABLE,
-                   "a route needing a token on a server that cannot check one is not the caller's fault");
+        nya_assert(
+            nya_http_router_dispatch(&secretless, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_SERVICE_UNAVAILABLE,
+            "a route needing a token on a server that cannot check one is not the caller's fault"
+        );
     }
 
     printf("PASSED: http router\n");

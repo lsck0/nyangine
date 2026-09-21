@@ -10,10 +10,11 @@
  * bounds, an overflow, or an assertion reached from these bytes is.
  **/
 
-#include "nyangine/nyangine.c"
+#include "SDL3/SDL_init.h"
+
 #include "nyangine/nyangine.h"
 
-#include "SDL3/SDL_init.h"
+#include "nyangine/nyangine.c"
 
 #define FUZZ_TARGET "http_request"
 
@@ -70,8 +71,8 @@ static void fuzz_once(const u8* data, u64 size) {
         if (request->path[index] != '/') continue;
 
         b8 dot     = request->path[index + 1] == '.' && (index + 2 == path_length || request->path[index + 2] == '/');
-        b8 dot_dot = request->path[index + 1] == '.' && index + 2 < path_length && request->path[index + 2] == '.'
-                  && (index + 3 == path_length || request->path[index + 3] == '/');
+        b8 dot_dot = request->path[index + 1] == '.' && index + 2 < path_length && request->path[index + 2] == '.' &&
+                     (index + 3 == path_length || request->path[index + 3] == '/');
 
         nya_assert(!dot && !dot_dot, "a relative segment survived the parser");
     }
@@ -118,8 +119,10 @@ static void fuzz_once(const u8* data, u64 size) {
     u8  head[NYA_HTTP_MAX_RESPONSE_HEAD_BYTES] = { 0 };
     u64 head_size                              = 0;
 
-    nya_assert(nya_http_response_head(&response, NYA_HTTP_STATUS_OK, request->keep_alive, head, sizeof(head), &head_size).ok,
-               "a request that parsed could not be answered");
+    nya_assert(
+        nya_http_response_head(&response, NYA_HTTP_STATUS_OK, request->keep_alive, head, sizeof(head), &head_size).ok,
+        "a request that parsed could not be answered"
+    );
 }
 
 #include "tests/fuzz/fuzz.h"

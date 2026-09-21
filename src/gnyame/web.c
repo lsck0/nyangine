@@ -42,8 +42,11 @@ void gny_web_start(void) {
     NYA_Error read = nya_http_secret_from_environment(GNY_WEB_SECRET_ENVIRONMENT, secret, sizeof(secret), &secret_size);
 
     if (!read.ok && read.kind != NYA_ERROR_NOT_FOUND) {
-        nya_log_warn("%s is set but unusable (%s); the routes that need a token will answer 503.", GNY_WEB_SECRET_ENVIRONMENT,
-                     (NYA_ConstCString)read.message);
+        nya_log_warn(
+            "%s is set but unusable (%s); the routes that need a token will answer 503.",
+            GNY_WEB_SECRET_ENVIRONMENT,
+            (NYA_ConstCString)read.message
+        );
     }
 
     // one root layer, outermost, so the line it writes covers the whole exchange and reports whatever
@@ -73,8 +76,13 @@ void gny_web_start(void) {
     NYA_EXPECT(nya_http_server_merge(nya_http_metrics_router()), "while mounting the metrics resource");
     NYA_EXPECT(nya_http_server_merge(nya_http_openapi_router()), "while mounting the schema resource");
 
-    nya_log_info("Metrics at http://127.0.0.1:%llu%s, the routes at http://127.0.0.1:%llu%s.", (unsigned long long)port, NYA_HTTP_METRICS_PATH,
-                 (unsigned long long)port, NYA_HTTP_DOCS_PATH);
+    nya_log_info(
+        "Metrics at http://127.0.0.1:%llu%s, the routes at http://127.0.0.1:%llu%s.",
+        (unsigned long long)port,
+        NYA_HTTP_METRICS_PATH,
+        (unsigned long long)port,
+        NYA_HTTP_DOCS_PATH
+    );
 }
 
 void gny_web_stop(void) {

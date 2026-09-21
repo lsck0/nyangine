@@ -1,8 +1,7 @@
-#include "nyangine/http/http_openapi.h"
-
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_version.h"
+#include "nyangine/http/http_openapi.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/serde/serde.h"
 
@@ -58,8 +57,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_OPENAPI_ROUTES[] = {
      .handler     = _nya_http_openapi_get,
      .summary     = "The OpenAPI document for everything this program serves",
      .description = "Generated from the mounted route tables and the DTO reflections on every request, so it describes "
-                    "exactly what is mounted right now.",
-     .statuses    = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
+                       "exactly what is mounted right now.", .statuses    = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
      .method      = NYA_HTTP_METHOD_GET,
