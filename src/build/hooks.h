@@ -29,6 +29,20 @@ void hook_create_build_directory(NYA_BuildRule* rule);
 void hook_invalidate_stale_cmake_cache(NYA_BuildRule* rule);
 
 /**
+ * Stamps a rule's `output_file` with the current time, after the rule has run.
+ *
+ * For an NYA_BUILD_IF_OUTDATED rule whose tool may legitimately do nothing: cmake and ninja leave an
+ * archive alone when no source changed, so the archive stays older than the recipe that triggered
+ * the run and the rule is outdated again immediately. Without this, editing a vendor recipe makes
+ * its rule fire on every invocation of `./build` for the rest of the checkout's life, `./build
+ * stats` included, because main walks the vendor rules before it dispatches any subcommand.
+ *
+ * A no-op build is still a build: the rule ran, the output is current with its input, and saying so
+ * is what lets the next invocation skip it.
+ * */
+void hook_stamp_output_file(NYA_BuildRule* rule);
+
+/**
  * Moves input_file to output_file.
  * */
 void hook_move_file(NYA_BuildRule* rule);

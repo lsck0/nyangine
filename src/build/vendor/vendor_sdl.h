@@ -19,6 +19,19 @@
 #define SDL_A_LINUX_X86_64   SDL_BUILD_LINUX_X86_64 "libSDL3.a"
 #define SDL_A_WINDOWS_X86_64 SDL_BUILD_WINDOWS_X86_64 "libSDL3.a"
 
+/*
+ * What the IF_OUTDATED rules below compare this recipe against, written by hook_stamp_output_file.
+ *
+ * Not the archive: cmake and ninja leave it alone when no source changed, so a no-op build left the
+ * archive older than the recipe that triggered it and the rule was outdated again immediately —
+ * firing on every `./build` invocation for the rest of the checkout's life, `./build stats`
+ * included, since main walks the vendor rules before dispatching any subcommand.
+ */
+#define SDL_CONFIGURED_LINUX_X86_64   SDL_BUILD_LINUX_X86_64 "nya_configured.stamp"
+#define SDL_CONFIGURED_WINDOWS_X86_64 SDL_BUILD_WINDOWS_X86_64 "nya_configured.stamp"
+#define SDL_COMPILED_LINUX_X86_64     SDL_BUILD_LINUX_X86_64 "nya_compiled.stamp"
+#define SDL_COMPILED_WINDOWS_X86_64   SDL_BUILD_WINDOWS_X86_64 "nya_compiled.stamp"
+
 #define SDL_INCLUDES_LINUX_X86_64 "-I./vendor/sdl/include/"
 #define SDL_LINKER_LINUX_X86_64   "-L" SDL_BUILD_LINUX_X86_64, "-lSDL3"
 
@@ -97,7 +110,7 @@ NYA_VendorRule vendor_sdl_linux_x86_64 = {
             .name        = "vendor_sdl_linux_x86_64_configure",
             .policy      = NYA_BUILD_IF_OUTDATED,
             .input_file  = SDL_OPTIONS_FILE,
-            .output_file = SDL_A_LINUX_X86_64,
+            .output_file = SDL_CONFIGURED_LINUX_X86_64,
 
             .command = {
                 .program   = "cmake",
@@ -108,13 +121,14 @@ NYA_VendorRule vendor_sdl_linux_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },
+            .pre_build_hooks  = { &hook_invalidate_stale_cmake_cache, },
+            .post_build_hooks = { &hook_stamp_output_file, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_linux_x86_64_compile",
             .policy      = NYA_BUILD_IF_OUTDATED,
             .input_file  = SDL_OPTIONS_FILE,
-            .output_file = SDL_A_LINUX_X86_64,
+            .output_file = SDL_COMPILED_LINUX_X86_64,
 
             .command = {
                 .program   = "cmake",
@@ -124,6 +138,8 @@ NYA_VendorRule vendor_sdl_linux_x86_64 = {
                     "--", "-j", NPROCS,
                 },
             },
+
+            .post_build_hooks = { &hook_stamp_output_file, },
         },
     },
 };
@@ -150,7 +166,7 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
             .name        = "vendor_sdl_windows_x86_64_configure",
             .policy      = NYA_BUILD_IF_OUTDATED,
             .input_file  = SDL_OPTIONS_FILE,
-            .output_file = SDL_A_WINDOWS_X86_64,
+            .output_file = SDL_CONFIGURED_WINDOWS_X86_64,
 
             .command = {
                 .program   = "cmake",
@@ -167,13 +183,14 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, },
+            .pre_build_hooks  = { &hook_invalidate_stale_cmake_cache, },
+            .post_build_hooks = { &hook_stamp_output_file, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_windows_x86_64_compile",
             .policy      = NYA_BUILD_IF_OUTDATED,
             .input_file  = SDL_OPTIONS_FILE,
-            .output_file = SDL_A_WINDOWS_X86_64,
+            .output_file = SDL_COMPILED_WINDOWS_X86_64,
 
             .command = {
                 .program   = "cmake",
@@ -183,6 +200,8 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
                     "--", "-j", NPROCS,
                 },
             },
+
+            .post_build_hooks = { &hook_stamp_output_file, },
         },
     },
 };

@@ -544,3 +544,17 @@ void hook_bundle_assets(NYA_BuildRule* rule) {
 
     nya_asset_bundle();
 }
+
+void hook_stamp_output_file(NYA_BuildRule* rule) {
+    nya_assert(rule != nullptr);
+
+    if (rule->output_file == nullptr) return;
+
+    /*
+     * The content is the point of the file, not its bytes: what the next invocation compares is the
+     * modification time, and a write is the portable way to set one. The recipe's own name goes in
+     * so a stamp found by hand says which rule left it.
+     */
+    NYA_Error written = nya_file_write(rule->output_file, rule->name);
+    if (!written.ok) nya_log_warn("could not stamp '%s' for rule '%s'; it will run again", rule->output_file, rule->name);
+}
