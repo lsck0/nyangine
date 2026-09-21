@@ -960,7 +960,8 @@ build jobs restore it.
 Six drones in the 2D scene learn to fly to the player: five fly the best NEAT genome, one a DQN. Both train
 on one job every 0.25 s and are scored on the same eight test flights; the HUD shows the numbers and the
 genome. A nav flow field around terrain and map picks each drone's next point. The best genome is saved to
-`robots.nya` and each run is a row in `robots.db` (sqlite). `game.robots` in `engine.nya` toggles and tunes
+`robots.nya` and each run is a `GNY_RobotRun` row in `robots.db`, written through the reflection-driven ORM
+in `plugins/sqlite/orm.h`, so the struct is the schema. `game.robots` in `engine.nya` toggles and tunes
 it live. Release: 3 to 4 µs a tick on the main thread, a 2 to 7 ms job every 0.25 s, about 0.8 MB resident,
 nothing when disabled. Walking and all menus work on a gamepad, tested headless through SDL's virtual
 joystick.
