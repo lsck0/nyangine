@@ -4,12 +4,17 @@
 -- `nya.file.read` is not there at all, because nothing granted the filesystem. Calling it is not a
 -- refusal, it is an attempt to call a nil value: the name was never put in this VM.
 --
+-- Every function under `nya` is described in docs/lua/nya.lua, which is generated from the engine
+-- headers on every build. An editor pointed at it (.luarc.json already is) completes these and knows
+-- which permission each one needs.
+--
 -- Every hook is optional. A plugin defining none of them loads, does nothing, and costs one registry
 -- entry.
 
 local state = {
     ticks         = 0,
-    presses       = 0,
+    bursts        = 0,
+    action        = nil,
     next_report_s = 0.0,
     marker        = nil,
 }
@@ -19,6 +24,11 @@ local state = {
 function on_load()
     nya.log.info(greeting("gnyame"))
 
+    -- By name, never by number. An action number is the game's own enum and a plugin that hard codes
+    -- one breaks the day the game adds an action in the middle; the name survives that and survives a
+    -- rebind in the pause menu too.
+    state.action = nya.input.action_from_name("spawn_burst")
+
     -- A handle, not a pointer: after a despawn every call taking it answers nil, exactly as in C.
     state.marker = nya.entity.spawn({ name = "hello_plugin_marker", x = 0.0, y = 3.0, z = 0.0 })
 end
@@ -27,7 +37,7 @@ end
 function on_unload()
     if state.marker ~= nil then nya.entity.despawn(state.marker) end
 
-    nya.log.info(farewell() .. " after " .. state.ticks .. " ticks and " .. state.presses .. " presses")
+    nya.log.info(farewell() .. " after " .. state.ticks .. " ticks and " .. state.bursts .. " bursts")
 end
 
 -- The fixed timestep, the same one the engine's own systems tick on. This runs as one entry in the
@@ -36,15 +46,13 @@ end
 function on_tick(delta_time_s)
     state.ticks = state.ticks + 1
 
-    -- Action 0 is whatever the game bound first. A plugin reads the action, never the key, so a
-    -- rebind in the pause menu moves this with it.
-    if nya.input.action_pressed(0) then state.presses = state.presses + 1 end
+    if nya.input.action_just_pressed(state.action) then state.bursts = state.bursts + 1 end
 
     local now = nya.app.time()
     if now < state.next_report_s then return end
 
     state.next_report_s = now + REPORT_INTERVAL_S
 
-    nya.log.info(nya.plugin.name() .. ": " .. state.ticks .. " ticks, " .. state.presses .. " presses, uptime " ..
-                 string.format("%.1f", now) .. "s")
+    nya.log.info(nya.plugin.name() .. ": " .. state.ticks .. " ticks, " .. state.bursts .. " bursts, " ..
+                 nya.entity.count() .. " entities, uptime " .. string.format("%.1f", now) .. "s")
 end

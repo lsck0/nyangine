@@ -118,5 +118,8 @@ void hook_generate_reflection(NYA_BuildRule* rule);
 /** Regenerates docs/CHEATSHEET.md from the public headers. See build/pp/cheatsheet.h. */
 void hook_generate_cheatsheet(NYA_BuildRule* rule);
 
+/** Regenerates the Lua bindings and their definitions file from the @lua annotations. See build/pp/luabind.h. */
+void hook_generate_lua_bindings(NYA_BuildRule* rule);
+
 /** Wrapper around nya_asset_bundle. */
 void hook_bundle_assets(NYA_BuildRule* rule);

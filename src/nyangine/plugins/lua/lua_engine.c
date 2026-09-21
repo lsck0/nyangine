@@ -36,6 +36,27 @@ NYA_INTERNAL NYA_ConstCString _nya_lua_argument_string(const NYA_LuaCall* call, 
     return call->arguments[index].as_string;
 }
 
+/** An argument as a boolean, or `fallback` when it is absent. Lua's nil and false are both false. */
+NYA_INTERNAL b8 _nya_lua_argument_boolean(const NYA_LuaCall* call, u32 index, b8 fallback) {
+    if (index >= call->argument_count) return fallback;
+
+    const NYA_Value* value = &call->arguments[index];
+
+    switch (value->type) {
+        case NYA_TYPE_B8: return value->as_b8;
+        case NYA_TYPE_B16: return value->as_b16 != 0;
+        case NYA_TYPE_B32: return value->as_b32 != 0;
+        case NYA_TYPE_B64: return value->as_b64 != 0;
+
+        // Lua's own rule: everything but nil and false is true, so a number or a string passed where a
+        // flag was wanted is true rather than a silent false.
+        case NYA_TYPE_NULL:
+        case NYA_TYPE_VOID: return false;
+
+        default: return true;
+    }
+}
+
 /** A field of a table argument, as a number. */
 NYA_INTERNAL f64 _nya_lua_field_number(const NYA_LuaCall* call, u32 index, NYA_ConstCString key, f64 fallback) {
     if (index >= call->argument_count || call->arguments[index].type != NYA_TYPE_OBJECT) return fallback;
@@ -85,28 +106,79 @@ NYA_INTERNAL NYA_Value _nya_lua_handle_value(NYA_Arena* arena, NYA_EntityHandle 
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * BINDINGS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Almost all of them are generated. src/build/pp/luabind.c reads the `@lua` annotations in the engine
+ * headers and writes src/generated/lua_bindings.c: one marshalling function per annotated declaration
+ * and a table of them, included below.
+ *
+ * What is written by hand here is what a generator cannot see through — a variadic function, a macro
+ * over an options struct, a call that needs an NYA_Entity* — and each one says which of those it is.
+ * They carry `@lua_manual` so the definitions file describes the whole surface rather than the
+ * generated half of it: an editor must see one API, not two.
  */
 
+/** One binding: where it lives in the `nya` table, what runs, and what a plugin must have been granted to see it. */
+typedef struct {
+    NYA_ConstCString     path;
+    NYA_LuaFn            fn;
+    NYA_PluginPermission permission;
+} _NYA_LuaBindingEntry;
+
+/**
+ * One line in the engine log, marked as the script's.
+ *
+ * Hand written because nya_log_info is variadic and a variadic C function has no signature to generate
+ * a marshaller against. A script formats its own text and passes one string.
+ *
+ * @lua_manual(nya.log.info, NONE, text: string)
+ * */
 NYA_INTERNAL void nya_lua_binding_log(NYA_LuaCall* call) {
     NYA_ConstCString text = _nya_lua_argument_string(call, 0);
     if (text != nullptr) nya_log_info("[lua] %s", text);
 }
 
+/**
+ * The same at warning level.
+ *
+ * @lua_manual(nya.log.warn, NONE, text: string)
+ * */
 NYA_INTERNAL void nya_lua_binding_warn(NYA_LuaCall* call) {
     NYA_ConstCString text = _nya_lua_argument_string(call, 0);
     if (text != nullptr) nya_log_warn("[lua] %s", text);
 }
 
+/**
+ * The same at error level. A plugin's own failures reach the log through nya_plugin_error instead,
+ * which names the plugin; this is for a script saying something went wrong on its own terms.
+ *
+ * @lua_manual(nya.log.error, NONE, text: string)
+ * */
 NYA_INTERNAL void nya_lua_binding_error(NYA_LuaCall* call) {
     NYA_ConstCString text = _nya_lua_argument_string(call, 0);
     if (text != nullptr) nya_log_error("[lua] %s", text);
 }
 
+/**
+ * Seconds since the application started.
+ *
+ * Hand written because the value is a field of the struct nya_app_get returns, and a struct does not
+ * cross the boundary.
+ *
+ * @lua_manual(nya.app.time, NONE, -> number)
+ * */
 NYA_INTERNAL void nya_lua_binding_time(NYA_LuaCall* call) {
     call->results[0]   = nya_lua_number((f64)nya_app_get()->frame_stats.uptime_s);
     call->result_count = 1;
 }
 
+/**
+ * Spawns an entity from a table of `name`, `type`, `x`, `y` and `z`, and answers with its handle.
+ *
+ * Hand written because nya_entity_spawn is a macro over an options struct, which is exactly the shape
+ * the generator cannot see through.
+ *
+ * @lua_manual(nya.entity.spawn, ENTITIES, options: table, -> table)
+ * */
 NYA_INTERNAL void nya_lua_binding_spawn(NYA_LuaCall* call) {
     /*
      * A table, not positional arguments.
@@ -124,12 +196,14 @@ NYA_INTERNAL void nya_lua_binding_spawn(NYA_LuaCall* call) {
     call->result_count = 1;
 }
 
-NYA_INTERNAL void nya_lua_binding_despawn(NYA_LuaCall* call) {
-    // Deferred, which is what a script wants: it may well be running from inside an update, and the
-    // barrier is what makes removing something mid-iteration safe.
-    nya_entity_despawn_deferred(_nya_lua_argument_handle(call, 0));
-}
-
+/**
+ * Where an entity is, as a table of `x`, `y` and `z`, or nil once its handle no longer resolves.
+ *
+ * Hand written because reading a position means holding an NYA_Entity*, and a pointer is the one thing
+ * that must not cross into a script.
+ *
+ * @lua_manual(nya.entity.position, ENTITIES, entity: table, -> table)
+ * */
 NYA_INTERNAL void nya_lua_binding_position(NYA_LuaCall* call) {
     NYA_Entity* entity = nya_entity_get(_nya_lua_argument_handle(call, 0));
 
@@ -149,6 +223,14 @@ NYA_INTERNAL void nya_lua_binding_position(NYA_LuaCall* call) {
     call->result_count = 1;
 }
 
+/**
+ * Tweens an entity to a point over `duration_s`. Zero is a teleport, which is what nya_entity_move_to
+ * already means by it.
+ *
+ * Hand written for the same reason as the position above.
+ *
+ * @lua_manual(nya.entity.move_to, ENTITIES, entity: table, x: number, y: number, z: number, duration_s: number)
+ * */
 NYA_INTERNAL void nya_lua_binding_move_to(NYA_LuaCall* call) {
     NYA_Entity* entity = nya_entity_get(_nya_lua_argument_handle(call, 0));
     if (entity == nullptr) return;
@@ -163,20 +245,19 @@ NYA_INTERNAL void nya_lua_binding_move_to(NYA_LuaCall* call) {
     nya_entity_move_to(entity, target, (f32)_nya_lua_argument_number(call, 4, 0.0), NYA_EASE_CUBIC_OUT);
 }
 
-/* An action is a number, not a name. */
-NYA_INTERNAL void nya_lua_binding_action(NYA_LuaCall* call) {
-    NYA_InputAction action = (NYA_InputAction)(u32)_nya_lua_argument_number(call, 0, -1.0);
+/** What the hand written ones above register as. The generated ones are in _NYA_LUA_GENERATED_BINDINGS. */
+NYA_INTERNAL const _NYA_LuaBindingEntry _NYA_LUA_MANUAL_BINDINGS[] = {
+    { "nya.log.info",        nya_lua_binding_log,      NYA_PLUGIN_PERMISSION_NONE     },
+    { "nya.log.warn",        nya_lua_binding_warn,     NYA_PLUGIN_PERMISSION_NONE     },
+    { "nya.log.error",       nya_lua_binding_error,    NYA_PLUGIN_PERMISSION_NONE     },
+    { "nya.app.time",        nya_lua_binding_time,     NYA_PLUGIN_PERMISSION_NONE     },
+    { "nya.entity.spawn",    nya_lua_binding_spawn,    NYA_PLUGIN_PERMISSION_ENTITIES },
+    { "nya.entity.position", nya_lua_binding_position, NYA_PLUGIN_PERMISSION_ENTITIES },
+    { "nya.entity.move_to",  nya_lua_binding_move_to,  NYA_PLUGIN_PERMISSION_ENTITIES },
+};
 
-    call->results[0]   = nya_lua_boolean(call->argument_count > 0 && nya_input_action_pressed(action));
-    call->result_count = 1;
-}
-
-NYA_INTERNAL void nya_lua_binding_action_pressed(NYA_LuaCall* call) {
-    NYA_InputAction action = (NYA_InputAction)(u32)_nya_lua_argument_number(call, 0, -1.0);
-
-    call->results[0]   = nya_lua_boolean(call->argument_count > 0 && nya_input_action_just_pressed(action));
-    call->result_count = 1;
-}
+// After the helpers it calls and the _NYA_LuaBindingEntry it fills in, and never edited by hand.
+#include "generated/lua_bindings.c"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -184,33 +265,16 @@ NYA_INTERNAL void nya_lua_binding_action_pressed(NYA_LuaCall* call) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/**
- * One binding: where it lives in the `nya` table, what runs, and what a plugin has to have been granted
- * to see it at all.
- *
- * Hand written for now, generated in a moment: src/build/pp/luabind.c reads the `@lua` annotations in
- * the engine headers and emits this table plus one marshalling function per entry. The permission is
- * the annotation's argument, so the answer to "what does this call need" lives above the C function it
- * calls rather than here.
- * */
-typedef struct {
-    NYA_ConstCString     path;
-    NYA_LuaFn            fn;
-    NYA_PluginPermission permission;
-} _NYA_LuaBindingEntry;
+/** Registers one table's worth, skipping whatever `permissions` does not cover. */
+NYA_INTERNAL void _nya_lua_open_table(NYA_LuaVM* vm, const _NYA_LuaBindingEntry* bindings, u32 count, NYA_PluginPermission permissions) {
+    for (u32 i = 0; i < count; i++) {
+        // The whole of the permission check. A binding that does not pass it is never registered, so the
+        // name it would have had does not exist in this VM; see nya_lua_open_engine_permitted's contract.
+        if (((u64)bindings[i].permission & ~(u64)permissions) != 0) continue;
 
-NYA_INTERNAL const _NYA_LuaBindingEntry _NYA_LUA_BINDINGS[] = {
-    { "nya.log.info",            nya_lua_binding_log,            NYA_PLUGIN_PERMISSION_NONE     },
-    { "nya.log.warn",            nya_lua_binding_warn,           NYA_PLUGIN_PERMISSION_NONE     },
-    { "nya.log.error",           nya_lua_binding_error,          NYA_PLUGIN_PERMISSION_NONE     },
-    { "nya.app.time",            nya_lua_binding_time,           NYA_PLUGIN_PERMISSION_NONE     },
-    { "nya.entity.spawn",        nya_lua_binding_spawn,          NYA_PLUGIN_PERMISSION_ENTITIES },
-    { "nya.entity.despawn",      nya_lua_binding_despawn,        NYA_PLUGIN_PERMISSION_ENTITIES },
-    { "nya.entity.position",     nya_lua_binding_position,       NYA_PLUGIN_PERMISSION_ENTITIES },
-    { "nya.entity.move_to",      nya_lua_binding_move_to,        NYA_PLUGIN_PERMISSION_ENTITIES },
-    { "nya.input.action",        nya_lua_binding_action,         NYA_PLUGIN_PERMISSION_INPUT    },
-    { "nya.input.action_pressed", nya_lua_binding_action_pressed, NYA_PLUGIN_PERMISSION_INPUT    },
-};
+        nya_lua_register_path(vm, bindings[i].path, bindings[i].fn, nullptr);
+    }
+}
 
 void nya_lua_open_engine(NYA_LuaVM* vm) {
     // Everything, for a VM the host itself owns: the permission model is about plugins, and the game's
@@ -221,13 +285,9 @@ void nya_lua_open_engine(NYA_LuaVM* vm) {
 void nya_lua_open_engine_permitted(NYA_LuaVM* vm, NYA_PluginPermission permissions) {
     if (vm == nullptr) return;
 
-    for (u32 i = 0; i < nya_carray_length(_NYA_LUA_BINDINGS); i++) {
-        const _NYA_LuaBindingEntry* binding = &_NYA_LUA_BINDINGS[i];
+    _nya_lua_open_table(vm, _NYA_LUA_GENERATED_BINDINGS, nya_carray_length(_NYA_LUA_GENERATED_BINDINGS), permissions);
 
-        // The whole of the permission check. A binding that does not pass it is never registered, so the
-        // name it would have had does not exist in this VM; see nya_lua_open_engine_permitted's contract.
-        if (((u64)binding->permission & ~(u64)permissions) != 0) continue;
-
-        nya_lua_register_path(vm, binding->path, binding->fn, nullptr);
-    }
+    // Second, so a hand written binding wins where a path is in both tables. There is none today, and
+    // the one that eventually is will be a generated call somebody had to wrap.
+    _nya_lua_open_table(vm, _NYA_LUA_MANUAL_BINDINGS, nya_carray_length(_NYA_LUA_MANUAL_BINDINGS), permissions);
 }

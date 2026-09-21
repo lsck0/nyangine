@@ -24,6 +24,7 @@
 #include "build/pp/asset.h"
 #include "build/pp/cheatsheet.h"
 #include "build/pp/i18n.h"
+#include "build/pp/luabind.h"
 #include "build/pp/reflection.h"
 
 /*
@@ -69,6 +70,16 @@ NYA_INTERNAL NYA_BuildRule generate_cheatsheet = {
     .post_build_hooks = { &hook_generate_cheatsheet, },
 };
 
+/**
+ * Regenerates src/generated/lua_bindings.c and docs/lua/nya.lua from the @lua annotations.
+ * */
+NYA_INTERNAL NYA_BuildRule generate_lua_bindings = {
+    .name             = "generate_lua_bindings",
+    .policy           = NYA_BUILD_ALWAYS,
+    .is_metarule      = true,
+    .post_build_hooks = { &hook_generate_lua_bindings, },
+};
+
 NYA_INTERNAL NYA_BuildRule index_assets = {
     .name             = "index_assets",
     .is_metarule      = true,
@@ -76,10 +87,14 @@ NYA_INTERNAL NYA_BuildRule index_assets = {
     // the compile rules then consume, and everything that compiles depends on this rule. It has
     // nothing to do with indexing assets beyond that shared ordering requirement.
     //
+    // generate_lua_bindings is here for that same reason and no other: it writes the C that
+    // lua_engine.c includes, so an annotation added to a header and the binding it produces have to
+    // land in one build.
+    //
     // generate_cheatsheet writes no source at all, and hangs here so that a header edit and the
     // reference to it land in the same build. A document that regenerates only when asked is a
     // document that is wrong by the time anyone asks.
-    .dependencies     = { &build_shaders, &generate_strings, &generate_reflection, &generate_cheatsheet, },
+    .dependencies     = { &build_shaders, &generate_strings, &generate_reflection, &generate_lua_bindings, &generate_cheatsheet, },
     .post_build_hooks = { &hook_index_assets, },
 };
 

@@ -335,6 +335,8 @@ NYA_API NYA_SoundVoice nya_audio_play_sound_at_3d(NYA_ConstCString sound_handle,
 
 /**
  * Starts `music_handle` on the music track, replacing whatever was playing.
+ *
+ * @lua(AUDIO)
  * */
 NYA_API void nya_audio_play_music(NYA_ConstCString music_handle, b8 loop, u32 fade_in_ms);
 
@@ -351,14 +353,36 @@ NYA_API void nya_audio_crossfade_music(NYA_ConstCString music_handle, NYA_MusicP
  * */
 NYA_API NYA_SoundVoice nya_audio_music_voice(void) __attr_no_discard;
 
-/** Stops the music, fading out over `fade_out_ms`. Zero stops immediately. */
+/**
+ * Stops the music, fading out over `fade_out_ms`. Zero stops immediately.
+ *
+ * @lua(AUDIO)
+ * */
 NYA_API void nya_audio_stop_music(u32 fade_out_ms);
 
-/* Pause and resume keep the track's position, unlike stop and play. What a pause menu wants. */
+/*
+ * Pause and resume keep the track's position, unlike stop and play. What a pause menu wants.
+ */
+
+/**
+ * Pauses the music where it is.
+ *
+ * @lua(AUDIO)
+ * */
 NYA_API void nya_audio_pause_music(void);
+
+/**
+ * Resumes it from there.
+ *
+ * @lua(AUDIO)
+ * */
 NYA_API void nya_audio_resume_music(void);
 
-/** Whether the music track is sounding. False while paused, as well as when stopped. */
+/**
+ * Whether the music track is sounding. False while paused, as well as when stopped.
+ *
+ * @lua(AUDIO)
+ * */
 NYA_API b8 nya_audio_music_playing(void) __attr_no_discard;
 
 /*

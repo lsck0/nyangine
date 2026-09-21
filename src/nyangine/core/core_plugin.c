@@ -1005,6 +1005,11 @@ NYA_INTERNAL _NYA_PluginSlot* _nya_plugin_calling_slot(void) {
     return current != nullptr ? _nya_plugin_slot_find(current) : nullptr;
 }
 
+/**
+ * The calling plugin's own name, as its directory spells it.
+ *
+ * @lua_manual(nya.plugin.name, NONE, -> string)
+ * */
 NYA_INTERNAL void _nya_plugin_binding_name(NYA_LuaCall* call) {
     const _NYA_PluginSlot* slot = _nya_plugin_calling_slot();
     if (slot == nullptr) return;
@@ -1013,6 +1018,11 @@ NYA_INTERNAL void _nya_plugin_binding_name(NYA_LuaCall* call) {
     call->result_count = 1;
 }
 
+/**
+ * Its version, from its manifest.
+ *
+ * @lua_manual(nya.plugin.version, NONE, -> string)
+ * */
 NYA_INTERNAL void _nya_plugin_binding_version(NYA_LuaCall* call) {
     const _NYA_PluginSlot* slot = _nya_plugin_calling_slot();
     if (slot == nullptr) return;
@@ -1021,6 +1031,11 @@ NYA_INTERNAL void _nya_plugin_binding_version(NYA_LuaCall* call) {
     call->result_count = 1;
 }
 
+/**
+ * Where it was loaded from. What every path in nya.file.* is relative to.
+ *
+ * @lua_manual(nya.plugin.directory, NONE, -> string)
+ * */
 NYA_INTERNAL void _nya_plugin_binding_directory(NYA_LuaCall* call) {
     const _NYA_PluginSlot* slot = _nya_plugin_calling_slot();
     if (slot == nullptr) return;
@@ -1029,6 +1044,11 @@ NYA_INTERNAL void _nya_plugin_binding_directory(NYA_LuaCall* call) {
     call->result_count = 1;
 }
 
+/**
+ * Reads a file inside the plugin's own directory, or nil when there is none.
+ *
+ * @lua_manual(nya.file.read, FILESYSTEM, path: string, -> string)
+ * */
 NYA_INTERNAL void _nya_plugin_binding_file_read(NYA_LuaCall* call) {
     const _NYA_PluginSlot* slot = _nya_plugin_calling_slot();
     if (slot == nullptr || call->argument_count < 1 || call->arguments[0].type != NYA_TYPE_STRING) return;
@@ -1048,6 +1068,11 @@ NYA_INTERNAL void _nya_plugin_binding_file_read(NYA_LuaCall* call) {
     call->result_count = 1;
 }
 
+/**
+ * Writes one, and answers whether it worked.
+ *
+ * @lua_manual(nya.file.write, FILESYSTEM, path: string, contents: string, -> boolean)
+ * */
 NYA_INTERNAL void _nya_plugin_binding_file_write(NYA_LuaCall* call) {
     const _NYA_PluginSlot* slot = _nya_plugin_calling_slot();
     if (slot == nullptr || call->argument_count < 2) return;

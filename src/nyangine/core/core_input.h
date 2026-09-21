@@ -338,9 +338,21 @@ NYA_API void nya_input_action_bind_axis(NYA_InputAction action, NYA_GamepadAxis 
 /** Whether `binding` is currently satisfied by any connected pad, ignoring the keyboard half. */
 NYA_API b8 nya_input_binding_gamepad_pressed(NYA_InputBinding binding) __attr_no_discard;
 
+/**
+ * Drops every binding `action` has.
+ *
+ * A plugin needs the keybinding permission for this and not merely the input one: taking a key away
+ * from the game or from another plugin is a different thing from reading whether it is down.
+ *
+ * @lua(KEYBINDING)
+ * */
 NYA_API void nya_input_action_unbind(NYA_InputAction action);
 
-/** Whether `action` has any key bound to it at all. */
+/**
+ * Whether `action` has any key bound to it at all.
+ *
+ * @lua(INPUT)
+ * */
 NYA_API b8 nya_input_action_bound(NYA_InputAction action) __attr_no_discard;
 
 /*
@@ -359,17 +371,42 @@ NYA_API b8 nya_input_action_bound(NYA_InputAction action) __attr_no_discard;
  * */
 NYA_API void nya_input_action_name_set(NYA_InputAction action, NYA_ConstCString name);
 
-/** What `action` is called, or null when nothing has named it. */
+/**
+ * What `action` is called, or null when nothing has named it.
+ *
+ * @lua(INPUT)
+ * */
 NYA_API NYA_ConstCString nya_input_action_name(NYA_InputAction action) __attr_no_discard;
 
-/** The action called `name`, or NYA_INPUT_ACTION_NONE. What a settings file's keys resolve through. */
+/**
+ * The action called `name`, or NYA_INPUT_ACTION_NONE. What a settings file's keys resolve through.
+ *
+ * The call a plugin wants first: an action number is the game's, and a plugin that hard codes one
+ * breaks when the game adds an action in the middle.
+ *
+ * @lua(INPUT)
+ * */
 NYA_API NYA_InputAction nya_input_action_from_name(NYA_ConstCString name) __attr_no_discard;
 
 /**
- * True when any of the action's bindings is satisfied.
+ * True on the frame any of the action's bindings became satisfied.
+ *
+ * @lua(INPUT)
  * */
 NYA_API b8 nya_input_action_just_pressed(NYA_InputAction action) __attr_no_discard;
+
+/**
+ * True while any of the action's bindings is satisfied.
+ *
+ * @lua(INPUT)
+ * */
 NYA_API b8 nya_input_action_pressed(NYA_InputAction action) __attr_no_discard;
+
+/**
+ * True on the frame the last of the action's bindings stopped being satisfied.
+ *
+ * @lua(INPUT)
+ * */
 NYA_API b8 nya_input_action_just_released(NYA_InputAction action) __attr_no_discard;
 
 /**

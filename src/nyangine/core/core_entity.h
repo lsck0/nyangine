@@ -621,10 +621,16 @@ NYA_API void nya_system_entity_render_in(NYA_Window* window, f32x2 min, f32x2 ma
 
 /**
  * Makes `child` follow `parent`, without moving it.
+ *
+ * @lua(ENTITIES)
  * */
 NYA_API b8 nya_entity_parent_set(NYA_EntityHandle child, NYA_EntityHandle parent);
 
-/** Unparents, keeping the world transform. The same as parenting to NYA_ENTITY_HANDLE_NONE. */
+/**
+ * Unparents, keeping the world transform. The same as parenting to NYA_ENTITY_HANDLE_NONE.
+ *
+ * @lua(ENTITIES)
+ * */
 NYA_API void nya_entity_parent_clear(NYA_EntityHandle child);
 
 /** The parent, or NYA_ENTITY_HANDLE_NONE. */
@@ -633,10 +639,18 @@ NYA_API NYA_EntityHandle nya_entity_parent(const NYA_Entity* entity) __attr_no_d
 /** The direct children, written into `out`. Returns the total, which may exceed `capacity`. */
 NYA_API u32 nya_entity_children(const NYA_Entity* entity, OUT NYA_EntityHandle* out, u32 capacity);
 
-/** Whether `ancestor` is above `descendant`. Used to reject cycles. */
+/**
+ * Whether `ancestor` is above `descendant`. Used to reject cycles.
+ *
+ * @lua(ENTITIES)
+ * */
 NYA_API b8 nya_entity_is_ancestor(NYA_EntityHandle ancestor, NYA_EntityHandle descendant) __attr_no_discard;
 
-/** Rewrites `entity` and its subtree from their parents' transforms, now. */
+/**
+ * Rewrites `entity` and its subtree from their parents' transforms, now.
+ *
+ * @lua(ENTITIES)
+ * */
 NYA_API void nya_entity_transform_sync(NYA_EntityHandle entity);
 
 /** Propagates every parented transform. Called by nya_system_entity_update. */
@@ -856,13 +870,31 @@ NYA_API void nya_entity_despawn(NYA_EntityHandle entity);
 /**
  * Removes an entity at the next simulation barrier, so iteration is never disturbed. Despawning twice is
  * harmless.
+ *
+ * The form a script gets, and the only one it gets: a plugin's hook may well be running inside an
+ * update, and the barrier is what makes removing something mid-iteration safe. Bound as
+ * `nya.entity.despawn` rather than the derived name, because from Lua there is no other despawn to
+ * tell it apart from.
+ *
+ * @lua(ENTITIES, nya.entity.despawn)
  * */
 NYA_API void nya_entity_despawn_deferred(NYA_EntityHandle entity);
 
 /** Null once the entity is gone. Store the handle, not the result. */
 NYA_API NYA_Entity* nya_entity_get(NYA_EntityHandle entity) __attr_no_discard;
-NYA_API b8          nya_entity_is_valid(NYA_EntityHandle entity) __attr_no_discard;
 
+/**
+ * Whether the handle still resolves to a live entity.
+ *
+ * @lua(ENTITIES)
+ * */
+NYA_API b8 nya_entity_is_valid(NYA_EntityHandle entity) __attr_no_discard;
+
+/**
+ * How many entities are alive.
+ *
+ * @lua(ENTITIES)
+ * */
 NYA_API u32 nya_entity_count(void) __attr_no_discard;
 
 /** Removes every entity. Runs on_despawn for each. */
