@@ -6,7 +6,7 @@
 
 ## Where it stands
 
-211 tests pass, `check --strict` reports nothing, and debug, release and steam-windows build. The title
+212 tests pass, `check --strict` reports nothing, and debug, release and steam-windows build. The title
 screen logs one line in twenty seconds, where it logged 6813.
 
 Landed since the scope widened: the build system reorganised with `./build dist`, a `secrets/` tree encrypted
@@ -17,8 +17,8 @@ achievements, and Discord presence and invites behind one facade; scene persiste
 shadow lag and the fire flicker fixed with measurements; the UI split into seven files with fixed scale and
 eleven new widgets; and one system registry driving the frame for engine and game alike.
 
-The big things still missing are the HTTP server and the web client, the TUI backend, the plugin system, and
-fluids. See "The stack" and "Requested".
+In progress now: fluids, the plugin system, the TUI backend, the HTTP server, and fast-forward with DQN
+driving the game. The web client is the one large thing not started. See "The stack" and "Requested".
 
 ---
 
@@ -52,7 +52,7 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | :--- | :--- | :--- |
 | 2D/3D renderer | animation, particles, atmosphere, liquids, opacity, reflections, dynamic LOD, eye adaptation | `[~]` animation, particles, fog, glass, terrain and mesh LOD, eye adaptation, light shafts, aerial perspective and motion blur exist; volumetrics, liquids and reflections missing |
 | Post processing | a composable chain | `[x]` occlusion, ink, depth of field, FXAA, grade, bloom, speed lines, HDR output |
-| Graphics options | antialiasing, motion blur, fov, ... toggleable | `[~]` MSAA, FXAA, shadows, post passes, fov and render scale are player settings; a flag for every renderer feature is in progress |
+| Graphics options | antialiasing, motion blur, fov, ... toggleable | `[x]` MSAA, FXAA, shadows, post passes, fov and render scale are player settings, and 37 feature switches cover everything else including culling, sorting and the depth test |
 | Renderer debug | physics hitboxes and other debug views | `[~]` buffer views exist; physics shapes missing |
 | Audio | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's) |
 | UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns, radio, tabs, draggable panels, tables, charts, icons, opacity groups, scrolling. Open: a floating dropdown, a node editor, SVG, the code editor widget |
@@ -71,7 +71,8 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 Everything from the parallel session is merged: the build reorganisation and `dist`, IPC and WebSocket, the
 crash reporter, the generated cheatsheet and four examples, collision layers and the simulation harness,
 Steam and Discord, scene persistence, the renderer bug fixes, the UI split and its widgets, and the system
-registry. 211 tests pass, `check --strict` is clean, and debug, release and steam-windows all build.
+registry, and the renderer feature switches. 212 tests pass, `check --strict` is clean, and debug, release
+and steam-windows all build.
 
 What is written and NOT merged, sitting as stashes in `.claude/worktrees/`:
 
