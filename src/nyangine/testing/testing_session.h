@@ -8,6 +8,7 @@
  *   nya_session_create / _destroy    a session, from a seed and a tick count
  *   nya_session_action_add           one thing the agent may do, by name
  *   nya_session_run                  runs the app's own frame loop to the tick count
+ *   nya_session_digest               one number standing for everything the run did
  *   nya_session_key / _mouse_* /
  *     _wheel                         what an action calls to act as the user
  *   nya_session_policy_random        the default policy, and the shape a learned one has
@@ -36,6 +37,24 @@
  *
  * That is also why the tick count and not a duration is what a session takes: "a hundred thousand
  * ticks" is the same run everywhere, and "half an hour" is not.
+ *
+ * ## Why it is the same run either way
+ *
+ * A fast-forwarded run is only worth anything if it finds the bugs a real one would, which means it
+ * has to be the same run. Three things make it one, and each is load bearing:
+ *
+ *   - The tick is a fixed timestep. Every system in the tick phase is handed NYA_AppOptions.time_step_ns
+ *     whatever the wall clock did, so the clock changes how often a tick happens and never what one does.
+ *   - Every draw the agent makes is siphash(seed, tick, draw index) rather than a stateful generator,
+ *     so the action at tick N is a function of the seed and N alone.
+ *   - The clock advances by exactly one step per frame and the catch-up cap is one, so a frame is a
+ *     tick. The agent acts once per frame, which is therefore once per tick, in the same place in the
+ *     frame a real player's input lands: dispatched at NYA_EVENT_FRAME_STARTED and handled by the
+ *     event pump before the tick runs.
+ *
+ * `real_time` is the proof rather than a feature: it paces the same session to the wall clock, one
+ * step per frame, and leaves everything else alone. Same seed, same digest, and the only difference is
+ * how long it took. See tests/nyangine/testing/test_session.c.
  *
  * ## Acting as the user
  *
@@ -154,6 +173,16 @@ struct NYA_SessionOptions {
     /** Printed as it plays. Off by default. */
     b8 verbose;
 
+    /**
+     * Plays at the rate a person would, one tick per wall clock step, instead of as fast as the CPU
+     * allows.
+     *
+     * Only a test wants this: it is how a fast-forwarded run is shown to be the same run as a real
+     * time one, by playing the same seed both ways and comparing nya_session_digest. Nothing else
+     * changes, so the comparison is of the clock and of nothing else.
+     * */
+    b8 real_time;
+
     /** The scenario's own state, reachable from every action. The harness never looks inside. */
     void* user_data;
 };
@@ -166,9 +195,20 @@ struct NYA_Session {
     u64 seed;
     u64 tick_count;
     b8  verbose;
+    b8  real_time;
 
     /** Ticks played so far. The coordinate every draw is hashed under. */
     u64 tick;
+
+    /**
+     * Fixed steps the application actually ran, counted independently of `tick`.
+     *
+     * A session acts once per frame and assumes a frame is a tick, which is what the clock and the
+     * catch-up cap are arranged to guarantee. The two are counted separately and compared at the end
+     * of the run so the assumption is checked rather than trusted: a run where they disagree acted on
+     * frames that ran no tick, which is a different run from the one the seed names.
+     * */
+    u64 ticks_run;
 
     /** Draws taken during this tick, reset at the top of each. */
     u64 draw;
@@ -183,6 +223,23 @@ struct NYA_Session {
 
     /** Nanoseconds one tick advances the clock by. Read from the app's own step at create time. */
     u64 time_step_ns;
+
+    /** Real monotonic nanoseconds at the first tick, which a real time run paces each tick against. */
+    u64 started_ns;
+
+    /** Real monotonic nanoseconds the run took, so a caller can say how much faster than real it was. */
+    u64 elapsed_ns;
+
+    /**
+     * Everything the run did, folded into one number: per tick, the tick index, the action chosen and
+     * every sense the scenario reported.
+     *
+     * The comparable result of a session. Two runs of one seed agree on it or the run was not
+     * deterministic, and that is the whole claim fast forwarding rests on. Senses are folded as their
+     * bit patterns, so a float that differs in its last place is a different digest rather than a
+     * rounding question.
+     * */
+    u64 digest;
 
     NYA_SessionAction actions[NYA_SESSION_MAX_ACTIONS];
     u32               action_count;
@@ -207,6 +264,9 @@ struct NYA_Session {
     /** Keys currently held by the agent, so a session never leaves one stuck down. */
     NYA_Keycode held[NYA_SESSION_MAX_ACTIONS];
     u32         held_count;
+
+    /** The same for the mouse, as one bit per button. */
+    u32 held_buttons;
 
     u32 failures;
 
@@ -263,6 +323,14 @@ NYA_API u32 nya_session_run(NYA_Session* session);
 
 /** Records a failure and prints the seed, tick and the replay command. */
 NYA_API void nya_session_fail(NYA_Session* session, NYA_ConstCString format, ...) __attr_fmt_printf(2, 3);
+
+/**
+ * One number standing for everything the run did; see NYA_Session.digest.
+ *
+ * Two runs of the same seed must agree on it whatever the machine and whatever the clock, which is
+ * what makes a failing seed a bug report and a fast-forwarded run worth running.
+ * */
+NYA_API u64 nya_session_digest(const NYA_Session* session) __attr_no_discard;
 
 /** The default policy: a weighted draw from the seed. The fuzzing case, and the baseline a learned one beats. */
 NYA_API u32 nya_session_policy_random(NYA_Session* session, const f32* senses, u32 sense_count);

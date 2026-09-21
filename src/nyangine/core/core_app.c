@@ -463,6 +463,45 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     return NYA_OK;
 }
 
+void nya_app_events_pump(void) {
+    nya_perf_time_this_scope("frame_event_handling");
+
+    nya_event_dispatch((NYA_Event){
+        .type = NYA_EVENT_HANDLING_STARTED,
+    });
+
+    nya_system_event_drain_sdl_events();
+
+    NYA_Event event;
+    while (nya_system_event_poll(&event)) {
+        if (event.was_handled) continue;
+
+        nya_system_window_handle_event(&event);
+        if (event.was_handled) continue;
+
+        nya_system_input_handle_event(&event);
+        if (event.was_handled) continue;
+
+        for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
+            NYA_Window* window = nya_window_at_slot(slot);
+            if (window == nullptr) continue;
+
+            nya_array_foreach_reverse (window->layer_stack, layer) {
+                NYA_LayerOnEventFn on_event_fn = nya_callback_get(layer->on_event);
+                if (layer->enabled && on_event_fn != nullptr) {
+                    on_event_fn(window, &event);
+                    if (event.was_handled) break;
+                }
+            }
+            if (event.was_handled) break;
+        }
+    }
+
+    nya_event_dispatch((NYA_Event){
+        .type = NYA_EVENT_HANDLING_ENDED,
+    });
+}
+
 u64 nya_app_uptime_ns(void) {
     NYA_App* app = nya_app_get();
     return _nya_app_now_ns() - app->frame_stats.started_ns;
@@ -471,14 +510,25 @@ u64 nya_app_uptime_ns(void) {
 void nya_app_time_source_set(NYA_AppTimeSource source) {
     NYA_App* app = nya_app_get();
 
+    u64 was = _nya_app_now_ns();
     u64 now = source.now_ns != nullptr ? source.now_ns() : nya_clock_get_monotonic_ns();
 
-    // the next frame's elapsed time is this clock's reading minus the previous frame's start, which
-    // the outgoing clock wrote. A source starting behind that makes the unsigned subtraction wrap and
-    // the loop believes it is six hundred years behind.
-    nya_assert(now >= app->frame_stats.prev_frame_time_ns, "a time source must not start behind the frame the last one ended");
-
     app->time_source = source;
+
+    /*
+     * A clock swap is a discontinuity rather than a frame. The next frame's elapsed time is the new
+     * clock's reading minus a timestamp the outgoing clock wrote, which is an enormous delta in one
+     * direction and an unsigned wrap in the other: a simulated clock that ran ahead of the wall clock
+     * and is then handed back leaves the loop believing it is centuries behind. Rebased, the first
+     * frame after a swap measures nothing and owes nothing, which is what actually happened.
+     */
+    app->frame_stats.prev_frame_time_ns  = now;
+    app->frame_stats.frame_start_time_ns = now;
+    app->frame_stats.time_behind_ns      = 0;
+
+    // uptime is measured against started_ns, so the origin moves with the clock and the program's age
+    // neither jumps nor goes backwards across a swap.
+    app->frame_stats.started_ns = now - (was - app->frame_stats.started_ns);
 }
 
 NYA_AppTimeSource nya_app_time_source(void) {
@@ -549,43 +599,7 @@ void nya_app_run(void) {
             nya_system_registry_run(NYA_SYSTEM_PHASE_FRAME, (f32)nya_time_ns_to_s(app->frame_stats.elapsed_ns));
         }
 
-        {
-            nya_perf_time_this_scope("frame_event_handling");
-            nya_event_dispatch((NYA_Event){
-                .type = NYA_EVENT_HANDLING_STARTED,
-            });
-
-            nya_system_event_drain_sdl_events();
-
-            NYA_Event event;
-            while (nya_system_event_poll(&event)) {
-                if (event.was_handled) continue;
-
-                nya_system_window_handle_event(&event);
-                if (event.was_handled) continue;
-
-                nya_system_input_handle_event(&event);
-                if (event.was_handled) continue;
-
-                for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
-                    NYA_Window* window = nya_window_at_slot(slot);
-                    if (window == nullptr) continue;
-
-                    nya_array_foreach_reverse (window->layer_stack, layer) {
-                        NYA_LayerOnEventFn on_event_fn = nya_callback_get(layer->on_event);
-                        if (layer->enabled && on_event_fn != nullptr) {
-                            on_event_fn(window, &event);
-                            if (event.was_handled) break;
-                        }
-                    }
-                    if (event.was_handled) break;
-                }
-            }
-
-            nya_event_dispatch((NYA_Event){
-                .type = NYA_EVENT_HANDLING_ENDED,
-            });
-        }
+        nya_app_events_pump();
 
         _nya_app_update();
         _nya_app_render();
@@ -593,7 +607,10 @@ void nya_app_run(void) {
         {
             app->frame_stats.frame_end_time_ns  = _nya_app_now_ns();
             app->frame_stats.prev_frame_time_ns = app->frame_stats.frame_start_time_ns;
-            app->frame_stats.fps                = 1.0F / (f32)nya_time_ns_to_s(app->frame_stats.elapsed_ns);
+
+            // guarded like the nested step's: the first frame after the clock was rebased measures no
+            // elapsed time at all, and a rate over no time is a division by zero rather than a number.
+            if (app->frame_stats.elapsed_ns > 0) app->frame_stats.fps = 1.0F / (f32)nya_time_ns_to_s(app->frame_stats.elapsed_ns);
 
             // observers read the frame's records, which are then dropped, before the frame allocator resets.
             nya_system_sim_end_frame();

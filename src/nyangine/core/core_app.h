@@ -204,6 +204,17 @@ struct NYA_App {
 #define nya_app_init(...) nya_app_init_with_options((NYA_AppOptions){ _NYA_APP_DEFAULT_OPTIONS, __VA_ARGS__ })
 NYA_API NYA_Error nya_app_init_with_options(NYA_AppOptions options) __attr_no_discard;
 
+/**
+ * Drains SDL's events into the queue and routes everything queued through window handling, the input
+ * system and each window's layer stack, topmost first, stopping at whoever marks an event handled.
+ *
+ * The frame loop's own event step, called once per frame between the frame phase and the tick phase.
+ * Exported because anything that has to make the application see an event from outside a frame would
+ * otherwise re-implement that routing and get the order wrong: a simulated session pumps it once
+ * before tick zero so the agent's pointer is where the session says it is. See testing_session.h.
+ * */
+NYA_API void nya_app_events_pump(void);
+
 /** Time since nya_app_init, live rather than the once per frame NYA_FrameStats.uptime_ns. */
 NYA_API u64      nya_app_uptime_ns(void) __attr_no_discard;
 NYA_API f64      nya_app_uptime_s(void) __attr_no_discard;
@@ -220,9 +231,11 @@ NYA_API NYA_App* nya_app_get(void);
  * nya_app_time_source_set((NYA_AppTimeSource){ 0 });
  * ```
  *
- * A source whose clock starts behind the frame the previous one ended is a programmer error and is
- * asserted: the next frame's elapsed time is this clock's reading minus the previous frame's start,
- * and an unsigned subtraction that wraps reads as centuries of debt.
+ * Swapping the clock rebases the frame clock on the new one: the next frame measures no elapsed time
+ * and owes no ticks, and the uptime origin moves so the program's age does not jump. Without that, the
+ * first frame after a swap takes the difference between two unrelated clocks, which is an enormous
+ * delta one way and an unsigned wrap the other, and a simulated clock that ran ahead of the wall clock
+ * and is then handed back leaves the loop believing it is centuries behind.
  * */
 NYA_API void              nya_app_time_source_set(NYA_AppTimeSource source);
 NYA_API NYA_AppTimeSource nya_app_time_source(void) __attr_no_discard;
