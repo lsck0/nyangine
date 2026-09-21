@@ -87,9 +87,17 @@
 /** Past this the ball has drained and a new one is served. */
 #define DRAIN_Z (TABLE_HALF_LENGTH + 0.6F)
 
-/** Where a new ball appears, in table space. The right hand lane, as on a real table. */
-#define SERVE_X (TABLE_HALF_WIDTH - 0.22F)
-#define SERVE_Z (TABLE_HALF_LENGTH - 0.30F)
+/**
+ * Where a new ball appears, in table space.
+ *
+ * Left of the centre line and well up the playfield, rather than the right hand launch lane a real
+ * table serves from: the ball meets the bumpers on its way down instead of being fired past them,
+ * which is what there is to look at in a demo.
+ *
+ * `x` runs across the table and `z` down it, so a smaller `z` is further up, away from the flippers.
+ * */
+#define SERVE_X (-TABLE_HALF_WIDTH + 0.50F)
+#define SERVE_Z (TABLE_HALF_LENGTH - 1.60F)
 
 /** The launch, in newton-seconds up the table. */
 #define SERVE_IMPULSE 2.6F
