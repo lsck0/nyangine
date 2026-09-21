@@ -14,11 +14,11 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_get(NYA_HttpExchange* exchange);
-NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_ceilings_get(NYA_HttpExchange* exchange);
-NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_arenas_get(NYA_HttpExchange* exchange);
-NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_systems_get(NYA_HttpExchange* exchange);
-NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_accounting_post(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity);
+NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_query(NYA_HttpExchange* exchange);
+NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_ceilings_query(NYA_HttpExchange* exchange);
+NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_arenas_query(NYA_HttpExchange* exchange);
+NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_systems_query(NYA_HttpExchange* exchange);
+NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_accounting_put(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity);
 
 /** Copies `text` into a row's fixed name, truncating rather than refusing: a long name is not an error. */
 NYA_INTERNAL void _nya_http_metrics_name(OUT char* destination, u64 capacity, NYA_ConstCString text);
@@ -31,51 +31,51 @@ NYA_INTERNAL void _nya_http_metrics_name(OUT char* destination, u64 capacity, NY
 
 NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
     {
-     .method        = NYA_HTTP_METHOD_GET,
+     .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NYA_HTTP_METRICS_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
-     .handler       = _nya_http_metrics_get,
+     .handler       = _nya_http_metrics_query,
      .summary       = "Frame time and this server's own counters",
      .description   = "A read of nya_app_get's frame statistics and the HTTP server's connection and request counts. "
                          "Measures nothing: every number is one the program already keeps.", .response_type = nya_reflect_of(NYA_HttpMetricsDto),
      .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
-     .method        = NYA_HTTP_METHOD_GET,
+     .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NYA_HTTP_METRICS_CEILINGS_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
-     .handler       = _nya_http_metrics_ceilings_get,
+     .handler       = _nya_http_metrics_ceilings_query,
      .summary       = "Every fixed capacity array and how full it is",
      .description   = "The ceiling registry, which is what every `nya_ceiling_register` in the engine publishes into. "
                          "Sorted by fullness, so the one about to overflow is first.", .response_type = nya_reflect_of(NYA_HttpCeilingsDto),
      .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
-     .method        = NYA_HTTP_METHOD_GET,
+     .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NYA_HTTP_METRICS_ARENAS_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
-     .handler       = _nya_http_metrics_arenas_get,
+     .handler       = _nya_http_metrics_arenas_query,
      .summary       = "Every live arena: used, reserved and fragmentation",
      .description   = "The arena registry. Resident bytes are not here on purpose: reading them is a system call per "
                          "region, which is a report's cost and not a poll's.", .response_type = nya_reflect_of(NYA_HttpArenasDto),
      .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
-     .method        = NYA_HTTP_METHOD_GET,
+     .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NYA_HTTP_METRICS_SYSTEMS_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
-     .handler       = _nya_http_metrics_systems_get,
+     .handler       = _nya_http_metrics_systems_query,
      .summary       = "Per owner: how many systems, what they cost, what they hold",
      .description   = "The system registry grouped by owner: the engine, the game, and one per plugin. The times read "
-                         "zero until accounting is turned on; see POST /api/metrics/accounting.", .response_type = nya_reflect_of(NYA_HttpSystemsDto),
+                         "zero until accounting is turned on; see PUT /api/metrics/accounting.", .response_type = nya_reflect_of(NYA_HttpSystemsDto),
      .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
-     .method             = NYA_HTTP_METHOD_POST,
+     .method             = NYA_HTTP_METHOD_PUT,
      .path               = NYA_HTTP_METRICS_ACCOUNTING_PATH,
      .auth               = NYA_HTTP_AUTH_BEARER,
      .scope              = NYA_HTTP_SCOPE_WRITE,
-     .handler_identified = _nya_http_metrics_accounting_post,
+     .handler_identified = _nya_http_metrics_accounting_put,
      .summary            = "Turn the registry's per system timing on or off",
      .description        = "Accounting costs a clock read per system per phase, so it is off by default and is asked "
                               "for rather than reported. Answers with the state that was reached.", .request_type       = nya_reflect_of(NYA_HttpAccountingDto),
@@ -111,7 +111,7 @@ const NYA_HttpRouter* nya_http_metrics_router(void) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_HttpStatus _nya_http_metrics_get(NYA_HttpExchange* exchange) {
+NYA_HttpStatus _nya_http_metrics_query(NYA_HttpExchange* exchange) {
     NYA_HttpMetricsDto metrics = {
         .measured_at_s      = exchange->now_s,
         .connection_count   = nya_http_server_connection_count(),
@@ -147,7 +147,7 @@ NYA_HttpStatus _nya_http_metrics_get(NYA_HttpExchange* exchange) {
     return NYA_HTTP_STATUS_OK;
 }
 
-NYA_HttpStatus _nya_http_metrics_ceilings_get(NYA_HttpExchange* exchange) {
+NYA_HttpStatus _nya_http_metrics_ceilings_query(NYA_HttpExchange* exchange) {
     /*
      * From the exchange arena rather than the stack: the DTO is about six kilobytes and a handler is
      * called from the frame loop, where the stack is shared with everything else in the frame.
@@ -186,7 +186,7 @@ NYA_HttpStatus _nya_http_metrics_ceilings_get(NYA_HttpExchange* exchange) {
     return NYA_HTTP_STATUS_OK;
 }
 
-NYA_HttpStatus _nya_http_metrics_arenas_get(NYA_HttpExchange* exchange) {
+NYA_HttpStatus _nya_http_metrics_arenas_query(NYA_HttpExchange* exchange) {
     NYA_HttpArenasDto* arenas = nya_arena_alloc(exchange->arena, sizeof(NYA_HttpArenasDto));
     if (arenas == nullptr) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
@@ -225,7 +225,7 @@ NYA_HttpStatus _nya_http_metrics_arenas_get(NYA_HttpExchange* exchange) {
     return NYA_HTTP_STATUS_OK;
 }
 
-NYA_HttpStatus _nya_http_metrics_systems_get(NYA_HttpExchange* exchange) {
+NYA_HttpStatus _nya_http_metrics_systems_query(NYA_HttpExchange* exchange) {
     NYA_HttpSystemsDto systems = { .accounting_enabled = nya_system_accounting_is_enabled() };
 
     u32 owners = nya_system_owner_count();
@@ -257,7 +257,7 @@ NYA_HttpStatus _nya_http_metrics_systems_get(NYA_HttpExchange* exchange) {
     return NYA_HTTP_STATUS_OK;
 }
 
-NYA_HttpStatus _nya_http_metrics_accounting_post(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity) {
+NYA_HttpStatus _nya_http_metrics_accounting_put(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity) {
     NYA_HttpAccountingDto wanted = { 0 };
 
     NYA_Error parsed = nya_http_request_reflect(exchange->request, exchange->arena, nya_reflect_of(NYA_HttpAccountingDto), &wanted);

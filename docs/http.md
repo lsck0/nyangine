@@ -41,6 +41,39 @@ is no app and says so at debug level rather than requiring one.
 `gnyame` starts a server when `GNYAME_WEB_PORT` names a port, which is the caller to read:
 `src/gnyame/web.c`.
 
+## The verbs: QUERY, POST, PUT, DELETE
+
+Read, create, update, remove. A read is a **QUERY**, not a GET.
+
+QUERY is the IETF draft method from `draft-ietf-httpbis-safe-method-w-body`: safe and idempotent
+exactly as GET is — it changes nothing, and repeating it is the same request — and it carries a body.
+That last part is the whole reason it is here. A request in this codebase is a `@reflect`-annotated
+DTO whose JSON Schema is generated from the same table the serializer walks, and there is nowhere in a
+GET to put one: a query string is a flat list of strings, and describing one would mean a second,
+hand-maintained description of the same request beside the generated one.
+
+GET has not gone anywhere. It is parsed, routed and served, a HEAD falls back to it first, and
+`GET /openapi.json` and `GET /docs` stay GET because a browser and a schema generator have no other
+verb and neither request has parameters to carry. What changed is which verb a new resource is
+written in.
+
+```sh
+curl -X QUERY http://127.0.0.1:7777/api/metrics
+curl -X QUERY -H 'content-type: application/json' -d '{}' http://127.0.0.1:7777/api/metrics
+```
+
+Two rules are enforced rather than remembered:
+
+- A body on a GET, a HEAD or an OPTIONS is refused with 400. RFC 9110 gives those bytes no meaning,
+  and an intermediary that counts them as a body while this parser counts them as the start of the
+  next request is request smuggling. `Content-Length: 0` is not a body and is fine on any verb.
+- `nya_http_router_check` refuses a route with a `request_type` on a verb that carries no body, and a
+  route that declares 201 on a verb that changes nothing. Those are the two halves of turning a QUERY
+  back into a GET by accident, and neither table starts.
+
+A HEAD with no HEAD route of its own answers from the path's GET, and failing that from its QUERY,
+with no body and so no request document. Which is why `HEAD /api/metrics` still works.
+
 ## A router per resource
 
 One file per resource. It exports its path constants and one router over a `static const` route
@@ -52,10 +85,10 @@ the compiler lays out.
 
 NYA_INTERNAL const NYA_HttpRoute _ROUTES[] = {
     {
-        .method        = NYA_HTTP_METHOD_GET,
+        .method        = NYA_HTTP_METHOD_QUERY,
         .path          = NYA_HTTP_METRICS_PATH,
         .auth          = NYA_HTTP_AUTH_NONE,
-        .handler       = metrics_get,
+        .handler       = metrics_query,
         .summary       = "Frame time and this server's own counters",
         .response_type = nya_reflect_of(NYA_HttpMetricsDto),
         .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
@@ -71,10 +104,10 @@ NYA_INTERNAL const NYA_HttpRouter _ROUTER = {
 const NYA_HttpRouter* nya_http_metrics_router(void) { return &_ROUTER; }
 ```
 
-Paths match exactly. There are no patterns and no path parameters: one GET or POST per path, with the
-variant chosen by a query parameter that parses to an enum. A path pattern is a second way to say the
-same thing and a second place for a traversal bug to live. Where two resources answer two different
-*shapes*, they are two paths.
+Paths match exactly. There are no patterns and no path parameters: one verb per path per shape, with
+which instance is being asked for coming out of the request document the QUERY carries. A path pattern
+is a second way to say the same thing and a second place for a traversal bug to live. Where two
+resources answer two different *shapes*, they are two paths.
 
 `nya_http_server_merge` runs `nya_http_router_check` first, so a table that is not well formed does
 not start the resource.
@@ -160,6 +193,36 @@ trust it.
 deliberately plain, and it is the placeholder that does not need throwing away when the UI backend
 can emit HTML from `nya_ui_*` calls.
 
+Both of those routes are GET and stay GET. A person types `/docs` into a browser, every schema
+generator fetches `/openapi.json` with GET, and neither request carries parameters, which is the only
+thing QUERY buys.
+
+### Where QUERY goes in the document, and what it costs
+
+The document says `"openapi": "3.2.0"`, and that is the one line in the generator that is a judgement
+call rather than a walk of the route table.
+
+OpenAPI 3.1's Path Item Object has a fixed set of method fields and `query` is not one of them, so a
+3.1 document had three ways to carry a QUERY route and all three are bad:
+
+| Option                         | What happens                                                          |
+| :----------------------------- | :-------------------------------------------------------------------- |
+| an `x-query` extension          | every validator accepts it and every generator ignores it, so the verb this server reads through is missing from every generated client |
+| a bare `query` key under 3.1.0  | a validator rejects the document, and the version string would be a lie |
+| leaving the route out           | a generated document that does not describe what is mounted            |
+
+OpenAPI 3.2.0 added `query` to that fixed set, for this method, so the operation sits in the field the
+specification gives it and the document claims the version that has it. Nothing else the generator
+emits differs between 3.1 and 3.2, so the version is the whole of the change.
+
+What that costs: a tool that only understands 3.1 refuses the document over its version string, rather
+than reading it and quietly dropping the routes. A loud no from an old tool beats a silent hole in a
+generated client, which is the trade being made. A generated client built from this document gets a
+`query` operation and sends `QUERY` with the request DTO as the body; a 3.1-only generator gets an
+error it can act on. The version is a `#define` in `http_openapi.h` with this reasoning beside it, and
+QUERY is still an IETF draft, so that `#define` and `NYA_HttpMethod` are the two places a change to
+the draft would land.
+
 ## Authentication
 
 `Authorization: Bearer <jwt>`, HS256 over `base_hash.c`'s HMAC-SHA256.
@@ -243,13 +306,18 @@ already queryable through `nya_app_get`, the ceiling registry, the arena registr
 `nya_system_owner_stats_at`.
 
 ```
-GET  /api/metrics              frame time, and the server's own counters
-GET  /api/metrics/ceilings     every fixed capacity array and how full it is
-GET  /api/metrics/arenas       every live arena: used, reserved, fragmentation
-GET  /api/metrics/systems      per owner: how many systems, what they cost, what they hold
-POST /api/metrics/accounting   turns the registry's per system timing on and off
+QUERY /api/metrics              frame time, and the server's own counters
+QUERY /api/metrics/ceilings     every fixed capacity array and how full it is
+QUERY /api/metrics/arenas       every live arena: used, reserved, fragmentation
+QUERY /api/metrics/systems      per owner: how many systems, what they cost, what they hold
+PUT   /api/metrics/accounting   turns the registry's per system timing on and off
 ```
 
-The `POST` is the only route behind the extractor. It needs `NYA_HTTP_SCOPE_WRITE`, and it is there
+The `PUT` is the only route behind the extractor. It needs `NYA_HTTP_SCOPE_WRITE`, and it is there
 because per-system timing costs a clock read per system per phase: a thing to ask for rather than a
-thing to report.
+thing to report. It is a PUT rather than a POST because it sets a flag to a value — it creates
+nothing, sending it twice reaches the same state, and it answers with the state that was reached.
+
+The four reads take no request document yet and a QUERY with no body is the whole request. Asking one
+of them for a subset later is a `request_type` on the route and nothing else, which is the reason they
+are QUERY today.

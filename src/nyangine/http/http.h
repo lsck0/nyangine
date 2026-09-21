@@ -25,6 +25,22 @@
  * NYA_EXPECT(nya_http_server_merge(nya_http_openapi_router()));
  * ```
  *
+ * ── the verbs ──
+ *
+ * QUERY, POST, PUT and DELETE: read, create, update, remove. A read is a QUERY because a request here
+ * is a reflected DTO whose schema is generated from the same table the serializer walks, and a GET has
+ * nowhere to put one; QUERY is safe and idempotent exactly as GET is, and carries a body, which is the
+ * whole of what draft-ietf-httpbis-safe-method-w-body adds.
+ *
+ * GET still works and is not deprecated: it parses, it routes, a HEAD falls back to it first, and the
+ * two routes of http_openapi.h — `GET /openapi.json` and `GET /docs` — stay GET because a browser and
+ * a schema generator have no other verb and neither request carries parameters. What changed is which
+ * verb a new resource is written in.
+ *
+ * The one place this leaves the beaten track is the generated schema: OpenAPI gained a `query` field
+ * for the Path Item Object in 3.2.0 and had nowhere to put one before that, so the document says
+ * 3.2.0. See http_openapi.h, which states what that costs.
+ *
  * ── what this is and is not ──
  *
  * It is the server half of "one stack for everything": a nyangine program that serves a web interface

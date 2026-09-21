@@ -129,7 +129,7 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // TEST: a GET, answered.
+    // TEST: a QUERY, answered, which is what a read of this server looks like.
     // ─────────────────────────────────────────────────────────────────────────────
     {
         u16   port = start_server((NYA_HttpConfig){ .secret = SECRET, .secret_size = SECRET_SIZE });
@@ -145,7 +145,7 @@ s32 main(void) {
         NET_StreamSocket* client = connect_to(port);
         defer             NET_DestroyStreamSocket(client);
 
-        nya_assert(exchange(client, "GET " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
+        nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
 
         NYA_String* received = nya_string_from(arena, answer);
 
@@ -158,7 +158,7 @@ s32 main(void) {
         nya_assert(nya_http_server_connection_count() == 1);
 
         // a second request on the same connection, which is what keep-alive is for.
-        nya_assert(exchange(client, "GET " NYA_HTTP_METRICS_CEILINGS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
+        nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_CEILINGS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
 
         received = nya_string_from(arena, answer);
         nya_assert(nya_string_starts_with(received, "HTTP/1.1 200 OK\r\n"));
@@ -173,7 +173,23 @@ s32 main(void) {
         nya_assert(exchange(client, "DELETE " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
         nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 405 Method Not Allowed\r\n"));
 
-        // a HEAD carries the Content-Length its GET would and none of the bytes.
+        // a read this resource does not answer in, on a path it does answer: still a 405 and not a 404.
+        nya_assert(exchange(client, "GET " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
+        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 405 Method Not Allowed\r\n"));
+
+        // a QUERY may carry a document; these four read nothing out of one yet, and answer the same.
+        nya_assert(
+            exchange(
+                client,
+                "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n"
+                "Content-Length: 2\r\n\r\n{}",
+                answer,
+                sizeof(answer)
+            ) > 0
+        );
+        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"));
+
+        // a HEAD falls back to the read route and carries its Content-Length and none of the bytes.
         nya_assert(exchange(client, "HEAD " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
 
         received = nya_string_from(arena, answer);
@@ -198,7 +214,7 @@ s32 main(void) {
         nya_assert(
             exchange(
                 client,
-                "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n"
+                "PUT " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n"
                 "Content-Length: 16\r\n\r\n{\"enabled\":true}",
                 answer,
                 sizeof(answer)
@@ -222,7 +238,7 @@ s32 main(void) {
 
         NYA_String* request = nya_string_sprintf(
             arena,
-            "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
+            "PUT " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
             "Authorization: Bearer %s\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n"
             "{\"enabled\":true}",
             token
@@ -237,7 +253,7 @@ s32 main(void) {
         // and back off again, so the suite leaves the registry as it found it.
         NYA_String* off = nya_string_sprintf(
             arena,
-            "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
+            "PUT " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
             "Authorization: Bearer %s\r\nContent-Type: application/json\r\nContent-Length: 17\r\n\r\n"
             "{\"enabled\":false}",
             token
@@ -249,7 +265,7 @@ s32 main(void) {
         // a body that is not the DTO the route takes.
         NYA_String* nonsense = nya_string_sprintf(
             arena,
-            "POST " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
+            "PUT " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
             "Authorization: Bearer %s\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello",
             token
         );
@@ -317,7 +333,7 @@ s32 main(void) {
         NET_StreamSocket* other = connect_to(port);
         defer             NET_DestroyStreamSocket(other);
 
-        nya_assert(exchange(other, "GET " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+        nya_assert(exchange(other, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
         nya_assert(
             nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"),
             "one peer sitting on a half written request may not stop the others"
@@ -336,7 +352,7 @@ s32 main(void) {
         NET_StreamSocket* first = connect_to(port);
         defer             NET_DestroyStreamSocket(first);
 
-        nya_assert(exchange(first, "GET " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+        nya_assert(exchange(first, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
         nya_assert(nya_http_server_connection_count() == 1);
 
         NET_StreamSocket* second = connect_to(port);

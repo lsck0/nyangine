@@ -12,7 +12,7 @@
 /**
  * Where the token signing secret comes from, when anybody wants the write routes.
  *
- * Unset is the ordinary case: the read routes work, and POST /api/metrics/accounting answers 503
+ * Unset is the ordinary case: the read routes work, and PUT /api/metrics/accounting answers 503
  * because this program cannot verify a token it never had a key for.
  * */
 #define GNY_WEB_SECRET_ENVIRONMENT "GNYAME_WEB_SECRET"
@@ -76,8 +76,13 @@ void gny_web_start(void) {
     NYA_EXPECT(nya_http_server_merge(nya_http_metrics_router()), "while mounting the metrics resource");
     NYA_EXPECT(nya_http_server_merge(nya_http_openapi_router()), "while mounting the schema resource");
 
+    /*
+     * The metrics line spells the verb out: the reads are QUERY, so a browser pointed at that path
+     * gets a 405 and the first thing anybody would try is the wrong thing. The page is a GET and is
+     * the link that works in a browser, which is why it comes second and unqualified.
+     */
     nya_log_info(
-        "Metrics at http://127.0.0.1:%llu%s, the routes at http://127.0.0.1:%llu%s.",
+        "Metrics: curl -X QUERY http://127.0.0.1:%llu%s. The routes, as a page: http://127.0.0.1:%llu%s",
         (unsigned long long)port,
         NYA_HTTP_METRICS_PATH,
         (unsigned long long)port,

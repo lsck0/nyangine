@@ -165,7 +165,11 @@ s32 main(void) {
         nya_assert(nya_deserialize(arena, (const u8*)json->items, json->length, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, &document).ok);
         nya_assert(document != nullptr);
 
-        nya_assert(string_at(document, "openapi") != nullptr);
+        /*
+         * 3.2.0 and not 3.1.0, because `query` became a field of the Path Item Object in 3.2 and a
+         * QUERY route has nowhere legal to sit in a 3.1 document. See the note in http_openapi.h.
+         */
+        nya_assert(nya_string_equals(string_at(document, "openapi"), "3.2.0"));
 
         NYA_Object* paths = object_at(document, "paths");
         nya_assert(paths != nullptr);
@@ -173,14 +177,22 @@ s32 main(void) {
         // every mounted path is in it, and each under the methods its routes answer.
         NYA_Object* metrics = object_at(paths, NYA_HTTP_METRICS_PATH);
         nya_assert(metrics != nullptr);
-        nya_assert(object_at(metrics, "get") != nullptr);
-        nya_assert(object_at(metrics, "post") == nullptr, "a method with no route does not appear");
+        nya_assert(object_at(metrics, "query") != nullptr, "a read is a QUERY, and the document says so in the field the spec gives it");
+        nya_assert(object_at(metrics, "get") == nullptr, "a method with no route does not appear");
+        nya_assert(object_at(metrics, "post") == nullptr);
+
+        // the two routes that stay GET, because a browser and a generator have no other verb.
+        NYA_Object* schema_path = object_at(paths, NYA_HTTP_OPENAPI_PATH);
+        nya_assert(schema_path != nullptr && object_at(schema_path, "get") != nullptr);
+
+        NYA_Object* docs_path = object_at(paths, NYA_HTTP_DOCS_PATH);
+        nya_assert(docs_path != nullptr && object_at(docs_path, "get") != nullptr);
 
         NYA_Object* accounting = object_at(paths, NYA_HTTP_METRICS_ACCOUNTING_PATH);
         nya_assert(accounting != nullptr);
 
-        NYA_Object* operation = object_at(accounting, "post");
-        nya_assert(operation != nullptr);
+        NYA_Object* operation = object_at(accounting, "put");
+        nya_assert(operation != nullptr, "setting a flag to a value is a PUT: it creates nothing and repeats the same");
 
         // the summary is the route's, so a route that changes its summary changes the document.
         nya_assert(string_at(operation, "summary") != nullptr);
@@ -237,6 +249,7 @@ s32 main(void) {
 
         nya_assert(nya_string_contains(html, NYA_HTTP_METRICS_PATH));
         nya_assert(nya_string_contains(html, "metrics"));
+        nya_assert(nya_string_contains(html, "QUERY "), "the page names the verb a reader has to send");
         nya_assert(nya_string_contains(html, NYA_HTTP_OPENAPI_PATH), "the page points at the machine readable version");
 
         // a summary containing markup would otherwise become markup.

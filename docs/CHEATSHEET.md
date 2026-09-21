@@ -4342,13 +4342,13 @@ The first resource: this program, over HTTP. Frame time, the ceilings, the arena
 
 ```c
 // types
-struct NYA_HttpMetricsDto { u64 measured_at_s; u64 uptime_ns; f32 fps; f32 delta_time_s; u64 work_ns; u64 sleep_ns; u64 elapsed_ns; u64 min_frame_time_ns; u32 connection_count; u64 request_count; b8 accounting_enabled; }  // What GET /api/metrics answers: the frame, and what the server itself has done.
+struct NYA_HttpMetricsDto { u64 measured_at_s; u64 uptime_ns; f32 fps; f32 delta_time_s; u64 work_ns; u64 sleep_ns; u64 elapsed_ns; u64 min_frame_time_ns; u32 connection_count; u64 request_count; b8 accounting_enabled; }  // What QUERY /api/metrics answers: the frame, and what the server itself has done.
 struct NYA_HttpCeilingDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u32 capacity; u32 live; f32 fullness; }  // One fixed capacity array and how full it is.
-struct NYA_HttpCeilingsDto { u32 count; u32 truncated; NYA_HttpCeilingDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What GET /api/metrics/ceilings answers.
+struct NYA_HttpCeilingsDto { u32 count; u32 truncated; NYA_HttpCeilingDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What QUERY /api/metrics/ceilings answers.
 struct NYA_HttpArenaDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u64 region_count; u64 used_bytes; u64 reserved_bytes; u64 free_list_bytes; f32 fragmentation; }  // One live arena.
-struct NYA_HttpArenasDto { u32 count; u32 truncated; NYA_HttpArenaDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What GET /api/metrics/arenas answers.
+struct NYA_HttpArenasDto { u32 count; u32 truncated; NYA_HttpArenaDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What QUERY /api/metrics/arenas answers.
 struct NYA_HttpOwnerDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u32 system_count; u32 enabled_count; u64 time_ns; u64 memory_bytes; }  // One owner's systems: the engine's, the game's, or a plugin's.
-struct NYA_HttpSystemsDto { u32 count; u32 truncated; b8 accounting_enabled; NYA_HttpOwnerDto rows[NYA_SYSTEM_OWNER_MAX]; }  // What GET /api/metrics/systems answers.
+struct NYA_HttpSystemsDto { u32 count; u32 truncated; b8 accounting_enabled; NYA_HttpOwnerDto rows[NYA_SYSTEM_OWNER_MAX]; }  // What QUERY /api/metrics/systems answers.
 struct NYA_HttpAccountingDto { b8 enabled; }
 
 // macros
@@ -4372,7 +4372,7 @@ The schema, generated from the route tables and the DTO reflections, and served 
 // macros
 NYA_HTTP_OPENAPI_PATH "/openapi.json"
 NYA_HTTP_DOCS_PATH "/docs"
-NYA_HTTP_OPENAPI_VERSION "3.1.0"  // The version of the OpenAPI specification the document claims.
+NYA_HTTP_OPENAPI_VERSION "3.2.0"
 NYA_HTTP_OPENAPI_MAX_DEPTH 8  // How deep nya_http_openapi_schema follows nested types.
 
 // functions
@@ -4448,7 +4448,7 @@ The vocabulary of one HTTP exchange: what a client may ask, what this program ma
 
 ```c
 // types
-enum NYA_HttpMethod { NYA_HTTP_METHOD_NONE = 0, NYA_HTTP_METHOD_GET, NYA_HTTP_METHOD_HEAD, NYA_HTTP_METHOD_POST, NYA_HTTP_METHOD_PUT, NYA_HTTP_METHOD_PATCH, NYA_HTTP_METHOD_DELETE, NYA_HTTP_METHOD_OPTIONS, NYA_HTTP_METHOD_COUNT, }  // The verb.
+enum NYA_HttpMethod { NYA_HTTP_METHOD_NONE = 0, NYA_HTTP_METHOD_GET, NYA_HTTP_METHOD_HEAD, NYA_HTTP_METHOD_QUERY, NYA_HTTP_METHOD_POST, NYA_HTTP_METHOD_PUT, NYA_HTTP_METHOD_PATCH, NYA_HTTP_METHOD_DELETE, NYA_HTTP_METHOD_OPTIONS, NYA_HTTP_METHOD_COUNT, }  // The verb.
 enum NYA_HttpStatus { NYA_HTTP_STATUS_NONE = 0, NYA_HTTP_STATUS_OK = 200, NYA_HTTP_STATUS_CREATED = 201, NYA_HTTP_STATUS_NO_CONTENT = 204, NYA_HTTP_STATUS_BAD_REQUEST = 400, NYA_HTTP_STATUS_UNAUTHORIZED = 401, NYA_HTTP_STATUS_FORBIDDEN = 403, NYA_HTTP_STATUS_NOT_FOUND = 404, NYA_HTTP_STATUS_METHOD_NOT_ALLOWED = 405, NYA_HTTP_STATUS_REQUEST_TIMEOUT = 408, NYA_HTTP_STATUS_LENGTH_REQUIRED = 411, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE = 413, NYA_HTTP_STATUS_URI_TOO_LONG = 414, NYA_HTTP_STATUS_UNSUPPORTED_MEDIA = 415, NYA_HTTP_STATUS_UNPROCESSABLE = 422, NYA_HTTP_STATUS_HEADERS_TOO_LARGE = 431, NYA_HTTP_STATUS_INTERNAL_ERROR = 500, NYA_HTTP_STATUS_NOT_IMPLEMENTED = 501, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE = 503, NYA_HTTP_STATUS_HTTP_VERSION = 505, }  // Every status this server can produce, and the only values a handler may return.
 enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
 struct NYA_HttpHeader { char name[NYA_HTTP_MAX_HEADER_NAME]; char value[NYA_HTTP_MAX_HEADER_VALUE]; }  // One header, both halves bounded and null terminated.
@@ -4477,6 +4477,8 @@ NYA_HTTP_MAX_QUERY 256  // Longest query string, terminator included.
 NYA_ConstCString nya_http_method_text(NYA_HttpMethod method)  // "GET", "POST", ...
 NYA_HttpMethod nya_http_method_parse(const char* text, u64 size)  // The method `text` names, or NYA_HTTP_METHOD_NONE.
 b8 nya_http_method_is_valid(NYA_HttpMethod method)  // Whether `method` names a verb at all, i.e.
+b8 nya_http_method_is_safe(NYA_HttpMethod method)  // Whether `method` is safe: it reads and changes nothing, so a repeat of it is the same request.
+b8 nya_http_method_allows_body(NYA_HttpMethod method)  // Whether a request with `method` may carry a body.
 NYA_ConstCString nya_http_status_text(NYA_HttpStatus status)  // "OK", "Not Found", ...
 b8 nya_http_status_is_valid(NYA_HttpStatus status)  // Whether `status` is one of the listed codes, i.e.
 NYA_ConstCString nya_http_media_type_text(NYA_HttpMediaType media_type)  // The full Content-Type header value, charset included.

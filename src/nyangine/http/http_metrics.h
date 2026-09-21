@@ -9,11 +9,15 @@
  * ```
  *
  * ```
- * GET  /api/metrics              frame time, the server's own counters
- * GET  /api/metrics/ceilings     every fixed capacity array and how full it is
- * GET  /api/metrics/arenas       every live arena: used, reserved, fragmentation
- * GET  /api/metrics/systems      per owner: how many systems, what they cost, what they hold
- * POST /api/metrics/accounting   turns the registry's per system timing on and off
+ * QUERY /api/metrics              frame time, the server's own counters
+ * QUERY /api/metrics/ceilings     every fixed capacity array and how full it is
+ * QUERY /api/metrics/arenas       every live arena: used, reserved, fragmentation
+ * QUERY /api/metrics/systems      per owner: how many systems, what they cost, what they hold
+ * PUT   /api/metrics/accounting   turns the registry's per system timing on and off
+ * ```
+ *
+ * ```sh
+ * curl -X QUERY http://127.0.0.1:7777/api/metrics
  * ```
  *
  * ```c
@@ -26,16 +30,27 @@
  * nya_system_owner_stats_at. Nothing is counted for this resource's benefit and nothing runs while it
  * is not being asked, which is why the handlers are a copy loop and nothing else.
  *
- * The one exception is the `POST`, which turns on the registry's per system timing: that costs a clock
+ * The one exception is the `PUT`, which turns on the registry's per system timing: that costs a clock
  * read per system per phase and is off by default, so it is a thing to ask for rather than a thing to
  * report. It is also the only route here behind the extractor, and it needs NYA_HTTP_SCOPE_WRITE.
  *
+ * ── the verbs ──
+ *
+ * The reads are QUERY, which is what a read is written as here: safe and idempotent like a GET, and
+ * able to carry a request DTO, which is how a reader would later ask for a subset without the schema
+ * having to describe a query string. None of these four takes a document yet, and a QUERY with no body
+ * is the whole answer; adding a filter DTO is a `request_type` and nothing else.
+ *
+ * The write is a PUT rather than a POST because it sets a flag to a value: sending it twice reaches
+ * the same state, it creates nothing, and the answer is the state that was reached. POST is for
+ * creating, and nothing here creates.
+ *
  * ── one path per shape ──
  *
- * Four GETs rather than one with a `view` parameter, because they answer four different shapes. A
- * query parameter that picks between shapes is a tagged union the schema has to describe as one of
- * several; a query parameter that picks between *instances* of one shape is what this codebase's REST
- * pattern uses it for, and there is no such choice here.
+ * Four reads rather than one with a `view` parameter, because they answer four different shapes. A
+ * parameter that picks between shapes is a tagged union the schema has to describe as one of several;
+ * a parameter that picks between *instances* of one shape is what this codebase's REST pattern uses
+ * one for, and there is no such choice here.
  *
  * ── the lists are bounded ──
  *
@@ -91,7 +106,7 @@ typedef struct NYA_HttpSystemsDto    NYA_HttpSystemsDto;
 typedef struct NYA_HttpAccountingDto NYA_HttpAccountingDto;
 
 // @reflect
-/** What GET /api/metrics answers: the frame, and what the server itself has done. */
+/** What QUERY /api/metrics answers: the frame, and what the server itself has done. */
 struct NYA_HttpMetricsDto {
     /** Seconds since the epoch when this was measured, so a page can say how stale it is. */
     u64 measured_at_s;
@@ -135,7 +150,7 @@ struct NYA_HttpCeilingDto {
 };
 
 // @reflect
-/** What GET /api/metrics/ceilings answers. */
+/** What QUERY /api/metrics/ceilings answers. */
 struct NYA_HttpCeilingsDto {
     /** How many of `rows` mean anything. Never more than NYA_HTTP_METRICS_MAX_ROWS. */
     u32 count;
@@ -167,7 +182,7 @@ struct NYA_HttpArenaDto {
 };
 
 // @reflect
-/** What GET /api/metrics/arenas answers. */
+/** What QUERY /api/metrics/arenas answers. */
 struct NYA_HttpArenasDto {
     u32 count;
     u32 truncated;
@@ -191,7 +206,7 @@ struct NYA_HttpOwnerDto {
 };
 
 // @reflect
-/** What GET /api/metrics/systems answers. */
+/** What QUERY /api/metrics/systems answers. */
 struct NYA_HttpSystemsDto {
     u32 count;
     u32 truncated;
@@ -204,7 +219,7 @@ struct NYA_HttpSystemsDto {
 
 // @reflect
 /**
- * The body of POST /api/metrics/accounting, and what it answers with: the same shape both ways, so
+ * The body of PUT /api/metrics/accounting, and what it answers with: the same shape both ways, so
  * the answer is the state that was actually reached rather than an echo of the request.
  * */
 struct NYA_HttpAccountingDto {
