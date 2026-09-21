@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <sys/utsname.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -19,6 +20,9 @@
 
 /** Longest decimal a sysfs file holds here: 20 digits of u64 plus a newline and a terminator. */
 #define _NYA_HOST_VRAM_TEXT_MAX 32
+
+/** Where every systemd-era distribution names itself. Absent on a system without one, which is fine. */
+#define _NYA_HOST_OS_RELEASE_PATH "/etc/os-release"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -58,4 +62,51 @@ b8 nya_host_gpu_memory_total_bytes(OUT u64* out_bytes) {
 
     *out_bytes = bytes;
     return true;
+}
+
+void nya_host_distribution_name(OUT u8* buffer, u32 capacity) {
+    nya_assert(buffer != nullptr);
+    nya_assert(capacity > 0);
+
+    (void)snprintf((char*)buffer, capacity, "Linux");
+
+    NYA_Arena arena = nya_arena_create_on_stack(.name = "host_distribution");
+    defer     nya_arena_destroy_on_stack(&arena);
+
+    NYA_String* release = nya_string_create(&arena);
+    if (!nya_file_read(_NYA_HOST_OS_RELEASE_PATH, release).ok) return;
+
+    /*
+     * PRETTY_NAME is the one field every distribution sets and the one a person recognises. It is
+     * quoted by the spec but not always in practice, so both spellings are accepted.
+     */
+    // Through a cstring, not release->items: an NYA_String carries a length and is not terminated, so
+    // strstr would run off the end of it and into the arena. ASan caught exactly that.
+    NYA_ConstCString text = nya_string_to_cstring(&arena, release);
+    const char*      at   = strstr(text, "PRETTY_NAME=");
+    if (at == nullptr) return;
+
+    at += strlen("PRETTY_NAME=");
+    if (*at == '"') at++;
+
+    u32 written = 0;
+    while (*at != '\0' && *at != '\n' && *at != '"' && written + 1 < capacity) buffer[written++] = (u8)*at++;
+
+    // Only on a value that had something in it: an empty PRETTY_NAME keeps the fallback above.
+    if (written > 0) buffer[written] = '\0';
+}
+
+void nya_host_kernel_name(OUT u8* buffer, u32 capacity) {
+    nya_assert(buffer != nullptr);
+    nya_assert(capacity > 0);
+
+    struct utsname system = { 0 };
+    if (uname(&system) != 0) {
+        (void)snprintf((char*)buffer, capacity, "unknown");
+        return;
+    }
+
+    // `release` rather than `version`: 6.2.6-arch2-1 is what a bug report needs, while `version` is
+    // the build banner with a timestamp in it and says nothing extra.
+    (void)snprintf((char*)buffer, capacity, "%s %s", system.sysname, system.release);
 }

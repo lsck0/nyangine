@@ -103,6 +103,14 @@ s32 main(void) {
     nya_check(contains("\nPlatform\n"), "the report should have a platform block");
     nya_check(contains("  cpu "), "the platform block should name the processor");
 
+    /*
+     * Which system, and what this process was holding. "Linux" in a bug report is not an answer, and
+     * how much RAM the machine has does not say whether this program was the one that ran out.
+     */
+    nya_check(contains("  system "), "the platform block should name the distribution");
+    nya_check(contains("  kernel "), "the platform block should name the kernel");
+    nya_check(contains("  ram used "), "the platform block should carry the process's resident memory");
+
     nya_check(contains("\nStack trace\n"), "the report should have a stack trace block");
     nya_check(contains("ZZTOP"), "the report should carry the log lines from before the crash");
 

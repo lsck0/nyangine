@@ -36,6 +36,12 @@
  * */
 #define NYA_HOST_CPU_NAME_MAX 64
 
+/** Longest system name written, terminator included. Long enough for a distribution's PRETTY_NAME. */
+#define NYA_HOST_DISTRIBUTION_NAME_MAX 96
+
+/** Longest kernel name written, terminator included. `uname`'s fields are 65 bytes each by POSIX. */
+#define NYA_HOST_KERNEL_NAME_MAX 144
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FUNCTIONS
@@ -55,3 +61,21 @@ NYA_API b8 nya_host_memory_total_bytes(OUT u64* out_bytes);
  * the amdgpu and nvidia kernel drivers publish it on Linux, and nothing outside DXGI does on Windows.
  * */
 NYA_API b8 nya_host_gpu_memory_total_bytes(OUT u64* out_bytes);
+
+/**
+ * Writes which system this is, null terminated and truncated to `capacity`. Always writes.
+ *
+ * On Linux the distribution's own `PRETTY_NAME` from `/etc/os-release`, because "Linux" in a bug report
+ * is not an answer — a Wayland compositor bug on Arch and a glibc version on Debian oldstable are
+ * different reports. On Windows the build. Falls back to the platform's name when nothing says.
+ * */
+NYA_API void nya_host_distribution_name(OUT u8* buffer, u32 capacity);
+
+/**
+ * Writes the kernel, null terminated and truncated to `capacity`. Always writes.
+ *
+ * On Linux `uname`'s sysname and release, so "Linux 6.2.6-arch2-1" — the number a driver or a syscall
+ * bug is reported against. On Windows there is no kernel version separate from the build that
+ * nya_host_distribution_name already prints, and this says so rather than repeating it.
+ * */
+NYA_API void nya_host_kernel_name(OUT u8* buffer, u32 capacity);

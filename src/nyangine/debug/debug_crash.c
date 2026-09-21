@@ -149,13 +149,29 @@ NYA_INTERNAL void _nya_crash_append_platform(OUT u8* buffer, u32 capacity, OUT u
     u8  amount[32] = { 0 };
     u64 bytes      = 0;
 
+    u8 distribution[NYA_HOST_DISTRIBUTION_NAME_MAX] = { 0 };
+    nya_host_distribution_name(distribution, (u32)sizeof(distribution));
+
+    u8 kernel[NYA_HOST_KERNEL_NAME_MAX] = { 0 };
+    nya_host_kernel_name(kernel, (u32)sizeof(kernel));
+
     _nya_crash_append(buffer, capacity, length, "\nPlatform\n");
     _nya_crash_append(buffer, capacity, length, "  os        %s\n", SDL_GetPlatform());
+    _nya_crash_append(buffer, capacity, length, "  system    %s\n", (NYA_ConstCString)distribution);
+    _nya_crash_append(buffer, capacity, length, "  kernel    %s\n", (NYA_ConstCString)kernel);
     _nya_crash_append(buffer, capacity, length, "  cpu       %s (%u threads)\n", (NYA_ConstCString)cpu, nya_platform_processor_count());
 
     if (nya_host_memory_total_bytes(&bytes)) {
         _nya_crash_format_bytes(bytes, amount, (u32)sizeof(amount));
         _nya_crash_append(buffer, capacity, length, "  ram       %s\n", (NYA_ConstCString)amount);
+    }
+
+    // What this process holds, beside what the machine has: a leak shows as the two diverging, and the
+    // pair together is what says whether the machine ran out or this program did.
+    u64 resident = nya_memory_process_resident_bytes();
+    if (resident > 0) {
+        _nya_crash_format_bytes(resident, amount, (u32)sizeof(amount));
+        _nya_crash_append(buffer, capacity, length, "  ram used  %s resident in this process\n", (NYA_ConstCString)amount);
     }
 
     if (nya_host_gpu_memory_total_bytes(&bytes)) {
