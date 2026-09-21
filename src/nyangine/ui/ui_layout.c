@@ -40,6 +40,9 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
     b8 top_level = _nya_ui.depth == 1;
     b8 covered   = parent->covered;
 
+    // written every pass, so a container moved inside another leaves the stack the pass it moves.
+    state->top_level = top_level;
+
     if (top_level) {
         // declaring it is its first raise, so a stack nobody has clicked is the order the calls came in.
         if (state->order == 0) {
@@ -47,9 +50,8 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
             state->order          = _nya_ui.raise_serial;
         }
 
-        state->top_level = true;
-        state->z         = panel.z;
-        covered          = _nya_ui_panel_covered(ui, index);
+        state->z = panel.z;
+        covered  = _nya_ui_panel_covered(ui, index);
     }
 
     NYA_UIText text = panel.text != NYA_UI_TEXT_INHERIT ? panel.text : parent->text;
