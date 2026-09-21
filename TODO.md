@@ -347,13 +347,17 @@ the packager ones.
 
 ## `[ ]` Docs and examples
 
-- `[~]` `docs/CHEATSHEET.md`, generated from the headers by `src/build/pp/cheatsheet.c`. `[ ]` It has drifted
-  anyway, because the pass never runs: `generate_cheatsheet` is a metarule named only in
-  `index_assets.dependencies`, and no build dispatches it, not even `./build build debug-linux --regenerate`
-  (the other three metarules in that list print `[BUILDING META]`, it never does). Its core_system.h section
-  still describes `nya_system_registry_run_update`, which was removed when the registry landed. Fix the
-  dispatch first, then regenerate; the regeneration is a large diff that has nothing to do with whatever
-  change is in hand, so it wants its own commit.
+- `[x]` `docs/CHEATSHEET.md`, generated from the headers by `src/build/pp/cheatsheet.c`, and it regenerates
+  now. It had drifted because `generate_cheatsheet` was declared in `src/build/asset_rules.h`, a file the
+  build reorganisation had already folded into `pp/pp.h` and orphaned: nothing included it, so the rule was
+  never dispatched and the reference was stale from the day it landed. Moved into `pp/pp.h`, the orphan
+  deleted, and regenerating added 523 lines.
+- `[x]` A GitBook site under `docs/` for the prose, with `.gitbook.yaml` rooting it and `SUMMARY.md` as the
+  navigation. Three tiers that answer different questions: these pages for why and how, the cheatsheet for
+  signatures, doxygen for what the code does. Only the first is hand written, so the landing page says the
+  header wins where they disagree.
+- `[ ]` More tutorials. Three exist (first window, drawing a UI, adding a system); nothing covers
+  networking, physics, audio, plugins, scenes or the testing harnesses.
 - `[x]` `AGENTS.md` at the root pointing at the cheatsheet.
 - `[~]` More examples beside hello_world. Landed: `cli_tool` (no window), `plugin_scripting` (the Lua
   surface as it is today), `tui_dashboard` (text only, waiting on a real terminal backend), `net_echo`
