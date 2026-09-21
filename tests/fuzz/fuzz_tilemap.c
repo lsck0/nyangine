@@ -74,4 +74,4 @@ static void fuzz_once(const u8* data, u64 size) {
     (void)nya_tilemap_to_object(arena, map);
 }
 
-#include "fuzz/fuzz.h"
+#include "tests/fuzz/fuzz.h"

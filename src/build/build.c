@@ -15,5 +15,8 @@
 #include "build/changelog.c"
 #include "build/dist.c"
 #include "build/example.c"
+// After test.c: both name the host flags and the sanitizer environment a test binary runs under.
+#include "build/fuzz.c"
+#include "build/simulation.c"
 // Last: the commands it defines name rules and handlers from all of the above.
 #include "build/cli.c"

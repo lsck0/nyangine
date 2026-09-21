@@ -26,4 +26,4 @@ static void fuzz_once(const u8* data, u64 size) {
     nya_assert(again->length == decoded->length, "re-decoding what was re-encoded changed the length");
 }
 
-#include "fuzz/fuzz.h"
+#include "tests/fuzz/fuzz.h"

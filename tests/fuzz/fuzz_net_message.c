@@ -33,4 +33,4 @@ static void fuzz_once(const u8* data, u64 size) {
     (void)nya_net_chat_client_consume(object);
 }
 
-#include "fuzz/fuzz.h"
+#include "tests/fuzz/fuzz.h"

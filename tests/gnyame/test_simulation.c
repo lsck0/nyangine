@@ -111,8 +111,10 @@ s32 main(s32 argc, NYA_CString argv[]) {
     setenv("APPDATA", data_home, 1);
 #endif
 
-    defer (void)nya_filesystem_delete_recursive(data_home);
+    // the arena first, so the removal below still has the path: defers run last registered first, and
+    // `data_home` was allocated out of `scratch`.
     defer nya_arena_destroy(scratch);
+    defer (void)nya_filesystem_delete_recursive(data_home);
 
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 

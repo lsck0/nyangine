@@ -92,4 +92,4 @@ static void fuzz_once(const u8* data, u64 size) {
     }
 }
 
-#include "fuzz/fuzz.h"
+#include "tests/fuzz/fuzz.h"

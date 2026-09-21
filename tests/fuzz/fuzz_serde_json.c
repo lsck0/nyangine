@@ -19,4 +19,4 @@ static void fuzz_once(const u8* data, u64 size) {
     (void)nya_serialize(arena, object, NYA_SERDE_FORMAT_JSON, NYA_SERDE_PRETTY);
 }
 
-#include "fuzz/fuzz.h"
+#include "tests/fuzz/fuzz.h"

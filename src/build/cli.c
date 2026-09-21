@@ -68,6 +68,48 @@ NYA_INTERNAL NYA_ArgParameter example_name = {
     .completion  = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &example_completion_name, },
 };
 
+NYA_INTERNAL NYA_ArgParameter fuzz_target = {
+    .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    .value.type  = NYA_TYPE_STRING,
+    // variadic so it is optional, not so it takes several: the parser makes a variadic positional the
+    // only optional kind, and running the command bare lists what there is, which for a command that
+    // otherwise runs until it is interrupted is the useful thing to do. More than one is refused.
+    .variadic    = true,
+    .name        = "target",
+    .description = "Which fuzz target to run. If none specified, the targets are listed.",
+    // straight from the files under tests/fuzz, so a new target is offered without being named here.
+    .completion  = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &fuzz_completion_target_name, },
+};
+
+NYA_INTERNAL NYA_ArgParameter simulation_seed = {
+    .kind          = NYA_ARG_PARAMETER_KIND_FLAG,
+    // S64, not U64: the parser takes B8, S64, F64 and STRING. A seed is a bit pattern rather than a
+    // count, so the sign is meaningless and the cast back to u64 in the runner is exact.
+    .value.type    = NYA_TYPE_S64,
+    .name          = "seed",
+    .description   = "Which seed to simulate. If none specified, a fresh one is drawn and printed.",
+    // zero means "draw one": a seed of zero is as good as any other and nobody asks for it by name,
+    // so this costs no reachable value. See simulation_runner.
+    .default_value = { .type = NYA_TYPE_S64, .as_s64 = 0 },
+};
+
+NYA_INTERNAL NYA_ArgParameter simulation_steps = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_S64,
+    .name        = "steps",
+    .description = "How many actions to take. Longer runs reach deeper states.",
+    // a hundred thousand is about a minute under sanitizers, which is long enough for a scheduled run
+    // to find something and short enough to wait for.
+    .default_value = { .type = NYA_TYPE_S64, .as_s64 = 100000 },
+};
+
+NYA_INTERNAL NYA_ArgParameter simulation_verbose_flag = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_B8,
+    .name        = "verbose",
+    .description = "Print every action as it is taken, and leave the engine's own logging on.",
+};
+
 NYA_INTERNAL NYA_ArgParameter check_sources = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .variadic    = true,
@@ -185,6 +227,18 @@ NYA_INTERNAL NYA_ArgCommand run = {
             .description = "Build and run the benchmarks under bench/, optimised and without sanitizers.",
             .handler     = &bench_runner,
             .parameters  = { &bench_files, },
+        },
+        &(NYA_ArgCommand){
+            .name        = "fuzz",
+            .description = "Fuzz one parser or input boundary with AFL++, seeded from its committed corpus.",
+            .handler     = &fuzz_runner,
+            .parameters  = { &fuzz_target, },
+        },
+        &(NYA_ArgCommand){
+            .name        = "simulation",
+            .description = "Run one deterministic simulation over the engine. A failing seed replays exactly.",
+            .handler     = &simulation_runner,
+            .parameters  = { &simulation_seed, &simulation_steps, &simulation_verbose_flag, },
         },
         &(NYA_ArgCommand){
             .name        = "coverage",

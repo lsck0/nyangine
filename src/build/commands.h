@@ -13,7 +13,9 @@
  *   check.c      `./build check`
  *   dist.c       `./build dist`
  *   example.c    `./build run example`
- *   test.c     `./build run test` and `./build run coverage`
+ *   fuzz.c       `./build run fuzz`
+ *   simulation.c `./build run simulation`
+ *   test.c       `./build run test` and `./build run coverage`
  * */
 #pragma once
 
@@ -31,6 +33,38 @@
 
 /** Suffix of the built binary, appended to the example's directory name. */
 #define EXAMPLE_BINARY_SUFFIX ".example" HOST_EXECUTABLE_SUFFIX
+
+/** Where the fuzz targets, the corpora and the kept crashes live. */
+#define FUZZ_DIRECTORY     "./tests/fuzz"
+#define FUZZ_CORPUS_ROOT   FUZZ_DIRECTORY "/corpus"
+#define FUZZ_CRASHES_ROOT  FUZZ_DIRECTORY "/crashes"
+#define FUZZ_TARGET_PREFIX "fuzz_"
+
+/** Where an AFL session writes its queue, its crashes and its stats. Not committed; see the workflow. */
+#define FUZZ_OUTPUT_DIRECTORY "./.fuzz"
+
+/**
+ * The AFL++ compiler and driver, by name.
+ *
+ * Optional dependencies: a machine without them still builds and runs every target as a replay of the
+ * committed corpus, which is what `./build run test` does. `./build run fuzz` is the only thing that
+ * needs the real fuzzer, and it says what to install rather than failing partway through.
+ * */
+#define FUZZ_COMPILER_PROGRAM "afl-clang-fast"
+#define FUZZ_DRIVER_PROGRAM   "afl-fuzz"
+
+/** How the environment names the AFL++ compiler when it is not on PATH under its usual name. */
+#define FUZZ_COMPILER_ENV "NYA_AFL_CC"
+
+/**
+ * The deterministic simulation runner, which is also an ordinary test.
+ *
+ * One binary for both: `./build run test` replays the committed regression seeds through it, and
+ * `./build run simulation` runs it on one seed for as long as asked. A separate runner would be a
+ * second thing to keep in step with the action set.
+ * */
+#define SIMULATION_SOURCE "./tests/gnyame/test_simulation.c"
+#define SIMULATION_BINARY "./tests/gnyame/test_simulation"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -98,3 +132,19 @@ void version_runner(NYA_ArgCommand* command);
  * */
 NYA_String* build_capture(NYA_Arena* arena, NYA_ConstCString program, const NYA_ConstCString* arguments);
 
+/**
+ * Builds one fuzz target under AFL++ instrumentation and runs afl-fuzz against its committed corpus.
+ *
+ * With no target named it lists the ones that exist and stops. Without AFL++ installed it says which
+ * programs are missing and what they are for, and stops before building anything.
+ * */
+void fuzz_runner(NYA_ArgCommand* command);
+
+/** Every fuzz target name under tests/fuzz, for the completions and the usage line. */
+NYA_ConstCString fuzz_completion_target_name(u32 index);
+
+/**
+ * Builds and runs one deterministic simulation. With no seed given it draws one and prints it, which
+ * is what a scheduled run does; with a seed it replays exactly, which is what a failure report says.
+ * */
+void simulation_runner(NYA_ArgCommand* command);

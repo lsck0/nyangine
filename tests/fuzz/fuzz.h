@@ -21,7 +21,7 @@
  *     (void)nya_deserialize(arena, data, size, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, &object);
  * }
  *
- * #include "fuzz/fuzz.h"
+ * #include "tests/fuzz/fuzz.h"
  * ```
  *
  * ## Why the same binary is a test
@@ -59,14 +59,6 @@
  * failure rather than something noticed the next time the fuzzer happens to rediscover it.
  * */
 #define FUZZ_CRASHES_DIRECTORY "./tests/fuzz/crashes/" FUZZ_TARGET
-
-/**
- * Bytes one input may be. Past this AFL's own default of 1 MiB is what matters; this only bounds the
- * stack buffer a replayed file is read into.
- * */
-#ifndef FUZZ_INPUT_MAX
-#define FUZZ_INPUT_MAX (1024 * 64)
-#endif
 
 /**
  * Iterations one persistent AFL process runs before it is restarted.
@@ -127,6 +119,9 @@ s32 main(s32 argc, NYA_CString argv[]) {
 #endif
 
 #ifdef __AFL_HAVE_MANUAL_CONTROL
+    // AFL feeds the input through its own buffer, so the command line is unused under it.
+    nya_unused(argc, argv);
+
     /*
      * Persistent mode: AFL restarts this loop with a new input instead of forking a process per case.
      * __AFL_INIT has to come after everything one-time, since the fork server snapshots the process
