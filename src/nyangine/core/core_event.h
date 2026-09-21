@@ -540,6 +540,23 @@ NYA_API void      nya_system_events_deinit(void);
 NYA_API void      nya_system_event_drain_sdl_events(void);
 NYA_API b8        nya_system_event_poll(OUT NYA_Event* out_event);
 
+#if NYA_TERMINAL_ENABLED
+/**
+ * The same, for the terminal: everything the terminal has said since the last call, dispatched as
+ * NYA_Events. Keys, text, mouse buttons, motion, the wheel and a resize all arrive as the type the
+ * SDL backend produces for them, so nya_input_*, the layer hooks and every nya_ui_* widget above
+ * them work without knowing which backend is under the program.
+ *
+ * A terminal reports that a key went down and never that it came up, so each key arrives as a
+ * KEY_DOWN and a KEY_UP in the same drain. `nya_input_key_just_pressed` is therefore the call that
+ * works; `nya_input_key_pressed` is true for exactly the frame the key arrived in, and a key held
+ * down repeats rather than staying down, which is what a terminal actually knows.
+ *
+ * Compiled only under -DNYA_TERMINAL. See render2d_terminal.h.
+ * */
+NYA_API void nya_system_event_drain_terminal_events(void);
+#endif
+
 /*
  * ─────────────────────────────────────────────────────────
  * EVENT FUNCTIONS

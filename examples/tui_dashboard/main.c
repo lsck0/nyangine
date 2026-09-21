@@ -55,9 +55,6 @@
 /** Bytes taken per frame while filling. The budget over a quarter of the frames, so it fills four times. */
 #define WORKER_STEP_BYTES (WORKER_BUDGET_BYTES / (FRAME_COUNT / 4))
 
-/** Inputs taken from the terminal per frame. More than a person can produce in 33 ms. */
-#define INPUT_PER_FRAME_MAX 32
-
 /*
  * The layout, in pixels, because that is what the renderer takes. One cell is
  * NYA_TERMINAL_CELL_WIDTH_PX by NYA_TERMINAL_CELL_HEIGHT_PX, so these are cell counts times the cell.
@@ -218,38 +215,47 @@ static b8 swatch_draw(NYA_Window* window, f32 x, f32 y) {
 static b8 input_pump(Dashboard* dashboard, NYA_Arena* worker) {
     nya_assert(dashboard != nullptr && worker != nullptr);
 
-    NYA_TerminalInput input[INPUT_PER_FRAME_MAX];
-    u32               count = nya_terminal_poll(input, nya_carray_length(input));
+    /*
+     * The terminal's keys and mouse reports become NYA_Events here, and this loop is the same one a
+     * program on the GPU backend writes: nothing below reads a terminal type, and nothing below
+     * knows which backend produced the event. That is the point of routing terminal input through
+     * nya_event_dispatch rather than handing a program NYA_TerminalInput.
+     */
+    nya_system_event_drain_terminal_events();
 
-    for (u32 i = 0; i < count; i++) {
-        switch (input[i].kind) {
-            case NYA_TERMINAL_INPUT_KEY: {
-                if (input[i].key == NYA_TERMINAL_KEY_ESCAPE) return false;
-                if (input[i].codepoint == 'q') return false;
-                if (input[i].codepoint == ' ') nya_arena_free_all(worker);
+    b8 running = true;
+
+    NYA_Event event;
+    while (nya_system_event_poll(&event)) {
+        // the input system is what nya_input_* and every nya_ui_* widget read, and it is fed by the
+        // events, not by the terminal.
+        nya_system_input_handle_event(&event);
+
+        switch (event.type) {
+            case NYA_EVENT_KEY_DOWN: {
+                if (event.as_key_event.key == NYA_KEY_ESCAPE || event.as_key_event.key == NYA_KEY_Q) running = false;
+                if (event.as_key_event.key == NYA_KEY_SPACE) nya_arena_free_all(worker);
             } break;
 
-            case NYA_TERMINAL_INPUT_MOUSE_BUTTON: {
+            case NYA_EVENT_MOUSE_BUTTON_DOWN: {
+                u32 row = (u32)(event.as_mouse_button_event.y / CELL_H);
+
                 // the header is above the bars, so a click on it selects nothing.
-                if (input[i].is_down && input[i].row >= HEADER_ROWS) dashboard->selected = (u32)input[i].row - HEADER_ROWS;
+                if (row >= HEADER_ROWS) dashboard->selected = row - HEADER_ROWS;
             } break;
 
-            case NYA_TERMINAL_INPUT_RESIZE: {
+            case NYA_EVENT_WINDOW_RESIZED: {
                 dashboard->resizes += 1;
             } break;
 
-            // the mouse moving and the wheel turning are reported and this program has no use for
-            // them; a TUI that scrolls would.
-            case NYA_TERMINAL_INPUT_MOUSE_MOVED:
-            case NYA_TERMINAL_INPUT_MOUSE_WHEEL:  break;
-
-            case NYA_TERMINAL_INPUT_NONE:
-            case NYA_TERMINAL_INPUT_KIND_COUNT:
-            default:                              nya_unreachable();
+            // everything else the terminal can produce is dispatched and this program has no use for
+            // it. A TUI with a text field would read NYA_EVENT_TEXT_INPUT; one that scrolls would
+            // read NYA_EVENT_MOUSE_WHEEL_MOVED.
+            default: break;
         }
     }
 
-    return true;
+    return running;
 }
 
 /*
@@ -280,6 +286,22 @@ s32 main(s32 argc, NYA_CString* argv) {
     }
 
     NYA_Window* window = nya_render2d_terminal_window();
+
+    /*
+     * The two engine subsystems a TUI needs, and no more. `nya_app_init` would bring up the whole
+     * frame loop and with it SDL's video subsystem, which a program running over ssh has no display
+     * for; not needing one is the point of the terminal backend. So the app struct is stood up
+     * directly, which is what `_NYA_APP_INSTANCE` is exported for, and only the event and input
+     * systems are started on top of it. Those two are what `nya_event_dispatch`, `nya_input_*` and
+     * every `nya_ui_*` widget above them read, and they are the same two the SDL backend feeds.
+     *
+     * The callback system comes first because the input system registers a hook by name through it.
+     */
+    _NYA_APP_INSTANCE = (NYA_App){ .initialized = true, .frame_allocator = nya_arena_create(.name = "frame_allocator") };
+
+    nya_system_callback_init();
+    NYA_EXPECT(nya_system_events_init());
+    nya_system_input_init();
 
     // the arena the dashboard watches. Named, because the name is the label on its bar, and sized to
     // the budget so the bar is a fraction of a number this file chose.
@@ -346,6 +368,14 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     nya_arena_destroy(scratch);
     nya_arena_destroy(worker);
+
+    nya_system_input_deinit();
+    nya_system_events_deinit();
+    nya_system_callback_deinit();
+
+    nya_arena_destroy(_NYA_APP_INSTANCE.frame_allocator);
+    _NYA_APP_INSTANCE = (NYA_App){ 0 };
+
     nya_render2d_terminal_close();
 
     nya_backtrace_deinit();

@@ -581,3 +581,229 @@ NYA_INTERNAL void _nya_event_notify_immediate_listeners(NYA_Event* event) {
     NYA_App* app = nya_app_get();
     _nya_event_notify_listeners(app->event_system.immediate_event_hooks, event);
 }
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * TERMINAL INPUT
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+#if NYA_TERMINAL_ENABLED
+
+/**
+ * NYA_TerminalKey to NYA_Keycode, which is the one place the two vocabularies meet.
+ *
+ * The terminal module is in platform/ and cannot see core's keycodes, so its decoder emits its own
+ * small enum and this table translates. That is the whole reason the enum exists: without it either
+ * platform/ would include core/, or the escape parser would carry keycodes it has no business
+ * knowing.
+ * */
+NYA_INTERNAL const NYA_Keycode _NYA_EVENT_TERMINAL_KEYS[NYA_TERMINAL_KEY_COUNT] = {
+    [NYA_TERMINAL_KEY_NONE]      = NYA_KEY_UNKNOWN,
+    [NYA_TERMINAL_KEY_ESCAPE]    = NYA_KEY_ESCAPE,
+    [NYA_TERMINAL_KEY_ENTER]     = NYA_KEY_RETURN,
+    [NYA_TERMINAL_KEY_TAB]       = NYA_KEY_TAB,
+    [NYA_TERMINAL_KEY_BACKSPACE] = NYA_KEY_BACKSPACE,
+    [NYA_TERMINAL_KEY_DELETE]    = NYA_KEY_DELETE,
+    [NYA_TERMINAL_KEY_INSERT]    = NYA_KEY_INSERT,
+    [NYA_TERMINAL_KEY_UP]        = NYA_KEY_UP,
+    [NYA_TERMINAL_KEY_DOWN]      = NYA_KEY_DOWN,
+    [NYA_TERMINAL_KEY_LEFT]      = NYA_KEY_LEFT,
+    [NYA_TERMINAL_KEY_RIGHT]     = NYA_KEY_RIGHT,
+    [NYA_TERMINAL_KEY_HOME]      = NYA_KEY_HOME,
+    [NYA_TERMINAL_KEY_END]       = NYA_KEY_END,
+    [NYA_TERMINAL_KEY_PAGE_UP]   = NYA_KEY_PAGEUP,
+    [NYA_TERMINAL_KEY_PAGE_DOWN] = NYA_KEY_PAGEDOWN,
+    [NYA_TERMINAL_KEY_F1]        = NYA_KEY_F1,
+    [NYA_TERMINAL_KEY_F2]        = NYA_KEY_F2,
+    [NYA_TERMINAL_KEY_F3]        = NYA_KEY_F3,
+    [NYA_TERMINAL_KEY_F4]        = NYA_KEY_F4,
+    [NYA_TERMINAL_KEY_F5]        = NYA_KEY_F5,
+    [NYA_TERMINAL_KEY_F6]        = NYA_KEY_F6,
+    [NYA_TERMINAL_KEY_F7]        = NYA_KEY_F7,
+    [NYA_TERMINAL_KEY_F8]        = NYA_KEY_F8,
+    [NYA_TERMINAL_KEY_F9]        = NYA_KEY_F9,
+    [NYA_TERMINAL_KEY_F10]       = NYA_KEY_F10,
+    [NYA_TERMINAL_KEY_F11]       = NYA_KEY_F11,
+    [NYA_TERMINAL_KEY_F12]       = NYA_KEY_F12,
+};
+
+/** The terminal's modifier bits as core's. Two vocabularies again, and one table. */
+NYA_INTERNAL NYA_KeyModFlag _nya_event_terminal_modifiers(u16 modifiers) {
+    NYA_KeyModFlag flags = NYA_KEYMOD_NONE;
+
+    // the left variants, because a terminal says shift and never which shift.
+    if ((modifiers & NYA_TERMINAL_MODIFIER_SHIFT) != 0) flags |= NYA_KEYMOD_LSHIFT;
+    if ((modifiers & NYA_TERMINAL_MODIFIER_ALT) != 0) flags |= NYA_KEYMOD_LALT;
+    if ((modifiers & NYA_TERMINAL_MODIFIER_CTRL) != 0) flags |= NYA_KEYMOD_LCTRL;
+
+    return flags;
+}
+
+/**
+ * The UTF-8 for one code point, in storage that outlives the dispatch.
+ *
+ * A ring of its own rather than the frame allocator: this drain is reachable without the app loop,
+ * and _nya_event_copy_transient_string hands the caller's pointer back when there is no frame arena,
+ * which for a stack buffer would be a dangling pointer sitting in the event queue. The text is valid
+ * until the next drain, which is the lifetime SDL's own text events promise.
+ * */
+NYA_INTERNAL NYA_ConstCString _nya_event_terminal_text(u32 codepoint) {
+    // one slot per input a drain can produce, so no two events from one drain share a slot.
+    static char text[NYA_TERMINAL_INPUT_MAX][5];
+    static u32  next = 0;
+
+    char* slot = text[next % NYA_TERMINAL_INPUT_MAX];
+    next      += 1;
+
+    u32 at = 0;
+
+    if (codepoint < 0x80U) {
+        slot[at++] = (char)codepoint;
+    } else if (codepoint < 0x800U) {
+        slot[at++] = (char)(0xC0U | (codepoint >> 6U));
+        slot[at++] = (char)(0x80U | (codepoint & 0x3FU));
+    } else if (codepoint < 0x10000U) {
+        slot[at++] = (char)(0xE0U | (codepoint >> 12U));
+        slot[at++] = (char)(0x80U | ((codepoint >> 6U) & 0x3FU));
+        slot[at++] = (char)(0x80U | (codepoint & 0x3FU));
+    } else {
+        slot[at++] = (char)(0xF0U | (codepoint >> 18U));
+        slot[at++] = (char)(0x80U | ((codepoint >> 12U) & 0x3FU));
+        slot[at++] = (char)(0x80U | ((codepoint >> 6U) & 0x3FU));
+        slot[at++] = (char)(0x80U | (codepoint & 0x3FU));
+    }
+
+    slot[at] = '\0';
+
+    return slot;
+}
+
+/** A key, as the down and the up a terminal does not distinguish, plus the text it typed. */
+NYA_INTERNAL void _nya_event_terminal_key(const NYA_TerminalInput* input, NYA_WindowHandle window) {
+    nya_assert((u32)input->key < (u32)NYA_TERMINAL_KEY_COUNT, "the decoder produced key %d", (s32)input->key);
+
+    // a key that is only a character carries no NYA_TerminalKey, and for ASCII its code point is its
+    // keycode. Anything above that is text and not a key anyone binds.
+    NYA_Keycode keycode = _NYA_EVENT_TERMINAL_KEYS[input->key];
+    if (keycode == NYA_KEY_UNKNOWN && input->codepoint > 0 && input->codepoint < 0x80U) keycode = (NYA_Keycode)input->codepoint;
+
+    if (keycode != NYA_KEY_UNKNOWN) {
+        NYA_KeyEvent key = {
+            .window         = window,
+            .is_down        = true,
+            .key            = keycode,
+            .modifier_flags = _nya_event_terminal_modifiers(input->modifiers),
+        };
+
+        nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_KEY_DOWN, .as_key_event = key });
+
+        // a terminal never says a key came up, so it is released in the same drain. See
+        // nya_system_event_drain_terminal_events for what that means for a caller.
+        key.is_down = false;
+        nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_KEY_UP, .as_key_event = key });
+    }
+
+    // a printable character is also text, which is what a text field reads. A control chord is not:
+    // ctrl+c is a key, and typing it must not insert a 'c'.
+    if (input->codepoint >= ' ' && (input->modifiers & (NYA_TERMINAL_MODIFIER_CTRL | NYA_TERMINAL_MODIFIER_ALT)) == 0) {
+        nya_event_dispatch((NYA_Event){
+            .type                = NYA_EVENT_TEXT_INPUT,
+            .as_text_input_event = { .window = window, .text = _nya_event_terminal_text(input->codepoint) },
+        });
+    }
+}
+
+/** One decoded terminal input, as the events the SDL backend would have produced for it. */
+NYA_INTERNAL void _nya_event_terminal_dispatch(const NYA_TerminalInput* input, NYA_WindowHandle window) {
+    nya_assert(input != nullptr);
+
+    // cells to pixels, at the cell's centre, so a handler reads the coordinates a window would give.
+    f32 x = ((f32)input->column + 0.5F) * (f32)NYA_TERMINAL_CELL_WIDTH_PX;
+    f32 y = ((f32)input->row + 0.5F) * (f32)NYA_TERMINAL_CELL_HEIGHT_PX;
+
+    switch (input->kind) {
+        case NYA_TERMINAL_INPUT_KEY: _nya_event_terminal_key(input, window); break;
+
+        case NYA_TERMINAL_INPUT_MOUSE_BUTTON: {
+            const NYA_MouseButton buttons[NYA_TERMINAL_MOUSE_BUTTON_COUNT] = {
+                [NYA_TERMINAL_MOUSE_BUTTON_NONE]   = 0,
+                [NYA_TERMINAL_MOUSE_BUTTON_LEFT]   = NYA_MOUSE_BUTTON_LEFT,
+                [NYA_TERMINAL_MOUSE_BUTTON_MIDDLE] = NYA_MOUSE_BUTTON_MIDDLE,
+                [NYA_TERMINAL_MOUSE_BUTTON_RIGHT]  = NYA_MOUSE_BUTTON_RIGHT,
+            };
+
+            nya_assert(input->button > NYA_TERMINAL_MOUSE_BUTTON_NONE && input->button < NYA_TERMINAL_MOUSE_BUTTON_COUNT);
+
+            // the move first, so a handler reading nya_input_mouse_position on the click sees where
+            // the click was and not where the pointer last passed.
+            nya_event_dispatch((NYA_Event){
+                .type                 = NYA_EVENT_MOUSE_MOVED,
+                .as_mouse_moved_event = { .window = window, .x = x, .y = y },
+            });
+
+            nya_event_dispatch((NYA_Event){
+                .type                  = input->is_down ? NYA_EVENT_MOUSE_BUTTON_DOWN : NYA_EVENT_MOUSE_BUTTON_UP,
+                .as_mouse_button_event = {
+                                          .window  = window,
+                                          .is_down = input->is_down,
+                                          .button  = buttons[input->button],
+                                          .clicks  = 1,
+                                          .x       = x,
+                                          .y       = y,
+                                          },
+            });
+        } break;
+
+        case NYA_TERMINAL_INPUT_MOUSE_MOVED: {
+            nya_event_dispatch((NYA_Event){
+                .type                 = NYA_EVENT_MOUSE_MOVED,
+                .as_mouse_moved_event = { .window = window, .x = x, .y = y },
+            });
+        } break;
+
+        case NYA_TERMINAL_INPUT_MOUSE_WHEEL: {
+            nya_event_dispatch((NYA_Event){
+                .type                 = NYA_EVENT_MOUSE_WHEEL_MOVED,
+                .as_mouse_wheel_event = {
+                                         .window           = window,
+                                         .direction        = NYA_MOUSE_WHEEL_DIRECTION_NORMAL,
+                                         .amount_y         = (f32)input->wheel,
+                                         .mouse_x          = x,
+                                         .mouse_y          = y,
+                                         .integer_amount_y = input->wheel,
+                                         },
+            });
+        } break;
+
+        case NYA_TERMINAL_INPUT_RESIZE: {
+            // in pixels, like every other size the engine reports, so a layout needs no second unit
+            // for this one backend.
+            nya_event_dispatch((NYA_Event){
+                .type                    = NYA_EVENT_WINDOW_RESIZED,
+                .as_window_resized_event = {
+                                            .window = window,
+                                            .width  = (u32)input->column * NYA_TERMINAL_CELL_WIDTH_PX,
+                                            .height = (u32)input->row * NYA_TERMINAL_CELL_HEIGHT_PX,
+                                            },
+            });
+        } break;
+
+        case NYA_TERMINAL_INPUT_NONE:
+        case NYA_TERMINAL_INPUT_KIND_COUNT:
+        default:                            nya_unreachable();
+    }
+}
+
+void nya_system_event_drain_terminal_events(void) {
+    if (!nya_terminal_is_open()) return;
+
+    NYA_TerminalInput input[NYA_TERMINAL_INPUT_MAX];
+
+    u32              count  = nya_terminal_poll(input, nya_carray_length(input));
+    NYA_WindowHandle window = nya_render2d_terminal_window()->handle;
+
+    for (u32 i = 0; i < count; i++) _nya_event_terminal_dispatch(&input[i], window);
+}
+
+#endif // NYA_TERMINAL_ENABLED
