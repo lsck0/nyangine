@@ -42,7 +42,12 @@ void check_runner(NYA_ArgCommand* command) {
     nya_assert(nya_string_equals(strict->name, "strict"));
 
     /*
-     * The three roots, each with the flag set its own build rule uses.
+     * The four roots, each with the flag set its own build rule uses.
+     *
+     * The terminal example is here because it is the only translation unit that compiles
+     * render2d_terminal.c: the other three all pick the GPU renderer, so without it a whole backend
+     * would never be analysed. The device half of that module, platform/terminal/, is in every unit
+     * already and needs no entry of its own.
      */
     CheckUnit units[] = {
         {
@@ -59,6 +64,11 @@ void check_runner(NYA_ArgCommand* command) {
          .source       = "./build.c",
          .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_BUILD_TOOL },
          .uses_vendors = false,
+         },
+        {
+         .source       = TERMINAL_SOURCE_PATH,
+         .flags        = { CFLAGS, WARNINGS, INCLUDE_PATHS, FLAGS_PLUGINS, FLAGS_DEBUG, FLAGS_TERMINAL },
+         .uses_vendors = true,
          },
     };
 

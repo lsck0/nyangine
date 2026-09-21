@@ -38,6 +38,12 @@
  * */
 #define VERSION      "0.0.0"
 
+/**
+ * The example that selects the terminal backend, and so the only translation unit in the tree that
+ * compiles render2d_terminal.c. `./build check --strict` analyses it for exactly that reason.
+ * */
+#define TERMINAL_SOURCE_PATH "./examples/tui_dashboard/main.c"
+
 #define BINARY_SOURCE_PATH "./src/main.c"
 #define DLL_SOURCE_PATH    "./src/gnyame/gnyame.c"
 
@@ -146,6 +152,11 @@
 // Runs the engine with the drawing compiled out. Everything else still runs, so a test exercises
 // the real frame loop; there is just no GPU device to create, which is what CI cannot provide.
 #define FLAGS_HEADLESS "-DNYA_HEADLESS"
+
+// Draws into a terminal instead of a swapchain: nyangine.c compiles render2d_terminal.c in place of
+// render2d.c. Implies NYA_HEADLESS, so it is that plus a backend and never combined with it.
+#define FLAGS_TERMINAL "-DNYA_TERMINAL"
+
 #define FLAGS_DLL_COMPILE "-fPIC"
 #define FLAGS_DLL_LINK    "-shared"
 #define FLAGS_SANITIZE "-fno-omit-frame-pointer", "-fno-optimize-sibling-calls", "-fno-sanitize-recover=all", "-fsanitize=address,leak,undefined,signed-integer-overflow,unsigned-integer-overflow,shift,float-cast-overflow,float-divide-by-zero,pointer-overflow"

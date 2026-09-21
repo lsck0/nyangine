@@ -33,7 +33,11 @@
 #include "nyangine/renderer/render_cull.c"
 // both builds: where a nine-slice's pieces go is arithmetic a headless test checks.
 #include "nyangine/renderer/render_nine_slice.c"
-#if NYA_HEADLESS_ENABLED
+// One 2D backend, picked at build time, so nothing carries another one's code. The terminal arm is
+// checked first because NYA_TERMINAL implies NYA_HEADLESS; see base_basic.h.
+#if NYA_TERMINAL_ENABLED
+#include "nyangine/renderer/render2d_terminal.c"
+#elif NYA_HEADLESS_ENABLED
 #include "nyangine/renderer/render2d_headless.c"
 #else
 #include "nyangine/renderer/render2d.c"

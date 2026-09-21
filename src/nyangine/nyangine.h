@@ -21,6 +21,8 @@
 /**/
 #include "nyangine/core/core.h"
 #include "nyangine/renderer/render2d.h"
+// after render2d.h, whose surface it replaces the implementation of. Empty unless -DNYA_TERMINAL.
+#include "nyangine/renderer/render2d_terminal.h"
 #include "nyangine/renderer/render2d_sprite.h"
 #include "nyangine/renderer/render3d.h"
 #include "nyangine/renderer/render_particles.h"

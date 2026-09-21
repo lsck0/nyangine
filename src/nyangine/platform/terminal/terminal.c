@@ -341,13 +341,7 @@ NYA_INTERNAL u32 _nya_terminal_utf8_encode(u32 codepoint, OUT u8 out[4]) {
     return 4;
 }
 
-/**
- * Decodes one code point. Returns how many bytes it took, 0 when the sequence has not all arrived,
- * and treats a malformed lead or continuation as one byte of U+FFFD rather than resynchronising,
- * because a terminal that sends invalid UTF-8 is an untrusted boundary and must not be able to make
- * this loop scan forward.
- * */
-NYA_INTERNAL u32 _nya_terminal_utf8_decode(const u8* bytes, u64 size, OUT u32* out_codepoint) {
+u32 nya_terminal_utf8_decode(const u8* bytes, u64 size, OUT u32* out_codepoint) {
     nya_assert(bytes != nullptr && out_codepoint != nullptr && size > 0);
 
     u8 lead = bytes[0];
@@ -996,7 +990,7 @@ NYA_INTERNAL _NYA_TerminalDecode _nya_terminal_decode_one(const u8* bytes, u64 s
     }
 
     u32 codepoint = 0;
-    u32 used      = _nya_terminal_utf8_decode(bytes, size, &codepoint);
+    u32 used      = nya_terminal_utf8_decode(bytes, size, &codepoint);
 
     if (used == 0) {
         if (!is_final) return _NYA_TERMINAL_DECODE_INCOMPLETE;

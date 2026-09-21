@@ -495,3 +495,13 @@ NYA_API void nya_terminal_image_clear(void);
 
 /** `NYA_Color`'s four floats as the `0x00RRGGBB` a cell holds. Each component is clamped. */
 NYA_API u32 nya_terminal_ink(f32 red, f32 green, f32 blue) __attr_no_discard;
+
+/**
+ * One code point out of UTF-8 bytes. Returns how many bytes it took, and 0 when the character has
+ * not all arrived so the caller should wait for more.
+ *
+ * Public because the decoder and the terminal renderer both walk UTF-8, and a second copy of this
+ * is the kind of near-duplicate that drifts. Malformed input yields one byte of U+FFFD rather than
+ * resynchronising, so a hostile stream cannot make a caller's loop scan forward.
+ * */
+NYA_API u32 nya_terminal_utf8_decode(const u8* bytes, u64 size, OUT u32* out_codepoint) __attr_no_discard;
