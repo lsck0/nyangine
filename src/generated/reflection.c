@@ -946,6 +946,13 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle_title_font_ARRAY = {
     .element = &_NYA_REFLECT_char, .element_count = (NYA_UI_FONT_NAME_MAX),
 };
 
+static const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle_icon_sheet_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_UIStyle*)nullptr)->icon_sheet),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_UI_SKIN_TEXTURE_MAX),
+};
+
 static const NYA_ReflectField _NYA_REFLECT_NYA_UIStyle_FIELDS[] = {
     { .name = "font", .type = &_NYA_REFLECT_NYA_UIStyle_font_ARRAY, .offset = nya_offsetof(NYA_UIStyle, font), .hint = NYA_HINT_NONE },
     { .name = "title_font", .type = &_NYA_REFLECT_NYA_UIStyle_title_font_ARRAY, .offset = nya_offsetof(NYA_UIStyle, title_font), .hint = NYA_HINT_NONE },
@@ -974,6 +981,7 @@ static const NYA_ReflectField _NYA_REFLECT_NYA_UIStyle_FIELDS[] = {
     { .name = "text_dim", .type = &_NYA_REFLECT_NYA_Color, .offset = nya_offsetof(NYA_UIStyle, text_dim), .hint = NYA_HINT_NONE },
     { .name = "button", .type = &_NYA_REFLECT_NYA_UIStateColors, .offset = nya_offsetof(NYA_UIStyle, button), .hint = NYA_HINT_NONE },
     { .name = "text", .type = &_NYA_REFLECT_NYA_UIStateColors, .offset = nya_offsetof(NYA_UIStyle, text), .hint = NYA_HINT_NONE },
+    { .name = "icon_sheet", .type = &_NYA_REFLECT_NYA_UIStyle_icon_sheet_ARRAY, .offset = nya_offsetof(NYA_UIStyle, icon_sheet), .hint = NYA_HINT_NONE },
     { .name = "panel_skin", .type = &_NYA_REFLECT_NYA_UISkin, .offset = nya_offsetof(NYA_UIStyle, panel_skin), .hint = NYA_HINT_NONE },
     { .name = "button_skin", .type = &_NYA_REFLECT_NYA_UIStateSkins, .offset = nya_offsetof(NYA_UIStyle, button_skin), .hint = NYA_HINT_NONE },
     { .name = "track_skin", .type = &_NYA_REFLECT_NYA_UISkin, .offset = nya_offsetof(NYA_UIStyle, track_skin), .hint = NYA_HINT_NONE },
@@ -986,7 +994,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle = {
     .size = sizeof(NYA_UIStyle),
     .alignment = alignof(NYA_UIStyle),
     .fields = _NYA_REFLECT_NYA_UIStyle_FIELDS,
-    .field_count = 31,
+    .field_count = 32,
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {

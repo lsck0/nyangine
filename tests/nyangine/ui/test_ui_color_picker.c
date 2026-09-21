@@ -210,6 +210,10 @@ s32 main(void) {
 
         NYA_Color held = tint;
 
+        // end first: a click puts the caret where it landed, which is in the middle of the digits here.
+        tap(NYA_KEY_END);
+        (void)picker();
+
         for (u32 i = 0; i < 9; i++) {
             tap(NYA_KEY_BACKSPACE);
             (void)picker();

@@ -62,7 +62,16 @@
 #if !NYA_HEADLESS_ENABLED
 #include "nyangine/renderer/render_trace.c"
 #endif
+// ui.c first: it defines the module's one static state, which every other ui_*.c file reads. The rest are
+// independent of each other and only ordered to read alphabetically.
 #include "nyangine/ui/ui.c"
+#include "nyangine/ui/ui_draw.c"
+#include "nyangine/ui/ui_input.c"
+#include "nyangine/ui/ui_layout.c"
+#include "nyangine/ui/ui_style.c"
+#include "nyangine/ui/ui_text.c"
+#include "nyangine/ui/ui_widgets.c"
+
 // For the reason testing.h is included last.
 #include "nyangine/testing/testing.c"
 

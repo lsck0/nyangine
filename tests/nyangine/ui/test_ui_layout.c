@@ -315,7 +315,7 @@ s32 main(void) {
         nya_check(low.y == MARGIN + FRAME + 30.0F + GAP && low.width == content, "the tallest cell sets the row's height, and a space fills the column, got %f", (f64)low.y);
     }
 
-    // ── Scale: derived from the window's height in quarter steps, never under one without a display, or set outright.
+    // ── Scale: the style's, or 1, and never the window's size. See ui.h for why the window is deliberately not in it.
     {
         struct {
             u32 height;
@@ -323,12 +323,14 @@ s32 main(void) {
             f32 expected;
         } cases[] = {
             { 720,  0.0F,  1.0F  },
-            { 1440, 0.0F,  2.0F  },
-            { 1080, 0.0F,  1.5F  },
-            { 800,  0.0F,  1.0F  },
+            { 1440, 0.0F,  1.0F  },
+            { 1080, 0.0F,  1.0F  },
             { 600,  0.0F,  1.0F  },
-            { 2160, 0.0F,  3.0F  },
+            { 2160, 0.0F,  1.0F  },
             { 720,  1.25F, 1.25F },
+            { 2160, 2.0F,  2.0F  },
+            // under the floor, which is there so a mistyped setting cannot make the UI unreadable.
+            { 720,  0.1F,  0.5F  },
         };
 
         for (u32 i = 0; i < nya_carray_length(cases); i++) {
@@ -351,7 +353,8 @@ s32 main(void) {
             }
 
             f32 s = cases[i].expected;
-            nya_check(nya_ui_scale(&sized) == s, "a %u tall window scales by %f, got %f", cases[i].height, (f64)s, (f64)nya_ui_scale(&sized));
+            nya_check(nya_ui_scale(&sized) == s, "a %u tall window at scale %f reads back %f, got %f", cases[i].height, (f64)cases[i].scale, (f64)s,
+                      (f64)nya_ui_scale(&sized));
             nya_check(inside.x == roundf(MARGIN * s) + roundf(FRAME * s) && inside.width == roundf(200.0F * s) - (roundf(FRAME * s) * 2.0F) && inside.height == roundf(10.0F * s),
                       "margin, padding, sizes and spaces all scale at %f, got %f %f", (f64)s, (f64)inside.x, (f64)inside.width);
         }

@@ -10,15 +10,23 @@
  *   nya_ui_begin, nya_ui_end                    one pass over a window's UI, reading input or drawing
  *   nya_ui_panel_begin, nya_ui_panel_end        a container stacking its children down or across, framed or plain
  *   nya_ui_size                                 the next child's size along its container's direction
+ *   nya_ui_space                                room in the layout for custom drawing, or a spacer
+ *   nya_ui_scrim                                dims the whole window
+ *   nya_ui_opacity_begin, nya_ui_opacity_end    fades everything between them, panel and all
+ *   nya_ui_table_begin, nya_ui_table_end        rows whose cells line up in columns
+ *   nya_ui_table_row_begin, nya_ui_table_row_end  one row of a table, a cell per widget
  *   nya_ui_label                                text, wrapped or shrunk to fit when the container says so
  *   nya_ui_button                               true on the pass it is activated
  *   nya_ui_selectable                           a button that shows whether it is the chosen one
+ *   nya_ui_radio                                one choice of a set, owning the variable
+ *   nya_ui_tabs                                 a row of pages, one chosen
+ *   nya_ui_dropdown                             one of a list, which opens under the row
  *   nya_ui_toggle                               flips a b8
  *   nya_ui_slider                               moves an f32 between two bounds in steps
- *   nya_ui_text_input                           one line of typed text in a caller's buffer
+ *   nya_ui_text_input                           one line of typed text, with selection and the clipboard
  *   nya_ui_color_picker                         a colour by saturation and value, hue, alpha and hex
- *   nya_ui_space                                room in the layout for custom drawing, or a spacer
- *   nya_ui_scrim                                dims the whole window
+ *   nya_ui_chart                                a line or bar plot of a caller's values
+ *   nya_ui_icon                                 a picture cut from a texture
  *   nya_ui_disabled_begin, nya_ui_disabled_end  widgets between them are dimmed, skipped by focus, and never act
  *   nya_ui_style_push, nya_ui_style_pop         another look for what follows, until popped
  *   nya_ui_cancelled                            whether cancel was pressed this pass
@@ -93,11 +101,14 @@
  *   in over `appear_s` when it shows again, on the wall clock so a paused simulation still animates. Each widget's
  *   progress sits in a small direct mapped table by id; a collision only snaps a transition. Zero durations never
  *   touch the table.
+ * - A field selects, copies and pastes. This was left out once, on the grounds that a name or a seed does not need
+ *   it; that was wrong, because a field people can only retype is a field they avoid, and the whole cost is a
+ *   second offset beside the caret.
  * - Rejected: recording draw commands in the tick and replaying them in on_render, which needs a text pool, cannot
  *   host custom drawing inside a panel, and draws a tick-old state. Acting on input from on_render, which runs
  *   gameplay from the renderer and loses presses while a window is minimised. A retained widget tree, which is state
- *   to keep in sync with the game for menus that are a dozen rows. Selection and clipboard in a field, which a name
- *   or a seed does not need.
+ *   to keep in sync with the game for menus that are a dozen rows. A dropdown that floats over what follows, which
+ *   one immediate pass cannot order.
  * */
 #pragma once
 
@@ -135,6 +146,23 @@ typedef struct NYA_Window NYA_Window;
 /** Styles pushed on top of the window's at once. */
 #define NYA_UI_STYLE_DEPTH_MAX 4
 
+/** Opacity groups open inside each other at once. */
+#define NYA_UI_OPACITY_DEPTH_MAX 4
+
+/** Columns a table may have. A table wider than this is a list of rows, not a table. */
+#define NYA_UI_TABLE_COLUMNS_MAX 8
+
+/** Points a chart plots. Past this the ones that do not fit are dropped from the front, so the newest still show. */
+#define NYA_UI_CHART_POINTS_MAX 256
+
+/**
+ * A chart at scale 1: how wide it asks to be before its container has a say, how thick its line is, and how much of
+ * each slot a bar fills, the rest being the gap between bars.
+ * */
+#define NYA_UI_CHART_WIDTH      160.0F
+#define NYA_UI_CHART_LINE_WIDTH 2.0F
+#define NYA_UI_CHART_BAR_SHARE  0.7F
+
 /** Longest registered font name a style can hold, terminator included. */
 #define NYA_UI_FONT_NAME_MAX 32
 
@@ -164,6 +192,19 @@ typedef struct NYA_Window NYA_Window;
 
 /** How long a caret stays on and then off, in seconds. */
 #define NYA_UI_CARET_BLINK_S 0.5F
+
+/** How far apart two clicks in a field may be and still select a word. The usual desktop threshold. */
+#define NYA_UI_DOUBLE_CLICK_S 0.35
+
+/** How much of the accent a selection highlight keeps, so the glyphs over it stay readable. */
+#define NYA_UI_SELECTION_ALPHA 0.35F
+
+/** How much of the dim text colour a striped table row keeps. Enough to follow across, not enough to read as a fill. */
+#define NYA_UI_STRIPE_ALPHA 0.12F
+
+/** How far a widget pops on activation, as a share of the style's `pop`, and how long the bounce lasts. */
+#define NYA_UI_BOUNCE       1.5F
+#define NYA_UI_BOUNCE_S     0.18F
 
 /** Pixels at scale 1: a scroll per wheel notch, a scrolling panel's bar, and the focus mark along a widget's edge. */
 #define NYA_UI_SCROLL_STEP 40.0F
@@ -451,6 +492,9 @@ struct NYA_UIStyle {
     NYA_UIStateColors button;
     NYA_UIStateColors text;
 
+    /** The texture nya_ui_icon cuts from when an icon names none. Empty draws nothing, so icons cost nothing unused. */
+    char icon_sheet[NYA_UI_SKIN_TEXTURE_MAX];
+
     /** Nine-slices in place of the flat shapes: panels, widget bodies, the tracks of sliders, toggles and fields, and knobs. */
     NYA_UISkin       panel_skin;
     NYA_UIStateSkins button_skin;
@@ -494,6 +538,61 @@ struct NYA_UIPanel {
 
     /** No background, outline or padding: a plain column or row. */
     b8 frameless;
+
+    /**
+     * A top level panel the pointer can move by its title, or by its top edge when it has none. Where it was left
+     * is remembered with the rest of its measurements, and kept inside the safe area, so a resize never strands it.
+     * Ignored on a nested panel, which its container places.
+     * */
+    b8 draggable;
+};
+
+/** What a chart draws. */
+typedef enum NYA_UIChartKind {
+    /** A line through every point. */
+    NYA_UI_CHART_LINE = 0,
+
+    /** One bar per point. */
+    NYA_UI_CHART_BAR,
+
+    NYA_UI_CHART_KIND_COUNT,
+} NYA_UIChartKind;
+
+/** A plot of `count` values. Nothing here is kept: the values are read during the call and never again. */
+typedef struct NYA_UIChart NYA_UIChart;
+
+struct NYA_UIChart {
+    const f32* values;
+    u32        count;
+
+    NYA_UIChartKind kind;
+
+    /** The range the plot spans. Equal bounds fit the values, so a caller with no idea of the range passes neither. */
+    f32 min;
+    f32 max;
+
+    /** Pixels at scale 1. Zero is four line heights, which reads at a glance without taking over a panel. */
+    f32 height;
+
+    /** The line or bars. All four channels zero takes the style's accent. */
+    NYA_Color color;
+};
+
+/** A picture cut from a texture. */
+typedef struct NYA_UIIcon NYA_UIIcon;
+
+struct NYA_UIIcon {
+    /** A texture asset handle, loaded on first use. Empty cuts the region from the style's `icon_sheet`. */
+    NYA_ConstCString texture;
+
+    /** The region of the sheet, in its pixels. A zero size is the whole texture. */
+    f32 source_x;
+    f32 source_y;
+    f32 source_width;
+    f32 source_height;
+
+    /** Multiplies the texture. All four channels zero takes the style's text colour, so a white sheet follows it. */
+    NYA_Color tint;
 };
 
 /*
@@ -543,6 +642,67 @@ NYA_API NYA_Rectf nya_ui_space(NYA_UI* ui, f32 width, f32 height);
 /** Dims the whole window in the style's scrim colour, under whatever is drawn after it. */
 NYA_API void nya_ui_scrim(NYA_UI* ui);
 
+/**
+ * Everything drawn until the matching end has its alpha multiplied by `opacity`, which is clamped to [0, 1]. Nests,
+ * multiplying, so a faded panel inside a faded one fades twice. Layout, focus and input are untouched: a group at
+ * zero is invisible and still clickable, so a menu fading out is wrapped in nya_ui_disabled_begin as well.
+ *
+ * At most NYA_UI_OPACITY_DEPTH_MAX deep, and balanced by the end of the pass.
+ * */
+NYA_API void nya_ui_opacity_begin(NYA_UI* ui, f32 opacity);
+NYA_API void nya_ui_opacity_end(NYA_UI* ui);
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * TABLES
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * A column of rows whose cells line up. `widths` holds `columns` widths in pixels at scale 1; a zero width grows
+ * into an equal share of what the fixed ones leave. `headers`, when given, is drawn as a first row in the dim text
+ * colour with a rule under it.
+ *
+ * False when the container table is full; skip the rows and the end.
+ *
+ * ```c
+ * const f32 widths[] = { 120.0F, 0.0F, 60.0F };
+ *
+ * if (nya_ui_table_begin(ui, "scores", (NYA_UITable){ .widths = widths, .columns = 3, .headers = headers })) {
+ *     for (u32 i = 0; i < count; i++) {
+ *         if (nya_ui_table_row_begin(ui)) {
+ *             nya_ui_label(ui, rows[i].name);
+ *             nya_ui_label(ui, rows[i].team);
+ *             nya_ui_label(ui, rows[i].score);
+ *             nya_ui_table_row_end(ui);
+ *         }
+ *     }
+ *
+ *     nya_ui_table_end(ui);
+ * }
+ * ```
+ * */
+typedef struct NYA_UITable NYA_UITable;
+
+struct NYA_UITable {
+    /** One width per column in pixels at scale 1, zero to grow. Must point at `columns` floats. */
+    const f32* widths;
+    u32        columns;
+
+    /** One label per column, or null for no header row. Must point at `columns` strings when given. */
+    const NYA_ConstCString* headers;
+
+    /** Tints every other row, which is what makes a wide row readable across. */
+    b8 striped;
+};
+
+NYA_API b8   nya_ui_table_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UITable table) __attr_no_discard;
+NYA_API void nya_ui_table_end(NYA_UI* ui);
+
+/** Opens one row. Each widget inside takes the next column's width. False when refused; skip the cells and the end. */
+NYA_API b8   nya_ui_table_row_begin(NYA_UI* ui) __attr_no_discard;
+NYA_API void nya_ui_table_row_end(NYA_UI* ui);
+
 /*
  * ─────────────────────────────────────────────────────────
  * WIDGETS
@@ -570,10 +730,46 @@ NYA_API b8 nya_ui_slider(NYA_UI* ui, NYA_ConstCString label, f32* value, f32 min
 
 /**
  * `label`, then a field showing the UTF-8 in `buffer`, which holds at most `capacity` bytes with its terminator.
- * Activating it starts typing: text goes in at the caret, left and right move it, backspace and delete remove a
- * character, home and end jump. Return, cancel, or a click elsewhere stop. True when the text changed.
+ * Activating it starts typing; return, cancel, or a click elsewhere stop. True when the text changed.
+ *
+ * While typing: text goes in at the caret, replacing the selection. Left and right move a character and with
+ * control a word, home and end jump, and holding shift selects instead of moving. Backspace and delete remove the
+ * selection or one character, and with control a whole word. Control with A, C, X and V select all, copy, cut and
+ * paste through the system clipboard; a pasted newline or tab becomes a space, since this is one line. A click sets
+ * the caret, a drag selects, and a second click selects the word under it.
  * */
 NYA_API b8 nya_ui_text_input(NYA_UI* ui, NYA_ConstCString label, char* buffer, u32 capacity);
+
+/**
+ * One of `count` choices in a row of their own, marked and focused like a button. `*selected` is the index of the
+ * chosen one. True when it changed.
+ * */
+NYA_API b8 nya_ui_tabs(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected);
+
+/**
+ * A closed row showing `options[*selected]`; activating it opens the list, and picking closes it again. True when
+ * `*selected` changed.
+ *
+ * The open list takes room in the layout instead of floating over what follows. A floating one was tried and
+ * dropped: one immediate pass has no z order, so the list would have to be replayed after everything else, which
+ * means holding the caller's `options` pointer past the call that was given it.
+ * */
+NYA_API b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* options, u32 count, u32* selected);
+
+/**
+ * One choice of a set, marked when `*selected` is already `value`. Activating it writes `value`. True when it
+ * changed. Unlike nya_ui_selectable, which only reports that it was picked, this owns the variable.
+ * */
+NYA_API b8 nya_ui_radio(NYA_UI* ui, NYA_ConstCString label, u32* selected, u32 value);
+
+/**
+ * Plots `chart`, taking a row of its own. Draws only; nothing is focusable and nothing is kept, so a chart of a
+ * value that changes every frame costs one pass over the points.
+ * */
+NYA_API void nya_ui_chart(NYA_UI* ui, NYA_ConstCString label, NYA_UIChart chart);
+
+/** A square `size` pixels at scale 1 on a side, cut from a texture. Zero takes the container's line height. */
+NYA_API void nya_ui_icon(NYA_UI* ui, NYA_UIIcon icon, f32 size);
 
 /**
  * `label` and a swatch, a field of saturation across and value down with a hue bar beside it, an alpha bar under it,
