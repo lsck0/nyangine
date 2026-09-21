@@ -347,7 +347,13 @@ the packager ones.
 
 ## `[ ]` Docs and examples
 
-- `[x]` `docs/CHEATSHEET.md`, generated from the headers by `src/build/pp/cheatsheet.c`, so it cannot drift.
+- `[~]` `docs/CHEATSHEET.md`, generated from the headers by `src/build/pp/cheatsheet.c`. `[ ]` It has drifted
+  anyway, because the pass never runs: `generate_cheatsheet` is a metarule named only in
+  `index_assets.dependencies`, and no build dispatches it, not even `./build build debug-linux --regenerate`
+  (the other three metarules in that list print `[BUILDING META]`, it never does). Its core_system.h section
+  still describes `nya_system_registry_run_update`, which was removed when the registry landed. Fix the
+  dispatch first, then regenerate; the regeneration is a large diff that has nothing to do with whatever
+  change is in hand, so it wants its own commit.
 - `[x]` `AGENTS.md` at the root pointing at the cheatsheet.
 - `[~]` More examples beside hello_world. Landed: `cli_tool` (no window), `plugin_scripting` (the Lua
   surface as it is today), `tui_dashboard` (text only, waiting on a real terminal backend), `net_echo`
