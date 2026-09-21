@@ -198,7 +198,7 @@ s32 main(void) {
             registered = true;
 
             nya_assert(nya_string_equals(entry->name, "good:hooks"), "a plugin's registrations carry its name, got '%s'", entry->name);
-            nya_assert(entry->memory_bytes != nullptr, "and report what the plugin's VM holds");
+            nya_assert(entry->memory_bytes != NYA_CALLBACK_HANDLE_NONE, "and report what the plugin's VM holds");
         }
 
         nya_assert(registered, "a loaded plugin is one system, owned by itself");

@@ -75,12 +75,23 @@ s32 main(void) {
             nya_trace_request();
 
             {
+                /*
+                 * The child spins five times the parent, not half of it.
+                 *
+                 * What is under test is that a nested scope's time lands on the child and is taken
+                 * off the parent. Asserting that with a parent that spins longer needs a tight upper
+                 * bound on a wall clock measurement — 2 ms of spin had to read under 2.9 — and a
+                 * sanitized build on a loaded machine oversleeps straight through it. This way the
+                 * two are separated by the whole of the child's spin whatever the machine does:
+                 * attributed, the parent reads about 1 ms against the child's 5; folded in, it would
+                 * read about 6.
+                 */
                 nya_trace_scope(NYA_TRACE_SCENE);
-                spin_ns(2'000'000);
+                spin_ns(1'000'000);
 
                 {
                     nya_trace_scope(NYA_TRACE_PARTICLES);
-                    spin_ns(1'000'000);
+                    spin_ns(5'000'000);
                     nya_trace_draws(3);
                 }
             }
@@ -100,8 +111,11 @@ s32 main(void) {
         }
 
         nya_check(scene != nullptr && particles != nullptr && bloom != nullptr, "every feature with time has a row");
-        nya_check(particles->cpu_ms >= 0.9 && particles->cpu_ms < 1.9, "the child's own millisecond");
-        nya_check(scene->cpu_ms >= 1.9 && scene->cpu_ms < 2.9, "the parent's two, without the child's one");
+        // Lower bounds only: a spin can overrun on a loaded machine, it cannot finish early.
+        nya_check(particles->cpu_ms >= 4.5, "the child's own five milliseconds, got %.2f", particles->cpu_ms);
+        nya_check(scene->cpu_ms >= 0.9, "and the parent's own one, got %.2f", scene->cpu_ms);
+        nya_check(scene->cpu_ms < particles->cpu_ms, "the parent's time is its own, with the child's taken off it (%.2f against %.2f)",
+                  scene->cpu_ms, particles->cpu_ms);
         nya_check(particles->calls == 1.0F && particles->draws == 3.0F, "one scope and three draws a frame");
         nya_check(bloom->has_gpu && fabs(bloom->gpu_ms - 0.0005) < 1e-9 && !scene->has_gpu, "GPU time only where a group was charged");
 

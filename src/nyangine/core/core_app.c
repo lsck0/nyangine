@@ -335,7 +335,7 @@ void _nya_app_register_subsystems(void) {
      * game has one. Registered all the same, so whatever the game loaded goes down in registry order
      * with everything else rather than leaking a VM per plugin at exit.
      */
-    nya_system_register((NYA_SystemEntry){ .name = "plugins", .after = "window", .deinit = nya_plugin_unload_all });
+    nya_system_register((NYA_SystemEntry){ .name = "plugins", .after = "window", .deinit = nya_callback(nya_plugin_unload_all) });
 
     /*
      * ── the frame, in order ──────────────────────────────────────────────────────────────────────────

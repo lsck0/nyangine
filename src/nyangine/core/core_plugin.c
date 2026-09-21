@@ -933,10 +933,10 @@ void _nya_plugin_system_register(_NYA_PluginSlot* slot) {
      */
     nya_system_register((NYA_SystemEntry){
         .name         = slot->system_name,
-        .frame        = slot->plugin.has_frame ? _NYA_PLUGIN_SLOT_FNS[index].frame : nullptr,
-        .tick         = slot->plugin.has_tick ? _NYA_PLUGIN_SLOT_FNS[index].tick : nullptr,
-        .render       = slot->plugin.has_render ? _NYA_PLUGIN_SLOT_FNS[index].render : nullptr,
-        .memory_bytes = _NYA_PLUGIN_SLOT_FNS[index].memory_bytes,
+        .frame        = slot->plugin.has_frame ? nya_callback(_NYA_PLUGIN_SLOT_FNS[index].frame) : NYA_CALLBACK_HANDLE_NONE,
+        .tick         = slot->plugin.has_tick ? nya_callback(_NYA_PLUGIN_SLOT_FNS[index].tick) : NYA_CALLBACK_HANDLE_NONE,
+        .render       = slot->plugin.has_render ? nya_callback(_NYA_PLUGIN_SLOT_FNS[index].render) : NYA_CALLBACK_HANDLE_NONE,
+        .memory_bytes = nya_callback(_NYA_PLUGIN_SLOT_FNS[index].memory_bytes),
         .owner        = { .kind = NYA_SYSTEM_OWNER_PLUGIN, .plugin = slot->plugin.manifest.name },
     });
 }
