@@ -308,6 +308,16 @@ b8 nya_font_sdf(NYA_Font font) {
     font = nya_font_resolve(font);
     if (!nya_font_valid(font)) return false;
 
+    _NYA_FontSdfRequest* request = _nya_font_sdf_find(font);
+
+    /*
+     * Asked before any face is reached, because nya_font_sdf_set is the only thing that ever turns a face into a
+     * distance field: with no request for this one the answer is false whatever a face would say, and reaching for
+     * the face would queue a load that nobody asked for. A backend with no glyph atlas at all, the terminal's, has
+     * no loader to queue it with, and this query is what a UI pass makes of every size it derives.
+     */
+    if (request == nullptr) return false;
+
     _nya_font_sdf_apply_pending();
 
     TTF_Font* face = nya_text_font_for(font.path, font.point_size);
@@ -318,9 +328,7 @@ b8 nya_font_sdf(NYA_Font font) {
     // No face yet, so report what it is going to be. Answering false here would mean a caller that has
     // just asked for a distance field is told it did not get one, which was the old behaviour and is
     // indistinguishable from the request having been dropped.
-    _NYA_FontSdfRequest* request = _nya_font_sdf_find(font);
-
-    return request != nullptr && request->sdf;
+    return request->sdf;
 }
 
 f32x2 nya_font_measure(NYA_Font font, NYA_ConstCString text) {
