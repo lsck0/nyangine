@@ -32,9 +32,9 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 
 | Area | Wanted | State |
 | :--- | :--- | :--- |
-| 2D/3D renderer | animation, particles, atmosphere, liquids, opacity, reflections, dynamic LOD, eye adaptation | `[~]` animation, particles, fog, glass, terrain and mesh LOD exist; volumetrics, liquids, reflections, eye adaptation missing |
+| 2D/3D renderer | animation, particles, atmosphere, liquids, opacity, reflections, dynamic LOD, eye adaptation | `[~]` animation, particles, fog, glass, terrain and mesh LOD, eye adaptation, light shafts, aerial perspective and motion blur exist; volumetrics, liquids and reflections missing |
 | Post processing | a composable chain | `[x]` occlusion, ink, depth of field, FXAA, grade, bloom, speed lines, HDR output |
-| Graphics options | antialiasing, motion blur, fov, ... toggleable | `[~]` MSAA and FXAA at runtime; motion blur and a settings level fov missing |
+| Graphics options | antialiasing, motion blur, fov, ... toggleable | `[~]` MSAA, FXAA, shadows, post passes, fov and render scale are player settings; a flag for every renderer feature is in progress |
 | Renderer debug | physics hitboxes and other debug views | `[~]` buffer views exist; physics shapes missing |
 | Audio | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's) |
 | UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` containers with fixed/fit/grow sizes, window scale, per state colours, style push/pop, nine-slice skins, transitions, text input, colour picker, merged draw calls. Open: selection and clipboard, alpha fade |
@@ -42,11 +42,11 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | Pipelines | build, assets, reflection | `[x]` |
 | Hot reload | assets, code, configuration | `[x]` |
 | Tracing | time and memory per feature (shadows, antialiasing, particles, ...) | `[~]` CPU spans and GPU allocation counters; per feature attribution missing |
-| CI/CD | tests and builds with caching | `[x]` green on Linux and Windows |
+| CI/CD | tests and builds with caching | `[x]` green on Linux and Windows. `./build dist` stages every target, the changelog is generated, secrets are sops encrypted |
 | Crash reporting | one funnel, a window a player can act on, everything a triage needs in it | `[~]` log ring, composed report (crash, build, machine, stack, log), its own SDL window with close, copy and send, and a file under the log directory. Open: a transport behind `nya_crash_report_submit`, and a window on the fault path (SDL from a signal handler can deadlock) |
 | Anti-tamper | integrity checks like the CRC | `[x]` executable stamp, chunked code baseline and a sweep every 250 ms, per blob entry hashes, a watchdog at two inlined sites; failure logs and exits 86 |
 | Networking | attack and cheat resistant, optional end to end public key encryption | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders |
-| Targets | Linux, Windows, Steam Linux, Steam Windows | `[x]` all four build in CI; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS) |
+| Targets | Linux, Windows, Steam Linux, Steam Windows | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). Web and TUI are wanted and not started; Android is out |
 
 # Unmerged work
 
@@ -85,18 +85,20 @@ In scope, deliberately: not only a server, but the client too.
   wraps something like `gh`. The headless renderer pair is the existing precedent for a second backend.
 - `[ ]` Kitty image protocol, so a TUI can still show pictures.
 
-## `[ ]` IPC and talking to other programs
+## `[~]` IPC and talking to other programs
 
-- `[ ]` A local control socket, opt-in and off by default: a unix socket on Linux, a named pipe on Windows, so
-  an outside program can drive a running nyangine program. The motivating case is a small VTuber tool you
-  control from elsewhere.
-- `[ ]` An outgoing WebSocket client, so we can drive OBS and anything else speaking obs-websocket.
+- `[x]` A local control socket, opt-in and off by default: `platform/ipc/` is a unix socket on Linux and a
+  named pipe on Windows, and `core_control.c` is the surface an outside program drives the engine through.
+  Every inbound byte is parsed at the boundary and the decoders are fuzzed (`test_fuzz_control.c`).
+- `[x]` An outgoing WebSocket client over ws and wss (`plugins/curl/websocket.h`), framing, ping/pong and
+  close, fuzzed. `[ ]` Nothing drives OBS with it yet, which is the point of having it.
 - `[x]` An outgoing REST client exists (`plugins/curl/request.h`) but nothing calls it.
+- `[ ]` An HTTP server, and OpenAPI generated from the handlers. Not started.
 
 ## `[ ]` ruey
 
-`~/projects/ruey`, a Twitch client with integrations, gets rewritten into nyangine later. It needs the
-WebSocket client, a richer HTTP client and the TUI backend first. Not startable until those land.
+`~/projects/ruey`, a Twitch client with integrations, gets rewritten into nyangine later. The WebSocket
+client now exists; it still needs the HTTP server and the TUI backend. Not startable until those land.
 
 ---
 
@@ -187,12 +189,19 @@ the packager ones.
 - `[x]` `build-steam-linux` red in CI: monocypher was missing from the steamrt vendor set. Fixed.
 - `[x]` `test-windows` red on `test_replica`: a 624 KB `NYA_NetReplicaMap` on a 1 MB Windows stack. Fixed.
 
-## `[ ]` Crash reporting
+## `[~]` Crash reporting
 
-- `[ ]` On an assertion, a new window showing the assertion and the log leading up to it, with three buttons:
-  Close, Copy, and Send to developer. Reporting a bug should be as easy as it can possibly be.
-- `[ ]` The report carries build info (time, version, commit, kind), platform info (CPU, GPU, RAM, VRAM), the
-  log before the crash, and the error itself. Writing it locally for now; a transport comes later.
+- `[x]` On an assertion, a window showing the assertion and the log leading up to it, with Close, Copy and
+  Send to developer. It is an SDL window of its own using the 2D renderer and SDL's built in font, not the
+  engine UI: the thing most likely to have crashed is the GPU device or the code feeding it, and a reporter
+  that needs six subsystems alive cannot report the crash that took one of them down. See `debug_crash.h`.
+- `[x]` The report carries build info, platform info (CPU, RAM, VRAM), the log ring and the error with its
+  stack. Build metadata comes from `nya_build_info` so the report, the menu corner and the log agree.
+- `[x]` Send to developer writes a file under the log directory and names the path.
+- `[ ]` A transport behind `nya_crash_report_submit`. Deliberately deferred: no endpoint chosen yet.
+- `[ ]` A window on the hardware fault path. A fault arrives in a signal handler on the faulting thread, and
+  calling SDL from there can deadlock against a lock that thread already holds, so a fault writes the file
+  and names it on stderr instead.
 
 ## `[ ]` UI
 
@@ -224,7 +233,7 @@ the packager ones.
 - `[ ]` Fast-forward: run the simulation far faster than real time, so a DQN agent playing the game covers far
   more ground than a human would.
 - `[ ]` DQN and NEAT driving the real application as a user, to find emergent behaviour and to find crashes.
-- `[ ]` Scene and settings persistence, for save files and for the editor.
+- `[x]` Scene and settings persistence (`core_scene.h`, reflection driven), for save files and the editor.
 - `[ ]` Collision layers.
 - `[ ]` Reflection-driven parsing to and from objects and the `nya` format, used everywhere rather than only by
   config.
@@ -236,30 +245,31 @@ the packager ones.
 
 ## `[ ]` Steam
 
-- `[ ]` Lobbies and peer to peer multiplayer. `net_steam.c` still returns `NYA_ERROR_NOT_SUPPORTED`.
-- `[ ]` Achievements.
+- `[x]` Lobbies, peer to peer, achievements, stats and Cloud. `net_steam.c` is a real transport now.
+- `[ ]` None of it has been exercised against a running Steam client; it is tested against a fake.
 - Note: `plugins/steam/steam.c` **is** compiled and linked for the steam targets; the "never been compiled"
   claim below in "Steam is dead code" is stale and needs rewriting.
 
 ## `[ ]` Discord
 
-- `[ ]` Rich presence wired up to real game state. The client exists in `plugins/discord/` and nothing calls it.
-- `[ ]` Invites: subscribe to `ACTIVITY_JOIN` and `ACTIVITY_JOIN_REQUEST`, accept a join secret into the net
-  client, and show the request in a proper menu.
+- `[x]` Rich presence wired to real game state, through the `core_social.h` facade over Discord and Steam.
+- `[x]` Invites: `ACTIVITY_JOIN` and `ACTIVITY_JOIN_REQUEST` arrive as engine events, and a join secret is
+  the launch config on the wire. `[ ]` Untested against a running Discord client.
 
 ## `[ ]` Testing
 
-- `[ ]` Fuzzing through AFL, as a standing job rather than an exercise.
-- `[ ]` Deterministic simulation testing: atomic actions and action sequences, composed randomly with
-  well-shaped data, with faults injected and the assertions as the oracle. Generate the action set from the
-  reflection data rather than maintaining it by hand.
-- `[ ]` Property tests, starting with every round trip.
+- `[x]` Fuzzing through AFL++, `./build run fuzz <target>`, corpus committed. AFL++ is probed, not vendored:
+  without it every target still replays its corpus through `./build run test`.
+- `[x]` Deterministic simulation testing: `src/nyangine/testing/`, atomic actions and faults composed from
+  one seed, simulated clock, assertions as the oracle, failing seeds committed in `simulation_seeds.txt`.
+  Every draw is `siphash(seed, step, draw_index)` rather than a stateful generator, so adding a draw inside
+  one action does not invalidate every seed recorded before it.
+- `[x]` Property tests with a shrinker (`testing_property.h`), covering the round trips.
 
 ## `[ ]` Docs and examples
 
-- `[ ]` `docs/CHEATSHEET.md`, in the shape of raylib's: every macro, struct and function worth using from
-  gnyame. Generated from the headers, not hand written.
-- `[ ]` `AGENTS.md` at the root pointing at the cheatsheet, with a short intro to the project.
+- `[x]` `docs/CHEATSHEET.md`, generated from the headers by `src/build/pp/cheatsheet.c`, so it cannot drift.
+- `[x]` `AGENTS.md` at the root pointing at the cheatsheet.
 - `[ ]` More examples beside hello_world: multiplayer 2D pong, 3D pinball, one that is only plugins, a CLI app,
   a TUI app, and a server plus client web app.
 - `[ ]` Make the 3D example nicer, and give it the graphics settings menu it currently lacks.
