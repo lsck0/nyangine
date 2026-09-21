@@ -744,9 +744,9 @@ NYA_API void nya_ui_panel_end(NYA_UI* ui);
 /**
  * Opens a window: a top level panel with a title bar, moved by that bar and stacked like any other panel.
  *
- * False, with nothing opened and no end to call, when `state->open` is false, when the window is collapsed, or when
- * the container table is full. `state` is the caller's and outlives the pass; see NYA_UIWindowState for why the
- * window cannot hold it.
+ * False, with nothing opened and no end to call, when `state->open` is false, when the window is collapsed, when
+ * this pass's own close or collapse button said so, or when the container table is full. `state` is the caller's
+ * and outlives the pass; see NYA_UIWindowState for why the window cannot hold it.
  *
  * ```c
  * static NYA_UIWindowState inspector = { .open = true };

@@ -124,7 +124,9 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
     layout->clip = inner;
     if (clipped && ui->pass == NYA_UI_PASS_DRAW) _nya_ui_scissor(ui, inner);
 
-    if (state->collapsed) {
+    // the pass that closed or folded it is already past the title bar, so the body is what stops here rather than
+    // running once more and leaving a window on screen for a pass after the button said otherwise.
+    if (!state->open || state->collapsed) {
         nya_ui_panel_end(ui);
         return false;
     }
