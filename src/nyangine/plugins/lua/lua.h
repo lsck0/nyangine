@@ -1,6 +1,10 @@
 /**
  * @file lua.h
  *
+ * A LuaJIT VM, values crossing in both directions as NYA_Value, and C functions callable from a
+ * script. One VM is one isolated world: its globals, its heap and its bindings are its own, which is
+ * what lets the plugin host give every plugin a VM of its own and stop two of them colliding.
+ *
  * ```c
  * NYA_Arena* arena = nya_arena_create(.name = "scripts");
  * defer      nya_arena_destroy(arena);
@@ -64,6 +68,16 @@ typedef struct NYA_LuaVM      NYA_LuaVM;
 typedef struct NYA_LuaOptions NYA_LuaOptions;
 typedef struct NYA_LuaCall    NYA_LuaCall;
 
+/*
+ * Forward declared rather than included from core_plugin.h, where it is defined: this module is
+ * compiled into builds that have no core at all (see plugins.h), and a header may not depend on one
+ * that is not always there. The fixed underlying type is what makes the forward declaration legal
+ * and lets the calls below take one by value, and it comes before the typedef because a bare
+ * `typedef enum X X;` declares X with no underlying type and the definition would then disagree.
+ */
+enum NYA_PluginPermission : u64;
+typedef enum NYA_PluginPermission NYA_PluginPermission;
+
 /**
  * What a bound C function receives and answers with.
  * */
@@ -99,6 +113,13 @@ struct NYA_LuaOptions {
     /**
      * Refuse the libraries that reach outside the process: `io`, `os`, `package`, `ffi` and
      * `debug`.
+     *
+     * Necessary and not sufficient. It closes the doors LuaJIT opens by itself — `ffi` alone can call
+     * any function in the process, `os.execute` can run any program — and closes nothing else. A
+     * script can still do whatever the bindings it was handed allow, still allocate until the machine
+     * is out of memory, and still loop forever. What actually bounds a script is which bindings it
+     * gets, which is what NYA_PluginPermission decides; see core_plugin.h for what that does and does
+     * not promise.
      * */
     b8 restricted;
 
@@ -201,10 +222,40 @@ NYA_API NYA_Value nya_lua_nil(void) __attr_no_discard;
 NYA_API void nya_lua_register(NYA_LuaVM* vm, NYA_ConstCString name, NYA_LuaFn fn, void* user_data);
 
 /**
+ * The same, under a dotted path: `nya_lua_register_path(vm, "nya.entity.spawn", fn, nullptr)` makes the
+ * script call `nya.entity.spawn(...)`, creating the `nya` and `entity` tables if they are not there yet.
+ *
+ * This is how the generated engine bindings land in one namespace instead of as a hundred globals, and
+ * how two things called `spawn` coexist. A path with no dot registers a plain global, so this is
+ * nya_lua_register's superset and that one is the convenience call on top.
+ *
+ * There is deliberately no unregister. A binding is revoked by destroying the VM that holds it, which is
+ * the unit a plugin is loaded and unloaded as; removing one name from a live VM would leave the closure,
+ * its binding slot and any upvalue a script had already copied out of the table behind.
+ * */
+NYA_API void nya_lua_register_path(NYA_LuaVM* vm, NYA_ConstCString path, NYA_LuaFn fn, void* user_data);
+
+/**
  * Puts the engine's `nya` table in front of scripts. Called for you by `NYA_LuaOptions.engine_api`. Handles are
  * values: after a despawn every call taking one returns nil, as in C.
+ *
+ * Every binding it registers is generated from the `@lua` annotations in the engine headers; see
+ * src/build/pp/luabind.h. The whole table, every permission granted.
  * */
 NYA_API void nya_lua_open_engine(NYA_LuaVM* vm);
+
+/**
+ * The same table with only the calls `permissions` allows, which is what a plugin gets.
+ *
+ * A binding whose permission is not in the set is not registered at all: the name does not exist in the
+ * VM, rather than existing and refusing at call time. There is no flag to flip back, no capability
+ * object to steal from another table and no check a script can reach around, because the function it
+ * would call was never put in front of it.
+ *
+ * Bindings tagged NYA_PLUGIN_PERMISSION_NONE (logging, the frame clock) are always registered: they
+ * reach nothing outside the process and a plugin that cannot say what went wrong is undebuggable.
+ * */
+NYA_API void nya_lua_open_engine_permitted(NYA_LuaVM* vm, NYA_PluginPermission permissions);
 
 /*
  * ─────────────────────────────────────────────────────────

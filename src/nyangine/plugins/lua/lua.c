@@ -21,8 +21,14 @@ typedef struct {
 
 /** Bindings one VM may hold. Warns and refuses past this rather than growing. */
 #ifndef NYA_LUA_MAX_BINDINGS
-#define NYA_LUA_MAX_BINDINGS 128
+#define NYA_LUA_MAX_BINDINGS 256
 #endif
+
+/**
+ * Longest single segment of a dotted registration path, terminator included. The longest the engine
+ * generates is `action_just_pressed` at 19; 64 is triple that and keeps the buffer on the stack.
+ * */
+#define _NYA_LUA_PATH_SEGMENT_MAX 64
 
 struct NYA_LuaVM {
     lua_State* state;
@@ -62,6 +68,34 @@ NYA_INTERNAL void _nya_lua_read(lua_State* state, NYA_Arena* arena, s32 index, u
 
 /** The one C function every binding goes through. Finds its NYA_LuaFn from the upvalue. */
 NYA_INTERNAL int _nya_lua_trampoline(lua_State* state);
+
+/**
+ * Takes a binding slot and leaves the closure for it on the stack. False, with nothing pushed, when the
+ * VM is full. Shared by nya_lua_register and nya_lua_register_path, which differ only in where they
+ * store what this leaves behind.
+ * */
+NYA_INTERNAL b8 _nya_lua_push_binding(NYA_LuaVM* vm, NYA_LuaFn fn, void* user_data) __attr_no_discard;
+
+b8 _nya_lua_push_binding(NYA_LuaVM* vm, NYA_LuaFn fn, void* user_data) {
+    nya_assert(vm != nullptr && vm->state != nullptr);
+    nya_assert(fn != nullptr);
+
+    if (vm->binding_count >= NYA_LUA_MAX_BINDINGS) {
+        nya_log_warn("No free Lua binding slot; %d are in use.", NYA_LUA_MAX_BINDINGS);
+        return false;
+    }
+
+    u32 index = vm->binding_count++;
+
+    vm->bindings[index] = (_NYA_LuaBinding){ .fn = fn, .user_data = user_data };
+
+    /* Both upvalues rather than a pointer to the binding. */
+    lua_pushlightuserdata(vm->state, vm);
+    lua_pushinteger(vm->state, (lua_Integer)index);
+    lua_pushcclosure(vm->state, _nya_lua_trampoline, 2);
+
+    return true;
+}
 
 /** Turns whatever Lua left on the stack into an NYA_Error of `kind`, and pops it. */
 NYA_INTERNAL NYA_Error _nya_lua_take_error(lua_State* state, NYA_ErrorKind kind, NYA_ConstCString what) {
@@ -502,20 +536,74 @@ NYA_Value nya_lua_nil(void) {
 void nya_lua_register(NYA_LuaVM* vm, NYA_ConstCString name, NYA_LuaFn fn, void* user_data) {
     if (vm == nullptr || vm->state == nullptr || name == nullptr || fn == nullptr) return;
 
-    if (vm->binding_count >= NYA_LUA_MAX_BINDINGS) {
-        nya_log_warn("No free Lua binding slot for '%s'; %d are in use.", name, NYA_LUA_MAX_BINDINGS);
+    if (!_nya_lua_push_binding(vm, fn, user_data)) return;
+
+    lua_setglobal(vm->state, name);
+}
+
+void nya_lua_register_path(NYA_LuaVM* vm, NYA_ConstCString path, NYA_LuaFn fn, void* user_data) {
+    if (vm == nullptr || vm->state == nullptr || path == nullptr || fn == nullptr) return;
+
+    lua_State* state = vm->state;
+
+    // How many parent tables are stacked, so the error paths below know what to pop. The last segment
+    // is the field name and is never pushed as a table.
+    s32 depth = 0;
+
+    NYA_ConstCString cursor = path;
+
+    for (;;) {
+        NYA_ConstCString dot = strchr(cursor, '.');
+        if (dot == nullptr) break;
+
+        char segment[_NYA_LUA_PATH_SEGMENT_MAX];
+        u64  length = (u64)(dot - cursor);
+
+        if (length == 0 || length >= sizeof(segment)) {
+            nya_log_warn("Lua registration path '%s' has a segment that is empty or longer than %d characters; skipped.", path,
+                         (s32)sizeof(segment) - 1);
+            lua_pop(state, depth);
+            return;
+        }
+
+        nya_memcpy(segment, cursor, length);
+        segment[length] = '\0';
+
+        if (depth == 0) lua_getglobal(state, segment);
+        else lua_getfield(state, -1, segment);
+
+        // Reused where it already exists, so two passes over the same prefix (the engine table and
+        // then a plugin's own) extend one table rather than replacing the first with the second.
+        if (!lua_istable(state, -1)) {
+            lua_pop(state, 1);
+            lua_newtable(state);
+
+            // a copy to store under the name; the original stays as this level's parent.
+            lua_pushvalue(state, -1);
+
+            if (depth == 0) lua_setglobal(state, segment);
+            else lua_setfield(state, -3, segment);
+        }
+
+        depth++;
+        cursor = dot + 1;
+    }
+
+    if (cursor[0] == '\0') {
+        nya_log_warn("Lua registration path '%s' ends in a dot and names no function; skipped.", path);
+        lua_pop(state, depth);
         return;
     }
 
-    u32 index = vm->binding_count++;
+    if (!_nya_lua_push_binding(vm, fn, user_data)) {
+        lua_pop(state, depth);
+        return;
+    }
 
-    vm->bindings[index] = (_NYA_LuaBinding){ .fn = fn, .user_data = user_data };
+    if (depth == 0) lua_setglobal(state, cursor);
+    else lua_setfield(state, -2, cursor);
 
-    /* Both upvalues rather than a pointer to the binding. */
-    lua_pushlightuserdata(vm->state, vm);
-    lua_pushinteger(vm->state, (lua_Integer)index);
-    lua_pushcclosure(vm->state, _nya_lua_trampoline, 2);
-    lua_setglobal(vm->state, name);
+    lua_pop(state, depth);
 }
 
 u64 nya_lua_memory_bytes(const NYA_LuaVM* vm) {

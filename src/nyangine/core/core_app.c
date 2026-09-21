@@ -330,6 +330,14 @@ void _nya_app_register_subsystems(void) {
     nya_system_register((NYA_SystemEntry){ .name = "window", .after = "world", .init = nya_callback(_nya_app_bring_up_window), .deinit = nya_callback(_nya_app_tear_down_window) });
 
     /*
+     * Teardown only, deliberately. Loading is nya_plugin_load_all and the *game* calls it, because a
+     * plugin's `on_load` runs in the game's world and bringing plugins up here would run it before the
+     * game has one. Registered all the same, so whatever the game loaded goes down in registry order
+     * with everything else rather than leaking a VM per plugin at exit.
+     */
+    nya_system_register((NYA_SystemEntry){ .name = "plugins", .after = "window", .deinit = nya_plugin_unload_all });
+
+    /*
      * ── the frame, in order ──────────────────────────────────────────────────────────────────────────
      *
      * Nothing here owns a lifetime; they are the work that used to be a hardcoded call list in

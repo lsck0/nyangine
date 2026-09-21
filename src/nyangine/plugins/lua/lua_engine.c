@@ -184,43 +184,50 @@ NYA_INTERNAL void nya_lua_binding_action_pressed(NYA_LuaCall* call) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/**
+ * One binding: where it lives in the `nya` table, what runs, and what a plugin has to have been granted
+ * to see it at all.
+ *
+ * Hand written for now, generated in a moment: src/build/pp/luabind.c reads the `@lua` annotations in
+ * the engine headers and emits this table plus one marshalling function per entry. The permission is
+ * the annotation's argument, so the answer to "what does this call need" lives above the C function it
+ * calls rather than here.
+ * */
+typedef struct {
+    NYA_ConstCString     path;
+    NYA_LuaFn            fn;
+    NYA_PluginPermission permission;
+} _NYA_LuaBindingEntry;
+
+NYA_INTERNAL const _NYA_LuaBindingEntry _NYA_LUA_BINDINGS[] = {
+    { "nya.log.info",            nya_lua_binding_log,            NYA_PLUGIN_PERMISSION_NONE     },
+    { "nya.log.warn",            nya_lua_binding_warn,           NYA_PLUGIN_PERMISSION_NONE     },
+    { "nya.log.error",           nya_lua_binding_error,          NYA_PLUGIN_PERMISSION_NONE     },
+    { "nya.app.time",            nya_lua_binding_time,           NYA_PLUGIN_PERMISSION_NONE     },
+    { "nya.entity.spawn",        nya_lua_binding_spawn,          NYA_PLUGIN_PERMISSION_ENTITIES },
+    { "nya.entity.despawn",      nya_lua_binding_despawn,        NYA_PLUGIN_PERMISSION_ENTITIES },
+    { "nya.entity.position",     nya_lua_binding_position,       NYA_PLUGIN_PERMISSION_ENTITIES },
+    { "nya.entity.move_to",      nya_lua_binding_move_to,        NYA_PLUGIN_PERMISSION_ENTITIES },
+    { "nya.input.action",        nya_lua_binding_action,         NYA_PLUGIN_PERMISSION_INPUT    },
+    { "nya.input.action_pressed", nya_lua_binding_action_pressed, NYA_PLUGIN_PERMISSION_INPUT    },
+};
+
 void nya_lua_open_engine(NYA_LuaVM* vm) {
+    // Everything, for a VM the host itself owns: the permission model is about plugins, and the game's
+    // own scripting is the game's own code.
+    nya_lua_open_engine_permitted(vm, (NYA_PluginPermission)~0ULL);
+}
+
+void nya_lua_open_engine_permitted(NYA_LuaVM* vm, NYA_PluginPermission permissions) {
     if (vm == nullptr) return;
 
-    /* Registered as flat globals, then gathered into a table by a line of Lua. */
-    struct {
-        NYA_ConstCString global;
-        NYA_LuaFn        fn;
-    } entries[] = {
-        { "_nya_log", nya_lua_binding_log },
-        { "_nya_warn", nya_lua_binding_warn },
-        { "_nya_error", nya_lua_binding_error },
-        { "_nya_time", nya_lua_binding_time },
-        { "_nya_spawn", nya_lua_binding_spawn },
-        { "_nya_despawn", nya_lua_binding_despawn },
-        { "_nya_position", nya_lua_binding_position },
-        { "_nya_move_to", nya_lua_binding_move_to },
-        { "_nya_action", nya_lua_binding_action },
-        { "_nya_action_pressed", nya_lua_binding_action_pressed },
-    };
+    for (u32 i = 0; i < nya_carray_length(_NYA_LUA_BINDINGS); i++) {
+        const _NYA_LuaBindingEntry* binding = &_NYA_LUA_BINDINGS[i];
 
-    for (u32 i = 0; i < nya_carray_length(entries); i++) nya_lua_register(vm, entries[i].global, entries[i].fn, nullptr);
+        // The whole of the permission check. A binding that does not pass it is never registered, so the
+        // name it would have had does not exist in this VM; see nya_lua_open_engine_permitted's contract.
+        if (((u64)binding->permission & ~(u64)permissions) != 0) continue;
 
-    NYA_ConstCString gather =
-        "nya = {"
-        "  log = _nya_log, warn = _nya_warn, error = _nya_error,"
-        "  time = _nya_time,"
-        "  spawn = _nya_spawn, despawn = _nya_despawn,"
-        "  position = _nya_position, move_to = _nya_move_to,"
-        "  action = _nya_action, action_pressed = _nya_action_pressed,"
-        "}"
-        "_nya_log, _nya_warn, _nya_error, _nya_time = nil, nil, nil, nil "
-        "_nya_spawn, _nya_despawn, _nya_position, _nya_move_to = nil, nil, nil, nil "
-        "_nya_action, _nya_action_pressed = nil, nil";
-
-    NYA_Error result = nya_lua_run(vm, gather, "nya_lua_open_engine");
-
-    // not propagated: the string is a literal in this file, so failure is a bug here. Logged so a missing
-    // `nya` is not silent.
-    if (!result.ok) nya_log_error("Could not build the Lua `nya` table: %s", result.message);
+        nya_lua_register_path(vm, binding->path, binding->fn, nullptr);
+    }
 }

@@ -100,7 +100,18 @@
 /*
  * Which optional plugins the *project* compiles. See src/nyangine/plugins/plugins.h.
  */
-#define FLAGS_PLUGINS "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_SQLITE", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA"
+#define FLAGS_PLUGINS "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_SQLITE", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA", FLAGS_PLUGIN_PERMISSIONS
+
+/*
+ * The game's one decision about what a Lua plugin may touch, fixed here and nowhere else: nothing at
+ * runtime widens it, and a plugin whose manifest asks for more is refused at load. `2` is
+ * NYA_PLUGIN_PERMISSION_PROFILE_GAMEPLAY — UI, input, key bindings, entities, audio and the shipped
+ * assets — and deliberately not `3`, which would add the filesystem and the network.
+ *
+ * Spelled as the number rather than the name because this is a `-D` on a command line and the name is
+ * a macro defined in core_plugin.h, which the preprocessor has not read yet when it reads this.
+ */
+#define FLAGS_PLUGIN_PERMISSIONS "-DNYA_PLUGIN_PERMISSION_PROFILE=2"
 
 /* Every mode sets NYA_EXECUTION_MODE explicitly. It defaults to 0, which means debug, not unset. */
 #define FLAGS_DEBUG     "-DNYA_EXECUTION_MODE=0", "-DDEBUG=true", "-O0", "-DNYA_ASSET_HOT_RELOAD"

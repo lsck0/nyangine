@@ -91,6 +91,13 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
 
     gny_sim_init();
 
+    /*
+     * After the world, because a plugin's `on_load` spawns entities into it, and before the layers, so
+     * a plugin's systems are registered while the schedule is still being built. Refusals are reported
+     * per plugin and never stop the game: `plugins/` is somebody else's code.
+     */
+    NYA_EXPECT(nya_plugin_load_all(), "while loading plugins");
+
     gny_net_start();
 
     /*

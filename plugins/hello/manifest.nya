@@ -1,0 +1,29 @@
+// The example plugin's manifest, and the schema in one file. Every key below is a field of
+// NYA_PluginManifest in src/nyangine/core/core_plugin.h, read through the reflection tables: a key
+// that names no field, or a value of the wrong type, refuses the whole plugin and says which key.
+//
+// The checksum in the header is not checked (NYA_SERDE_NO_CHECKSUM), because a manifest is meant to
+// be edited by hand and an honest edit changes it.
+nya 2 0
+{
+    // Must be this directory's own name. See NAMESPACING in core_plugin.h.
+    name: string "hello";
+
+    version: string "0.1.0";
+
+    // The lowest engine this runs on. Empty or absent skips the check.
+    engine_version: string "0.0.0";
+
+    author: string "nyangine";
+    license: string "MIT";
+    description: string "The smallest real plugin: a hook per phase, its own module under src/, and one entity.";
+    repository: string "https://github.com/lucasandrock/nyangine";
+
+    // What it wants. Written as names rather than a number, so adding a permission changes which names
+    // appear in a file instead of the meaning of a number already in one.
+    //
+    // gnyame compiles NYA_PLUGIN_PERMISSION_PROFILE_GAMEPLAY, which grants these. Add
+    // "NYA_PLUGIN_PERMISSION_NETWORK" to this list and the plugin is refused at load with a line
+    // naming it, which is the permission model working rather than failing.
+    permissions: string[] ["NYA_PLUGIN_PERMISSION_ENTITIES", "NYA_PLUGIN_PERMISSION_INPUT"];
+}

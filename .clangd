@@ -42,6 +42,10 @@ CompileFlags:
       -DNYA_PLUGIN_SQLITE,
       -DNYA_PLUGIN_DISCORD,
       -DNYA_PLUGIN_LUA,
+      # The game's plugin permission profile, mirroring FLAGS_PLUGIN_PERMISSIONS in src/build/flags.h.
+      # 2 is NYA_PLUGIN_PERMISSION_PROFILE_GAMEPLAY; without it the editor analyses core_plugin.c under
+      # a different grant than the build and its #if arms disagree with the binary.
+      -DNYA_PLUGIN_PERMISSION_PROFILE=2,
       # What the sqlite plugin's extensions compile against. From the vendor rules, not invented here.
       -DSQLITE_CORE,
       -DSQLITE_VEC_STATIC,

@@ -362,6 +362,151 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_EntityVisualKind = {
     .is_bitflags = false,
 };
 
+/* NYA_PluginPermission, src/nyangine/core/core_plugin.h */
+
+static const NYA_ReflectVariant _NYA_REFLECT_NYA_PluginPermission_VARIANTS[] = {
+    { .name = "NYA_PLUGIN_PERMISSION_NONE", .value = (s64)(NYA_PLUGIN_PERMISSION_NONE) },
+    { .name = "NYA_PLUGIN_PERMISSION_UI", .value = (s64)(NYA_PLUGIN_PERMISSION_UI) },
+    { .name = "NYA_PLUGIN_PERMISSION_INPUT", .value = (s64)(NYA_PLUGIN_PERMISSION_INPUT) },
+    { .name = "NYA_PLUGIN_PERMISSION_KEYBINDING", .value = (s64)(NYA_PLUGIN_PERMISSION_KEYBINDING) },
+    { .name = "NYA_PLUGIN_PERMISSION_ENTITIES", .value = (s64)(NYA_PLUGIN_PERMISSION_ENTITIES) },
+    { .name = "NYA_PLUGIN_PERMISSION_AUDIO", .value = (s64)(NYA_PLUGIN_PERMISSION_AUDIO) },
+    { .name = "NYA_PLUGIN_PERMISSION_ASSETS", .value = (s64)(NYA_PLUGIN_PERMISSION_ASSETS) },
+    { .name = "NYA_PLUGIN_PERMISSION_FILESYSTEM", .value = (s64)(NYA_PLUGIN_PERMISSION_FILESYSTEM) },
+    { .name = "NYA_PLUGIN_PERMISSION_NETWORK", .value = (s64)(NYA_PLUGIN_PERMISSION_NETWORK) },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PluginPermission = {
+    .name = "NYA_PluginPermission",
+    .kind = NYA_REFLECT_ENUM,
+    .size = sizeof(NYA_PluginPermission),
+    .alignment = alignof(NYA_PluginPermission),
+    .primitive = (sizeof(NYA_PluginPermission) == 8 ? NYA_TYPE_S64
+                : sizeof(NYA_PluginPermission) == 2 ? NYA_TYPE_S16
+                : sizeof(NYA_PluginPermission) == 1 ? NYA_TYPE_S8
+                                  : NYA_TYPE_S32),
+    .variants = _NYA_REFLECT_NYA_PluginPermission_VARIANTS,
+    .variant_count = 9,
+    .is_bitflags = true,
+};
+
+/* NYA_PluginDependency, src/nyangine/core/core_plugin.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginDependency_name_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginDependency*)nullptr)->name),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_PLUGIN_NAME_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginDependency_version_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginDependency*)nullptr)->version),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_PLUGIN_VERSION_MAX),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PluginDependency_FIELDS[] = {
+    { .name = "name", .type = &_NYA_REFLECT_NYA_PluginDependency_name_ARRAY, .offset = nya_offsetof(NYA_PluginDependency, name), .hint = NYA_HINT_NONE },
+    { .name = "version", .type = &_NYA_REFLECT_NYA_PluginDependency_version_ARRAY, .offset = nya_offsetof(NYA_PluginDependency, version), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PluginDependency = {
+    .name = "NYA_PluginDependency",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PluginDependency),
+    .alignment = alignof(NYA_PluginDependency),
+    .fields = _NYA_REFLECT_NYA_PluginDependency_FIELDS,
+    .field_count = 2,
+};
+
+/* NYA_PluginManifest, src/nyangine/core/core_plugin.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_name_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginManifest*)nullptr)->name),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_PLUGIN_NAME_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_version_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginManifest*)nullptr)->version),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_PLUGIN_VERSION_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_engine_version_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginManifest*)nullptr)->engine_version),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_PLUGIN_VERSION_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_author_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginManifest*)nullptr)->author),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_PLUGIN_AUTHOR_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_license_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginManifest*)nullptr)->license),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_PLUGIN_LICENSE_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_description_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginManifest*)nullptr)->description),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_PLUGIN_DESCRIPTION_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_repository_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginManifest*)nullptr)->repository),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_PLUGIN_URL_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_dependencies_ARRAY = {
+    .name = "NYA_PluginDependency[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginManifest*)nullptr)->dependencies),
+    .alignment = alignof(NYA_PluginDependency),
+    .element = &_NYA_REFLECT_NYA_PluginDependency, .element_count = (NYA_PLUGIN_DEPENDENCY_MAX),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest_conflicts_ARRAY = {
+    .name = "NYA_PluginDependency[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_PluginManifest*)nullptr)->conflicts),
+    .alignment = alignof(NYA_PluginDependency),
+    .element = &_NYA_REFLECT_NYA_PluginDependency, .element_count = (NYA_PLUGIN_DEPENDENCY_MAX),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_PluginManifest_FIELDS[] = {
+    { .name = "name", .type = &_NYA_REFLECT_NYA_PluginManifest_name_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, name), .hint = NYA_HINT_NONE },
+    { .name = "version", .type = &_NYA_REFLECT_NYA_PluginManifest_version_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, version), .hint = NYA_HINT_NONE },
+    { .name = "engine_version", .type = &_NYA_REFLECT_NYA_PluginManifest_engine_version_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, engine_version), .hint = NYA_HINT_NONE },
+    { .name = "author", .type = &_NYA_REFLECT_NYA_PluginManifest_author_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, author), .hint = NYA_HINT_NONE },
+    { .name = "license", .type = &_NYA_REFLECT_NYA_PluginManifest_license_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, license), .hint = NYA_HINT_NONE },
+    { .name = "description", .type = &_NYA_REFLECT_NYA_PluginManifest_description_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, description), .hint = NYA_HINT_NONE },
+    { .name = "repository", .type = &_NYA_REFLECT_NYA_PluginManifest_repository_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, repository), .hint = NYA_HINT_NONE },
+    { .name = "permissions", .type = &_NYA_REFLECT_NYA_PluginPermission, .offset = nya_offsetof(NYA_PluginManifest, permissions), .hint = NYA_HINT_NONE },
+    { .name = "dependencies", .type = &_NYA_REFLECT_NYA_PluginManifest_dependencies_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, dependencies), .hint = NYA_HINT_NONE },
+    { .name = "conflicts", .type = &_NYA_REFLECT_NYA_PluginManifest_conflicts_ARRAY, .offset = nya_offsetof(NYA_PluginManifest, conflicts), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_PluginManifest = {
+    .name = "NYA_PluginManifest",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_PluginManifest),
+    .alignment = alignof(NYA_PluginManifest),
+    .fields = _NYA_REFLECT_NYA_PluginManifest_FIELDS,
+    .field_count = 10,
+};
+
 /* NYA_SceneVisual, src/nyangine/core/core_scene.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_SceneVisual_sprite_ARRAY = {
@@ -1202,6 +1347,9 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_ConfigEngine,
     &_NYA_REFLECT_NYA_EntityState,
     &_NYA_REFLECT_NYA_EntityVisualKind,
+    &_NYA_REFLECT_NYA_PluginPermission,
+    &_NYA_REFLECT_NYA_PluginDependency,
+    &_NYA_REFLECT_NYA_PluginManifest,
     &_NYA_REFLECT_NYA_SceneVisual,
     &_NYA_REFLECT_NYA_SceneEntity,
     &_NYA_REFLECT_NYA_SettingsVolumes,

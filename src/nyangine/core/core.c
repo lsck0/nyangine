@@ -32,6 +32,9 @@
 #include "nyangine/core/core_skeleton_layer.c"
 #include "nyangine/core/core_skeleton_blend.c"
 #include "nyangine/core/core_system.c"
+// After core_system.c: a plugin is one entry in that registry, and after the Lua plugin, which is
+// included before core in nyangine.c and is what a plugin's code runs in.
+#include "nyangine/core/core_plugin.c"
 #include "nyangine/core/core_tilemap.c"
 #include "nyangine/core/core_nav.c"
 #include "nyangine/core/core_tween.c"
