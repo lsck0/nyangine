@@ -177,6 +177,15 @@ struct NYA_ReflectField {
     NYA_ReflectHint hint;
 
     /**
+     * `@key` on the field: this is the type's primary key, at most one per type.
+     *
+     * Nothing in this module reads it. An annotation is a fact about the source and this table is
+     * where facts about the source land, so the flag lives here and the consumer that acts on it is
+     * elsewhere; the sqlite ORM is the one that exists, see plugins/sqlite/orm.h.
+     * */
+    b8 is_key;
+
+    /**
      * For a member of a tagged union: the value of the tag that selects this member.
      * */
     b8  has_tag_value;

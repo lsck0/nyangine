@@ -28,6 +28,9 @@ typedef struct {
 
     u32 pointer_depth;
 
+    /** From `@key`: the field is the type's primary key. Read by the sqlite ORM; see orm.h. */
+    b8 is_key;
+
     NYA_ConstCString hint;
 } _NYA_ReflectFieldDecl;
 
@@ -655,6 +658,7 @@ u32 _nya_reflect_parse_members(_NYA_ReflectTypeDecl* decl, const NYA_Lexer* lexe
             if (lexer->tokens->items[look].line_number != token.line_number) continue;
 
             if (_nya_reflect_comment_has(lexer, look, "@skip")) skipped = true;
+            if (_nya_reflect_comment_has(lexer, look, "@key")) field.is_key = true;
 
             field.hint = _nya_reflect_hint_from_comment(lexer, look);
 
@@ -900,6 +904,19 @@ void _nya_reflect_scan_file(_NYA_ReflectSet* set, NYA_ConstCString path) {
             continue;
         }
 
+        // A key identifies a row, so a second one identifies nothing. Caught here rather than by the
+        // consumer, so the person who wrote the annotation is told while looking at the build output
+        // instead of at a database that refuses to open. See orm.h.
+        for (u32 first = 0, seen = 0; first < decl.field_count; first++) {
+            if (!decl.fields[first].is_key) continue;
+
+            seen++;
+            if (seen == 1) continue;
+
+            nya_log_warn("%s: '%s.%s' is a second @key; only the first one is kept.", path, decl.name, decl.fields[first].name);
+            decl.fields[first].is_key = false;
+        }
+
         nya_assert(set->type_count < NYA_REFLECT_MAX_TYPES, "more than %d annotated types", NYA_REFLECT_MAX_TYPES);
 
         set->types[set->type_count] = decl;
@@ -1017,8 +1034,9 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
                 (void)snprintf(array_symbol, sizeof(array_symbol), "_NYA_REFLECT_%s_%s_ARRAY", decl->name, field->name);
 
                 nya_string_extend_sprintf(out,
-                                          "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s },\n",
-                                          field->name, array_symbol, decl->name, field->name, field->hint);
+                                          "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s },\n",
+                                          field->name, array_symbol, decl->name, field->name, field->hint,
+                                          field->is_key ? ", .is_key = true" : "");
                 emitted++;
             } else {
                 nya_log_warn("%s: '%s.%s' has undescribed element type '%s'; skipped. Add @reflect to it, or @skip to the field.",
@@ -1042,8 +1060,9 @@ void _nya_reflect_emit_type(const _NYA_ReflectSet* set, NYA_String* out, const _
             continue;
         }
 
-        nya_string_extend_sprintf(out, "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s },\n",
-                                  field->name, symbol, decl->name, field->name, field->hint);
+        nya_string_extend_sprintf(out, "    { .name = \"%s\", .type = &%s, .offset = nya_offsetof(%s, %s), .hint = %s%s },\n",
+                                  field->name, symbol, decl->name, field->name, field->hint,
+                                  field->is_key ? ", .is_key = true" : "");
         emitted++;
     }
 
