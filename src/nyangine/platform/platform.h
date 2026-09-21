@@ -8,6 +8,7 @@
 #include "nyangine/platform/memory/memory.h"
 #include "nyangine/platform/random/random.h"
 #include "nyangine/platform/signals/signals.h"
+#include "nyangine/platform/terminal/terminal.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────

@@ -103,9 +103,20 @@
 #endif
 
 /*
+ * Terminal: the engine runs and draws into a grid of character cells instead of into a swapchain.
+ * Implies headless, because that is exactly what it is: no GPU device, no swapchain, no 3D. The
+ * terminal backend then replaces the 2D drawing the headless build stubs out. See terminal.h.
+ */
+#ifdef NYA_TERMINAL
+#define NYA_TERMINAL_ENABLED 1
+#else
+#define NYA_TERMINAL_ENABLED 0
+#endif
+
+/*
  * Headless: the engine runs, but nothing is drawn.
  */
-#ifdef NYA_HEADLESS
+#if defined(NYA_HEADLESS) || NYA_TERMINAL_ENABLED
 #define NYA_HEADLESS_ENABLED 1
 #else
 #define NYA_HEADLESS_ENABLED 0
