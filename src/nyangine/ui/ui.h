@@ -770,9 +770,13 @@ NYA_API b8 nya_ui_tabs(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* 
  * A closed row showing `options[*selected]`; activating it opens the list, and picking closes it again. True when
  * `*selected` changed.
  *
- * The open list takes room in the layout instead of floating over what follows. A floating one was tried and
- * dropped: one immediate pass has no z order, so the list would have to be replayed after everything else, which
- * means holding the caller's `options` pointer past the call that was given it.
+ * The open list takes room in the layout instead of floating over what follows. Z order is no longer what stops
+ * it: panels stack and draw back to front, so the list could draw over what follows in a layer of its own with
+ * nothing replayed, and the old objection, holding the caller's `options` pointer past the call, went with the
+ * replay. What is left is layout. A floating list has to take a rectangle without taking room, without being
+ * measured into the panel holding it and without being cut by that panel's clip, and it has to occlude the widgets
+ * declared after it, which the panel stack cannot do because those share its panel. That is four changes across
+ * layout, drawing and input for one widget, so the list still opens downward.
  * */
 NYA_API b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* options, u32 count, u32* selected);
 
