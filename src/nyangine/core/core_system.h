@@ -68,6 +68,12 @@
  * `nya_system_registry_finalize`, which is where a typo in a registration list surfaces. The same
  * mistake made after finalize has no return channel to report through and asserts instead.
  *
+ * LIMITS. An entry holds raw function pointers, so a system registered from a hot reloaded image goes
+ * on running the generation that registered it: the old image stays mapped, so this is a reload that
+ * does not take, not a crash. Registering by callback handle instead (see core_callback.h, which is
+ * what a layer's hooks use and why they do survive) is the fix, and it is what the plugin system will
+ * want for the same reason. Engine systems are unaffected: they live in the executable.
+ *
  * OWNERSHIP. Every entry says who it belongs to: the engine, the game, or a named plugin. It costs
  * one field at registration and buys the questions that are otherwise unanswerable once a plugin can
  * add systems at runtime: which plugin's systems are eating the frame, how much memory each holds,
@@ -371,6 +377,11 @@ NYA_API b8 nya_system_registry_initialized_at(u32 index) __attr_no_discard;
  * Off by default, because the run loop is otherwise two loads and a call per system and a clock read
  * per system would be most of it. On, every phase run times each system it calls and the totals are
  * grouped by owner, which is what answers "which plugin is costing the frame".
+ *
+ * Measured against the real monotonic clock, not the app's time source. A simulation run installs a
+ * clock that advances one tick per frame (see core_app.h and testing_session.h), and a profiler
+ * reading it would report that every system takes exactly the same simulated time, which is true and
+ * useless. What this answers is what a system costs the machine, and that is wall clock.
  */
 
 NYA_API void nya_system_accounting_enable(void);
