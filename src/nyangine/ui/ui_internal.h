@@ -105,6 +105,9 @@ typedef struct {
     /** What the pointer can reach and drawing shows. The window, until a scrolling container narrows it. */
     NYA_Rectf clip;
 
+    /** Whether a top level panel above this one holds the pointer, so nothing in here may take it. Inherited inward. */
+    b8 covered;
+
     /** Whether the content is longer than the container on each axis, and whether this pass set a scissor for it. */
     b8 scrolls[2];
     b8 clipping;
@@ -137,6 +140,21 @@ typedef struct {
     /** Wall clock seconds when it last began showing, and when it was last opened. */
     f64 shown_s;
     f64 seen_s;
+
+    /** Whether the last pass opened it at the top level, which is the only place a panel carries a z order. */
+    b8 top_level;
+
+    /** Where it was last laid out, which is what the next pass hit tests the pointer against. */
+    NYA_Rectf bounds;
+
+    /** The caller's explicit z. Zero leaves it to `order`. */
+    s32 z;
+
+    /**
+     * When it was last raised, from _NYA_UISystem.raise_serial. Zero until a top level panel is first declared,
+     * which is what makes the stack start in declaration order; a click writes a fresh serial and puts it on top.
+     * */
+    u64 order;
 } _NYA_UIPanelState;
 
 /** A widget's standing in the current pass. */
@@ -211,6 +229,13 @@ struct NYA_UI {
 
     /** Where in the dragged panel the pointer grabbed it, so it does not jump to the pointer. */
     f32x2 drag_grip;
+
+    /**
+     * The serial of this window's open pass and of the one before it. A panel opened in either is still standing,
+     * and one older is a slot the table has not reused yet, which must not occlude anything.
+     * */
+    u64 pass_current;
+    u64 pass_previous;
 };
 
 /** What a press is read from: an action, or a raw key when the action is NONE. */
@@ -301,8 +326,14 @@ typedef struct {
     f32 opacities[NYA_UI_OPACITY_DEPTH_MAX + 1];
     u32 opacity_depth;
 
+    /** The renderer layer the pass was called in. Top level panels draw in the ones above it, back to front. */
+    s32 layer_base;
+
     _NYA_UIPanelState panels[NYA_UI_PANELS_MAX];
     u32               panel_count;
+
+    /** Counts up forever, so a fresh value is above every order already handed out. */
+    u64 raise_serial;
 
     _NYA_UIAnimation animations[NYA_UI_ANIMATIONS_MAX];
 } _NYA_UISystem;
@@ -356,6 +387,21 @@ NYA_INTERNAL u64 _nya_ui_id_at(u64 key, u32 index);
 /** The container slot for `id`: its own, a free one, or the stalest one not opened this pass. U32_MAX when none is left. */
 NYA_INTERNAL u32 _nya_ui_panel_claim(u64 id);
 
+/** Whether `state` is a top level panel this window opened in its last two passes, and so still stands. */
+NYA_INTERNAL b8 _nya_ui_panel_standing(const NYA_UI* ui, const _NYA_UIPanelState* state) __attr_no_discard;
+
+/** Whether `panel` sits over `under`: a higher z, or the same z and raised more recently. */
+NYA_INTERNAL b8 _nya_ui_panel_over(const _NYA_UIPanelState* panel, const _NYA_UIPanelState* under) __attr_no_discard;
+
+/** Whether a standing panel over the one in slot `index` holds the pointer, from where each was last laid out. */
+NYA_INTERNAL b8 _nya_ui_panel_covered(const NYA_UI* ui, u32 index) __attr_no_discard;
+
+/** Puts the panel in slot `index` over every other standing one of its z. Idempotent when it is already there. */
+NYA_INTERNAL void _nya_ui_panel_raise(const NYA_UI* ui, u32 index);
+
+/** How many standing panels the one in slot `index` sits over, which is the layer it draws in above the pass's. */
+NYA_INTERNAL u32 _nya_ui_panel_rank(const NYA_UI* ui, u32 index) __attr_no_discard;
+
 NYA_INTERNAL _NYA_UILayout* _nya_ui_layout_push(void);
 
 /** A size spec resolved against what was measured and what is available, bounded by its min and max. */
@@ -387,8 +433,11 @@ NYA_INTERNAL void _nya_ui_focus_set(NYA_UI* ui, u64 id);
 /** Scrolls the innermost scrolling container so `rect` is inside its view, from the next pass on. */
 NYA_INTERNAL void _nya_ui_reveal(NYA_Rectf rect);
 
-/** Moves a draggable top level panel by the pointer on its grip. Updates `state->drag`; the caller clamps it. */
-NYA_INTERNAL void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf bounds, f32 header);
+/**
+ * Moves a draggable top level panel by the pointer on its grip. Updates `state->drag`; the caller clamps it. A
+ * `covered` panel cannot be grabbed, so a grip under another panel is not a handle.
+ * */
+NYA_INTERNAL void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf bounds, f32 header, b8 covered);
 
 /**
  * A typed field for the widget `widget`: edits `buffer` while it has the keyboard, starts on `start`, stops on return,
@@ -409,6 +458,10 @@ NYA_INTERNAL b8 _nya_ui_drawn(NYA_Rectf rect);
 
 /** Clips drawing to `clip`, or stops clipping when it is the whole window. */
 NYA_INTERNAL void _nya_ui_scissor(const NYA_UI* ui, NYA_Rectf clip);
+
+/** The renderer layer drawing lands in, and what it is set to. The renderer paints low to high, not in call order. */
+NYA_INTERNAL s32  _nya_ui_layer_get(const NYA_UI* ui) __attr_no_discard;
+NYA_INTERNAL void _nya_ui_layer_set(const NYA_UI* ui, s32 layer);
 
 NYA_INTERNAL f32 _nya_ui_item_height(const _NYA_UILayout* layout);
 

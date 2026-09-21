@@ -165,7 +165,9 @@ b8 _nya_ui_field(NYA_UI* ui, _NYA_UIWidget widget, b8 start, NYA_Rectf owner, NY
         changed |= _nya_ui_field_pointer(ui, widget, box, font, buffer, shift);
 
         b8 returned = nya_input_key_just_pressed(NYA_KEY_RETURN) || nya_input_key_just_pressed(NYA_KEY_KP_ENTER);
-        b8 outside  = _nya_ui.pointer_pressed && !nya_rect_contains(owner, _nya_ui.pointer);
+
+        // a press on a panel over this one landed elsewhere however far inside the field's own rectangle it was.
+        b8 outside = _nya_ui.pointer_pressed && (layout->covered || !nya_rect_contains(owner, _nya_ui.pointer));
 
         // a confirm that typed something is the space bar.
         if (returned || (_nya_ui.confirm && size == 0) || _nya_ui.cancel || outside) {
@@ -407,11 +409,14 @@ void _nya_ui_field_caret_set(NYA_UI* ui, u32 offset, b8 keep_selection) {
 b8 _nya_ui_field_pointer(NYA_UI* ui, _NYA_UIWidget widget, NYA_Rectf box, NYA_Font font, NYA_ConstCString buffer, f32 shift) {
     nya_assert(ui != nullptr && buffer != nullptr);
 
+    const _NYA_UILayout* layout = &_nya_ui.layouts[_nya_ui.depth - 1];
+
     f32 margin = roundf(_nya_ui_look()->padding * 0.5F);
     f32 local  = _nya_ui.pointer.x - (box.x + margin) + shift;
     u32 length = (u32)strlen(buffer);
 
-    if (_nya_ui.pointer_pressed && nya_rect_contains(box, _nya_ui.pointer)) {
+    // the drag below stays ungated: it belongs to the press that already won the pointer, wherever it travels.
+    if (_nya_ui.pointer_pressed && !layout->covered && nya_rect_contains(box, _nya_ui.pointer)) {
         f64 now    = nya_app_uptime_s();
         u32 offset = _nya_ui_field_offset_at(font, buffer, local);
 

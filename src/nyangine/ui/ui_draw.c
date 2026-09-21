@@ -62,6 +62,21 @@ b8 _nya_ui_drawn(NYA_Rectf rect) {
     return nya_rect_overlaps(reach, _nya_ui.layouts[_nya_ui.depth - 1].clip);
 }
 
+s32 _nya_ui_layer_get(const NYA_UI* ui) {
+    nya_assert(ui != nullptr && ui->window != nullptr);
+
+    return nya_render2d_layer(ui->window);
+}
+
+void _nya_ui_layer_set(const NYA_UI* ui, s32 layer) {
+    nya_assert(ui != nullptr && ui->window != nullptr);
+
+    // only a draw pass has geometry to order, and an input pass must not touch the renderer at all.
+    if (ui->pass != NYA_UI_PASS_DRAW) return;
+
+    nya_render2d_layer_set(ui->window, layer);
+}
+
 void _nya_ui_scissor(const NYA_UI* ui, NYA_Rectf clip) {
     const NYA_Rectf* screen = &_nya_ui.layouts[0].clip;
 

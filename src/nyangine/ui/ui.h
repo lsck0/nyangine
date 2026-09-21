@@ -90,6 +90,19 @@
  *   atlas per point size, so dragging a resize exhausted the atlas cache and text went blank. Fonts are rasterised
  *   at the scaled size, so text stays crisp. Top level panels sit inside the window's safe area, `margin` in from
  *   it, and scroll when they would not fit.
+ * - Top level panels are stacked, and only they are: a nested panel is placed by its container and everything inside
+ *   one takes its top level ancestor's place in the stack. A panel's place is its `z`, and inside one z, when it was
+ *   last raised; declaring it raises it once, and a click or a drag anywhere in it raises it again, which outlives
+ *   the pass. Drawing goes back to front because each panel draws in the renderer layer its place names and the
+ *   renderer paints low to high rather than in call order, so a raised panel covers one declared after it. Hit
+ *   testing goes front to back: nothing in a panel takes the pointer, or hover, while a panel over it holds the
+ *   pointer, which is also what makes a click on chrome, a title bar or padding, claim nothing instead of falling
+ *   through to the widget under it. A widget declared outside every panel has no z, so nothing covers it.
+ * - Occlusion reads where each panel was last laid out, the usual immediate mode trade: the panel that will cover an
+ *   early widget has not been declared yet when that widget is processed, so a panel declared for the first time
+ *   covers nothing for one pass. Collecting the presses and resolving them at a barrier in nya_ui_end was the
+ *   alternative and lost: a press and its release arrive in the same tick, so a widget has to know whether it took
+ *   the pointer while it is still running, and a barrier could only answer a tick late.
  * - Focus moves through rows as lines: up and down go to the next line, left and right between the focusable cells
  *   of one row. Sliders, toggles and a field being typed into keep left and right for themselves.
  * - A field types only after confirm or a click, because menu keys are letters too (W, A, S, D and space), and
@@ -107,8 +120,7 @@
  * - Rejected: recording draw commands in the tick and replaying them in on_render, which needs a text pool, cannot
  *   host custom drawing inside a panel, and draws a tick-old state. Acting on input from on_render, which runs
  *   gameplay from the renderer and loses presses while a window is minimised. A retained widget tree, which is state
- *   to keep in sync with the game for menus that are a dozen rows. A dropdown that floats over what follows, which
- *   one immediate pass cannot order.
+ *   to keep in sync with the game for menus that are a dozen rows.
  * */
 #pragma once
 
@@ -545,6 +557,14 @@ struct NYA_UIPanel {
      * Ignored on a nested panel, which its container places.
      * */
     b8 draggable;
+
+    /**
+     * Where a top level panel sits in the stack. Zero, the default, leaves it to declaration order and to whatever
+     * has been clicked since; a higher z is always over a lower one, however either was clicked, which is what a
+     * modal or an overlay needs. Any value orders, so a caller can leave gaps. Ignored on a nested panel, which has
+     * no z of its own: its container places it and its top level ancestor carries the order for everything inside.
+     * */
+    s32 z;
 };
 
 /** What a chart draws. */

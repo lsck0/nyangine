@@ -37,6 +37,21 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
     _NYA_UIPanelState* state = &_nya_ui.panels[index];
     state->pass              = _nya_ui.pass_serial;
 
+    b8 top_level = _nya_ui.depth == 1;
+    b8 covered   = parent->covered;
+
+    if (top_level) {
+        // declaring it is its first raise, so a stack nobody has clicked is the order the calls came in.
+        if (state->order == 0) {
+            _nya_ui.raise_serial += 1;
+            state->order          = _nya_ui.raise_serial;
+        }
+
+        state->top_level = true;
+        state->z         = panel.z;
+        covered          = _nya_ui_panel_covered(ui, index);
+    }
+
     NYA_UIText text = panel.text != NYA_UI_TEXT_INHERIT ? panel.text : parent->text;
 
     // frameless is only what it asks for; a frame pads by its skin's insets or the style's padding, inside the outline.
@@ -100,7 +115,7 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
 
         // moved by the pointer, then clamped so a panel dragged at the edge, or a shrinking window, cannot strand it.
         if (panel.draggable) {
-            _nya_ui_panel_drag(ui, key, state, bounds, header);
+            _nya_ui_panel_drag(ui, key, state, bounds, header, covered);
 
             f32 x = nya_clamp(bounds.x + state->drag.x, safe->x, nya_max(safe->x + safe->width - bounds.width, safe->x));
             f32 y = nya_clamp(bounds.y + state->drag.y, safe->y, nya_max(safe->y + safe->height - bounds.height, safe->y));
@@ -139,6 +154,20 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
         for (u32 axis = 0; axis < 2; axis++) {
             if (sizes[axis].max > 0.0F) room[axis] = nya_min(room[axis], _nya_ui_px(sizes[axis].max));
         }
+    }
+
+    if (top_level) {
+        state->bounds = bounds;
+
+        // a press anywhere in the topmost panel under the pointer raises it, chrome and widgets alike, which is
+        // what makes a dragged panel behave: it comes forward the moment it is touched and stays there.
+        if (ui->pass == NYA_UI_PASS_INPUT && _nya_ui.pointer_pressed && !covered && nya_rect_contains(bounds, _nya_ui.pointer)) {
+            _nya_ui_panel_raise(ui, index);
+        }
+
+        // the renderer paints layers low to high whatever order the calls came in, so a raised panel declared
+        // first still draws over the ones after it. See nya_render2d_layer_set.
+        _nya_ui_layer_set(ui, _nya_ui.layer_base + 1 + (s32)_nya_ui_panel_rank(ui, index));
     }
 
     f32x2 extent = { nya_max(bounds.width - chrome.x, 0.0F), nya_max(bounds.height - chrome.y, 0.0F) };
@@ -192,6 +221,7 @@ b8 nya_ui_panel_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel) {
         .title_width = title_width,
         .scroll      = scroll,
         .clip        = clip,
+        .covered     = covered,
         .scrolls     = { scrolls[0], scrolls[1] },
         .hidden      = parent->hidden || !state->measured || look->line_heights[text] <= 0.0F,
     };
@@ -272,7 +302,7 @@ void nya_ui_panel_end(NYA_UI* ui) {
     };
 
     // the innermost scrolling container under the pointer takes the wheel, since it ends first.
-    if ((reach.x > 0.0F || reach.y > 0.0F) && nya_rect_contains(nya_rect_intersection(layout->bounds, parent->clip), _nya_ui.pointer)) {
+    if (!layout->covered && (reach.x > 0.0F || reach.y > 0.0F) && nya_rect_contains(nya_rect_intersection(layout->bounds, parent->clip), _nya_ui.pointer)) {
         f32 step = _nya_ui_px(NYA_UI_SCROLL_STEP);
 
         // shift turns the wheel sideways, and so does a container that only has somewhere to go across.
@@ -294,13 +324,17 @@ void nya_ui_panel_end(NYA_UI* ui) {
     state->scroll.x = nya_clamp(state->scroll.x, 0.0F, reach.x);
     state->scroll.y = nya_clamp(state->scroll.y, 0.0F, reach.y);
 
-    if (!layout->clipping) return;
+    if (layout->clipping) {
+        _nya_ui_scissor(ui, parent->clip);
 
-    _nya_ui_scissor(ui, parent->clip);
-
-    for (u32 axis = 0; axis < 2; axis++) {
-        if (layout->scrolls[axis]) _nya_ui_scrollbar_draw(ui, layout, axis);
+        for (u32 axis = 0; axis < 2; axis++) {
+            if (layout->scrolls[axis]) _nya_ui_scrollbar_draw(ui, layout, axis);
+        }
     }
+
+    // after the scrollbars, which belong to the panel, and back to where the pass was called, so anything the
+    // caller draws between two panels lands in the layer it asked for rather than in the last panel's.
+    if (_nya_ui.depth == 1) _nya_ui_layer_set(ui, _nya_ui.layer_base);
 }
 
 void nya_ui_size(NYA_UI* ui, NYA_UISize size) {
@@ -445,6 +479,80 @@ u32 _nya_ui_panel_claim(u64 id) {
     return free;
 }
 
+b8 _nya_ui_panel_standing(const NYA_UI* ui, const _NYA_UIPanelState* state) {
+    nya_assert(ui != nullptr && state != nullptr);
+
+    if (state->id == 0 || !state->top_level) return false;
+
+    // pass serials are handed out one per pass over one window, so either of this window's last two identifies it.
+    return state->pass == ui->pass_current || state->pass == ui->pass_previous;
+}
+
+b8 _nya_ui_panel_over(const _NYA_UIPanelState* panel, const _NYA_UIPanelState* under) {
+    nya_assert(panel != nullptr && under != nullptr);
+    nya_assert(panel->order != under->order || panel == under, "two panels share a raise serial");
+
+    if (panel->z != under->z) return panel->z > under->z;
+
+    return panel->order > under->order;
+}
+
+b8 _nya_ui_panel_covered(const NYA_UI* ui, u32 index) {
+    nya_assert(ui != nullptr && index < NYA_UI_PANELS_MAX);
+
+    const _NYA_UIPanelState* own = &_nya_ui.panels[index];
+
+    for (u32 i = 0; i < NYA_UI_PANELS_MAX; i++) {
+        const _NYA_UIPanelState* other = &_nya_ui.panels[i];
+
+        if (i == index || !_nya_ui_panel_standing(ui, other)) continue;
+        if (!_nya_ui_panel_over(other, own)) continue;
+
+        // where it was last laid out: the one that will cover this pass has not been declared yet.
+        if (nya_rect_contains(other->bounds, _nya_ui.pointer)) return true;
+    }
+
+    return false;
+}
+
+void _nya_ui_panel_raise(const NYA_UI* ui, u32 index) {
+    nya_assert(ui != nullptr && index < NYA_UI_PANELS_MAX);
+    nya_assert(_nya_ui.panels[index].order != 0, "a top level panel takes its order when it is first declared");
+
+    _NYA_UIPanelState* own = &_nya_ui.panels[index];
+
+    for (u32 i = 0; i < NYA_UI_PANELS_MAX; i++) {
+        const _NYA_UIPanelState* other = &_nya_ui.panels[i];
+
+        if (i == index || !_nya_ui_panel_standing(ui, other)) continue;
+
+        // its own z band only: raising never lifts a panel over one the caller deliberately put above it.
+        if (other->z == own->z && other->order > own->order) {
+            _nya_ui.raise_serial += 1;
+            own->order            = _nya_ui.raise_serial;
+            return;
+        }
+    }
+}
+
+u32 _nya_ui_panel_rank(const NYA_UI* ui, u32 index) {
+    nya_assert(ui != nullptr && index < NYA_UI_PANELS_MAX);
+
+    const _NYA_UIPanelState* own  = &_nya_ui.panels[index];
+    u32                      rank = 0;
+
+    for (u32 i = 0; i < NYA_UI_PANELS_MAX; i++) {
+        const _NYA_UIPanelState* other = &_nya_ui.panels[i];
+
+        if (i == index || !_nya_ui_panel_standing(ui, other)) continue;
+        if (_nya_ui_panel_over(own, other)) rank += 1;
+    }
+
+    nya_assert(rank < NYA_UI_PANELS_MAX);
+
+    return rank;
+}
+
 _NYA_UILayout* _nya_ui_layout_push(void) {
     nya_assert(_nya_ui.depth < NYA_UI_DEPTH_MAX, "containers nest deeper than NYA_UI_DEPTH_MAX");
 
@@ -577,7 +685,7 @@ void _nya_ui_reveal(NYA_Rectf rect) {
     }
 }
 
-void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf bounds, f32 header) {
+void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf bounds, f32 header, b8 covered) {
     nya_assert(ui != nullptr && state != nullptr && key != 0);
 
     if (ui->pass != NYA_UI_PASS_INPUT) return;
@@ -586,7 +694,7 @@ void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf
     f32       grip_height = header > 0.0F ? header : _nya_ui_look()->line_heights[NYA_UI_TEXT_BODY];
     NYA_Rectf grip        = { bounds.x, bounds.y, bounds.width, grip_height };
 
-    if (_nya_ui.pointer_pressed && ui->drag_panel == 0 && nya_rect_contains(grip, _nya_ui.pointer)) {
+    if (_nya_ui.pointer_pressed && !covered && ui->drag_panel == 0 && nya_rect_contains(grip, _nya_ui.pointer)) {
         ui->drag_panel = key;
         ui->drag_grip  = (f32x2){ _nya_ui.pointer.x - state->drag.x, _nya_ui.pointer.y - state->drag.y };
     }

@@ -136,7 +136,15 @@ _NYA_UIWidget _nya_ui_widget(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect,
     _NYA_UIWidget widget = { .id = id };
 
     if (ui->pass == NYA_UI_PASS_INPUT) {
-        b8 inside = nya_rect_contains(rect, _nya_ui.pointer) && nya_rect_contains(layout->clip, _nya_ui.pointer);
+        /*
+         * Hover, the press and the release all read this one answer, and every one of them has to: a widget that
+         * took hover focus under another panel would activate on the next confirm without the pointer being
+         * involved at all. `covered` comes from where the panels over this one were last laid out, since the panel
+         * that will cover this widget has not been declared yet. Recording the presses and picking a winner at a
+         * barrier in nya_ui_end was the alternative: a press and its release arrive in the same tick, so a widget
+         * that only learned at the barrier could not report its own activation until a tick later.
+         */
+        b8 inside = !layout->covered && nya_rect_contains(rect, _nya_ui.pointer) && nya_rect_contains(layout->clip, _nya_ui.pointer);
 
         // hover moves the same focus as the keys, so the two never disagree. only on movement, so a resting pointer
         // does not take focus back from the keys, and not while typing, where confirm belongs to the field.

@@ -56,6 +56,12 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     _nya_ui.disabled        = 0;
     _nya_ui.opacities[0]    = 1.0F;
     _nya_ui.opacity_depth   = 0;
+    _nya_ui.layer_base      = _nya_ui_layer_get(ui);
+
+    // a panel opened in either of this window's last two passes is still standing; one older is a slot the table
+    // has not reused yet, and a stale rectangle must not occlude anything.
+    ui->pass_previous = ui->pass_current;
+    ui->pass_current  = _nya_ui.pass_serial;
 
     NYA_Rectf screen = { 0.0F, 0.0F, (f32)window->screen_width, (f32)window->screen_height };
     NYA_Rectf safe   = screen;
@@ -150,6 +156,9 @@ void nya_ui_end(NYA_UI* ui) {
 
         ui->typing = _nya_ui.typing_at_begin || ui->editing != 0;
     }
+
+    // whatever the caller draws next belongs where it asked for it, not in the layer of the last panel declared.
+    _nya_ui_layer_set(ui, _nya_ui.layer_base);
 
     _nya_ui.widget_count_worst = nya_max(_nya_ui.widget_count_worst, count);
     _nya_ui.depth              = 0;
