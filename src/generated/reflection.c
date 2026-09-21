@@ -124,6 +124,33 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_EntityFlags = {
     .is_bitflags = true,
 };
 
+/* GNY_RobotRun, src/gnyame/robots.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_GNY_RobotRun_ended_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((GNY_RobotRun*)nullptr)->ended),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_CLOCK_FORMAT_MAX_LENGTH),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_GNY_RobotRun_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(GNY_RobotRun, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "generations", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(GNY_RobotRun, generations), .hint = NYA_HINT_NONE },
+    { .name = "fitness", .type = &_NYA_REFLECT_f64, .offset = nya_offsetof(GNY_RobotRun, fitness), .hint = NYA_HINT_NONE },
+    { .name = "dqn_steps", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(GNY_RobotRun, dqn_steps), .hint = NYA_HINT_NONE },
+    { .name = "dqn_score", .type = &_NYA_REFLECT_f64, .offset = nya_offsetof(GNY_RobotRun, dqn_score), .hint = NYA_HINT_NONE },
+    { .name = "ended", .type = &_NYA_REFLECT_GNY_RobotRun_ended_ARRAY, .offset = nya_offsetof(GNY_RobotRun, ended), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_GNY_RobotRun = {
+    .name = "GNY_RobotRun",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(GNY_RobotRun),
+    .alignment = alignof(GNY_RobotRun),
+    .fields = _NYA_REFLECT_GNY_RobotRun_FIELDS,
+    .field_count = 6,
+};
+
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_AudioPass,
     &_NYA_REFLECT_NYA_AudioEqualizer,
@@ -192,6 +219,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_GNY_Config,
     &_NYA_REFLECT_GNY_EntityKind,
     &_NYA_REFLECT_GNY_EntityFlags,
+    &_NYA_REFLECT_GNY_RobotRun,
 };
 
 const NYA_TypeReflection* nya_reflect_find(NYA_ConstCString name) {

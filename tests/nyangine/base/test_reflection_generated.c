@@ -86,6 +86,27 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: @key lands on exactly the field it is written above
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: GNY_RobotRun\n");
+  {
+    const NYA_TypeReflection* run = nya_reflect_of(GNY_RobotRun);
+
+    nya_assert(nya_reflect_field(run, "id")->is_key, "the @key annotation did not reach the table");
+
+    // Negative space: a key identifies a row, so exactly one field may carry it. The generator drops
+    // a second one, and nothing else on the type may pick it up by accident.
+    u32 keys = 0;
+    for (u32 i = 0; i < run->field_count; i++) {
+      if (run->fields[i].is_key) keys++;
+    }
+
+    nya_assert(keys == 1, "%u fields claim to be the key", keys);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a real struct round trips through the generated description
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: round trip\n");

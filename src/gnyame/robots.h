@@ -28,12 +28,34 @@
 #include "nyangine/nyangine.h"
 
 typedef struct GNY_RobotBody GNY_RobotBody;
+typedef struct GNY_RobotRun  GNY_RobotRun;
 typedef struct GNY_Robots    GNY_Robots;
 
 /** A point mass that thrusts. The whole of the physics a brain has to learn. */
 struct GNY_RobotBody {
     f32x2 position;
     f32x2 velocity;
+};
+
+/**
+ * One finished training run, which is one row of GNY_ROBOT_DATABASE_FILE. The table is this struct:
+ * the schema, the insert and the drift check all come from the reflection below, so growing a column
+ * is adding a field here. See plugins/sqlite/orm.h.
+ * */
+// @reflect
+struct GNY_RobotRun {
+    /** Assigned by the database, so a run about to be written leaves it zero. */
+    u32 id; // @key
+
+    /** Generations trained by this run and every run before it. */
+    u32 generations;
+
+    f64 fitness;
+    u64 dqn_steps;
+    f64 dqn_score;
+
+    /** When the run ended, UTC. Written here rather than left to the column's default, so the value the game stored is the value the game can see. */
+    char ended[NYA_CLOCK_FORMAT_MAX_LENGTH];
 };
 
 struct GNY_Robots {
@@ -112,8 +134,12 @@ struct GNY_Robots {
      * The run history.
      */
     NYA_Database* database;
-    u32           runs;
-    f64           record;
+
+    /** GNY_RobotRun bound to `database`. Null when there is no history, exactly as `database` is. */
+    NYA_OrmTable* runs_table;
+
+    u32 runs;
+    f64 record;
 
     /** Seconds since the drones spawned, for their orbit. */
     f32 clock_s;

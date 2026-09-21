@@ -16,9 +16,10 @@ extern const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame;
 extern const NYA_TypeReflection _NYA_REFLECT_GNY_Config;
 extern const NYA_TypeReflection _NYA_REFLECT_GNY_EntityKind;
 extern const NYA_TypeReflection _NYA_REFLECT_GNY_EntityFlags;
+extern const NYA_TypeReflection _NYA_REFLECT_GNY_RobotRun;
 
 /** Every annotated type, the engine's and the game's, for an editor that needs to enumerate them. */
-#define NYA_REFLECT_GAME_TYPE_COUNT 5
+#define NYA_REFLECT_GAME_TYPE_COUNT 6
 #define NYA_REFLECT_TYPE_COUNT      (NYA_REFLECT_ENGINE_TYPE_COUNT + NYA_REFLECT_GAME_TYPE_COUNT)
 
 extern const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT];

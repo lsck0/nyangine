@@ -1097,6 +1097,9 @@
 #define GNY_ROBOT_DATABASE_FILE "robots.db"
 #define GNY_ROBOT_SAVE_VERSION  1
 
+/** The table GNY_RobotRun maps onto. Named once, since the schema and every statement read it. */
+#define GNY_ROBOT_RUNS_TABLE "runs"
+
 /** The training panel under the HUD's status panel, and the genome drawn under that. */
 #define GNY_ROBOT_PANEL_WIDTH  420.0F
 #define GNY_ROBOT_BRAIN_HEIGHT 160.0F

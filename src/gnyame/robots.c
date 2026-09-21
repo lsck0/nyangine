@@ -212,7 +212,10 @@ void gny_robots_destroy(void) {
         if (nya_entity_is_valid(robots->drones[i])) nya_entity_despawn(robots->drones[i]);
     }
 
+    // before the connection it holds, so nothing is left bound to a closed database.
+    nya_orm_close(robots->runs_table);
     nya_sql_close(robots->database);
+
     nya_nn_neat_destroy(robots->neat);
     nya_arena_destroy(robots->brain_allocator);
 
@@ -581,17 +584,19 @@ void _gny_robots_save(GNY_Robots* robots) {
     }
 
     // a row only for a run that trained, so opening and closing the scene does not fill the history.
-    if (robots->database == nullptr || robots->generation == 0) return;
+    if (robots->runs_table == nullptr || robots->generation == 0) return;
 
-    NYA_SqlValue row[] = {
-        nya_sql_s64((s64)generations),
-        nya_sql_f64(robots->brain_fitness),
-        nya_sql_s64((s64)robots->dqn_steps),
-        nya_sql_f64(robots->dqn_score),
+    // the struct is the row, so there is no column list here to fall out of step with the schema.
+    GNY_RobotRun run = {
+        .generations = generations,
+        .fitness     = robots->brain_fitness,
+        .dqn_steps   = robots->dqn_steps,
+        .dqn_score   = robots->dqn_score,
     };
 
-    NYA_Error inserted = nya_sql_exec_bound(robots->database, "INSERT INTO runs (generations, fitness, dqn_steps, dqn_score) VALUES (?, ?, ?, ?)",
-                                            row, nya_carray_length(row));
+    (void)nya_clock_format_utc(nya_clock_get_timestamp_s(), NYA_CLOCK_FORMAT_READABLE, (u8*)run.ended, sizeof(run.ended));
+
+    NYA_Error inserted = nya_orm_insert(robots->runs_table, &run);
     if (!inserted.ok) nya_log_warn("Could not record the robots' run: %s", (NYA_ConstCString)inserted.message);
 }
 
@@ -623,20 +628,28 @@ void _gny_robots_load(GNY_Robots* robots) {
      */
     NYA_Error opened = nya_save_database_open(robots->allocator, GNY_ROBOT_DATABASE_FILE, &robots->database);
 
-    if (opened.ok) {
-        opened = nya_sql_exec(robots->database, "CREATE TABLE IF NOT EXISTS runs (id INTEGER PRIMARY KEY, generations INTEGER, fitness REAL, "
-                                                "dqn_steps INTEGER, dqn_score REAL, ended TEXT DEFAULT CURRENT_TIMESTAMP)");
-    }
+    // the schema is GNY_RobotRun's reflection. A table written by an older build that has since
+    // drifted from it fails here, naming the column, rather than being quietly written to.
+    if (opened.ok) opened = nya_orm_open(robots->allocator, robots->database, nya_reflect_of(GNY_RobotRun), GNY_ROBOT_RUNS_TABLE, &robots->runs_table);
+    if (opened.ok) opened = nya_orm_schema_create(robots->runs_table);
 
     if (!opened.ok) {
         nya_log_warn("No robot run history: %s", (NYA_ConstCString)opened.message);
+        nya_orm_close(robots->runs_table);
         nya_sql_close(robots->database);
-        robots->database = nullptr;
+        robots->runs_table = nullptr;
+        robots->database   = nullptr;
         return;
     }
 
+    // an aggregate over the table rather than a row of it, so it stays SQL: the ORM maps a struct to
+    // a row, and COUNT(*) is not one. Same connection, no adapter between them.
     NYA_SqlResult result = { 0 };
-    if (!nya_sql_query(robots->database, &scratch, "SELECT COUNT(*) AS runs, MAX(fitness) AS record FROM runs", nullptr, 0, &result).ok) return;
+    if (!nya_sql_query(robots->database, &scratch, "SELECT COUNT(*) AS runs, MAX(fitness) AS record FROM " GNY_ROBOT_RUNS_TABLE, nullptr, 0,
+                       &result)
+             .ok) {
+        return;
+    }
     if (result.rows->length == 0) return;
 
     NYA_Value* runs   = nya_object_get(result.rows->items[0], "runs");

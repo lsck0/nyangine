@@ -798,6 +798,9 @@ const NYA_ReflectField* nya_reflect_path(const NYA_TypeReflection* type, NYA_Con
 void* nya_reflect_field_pointer(void* instance, const NYA_ReflectField* field)  // The address of `field` within `instance`.
 NYA_ConstCString nya_reflect_variant_name(const NYA_TypeReflection* type, s64 value)  // The name of the variant with `value`, or null.
 b8 nya_reflect_variant_value(const NYA_TypeReflection* type, NYA_ConstCString name, OUT s64* out_value)  // The value of the variant called `name`.
+b8 nya_reflect_is_char_array(const NYA_TypeReflection* type)
+b8 nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value)
+b8 nya_reflect_value_to_f64(NYA_Value value, OUT f64* out_value)  // The same for a real.
 NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance)  // Reads one primitive field out of `instance` as an NYA_Value.
 b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value value)  // The inverse.
 NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance)  // Any annotated type, as a self describing document.
@@ -4988,6 +4991,35 @@ u64 nya_lua_memory_bytes(const NYA_LuaVM* vm)  // Bytes LuaJIT currently has all
 void nya_lua_collect(NYA_LuaVM* vm)  // Runs a full garbage collection cycle.
 ```
 
+### orm.h
+
+A reflected struct, stored as a row. The schema comes from the `@reflect` table, the primary key
+
+```c
+// types
+enum NYA_OrmColumnType { NYA_ORM_COLUMN_INTEGER, NYA_ORM_COLUMN_REAL, NYA_ORM_COLUMN_TEXT, NYA_ORM_COLUMN_COUNT, }  // The sqlite storage classes a described field can map to.
+typedef void (*NYA_OrmReportFn)(NYA_ConstCString column, NYA_ConstCString found, NYA_ConstCString expected, void* user_data)  // One difference between the table and the struct.
+struct NYA_OrmTable { NYA_Database* database; const NYA_TypeReflection* type; char name[NYA_ORM_NAME_MAX]; const NYA_ReflectField* key; b8 key_is_integer; const NYA_ReflectField* columns[NYA_ORM_COLUMN_MAX]; u32 column_count; u32 key_index; NYA_ConstCString sql_create; NYA_ConstCString sql_insert; NYA_ConstCString sql_insert_assigned; NYA_ConstCString sql_update; NYA_ConstCString sql_delete; NYA_ConstCString sql_select; NYA_ConstCString sql_find; }  // One described type bound to one table.
+
+// macros
+NYA_ORM_COLUMN_MAX 64  // Columns one table may have, which is fields one described type may have.
+NYA_ORM_NAME_MAX 64  // Longest table name, terminator included.
+nya_orm_at(table, instances, index)  // The `index`-th struct of what nya_orm_select returned.
+
+// functions
+b8 nya_orm_column_type(const NYA_TypeReflection* type, OUT NYA_OrmColumnType* out_column)  // Which column type describes `type`, or false when nothing does.
+NYA_Error nya_orm_open( NYA_Arena* arena, NYA_Database* database, const NYA_TypeReflection* type, NYA_ConstCString table_name, OUT NYA_OrmTable** out_table )  // Binds `type` to the table called `table_name` on `database`, building every statement into `arena`.
+void nya_orm_close(NYA_OrmTable* table)  // Releases the binding.
+NYA_Error nya_orm_schema_create(NYA_OrmTable* table)
+NYA_Error nya_orm_schema_destroy(NYA_OrmTable* table)
+u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user_data)
+NYA_Error nya_orm_insert(NYA_OrmTable* table, void* instance)  // Inserts `instance` as one row, every field bound to a parameter.
+NYA_Error nya_orm_update(NYA_OrmTable* table, const void* instance)  // Writes every non-key column of the row whose key `instance` holds.
+NYA_Error nya_orm_delete(NYA_OrmTable* table, NYA_SqlValue key)  // Deletes the row with `key`.
+NYA_Error nya_orm_find(NYA_OrmTable* table, NYA_Arena* arena, NYA_SqlValue key, OUT void* out_instance)  // Reads the row with `key` over `out_instance`, which is zeroed first and must be `type->size` bytes.
+NYA_Error nya_orm_select( NYA_OrmTable* table, NYA_Arena* arena, NYA_ConstCString clauses, const NYA_SqlValue* values, u32 value_count, OUT void** out_instances, OUT u32* out_count )
+```
+
 ### sql.h
 
 ```c
@@ -5210,11 +5242,15 @@ What the machine underneath the process is, for a crash report and the debug ove
 ```c
 // macros
 NYA_HOST_CPU_NAME_MAX 64  // Longest CPU name, terminator included.
+NYA_HOST_DISTRIBUTION_NAME_MAX 96  // Longest system name written, terminator included.
+NYA_HOST_KERNEL_NAME_MAX 144  // Longest kernel name written, terminator included.
 
 // functions
 void nya_host_cpu_name(OUT u8* buffer, u32 capacity)  // Writes the processor's marketing name, null terminated and truncated to `capacity`.
 b8 nya_host_memory_total_bytes(OUT u64* out_bytes)  // Physical RAM installed.
 b8 nya_host_gpu_memory_total_bytes(OUT u64* out_bytes)  // Video memory on the display adapter.
+void nya_host_distribution_name(OUT u8* buffer, u32 capacity)  // Writes which system this is, null terminated and truncated to `capacity`.
+void nya_host_kernel_name(OUT u8* buffer, u32 capacity)  // Writes the kernel, null terminated and truncated to `capacity`.
 ```
 
 ### ipc.h
