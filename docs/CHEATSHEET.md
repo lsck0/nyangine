@@ -246,6 +246,7 @@ NYA_SHIPPING_BUILD (NYA_RELEASE || NYA_STEAM)  // Built to be handed to someone 
 NYA_CODE_HOT_RELOAD NYA_DEVELOPMENT_BUILD
 NYA_HEADLESS_ENABLED 1
 NYA_INTERNAL __attribute__((visibility("hidden"))) static
+NYA_INTERNAL_CALLBACK  // Internal, except in a build that reloads code, where the name has to be findable.
 NYA_EXTERN extern "C"
 NYA_API __declspec(dllexport) NYA_EXTERN
 ```
@@ -1036,6 +1037,7 @@ nya_app_init(...)  // Brings up SDL and every subsystem.
 
 // functions
 NYA_Error nya_app_init_with_options(NYA_AppOptions options)
+void nya_app_events_pump(void)
 u64 nya_app_uptime_ns(void)  // Time since nya_app_init, live rather than the once per frame NYA_FrameStats.uptime_ns.
 f64 nya_app_uptime_s(void)
 void nya_app_deinit(void)
@@ -1237,6 +1239,7 @@ struct NYA_CallbackSystem { NYA_Arena* allocator; NYA_ArrayᐸNYA_Callbackᐳ* c
 struct NYA_Callback { NYA_ConstCString name; void* fn; }
 
 // macros
+NYA_CALLBACK_HANDLE_NONE ((NYA_CallbackHandle)0)  // The one handle that names no function, so a zeroed struct means "nothing registered here".
 nya_callback(callback)
 nya_callback_get(handle)
 
@@ -2223,12 +2226,13 @@ typedef NYA_Error (*NYA_SystemInitFn)(void)
 typedef void (*NYA_SystemDeinitFn)(void)
 typedef void (*NYA_SystemPhaseFn)(f32 delta_time_s)  // One phase's work for one system.
 typedef u64 (*NYA_SystemMemoryFn)(void)  // What a system reports holding right now, for the per-owner memory line.
-struct NYA_SystemEntry { NYA_ConstCString name; NYA_ConstCString after; NYA_ConstCString before; NYA_SystemInitFn init; NYA_SystemDeinitFn deinit; NYA_SystemPhaseFn frame; NYA_SystemPhaseFn tick; NYA_SystemPhaseFn render; b8 optional; NYA_SystemOwner owner; NYA_SystemMemoryFn memory_bytes; }
+struct NYA_SystemEntry { NYA_ConstCString name; NYA_ConstCString after; NYA_ConstCString before; NYA_CallbackHandle init; NYA_CallbackHandle deinit; NYA_CallbackHandle frame; NYA_CallbackHandle tick; NYA_CallbackHandle render; b8 optional; NYA_SystemOwner owner; NYA_CallbackHandle memory_bytes; }
 
 // macros
 NYA_SYSTEM_REGISTRY_MAX 64  // How many systems can be registered at once.
 NYA_SYSTEM_PENDING_MAX 16  // Registrations, removals and enable flips one phase run may queue before they are applied.
 NYA_SYSTEM_OWNER_MAX 16  // Distinct owners the registry accounts for: the engine, the game, and one per loaded plugin.
+NYA_SYSTEM_NAME_MAX 40  // Bytes one name may take, terminator included.
 
 // functions
 void nya_system_register(NYA_SystemEntry entry)  // Adds `entry`, enabled, in the position `after` asks for.
@@ -2248,6 +2252,7 @@ u32 nya_system_registry_count(void)  // How many systems are registered.
 const NYA_SystemEntry* nya_system_registry_at(u32 index)  // The entry at `index`, in registration order before finalize and run order after it.
 b8 nya_system_registry_enabled_at(u32 index)  // Whether the entry at `index` is enabled, and whether its `init` ran and succeeded.
 b8 nya_system_registry_initialized_at(u32 index)
+b8 nya_system_registry_runs_phase_at(u32 index, NYA_SystemPhase phase)  // Whether the entry at `index` has work in `phase`, which is what the overlay's phase column reads.
 void nya_system_accounting_enable(void)
 void nya_system_accounting_disable(void)
 b8 nya_system_accounting_is_enabled(void)
@@ -3207,6 +3212,61 @@ NYA_ConstCString nya_render_feature_name(NYA_RenderFeature feature)  // The fiel
 u32 nya_render_features_disabled_text(const NYA_Window* window, char* out, u64 size)  // Every feature that is off, as one line of names, for the debug overlay.
 ```
 
+### render_fluid.h
+
+Eulerian fluid: a grid of velocity, density and temperature stepped with the incompressible
+
+```c
+// types
+enum NYA_FluidSpace { NYA_FLUID_SPACE_2D = 0, NYA_FLUID_SPACE_3D, NYA_FLUID_SPACE_COUNT, }  // Which renderer a volume draws through, and how its grid is laid out in the world.
+struct NYA_FluidOptions { NYA_FluidSpace space; u32 width; u32 height; u32 depth; f32 cell_size; f32x3 origin; f32x3 up; f32 buoyancy; f32 weight; f32 vorticity; f32 viscosity; f32 diffusion; f32 dissipation; f32 cooling; f32 ambient_temperature; f32x3 gravity; u32 pressure_iterations; }  // What a volume is and how it behaves.
+struct NYA_FluidEmitter { f32x3 position; f32 radius; f32 density; f32 temperature; f32x3 velocity; }  // A ball of fluid pushed into the grid.
+struct NYA_FluidRenderOptions { b8 enabled; f32 opacity; f32 threshold; f32 density_full; NYA_Color cool; NYA_Color hot; f32 hot_temperature; u32 stride; }  // What a window does with fluid volumes.
+struct NYA_Fluid { NYA_Arena* allocator; NYA_FluidOptions options; u32 width; u32 height; u32 depth; u32 stride_x; u32 stride_y; u32 stride_z; u32 cell_count; f32* velocity_x; f32* velocity_y; f32* velocity_z; f32* velocity_x_previous; f32* velocity_y_previous; f32* velocity_z_previous; f32* density; f32* density_previous; f32* temperature; f32* temperature_previous; f32* pressure; f32* divergence; f32* curl_magnitude; u8* obstacle; u32 obstacle_count; u64 step_count; f32 step_time_s; }  // One volume.
+
+// macros
+NYA_FLUID_VOLUMES_MAX 8  // Volumes that may exist at once.
+NYA_FLUID_DIMENSION_MAX 256  // The most cells an edge may have.
+NYA_FLUID_CELLS_MAX (4ULL * 1024ULL * 1024ULL)  // The most cells one volume may hold, borders included.
+NYA_FLUID_PRESSURE_ITERATIONS 20  // Gauss-Seidel sweeps in the pressure projection, when NYA_FluidOptions.pressure_iterations is zero.
+NYA_FLUID_PRESSURE_ITERATIONS_MAX 128  // The most sweeps the solve will ever run, whatever it is asked for.
+NYA_FLUID_STEP_SECONDS_MAX 0.1F  // The largest timestep one call to nya_fluid_step integrates, in seconds.
+NYA_FLUID_CELL_SIZE 1.0F  // World units per cell when NYA_FluidOptions.cell_size is zero.
+NYA_FLUID_FIELD_MAX 1000.0F  // The ceiling every field is clamped to after a step.
+NYA_FLUID_BUOYANCY 0.0F  // Buoyancy, vorticity, dissipation and cooling when their option fields are zero.
+NYA_FLUID_VORTICITY 0.0F
+NYA_FLUID_DISSIPATION 0.0F
+NYA_FLUID_COOLING 0.0F
+NYA_FLUID_DRAW_THRESHOLD 0.02F  // How much density a cell needs before it is drawn at all, when the render option is zero.
+NYA_FLUID_DRAW_OPACITY 0.85F  // How opaque the densest cell is drawn, when NYA_FluidRenderOptions.opacity is zero.
+NYA_FLUID_DRAW_DENSITY_FULL 1.0F  // The density that draws at full opacity, when NYA_FluidRenderOptions.density_full is zero.
+
+// functions
+NYA_Fluid* nya_fluid_create(NYA_Arena* arena, NYA_FluidOptions options)  // Allocates a volume at the size in `options` and registers it in the live table.
+void nya_fluid_destroy(NYA_Fluid* fluid)  // Removes the volume from the live table.
+void nya_fluid_clear(NYA_Fluid* fluid)  // Zeroes every field, keeping the obstacles and the options.
+void nya_fluid_options_set(NYA_Fluid* fluid, NYA_FluidOptions options)  // Replaces the solver's knobs.
+NYA_FluidOptions nya_fluid_options(const NYA_Fluid* fluid)
+void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s)
+void nya_fluid_emit(NYA_Fluid* fluid, NYA_FluidEmitter emitter)  // Pushes density, heat and velocity into a ball of the grid.
+void nya_fluid_obstacle_box_set(NYA_Fluid* fluid, f32x3 min, f32x3 max)
+void nya_fluid_obstacle_box_clear(NYA_Fluid* fluid, f32x3 min, f32x3 max)  // Unmarks the same box.
+void nya_fluid_obstacles_clear(NYA_Fluid* fluid)  // Clears every obstacle in one pass, for a body that moved or a level that changed.
+f32 nya_fluid_density_at(const NYA_Fluid* fluid, f32x3 position)  // The fields at a world point, interpolated between the surrounding cells.
+f32 nya_fluid_temperature_at(const NYA_Fluid* fluid, f32x3 position)
+f32x3 nya_fluid_velocity_at(const NYA_Fluid* fluid, f32x3 position)
+b8 nya_fluid_cell_index(const NYA_Fluid* fluid, f32x3 position, OUT u32* out_index)  // The index of the cell a world point falls in, or false when the point is outside the interior.
+u64 nya_fluid_checksum(const NYA_Fluid* fluid)  // A hash of every field, so a replay test can assert two runs agree without comparing megabytes.
+u32 nya_fluid_cell_count(const NYA_Fluid* fluid)  // Cells including borders, bytes held, and how long the last step took.
+u64 nya_fluid_memory_bytes(const NYA_Fluid* fluid)
+f32 nya_fluid_step_time_s(const NYA_Fluid* fluid)
+u32 nya_fluid_count(void)  // The live volumes, in creation order.
+NYA_Fluid* nya_fluid_at(u32 index)
+void nya_fluid_render_options_set(NYA_Window* window, NYA_FluidRenderOptions options)  // What this window draws fluid as.
+NYA_FluidRenderOptions nya_fluid_render_options(const NYA_Window* window)
+void nya_fluid_draw(NYA_Window* window, const NYA_Fluid* fluid)
+```
+
 ### render_font.h
 
 ```c
@@ -3510,7 +3570,7 @@ struct NYA_Render3DFrustum { f32x4 planes[6]; }  // The six inward-facing clip p
 typedef struct { u32 first; u32 count; } NYA_Render3DIndexRange  // A run of the uploaded index buffer.
 struct NYA_Render3DSegment { u32 opaque_objects; u32 transparent_objects; u32 first_group; u32 group_count; u32 first_decal; u32 decal_count; NYA_Render3DIndexRange opaque[NYA_RENDER3D_PASSES]; NYA_Render3DIndexRange transparent[NYA_RENDER3D_PASSES]; SDL_GPUTexture* texture; SDL_GPUSampler* sampler; NYA_ConstCString decal_texture; NYA_ConstCString skinned; const struct NYA_ShaderSkinUniform* skin; NYA_Render3DMaterial material; NYA_Render3DBlend blend; NYA_Render3DDepth depth; b8 casts_shadow; }
 struct NYA_Render3DBatch { SDL_GPUBuffer* vertex_buffer; SDL_GPUTransferBuffer* transfer_buffer; SDL_GPUBuffer* index_buffer; SDL_GPUTransferBuffer* index_transfer_buffer; NYA_Render3DStream opaque; NYA_Render3DStream transparent; NYA_Render3DSegment* segments; struct NYA_ShaderMesh3DUniform* segment_uniforms; u32 segment_count; u32 segment_count_worst; u16* pass_indices; b8 transparent_active; NYA_Render3DSortKey* sort_keys; u16* sorted_indices; NYA_Render3DSortKey* sort_keys_scratch; NYA_Render3DInstance* sorted_instances; SDL_GPUTexture* texture; SDL_GPUSampler* sampler; NYA_Render3DPointLight point_lights[NYA_RENDER3D_MAX_POINT_LIGHTS]; u32 point_light_count; NYA_Render3DFog fog; SDL_GPUTexture* shadow_color; SDL_GPUTexture* shadow_depth; SDL_GPUTexture* shadow_none; NYA_Render3DShadowOptions shadow_options; NYA_Render3DShadowOptions shadow_atlas; NYA_Render3DShadowFit shadow_fit; NYA_Render3DShadow shadow; f32_4x4 shadow_view_projection[NYA_RENDER3D_SHADOW_CASCADES]; f32 shadow_cascade_extent[NYA_RENDER3D_SHADOW_CASCADES]; u32 shadow_cascade_count; b8 shadow_valid; NYA_Render3DFrustum passes[NYA_RENDER3D_PASSES]; u32 pass_count; b8 passes_ready; b8 casts_shadow; b8 active; b8 camera_valid; f32_4x4 view_projection; NYA_Camera3DPerspective camera; NYA_Camera3DOrthographic camera_orthographic; b8 camera_is_ortho; NYA_Render3DLight light; NYA_Render3DMaterial material; const NYA_OcclusionBuffer* occlusion; NYA_Render3DInstance* instances; u8* instance_passes; u32 instance_count; SDL_GPUBuffer* instance_buffer; SDL_GPUTransferBuffer* instance_transfer_buffer; NYA_Render3DMeshGroup mesh_groups[NYA_RENDER3D_MAX_MESH_GROUPS]; u32 mesh_group_count; NYA_Cache* registered_meshes; NYA_Render3DBlend blend; NYA_Render3DDepth depth; SDL_GPUTexture* refraction_capture; u32 refraction_width; u32 refraction_height; u32 frame_draw_calls; u32 frame_vertices; u32 frame_indices; u32 frame_dropped_draws; u32 frame_instances; u32 frame_culled; u32 frame_occluded; u32 frame_passes; }
-struct NYA_RenderSystemWindow { NYA_Color clear_color; SDL_GPURenderPass* render_pass; SDL_GPUCommandBuffer* render_commands; SDL_GPUTexture* swapchain_texture; SDL_GPUTextureFormat color_format; b8 render_pass_normals; SDL_GPUTexture* msaa_texture; u32 msaa_width; u32 msaa_height; SDL_GPUSampleCount msaa_sample_count; SDL_GPUTexture* depth_texture; u32 depth_width; u32 depth_height; SDL_GPUSampleCount depth_sample_count; NYA_Render2DBatch draw_batch; NYA_Render3DBatch mesh_batch; NYA_Render3DDecals decals; NYA_Render3DDecalsGPU decals_gpu; NYA_RenderOutput output; NYA_RenderOutputGPU output_gpu; NYA_Render2DHaze haze; NYA_RenderFeatures features; u32 features_off_mask; u32 features_on_mask; NYA_PostInk post_ink; NYA_PostAmbientOcclusion post_ambient_occlusion; NYA_PostAntialias post_antialias; NYA_PostDepthOfField post_depth_of_field; NYA_PostSpeedLines post_speed_lines; NYA_PostBloom post_bloom; NYA_PostEyeAdaptation post_eye_adaptation; NYA_PostLightShafts post_light_shafts; NYA_PostMotionBlur post_motion_blur; NYA_PostDebugView post_debug_view; NYA_RenderFrameStats frame_stats; NYA_RenderFrameStats frame_stats_last; SDL_GPUCommandBuffer* trace_present; NYA_TraceFeature trace_feature; }
+struct NYA_RenderSystemWindow { NYA_Color clear_color; NYA_FluidRenderOptions fluid; SDL_GPURenderPass* render_pass; SDL_GPUCommandBuffer* render_commands; SDL_GPUTexture* swapchain_texture; SDL_GPUTextureFormat color_format; b8 render_pass_normals; SDL_GPUTexture* msaa_texture; u32 msaa_width; u32 msaa_height; SDL_GPUSampleCount msaa_sample_count; SDL_GPUTexture* depth_texture; u32 depth_width; u32 depth_height; SDL_GPUSampleCount depth_sample_count; NYA_Render2DBatch draw_batch; NYA_Render3DBatch mesh_batch; NYA_Render3DDecals decals; NYA_Render3DDecalsGPU decals_gpu; NYA_RenderOutput output; NYA_RenderOutputGPU output_gpu; NYA_Render2DHaze haze; NYA_RenderFeatures features; u32 features_off_mask; u32 features_on_mask; NYA_PostInk post_ink; NYA_PostAmbientOcclusion post_ambient_occlusion; NYA_PostAntialias post_antialias; NYA_PostDepthOfField post_depth_of_field; NYA_PostSpeedLines post_speed_lines; NYA_PostBloom post_bloom; NYA_PostEyeAdaptation post_eye_adaptation; NYA_PostLightShafts post_light_shafts; NYA_PostMotionBlur post_motion_blur; NYA_PostDebugView post_debug_view; NYA_RenderFrameStats frame_stats; NYA_RenderFrameStats frame_stats_last; SDL_GPUCommandBuffer* trace_present; NYA_TraceFeature trace_feature; }
 struct NYA_Vertex3D { f32 position[3]; f16 uv[2]; f32 normals[3]; f16 color[4]; }  // One vertex of the immediate 3D batch, 36 bytes.
 struct NYA_Render3DInstance { f32_4x4 model; NYA_Color tint; }  // One drawn copy of a retained mesh: its transform and tint, 80 bytes.
 struct NYA_Vertex2D { f32 x, y; f32 u, v; u8 color[4]; }  // The vertex the 2D batch uses, twenty bytes.
