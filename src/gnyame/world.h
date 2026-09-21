@@ -49,6 +49,12 @@ typedef struct GNY_World {
     /** Sparks thrown off by crate impacts. */
     NYA_ParticleSystem* sparks;
 
+    /** The 2D scene's steam vent: one Navier-Stokes volume over the tilemap. See render_fluid.h. */
+    NYA_Fluid* steam;
+
+    /** Whether either scene draws its fluid volume. Both scenes bind the same action, `9`. */
+    b8 fluid_enabled;
+
     /** The offscreen chain the world is composited through for grading and bloom. */
     NYA_PostChain post;
     b8            bloom_enabled;

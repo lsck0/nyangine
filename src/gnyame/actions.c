@@ -91,6 +91,7 @@ NYA_INTERNAL const GNY_ActionDefault _GNY_ACTION_DEFAULTS[] = {
     { .action = GNY_ACTION_TOGGLE_SPEED_LINES,   .name = "toggle_speed_lines",   .primary = NYA_KEY_6     },
     { .action = GNY_ACTION_TOGGLE_DECALS,        .name = "toggle_decals",        .primary = NYA_KEY_7     },
     { .action = GNY_ACTION_TOGGLE_HDR,           .name = "toggle_hdr",           .primary = NYA_KEY_8     },
+    { .action = GNY_ACTION_TOGGLE_FLUID,         .name = "toggle_fluid",         .primary = NYA_KEY_9     },
     { .action = GNY_ACTION_DROP_THROUGH,         .name = "drop_through",         .primary = NYA_KEY_G     },
     { .action = GNY_ACTION_FREEZE_ANIMATION,     .name = "freeze_animation",     .primary = NYA_KEY_F     },
 

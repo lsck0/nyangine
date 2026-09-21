@@ -29,6 +29,23 @@ void gny_world_create(NYA_NetLaunchConfig launch) {
         // allocated once with the world: the pool is fixed and emission never allocates.
         .sparks = nya_particles_create(allocator, GNY_SPARK_POOL),
 
+        // the same rule, and the stronger case for it: a fluid grid is allocated once at the size it
+        // is created with and a step allocates nothing at all. See render_fluid.h.
+        .steam = nya_fluid_create(allocator,
+                                  (NYA_FluidOptions){
+                                      .space       = NYA_FLUID_SPACE_2D,
+                                      .width       = GNY_FLUID2D_WIDTH,
+                                      .height      = GNY_FLUID2D_HEIGHT,
+                                      .cell_size   = GNY_FLUID2D_CELL_SIZE,
+                                      .origin      = GNY_FLUID2D_ORIGIN,
+                                      .buoyancy    = GNY_FLUID2D_BUOYANCY,
+                                      .vorticity   = GNY_FLUID2D_VORTICITY,
+                                      .dissipation = GNY_FLUID2D_DISSIPATION,
+                                      .cooling     = GNY_FLUID2D_COOLING,
+                                  }),
+
+        .fluid_enabled = true,
+
         // the camera entity is created when the game layer is pushed; until then gny_entity_camera_get returns
         // the identity camera.
         .camera       = NYA_ENTITY_HANDLE_NONE,
@@ -256,6 +273,10 @@ void gny_world_draw(NYA_Window* window, NYA_Camera2DTopDown camera) {
 
     // after the crates, so sparks land in front of them.
     nya_particles_draw(window, gny_world()->sparks);
+
+    // and after the sparks, since steam drifts over everything the scene has drawn. The call returns
+    // before it reads the grid when this window has fluids off, which is what `9` toggles.
+    nya_fluid_draw(window, gny_world()->steam);
 
     _gny_lights_apply(window);
 

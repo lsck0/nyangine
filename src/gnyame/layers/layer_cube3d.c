@@ -72,6 +72,21 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
         // two systems, since each draws in one blend mode. see GNY_Cube3DScene.
         .fire  = nya_particles_create(nya_world()->allocator, GNY_CUBE3D_FIRE_POOL),
         .smoke = nya_particles_create(nya_world()->allocator, GNY_CUBE3D_SMOKE_POOL),
+
+        // the grid is allocated here and never again; the origin is set below, once the terrain has
+        // been generated and the fire's ground height is known.
+        .plume = nya_fluid_create(nya_world()->allocator,
+                                  (NYA_FluidOptions){
+                                      .space       = NYA_FLUID_SPACE_3D,
+                                      .width       = GNY_FLUID3D_WIDTH,
+                                      .height      = GNY_FLUID3D_HEIGHT,
+                                      .depth       = GNY_FLUID3D_DEPTH,
+                                      .cell_size   = GNY_FLUID3D_CELL_SIZE,
+                                      .buoyancy    = GNY_FLUID3D_BUOYANCY,
+                                      .vorticity   = GNY_FLUID3D_VORTICITY,
+                                      .dissipation = GNY_FLUID3D_DISSIPATION,
+                                      .cooling     = GNY_FLUID3D_COOLING,
+                                  }),
     };
 
     // queued, not waited on: the model draws once it loads. a missing model leaves the primitives.
@@ -390,6 +405,10 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_HDR, key->key, key->modifier_flags)) {
                 look->output.hdr   = !look->output.hdr;
                 event->was_handled = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_FLUID, key->key, key->modifier_flags)) {
+                // the same flag the 2D scene reads, since one key means one thing wherever it is pressed.
+                gny_world()->fluid_enabled = !gny_world()->fluid_enabled;
+                event->was_handled         = true;
             }
         } break;
 
@@ -609,6 +628,51 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
     nya_particles_update(scene->dust, delta_time_s);
     nya_particles_update(scene->fire, delta_time_s);
     nya_particles_update(scene->smoke, delta_time_s);
+
+    /*
+     * The simulated column over the same fire. Its box is placed every tick rather than once, because
+     * `r` regenerates the terrain under it and the bonfire's ground height moves with it.
+     */
+    f32 hearth_y = gny_terrain3d_height_at(GNY_CUBE3D_PLUME_X, GNY_CUBE3D_PLUME_Z) - GNY_FLUID3D_GROUND_DROP;
+
+    NYA_FluidOptions plume = nya_fluid_options(scene->plume);
+
+    plume.origin = (f32x3){
+        GNY_CUBE3D_PLUME_X - ((f32)GNY_FLUID3D_WIDTH * GNY_FLUID3D_CELL_SIZE * 0.5F),
+        hearth_y,
+        GNY_CUBE3D_PLUME_Z - ((f32)GNY_FLUID3D_DEPTH * GNY_FLUID3D_CELL_SIZE * 0.5F),
+    };
+
+    nya_fluid_options_set(scene->plume, plume);
+
+    // the emitter takes amounts, not rates, so the per-second constants meet this tick's step here.
+    nya_fluid_emit(scene->plume, (NYA_FluidEmitter){
+                                     .position    = { GNY_CUBE3D_PLUME_X, hearth_y + GNY_FLUID3D_SOURCE_HEIGHT, GNY_CUBE3D_PLUME_Z },
+                                     .radius      = GNY_FLUID3D_SOURCE_RADIUS,
+                                     .density     = GNY_FLUID3D_SOURCE_DENSITY * delta_time_s,
+                                     .temperature = GNY_FLUID3D_SOURCE_TEMPERATURE * delta_time_s,
+                                     .velocity    = GNY_FLUID3D_SOURCE_VELOCITY,
+                                 });
+
+    /*
+     * The pile's crates become solid cells, which is the cheap half of obstacles: a body's entity
+     * already carries the transform physics wrote to it, so no backend query happens. Cleared first,
+     * since a crate that moved must stop being a wall where it was.
+     */
+    nya_fluid_obstacles_clear(scene->plume);
+
+    for (u32 i = 0; i < scene->cube_count; i++) {
+        const NYA_Entity* cube = nya_entity_get(scene->cubes[i].entity);
+
+        if (cube == nullptr) continue;
+
+        // the size the body was attached with, not the transform's scale, which these leave at one.
+        f32x3 half = { scene->cubes[i].size * 0.5F, scene->cubes[i].size * 0.5F, scene->cubes[i].size * 0.5F };
+
+        nya_fluid_obstacle_box_set(scene->plume, cube->position - half, cube->position + half);
+    }
+
+    nya_fluid_step(scene->plume, delta_time_s);
 
     // fed on a timer, so plume density does not depend on frame rate. a loop keeps the rate through long frames.
     scene->plume_timer_s += delta_time_s;
@@ -987,6 +1051,23 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
     nya_render3d_blend_set(window, NYA_RENDER3D_BLEND_ADDITIVE);
     nya_particles_draw(window, scene->fire);
     nya_render3d_blend_set(window, NYA_RENDER3D_BLEND_ALPHA);
+
+    /*
+     * The simulated column last: it is additive too, and it switches the blend itself on the way in
+     * and back on the way out. Inside the scene, so the post chain composites it with everything else
+     * and bloom reads the hot cells at its base.
+     */
+    nya_fluid_render_options_set(window, (NYA_FluidRenderOptions){
+                                             .enabled         = gny_world()->fluid_enabled,
+                                             .opacity         = GNY_FLUID3D_OPACITY,
+                                             .threshold       = GNY_FLUID_DRAW_THRESHOLD,
+                                             .density_full    = GNY_FLUID_DENSITY_FULL,
+                                             .cool            = GNY_FLUID3D_COOL_COLOR,
+                                             .hot             = GNY_FLUID3D_HOT_COLOR,
+                                             .hot_temperature = GNY_FLUID_HOT_TEMPERATURE,
+                                         });
+
+    nya_fluid_draw(window, scene->plume);
 
     nya_render3d_end(window);
 }

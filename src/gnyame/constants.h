@@ -1085,3 +1085,97 @@
 #define GNY_ROBOT_POPULATION             48
 #define GNY_ROBOT_GENERATIONS_PER_SECOND 2.0F
 #define GNY_ROBOT_DQN_STEPS_PER_SECOND   240.0F
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * FLUID VOLUMES
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * One Navier-Stokes volume per scene, both from the same solver: a steam vent over the 2D tilemap and
+ * a smoke column over the 3D bonfire. Sized from the measurement in TODO.md's budget section rather
+ * than from taste: the step is linear in cells, so the grid is the whole cost decision.
+ */
+
+/**
+ * The 2D vent's grid. 48x32 cells at 14 world pixels is a 672x448 region, which covers the middle of
+ * the tilemap at the starting zoom, and costs 0.30 ms a step at the default twenty sweeps.
+ * */
+#define GNY_FLUID2D_WIDTH     48
+#define GNY_FLUID2D_HEIGHT    32
+#define GNY_FLUID2D_CELL_SIZE 14.0F
+
+/** The region's top left, so the vent's column sits over the map rather than off the side of it. */
+#define GNY_FLUID2D_ORIGIN ((f32x3){ -336.0F, GNY_TERRAIN_BASE_Y - 448.0F, 0.0F })
+
+/** Where the steam comes from: the bottom middle of the region, a couple of cells up off its floor. */
+#define GNY_FLUID2D_VENT ((f32x3){ 0.0F, GNY_TERRAIN_BASE_Y - 40.0F, 0.0F })
+
+/** World pixels: wide enough that the plume reads as a column and not a thread. */
+#define GNY_FLUID2D_VENT_RADIUS 34.0F
+
+/**
+ * Per second, so a frame's emission is these times its own step. Density is what is drawn and
+ * temperature is what lifts it; the pair is what makes a plume rather than a cloud that sits still.
+ * */
+#define GNY_FLUID2D_VENT_DENSITY     3.2F
+#define GNY_FLUID2D_VENT_TEMPERATURE 5.0F
+
+/** World pixels per second, upward. 2D y grows down the screen, hence the sign. */
+#define GNY_FLUID2D_VENT_VELOCITY ((f32x3){ 0.0F, -120.0F, 0.0F })
+
+/* Buoyancy in pixels per second squared per degree, and the rates that stop the vent filling the box. */
+#define GNY_FLUID2D_BUOYANCY    38.0F
+#define GNY_FLUID2D_VORTICITY   1.0F
+#define GNY_FLUID2D_DISSIPATION 0.55F
+#define GNY_FLUID2D_COOLING     0.9F
+
+/** A pale steam that warms toward white at the vent. */
+#define GNY_FLUID2D_COOL_COLOR ((NYA_Color){ 0.62F, 0.72F, 0.82F, 1.0F })
+#define GNY_FLUID2D_HOT_COLOR  ((NYA_Color){ 0.95F, 0.97F, 1.00F, 1.0F })
+
+/**
+ * The 3D column's grid, in metres. 12x18x12 at 0.6 m is a 7.2x10.8x7.2 m box over the bonfire and
+ * costs 0.33 ms a step, which is what a demo can pay beside everything else in the scene.
+ * */
+#define GNY_FLUID3D_WIDTH     12
+#define GNY_FLUID3D_HEIGHT    18
+#define GNY_FLUID3D_DEPTH     12
+#define GNY_FLUID3D_CELL_SIZE 0.6F
+
+/** Metres above the fire's own ground height the box starts, so the flames are inside it. */
+#define GNY_FLUID3D_GROUND_DROP 0.6F
+
+/** Metres above the box's floor the smoke is injected, and how wide the source is. */
+#define GNY_FLUID3D_SOURCE_HEIGHT 1.0F
+#define GNY_FLUID3D_SOURCE_RADIUS 0.7F
+
+/** Per second, as with the 2D vent. */
+#define GNY_FLUID3D_SOURCE_DENSITY     2.4F
+#define GNY_FLUID3D_SOURCE_TEMPERATURE 4.0F
+
+/** Metres per second, upward. 3D is y up. */
+#define GNY_FLUID3D_SOURCE_VELOCITY ((f32x3){ 0.0F, 2.4F, 0.0F })
+
+/* Metres per second squared per degree, and the rates that keep the column inside its box. */
+#define GNY_FLUID3D_BUOYANCY    3.4F
+#define GNY_FLUID3D_VORTICITY   1.0F
+#define GNY_FLUID3D_DISSIPATION 0.7F
+#define GNY_FLUID3D_COOLING     1.1F
+
+/**
+ * Drawn additive, so the colours are what a splat adds rather than what it covers: a dim grey for the
+ * cold smoke at the top and the bonfire's own orange for the hot cells at the bottom.
+ * */
+#define GNY_FLUID3D_COOL_COLOR ((NYA_Color){ 0.16F, 0.15F, 0.17F, 1.0F })
+#define GNY_FLUID3D_HOT_COLOR  ((NYA_Color){ 0.90F, 0.40F, 0.12F, 1.0F })
+
+/** Temperature at which the hot colour fully replaces the cold one, in both scenes. */
+#define GNY_FLUID_HOT_TEMPERATURE 2.0F
+
+/** How opaque the densest cell draws, and the density that reaches it. */
+#define GNY_FLUID2D_OPACITY      0.75F
+#define GNY_FLUID3D_OPACITY      0.28F
+#define GNY_FLUID_DENSITY_FULL   1.4F
+
+/** Below this a cell is skipped entirely, which is most of the grid most of the time. */
+#define GNY_FLUID_DRAW_THRESHOLD 0.03F

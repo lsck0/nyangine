@@ -213,6 +213,11 @@ void gny_layer_game_on_event(NYA_Window* window, NYA_Event* event) {
             } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_GRADE, key->key, key->modifier_flags)) {
                 world->grade_enabled = !world->grade_enabled;
                 event->was_handled   = true;
+            } else if (nya_input_action_matches(GNY_ACTION_TOGGLE_FLUID, key->key, key->modifier_flags)) {
+                // the volume keeps stepping either way, so turning it back on shows the plume it
+                // would have had rather than an empty grid. Only the draw is switched.
+                world->fluid_enabled = !world->fluid_enabled;
+                event->was_handled   = true;
             } else if (nya_input_action_matches(GNY_ACTION_DROP_THROUGH, key->key, key->modifier_flags)) {
                 // every crate, on a ledge or not. The window is harmless off a ledge, and checking would mean
                 // walking contacts. See gny_entity_ledge_drop_everything_through.
@@ -260,6 +265,21 @@ void gny_layer_game_on_update(NYA_Window* window, f32 delta_time_s) {
 
     // once per tick here, not in on_render, which runs once per camera and would age them several times.
     nya_particles_update(gny_world()->sparks, delta_time_s);
+
+    /*
+     * The steam vent, for the same reason: one source and one step per tick, whatever the frame rate
+     * does. The emitter takes amounts rather than rates, so the per-second constants are multiplied by
+     * this tick's own step here; see nya_fluid_emit.
+     */
+    nya_fluid_emit(gny_world()->steam, (NYA_FluidEmitter){
+                                           .position    = GNY_FLUID2D_VENT,
+                                           .radius      = GNY_FLUID2D_VENT_RADIUS,
+                                           .density     = GNY_FLUID2D_VENT_DENSITY * delta_time_s,
+                                           .temperature = GNY_FLUID2D_VENT_TEMPERATURE * delta_time_s,
+                                           .velocity    = GNY_FLUID2D_VENT_VELOCITY,
+                                       });
+
+    nya_fluid_step(gny_world()->steam, delta_time_s);
 }
 
 /*
@@ -275,6 +295,21 @@ void gny_layer_game_on_render(NYA_Window* window) {
     // `elapsed_ns` is the frame period, sleep included, which is the real time interpolation advances
     // by. `delta_time_s` is the fixed tick and would tie smoothing to the simulation rate.
     nya_net_client_interpolate((f32)nya_time_ns_to_s(nya_app_get()->frame_stats.elapsed_ns));
+
+    /*
+     * The window's fluid look, before anything draws through it. Set every frame rather than at
+     * creation because `9` flips it and because the 3D scene sets its own: whichever layer rendered
+     * last owns the window's copy, which is what makes one options struct per window enough.
+     */
+    nya_fluid_render_options_set(window, (NYA_FluidRenderOptions){
+                                             .enabled         = gny_world()->fluid_enabled,
+                                             .opacity         = GNY_FLUID2D_OPACITY,
+                                             .threshold       = GNY_FLUID_DRAW_THRESHOLD,
+                                             .density_full    = GNY_FLUID_DENSITY_FULL,
+                                             .cool            = GNY_FLUID2D_COOL_COLOR,
+                                             .hot             = GNY_FLUID2D_HOT_COLOR,
+                                             .hot_temperature = GNY_FLUID_HOT_TEMPERATURE,
+                                         });
 
     /*
      * One call, because how many cameras there are and what order they draw in is the camera

@@ -67,6 +67,12 @@ typedef struct GNY_Cube3DScene {
     NYA_ParticleSystem* fire;
     NYA_ParticleSystem* smoke;
 
+    /**
+     * The simulated column over the same bonfire: a Navier-Stokes volume whose buoyancy carries the
+     * heat the flames put into it. The billboards are the flames, this is the air above them.
+     * */
+    NYA_Fluid* plume;
+
     /** Seconds since the plume last emitted. */
     f32 plume_timer_s;
 

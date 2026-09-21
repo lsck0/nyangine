@@ -12,8 +12,6 @@
  *   nya_fluid_step                         one step of the simulation, from an explicit timestep
  *   nya_fluid_emit                         density, heat and velocity into a sphere of the grid
  *   nya_fluid_obstacle_box_set / _clear    a solid box, in world units
- *   nya_fluid_obstacle_entity_set /
- *     nya_fluid_obstacle_entity_clear      the same box, read off a physics body's entity
  *   nya_fluid_obstacles_clear              every obstacle at once
  *   nya_fluid_density_at /
  *     _temperature_at / _velocity_at       the fields sampled at a world point
@@ -149,7 +147,6 @@
 #include "nyangine/math/math_vector.h"
 #include "nyangine/renderer/render_color.h"
 
-typedef struct NYA_Entity NYA_Entity;
 typedef struct NYA_Window NYA_Window;
 
 /*
@@ -518,26 +515,21 @@ NYA_API void nya_fluid_emit(NYA_Fluid* fluid, NYA_FluidEmitter emitter);
  * Marks every cell whose centre falls inside the world-space box as solid: fluid neither enters it
  * nor flows through it, and its velocity is held at zero.
  *
- * A box is the whole vocabulary on purpose. Voxelising an arbitrary collider means asking the
- * physics backend to answer a point query per cell, which for a 32x48x32 grid is 49 thousand queries
- * a frame; an axis-aligned box is a triple loop over the cells it covers and nothing else. See
- * nya_fluid_obstacle_entity_set for reading one off a body.
+ * This is how a physics body becomes an obstacle, and it is the cheap half of that on purpose: a
+ * caller already holds the body's world position and the extents it attached the shape with, so
+ * marking it is a triple loop over the cells it covers and no backend query at all. Voxelising an
+ * arbitrary collider instead means a point query per cell, which for a 32x48x32 grid is 49 thousand
+ * queries a frame.
+ *
+ * Rejected: a `nya_fluid_obstacle_entity_set` taking an NYA_Entity and reading its `scale`. In this
+ * engine an entity's scale is not its collider's size, since a body is attached with its own extents
+ * and most callers leave the transform's scale at one, so the helper would have been silently wrong
+ * more often than right. The caller passes the size it actually used.
  * */
 NYA_API void nya_fluid_obstacle_box_set(NYA_Fluid* fluid, f32x3 min, f32x3 max);
 
 /** Unmarks the same box. The partner of nya_fluid_obstacle_box_set. */
 NYA_API void nya_fluid_obstacle_box_clear(NYA_Fluid* fluid, f32x3 min, f32x3 max);
-
-/**
- * The entity's axis-aligned box, from its world position and scale, marked solid. This is the cheap
- * half of "obstacles from the physics bodies": a body's entity already carries the transform physics
- * writes to it, so no backend query happens at all. A rotated or non-box collider is approximated by
- * its scale box, which for smoke flowing around a crate is what it looks like anyway.
- * */
-NYA_API void nya_fluid_obstacle_entity_set(NYA_Fluid* fluid, const NYA_Entity* entity);
-
-/** Unmarks the entity's box. The partner of nya_fluid_obstacle_entity_set. */
-NYA_API void nya_fluid_obstacle_entity_clear(NYA_Fluid* fluid, const NYA_Entity* entity);
 
 /** Clears every obstacle in one pass, for a body that moved or a level that changed. */
 NYA_API void nya_fluid_obstacles_clear(NYA_Fluid* fluid);

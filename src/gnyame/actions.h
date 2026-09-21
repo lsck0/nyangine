@@ -69,6 +69,9 @@ enum {
     GNY_ACTION_TOGGLE_DECALS,
     GNY_ACTION_TOGGLE_HDR,
 
+    /** The fluid volume in whichever scene is up. Off costs nothing; see nya_fluid_render_options_set. */
+    GNY_ACTION_TOGGLE_FLUID,
+
     /** Opens a drop-through window on every crate, so anything on a one-way ledge falls off it. */
     GNY_ACTION_DROP_THROUGH,
 

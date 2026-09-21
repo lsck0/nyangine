@@ -470,22 +470,6 @@ void nya_fluid_obstacle_box_clear(NYA_Fluid* fluid, f32x3 min, f32x3 max) {
     _nya_fluid_obstacle_box_apply(fluid, min, max, false);
 }
 
-void nya_fluid_obstacle_entity_set(NYA_Fluid* fluid, const NYA_Entity* entity) {
-    nya_assert(fluid != nullptr);
-    nya_assert(entity != nullptr);
-
-    f32x3 half = entity->scale * 0.5F;
-    _nya_fluid_obstacle_box_apply(fluid, entity->position - half, entity->position + half, true);
-}
-
-void nya_fluid_obstacle_entity_clear(NYA_Fluid* fluid, const NYA_Entity* entity) {
-    nya_assert(fluid != nullptr);
-    nya_assert(entity != nullptr);
-
-    f32x3 half = entity->scale * 0.5F;
-    _nya_fluid_obstacle_box_apply(fluid, entity->position - half, entity->position + half, false);
-}
-
 void nya_fluid_obstacles_clear(NYA_Fluid* fluid) {
     nya_assert(fluid != nullptr);
     nya_assert(fluid->obstacle != nullptr, "a volume with no obstacle mask");
