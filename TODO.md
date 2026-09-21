@@ -167,8 +167,19 @@ the packager ones.
 - `[ ]` Log spam, including things logged as errors that are not. Two known: the atlas warning above logs every
   frame instead of once per key, and `nya_app_init_with_options` logs
   "No supported SDL_GPU backend found" as an ERROR on headless test runs where it is the expected state.
-- `[ ]` Shadows move laggily.
-- `[ ]` The fire effect flickers.
+- `[x]` Shadows moved laggily. The light basis snapped elevation and azimuth to 0.5° steps, which halved
+  the pixels changing per frame by freezing most of them: over 240 frames at 60 fps with the two minute
+  day, 197 of 239 frames were frozen and the worst single frame jumped 4.678 texels. Following the sun
+  exactly: 0 frozen frames, worst jump 1.481.
+- `[x]` The fire flickered. A draw went to the opaque stream whenever its colour was fully opaque, and a
+  particle is born at exactly alpha one, so for its first tick every flame particle drew through the
+  opaque pipeline: depth written, no addition, a solid square punched through the plume. Blend mode is
+  explicit caller intent and alpha is a heuristic, so additive now never counts as opaque.
+- `[ ]` `test_robots` fails about one full suite run in ten, on `the drones move`, and passes 12 of 12
+  standalone. It is timing, not state: the test isolates its own save root, but under a loaded parallel
+  run the training job gets through fewer generations, and a genome that has not evolved far can hold
+  every drone still, which the test reads as not moving. Give it a deterministic generation count
+  rather than a wall clock budget.
 - `[ ]` RenderDoc closes immediately instead of capturing. Not the anti-tamper check — that early-returns
   unless `NYA_SHIPPING_BUILD` (`base_integrity.c:148,172`). Cause still unknown.
 - `[x]` `monocypher.h` not found, `NYA_LuaVM` unknown, `windows.h` not found, and the
