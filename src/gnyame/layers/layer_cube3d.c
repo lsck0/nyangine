@@ -620,6 +620,15 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
     GNY_Cube3DScene* scene = _gny_cube3d_scene();
 
     /*
+     * The pause action, here rather than in gny_layer_ui, which this screen does not push: the 2D game
+     * stacks background, game and ui, and the 3D demo stacks background and this. Pause belonged to the
+     * HUD layer, so escape did nothing in the 3D scene at all.
+     *
+     * While a menu is up the menu reads pause itself, which is what gny_modal_active answers.
+     */
+    if (nya_input_action_just_pressed(NYA_INPUT_ACTION_PAUSE) && !gny_modal_active()) gny_screen_request(GNY_SCREEN_PAUSE);
+
+    /*
      * The terrain's detail levels, from where the camera is.
      */
     gny_terrain3d_update(_gny_cube3d_camera_position(scene));
