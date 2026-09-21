@@ -20,6 +20,9 @@
 #include "nyangine/net/net.h"
 /**/
 #include "nyangine/core/core.h"
+// after core: the server registers its drain on the frame's own event and its metrics resource reads
+// the app, the ceiling registry and the system registry.
+#include "nyangine/http/http.h"
 #include "nyangine/renderer/render2d.h"
 // after render2d.h, whose surface it replaces the implementation of. Empty unless -DNYA_TERMINAL.
 #include "nyangine/renderer/render2d_terminal.h"

@@ -1,0 +1,223 @@
+/**
+ * @file http_message.h
+ *
+ * The wire boundary: bytes a stranger sent, in; bytes this program will send, out. Nothing here
+ * knows about sockets, routes or handlers, so all of it is a pure function over a byte range and all
+ * of it is reachable from a fuzz target (tests/fuzz/fuzz_http_request.c).
+ *
+ * ```
+ * nya_http_request_parse        bytes -> NYA_HttpRequest, or "not yet", or "answer this and close"
+ * nya_http_request_header       one header by name, already lowercased and bounded
+ * nya_http_request_query_param  one query parameter, percent-decoded into the caller's buffer
+ * nya_http_request_json         the body as a serde document
+ * nya_http_request_reflect      the body straight into a DTO, by its reflection
+ *
+ * nya_http_response_create      binds a response to the buffer it will write its body into
+ * nya_http_response_destroy     the pair; forgets the buffer, so a stale response cannot write
+ * nya_http_response_reset       empties it without unbinding, for a layer that replaces an answer
+ * nya_http_response_bytes       the body, as bytes
+ * nya_http_response_text        the body, as a null terminated string
+ * nya_http_response_printf      the body, formatted
+ * nya_http_response_json        the body, as a serde document rendered to JSON
+ * nya_http_response_reflect     the body, as a DTO rendered through its reflection. The common one
+ * nya_http_response_header      one extra header
+ * nya_http_response_head        the status line and headers, rendered, ready to write
+ * ```
+ *
+ * ```c
+ * NYA_HttpRequest request = { 0 };
+ * u64             consumed = 0;
+ * NYA_HttpStatus  refusal = NYA_HTTP_STATUS_NONE;
+ *
+ * switch (nya_http_request_parse(buffer, filled, &request, &consumed, &refusal)) {
+ *     case NYA_HTTP_PARSE_INCOMPLETE: return;                        // wait for more bytes
+ *     case NYA_HTTP_PARSE_REFUSED:    answer(refusal); close(); return;
+ *     case NYA_HTTP_PARSE_DONE:       break;
+ * }
+ * ```
+ *
+ * ── what the parser promises ──
+ *
+ * On NYA_HTTP_PARSE_DONE, and only then: `method` names a verb, `path` is null terminated, starts
+ * with '/', is percent-decoded and contains no "." or ".." segment, `query` is null terminated,
+ * `header_count` is at most NYA_HTTP_MAX_HEADERS with every name and value null terminated inside
+ * their bounds, `body_size` is at most NYA_HTTP_MAX_BODY_BYTES, and `consumed` is at most `size`.
+ * Those are the invariants the fuzz target asserts, and they are what lets everything downstream take
+ * the struct rather than the bytes.
+ *
+ * Nothing a client can send reaches an assertion. A request that cannot be answered is
+ * NYA_HTTP_PARSE_REFUSED carrying the status that says why, and the connection is closed after it:
+ * a stream this parser has given up on cannot be resynchronised, and guessing where the next request
+ * starts is exactly the request smuggling bug. The same reasoning refuses a request that carries both
+ * Content-Length and Transfer-Encoding rather than preferring one.
+ * */
+#pragma once
+
+#include "nyangine/base/base_arena.h"
+#include "nyangine/base/base_attributes.h"
+#include "nyangine/base/base_error.h"
+#include "nyangine/base/base_object.h"
+#include "nyangine/base/base_reflection.h"
+#include "nyangine/base/base_types.h"
+#include "nyangine/http/http_types.h"
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * CONSTANTS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Bytes the rendered status line and headers may take.
+ *
+ * Big enough for the fixed headers plus every custom one at its full bound, which the static assert
+ * in http_message.c checks rather than trusting this number.
+ * */
+#define NYA_HTTP_MAX_RESPONSE_HEAD_BYTES 4864
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * TYPES
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+typedef enum NYA_HttpParse NYA_HttpParse;
+
+/** What one call to nya_http_request_parse decided. */
+enum NYA_HttpParse {
+    /**
+     * Not enough bytes yet. Nothing was written to the request and nothing is wrong; call again when
+     * more have arrived. A caller still has to bound how long it waits; see NYA_HTTP_IDLE_TIMEOUT_MS.
+     * */
+    NYA_HTTP_PARSE_INCOMPLETE = 0,
+
+    /** The request is in `out_request` and `out_consumed` says how much of the stream it took. */
+    NYA_HTTP_PARSE_DONE,
+
+    /**
+     * The bytes are not a request this server will answer. `out_status` carries what to send, and the
+     * connection is finished either way: see the note at the top of this file.
+     * */
+    NYA_HTTP_PARSE_REFUSED,
+};
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * FUNCTIONS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * REQUESTS
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * Parses one request out of the front of `data`.
+ *
+ * `out_request` is scratch for the duration and only means anything on NYA_HTTP_PARSE_DONE, where it
+ * has been fully overwritten; a caller reuses one struct across requests and never reads it after any
+ * other answer. Built in place because the struct is twenty kilobytes of fixed buffers and a copy of
+ * it per request would cost more than the parse. `out_consumed` says how many bytes of `data` this
+ * request took, which is what a caller shifts off to handle a pipelined second one.
+ *
+ * Allocates nothing and reads nothing outside `data[0, size)`.
+ * */
+NYA_API NYA_HttpParse
+nya_http_request_parse(const u8* data, u64 size, OUT NYA_HttpRequest* out_request, OUT u64* out_consumed, OUT NYA_HttpStatus* out_status);
+
+/**
+ * The value of the header called `name`, or null when there is none. `name` is matched without regard
+ * to case, since that is what the grammar says and not a convenience.
+ * */
+NYA_API NYA_ConstCString nya_http_request_header(const NYA_HttpRequest* request, NYA_ConstCString name) __attr_no_discard;
+
+/**
+ * Percent-decodes the query parameter called `name` into `buffer`, null terminated.
+ *
+ * False when there is no such parameter, or when its decoded value does not fit `capacity`; `buffer`
+ * is left holding an empty string in both cases, so a caller that ignores the return value gets the
+ * empty default rather than the previous request's value.
+ * */
+NYA_API b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString name, OUT char* buffer, u64 capacity);
+
+/**
+ * The body as a serde document, allocated from `arena`.
+ *
+ * NYA_ERROR_INVALID_ARGUMENT when the request announced anything but JSON, which is the 415 case, and
+ * NYA_ERROR_PARSE when the bytes are not JSON, which is the 400 one. An empty body is
+ * NYA_ERROR_INVALID_ARGUMENT rather than an empty document, since "no body" and "{}" are different
+ * requests.
+ * */
+NYA_API NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object) __attr_no_discard;
+
+/**
+ * The body straight into `out_dto`, by the DTO's own reflection. The total conversion in: after this
+ * returns OK the handler holds its request type and never the bytes.
+ *
+ * `out_dto` is zeroed first, so a field the document omits reads as zero rather than as whatever the
+ * last request left there. Every failure of nya_http_request_json, plus NYA_ERROR_PARSE when the
+ * document does not fit the type, which nya_reflect_check reports field by field into the log.
+ * */
+NYA_API NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, OUT void* out_dto)
+    __attr_no_discard;
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * RESPONSES
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * Binds `response` to `buffer`, which is where every later body write lands and which the response
+ * never owns, frees or outlives.
+ * */
+NYA_API void nya_http_response_create(OUT NYA_HttpResponse* response, u8* buffer, u64 capacity);
+
+/**
+ * Unbinds it. Writing to a destroyed response is refused rather than scribbling on a buffer whose
+ * owner has moved on, which is the whole reason this exists when there is nothing to free.
+ * */
+NYA_API void nya_http_response_destroy(NYA_HttpResponse* response);
+
+/** Empties the body, the headers and the media type, keeping the buffer. For a layer that replaces an answer. */
+NYA_API void nya_http_response_reset(NYA_HttpResponse* response);
+
+/** NYA_ERROR_OUT_OF_MEMORY when the body would not fit, which is a bug in the handler and not in the request. */
+NYA_API NYA_Error nya_http_response_bytes(NYA_HttpResponse* response, const u8* data, u64 size, NYA_HttpMediaType media_type) __attr_no_discard;
+
+NYA_API NYA_Error nya_http_response_text(NYA_HttpResponse* response, NYA_ConstCString text, NYA_HttpMediaType media_type) __attr_no_discard;
+
+NYA_API NYA_Error nya_http_response_printf(NYA_HttpResponse* response, NYA_HttpMediaType media_type, NYA_ConstCString format, ...)
+    __attr_fmt_printf(3, 4) __attr_no_discard;
+
+/** Renders `object` as JSON into the body. `arena` is scratch and holds nothing once this returns. */
+NYA_API NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object) __attr_no_discard;
+
+/**
+ * Renders `dto` as JSON through its reflection. The total conversion out, and the one every handler
+ * here uses: the schema in the OpenAPI document is generated from the same table, so a field added to
+ * the DTO appears in both without either being edited.
+ * */
+NYA_API NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto)
+    __attr_no_discard;
+
+/**
+ * Adds one header. NYA_ERROR_OUT_OF_MEMORY past NYA_HTTP_MAX_RESPONSE_HEADERS, and
+ * NYA_ERROR_INVALID_ARGUMENT for a name or value that does not fit its bound or carries a CR or LF,
+ * which is the response splitting case and is refused rather than stripped.
+ * */
+NYA_API NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString name, NYA_ConstCString value) __attr_no_discard;
+
+/**
+ * Renders the status line and every header into `buffer`, ending with the blank line. The body is not
+ * copied: a caller writes `buffer` and then `response->body`, which is one copy fewer than joining
+ * them would be.
+ *
+ * `status` rather than `response->status` because the status a client is told is the dispatcher's to
+ * decide: a layer may turn a handler's 200 into a 304 without the handler's body changing.
+ * */
+NYA_API NYA_Error
+nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, OUT u8* buffer, u64 capacity, OUT u64* out_size)
+    __attr_no_discard;

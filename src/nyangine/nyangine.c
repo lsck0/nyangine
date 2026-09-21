@@ -10,6 +10,8 @@
 #include "nyangine/physics/physics.c"
 #include "nyangine/net/net.c"
 #include "nyangine/core/core.c"
+// after core, for the reason nyangine.h gives.
+#include "nyangine/http/http.c"
 // before either renderer and in both: no GPU state, and headless tests reach it. render_camera.c holds
 // the camera arithmetic both renderers share.
 #include "nyangine/renderer/render_camera.c"
