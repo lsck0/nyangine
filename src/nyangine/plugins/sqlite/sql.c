@@ -230,16 +230,20 @@ void _nya_sql_register_extensions(void) {
 }
 
 NYA_Error _nya_sql_bind(sqlite3_stmt* statement, const NYA_SqlValue* values, u32 value_count) {
-    if (value_count == 0) return NYA_OK;
-    if (values == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "value_count is %u but values is null", value_count);
+    if (value_count > 0 && values == nullptr) {
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "value_count is %u but values is null", value_count);
+    }
 
-    // Checked rather than trusted. Binding past the placeholder count is a SQLITE_RANGE error that
-    // reads as a database problem, when what actually happened is that the call site and the string
-    // disagree about how many `?` there are.
+    // Checked rather than trusted, and before the nothing-to-do case rather than after it: a
+    // placeholder nobody binds is not an error to SQLite, it is NULL, so a statement given no values
+    // at all would quietly match no rows. Binding past the count is a SQLITE_RANGE error that reads
+    // as a database problem when the actual fault is that the call site and the string disagree.
     int expected = sqlite3_bind_parameter_count(statement);
     if ((u32)expected != value_count) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "statement takes %d parameters but %u were given", expected, value_count);
     }
+
+    if (value_count == 0) return NYA_OK;
 
     for (u32 i = 0; i < value_count; i++) {
         // SQLite numbers placeholders from one.

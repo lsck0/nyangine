@@ -118,6 +118,13 @@ s32 main(void) {
     NYA_SqlResult query  = { 0 };
     NYA_Error     nulled = nya_sql_query(db, arena, "SELECT * FROM t WHERE a = ?", nullptr, 1, &query);
     nya_assert(nulled.kind == NYA_ERROR_INVALID_ARGUMENT, "a count with no values is a mistake, not a crash");
+
+    // A placeholder nobody binds is NULL to SQLite rather than an error, so a statement handed no
+    // values at all would match no rows and look like an empty table.
+    NYA_Error unbound = nya_sql_query(db, arena, "SELECT * FROM t WHERE a = ?", nullptr, 0, &query);
+    nya_assert(unbound.kind == NYA_ERROR_INVALID_ARGUMENT, "no values for one placeholder is the same mistake");
+
+    NYA_EXPECT(nya_sql_query(db, arena, "SELECT * FROM t", nullptr, 0, &query));
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
