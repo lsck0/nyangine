@@ -183,12 +183,25 @@ s32 main(void) {
         gny_robots_update(0.0F);
         nya_check(robots->brain != nullptr && robots->brain_fitness > 0.0, "the fittest genome is what the drones fly");
 
-        // any drone: an evolved genome can hold one still, which is a valid choice for a single body.
+        /*
+         * Over a horizon, not in one tick, and any drone rather than all of them.
+         *
+         * `brain_fitness > 0` above is what makes this sound: a genome only scores above zero by flying
+         * toward the player during its test flights, so something it flies has to move eventually. One
+         * tick does not follow from that — a genome may thrust to nothing on any given tick, and which
+         * genome wins depends on how many generations the training job got through, which under a loaded
+         * parallel test run is not the same number twice. Asserting a single tick failed about one run in
+         * ten for that reason alone.
+         */
         f32x2 before[GNY_ROBOT_DRONES];
         for (u32 i = 0; i < GNY_ROBOT_DRONES; i++) before[i] = robots->bodies[i].position;
-        gny_robots_update(GNY_ROBOT_TRAIN_DT);
+
         b8 moved = false;
-        for (u32 i = 0; i < GNY_ROBOT_DRONES; i++) moved |= nya_vector_length(robots->bodies[i].position - before[i]) > 0.0F;
+        for (u32 tick = 0; tick < GNY_ROBOT_MOVE_HORIZON_TICKS && !moved; tick++) {
+            gny_robots_update(GNY_ROBOT_TRAIN_DT);
+            for (u32 i = 0; i < GNY_ROBOT_DRONES; i++) moved |= nya_vector_length(robots->bodies[i].position - before[i]) > 0.0F;
+        }
+
         nya_check(moved, "the drones move");
 
         u32 generation = robots->generation;

@@ -1028,6 +1028,15 @@
 /** The fixed step both training loops simulate at, the game's own tick. */
 #define GNY_ROBOT_TRAIN_DT (1.0F / 60.0F)
 
+/**
+ * How long a test waits for a flying genome to move something, in ticks.
+ *
+ * Two seconds at the training step. A genome that scored above zero flew toward the player to earn
+ * that, so it moves within a scoring flight; it need not move on any particular tick. Well under
+ * GNY_ROBOT_TRIAL_STEPS so a passing run costs a fraction of one trial.
+ * */
+#define GNY_ROBOT_MOVE_HORIZON_TICKS 120
+
 /** Steps in one scripted NEAT trial episode and in one DQN episode before it gives up on a target. */
 #define GNY_ROBOT_TRIAL_STEPS   90
 #define GNY_ROBOT_EPISODE_STEPS 120
