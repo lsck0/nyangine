@@ -7,13 +7,34 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/** One verb: what it is called on the wire, and the two things this server asks about a verb. */
+typedef struct {
+    NYA_ConstCString text;
+
+    /** Reads and changes nothing, so repeating it is the same request. RFC 9110 section 9.2.1. */
+    b8 safe;
+
+    /** Content means something on this verb, so a body is read rather than refused. */
+    b8 allows_body;
+} _NYA_HttpMethodRow;
+
 /**
- * The verbs, indexed by NYA_HttpMethod. One table so the text and the parse cannot disagree, which is
- * the failure mode of writing the switch twice.
+ * The verbs, indexed by NYA_HttpMethod. One table so the text, the parse and what a verb allows cannot
+ * disagree, which is the failure mode of writing the switch three times.
+ *
+ * QUERY is safe and carries a body, which is the whole of what the draft adds and the reason it is the
+ * read verb here: every other safe method has nowhere to put a request DTO.
  * */
-NYA_INTERNAL NYA_ConstCString _NYA_HTTP_METHOD_TEXT[NYA_HTTP_METHOD_COUNT] = {
-    [NYA_HTTP_METHOD_NONE] = "",   [NYA_HTTP_METHOD_GET] = "GET",     [NYA_HTTP_METHOD_HEAD] = "HEAD",     [NYA_HTTP_METHOD_POST] = "POST",
-    [NYA_HTTP_METHOD_PUT] = "PUT", [NYA_HTTP_METHOD_PATCH] = "PATCH", [NYA_HTTP_METHOD_DELETE] = "DELETE", [NYA_HTTP_METHOD_OPTIONS] = "OPTIONS",
+NYA_INTERNAL const _NYA_HttpMethodRow _NYA_HTTP_METHOD_ROWS[NYA_HTTP_METHOD_COUNT] = {
+    [NYA_HTTP_METHOD_NONE]    = { .text = "" },
+    [NYA_HTTP_METHOD_GET]     = { .text = "GET", .safe = true },
+    [NYA_HTTP_METHOD_HEAD]    = { .text = "HEAD", .safe = true },
+    [NYA_HTTP_METHOD_QUERY]   = { .text = "QUERY", .safe = true, .allows_body = true },
+    [NYA_HTTP_METHOD_POST]    = { .text = "POST", .allows_body = true },
+    [NYA_HTTP_METHOD_PUT]     = { .text = "PUT", .allows_body = true },
+    [NYA_HTTP_METHOD_PATCH]   = { .text = "PATCH", .allows_body = true },
+    [NYA_HTTP_METHOD_DELETE]  = { .text = "DELETE", .allows_body = true },
+    [NYA_HTTP_METHOD_OPTIONS] = { .text = "OPTIONS", .safe = true },
 };
 
 /** One row per status this server may answer with. A code absent from here is not a valid status. */
@@ -94,14 +115,14 @@ NYA_INTERNAL b8 _nya_http_equals_ignore_case(const char* text, u64 size, NYA_Con
 NYA_ConstCString nya_http_method_text(NYA_HttpMethod method) {
     nya_assert(method >= 0 && method < NYA_HTTP_METHOD_COUNT, "a method outside the enum reached nya_http_method_text");
 
-    return _NYA_HTTP_METHOD_TEXT[method];
+    return _NYA_HTTP_METHOD_ROWS[method].text;
 }
 
 NYA_HttpMethod nya_http_method_parse(const char* text, u64 size) {
     if (text == nullptr || size == 0) return NYA_HTTP_METHOD_NONE;
 
     for (u32 method = NYA_HTTP_METHOD_NONE + 1; method < NYA_HTTP_METHOD_COUNT; method++) {
-        NYA_ConstCString candidate = _NYA_HTTP_METHOD_TEXT[method];
+        NYA_ConstCString candidate = _NYA_HTTP_METHOD_ROWS[method].text;
 
         u64 length = 0;
         while (candidate[length] != '\0') length++;
@@ -119,6 +140,18 @@ NYA_HttpMethod nya_http_method_parse(const char* text, u64 size) {
 
 b8 nya_http_method_is_valid(NYA_HttpMethod method) {
     return method > NYA_HTTP_METHOD_NONE && method < NYA_HTTP_METHOD_COUNT;
+}
+
+b8 nya_http_method_is_safe(NYA_HttpMethod method) {
+    nya_assert(method >= 0 && method < NYA_HTTP_METHOD_COUNT, "a method outside the enum reached nya_http_method_is_safe");
+
+    return _NYA_HTTP_METHOD_ROWS[method].safe;
+}
+
+b8 nya_http_method_allows_body(NYA_HttpMethod method) {
+    nya_assert(method >= 0 && method < NYA_HTTP_METHOD_COUNT, "a method outside the enum reached nya_http_method_allows_body");
+
+    return _NYA_HTTP_METHOD_ROWS[method].allows_body;
 }
 
 NYA_ConstCString nya_http_status_text(NYA_HttpStatus status) {

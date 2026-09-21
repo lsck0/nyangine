@@ -99,6 +99,86 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a QUERY, which is the read verb: safe like a GET and carrying a body.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_HttpRequest* request  = nullptr;
+        u64              consumed = 0;
+        NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
+
+        NYA_ConstCString text =
+            "QUERY /api/metrics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n{\"enabled\":true}";
+
+        nya_assert(parse(arena, text, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+
+        nya_assert(request->method == NYA_HTTP_METHOD_QUERY);
+        nya_assert(nya_http_method_is_valid(request->method));
+        nya_assert(nya_http_method_is_safe(request->method), "a QUERY changes nothing, whatever it carries");
+        nya_assert(nya_http_method_allows_body(request->method), "carrying a body is the whole of what it adds");
+        nya_assert(nya_string_equals(nya_http_method_text(NYA_HTTP_METHOD_QUERY), "QUERY"));
+        nya_assert(nya_http_method_parse("QUERY", 5) == NYA_HTTP_METHOD_QUERY);
+        nya_assert(nya_http_method_parse("query", 5) == NYA_HTTP_METHOD_NONE, "a method is case sensitive");
+
+        // the body is a document like any other, and reaches a DTO the same way a POST's does.
+        nya_assert(request->media_type == NYA_HTTP_MEDIA_JSON);
+        nya_assert(request->body_size == 16);
+
+        NYA_HttpAccountingDto asked = { 0 };
+        nya_assert(nya_http_request_reflect(request, arena, nya_reflect_of(NYA_HttpAccountingDto), &asked).ok);
+        nya_assert(asked.enabled);
+
+        // and chunked framing is undone for it exactly as it is for a POST.
+        nya_assert(
+            parse(
+                arena,
+                "QUERY /api/metrics HTTP/1.1\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n"
+                "8\r\n{\"enable\r\n8\r\nd\":true}\r\n0\r\n\r\n",
+                &request,
+                &consumed,
+                &status
+            ) == NYA_HTTP_PARSE_DONE
+        );
+        nya_assert(request->body_size == 16);
+
+        // a QUERY with no body at all is a read with no parameters, not a malformed request.
+        nya_assert(parse(arena, "QUERY /api/metrics HTTP/1.1\r\nHost: x\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(request->body_size == 0);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a body on a verb that gives one no meaning is refused, not dropped.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        nya_assert(
+            refusal(arena, "GET /a HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST,
+            "an intermediary that reads those bytes as a body and a parser that reads them as the next request is smuggling"
+        );
+
+        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "HEAD /a HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "OPTIONS /a HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST);
+
+        // an announced empty body is not a body, and plenty of clients send one.
+        NYA_HttpRequest* request  = nullptr;
+        u64              consumed = 0;
+        NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
+
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nContent-Length: 0\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(request->body_size == 0);
+
+        // the verbs a body means something on, which is the set the router is written in plus PATCH.
+        nya_assert(nya_http_method_allows_body(NYA_HTTP_METHOD_POST));
+        nya_assert(nya_http_method_allows_body(NYA_HTTP_METHOD_PUT));
+        nya_assert(nya_http_method_allows_body(NYA_HTTP_METHOD_DELETE));
+        nya_assert(!nya_http_method_allows_body(NYA_HTTP_METHOD_GET));
+
+        // safe is about changing nothing, not about carrying nothing.
+        nya_assert(nya_http_method_is_safe(NYA_HTTP_METHOD_GET) && nya_http_method_is_safe(NYA_HTTP_METHOD_HEAD));
+        nya_assert(!nya_http_method_is_safe(NYA_HTTP_METHOD_POST) && !nya_http_method_is_safe(NYA_HTTP_METHOD_PUT));
+        nya_assert(!nya_http_method_is_safe(NYA_HTTP_METHOD_DELETE));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a chunked body is dechunked before a handler ever sees it.
     // ─────────────────────────────────────────────────────────────────────────────
     {

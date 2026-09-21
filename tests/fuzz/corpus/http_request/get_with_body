@@ -1,0 +1,5 @@
+GET /api/metrics HTTP/1.1
+Host: x
+Content-Length: 16
+
+{"enabled":true}

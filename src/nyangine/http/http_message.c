@@ -297,6 +297,17 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         return NYA_HTTP_PARSE_REFUSED;
     }
 
+    /*
+     * A body on a verb that gives one no meaning. RFC 9110 leaves those bytes undefined, no route here
+     * reads them, and an intermediary that counts them as a body while we count them as the start of
+     * the next request is the smuggling case again. Refused rather than skipped, and QUERY is the verb
+     * a read with a document is sent as.
+     */
+    if (!nya_http_method_allows_body(request->method) && (chunked || content_length > 0)) {
+        *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
+        return NYA_HTTP_PARSE_REFUSED;
+    }
+
     NYA_HttpParse parsed = _nya_http_parse_body(data, size, head_end, chunked, has_length, content_length, request, out_consumed, out_status);
 
     if (parsed != NYA_HTTP_PARSE_DONE) return parsed;

@@ -1,0 +1,11 @@
+QUERY /api/metrics/arenas HTTP/1.1
+Host: x
+Content-Type: application/json
+Transfer-Encoding: chunked
+
+8
+{"enable
+8
+d":true}
+0
+

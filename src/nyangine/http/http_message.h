@@ -50,6 +50,16 @@
  * a stream this parser has given up on cannot be resynchronised, and guessing where the next request
  * starts is exactly the request smuggling bug. The same reasoning refuses a request that carries both
  * Content-Length and Transfer-Encoding rather than preferring one.
+ *
+ * ── which verbs may carry a body ──
+ *
+ * QUERY, POST, PUT, PATCH and DELETE. A body on a GET, a HEAD or an OPTIONS is 400: RFC 9110 gives
+ * those bytes no meaning, no route here reads them, and an intermediary that counts them as a body
+ * while this parser counts them as the start of the next request is the smuggling bug wearing a
+ * different hat. A read that needs a request document is a QUERY, which is safe and idempotent like a
+ * GET and carries one; see NYA_HttpMethod. A bodiless `Content-Length: 0` is not a body and is fine on
+ * any verb. Either way the body is bounded by NYA_HTTP_MAX_BODY_BYTES and the chunk count by
+ * NYA_HTTP_MAX_CHUNKS, which a new verb changes nothing about.
  * */
 #pragma once
 

@@ -52,6 +52,14 @@ static void fuzz_once(const u8* data, u64 size) {
 
     nya_assert(nya_http_method_is_valid(request->method), "a request parsed with no method");
 
+    // a body only ever reaches a handler on a verb a body means something on. The refusal is what
+    // keeps this server and whatever is in front of it agreeing where the next request starts.
+    nya_assert(
+        request->body_size == 0 || nya_http_method_allows_body(request->method),
+        "a body parsed on a verb that carries none: %s",
+        nya_http_method_text(request->method)
+    );
+
     nya_assert(request->path[0] == '/', "a path that is not absolute reached a handler");
     nya_assert(request->body_size <= NYA_HTTP_MAX_BODY_BYTES, "a body larger than the bound parsed");
     nya_assert(request->header_count <= NYA_HTTP_MAX_HEADERS, "more headers parsed than the table holds");

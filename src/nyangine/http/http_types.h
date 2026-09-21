@@ -8,6 +8,13 @@
  * ```
  * NYA_HttpMethod        the verb, parsed from the request line. Unknown ones do not reach a handler
  * NYA_HttpStatus        the answer, _NONE meaning "no status", never a value a handler may return
+ * ```
+ *
+ * The verbs a resource here is written in are QUERY, POST, PUT and DELETE: read, create, update,
+ * remove. GET and HEAD are parsed and routed as before and are what a browser gets to use; they are
+ * simply not what a new route is written as. See NYA_HttpMethod for why.
+ *
+ * ```
  * NYA_HttpMediaType     the handful of bodies this server speaks, as an enum rather than a string
  * NYA_HttpHeader        one bounded name and one bounded value
  * NYA_HttpRequest       a request that parsed. There is no way to make one that did not
@@ -148,12 +155,28 @@ typedef struct NYA_HttpResponse NYA_HttpResponse;
 /**
  * The verb. `_NONE` is what a request line that named something else parses to, and it is not a value
  * a route may be registered under; see nya_http_method_is_valid.
+ *
+ * The four a resource here is written in are QUERY, POST, PUT and DELETE: read, create, update,
+ * remove. GET is still parsed, still routed and still what /docs and /openapi.json answer, but it is
+ * not the shape a new resource takes, because a read in this codebase takes a reflected DTO as its
+ * request and a GET has nowhere to put one. See nya_http_method_allows_body.
  * */
 enum NYA_HttpMethod {
     NYA_HTTP_METHOD_NONE = 0,
 
     NYA_HTTP_METHOD_GET,
     NYA_HTTP_METHOD_HEAD,
+
+    /**
+     * A read whose parameters are a document rather than a query string: safe and idempotent like GET,
+     * with a body like POST. draft-ietf-httpbis-safe-method-w-body, which is a draft and says so.
+     *
+     * It is the default read here because the alternative is a query string: a DTO is a reflected type
+     * whose schema is generated from it, and there is no encoding of one into `?a=1&b=2` that the same
+     * reflection could describe. A server that answered both would have two spellings of one request.
+     * */
+    NYA_HTTP_METHOD_QUERY,
+
     NYA_HTTP_METHOD_POST,
     NYA_HTTP_METHOD_PUT,
     NYA_HTTP_METHOD_PATCH,
@@ -295,6 +318,28 @@ NYA_API NYA_HttpMethod nya_http_method_parse(const char* text, u64 size) __attr_
 
 /** Whether `method` names a verb at all, i.e. is neither _NONE nor past the end. */
 NYA_API b8 nya_http_method_is_valid(NYA_HttpMethod method) __attr_no_discard;
+
+/**
+ * Whether `method` is safe: it reads and changes nothing, so a repeat of it is the same request.
+ *
+ * GET, HEAD, QUERY and OPTIONS. Safe implies idempotent, which is why there is one predicate and not
+ * two; PUT and DELETE are idempotent without being safe and nothing here asks that question yet.
+ *
+ * QUERY answers true for the same reason GET does. Having a body does not make a request a write, and
+ * anything here that reasons about a read — the HEAD fallback, what a proxy or a cache in front may
+ * repeat — has to see the two alike or the body is treated as a change nobody made.
+ * */
+NYA_API b8 nya_http_method_is_safe(NYA_HttpMethod method) __attr_no_discard;
+
+/**
+ * Whether a request with `method` may carry a body.
+ *
+ * True for QUERY, POST, PUT, PATCH and DELETE. False for GET, HEAD and OPTIONS: RFC 9110 gives content
+ * on those no meaning, no route here reads one, and an intermediary that disagrees with us about
+ * whether those bytes are a body is the request smuggling case. The parser refuses one rather than
+ * dropping it, and QUERY is what a caller reaches for instead.
+ * */
+NYA_API b8 nya_http_method_allows_body(NYA_HttpMethod method) __attr_no_discard;
 
 /** "OK", "Not Found", ... the reason phrase. Empty for a status this server does not produce. */
 NYA_API NYA_ConstCString nya_http_status_text(NYA_HttpStatus status) __attr_no_discard;
