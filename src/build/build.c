@@ -18,5 +18,6 @@
 // After test.c: both name the host flags and the sanitizer environment a test binary runs under.
 #include "build/fuzz.c"
 #include "build/simulation.c"
+#include "build/agent.c"
 // Last: the commands it defines name rules and handlers from all of the above.
 #include "build/cli.c"

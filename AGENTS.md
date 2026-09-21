@@ -84,6 +84,8 @@ which takes tens of minutes; after that the artifacts are cached.
 ./build run bench [filter...]
 ./build run coverage
 ./build run example <name>     # builds examples/<name>/main.c and runs it
+./build run simulation         # one deterministic simulation over the engine, from a seed
+./build run agent --kind dqn   # a DQN or a NEAT population playing gnyame as a user, headless
 ./build build debug-linux      # what a change must still compile under
 ./build build release          # every release target this host can produce
 ./build check --strict         # clang-tidy over the translation units; what CI runs

@@ -8,6 +8,7 @@
  *   nya_session_create / _destroy    a session, from a seed and a tick count
  *   nya_session_action_add           one thing the agent may do, by name
  *   nya_session_run                  runs the app's own frame loop to the tick count
+ *   nya_session_is_playing           whether one is running right now
  *   nya_session_digest               one number standing for everything the run did
  *   nya_session_key / _mouse_* /
  *     _wheel                         what an action calls to act as the user
@@ -320,6 +321,15 @@ NYA_API u32 nya_session_action_find(const NYA_Session* session, NYA_ConstCString
  * re-implements a frame, so a session exercises the real order rather than one invented beside it.
  * */
 NYA_API u32 nya_session_run(NYA_Session* session);
+
+/**
+ * Whether a session is driving the application's frame loop right now.
+ *
+ * There is one frame loop, so there is one session. Anything that would run a frame of its own, a
+ * round of learning that plays a session per genome above all, asks this first rather than finding
+ * out from the assertion inside nya_session_run.
+ * */
+NYA_API b8 nya_session_is_playing(void) __attr_no_discard;
 
 /** Records a failure and prints the seed, tick and the replay command. */
 NYA_API void nya_session_fail(NYA_Session* session, NYA_ConstCString format, ...) __attr_fmt_printf(2, 3);

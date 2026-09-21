@@ -14,6 +14,7 @@
  *   dist.c       `./build dist`
  *   example.c    `./build run example`
  *   fuzz.c       `./build run fuzz`
+ *   agent.c      `./build run agent`
  *   simulation.c `./build run simulation`
  *   test.c       `./build run test` and `./build run coverage`
  * */
@@ -65,6 +66,16 @@
  * */
 #define SIMULATION_SOURCE "./tests/gnyame/test_simulation.c"
 #define SIMULATION_BINARY "./tests/gnyame/test_simulation"
+
+/**
+ * The agent runner, which is also an ordinary test, for the same reason the simulation is.
+ *
+ * `./build run test` plays a short seeded run with each kind through it, which is what proves the
+ * three of them can drive the application at all. `./build run agent` trains one of them for as long
+ * as asked.
+ * */
+#define AGENT_SOURCE "./tests/gnyame/test_agent.c"
+#define AGENT_BINARY "./tests/gnyame/test_agent"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -148,3 +159,12 @@ NYA_ConstCString fuzz_completion_target_name(u32 index);
  * is what a scheduled run does; with a seed it replays exactly, which is what a failure report says.
  * */
 void simulation_runner(NYA_ArgCommand* command);
+
+/**
+ * Builds and runs one training run: a DQN or a NEAT population playing gnyame as a user would,
+ * headless and far faster than real time, with the assertions as the oracle.
+ * */
+void agent_runner(NYA_ArgCommand* command);
+
+/** The agent kinds, for the completions and the usage line. */
+NYA_ConstCString agent_completion_kind(u32 index);

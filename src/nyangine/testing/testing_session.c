@@ -261,6 +261,10 @@ u32 nya_session_run(NYA_Session* session) {
     return session->failures;
 }
 
+b8 nya_session_is_playing(void) {
+    return _NYA_SESSION_PLAYING != nullptr;
+}
+
 u64 nya_session_digest(const NYA_Session* session) {
     nya_assert(session != nullptr);
 

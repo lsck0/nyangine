@@ -110,6 +110,49 @@ NYA_INTERNAL NYA_ArgParameter simulation_verbose_flag = {
     .description = "Print every action as it is taken, and leave the engine's own logging on.",
 };
 
+NYA_INTERNAL NYA_ArgParameter agent_kind = {
+    .kind          = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type    = NYA_TYPE_STRING,
+    .name          = "kind",
+    .description   = "Which agent plays: random, dqn or neat.",
+    .default_value = { .type = NYA_TYPE_STRING, .as_string = "dqn" },
+    .completion    = { .kind = NYA_ARG_COMPLETION_KIND_CHOICES, .choices_fn = &agent_completion_kind, },
+};
+
+NYA_INTERNAL NYA_ArgParameter agent_seed = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_S64,
+    .name        = "seed",
+    .description = "What the run is derived from. If none specified, a fresh one is drawn and printed.",
+    // zero means "draw one", as it does for the simulation and for the same reason.
+    .default_value = { .type = NYA_TYPE_S64, .as_s64 = 0 },
+};
+
+NYA_INTERNAL NYA_ArgParameter agent_episodes = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_S64,
+    .name        = "episodes",
+    .description = "Sessions to play, or NEAT generations. Each one is a session per genome.",
+    // eight of the default length is a few minutes and enough for a DQN's exploration to anneal
+    // most of the way, which is where it starts playing rather than flailing.
+    .default_value = { .type = NYA_TYPE_S64, .as_s64 = 8 },
+};
+
+NYA_INTERNAL NYA_ArgParameter agent_ticks = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_S64,
+    .name        = "ticks",
+    .description = "Fixed steps per episode. Four simulated minutes at the default tick rate.",
+    .default_value = { .type = NYA_TYPE_S64, .as_s64 = 15000 },
+};
+
+NYA_INTERNAL NYA_ArgParameter agent_verbose_flag = {
+    .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
+    .value.type  = NYA_TYPE_B8,
+    .name        = "verbose",
+    .description = "Print every action as it is taken, and leave the engine's own logging on.",
+};
+
 NYA_INTERNAL NYA_ArgParameter check_sources = {
     .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
     .variadic    = true,
@@ -239,6 +282,12 @@ NYA_INTERNAL NYA_ArgCommand run = {
             .description = "Run one deterministic simulation over the engine. A failing seed replays exactly.",
             .handler     = &simulation_runner,
             .parameters  = { &simulation_seed, &simulation_steps, &simulation_verbose_flag, },
+        },
+        &(NYA_ArgCommand){
+            .name        = "agent",
+            .description = "Let a DQN or a NEAT population play gnyame as a user, headless and far faster than real time.",
+            .handler     = &agent_runner,
+            .parameters  = { &agent_kind, &agent_seed, &agent_episodes, &agent_ticks, &agent_verbose_flag, },
         },
         &(NYA_ArgCommand){
             .name        = "coverage",

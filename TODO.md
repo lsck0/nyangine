@@ -6,7 +6,7 @@
 
 ## Where it stands
 
-212 tests pass, `check --strict` reports nothing, and debug, release and steam-windows build. The title
+214 tests pass, `check --strict` reports nothing, and debug, release and steam-windows build. The title
 screen logs one line in twenty seconds, where it logged 6813.
 
 Landed since the scope widened: the build system reorganised with `./build dist`, a `secrets/` tree encrypted
@@ -295,9 +295,18 @@ the packager ones.
   is internal where nothing reloads and visible where something does, because dlsym finds neither a static
   nor a hidden symbol. `test_system_reload.c` replaces a callback the way main.c does after a reload and
   checks the registry runs the new one.
-- `[ ]` Fast-forward: run the simulation far faster than real time, so a DQN agent playing the game covers far
-  more ground than a human would.
-- `[ ]` DQN and NEAT driving the real application as a user, to find emergent behaviour and to find crashes.
+- `[x]` Fast-forward: a session installs a clock it steps by exactly one tick per frame and never sleeps
+  against, so the loop books one tick, runs it and comes straight back. `test_session.c` plays one seed
+  fast-forwarded and again paced to the wall clock and compares the digests: 120 ticks in 2.4 ms against
+  1955 ms, same number. `real_time` exists for that comparison and for nothing else. Three latent bugs were
+  in the way; see the Findings entry.
+- `[x]` DQN and NEAT driving the real application as a user. `testing_agent.h` fills the session's policy
+  seam with a network, `gnyame/agent.c` says what the agent may press and what it can see, and
+  `./build run agent --kind random|dqn|neat` trains one. The agent presses keys and moves the mouse through
+  `nya_event_dispatch`, so it reaches window handling, the input system and every layer exactly as a player
+  does. `./build run test` plays a short seeded run with each kind. `[ ]` The scenes are stubbed in that
+  runner, because building one needs a GPU device a headless run has not got, so what the agent drives today
+  is the title screen, the pause menu and the screen stack. The scenes themselves are the next step.
 - `[x]` Scene and settings persistence (`core_scene.h`, reflection driven), for save files and the editor.
 - `[x]` Collision layers, named, for both solvers, through Box2D's and Box3D's own filters rather than a
   callback.
@@ -332,6 +341,9 @@ the packager ones.
   Every draw is `siphash(seed, step, draw_index)` rather than a stateful generator, so adding a draw inside
   one action does not invalidate every seed recorded before it.
 - `[x]` Property tests with a shrinker (`testing_property.h`), covering the round trips.
+- `[x]` Played sessions: `testing_session.h` drives the real application headless through the input queue,
+  with no wall clock wait, and `testing_agent.h` puts a DQN or a NEAT population behind the choice of what
+  to press. `./build run agent`, and a short run of each kind in `./build run test`.
 
 ## `[ ]` Docs and examples
 
@@ -877,6 +889,41 @@ joystick.
 ---
 
 # Findings
+
+### A simulated clock handed back is a clock that ran ahead
+
+Three bugs sat behind the time source seam, all of them latent because nothing had ever run a session.
+Restoring the real clock asserted, because a simulated one that advanced a tick per frame is minutes
+ahead of the wall clock and the loop read the difference as centuries of debt. A clock swap now rebases
+the frame clock and moves the uptime origin with it, which also made the first frame of a session
+deterministic: it used to measure against a timestamp the real clock wrote at startup. That rebased
+first frame has no elapsed time at all, and `nya_app_run` divided by it for the frame rate.
+
+### A session inherits the application as the last one left it
+
+Two runs of one seed differed in their first tick. The pointer was wherever the previous run dropped it,
+and the key releases that run dispatched on its way out were still in the queue, to be delivered inside
+the next run's first frame. A run now releases what it holds and pumps it through before it returns, and
+places the pointer before tick zero, through `nya_app_events_pump` rather than by writing into the input
+system. The harness also counts the fixed steps the application ran separately from the frames the agent
+acted on and asserts they match: "a frame is a tick" is what fast forwarding rests on, and trusting it is
+how the real time mode shipped with 77 ticks where it claimed 120.
+
+### A NEAT seed genome has nothing to say, and argmax makes it say the same thing forever
+
+The seed topology has no connections, so every output is exactly zero and the largest is the first. The
+whole of generation one pressed action zero and scored nothing. Ties are drawn from the session's own
+seeded stream instead, so a genome with no structure behaves like the random baseline and every genome
+that has grown a connection decides. With that, generation one reaches about 40 screen changes in 400
+ticks and generation two found a genome reaching 399.
+
+### The agent found a screen with no way out
+
+With the scenes stubbed down to an id in the agent runner, the 3D scene was a dead end: the real
+`gny_layer_cube3d_on_event` maps cancel to the main menu and the stub did not, so every agent that
+wandered in spent the rest of its run there. Nothing asserted, nothing crashed, and every kind scored
+zero. The stub keeps that one hook now. Worth recording because it is the shape of the bug this whole
+facility is for: not a crash, a place a player can get stuck.
 
 ### A content keyed cache costs a hash, and only inlining keeps it near a pointer memo
 

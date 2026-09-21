@@ -14,4 +14,6 @@
 /**/
 #include "nyangine/testing/testing_actions.h"
 #include "nyangine/testing/testing_session.h"
+/**/
+#include "nyangine/testing/testing_agent.h"
 #endif

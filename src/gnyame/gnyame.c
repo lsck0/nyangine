@@ -17,6 +17,8 @@
 #include "gnyame/layers/layer_ui.c"
 #include "gnyame/layers/layers.c"
 #include "gnyame/windows.c"
+// after the layers, whose stack it reads, and the screens it asks for.
+#include "gnyame/agent.c"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

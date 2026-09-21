@@ -94,6 +94,9 @@
 #include "gnyame/screens.h"
 #include "gnyame/layers/layers.h"
 #include "gnyame/windows.h"
+/**/
+// after the layers and the screens, which are what it reads to know where it is.
+#include "gnyame/agent.h"
 
 /** What the command line asked for, read once by gnyame_init and kept in the world. */
 #define GNY_LAUNCH (gny_world()->launch)
