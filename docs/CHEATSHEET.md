@@ -234,6 +234,7 @@ typedef enum { NYA_ARCH_NULL, NYA_ARCH_WASM32, NYA_ARCH_WASM64, NYA_ARCH_X86, NY
 
 // macros
 NYA_VERSION VERSION
+NYA_BUILD_COMMIT "unknown"  // The commit the binary was built from, with `-dirty` appended when the tree had uncommitted changes.
 NYA_EXECUTION_MODE 0
 NYA_DEBUG (NYA_EXECUTION_MODE == 0)
 NYA_DEVELOPER (NYA_EXECUTION_MODE == 1)
@@ -309,6 +310,8 @@ NYA_VENDOR_MAX_FLAGS 32
 
 // functions
 NYA_Error nya_build(NYA_BuildRule* build_rule)
+const NYA_BuildRule* nya_build_last_failure(void)  // The rule whose command failed in the most recent build, or nullptr when the last one succeeded.
+void nya_build_print_last_failure(void)  // Reprints what the failing rule was and what its tool wrote, or nothing when nothing failed.
 NYA_Error nya_build_parallel(NYA_BuildRule** build_rules, u32 count, u32 max_jobs)  // Builds `count` independent rules, running up to `max_jobs` of their commands at once.
 NYA_Error nya_vendor_build(NYA_VendorRule* vendor)  // Builds a vendor's parts in order.
 NYA_Error nya_vendor_build_all(NYA_VendorRule** vendors)  // Builds every vendor in a nullptr terminated array.
@@ -368,13 +371,16 @@ u64 nya_crc64(const u8* data, u64 len)
 ```c
 // macros
 NYA_LOG_RETENTION_DAYS 14  // How many days of daily log files the engine keeps.
+NYA_LOG_DIRECTORY_MAX 512  // Longest log directory path, terminator included.
 
 // functions
 NYA_Error nya_log_file_open(NYA_ConstCString path)  // Also writes the log to `path`, buffered to avoid a syscall per line.
 void nya_log_file_close(void)  // Flushes and closes the log file.
 NYA_Error nya_log_directory_open(NYA_ConstCString directory, u32 retention_days)  // Writes the log into `directory`, one `YYYY-MM-DD.log` per day.
+NYA_ConstCString nya_log_directory(void)  // The directory in use, or an empty string when daily logging is off.
 void nya_log_directory_roll(void)  // Switches to the new day's file when the UTC date has changed.
 void nya_log_file_flush(void)  // Writes out whatever is buffered.
+void nya_log_write_stderr(NYA_ConstCString text, u32 length)  // Writes `length` raw bytes to stderr, bypassing stdio.
 NYA_Error nya_crash_observer_add(NYA_CrashObserver observer, void* user_data)  // Adds a crash observer, notified in registration order.
 b8 nya_crash_observer_remove(NYA_CrashObserver observer, void* user_data)  // Removes the observer registered with exactly this callback and user data.
 void nya_crash_observer_clear(void)
@@ -471,6 +477,10 @@ NYA_Error nya_file_append(const NYA_String* path, NYA_ConstCString content)
 ### base_hash.h
 
 ```c
+// macros
+NYA_SHA256_BYTES 32  // The digest, in bytes.
+NYA_SHA256_BLOCK_BYTES 64  // One SHA-256 block, which is also the key length HMAC pads to.
+
 // functions
 u64 nya_hash_fnv1a(const void* data, u64 size)
 u64 nya_hash_fnv1a(NYA_ConstCString string)
@@ -479,6 +489,9 @@ u64 nya_hash_wyhash(const void* data, u64 size)  // wyhash (final version 4, def
 u64 nya_siphash(const void* data, u64 size, u64 key_low, u64 key_high)  // SipHash-2-4: a keyed hash, i.e.
 f32 nya_ihash2(s32 x, s32 y, u32 seed)
 f32 nya_ihash3(s32 x, s32 y, s32 z, u32 seed)
+void nya_sha256(const u8* data, u64 size, OUT u8 out_digest[NYA_SHA256_BYTES])  // SHA-256 of `size` bytes.
+void nya_hmac_sha256(const u8* key, u64 key_size, const u8* data, u64 size, OUT u8 out_tag[NYA_SHA256_BYTES])  // HMAC-SHA256, RFC 2104.
+b8 nya_hash_equals_constant_time(const u8* a, const u8* b, u64 size)  // Whether two tags are equal, in time that does not depend on where they first differ.
 ```
 
 ### base_heap.h
@@ -616,6 +629,8 @@ NYA_CRASH_MESSAGE_MAX_LENGTH 1024  // Roomy enough that a thrown error can carry
 NYA_CRASH_OBSERVER_MAX 8
 NYA_LOG_SINK_MAX 8
 NYA_LOG_MESSAGE_MAX_LENGTH 2048
+NYA_LOG_RING_MAX 256  // Lines the ring holds, and how much of each it keeps.
+NYA_LOG_RING_LINE_MAX 256
 nya_log_trace(format, ...)
 nya_log_debug(format, ...)
 nya_log_info(format, ...)
@@ -629,6 +644,10 @@ void nya_log_level_set(NYA_LogLevel level)
 void nya_log_sink_add(NYA_LogSink sink, void* user_data)  // Adds a log sink.
 b8 nya_log_sink_remove(NYA_LogSink sink, void* user_data)  // Removes the sink registered with exactly this callback and user data.
 void nya_log_sink_clear(void)
+u32 nya_log_ring_count(void)  // Lines held, at most NYA_LOG_RING_MAX.
+NYA_ConstCString nya_log_ring_at(u32 index)  // Line `index`, oldest first.
+NYA_LogLevel nya_log_ring_level_at(u32 index)  // The level line `index` was logged at.
+void nya_log_ring_clear(void)  // Drops everything the ring holds.
 void _nya_log_message(NYA_LogLevel level, NYA_ConstCString function, NYA_ConstCString file, u32 line, NYA_ConstCString format, ...)
 void _nya_crash_raise(NYA_CrashSource source, NYA_ConstCString function, NYA_ConstCString file, u32 line, u32 error_kind, NYA_ConstCString format, ...)  // The central crash sink.
 void _nya_crash_raise_with_backtrace( NYA_CrashSource source, NYA_ConstCString function, NYA_ConstCString file, u32 line, u32 error_kind, const NYA_Backtrace* backtrace, NYA_ConstCString format, ... )  // Same, but reports `backtrace` instead of capturing one here.
@@ -754,6 +773,8 @@ void _nya_perf_frame_report(u64 frame)  // Logs one frame's spans as an indented
 
 ### base_reflection.h
 
+One generated description per annotated type, and everything generic over a struct it was not
+
 ```c
 // types
 typedef NYA_Error (*NYA_ReflectApplyFn)(void* instance)  // What `@on_apply` names.
@@ -762,9 +783,11 @@ enum NYA_ReflectHint { NYA_HINT_NONE, NYA_HINT_POSITION, NYA_HINT_SCALE, NYA_HIN
 struct NYA_ReflectField { NYA_ConstCString name; const NYA_TypeReflection* type; u64 offset; NYA_ReflectHint hint; b8 has_tag_value; s64 tag_value; }  // One member of a struct or union.
 struct NYA_ReflectVariant { NYA_ConstCString name; s64 value; }  // One variant of an enum.
 struct NYA_TypeReflection { NYA_ConstCString name; NYA_ReflectKind kind; u64 size; u64 alignment; NYA_Type primitive; const NYA_ReflectField* fields; u32 field_count; const NYA_ReflectField* tag_field; const NYA_ReflectVariant* variants; u32 variant_count; b8 is_bitflags; const NYA_TypeReflection* element; u32 element_count; NYA_ReflectApplyFn on_apply; }  // Everything known about one type.
+typedef void (*NYA_ReflectReportFn)(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data)  // One problem found in a document.
 
 // macros
 nya_reflect_of(type)  // The reflection for `type`, by its bare name: `nya_reflect_of(NYA_Entity)`.
+NYA_REFLECT_PATH_MAX 256  // Longest dotted path a report carries, terminator included.
 
 // functions
 const NYA_ReflectField* nya_reflect_field(const NYA_TypeReflection* type, NYA_ConstCString name)  // The field called `name`, or null.
@@ -776,6 +799,7 @@ NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance)
 b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value value)  // The inverse.
 NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance)  // Any annotated type, as a self describing document.
 NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance, const NYA_Object* object)  // The inverse, in place.
+u32 nya_reflect_check(const NYA_TypeReflection* type, const NYA_Object* object, NYA_ReflectReportFn report, void* user_data)
 ```
 
 ### base_ring.h
@@ -977,6 +1001,23 @@ b8 nya_type_parse(NYA_Type target, const u8* data, u64 length, OUT void* out_val
 b8 nya_type_name_parse(const u8* data, u64 length, OUT NYA_Type* out_type, OUT NYA_ConstCString* out_type_name)
 ```
 
+### base_version.h
+
+What this binary is: version, commit, build kind, and when it was built.
+
+```c
+// types
+typedef struct { NYA_ConstCString version; NYA_ConstCString commit; NYA_ConstCString kind; b8 headless; NYA_ConstCString built; } NYA_BuildInfo
+
+// macros
+NYA_BUILD_LINE_MAX 128  // Longest one line summary, including the terminator.
+NYA_BUILD_TIME_MAX 32  // Longest formatted build time, including the terminator.
+
+// functions
+NYA_BuildInfo nya_build_info(void)  // What this binary is.
+u32 nya_build_line(OUT u8* out, u32 capacity)  // The same as one line, `"<kind> <version> <commit>, built <time>"`, written into `out`.
+```
+
 ## core
 
 The application loop: entities, systems, events, input, audio, assets, config, saves.
@@ -985,9 +1026,10 @@ The application loop: entities, systems, events, input, audio, assets, config, s
 
 ```c
 // types
-struct NYA_AppOptions { u64 time_step_ns; u32 frame_rate_limit; u32 unfocused_frame_rate_limit; b8 vsync_enabled; u8 max_concurrent_jobs; NYA_ConstCString app_id; u32 steam_app_id; }
+struct NYA_AppOptions { u64 time_step_ns; u32 frame_rate_limit; u32 unfocused_frame_rate_limit; b8 vsync_enabled; u8 max_concurrent_jobs; b8 headless; NYA_ConstCString app_id; u32 steam_app_id; }
 struct NYA_FrameStats { u64 started_ns; u64 uptime_ns; f32 uptime_s; u64 min_frame_time_ns; f32 delta_time_s; f32 fps; u64 frame_start_time_ns; u64 frame_end_time_ns; u64 prev_frame_time_ns; u64 elapsed_ns; u64 work_ns; u64 sleep_ns; s64 time_behind_ns; }
-struct NYA_App { b8 initialized; b8 should_quit; NYA_World* world; NYA_AppOptions options; NYA_Arena* frame_allocator; NYA_Arena* live_resize_allocator; NYA_FrameStats frame_stats; NYA_AssetSystem asset_system; NYA_CallbackSystem callback_system; NYA_ConfigSystem config_system; NYA_EventSystem event_system; NYA_I18nSystem i18n_system; NYA_InputSystem input_system; NYA_JobSystem job_system; NYA_RenderSystem render_system; NYA_SaveSystem save_system; NYA_SettingsSystem settings_system; NYA_WindowSystem window_system; }
+struct NYA_AppTimeSource { u64 (*now_ns)(void); u32 catch_up_ticks_max; b8 never_sleep; }  // Where the frame loop reads time, and whether it may sleep for the frame rate limit.
+struct NYA_App { b8 initialized; b8 should_quit; NYA_World* world; NYA_AppOptions options; NYA_Arena* frame_allocator; NYA_Arena* live_resize_allocator; NYA_FrameStats frame_stats; NYA_AppTimeSource time_source; NYA_AssetSystem asset_system; NYA_CallbackSystem callback_system; NYA_ConfigSystem config_system; NYA_EventSystem event_system; NYA_I18nSystem i18n_system; NYA_InputSystem input_system; NYA_JobSystem job_system; NYA_RenderSystem render_system; NYA_SaveSystem save_system; NYA_SettingsSystem settings_system; NYA_WindowSystem window_system; }
 
 // macros
 nya_app_init(...)  // Brings up SDL and every subsystem.
@@ -999,6 +1041,8 @@ f64 nya_app_uptime_s(void)
 void nya_app_deinit(void)
 void nya_app_run(void)
 NYA_App* nya_app_get(void)
+void nya_app_time_source_set(NYA_AppTimeSource source)  // Replaces where the frame loop reads time.
+NYA_AppTimeSource nya_app_time_source(void)
 f32 nya_app_tick_alpha(void)  // How far this frame sits between the last update tick and the next, in [0, 1].
 NYA_App _NYA_APP_INSTANCE  // What nya_app_get returns.
 void nya_app_options_update(NYA_AppOptions options)
@@ -1019,7 +1063,7 @@ enum NYA_VertexLayout { NYA_VERTEX_LAYOUT_2D, NYA_VERTEX_LAYOUT_3D, NYA_VERTEX_L
 enum NYA_AssetType { NYA_ASSET_TYPE_TEXT, NYA_ASSET_TYPE_SOUND, NYA_ASSET_TYPE_FONT, NYA_ASSET_TYPE_TEXTURE, NYA_ASSET_TYPE_LUT, NYA_ASSET_TYPE_MESH, NYA_ASSET_TYPE_SHADER_VERTEX, NYA_ASSET_TYPE_SHADER_FRAGMENT, NYA_ASSET_TYPE_SHADER_COMPUTE, NYA_ASSET_TYPE_BUFFER_VERTEX, NYA_ASSET_TYPE_BUFFER_INDEX, NYA_ASSET_TYPE_BUFFER_UNIFORM, NYA_ASSET_TYPE_GRAPHICS_PIPELINE, NYA_ASSET_TYPE_COMPUTE_PIPELINE, NYA_ASSET_TYPE_COUNT, }
 enum NYA_AssetLoadStatus { NYA_ASSET_STATUS_UNLOADED, NYA_ASSET_STATUS_LOADING, NYA_ASSET_STATUS_LOADED, NYA_ASSET_STATUS_FAILED, NYA_ASSET_STATUS_COUNT, }
 struct NYA_AssetLoadParameters { NYA_AssetType type; NYA_AssetHandle handle; NYA_ConstCString source; b8 external; union { struct { u32 num_samplers; u32 num_storage_textures; u32 num_storage_buffers; u32 num_uniform_buffers; } as_shader; struct { NYA_Window* window; NYA_AssetHandle vertex_shader_handle; NYA_AssetHandle fragment_shader_handle; NYA_BlendMode blend; NYA_VertexLayout vertex_layout; b8 depth_test; b8 depth_write; b8 cull_back_faces; b8 cull_front_faces; SDL_GPUTextureFormat color_format; b8 single_sampled; } as_graphics_pipeline; struct { NYA_TextureFilter filter; u32 width; u32 height; NYA_Color svg_color; } as_texture_load; struct { NYA_TextureFilter filter; } as_mesh_load; struct { f32 point_size; } as_font; struct { b8 predecode; } as_sound; }; }
-struct NYA_Asset { NYA_AssetType type; NYA_AssetHandle handle; NYA_AssetStatus status; NYA_AssetLoadParameters load_parameters; union { struct { u8* data; u64 size; } as_text; struct { MIX_Audio* audio; } as_sound; struct { NYA_AssetHandle compiled_handle; SDL_GPUShaderFormat format; SDL_GPUShader* shader; } as_shader; struct { struct { SDL_GPUGraphicsPipeline* pipeline; SDL_GPUSampleCount sample_count; SDL_GPUTextureFormat depth_format; b8 built; } variants[4]; } as_graphics_pipeline; struct { SDL_GPUTexture* texture; u32 width; u32 height; NYA_TextureFilter filter; } as_texture; struct { TTF_Font* font; } as_font; struct { SDL_GPUTexture* texture; u32 size; } as_lut; struct { f32x3* positions; f32x3* normals; f32x2* uvs; u32 vertex_count; u32 allocated; NYA_MeshPart* parts; u32 part_count; SDL_GPUBuffer* gpu_vertices; u32 gpu_vertex_count; f32x3 bounds_min; f32x3 bounds_max; b8 bounds_valid; u32 part_capacity; SDL_GPUTexture** textures; u32 texture_count; NYA_TextureFilter filter; NYA_Skeleton* skeleton; NYA_VertexSkinned3D* skinned_vertices; } as_mesh; }; atomic u64 reference_count; u64 generation; b8 queued_for_unload; b8 from_blob; b8 raw_owned; b8 raw_shared; u32 raw_blob_index; struct { u8* data; u64 size; } raw; u64 source_modification_time; u64 reload_grace_frames; u64 next_stat_time_ns; }
+struct NYA_Asset { NYA_AssetType type; NYA_AssetHandle handle; NYA_AssetStatus status; NYA_AssetLoadParameters load_parameters; union { struct { u8* data; u64 size; } as_text; struct { MIX_Audio* audio; } as_sound; struct { NYA_AssetHandle compiled_handle; SDL_GPUShaderFormat format; SDL_GPUShader* shader; } as_shader; struct { struct { SDL_GPUGraphicsPipeline* pipeline; SDL_GPUSampleCount sample_count; SDL_GPUTextureFormat depth_format; b8 built; } variants[8]; } as_graphics_pipeline; struct { SDL_GPUTexture* texture; u32 width; u32 height; NYA_TextureFilter filter; } as_texture; struct { TTF_Font* font; } as_font; struct { SDL_GPUTexture* texture; u32 size; } as_lut; struct { f32x3* positions; f32x3* normals; f32x2* uvs; u32 vertex_count; u32 allocated; NYA_MeshPart* parts; u32 part_count; SDL_GPUBuffer* gpu_vertices; u32 gpu_vertex_count; f32x3 bounds_min; f32x3 bounds_max; b8 bounds_valid; u32 part_capacity; SDL_GPUTexture** textures; u32 texture_count; NYA_TextureFilter filter; NYA_Skeleton* skeleton; NYA_VertexSkinned3D* skinned_vertices; } as_mesh; }; atomic u64 reference_count; u64 generation; b8 queued_for_unload; b8 from_blob; b8 raw_owned; b8 raw_shared; u32 raw_blob_index; struct { u8* data; u64 size; } raw; u64 source_modification_time; u64 reload_grace_frames; u64 next_stat_time_ns; }
 
 // macros
 nya_asset_with(asset)
@@ -1038,7 +1082,7 @@ void nya_asset_load_queued(void)  // Loads everything queued now rather than at 
 u64 nya_asset_generation(void)  // The generation the latest load handed out.
 NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHandle handle)  // Sets a window's icon from an asset, without the asset system taking it on.
 NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle)  // NYA_ASSET_STATUS_FAILED for anything that could not load, so a caller can react without a hook.
-SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count, b8 normals)
+SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count, b8 normals, b8 face_culling)
 NYA_ArrayᐸNYA_Stringᐳ* nya_asset_enumerate(NYA_Arena* arena, NYA_ConstCString suffix)  // Every asset path, optionally filtered by suffix, sorted.
 u64 nya_asset_blob_count(void)  // How many assets are baked in.
 const NYA_AssetBlobHeader* nya_asset_blob_at(u64 index)  // The baked entry at `index`, or null past the end.
@@ -1228,7 +1272,7 @@ u64 nya_gauge_bytes_at(u32 index)
 // types
 struct NYA_ConfigWatch { NYA_CString handle; const NYA_TypeReflection* type; void* instance; u64 modification_time; u64 next_recovery_ns; }  // One file nya_config_watch is following, and where the last load of it landed.
 struct NYA_ConfigSystem { NYA_Arena* registry; NYA_ConfigWatch watches[NYA_CONFIG_WATCH_MAX]; u32 watch_count; }
-struct NYA_ConfigEngineRenderer { f32 shadow_bias; u32 shadow_cascades; u32 shadow_map_size; NYA_PostInk ink; NYA_PostAmbientOcclusion ambient_occlusion; NYA_PostAntialias antialias; NYA_PostDepthOfField depth_of_field; NYA_PostSpeedLines speed_lines; NYA_PostBloom bloom; NYA_PostEyeAdaptation eye_adaptation; NYA_PostLightShafts light_shafts; NYA_PostMotionBlur motion_blur; NYA_Render3DFog fog; NYA_Render2DHaze haze; NYA_Render3DDecals decals; NYA_RenderOutput output; NYA_PostDebugView debug_view; NYA_Color shadow_color; char grade_lut[NYA_CONFIG_ASSET_PATH_MAX]; f32 grade_strength; }  // Renderer tuning a game may want to reach without a rebuild.
+struct NYA_ConfigEngineRenderer { NYA_RenderFeatures features; f32 shadow_bias; u32 shadow_cascades; u32 shadow_map_size; NYA_PostInk ink; NYA_PostAmbientOcclusion ambient_occlusion; NYA_PostAntialias antialias; NYA_PostDepthOfField depth_of_field; NYA_PostSpeedLines speed_lines; NYA_PostBloom bloom; NYA_PostEyeAdaptation eye_adaptation; NYA_PostLightShafts light_shafts; NYA_PostMotionBlur motion_blur; NYA_Render3DFog fog; NYA_Render2DHaze haze; NYA_Render3DDecals decals; NYA_RenderOutput output; NYA_PostDebugView debug_view; NYA_Color shadow_color; char grade_lut[NYA_CONFIG_ASSET_PATH_MAX]; f32 grade_strength; }  // Renderer tuning a game may want to reach without a rebuild.
 struct NYA_ConfigEnginePhysics { f32 gravity; u32 sub_steps; }  // Solver tuning shared by both worlds.
 struct NYA_ConfigEngineAudio { NYA_AudioPropagation propagation; NYA_AudioEffects sound; NYA_AudioEffects music; NYA_AudioEffects master; }  // Sound: how it travels through the world, and each bus's effects.
 struct NYA_ConfigEngine { NYA_ConfigEngineRenderer renderer; NYA_ConfigEnginePhysics physics; NYA_ConfigEngineAudio audio; NYA_UIStyle ui; }
@@ -1242,6 +1286,38 @@ void nya_system_config_init(void)  // Brings up the system and, under NYA_ASSET_
 void nya_system_config_deinit(void)  // Releases the watch registry.
 NYA_Error nya_config_load(NYA_ConstCString path, const NYA_TypeReflection* type, void* instance)
 NYA_Error nya_config_watch(NYA_ConstCString path, const NYA_TypeReflection* type, void* instance)  // Loads `path` into `instance`, then keeps it in sync with the file while NYA_ASSET_HOT_RELOAD is compiled in.
+```
+
+### core_control.h
+
+The control surface: a local socket another process drives this one through.
+
+```c
+// types
+enum NYA_ControlPermission { NYA_CONTROL_PERMISSION_READ = 0, NYA_CONTROL_PERMISSION_WRITE = 1 << 0, NYA_CONTROL_PERMISSION_DISPATCH = 1 << 1, NYA_CONTROL_PERMISSION_ALL = NYA_CONTROL_PERMISSION_WRITE | NYA_CONTROL_PERMISSION_DISPATCH, }  // What a connected process is allowed to do.
+struct NYA_ControlConfig { NYA_IpcName name; u32 max_connections; NYA_ControlPermission permissions; }
+
+// macros
+NYA_CONTROL_PROTOCOL_VERSION 1  // The version a client checks against what `hello` reports.
+NYA_CONTROL_HEADER_BYTES 4  // Bytes of the length prefix in front of every message.
+NYA_CONTROL_MAX_MESSAGE_BYTES  // Largest message in either direction.
+NYA_CONTROL_MAX_MESSAGES_PER_TICK 64  // Messages handled in one tick, across all connections.
+NYA_CONTROL_MAX_EXPOSED 32  // Structs that can be exposed at once.
+NYA_CONTROL_MAX_EXPOSED_NAME 32  // Longest exposed name, the terminator included.
+
+// functions
+NYA_Error nya_system_control_init(NYA_ControlConfig config)
+void nya_system_control_deinit(void)  // Closes every connection, unbinds the socket and drops every subscription.
+void nya_system_control_tick(void)  // Accepts, reads, and answers, for at most NYA_CONTROL_MAX_MESSAGES_PER_TICK messages.
+NYA_Error nya_control_expose(NYA_ConstCString name, const NYA_TypeReflection* type, void* instance)  // Makes `instance` readable as `name`, and writable when the connection has WRITE.
+void nya_control_hide(NYA_ConstCString name)  // Removes an exposure.
+NYA_Error nya_control_expose_event(NYA_EventType type, const NYA_TypeReflection* payload)  // Describes the payload of `type`, so a subscriber receives it and `event.dispatch` can fill it.
+void nya_control_hide_event(NYA_EventType type)  // The pair.
+b8 nya_control_is_running(void)
+NYA_ConstCString nya_control_endpoint(void)  // Where the socket is, or null when it is not running.
+u32 nya_control_connection_count(void)
+NYA_Error nya_control_frame_encode(u64 size, OUT u8 out_header[NYA_CONTROL_HEADER_BYTES])  // Writes the length prefix for a message of `size` bytes into `out_header`.
+b8 nya_control_frame_decode(const u8* data, u64 size, OUT u64* out_length)  // Reads the length prefix at the front of `data`.
 ```
 
 ### core_entity.h
@@ -1287,8 +1363,10 @@ void nya_system_entity_deinit(void)
 void nya_system_entity_update(f32 delta_time_s)  // Runs on_update for every active entity, and integrates velocity into the transform.
 void nya_system_entity_render(NYA_Window* window)  // Runs on_render for every visible entity on screen.
 NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button)  // Finds the entity whose body covers `world_point` and runs its on_click.
+NYA_EntityHandle nya_entity_click(f32x2 world_point, u8 button, NYA_PhysicsLayerMask layers)  // The same, restricted to bodies in `layers`, so clicking the ground does not resolve to the terrain.
 NYA_EntityHandle nya_entity_click(f32x3 origin, f32x3 direction, u8 button)  // The same for a 3D scene: the first entity along a ray.
 NYA_EntityHandle nya_entity_hover(f32x2 world_point)  // Updates the hovered entity from a world-space cursor, running on_hover on changes.
+NYA_EntityHandle nya_entity_hover(f32x2 world_point, NYA_PhysicsLayerMask layers)  // The same, restricted to bodies in `layers`.
 NYA_EntityHandle nya_entity_hover(f32x3 origin, f32x3 direction)  // The same for a 3D scene.
 void nya_entity_hover_clear(void)  // Says the cursor is on nothing, running on_hover(false) for the current entity.
 NYA_EntityHandle nya_entity_hovered(void)  // Who the cursor is on, or NYA_ENTITY_HANDLE_NONE.
@@ -1344,11 +1422,12 @@ u32 nya_entity_slot_count(void)
 
 ```c
 // types
-enum NYA_EventType { NYA_EVENT_INVALID, NYA_EVENT_LIFECYCLE_EVENTS_BEGIN, NYA_EVENT_FRAME_STARTED, NYA_EVENT_FRAME_ENDED, NYA_EVENT_HANDLING_STARTED, NYA_EVENT_HANDLING_ENDED, NYA_EVENT_UPDATING_STARTED, NYA_EVENT_UPDATING_ENDED, NYA_EVENT_RENDERING_STARTED, NYA_EVENT_RENDERING_ENDED, NYA_EVENT_LIFECYCLE_EVENTS_END, NYA_EVENT_CLIPBOARD_UPDATE, NYA_EVENT_DISPLAY_ADDED, NYA_EVENT_DISPLAY_CONTENT_SCALE_CHANGED, NYA_EVENT_DISPLAY_CURRENT_MODE_CHANGED, NYA_EVENT_DISPLAY_DESKTOP_MODE_CHANGED, NYA_EVENT_DISPLAY_MOVED, NYA_EVENT_DISPLAY_ORIENTATION, NYA_EVENT_DISPLAY_REMOVED, NYA_EVENT_DROP_FILE, NYA_EVENT_DROP_TEXT, NYA_EVENT_DROP_BEGIN, NYA_EVENT_DROP_COMPLETE, NYA_EVENT_DROP_POSITION, NYA_EVENT_JOB_STARTED, NYA_EVENT_JOB_COMPLETED, NYA_EVENT_ASSET_LOAD_FAILED, NYA_EVENT_KEY_DOWN, NYA_EVENT_KEY_UP, NYA_EVENT_KEYMAP_CHANGED, NYA_EVENT_MOUSE_BUTTON_DOWN, NYA_EVENT_MOUSE_BUTTON_UP, NYA_EVENT_MOUSE_MOVED, NYA_EVENT_MOUSE_WHEEL_MOVED, NYA_EVENT_QUIT, NYA_EVENT_TEXT_INPUT, NYA_EVENT_TEXT_EDITING, NYA_EVENT_WINDOW_CLOSE_REQUESTED, NYA_EVENT_WINDOW_DESTROYED, NYA_EVENT_WINDOW_DISPLAY_CHANGED, NYA_EVENT_WINDOW_DISPLAY_SCALE_CHANGED, NYA_EVENT_WINDOW_ENTER_FULLSCREEN, NYA_EVENT_WINDOW_EXPOSED, NYA_EVENT_WINDOW_FOCUS_GAINED, NYA_EVENT_WINDOW_FOCUS_LOST, NYA_EVENT_WINDOW_HDR_STATE_CHANGED, NYA_EVENT_WINDOW_HIDDEN, NYA_EVENT_WINDOW_LEAVE_FULLSCREEN, NYA_EVENT_WINDOW_MAXIMIZED, NYA_EVENT_WINDOW_MINIMIZED, NYA_EVENT_WINDOW_MOUSE_ENTER, NYA_EVENT_WINDOW_MOUSE_LEAVE, NYA_EVENT_WINDOW_MOVED, NYA_EVENT_WINDOW_OCCLUDED, NYA_EVENT_WINDOW_PIXEL_SIZE_CHANGED, NYA_EVENT_WINDOW_RESIZED, NYA_EVENT_WINDOW_RESTORED, NYA_EVENT_WINDOW_SAFE_AREA_CHANGED, NYA_EVENT_WINDOW_SHOWN, NYA_EVENT_COUNT, }
+enum NYA_EventType { NYA_EVENT_INVALID, NYA_EVENT_LIFECYCLE_EVENTS_BEGIN, NYA_EVENT_FRAME_STARTED, NYA_EVENT_FRAME_ENDED, NYA_EVENT_HANDLING_STARTED, NYA_EVENT_HANDLING_ENDED, NYA_EVENT_UPDATING_STARTED, NYA_EVENT_UPDATING_ENDED, NYA_EVENT_RENDERING_STARTED, NYA_EVENT_RENDERING_ENDED, NYA_EVENT_LIFECYCLE_EVENTS_END, NYA_EVENT_CLIPBOARD_UPDATE, NYA_EVENT_CONTROL_MESSAGE, NYA_EVENT_DISPLAY_ADDED, NYA_EVENT_DISPLAY_CONTENT_SCALE_CHANGED, NYA_EVENT_DISPLAY_CURRENT_MODE_CHANGED, NYA_EVENT_DISPLAY_DESKTOP_MODE_CHANGED, NYA_EVENT_DISPLAY_MOVED, NYA_EVENT_DISPLAY_ORIENTATION, NYA_EVENT_DISPLAY_REMOVED, NYA_EVENT_DROP_FILE, NYA_EVENT_DROP_TEXT, NYA_EVENT_DROP_BEGIN, NYA_EVENT_DROP_COMPLETE, NYA_EVENT_DROP_POSITION, NYA_EVENT_JOB_STARTED, NYA_EVENT_JOB_COMPLETED, NYA_EVENT_ASSET_LOAD_FAILED, NYA_EVENT_KEY_DOWN, NYA_EVENT_KEY_UP, NYA_EVENT_KEYMAP_CHANGED, NYA_EVENT_MOUSE_BUTTON_DOWN, NYA_EVENT_MOUSE_BUTTON_UP, NYA_EVENT_MOUSE_MOVED, NYA_EVENT_MOUSE_WHEEL_MOVED, NYA_EVENT_QUIT, NYA_EVENT_SOCIAL_JOIN, NYA_EVENT_SOCIAL_JOIN_REQUEST, NYA_EVENT_TEXT_INPUT, NYA_EVENT_TEXT_EDITING, NYA_EVENT_WINDOW_CLOSE_REQUESTED, NYA_EVENT_WINDOW_DESTROYED, NYA_EVENT_WINDOW_DISPLAY_CHANGED, NYA_EVENT_WINDOW_DISPLAY_SCALE_CHANGED, NYA_EVENT_WINDOW_ENTER_FULLSCREEN, NYA_EVENT_WINDOW_EXPOSED, NYA_EVENT_WINDOW_FOCUS_GAINED, NYA_EVENT_WINDOW_FOCUS_LOST, NYA_EVENT_WINDOW_HDR_STATE_CHANGED, NYA_EVENT_WINDOW_HIDDEN, NYA_EVENT_WINDOW_LEAVE_FULLSCREEN, NYA_EVENT_WINDOW_MAXIMIZED, NYA_EVENT_WINDOW_MINIMIZED, NYA_EVENT_WINDOW_MOUSE_ENTER, NYA_EVENT_WINDOW_MOUSE_LEAVE, NYA_EVENT_WINDOW_MOVED, NYA_EVENT_WINDOW_OCCLUDED, NYA_EVENT_WINDOW_PIXEL_SIZE_CHANGED, NYA_EVENT_WINDOW_RESIZED, NYA_EVENT_WINDOW_RESTORED, NYA_EVENT_WINDOW_SAFE_AREA_CHANGED, NYA_EVENT_WINDOW_SHOWN, NYA_EVENT_COUNT, }
 typedef void (*NYA_EventHookFn)(NYA_Event*)
 typedef b8 (*NYA_EventHookConditionFn)(NYA_Event*)
 struct NYA_EventSystem { NYA_Arena* allocator; SDL_Mutex* event_queue_mutex; NYA_ArrayᐸNYA_Eventᐳ* event_queue; u64 event_queue_read_index; NYA_HMapᐸNYA_EventTypeˏNYA_ArrayᐸNYA_EventHookᐳᐳ* deferred_event_hooks; NYA_HMapᐸNYA_EventTypeˏNYA_ArrayᐸNYA_EventHookᐳᐳ* immediate_event_hooks; }
 struct NYA_AssetEvent { NYA_CString asset_handle; }
+struct NYA_ControlMessageEvent { NYA_ConstCString name; const NYA_Object* body; NYA_IpcPeerId sender; }
 struct NYA_DisplayEvent { u32 display_id; s32 data1; s32 data2; }
 struct NYA_DropEvent { NYA_WindowHandle window; NYA_ConstCString path; }
 struct NYA_DropPositionEvent { NYA_WindowHandle window; f32 x; f32 y; }
@@ -1357,12 +1436,13 @@ struct NYA_KeyEvent { NYA_WindowHandle window; NYA_InputSource source; b8 is_dow
 struct NYA_MouseButtonEvent { NYA_WindowHandle window; NYA_InputSource source; b8 is_down; NYA_MouseButton button; u8 clicks; f32 x; f32 y; }
 struct NYA_MouseMovedEvent { NYA_WindowHandle window; NYA_InputSource source; NYA_MouseButtonFlags state; f32 x; f32 y; f32 delta_x; f32 delta_y; }
 struct NYA_MouseWheelEvent { NYA_WindowHandle window; NYA_InputSource source; NYA_MouseWheelDirection direction; f32 amount_x; f32 amount_y; f32 mouse_x; f32 mouse_y; s32 integer_amount_x; s32 integer_amount_y; }
+struct NYA_SocialEvent { NYA_SocialProvider provider; NYA_ConstCString user_id; NYA_ConstCString user_name; NYA_ConstCString secret; }  // An invite accepted, or a friend asking to join.
 struct NYA_WindowEvent { NYA_WindowHandle window; }
 struct NYA_WindowMovedEvent { NYA_WindowHandle window; u32 x; u32 y; }
 struct NYA_WindowResizedEvent { NYA_WindowHandle window; u32 width; u32 height; }
 struct NYA_TextInputEvent { NYA_WindowHandle window; NYA_ConstCString text; }
 struct NYA_TextEditingEvent { NYA_WindowHandle window; NYA_ConstCString text; s32 start; s32 length; }
-struct NYA_Event { NYA_EventType type; b8 was_handled; u64 timestamp; union { NYA_AssetEvent as_asset_event; NYA_DisplayEvent as_display_event; NYA_DropEvent as_drop_event; NYA_DropPositionEvent as_drop_position_event; NYA_JobEvent as_job_event; NYA_KeyEvent as_key_event; NYA_MouseButtonEvent as_mouse_button_event; NYA_MouseMovedEvent as_mouse_moved_event; NYA_MouseWheelEvent as_mouse_wheel_event; NYA_TextEditingEvent as_text_editing_event; NYA_TextInputEvent as_text_input_event; NYA_WindowEvent as_window_event; NYA_WindowMovedEvent as_window_moved_event; NYA_WindowResizedEvent as_window_resized_event; }; }
+struct NYA_Event { NYA_EventType type; b8 was_handled; u64 timestamp; union { NYA_AssetEvent as_asset_event; NYA_ControlMessageEvent as_control_message_event; NYA_DisplayEvent as_display_event; NYA_DropEvent as_drop_event; NYA_DropPositionEvent as_drop_position_event; NYA_JobEvent as_job_event; NYA_KeyEvent as_key_event; NYA_MouseButtonEvent as_mouse_button_event; NYA_MouseMovedEvent as_mouse_moved_event; NYA_MouseWheelEvent as_mouse_wheel_event; NYA_SocialEvent as_social_event; NYA_TextEditingEvent as_text_editing_event; NYA_TextInputEvent as_text_input_event; NYA_WindowEvent as_window_event; NYA_WindowMovedEvent as_window_moved_event; NYA_WindowResizedEvent as_window_resized_event; }; }
 enum NYA_EventHookType { NYA_EVENT_HOOK_TYPE_DEFERRED, NYA_EVENT_HOOK_TYPE_IMMEDIATE, NYA_EVENT_HOOK_TYPE_COUNT, }
 struct NYA_EventHook { NYA_EventType event_type; NYA_EventHookType hook_type; NYA_CallbackHandle fn; NYA_CallbackHandle condition_fn; b64 one_shot; }
 
@@ -1887,6 +1967,8 @@ struct NYA_SaveSystem { NYA_Arena* allocator; NYA_CString root; }
 
 // macros
 NYA_SAVE_APPLICATION "nyangine"
+NYA_SAVE_FLAGS_EDITABLE  // For a file the player is invited to edit.
+NYA_SAVE_FLAGS_DATA ((NYA_SerdeFlags)NYA_SERDE_OBFUSCATE)  // For a file the game owns.
 NYA_SAVE_VERSION_KEY "save_version"  // The key every saved object should carry.
 
 // functions
@@ -1903,11 +1985,36 @@ NYA_Error nya_save_database_open(NYA_Arena* arena, NYA_ConstCString relative, OU
 u32 nya_save_version(const NYA_Object* object)  // The version an object declares, or zero when it declares none, which is how files from before versioning read.
 ```
 
+### core_scene.h
+
+A whole world to a file and back: every entity's identity, transform, hierarchy, motion, flags,
+
+```c
+// types
+struct NYA_SceneVisual { NYA_EntityVisualKind kind; char sprite[NYA_SCENE_ASSET_MAX]; f32x4 source; f32x2 origin; f32x2 sprite_scale; f32 sprite_rotation; b8 flip_x; b8 flip_y; NYA_Color tint; char atlas[NYA_SCENE_ASSET_MAX]; u32 frame_width; u32 frame_height; u32 columns; u32 rows; u32 spacing; u32 margin; f32x3 size; NYA_Color color; f32 z_order; b8 y_sorted; f32 y_sort_anchor; }  // The persistable part of NYA_EntityVisual: flat, owning its own text, and carrying no animator.
+struct NYA_SceneEntity { u32 id; u32 parent_id; b8 parented; char name[NYA_SCENE_NAME_MAX]; u32 type; u64 flags; NYA_EntityState state; f32x3 position; NYA_Quaternion rotation; f32x3 scale; f32x3 velocity; f32x3 angular_velocity; NYA_SceneVisual visual; NYA_Light2D light; }  // One entity as a file holds it.
+
+// macros
+NYA_SCENE_VERSION 1  // The version written into every scene, and what a loader checks before trusting the shape.
+NYA_SCENE_ENTITIES_KEY "entities"  // Where the entities live in the document.
+NYA_SCENE_NAME_MAX 64  // Longest entity name a scene carries, terminator included.
+NYA_SCENE_ASSET_MAX 128  // Longest asset handle a scene carries, terminator included.
+
+// functions
+void nya_scene_entity_from(OUT NYA_SceneEntity* out_record, const NYA_Entity* entity)  // The record for a live entity.
+void nya_scene_entity_to(const NYA_SceneEntity* record, NYA_Arena* arena, OUT NYA_EntitySpawnOptions* out_options)  // The inverse: the spawn options a record describes.
+NYA_Object* nya_scene_to_object(NYA_Arena* arena, NYA_World* world)
+NYA_Error nya_scene_from_object(NYA_World* world, const NYA_Object* object)
+NYA_Error nya_scene_save(NYA_World* world, NYA_ConstCString relative, NYA_SerdeFlags flags)  // nya_scene_to_object written under the save root, atomically.
+NYA_Error nya_scene_load(NYA_World* world, NYA_ConstCString relative, NYA_SerdeFlags flags)  // The inverse.
+```
+
 ### core_settings.h
 
 ```c
 // types
 typedef enum { NYA_VOLUME_CHANNEL_MASTER, NYA_VOLUME_CHANNEL_SOUND, NYA_VOLUME_CHANNEL_MUSIC, NYA_VOLUME_CHANNEL_VOICE, NYA_VOLUME_CHANNEL_UI, NYA_VOLUME_CHANNEL_COUNT, } NYA_VolumeChannel  // The mixes a player expects to control separately.
+struct NYA_SettingsVolumes { f32 master; f32 sound; f32 music; f32 voice; f32 ui; }  // The mixes again, one named field each, in NYA_VolumeChannel order.
 enum NYA_GraphicsQuality { NYA_GRAPHICS_QUALITY_OFF = 0, NYA_GRAPHICS_QUALITY_LOW, NYA_GRAPHICS_QUALITY_MEDIUM, NYA_GRAPHICS_QUALITY_HIGH, NYA_GRAPHICS_QUALITY_COUNT, }  // How much of a costly feature a player asks for.
 struct NYA_SettingsGraphics { u32 msaa_samples; b8 fxaa; b8 ambient_occlusion; b8 bloom; b8 depth_of_field; b8 eye_adaptation; b8 light_shafts; b8 motion_blur; NYA_GraphicsQuality shadows; f32 fov; f32 render_scale; }
 struct NYA_SettingsSystem { f32 volumes[NYA_VOLUME_CHANNEL_COUNT]; NYA_SettingsGraphics graphics; NYA_InputBinding bindings[NYA_INPUT_ACTION_MAX][NYA_INPUT_BINDINGS_PER_ACTION]; char player_name[NYA_SETTINGS_NAME_MAX]; }
@@ -2073,28 +2180,81 @@ b8 nya_skeleton_player_fading(const NYA_SkeletonPlayer* player)  // Whether a tr
 b8 nya_skeleton_ik_two_bone(const NYA_Skeleton* skeleton, NYA_SkeletonPose* pose, s32 root_bone, s32 mid_bone, s32 end_bone, f32x3 target, f32x3 pole)  // Bends a two-bone chain so `end` reaches `target`, writing rotations into `pose`.
 ```
 
-### core_system.h
+### core_social.h
+
+Presence and invites, over whichever friends service is there: Discord, Steam, both or neither.
 
 ```c
 // types
-typedef NYA_Error (*NYA_SystemInitFn)(void)
-typedef void (*NYA_SystemUpdateFn)(f32 delta_time_s)
-typedef void (*NYA_SystemDeinitFn)(void)
-typedef struct { NYA_ConstCString name; NYA_ConstCString after; NYA_SystemInitFn init; NYA_SystemUpdateFn update; NYA_SystemDeinitFn deinit; } NYA_SystemEntry
+struct NYA_SocialConfig { u64 discord_application_id; NYA_ConstCString large_image; NYA_ConstCString large_text; }
+struct NYA_SocialPresence { NYA_ConstCString details; NYA_ConstCString state; s64 start_time_s; NYA_ConstCString party_id; u32 party_size; u32 party_max; NYA_ConstCString join_secret; }  // What the player is doing, as a friend would see it.
 
 // macros
-NYA_SYSTEM_REGISTRY_MAX 64  // How many systems can be registered, ever.
+NYA_SOCIAL_MAX_TEXT 160  // How long a presence line may be, buffer included.
+NYA_SOCIAL_MAX_SECRET NYA_NET_MAX_JOIN_SECRET  // How long a join secret carried through a provider may be.
+NYA_SOCIAL_MAX_USER_ID 24  // How long a provider's user id may be.
+NYA_SOCIAL_MAX_PENDING 8  // How many events keep their own string storage at once.
+NYA_SOCIAL_LOBBY_KEY_JOIN "nya_join"  // The Steam lobby key this module publishes a join secret under.
+nya_social_init(...)  // nya_social_init(.discord_application_id = ..., .large_image = ...).
 
 // functions
-void nya_system_register(NYA_SystemEntry entry)  // Appends to the registry.
-NYA_Error nya_system_registry_finalize(void)  // Sorts every registered entry by `after` into the order the run_* functions use, once.
-NYA_Error nya_system_registry_run_init(void)  // Runs every registered `init`, skipping a null one, in finalized order.
-void nya_system_registry_run_update(f32 delta_time_s)  // Runs every registered `update`, skipping a null one, in finalized order.
-void nya_system_registry_run_deinit(void)  // Runs every registered `deinit`, skipping a null one, in REVERSE finalized order.
+NYA_Error nya_social_init_with_config(NYA_SocialConfig config)  // Brings up whichever providers this build and this machine have, and starts pumping them once a frame.
+void nya_social_deinit(void)  // Clears the presence card and stops pumping.
+b8 nya_social_available(void)  // Whether any provider is connected, so a menu can hide an invite button that would do nothing.
+NYA_Error nya_social_presence_set(NYA_SocialPresence presence)  // Sets what the player is doing, on every connected provider.
+NYA_Error nya_social_presence_clear(void)  // Takes the card down.
+NYA_Error nya_social_join_reply(NYA_SocialProvider provider, NYA_ConstCString user_id, b8 accept)  // Answers a NYA_EVENT_SOCIAL_JOIN_REQUEST.
+NYA_Error nya_social_invite_open(void)  // Opens the provider's own friend picker, which on Steam is the overlay's invite dialog.
+NYA_ConstCString nya_social_user_name(void)  // Who the player is signed in as, or an empty string.
+void nya_social_pump(void)  // Drains every provider and dispatches what they reported.
+```
+
+### core_system.h
+
+One registry for every system in the process: the engine's subsystems, the game's, and a plugin's.
+
+```c
+// types
+enum NYA_SystemPhase { NYA_SYSTEM_PHASE_FRAME, NYA_SYSTEM_PHASE_TICK, NYA_SYSTEM_PHASE_RENDER, NYA_SYSTEM_PHASE_COUNT, }  // When in the frame a callback runs.
+enum NYA_SystemOwnerKind { NYA_SYSTEM_OWNER_ENGINE, NYA_SYSTEM_OWNER_GAME, NYA_SYSTEM_OWNER_PLUGIN, NYA_SYSTEM_OWNER_KIND_COUNT, }  // Who a system belongs to.
+struct NYA_SystemOwner { NYA_SystemOwnerKind kind; NYA_ConstCString plugin; }
+struct NYA_SystemOwnerStats { NYA_ConstCString name; NYA_SystemOwnerKind kind; u32 system_count; u32 enabled_count; u64 time_ns; u64 memory_bytes; }  // What one owner's systems cost, summed over the systems belonging to it.
+typedef NYA_Error (*NYA_SystemInitFn)(void)
+typedef void (*NYA_SystemDeinitFn)(void)
+typedef void (*NYA_SystemPhaseFn)(f32 delta_time_s)  // One phase's work for one system.
+typedef u64 (*NYA_SystemMemoryFn)(void)  // What a system reports holding right now, for the per-owner memory line.
+struct NYA_SystemEntry { NYA_ConstCString name; NYA_ConstCString after; NYA_ConstCString before; NYA_SystemInitFn init; NYA_SystemDeinitFn deinit; NYA_SystemPhaseFn frame; NYA_SystemPhaseFn tick; NYA_SystemPhaseFn render; b8 optional; NYA_SystemOwner owner; NYA_SystemMemoryFn memory_bytes; }
+
+// macros
+NYA_SYSTEM_REGISTRY_MAX 64  // How many systems can be registered at once.
+NYA_SYSTEM_PENDING_MAX 16  // Registrations, removals and enable flips one phase run may queue before they are applied.
+NYA_SYSTEM_OWNER_MAX 16  // Distinct owners the registry accounts for: the engine, the game, and one per loaded plugin.
+
+// functions
+void nya_system_register(NYA_SystemEntry entry)  // Adds `entry`, enabled, in the position `after` asks for.
+void nya_system_unregister(NYA_ConstCString name)  // Removes the system called `name`.
+void nya_system_enable(NYA_ConstCString name)  // Whether the system's phase callbacks run.
+void nya_system_disable(NYA_ConstCString name)
+b8 nya_system_is_enabled(NYA_ConstCString name)  // What those two last set.
+NYA_Error nya_system_registry_finalize(void)  // Sorts every registered entry by `after` into the order the run functions use.
+NYA_Error nya_system_registry_run_init(void)  // Runs every `init` in order, timing each one into the debug log.
+void nya_system_registry_run(NYA_SystemPhase phase, f32 delta_time_s)  // Runs `phase` for every enabled system that has a callback for it, in finalized order.
+void nya_system_registry_run_deinit(void)  // Runs `deinit` in reverse finalized order, for every system whose `init` ran and succeeded.
+NYA_ConstCString nya_system_phase_name(NYA_SystemPhase phase)  // "frame", "tick" or "render".
+NYA_ConstCString nya_system_owner_name(NYA_SystemOwner owner)  // "engine", "game", or the plugin's own name.
+b8 nya_system_registry_is_running(void)  // Whether a phase run is in progress, which is what makes a mutation queue instead of apply.
+void nya_system_registry_report(void)  // Logs the schedule at debug level, one line per phase, in run order, with a disabled system marked.
 u32 nya_system_registry_count(void)  // How many systems are registered.
-NYA_ConstCString nya_system_registry_name_at(u32 index)  // The name at `index`, in registration order before finalize and run order after it.
-NYA_SystemInitFn nya_system_registry_init_at(u32 index)  // The `init`/`deinit` function pointers at `index` (finalized order), nullable like the entry itself.
-NYA_SystemDeinitFn nya_system_registry_deinit_at(u32 index)
+const NYA_SystemEntry* nya_system_registry_at(u32 index)  // The entry at `index`, in registration order before finalize and run order after it.
+b8 nya_system_registry_enabled_at(u32 index)  // Whether the entry at `index` is enabled, and whether its `init` ran and succeeded.
+b8 nya_system_registry_initialized_at(u32 index)
+void nya_system_accounting_enable(void)
+void nya_system_accounting_disable(void)
+b8 nya_system_accounting_is_enabled(void)
+void nya_system_accounting_frame_end(void)  // Publishes what was measured since the last call as "the last frame" and starts a new window.
+u64 nya_system_registry_time_ns_at(u32 index)  // What the system at `index` cost over the last frame, summed across every phase it ran in.
+u32 nya_system_owner_count(void)  // How many distinct owners have a system registered, at most NYA_SYSTEM_OWNER_MAX.
+NYA_SystemOwnerStats nya_system_owner_stats_at(u32 index)  // One owner's totals.
 ```
 
 ### core_terrain2d.h
@@ -2230,6 +2390,7 @@ f32 nya_tween_progress(NYA_Tween tween)  // How far along a tween is, from 0 at 
 
 ```c
 // types
+enum NYA_SocialProvider { NYA_SOCIAL_PROVIDER_NONE = 0, NYA_SOCIAL_PROVIDER_DISCORD, NYA_SOCIAL_PROVIDER_STEAM, NYA_SOCIAL_PROVIDER_COUNT, }  // Which friends service an invite, a join or a presence card went through.
 struct NYA_WindowHandle { u32 index; u32 generation; }  // Identifies a window for as long as it exists.
 struct NYA_EntityHandle { u32 index; u32 generation; }  // Identifies an entity for as long as it lives.
 enum NYA_InputDeviceKind { NYA_INPUT_DEVICE_KIND_NONE = 0, NYA_INPUT_DEVICE_KIND_KEYBOARD, NYA_INPUT_DEVICE_KIND_MOUSE, NYA_INPUT_DEVICE_KIND_GAMEPAD, NYA_INPUT_DEVICE_KIND_COUNT, }
@@ -2342,7 +2503,7 @@ b8 nya_cursor_visible(void)
 
 ```c
 // types
-struct NYA_World { NYA_Arena* allocator; NYA_EntitySystem entity_system; NYA_Physics2DSystem physics2d_system; NYA_Physics3DSystem physics3d_system; NYA_SimSystem sim_system; void* user_data; }
+struct NYA_World { NYA_Arena* allocator; NYA_EntitySystem entity_system; NYA_PhysicsLayerSystem physics_layer_system; NYA_Physics2DSystem physics2d_system; NYA_Physics3DSystem physics3d_system; NYA_SimSystem sim_system; void* user_data; }
 
 // functions
 NYA_World* nya_world_create(void)  // Builds a world and brings its three systems up.
@@ -2852,7 +3013,6 @@ NYA_RENDER3D_SHADOW_MAP_SIZE 1024  // Texels per side of one cascade when NYA_Re
 NYA_RENDER3D_SHADOW_MAP_SIZE_MIN 256  // The range NYA_Render3DShadowOptions.map_size is clamped into.
 NYA_RENDER3D_SHADOW_MAP_SIZE_MAX 4096
 NYA_RENDER3D_SHADOW_EXTENT 12.0F  // Half-width of the shadow volume when NYA_Render3DShadow.extent is zero, in world units.
-NYA_RENDER3D_SHADOW_ANGLE_STEP 0.00873F  // The step the shadow light's elevation and azimuth snap to, in radians: half a degree.
 NYA_RENDER3D_SHADOW_BIAS 0.0015F  // Depth slack when NYA_Render3DShadow.bias is zero.
 NYA_RENDER3D_MAX_VERTICES 16384  // Vertices the 3D batch can hold before the scene recorded so far is drawn early.
 NYA_RENDER3D_MAX_INDICES (NYA_RENDER3D_MAX_VERTICES * 3)  // Indices the 3D batch can hold.
@@ -2873,7 +3033,7 @@ b8 nya_render3d_active(NYA_Window* window)  // Whether nya_render3d_begin has be
 void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky)  // Draws the sky behind everything else in the current 3D scene.
 void nya_render3d_occlusion(NYA_Window* window, const NYA_OcclusionBuffer* buffer)  // Culls this pass against an occlusion buffer as well as the frustum.
 f32_4x4 nya_render3d_view_projection(NYA_Window* window)  // The camera matrix this pass is drawing with, for handing to nya_occlusion_begin.
-void nya_render3d_blend_set(NYA_Window* window, NYA_Render3DBlend blend)  // Switches later translucent geometry between alpha blending and adding.
+void nya_render3d_blend_set(NYA_Window* window, NYA_Render3DBlend blend)  // Switches later geometry between alpha blending and adding.
 void nya_render3d_depth_set(NYA_Window* window, NYA_Render3DDepth depth)  // Whether what follows is occluded by the scene or drawn over it.
 NYA_Render3DDepth nya_render3d_depth(NYA_Window* window)
 void nya_render3d_billboard(NYA_Window* window, NYA_ConstCString texture_handle, f32x3 center, f32x2 size, f32 rotation, NYA_Color color)  // A camera-facing quad at `center`, `size` across, spun by `rotation` radians in screen space.
@@ -2888,6 +3048,7 @@ void nya_render3d_point_lights_clear(NYA_Window* window)  // Removes every point
 void nya_render3d_shadow_set(NYA_Window* window, NYA_Render3DShadowFit fit)  // Casts the sun's shadow in every scene the window draws from now on.
 NYA_Render3DShadowFit nya_render3d_shadow(NYA_Window* window)  // The fit as set.
 void nya_render3d_shadow_cast_set(NYA_Window* window, b8 casts_shadow)  // Whether what is drawn from here on casts a shadow.
+b8 nya_render3d_shadow_casts(NYA_Window* window)  // Whether what is drawn now casts a shadow, so a caller can restore what it found.
 void nya_render3d_light_basis(f32x3 direction, OUT f32x3* out_forward, OUT f32x3* out_right, OUT f32x3* out_up)  // The light's own axes: where it points, and an up that is not parallel to it.
 f32_4x4 nya_render3d_shadow_view_projection( f32x3 center, f32x3 light_direction, f32 extent, f32 depth, OUT f32x3* out_eye )  // The matrix a shadow pass rasterises with, and the matrix the scene pass samples through.
 NYA_Render3DShadow nya_render3d_shadow_for_camera( const NYA_Window* window, NYA_Camera3DPerspective camera, f32x3 light_direction, u32 cascade, NYA_Render3DShadowFit fit )  // A cascade's shadow volume, fitted to a camera over the window's cascade count and snapped to its texel grid.
@@ -3025,6 +3186,25 @@ NYA_Color nya_color_invert(NYA_Color color)
 NYA_Color nya_color_lighten(NYA_Color color, f32 amount)
 NYA_Color nya_color_mix(NYA_Color a, NYA_Color b, f32 t)
 NYA_Color nya_color_saturate(NYA_Color color, f32 factor)
+```
+
+### render_features.h
+
+One switch per thing the renderer does, per window, so any of it can be turned off to see what it was
+
+```c
+// types
+enum NYA_RenderToggle { NYA_RENDER_TOGGLE_DEFAULT = 0, NYA_RENDER_TOGGLE_ON, NYA_RENDER_TOGGLE_OFF, NYA_RENDER_TOGGLE_COUNT, }  // What one switch says.
+enum NYA_RenderFeature { NYA_RENDER_FEATURE_FRUSTUM_CULLING, NYA_RENDER_FEATURE_OCCLUSION_CULLING, NYA_RENDER_FEATURE_BACKFACE_CULLING, NYA_RENDER_FEATURE_DEPTH_TEST, NYA_RENDER_FEATURE_DRAW_SORTING, NYA_RENDER_FEATURE_TRANSPARENCY, NYA_RENDER_FEATURE_SHADOWS, NYA_RENDER_FEATURE_LIGHTING, NYA_RENDER_FEATURE_POINT_LIGHTS, NYA_RENDER_FEATURE_REFLECTIONS, NYA_RENDER_FEATURE_TEXTURES, NYA_RENDER_FEATURE_FOG, NYA_RENDER_FEATURE_SKY, NYA_RENDER_FEATURE_DECALS, NYA_RENDER_FEATURE_LOD, NYA_RENDER_FEATURE_PARTICLES, NYA_RENDER_FEATURE_HAZE, NYA_RENDER_FEATURE_POST, NYA_RENDER_FEATURE_INK, NYA_RENDER_FEATURE_AMBIENT_OCCLUSION, NYA_RENDER_FEATURE_ANTIALIAS, NYA_RENDER_FEATURE_DEPTH_OF_FIELD, NYA_RENDER_FEATURE_SPEED_LINES, NYA_RENDER_FEATURE_BLOOM, NYA_RENDER_FEATURE_LIGHT_SHAFTS, NYA_RENDER_FEATURE_MOTION_BLUR, NYA_RENDER_FEATURE_EYE_ADAPTATION, NYA_RENDER_FEATURE_GRADE, NYA_RENDER_FEATURE_COUNT, }  // Everything switchable, in the order NYA_RenderFeatures declares it.
+struct NYA_RenderFeatures { NYA_RenderToggle frustum_culling; NYA_RenderToggle occlusion_culling; NYA_RenderToggle backface_culling; NYA_RenderToggle depth_test; NYA_RenderToggle draw_sorting; NYA_RenderToggle transparency; NYA_RenderToggle shadows; NYA_RenderToggle lighting; NYA_RenderToggle point_lights; NYA_RenderToggle reflections; NYA_RenderToggle textures; NYA_RenderToggle fog; NYA_RenderToggle sky; NYA_RenderToggle decals; NYA_RenderToggle lod; NYA_RenderToggle particles; NYA_RenderToggle haze; NYA_RenderToggle post; NYA_RenderToggle ink; NYA_RenderToggle ambient_occlusion; NYA_RenderToggle antialias; NYA_RenderToggle depth_of_field; NYA_RenderToggle speed_lines; NYA_RenderToggle bloom; NYA_RenderToggle light_shafts; NYA_RenderToggle motion_blur; NYA_RenderToggle eye_adaptation; NYA_RenderToggle grade; }  // The switches as a caller writes them, one field per NYA_RenderFeature in the same order.
+
+// functions
+void nya_render_features_set(NYA_Window* window, NYA_RenderFeatures features)  // Replaces `window`'s switches.
+NYA_RenderFeatures nya_render_features(const NYA_Window* window)  // The switches as set.
+b8 nya_render_feature_enabled(const NYA_Window* window, NYA_RenderFeature feature)  // Whether `feature` runs on `window`.
+b8 nya_render_feature_on(const NYA_Window* window, NYA_RenderFeature feature, b8 asked)
+NYA_ConstCString nya_render_feature_name(NYA_RenderFeature feature)  // The field name, for an overlay row or a log line.
+u32 nya_render_features_disabled_text(const NYA_Window* window, char* out, u64 size)  // Every feature that is off, as one line of names, for the debug overlay.
 ```
 
 ### render_font.h
@@ -3330,7 +3510,7 @@ struct NYA_Render3DFrustum { f32x4 planes[6]; }  // The six inward-facing clip p
 typedef struct { u32 first; u32 count; } NYA_Render3DIndexRange  // A run of the uploaded index buffer.
 struct NYA_Render3DSegment { u32 opaque_objects; u32 transparent_objects; u32 first_group; u32 group_count; u32 first_decal; u32 decal_count; NYA_Render3DIndexRange opaque[NYA_RENDER3D_PASSES]; NYA_Render3DIndexRange transparent[NYA_RENDER3D_PASSES]; SDL_GPUTexture* texture; SDL_GPUSampler* sampler; NYA_ConstCString decal_texture; NYA_ConstCString skinned; const struct NYA_ShaderSkinUniform* skin; NYA_Render3DMaterial material; NYA_Render3DBlend blend; NYA_Render3DDepth depth; b8 casts_shadow; }
 struct NYA_Render3DBatch { SDL_GPUBuffer* vertex_buffer; SDL_GPUTransferBuffer* transfer_buffer; SDL_GPUBuffer* index_buffer; SDL_GPUTransferBuffer* index_transfer_buffer; NYA_Render3DStream opaque; NYA_Render3DStream transparent; NYA_Render3DSegment* segments; struct NYA_ShaderMesh3DUniform* segment_uniforms; u32 segment_count; u32 segment_count_worst; u16* pass_indices; b8 transparent_active; NYA_Render3DSortKey* sort_keys; u16* sorted_indices; NYA_Render3DSortKey* sort_keys_scratch; NYA_Render3DInstance* sorted_instances; SDL_GPUTexture* texture; SDL_GPUSampler* sampler; NYA_Render3DPointLight point_lights[NYA_RENDER3D_MAX_POINT_LIGHTS]; u32 point_light_count; NYA_Render3DFog fog; SDL_GPUTexture* shadow_color; SDL_GPUTexture* shadow_depth; SDL_GPUTexture* shadow_none; NYA_Render3DShadowOptions shadow_options; NYA_Render3DShadowOptions shadow_atlas; NYA_Render3DShadowFit shadow_fit; NYA_Render3DShadow shadow; f32_4x4 shadow_view_projection[NYA_RENDER3D_SHADOW_CASCADES]; f32 shadow_cascade_extent[NYA_RENDER3D_SHADOW_CASCADES]; u32 shadow_cascade_count; b8 shadow_valid; NYA_Render3DFrustum passes[NYA_RENDER3D_PASSES]; u32 pass_count; b8 passes_ready; b8 casts_shadow; b8 active; b8 camera_valid; f32_4x4 view_projection; NYA_Camera3DPerspective camera; NYA_Camera3DOrthographic camera_orthographic; b8 camera_is_ortho; NYA_Render3DLight light; NYA_Render3DMaterial material; const NYA_OcclusionBuffer* occlusion; NYA_Render3DInstance* instances; u8* instance_passes; u32 instance_count; SDL_GPUBuffer* instance_buffer; SDL_GPUTransferBuffer* instance_transfer_buffer; NYA_Render3DMeshGroup mesh_groups[NYA_RENDER3D_MAX_MESH_GROUPS]; u32 mesh_group_count; NYA_Cache* registered_meshes; NYA_Render3DBlend blend; NYA_Render3DDepth depth; SDL_GPUTexture* refraction_capture; u32 refraction_width; u32 refraction_height; u32 frame_draw_calls; u32 frame_vertices; u32 frame_indices; u32 frame_dropped_draws; u32 frame_instances; u32 frame_culled; u32 frame_occluded; u32 frame_passes; }
-struct NYA_RenderSystemWindow { NYA_Color clear_color; SDL_GPURenderPass* render_pass; SDL_GPUCommandBuffer* render_commands; SDL_GPUTexture* swapchain_texture; SDL_GPUTextureFormat color_format; b8 render_pass_normals; SDL_GPUTexture* msaa_texture; u32 msaa_width; u32 msaa_height; SDL_GPUSampleCount msaa_sample_count; SDL_GPUTexture* depth_texture; u32 depth_width; u32 depth_height; SDL_GPUSampleCount depth_sample_count; NYA_Render2DBatch draw_batch; NYA_Render3DBatch mesh_batch; NYA_Render3DDecals decals; NYA_Render3DDecalsGPU decals_gpu; NYA_RenderOutput output; NYA_RenderOutputGPU output_gpu; NYA_Render2DHaze haze; NYA_PostInk post_ink; NYA_PostAmbientOcclusion post_ambient_occlusion; NYA_PostAntialias post_antialias; NYA_PostDepthOfField post_depth_of_field; NYA_PostSpeedLines post_speed_lines; NYA_PostBloom post_bloom; NYA_PostEyeAdaptation post_eye_adaptation; NYA_PostLightShafts post_light_shafts; NYA_PostMotionBlur post_motion_blur; NYA_PostDebugView post_debug_view; NYA_RenderFrameStats frame_stats; NYA_RenderFrameStats frame_stats_last; SDL_GPUCommandBuffer* trace_present; NYA_TraceFeature trace_feature; }
+struct NYA_RenderSystemWindow { NYA_Color clear_color; SDL_GPURenderPass* render_pass; SDL_GPUCommandBuffer* render_commands; SDL_GPUTexture* swapchain_texture; SDL_GPUTextureFormat color_format; b8 render_pass_normals; SDL_GPUTexture* msaa_texture; u32 msaa_width; u32 msaa_height; SDL_GPUSampleCount msaa_sample_count; SDL_GPUTexture* depth_texture; u32 depth_width; u32 depth_height; SDL_GPUSampleCount depth_sample_count; NYA_Render2DBatch draw_batch; NYA_Render3DBatch mesh_batch; NYA_Render3DDecals decals; NYA_Render3DDecalsGPU decals_gpu; NYA_RenderOutput output; NYA_RenderOutputGPU output_gpu; NYA_Render2DHaze haze; NYA_RenderFeatures features; u32 features_off_mask; u32 features_on_mask; NYA_PostInk post_ink; NYA_PostAmbientOcclusion post_ambient_occlusion; NYA_PostAntialias post_antialias; NYA_PostDepthOfField post_depth_of_field; NYA_PostSpeedLines post_speed_lines; NYA_PostBloom post_bloom; NYA_PostEyeAdaptation post_eye_adaptation; NYA_PostLightShafts post_light_shafts; NYA_PostMotionBlur post_motion_blur; NYA_PostDebugView post_debug_view; NYA_RenderFrameStats frame_stats; NYA_RenderFrameStats frame_stats_last; SDL_GPUCommandBuffer* trace_present; NYA_TraceFeature trace_feature; }
 struct NYA_Vertex3D { f32 position[3]; f16 uv[2]; f32 normals[3]; f16 color[4]; }  // One vertex of the immediate 3D batch, 36 bytes.
 struct NYA_Render3DInstance { f32_4x4 model; NYA_Color tint; }  // One drawn copy of a retained mesh: its transform and tint, 80 bytes.
 struct NYA_Vertex2D { f32 x, y; f32 u, v; u8 color[4]; }  // The vertex the 2D batch uses, twenty bytes.
@@ -3385,14 +3565,24 @@ struct NYA_UISize { NYA_UISizeKind kind; f32 value; f32 min; f32 max; }  // How 
 struct NYA_UIStateColors { NYA_Color normal; NYA_Color focused; NYA_Color pressed; NYA_Color disabled; }  // A colour for each state a widget can be in.
 struct NYA_UISkin { char texture[NYA_UI_SKIN_TEXTURE_MAX]; f32 source_x; f32 source_y; f32 source_width; f32 source_height; f32 left; f32 right; f32 top; f32 bottom; b8 tile; b8 hollow; NYA_Color tint; }  // How one part of the UI draws: flat, or a nine-slice cut from a texture.
 struct NYA_UIStateSkins { NYA_UISkin normal; NYA_UISkin focused; NYA_UISkin pressed; NYA_UISkin disabled; }  // A skin for each state a widget can be in.
-struct NYA_UIStyle { char font[NYA_UI_FONT_NAME_MAX]; char title_font[NYA_UI_FONT_NAME_MAX]; f32 body_size; f32 small_size; f32 title_size; f32 scale; f32 reference_height; f32 margin; f32 padding; f32 spacing; f32 radius; f32 outline; f32 depth; f32 pop; f32 item_height; NYA_UIOverflow overflow; f32 transition_s; f32 appear_s; NYA_EaseType easing; NYA_Color scrim; NYA_Color panel; NYA_Color ink; NYA_Color track; NYA_Color accent; NYA_Color text_dim; NYA_UIStateColors button; NYA_UIStateColors text; NYA_UISkin panel_skin; NYA_UIStateSkins button_skin; NYA_UISkin track_skin; NYA_UISkin knob_skin; }  // The look of every widget in a window.
-struct NYA_UIPanel { NYA_UIAnchor anchor; f32x2 offset; NYA_UISize width; NYA_UISize height; NYA_UIDirection direction; NYA_UISize children; NYA_UIAlign align; f32 gap; f32 padding; NYA_UIOverflow overflow; NYA_UIText text; NYA_ConstCString title; NYA_Color fill; b8 frameless; }  // A container.
+struct NYA_UIStyle { char font[NYA_UI_FONT_NAME_MAX]; char title_font[NYA_UI_FONT_NAME_MAX]; f32 body_size; f32 small_size; f32 title_size; f32 scale; b8 follow_display_scale; f32 margin; f32 padding; f32 spacing; f32 radius; f32 outline; f32 depth; f32 pop; f32 item_height; NYA_UIOverflow overflow; f32 transition_s; f32 appear_s; NYA_EaseType easing; NYA_Color scrim; NYA_Color panel; NYA_Color ink; NYA_Color track; NYA_Color accent; NYA_Color text_dim; NYA_UIStateColors button; NYA_UIStateColors text; char icon_sheet[NYA_UI_SKIN_TEXTURE_MAX]; NYA_UISkin panel_skin; NYA_UIStateSkins button_skin; NYA_UISkin track_skin; NYA_UISkin knob_skin; }  // The look of every widget in a window.
+struct NYA_UIPanel { NYA_UIAnchor anchor; f32x2 offset; NYA_UISize width; NYA_UISize height; NYA_UIDirection direction; NYA_UISize children; NYA_UIAlign align; f32 gap; f32 padding; NYA_UIOverflow overflow; NYA_UIText text; NYA_ConstCString title; NYA_Color fill; b8 frameless; b8 draggable; }  // A container.
+typedef enum NYA_UIChartKind { NYA_UI_CHART_LINE = 0, NYA_UI_CHART_BAR, NYA_UI_CHART_KIND_COUNT, } NYA_UIChartKind  // What a chart draws.
+struct NYA_UIChart { const f32* values; u32 count; NYA_UIChartKind kind; f32 min; f32 max; f32 height; NYA_Color color; }
+struct NYA_UIIcon { NYA_ConstCString texture; f32 source_x; f32 source_y; f32 source_width; f32 source_height; NYA_Color tint; }
+struct NYA_UITable { const f32* widths; u32 columns; const NYA_ConstCString* headers; b8 striped; }
 
 // macros
 NYA_UI_WIDGETS_MAX 64  // Focusable widgets in one pass.
 NYA_UI_PANELS_MAX 64  // Container measurements remembered across every window.
 NYA_UI_DEPTH_MAX 8  // Containers open inside each other at once.
 NYA_UI_STYLE_DEPTH_MAX 4  // Styles pushed on top of the window's at once.
+NYA_UI_OPACITY_DEPTH_MAX 4  // Opacity groups open inside each other at once.
+NYA_UI_TABLE_COLUMNS_MAX 8  // Columns a table may have.
+NYA_UI_CHART_POINTS_MAX 256  // Points a chart plots.
+NYA_UI_CHART_WIDTH 160.0F
+NYA_UI_CHART_LINE_WIDTH 2.0F
+NYA_UI_CHART_BAR_SHARE 0.7F
 NYA_UI_FONT_NAME_MAX 32  // Longest registered font name a style can hold, terminator included.
 NYA_UI_ANIMATIONS_MAX 64  // Widgets whose transitions are remembered, by id modulo this.
 NYA_UI_APPEAR_OFFSET 12.0F  // How far a panel slides in from while it appears, and how long it must have been gone to appear again.
@@ -3405,12 +3595,16 @@ NYA_UI_REPEAT_DELAY_S 0.35F  // How long a direction is held before it repeats, 
 NYA_UI_REPEAT_INTERVAL_S 0.08F
 NYA_UI_POP_S 0.15F  // How long a newly focused widget takes to settle from its pop.
 NYA_UI_CARET_BLINK_S 0.5F  // How long a caret stays on and then off, in seconds.
+NYA_UI_DOUBLE_CLICK_S 0.35  // How far apart two clicks in a field may be and still select a word.
+NYA_UI_SELECTION_ALPHA 0.35F  // How much of the accent a selection highlight keeps, so the glyphs over it stay readable.
+NYA_UI_STRIPE_ALPHA 0.12F  // How much of the dim text colour a striped table row keeps.
+NYA_UI_BOUNCE 1.5F  // How far a widget pops on activation, as a share of the style's `pop`, and how long the bounce lasts.
+NYA_UI_BOUNCE_S 0.18F
 NYA_UI_SCROLL_STEP 40.0F
 NYA_UI_SCROLLBAR 4.0F
 NYA_UI_FOCUS_BAR 3.0F
-NYA_UI_SCALE_STEP 0.25F  // A derived scale moves in steps this size and never drops under the smallest.
+NYA_UI_SCALE_STEP 0.25F  // The display scale is snapped to steps this size and the result never drops under the smallest.
 NYA_UI_SCALE_MIN 0.5F
-NYA_UI_REFERENCE_HEIGHT 720.0F
 NYA_UI_BODY_SIZE 18.0F
 NYA_UI_SMALL_SIZE 14.0F
 NYA_UI_TITLE_SIZE 30.0F
@@ -3447,6 +3641,12 @@ void nya_ui_panel_end(NYA_UI* ui)
 void nya_ui_size(NYA_UI* ui, NYA_UISize size)  // The size of the next child, widget or container, along its container's direction.
 NYA_Rectf nya_ui_space(NYA_UI* ui, f32 width, f32 height)  // Takes room in the layout and returns it, in window pixels, for drawing into during the draw pass.
 void nya_ui_scrim(NYA_UI* ui)  // Dims the whole window in the style's scrim colour, under whatever is drawn after it.
+void nya_ui_opacity_begin(NYA_UI* ui, f32 opacity)  // Everything drawn until the matching end has its alpha multiplied by `opacity`, which is clamped to [0, 1].
+void nya_ui_opacity_end(NYA_UI* ui)
+b8 nya_ui_table_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UITable table)
+void nya_ui_table_end(NYA_UI* ui)
+b8 nya_ui_table_row_begin(NYA_UI* ui)  // Opens one row.
+void nya_ui_table_row_end(NYA_UI* ui)
 void nya_ui_label(NYA_UI* ui, NYA_ConstCString text)  // Text at the container's size, in the style's text colour or in `color`.
 void nya_ui_label(NYA_UI* ui, NYA_ConstCString text, NYA_Color color)
 b8 nya_ui_button(NYA_UI* ui, NYA_ConstCString label)  // True on the pass it is activated: confirm while focused, or a left click released over it.
@@ -3454,6 +3654,11 @@ b8 nya_ui_selectable(NYA_UI* ui, NYA_ConstCString label, b8 selected)  // A butt
 b8 nya_ui_toggle(NYA_UI* ui, NYA_ConstCString label, b8* value)  // Activating flips `*value`; left and right set it off and on.
 b8 nya_ui_slider(NYA_UI* ui, NYA_ConstCString label, f32* value, f32 min, f32 max, f32 step)
 b8 nya_ui_text_input(NYA_UI* ui, NYA_ConstCString label, char* buffer, u32 capacity)
+b8 nya_ui_tabs(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected)  // One of `count` choices in a row of their own, marked and focused like a button.
+b8 nya_ui_dropdown(NYA_UI* ui, NYA_ConstCString label, const NYA_ConstCString* options, u32 count, u32* selected)  // A closed row showing `options[*selected]`; activating it opens the list, and picking closes it again.
+b8 nya_ui_radio(NYA_UI* ui, NYA_ConstCString label, u32* selected, u32 value)  // One choice of a set, marked when `*selected` is already `value`.
+void nya_ui_chart(NYA_UI* ui, NYA_ConstCString label, NYA_UIChart chart)  // Plots `chart`, taking a row of its own.
+void nya_ui_icon(NYA_UI* ui, NYA_UIIcon icon, f32 size)  // A square `size` pixels at scale 1 on a side, cut from a texture.
 b8 nya_ui_color_picker(NYA_UI* ui, NYA_ConstCString label, NYA_Color* color)
 void nya_ui_disabled_begin(NYA_UI* ui)  // Widgets until the matching end draw in their disabled colours, take no focus and never act.
 void nya_ui_disabled_end(NYA_UI* ui)
@@ -3468,6 +3673,22 @@ void nya_ui_style_pop(NYA_UI* ui)
 f32 nya_ui_scale(const NYA_Window* window)  // What sizes were multiplied by in `window`'s last pass, for drawing custom content at the same scale.
 ```
 
+### ui_internal.h
+
+What the ui_*.c files share: the per window state, the open pass's scratch, and every internal function. Nothing
+
+```c
+// types
+typedef struct { NYA_UIStyle style; f32 margin; f32 padding; f32 spacing; f32 radius; f32 outline; f32 depth; f32 pop; f32 item_height; NYA_Font fonts[NYA_UI_TEXT_COUNT]; f32 line_heights[NYA_UI_TEXT_COUNT]; } _NYA_UILook  // A style with its sizes multiplied by the pass's scale, in whole pixels, and its fonts resolved.
+typedef struct { f32x2 origin; f32x2 extent; f32x2 room; u32 main; f32 gap; NYA_UISize children; NYA_UIAlign align; NYA_UIOverflow overflow; NYA_UIText text; f32 used; f32 across; u32 count; f32 fixed; f32 grow; f32 grow_placed; f32 grow_space; f32 grow_total; u64 key; u64 scope; u32 group; const f32* columns; u32 column_count; b8 striped; u32 panel; NYA_UIPanel options; NYA_Rectf bounds; f32x2 before; f32x2 after; f32 header; f32 title_width; f32x2 scroll; NYA_Rectf clip; b8 scrolls[2]; b8 clipping; b8 hidden; } _NYA_UILayout  // One open container.
+typedef struct { u64 id; u64 pass; f32x2 size; b8 measured; f32x2 content; f32 fixed; f32 grow; u32 count; f32x2 scroll; f32x2 drag; f64 shown_s; f64 seen_s; } _NYA_UIPanelState
+typedef struct { u64 id; b8 refused; b8 disabled; b8 focused; b8 held; b8 activated; f32 focus; f32 press; } _NYA_UIWidget  // A widget's standing in the current pass.
+typedef struct { u64 id; f64 time_s; f32 focus; f32 press; } _NYA_UIAnimation  // Where one widget's transitions stand, and when they were last stepped.
+struct NYA_UI { b8 claimed; NYA_WindowHandle handle; NYA_Window* window; NYA_UIPass pass; NYA_UIStyle style; f32 scale; u64 focus; u32 focus_index; f64 focus_changed_s; b8 reveal; u64 active; b8 dragging; u32 grab; u64 hue_id; f32 hue; char hex[10]; u64 editing; u32 caret; b8 typing; u32 select; u64 click_id; f64 click_s; u64 open; u64 drag_panel; u64 bounce_id; f64 bounce_s; f32x2 drag_grip; }  // What persists per window.
+typedef struct { NYA_InputAction action; NYA_Keycode key; } _NYA_UIPress  // What a press is read from: an action, or a raw key when the action is NONE.
+typedef struct { NYA_UI windows[NYA_WINDOW_MAX]; NYA_UI* open; u64 pass_serial; b8 registered; NYA_TraceScope trace; b8 confirm; b8 cancel; b8 confirm_down; b8 presses[_NYA_UI_PRESS_COUNT]; f32x2 pointer; b8 pointer_moved; b8 pointer_pressed; b8 pointer_down; b8 pointer_released; f32 wheel; f32 wheel_x; b8 editing_seen; b8 typing_at_begin; u64 press_tick; b8 tick_presses[_NYA_UI_PRESS_COUNT]; u32 repeat_press; f32 repeat_s; u64 widgets[NYA_UI_WIDGETS_MAX]; u32 widget_groups[NYA_UI_WIDGETS_MAX]; b8 widget_horizontal[NYA_UI_WIDGETS_MAX]; u32 widget_count; u32 widget_count_worst; u32 focus_found; _NYA_UILayout layouts[NYA_UI_DEPTH_MAX]; u32 depth; _NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 look_depth; NYA_Rectf safe; NYA_UISize next; b8 next_set; u32 disabled; f32 opacities[NYA_UI_OPACITY_DEPTH_MAX + 1]; u32 opacity_depth; _NYA_UIPanelState panels[NYA_UI_PANELS_MAX]; u32 panel_count; _NYA_UIAnimation animations[NYA_UI_ANIMATIONS_MAX]; } _NYA_UISystem
+```
+
 ## physics
 
 Box2D and Box3D behind one interface: bodies, shapes, queries and a character controller.
@@ -3479,14 +3700,15 @@ Box2D and Box3D behind one interface: bodies, shapes, queries and a character co
 typedef enum NYA_Physics2DOneWay { NYA_PHYSICS2D_ONE_WAY_NONE = 0, NYA_PHYSICS2D_ONE_WAY_UP, NYA_PHYSICS2D_ONE_WAY_DOWN, NYA_PHYSICS2D_ONE_WAY_LEFT, NYA_PHYSICS2D_ONE_WAY_RIGHT, NYA_PHYSICS2D_ONE_WAY_COUNT, } NYA_Physics2DOneWay  // Which way a surface admits contacts.
 enum NYA_Physics2DShape { NYA_PHYSICS2D_SHAPE_BOX = 0, NYA_PHYSICS2D_SHAPE_CIRCLE, NYA_PHYSICS2D_SHAPE_CAPSULE, NYA_PHYSICS2D_SHAPE_CHAIN, NYA_PHYSICS2D_SHAPE_COUNT, }
 struct NYA_Physics2DSystem { b2WorldId world; b8 initialized; b8 enabled; f32 pixels_per_meter; f32x2 gravity; u32 sub_step_count; u32 body_count; f32 contact_recycle_distance; b8 contact_recycling_suspended; f32 last_step_time_s; u64 step_count; NYA_PhysicsHit hits[NYA_PHYSICS2D_MAX_HITS]; u32 hit_count; f32 hit_threshold; }
-struct NYA_Physics2DBody { b2BodyId id; NYA_PhysicsBodyType type; NYA_Physics2DShape shape; f32x2 size; f32 radius; f32 length; b8 attached; b8 grounded; u64 grounded_step; NYA_Physics2DOneWay one_way; f32 drop_through_s; }  // What an entity carries when it is simulated.
-struct NYA_Physics2DBodyOptions { NYA_PhysicsBodyType type; NYA_Physics2DShape shape; f32x2 size; f32 radius; f32 length; const f32x2* points; u32 point_count; f32 density; f32 friction; f32 restitution; f32 linear_damping; f32 angular_damping; f32 gravity_scale; b8 lock_rotation; NYA_Physics2DOneWay one_way; b8 is_sensor; b8 is_bullet; b8 never_sleep; b8 ignore_hits; }  // What a body is created as.
+struct NYA_Physics2DBody { b2BodyId id; NYA_PhysicsBodyType type; NYA_Physics2DShape shape; f32x2 size; f32 radius; f32 length; b8 attached; b8 grounded; u64 grounded_step; NYA_PhysicsLayerMask layers; NYA_PhysicsLayerMask collides_with; NYA_Physics2DOneWay one_way; f32 drop_through_s; }  // What an entity carries when it is simulated.
+struct NYA_Physics2DBodyOptions { NYA_PhysicsBodyType type; NYA_Physics2DShape shape; f32x2 size; f32 radius; f32 length; const f32x2* points; u32 point_count; NYA_PhysicsLayerMask layers; NYA_PhysicsLayerMask collides_with; f32 density; f32 friction; f32 restitution; f32 linear_damping; f32 angular_damping; f32 gravity_scale; b8 lock_rotation; NYA_Physics2DOneWay one_way; b8 is_sensor; b8 is_bullet; b8 never_sleep; b8 ignore_hits; }  // What a body is created as.
 
 // macros
 NYA_PHYSICS2D_PIXELS_PER_METER 32.0F  // World units per metre, the scale the whole module converts through.
 NYA_PHYSICS2D_SUB_STEPS 4  // Solver iterations per step.
 NYA_PHYSICS2D_CHAIN_MAX_POINTS 1024  // Most points one chain shape may be given.
 NYA_PHYSICS2D_MAX_CONTACTS_PER_BODY 16  // Contacts inspected when answering nya_physics2d_grounded.
+NYA_PHYSICS2D_MAX_SHAPES_PER_BODY NYA_PHYSICS2D_CHAIN_MAX_POINTS  // Shapes a body may have and still be refiltered whole by nya_physics2d_layers_set.
 NYA_PHYSICS2D_GROUND_NORMAL_MIN 0.7F  // How close to straight up a contact normal must point to count as ground, as a dot product with up.
 NYA_PHYSICS2D_GRAVITY_DEFAULT  // Earth gravity, in world units per second squared, pointing down the screen.
 NYA_PHYSICS2D_MAX_HITS 256  // Hits kept per step.
@@ -3520,6 +3742,9 @@ f32 nya_physics2d_rotation(const NYA_Entity* entity)  // The body's rotation abo
 b8 nya_physics2d_grounded(const NYA_Entity* entity)  // Whether the body is resting on something that could hold it up.
 b8 nya_physics2d_awake(const NYA_Entity* entity)  // False once the solver has put the body to rest.
 void nya_physics2d_wake(NYA_Entity* entity)
+void nya_physics2d_layers_set(NYA_Entity* entity, NYA_PhysicsLayerMask layers, NYA_PhysicsLayerMask collides_with)  // Moves an attached body onto other layers, which takes effect on the next step.
+NYA_PhysicsLayerMask nya_physics2d_layers(const NYA_Entity* entity)  // Which layers this body is in.
+NYA_PhysicsLayerMask nya_physics2d_collides_with(const NYA_Entity* entity)  // Which layers this body meets.
 void nya_physics2d_one_way_set(NYA_Entity* entity, NYA_Physics2DOneWay direction)  // Makes this body's surface passable from one direction.
 NYA_Physics2DOneWay nya_physics2d_one_way(const NYA_Entity* entity)  // Which way this body lets bodies through.
 void nya_physics2d_drop_through(NYA_Entity* entity, f32 seconds)  // Lets this body fall through every one-way surface for `seconds`.
@@ -3527,7 +3752,9 @@ const NYA_PhysicsHit* nya_physics2d_hits(OUT u32* out_count)  // The hits from t
 void nya_physics2d_hit_threshold_set(f32 world_units_per_second)  // The closing speed a contact needs before it appears in that list, in world units per second.
 f32 nya_physics2d_hit_threshold(void)
 NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, OUT f32x2* out_point, OUT f32x2* out_normal)  // The nearest body along `origin + direction`, or NYA_ENTITY_HANDLE_NONE.
-NYA_EntityHandle nya_physics2d_entity_at(f32x2 point)
+NYA_EntityHandle nya_physics2d_raycast(f32x2 origin, f32x2 direction, NYA_PhysicsLayerMask layers, OUT f32x2* out_point, OUT f32x2* out_normal)
+NYA_EntityHandle nya_physics2d_entity_at(f32x2 point)  // The entity whose body covers `point`, or NYA_ENTITY_HANDLE_NONE.
+NYA_EntityHandle nya_physics2d_entity_at(f32x2 point, NYA_PhysicsLayerMask layers)
 ```
 
 ### physics2d_controller.h
@@ -3550,8 +3777,8 @@ void nya_character2d_reset(NYA_CharacterController2D* controller)  // Cancels an
 // types
 enum NYA_Physics3DShape { NYA_PHYSICS3D_SHAPE_BOX = 0, NYA_PHYSICS3D_SHAPE_SPHERE, NYA_PHYSICS3D_SHAPE_CAPSULE, NYA_PHYSICS3D_SHAPE_MESH, NYA_PHYSICS3D_SHAPE_HEIGHTFIELD, NYA_PHYSICS3D_SHAPE_COUNT, }
 struct NYA_Physics3DSystem { b3WorldId world; b8 initialized; b8 enabled; f32 units_per_meter; f32x3 gravity; u32 sub_step_count; u32 body_count; f32 last_step_time_s; u64 step_count; NYA_PhysicsHit hits[NYA_PHYSICS3D_MAX_HITS]; u32 hit_count; f32 hit_threshold; }
-struct NYA_Physics3DBody { b3BodyId id; NYA_PhysicsBodyType type; NYA_Physics3DShape shape; f32x3 size; f32 radius; f32 length; void* mesh; void* height_field; b8 attached; b8 grounded; u64 grounded_step; }  // What an entity carries when the 3D solver simulates it.
-struct NYA_Physics3DBodyOptions { NYA_PhysicsBodyType type; NYA_Physics3DShape shape; f32x3 size; f32 radius; f32 length; const f32x3* vertices; const u32* indices; u32 vertex_count; u32 index_count; const f32* heights; u32 height_count_x; u32 height_count_z; f32x2 height_cell_size; f32 density; f32 friction; f32 restitution; f32 linear_damping; f32 angular_damping; f32 gravity_scale; b8 lock_rotation; b8 is_sensor; b8 is_bullet; b8 never_sleep; b8 ignore_hits; }  // What a body is created as.
+struct NYA_Physics3DBody { b3BodyId id; NYA_PhysicsBodyType type; NYA_Physics3DShape shape; f32x3 size; f32 radius; f32 length; void* mesh; void* height_field; NYA_PhysicsLayerMask layers; NYA_PhysicsLayerMask collides_with; b8 attached; b8 grounded; u64 grounded_step; }  // What an entity carries when the 3D solver simulates it.
+struct NYA_Physics3DBodyOptions { NYA_PhysicsBodyType type; NYA_Physics3DShape shape; f32x3 size; f32 radius; f32 length; const f32x3* vertices; const u32* indices; u32 vertex_count; u32 index_count; const f32* heights; u32 height_count_x; u32 height_count_z; f32x2 height_cell_size; NYA_PhysicsLayerMask layers; NYA_PhysicsLayerMask collides_with; f32 density; f32 friction; f32 restitution; f32 linear_damping; f32 angular_damping; f32 gravity_scale; b8 lock_rotation; b8 is_sensor; b8 is_bullet; b8 never_sleep; b8 ignore_hits; }  // What a body is created as.
 
 // macros
 NYA_PHYSICS3D_UNITS_PER_METER 1.0F  // World units per metre.
@@ -3561,6 +3788,7 @@ NYA_PHYSICS3D_MAX_HITS 256  // Hits kept per step.
 NYA_PHYSICS3D_HIT_THRESHOLD (4.0F * NYA_PHYSICS3D_UNITS_PER_METER)  // How fast two things have to be closing before a contact counts as a hit, in world units per second.
 NYA_PHYSICS3D_GROUND_NORMAL_MIN 0.7F  // How close to straight up a contact normal must point to count as ground, as a dot product with up.
 NYA_PHYSICS3D_MAX_CONTACTS_PER_BODY 16  // Contacts inspected when answering nya_physics3d_grounded.
+NYA_PHYSICS3D_MAX_SHAPES_PER_BODY 4  // Shapes a body may have and still be refiltered whole by nya_physics3d_layers_set.
 nya_physics3d_body_attach(entity, ...)  // Gives an entity a 3D rigid body, built at the transform the entity already has.
 
 // functions
@@ -3589,10 +3817,43 @@ void nya_physics3d_teleport(NYA_Entity* entity, f32x3 position, NYA_Quaternion r
 b8 nya_physics3d_grounded(const NYA_Entity* entity)  // Whether the body is resting on something that could hold it up.
 b8 nya_physics3d_awake(const NYA_Entity* entity)
 void nya_physics3d_wake(NYA_Entity* entity)
+void nya_physics3d_layers_set(NYA_Entity* entity, NYA_PhysicsLayerMask layers, NYA_PhysicsLayerMask collides_with)  // Moves an attached body onto other layers, which takes effect on the next step.
+NYA_PhysicsLayerMask nya_physics3d_layers(const NYA_Entity* entity)  // Which layers this body is in.
+NYA_PhysicsLayerMask nya_physics3d_collides_with(const NYA_Entity* entity)  // Which layers this body meets.
 const NYA_PhysicsHit* nya_physics3d_hits(OUT u32* out_count)  // The 3D hits from the step just taken, and how many there are.
 void nya_physics3d_hit_threshold_set(f32 world_units_per_second)
 f32 nya_physics3d_hit_threshold(void)
 NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, OUT f32x3* out_point, OUT f32x3* out_normal)  // The first entity a ray strikes, or NYA_ENTITY_HANDLE_NONE.
+NYA_EntityHandle nya_physics3d_raycast(f32x3 origin, f32x3 direction, NYA_PhysicsLayerMask layers, OUT f32x3* out_point, OUT f32x3* out_normal)
+```
+
+### physics_layer.h
+
+Named collision layers, shared by both solvers.
+
+```c
+// types
+typedef u64 NYA_PhysicsLayerMask  // A set of layers, one bit each.
+struct NYA_PhysicsLayerSystem { char names[NYA_PHYSICS_LAYER_MAX][NYA_PHYSICS_LAYER_NAME_MAX]; u32 count; b8 initialized; }  // One world's layer names, indexed by bit.
+
+// macros
+NYA_PHYSICS_LAYER_MAX 64  // Layers a world can hold.
+NYA_PHYSICS_LAYER_NAME_MAX 32  // Bytes a layer name may take, terminator included.
+NYA_PHYSICS_LAYER_NONE ((NYA_PhysicsLayerMask)0)  // No layer at all.
+NYA_PHYSICS_LAYER_ALL ((NYA_PhysicsLayerMask)U64_MAX)  // Every layer, registered or not.
+NYA_PHYSICS_LAYER_DEFAULT ((NYA_PhysicsLayerMask)1)  // Bit zero, registered as "default" when a world comes up, and what a body is in when it names none.
+NYA_PHYSICS_LAYER_DEFAULT_NAME "default"  // The name bit zero is registered under.
+nya_physics_layers(...)  // ORs several named layers into one mask, registering each on first use.
+
+// functions
+void nya_system_physics_layer_init(void)  // Empties the registry and registers the default layer as bit zero.
+void nya_system_physics_layer_deinit(void)
+NYA_PhysicsLayerMask nya_physics_layer(NYA_ConstCString name)  // The bit for `name`, registering it on first use.
+b8 nya_physics_layer_find(NYA_ConstCString name, OUT NYA_PhysicsLayerMask* out_layer)  // The bit for `name` without registering anything.
+NYA_ConstCString nya_physics_layer_name(u32 index)  // The name registered for bit `index`, or nullptr past what is registered.
+u32 nya_physics_layer_count(void)  // How many layers are registered, the default layer included.
+b8 nya_physics_layer_mask_overlaps(NYA_PhysicsLayerMask layers_a, NYA_PhysicsLayerMask collides_with_a, NYA_PhysicsLayerMask layers_b, NYA_PhysicsLayerMask collides_with_b)  // Whether two bodies described this way could ever meet.
+NYA_PhysicsLayerMask _nya_physics_layers(NYA_ConstCString const* names)  // Behind nya_physics_layers.
 ```
 
 ### physics_types.h
@@ -3650,6 +3911,7 @@ NYA_NET_TICK_NS_MAX (1000000000ULL / 10)
 
 // functions
 NYA_Error nya_net_client_connect(NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config)  // Connects to a server over UDP.
+NYA_Error nya_net_client_connect_on(NYA_NetTransportKind kind, NYA_ConstCString address, u16 port, NYA_ConstCString name, NYA_NetClientConfig config)  // Connects over `kind`.
 NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString name, NYA_NetClientConfig config)  // Attaches to a transport created elsewhere.
 void nya_net_client_disconnect(void)
 NYA_NetClientState nya_net_client_state(void)
@@ -3687,15 +3949,21 @@ void nya_net_command_set(NYA_NetCommand* command, u32 bit, b8 held)  // Sets or 
 
 ```c
 // types
-struct NYA_NetLaunchConfig { NYA_NetRole role; b8 dedicated; char address[NYA_NET_MAX_ADDRESS]; u16 port; char name[NYA_NET_MAX_NAME]; b8 named; u32 max_players; u16 listen_port; u32 tickrate; u64 world_seed; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetConditions conditions; }  // What the command line asked for.
+struct NYA_NetLaunchConfig { NYA_NetRole role; b8 dedicated; char address[NYA_NET_MAX_ADDRESS]; u16 port; char name[NYA_NET_MAX_NAME]; b8 named; u32 max_players; u16 listen_port; u32 tickrate; u64 world_seed; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetConditions conditions; NYA_NetTransportKind transport; }  // What the command line asked for.
 
 // macros
 NYA_NET_DEFAULT_PORT 27015  // The port used when none is given.
 NYA_NET_MAX_ADDRESS 128  // How long an address may be, buffer included.
+NYA_NET_JOIN_SECRET_TAG "nya1:"  // The tag a join secret starts with.
+NYA_NET_JOIN_SCHEME_UDP "udp"  // How a join secret names its transport.
+NYA_NET_JOIN_SCHEME_STEAM "steam"
+NYA_NET_MAX_JOIN_SECRET
 
 // functions
 NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv)  // Reads the command line.
 void nya_net_config_report(const NYA_NetLaunchConfig* config)  // Logs what the config resolved to, at info.
+b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* out_secret, u64 capacity)  // Writes the address, port and server key of `config` as a join secret.
+b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchConfig* out_config)  // Parses a join secret into the client half of a launch config: role, address, port and server key.
 ```
 
 ### net_crypto.h
@@ -3754,6 +4022,7 @@ NYA_Error nya_net_server_start(NYA_NetServerConfig config)  // Becomes the autho
 void nya_net_server_stop(void)
 b8 nya_net_server_running(void)
 NYA_Error nya_net_server_listen(u16 port)  // Starts accepting players over UDP on `port`.
+NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port)  // Starts accepting players over `kind`.
 b8 nya_net_server_is_listening(void)  // Whether a socket is open.
 const u8* nya_net_server_public_key(void)  // The key players pin to be sure they reached this server, or null until it listens.
 NYA_Error nya_net_server_attach_local(OUT NYA_NetTransport** out_client_transport)  // Attaches a local player over a loopback transport, and hands back the client end.
@@ -3912,6 +4181,16 @@ NYA_SERDE_NYA_ANY_TYPE "any"  // Element type name for an array whose members do
 NYA_String* nya_serde_nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeFlags flags)
 NYA_Error nya_serde_nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, OUT NYA_Object** out_object)
 u64 nya_serde_nya_checksum(const NYA_Object* object)  // Checksum of an object tree.
+```
+
+### serde_reflect.h
+
+A reflected struct straight to and from a file. The low-level pair is
+
+```c
+// functions
+NYA_Error nya_reflect_save_file(const NYA_TypeReflection* type, const void* instance, NYA_ConstCString path, NYA_SerdeFlags flags)  // Writes `instance` to `path` as the format the extension names, through `type`'s description.
+NYA_Error nya_reflect_load_file(const NYA_TypeReflection* type, void* instance, NYA_ConstCString path, NYA_SerdeFlags flags)  // Reads `path` over `instance`, in place.
 ```
 
 ### serde_types.h
@@ -4126,12 +4405,30 @@ void nya_nn_backward(NYA_NNGraph* graph, NYA_NNTensor* loss)  // Walks the tape 
 
 The overlay and the trace: scoped spans, counters and a Chrome trace capture.
 
+### debug_crash.h
+
+The crash reporter: what a player sees when the engine dies.
+
+```c
+// macros
+NYA_CRASH_REPORT_MAX_BYTES  // Largest report that can be composed, statically allocated once.
+NYA_CRASH_REPORT_LINE_MAX (NYA_LOG_RING_MAX + 128)  // Lines the window can index for scrolling.
+NYA_CRASH_REPORT_PATH_MAX (NYA_LOG_DIRECTORY_MAX + 64)  // Longest path a written report can have, terminator included.
+
+// functions
+NYA_Error nya_crash_reporter_init(void)  // Registers the crash observer.
+void nya_crash_reporter_deinit(void)  // Removes the observer.
+u32 nya_crash_report_compose(const NYA_CrashInfo* info, OUT u8* buffer, u32 capacity)
+NYA_Error nya_crash_report_submit(NYA_ConstCString report, OUT u8* out_path, u32 path_capacity)  // Hands the report to the developer, and writes where it went into `out_path`.
+void nya_crash_window_show(const NYA_CrashInfo* info, NYA_ConstCString report)  // Opens the crash window on `report` and blocks until the player closes it.
+```
+
 ### debug_overlay.h
 
 ```c
 // types
-enum NYA_DebugOverlayPage { NYA_DEBUG_OVERLAY_PAGE_STATS, NYA_DEBUG_OVERLAY_PAGE_TRACE, NYA_DEBUG_OVERLAY_PAGE_COUNT, }
-struct NYA_DebugOverlayStyle { f32 x, y; NYA_DebugOverlayPage page; NYA_TraceSort sort; f32 width; f32 height; f32 graph_ceiling_ms; NYA_ConstCString font; f32 font_size; b8 hide_graph; b8 hide_draw_stats; b8 hide_memory; b8 hide_ceilings; b8 show_batch_breakdown; NYA_Color background; NYA_Color text_color; }
+enum NYA_DebugOverlayPage { NYA_DEBUG_OVERLAY_PAGE_STATS, NYA_DEBUG_OVERLAY_PAGE_TRACE, NYA_DEBUG_OVERLAY_PAGE_SYSTEMS, NYA_DEBUG_OVERLAY_PAGE_COUNT, }
+struct NYA_DebugOverlayStyle { f32 x, y; NYA_DebugOverlayPage page; NYA_TraceSort sort; u32 selected_system; f32 width; f32 height; f32 graph_ceiling_ms; NYA_ConstCString font; f32 font_size; b8 hide_graph; b8 hide_draw_stats; b8 hide_memory; b8 hide_ceilings; b8 show_batch_breakdown; NYA_Color background; NYA_Color text_color; }
 
 // macros
 NYA_DEBUG_OVERLAY_REFRESH_SECONDS 0.2F  // How often the printed numbers refresh, in seconds.
@@ -4139,6 +4436,7 @@ NYA_DEBUG_OVERLAY_HISTORY 120
 NYA_DEBUG_OVERLAY_ARENAS 6  // Arenas listed in the memory section, largest first.
 NYA_DEBUG_OVERLAY_CEILINGS 4  // Ceilings listed in the fullness section, fullest first.
 NYA_DEBUG_OVERLAY_TRACE_ROWS 16  // Features listed on the trace page, in the chosen order.
+NYA_DEBUG_OVERLAY_SYSTEM_ROWS 20  // Systems listed on the systems page at once.
 
 // functions
 void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style)  // Samples this frame and draws the readout.
@@ -4228,6 +4526,49 @@ NYA_ConstCString nya_request_method_name(NYA_RequestMethod method)  // The metho
 b8 nya_request_status_is_success(u32 status)  // Whether `status` is a 2xx.
 ```
 
+### websocket.h
+
+An outgoing WebSocket client, RFC 6455, over `ws://` and `wss://`. What talks to obs-websocket, a
+
+```c
+// types
+enum NYA_WebSocketState { NYA_WEBSOCKET_STATE_CONNECTING, NYA_WEBSOCKET_STATE_HANDSHAKING, NYA_WEBSOCKET_STATE_OPEN, NYA_WEBSOCKET_STATE_CLOSING, NYA_WEBSOCKET_STATE_CLOSED, NYA_WEBSOCKET_STATE_COUNT, }
+enum NYA_WebSocketOpcode { NYA_WEBSOCKET_OPCODE_CONTINUATION = 0x0, NYA_WEBSOCKET_OPCODE_TEXT = 0x1, NYA_WEBSOCKET_OPCODE_BINARY = 0x2, NYA_WEBSOCKET_OPCODE_CLOSE = 0x8, NYA_WEBSOCKET_OPCODE_PING = 0x9, NYA_WEBSOCKET_OPCODE_PONG = 0xA, }  // The four bit opcode in a frame header.
+enum NYA_WebSocketClose { NYA_WEBSOCKET_CLOSE_NONE = 0, NYA_WEBSOCKET_CLOSE_NORMAL = 1000, NYA_WEBSOCKET_CLOSE_GOING_AWAY = 1001, NYA_WEBSOCKET_CLOSE_PROTOCOL_ERROR = 1002, NYA_WEBSOCKET_CLOSE_UNSUPPORTED = 1003, NYA_WEBSOCKET_CLOSE_ABNORMAL = 1006, NYA_WEBSOCKET_CLOSE_INVALID_PAYLOAD = 1007, NYA_WEBSOCKET_CLOSE_POLICY = 1008, NYA_WEBSOCKET_CLOSE_TOO_LARGE = 1009, NYA_WEBSOCKET_CLOSE_EXTENSION = 1010, NYA_WEBSOCKET_CLOSE_INTERNAL = 1011, NYA_WEBSOCKET_CLOSE_TLS = 1015, }  // RFC 6455 section 7.4.1, plus the two this module raises on its own.
+enum NYA_WebSocketEventKind { NYA_WEBSOCKET_EVENT_NONE = 0, NYA_WEBSOCKET_EVENT_OPEN, NYA_WEBSOCKET_EVENT_TEXT, NYA_WEBSOCKET_EVENT_BINARY, NYA_WEBSOCKET_EVENT_PONG, NYA_WEBSOCKET_EVENT_CLOSED, NYA_WEBSOCKET_EVENT_KIND_COUNT, }
+enum NYA_WebSocketFrameResult { NYA_WEBSOCKET_FRAME_OK, NYA_WEBSOCKET_FRAME_INCOMPLETE, NYA_WEBSOCKET_FRAME_INVALID, NYA_WEBSOCKET_FRAME_RESULT_COUNT, }  // What nya_websocket_frame_decode made of the bytes.
+struct NYA_WebSocketFrame { b8 fin; NYA_WebSocketOpcode opcode; b8 masked; u8 mask[4]; u64 payload_size; u64 header_size; }  // One frame header, as it appears on the wire.
+struct NYA_WebSocketEvent { NYA_WebSocketEventKind kind; const u8* data; u64 size; NYA_WebSocketClose code; NYA_ConstCString reason; }
+struct NYA_WebSocketOptions { NYA_ConstCString url; NYA_ConstCString subprotocol; NYA_RequestHeader headers[NYA_REQUEST_MAX_HEADERS]; NYA_ConstCString bearer_token; u64 handshake_timeout_ms; u64 max_message_bytes; b8 insecure_skip_tls_verify; }
+
+// macros
+NYA_WEBSOCKET_MAX_HEADER_BYTES 14  // Longest frame header: two bytes, an eight byte length, and a four byte mask.
+NYA_WEBSOCKET_MAX_CONTROL_BYTES 125  // RFC 6455: a control frame's payload never exceeds this, and it is never fragmented.
+NYA_WEBSOCKET_KEY_BYTES 16  // The nonce a client sends, before base64.
+NYA_WEBSOCKET_ACCEPT_LENGTH 28  // base64 of a twenty byte SHA-1, which is what Sec-WebSocket-Accept always is.
+NYA_WEBSOCKET_MAX_HANDSHAKE_BYTES 8192  // Bytes of upgrade response headers read before the connection is given up on.
+NYA_WEBSOCKET_SEND_BYTES 65536  // Queued outgoing bytes, frame headers included.
+NYA_WEBSOCKET_RECEIVE_BYTES 16384  // What one read takes from the socket at a time.
+NYA_WEBSOCKET_DEFAULT_MAX_MESSAGE_BYTES 262144  // The default ceiling on one assembled message, fragments included.
+NYA_WEBSOCKET_DEFAULT_TIMEOUT_MS 30000  // What the whole connect, TLS and upgrade are given before the socket gives up.
+NYA_WEBSOCKET_ACCEPT_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"  // The constant RFC 6455 section 1.3 appends to the client's key before hashing it.
+
+// functions
+NYA_Error nya_websocket_create(NYA_Arena* arena, NYA_WebSocketOptions options, OUT NYA_WebSocket** out_socket)  // Parses the options, allocates the socket's buffers from `arena`, and starts connecting.
+void nya_websocket_destroy(NYA_WebSocket* socket)  // Closes the connection at whatever stage it reached and frees the socket.
+b8 nya_websocket_poll(NYA_WebSocket* socket, OUT NYA_WebSocketEvent* out_event)  // Advances the connection and hands out one event, or returns false when there is nothing to report.
+NYA_WebSocketState nya_websocket_state(const NYA_WebSocket* socket)
+NYA_Error nya_websocket_send_text(NYA_WebSocket* socket, NYA_ConstCString text)  // Queues `text` as one text message.
+NYA_Error nya_websocket_send_binary(NYA_WebSocket* socket, const u8* data, u64 size)
+NYA_Error nya_websocket_send_object(NYA_WebSocket* socket, NYA_Arena* arena, const NYA_Object* body)  // Serializes `body` as compact json and sends it as text.
+NYA_Error nya_websocket_ping(NYA_WebSocket* socket, const u8* data, u64 size)  // Queues a ping.
+NYA_Error nya_websocket_close(NYA_WebSocket* socket, NYA_WebSocketClose code, NYA_ConstCString reason)  // Starts the closing handshake: sends a close frame and moves to CLOSING.
+NYA_Error nya_websocket_frame_encode( NYA_WebSocketOpcode opcode, b8 fin, u64 payload_size, const u8 mask[4], OUT u8 out_header[NYA_WEBSOCKET_MAX_HEADER_BYTES], OUT u64* out_header_size )  // Writes the header for a frame of `payload_size` bytes into `out_header`, and says how long it is.
+NYA_WebSocketFrameResult nya_websocket_frame_decode(const u8* data, u64 size, OUT NYA_WebSocketFrame* out_frame)  // Reads one frame header out of `data`.
+NYA_Error nya_websocket_accept_from_key(NYA_ConstCString key, OUT char out_accept[NYA_WEBSOCKET_ACCEPT_LENGTH + 1])  // The Sec-WebSocket-Accept a server owes for `key`: base64(sha1(key + the RFC's GUID)).
+NYA_ConstCString nya_websocket_close_name(NYA_WebSocketClose code)  // A close code as text, for a log line.
+```
+
 ### discord.h
 
 ```c
@@ -4235,10 +4576,15 @@ b8 nya_request_status_is_success(u32 status)  // Whether `status` is a 2xx.
 enum NYA_DiscordStatus { NYA_DISCORD_STATUS_OFF = 0, NYA_DISCORD_STATUS_DISCONNECTED, NYA_DISCORD_STATUS_CONNECTING, NYA_DISCORD_STATUS_CONNECTED, NYA_DISCORD_STATUS_COUNT, }
 typedef struct { NYA_ConstCString label; NYA_ConstCString url; } NYA_DiscordButton  // A button on the presence card.
 struct NYA_DiscordActivity { NYA_ConstCString details; NYA_ConstCString state; s64 start_time_s; s64 end_time_s; NYA_ConstCString large_image; NYA_ConstCString large_text; NYA_ConstCString small_image; NYA_ConstCString small_text; NYA_ConstCString party_id; u32 party_size; u32 party_max; NYA_ConstCString join_secret; NYA_ConstCString spectate_secret; NYA_DiscordButton buttons[NYA_DISCORD_MAX_BUTTONS]; }  // What the player is doing, as Discord will show it.
+enum NYA_DiscordEventKind { NYA_DISCORD_EVENT_NONE = 0, NYA_DISCORD_EVENT_JOIN, NYA_DISCORD_EVENT_JOIN_REQUEST, NYA_DISCORD_EVENT_KIND_COUNT, }
+struct NYA_DiscordEvent { NYA_DiscordEventKind kind; char user_id[NYA_DISCORD_MAX_USER_ID]; char user_name[NYA_DISCORD_MAX_TEXT]; char secret[NYA_DISCORD_MAX_SECRET]; }  // One thing the Discord client reported, drained by nya_discord_poll.
 
 // macros
 NYA_DISCORD_MAX_TEXT 160  // How long a string field may be.
 NYA_DISCORD_MAX_BUTTONS 2  // Buttons Discord shows on a presence card.
+NYA_DISCORD_MAX_SECRET 160  // How long a join or spectate secret may be, buffer included.
+NYA_DISCORD_MAX_USER_ID 24  // How long a Discord user id may be, buffer included.
+NYA_DISCORD_MAX_EVENTS 8  // How many inbound events are held before the oldest is dropped.
 
 // functions
 NYA_Error nya_discord_init(u64 application_id)  // Starts trying to reach the local Discord client for `application_id`.
@@ -4249,6 +4595,8 @@ b8 nya_discord_connected(void)  // Whether presence set right now would be visib
 NYA_ConstCString nya_discord_user_name(void)  // The Discord user this client is signed in as, or null until the handshake completes.
 NYA_Error nya_discord_activity_set(NYA_DiscordActivity activity)  // Sets what the player is doing.
 NYA_Error nya_discord_activity_clear(void)  // Clears the presence card.
+b8 nya_discord_poll(OUT NYA_DiscordEvent* out_event)  // Drains one queued event.
+NYA_Error nya_discord_join_reply(NYA_ConstCString user_id, b8 accept)
 ```
 
 ### lua.h
@@ -4314,18 +4662,83 @@ NYA_ConstCString nya_sql_vec_version(void)  // The sqlite-vec version linked in,
 
 ### steam.h
 
-The Steamworks client connection. nya_app drives it from `NYA_AppOptions.steam_app_id`: relaunch through Steam when
+The Steamworks client: the connection, lobbies, peer-to-peer messaging, achievements, stats and Cloud.
 
 ```c
 // types
-typedef enum { NYA_SYSTEM_STEAM_INIT_OK = 0, NYA_SYSTEM_STEAM_INIT_FAILED_GENERIC = 1, NYA_SYSTEM_STEAM_INIT_NO_STEAM_CLIENT = 2, NYA_SYSTEM_STEAM_INIT_VERSION_MISMATCH = 3, NYA_SYSTEM_STEAM_INIT_COUNT, } NYA_SteamInitResult
+enum NYA_SteamInitResult { NYA_SYSTEM_STEAM_INIT_OK = 0, NYA_SYSTEM_STEAM_INIT_FAILED_GENERIC = 1, NYA_SYSTEM_STEAM_INIT_NO_STEAM_CLIENT = 2, NYA_SYSTEM_STEAM_INIT_VERSION_MISMATCH = 3, NYA_SYSTEM_STEAM_INIT_COUNT, }
+struct NYA_SteamId { u64 value; }  // A Steam account or lobby, as a type rather than a bare `u64`.
+enum NYA_SteamLobbyKind { NYA_STEAM_LOBBY_PRIVATE = 0, NYA_STEAM_LOBBY_FRIENDS_ONLY = 1, NYA_STEAM_LOBBY_PUBLIC = 2, NYA_STEAM_LOBBY_INVISIBLE = 3, NYA_STEAM_LOBBY_KIND_COUNT, }  // Who may find and join a lobby.
+enum NYA_SteamEventKind { NYA_STEAM_EVENT_NONE = 0, NYA_STEAM_EVENT_LOBBY_ENTERED, NYA_STEAM_EVENT_LOBBY_FAILED, NYA_STEAM_EVENT_LOBBY_MEMBER_CHANGED, NYA_STEAM_EVENT_LOBBY_DATA_CHANGED, NYA_STEAM_EVENT_LOBBY_LIST, NYA_STEAM_EVENT_JOIN_REQUESTED, NYA_STEAM_EVENT_SESSION_REQUEST, NYA_STEAM_EVENT_SESSION_FAILED, NYA_STEAM_EVENT_KIND_COUNT, }
+struct NYA_SteamEvent { NYA_SteamEventKind kind; NYA_SteamId lobby; NYA_SteamId user; u32 reason; char secret[NYA_STEAM_MAX_CONNECT]; }  // One thing the Steam client reported, drained by nya_steam_poll.
+struct NYA_SteamMessage { NYA_SteamId sender; const u8* data; u32 size; b8 reliable; }  // One peer-to-peer message handed back by the backend.
+struct NYA_SteamBackend { NYA_ConstCString name; NYA_SteamInitResult (*connect)(OUT char* out_message, u64 capacity); void (*disconnect)(void); void (*run_callbacks)(void); b8 (*restart_if_necessary)(u32 app_id); u64 (*user_id)(void); NYA_ConstCString (*user_name)(void); NYA_ConstCString (*friend_name)(u64 user); b8 (*lobby_create)(u32 kind, u32 max_members); b8 (*lobby_join)(u64 lobby); void (*lobby_leave)(u64 lobby); b8 (*lobby_list_request)(NYA_ConstCString key, NYA_ConstCString value, u32 max_results); u64 (*lobby_list_at)(u32 index); NYA_ConstCString (*lobby_data_get)(u64 lobby, NYA_ConstCString key); b8 (*lobby_data_set)(u64 lobby, NYA_ConstCString key, NYA_ConstCString value); NYA_ConstCString (*lobby_member_data_get)(u64 lobby, u64 user, NYA_ConstCString key); void (*lobby_member_data_set)(u64 lobby, NYA_ConstCString key, NYA_ConstCString value); u32 (*lobby_member_count)(u64 lobby); u64 (*lobby_member_at)(u64 lobby, u32 index); u64 (*lobby_owner)(u64 lobby); u32 (*lobby_member_limit)(u64 lobby); b8 (*lobby_invite)(u64 lobby, u64 user); b8 (*overlay_invite_open)(u64 lobby); b8 (*achievement_get)(NYA_ConstCString name, OUT b8* out_unlocked); b8 (*achievement_set)(NYA_ConstCString name, b8 unlocked); b8 (*achievement_progress)(NYA_ConstCString name, u32 current, u32 max); b8 (*stat_get_int)(NYA_ConstCString name, OUT s32* out_value); b8 (*stat_set_int)(NYA_ConstCString name, s32 value); b8 (*stat_get_float)(NYA_ConstCString name, OUT f32* out_value); b8 (*stat_set_float)(NYA_ConstCString name, f32 value); b8 (*stats_store)(void); b8 (*cloud_enabled)(void); b8 (*cloud_quota)(OUT u64* out_total, OUT u64* out_available); b8 (*cloud_exists)(NYA_ConstCString name); u64 (*cloud_size)(NYA_ConstCString name); b8 (*cloud_write)(NYA_ConstCString name, const u8* data, u32 size); s32 (*cloud_read)(NYA_ConstCString name, OUT u8* out_data, u32 capacity); b8 (*cloud_delete)(NYA_ConstCString name); b8 (*rich_presence_set)(NYA_ConstCString key, NYA_ConstCString value); void (*rich_presence_clear)(void); b8 (*p2p_send)(u64 user, const u8* data, u32 size, b8 reliable, u32 channel); u32 (*p2p_receive)(u32 channel, OUT NYA_SteamMessage* out_messages, u32 capacity); b8 (*p2p_accept)(u64 user); void (*p2p_close)(u64 user); }  // What the module needs from a Steam client, as a table it can be handed.
+
+// macros
+NYA_STEAM_MAX_KEY 256  // How long a lobby data key may be, buffer included.
+NYA_STEAM_MAX_VALUE 8192  // How long a lobby data value may be, buffer included.
+NYA_STEAM_MAX_NAME 128  // How long a persona name may be, buffer included.
+NYA_STEAM_MAX_CONNECT 256  // How long a rich presence "connect" string may be, buffer included.
+NYA_STEAM_MAX_LOBBIES 64  // How many lobbies one list request keeps.
+NYA_STEAM_MAX_EVENTS 16  // How many events are held before the oldest is dropped.
+NYA_STEAM_MAX_RECEIVE 32  // How many messages one peer-to-peer receive call takes at a time.
+NYA_STEAM_MAX_MESSAGE 1200  // The longest peer-to-peer message this module will carry, which is one network datagram.
+NYA_STEAM_ID_NONE ((NYA_SteamId){ .value = 0 })
 
 // functions
+b8 nya_steam_id_is_set(NYA_SteamId id)  // Whether an id names anything.
+b8 nya_steam_id_equals(NYA_SteamId a, NYA_SteamId b)  // Whether two ids are the same account or lobby.
 b8 nya_system_steam_restart_if_necessary(u32 app_id)  // True when Steam is relaunching the game through the client and this process should exit now.
 NYA_SteamInitResult nya_system_steam_init(void)  // Connects to the Steam client.
 void nya_system_steam_update(void)  // Dispatches Steam's callbacks.
 void nya_system_steam_deinit(void)
 b8 nya_steam_is_connected(void)  // Whether the client connection is up.
+NYA_SteamId nya_steam_user_id(void)  // This player's account, or NYA_STEAM_ID_NONE while nothing is connected.
+NYA_ConstCString nya_steam_user_name(void)  // This player's persona name, or an empty string.
+NYA_ConstCString nya_steam_friend_name(NYA_SteamId user)  // A friend's or lobby member's persona name, or an empty string when Steam has not cached one yet.
+b8 nya_steam_poll(OUT NYA_SteamEvent* out_event)  // Drains one queued lobby or invite event.
+NYA_Error nya_steam_lobby_create(NYA_SteamLobbyKind kind, u32 max_members)  // Asks Steam for a new lobby.
+NYA_Error nya_steam_lobby_join(NYA_SteamId lobby)  // Joins `lobby`.
+void nya_steam_lobby_leave(void)  // Leaves whatever lobby this player is in.
+NYA_SteamId nya_steam_lobby_current(void)  // The lobby this player is in, or NYA_STEAM_ID_NONE.
+NYA_Error nya_steam_lobby_list_request(NYA_ConstCString key, NYA_ConstCString value, u32 max_results)  // Starts a search for public lobbies, optionally only those whose `key` is `value`.
+u32 nya_steam_lobby_list_count(void)  // How many lobbies the last finished search found.
+NYA_SteamId nya_steam_lobby_list_at(u32 index)  // The lobby at `index`, or NYA_STEAM_ID_NONE past the end.
+NYA_ConstCString nya_steam_lobby_data_get(NYA_SteamId lobby, NYA_ConstCString key)  // Reads a key from a lobby's own table.
+NYA_Error nya_steam_lobby_data_set(NYA_ConstCString key, NYA_ConstCString value)  // Writes a key on the lobby this player owns.
+u32 nya_steam_lobby_member_count(NYA_SteamId lobby)  // How many people are in `lobby`.
+NYA_SteamId nya_steam_lobby_member_at(NYA_SteamId lobby, u32 index)  // The member at `index`, or NYA_STEAM_ID_NONE past the end.
+NYA_SteamId nya_steam_lobby_owner(NYA_SteamId lobby)  // Who owns `lobby`, which is who may write its data and who the game should treat as the host.
+u32 nya_steam_lobby_member_limit(NYA_SteamId lobby)  // How many people `lobby` holds.
+NYA_ConstCString nya_steam_lobby_member_data_get(NYA_SteamId lobby, NYA_SteamId user, NYA_ConstCString key)  // Reads one member's own key, such as whether they are ready.
+NYA_Error nya_steam_lobby_member_data_set(NYA_ConstCString key, NYA_ConstCString value)  // Writes one of this player's own keys in the current lobby.
+NYA_Error nya_steam_lobby_invite(NYA_SteamId user)  // Invites one friend to the current lobby.
+NYA_Error nya_steam_lobby_invite_open(void)  // Opens the Steam overlay on the invite dialog for the current lobby, so the player picks the friends.
+b8 nya_steam_achievement_get(NYA_ConstCString name)  // Whether `name` is unlocked.
+NYA_Error nya_steam_achievement_set(NYA_ConstCString name)  // Unlocks `name`.
+NYA_Error nya_steam_achievement_clear(NYA_ConstCString name)  // Locks `name` again.
+NYA_Error nya_steam_achievement_progress(NYA_ConstCString name, u32 current, u32 max)  // Shows the "12 of 50" progress toast for a partially complete achievement.
+s32 nya_steam_stat_get_int(NYA_ConstCString name)  // Reads an integer stat.
+NYA_Error nya_steam_stat_set_int(NYA_ConstCString name, s32 value)
+f32 nya_steam_stat_get_float(NYA_ConstCString name)  // Reads a floating point stat.
+NYA_Error nya_steam_stat_set_float(NYA_ConstCString name, f32 value)
+NYA_Error nya_steam_stats_store(void)  // Pushes every set achievement and stat to Steam.
+b8 nya_steam_cloud_enabled(void)  // Whether the Cloud is on for this account and this game.
+b8 nya_steam_cloud_quota(OUT u64* out_total_bytes, OUT u64* out_available_bytes)  // How much Cloud space the game has, and how much is left.
+b8 nya_steam_cloud_exists(NYA_ConstCString name)  // Whether `name` is in the Cloud.
+u64 nya_steam_cloud_size(NYA_ConstCString name)  // How large `name` is in the Cloud, or zero.
+NYA_Error nya_steam_cloud_write(NYA_ConstCString name, const u8* data, u64 size)  // Writes `size` bytes into the Cloud under `name`.
+NYA_Error nya_steam_cloud_read(NYA_ConstCString name, OUT u8* out_data, u64 capacity, OUT u64* out_size)  // Reads `name` out of the Cloud into `out_data`, writing how many bytes it was.
+NYA_Error nya_steam_cloud_delete(NYA_ConstCString name)  // Removes `name` from the Cloud.
+NYA_Error nya_steam_rich_presence_set(NYA_ConstCString key, NYA_ConstCString value)  // Sets one rich presence key.
+void nya_steam_rich_presence_clear(void)  // Clears every rich presence key.
+NYA_Error nya_steam_p2p_send(NYA_SteamId user, const u8* data, u64 size, b8 reliable, u32 channel)  // Sends one message to `user`, reliably or not, on `channel`.
+u32 nya_steam_p2p_receive(u32 channel, OUT NYA_SteamMessage* out_messages, u32 capacity)  // Takes up to `capacity` messages waiting on `channel`, newest last, and returns how many.
+b8 nya_steam_p2p_poll(OUT NYA_SteamEvent* out_event)  // Drains one SESSION_REQUEST or SESSION_FAILED.
+NYA_Error nya_steam_p2p_accept(NYA_SteamId user)  // Accepts a session a SESSION_REQUEST announced.
+void nya_steam_p2p_close(NYA_SteamId user)  // Closes the session with `user`.
+void nya_steam_backend_set(const NYA_SteamBackend* backend)  // Installs a backend, in place of the one nya_system_steam_init would pick.
+void nya_steam_on_callback(u32 callback_id, const void* data, u32 size)  // Where a backend hands one of Steam's callbacks in.
 ```
 
 ## platform
@@ -4335,6 +4748,9 @@ The thin OS layer: clock, filesystem, process spawning, signals and raw memory.
 ### clock.h
 
 ```c
+// types
+typedef enum { NYA_CLOCK_FORMAT_READABLE, NYA_CLOCK_FORMAT_FILENAME, NYA_CLOCK_FORMAT_COUNT, } NYA_ClockFormat  // How nya_clock_format_utc spells a moment.
+
 // macros
 nya_time_s_to_ms(seconds)
 nya_time_s_to_ µs(seconds) ((u64)(seconds) * 1'000'000ULL)
@@ -4346,6 +4762,8 @@ nya_time_
 nya_time_ns_to_s(nanoseconds)
 nya_time_ns_to_ms(nanoseconds)
 nya_time_ns_to_ µs(nanoseconds) ((f64)(nanoseconds) / 1'000.0F)
+NYA_CLOCK_SECONDS_PER_DAY 86'400ULL
+NYA_CLOCK_FORMAT_MAX_LENGTH 32  // Longest string nya_clock_format_utc produces, terminator included.
 
 // functions
 u64 nya_clock_get_timestamp_s(void)  // Time since the Unix epoch.
@@ -4355,6 +4773,9 @@ u64 nya_clock_get_timestamp_ns(void)
 u64 nya_clock_get_monotonic_ms(void)  // Time since an unspecified fixed point, guaranteed never to go backwards.
 u64 nya_clock_get_monotonic_µs(void)
 u64 nya_clock_get_monotonic_ns(void)
+void nya_clock_civil_from_days(s64 days, OUT s32* out_year, OUT u32* out_month, OUT u32* out_day)  // The proleptic Gregorian date a day count since the Unix epoch falls on, and back again.
+s64 nya_clock_days_from_civil(s32 year, u32 month, u32 day)
+u32 nya_clock_format_utc(u64 timestamp_s, NYA_ClockFormat format, OUT u8* buffer, u32 capacity)
 ```
 
 ### command.h
@@ -4425,6 +4846,60 @@ NYA_Error nya_filesystem_temp_directory(NYA_Arena* arena, OUT NYA_String** out_p
 NYA_Error nya_filesystem_user_data_directory(NYA_Arena* arena, NYA_ConstCString application, OUT NYA_String** out_path)  // Per user writable location for saves and logs.
 ```
 
+### host.h
+
+What the machine underneath the process is, for a crash report and the debug overlay to print.
+
+```c
+// macros
+NYA_HOST_CPU_NAME_MAX 64  // Longest CPU name, terminator included.
+
+// functions
+void nya_host_cpu_name(OUT u8* buffer, u32 capacity)  // Writes the processor's marketing name, null terminated and truncated to `capacity`.
+b8 nya_host_memory_total_bytes(OUT u64* out_bytes)  // Physical RAM installed.
+b8 nya_host_gpu_memory_total_bytes(OUT u64* out_bytes)  // Video memory on the display adapter.
+```
+
+### ipc.h
+
+A local control channel: a unix domain socket on Linux, a named pipe on Windows. One process
+
+```c
+// types
+struct NYA_IpcName { char text[NYA_IPC_MAX_NAME]; }  // A name that is known to be bindable, because the only way to make one is to parse it.
+struct NYA_IpcPeerId { u32 index; u32 generation; }  // Identifies one connection for as long as it lives.
+enum NYA_IpcEventKind { NYA_IPC_EVENT_NONE = 0, NYA_IPC_EVENT_CONNECTED, NYA_IPC_EVENT_DISCONNECTED, NYA_IPC_EVENT_DATA, NYA_IPC_EVENT_KIND_COUNT, }
+struct NYA_IpcEvent { NYA_IpcEventKind kind; NYA_IpcPeerId peer; const u8* data; u64 size; }  // One thing that happened, drained by nya_ipc_listener_poll.
+struct NYA_IpcOptions { NYA_IpcName name; u32 max_connections; }
+struct NYA_IpcConnection { NYA_IpcPeerId id; b8 occupied; b8 announced; s64 handle; u8 received[NYA_IPC_BUFFER_BYTES]; u64 received_size; u8 pending[NYA_IPC_BUFFER_BYTES]; u64 pending_size; }  // One accepted connection.
+struct NYA_IpcListener { NYA_Arena* allocator; NYA_IpcName name; char endpoint[NYA_IPC_MAX_ENDPOINT]; s64 handle; u32 max_connections; u32 next_generation; u32 cursor; NYA_IpcConnection connections[NYA_IPC_MAX_CONNECTIONS]; }
+struct NYA_IpcClient { NYA_Arena* allocator; s64 handle; char endpoint[NYA_IPC_MAX_ENDPOINT]; }
+
+// macros
+NYA_IPC_MAX_CONNECTIONS 4  // Connections one listener holds at once.
+NYA_IPC_MAX_NAME 48  // Longest endpoint name, the terminator included.
+NYA_IPC_MAX_ENDPOINT 108  // The expanded endpoint: `sun_path` on Linux, which is the larger of the two.
+NYA_IPC_BUFFER_BYTES 16384  // Bytes held per connection in each direction.
+NYA_IPC_PEER_NONE ((NYA_IpcPeerId){ .index = 0, .generation = 0 })
+
+// functions
+NYA_Error nya_ipc_name_parse(NYA_ConstCString text, OUT NYA_IpcName* out_name)  // Parses `text` into a name a listener may bind.
+NYA_Error nya_ipc_listener_create(NYA_Arena* arena, NYA_IpcOptions options, OUT NYA_IpcListener** out_listener)  // Binds `options.name` and starts accepting.
+void nya_ipc_listener_destroy(NYA_IpcListener* listener)  // Closes every connection and removes the endpoint.
+b8 nya_ipc_listener_poll(NYA_IpcListener* listener, OUT NYA_IpcEvent* out_event)  // Hands out one event and returns true, or returns false when there is nothing to report.
+NYA_Error nya_ipc_listener_send(NYA_IpcListener* listener, NYA_IpcPeerId peer, const u8* data, u64 size)  // Queues `size` bytes for `peer`.
+void nya_ipc_listener_disconnect(NYA_IpcListener* listener, NYA_IpcPeerId peer)  // Drops `peer`.
+u32 nya_ipc_listener_connection_count(const NYA_IpcListener* listener)
+NYA_ConstCString nya_ipc_listener_endpoint(const NYA_IpcListener* listener)  // The path or pipe name that was bound, for the log line that tells a person where to connect.
+NYA_Error nya_ipc_client_create(NYA_Arena* arena, NYA_IpcName name, OUT NYA_IpcClient** out_client)  // Connects to a process listening under `name`.
+void nya_ipc_client_destroy(NYA_IpcClient* client)  // Closes the connection.
+NYA_Error nya_ipc_client_send(NYA_IpcClient* client, const u8* data, u64 size)  // Sends `size` bytes, all of them.
+NYA_Error nya_ipc_client_receive(NYA_IpcClient* client, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Copies whatever has arrived into `buffer`, up to `capacity`, and writes how much into `out_size`.
+b8 nya_ipc_client_is_connected(const NYA_IpcClient* client)
+b8 nya_ipc_peer_equals(NYA_IpcPeerId a, NYA_IpcPeerId b)
+b8 nya_ipc_peer_is_set(NYA_IpcPeerId peer)  // Whether an id names a connection at all.
+```
+
 ### memory.h
 
 ```c
@@ -4442,6 +4917,18 @@ u64 nya_memory_process_resident_bytes(void)  // The whole process's resident set
 ```c
 // functions
 u32 nya_platform_processor_count(void)  // Hardware threads available to this process, or 1 when that cannot be determined.
+```
+
+### random.h
+
+The operating system's random source, and nothing else. One function.
+
+```c
+// macros
+NYA_RANDOM_MAX_BYTES 4096  // Most bytes one call may ask for.
+
+// functions
+b8 nya_random_bytes(OUT u8* out, u64 size)  // Fills `out` with `size` unpredictable bytes.
 ```
 
 ### signals.h
