@@ -62,6 +62,35 @@
  *   load into a struct that has grown a field.
  * - A string longer than the `char[N]` it loads into is truncated on a character boundary rather
  *   than refused, since the array is the struct's own storage and running past it is not an option.
+ *
+ * ─────────────────────────────────────────────────────────
+ * THE NAMES ARE PUBLIC, INCLUDING IN A SHIPPING BUILD
+ * ─────────────────────────────────────────────────────────
+ *
+ * Every type, field and enum variant name below sits in `.rodata` verbatim in every build, so
+ * `strings` on a shipping binary lists the layout of every described type. That is deliberate, and
+ * it is worth saying plainly rather than leaving someone to discover it.
+ *
+ * The obvious fix does not work, so here is why, at the point somebody would try it. Lookups take a
+ * string (nya_reflect_field, nya_reflect_path), so hashing the name and comparing hashes would hide
+ * the *lookup* key. But the same `name` is also what gets written: nya_reflect_to_object passes it
+ * straight to nya_object_set as the document key, and an enum's value is written as its variant's
+ * name. A field's name *is* the key it appears under in settings, in saves and in
+ * `assets/config/engine.nya`. So a shipping build with hashed names writes hashed keys, and that
+ * costs three things worth more than the obfuscation is worth: settings stop being editable by the
+ * person they belong to, a file written by a shipping build stops being readable by a development
+ * build and by the config the game ships with, and the format stops being one that can be documented
+ * and exported. Keeping a hash *beside* the name buys nothing, since the name has to stay.
+ *
+ * The size is not an argument either way: measured on this tree the names are 6220 bytes, 1339 of
+ * them type names, which is the only group nothing writes out and so the only group a hash could
+ * replace. That is under a kilobyte of a binary that is measured in megabytes.
+ *
+ * So the bar this raises is the one the save format raises, not one reflection raises. Save data is
+ * written with NYA_SERDE_OBFUSCATE, which keeps a text editor from showing the keys of a save; see
+ * core_save.h. Anything that must not be edited by the player it belongs to does not belong in a
+ * file on their disk in the first place, and stays authoritative on a server, exactly as
+ * base_integrity.h says about the anti-tamper checks.
  * */
 #pragma once
 

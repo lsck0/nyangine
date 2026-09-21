@@ -502,6 +502,94 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a hand edited file keeps everything the edit did not break
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: hand edited settings\n");
+  {
+    nya_settings_reset();
+    nya_input_action_name_set(ACTION_JUMP, "jump");
+
+    NYA_Arena* arena = nya_arena_create(.name = "test_settings_hand_edit");
+    defer nya_arena_destroy(arena);
+
+    NYA_String* path         = nya_save_path(arena, NYA_SETTINGS_FILE);
+    NYA_CString path_cstring = nya_string_to_cstring(arena, path);
+
+    /*
+     * Written by hand rather than edited out of a saved one, because that is the case under test: a
+     * player opened the file, changed a value, misspelled a key, and put a word where a number goes.
+     * The checksum in the header says zero, which is what every honest edit does to it, and must not
+     * be read as corruption.
+     */
+    NYA_ConstCString edited =
+      "nya 2 0\n"
+      "{\n"
+      "    save_version: u32 1;\n"
+      "    volumes: object {\n"
+      "        music: f32 0.75;\n"
+      "    };\n"
+      "    graphics: object {\n"
+      "        feild_of_view: f32 90.0;\n"
+      "        render_scale: string \"half\";\n"
+      "        bloom: b8 false;\n"
+      "    };\n"
+      "    bindings: object {\n"
+      "        jump: string[] [\"Space\"];\n"
+      "    };\n"
+      "}\n";
+
+    NYA_EXPECT(nya_file_write(path_cstring, edited));
+
+    NYA_EXPECT(nya_settings_load());
+
+    // The good edits landed, checksum and all.
+    nya_assert(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 0.75F, "a hand edited volume is read, got %f",
+               (f64)nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC));
+    nya_assert(!nya_settings_graphics().bloom, "and so is a switch turned off by hand");
+    nya_assert(nya_input_action_get(ACTION_JUMP, 0).key == NYA_KEY_SPACE, "and the binding beside them");
+
+    // The two bad lines cost their own lines and nothing else: the field they could not fill keeps
+    // the value it had, and everything else in the file still loaded.
+    nya_assert(nya_settings_graphics().render_scale == 1.0F, "a value of the wrong kind leaves its field alone, got %f",
+               (f64)nya_settings_graphics().render_scale);
+    nya_assert(nya_settings_graphics().fov == 60.0F, "and a misspelled key leaves its field alone, got %f",
+               (f64)nya_settings_graphics().fov);
+
+    // Nothing was rewritten behind the player's back either: a load does not save.
+    NYA_String* after = nya_string_create(arena);
+    NYA_EXPECT(nya_file_read(path_cstring, after));
+    nya_assert(after->length == strlen(edited), "loading does not rewrite the file the player edited");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a settings file that is not a settings file at all
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: unreadable settings\n");
+  {
+    NYA_Arena* arena = nya_arena_create(.name = "test_settings_garbage");
+    defer nya_arena_destroy(arena);
+
+    NYA_String* path         = nya_save_path(arena, NYA_SETTINGS_FILE);
+    NYA_CString path_cstring = nya_string_to_cstring(arena, path);
+
+    NYA_EXPECT(nya_file_write(path_cstring, "nya 2 0\n{ this is not a document"));
+
+    nya_settings_reset();
+    nya_settings_volume_set(NYA_VOLUME_CHANNEL_MUSIC, 0.5F);
+
+    NYA_Error loaded = nya_settings_load();
+
+    // An error the game can act on, rather than a crash, and the settings in memory are untouched:
+    // a file that cannot be parsed at all is the one case where there is nothing to salvage.
+    nya_check(!loaded.ok, "a file that is not a document should be an error");
+    nya_check(nya_settings_volume(NYA_VOLUME_CHANNEL_MUSIC) == 0.5F, "and must not reset what is already loaded");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a save path cannot escape the save root
   // ─────────────────────────────────────────────────────────────────────────────
   {

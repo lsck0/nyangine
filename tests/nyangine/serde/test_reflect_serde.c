@@ -129,7 +129,7 @@ s32 main(void) {
         nya_check(problems == 1, "exactly the unknown key should be reported, got " FMTu32, problems);
         nya_check(nya_string_equals(findings.last_path, "fov_but_spelled_wrong"), "the report should name the key, got '%s'",
                   findings.last_path);
-        nya_check(contains(findings.last_expected, "NYA_SettingsGraphics"), "and say what it should have been one of, got '%s'",
+        nya_check(contains(findings.last_expected, "msaa_samples"), "and list the keys it should have been one of, got '%s'",
                   findings.last_expected);
 
         // And the good key still lands, which is the whole reason the check is separate from the write.

@@ -32,6 +32,9 @@ NYA_INTERNAL NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA
 /** Longest rendering of what a field wanted. Holds a handful of enum variant names before it elides. */
 #define _NYA_REFLECT_EXPECTED_MAX 192
 
+/** What a list that did not fit ends with, so nobody reads a truncated one as the whole set. */
+#define _NYA_REFLECT_ELISION ", ..."
+
 /** Appends `.name` (or `name` at the root) to `path`, and answers the new length. Truncates rather than overflowing. */
 NYA_INTERNAL u64 _nya_reflect_path_push(OUT char* path, u64 length, NYA_ConstCString name, char separator);
 
@@ -40,6 +43,15 @@ NYA_INTERNAL void _nya_reflect_describe_value(const NYA_Value* value, OUT char* 
 
 /** What the described type wanted there: a primitive's name, an enum's variants, `an object`, `a list of 3`. */
 NYA_INTERNAL void _nya_reflect_describe_expected(const NYA_TypeReflection* type, OUT char* out, u64 capacity);
+
+/**
+ * `prefix` followed by the names in `names`, comma separated: "one of msaa_samples, fxaa, bloom".
+ *
+ * `names` is an array of structs whose first member is the name and `stride` is that struct's size,
+ * which both NYA_ReflectField and NYA_ReflectVariant satisfy. Passing the array rather than the type
+ * is what lets an enum's variants and a struct's fields be listed by the same three lines.
+ * */
+NYA_INTERNAL void _nya_reflect_describe_names(OUT char* out, u64 capacity, NYA_ConstCString prefix, const void* names, u64 stride, u32 count);
 
 /** One value against one described type, recursing into objects and lists. Returns the problems found. */
 NYA_INTERNAL u32 _nya_reflect_check_value(
@@ -619,13 +631,40 @@ void _nya_reflect_describe_expected(const NYA_TypeReflection* type, OUT char* ou
         default:                  nya_unreachable();
     }
 
-    u64 written = (u64)snprintf(out, capacity, type->is_bitflags ? "any of " : "one of ");
+    _nya_reflect_describe_names(out, capacity, type->is_bitflags ? "any of " : "one of ", type->variants, sizeof(type->variants[0]), type->variant_count);
+}
 
-    for (u32 i = 0; i < type->variant_count && written + 1 < capacity; i++) {
-        s32 added = snprintf(out + written, capacity - written, i == 0 ? "%s" : ", %s", type->variants[i].name);
+void _nya_reflect_describe_names(OUT char* out, u64 capacity, NYA_ConstCString prefix, const void* names, u64 stride, u32 count) {
+    nya_assert(out != nullptr);
+    nya_assert(prefix != nullptr);
+    nya_assert(names != nullptr || count == 0);
+    nya_assert(stride >= sizeof(NYA_ConstCString), "the name must be the first member of the struct being listed");
+
+    // the elision is held back out of the budget, so a list that does not fit ends on a whole name
+    // followed by "..." rather than halfway through a word that reads like a different one.
+    nya_assert(capacity > sizeof(_NYA_REFLECT_ELISION) + strlen(prefix));
+    const u64 budget = capacity - sizeof(_NYA_REFLECT_ELISION) + 1;
+
+    u64 written = (u64)snprintf(out, capacity, "%s", prefix);
+    b8  first   = true;
+
+    for (u32 i = 0; i < count; i++) {
+        NYA_ConstCString name = *(const NYA_ConstCString*)((const u8*)names + ((u64)i * stride));
+
+        // a generator that could not name something leaves it null rather than emitting an entry that
+        // claims to be called "".
+        if (name == nullptr) continue;
+
+        s32 added = snprintf(out + written, budget - written, first ? "%s" : ", %s", name);
         if (added < 0) break;
 
+        if (written + (u64)added >= budget) {
+            (void)snprintf(out + written, capacity - written, "%s", _NYA_REFLECT_ELISION);
+            return;
+        }
+
         written += (u64)added;
+        first    = false;
     }
 }
 
@@ -770,7 +809,11 @@ u32 _nya_reflect_check_object(
             char expected[_NYA_REFLECT_EXPECTED_MAX] = { 0 };
 
             (void)snprintf(found, sizeof(found), "not a key this build knows");
-            (void)snprintf(expected, sizeof(expected), "one of the fields of '%s'", type->name);
+
+            // The keys themselves rather than the type's name: whoever is reading this is looking at
+            // a file, not at the source, and "one of msaa_samples, fxaa, bloom" is the answer to what
+            // they should have written.
+            _nya_reflect_describe_names(expected, sizeof(expected), "one of ", type->fields, sizeof(type->fields[0]), type->field_count);
 
             if (report != nullptr) report(child_path, found, expected, user_data);
 
