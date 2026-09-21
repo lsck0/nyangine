@@ -42,10 +42,10 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | Module     | What is in it                                                               |
 | :--------- | :-------------------------------------------------------------------------- |
 | `base`     | arenas, strings, arrays, dicts, logging, errors, assertions, files, hashing   |
-| `platform` | clock, filesystem, process spawning, signals, raw memory                     |
+| `platform` | clock, filesystem, process spawning, signals, raw memory, the terminal        |
 | `math`     | scalars, vectors, matrices, quaternions, shapes, noise, random, springs       |
 | `core`     | the app loop, entities, systems, events, input, audio, assets, config, saves  |
-| `renderer` | 2D and 3D drawing, cameras, text, particles, post processing                  |
+| `renderer` | 2D and 3D drawing, cameras, text, particles, post processing, three backends  |
 | `ui`       | immediate mode widgets                                                       |
 | `physics`  | Box2D and Box3D behind one interface                                         |
 | `net`      | encrypted UDP client and server, snapshots, prediction                        |
@@ -56,9 +56,24 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | `editor`   | empty. `editor.c` and `editor.h` contain nothing.                             |
 
 Not in the engine yet, and wanted: an HTTP server with OpenAPI generated from its handlers, a wasm
-and WebGPU/canvas target, a UI backend emitting HTML/CSS/JS from the same `nya_ui_*` calls, a
-terminal backend with the kitty image protocol, a local control socket, and an outgoing WebSocket
-client. `TODO.md` has the detail. Do not describe any of it as if it exists.
+and WebGPU/canvas target, and a UI backend emitting HTML/CSS/JS from the same `nya_ui_*` calls.
+`TODO.md` has the detail. Do not describe any of it as if it exists.
+
+### The three 2D backends
+
+`nyangine.c` compiles exactly one of them, so nothing carries another's code:
+
+| Flag             | File                                | What it does                                   |
+| :--------------- | :---------------------------------- | :--------------------------------------------- |
+| none             | `renderer/render2d.c`                | SDL's GPU API                                   |
+| `-DNYA_HEADLESS` | `renderer/render2d_headless.c`       | nothing, exactly. What tests and benchmarks run |
+| `-DNYA_TERMINAL` | `renderer/render2d_terminal.c`       | character cells, through `platform/terminal/`   |
+
+`NYA_TERMINAL` implies `NYA_HEADLESS`: a terminal has no GPU device, no swapchain and no 3D. The
+backends satisfy `render2d.h` and nothing above them changes, which is why `ui/ui_draw.c` is the
+only file in the UI module allowed to name a drawing primitive — swapping backends is swapping one
+file's call targets. A backend answers `render_features.h` for what it cannot do rather than
+pretending; the terminal one asserts at open that it has left no switch unanswered.
 
 ## Building
 

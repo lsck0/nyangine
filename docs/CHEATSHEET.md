@@ -244,6 +244,7 @@ NYA_TEST (NYA_EXECUTION_MODE == 4)
 NYA_DEVELOPMENT_BUILD (NYA_DEBUG || NYA_DEVELOPER)  // Built to be worked on: hot reloading, filesystem assets, diagnostics that cost something.
 NYA_SHIPPING_BUILD (NYA_RELEASE || NYA_STEAM)  // Built to be handed to someone else: bundled assets, integrity checked, no reload machinery.
 NYA_CODE_HOT_RELOAD NYA_DEVELOPMENT_BUILD
+NYA_TERMINAL_ENABLED 1
 NYA_HEADLESS_ENABLED 1
 NYA_INTERNAL __attribute__((visibility("hidden"))) static
 NYA_INTERNAL_CALLBACK  // Internal, except in a build that reloads code, where the name has to be findable.
@@ -1454,6 +1455,7 @@ NYA_Error nya_system_events_init(void)
 void nya_system_events_deinit(void)
 void nya_system_event_drain_sdl_events(void)
 b8 nya_system_event_poll(OUT NYA_Event* out_event)
+void nya_system_event_drain_terminal_events(void)  // The same, for the terminal: everything the terminal has said since the last call, dispatched as NYA_Events.
 void nya_event_dispatch(NYA_Event event)
 void nya_event_hook_register(NYA_EventHook hook)
 void nya_event_hook_register_once(NYA_EventHook hook)  // Registers a hook that fires on the next matching event and then unregisters itself.
@@ -3033,6 +3035,21 @@ f32x2 nya_sprite_size(const NYA_Sprite* sprite)  // What the sprite covers on sc
 void nya_render2d_sprite(NYA_Window* window, const NYA_Sprite* sprite, f32x2 position)  // Draws the sprite with its pivot at `position`.
 ```
 
+### render2d_terminal.h
+
+The terminal 2D backend's own lifetime, and the two things a caller can do in a terminal that it
+
+```c
+// functions
+NYA_Error nya_render2d_terminal_open(NYA_TerminalOptions options)
+void nya_render2d_terminal_close(void)  // Closes the terminal and puts it back.
+NYA_Window* nya_render2d_terminal_window(void)  // The window this backend draws into.
+void nya_render2d_terminal_frame_begin(NYA_Window* window, NYA_Color clear)  // Takes the terminal's current size, resizes the window to match, and fills the grid with `clear`.
+void nya_render2d_terminal_frame_end(NYA_Window* window)  // Writes the cells that changed since the last frame, and nothing else.
+b8 nya_render2d_terminal_image(NYA_Window* window, f32 x, f32 y, const u8* rgba, u32 width, u32 height)  // A picture, at `x`/`y` in pixels, through the kitty graphics protocol.
+void nya_render2d_terminal_glyph(NYA_Window* window, f32 x, f32 y, u32 codepoint, NYA_Color color, u8 attributes)
+```
+
 ### render3d.h
 
 ```c
@@ -3274,6 +3291,61 @@ b8 nya_render_feature_enabled(const NYA_Window* window, NYA_RenderFeature featur
 b8 nya_render_feature_on(const NYA_Window* window, NYA_RenderFeature feature, b8 asked)
 NYA_ConstCString nya_render_feature_name(NYA_RenderFeature feature)  // The field name, for an overlay row or a log line.
 u32 nya_render_features_disabled_text(const NYA_Window* window, char* out, u64 size)  // Every feature that is off, as one line of names, for the debug overlay.
+```
+
+### render_fluid.h
+
+Eulerian fluid: a grid of velocity, density and temperature stepped with the incompressible
+
+```c
+// types
+enum NYA_FluidSpace { NYA_FLUID_SPACE_2D = 0, NYA_FLUID_SPACE_3D, NYA_FLUID_SPACE_COUNT, }  // Which renderer a volume draws through, and how its grid is laid out in the world.
+struct NYA_FluidOptions { NYA_FluidSpace space; u32 width; u32 height; u32 depth; f32 cell_size; f32x3 origin; f32x3 up; f32 buoyancy; f32 weight; f32 vorticity; f32 viscosity; f32 diffusion; f32 dissipation; f32 cooling; f32 ambient_temperature; f32x3 gravity; u32 pressure_iterations; }  // What a volume is and how it behaves.
+struct NYA_FluidEmitter { f32x3 position; f32 radius; f32 density; f32 temperature; f32x3 velocity; }  // A ball of fluid pushed into the grid.
+struct NYA_FluidRenderOptions { b8 enabled; f32 opacity; f32 threshold; f32 density_full; NYA_Color cool; NYA_Color hot; f32 hot_temperature; u32 stride; }  // What a window does with fluid volumes.
+struct NYA_Fluid { NYA_Arena* allocator; NYA_FluidOptions options; u32 width; u32 height; u32 depth; u32 stride_x; u32 stride_y; u32 stride_z; u32 cell_count; f32* velocity_x; f32* velocity_y; f32* velocity_z; f32* velocity_x_previous; f32* velocity_y_previous; f32* velocity_z_previous; f32* density; f32* density_previous; f32* temperature; f32* temperature_previous; f32* pressure; f32* divergence; f32* curl_magnitude; u8* obstacle; u32 obstacle_count; u64 step_count; f32 step_time_s; }  // One volume.
+
+// macros
+NYA_FLUID_VOLUMES_MAX 8  // Volumes that may exist at once.
+NYA_FLUID_DIMENSION_MAX 256  // The most cells an edge may have.
+NYA_FLUID_CELLS_MAX (4ULL * 1024ULL * 1024ULL)  // The most cells one volume may hold, borders included.
+NYA_FLUID_PRESSURE_ITERATIONS 20  // Gauss-Seidel sweeps in the pressure projection, when NYA_FluidOptions.pressure_iterations is zero.
+NYA_FLUID_PRESSURE_ITERATIONS_MAX 128  // The most sweeps the solve will ever run, whatever it is asked for.
+NYA_FLUID_STEP_SECONDS_MAX 0.1F  // The largest timestep one call to nya_fluid_step integrates, in seconds.
+NYA_FLUID_CELL_SIZE 1.0F  // World units per cell when NYA_FluidOptions.cell_size is zero.
+NYA_FLUID_FIELD_MAX 1000.0F  // The ceiling every field is clamped to after a step.
+NYA_FLUID_BUOYANCY 0.0F  // Buoyancy, vorticity, dissipation and cooling when their option fields are zero.
+NYA_FLUID_VORTICITY 0.0F
+NYA_FLUID_DISSIPATION 0.0F
+NYA_FLUID_COOLING 0.0F
+NYA_FLUID_DRAW_THRESHOLD 0.02F  // How much density a cell needs before it is drawn at all, when the render option is zero.
+NYA_FLUID_DRAW_OPACITY 0.85F  // How opaque the densest cell is drawn, when NYA_FluidRenderOptions.opacity is zero.
+NYA_FLUID_DRAW_DENSITY_FULL 1.0F  // The density that draws at full opacity, when NYA_FluidRenderOptions.density_full is zero.
+
+// functions
+NYA_Fluid* nya_fluid_create(NYA_Arena* arena, NYA_FluidOptions options)  // Allocates a volume at the size in `options` and registers it in the live table.
+void nya_fluid_destroy(NYA_Fluid* fluid)  // Removes the volume from the live table.
+void nya_fluid_clear(NYA_Fluid* fluid)  // Zeroes every field, keeping the obstacles and the options.
+void nya_fluid_options_set(NYA_Fluid* fluid, NYA_FluidOptions options)  // Replaces the solver's knobs.
+NYA_FluidOptions nya_fluid_options(const NYA_Fluid* fluid)
+void nya_fluid_step(NYA_Fluid* fluid, f32 delta_time_s)
+void nya_fluid_emit(NYA_Fluid* fluid, NYA_FluidEmitter emitter)  // Pushes density, heat and velocity into a ball of the grid.
+void nya_fluid_obstacle_box_set(NYA_Fluid* fluid, f32x3 min, f32x3 max)
+void nya_fluid_obstacle_box_clear(NYA_Fluid* fluid, f32x3 min, f32x3 max)  // Unmarks the same box.
+void nya_fluid_obstacles_clear(NYA_Fluid* fluid)  // Clears every obstacle in one pass, for a body that moved or a level that changed.
+f32 nya_fluid_density_at(const NYA_Fluid* fluid, f32x3 position)  // The fields at a world point, interpolated between the surrounding cells.
+f32 nya_fluid_temperature_at(const NYA_Fluid* fluid, f32x3 position)
+f32x3 nya_fluid_velocity_at(const NYA_Fluid* fluid, f32x3 position)
+b8 nya_fluid_cell_index(const NYA_Fluid* fluid, f32x3 position, OUT u32* out_index)  // The index of the cell a world point falls in, or false when the point is outside the interior.
+u64 nya_fluid_checksum(const NYA_Fluid* fluid)  // A hash of every field, so a replay test can assert two runs agree without comparing megabytes.
+u32 nya_fluid_cell_count(const NYA_Fluid* fluid)  // Cells including borders, bytes held, and how long the last step took.
+u64 nya_fluid_memory_bytes(const NYA_Fluid* fluid)
+f32 nya_fluid_step_time_s(const NYA_Fluid* fluid)
+u32 nya_fluid_count(void)  // The live volumes, in creation order.
+NYA_Fluid* nya_fluid_at(u32 index)
+void nya_fluid_render_options_set(NYA_Window* window, NYA_FluidRenderOptions options)  // What this window draws fluid as.
+NYA_FluidRenderOptions nya_fluid_render_options(const NYA_Window* window)
+void nya_fluid_draw(NYA_Window* window, const NYA_Fluid* fluid)
 ```
 
 ### render_fluid.h
@@ -5071,5 +5143,56 @@ enum NYA_Signal { NYA_SIGNAL_INVALID, NYA_SIGNAL_INTERRUPT, NYA_SIGNAL_TERMINATE
 void nya_signals_init(void)
 void nya_signals_deinit(void)
 void nya_signals_set_handler(NYA_Signal signal, NYA_SignalHandler handler)
+```
+
+### terminal.h
+
+The terminal as a device: a grid of character cells to draw into, a byte stream to read keys and
+
+```c
+// types
+enum NYA_TerminalColorDepth { NYA_TERMINAL_COLOR_NONE = 0, NYA_TERMINAL_COLOR_16, NYA_TERMINAL_COLOR_256, NYA_TERMINAL_COLOR_TRUE, NYA_TERMINAL_COLOR_COUNT, }  // How much colour reaches the screen.
+enum NYA_TerminalAttributeFlag { NYA_TERMINAL_ATTRIBUTE_NONE = 0, NYA_TERMINAL_ATTRIBUTE_BOLD = 1U << 0U, NYA_TERMINAL_ATTRIBUTE_DIM = 1U << 1U, NYA_TERMINAL_ATTRIBUTE_UNDERLINE = 1U << 2U, NYA_TERMINAL_ATTRIBUTE_REVERSE = 1U << 3U, }  // Bits in `NYA_TerminalCell.attributes`.
+struct NYA_TerminalCell { u32 codepoint; u32 foreground; u32 background; u8 attributes; u8 _padding[3]; }  // One cell.
+struct NYA_TerminalCapabilities { NYA_TerminalColorDepth color_depth; b8 kitty_images; b8 mouse; b8 is_terminal; char term[32]; }  // What the probe at open found.
+enum NYA_TerminalInputKind { NYA_TERMINAL_INPUT_NONE = 0, NYA_TERMINAL_INPUT_KEY, NYA_TERMINAL_INPUT_MOUSE_BUTTON, NYA_TERMINAL_INPUT_MOUSE_MOVED, NYA_TERMINAL_INPUT_MOUSE_WHEEL, NYA_TERMINAL_INPUT_RESIZE, NYA_TERMINAL_INPUT_KIND_COUNT, }  // What kind of thing `nya_terminal_poll` handed back.
+enum NYA_TerminalKey { NYA_TERMINAL_KEY_NONE = 0, NYA_TERMINAL_KEY_ESCAPE, NYA_TERMINAL_KEY_ENTER, NYA_TERMINAL_KEY_TAB, NYA_TERMINAL_KEY_BACKSPACE, NYA_TERMINAL_KEY_DELETE, NYA_TERMINAL_KEY_INSERT, NYA_TERMINAL_KEY_UP, NYA_TERMINAL_KEY_DOWN, NYA_TERMINAL_KEY_LEFT, NYA_TERMINAL_KEY_RIGHT, NYA_TERMINAL_KEY_HOME, NYA_TERMINAL_KEY_END, NYA_TERMINAL_KEY_PAGE_UP, NYA_TERMINAL_KEY_PAGE_DOWN, NYA_TERMINAL_KEY_F1, NYA_TERMINAL_KEY_F2, NYA_TERMINAL_KEY_F3, NYA_TERMINAL_KEY_F4, NYA_TERMINAL_KEY_F5, NYA_TERMINAL_KEY_F6, NYA_TERMINAL_KEY_F7, NYA_TERMINAL_KEY_F8, NYA_TERMINAL_KEY_F9, NYA_TERMINAL_KEY_F10, NYA_TERMINAL_KEY_F11, NYA_TERMINAL_KEY_F12, NYA_TERMINAL_KEY_COUNT, }  // The keys that are not simply a character.
+enum NYA_TerminalModifierFlag { NYA_TERMINAL_MODIFIER_NONE = 0, NYA_TERMINAL_MODIFIER_SHIFT = 1U << 0U, NYA_TERMINAL_MODIFIER_ALT = 1U << 1U, NYA_TERMINAL_MODIFIER_CTRL = 1U << 2U, }  // Modifier bits, matching the xterm encoding minus its bias so they can be or'd.
+enum NYA_TerminalMouseButton { NYA_TERMINAL_MOUSE_BUTTON_NONE = 0, NYA_TERMINAL_MOUSE_BUTTON_LEFT, NYA_TERMINAL_MOUSE_BUTTON_MIDDLE, NYA_TERMINAL_MOUSE_BUTTON_RIGHT, NYA_TERMINAL_MOUSE_BUTTON_COUNT, }  // Which button a mouse report named.
+struct NYA_TerminalInput { NYA_TerminalInputKind kind; NYA_TerminalKey key; u32 codepoint; u16 modifiers; u16 column; u16 row; NYA_TerminalMouseButton button; b8 is_down; s8 wheel; }  // One decoded thing from the terminal.
+struct NYA_TerminalOptions { b8 alternate_screen; b8 mouse; b8 cursor_visible; }  // What `nya_terminal_open` is asked for.
+
+// macros
+NYA_TERMINAL_COLUMNS_MAX 400  // Widest grid held.
+NYA_TERMINAL_ROWS_MAX 120  // Tallest grid held.
+NYA_TERMINAL_CELL_MAX  // Cells in the largest grid.
+NYA_TERMINAL_READ_MAX 4096  // Bytes read from the terminal in one `nya_terminal_poll`.
+NYA_TERMINAL_INPUT_MAX 128  // Inputs decoded from one read.
+NYA_TERMINAL_RESIDUE_MAX 32  // Bytes of a partly arrived escape sequence carried to the next poll.
+NYA_TERMINAL_WRITE_MAX 65536  // Bytes buffered before a write goes out.
+NYA_TERMINAL_CELL_WIDTH_PX 8
+NYA_TERMINAL_CELL_HEIGHT_PX 16  // The same vertically.
+NYA_TERMINAL_IMAGE_PIXELS_MAX ((u64)1920 * (u64)1080)  // Pixels in the largest image `nya_terminal_image_draw` will send.
+NYA_TERMINAL_IMAGE_CHUNK_BYTES 4096  // Payload bytes per kitty escape.
+
+// functions
+NYA_Error nya_terminal_open(NYA_TerminalOptions options)  // Puts the terminal into raw mode, probes it once, takes the two cell buffers and starts listening for resizes.
+void nya_terminal_close(void)  // Puts everything back: cooked mode, mouse reporting off, the cursor visible, the main screen.
+b8 nya_terminal_is_open(void)  // Whether the pair above currently holds the terminal.
+NYA_TerminalCapabilities nya_terminal_capabilities(void)  // What the probe found.
+u16 nya_terminal_columns(void)  // Columns right now, clamped to NYA_TERMINAL_COLUMNS_MAX.
+u16 nya_terminal_rows(void)  // Rows right now, clamped to NYA_TERMINAL_ROWS_MAX.
+void nya_terminal_clear(u32 background)  // Fills the back buffer with blanks on `background`.
+void nya_terminal_cell_set(u16 column, u16 row, NYA_TerminalCell cell)  // Writes one cell of the back buffer.
+NYA_TerminalCell nya_terminal_cell_get(u16 column, u16 row)  // Reads one cell of the back buffer.
+void nya_terminal_present(void)  // Writes every cell that differs from what is on screen, then makes the back buffer the front one.
+void nya_terminal_invalidate(void)  // Forgets what is on screen, so the next present writes every cell.
+u32 nya_terminal_poll(OUT NYA_TerminalInput* out, u32 capacity)  // Everything the terminal has said since the last call, decoded.
+u32 nya_terminal_input_decode(const u8* bytes, u64 size, b8 is_final, OUT NYA_TerminalInput* out, u32 capacity, OUT u64* out_consumed)  // The same decoder, as a pure function over bytes you already have.
+NYA_ConstCString nya_terminal_key_name(NYA_TerminalKey key)  // A key's name, for a log line or a help row.
+b8 nya_terminal_image_draw(u16 column, u16 row, const u8* rgba, u32 width, u32 height)
+void nya_terminal_image_clear(void)  // Removes every image this module has placed.
+u32 nya_terminal_ink(f32 red, f32 green, f32 blue)
+u32 nya_terminal_utf8_decode(const u8* bytes, u64 size, OUT u32* out_codepoint)  // One code point out of UTF-8 bytes.
 ```
 

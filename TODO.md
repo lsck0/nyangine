@@ -17,8 +17,8 @@ achievements, and Discord presence and invites behind one facade; scene persiste
 shadow lag and the fire flicker fixed with measurements; the UI split into seven files with fixed scale and
 eleven new widgets; and one system registry driving the frame for engine and game alike.
 
-In progress now: fluids, the plugin system, the TUI backend, the HTTP server, and fast-forward with DQN
-driving the game. The web client is the one large thing not started. See "The stack" and "Requested".
+In progress now: fluids, the plugin system, the HTTP server, and fast-forward with DQN driving the game. The
+terminal backend landed and nothing wraps `gh` with it yet. The web client is the one large thing not started. See "The stack" and "Requested".
 
 ---
 
@@ -64,7 +64,7 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | Crash reporting | one funnel, a window a player can act on, everything a triage needs in it | `[~]` log ring, composed report (crash, build, machine, stack, log), its own SDL window with close, copy and send, and a file under the log directory. Open: a transport behind `nya_crash_report_submit`, and a window on the fault path (SDL from a signal handler can deadlock) |
 | Anti-tamper | integrity checks like the CRC | `[x]` executable stamp, chunked code baseline and a sweep every 250 ms, per blob entry hashes, a watchdog at two inlined sites; failure logs and exits 86 |
 | Networking | attack and cheat resistant, optional end to end public key encryption | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders |
-| Targets | Linux, Windows, Steam Linux, Steam Windows | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). Web and TUI are wanted and not started; Android is out |
+| Targets | Linux, Windows, Steam Linux, Steam Windows | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). A terminal is now a fifth target through `-DNYA_TERMINAL`, verified on Linux only. Web is wanted and not started; Android is out |
 
 # Unmerged work
 
@@ -112,11 +112,30 @@ In scope, deliberately: not only a server, but the client too.
   restated.
 - `[ ]` Hot reloading on the web, matching what the native builds already do.
 
-## `[ ]` TUI
+## `[~]` TUI
 
-- `[ ]` A terminal backend beside the GPU one: ncurses or equivalent, so a nyangine program can be a TUI that
-  wraps something like `gh`. The headless renderer pair is the existing precedent for a second backend.
-- `[ ]` Kitty image protocol, so a TUI can still show pictures.
+- `[x]` A terminal backend beside the GPU one, picked the way the headless one is: `-DNYA_TERMINAL` makes
+  `nyangine.c` compile `renderer/render2d_terminal.c` in place of `render2d.c`, and implies `NYA_HEADLESS`
+  because that is what it is. `platform/terminal/` is the device under it: raw termios, a fixed cell grid with
+  damage tracking, ANSI out, an escape decoder in, SIGWINCH. **Not ncurses**: a permanent dependency that also
+  needs a terminfo database at runtime, owns a global `SCREEN` and its own refresh, models colour as pairs, and
+  cannot carry the kitty escape unmangled. The reasoning is written in `terminal.h` where it would be
+  reintroduced.
+- `[x]` Kitty image protocol, chunked as the protocol requires, degrading to drawing nothing where it is
+  unsupported. The probe decides by terminal name, because the query form needs a round trip at startup that a
+  terminal ignoring it would leave the program waiting on.
+- `[x]` Colour degrades truecolor → 256 → 16 → none, decided by one probe at open that logs what was lost.
+  Cells hold 24-bit whatever the terminal can show; only the present quantises.
+- `[x]` Keys and SGR mouse reports arrive through `nya_event_dispatch`, the same path the SDL backend uses, so
+  `nya_input_*` and every `nya_ui_*` widget work without knowing which backend is under them.
+- `[x]` `examples/tui_dashboard` is the caller: arena bars, keys, clicks, a live resize and a kitty swatch.
+- `[ ]` Nothing wraps `gh` yet, which was the motivating case.
+- `[ ]` `nya_ui_*` reaches the terminal by construction and nothing has drawn a widget there yet. The UI needs
+  `nya_app_uptime_s`, so a TUI that wants widgets stands up more of the app than the example does.
+- `[ ]` The Windows half (`terminal_windows.c`) is written against the console's virtual terminal modes and has
+  never run.
+- `[ ]` Textures by asset handle draw nothing: a terminal has no sampler, and the pixels behind a handle are
+  not the backend's to read. Pictures go through `nya_render2d_terminal_image` instead.
 
 ## `[~]` IPC and talking to other programs
 
@@ -130,8 +149,8 @@ In scope, deliberately: not only a server, but the client too.
 
 ## `[ ]` ruey
 
-`~/projects/ruey`, a Twitch client with integrations, gets rewritten into nyangine later. The WebSocket
-client now exists; it still needs the HTTP server and the TUI backend. Not startable until those land.
+`~/projects/ruey`, a Twitch client with integrations, gets rewritten into nyangine later. The WebSocket client
+and the terminal backend now exist; it still needs the HTTP server. Not startable until that lands.
 
 ---
 
@@ -377,7 +396,7 @@ the packager ones.
   networking, physics, audio, plugins, scenes or the testing harnesses.
 - `[x]` `AGENTS.md` at the root pointing at the cheatsheet.
 - `[~]` More examples beside hello_world. Landed: `cli_tool` (no window), `plugin_scripting` (the Lua
-  surface as it is today), `tui_dashboard` (text only, waiting on a real terminal backend), `net_echo`
+  surface as it is today), `tui_dashboard` (a real TUI on the terminal backend), `net_echo`
   (server and client over the UDP transport). `[ ]` Still to do: multiplayer 2D pong, 3D pinball, and a
   server plus client web app once the HTTP server exists.
 - `[ ]` Make the 3D example nicer, and give it the graphics settings menu it currently lacks.

@@ -241,7 +241,22 @@ NYA_Error nya_render2d_terminal_open(NYA_TerminalOptions options) {
     _nya_render2d_terminal.window = (NYA_Window){ .title = "nyangine" };
 
     _nya_render2d_terminal_resize();
-    nya_render_features_set(&_nya_render2d_terminal.window, _nya_render2d_terminal_features());
+
+    NYA_RenderFeatures features = _nya_render2d_terminal_features();
+
+    /*
+     * Every switch answered, and none left at DEFAULT. A feature added to render_features.h would
+     * otherwise pass through this backend as "whatever its own options say", which for a pass that
+     * cannot run here is the pretending the header asks backends not to do. The struct is an array
+     * of switches in NYA_RenderFeature's order, which render_features.h states and asserts.
+     */
+    const NYA_RenderToggle* switches = (const NYA_RenderToggle*)&features;
+    for (u32 i = 0; i < NYA_RENDER_FEATURE_COUNT; i++) {
+        nya_assert(switches[i] != NYA_RENDER_TOGGLE_DEFAULT, "the terminal backend has no answer for '%s'; a feature was added and this was not",
+                   nya_render_feature_name((NYA_RenderFeature)i));
+    }
+
+    nya_render_features_set(&_nya_render2d_terminal.window, features);
 
     char disabled[512] = { 0 };
     if (nya_render_features_disabled_text(&_nya_render2d_terminal.window, disabled, sizeof(disabled)) > 0) {
