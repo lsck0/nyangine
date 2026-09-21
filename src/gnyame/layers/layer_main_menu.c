@@ -7,6 +7,7 @@
 #include "gnyame/gnyame.h"
 
 NYA_INTERNAL void _gny_main_menu(NYA_Window* window, NYA_UIPass pass);
+NYA_INTERNAL void _gny_main_menu_build_stamp(NYA_UI* ui, NYA_Window* window);
 
 void gny_layer_main_menu_on_create(NYA_Window* window) {
     nya_ui_focus_reset(window);
@@ -49,5 +50,26 @@ void _gny_main_menu(NYA_Window* window, NYA_UIPass pass) {
         nya_ui_panel_end(ui);
     }
 
+    _gny_main_menu_build_stamp(ui, window);
+
     nya_ui_end(ui);
+}
+
+/**
+ * The build, in the bottom left corner.
+ *
+ * Here rather than only in the crash report because the first question about any bug is which build
+ * it was, and a player reading it off the title screen answers that without reproducing anything.
+ * Frameless and dimmed, so it reads as a watermark rather than as a control.
+ */
+void _gny_main_menu_build_stamp(NYA_UI* ui, NYA_Window* window) {
+    u8 line[NYA_BUILD_LINE_MAX] = { 0 };
+    (void)nya_build_line(line, (u32)sizeof(line));
+
+    NYA_UIPanel stamp = { .anchor = NYA_UI_ANCHOR_BOTTOM_LEFT, .frameless = true };
+
+    if (nya_ui_panel_begin(ui, "build_stamp", stamp)) {
+        nya_ui_label(ui, (NYA_ConstCString)line, nya_ui_style_get(window).text_dim);
+        nya_ui_panel_end(ui);
+    }
 }

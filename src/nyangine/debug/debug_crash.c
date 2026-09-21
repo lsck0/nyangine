@@ -130,32 +130,15 @@ void _nya_crash_format_bytes(u64 bytes, OUT u8* buffer, u32 capacity) {
 
 /** The build block: which binary this is. */
 NYA_INTERNAL void _nya_crash_append_build(OUT u8* buffer, u32 capacity, OUT u32* length) {
-    /*
-     * The build time is the executable's own modification time, which is when the linker wrote it.
-     *
-     * Not a -DNYA_BUILD_TIMESTAMP: that flag differs on every invocation, so it would miss the compiler
-     * cache on every build of every artifact, while the file's own timestamp is exactly as accurate. See
-     * hook_add_build_info_flag, which injects the commit hash beside it for the inverse reason.
-     */
-    u8 built[NYA_CLOCK_FORMAT_MAX_LENGTH] = "unknown";
-
-    NYA_Arena arena = nya_arena_create_on_stack(.name = "crash_build_info");
-    defer     nya_arena_destroy_on_stack(&arena);
-
-    NYA_String* executable = nullptr;
-    if (nya_filesystem_executable_path(&arena, &executable).ok) {
-        u64 modified_ms = 0;
-        if (nya_filesystem_last_modified(nya_string_to_cstring(&arena, executable), &modified_ms).ok) {
-            (void)nya_clock_format_utc(modified_ms / 1'000ULL, NYA_CLOCK_FORMAT_READABLE, built, (u32)sizeof(built));
-        }
-    }
+    // Through base_version.h, so the report, the main menu corner and the startup log cannot name
+    // different builds. See that header for why the build time is the executable's own mtime.
+    NYA_BuildInfo info = nya_build_info();
 
     _nya_crash_append(buffer, capacity, length, "\nBuild\n");
-    _nya_crash_append(buffer, capacity, length, "  version   %s\n", NYA_VERSION);
-    _nya_crash_append(buffer, capacity, length, "  commit    %s\n", NYA_BUILD_COMMIT);
-    _nya_crash_append(buffer, capacity, length, "  kind      %s%s\n", NYA_EXECUTION_MODE_NAME_MAP[NYA_EXECUTION_MODE_CURRENT],
-                      NYA_HEADLESS_ENABLED ? ", headless" : "");
-    _nya_crash_append(buffer, capacity, length, "  built     %s\n", (NYA_ConstCString)built);
+    _nya_crash_append(buffer, capacity, length, "  version   %s\n", info.version);
+    _nya_crash_append(buffer, capacity, length, "  commit    %s\n", info.commit);
+    _nya_crash_append(buffer, capacity, length, "  kind      %s%s\n", info.kind, info.headless ? ", headless" : "");
+    _nya_crash_append(buffer, capacity, length, "  built     %s\n", info.built);
 }
 
 /** The platform block: which machine this is. */

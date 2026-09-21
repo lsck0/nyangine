@@ -20,3 +20,5 @@
 #include "nyangine/base/base_perf.c"
 #include "nyangine/base/base_string.c"
 #include "nyangine/base/base_types.c"
+// after base_types.c and the platform clock and filesystem it reads the build time through.
+#include "nyangine/base/base_version.c"
