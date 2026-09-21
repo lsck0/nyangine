@@ -66,7 +66,7 @@ void _gny_main_menu_build_stamp(NYA_UI* ui, NYA_Window* window) {
     u8 line[NYA_BUILD_LINE_MAX] = { 0 };
     (void)nya_build_line(line, (u32)sizeof(line));
 
-    NYA_UIPanel stamp = { .anchor = NYA_UI_ANCHOR_BOTTOM_LEFT, .frameless = true };
+    NYA_UIPanel stamp = { .anchor = NYA_UI_ANCHOR_BOTTOM_LEFT, .frameless = true, .text = NYA_UI_TEXT_SMALL };
 
     if (nya_ui_panel_begin(ui, "build_stamp", stamp)) {
         nya_ui_label(ui, (NYA_ConstCString)line, nya_ui_style_get(window).text_dim);
