@@ -423,6 +423,53 @@ Next:
 - A render graph is not planned: the pass order is fixed and short, and a graph would be more code than
   the passes it orders.
 
+## `[~]` Fluid volumes
+
+Incompressible Navier-Stokes on a grid (Stable Fluids: advect, diffuse, project), for smoke, fire and
+shallow water. Velocity, density and temperature, with buoyancy, weight, vorticity confinement and
+box obstacles. `render_fluid.h` carries the reasoning; the short version is below.
+
+- Grid rather than SPH particles. A grid is allocated once and every step touches the same cells,
+  where SPH rebuilds a neighbour structure whose cost follows how the particles clump. A grid sweep is
+  a fixed loop in a fixed order, where an SPH neighbour list is gathered in whatever order the
+  particles currently sit in and a different summation order is a different sum. Semi-Lagrangian
+  advection is unconditionally stable, where SPH is CFL limited and one fast particle demands
+  unbounded substeps. And volumetric smoke out of SPH means splatting into a grid to draw it anyway.
+  What would bring SPH back is a small volume of liquid in a large empty space, a wake across a lake,
+  and that is a second module rather than a rewrite of this one.
+- One solver, and it is three dimensional. A 2D volume is a grid one cell deep whose two z boundary
+  planes mirror the interior, and every term collapses by itself: the seven point Laplacian's z
+  neighbours both equal the centre cell, so `p_l + p_r + p_u + p_d + 2p - div = 6p` is exactly the 2D
+  equation, and the 3D curl with `w = 0` is the 2D scalar curl. The equality is bit for bit and a test
+  asserts it, which is why the third axis is flattened once in `nya_fluid_create` and `nya_fluid_emit`
+  rather than branched on per cell: a ternary inside a loop lets the compiler contract the two
+  branches differently and the two spaces then disagree in the last bits.
+- `NYA_FLUID_PRESSURE_ITERATIONS` is 20. On the 32x48x32 bench grid with confinement off, divergence
+  entering a step is 2.09 and leaving it 2.36 at 4 sweeps, 1.39 at 8, 0.93 at 20, 0.87 at 40 and 0.89
+  at 80. Twenty is where another sweep stops changing the picture.
+- Drawing is off until a window asks. `NYA_FluidRenderOptions` sits on the window beside the post
+  chain's scene features and is zeroed, so `nya_fluid_draw` returns before it reads the grid. 2D draws
+  one bilinearly shaded quad per live cell through render2d, 3D additive camera-facing splats through
+  render3d, which the post chain composites and bloom picks up.
+- Volumes register as the `fluid_volumes` ceiling and their bytes as the `fluid_cells` gauge, both
+  lazily on the first create, so a program with no fluid in it registers nothing.
+- The solver draws no randomness, reads no clock and uses no threads, so `nya_fluid_checksum` is an
+  oracle: `tests/nyangine/renderer/test_fluid.c` drives two volumes from the simulation harness and
+  asserts the same seed replays the same run.
+- gnyame: a 48x32 steam vent over the 2D tilemap, and a 12x18x12 column over the 3D bonfire whose
+  obstacles are the pile's crates. `9` toggles the drawing in either scene.
+
+- `[ ]` The step is the cost, not the draw: 40 Gauss-Seidel sweeps a step (20 per projection, two
+  projections) over the whole grid, single threaded and serially dependent along x so it does not
+  vectorize. Red-black ordering would vectorize it and keep the convergence; a multigrid V-cycle would
+  beat both and is a lot more code. Measure before choosing.
+- `[ ]` Dropping the first projection, the one before advection, halves the solve. Stam keeps it so
+  advection rides a divergence-free field; nobody has measured what it is worth here.
+- `[ ]` A raymarched 3D volume instead of splats. It needs a 3D texture uploaded every frame, a
+  pipeline and a shader per backend, so it waits for compute passes.
+- `[ ]` No obstacle comes from a collider's actual shape, only from an axis-aligned box the caller
+  passes. A rotated crate is still a box to the fluid.
+
 ## `[~]` Networking
 
 UDP is always encrypted, loopback never: a stateless handshake (padded CONNECT, 45 byte cookie challenge, no
@@ -635,6 +682,34 @@ At 4x this was 77.5 and 107.0 MiB before. The debug overlay's `gpu_textures`, `g
 - `[ ]` Half resolution bloom target.
 - `[ ]` Measure driver VRAM, not only what SDL is asked for.
 
+### Fluid volumes
+
+Release, -O2, one whole step at 20 pressure sweeps: forces, confinement, two projections, four
+advections and the scalar pass. Held is `nya_fluid_memory_bytes`, thirteen f32 fields plus a byte of
+obstacle mask per cell; resident is the volume's arena. Allocated once at `nya_fluid_create`, and a
+step allocates nothing.
+
+| Grid        |  Cells | ms/step | MiB held | MiB resident |
+| :---------- | -----: | ------: | -------: | -----------: |
+| 2D 48x32    |   5100 |   0.300 |     0.26 |         0.26 |
+| 2D 64x48    |   9900 |   0.612 |     0.50 |         0.51 |
+| 2D 128x96   |  38220 |   2.598 |     1.93 |         1.95 |
+| 2D 192x144  |  84972 |   5.946 |     4.30 |         4.33 |
+| 3D 12x18x12 |   3920 |   0.333 |     0.20 |         0.21 |
+| 3D 16x24x16 |   8424 |   0.875 |     0.43 |         0.43 |
+| 3D 32x48x32 |  57800 |   8.089 |     2.92 |         2.95 |
+| 3D 48x48x48 | 125000 |  20.220 |     6.32 |         6.37 |
+| 3D 64x64x64 | 287496 |  50.197 |    14.53 |        14.55 |
+
+Linear in cells, so the grid is the whole cost decision. The sweep count is the other half: the same
+32x48x32 grid is 2.75 ms at 4 sweeps, 4.09 at 8, 8.09 at 20, 14.75 at 40 and 28.10 at 80. gnyame runs
+48x32 in 2D and 12x18x12 in 3D, which is 0.30 and 0.33 ms a tick and what a demo can pay beside
+everything else in the scene. `bench/bench_fluid.c` is where all of this comes from.
+
+- `[ ]` Drawing is not in these numbers. A 2D volume is one quad per live cell into the existing
+  batch, a 3D one a splat per live cell into the mesh batch; neither has been measured against a
+  frame.
+
 ### Text shaping
 
 `nya_text_shape_with_font` and `nya_text_measure_with_font` keep one `TTF_Text` per (wrap width, face and
@@ -805,6 +880,21 @@ eight handles went from 4.1 ns (slot by pointer, strcmp) to 4.9 ns. Out of line 
 to `nya_cache_get`, the hash and `memcmp` each cost about a nanosecond, and relinking a recency list on
 every hit cost more than scanning stamps on the rare evicting insert. FNV-1a would have been pointless
 here at 12.8 ns per path; wyhash is 2.5 ns with the `strlen`.
+
+### A collocated projection cannot remove what its own divergence cannot see
+
+The fluid solver's divergence and pressure gradient are both central differences over two cells, while
+the pressure Laplacian it inverts spans one. The two do not compose, and what survives is the
+checkerboard mode the wide difference is blind to. It reads as an under-converged solve and is not
+one: on the 32x48x32 bench grid the residual is 0.93 at 20 sweeps, 0.87 at 40 and 0.89 at 80, a floor
+rather than a curve. Vorticity confinement makes it much worse, because its force is a cell-scale
+field and most of its divergence lands in exactly that mode: at `vorticity = 1` the floor goes from
+1.6% of the fastest speed in the field to 5.5%. It does not accumulate, since advection and any
+dissipation at all remove the highest frequency the grid holds within a few steps. The cure is a
+staggered MAC grid, which is a different solver.
+
+A residual that falls with the sweep count is a solver that needs more sweeps; one that does not is a
+discretisation that does not close. Measure both before adding iterations.
 
 ### A pointer compare cannot tell a reload from the same face
 
