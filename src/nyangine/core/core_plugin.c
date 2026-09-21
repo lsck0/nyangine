@@ -239,11 +239,21 @@ NYA_Error nya_plugin_manifest_load(NYA_ConstCString directory, OUT NYA_PluginMan
     NYA_Arena* arena = nya_arena_create(.name = "plugin_manifest");
     defer      nya_arena_destroy(arena);
 
+    NYA_String* contents = nya_string_create(arena);
+    NYA_TRY(nya_file_read(path, contents));
+
     NYA_Object* document = nullptr;
 
-    // NO_CHECKSUM: a manifest is written by a person in a text editor, and the native format's checksum
-    // is over the contents, so an honest edit would otherwise refuse the file.
-    NYA_TRY(nya_serde_load_file(arena, path, NYA_SERDE_NO_CHECKSUM, &document));
+    /*
+     * The format is named, not detected. A manifest is `manifest.nya` and nothing else, so a plugin
+     * cannot decide what its own manifest is parsed as, and a file that opens with a comment is not
+     * mistaken for JSONC — which is what nya_serde_detect_format does with one, and why core_config.c
+     * names the format too.
+     *
+     * NO_CHECKSUM: a manifest is written by a person in a text editor, and the native format's checksum
+     * is over the contents, so an honest edit would otherwise refuse the file.
+     */
+    NYA_TRY(nya_deserialize(arena, contents->items, contents->length, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NO_CHECKSUM, &document));
 
     /*
      * Checked before it is applied, and refused rather than partially applied. nya_reflect_from_object
