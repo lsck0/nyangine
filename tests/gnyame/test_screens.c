@@ -79,6 +79,31 @@ static void stack_reset(void) {
     nya_layer_push(GNY_WINDOW_MAIN, GNY_LAYER_MAIN_MENU);
 }
 
+/** Where the UI last laid out the top level panel `id` in the main window. A zero rectangle when it has no slot. */
+static NYA_Rectf panel_bounds(NYA_ConstCString id) {
+    NYA_Window* window = nya_window_get(GNY_WINDOW_MAIN);
+    u64         key    = _nya_ui_id((u64)window->handle.index + 1, id);
+
+    for (u32 i = 0; i < NYA_UI_PANELS_MAX; i++) {
+        if (_nya_ui.panels[i].id == key) return _nya_ui.panels[i].bounds;
+    }
+
+    return (NYA_Rectf){ 0 };
+}
+
+/** The id of `label` in the named container `inner`, itself inside the top level panel `outer`. */
+static u64 widget_id(NYA_ConstCString outer, NYA_ConstCString inner, NYA_ConstCString label) {
+    NYA_Window* window = nya_window_get(GNY_WINDOW_MAIN);
+    u64         scope  = _nya_ui_id(_nya_ui_id((u64)window->handle.index + 1, outer), inner);
+
+    return _nya_ui_id(scope, label);
+}
+
+/** Which widget the left button is down on, read between the press and the release that follow it. */
+static u64 pressed_widget(void) {
+    return _nya_ui_context(nya_window_get(GNY_WINDOW_MAIN))->active;
+}
+
 /** A layer with an id and no hooks, standing in for the scenes, which build physics and GPU state. */
 static NYA_Layer layer_stub(NYA_ConstCString id) {
     NYA_Layer layer = { .enabled = true };
@@ -457,6 +482,109 @@ s32 main(void) {
         gny_screen_request(GNY_SCREEN_MAIN_MENU);
         nya_system_sim_apply_commands();
         nya_check(nya_string_equals(stack(), title), "main menu on the title changes nothing, stack '%s'", stack());
+    }
+
+    /*
+     * ── The widgets panel dragged over the pause panel keeps every click it is given.
+     *
+     * The reported bug, in the menu it was reported in: the panel moved over the others and clicks went
+     * through it to whatever was underneath. Both halves are here, because they are two mechanisms: a
+     * press on the title bar, which is chrome and belongs to no widget at all, and a press on a widget
+     * of the panel, which belongs to that one. Each is checked against the same point with nothing over
+     * it first, so a pass cannot mean the point simply reaches nothing.
+     */
+    {
+        stack_reset();
+        gny_screen_request(GNY_SCREEN_START_GAME);
+        barrier();
+        gny_screen_request(GNY_SCREEN_PAUSE);
+        barrier();
+
+        // every container lays out from what it measured last pass, so the panels need a few before they stand.
+        for (u32 i = 0; i < 4; i++) {
+            pause_menu();
+            barrier();
+        }
+
+        NYA_UIStyle style  = nya_ui_style_get(window);
+        f32         header = ceilf(nya_font_metrics(nya_font_named("menu_title")).line_height) + style.spacing;
+        f32         frame  = style.padding + style.outline;
+        f32         pitch  = style.item_height + style.spacing;
+
+        // the music volume row, fourth down the pause panel: a slider, so pressing it changes no screen.
+        NYA_Rectf pause_at = panel_bounds("pause_menu");
+        f32x2     target   = { WINDOW_WIDTH * 0.5F, pause_at.y + frame + header + (pitch * 3.0F) + (style.item_height * 0.5F) };
+
+        // what that point reaches with nothing but the pause panel there.
+        pointer_move(target);
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
+        pause_menu();
+
+        u64 beneath = pressed_widget();
+        nya_check(beneath != 0, "a row of the pause panel sits under the target point, stack '%s', panel %f %f %f %f", stack(), (f64)pause_at.x, (f64)pause_at.y,
+                  (f64)pause_at.width, (f64)pause_at.height);
+
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
+        pause_menu();
+        barrier();
+
+        // whatever that press started, a field typing included, is not what this is about.
+        nya_ui_focus_reset(window);
+        pause_menu();
+        barrier();
+
+        // by the title bar, four pixels in, to the middle of the window, which puts the bar over that row.
+        NYA_Rectf parked = panel_bounds("widgets");
+        f32x2     grip   = { parked.x + (parked.width * 0.5F), parked.y + 4.0F };
+
+        nya_check(parked.width > 0.0F && !nya_rect_contains(parked, target), "the widgets panel starts in the corner, clear of that row");
+
+        pointer_move(grip);
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
+        pause_menu();
+        barrier();
+
+        pointer_move(target);
+        pause_menu();
+        barrier();
+
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
+        pause_menu();
+        barrier();
+
+        NYA_Rectf moved = panel_bounds("widgets");
+        nya_check(nya_rect_contains(moved, target), "dragging its title bar moves it over the pause panel, got %f %f %f %f", (f64)moved.x, (f64)moved.y,
+                  (f64)moved.width, (f64)moved.height);
+
+        // a press on the title bar: chrome claims the pointer and hands it to nobody.
+        pointer_move(target);
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
+        pause_menu();
+
+        u64 on_chrome = pressed_widget();
+
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
+        pause_menu();
+        barrier();
+
+        nya_check(on_chrome == 0, "a press on the dragged panel's title bar activates nothing under it, got " FMTu64, on_chrome);
+
+        // and a press on its first row goes to that row, not to the pause panel's underneath it.
+        f32x2 tab = { moved.x + (moved.width * 0.25F), moved.y + frame + header + (style.item_height * 0.5F) };
+
+        pointer_move(tab);
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, true);
+        pause_menu();
+
+        u64 on_tab = pressed_widget();
+
+        pointer_button(NYA_MOUSE_BUTTON_LEFT, false);
+        pause_menu();
+        barrier();
+
+        nya_check(on_tab == widget_id("widgets", "pages", nya_string_menu_table()), "a press on its first tab is the tab's, got " FMTu64, on_tab);
+        nya_check(on_tab != beneath, "and not the pause panel row it covers");
+        nya_check(nya_string_equals(stack(), paused) && !nya_app_get()->should_quit, "and no screen was requested through it, stack '%s'", stack());
     }
 
     return nya_check_failures() == 0 ? 0 : 1;
