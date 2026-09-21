@@ -283,14 +283,25 @@ s32 main(void) {
         nya_check(nya_string_equals(nya_i18n_locale(), "en"), "and English loads back, got '%s'", nya_i18n_locale());
     }
 
-    // ── Confirm requests the row's screen at the barrier, from the menu's last row reached by wrapping upward through
-    //    the graphics panel's eleven lines and the look panel's accent, scale, animate and skin lines.
+    /*
+     * ── Confirm requests the row's screen at the barrier.
+     *
+     * Downward from the top of the pause panel, not upward by wrapping. Wrapping walks backwards through
+     * every panel appended after this one, so the count had to be re-derived each time a panel grew a
+     * line, and it silently pointed at the wrong row the day the widgets panel was added. Counting from
+     * the top only depends on the pause panel's own rows, which is what this test is about.
+     */
     {
         gny_screen_request(GNY_SCREEN_RESUME);
         gny_screen_request(GNY_SCREEN_PAUSE);
         barrier();
 
-        for (u32 i = 0; i < 16; i++) press(NYA_KEY_UP, pause_menu);
+        // resume, restart, master, music, stats, name, the language row, main menu, and then quit. The
+        // two locale choices are one stop, not two: cells in a row share a focus index and left and
+        // right move between them.
+        const u32 rows_above_quit = 8;
+
+        for (u32 i = 0; i < rows_above_quit; i++) press(NYA_KEY_DOWN, pause_menu);
 
         tap(NYA_KEY_RETURN);
         pause_menu();
