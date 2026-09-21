@@ -120,7 +120,7 @@ static void registers_late_tick(f32 delta_time_s) {
 
     // guarded, because this runs every tick and a duplicate name is an assert.
     if (nya_system_registry_count() < 2) {
-        nya_system_register((NYA_SystemEntry){ .name = "late", .tick = late_tick });
+        nya_system_register((NYA_SystemEntry){ .name = "late", .tick = nya_callback(late_tick) });
     }
 }
 
@@ -178,9 +178,9 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .init = a_init, .tick = a_tick, .deinit = a_deinit });
-        nya_system_register((NYA_SystemEntry){ .name = "b", .init = b_init, .tick = b_tick, .deinit = b_deinit });
-        nya_system_register((NYA_SystemEntry){ .name = "c", .init = c_init, .tick = c_tick, .deinit = c_deinit });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .init = nya_callback(a_init), .tick = nya_callback(a_tick), .deinit = nya_callback(a_deinit) });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .init = nya_callback(b_init), .tick = nya_callback(b_tick), .deinit = nya_callback(b_deinit) });
+        nya_system_register((NYA_SystemEntry){ .name = "c", .init = nya_callback(c_init), .tick = nya_callback(c_tick), .deinit = nya_callback(c_deinit) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
@@ -204,9 +204,9 @@ s32 main(void) {
         log_reset();
 
         // registered third, first, second, so finalize has to reorder.
-        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "b", .init = c_init });
-        nya_system_register((NYA_SystemEntry){ .name = "a", .init = a_init });
-        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .init = b_init });
+        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "b", .init = nya_callback(c_init) });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .init = nya_callback(a_init) });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .init = nya_callback(b_init) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
@@ -226,11 +226,11 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = a_tick });
-        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "a", .tick = c_tick });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = nya_callback(a_tick) });
+        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "a", .tick = nya_callback(c_tick) });
 
         // registered last, runs in the middle: b has to land between a and c.
-        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .before = "c", .tick = b_tick });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .before = "c", .tick = nya_callback(b_tick) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
@@ -246,8 +246,8 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .frame = a_frame, .tick = a_tick, .render = a_render });
-        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .tick = b_tick, .render = b_render });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .frame = nya_callback(a_frame), .tick = nya_callback(a_tick), .render = nya_callback(a_render) });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .tick = nya_callback(b_tick), .render = nya_callback(b_render) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
@@ -271,8 +271,8 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .init = a_init, .tick = a_tick, .deinit = a_deinit });
-        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .init = b_init, .tick = b_tick, .deinit = b_deinit });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .init = nya_callback(a_init), .tick = nya_callback(a_tick), .deinit = nya_callback(a_deinit) });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .init = nya_callback(b_init), .tick = nya_callback(b_tick), .deinit = nya_callback(b_deinit) });
 
         nya_assert(nya_system_registry_finalize().ok);
         nya_assert(nya_system_registry_run_init().ok);
@@ -309,9 +309,9 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .init = a_init, .tick = a_tick, .deinit = a_deinit });
-        nya_system_register((NYA_SystemEntry){ .name = "b", .init = b_init, .tick = b_tick, .deinit = b_deinit });
-        nya_system_register((NYA_SystemEntry){ .name = "c", .init = c_init, .tick = c_tick, .deinit = c_deinit });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .init = nya_callback(a_init), .tick = nya_callback(a_tick), .deinit = nya_callback(a_deinit) });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .init = nya_callback(b_init), .tick = nya_callback(b_tick), .deinit = nya_callback(b_deinit) });
+        nya_system_register((NYA_SystemEntry){ .name = "c", .init = nya_callback(c_init), .tick = nya_callback(c_tick), .deinit = nya_callback(c_deinit) });
 
         nya_assert(nya_system_registry_finalize().ok);
         nya_assert(nya_system_registry_run_init().ok);
@@ -345,13 +345,13 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = a_tick });
-        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "a", .tick = c_tick });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = nya_callback(a_tick) });
+        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "a", .tick = nya_callback(c_tick) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
         // well after the schedule was settled, the way a plugin loaded mid-game would.
-        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .before = "c", .tick = b_tick });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .before = "c", .tick = nya_callback(b_tick) });
 
         nya_system_registry_run(NYA_SYSTEM_PHASE_TICK, 0.016F);
         nya_assert(log_equals(3, (NYA_ConstCString[]){ "a_tick", "b_tick", "c_tick" }), "a late registration still sorts, got: %s", log_text());
@@ -365,7 +365,7 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "registrar", .tick = registers_late_tick });
+        nya_system_register((NYA_SystemEntry){ .name = "registrar", .tick = nya_callback(registers_late_tick) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
@@ -386,8 +386,8 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = disables_b });
-        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .tick = b_tick });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = nya_callback(disables_b) });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .tick = nya_callback(b_tick) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
@@ -408,13 +408,13 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .init = a_init, .deinit = a_deinit });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .init = nya_callback(a_init), .deinit = nya_callback(a_deinit) });
         nya_system_register((NYA_SystemEntry){ .name     = "fails",
                                                .after    = "a",
-                                               .init     = fails_init,
-                                               .deinit   = fails_deinit,
+                                               .init     = nya_callback(fails_init),
+                                               .deinit   = nya_callback(fails_deinit),
                                                .optional = true });
-        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "fails", .init = c_init, .deinit = c_deinit });
+        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "fails", .init = nya_callback(c_init), .deinit = nya_callback(c_deinit) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
@@ -438,10 +438,10 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .init = a_init, .deinit = a_deinit });
-        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .init = b_init, .deinit = b_deinit });
-        nya_system_register((NYA_SystemEntry){ .name = "fails", .after = "b", .init = fails_init, .deinit = fails_deinit });
-        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "fails", .init = c_init, .deinit = c_deinit });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .init = nya_callback(a_init), .deinit = nya_callback(a_deinit) });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .init = nya_callback(b_init), .deinit = nya_callback(b_deinit) });
+        nya_system_register((NYA_SystemEntry){ .name = "fails", .after = "b", .init = nya_callback(fails_init), .deinit = nya_callback(fails_deinit) });
+        nya_system_register((NYA_SystemEntry){ .name = "c", .after = "fails", .init = nya_callback(c_init), .deinit = nya_callback(c_deinit) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
@@ -464,13 +464,13 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "engine_a", .tick = a_tick });
-        nya_system_register((NYA_SystemEntry){ .name = "game_a", .after = "engine_a", .tick = b_tick, .owner = { .kind = NYA_SYSTEM_OWNER_GAME } });
+        nya_system_register((NYA_SystemEntry){ .name = "engine_a", .tick = nya_callback(a_tick) });
+        nya_system_register((NYA_SystemEntry){ .name = "game_a", .after = "engine_a", .tick = nya_callback(b_tick), .owner = { .kind = NYA_SYSTEM_OWNER_GAME } });
         nya_system_register((NYA_SystemEntry){ .name         = "plugin_a",
                                                .after        = "game_a",
-                                               .tick         = plugin_tick,
+                                               .tick         = nya_callback(plugin_tick),
                                                .owner        = { .kind = NYA_SYSTEM_OWNER_PLUGIN, .plugin = "demo" },
-                                               .memory_bytes = plugin_memory_bytes });
+                                               .memory_bytes = nya_callback(plugin_memory_bytes) });
 
         nya_assert(nya_system_registry_finalize().ok);
 
@@ -501,7 +501,7 @@ s32 main(void) {
         _nya_system_registry_reset_for_test();
         log_reset();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = slow_tick });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = nya_callback(slow_tick) });
         nya_assert(nya_system_registry_finalize().ok);
 
         nya_assert(!nya_system_accounting_is_enabled(), "nobody pays for numbers they did not ask for");
@@ -630,7 +630,7 @@ s32 main(void) {
     {
         _nya_system_registry_reset_for_test();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .init = a_init, .tick = a_tick, .deinit = a_deinit });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .init = nya_callback(a_init), .tick = nya_callback(a_tick), .deinit = nya_callback(a_deinit) });
 
         nya_expect_crash((void)nya_system_registry_run_init());
         nya_expect_crash(nya_system_registry_run(NYA_SYSTEM_PHASE_TICK, 0.016F));
@@ -644,8 +644,8 @@ s32 main(void) {
     {
         _nya_system_registry_reset_for_test();
 
-        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = a_tick });
-        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .tick = b_tick });
+        nya_system_register((NYA_SystemEntry){ .name = "a", .tick = nya_callback(a_tick) });
+        nya_system_register((NYA_SystemEntry){ .name = "b", .after = "a", .tick = nya_callback(b_tick) });
 
         nya_expect_crash(nya_system_register((NYA_SystemEntry){ .name = "a" }));
         nya_expect_crash(nya_system_unregister("a"));
@@ -665,7 +665,7 @@ s32 main(void) {
     {
         _nya_system_registry_reset_for_test();
 
-        nya_system_register((NYA_SystemEntry){ .name = "reenters", .tick = reenters });
+        nya_system_register((NYA_SystemEntry){ .name = "reenters", .tick = nya_callback(reenters) });
         nya_assert(nya_system_registry_finalize().ok);
 
         nya_expect_crash(nya_system_registry_run(NYA_SYSTEM_PHASE_TICK, 0.016F));

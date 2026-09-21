@@ -112,20 +112,20 @@ void gny_systems_register_all(void) {
      * than the first one saying it for the group: the order only holds a system back if that system
      * declares it, so an anchor entry would let the tween through as soon as the anchor was placed.
      */
-    nya_system_register((NYA_SystemEntry){ .name = "player_input", .after = "layers", .before = "tween_tick", .tick = gny_system_player_input_update, .owner = GNY_SYSTEM_OWNER });
+    nya_system_register((NYA_SystemEntry){ .name = "player_input", .after = "layers", .before = "tween_tick", .tick = nya_callback(gny_system_player_input_update), .owner = GNY_SYSTEM_OWNER });
 
     // After player_input: a camera chasing a player-controlled entity should close on where that
     // entity is now, not on where it was at the start of the tick.
     nya_system_register((NYA_SystemEntry){ .name   = "camera_follow",
                                            .after  = "player_input",
                                            .before = "tween_tick",
-                                           .tick   = gny_system_camera_follow_update,
+                                           .tick   = nya_callback(gny_system_camera_follow_update),
                                            .owner  = GNY_SYSTEM_OWNER });
 
-    nya_system_register((NYA_SystemEntry){ .name = "music", .after = "layers", .before = "tween_tick", .tick = gny_system_music_update, .owner = GNY_SYSTEM_OWNER });
+    nya_system_register((NYA_SystemEntry){ .name = "music", .after = "layers", .before = "tween_tick", .tick = nya_callback(gny_system_music_update), .owner = GNY_SYSTEM_OWNER });
 
     // after player_input, so the drones chase where the player is this tick.
-    nya_system_register((NYA_SystemEntry){ .name = "robots", .after = "player_input", .before = "tween_tick", .tick = gny_robots_update, .owner = GNY_SYSTEM_OWNER });
+    nya_system_register((NYA_SystemEntry){ .name = "robots", .after = "player_input", .before = "tween_tick", .tick = nya_callback(gny_robots_update), .owner = GNY_SYSTEM_OWNER });
 
     // Off until the game layer is up. They used to be driven from that layer's on_update, so they never
     // ran on the menu or in the 3D demo, and the music would start on the title screen if they did now.

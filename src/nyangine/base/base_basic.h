@@ -95,9 +95,12 @@
 #endif
 
 /*
- * Whether the game is loaded from a shared library that can be swapped while it runs.
+ * Whether the game is loaded from a shared library that can be swapped while it runs. Overridable so a
+ * test can compile the reload machinery in a mode that would otherwise leave it out.
  */
+#ifndef NYA_CODE_HOT_RELOAD
 #define NYA_CODE_HOT_RELOAD NYA_DEVELOPMENT_BUILD
+#endif
 
 /*
  * Headless: the engine runs, but nothing is drawn.
@@ -288,6 +291,20 @@ static_assert(ASAN_PADDING >= 0);
 #define NYA_INTERNAL __attribute__((visibility("hidden"))) static
 #else
 #define NYA_INTERNAL static
+#endif
+
+/**
+ * Internal, except in a build that reloads code, where the name has to be findable.
+ *
+ * A callback registered with nya_callback is re-resolved by name after a code reload, and dlsym and
+ * GetProcAddress cannot find a static or hidden symbol: a function the engine registers that way is
+ * visible where a reload can happen and internal where one cannot. Use it for nothing else, since an
+ * exported symbol is a link time GC root. See core_callback.h and main.c's update_callback_pointers.
+ * */
+#if NYA_CODE_HOT_RELOAD
+#define NYA_INTERNAL_CALLBACK
+#else
+#define NYA_INTERNAL_CALLBACK NYA_INTERNAL
 #endif
 
 #ifdef __cplusplus

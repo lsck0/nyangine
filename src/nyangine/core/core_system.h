@@ -28,6 +28,7 @@
  *   nya_system_registry_at                the entry at an index, in run order
  *   nya_system_registry_enabled_at        whether the entry at an index is enabled
  *   nya_system_registry_initialized_at    whether its `init` ran and succeeded
+ *   nya_system_registry_runs_phase_at     whether it has work in one phase
  *   nya_system_registry_time_ns_at        what it cost over the last frame, while accounting is on
  *   nya_system_accounting_enable/_disable whether the run loop times each system
  *   nya_system_accounting_is_enabled      what those two last set
@@ -36,9 +37,9 @@
  *   nya_system_owner_stats_at             one owner's system count, frame time and held bytes
  *
  * ```c
- * static void gravity_tick(f32 delta_time_s) { ... }
+ * void gravity_tick(f32 delta_time_s) { ... }
  *
- * nya_system_register((NYA_SystemEntry){ .name = "gravity", .after = "physics2d", .tick = gravity_tick });
+ * nya_system_register((NYA_SystemEntry){ .name = "gravity", .after = "physics2d", .tick = nya_callback(gravity_tick) });
  * NYA_EXPECT(nya_system_registry_finalize());
  *
  * // for an effect: the system stays registered and initialized, it just stops ticking.
@@ -68,11 +69,15 @@
  * `nya_system_registry_finalize`, which is where a typo in a registration list surfaces. The same
  * mistake made after finalize has no return channel to report through and asserts instead.
  *
- * LIMITS. An entry holds raw function pointers, so a system registered from a hot reloaded image goes
- * on running the generation that registered it: the old image stays mapped, so this is a reload that
- * does not take, not a crash. Registering by callback handle instead (see core_callback.h, which is
- * what a layer's hooks use and why they do survive) is the fix, and it is what the plugin system will
- * want for the same reason. Engine systems are unaffected: they live in the executable.
+ * HOT RELOAD. An entry holds callback handles, not function pointers, and copies the three names it is
+ * given. Both halves are needed for a system registered from the game DLL to survive a code reload:
+ * the handles are re-resolved by name against the new image (see core_callback.h), and the names are
+ * the registry's own bytes rather than string literals in whichever image registered them. Registering
+ * a system therefore reads `.tick = nya_callback(my_tick)`, exactly as a layer's hooks do.
+ *
+ * It used to hold raw function pointers, and a system registered from a reloaded image went on running
+ * the generation that registered it: the old image stays mapped, so it was a reload that did not take
+ * rather than a crash, and it was the one thing in the way of systems coming from a plugin.
  *
  * OWNERSHIP. Every entry says who it belongs to: the engine, the game, or a named plugin. It costs
  * one field at registration and buys the questions that are otherwise unanswerable once a plugin can
@@ -85,6 +90,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/core/core_callback.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -116,6 +122,19 @@
  * */
 #ifndef NYA_SYSTEM_OWNER_MAX
 #define NYA_SYSTEM_OWNER_MAX 16
+#endif
+
+/**
+ * Bytes one name may take, terminator included. The registry keeps its own copy of every name it is
+ * given, because the caller's is a string literal in an image a reload replaces.
+ *
+ * The longest name in the engine is "entity_transforms" at eighteen bytes, so this is twice the worst
+ * real case and three of them per entry still fit the registry in six kilobytes. A longer name is a
+ * registration site's mistake and asserts rather than truncating, since a silently shortened name is a
+ * system nothing can name in its `after`.
+ * */
+#ifndef NYA_SYSTEM_NAME_MAX
+#define NYA_SYSTEM_NAME_MAX 40
 #endif
 
 /*
@@ -203,8 +222,16 @@ typedef void (*NYA_SystemPhaseFn)(f32 delta_time_s);
 /** What a system reports holding right now, for the per-owner memory line. Cheap: it is polled. */
 typedef u64 (*NYA_SystemMemoryFn)(void);
 
+/*
+ * Every callback below is an NYA_CallbackHandle taken from nya_callback, never a bare function
+ * pointer: see HOT RELOAD above. NYA_CALLBACK_HANDLE_NONE, which is what a zeroed field holds, means
+ * the system has nothing to do there.
+ */
 struct NYA_SystemEntry {
-    /** Unique, and the handle everything else here takes. What `after` refers to and what the overlay lists. */
+    /**
+     * Unique, and the handle everything else here takes. What `after` refers to and what the overlay
+     * lists. Copied into the registry at registration, so the caller's string need not outlive the call.
+     * */
     NYA_ConstCString name;
 
     /**
@@ -220,13 +247,14 @@ struct NYA_SystemEntry {
      * */
     NYA_ConstCString before;
 
-    NYA_SystemInitFn   init;
-    NYA_SystemDeinitFn deinit;
+    /** NYA_SystemInitFn and NYA_SystemDeinitFn, by handle. */
+    NYA_CallbackHandle init;
+    NYA_CallbackHandle deinit;
 
-    /** Null where this system has nothing to do in that phase, which is the common case. */
-    NYA_SystemPhaseFn frame;
-    NYA_SystemPhaseFn tick;
-    NYA_SystemPhaseFn render;
+    /** NYA_SystemPhaseFn, by handle. None where this system has nothing to do in that phase. */
+    NYA_CallbackHandle frame;
+    NYA_CallbackHandle tick;
+    NYA_CallbackHandle render;
 
     /**
      * Whether this system is allowed to be unavailable in the mode it was registered for.
@@ -243,10 +271,10 @@ struct NYA_SystemEntry {
     NYA_SystemOwner owner;
 
     /**
-     * What this system is holding, asked for the owner's memory line and nowhere else. Null where the
-     * system holds nothing of its own, which is most of them.
+     * NYA_SystemMemoryFn, by handle: what this system is holding, asked for the owner's memory line and
+     * nowhere else. None where the system holds nothing of its own, which is most of them.
      * */
-    NYA_SystemMemoryFn memory_bytes;
+    NYA_CallbackHandle memory_bytes;
 };
 
 /*
@@ -368,6 +396,12 @@ NYA_API const NYA_SystemEntry* nya_system_registry_at(u32 index) __attr_no_disca
 /** Whether the entry at `index` is enabled, and whether its `init` ran and succeeded. */
 NYA_API b8 nya_system_registry_enabled_at(u32 index) __attr_no_discard;
 NYA_API b8 nya_system_registry_initialized_at(u32 index) __attr_no_discard;
+
+/**
+ * Whether the entry at `index` has work in `phase`, which is what the overlay's phase column reads.
+ * Here rather than at the call site so nothing outside this module resolves a callback handle itself.
+ * */
+NYA_API b8 nya_system_registry_runs_phase_at(u32 index, NYA_SystemPhase phase) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

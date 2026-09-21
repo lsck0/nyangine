@@ -56,7 +56,7 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | Renderer debug | physics hitboxes and other debug views | `[~]` buffer views exist; physics shapes missing |
 | Audio | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's) |
 | UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns, radio, tabs, draggable panels, tables, charts, icons, opacity groups, scrolling. Open: a floating dropdown, a node editor, SVG, the code editor widget |
-| Core | events, entities, input, settings, cache, ... solid | `[~]` one system registry drives frame, tick and render for engine and game, with runtime enable/disable and per-owner accounting. Scenes and settings persist through reflection. Open: registry entries are raw pointers, not hot-reload-safe handles |
+| Core | events, entities, input, settings, cache, ... solid | `[x]` one system registry drives frame, tick and render for engine and game, with runtime enable/disable and per-owner accounting, and its entries are callback handles with copied names, so a system registered from a reloaded image survives the reload. Scenes and settings persist through reflection |
 | Pipelines | build, assets, reflection | `[x]` |
 | Hot reload | assets, code, configuration | `[x]` |
 | Tracing | time and memory per feature (shadows, antialiasing, particles, ...) | `[~]` CPU spans, GPU allocation counters, and per-system and per-owner time and memory from the registry; per renderer feature attribution missing |
@@ -287,9 +287,14 @@ the packager ones.
   applies when that run ends. Every entry carries an owner (engine, game or a named plugin) with per-owner
   time and memory, which is what the plugin system will key off. The overlay's systems page toggles one by
   hand, so `physics2d` off is a freeze frame with everything else still running.
-- `[ ]` Registry entries are raw function pointers, not callback handles, so a system registered from the
-  hot-reloaded game library keeps running the generation that registered it. Pre-existing, and the one thing
-  to fix before plugins land.
+- `[x]` Registry entries are callback handles, not raw function pointers, so a system registered from the
+  hot-reloaded game library runs the generation that is loaded rather than the one that registered it. The
+  three names are copied into the registry too, since a string literal also lives in the image being
+  replaced. The callback registry stopped being a system of its own for this: every entry resolves through
+  it, so it comes up before the registrations and goes down after the last `deinit`. `NYA_INTERNAL_CALLBACK`
+  is internal where nothing reloads and visible where something does, because dlsym finds neither a static
+  nor a hidden symbol. `test_system_reload.c` replaces a callback the way main.c does after a reload and
+  checks the registry runs the new one.
 - `[ ]` Fast-forward: run the simulation far faster than real time, so a DQN agent playing the game covers far
   more ground than a human would.
 - `[ ]` DQN and NEAT driving the real application as a user, to find emergent behaviour and to find crashes.

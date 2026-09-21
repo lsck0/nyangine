@@ -22,8 +22,25 @@ typedef struct {
     NYA_SystemEntry entry;
 } _NYA_SystemPending;
 
+/**
+ * The registry's own copy of one entry's three names, parallel to `entries` and permuted with it.
+ *
+ * A registration site hands over string literals, and in a hot reloading build those live in the image
+ * that registered the system. Old images stay mapped, so a stale pointer reads rather than faults, but
+ * a registry that keeps one is a registry that cannot outlive the code it came from, which is exactly
+ * what a plugin the user can unload would break. See HOT RELOAD in core_system.h.
+ * */
+typedef struct {
+    char name[NYA_SYSTEM_NAME_MAX];
+    char after[NYA_SYSTEM_NAME_MAX];
+    char before[NYA_SYSTEM_NAME_MAX];
+} _NYA_SystemNames;
+
 typedef struct {
     NYA_SystemEntry entries[NYA_SYSTEM_REGISTRY_MAX];
+
+    /** Where each entry's `name`, `after` and `before` point. Parallel to `entries`. */
+    _NYA_SystemNames names[NYA_SYSTEM_REGISTRY_MAX];
 
     /** Parallel to `entries`, permuted with it by the sort. */
     b8 enabled[NYA_SYSTEM_REGISTRY_MAX];
@@ -75,8 +92,22 @@ NYA_INTERNAL void _nya_system_ceilings_register(void);
 /** Whether `name` is registered, and where. `out_index` is untouched when it is not. */
 NYA_INTERNAL b8 _nya_system_find(NYA_ConstCString name, OUT u32* out_index) __attr_no_discard;
 
-/** The callback `phase` runs, which is null for most systems in most phases. */
+/** The handle `phase` runs, which is NYA_CALLBACK_HANDLE_NONE for most systems in most phases. */
+NYA_INTERNAL NYA_CallbackHandle _nya_system_phase_handle(const NYA_SystemEntry* entry, NYA_SystemPhase phase) __attr_no_discard;
+
+/** The same, resolved. Null where the system has no work in `phase`. */
 NYA_INTERNAL NYA_SystemPhaseFn _nya_system_phase_fn(const NYA_SystemEntry* entry, NYA_SystemPhase phase) __attr_no_discard;
+
+/** Copies the caller's three names into row `index` and points the stored entry at the copies. */
+NYA_INTERNAL void _nya_system_names_copy(u32 index);
+
+/**
+ * Points row `index`'s entry back at row `index`'s own name bytes, content untouched.
+ *
+ * Called after anything moves a row. A name field points into the row it belongs to, so a shift or a
+ * permutation leaves every moved entry naming the bytes of whichever entry now sits where it used to.
+ * */
+NYA_INTERNAL void _nya_system_names_rebind(u32 index);
 
 /** Queues `op` for the barrier. Warns and refuses past NYA_SYSTEM_PENDING_MAX. */
 NYA_INTERNAL void _nya_system_defer(_NYA_SystemOp op, NYA_SystemEntry entry);
@@ -194,14 +225,16 @@ NYA_Error nya_system_registry_run_init(void) {
     for (u32 i = 0; i < _nya_system_registry.count; i++) {
         const NYA_SystemEntry* entry = &_nya_system_registry.entries[i];
 
+        NYA_SystemInitFn init = (NYA_SystemInitFn)nya_callback_get(entry->init);
+
         // A system with nothing to bring up still counts as up, so its `deinit` runs like anyone else's.
-        if (entry->init == nullptr) {
+        if (init == nullptr) {
             _nya_system_registry.initialized[i] = true;
             continue;
         }
 
         u64       init_start = nya_clock_get_monotonic_ns();
-        NYA_Error result     = entry->init();
+        NYA_Error result     = init();
 
         if (!result.ok) {
             if (entry->optional) {
@@ -285,7 +318,7 @@ void nya_system_registry_run_deinit(void) {
         if (!_nya_system_registry.initialized[index]) continue;
         _nya_system_registry.initialized[index] = false;
 
-        NYA_SystemDeinitFn deinit = _nya_system_registry.entries[index].deinit;
+        NYA_SystemDeinitFn deinit = (NYA_SystemDeinitFn)nya_callback_get(_nya_system_registry.entries[index].deinit);
         if (deinit != nullptr) deinit();
     }
 }
@@ -335,7 +368,7 @@ void nya_system_registry_report(void) {
         u32  shown  = 0;
 
         for (u32 i = 0; i < _nya_system_registry.count && length < sizeof(line); i++) {
-            if (_nya_system_phase_fn(&_nya_system_registry.entries[i], (NYA_SystemPhase)phase) == nullptr) continue;
+            if (_nya_system_phase_handle(&_nya_system_registry.entries[i], (NYA_SystemPhase)phase) == NYA_CALLBACK_HANDLE_NONE) continue;
 
             // marked rather than dropped: a system missing from the list and a system switched off are
             // different problems and would otherwise read the same.
@@ -387,6 +420,18 @@ b8 nya_system_registry_initialized_at(u32 index) {
     );
 
     return _nya_system_registry.initialized[index];
+}
+
+b8 nya_system_registry_runs_phase_at(u32 index, NYA_SystemPhase phase) {
+    nya_assert(
+        index < _nya_system_registry.count,
+        "system registry index " FMTu32 " is out of range (" FMTu32 " registered)",
+        index,
+        _nya_system_registry.count
+    );
+    nya_assert((u32)phase < (u32)NYA_SYSTEM_PHASE_COUNT, "system phase " FMTu32 " is not a phase", (u32)phase);
+
+    return _nya_system_phase_handle(&_nya_system_registry.entries[index], phase) != NYA_CALLBACK_HANDLE_NONE;
 }
 
 /*
@@ -505,7 +550,8 @@ NYA_SystemOwnerStats nya_system_owner_stats_at(u32 index) {
 
         // Polled rather than reported: a system that allocates has one number to hand back and no
         // bookkeeping to keep in step with the registry.
-        if (entry->memory_bytes != nullptr) stats.memory_bytes += entry->memory_bytes();
+        NYA_SystemMemoryFn memory_bytes = (NYA_SystemMemoryFn)nya_callback_get(entry->memory_bytes);
+        if (memory_bytes != nullptr) stats.memory_bytes += memory_bytes();
     }
 
     return stats;
@@ -545,7 +591,7 @@ b8 _nya_system_find(NYA_ConstCString name, OUT u32* out_index) {
     return false;
 }
 
-NYA_SystemPhaseFn _nya_system_phase_fn(const NYA_SystemEntry* entry, NYA_SystemPhase phase) {
+NYA_CallbackHandle _nya_system_phase_handle(const NYA_SystemEntry* entry, NYA_SystemPhase phase) {
     nya_assert(entry != nullptr);
 
     switch (phase) {
@@ -556,6 +602,67 @@ NYA_SystemPhaseFn _nya_system_phase_fn(const NYA_SystemEntry* entry, NYA_SystemP
         case NYA_SYSTEM_PHASE_COUNT:
         default: nya_unreachable();
     }
+}
+
+NYA_SystemPhaseFn _nya_system_phase_fn(const NYA_SystemEntry* entry, NYA_SystemPhase phase) {
+    NYA_CallbackHandle handle = _nya_system_phase_handle(entry, phase);
+
+    // resolved on every run rather than cached: that is the whole point of a handle, since a code
+    // reload rewrites what the name resolves to and a cached pointer would be the old image again.
+    return (NYA_SystemPhaseFn)nya_callback_get(handle);
+}
+
+void _nya_system_names_copy(u32 index) {
+    nya_assert(index < _nya_system_registry.count);
+
+    NYA_SystemEntry*  entry = &_nya_system_registry.entries[index];
+    _NYA_SystemNames* names = &_nya_system_registry.names[index];
+
+    nya_assert(entry->name != nullptr && entry->name[0] != '\0', "a system must be registered with a name");
+
+    // Refused loudly rather than truncated: a shortened name is a system nothing can reach with
+    // `after`, `enable` or `unregister`, which reads as the registration never having happened.
+    nya_assert(
+        strlen(entry->name) < NYA_SYSTEM_NAME_MAX,
+        "system name '%s' is longer than the " FMTu32 " bytes a registry row holds",
+        entry->name,
+        (u32)NYA_SYSTEM_NAME_MAX
+    );
+    nya_assert(
+        entry->after == nullptr || strlen(entry->after) < NYA_SYSTEM_NAME_MAX,
+        "system '%s' names an `after` longer than the " FMTu32 " bytes a registry row holds",
+        entry->name,
+        (u32)NYA_SYSTEM_NAME_MAX
+    );
+    nya_assert(
+        entry->before == nullptr || strlen(entry->before) < NYA_SYSTEM_NAME_MAX,
+        "system '%s' names a `before` longer than the " FMTu32 " bytes a registry row holds",
+        entry->name,
+        (u32)NYA_SYSTEM_NAME_MAX
+    );
+
+    // an unset constraint is the empty string in the row and a null pointer in the entry, which is
+    // what _nya_system_names_rebind reads back.
+    *names = (_NYA_SystemNames){ 0 };
+
+    (void)snprintf(names->name, sizeof(names->name), "%s", entry->name);
+    if (entry->after != nullptr) (void)snprintf(names->after, sizeof(names->after), "%s", entry->after);
+    if (entry->before != nullptr) (void)snprintf(names->before, sizeof(names->before), "%s", entry->before);
+
+    _nya_system_names_rebind(index);
+}
+
+void _nya_system_names_rebind(u32 index) {
+    nya_assert(index < _nya_system_registry.count);
+
+    NYA_SystemEntry*  entry = &_nya_system_registry.entries[index];
+    _NYA_SystemNames* names = &_nya_system_registry.names[index];
+
+    entry->name   = names->name;
+    entry->after  = names->after[0] != '\0' ? names->after : nullptr;
+    entry->before = names->before[0] != '\0' ? names->before : nullptr;
+
+    nya_assert(entry->name[0] != '\0', "registry row " FMTu32 " holds a system with no name", index);
 }
 
 void _nya_system_defer(_NYA_SystemOp op, NYA_SystemEntry entry) {
@@ -597,11 +704,15 @@ void _nya_system_register_now(NYA_SystemEntry entry) {
     );
 
     _nya_system_registry.entries[_nya_system_registry.count]      = entry;
+    _nya_system_registry.names[_nya_system_registry.count]        = (_NYA_SystemNames){ 0 };
     _nya_system_registry.enabled[_nya_system_registry.count]      = true;
     _nya_system_registry.initialized[_nya_system_registry.count]  = false;
     _nya_system_registry.measuring_ns[_nya_system_registry.count] = 0;
     _nya_system_registry.frame_ns[_nya_system_registry.count]     = 0;
     _nya_system_registry.count++;
+
+    // the caller's strings stop mattering here; see _NYA_SystemNames.
+    _nya_system_names_copy(_nya_system_registry.count - 1);
 
     // Appended for now; the barrier puts it where `after` says it goes.
     _nya_system_registry.order_dirty = true;
@@ -631,7 +742,7 @@ void _nya_system_unregister_now(NYA_ConstCString name) {
     if (_nya_system_registry.initialized[index]) {
         _nya_system_registry.initialized[index] = false;
 
-        NYA_SystemDeinitFn deinit = _nya_system_registry.entries[index].deinit;
+        NYA_SystemDeinitFn deinit = (NYA_SystemDeinitFn)nya_callback_get(_nya_system_registry.entries[index].deinit);
         if (deinit != nullptr) deinit();
     }
 
@@ -639,6 +750,7 @@ void _nya_system_unregister_now(NYA_ConstCString name) {
     // two systems that never asked to move.
     for (u32 i = index; i + 1 < _nya_system_registry.count; i++) {
         _nya_system_registry.entries[i]      = _nya_system_registry.entries[i + 1];
+        _nya_system_registry.names[i]        = _nya_system_registry.names[i + 1];
         _nya_system_registry.enabled[i]      = _nya_system_registry.enabled[i + 1];
         _nya_system_registry.initialized[i]  = _nya_system_registry.initialized[i + 1];
         _nya_system_registry.measuring_ns[i] = _nya_system_registry.measuring_ns[i + 1];
@@ -646,6 +758,10 @@ void _nya_system_unregister_now(NYA_ConstCString name) {
     }
 
     _nya_system_registry.count--;
+
+    // the shift moved the bytes each name field points at, so every entry from here on points one row
+    // too far and has to be aimed at its own again.
+    for (u32 i = index; i < _nya_system_registry.count; i++) _nya_system_names_rebind(i);
 
     // Nothing to re-sort: dropping one entry cannot break an order the rest already satisfied, and the
     // loop above proved no `after` pointed at it.
@@ -813,14 +929,16 @@ NYA_Error _nya_system_sort(void) {
 
     // Permuted only now that the order is known to be legal, so a rejected graph leaves the registry
     // exactly as the caller left it and the error can be fixed and finalize called again.
-    NYA_SystemEntry sorted_entries[NYA_SYSTEM_REGISTRY_MAX];
-    b8              sorted_enabled[NYA_SYSTEM_REGISTRY_MAX];
-    b8              sorted_initialized[NYA_SYSTEM_REGISTRY_MAX];
-    u64             sorted_measuring_ns[NYA_SYSTEM_REGISTRY_MAX];
-    u64             sorted_frame_ns[NYA_SYSTEM_REGISTRY_MAX];
+    NYA_SystemEntry  sorted_entries[NYA_SYSTEM_REGISTRY_MAX];
+    _NYA_SystemNames sorted_names[NYA_SYSTEM_REGISTRY_MAX];
+    b8               sorted_enabled[NYA_SYSTEM_REGISTRY_MAX];
+    b8               sorted_initialized[NYA_SYSTEM_REGISTRY_MAX];
+    u64              sorted_measuring_ns[NYA_SYSTEM_REGISTRY_MAX];
+    u64              sorted_frame_ns[NYA_SYSTEM_REGISTRY_MAX];
 
     for (u32 i = 0; i < order_count; i++) {
         sorted_entries[i]      = _nya_system_registry.entries[order[i]];
+        sorted_names[i]        = _nya_system_registry.names[order[i]];
         sorted_enabled[i]      = _nya_system_registry.enabled[order[i]];
         sorted_initialized[i]  = _nya_system_registry.initialized[order[i]];
         sorted_measuring_ns[i] = _nya_system_registry.measuring_ns[order[i]];
@@ -828,10 +946,14 @@ NYA_Error _nya_system_sort(void) {
     }
 
     nya_memcpy(_nya_system_registry.entries, sorted_entries, order_count * sizeof(NYA_SystemEntry));
+    nya_memcpy(_nya_system_registry.names, sorted_names, order_count * sizeof(_NYA_SystemNames));
     nya_memcpy(_nya_system_registry.enabled, sorted_enabled, order_count * sizeof(b8));
     nya_memcpy(_nya_system_registry.initialized, sorted_initialized, order_count * sizeof(b8));
     nya_memcpy(_nya_system_registry.measuring_ns, sorted_measuring_ns, order_count * sizeof(u64));
     nya_memcpy(_nya_system_registry.frame_ns, sorted_frame_ns, order_count * sizeof(u64));
+
+    // the permutation moved every row's name bytes with it, so each entry is pointed back at its own.
+    for (u32 i = 0; i < order_count; i++) _nya_system_names_rebind(i);
 
     return NYA_OK;
 }

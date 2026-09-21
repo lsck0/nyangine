@@ -601,7 +601,10 @@ void _nya_debug_overlay_systems_draw(NYA_Window* window, const NYA_DebugOverlayS
 
         // one column per phase, the letter where the system has work and a dot where it has none, so the
         // shape of the frame is readable straight down the column.
-        char phases[] = { entry->frame != nullptr ? 'f' : '.', entry->tick != nullptr ? 't' : '.', entry->render != nullptr ? 'r' : '.', '\0' };
+        char phases[] = { nya_system_registry_runs_phase_at(index, NYA_SYSTEM_PHASE_FRAME) ? 'f' : '.',
+                          nya_system_registry_runs_phase_at(index, NYA_SYSTEM_PHASE_TICK) ? 't' : '.',
+                          nya_system_registry_runs_phase_at(index, NYA_SYSTEM_PHASE_RENDER) ? 'r' : '.',
+                          '\0' };
 
         // amber for one someone switched off, full brightness for the row the keys are on.
         NYA_Color color = enabled ? dim : disabled;

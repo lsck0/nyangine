@@ -14,6 +14,15 @@ typedef struct NYA_CallbackSystem NYA_CallbackSystem;
 typedef u64                       NYA_CallbackHandle;
 nya_derive_array(NYA_Callback);
 
+/**
+ * The one handle that names no function, so a zeroed struct means "nothing registered here".
+ *
+ * Both builds agree on it: the registry reserves index zero for a null entry, and a build without the
+ * registry carries the pointer itself, which is null. nya_callback_get resolves it to nullptr either
+ * way, so a caller can either compare against this or test what it resolved to.
+ * */
+#define NYA_CALLBACK_HANDLE_NONE ((NYA_CallbackHandle)0)
+
 /*
  * ─────────────────────────────────────────────────────────
  * SYSTEM STRUCTS

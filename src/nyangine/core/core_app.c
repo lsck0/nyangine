@@ -57,7 +57,16 @@ NYA_INTERNAL void _nya_app_audio_rays_2d(const NYA_AudioRay* rays, f32* out_frac
 /** Registers every engine subsystem with core_system.h's registry, in bring-up order. */
 NYA_INTERNAL void _nya_app_register_subsystems(void);
 
-NYA_INTERNAL NYA_Error _nya_app_bring_up_logfile(void) {
+/*
+ * Everything from here to the end of the PHASES section is registered with nya_callback and so is
+ * NYA_INTERNAL_CALLBACK: internal in a build that cannot reload code, and visible in one that can,
+ * because dlsym and GetProcAddress find neither a static nor a hidden symbol. clang-tidy sees only
+ * that each is used in one translation unit and asks for `static`, which is the one thing they must
+ * not be. Same reason as the single sites in core_input.c and core_asset.c.
+ */
+// NOLINTBEGIN(misc-use-internal-linkage)
+
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_logfile(void) {
 #ifdef NYA_LOG_DIRECTORY
     NYA_Error opened = nya_log_directory_open(NYA_LOG_DIRECTORY, NYA_LOG_RETENTION_DAYS);
 #else
@@ -75,23 +84,22 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_logfile(void) {
     return NYA_OK;
 }
 
-NYA_INTERNAL NYA_Error _nya_app_bring_up_crash_reporter(void) { return nya_crash_reporter_init(); }
-NYA_INTERNAL void      _nya_app_tear_down_crash_reporter(void) { nya_crash_reporter_deinit(); }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_crash_reporter(void) { return nya_crash_reporter_init(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_crash_reporter(void) { nya_crash_reporter_deinit(); }
 
-NYA_INTERNAL NYA_Error _nya_app_bring_up_save(void) { (void)nya_system_save_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_settings(void) { nya_system_settings_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_job(void) { return nya_system_job_init(); }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_callback(void) { nya_system_callback_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_tween(void) { nya_system_tween_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_renderer(void) { return nya_system_renderer_init(); }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_window(void) { nya_system_window_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_events(void) { return nya_system_events_init(); }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_input(void) { nya_system_input_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_gamepad(void) { nya_system_gamepad_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_asset(void) { nya_system_asset_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_i18n(void) { nya_system_i18n_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_config(void) { nya_system_config_init(); return NYA_OK; }
-NYA_INTERNAL NYA_Error _nya_app_bring_up_audio(void) {
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_save(void) { (void)nya_system_save_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_settings(void) { nya_system_settings_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_job(void) { return nya_system_job_init(); }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_tween(void) { nya_system_tween_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_renderer(void) { return nya_system_renderer_init(); }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_window(void) { nya_system_window_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_events(void) { return nya_system_events_init(); }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_input(void) { nya_system_input_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_gamepad(void) { nya_system_gamepad_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_asset(void) { nya_system_asset_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_i18n(void) { nya_system_i18n_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_config(void) { nya_system_config_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_audio(void) {
     NYA_Error error = nya_system_audio_init();
     nya_audio_rays_set(NYA_AUDIO_SPACE_3D, _nya_app_audio_rays_3d, nullptr);
     nya_audio_rays_set(NYA_AUDIO_SPACE_2D, _nya_app_audio_rays_2d, nullptr);
@@ -100,35 +108,34 @@ NYA_INTERNAL NYA_Error _nya_app_bring_up_audio(void) {
 
 #ifdef NYA_PLUGIN_STEAM
 // never fails: a player without the client still plays.
-NYA_INTERNAL NYA_Error _nya_app_bring_up_steam(void) { if (nya_app_get()->options.steam_app_id != 0) (void)nya_system_steam_init(); return NYA_OK; }
-NYA_INTERNAL void _nya_app_tear_down_steam(void) { nya_system_steam_deinit(); }
-NYA_INTERNAL void _nya_app_frame_steam(f32 delta_time_s) { nya_unused(delta_time_s); nya_system_steam_update(); }
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_steam(void) { if (nya_app_get()->options.steam_app_id != 0) (void)nya_system_steam_init(); return NYA_OK; }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_steam(void) { nya_system_steam_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_frame_steam(f32 delta_time_s) { nya_unused(delta_time_s); nya_system_steam_update(); }
 #endif
 
-NYA_INTERNAL NYA_Error _nya_app_bring_up_world(void) {
+NYA_INTERNAL_CALLBACK NYA_Error _nya_app_bring_up_world(void) {
     NYA_App* app = nya_app_get();
     app->world   = nya_world_create();
     (void)nya_world_set(app->world);
     return NYA_OK;
 }
 
-NYA_INTERNAL void _nya_app_tear_down_save(void) { nya_system_save_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_logfile(void) { nya_log_file_close(); }
-NYA_INTERNAL void _nya_app_tear_down_settings(void) { nya_system_settings_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_job(void) { nya_system_job_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_callback(void) { nya_system_callback_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_tween(void) { nya_system_tween_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_renderer(void) { nya_system_renderer_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_window(void) { nya_system_window_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_events(void) { nya_system_events_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_input(void) { nya_system_input_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_asset(void) { nya_system_asset_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_gamepad(void) { nya_system_gamepad_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_i18n(void) { nya_system_i18n_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_config(void) { nya_system_config_deinit(); }
-NYA_INTERNAL void _nya_app_tear_down_audio(void) { nya_system_audio_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_save(void) { nya_system_save_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_logfile(void) { nya_log_file_close(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_settings(void) { nya_system_settings_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_job(void) { nya_system_job_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_tween(void) { nya_system_tween_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_renderer(void) { nya_system_renderer_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_window(void) { nya_system_window_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_events(void) { nya_system_events_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_input(void) { nya_system_input_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_asset(void) { nya_system_asset_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_gamepad(void) { nya_system_gamepad_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_i18n(void) { nya_system_i18n_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_config(void) { nya_system_config_deinit(); }
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_audio(void) { nya_system_audio_deinit(); }
 
-NYA_INTERNAL void _nya_app_tear_down_world(void) {
+NYA_INTERNAL_CALLBACK void _nya_app_tear_down_world(void) {
     NYA_App* app = nya_app_get();
     (void)nya_world_set(nullptr);
     nya_world_destroy(app->world);
@@ -145,7 +152,7 @@ NYA_INTERNAL void _nya_app_tear_down_world(void) {
  * _nya_app_render and nya_app_run, in the same order.
  */
 
-NYA_INTERNAL void _nya_app_frame_logfile(f32 delta_time_s) {
+NYA_INTERNAL_CALLBACK void _nya_app_frame_logfile(f32 delta_time_s) {
     nya_unused(delta_time_s);
 
     // does nothing until the UTC date changes; without it a run across midnight logs every later day into the
@@ -153,12 +160,12 @@ NYA_INTERNAL void _nya_app_frame_logfile(f32 delta_time_s) {
     nya_log_directory_roll();
 }
 
-NYA_INTERNAL void _nya_app_frame_gamepad(f32 delta_time_s) {
+NYA_INTERNAL_CALLBACK void _nya_app_frame_gamepad(f32 delta_time_s) {
     nya_unused(delta_time_s);
     nya_system_gamepad_frame_begin();
 }
 
-NYA_INTERNAL void _nya_app_tick_entity_transforms(f32 delta_time_s) {
+NYA_INTERNAL_CALLBACK void _nya_app_tick_entity_transforms(f32 delta_time_s) {
     nya_unused(delta_time_s);
 
     // before anything moves an entity, so a draw between this tick and the next starts from here.
@@ -166,12 +173,12 @@ NYA_INTERNAL void _nya_app_tick_entity_transforms(f32 delta_time_s) {
 }
 
 /* The solver runs at the top of the tick, before anything reads the world. */
-NYA_INTERNAL void _nya_app_tick_physics2d(f32 delta_time_s) { nya_system_physics2d_update(delta_time_s); }
+NYA_INTERNAL_CALLBACK void _nya_app_tick_physics2d(f32 delta_time_s) { nya_system_physics2d_update(delta_time_s); }
 
 /* both worlds every tick; an empty one returns immediately. */
-NYA_INTERNAL void _nya_app_tick_physics3d(f32 delta_time_s) { nya_system_physics3d_update(delta_time_s); }
+NYA_INTERNAL_CALLBACK void _nya_app_tick_physics3d(f32 delta_time_s) { nya_system_physics3d_update(delta_time_s); }
 
-NYA_INTERNAL void _nya_app_tick_layers(f32 delta_time_s) {
+NYA_INTERNAL_CALLBACK void _nya_app_tick_layers(f32 delta_time_s) {
     for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
         NYA_Window* window = nya_window_at_slot(slot);
         if (window == nullptr) continue;
@@ -192,18 +199,18 @@ NYA_INTERNAL void _nya_app_tick_layers(f32 delta_time_s) {
  * Tweens after the layers and before the entities: layers start tweens this tick, and entities read the
  * values tweens write.
  */
-NYA_INTERNAL void _nya_app_tick_tween(f32 delta_time_s) { nya_system_tween_update(delta_time_s); }
+NYA_INTERNAL_CALLBACK void _nya_app_tick_tween(f32 delta_time_s) { nya_system_tween_update(delta_time_s); }
 
 /* entities after the layers, so something a layer spawns is simulated this tick. */
-NYA_INTERNAL void _nya_app_tick_entity(f32 delta_time_s) { nya_system_entity_update(delta_time_s); }
+NYA_INTERNAL_CALLBACK void _nya_app_tick_entity(f32 delta_time_s) { nya_system_entity_update(delta_time_s); }
 
 #ifndef NYA_NO_SDL
 /* Networking, after everything that changes the world and before the barrier. */
-NYA_INTERNAL void _nya_app_tick_net_server(f32 delta_time_s) { nya_net_server_tick(nya_world()->sim_system.tick, delta_time_s); }
-NYA_INTERNAL void _nya_app_tick_net_client(f32 delta_time_s) { nya_net_client_tick(nya_world()->sim_system.tick, delta_time_s); }
+NYA_INTERNAL_CALLBACK void _nya_app_tick_net_server(f32 delta_time_s) { nya_net_server_tick(nya_world()->sim_system.tick, delta_time_s); }
+NYA_INTERNAL_CALLBACK void _nya_app_tick_net_client(f32 delta_time_s) { nya_net_client_tick(nya_world()->sim_system.tick, delta_time_s); }
 #endif
 
-NYA_INTERNAL void _nya_app_render_layers(f32 delta_time_s) {
+NYA_INTERNAL_CALLBACK void _nya_app_render_layers(f32 delta_time_s) {
     nya_unused(delta_time_s);
 
     for (u32 slot = 0; slot < NYA_WINDOW_MAX; slot++) {
@@ -228,7 +235,9 @@ NYA_INTERNAL void _nya_app_render_layers(f32 delta_time_s) {
 }
 
 /* after drawing, which is where layers place the listener. once a frame: it is heard, not simulated. */
-NYA_INTERNAL void _nya_app_render_audio(f32 delta_time_s) { nya_system_audio_update(delta_time_s); }
+NYA_INTERNAL_CALLBACK void _nya_app_render_audio(f32 delta_time_s) { nya_system_audio_update(delta_time_s); }
+
+// NOLINTEND(misc-use-internal-linkage)
 
 /**
  * Registers every engine subsystem in bring-up order, each chained `after` the previous one so
@@ -243,39 +252,39 @@ void _nya_app_register_subsystems(void) {
     // first up and last down, so every other subsystem's log lines reach the file. its frame work is the
     // midnight roll, which has to happen before anything else writes a line this frame.
     nya_system_register((NYA_SystemEntry){ .name   = "logfile",
-                                           .init   = _nya_app_bring_up_logfile,
-                                           .deinit = _nya_app_tear_down_logfile,
-                                           .frame  = _nya_app_frame_logfile });
+                                           .init   = nya_callback(_nya_app_bring_up_logfile),
+                                           .deinit = nya_callback(_nya_app_tear_down_logfile),
+                                           .frame  = nya_callback(_nya_app_frame_logfile) });
 
     // straight after the log file, and before anything that can fail: a subsystem that dies during bring-up
     // is exactly the crash a report is worth having for, and the report is written beside that log file.
     nya_system_register((NYA_SystemEntry){ .name   = "crash_reporter",
                                             .after  = "logfile",
-                                            .init   = _nya_app_bring_up_crash_reporter,
-                                            .deinit = _nya_app_tear_down_crash_reporter });
+                                            .init   = nya_callback(_nya_app_bring_up_crash_reporter),
+                                            .deinit = nya_callback(_nya_app_tear_down_crash_reporter) });
 
     // before settings, which it feeds. settings cannot fail: it owns no memory and loads defaults when nothing
     // was saved. on the way out it writes into the save system's directory.
-    nya_system_register((NYA_SystemEntry){ .name = "save", .after = "crash_reporter", .init = _nya_app_bring_up_save, .deinit = _nya_app_tear_down_save });
+    nya_system_register((NYA_SystemEntry){ .name = "save", .after = "crash_reporter", .init = nya_callback(_nya_app_bring_up_save), .deinit = nya_callback(_nya_app_tear_down_save) });
     nya_system_register((NYA_SystemEntry){ .name         = "settings",
                                             .after        = "save",
-                                            .init         = _nya_app_bring_up_settings,
-                                            .deinit       = _nya_app_tear_down_settings });
+                                            .init         = nya_callback(_nya_app_bring_up_settings),
+                                            .deinit       = nya_callback(_nya_app_tear_down_settings) });
 
 #ifdef NYA_PLUGIN_STEAM
     // early, so the overlay can hook the renderer's device when it is created.
-    nya_system_register((NYA_SystemEntry){ .name = "steam", .after = "settings", .init = _nya_app_bring_up_steam, .deinit = _nya_app_tear_down_steam });
+    nya_system_register((NYA_SystemEntry){ .name = "steam", .after = "settings", .init = nya_callback(_nya_app_bring_up_steam), .deinit = nya_callback(_nya_app_tear_down_steam) });
 #endif
 
-    // before job, so the workers stop before the registry they resolve through is freed.
-    nya_system_register((NYA_SystemEntry){ .name         = "callback",
-                                            .after        = "settings",
-                                            .init         = _nya_app_bring_up_callback,
-                                            .deinit       = _nya_app_tear_down_callback });
-    nya_system_register((NYA_SystemEntry){ .name = "job", .after = "callback", .init = _nya_app_bring_up_job, .deinit = _nya_app_tear_down_job });
+    /*
+     * The callback registry is not a system: every entry here is registered *through* it, so it is up
+     * before this function is called and torn down after the last system has gone. See
+     * nya_app_init_with_options.
+     */
+    nya_system_register((NYA_SystemEntry){ .name = "job", .after = "settings", .init = nya_callback(_nya_app_bring_up_job), .deinit = nya_callback(_nya_app_tear_down_job) });
 
     // After the callback registry, whose handles a tween's on_complete resolves through.
-    nya_system_register((NYA_SystemEntry){ .name = "tween", .after = "job", .init = _nya_app_bring_up_tween, .deinit = _nya_app_tear_down_tween });
+    nya_system_register((NYA_SystemEntry){ .name = "tween", .after = "job", .init = nya_callback(_nya_app_bring_up_tween), .deinit = nya_callback(_nya_app_tear_down_tween) });
 
     /*
      * Optional only in a headless run, where there is no display to make a GPU device for and no window to
@@ -284,41 +293,41 @@ void _nya_app_register_subsystems(void) {
      */
     nya_system_register((NYA_SystemEntry){ .name     = "renderer",
                                             .after    = "tween",
-                                            .init     = _nya_app_bring_up_renderer,
-                                            .deinit   = _nya_app_tear_down_renderer,
+                                            .init     = nya_callback(_nya_app_bring_up_renderer),
+                                            .deinit   = nya_callback(_nya_app_tear_down_renderer),
                                             .optional = nya_app_get()->options.headless });
-    nya_system_register((NYA_SystemEntry){ .name = "events", .after = "renderer", .init = _nya_app_bring_up_events, .deinit = _nya_app_tear_down_events });
-    nya_system_register((NYA_SystemEntry){ .name = "input", .after = "events", .init = _nya_app_bring_up_input, .deinit = _nya_app_tear_down_input });
+    nya_system_register((NYA_SystemEntry){ .name = "events", .after = "renderer", .init = nya_callback(_nya_app_bring_up_events), .deinit = nya_callback(_nya_app_tear_down_events) });
+    nya_system_register((NYA_SystemEntry){ .name = "input", .after = "events", .init = nya_callback(_nya_app_bring_up_input), .deinit = nya_callback(_nya_app_tear_down_input) });
 
     // After events, whose drain loop hands it the SDL events it consumes. Its frame work rolls the held
     // buttons over, so it comes before anything that reads them.
     nya_system_register((NYA_SystemEntry){ .name         = "gamepad",
                                             .after        = "input",
-                                            .init         = _nya_app_bring_up_gamepad,
-                                            .deinit       = _nya_app_tear_down_gamepad,
-                                            .frame        = _nya_app_frame_gamepad });
+                                            .init         = nya_callback(_nya_app_bring_up_gamepad),
+                                            .deinit       = nya_callback(_nya_app_tear_down_gamepad),
+                                            .frame        = nya_callback(_nya_app_frame_gamepad) });
 
 #ifdef NYA_PLUGIN_STEAM
     // the pump only, after the gamepad. `steam` itself is far earlier, because it has to be up before the
     // renderer; see the note on this function.
-    nya_system_register((NYA_SystemEntry){ .name = "steam_frame", .after = "gamepad", .frame = _nya_app_frame_steam });
+    nya_system_register((NYA_SystemEntry){ .name = "steam_frame", .after = "gamepad", .frame = nya_callback(_nya_app_frame_steam) });
 #endif
 
-    nya_system_register((NYA_SystemEntry){ .name = "asset", .after = "gamepad", .init = _nya_app_bring_up_asset, .deinit = _nya_app_tear_down_asset });
+    nya_system_register((NYA_SystemEntry){ .name = "asset", .after = "gamepad", .init = nya_callback(_nya_app_bring_up_asset), .deinit = nya_callback(_nya_app_tear_down_asset) });
 
     // after the asset system: a locale file is read and watched through the registry.
-    nya_system_register((NYA_SystemEntry){ .name = "i18n", .after = "asset", .init = _nya_app_bring_up_i18n, .deinit = _nya_app_tear_down_i18n });
+    nya_system_register((NYA_SystemEntry){ .name = "i18n", .after = "asset", .init = nya_callback(_nya_app_bring_up_i18n), .deinit = nya_callback(_nya_app_tear_down_i18n) });
 
     // after the asset system: a config file is read and, under hot reload, watched through the registry.
-    nya_system_register((NYA_SystemEntry){ .name = "config", .after = "i18n", .init = _nya_app_bring_up_config, .deinit = _nya_app_tear_down_config });
+    nya_system_register((NYA_SystemEntry){ .name = "config", .after = "i18n", .init = nya_callback(_nya_app_bring_up_config), .deinit = nya_callback(_nya_app_tear_down_config) });
 
     // after the asset system, which creates the mixer these tracks use and destroys it after them.
-    nya_system_register((NYA_SystemEntry){ .name = "audio", .after = "config", .init = _nya_app_bring_up_audio, .deinit = _nya_app_tear_down_audio });
+    nya_system_register((NYA_SystemEntry){ .name = "audio", .after = "config", .init = nya_callback(_nya_app_bring_up_audio), .deinit = nya_callback(_nya_app_tear_down_audio) });
 
-    nya_system_register((NYA_SystemEntry){ .name = "world", .after = "audio", .init = _nya_app_bring_up_world, .deinit = _nya_app_tear_down_world });
+    nya_system_register((NYA_SystemEntry){ .name = "world", .after = "audio", .init = nya_callback(_nya_app_bring_up_world), .deinit = nya_callback(_nya_app_tear_down_world) });
 
     // last up, first down. the world is entities, physics and the simulation barrier as one lifetime.
-    nya_system_register((NYA_SystemEntry){ .name = "window", .after = "world", .init = _nya_app_bring_up_window, .deinit = _nya_app_tear_down_window });
+    nya_system_register((NYA_SystemEntry){ .name = "window", .after = "world", .init = nya_callback(_nya_app_bring_up_window), .deinit = nya_callback(_nya_app_tear_down_window) });
 
     /*
      * ── the frame, in order ──────────────────────────────────────────────────────────────────────────
@@ -327,28 +336,28 @@ void _nya_app_register_subsystems(void) {
      * _nya_app_update and _nya_app_render. Chained one after the next because the order between them is
      * the whole point, and registered last so a game or a plugin can name any of them in its own `after`.
      */
-    nya_system_register((NYA_SystemEntry){ .name = "entity_transforms", .after = "window", .tick = _nya_app_tick_entity_transforms });
-    nya_system_register((NYA_SystemEntry){ .name = "physics2d", .after = "entity_transforms", .tick = _nya_app_tick_physics2d });
-    nya_system_register((NYA_SystemEntry){ .name = "physics3d", .after = "physics2d", .tick = _nya_app_tick_physics3d });
+    nya_system_register((NYA_SystemEntry){ .name = "entity_transforms", .after = "window", .tick = nya_callback(_nya_app_tick_entity_transforms) });
+    nya_system_register((NYA_SystemEntry){ .name = "physics2d", .after = "entity_transforms", .tick = nya_callback(_nya_app_tick_physics2d) });
+    nya_system_register((NYA_SystemEntry){ .name = "physics3d", .after = "physics2d", .tick = nya_callback(_nya_app_tick_physics3d) });
 
     // the layer stack, updated and drawn. Everything a game registers of its own belongs either side of
     // this, which is why it is a system rather than a call the loop makes around them.
     nya_system_register((NYA_SystemEntry){ .name   = "layers",
                                            .after  = "physics3d",
-                                           .tick   = _nya_app_tick_layers,
-                                           .render = _nya_app_render_layers });
+                                           .tick   = nya_callback(_nya_app_tick_layers),
+                                           .render = nya_callback(_nya_app_render_layers) });
 
-    nya_system_register((NYA_SystemEntry){ .name = "tween_tick", .after = "layers", .tick = _nya_app_tick_tween });
-    nya_system_register((NYA_SystemEntry){ .name = "entity", .after = "tween_tick", .tick = _nya_app_tick_entity });
+    nya_system_register((NYA_SystemEntry){ .name = "tween_tick", .after = "layers", .tick = nya_callback(_nya_app_tick_tween) });
+    nya_system_register((NYA_SystemEntry){ .name = "entity", .after = "tween_tick", .tick = nya_callback(_nya_app_tick_entity) });
 
 #ifndef NYA_NO_SDL
-    nya_system_register((NYA_SystemEntry){ .name = "net_server", .after = "entity", .tick = _nya_app_tick_net_server });
-    nya_system_register((NYA_SystemEntry){ .name = "net_client", .after = "net_server", .tick = _nya_app_tick_net_client });
+    nya_system_register((NYA_SystemEntry){ .name = "net_server", .after = "entity", .tick = nya_callback(_nya_app_tick_net_server) });
+    nya_system_register((NYA_SystemEntry){ .name = "net_client", .after = "net_server", .tick = nya_callback(_nya_app_tick_net_client) });
 #endif
 
     // after "layers" in the render phase, which is what `after = entity` buys it: the only other render
     // system is the layer stack, and it sits well before this.
-    nya_system_register((NYA_SystemEntry){ .name = "audio_render", .after = "entity", .render = _nya_app_render_audio });
+    nya_system_register((NYA_SystemEntry){ .name = "audio_render", .after = "entity", .render = nya_callback(_nya_app_render_audio) });
 
     // a finalize failure is a typo in an `after` string above, which only this function writes, so it asserts.
     NYA_Error finalized = nya_system_registry_finalize();
@@ -416,6 +425,14 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
 
     nya_log_info("Nyangine initialized in %.1f ms. Initializing subsystems...", nya_time_ns_to_ms(nya_clock_get_monotonic_ns() - started_ns));
 
+    /*
+     * Before the registrations rather than as one of them: a system entry holds callback handles, so
+     * every nya_system_register below resolves through this registry, and a registry that was itself a
+     * system would have to be up before it could be registered. It is torn down in nya_app_deinit,
+     * after the last system's `deinit` has run, so nothing resolves a handle through a freed arena.
+     */
+    nya_system_callback_init();
+
     _nya_app_register_subsystems();
 
     // Brought up in order and unwound in reverse of however far it got, so a failure leaves nothing half
@@ -424,6 +441,8 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     NYA_Error result = nya_system_registry_run_init();
 
     if (!result.ok) {
+        nya_system_callback_deinit();
+
         nya_arena_destroy(app->frame_allocator);
         nya_arena_destroy(app->live_resize_allocator);
         app->initialized = false;
@@ -487,6 +506,9 @@ void nya_app_deinit(void) {
 
     // the registered order in reverse. run_deinit is safe here: everything came up.
     nya_system_registry_run_deinit();
+
+    // after every `deinit`, each of which was reached by resolving a handle through this registry.
+    nya_system_callback_deinit();
 
     nya_log_info("Subsystems deinitialized successfully.");
 
