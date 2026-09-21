@@ -164,10 +164,14 @@ In scope, deliberately: not only a server, but the client too.
   Cells hold 24-bit whatever the terminal can show; only the present quantises.
 - `[x]` Keys and SGR mouse reports arrive through `nya_event_dispatch`, the same path the SDL backend uses, so
   `nya_input_*` and every `nya_ui_*` widget work without knowing which backend is under them.
-- `[x]` `examples/tui_dashboard` is the caller: arena bars, keys, clicks, a live resize and a kitty swatch.
+- `[x]` `examples/tui_dashboard` is the caller, and it is built out of `nya_ui_*` widgets: selectable arena
+  rows, a dropdown, a toggle, buttons and a folding section, driven by tab, the arrows, enter and escape.
+- `[x]` A TUI stands up the callback, event and input systems and no more. Two things it has to do itself:
+  dispatch `NYA_EVENT_UPDATING_ENDED` once a frame, or the input system never rolls its just-pressed edges, and
+  size everything in whole cells, or a size lands between two and the cell it rounds to is nobody's choice.
 - `[ ]` Nothing wraps `gh` yet, which was the motivating case.
-- `[ ]` `nya_ui_*` reaches the terminal by construction and nothing has drawn a widget there yet. The UI needs
-  `nya_app_uptime_s`, so a TUI that wants widgets stands up more of the app than the example does.
+- `[ ]` Layers are recorded here and sort nothing, so two overlapping top level panels are hit tested by the
+  stack and drawn in call order: a TUI puts its panels beside each other until there is a sorted cell buffer.
 - `[ ]` The Windows half (`terminal_windows.c`) is written against the console's virtual terminal modes and has
   never run.
 - `[ ]` Textures by asset handle draw nothing: a terminal has no sampler, and the pixels behind a handle are
@@ -329,8 +333,16 @@ the packager ones.
   double click word and drag select. The header's old "selection and clipboard rejected" rationale is gone.
 - `[x]` Dropdowns, radio buttons, tabs, draggable panels, tables, line and bar charts, icons, subtree
   opacity, click bounce, horizontal scrolling and clipping.
-- `[ ]` The dropdown does not float. One immediate pass has no z-order, and floating would mean holding the
-  caller's `options` pointer past the call that supplied it, so the open list takes room in the layout.
+- `[x]` The dropdown floats. It hangs under its row over whatever follows, takes no room, is measured into
+  nothing and is cut by the window rather than by the panel holding it. The part that looked hard, keeping the
+  pointer off the widgets it covers, is not the panel stack's job: a float is declared before everything it
+  covers, so it claims its rectangle as it closes and what comes after refuses a pointer inside one. Exact and
+  forward only, which is why panels still occlude from where they were last laid out instead.
+- `[x]` Windows: a title bar with a hamburger, a collapse chevron and a close X, dragged by the bar and resized
+  by a corner grip, plus `nya_ui_section_begin` for folding part of a panel away. The caller keeps the
+  `NYA_UIWindowState`, because a widget that held its own visibility could never be shown again.
+- `[x]` Tab and shift-tab step through every widget whatever line it is on, and focus entering a top level
+  panel raises it. Up and down alone could not reach a UI that is all rows, and a terminal has no hover.
 - `[ ]` Icons exist in the engine but nothing in gnyame draws one: the menu sheet has no icon regions, and
   inventing some was not worth it. Compiled, not run.
 - `[ ]` A node editor.
