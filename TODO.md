@@ -159,15 +159,17 @@ the packager ones.
 
 ## `[ ]` Reported bugs
 
-- `[ ]` Resizing the window breaks the UI badly, and the fonts break on resize and rescale. Root cause found:
-  `_nya_ui_scale_derive` (`ui.c:1393`) derives scale from window height, `_nya_ui_look_build` (`ui.c:1430`)
-  then bakes fonts at `size * scale`, and the glyph atlas is keyed `path@points` with capacity 8 and eviction
-  `REFUSE` (`render2d.c:2107`). Each scale step mints a new atlas key until all 8 are gone and text draws
-  blank. Measured on a HiDPI display it is already broken at startup with no resize at all: 6813
-  "no free glyph atlas slot" warnings in a 25 second run, for `Aldrich.ttf@19` and `@16`.
-- `[ ]` The UI must not autoscale with screen size. Fixed scale.
-- `[ ]` Log spam, including things logged as errors that are not. Two known: the atlas warning above logs every
-  frame instead of once per key, and `nya_app_init_with_options` logs
+- `[x]` Resizing the window broke the UI and the fonts. `_nya_ui_scale_derive` derived the scale from the
+  window's height, `_nya_ui_look_build` baked fonts at `size * scale`, and the glyph atlas was keyed
+  `path@points` with capacity 8 and eviction `REFUSE`, so each scale step minted a key until all 8 were gone
+  and text drew blank. On a HiDPI display that happened at startup with no resize: 6813 "no free glyph atlas
+  slot" warnings in a 25 second run, for `Aldrich.ttf@19` and `@16`. Fixed three ways: the scale is 1 unless a
+  player sets one and never follows the window, the cache evicts least recently used after flushing the batch
+  that may still name the texture, and a refusal reports once per handle. The title screen now bakes two
+  atlases where it baked seven, and warns nothing.
+- `[x]` The UI must not autoscale with screen size. `NYA_UIStyle.scale` is the only thing that moves it, with
+  `follow_display_scale` as an opt-in for HiDPI.
+- `[ ]` Log spam, including things logged as errors that are not. `nya_app_init_with_options` logs
   "No supported SDL_GPU backend found" as an ERROR on headless test runs where it is the expected state.
 - `[x]` Shadows moved laggily. The light basis snapped elevation and azimuth to 0.5° steps, which halved
   the pixels changing per frame by freezing most of them: over 240 frames at 60 fps with the two minute
@@ -471,6 +473,10 @@ busiest atlas fills 53 (game HUD plus debug overlay), the menu's `@22` 28. A ful
 new glyphs blank. Distance field cells include SDL_ttf's 8 texel spread on each side, which clipped 68 of 95
 glyphs at 17 pt before; the `@44` distance field title atlas is 1440x544.
 
+`NYA_RENDER2D_FONT_CACHE_MAX` holds 24 atlases and evicts least recently used, after flushing the batch, since
+a queued vertex can still name the texture being released. That number is a memory budget, about 90 KB per
+atlas at body size, not a correctness bound: a miss costs one rebake, not blank text for the rest of the run.
+
 Glyphs upload one cell at a time through a cell sized transfer buffer: the menu and HUD fonts staged 3.4 MB
 of transfer buffers, now 7 KB.
 
@@ -611,18 +617,27 @@ Startup logs engine init, subsystems and first frame; each subsystem's bring-up 
 
 ## `[~]` UI system
 
-`src/nyangine/ui` is an immediate-mode module: anchored rounded panels with an ink outline and drop shadow,
-rows of equal cells, label, button, selectable, toggle, slider, space and scrim, with focus navigation (wrap,
-hold repeat), hover, click, slider drag and cancel. One function runs as an input pass in `on_update` and a
-draw pass in `on_render`; presses roll per tick, so each is handled once however many ticks a frame runs. Ids
-hash label and panel. Fixed tables (64 widgets per pass, 32 panels) registered as ceilings, no heap. The style
-is a struct where zero is the cartoon default, fed from `engine.ui` in the config. gnyame's menus (with volume
-sliders, a stats toggle and a language row) and both HUDs use it; the hand-rolled menu widget is gone (664 to
-431 lines). Release: pause menu draw about 0.02 ms and 20 draw calls, input pass 0.004 ms, binary +41 KB.
+`src/nyangine/ui` is an immediate-mode module, split by domain: `ui.c` the pass lifetime and the per window
+state, `ui_layout.c` containers and placement, `ui_style.c` the look and the scale, `ui_input.c` presses and
+focus, `ui_draw.c` the shapes, `ui_widgets.c` the widgets and `ui_text.c` the editable field, with
+`ui_internal.h` between them and `ui.h` as the contract. One function runs as an input pass in `on_update` and
+a draw pass in `on_render`; presses roll per tick, so each is handled once however many ticks a frame runs. Ids
+hash label and panel. Fixed tables (64 widgets per pass, 64 panels) registered as ceilings, no heap. The style
+is a struct where zero is the cartoon default, fed from `engine.ui` in the config.
+
+Widgets: label, button, selectable, radio, toggle, slider, one line text input, colour picker, tabs, dropdown,
+table, line and bar chart, icon, space and scrim. Containers scroll and clip on both axes, panels can be
+dragged by their title, opacity groups fade a whole subtree, and a widget pops on focus and bounces on
+activation. The field selects with shift, moves and deletes by word with control, and copies, cuts and pastes
+through the system clipboard.
+
+gnyame's menus and both HUDs use it, and the pause screen's widgets panel exercises the rest while plotting
+frame times. Release: pause menu draw about 0.02 ms and 20 draw calls, input pass 0.004 ms, binary +41 KB.
 
 - `[ ]` Merge same-state 2D draw ranges after sorting, so a menu is a few draw calls instead of two per widget.
-- `[ ]` Text input (IME caret and selection), rows inside rows, clipping and scrolling, navigation across row
-  cells.
+- `[ ]` A dropdown's list takes room in the layout instead of floating over what follows. Ordering it last
+  would mean holding the caller's options pointer past the call.
+- `[ ]` No multi-line text field, and no navigation into an open dropdown with the keys alone.
 - `[ ]` The German key hint line runs past a 1280 wide window.
 
 ## `[ ]` Editor
