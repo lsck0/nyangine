@@ -46,6 +46,9 @@ NYA_INTERNAL _NYA_PluginHost _nya_plugin_host = { 0 };
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/** Registers the ceiling, once per process however often the host is emptied and refilled. */
+NYA_INTERNAL void _nya_plugin_ceiling_register(void);
+
 /** The slot holding `name`, or null. */
 NYA_INTERNAL _NYA_PluginSlot* _nya_plugin_slot_find(NYA_ConstCString name) __attr_no_discard;
 
@@ -283,6 +286,8 @@ NYA_Error nya_plugin_manifest_load(NYA_ConstCString directory, OUT NYA_PluginMan
 
 NYA_Error nya_plugin_load(NYA_ConstCString directory) {
     if (directory == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "nya_plugin_load needs a directory");
+
+    _nya_plugin_ceiling_register();
 
     NYA_PluginManifest manifest = { 0 };
     NYA_TRY(nya_plugin_manifest_load(directory, &manifest));
@@ -658,6 +663,18 @@ void nya_plugin_error(NYA_ConstCString name, NYA_ConstCString what, NYA_ConstCSt
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+void _nya_plugin_ceiling_register(void) {
+    // From the first load rather than at an init of its own: this host has none, a zeroed array
+    // already being a valid empty one. Guarded so a test that resets and refills it many times over
+    // one process does not add a copy of itself to the ceiling registry each time.
+    static b8 registered = false;
+    if (registered) return;
+
+    nya_ceiling_register("plugins", NYA_PLUGIN_MAX, &_nya_plugin_host.count);
+
+    registered = true;
+}
+
 _NYA_PluginSlot* _nya_plugin_slot_find(NYA_ConstCString name) {
     nya_assert(name != nullptr);
 
@@ -958,7 +975,9 @@ void _nya_plugin_run_hook(u32 index, NYA_ConstCString hook, f32 delta_time_s) {
     // applied yet. Neither is the other's duplicate — one is the schedule, one is the plugin's state.
     if (!slot->used || !slot->plugin.enabled) return;
 
-    NYA_Value argument = nya_lua_number((f64)delta_time_s);
+    // Built here rather than through nya_lua_number, which is behind the Lua plugin's flag: this
+    // function compiles in a build that has none, and NYA_Value is base's, not Lua's.
+    NYA_Value argument = { .type = NYA_TYPE_F64, .as_f64 = (f64)delta_time_s };
 
     // The result is dropped and the error already reported by nya_plugin_call. A hook returning
     // something is not wrong, it is just not asked a question.
