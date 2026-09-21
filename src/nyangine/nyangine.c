@@ -42,6 +42,9 @@
 #include "nyangine/renderer/render2d_haze.c"
 // After both renderers: particles draw through whichever the system is set to.
 #include "nyangine/renderer/render_particles.c"
+// After both renderers, for the reason particles are: a 2D volume draws through render2d and a 3D one
+// through render3d, and the solver itself is CPU only, so a headless test steps and draws it.
+#include "nyangine/renderer/render_fluid.c"
 #include "nyangine/nn/nn_draw.c"
 #include "nyangine/nn/nn_neat_draw.c"
 #include "nyangine/debug/debug.c"

@@ -74,6 +74,7 @@ NYA_INTERNAL _NYA_Trace _nya_trace = {
         [NYA_TRACE_SCENE]             = { "scene", "render_system" },
         [NYA_TRACE_TRANSPARENT]       = { "transparent", "" },
         [NYA_TRACE_PARTICLES]         = { "particles", "" },
+        [NYA_TRACE_FLUID]             = { "fluid", "" },
         [NYA_TRACE_DECALS]            = { "decals", "" },
         [NYA_TRACE_SKINNING]          = { "skinning", "" },
         [NYA_TRACE_TARGETS]           = { "targets", "" },

@@ -94,6 +94,10 @@ enum {
     /** Sorting translucent geometry, and the glass capture. */
     NYA_TRACE_TRANSPARENT,
     NYA_TRACE_PARTICLES,
+
+    /** The Navier-Stokes step and the splats or quads it draws as. */
+    NYA_TRACE_FLUID,
+
     NYA_TRACE_DECALS,
     NYA_TRACE_SKINNING,
 

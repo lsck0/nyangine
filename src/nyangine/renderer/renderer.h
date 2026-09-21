@@ -14,6 +14,8 @@
 #include "nyangine/renderer/render3d.h"
 // here rather than at the bottom: the 3D batch holds an NYA_OcclusionBuffer pointer.
 #include "nyangine/renderer/render_occlusion.h"
+// here for the same reason: a window stores its fluid look by value.
+#include "nyangine/renderer/render_fluid.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -829,6 +831,12 @@ struct NYA_RenderSystemWindow {
      * cleared to zero alpha shows the desktop wherever nothing is drawn. See nya_render_clear_color_set.
      * */
     NYA_Color clear_color;
+
+    /**
+     * What this window draws fluid volumes as. Zeroed is off, so a window that never asks for fluids has no
+     * fluid code on any path. See nya_fluid_render_options_set.
+     * */
+    NYA_FluidRenderOptions fluid;
 
     SDL_GPURenderPass*    render_pass;
     SDL_GPUCommandBuffer* render_commands;
