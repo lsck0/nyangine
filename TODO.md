@@ -4,6 +4,24 @@
 
 ---
 
+## Where it stands
+
+211 tests pass, `check --strict` reports nothing, and debug, release and steam-windows build. The title
+screen logs one line in twenty seconds, where it logged 6813.
+
+Landed since the scope widened: the build system reorganised with `./build dist`, a `secrets/` tree encrypted
+with sops, and a generated changelog; an IPC control socket and a WebSocket client, both fuzzed; a crash
+reporter with its own window; a cheatsheet generated from the headers and an `AGENTS.md`; collision layers,
+AFL++ fuzzing, property tests and a deterministic simulation harness; Steam lobbies, peer to peer and
+achievements, and Discord presence and invites behind one facade; scene persistence through reflection; the
+shadow lag and the fire flicker fixed with measurements; the UI split into seven files with fixed scale and
+eleven new widgets; and one system registry driving the frame for engine and game alike.
+
+The big things still missing are the HTTP server and the web client, the TUI backend, the plugin system, and
+fluids. See "The stack" and "Requested".
+
+---
+
 ## Standing decisions
 
 | Area         | Decision                                                                                     |
@@ -37,11 +55,11 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | Graphics options | antialiasing, motion blur, fov, ... toggleable | `[~]` MSAA, FXAA, shadows, post passes, fov and render scale are player settings; a flag for every renderer feature is in progress |
 | Renderer debug | physics hitboxes and other debug views | `[~]` buffer views exist; physics shapes missing |
 | Audio | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's) |
-| UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` containers with fixed/fit/grow sizes, window scale, per state colours, style push/pop, nine-slice skins, transitions, text input, colour picker, merged draw calls. Open: selection and clipboard, alpha fade |
-| Core | events, entities, input, settings, cache, ... solid | `[~]` |
+| UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns, radio, tabs, draggable panels, tables, charts, icons, opacity groups, scrolling. Open: a floating dropdown, a node editor, SVG, the code editor widget |
+| Core | events, entities, input, settings, cache, ... solid | `[~]` one system registry drives frame, tick and render for engine and game, with runtime enable/disable and per-owner accounting. Scenes and settings persist through reflection. Open: registry entries are raw pointers, not hot-reload-safe handles |
 | Pipelines | build, assets, reflection | `[x]` |
 | Hot reload | assets, code, configuration | `[x]` |
-| Tracing | time and memory per feature (shadows, antialiasing, particles, ...) | `[~]` CPU spans and GPU allocation counters; per feature attribution missing |
+| Tracing | time and memory per feature (shadows, antialiasing, particles, ...) | `[~]` CPU spans, GPU allocation counters, and per-system and per-owner time and memory from the registry; per renderer feature attribution missing |
 | CI/CD | tests and builds with caching | `[x]` green on Linux and Windows. `./build dist` stages every target, the changelog is generated, secrets are sops encrypted |
 | Crash reporting | one funnel, a window a player can act on, everything a triage needs in it | `[~]` log ring, composed report (crash, build, machine, stack, log), its own SDL window with close, copy and send, and a file under the log directory. Open: a transport behind `nya_crash_report_submit`, and a window on the fault path (SDL from a signal handler can deadlock) |
 | Anti-tamper | integrity checks like the CRC | `[x]` executable stamp, chunked code baseline and a sweep every 250 ms, per blob entry hashes, a watchdog at two inlined sites; failure logs and exits 86 |
@@ -50,11 +68,25 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 
 # Unmerged work
 
-The per-feature trace is merged (overlay trace page, Chrome trace capture). The renderer atmosphere branch is
-merged too: eye adaptation measured on the GPU, light shafts at half resolution, aerial perspective, 2D haze
-veils, camera motion blur, and player graphics settings (MSAA, FXAA, shadows, post passes, fov, render scale).
+Everything from the parallel session is merged: the build reorganisation and `dist`, IPC and WebSocket, the
+crash reporter, the generated cheatsheet and four examples, collision layers and the simulation harness,
+Steam and Discord, scene persistence, the renderer bug fixes, the UI split and its widgets, and the system
+registry. 211 tests pass, `check --strict` is clean, and debug, release and steam-windows all build.
 
-- `[ ]` Still not done from that branch: the pause menu graphics panel, water and reflections, dynamic mesh LOD.
+What is written and NOT merged, sitting as stashes in `.claude/worktrees/`:
+
+- `[ ]` `renderflags-wip-lc` — renderer feature flags (`render_features.c`, a toggle per feature including
+  frustum culling, backface culling and sorting, which have none today) and asset placeholders. Its worktree
+  never had its vendor submodules initialised, so it was never built or verified.
+- `[ ]` `serde-wip-lc` — hashing the reflection names in release builds, so `strings` on the binary stops
+  handing over the whole type layout.
+- `[ ]` `social-wip-lc` — the gnyame side of the join-request prompt (`layer_social.c`, `social.c`).
+- `[ ]` `crashtest-wip-lc` — a test that opens the crash window and dismisses it from another thread.
+- `[ ]` Two untracked example directories in the docs worktree: `pong_multiplayer` and `pinball3d`.
+
+Each needs its branch rebased onto master, built, and `check --strict` run before it lands. Do not merge any
+of them on the strength of having been written.
+
 - `[ ]` Not started: debug draw and physics hitboxes, core systems audit.
 
 ---
@@ -169,8 +201,12 @@ the packager ones.
   atlases where it baked seven, and warns nothing.
 - `[x]` The UI must not autoscale with screen size. `NYA_UIStyle.scale` is the only thing that moves it, with
   `follow_display_scale` as an opt-in for HiDPI.
-- `[ ]` Log spam, including things logged as errors that are not. `nya_app_init_with_options` logs
-  "No supported SDL_GPU backend found" as an ERROR on headless test runs where it is the expected state.
+- `[x]` Log spam, including things logged as errors that are not. Two causes, both gone: the atlas warning
+  above logged per frame rather than per handle, and `nya_app_init_with_options` logged "No supported
+  SDL_GPU backend found" as an ERROR where it was the expected state. A subsystem is now `optional` and an
+  unavailable one is reported at debug level, which also means a dedicated server starts on a box with no
+  GPU at all — it could not before. A 20 second run of the title screen now logs one line total, the
+  Wayland icon warning, once per process as it should.
 - `[x]` Shadows moved laggily. The light basis snapped elevation and azimuth to 0.5° steps, which halved
   the pixels changing per frame by freezing most of them: over 240 frames at 60 fps with the two minute
   day, 197 of 239 frames were frozen and the worst single frame jumped 4.678 texels. Following the sun
@@ -179,11 +215,17 @@ the packager ones.
   particle is born at exactly alpha one, so for its first tick every flame particle drew through the
   opaque pipeline: depth written, no addition, a solid square punched through the plume. Blend mode is
   explicit caller intent and alpha is a heuristic, so additive now never counts as opaque.
-- `[ ]` `test_robots` fails about one full suite run in ten, on `the drones move`, and passes 12 of 12
-  standalone. It is timing, not state: the test isolates its own save root, but under a loaded parallel
-  run the training job gets through fewer generations, and a genome that has not evolved far can hold
-  every drone still, which the test reads as not moving. Give it a deterministic generation count
-  rather than a wall clock budget.
+- `[ ]` Two tests are flaky under a loaded parallel suite run and pass 10 to 12 of 12 standalone. Both are
+  wall clock dependent under the sanitizers, and a flaky test is a bug with priority, so neither should sit
+  here long.
+  - `test_robots`, on `the drones move`. Not state: it isolates its own save root. Under load the training
+    job gets through fewer generations, and a genome that has not evolved far can legitimately hold every
+    drone still, which the test reads as not moving. Give it a deterministic generation count rather than a
+    wall clock budget.
+  - `test_trace`, on the `spin_ns` timing windows. Same shape, and it predates the system registry: the
+    registry's own accounting is off by default and deliberately reads the real monotonic clock rather than
+    the simulated one, because a simulated clock advances one tick per frame and would report every system
+    as costing the same.
 - `[ ]` RenderDoc closes immediately instead of capturing. Not the anti-tamper check — that early-returns
   unless `NYA_SHIPPING_BUILD` (`base_integrity.c:148,172`). Cause still unknown.
 - `[x]` `monocypher.h` not found, `NYA_LuaVM` unknown, `windows.h` not found, and the
@@ -205,23 +247,30 @@ the packager ones.
   calling SDL from there can deadlock against a lock that thread already holds, so a fault writes the file
   and names it on stderr instead.
 
-## `[ ]` UI
+## `[~]` UI
 
-- `[ ]` Not two files.
-- `[ ]` Text input editing: selection, copy, cut, paste, delete previous word.
-- `[ ]` Missing widgets: draggable windows, tabs, a simple node editor, dropdowns, radio buttons, SVG buttons,
-  icons, tables, graphs and charts, subtree opacity.
+- `[x]` Not two files. `ui.c` and `ui.h` became `ui.c` (lifetime and the one static state), `ui_layout.c`,
+  `ui_style.c`, `ui_input.c`, `ui_draw.c`, `ui_widgets.c`, `ui_text.c` and `ui_internal.h`.
+- `[x]` Text input editing: selection, shift+arrows, ctrl+word, ctrl+A, copy, cut, paste, ctrl+backspace,
+  double click word and drag select. The header's old "selection and clipboard rejected" rationale is gone.
+- `[x]` Dropdowns, radio buttons, tabs, draggable panels, tables, line and bar charts, icons, subtree
+  opacity, click bounce, horizontal scrolling and clipping.
+- `[ ]` The dropdown does not float. One immediate pass has no z-order, and floating would mean holding the
+  caller's `options` pointer past the call that supplied it, so the open list takes room in the layout.
+- `[ ]` Icons exist in the engine but nothing in gnyame draws one: the menu sheet has no icon regions, and
+  inventing some was not worth it. Compiled, not run.
+- `[ ]` A node editor.
+- `[ ]` SVG buttons.
 - `[ ]` A large text editor widget for writing code in-game, with treesitter syntax highlighting. Needed for
   in-game scripting, and again for the ruey rewrite.
-- `[ ]` Animation: small bounces on click and similar.
 - `[ ]` Transitions between screens.
 
 ## `[ ]` Renderer
 
-- `[ ]` A flag for every feature, so anything from culling and opacity to shadows and reflections can be turned
+- `[~]` A flag for every feature, so anything from culling and opacity to shadows and reflections can be turned
   off, whether to debug or to create an effect deliberately. Culling, backface culling and sorting currently
-  have no toggle at all; reflections do not exist.
-- `[ ]` 2D and 3D fluids, Navier-Stokes.
+  have no toggle at all; reflections do not exist. Written but not merged, see "Unmerged work".
+- `[~]` 2D and 3D fluids, Navier-Stokes. In progress.
 - `[ ]` Better 2D and 3D skyboxes. Fog in specific regions rather than only globally, rain, clouds, stars.
 - `[ ]` Placeholders for missing assets: log a warning once, then draw something obviously wrong rather than
   nothing. Today a failed asset silently draws nothing (`render2d.c:853`).
@@ -229,28 +278,36 @@ the packager ones.
 
 ## `[ ]` Engine
 
-- `[ ]` One system registry for engine and game alike, with systems registered, started and stopped at runtime.
-  A game must be able to disable an engine system — turn off gravity for an effect, or a renderer capability —
-  and a plugin must be able to disable something in order to override it.
+- `[x]` One system registry for engine and game alike. `core_app.c`'s hardcoded per-frame call lists are gone:
+  frame, tick and render phases run from the registry in the same order they ran in before. Systems register,
+  unregister, enable and disable at runtime, and a mutation issued from inside a running phase queues and
+  applies when that run ends. Every entry carries an owner (engine, game or a named plugin) with per-owner
+  time and memory, which is what the plugin system will key off. The overlay's systems page toggles one by
+  hand, so `physics2d` off is a freeze frame with everything else still running.
+- `[ ]` Registry entries are raw function pointers, not callback handles, so a system registered from the
+  hot-reloaded game library keeps running the generation that registered it. Pre-existing, and the one thing
+  to fix before plugins land.
 - `[ ]` Fast-forward: run the simulation far faster than real time, so a DQN agent playing the game covers far
   more ground than a human would.
 - `[ ]` DQN and NEAT driving the real application as a user, to find emergent behaviour and to find crashes.
 - `[x]` Scene and settings persistence (`core_scene.h`, reflection driven), for save files and the editor.
-- `[ ]` Collision layers.
-- `[ ]` Reflection-driven parsing to and from objects and the `nya` format, used everywhere rather than only by
-  config.
+- `[x]` Collision layers, named, for both solvers, through Box2D's and Box3D's own filters rather than a
+  callback.
+- `[x]` Reflection-driven parsing to and from objects and the `nya` format, with the engine's own types
+  described too (`reflection_engine.c`), used by scenes and settings rather than only by config.
 - `[ ]` Reflection data given at least token protection against reverse engineering. Today every struct and
   field name sits in `.rodata` verbatim.
 - `[ ]` Use the config system more, starting with gnyame's `constants.h`.
-- `[ ]` A better debug UI.
-- `[ ]` The main menu shows build kind, commit hash, build time and version in the bottom left corner.
+- `[~]` A better debug UI. A systems page landed; the rest is open.
+- `[x]` The main menu shows build kind, commit hash, build time and version in the bottom left corner, from
+  `nya_build_info`, which the crash report and the startup log read too so they cannot disagree.
 
 ## `[ ]` Steam
 
 - `[x]` Lobbies, peer to peer, achievements, stats and Cloud. `net_steam.c` is a real transport now.
 - `[ ]` None of it has been exercised against a running Steam client; it is tested against a fake.
-- Note: `plugins/steam/steam.c` **is** compiled and linked for the steam targets; the "never been compiled"
-  claim below in "Steam is dead code" is stale and needs rewriting.
+- Note: `plugins/steam/steam.c` **is** compiled and linked for the steam targets. The "Steam is dead code"
+  section further down predates that and is stale.
 
 ## `[ ]` Discord
 
@@ -272,8 +329,10 @@ the packager ones.
 
 - `[x]` `docs/CHEATSHEET.md`, generated from the headers by `src/build/pp/cheatsheet.c`, so it cannot drift.
 - `[x]` `AGENTS.md` at the root pointing at the cheatsheet.
-- `[ ]` More examples beside hello_world: multiplayer 2D pong, 3D pinball, one that is only plugins, a CLI app,
-  a TUI app, and a server plus client web app.
+- `[~]` More examples beside hello_world. Landed: `cli_tool` (no window), `plugin_scripting` (the Lua
+  surface as it is today), `tui_dashboard` (text only, waiting on a real terminal backend), `net_echo`
+  (server and client over the UDP transport). `[ ]` Still to do: multiplayer 2D pong, 3D pinball, and a
+  server plus client web app once the HTTP server exists.
 - `[ ]` Make the 3D example nicer, and give it the graphics settings menu it currently lacks.
 
 ## `[?]` Nyangine as a dependency
@@ -445,7 +504,9 @@ third cost 0.3 ms with no visible gain.
 
 ## `[~]` Ceiling auditing: HUD done, config over macros blocked
 
-20 ceilings are registered and shown in `debug_overlay.c`, fullest first, amber past 75%, red past 90%.
+Ceilings are registered and shown in `debug_overlay.c`, fullest first, amber past 75%, red past 90%. There
+are 33 registration sites now, up from 20, as the IPC, control, WebSocket, simulation, registry and UI
+tables came in.
 
 - Blocked: `NYA_TWEEN_MAX`, `NYA_ENTITY_MAX` and `NYA_RENDER2D_FONT_CACHE_MAX` cannot become config,
   because `NYA_CONFIG` is a global in the game DLL (`gnyame/config.h`) that no engine module can read.
@@ -663,15 +724,21 @@ release per channel.
   not the working directory, which is the install folder on Steam. Settings saved under the old `nyangine`
   directory are not migrated.
 
-## `[ ]` Steam is dead code
+## `[~]` Steam
 
-- `net_steam.c` returns `NYA_ERROR_NOT_SUPPORTED`.
-- `plugins/steam/steam.c` has never been compiled: `FLAGS_STEAM_*` in `src/build/flags.h` define
-  `NYA_PLUGIN_STEAM`, but no build rule uses them. `NYA_EXECUTION_MODE=3` is called "steam".
-- To ship on Steam: a build variant linking `libsteam_api.so` / `steam_api64.dll` and adding them to the
-  depots; `SteamAPI_RestartAppIfNecessary` first, init with a fallback when the client is not running,
-  `SteamAPI_RunCallbacks` each frame, deinit; Steam Cloud rules for the save directory. No SteamStub DRM
-  wrapper: it rewrites the exe, breaking the integrity CRC and the signature.
+This section used to say Steam was dead code and that `plugins/steam/steam.c` had never been compiled.
+Both were already false when it was written: `-DNYA_PLUGIN_STEAM` is on the steam link lines,
+`plugins.c` includes `steam.c` under that guard, and the build ships `steam_api64.dll` beside the exe.
+Kept as a note because it cost an afternoon to disbelieve.
+
+What is real now: lobbies, peer to peer through `SteamNetworkingMessages`, achievements, stats and Cloud,
+with `net_steam.c` a working transport satisfying the same interface as UDP and loopback.
+`SteamAPI_RestartAppIfNecessary` runs first, init falls back when no client is running, callbacks run each
+frame. No SteamStub DRM wrapper: it rewrites the exe, breaking the integrity CRC and the signature.
+
+- `[ ]` None of it has run against a real Steam client. It is tested against a fake implementation of the
+  transport interface, which proves the shape and nothing about Valve's behaviour.
+- `[ ]` A real depot upload has not been exercised.
 ## `[~]` CI
 
 First fully green run on 2026-09-17 (Linux and Windows: vendors, check, tests, builds). A push cancels the
