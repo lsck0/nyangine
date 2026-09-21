@@ -1400,5 +1400,7 @@ __attr_maybe_unused SDL_GPUGraphicsPipeline* _nya_render_pipeline(NYA_Window* wi
 
     const NYA_RenderSystemWindow* render = &window->render_system;
 
-    return nya_asset_graphics_pipeline(asset, render->draw_batch.target_sample_count, render->render_pass_normals);
+    // face culling is a switch, and the build with it off is only ever created once someone turns it off.
+    return nya_asset_graphics_pipeline(asset, render->draw_batch.target_sample_count, render->render_pass_normals,
+                                       nya_render_feature_enabled(window, NYA_RENDER_FEATURE_BACKFACE_CULLING));
 }

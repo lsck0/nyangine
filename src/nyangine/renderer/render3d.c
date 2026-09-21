@@ -109,7 +109,7 @@ NYA_INTERNAL b8 _nya_render3d_mesh_upload(NYA_Window* window, NYA_Asset* asset);
 NYA_INTERNAL NYA_Render3DMeshGroup* _nya_render3d_mesh_group(NYA_Render3DBatch* batch, NYA_ConstCString handle, b8 transparent);
 
 /** The fragment uniform block, built from the batch's light and material. The shadow fields are the playback's. */
-NYA_INTERNAL struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DBatch* batch) __attr_no_discard;
+NYA_INTERNAL struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Window* window) __attr_no_discard;
 
 /** The shadow atlas once the cascades are drawn, and a placeholder texel before that or without shadows. */
 NYA_INTERNAL SDL_GPUTexture* _nya_render3d_shadow_map(const NYA_Render3DBatch* batch) __attr_no_discard;
@@ -220,6 +220,9 @@ void nya_render3d_sky_draw(NYA_Window* window, NYA_Render3DSky sky) {
 
     // no camera, no basis to shade a ray from.
     if (!batch->active) return;
+
+    // switched off the window's clear colour shows instead, which is what a sky is hiding.
+    if (!nya_render_feature_enabled(window, NYA_RENDER_FEATURE_SKY)) return;
 
     u32 target_width  = 0;
     u32 target_height = 0;
@@ -470,8 +473,9 @@ void _nya_render3d_passes_prepare(NYA_Window* window) {
 
     NYA_Render3DShadowFit fit = batch->shadow_fit;
 
-    // the fit follows a perspective frustum; an orthographic view casts nothing.
-    if (fit.strength <= 0.0F || batch->camera_is_ortho) return;
+    // the fit follows a perspective frustum; an orthographic view casts nothing. switched off, no cascade is
+    // fitted and no scene pass runs, which is the whole cost of shadows.
+    if (fit.strength <= 0.0F || batch->camera_is_ortho || !nya_render_feature_enabled(window, NYA_RENDER_FEATURE_SHADOWS)) return;
 
     u32 target_width, target_height;
     nya_render2d_target_size(window, &target_width, &target_height);
@@ -1080,7 +1084,7 @@ void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center
         // is the safe direction.
         f32x3 world_center = center + nya_quaternion_rotate(rotation, middle);
 
-        passes = _nya_render3d_passes_seeing(batch, world_center, nya_vector_length(extent));
+        passes = _nya_render3d_passes_seeing(window, world_center, nya_vector_length(extent));
 
         if (passes == 0) return;
     }
@@ -1368,8 +1372,22 @@ void nya_render3d_flush(NYA_Window* window) {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DBatch* batch) {
+struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    const NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
     NYA_Render3DShadowOptions shadow_options = _nya_render3d_shadow_options_resolve(batch->shadow_options);
+
+    /*
+     * The switches that only change what the shader is told, applied once per segment. Each leaves the term at the
+     * identity the shader already branches on, so an off feature costs nothing in the fragment stage either.
+     */
+    b8 lit          = nya_render_feature_enabled(window, NYA_RENDER_FEATURE_LIGHTING);
+    b8 reflective   = nya_render_feature_enabled(window, NYA_RENDER_FEATURE_REFLECTIONS);
+    b8 point_lights = nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POINT_LIGHTS);
+
+    u32 point_light_count = point_lights ? batch->point_light_count : 0;
 
     struct NYA_ShaderMesh3DUniform uniform = {
         // negated so the shader gets surface-to-light. callers think in the direction light travels.
@@ -1381,18 +1399,19 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
         .light_color_r = batch->light.color.r,
         .light_color_g = batch->light.color.g,
         .light_color_b = batch->light.color.b,
-        .intensity     = batch->light.intensity,
+        // zero leaves every surface at its ambient, which is flat albedo.
+        .intensity     = lit ? batch->light.intensity : 0.0F,
 
         .camera_x = batch->camera_is_ortho ? batch->camera_orthographic.position.x : batch->camera.position.x,
         .camera_y = batch->camera_is_ortho ? batch->camera_orthographic.position.y : batch->camera.position.y,
         .camera_z = batch->camera_is_ortho ? batch->camera_orthographic.position.z : batch->camera.position.z,
-        .metallic = batch->material.metallic,
+        .metallic = reflective ? batch->material.metallic : 0.0F,
 
         .roughness   = batch->material.roughness,
-        .reflectance = batch->material.reflectance,
+        .reflectance = reflective ? batch->material.reflectance : 0.0F,
         .emission    = batch->material.emission,
 
-        .point_light_count = (f32)batch->point_light_count,
+        .point_light_count = (f32)point_light_count,
 
         .edge = batch->material.edge,
 
@@ -1424,7 +1443,7 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
     uniform.shade_tint_b = nya_lerp(1.0F, shade.b / nya_max(luma, NYA_EPSILON), amount);
 
     /* Fog defaults are resolved here once per segment, since the shader only tests `density`. */
-    if (batch->fog.density > 0.0F) {
+    if (batch->fog.density > 0.0F && nya_render_feature_enabled(window, NYA_RENDER_FEATURE_FOG)) {
         NYA_Color color = batch->fog.color;
 
         // alpha is ignored because fog is a lerp target. black fog needs one tiny non-zero channel.
@@ -1442,7 +1461,7 @@ struct NYA_ShaderMesh3DUniform _nya_render3d_shading_uniform(const NYA_Render3DB
     }
 
     // field by field: f32x3 is sixteen bytes and the uniform block must match the HLSL layout exactly.
-    for (u32 i = 0; i < batch->point_light_count; i++) {
+    for (u32 i = 0; i < point_light_count; i++) {
         const NYA_Render3DPointLight* light = &batch->point_lights[i];
 
         uniform.point_light_position_range[i][0] = light->position.x;
@@ -1539,8 +1558,12 @@ void _nya_render3d_playback(NYA_Window* window) {
                 u16* transparent = indices + index_count;
                 u32  count       = _nya_render3d_pass_indices(&batch->transparent, segment->transparent_objects, transparent_end, pass, transparent);
 
-                // only the camera blends, and adding does not depend on order.
-                if (pass == 0 && segment->blend != NYA_RENDER3D_BLEND_ADDITIVE) _nya_render3d_sort_transparent(batch, transparent, count, eye);
+                // only the camera blends, and adding does not depend on order. switched off, the triangles draw in
+                // the order they were recorded, which is what the sort is worth on screen.
+                if (pass == 0 && segment->blend != NYA_RENDER3D_BLEND_ADDITIVE
+                    && nya_render_feature_enabled(window, NYA_RENDER_FEATURE_DRAW_SORTING)) {
+                    _nya_render3d_sort_transparent(batch, transparent, count, eye);
+                }
 
                 segment->transparent[pass].count  = count;
                 index_count                      += count;
@@ -2024,7 +2047,10 @@ void _nya_render3d_instanced_draw(NYA_Window* window, const NYA_Render3DSegment*
 
             if (part->vertex_count == 0) continue;
 
-            SDL_GPUTexture* texture = (asset != nullptr && part->texture >= 0) ? asset->as_mesh.textures[part->texture] : nullptr;
+            // a part's own texture, unless textures are switched off, in which case it draws in its vertex colour.
+            b8 textured = asset != nullptr && part->texture >= 0 && nya_render_feature_enabled(window, NYA_RENDER_FEATURE_TEXTURES);
+
+            SDL_GPUTexture* texture = textured ? asset->as_mesh.textures[part->texture] : nullptr;
             SDL_GPUSampler* sampler = texture != nullptr ? _nya_render_sampler_for(asset->as_mesh.filter) : nullptr;
 
             // a cascade draws translucent meshes solid, as the immediate path does.
@@ -2512,7 +2538,7 @@ b8 _nya_render3d_object_begin(NYA_Window* window, NYA_Color color, f32x3 center,
 
     _nya_render3d_passes_prepare(window);
 
-    u8 passes = _nya_render3d_passes_seeing(batch, center, radius);
+    u8 passes = _nya_render3d_passes_seeing(window, center, radius);
 
     if (passes == 0) return false;
 
@@ -2522,7 +2548,8 @@ b8 _nya_render3d_object_begin(NYA_Window* window, NYA_Color color, f32x3 center,
      * it instead of adding to it. Two new particles every 45 ms punched a square hole in the flame for a tick
      * each, which is what flickered.
      */
-    batch->transparent_active = _nya_render3d_stream_transparent(color, batch->blend);
+    batch->transparent_active = _nya_render3d_stream_transparent(color, batch->blend)
+                             && nya_render_feature_enabled(window, NYA_RENDER_FEATURE_TRANSPARENCY);
 
     if (!_nya_render3d_reserve(window, vertices, indices, texture, sampler)) return false;
 
@@ -2599,14 +2626,25 @@ void _nya_render3d_segment_close(NYA_Window* window) {
     open->decal_count   = render->decals_gpu.count > open->first_decal ? render->decals_gpu.count - open->first_decal : 0;
     open->decal_texture = render->decals_gpu.texture;
 
-    open->texture      = batch->texture;
-    open->sampler      = batch->sampler;
-    open->material     = batch->material;
-    open->blend        = batch->blend;
-    open->depth        = batch->depth;
+    // the switches are applied once here, where a segment's state is frozen, rather than on every draw.
+    b8 textured = nya_render_feature_enabled(window, NYA_RENDER_FEATURE_TEXTURES);
+
+    open->texture  = textured ? batch->texture : nullptr;
+    open->sampler  = textured ? batch->sampler : nullptr;
+    open->material = batch->material;
+    open->blend    = batch->blend;
+
+    // refraction is a reflection of the scene behind, and zero here keeps the glass pass and its capture out of
+    // the playback entirely.
+    if (!nya_render_feature_enabled(window, NYA_RENDER_FEATURE_REFLECTIONS)) open->material.refraction = 0.0F;
+
+    // no depth test means the overlay pipeline, which neither tests nor writes: the scene draws in the order it
+    // was recorded. A pipeline variant per switch would be a second build of every pipeline for the same picture.
+    open->depth = nya_render_feature_enabled(window, NYA_RENDER_FEATURE_DEPTH_TEST) ? batch->depth : NYA_RENDER3D_DEPTH_OVERLAY;
+
     open->casts_shadow = batch->casts_shadow;
 
-    batch->segment_uniforms[batch->segment_count] = _nya_render3d_shading_uniform(batch);
+    batch->segment_uniforms[batch->segment_count] = _nya_render3d_shading_uniform(window);
 
     batch->segment_count++;
     batch->segment_count_worst = nya_max(batch->segment_count_worst, batch->segment_count);

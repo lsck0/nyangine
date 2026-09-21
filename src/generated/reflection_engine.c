@@ -230,6 +230,7 @@ static const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer_grade_lut_
 };
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS[] = {
+    { .name = "features", .type = &_NYA_REFLECT_NYA_RenderFeatures, .offset = nya_offsetof(NYA_ConfigEngineRenderer, features), .hint = NYA_HINT_NONE },
     { .name = "shadow_bias", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_bias), .hint = NYA_HINT_NONE },
     { .name = "shadow_cascades", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_cascades), .hint = NYA_HINT_NONE },
     { .name = "shadow_map_size", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_ConfigEngineRenderer, shadow_map_size), .hint = NYA_HINT_NONE },
@@ -258,7 +259,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngineRenderer = {
     .size = sizeof(NYA_ConfigEngineRenderer),
     .alignment = alignof(NYA_ConfigEngineRenderer),
     .fields = _NYA_REFLECT_NYA_ConfigEngineRenderer_FIELDS,
-    .field_count = 20,
+    .field_count = 21,
 };
 
 /* NYA_ConfigEnginePhysics, src/nyangine/core/core_config.h */
@@ -705,6 +706,71 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_Color = {
     .field_count = 4,
 };
 
+/* NYA_RenderToggle, src/nyangine/renderer/render_features.h */
+
+static const NYA_ReflectVariant _NYA_REFLECT_NYA_RenderToggle_VARIANTS[] = {
+    { .name = "NYA_RENDER_TOGGLE_DEFAULT", .value = (s64)(NYA_RENDER_TOGGLE_DEFAULT) },
+    { .name = "NYA_RENDER_TOGGLE_ON", .value = (s64)(NYA_RENDER_TOGGLE_ON) },
+    { .name = "NYA_RENDER_TOGGLE_OFF", .value = (s64)(NYA_RENDER_TOGGLE_OFF) },
+    { .name = "NYA_RENDER_TOGGLE_COUNT", .value = (s64)(NYA_RENDER_TOGGLE_COUNT) },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_RenderToggle = {
+    .name = "NYA_RenderToggle",
+    .kind = NYA_REFLECT_ENUM,
+    .size = sizeof(NYA_RenderToggle),
+    .alignment = alignof(NYA_RenderToggle),
+    .primitive = (sizeof(NYA_RenderToggle) == 8 ? NYA_TYPE_S64
+                : sizeof(NYA_RenderToggle) == 2 ? NYA_TYPE_S16
+                : sizeof(NYA_RenderToggle) == 1 ? NYA_TYPE_S8
+                                  : NYA_TYPE_S32),
+    .variants = _NYA_REFLECT_NYA_RenderToggle_VARIANTS,
+    .variant_count = 4,
+    .is_bitflags = false,
+};
+
+/* NYA_RenderFeatures, src/nyangine/renderer/render_features.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_RenderFeatures_FIELDS[] = {
+    { .name = "frustum_culling", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, frustum_culling), .hint = NYA_HINT_NONE },
+    { .name = "occlusion_culling", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, occlusion_culling), .hint = NYA_HINT_NONE },
+    { .name = "backface_culling", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, backface_culling), .hint = NYA_HINT_NONE },
+    { .name = "depth_test", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, depth_test), .hint = NYA_HINT_NONE },
+    { .name = "draw_sorting", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, draw_sorting), .hint = NYA_HINT_NONE },
+    { .name = "transparency", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, transparency), .hint = NYA_HINT_NONE },
+    { .name = "shadows", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, shadows), .hint = NYA_HINT_NONE },
+    { .name = "lighting", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, lighting), .hint = NYA_HINT_NONE },
+    { .name = "point_lights", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, point_lights), .hint = NYA_HINT_NONE },
+    { .name = "reflections", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, reflections), .hint = NYA_HINT_NONE },
+    { .name = "textures", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, textures), .hint = NYA_HINT_NONE },
+    { .name = "fog", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, fog), .hint = NYA_HINT_NONE },
+    { .name = "sky", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, sky), .hint = NYA_HINT_NONE },
+    { .name = "decals", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, decals), .hint = NYA_HINT_NONE },
+    { .name = "lod", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, lod), .hint = NYA_HINT_NONE },
+    { .name = "particles", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, particles), .hint = NYA_HINT_NONE },
+    { .name = "haze", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, haze), .hint = NYA_HINT_NONE },
+    { .name = "post", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, post), .hint = NYA_HINT_NONE },
+    { .name = "ink", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, ink), .hint = NYA_HINT_NONE },
+    { .name = "ambient_occlusion", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, ambient_occlusion), .hint = NYA_HINT_NONE },
+    { .name = "antialias", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, antialias), .hint = NYA_HINT_NONE },
+    { .name = "depth_of_field", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, depth_of_field), .hint = NYA_HINT_NONE },
+    { .name = "speed_lines", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, speed_lines), .hint = NYA_HINT_NONE },
+    { .name = "bloom", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, bloom), .hint = NYA_HINT_NONE },
+    { .name = "light_shafts", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, light_shafts), .hint = NYA_HINT_NONE },
+    { .name = "motion_blur", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, motion_blur), .hint = NYA_HINT_NONE },
+    { .name = "eye_adaptation", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, eye_adaptation), .hint = NYA_HINT_NONE },
+    { .name = "grade", .type = &_NYA_REFLECT_NYA_RenderToggle, .offset = nya_offsetof(NYA_RenderFeatures, grade), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_RenderFeatures = {
+    .name = "NYA_RenderFeatures",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_RenderFeatures),
+    .alignment = alignof(NYA_RenderFeatures),
+    .fields = _NYA_REFLECT_NYA_RenderFeatures_FIELDS,
+    .field_count = 28,
+};
+
 /* NYA_RenderOutput, src/nyangine/renderer/render_output.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_RenderOutput_FIELDS[] = {
@@ -1149,6 +1215,8 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_Render3DFog,
     &_NYA_REFLECT_NYA_Render3DDecals,
     &_NYA_REFLECT_NYA_Color,
+    &_NYA_REFLECT_NYA_RenderToggle,
+    &_NYA_REFLECT_NYA_RenderFeatures,
     &_NYA_REFLECT_NYA_RenderOutput,
     &_NYA_REFLECT_NYA_PostInk,
     &_NYA_REFLECT_NYA_PostAmbientOcclusion,

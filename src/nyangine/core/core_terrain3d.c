@@ -526,7 +526,10 @@ void nya_terrain3d_update(NYA_Terrain3D* terrain, NYA_Window* window, f32x3 view
 
         if (distance < 0.0F) distance = 0.0F;
 
-        u32 wanted = nya_terrain3d_lod_for_distance(terrain, distance);
+        // switched off every chunk builds at its finest, which is what the levels are measured against.
+        u32 wanted = window != nullptr && !nya_render_feature_enabled(window, NYA_RENDER_FEATURE_LOD)
+                       ? 0
+                       : nya_terrain3d_lod_for_distance(terrain, distance);
 
         /* Hysteresis only for a chunk that has geometry; an unbuilt one takes the plain answer. */
         if (chunk->lod < NYA_TERRAIN3D_LOD_LEVELS && wanted != chunk->lod) {

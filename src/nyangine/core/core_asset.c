@@ -100,7 +100,7 @@ NYA_INTERNAL void _nya_asset_flush_uploads(NYA_Arrayá¸_NYA_AssetPendingUploadá
  * `normals`. Null when a shader is missing or SDL refuses.
  * */
 NYA_INTERNAL SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoadParameters* parameters, SDL_GPUSampleCount sample_count,
-                                                                          b8 normals)
+                                                                          b8 normals, b8 face_culling)
     __attr_no_discard;
 
 NYA_INTERNAL void      _nya_asset_unload_raw(NYA_Asset* asset);
@@ -523,7 +523,7 @@ NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) {
     return asset ? asset->status : NYA_ASSET_STATUS_UNLOADED;
 }
 
-SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count, b8 normals) {
+SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count, b8 normals, b8 face_culling) {
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return nullptr;
     nya_assert(asset->type == NYA_ASSET_TYPE_GRAPHICS_PIPELINE, "'%s' is not a graphics pipeline", asset->handle);
 
@@ -532,7 +532,7 @@ SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSa
 
     NYA_RenderSystem* render_system = &nya_app_get()->render_system;
 
-    u32 index = (sample_count == SDL_GPU_SAMPLECOUNT_1 ? 0 : 1) + (normals ? 2 : 0);
+    u32 index = (sample_count == SDL_GPU_SAMPLECOUNT_1 ? 0 : 1) + (normals ? 2 : 0) + (face_culling ? 0 : 4);
 
     typeof(asset->as_graphics_pipeline.variants[0])* variant = &asset->as_graphics_pipeline.variants[index];
 
@@ -544,7 +544,7 @@ SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSa
 
     *variant = (typeof(*variant)){
         .built        = true,
-        .pipeline     = _nya_asset_graphics_pipeline_create(&asset->load_parameters, sample_count, normals),
+        .pipeline     = _nya_asset_graphics_pipeline_create(&asset->load_parameters, sample_count, normals, face_culling),
         .sample_count = sample_count,
         .depth_format = render_system->depth_format,
     };
@@ -857,7 +857,8 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_pixels(SDL_GPUTextureType type, u32 widt
     return NYA_OK;
 }
 
-SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoadParameters* parameters, SDL_GPUSampleCount sample_count, b8 normals) {
+SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoadParameters* parameters, SDL_GPUSampleCount sample_count,
+                                                              b8 normals, b8 face_culling) {
     NYA_RenderSystem* render_system = &nya_app_get()->render_system;
 
     NYA_Asset* vertex_shader_asset   = nya_asset_get(parameters->as_graphics_pipeline.vertex_shader_handle);
@@ -980,7 +981,8 @@ SDL_GPUGraphicsPipeline* _nya_asset_graphics_pipeline_create(const NYA_AssetLoad
         .multisample_state.sample_count = sample_count,
         .rasterizer_state.fill_mode     = SDL_GPU_FILLMODE_FILL,
         // counter-clockwise front, matching the 3D primitives.
-        .rasterizer_state.cull_mode = parameters->as_graphics_pipeline.cull_back_faces    ? SDL_GPU_CULLMODE_BACK
+        .rasterizer_state.cull_mode = !face_culling                                       ? SDL_GPU_CULLMODE_NONE
+                                      : parameters->as_graphics_pipeline.cull_back_faces  ? SDL_GPU_CULLMODE_BACK
                                       : parameters->as_graphics_pipeline.cull_front_faces ? SDL_GPU_CULLMODE_FRONT
                                                                                           : SDL_GPU_CULLMODE_NONE,
         .rasterizer_state.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE,
@@ -2234,7 +2236,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                 }
 
                 SDL_GPUSampleCount sample_count = parameters->as_graphics_pipeline.single_sampled ? SDL_GPU_SAMPLECOUNT_1 : render_system->sample_count;
-                SDL_GPUGraphicsPipeline* pipeline = _nya_asset_graphics_pipeline_create(parameters, sample_count, false);
+                SDL_GPUGraphicsPipeline* pipeline = _nya_asset_graphics_pipeline_create(parameters, sample_count, false, true);
 
                 /*
                  * Reported, not asserted. Backends disagree about pipelines, so this can fail on one driver only; the log

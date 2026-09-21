@@ -14,6 +14,9 @@ void gny_config_renderer_apply(NYA_Window* window) {
 
     const NYA_ConfigEngineRenderer* renderer = &NYA_CONFIG.engine.renderer;
 
+    // first, because everything set below is laid over by the switches rather than the other way round.
+    nya_render_features_set(window, renderer->features);
+
     nya_render3d_shadow_options_set(
         window,
         (NYA_Render3DShadowOptions){

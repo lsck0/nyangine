@@ -361,9 +361,13 @@ struct NYA_Asset {
 
         struct {
             /**
-             * One per kind of target: [0] single sampled, [1] at the renderer's sample count, and [2] and [3] the same
-             * with the scene normal buffer as a second colour target. Built on first use and rebuilt when the sample
-             * count or depth format they were built for changes. Reach them through nya_asset_graphics_pipeline.
+             * One per kind of target, indexed by bit: 1 at the renderer's sample count rather than single sampled,
+             * 2 with the scene normal buffer as a second colour target, 4 with face culling switched off. Built on
+             * first use and rebuilt when the sample count or depth format they were built for changes. Reach them
+             * through nya_asset_graphics_pipeline.
+             *
+             * The four with culling off are never built unless someone turns NYA_RENDER_FEATURE_BACKFACE_CULLING
+             * off, so they cost the slots and nothing else.
              * */
             struct {
                 SDL_GPUGraphicsPipeline* pipeline;
@@ -372,7 +376,7 @@ struct NYA_Asset {
 
                 /** Tried, even if SDL refused, so a refusal is logged once. */
                 b8 built;
-            } variants[4];
+            } variants[8];
         } as_graphics_pipeline;
 
         struct {
@@ -584,8 +588,12 @@ NYA_API NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) __attr_no_disca
  *
  * `normals` is for a pass that also attaches the scene normal buffer (NYA_RENDER3D_NORMAL_FORMAT) as a second colour
  * target. That build writes it only if the pipeline writes depth, so translucent geometry and the sky leave it alone.
+ *
+ * `face_culling` false builds the same pipeline with SDL_GPU_CULLMODE_NONE, whichever face it would have discarded.
+ * See NYA_RENDER_FEATURE_BACKFACE_CULLING; a window that never switches it off never builds that variant.
  * */
-NYA_API SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count, b8 normals) __attr_no_discard;
+NYA_API SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count, b8 normals,
+                                                             b8 face_culling) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

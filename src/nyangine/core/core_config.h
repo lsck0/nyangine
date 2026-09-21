@@ -91,6 +91,13 @@ typedef struct NYA_ConfigEngine         NYA_ConfigEngine;
  * */
 // @reflect
 struct NYA_ConfigEngineRenderer {
+    /**
+     * One switch per renderer feature, laid over everything below. See NYA_RenderFeatures: a field left out is
+     * NYA_RENDER_TOGGLE_DEFAULT and changes nothing, so this is where a feature is turned off to see what it was
+     * doing, live, without a rebuild.
+     * */
+    NYA_RenderFeatures features;
+
     /** Depth slack the shadow comparison allows, in the shadow map's own depth range. See
      *  NYA_RENDER3D_SHADOW_BIAS: too little and flat surfaces self-shadow in stripes ("acne"); too
      *  much and a shadow visibly detaches from the object casting it ("peter-panning"). */

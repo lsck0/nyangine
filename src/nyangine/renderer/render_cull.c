@@ -27,10 +27,12 @@ NYA_INTERNAL __attr_allow_unused void _nya_render3d_frustum_build(NYA_Render3DFr
 NYA_INTERNAL __attr_allow_unused b8 _nya_render3d_visible(const NYA_Render3DFrustum* frustum, f32x3 center, f32 radius) __attr_no_discard;
 
 /**
- * One bit for each of the batch's passes that sees the sphere, the camera in bit zero. The camera's bit also answers
+ * One bit for each of the window's passes that sees the sphere, the camera in bit zero. The camera's bit also answers
  * to the occlusion buffer. Zero is counted as culled.
+ *
+ * Takes the window rather than the batch because both culls are switchable; see NYA_RENDER_FEATURE_FRUSTUM_CULLING.
  * */
-NYA_INTERNAL __attr_allow_unused u8 _nya_render3d_passes_seeing(NYA_Render3DBatch* batch, f32x3 center, f32 radius) __attr_no_discard;
+NYA_INTERNAL __attr_allow_unused u8 _nya_render3d_passes_seeing(NYA_Window* window, f32x3 center, f32 radius) __attr_no_discard;
 
 /**
  * Appends the indices of `stream`'s objects in [first_object, end_object) that `pass` sees to `out`, and returns how
@@ -102,9 +104,16 @@ b8 _nya_render3d_visible(const NYA_Render3DFrustum* frustum, f32x3 center, f32 r
     return true;
 }
 
-u8 _nya_render3d_passes_seeing(NYA_Render3DBatch* batch, f32x3 center, f32 radius) {
-    nya_assert(batch != nullptr);
+u8 _nya_render3d_passes_seeing(NYA_Window* window, f32x3 center, f32 radius) {
+    nya_assert(window != nullptr);
+
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
     nya_assert(batch->pass_count >= 1 && batch->pass_count <= NYA_RENDER3D_PASSES, "the passes are fitted before anything is recorded");
+
+    // every pass sees everything, which is exactly what the cull is worth. the occlusion buffer goes with it: it
+    // only ever removes what the frustum kept.
+    if (!nya_render_feature_enabled(window, NYA_RENDER_FEATURE_FRUSTUM_CULLING)) return (u8)((1U << batch->pass_count) - 1U);
 
     u8 passes = 0;
 
@@ -116,7 +125,8 @@ u8 _nya_render3d_passes_seeing(NYA_Render3DBatch* batch, f32x3 center, f32 radiu
      * Only the camera answers to the occlusion buffer, and only for what survived its frustum: a caster the camera
      * cannot see still shadows ground it can.
      */
-    if ((passes & 1U) != 0 && batch->occlusion != nullptr && nya_occlusion_test(batch->occlusion, center, radius)) {
+    if ((passes & 1U) != 0 && batch->occlusion != nullptr && nya_render_feature_enabled(window, NYA_RENDER_FEATURE_OCCLUSION_CULLING)
+        && nya_occlusion_test(batch->occlusion, center, radius)) {
         passes &= (u8)~1U;
         batch->frame_occluded++;
     }

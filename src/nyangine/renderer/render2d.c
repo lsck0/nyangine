@@ -463,7 +463,7 @@ void nya_render2d_flush(NYA_Window* window) {
         NYA_Asset* pipeline_asset = range->pipeline != nullptr ? nya_asset_get(range->pipeline) : nullptr;
 
         // still loading; skipped so one pipeline does not hold up the frame.
-        SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(pipeline_asset, batch->target_sample_count, false);
+        SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(pipeline_asset, batch->target_sample_count, false, true);
         if (pipeline == nullptr) continue;
 
         // per range, since target and camera belong to the range.
@@ -1334,7 +1334,7 @@ void nya_render2d_fullscreen(
 
     _nya_render2d_pass_normals_set(window, false);
 
-    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get((NYA_CString)pipeline_handle), batch->target_sample_count, false);
+    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get((NYA_CString)pipeline_handle), batch->target_sample_count, false, true);
 
     if (pipeline == nullptr) {
         batch->frame_dropped_draws++;
@@ -2265,7 +2265,7 @@ void nya_render2d_lights_apply(NYA_Window* window, const NYA_Light2D* lights, co
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render2DBatch*      batch  = &render->draw_batch;
 
-    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get(NYA_RENDER2D_PIPELINE_LIGHT), batch->target_sample_count, false);
+    SDL_GPUGraphicsPipeline* pipeline = nya_asset_graphics_pipeline(nya_asset_get(NYA_RENDER2D_PIPELINE_LIGHT), batch->target_sample_count, false, true);
     if (pipeline == nullptr) {
         // still loading. an unlit frame beats an all-dark one.
         batch->frame_dropped_draws++;

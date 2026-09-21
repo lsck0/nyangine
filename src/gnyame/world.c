@@ -400,7 +400,8 @@ u32 gny_post_passes(NYA_Window* window, OUT NYA_PostPass* out_passes) {
     GNY_World*                      world    = gny_world();
     const NYA_ConfigEngineRenderer* renderer = &NYA_CONFIG.engine.renderer;
 
-    b8 grading = world->grade_enabled && renderer->grade_strength > 0.0F && renderer->grade_lut[0] != '\0';
+    b8 grading = nya_render_feature_on(window, NYA_RENDER_FEATURE_GRADE, world->grade_enabled) && renderer->grade_strength > 0.0F
+              && renderer->grade_lut[0] != '\0';
 
     NYA_ConstCString wanted = grading ? renderer->grade_lut : "";
 

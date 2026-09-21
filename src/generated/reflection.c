@@ -153,6 +153,8 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_Render3DFog,
     &_NYA_REFLECT_NYA_Render3DDecals,
     &_NYA_REFLECT_NYA_Color,
+    &_NYA_REFLECT_NYA_RenderToggle,
+    &_NYA_REFLECT_NYA_RenderFeatures,
     &_NYA_REFLECT_NYA_RenderOutput,
     &_NYA_REFLECT_NYA_PostInk,
     &_NYA_REFLECT_NYA_PostAmbientOcclusion,

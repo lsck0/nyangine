@@ -7,6 +7,8 @@
 #include "nyangine/debug/debug_trace.h"
 #include "nyangine/renderer/render_camera.h"
 #include "nyangine/renderer/render_color.h"
+// the window holds the switches, and nothing in here depends on the rest of this file.
+#include "nyangine/renderer/render_features.h"
 // the 3D batch embeds a light and a material by value, so their definitions are needed here.
 // render3d.h includes nothing from this file.
 #include "nyangine/renderer/render3d.h"
@@ -873,6 +875,14 @@ struct NYA_RenderSystemWindow {
 
     /** See nya_render2d_haze_set. */
     NYA_Render2DHaze haze;
+
+    /**
+     * What is switched off and what is forced on. See nya_render_features_set: the two masks are resolved there
+     * so a draw path asks with a bit test.
+     * */
+    NYA_RenderFeatures features;
+    u32                features_off_mask;
+    u32                features_on_mask;
 
     /* The scene post passes. See render_post.h. */
 

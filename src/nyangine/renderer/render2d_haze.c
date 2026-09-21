@@ -12,7 +12,7 @@ void nya_render2d_haze_draw(NYA_Window* window, f32 distance) {
 
     const NYA_Render2DHaze* haze = &window->render_system.haze;
 
-    if (haze->density <= 0.0F || distance <= 0.0F) return;
+    if (!nya_render_feature_on(window, NYA_RENDER_FEATURE_HAZE, haze->density > 0.0F) || distance <= 0.0F) return;
 
     NYA_Color color = haze->color.a > 0.0F ? haze->color : NYA_RENDER3D_FOG_COLOR;
 

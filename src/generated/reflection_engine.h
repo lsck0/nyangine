@@ -64,6 +64,8 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_Light2D;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Render3DFog;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Render3DDecals;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_Color;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_RenderToggle;
+extern const NYA_TypeReflection _NYA_REFLECT_NYA_RenderFeatures;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_RenderOutput;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostInk;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_PostAmbientOcclusion;
@@ -84,6 +86,6 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
 /** Every annotated engine type. The game's are in generated/reflection.h. */
-#define NYA_REFLECT_ENGINE_TYPE_COUNT 46
+#define NYA_REFLECT_ENGINE_TYPE_COUNT 48
 
 extern const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT];

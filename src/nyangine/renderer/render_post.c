@@ -68,15 +68,32 @@ typedef struct {
  * */
 #define _NYA_POST_BUILT_IN_MAX 11
 
-/** Whether any option on the window reads the scene normal buffer. */
-NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_RenderSystemWindow* render) {
-    return render->post_ink.enabled || render->post_ambient_occlusion.enabled || render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE
-        || render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE || render->post_light_shafts.enabled || render->post_motion_blur.enabled;
+/**
+ * Whether one pass runs: its own options, then the window's switches. NYA_RENDER_FEATURE_POST is the master, so
+ * turning it off skips every pass, its targets and the chain itself.
+ * */
+NYA_INTERNAL b8 _nya_post_on(const NYA_Window* window, NYA_RenderFeature feature, b8 asked) {
+    return nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POST) && nya_render_feature_on(window, feature, asked);
 }
 
-/** Whether any option on the window draws the half resolution occlusion. Every debug view binds it. A 2D scene has none. */
-NYA_INTERNAL b8 _nya_post_wants_half(const NYA_RenderSystemWindow* render, const NYA_PostChain* chain) {
-    return (render->post_ambient_occlusion.enabled || render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE)
+/** Whether any pass that will run reads the scene normal buffer. */
+NYA_INTERNAL b8 _nya_post_wants_normals(const NYA_Window* window) {
+    const NYA_RenderSystemWindow* render = &window->render_system;
+
+    return _nya_post_on(window, NYA_RENDER_FEATURE_INK, render->post_ink.enabled)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_AMBIENT_OCCLUSION, render->post_ambient_occlusion.enabled)
+        || (nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POST) && render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_DEPTH_OF_FIELD, render->post_depth_of_field.focus == NYA_POST_FOCUS_DISTANCE)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_LIGHT_SHAFTS, render->post_light_shafts.enabled)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_MOTION_BLUR, render->post_motion_blur.enabled);
+}
+
+/** Whether any pass that will run draws the half resolution occlusion. Every debug view binds it. A 2D scene has none. */
+NYA_INTERNAL b8 _nya_post_wants_half(const NYA_Window* window, const NYA_PostChain* chain) {
+    const NYA_RenderSystemWindow* render = &window->render_system;
+
+    return (_nya_post_on(window, NYA_RENDER_FEATURE_AMBIENT_OCCLUSION, render->post_ambient_occlusion.enabled)
+            || (nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POST) && render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE))
         && chain->scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED;
 }
 
@@ -107,7 +124,7 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
 
     // the normal buffer only while a pass reads it, so turning the passes off gives its memory back.
     NYA_RenderTextureOptions scene = chain->scene;
-    scene.normals                  = _nya_post_wants_normals(render) && scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED;
+    scene.normals                  = _nya_post_wants_normals(window) && scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED;
 
     const NYA_RenderTextureOptions* built = &chain->targets[0].options;
 
@@ -131,10 +148,10 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
 
     b8 half_matches = chain->half.width == half_width && chain->half.height == half_height;
 
-    if (!_nya_post_wants_half(render, chain) || !half_matches) nya_render_texture_destroy(&chain->half);
+    if (!_nya_post_wants_half(window, chain) || !half_matches) nya_render_texture_destroy(&chain->half);
 
     // single sampled: it is only ever filled by one fullscreen pass, which a multisampled companion would not improve.
-    if (_nya_post_wants_half(render, chain) && chain->half.width == 0) {
+    if (_nya_post_wants_half(window, chain) && chain->half.width == 0) {
         nya_trace_scope(NYA_TRACE_OCCLUSION);
 
         chain->half = nya_render_texture_create_with(
@@ -144,8 +161,11 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
 
     // its own, since the debug view reads the occlusion after depth of field has run. light shafts and bloom reuse it
     // after it, and shafts only over a 3D scene.
-    b8 shafts       = render->post_light_shafts.enabled && chain->scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED;
-    b8 wants_blur   = render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF || render->post_bloom.enabled || shafts;
+    b8 shafts = _nya_post_on(window, NYA_RENDER_FEATURE_LIGHT_SHAFTS, render->post_light_shafts.enabled)
+             && chain->scene.depth == NYA_RENDER_TEXTURE_DEPTH_ATTACHED;
+
+    b8 wants_blur = _nya_post_on(window, NYA_RENDER_FEATURE_DEPTH_OF_FIELD, render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF)
+                 || _nya_post_on(window, NYA_RENDER_FEATURE_BLOOM, render->post_bloom.enabled) || shafts;
     b8 blur_matches = chain->blur.width == half_width && chain->blur.height == half_height;
 
     if (!wants_blur || !blur_matches) nya_render_texture_destroy(&chain->blur);
@@ -159,7 +179,7 @@ NYA_INTERNAL b8 _nya_post_targets_ensure(NYA_Window* window, NYA_PostChain* chai
         );
     }
 
-    b8 adapting = render->post_eye_adaptation.enabled;
+    b8 adapting = _nya_post_on(window, NYA_RENDER_FEATURE_EYE_ADAPTATION, render->post_eye_adaptation.enabled);
 
     for (u32 i = 0; i < nya_carray_length(chain->adaptation); i++) {
         if (!adapting) nya_render_texture_destroy(&chain->adaptation[i]);
@@ -469,6 +489,15 @@ b8 nya_post_begin(NYA_Window* window, NYA_PostChain* chain) {
 
     chain->capturing = false;
 
+    /*
+     * Switched off, the scene draws straight to the window: no chain, no targets, and the caller's own passes do
+     * not run either. That is what a master switch has to mean for it to cost nothing.
+     */
+    if (!nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POST)) {
+        nya_post_chain_destroy(chain);
+        return false;
+    }
+
     if (!_nya_post_targets_ensure(window, chain)) return false;
 
     chain->scene_index = 0;
@@ -524,7 +553,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
     const NYA_PostAmbientOcclusion* occlusion_options = &render->post_ambient_occlusion;
 
-    if (scene && _nya_post_wants_half(render, chain)) {
+    if (scene && _nya_post_wants_half(window, chain)) {
         occlusion = (struct NYA_ShaderAmbientOcclusionUniform){
             .view       = view,
             .radius     = occlusion_options->radius > 0.0F ? occlusion_options->radius : NYA_POST_OCCLUSION_RADIUS,
@@ -549,7 +578,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     // half written this frame, or its content is a previous frame's.
     b8 half_ready = before_count > 0;
 
-    if (scene && half_ready && occlusion_options->enabled
+    if (scene && half_ready && _nya_post_on(window, NYA_RENDER_FEATURE_AMBIENT_OCCLUSION, occlusion_options->enabled)
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_OCCLUSION_APPLY, NYA_ASSET_SHADER_EFFECT_OCCLUSION_APPLY_FRAG, 3, 0)) {
         before[before_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_OCCLUSION_APPLY,
@@ -562,7 +591,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
     if (scene) ink = _nya_post_ink_uniform(render->post_ink, view);
 
-    if (scene && render->post_ink.enabled && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_INK, NYA_ASSET_SHADER_EFFECT_INK_FRAG, 2, 0)) {
+    if (scene && _nya_post_on(window, NYA_RENDER_FEATURE_INK, render->post_ink.enabled) && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_INK, NYA_ASSET_SHADER_EFFECT_INK_FRAG, 2, 0)) {
         before[before_count++] = (_NYA_PostStep){
             .pipeline     = _NYA_POST_PIPELINE_INK,
             .trace        = NYA_TRACE_INK,
@@ -572,7 +601,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
         };
     }
 
-    if (scene && render->post_motion_blur.enabled
+    if (scene && _nya_post_on(window, NYA_RENDER_FEATURE_MOTION_BLUR, render->post_motion_blur.enabled)
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_MOTION_BLUR, NYA_ASSET_SHADER_EFFECT_MOTION_BLUR_FRAG, 2, 0)) {
         f32 elapsed_s = nya_max((f32)nya_time_ns_to_s(nya_app_get()->frame_stats.elapsed_ns), 1e-4F);
         f32 strength  = render->post_motion_blur.strength > 0.0F ? render->post_motion_blur.strength : NYA_POST_MOTION_BLUR_STRENGTH;
@@ -598,7 +627,8 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     // distance focus needs the normal buffer this frame; tilt shift works on any image.
     const NYA_PostDepthOfField* focus_options = &render->post_depth_of_field;
 
-    b8 focus_on = focus_options->focus == NYA_POST_FOCUS_TILT_SHIFT || (scene && focus_options->focus == NYA_POST_FOCUS_DISTANCE);
+    b8 focus_wanted = focus_options->focus == NYA_POST_FOCUS_TILT_SHIFT || (scene && focus_options->focus == NYA_POST_FOCUS_DISTANCE);
+    b8 focus_on     = _nya_post_on(window, NYA_RENDER_FEATURE_DEPTH_OF_FIELD, focus_wanted);
 
     if (focus_on && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLUR, NYA_ASSET_SHADER_EFFECT_DEPTH_OF_FIELD_BLUR_FRAG, 2, half)
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_FOCUS, NYA_ASSET_SHADER_EFFECT_DEPTH_OF_FIELD_FRAG, 3, 0)) {
@@ -625,7 +655,9 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     const NYA_PostLightShafts* shafts_options = &render->post_light_shafts;
 
     f32x2 sun    = { 0 };
-    f32   facing = scene && shafts_options->enabled && chain->blur.texture != nullptr ? _nya_post_sun(window, &sun) : 0.0F;
+    f32   facing = scene && _nya_post_on(window, NYA_RENDER_FEATURE_LIGHT_SHAFTS, shafts_options->enabled) && chain->blur.texture != nullptr
+                 ? _nya_post_sun(window, &sun)
+                 : 0.0F;
 
     if (facing > 0.0F && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_LIGHT_SHAFTS, NYA_ASSET_SHADER_EFFECT_LIGHT_SHAFTS_FRAG, 2, half)
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM, NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG, 2, 0)) {
@@ -659,7 +691,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     }
 
     // turned on between begin and end, the frame has no history to read yet.
-    if (render->post_eye_adaptation.enabled && chain->adaptation[0].texture != nullptr
+    if (_nya_post_on(window, NYA_RENDER_FEATURE_EYE_ADAPTATION, render->post_eye_adaptation.enabled) && chain->adaptation[0].texture != nullptr
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_ADAPTATION_MEASURE, NYA_ASSET_SHADER_EFFECT_ADAPTATION_MEASURE_FRAG, 2, _NYA_POST_ADAPTATION_FORMAT)
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_ADAPTATION, NYA_ASSET_SHADER_EFFECT_ADAPTATION_FRAG, 2, 0)) {
         adaptation = _nya_post_eye_adaptation_uniform(render->post_eye_adaptation, chain->adaptation_latest > 1);
@@ -689,7 +721,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
     const NYA_PostAntialias* antialias_options = &render->post_antialias;
 
-    if (antialias_options->enabled
+    if (_nya_post_on(window, NYA_RENDER_FEATURE_ANTIALIAS, antialias_options->enabled)
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_ANTIALIAS, NYA_ASSET_SHADER_EFFECT_ANTIALIAS_FRAG, 1, 0)) {
         antialias = (struct NYA_ShaderAntialiasUniform){
             .texel_x   = 1.0F / (f32)chain->width,
@@ -710,7 +742,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
     const NYA_PostBloom* bloom_options = &render->post_bloom;
 
     // turned on between begin and end, the frame has no target to gather into yet.
-    if (bloom_options->enabled && chain->blur.texture != nullptr && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM_GATHER, NYA_ASSET_SHADER_EFFECT_BLOOM_GATHER_FRAG, 1, half)
+    if (_nya_post_on(window, NYA_RENDER_FEATURE_BLOOM, bloom_options->enabled) && chain->blur.texture != nullptr && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM_GATHER, NYA_ASSET_SHADER_EFFECT_BLOOM_GATHER_FRAG, 1, half)
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_BLOOM, NYA_ASSET_SHADER_EFFECT_BLOOM_FRAG, 2, 0)) {
         f32 spread = bloom_options->spread > 0.0F ? bloom_options->spread : NYA_POST_BLOOM_SPREAD;
 
@@ -741,7 +773,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
 
     const NYA_PostSpeedLines* lines_options = &render->post_speed_lines;
 
-    if (lines_options->amount > 0.0F
+    if (_nya_post_on(window, NYA_RENDER_FEATURE_SPEED_LINES, lines_options->amount > 0.0F)
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_SPEED_LINES, NYA_ASSET_SHADER_EFFECT_SPEED_LINES_FRAG, 1, 0)) {
         NYA_Color color  = lines_options->color.a > 0.0F ? lines_options->color : NYA_COLOR_WHITE;
         f32x2     center = _nya_post_speed_lines_center(window, lines_options);
@@ -773,7 +805,7 @@ void nya_post_end(NYA_Window* window, NYA_PostChain* chain, const NYA_PostPass* 
         };
     }
 
-    if (scene && half_ready && render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE
+    if (scene && half_ready && nya_render_feature_enabled(window, NYA_RENDER_FEATURE_POST) && render->post_debug_view != NYA_POST_DEBUG_VIEW_NONE
         && _nya_post_pipeline_ready(window, _NYA_POST_PIPELINE_DEBUG, NYA_ASSET_SHADER_EFFECT_SCENE_DEBUG_FRAG, 3, 0)) {
         const NYA_Render3DBatch* batch = &render->mesh_batch;
 
@@ -902,8 +934,11 @@ b8 nya_post_enabled(NYA_Window* window) {
 
     const NYA_RenderSystemWindow* render = &window->render_system;
 
-    return _nya_post_wants_normals(render) || render->post_antialias.enabled || render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF
-        || render->post_speed_lines.amount > 0.0F || render->post_bloom.enabled || render->post_eye_adaptation.enabled;
+    return _nya_post_wants_normals(window) || _nya_post_on(window, NYA_RENDER_FEATURE_ANTIALIAS, render->post_antialias.enabled)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_DEPTH_OF_FIELD, render->post_depth_of_field.focus != NYA_POST_FOCUS_OFF)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_SPEED_LINES, render->post_speed_lines.amount > 0.0F)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_BLOOM, render->post_bloom.enabled)
+        || _nya_post_on(window, NYA_RENDER_FEATURE_EYE_ADAPTATION, render->post_eye_adaptation.enabled);
 }
 
 void nya_post_ink_set(NYA_Window* window, NYA_PostInk ink) {

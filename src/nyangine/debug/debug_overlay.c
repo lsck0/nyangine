@@ -7,6 +7,12 @@
  */
 
 /**
+ * The switched-off features row. Twenty-odd short names would not fit the panel anyway, and the count beside them
+ * says how many were left out. See nya_render_features_disabled_text.
+ * */
+#define _NYA_DEBUG_FEATURES_TEXT_MAX 128
+
+/**
  * Recent frame times in milliseconds. Module global since the engine has no use for it, and per
  * process since windows share a frame loop.
  * */
@@ -232,6 +238,23 @@ void nya_debug_overlay_draw(NYA_Window* window, NYA_DebugOverlayStyle style) {
         nya_render2d_textf_with_font(window, style.font, style.font_size, text_x, text_y, style.text_color, "%5u gpu draws %3u passes %9s up",
                                      frame_stats.draw_calls, frame_stats.passes, _nya_debug_format_bytes(frame_stats.upload_bytes));
         text_y += line_height;
+    }
+
+    /*
+     * What is switched off, so a frame time or a picture that looks wrong can be read against the switches that
+     * produced it. Nothing is drawn while everything is on, which is the normal case.
+     */
+    {
+        char features[_NYA_DEBUG_FEATURES_TEXT_MAX];
+
+        u32 off = nya_render_features_disabled_text(window, features, sizeof(features));
+
+        if (off > 0) {
+            // amber: not an error, but the picture is not the game's own any more.
+            nya_render2d_textf_with_font(window, style.font, style.font_size, text_x, text_y, (NYA_Color){ 0.95F, 0.80F, 0.40F, 1.0F },
+                                         "%2u off: %s", off, features);
+            text_y += line_height;
+        }
     }
 
     if (style.show_batch_breakdown) {

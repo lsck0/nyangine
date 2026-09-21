@@ -104,7 +104,8 @@ void nya_render3d_decal(NYA_Window* window, NYA_Render3DDecal decal) {
     NYA_RenderSystemWindow* render = &window->render_system;
     NYA_Render3DDecalsGPU*  gpu    = &render->decals_gpu;
 
-    if (!render->decals.enabled || !render->mesh_batch.active || decal.texture == nullptr) return;
+    if (!nya_render_feature_on(window, NYA_RENDER_FEATURE_DECALS, render->decals.enabled)) return;
+    if (!render->mesh_batch.active || decal.texture == nullptr) return;
 
     NYA_Render3DDecalProbe probe = nya_callback_get(gpu->probe);
     if (probe == nullptr) return;

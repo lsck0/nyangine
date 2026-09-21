@@ -8,6 +8,41 @@ nya 2 0
 {
     engine: object {
         renderer: object {
+            // One switch per renderer feature, laid over everything below. "NYA_RENDER_TOGGLE_OFF" skips the
+            // feature's work, "..._ON" runs it whatever its own options say, and leaving a field out (or
+            // "..._DEFAULT") changes nothing. See NYA_RenderFeatures in render_features.h for the full list;
+            // the debug overlay shows which are off. Hot reloaded, so this is the way to find out what a
+            // feature is worth without a rebuild.
+            features: object {
+                frustum_culling: string "NYA_RENDER_TOGGLE_DEFAULT";
+                occlusion_culling: string "NYA_RENDER_TOGGLE_DEFAULT";
+                backface_culling: string "NYA_RENDER_TOGGLE_DEFAULT";
+                depth_test: string "NYA_RENDER_TOGGLE_DEFAULT";
+                draw_sorting: string "NYA_RENDER_TOGGLE_DEFAULT";
+                transparency: string "NYA_RENDER_TOGGLE_DEFAULT";
+                shadows: string "NYA_RENDER_TOGGLE_DEFAULT";
+                lighting: string "NYA_RENDER_TOGGLE_DEFAULT";
+                point_lights: string "NYA_RENDER_TOGGLE_DEFAULT";
+                reflections: string "NYA_RENDER_TOGGLE_DEFAULT";
+                textures: string "NYA_RENDER_TOGGLE_DEFAULT";
+                fog: string "NYA_RENDER_TOGGLE_DEFAULT";
+                sky: string "NYA_RENDER_TOGGLE_DEFAULT";
+                decals: string "NYA_RENDER_TOGGLE_DEFAULT";
+                lod: string "NYA_RENDER_TOGGLE_DEFAULT";
+                particles: string "NYA_RENDER_TOGGLE_DEFAULT";
+                haze: string "NYA_RENDER_TOGGLE_DEFAULT";
+                post: string "NYA_RENDER_TOGGLE_DEFAULT";
+                ink: string "NYA_RENDER_TOGGLE_DEFAULT";
+                ambient_occlusion: string "NYA_RENDER_TOGGLE_DEFAULT";
+                antialias: string "NYA_RENDER_TOGGLE_DEFAULT";
+                depth_of_field: string "NYA_RENDER_TOGGLE_DEFAULT";
+                speed_lines: string "NYA_RENDER_TOGGLE_DEFAULT";
+                bloom: string "NYA_RENDER_TOGGLE_DEFAULT";
+                light_shafts: string "NYA_RENDER_TOGGLE_DEFAULT";
+                motion_blur: string "NYA_RENDER_TOGGLE_DEFAULT";
+                eye_adaptation: string "NYA_RENDER_TOGGLE_DEFAULT";
+                grade: string "NYA_RENDER_TOGGLE_DEFAULT";
+            };
             // See NYA_RENDER3D_SHADOW_BIAS.
             shadow_bias: f32 0.0015;
             // See NYA_Render3DShadowOptions. Each cascade is a scene pass.

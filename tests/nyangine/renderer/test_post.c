@@ -145,7 +145,7 @@ s32 main(void) {
         nya_check(nya_app_get()->render_system.options.msaa_samples == 2, "the request should wait for the next nya_render_begin");
         nya_render_options_set(&window, (NYA_RenderOptions){ 0 });
 
-        nya_check(nya_asset_graphics_pipeline(nya_asset_get("no_such_pipeline"), SDL_GPU_SAMPLECOUNT_4, false) == nullptr, "nothing loaded, nothing to bind");
+        nya_check(nya_asset_graphics_pipeline(nya_asset_get("no_such_pipeline"), SDL_GPU_SAMPLECOUNT_4, false, true) == nullptr, "nothing loaded, nothing to bind");
     }
     // ── The cartoon options: zero is off, and out of range values from a config file are clamped.
     {

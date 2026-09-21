@@ -225,6 +225,9 @@ void nya_particles_draw(NYA_Window* window, const NYA_ParticleSystem* system) {
 
     if (system == nullptr || system->count == 0) return;
 
+    // the systems keep simulating; this only stops them being drawn.
+    if (!nya_render_feature_enabled(window, NYA_RENDER_FEATURE_PARTICLES)) return;
+
     // no projection, nothing to draw. same rule as NYA_ENTITY_VISUAL_CUBE.
     if (system->space == NYA_PARTICLE_SPACE_3D && !nya_render3d_active(window)) return;
 

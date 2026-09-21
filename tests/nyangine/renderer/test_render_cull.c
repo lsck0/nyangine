@@ -15,7 +15,8 @@ enum { PLANE_LEFT, PLANE_RIGHT, PLANE_BOTTOM, PLANE_TOP, PLANE_NEAR, PLANE_FAR }
 #define FAR_PLANE  100.0F
 
 /** Far larger than the stack wants. */
-static NYA_Render3DBatch   batch;
+static NYA_Window          window;
+static NYA_Render3DBatch*  batch = &window.render_system.mesh_batch;
 static NYA_Render3DFrustum frustum;
 static NYA_OcclusionBuffer occlusion;
 
@@ -183,51 +184,84 @@ s32 main(void) {
 
     // ── A draw keeps one bit per pass that sees it: the camera's first, a cascade's after it.
     {
-        nya_memset(&batch, 0, sizeof(batch));
+        nya_memset(batch, 0, sizeof(*batch));
 
-        _nya_render3d_frustum_build(&batch.passes[0], perspective_matrix());
-        _nya_render3d_frustum_build(&batch.passes[1], orthographic_matrix());
-        batch.pass_count = 2;
+        _nya_render3d_frustum_build(&batch->passes[0], perspective_matrix());
+        _nya_render3d_frustum_build(&batch->passes[1], orthographic_matrix());
+        batch->pass_count = 2;
 
-        nya_check(_nya_render3d_passes_seeing(&batch, (f32x3){ 0, 0, -10 }, 1.0F) == 0x3, "ahead of the camera and inside the cascade");
-        nya_check(_nya_render3d_passes_seeing(&batch, (f32x3){ 0, 0, 10 }, 1.0F) == 0x2, "behind the camera only the cascade sees it");
-        nya_check(_nya_render3d_passes_seeing(&batch, (f32x3){ 70, 0, -90 }, 1.0F) == 0x1, "beside the cascade only the camera does");
-        nya_check(batch.frame_culled == 0, "nothing seen by a pass is culled, got %u", batch.frame_culled);
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ 0, 0, -10 }, 1.0F) == 0x3, "ahead of the camera and inside the cascade");
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ 0, 0, 10 }, 1.0F) == 0x2, "behind the camera only the cascade sees it");
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ 70, 0, -90 }, 1.0F) == 0x1, "beside the cascade only the camera does");
+        nya_check(batch->frame_culled == 0, "nothing seen by a pass is culled, got %u", batch->frame_culled);
 
-        nya_check(_nya_render3d_passes_seeing(&batch, (f32x3){ 0, 500, 10 }, 1.0F) == 0, "outside both, no pass sees it");
-        nya_check(batch.frame_culled == 1, "and that is counted, got %u", batch.frame_culled);
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ 0, 500, 10 }, 1.0F) == 0, "outside both, no pass sees it");
+        nya_check(batch->frame_culled == 1, "and that is counted, got %u", batch->frame_culled);
     }
 
     // ── The occlusion buffer is the camera's alone, and asked only about what survived its frustum.
     {
-        nya_memset(&batch, 0, sizeof(batch));
+        nya_memset(batch, 0, sizeof(*batch));
 
-        _nya_render3d_frustum_build(&batch.passes[0], perspective_matrix());
-        batch.pass_count = 1;
+        _nya_render3d_frustum_build(&batch->passes[0], perspective_matrix());
+        batch->pass_count = 1;
 
         nya_occlusion_begin(&occlusion, perspective_matrix());
         (void)nya_occlusion_quad(&occlusion, (f32x3){ -40, -40, -10 }, (f32x3){ 40, -40, -10 }, (f32x3){ 40, 40, -10 }, (f32x3){ -40, 40, -10 });
 
-        nya_check(_nya_render3d_passes_seeing(&batch, (f32x3){ 0, 0, -20 }, 1.0F) == 0x1, "without a buffer set, behind the wall is visible");
-        nya_check(batch.frame_occluded == 0, "and nothing counts as occluded");
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ 0, 0, -20 }, 1.0F) == 0x1, "without a buffer set, behind the wall is visible");
+        nya_check(batch->frame_occluded == 0, "and nothing counts as occluded");
 
-        batch.occlusion = &occlusion;
+        batch->occlusion = &occlusion;
 
-        nya_check(_nya_render3d_passes_seeing(&batch, (f32x3){ 0, 0, -20 }, 1.0F) == 0, "with it set, behind the wall is hidden");
-        nya_check(batch.frame_occluded == 1, "and counted, got %u", batch.frame_occluded);
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ 0, 0, -20 }, 1.0F) == 0, "with it set, behind the wall is hidden");
+        nya_check(batch->frame_occluded == 1, "and counted, got %u", batch->frame_occluded);
 
-        nya_check(_nya_render3d_passes_seeing(&batch, (f32x3){ 0, 0, -5 }, 1.0F) == 0x1, "in front of the wall is visible");
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ 0, 0, -5 }, 1.0F) == 0x1, "in front of the wall is visible");
 
         u32 tests_before = nya_occlusion_stats(&occlusion).tests;
-        nya_check(_nya_render3d_passes_seeing(&batch, (f32x3){ -100, 0, -20 }, 1.0F) == 0, "outside the frustum and behind the wall is culled");
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ -100, 0, -20 }, 1.0F) == 0, "outside the frustum and behind the wall is culled");
         nya_check(nya_occlusion_stats(&occlusion).tests == tests_before, "by the frustum, without asking the buffer");
-        nya_check(batch.frame_occluded == 1, "so it is not counted as occluded");
+        nya_check(batch->frame_occluded == 1, "so it is not counted as occluded");
 
-        _nya_render3d_frustum_build(&batch.passes[1], orthographic_matrix());
-        batch.pass_count = 2;
+        _nya_render3d_frustum_build(&batch->passes[1], orthographic_matrix());
+        batch->pass_count = 2;
 
-        nya_check(_nya_render3d_passes_seeing(&batch, (f32x3){ 0, 0, -20 }, 1.0F) == 0x2, "a cascade still sees a caster the camera's buffer hides");
-        nya_check(batch.frame_occluded == 2, "which counts as occluded, got %u", batch.frame_occluded);
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ 0, 0, -20 }, 1.0F) == 0x2, "a cascade still sees a caster the camera's buffer hides");
+        nya_check(batch->frame_occluded == 2, "which counts as occluded, got %u", batch->frame_occluded);
+    }
+
+    /*
+     * ── Both culls are switchable, and switching the frustum off takes the occlusion buffer with it: the buffer
+     *    only ever removes what the frustum kept, so there is nothing for it to answer about.
+     */
+    {
+        nya_memset(batch, 0, sizeof(*batch));
+
+        _nya_render3d_frustum_build(&batch->passes[0], perspective_matrix());
+        _nya_render3d_frustum_build(&batch->passes[1], orthographic_matrix());
+        batch->pass_count = 2;
+        batch->occlusion  = &occlusion;
+
+        f32x3 outside = { 0, 500, 10 };
+
+        nya_check(_nya_render3d_passes_seeing(&window, outside, 1.0F) == 0, "with culling on, nothing sees a point outside both");
+
+        nya_render_features_set(&window, (NYA_RenderFeatures){ .occlusion_culling = NYA_RENDER_TOGGLE_OFF });
+
+        u32 tests_before = nya_occlusion_stats(&occlusion).tests;
+        nya_check(_nya_render3d_passes_seeing(&window, (f32x3){ 0, 0, -20 }, 1.0F) == 0x3, "with the buffer off, what it hid is visible");
+        nya_check(nya_occlusion_stats(&occlusion).tests == tests_before, "and the buffer is not asked at all");
+
+        nya_render_features_set(&window, (NYA_RenderFeatures){ .frustum_culling = NYA_RENDER_TOGGLE_OFF });
+
+        u32 culled_before = batch->frame_culled;
+        nya_check(_nya_render3d_passes_seeing(&window, outside, 1.0F) == 0x3, "with the frustum off, every pass sees everything");
+        nya_check(batch->frame_culled == culled_before, "and nothing is counted as culled");
+
+        // back on, so the rest of the file is not affected by where this case left the switches.
+        nya_render_features_set(&window, (NYA_RenderFeatures){ 0 });
+        nya_check(_nya_render3d_passes_seeing(&window, outside, 1.0F) == 0, "and switching it back on culls again");
     }
 
     // ── Each pass's list holds the indices of exactly the objects it sees, in recorded order.
