@@ -261,6 +261,67 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a kinematic body throws what it hits when it is given a velocity, and
+  //       does not when it is teleported along the same path
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * A pinball flipper, reduced to the one thing that makes it a flipper. Both paddles travel the
+     * same distance at the same speed; the only difference is which call moves them. A teleport sets
+     * the transform without a sweep, so the solver reads a paddle that never moved and there is no
+     * relative velocity for the contact to work with.
+     *
+     * Gravity off, so what the ball is carrying afterwards came from the paddle and nowhere else.
+     */
+    const f32x3 original_gravity = nya_physics3d_gravity();
+    nya_physics3d_gravity_set(f32x3_zero);
+
+    const f32 paddle_speed = 6.0F;
+
+    f32 thrown[2] = { 0 };
+
+    for (u32 by_velocity = 0; by_velocity < 2; by_velocity++) {
+      NYA_EntityHandle ball = nya_entity_spawn(.name = "ball", .position = { 0.0F, 0.0F, 0.0F });
+      nya_assert(nya_physics3d_body_attach(ball, .shape = NYA_PHYSICS3D_SHAPE_SPHERE, .radius = 0.2F, .restitution = 0.35F));
+
+      NYA_EntityHandle paddle = nya_entity_spawn(.name = "paddle", .position = { -1.0F, 0.0F, 0.0F });
+      nya_assert(nya_physics3d_body_attach(paddle, .type = NYA_PHYSICS_BODY_KINEMATIC, .shape = NYA_PHYSICS3D_SHAPE_BOX,
+                                           .size = { 0.4F, 0.4F, 0.4F }, .restitution = 0.35F));
+
+      // Up to and a little past the ball, one tick at a time, so the contact happens mid travel.
+      for (u32 i = 0; i < 20; i++) {
+        NYA_Entity* entity = nya_entity_get(paddle);
+
+        if (by_velocity != 0) {
+          nya_physics3d_velocity_set(entity, (f32x3){ paddle_speed, 0.0F, 0.0F });
+        } else {
+          nya_physics3d_teleport(entity, (f32x3){ entity->position.x + paddle_speed * TICK, 0.0F, 0.0F }, entity->rotation);
+        }
+
+        step(1);
+      }
+
+      thrown[by_velocity] = nya_physics3d_velocity(nya_entity_get(ball)).x;
+
+      nya_entity_despawn(paddle);
+      nya_entity_despawn(ball);
+      step(1); // so the despawns are out of the world before the next paddle is built
+    }
+
+    nya_physics3d_gravity_set(original_gravity);
+
+    // The ball leaves at least as fast as the paddle came in, which is the transfer the contact is
+    // there to make. Restitution puts it above that rather than below.
+    nya_assert(thrown[1] >= paddle_speed, "a swept paddle throws the ball, got %f against a paddle at %f", (f64)thrown[1], (f64)paddle_speed);
+
+    // And the teleported paddle does not move it at all: it travels the same distance at the same
+    // speed and the ball is left standing exactly where it was.
+    nya_assert(thrown[0] == 0.0F, "a teleported paddle does not throw it, got %f", (f64)thrown[0]);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: malformed bodies are refused rather than half built
   // ─────────────────────────────────────────────────────────────────────────────
   {

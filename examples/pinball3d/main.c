@@ -155,6 +155,16 @@ typedef struct {
 
     /** Radians from rest, driven toward the target by FLIPPER_SPEED. */
     f32 angle;
+
+    /**
+     * Set once the flipper has stopped and been put exactly where `angle` says.
+     *
+     * The solver moves this body by integrating the velocity it is given, which lands close to the
+     * pose but not on it. The error is nothing within one swing and would collect over a game, so
+     * the first still tick corrects it. Only the first: a correction is a teleport, and a teleport
+     * every tick would keep the flipper and whatever rests on it from ever sleeping.
+     * */
+    b8 settled;
 } Flipper;
 
 typedef struct {
@@ -424,22 +434,58 @@ void pinball_layer_on_update(NYA_Window* window, f32 delta_time_s) {
     for (u32 i = 0; i < 2; i++) {
         Flipper* flipper = &state->flippers[i];
 
-        f32 target = held[i] ? FLIPPER_RAISED_RADIANS : FLIPPER_REST_RADIANS;
-        f32 step   = FLIPPER_SPEED * delta_time_s;
-
-        // Toward the target at a fixed rate rather than snapping: the speed of the sweep is what
-        // throws the ball, and a snap would teleport through it.
-        if (flipper->angle < target) flipper->angle = nya_min(flipper->angle + step, target);
-        if (flipper->angle > target) flipper->angle = nya_max(flipper->angle - step, target);
-
         NYA_Entity* entity = nya_entity_get(flipper->entity);
         if (entity == nullptr) continue;
 
-        f32x3          position = { 0 };
-        NYA_Quaternion rotation = { 0 };
-        flipper_pose(flipper, &position, &rotation);
+        const f32 target = held[i] ? FLIPPER_RAISED_RADIANS : FLIPPER_REST_RADIANS;
+        const f32 step   = FLIPPER_SPEED * delta_time_s;
 
-        nya_physics3d_teleport(entity, position, rotation);
+        // Toward the target at a fixed rate rather than snapping: the speed of the sweep is what
+        // throws the ball, and a snap would move through it without ever touching it.
+        const f32 was  = flipper->angle;
+        f32       next = was;
+        if (next < target) next = nya_min(next + step, target);
+        if (next > target) next = nya_max(next - step, target);
+
+        f32x3          from_position = { 0 };
+        NYA_Quaternion from_rotation = { 0 };
+        flipper_pose(flipper, &from_position, &from_rotation);
+
+        flipper->angle = next;
+
+        f32x3          to_position = { 0 };
+        NYA_Quaternion to_rotation = { 0 };
+        flipper_pose(flipper, &to_position, &to_rotation);
+
+        if (next == was) {
+            nya_physics3d_velocity_set(entity, f32x3_zero);
+            nya_physics3d_angular_velocity_set(entity, f32x3_zero);
+
+            if (!flipper->settled) {
+                nya_physics3d_teleport(entity, to_position, to_rotation);
+                flipper->settled = true;
+            }
+
+            continue;
+        }
+
+        flipper->settled = false;
+
+        /*
+         * Driven by its velocity rather than by nya_physics3d_teleport, which sets the transform
+         * without a sweep and so leaves the solver reading a body that never moved: the ball would
+         * be pushed out from inside the flipper rather than thrown by it. Given a velocity instead,
+         * the solver steps the flipper itself and the contact carries that velocity into the ball,
+         * which is the whole of what a flipper does.
+         *
+         * Layers tick after the solver and with the same fixed delta, so a velocity set here is
+         * exactly one step of integration away from the pose it was measured against.
+         */
+        nya_physics3d_velocity_set(entity, (to_position - from_position) / delta_time_s);
+
+        // The swing is about the table's own up axis, which the tilt has carried off vertical.
+        const f32x3 axis = nya_quaternion_rotate(table_rotation(), (f32x3){ 0.0F, 1.0F, 0.0F });
+        nya_physics3d_angular_velocity_set(entity, axis * ((next - was) * flipper->swing / delta_time_s));
     }
 
     // ── the impacts from the step at the top of this tick ───────────────────────────────────────
