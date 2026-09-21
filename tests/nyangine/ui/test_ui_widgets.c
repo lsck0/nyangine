@@ -90,15 +90,17 @@ static Taken menu(NYA_UIPass pass) {
     return taken;
 }
 
-/** A two column table, reporting where the second cell of its one row lands. */
-static Taken table(void) {
-    const f32        widths[]  = { 120.0F, 0.0F };
+/** A two column table whose first column is `first_width` wide, reporting where its one row lands. */
+static Taken table(f32 first_width) {
+    const f32        widths[]  = { first_width, 0.0F };
     NYA_ConstCString headers[] = { "name", "value" };
 
     Taken   taken = { 0 };
     NYA_UI* ui    = nya_ui_begin(&window, NYA_UI_PASS_DRAW);
 
     if (nya_ui_panel_begin(ui, "outer", (NYA_UIPanel){ .width = nya_ui_fixed(400) })) {
+        taken.chart = nya_ui_space(ui, 0.0F, 0.0F);
+
         if (nya_ui_table_begin(ui, "rows", (NYA_UITable){ .widths = widths, .columns = 2, .headers = headers, .striped = true })) {
             if (nya_ui_table_row_begin(ui)) {
                 taken.first  = nya_ui_space(ui, 0.0F, 20.0F);
@@ -109,8 +111,7 @@ static Taken table(void) {
             nya_ui_table_end(ui);
         }
 
-        taken.row   = nya_ui_space(ui, 0.0F, 5.0F);
-        taken.chart = nya_ui_space(ui, 0.0F, 0.0F);
+        taken.row = nya_ui_space(ui, 0.0F, 5.0F);
 
         nya_ui_panel_end(ui);
     }
@@ -245,11 +246,10 @@ s32 main(void) {
         nya_check(option == 1, "a click where the list was does not reach it once closed, got %u", option);
     }
 
-    // ── A table sizes its cells by its columns, so one row lines up with the next.
+    // ── A table sizes its cells by its columns, so one row lines up with the next, and never sizes anything else.
     {
-        (void)table();
-        (void)table();
-        Taken laid = table();
+        for (u32 pass = 0; pass < 2; pass++) (void)table(120.0F);
+        Taken laid = table(120.0F);
 
         f32 content = 400.0F - (FRAME * 2.0F);
 
@@ -257,6 +257,20 @@ s32 main(void) {
         nya_check(laid.second.x == laid.first.x + 120.0F + GAP, "the next cell follows it, got %f", (f64)laid.second.x);
         nya_check(laid.second.width == content - 120.0F - GAP, "and a zero column grows into the rest, got %f", (f64)laid.second.width);
         nya_check(laid.row.y > laid.second.y, "what follows the table is under it, got %f", (f64)laid.row.y);
+
+        /*
+         * The header row and the rule under it are the table's own children, not cells, so a column width must not
+         * become either one's height. It did: the widths were read for every child of the table, which made the
+         * rule as tall as the second column and drew a bar over gnyame's counters.
+         */
+        f32 above = laid.first.y - laid.chart.y;
+
+        for (u32 pass = 0; pass < 2; pass++) (void)table(300.0F);
+        Taken wider = table(300.0F);
+
+        nya_check(wider.first.y - wider.chart.y == above, "the headers are as tall whatever the columns are wide, got %f and %f",
+                  (f64)(wider.first.y - wider.chart.y), (f64)above);
+        nya_check(above < 120.0F, "and the rule under them is a rule, not a column width, got %f", (f64)above);
     }
 
     // ── A chart takes the height it asks for, and the default when it asks for none.

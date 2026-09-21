@@ -575,8 +575,13 @@ NYA_UISize _nya_ui_next_size(const _NYA_UILayout* layout, NYA_UISize own) {
     if (_nya_ui.next_set) return _nya_ui.next;
     if (own.kind != NYA_UI_SIZE_AUTO) return own;
 
-    // a table row's cells are sized by their column, which is what lines one row up with the next.
-    if (layout->columns != nullptr && layout->count < layout->column_count) {
+    /*
+     * A table row's cells are sized by their column, which is what lines one row up with the next. Inside a row
+     * only: the table itself keeps the widths so every row it opens can read them, and its own children are the
+     * rows, not cells. Without the direction test the first row took column 0 as its height and the rule under the
+     * headers took column 1, which drew a 70 pixel bar across the top of gnyame's counters table.
+     */
+    if (layout->columns != nullptr && layout->main == 0 && layout->count < layout->column_count) {
         f32 width = layout->columns[layout->count];
 
         return width > 0.0F ? nya_ui_fixed(width) : nya_ui_grow(1);
