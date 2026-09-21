@@ -810,7 +810,10 @@ __attr_no_sanitize("unsigned-integer-overflow") void _nya_websocket_sha1(const u
         u32 w[80] = { 0 };
 
         for (u32 i = 0; i < 16; i++) {
-            w[i] = ((u32)chunk[i * 4] << 24) | ((u32)chunk[(i * 4) + 1] << 16) | ((u32)chunk[(i * 4) + 2] << 8) | (u32)chunk[(i * 4) + 3];
+            // widened before the multiply, not after. See the same shape in _nya_sha256_block.
+            u64 at = (u64)i * 4U;
+
+            w[i] = ((u32)chunk[at] << 24) | ((u32)chunk[at + 1] << 16) | ((u32)chunk[at + 2] << 8) | (u32)chunk[at + 3];
         }
 
         for (u32 i = 16; i < 80; i++) w[i] = _nya_websocket_rotate(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
@@ -856,10 +859,12 @@ __attr_no_sanitize("unsigned-integer-overflow") void _nya_websocket_sha1(const u
     }
 
     for (u32 i = 0; i < 5; i++) {
-        out_digest[i * 4]       = (u8)((state[i] >> 24) & 0xFFU);
-        out_digest[(i * 4) + 1] = (u8)((state[i] >> 16) & 0xFFU);
-        out_digest[(i * 4) + 2] = (u8)((state[i] >> 8) & 0xFFU);
-        out_digest[(i * 4) + 3] = (u8)(state[i] & 0xFFU);
+        u64 at = (u64)i * 4U;
+
+        out_digest[at]     = (u8)((state[i] >> 24) & 0xFFU);
+        out_digest[at + 1] = (u8)((state[i] >> 16) & 0xFFU);
+        out_digest[at + 2] = (u8)((state[i] >> 8) & 0xFFU);
+        out_digest[at + 3] = (u8)(state[i] & 0xFFU);
     }
 }
 
@@ -900,14 +905,14 @@ NYA_Error _nya_websocket_handshake_send(NYA_WebSocket* socket, const _NYA_WebSoc
 
     if (options->subprotocol != nullptr) {
         s32 written = snprintf(request + at, sizeof(request) - (u64)at, "Sec-WebSocket-Protocol: %s\r\n", options->subprotocol);
-        if (written < 0 || (u64)(at + written) >= sizeof(request)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the upgrade request does not fit");
+        if (written < 0 || ((u64)at + (u64)written) >= sizeof(request)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the upgrade request does not fit");
 
         at += written;
     }
 
     if (options->bearer_token != nullptr) {
         s32 written = snprintf(request + at, sizeof(request) - (u64)at, "Authorization: Bearer %s\r\n", options->bearer_token);
-        if (written < 0 || (u64)(at + written) >= sizeof(request)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the upgrade request does not fit");
+        if (written < 0 || ((u64)at + (u64)written) >= sizeof(request)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the upgrade request does not fit");
 
         at += written;
     }
@@ -945,13 +950,13 @@ NYA_Error _nya_websocket_handshake_send(NYA_WebSocket* socket, const _NYA_WebSoc
         }
 
         s32 written = snprintf(request + at, sizeof(request) - (u64)at, "%s: %s\r\n", name, value);
-        if (written < 0 || (u64)(at + written) >= sizeof(request)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the upgrade request does not fit");
+        if (written < 0 || ((u64)at + (u64)written) >= sizeof(request)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the upgrade request does not fit");
 
         at += written;
     }
 
     s32 written = snprintf(request + at, sizeof(request) - (u64)at, "\r\n");
-    if (written < 0 || (u64)(at + written) >= sizeof(request)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the upgrade request does not fit");
+    if (written < 0 || ((u64)at + (u64)written) >= sizeof(request)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the upgrade request does not fit");
 
     at += written;
 

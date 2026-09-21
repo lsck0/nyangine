@@ -270,7 +270,11 @@ __attr_no_sanitize("unsigned-integer-overflow") NYA_INTERNAL void _nya_sha256_bl
     u32 w[64] = { 0 };
 
     for (u32 i = 0; i < 16; i++) {
-        w[i] = ((u32)block[i * 4] << 24) | ((u32)block[(i * 4) + 1] << 16) | ((u32)block[(i * 4) + 2] << 8) | (u32)block[(i * 4) + 3];
+        // the index widened before the multiply, not after: a u32 product used as a pointer offset
+        // is the shape that silently wraps on a larger input elsewhere.
+        u64 at = (u64)i * 4U;
+
+        w[i] = ((u32)block[at] << 24) | ((u32)block[at + 1] << 16) | ((u32)block[at + 2] << 8) | (u32)block[at + 3];
     }
 
     for (u32 i = 16; i < 64; i++) {
@@ -351,10 +355,12 @@ void nya_sha256(const u8* data, u64 size, OUT u8 out_digest[NYA_SHA256_BYTES]) {
     for (u64 i = 0; i < tail_blocks; i++) _nya_sha256_block(state, tail + (i * NYA_SHA256_BLOCK_BYTES));
 
     for (u32 i = 0; i < 8; i++) {
-        out_digest[i * 4]       = (u8)((state[i] >> 24) & 0xFFU);
-        out_digest[(i * 4) + 1] = (u8)((state[i] >> 16) & 0xFFU);
-        out_digest[(i * 4) + 2] = (u8)((state[i] >> 8) & 0xFFU);
-        out_digest[(i * 4) + 3] = (u8)(state[i] & 0xFFU);
+        u64 at = (u64)i * 4U;
+
+        out_digest[at]     = (u8)((state[i] >> 24) & 0xFFU);
+        out_digest[at + 1] = (u8)((state[i] >> 16) & 0xFFU);
+        out_digest[at + 2] = (u8)((state[i] >> 8) & 0xFFU);
+        out_digest[at + 3] = (u8)(state[i] & 0xFFU);
     }
 }
 
