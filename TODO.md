@@ -49,6 +49,7 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 | Data shapes  | Model (stored), optional SO (inside the program), DTO (on the wire). Only DTOs reach a client.  |
 | Servers      | One machine, one instance. TLS and simple limits in process; a proxy is optional.            |
 | Programs     | Live in this tree beside gnyame for now.                                                     |
+| Composition  | **Every system works with every other one unless that genuinely makes no sense** (set 2026-09-22). A feature belongs to the engine, not to the program that asked for it: permissions are for a guild as much as for a route, the UI runs on all four backends, an asset is an asset whether it is a texture or a stylesheet, and a 3D game can host an HTTP server or be one path of a CLI. When a feature would only work inside one caller, that is a design fault to fix rather than a scope to accept. |
 
 ---
 
