@@ -616,8 +616,11 @@ logged-in user.
     devices") and revoke any of them, which is a `web_frontend` screen.
   - A cookie parser that rejects rather than repairs, fuzzed. Both tokens are refused on any route over plain
     HTTP.
-- `[ ]` CSRF: `SameSite=Strict` plus an `Origin` check on every non-GET route as a layer, so a handler cannot
-  forget it.
+- `[~]` CSRF: `SameSite=Strict` plus an `Origin` check on every non-GET route as a layer, so a handler cannot
+  forget it. The origin half is in: dispatch refuses a request that changes something (any method that is not
+  safe) with 403 before every layer and the handler when `Sec-Fetch-Site` is anything but `same-origin` or
+  `none`, or when `Origin` names another host than `Host`; one with neither is not a browser page and passes.
+  The router's table check makes every write route declare 403. `SameSite=Strict` waits for the cookies.
 - `[ ]` Simple limits in process, as layers and at accept, each bound a `#define` with its reasoning: connections
   per address and in total, requests per address as a token bucket, and a stricter bucket with backoff for
   login and second factors. Over a limit answers 429 or refuses the accept; it never queues unbounded. Limits

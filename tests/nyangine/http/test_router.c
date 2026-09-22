@@ -186,6 +186,12 @@ s32 main(void) {
         empty.route_count    = 0;
         nya_assert(!nya_http_router_check(&empty).ok);
 
+        // a route that writes can be refused as cross-site, so it has to say it answers 403.
+        NYA_HttpRoute  undeclared = { .method = NYA_HTTP_METHOD_POST, .path = "/api/write", .handler = ROUTES[0].handler, .summary = "x",
+                                      .statuses = { NYA_HTTP_STATUS_OK } };
+        NYA_HttpRouter writer     = { .name = "x", .routes = &undeclared, .route_count = 1 };
+        nya_assert(!nya_http_router_check(&writer).ok, "a write route without 403 would describe a refusal it cannot make");
+
         /*
          * The rule that makes the extractor structural: a handler taking a caller may only sit on a
          * route that demands one, and a route that demands one may only hold that kind of handler.
@@ -347,6 +353,53 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a write from another site is refused before any layer or handler runs.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        // the token is valid and carries the scope, so a refusal here is the cross-site check and nothing else.
+        NYA_HttpIdentity writer                            = { .scope = NYA_HTTP_SCOPE_WRITE, .issued_at_s = NOW_S, .expires_at_s = NOW_S + 60 };
+        char             bearer[NYA_HTTP_MAX_TOKEN_BYTES]  = { 0 };
+        (void)snprintf(writer.subject, sizeof(writer.subject), "writer");
+        nya_assert(nya_http_jwt_encode(&writer, SECRET, SECRET_SIZE, bearer, sizeof(bearer)).ok);
+
+        NYA_ConstCString cases[][3] = {
+            // header name, value, whether the write goes through
+            { "origin", "https://evil.example", "refused" },
+            { "origin", "null", "refused" },
+            { "origin", "http://localhost:8080", "allowed" },
+            { "origin", "http://LOCALHOST:8080", "allowed" },
+            { "origin", "http://localhost:8081", "refused" },
+            { "origin", "localhost:8080", "refused" },
+            { "sec-fetch-site", "cross-site", "refused" },
+            { "sec-fetch-site", "same-site", "refused" },
+            { "sec-fetch-site", "same-origin", "allowed" },
+            { "sec-fetch-site", "none", "allowed" },
+        };
+
+        for (u32 index = 0; index < nya_carray_length(cases); index++) {
+            make_request(request, NYA_HTTP_METHOD_PUT, "/api/thing", bearer);
+            request->header_count = 3;
+            (void)snprintf(request->headers[1].name, sizeof(request->headers[1].name), "host");
+            (void)snprintf(request->headers[1].value, sizeof(request->headers[1].value), "localhost:8080");
+            (void)snprintf(request->headers[2].name, sizeof(request->headers[2].name), "%s", cases[index][0]);
+            (void)snprintf(request->headers[2].value, sizeof(request->headers[2].value), "%s", cases[index][1]);
+
+            NYA_HttpStatus status  = dispatch(arena, request, &response, root_layers, nya_carray_length(root_layers));
+            b8             allowed = nya_string_equals(cases[index][2], "allowed");
+
+            nya_assert(allowed ? status != NYA_HTTP_STATUS_FORBIDDEN : status == NYA_HTTP_STATUS_FORBIDDEN, "%s: %s should be %s, got %d", cases[index][0],
+                       cases[index][1], cases[index][2], (s32)status);
+            if (!allowed) nya_assert(ORDER[0] == '\0', "a refused write reached a layer: %s", ORDER);
+        }
+
+        // a read from another site is the browser's business, not a forgery: it changes nothing.
+        make_request(request, NYA_HTTP_METHOD_GET, "/api/legacy", nullptr);
+        request->header_count = 1;
+        (void)snprintf(request->headers[0].name, sizeof(request->headers[0].name), "origin");
+        (void)snprintf(request->headers[0].value, sizeof(request->headers[0].value), "https://evil.example");
+        nya_assert(dispatch(arena, request, &response, nullptr, 0) != NYA_HTTP_STATUS_FORBIDDEN, "a read is not refused for coming from elsewhere");
+    }
+
     // TEST: the extractor stands between the request and a handler taking a caller.
     // ─────────────────────────────────────────────────────────────────────────────
     {

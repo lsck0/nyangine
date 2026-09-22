@@ -224,7 +224,7 @@ NYA_INTERNAL const NYA_HttpRoute NOTE_ROUTES[] = {
      .handler       = notes_post,
      .summary       = "Writes a note",
      .description   = "Answers with the note as stored, so the caller learns the id it was given.",
-     .statuses      = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNPROCESSABLE,
+     .statuses      = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_UNPROCESSABLE,
                            NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
@@ -233,7 +233,7 @@ NYA_INTERNAL const NYA_HttpRoute NOTE_ROUTES[] = {
      .auth         = NYA_HTTP_AUTH_NONE,
      .handler      = notes_delete,
      .summary      = "Removes a note by id",
-     .statuses     = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_NOT_FOUND },
+     .statuses     = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_NOT_FOUND },
      },
 };
 

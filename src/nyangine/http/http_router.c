@@ -38,6 +38,14 @@ NYA_INTERNAL NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* 
 /** Whether `route` declares `status`. Debug only; see the assertion in nya_http_router_dispatch. */
 NYA_INTERNAL b8 _nya_http_route_declares(const NYA_HttpRoute* route, NYA_HttpStatus status) __attr_no_discard;
 
+/**
+ * Whether a request that changes something came from another site, which is the CSRF case. A browser says so in
+ * Sec-Fetch-Site, and an Origin naming a host other than the one the request was sent to says the same. A request
+ * with neither is not from a browser page and carries no cookie it did not mean to, so it passes; SameSite=Strict
+ * on the session cookies is the second line behind this one.
+ * */
+NYA_INTERNAL b8 _nya_http_request_is_cross_site(const NYA_HttpRequest* request) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -131,6 +139,16 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
 
         if (route->statuses[0] == NYA_HTTP_STATUS_NONE) {
             return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%s %s lists no statuses", nya_http_method_text(route->method), route->path);
+        }
+
+        // the cross-site check in dispatch refuses a write from another site, so a route that writes declares it.
+        if (!nya_http_method_is_safe(route->method) && !_nya_http_route_declares(route, NYA_HTTP_STATUS_FORBIDDEN)) {
+            return nya_error(
+                NYA_ERROR_INVALID_ARGUMENT,
+                "%s %s changes something, so the cross-site check can refuse it and it has to declare 403",
+                nya_http_method_text(route->method),
+                route->path
+            );
         }
 
         /*
@@ -227,6 +245,11 @@ NYA_HttpStatus nya_http_router_dispatch(
         if (path_exists) return nya_http_response_problem(exchange, NYA_HTTP_STATUS_METHOD_NOT_ALLOWED, "that path does not answer this method");
 
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_NOT_FOUND, "no route for that path");
+    }
+
+    // before every layer and the handler, so no route that writes can be reached from another site by forgetting.
+    if (!nya_http_method_is_safe(exchange->request->method) && _nya_http_request_is_cross_site(exchange->request)) {
+        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "a request from another site may not change anything here");
     }
 
     /*
@@ -420,6 +443,28 @@ NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* exchange) {
     exchange->identified = true;
 
     return NYA_HTTP_STATUS_NONE;
+}
+
+b8 _nya_http_request_is_cross_site(const NYA_HttpRequest* request) {
+    nya_assert(request != nullptr);
+
+    // only "same-origin" and "none" (typed, bookmarked) are a page of this site or the user themselves.
+    NYA_ConstCString fetch_site = nya_http_request_header(request, "Sec-Fetch-Site");
+    if (fetch_site != nullptr && !nya_string_equals(fetch_site, "same-origin") && !nya_string_equals(fetch_site, "none")) return true;
+
+    NYA_ConstCString origin = nya_http_request_header(request, "Origin");
+    if (origin == nullptr) return false;
+
+    // an Origin is a scheme, "://" and the host with its port, and nothing else; "null" and anything unparsed refuse.
+    NYA_ConstCString authority = nullptr;
+    if (nya_string_starts_with(origin, "http://")) authority = origin + strlen("http://");
+    if (nya_string_starts_with(origin, "https://")) authority = origin + strlen("https://");
+    if (authority == nullptr) return true;
+
+    NYA_ConstCString host = nya_http_request_header(request, "Host");
+    if (host == nullptr) return true;
+
+    return !_nya_http_equals_ignore_case(authority, strlen(authority), host);
 }
 
 b8 _nya_http_route_declares(const NYA_HttpRoute* route, NYA_HttpStatus status) {
