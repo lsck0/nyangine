@@ -67,6 +67,7 @@ s32 main(s32 argc, NYA_CString argv[]) {
     // links against exists yet. Vendor parts are NYA_BUILD_ONCE, so this is nearly free once the
     // artifacts are on disk.
     nya_vendor_detect_nprocs();
+    nya_vendor_detect_compiler_cache();
     NYA_EXPECT(nya_vendor_build_all(NYA_VENDORS), "while building vendor dependencies");
 
     NYA_Error run_result = nya_args_run_command(command);

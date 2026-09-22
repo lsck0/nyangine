@@ -86,7 +86,7 @@ NYA_VendorRule vendor_ufbx_linux_x86_64 = {
                 .program   = CC,
                 // -fPIC because the game DLL links this too, and a non-PIC object in a shared library
                 // is a link error rather than something that shows up later.
-                .arguments = { UFBX_CFLAGS, "-fPIC", UFBX_SOURCE, "-o", UFBX_O_LINUX_X86_64, },
+                .arguments = { CC_LAUNCHED, UFBX_CFLAGS, "-fPIC", UFBX_SOURCE, "-o", UFBX_O_LINUX_X86_64, },
             },
         },
         &(NYA_BuildRule){
@@ -131,7 +131,7 @@ NYA_VendorRule vendor_ufbx_windows_x86_64 = {
 
             .command = {
                 .program   = CC,
-                .arguments = { FLAGS_TARGET_WINDOWS_X86_64 UFBX_CFLAGS, UFBX_SOURCE, "-o", UFBX_O_WINDOWS_X86_64, },
+                .arguments = { CC_LAUNCHED, FLAGS_TARGET_WINDOWS_X86_64 UFBX_CFLAGS, UFBX_SOURCE, "-o", UFBX_O_WINDOWS_X86_64, },
             },
         },
         &(NYA_BuildRule){

@@ -31,7 +31,44 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#define CC "clang"
+/*
+ * The compiler, and the cache in front of it.
+ *
+ * Runtime strings rather than literals because whether there is a cache is a property of the machine:
+ * with sccache on the PATH every compile in this tool — the engine, the tests, the examples and every
+ * vendor that takes a CC — goes through one cache, and without it nothing changes and nothing breaks.
+ * Taking their address is still a compile time constant, so they sit inside the static rules below.
+ *
+ * CC is the program to run and CC_LAUNCHED is what goes in front of the arguments: with a cache that is
+ * "sccache" and "clang", and without it "clang" and "", which the command runner drops. CC_BINARY stays
+ * the compiler itself, for cmake, which is told the compiler and the launcher separately.
+ *
+ * What a compiler cache keys on is the command line and the source it preprocesses, so a file *named*
+ * on the command line is not part of the key: editing src/build/sanitizer_ignorelist.txt changes what a
+ * build should produce without changing anything the cache can see. That file is close to immutable,
+ * and the fix when it does change is `sccache --zero-stats` and a clean build rather than a rule here.
+ */
+extern char NYA_CC[16];
+extern char NYA_CC_LAUNCHED[16];
+
+/** `CC=...` for a vendor whose Makefile or configure script takes one. Both words when there is a cache. */
+extern char NYA_CC_MAKE[32];
+
+/** `-DCMAKE_C_COMPILER_LAUNCHER=...`, or "" for no cache, which the command runner drops. */
+extern char NYA_CMAKE_LAUNCHER[48];
+
+/** The compiler's own name, for a place that spells it into a string: cmake's -DCMAKE_C_COMPILER=. */
+#define CC_BINARY "clang"
+
+#define CC             NYA_CC
+#define CC_LAUNCHED    NYA_CC_LAUNCHED
+#define CC_MAKE        NYA_CC_MAKE
+#define CMAKE_LAUNCHER NYA_CMAKE_LAUNCHER
+
+char NYA_CC[16]             = "clang";
+char NYA_CC_LAUNCHED[16]    = "";
+char NYA_CC_MAKE[32]        = "CC=clang";
+char NYA_CMAKE_LAUNCHER[48] = "";
 
 /**
  * Parallel job count, as a string, for `make -j` and `cmake --build -- -j`.
@@ -45,6 +82,55 @@ extern char NYA_NPROCS[8];
 #define NPROCS NYA_NPROCS
 
 char NYA_NPROCS[8] = "1";
+
+/**
+ * Points every compile at sccache when it is on the PATH, and changes nothing when it is not.
+ *
+ * Asking sccache for its version rather than looking for the file: a binary that is there but cannot
+ * run — the wrong architecture, a broken install, a stale wrapper — would otherwise fail every compile
+ * in the tool with a message about the cache rather than about the code. Call once, before building.
+ * */
+NYA_INTERNAL void nya_vendor_detect_compiler_cache(void) {
+    /*
+     * sccache first because it is the one that can be central — its storage is a directory, an S3
+     * bucket or a Redis, so several checkouts and a CI runner share one cache — and ccache second
+     * because it is the faster of the two here.
+     *
+     * The difference is what each has to do to decide it has seen a compile before. ccache's direct
+     * mode hashes the source and the headers it remembers from last time; sccache preprocesses the
+     * translation unit and hashes that. This engine is a unity build, so one translation unit is the
+     * whole of it, and preprocessing that costs nearly as much as compiling it at -O0: measured here,
+     * an sccache hit on the engine saved 185 ms of 2750. Where it pays is everything that is not one
+     * unity TU — every vendor, and a fresh checkout or worktree where nothing has been built yet.
+     */
+    static const NYA_ConstCString CACHES[] = { "sccache", "ccache" };
+
+    for (u32 index = 0; index < nya_carray_length(CACHES); index++) {
+        NYA_Command probe = {
+            .flags     = NYA_COMMAND_FLAG_OUTPUT_SUPPRESS,
+            .program   = CACHES[index],
+            .arguments = { "--version", nullptr },
+        };
+
+        NYA_Error started = nya_command_run(&probe);
+        defer nya_command_destroy(&probe);
+
+        // asking it for its version rather than looking for the file: a binary that is there but
+        // cannot run would otherwise fail every compile with a message about the cache, not the code.
+        if (!started.ok || probe.exit_code != 0) continue;
+
+        (void)snprintf(NYA_CC, sizeof(NYA_CC), "%s", CACHES[index]);
+        (void)snprintf(NYA_CC_LAUNCHED, sizeof(NYA_CC_LAUNCHED), "%s", CC_BINARY);
+        (void)snprintf(NYA_CC_MAKE, sizeof(NYA_CC_MAKE), "CC=%s " CC_BINARY, CACHES[index]);
+        (void)snprintf(NYA_CMAKE_LAUNCHER, sizeof(NYA_CMAKE_LAUNCHER), "-DCMAKE_C_COMPILER_LAUNCHER=%s", CACHES[index]);
+
+        nya_log_info("Compiling through %s.", CACHES[index]);
+
+        return;
+    }
+
+    nya_log_debug("No compiler cache on the PATH; compiling without one.");
+}
 
 /** Fills NYA_NPROCS with the number of online cores. Call once, before building anything. */
 NYA_INTERNAL void nya_vendor_detect_nprocs(void) {
@@ -98,7 +184,8 @@ NYA_INTERNAL void nya_vendor_detect_nprocs(void) {
     "-DCMAKE_BUILD_TYPE=Release",               \
     NYA_CMAKE_OPTIMIZE,                         \
     "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",     \
-    "-DBUILD_SHARED_LIBS=OFF"
+    "-DBUILD_SHARED_LIBS=OFF",                  \
+    CMAKE_LAUNCHER
 
 // clang-format on
 

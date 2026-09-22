@@ -32,7 +32,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_debug_executable_windows = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             BINARY_SOURCE_PATH,
             "-c", "-o", WINDOWS_X86_64_DEBUG_OBJECT,
             CFLAGS,
@@ -59,7 +59,7 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_executable_windows = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             WINDOWS_X86_64_DEBUG_OBJECT,
             "-o", WINDOWS_X86_64_DEBUG_BINARY,
             CFLAGS,
@@ -95,7 +95,7 @@ NYA_INTERNAL NYA_BuildRule compile_terminal_windows = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             TERMINAL_SOURCE_PATH,
             "-c", "-o", WINDOWS_X86_64_TERMINAL_OBJECT,
             CFLAGS,
@@ -121,7 +121,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_debug_dll_windows = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             DLL_SOURCE_PATH,
             "-c", "-o", WINDOWS_X86_64_DEBUG_DLL_OBJECT,
             CFLAGS,
@@ -145,7 +145,7 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_dll_windows = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             WINDOWS_X86_64_DEBUG_DLL_OBJECT,
             "-o", WINDOWS_X86_64_DEBUG_DLL,
             CFLAGS,
@@ -200,7 +200,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_windows_x86_64 = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             BINARY_SOURCE_PATH,
             "-c", "-o", WINDOWS_X86_64_OBJECT,
             CFLAGS,
@@ -225,7 +225,7 @@ NYA_INTERNAL NYA_BuildRule build_project_windows_x86_64 = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             WINDOWS_X86_64_OBJECT,
             "-o", WINDOWS_X86_64_BINARY,
             CFLAGS,
@@ -263,7 +263,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_steam_windows_x86_64 = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             BINARY_SOURCE_PATH,
             "-c", "-o", STEAM_WINDOWS_X86_64_OBJECT,
             CFLAGS,
@@ -288,7 +288,7 @@ NYA_INTERNAL NYA_BuildRule link_project_steam_windows_x86_64 = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             STEAM_WINDOWS_X86_64_OBJECT,
             "-o", STEAM_WINDOWS_X86_64_BINARY,
             CFLAGS,
@@ -341,7 +341,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_dev_executable_windows = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             BINARY_SOURCE_PATH,
             "-c", "-o", WINDOWS_X86_64_DEV_OBJECT,
             CFLAGS,
@@ -366,7 +366,7 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_executable_windows = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             WINDOWS_X86_64_DEV_OBJECT,
             "-o", WINDOWS_X86_64_DEV_BINARY,
             CFLAGS,
@@ -390,7 +390,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_dev_dll_windows = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             DLL_SOURCE_PATH,
             "-c", "-o", WINDOWS_X86_64_DEV_DLL_OBJECT,
             CFLAGS,
@@ -414,7 +414,7 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_dll_windows = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             WINDOWS_X86_64_DEV_DLL_OBJECT,
             "-o", WINDOWS_X86_64_DEV_DLL,
             CFLAGS,

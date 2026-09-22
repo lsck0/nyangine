@@ -90,7 +90,7 @@ NYA_VendorRule vendor_sqlean_linux_x86_64 = {
 
             .command = {
                 .program   = CC,
-                .arguments = {
+                .arguments = { CC_LAUNCHED,
                     SQLEAN_CFLAGS,
                     "-fPIC",
                     "-I" SQLITE_BUILD_LINUX_X86_64,
@@ -141,7 +141,7 @@ NYA_VendorRule vendor_sqlean_windows_x86_64 = {
             // No -fPIC: position independent code is the default and meaningless for a PE.
             .command = {
                 .program   = CC,
-                .arguments = {
+                .arguments = { CC_LAUNCHED,
                     FLAGS_TARGET_WINDOWS_X86_64
                     SQLEAN_CFLAGS,
                     "-I" SQLITE_BUILD_WINDOWS_X86_64,

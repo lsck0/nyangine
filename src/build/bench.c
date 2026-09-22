@@ -85,7 +85,7 @@ void bench_runner(NYA_ArgCommand* command) {
 
             .command = {
                 .program   = CC,
-                .arguments = {
+                .arguments = { CC_LAUNCHED,
                     source_cstr,
                     "-o", binary,
                     CFLAGS,

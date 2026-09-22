@@ -77,7 +77,13 @@ NYA_Error nya_command_spawn(NYA_Command* command) {
     u32              argc                                = 0;
 
     argv[argc++] = command->program;
-    for (u32 i = 0; i < NYA_COMMAND_MAX_ARGUMENTS && command->arguments[i] != nullptr; i++) argv[argc++] = command->arguments[i];
+    // an empty argument is dropped rather than passed on: it lets a static rule carry a prefix that is
+    // only sometimes there — a compiler cache in front of the compiler — without two copies of the rule.
+    for (u32 i = 0; i < NYA_COMMAND_MAX_ARGUMENTS && command->arguments[i] != nullptr; i++) {
+        if (command->arguments[i][0] == '\0') continue;
+
+        argv[argc++] = command->arguments[i];
+    }
     argv[argc] = nullptr;
 
     NYA_OsProcessSpawn spawn = {

@@ -68,7 +68,7 @@ NYA_VendorRule vendor_monocypher_linux_x86_64 = {
             .command = {
                 .program   = CC,
                 // -fPIC because the game DLL links this too.
-                .arguments = { MONOCYPHER_CFLAGS, "-fPIC", MONOCYPHER_SOURCE, "-o", MONOCYPHER_O_LINUX_X86_64, },
+                .arguments = { CC_LAUNCHED, MONOCYPHER_CFLAGS, "-fPIC", MONOCYPHER_SOURCE, "-o", MONOCYPHER_O_LINUX_X86_64, },
             },
         },
         &(NYA_BuildRule){
@@ -90,7 +90,7 @@ NYA_VendorRule vendor_monocypher_linux_x86_64 = {
 
             .command = {
                 .program   = CC,
-                .arguments = { MONOCYPHER_CFLAGS, "-fPIC", MONOCYPHER_ED25519_SOURCE, "-o", MONOCYPHER_ED25519_O_LINUX_X86_64, },
+                .arguments = { CC_LAUNCHED, MONOCYPHER_CFLAGS, "-fPIC", MONOCYPHER_ED25519_SOURCE, "-o", MONOCYPHER_ED25519_O_LINUX_X86_64, },
             },
         },
         &(NYA_BuildRule){
@@ -136,7 +136,7 @@ NYA_VendorRule vendor_monocypher_windows_x86_64 = {
 
             .command = {
                 .program   = CC,
-                .arguments = { FLAGS_TARGET_WINDOWS_X86_64 MONOCYPHER_CFLAGS, MONOCYPHER_SOURCE, "-o", MONOCYPHER_O_WINDOWS_X86_64, },
+                .arguments = { CC_LAUNCHED, FLAGS_TARGET_WINDOWS_X86_64 MONOCYPHER_CFLAGS, MONOCYPHER_SOURCE, "-o", MONOCYPHER_O_WINDOWS_X86_64, },
             },
         },
         &(NYA_BuildRule){
@@ -158,7 +158,7 @@ NYA_VendorRule vendor_monocypher_windows_x86_64 = {
 
             .command = {
                 .program   = CC,
-                .arguments = { FLAGS_TARGET_WINDOWS_X86_64 MONOCYPHER_CFLAGS, MONOCYPHER_ED25519_SOURCE, "-o", MONOCYPHER_ED25519_O_WINDOWS_X86_64, },
+                .arguments = { CC_LAUNCHED, FLAGS_TARGET_WINDOWS_X86_64 MONOCYPHER_CFLAGS, MONOCYPHER_ED25519_SOURCE, "-o", MONOCYPHER_ED25519_O_WINDOWS_X86_64, },
             },
         },
         &(NYA_BuildRule){

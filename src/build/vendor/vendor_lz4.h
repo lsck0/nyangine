@@ -51,7 +51,7 @@ NYA_VendorRule vendor_lz4_linux_x86_64 = {
 
             .command = {
                 .program   = "make",
-                .arguments = { "-C", LZ4_LIB, "liblz4.a", "-j", NPROCS, "CC=" CC, },
+                .arguments = { "-C", LZ4_LIB, "liblz4.a", "-j", NPROCS, CC_MAKE, },
             },
         },
         &(NYA_BuildRule){

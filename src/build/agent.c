@@ -51,7 +51,7 @@ void agent_runner(NYA_ArgCommand* command) {
 
         .command = {
             .program   = CC,
-            .arguments = {
+            .arguments = { CC_LAUNCHED,
                 AGENT_SOURCE,
                 "-c", "-o", object,
                 CFLAGS,
@@ -82,7 +82,7 @@ void agent_runner(NYA_ArgCommand* command) {
 
         .command = {
             .program   = CC,
-            .arguments = {
+            .arguments = { CC_LAUNCHED,
                 object,
                 "-o", AGENT_BINARY,
                 CFLAGS,

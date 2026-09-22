@@ -26,7 +26,9 @@
 #define WINDRES "x86_64-w64-mingw32-windres"
 
 /** Compilers for Makefile based vendors targeting Windows. clang for the reason on NYA_CMAKE_WINDOWS_TOOLCHAIN. */
-#define NYA_WINDOWS_CC CC " --target=x86_64-w64-mingw32 " NYA_MINGW_INTRINSICS
+// the compiler's own name, not the cache in front of it: this one is spelled into a `CC=` a Makefile
+// reads, and the cache reaches those through NYA_CC_MAKE instead.
+#define NYA_WINDOWS_CC CC_BINARY " --target=x86_64-w64-mingw32 " NYA_MINGW_INTRINSICS
 #define NYA_WINDOWS_AR "x86_64-w64-mingw32-ar"
 
 /** LuaJIT builds a host side code generator first, so HOST_CC must stay the host compiler. */
@@ -51,9 +53,9 @@
  * */
 #define NYA_CMAKE_WINDOWS_TOOLCHAIN                     \
     "-DCMAKE_SYSTEM_NAME=Windows",                      \
-    "-DCMAKE_C_COMPILER=" CC,                           \
+    "-DCMAKE_C_COMPILER=" CC_BINARY,                           \
     "-DCMAKE_C_COMPILER_TARGET=x86_64-w64-mingw32",     \
-    "-DCMAKE_CXX_COMPILER=" CC "++",                    \
+    "-DCMAKE_CXX_COMPILER=" CC_BINARY "++",                    \
     "-DCMAKE_CXX_COMPILER_TARGET=x86_64-w64-mingw32",   \
     /* after NYA_CMAKE_OPTIMIZE on every command line, so these release flags are the ones cmake keeps. */ \
     "-DCMAKE_C_FLAGS_RELEASE=" NYA_VENDOR_OPTIMIZE " " NYA_MINGW_INTRINSICS, \

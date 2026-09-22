@@ -27,7 +27,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_debug_executable_linux = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             BINARY_SOURCE_PATH,
             "-c", "-o", LINUX_X86_64_DEBUG_OBJECT,
             CFLAGS,
@@ -54,7 +54,7 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_executable_linux = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             LINUX_X86_64_DEBUG_OBJECT,
             "-o", LINUX_X86_64_DEBUG_BINARY,
             CFLAGS,
@@ -78,7 +78,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_debug_dll_linux = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             DLL_SOURCE_PATH,
             "-c", "-o", LINUX_X86_64_DEBUG_DLL_OBJECT,
             CFLAGS,
@@ -103,7 +103,7 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_dll_linux = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             LINUX_X86_64_DEBUG_DLL_OBJECT,
             "-o", LINUX_X86_64_DEBUG_DLL,
             CFLAGS,
@@ -135,7 +135,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_linux_x86_64 = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             BINARY_SOURCE_PATH,
             "-c", "-o", LINUX_X86_64_OBJECT,
             CFLAGS,
@@ -159,7 +159,7 @@ NYA_INTERNAL NYA_BuildRule build_project_linux_x86_64 = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             LINUX_X86_64_OBJECT,
             "-o", LINUX_X86_64_BINARY,
             CFLAGS,
@@ -209,7 +209,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_steam_linux_x86_64 = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             BINARY_SOURCE_PATH,
             "-c", "-o", STEAM_LINUX_X86_64_OBJECT,
             CFLAGS,
@@ -234,7 +234,7 @@ NYA_INTERNAL NYA_BuildRule link_project_steam_linux_x86_64 = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             STEAM_LINUX_X86_64_OBJECT,
             "-o", STEAM_LINUX_X86_64_BINARY,
             CFLAGS,
@@ -292,7 +292,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_dev_executable_linux = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             BINARY_SOURCE_PATH,
             "-c", "-o", LINUX_X86_64_DEV_OBJECT,
             CFLAGS,
@@ -316,7 +316,7 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_executable_linux = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             LINUX_X86_64_DEV_OBJECT,
             "-o", LINUX_X86_64_DEV_BINARY,
             CFLAGS,
@@ -339,7 +339,7 @@ NYA_INTERNAL NYA_BuildRule compile_project_dev_dll_linux = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             DLL_SOURCE_PATH,
             "-c", "-o", LINUX_X86_64_DEV_DLL_OBJECT,
             CFLAGS,
@@ -363,7 +363,7 @@ NYA_INTERNAL NYA_BuildRule build_project_dev_dll_linux = {
 
     .command = {
         .program   = CC,
-        .arguments = {
+        .arguments = { CC_LAUNCHED,
             LINUX_X86_64_DEV_DLL_OBJECT,
             "-o", LINUX_X86_64_DEV_DLL,
             CFLAGS,
