@@ -88,9 +88,10 @@ NYA_Error nya_serde_save_file(const NYA_Object* object, NYA_ConstCString path, N
     if (text == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not serialize the object for '%s'", path);
 
     /*
-     * The length carrying overload, not the cstring one.
+     * The length carrying overload, not the cstring one. Atomic, because every caller is replacing a
+     * document someone would rather keep than find half written: saves, settings, trained networks.
      */
-    return nya_file_write(path, text);
+    return nya_file_write_atomic(path, text);
 }
 
 NYA_Error nya_serde_load_file(NYA_Arena* arena, NYA_ConstCString path, NYA_SerdeFlags flags, OUT NYA_Object** out_object) {

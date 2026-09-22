@@ -1113,7 +1113,8 @@ NYA_INTERNAL void _nya_plugin_binding_file_write(NYA_LuaCall* call) {
         return;
     }
 
-    NYA_Error written = nya_file_write(path, (NYA_ConstCString)call->arguments[1].as_string);
+    // atomic, so a plugin saving its own state cannot be left with half of it by a crash.
+    NYA_Error written = nya_file_write_atomic(path, (NYA_ConstCString)call->arguments[1].as_string);
 
     call->results[0]   = nya_lua_boolean(written.ok);
     call->result_count = 1;

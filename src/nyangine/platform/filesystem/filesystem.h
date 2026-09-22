@@ -107,6 +107,15 @@ NYA_API NYA_Error nya_filesystem_absolute(NYA_Arena* arena, NYA_ConstCString pat
  */
 
 NYA_API NYA_Error nya_filesystem_move(NYA_ConstCString source, NYA_ConstCString destination) __attr_no_discard;
+
+/**
+ * Renames `source` over `destination` in one step, so a reader finds the old file or the new one.
+ * Both must be on one volume; unlike move there is no copy fallback, since a copy is not one step.
+ * Returns once the rename is as durable as the OS will say: Linux fsyncs the parent directory, Windows
+ * writes the move through. `destination`'s permission bits carry over to what replaces it.
+ * */
+NYA_API NYA_Error nya_filesystem_replace(NYA_ConstCString source, NYA_ConstCString destination) __attr_no_discard;
+
 NYA_API NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destination) __attr_no_discard;
 NYA_API NYA_Error nya_filesystem_delete(NYA_ConstCString path) __attr_no_discard;
 
@@ -152,6 +161,8 @@ typedef enum {
     NYA_FILE_MODE_CREATE = 1 << 3,
     /** Discard existing contents on open. */
     NYA_FILE_MODE_TRUNCATE = 1 << 4,
+    /** Fail with NYA_ERROR_ALREADY_EXISTS rather than open a file that is already there. */
+    NYA_FILE_MODE_EXCLUSIVE = 1 << 5,
 } NYA_FileMode;
 
 typedef enum {

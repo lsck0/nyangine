@@ -260,7 +260,7 @@ NYA_Error nya_vendor_build(NYA_VendorRule* vendor) {
     }
 
     if (options_changed) {
-        NYA_Error stamped = nya_file_write(vendor->options_stamp, vendor->name);
+        NYA_Error stamped = nya_file_write_atomic(vendor->options_stamp, vendor->name);
         if (!stamped.ok) nya_log_warn("could not stamp '%s' for vendor '%s'; it will rebuild again", vendor->options_stamp, vendor->name);
     }
 

@@ -459,6 +459,13 @@ void _nya_error_push_frame(NYA_Error* error, NYA_ConstCString function, NYA_Cons
 ### base_file.h
 
 ```c
+// types
+typedef enum { NYA_FILE_ATOMIC_STEP_OPEN, NYA_FILE_ATOMIC_STEP_WRITE, NYA_FILE_ATOMIC_STEP_SYNC, NYA_FILE_ATOMIC_STEP_REPLACE, NYA_FILE_ATOMIC_STEP_COUNT, } NYA_FileAtomicStep  // The steps of an atomic write, in order.
+typedef enum { NYA_FILE_ATOMIC_FAULT_NONE, NYA_FILE_ATOMIC_FAULT_FAIL, NYA_FILE_ATOMIC_FAULT_CRASH, NYA_FILE_ATOMIC_FAULT_COUNT, } NYA_FileAtomicFault  // What an armed step does when it is reached.
+
+// macros
+NYA_FILE_ATOMIC_ATTEMPTS_MAX 8  // Tries before giving up on finding an unused temp name.
+
 // functions
 NYA_Error nya_file_read_string(NYA_File* file, OUT NYA_String* out_content)
 NYA_Error nya_file_write_string(NYA_File* file, const NYA_String* content)
@@ -475,6 +482,9 @@ NYA_Error nya_file_append(const char* path, const NYA_String* content)
 NYA_Error nya_file_append(const NYA_String* path, const NYA_String* content)
 NYA_Error nya_file_append(const char* path, NYA_ConstCString content)
 NYA_Error nya_file_append(const NYA_String* path, NYA_ConstCString content)
+NYA_Error nya_file_write_atomic(const char* path, const NYA_String* content)  // Replaces all of `path` with `content`, so that after a crash anywhere it holds the old bytes or the new.
+NYA_Error nya_file_write_atomic(const char* path, NYA_ConstCString content)
+void nya_file_write_atomic_fault_set(NYA_FileAtomicStep step, NYA_FileAtomicFault fault)  // Arms `fault` for the next write on this thread that reaches `step`, just before the step runs.
 ```
 
 ### base_hash.h
@@ -5240,7 +5250,7 @@ enum NYA_FileType { NYA_FILE_TYPE_UNKNOWN, NYA_FILE_TYPE_FILE, NYA_FILE_TYPE_DIR
 struct NYA_FileInfo { NYA_FileType type; u64 size; u64 modified_at; u64 created_at; u64 accessed_at; b8 readonly; }  // Timestamps are milliseconds since the unix epoch on both platforms.
 struct NYA_DirectoryEntry { NYA_String* name; NYA_FileType type; u64 size; u64 modified_at; }  // One entry of a directory listing.
 typedef b8 (*NYA_WalkCallback)(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data)  // Called once per entry while walking.
-typedef enum { NYA_FILE_MODE_READ = 1 << 0, NYA_FILE_MODE_WRITE = 1 << 1, NYA_FILE_MODE_APPEND = 1 << 2, NYA_FILE_MODE_CREATE = 1 << 3, NYA_FILE_MODE_TRUNCATE = 1 << 4, } NYA_FileMode
+typedef enum { NYA_FILE_MODE_READ = 1 << 0, NYA_FILE_MODE_WRITE = 1 << 1, NYA_FILE_MODE_APPEND = 1 << 2, NYA_FILE_MODE_CREATE = 1 << 3, NYA_FILE_MODE_TRUNCATE = 1 << 4, NYA_FILE_MODE_EXCLUSIVE = 1 << 5, } NYA_FileMode
 typedef enum { NYA_FILE_SEEK_SET, NYA_FILE_SEEK_CURRENT, NYA_FILE_SEEK_END, } NYA_FileSeek
 struct NYA_File { void* handle; s32 descriptor; b8 is_open; }
 
@@ -5256,6 +5266,7 @@ NYA_Error nya_filesystem_size(NYA_ConstCString path, OUT u64* out_size)
 NYA_Error nya_filesystem_last_modified(NYA_ConstCString path, OUT u64* out_timestamp)  // Milliseconds since the unix epoch, the same unit and value as NYA_FileInfo.modified_at.
 NYA_Error nya_filesystem_absolute(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_String** out_path)  // Resolves symlinks and relative segments into an absolute path.
 NYA_Error nya_filesystem_move(NYA_ConstCString source, NYA_ConstCString destination)
+NYA_Error nya_filesystem_replace(NYA_ConstCString source, NYA_ConstCString destination)  // Renames `source` over `destination` in one step, so a reader finds the old file or the new one.
 NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destination)
 NYA_Error nya_filesystem_delete(NYA_ConstCString path)
 NYA_Error nya_filesystem_create_directory(NYA_ConstCString path)  // Creates a directory and every missing parent, like `mkdir -p`.
@@ -5295,6 +5306,7 @@ b8 nya_host_memory_total_bytes(OUT u64* out_bytes)  // Physical RAM installed.
 b8 nya_host_gpu_memory_total_bytes(OUT u64* out_bytes)  // Video memory on the display adapter.
 void nya_host_distribution_name(OUT u8* buffer, u32 capacity)  // Writes which system this is, null terminated and truncated to `capacity`.
 void nya_host_kernel_name(OUT u8* buffer, u32 capacity)  // Writes the kernel, null terminated and truncated to `capacity`.
+u32 nya_host_process_id(void)  // This process's id.
 b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value)  // Sets `name` to `value` in this process's environment, replacing what was there.
 b8 nya_host_environment_remove(NYA_ConstCString name)  // Removes `name` from this process's environment.
 ```

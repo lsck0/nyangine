@@ -158,6 +158,22 @@ NYA_Error nya_filesystem_move(NYA_ConstCString old_path, NYA_ConstCString new_pa
     return NYA_OK;
 }
 
+NYA_Error nya_filesystem_replace(NYA_ConstCString source, NYA_ConstCString destination) {
+    nya_assert(source != nullptr);
+    nya_assert(destination != nullptr);
+
+    /*
+     * No COPY_ALLOWED: a cross-volume copy is not one step, so it fails instead. WRITE_THROUGH is the
+     * whole durability story here, since Windows has no way to fsync a directory. The A variant like
+     * every other call in this file, so the name the temp file was created under is the one moved.
+     */
+    if (!MoveFileExA(source, destination, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        return nya_error(_nya_filesystem_last_error_kind(), "failed to replace '%s' with '%s' (error %lu)", destination, source, GetLastError());
+    }
+
+    return NYA_OK;
+}
+
 NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destination) {
     nya_assert(source != nullptr);
     nya_assert(destination != nullptr);
@@ -408,9 +424,13 @@ NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file)
     if (mode & NYA_FILE_MODE_APPEND) access |= FILE_APPEND_DATA;
     if (access == 0) access = GENERIC_READ;
 
+    nya_assert(!(mode & NYA_FILE_MODE_EXCLUSIVE) || (mode & (NYA_FILE_MODE_CREATE | NYA_FILE_MODE_WRITE | NYA_FILE_MODE_APPEND)));
+
     // WRITE and APPEND imply CREATE, matching the POSIX side.
     DWORD creation = OPEN_EXISTING;
-    if (mode & NYA_FILE_MODE_TRUNCATE) {
+    if (mode & NYA_FILE_MODE_EXCLUSIVE) {
+        creation = CREATE_NEW;
+    } else if (mode & NYA_FILE_MODE_TRUNCATE) {
         creation = CREATE_ALWAYS;
     } else if (mode & (NYA_FILE_MODE_CREATE | NYA_FILE_MODE_WRITE | NYA_FILE_MODE_APPEND)) {
         creation = OPEN_ALWAYS;

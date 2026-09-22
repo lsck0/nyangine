@@ -111,7 +111,7 @@ NYA_INTERNAL void convert_runner(NYA_ArgCommand* command) {
     NYA_Object* document = document_create(arena);
     NYA_String* text     = nya_serialize(arena, document, format, NYA_SERDE_PRETTY);
 
-    NYA_Error written = nya_file_write(path, text);
+    NYA_Error written = nya_file_write_atomic(path, text);
     if (!written.ok) {
         (void)fprintf(stderr, "Error: could not write %s: %s\n", path, (NYA_ConstCString)written.message);
         exit(EXIT_FAILURE);

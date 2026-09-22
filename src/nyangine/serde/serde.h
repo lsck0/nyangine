@@ -41,7 +41,8 @@ NYA_API NYA_SerdeFormat nya_serde_detect_format(const u8* data, u64 size) __attr
  */
 
 /**
- * Writes an object to `path`, picking the format from the extension.
+ * Writes an object to `path`, picking the format from the extension. Through nya_file_write_atomic, so a
+ * crash leaves the previous file whole rather than half of the new one.
  * */
 NYA_API NYA_Error nya_serde_save_file(const NYA_Object* object, NYA_ConstCString path, NYA_SerdeFlags flags) __attr_no_discard;
 

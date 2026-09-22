@@ -1137,5 +1137,5 @@ NYA_Error nya_tilemap_save(const NYA_Tilemap* map, NYA_ConstCString path) {
     NYA_String* text = nya_serialize(scratch, root, NYA_SERDE_FORMAT_JSON, NYA_SERDE_PRETTY);
     if (text == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not serialize the map for '%s'", path);
 
-    return nya_file_write(path, text);
+    return nya_file_write_atomic(path, text);
 }

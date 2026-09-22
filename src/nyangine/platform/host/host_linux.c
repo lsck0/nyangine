@@ -111,6 +111,13 @@ void nya_host_kernel_name(OUT u8* buffer, u32 capacity) {
     (void)snprintf((char*)buffer, capacity, "%s %s", system.sysname, system.release);
 }
 
+u32 nya_host_process_id(void) {
+    pid_t id = getpid();
+    nya_assert(id > 0);
+
+    return (u32)id;
+}
+
 b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value) {
     nya_assert(name != nullptr && value != nullptr);
 

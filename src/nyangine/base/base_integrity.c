@@ -118,7 +118,8 @@ NYA_Error nya_integrity_patch(NYA_ConstCString binary_path, OUT u64* out_mac) {
     u64 mac = _nya_integrity_compute_mac(binary->items, binary->length, hash_offset);
     nya_memcpy(&binary->items[hash_offset], &mac, sizeof(u64));
 
-    NYA_TRY(nya_file_write(binary_path, binary));
+    // atomic, so an interrupted stamp leaves the unstamped binary rather than a truncated one.
+    NYA_TRY(nya_file_write_atomic(binary_path, binary));
 
     *out_mac = mac;
     return NYA_OK;

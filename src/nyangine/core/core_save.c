@@ -128,23 +128,8 @@ NYA_Error nya_save_write(NYA_ConstCString relative, const NYA_Object* object, NY
 
     NYA_TRY(_nya_save_ensure_parent(scratch, path_cstring));
 
-    /*
-     * Beside the target, not in the temp directory.
-     */
-    NYA_String* temporary_path = nya_string_sprintf(scratch, "%s.tmp", path_cstring);
-    NYA_CString temporary      = nya_string_to_cstring(scratch, temporary_path);
-
-    NYA_TRY(nya_serde_save_file(object, temporary, flags));
-
-    NYA_Error moved = nya_filesystem_move(temporary, path_cstring);
-    if (!moved.ok) {
-        // The half-written file is the whole problem this function exists to prevent, so it does not
-        // get to survive a failed rename and be mistaken for a save next time.
-        (void)nya_filesystem_delete(temporary);
-        return moved;
-    }
-
-    return NYA_OK;
+    // atomic, through nya_file_write_atomic underneath: a crash mid save leaves the previous save whole.
+    return nya_serde_save_file(object, path_cstring, flags);
 }
 
 NYA_Error nya_save_read(NYA_Arena* arena, NYA_ConstCString relative, NYA_SerdeFlags flags, OUT NYA_Object** out_object) {

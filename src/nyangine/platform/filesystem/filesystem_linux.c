@@ -73,6 +73,45 @@ NYA_Error nya_filesystem_move(NYA_ConstCString source, NYA_ConstCString destinat
     return NYA_OK;
 }
 
+/** fsync on the directory holding `path`, which is what makes a rename inside it survive a power cut. */
+NYA_INTERNAL NYA_Error _nya_filesystem_sync_parent(NYA_ConstCString path) {
+    char        directory[PATH_MAX];
+    const char* slash = strrchr(path, '/');
+
+    if (slash == nullptr) {
+        directory[0] = '.';
+        directory[1] = '\0';
+    } else {
+        // the root is its own parent, and "" would name nothing.
+        u64 length = slash == path ? 1 : (u64)(slash - path);
+        if (length >= sizeof(directory)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "path too long: '%s'", path);
+
+        memcpy(directory, path, length);
+        directory[length] = '\0';
+    }
+
+    s32 descriptor = open(directory, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (descriptor < 0) return nya_error_from_errno();
+
+    NYA_Error error = fsync(descriptor) == 0 ? NYA_OK : nya_error_from_errno();
+    (void)close(descriptor);
+
+    return error;
+}
+
+NYA_Error nya_filesystem_replace(NYA_ConstCString source, NYA_ConstCString destination) {
+    nya_assert(source != nullptr);
+    nya_assert(destination != nullptr);
+
+    // a file someone made private stays private: without this the rename hands over the new file's 0644.
+    struct stat destination_stat;
+    if (stat(destination, &destination_stat) == 0 && chmod(source, destination_stat.st_mode & 0o7777) != 0) return nya_error_from_errno();
+
+    if (rename(source, destination) != 0) return nya_error_from_errno();
+
+    return _nya_filesystem_sync_parent(destination);
+}
+
 NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destination) {
     NYA_File source_file = { .descriptor = -1 };
     NYA_TRY(nya_file_open(source, NYA_FILE_MODE_READ, &source_file));
@@ -376,6 +415,9 @@ NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file)
     nya_assert(path != nullptr);
     nya_assert(out_file != nullptr);
 
+    // O_EXCL without O_CREAT is undefined, so exclusive is only meaningful on an open that may create.
+    nya_assert(!(mode & NYA_FILE_MODE_EXCLUSIVE) || (mode & (NYA_FILE_MODE_CREATE | NYA_FILE_MODE_WRITE | NYA_FILE_MODE_APPEND)));
+
     // append is a kind of write, so READ with APPEND is read-write like READ with WRITE.
     b8  reads  = (mode & NYA_FILE_MODE_READ) != 0;
     b8  writes = (mode & (NYA_FILE_MODE_WRITE | NYA_FILE_MODE_APPEND)) != 0;
@@ -390,6 +432,7 @@ NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file)
 
     if (mode & NYA_FILE_MODE_APPEND) flags |= O_APPEND;
     if (mode & NYA_FILE_MODE_TRUNCATE) flags |= O_TRUNC;
+    if (mode & NYA_FILE_MODE_EXCLUSIVE) flags |= O_EXCL;
     // WRITE and APPEND imply CREATE, since opening to write something that does not exist yet is
     // the common case rather than an error.
     if (mode & (NYA_FILE_MODE_CREATE | NYA_FILE_MODE_WRITE | NYA_FILE_MODE_APPEND)) flags |= O_CREAT;

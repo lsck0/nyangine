@@ -540,7 +540,7 @@ s32 _nya_trace_capture_write(void* events) {
     if (text != nullptr) {
         (void)nya_trace_capture_format(events, count, names, _nya_trace.feature_count, _nya_trace.capture_epoch_ns, text, size);
 
-        NYA_Error written = nya_file_write(_nya_trace.capture_path, (NYA_ConstCString)text);
+        NYA_Error written = nya_file_write_atomic(_nya_trace.capture_path, (NYA_ConstCString)text);
 
         if (written.ok) {
             nya_log_info("Wrote %u trace events to %s%s.", count, _nya_trace.capture_path, recorded > count ? " (the rest were dropped)" : "");
