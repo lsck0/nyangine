@@ -49,6 +49,13 @@ CompileFlags:
       # What the sqlite plugin's extensions compile against. From the vendor rules, not invented here.
       -DSQLITE_CORE,
       -DSQLITE_VEC_STATIC,
+      # The physics vendors' world limits and ufbx's compiled out features, from the same rules. The
+      # lint rule in src/build/lint.c found these missing, which is what it is for.
+      -DB2_MAX_WORLDS=8,
+      -DB3_MAX_WORLDS=8,
+      -DUFBX_NO_SCENE_EVALUATION,
+      -DUFBX_NO_SUBDIVISION,
+      -DUFBX_NO_TESSELLATION,
       -I/home/luca/projects/nyangine/,
       -I/home/luca/projects/nyangine/src/,
       -I/home/luca/projects/nyangine/vendor/,
