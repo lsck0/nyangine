@@ -339,8 +339,11 @@ the packager ones.
 
   Measured rather than assumed: three full parallel suite runs, both green in all three, 230 of 230 each
   time.
-- `[ ]` RenderDoc closes immediately instead of capturing. Not the anti-tamper check — that early-returns
-  unless `NYA_SHIPPING_BUILD` (`base_integrity.c:148,172`). Cause still unknown.
+- `[x]` RenderDoc closed immediately because its Vulkan layer has no Wayland support: SDL cannot build an
+  instance that can make a surface, its Vulkan backend reports itself unsupported, and the renderer
+  subsystem fails at startup. Not the anti-tamper check, not the validation layers (the release build fails
+  the same way), and not process injection (the capture layer alone reproduces it). `SDL_VIDEO_DRIVER=x11`,
+  XWayland here, captures fine. Nothing to fix in the engine, so the error says all of that now.
 - `[x]` `monocypher.h` not found, `NYA_LuaVM` unknown, `windows.h` not found, and the
   `modernize-redundant-void-arg` lint were all `.clangd` gaps. Fixed.
 - `[x]` `build-steam-linux` red in CI: monocypher was missing from the steamrt vendor set. Fixed.
