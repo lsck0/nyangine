@@ -70,7 +70,6 @@ NYA_API void                   nya_string_extend_sprintf(NYA_String* str, NYA_Co
  * */
 NYA_API void                   nya_string_push_back(NYA_String* str, u8 character);
 NYA_API void                   nya_string_print(const NYA_String* str);
-NYA_API void                   nya_string_println(const NYA_String* str);
 NYA_API void                   nya_string_remove(NYA_String* str, NYA_ConstCString substr) __attr_overloaded;
 NYA_API void                   nya_string_remove(NYA_String* str, const NYA_String* substr) __attr_overloaded;
 NYA_API void                   nya_string_replace(NYA_String* str, NYA_ConstCString old, NYA_ConstCString new) __attr_overloaded;

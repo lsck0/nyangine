@@ -20,7 +20,42 @@ static void* allocate_a_lot(NYA_Arena* arena, u64 size) {
   return nya_arena_alloc(arena, size);
 }
 
+/** What the action callback saw, by type, and the name of the last arena it heard about. */
+static u32              action_counts[NYA_ARENA_ACTION_COUNT];
+static NYA_ConstCString action_last_arena = nullptr;
+
+static void count_action(NYA_ArenaAction action) {
+  nya_assert((u32)action.type < NYA_ARENA_ACTION_COUNT);
+  action_counts[action.type]++;
+  action_last_arena = action.arena_name;
+}
+
 s32 main(void) {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the action callback hears every call on every arena, and nothing once removed
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    nya_memset(action_counts, 0, sizeof(action_counts));
+    nya_arena_actions_set_callback(count_action);
+
+    NYA_Arena* arena = nya_arena_create(.name = "watched");
+    void*      block = nya_arena_alloc(arena, 64);
+    nya_arena_free(arena, block, 64);
+    nya_arena_destroy(arena);
+
+    nya_assert(action_counts[NYA_ARENA_ACTION_ARENA_NEW] == 1, "the create was heard, got %u", action_counts[NYA_ARENA_ACTION_ARENA_NEW]);
+    nya_assert(action_counts[NYA_ARENA_ACTION_ALLOC] >= 1, "and the allocation");
+    nya_assert(action_counts[NYA_ARENA_ACTION_FREE] == 1, "and the free");
+    nya_assert(action_counts[NYA_ARENA_ACTION_ARENA_DESTROY] == 1, "and the destroy");
+    nya_assert(nya_string_equals(action_last_arena, "watched"), "each named the arena it happened to");
+
+    // no history is kept, and nothing is heard once the callback is gone.
+    nya_arena_actions_set_callback(nullptr);
+    u32 destroys = action_counts[NYA_ARENA_ACTION_ARENA_DESTROY];
+    nya_arena_destroy(nya_arena_create(.name = "unwatched"));
+    nya_assert(action_counts[NYA_ARENA_ACTION_ARENA_DESTROY] == destroys, "a removed callback hears nothing");
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: stats describe an arena beyond the single number usage_bytes gives
   // ─────────────────────────────────────────────────────────────────────────────

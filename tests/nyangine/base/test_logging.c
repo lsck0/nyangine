@@ -20,6 +20,11 @@ static void sink_b(NYA_LogLevel level, NYA_ConstCString message, u32 length, voi
   sink_b_hits++;
 }
 
+/** A crash observer that is never reached: the bookkeeping is what is under test. */
+static void observe_crash(const NYA_CrashInfo* info, void* user_data) {
+  nya_unused(info, user_data);
+}
+
 s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_log_level_get / nya_log_level_set
@@ -179,6 +184,28 @@ s32 main(void) {
   nya_check(!nya_log_sink_remove(sink_a, (void*)1), "a different user_data is a different sink");
 
   nya_log_sink_clear();
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: crash observers are held to their bound, removed by pair, and cleared
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // a prevented crash reaches no observer, so what can be checked here is the bookkeeping; a real
+    // crash reaching one is test_crash_report's child process.
+    nya_crash_observer_clear();
+
+    u32 added = 0;
+    while (nya_crash_observer_add(observe_crash, (void*)(uintptr_t)(added + 1)).ok) added++;
+    nya_check(added == NYA_CRASH_OBSERVER_MAX, "the bound is NYA_CRASH_OBSERVER_MAX, got %u", added);
+
+    nya_check(nya_crash_observer_remove(observe_crash, (void*)1), "an observer is removed by its pair");
+    nya_check(!nya_crash_observer_remove(observe_crash, (void*)1), "once");
+    nya_check(nya_crash_observer_add(observe_crash, (void*)1).ok, "which frees its slot");
+
+    nya_crash_observer_clear();
+    nya_check(!nya_crash_observer_remove(observe_crash, (void*)2), "and clearing forgets every one");
+    nya_check(nya_crash_observer_add(observe_crash, nullptr).ok, "leaving all the room there was");
+    nya_crash_observer_clear();
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP

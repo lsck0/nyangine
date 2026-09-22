@@ -56,6 +56,23 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Basic primitive types serialization/deserialization
   // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: an object gives its memory back when destroyed\n");
+  {
+    // the arena's free list hands a freed block to the next request of its size, so a second object
+    // built the same way lands where the first one's table was only if destroy really freed it.
+    NYA_Object* first = nya_object_create(arena);
+    nya_object_set(first, "key", (NYA_Value){ .type = NYA_TYPE_U8, .as_u8 = 1 });
+    void* table = first->values;
+    nya_object_destroy(first);
+
+    NYA_Object* second = nya_object_create(arena);
+    nya_object_set(second, "key", (NYA_Value){ .type = NYA_TYPE_U8, .as_u8 = 2 });
+    nya_assert(second->values == table, "the second object reuses the first one's table");
+    nya_object_destroy(second);
+
+    printf("  PASSED\n");
+  }
+
   printf("TEST: Basic primitive types\n");
   {
     NYA_Object* obj = nya_object_create(arena);

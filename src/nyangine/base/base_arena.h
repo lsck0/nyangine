@@ -29,7 +29,7 @@ typedef struct NYA_ArenaFreeListNode   NYA_ArenaFreeListNode;
 typedef struct NYA_ArenaOptions        NYA_ArenaOptions;
 typedef struct NYA_ArenaRegion         NYA_ArenaRegion;
 typedef struct NYA_ArenaStats          NYA_ArenaStats;
-typedef struct NYA_ArneaAction         NYA_ArenaAction;
+typedef struct NYA_ArenaAction         NYA_ArenaAction;
 
 /*
  * ─────────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ enum NYA_ArenaActionType {
     NYA_ARENA_ACTION_COUNT,
 };
 
-struct NYA_ArneaAction {
+struct NYA_ArenaAction {
     NYA_ArenaActionType type;
 
     const char* arena_name;

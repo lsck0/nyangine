@@ -40,7 +40,7 @@ struct NYA_ArenaFreeList { u32 node_counter; f32 average_free_size; u8 defragmen
 struct NYA_ArenaFreeListNode { void* ptr; u64 size; NYA_ArenaFreeListNode *prev, *next; }
 typedef void (*NYA_ArenaActionCallback)(NYA_ArenaAction action)
 enum NYA_ArenaActionType { NYA_ARENA_ACTION_ARENA_NEW, NYA_ARENA_ACTION_ALLOC, NYA_ARENA_ACTION_REALLOC, NYA_ARENA_ACTION_FREE, NYA_ARENA_ACTION_FREE_ALL, NYA_ARENA_ACTION_GARBAGE_COLLECT, NYA_ARENA_ACTION_ARENA_DESTROY, NYA_ARENA_ACTION_COPY, NYA_ARENA_ACTION_MOVE, NYA_ARENA_ACTION_COUNT, }
-struct NYA_ArneaAction { NYA_ArenaActionType type; const char* arena_name; const char* file_name; u32 line_number; const char* function_name; union { struct { u8* ptr; u64 size; } as_alloc, as_free; struct { u8* old_ptr; u64 old_size; u8* new_ptr; u64 new_size; } as_realloc; struct { u8* ptr; u64 size; u8* copy_ptr; } as_copy; struct { u8* ptr; u64 size; const char* move_arena_name; u8* move_ptr; } as_move; }; }
+struct NYA_ArenaAction { NYA_ArenaActionType type; const char* arena_name; const char* file_name; u32 line_number; const char* function_name; union { struct { u8* ptr; u64 size; } as_alloc, as_free; struct { u8* old_ptr; u64 old_size; u8* new_ptr; u64 new_size; } as_realloc; struct { u8* ptr; u64 size; u8* copy_ptr; } as_copy; struct { u8* ptr; u64 size; const char* move_arena_name; u8* move_ptr; } as_move; }; }
 struct NYA_ArenaStats { const char* name; u64 region_count; u64 reserved_bytes; u64 used_bytes; u64 free_list_nodes; u64 free_list_bytes; u64 largest_free_block; f32 fragmentation; }  // What an arena looks like right now, in one struct.
 struct NYA_ArenaCallsiteStats { const char* file_name; u32 line_number; const char* function_name; const char* arena_name; u64 alloc_count; u64 free_count; u64 allocated_bytes; u64 freed_bytes; s64 live_bytes; }  // Allocation totals per source location, which is the drill down the per arena view cannot give.
 
@@ -899,7 +899,6 @@ void nya_string_extend_front_sprintf(NYA_String* str, NYA_ConstCString fmt, ...)
 void nya_string_extend_sprintf(NYA_String* str, NYA_ConstCString fmt, ...)
 void nya_string_push_back(NYA_String* str, u8 character)  // Appends one byte.
 void nya_string_print(const NYA_String* str)
-void nya_string_println(const NYA_String* str)
 void nya_string_remove(NYA_String* str, NYA_ConstCString substr)
 void nya_string_remove(NYA_String* str, const NYA_String* substr)
 void nya_string_replace(NYA_String* str, NYA_ConstCString old, NYA_ConstCString new)

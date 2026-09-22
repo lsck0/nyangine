@@ -134,17 +134,6 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
  * call. Each is Phase 0's to decide per cluster: a caller, a test, or deletion.
  * */
 NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
-    // base_arena.h
-    { "nya_arena_actions_set_callback", "no caller when the rule landed" },
-    // base_build.h
-    { "nya_build_last_failure", "no caller when the rule landed" },
-    // base_diagnostics.h
-    { "nya_crash_observer_clear", "no caller when the rule landed" },
-    // base_object.h
-    { "nya_object_destroy", "no caller when the rule landed" },
-    // base_string.h
-    { "nya_string_create_with_capacity_on_stack", "no caller when the rule landed" },
-    { "nya_string_println", "no caller when the rule landed" },
     // core_audio.h
     { "nya_audio_voice_filter_set", "no caller when the rule landed" },
     // core_control.h

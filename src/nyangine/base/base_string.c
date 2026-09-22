@@ -500,12 +500,6 @@ void nya_string_print(const NYA_String* str) {
     printf(NYA_FMT_STRING, NYA_FMT_STRING_ARG(str));
 }
 
-void nya_string_println(const NYA_String* str) {
-    nya_assert(str != nullptr);
-
-    printf(NYA_FMT_STRING "\n", NYA_FMT_STRING_ARG(str));
-}
-
 void nya_string_remove(NYA_String* str, NYA_ConstCString substr) __attr_overloaded {
     nya_assert(str != nullptr);
     nya_assert(substr != nullptr);

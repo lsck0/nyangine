@@ -250,6 +250,12 @@ s32 main(void) {
 
     NYA_Error result = nya_build(&failing);
     nya_assert(!result.ok, "a non-zero exit must surface as an error");
+    nya_assert(nya_build_last_failure() == &failing, "and the failure names the rule whose command failed");
+
+    // the next build starts clean, so a success does not report the failure before it.
+    NYA_BuildRule passing = { .name = "test_passing_after_failure", .policy = NYA_BUILD_ALWAYS, .command = { .program = "true" } };
+    NYA_EXPECT(nya_build(&passing));
+    nya_assert(nya_build_last_failure() == nullptr, "a build that succeeded reports no failure");
 
     // The rule was still entered, so the failure is the command's rather than the dispatch refusing
     // to run it.

@@ -19,6 +19,14 @@ s32 main(void) {
   nya_assert(cap_str.length == 0);
   nya_assert(cap_str.capacity == 128);
 
+  // the same shape held by value, for a string that lives in one scope and is destroyed with it.
+  NYA_String on_stack = nya_string_create_with_capacity_on_stack(arena, 64);
+  nya_assert(on_stack.length == 0 && on_stack.capacity == 64);
+  nya_string_extend(&on_stack, "held by value");
+  nya_assert(on_stack.length == 13 && on_stack.capacity == 64, "fits without growing");
+  nya_string_destroy_on_stack(&on_stack);
+  nya_assert(on_stack.length == 0 && on_stack.capacity == 0 && on_stack.items == nullptr, "and is emptied by its destroy");
+
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: nya_string_from
   // ─────────────────────────────────────────────────────────────────────────────
