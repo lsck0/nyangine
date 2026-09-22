@@ -6,8 +6,11 @@
 
 ## Where it stands
 
-235 tests pass, `check --strict` reports nothing, and debug, release, debug-windows and steam-windows build.
-The title screen logs one line in twenty seconds, where it logged 6813.
+235 tests pass locally, `check --strict` reports nothing, and debug, release, debug-windows and steam-windows
+build. **CI is red** (Phase 0 under "Roadmap"). The title screen logs one line in twenty seconds, where it logged
+6813.
+
+The plan from here is "Roadmap" below, drawn up 2026-09-22 when the scope became the framework for all software.
 
 Landed since the scope widened: the build system reorganised with `./build dist`, a `secrets/` tree encrypted
 with sops, and a generated changelog; an IPC control socket and a WebSocket client, both fuzzed; a crash
@@ -39,7 +42,12 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 | Subsystems   | `core_system.h` registers engine subsystems and game systems alike.                          |
 | Config       | `NYA_CONFIG` hot reloads from `assets/config/engine.nya`, backed by reflection.              |
 | Ceilings     | Fixed capacity arrays register with `nya_ceiling_register`.                                  |
-| Verification | Every engine feature gets a caller in `gnyame`, not only a test. Verify by running the game. |
+| Verification | Every feature gets a caller in `gnyame` or one of the seven examples, not only a test, and that caller runs in CI. |
+| Priorities   | Security, privacy, stability, performance, then lines of code. Secure by default, never on request. |
+| Components   | Everything above `base`, `platform` and `math` is a component, listed in `assets/config/plugins.nya`. |
+| Data shapes  | Model (stored), optional SO (inside the program), DTO (on the wire). Only DTOs reach a client.  |
+| Servers      | One machine, one instance. TLS and simple limits in process; a proxy is optional.            |
+| Programs     | Live in this tree beside gnyame for now.                                                     |
 
 ---
 
@@ -47,13 +55,21 @@ A claim in this file is not evidence. The audit under "Engine" is the general fo
 
 The engine is finished when all of this holds, in the existing style (see the style guide), with lines of code,
 file size, RAM, VRAM, CPU, GPU and startup time kept to a minimum, and nothing a player or a peer does can crash
-it. gnyame stays a minimal example exercising every feature.
+it. gnyame is where the project lives and proves that everything composes in one program; the seven examples
+each prove one kind of program alone.
 
-Scope was "a game engine". It is now **one stack for everything I write**: games, desktop UI, TUI, CLI,
-web servers and web clients, all in the same program and all composing. One nyangine program should be able to
-mix 2D and 3D rendering, put a UI over it, serve a web interface for its own metrics, accept messages from other
-programs, talk to OBS over WebSocket, and be driven from a CLI or a TUI, with plugins, optional end to end
-encryption and PGP-backed second factors. See "The stack" below for what that adds.
+Scope was "a game engine". It is now **the framework for all my future software**, one united stack powerful
+enough for enterprise level desktop applications, web applications and games: desktop UI, TUI,
+CLI, web servers and web clients, all in the same program and all composing. One nyangine program should be able
+to mix 2D and 3D rendering, put a UI over it, serve a web interface for its own metrics, accept messages from
+other programs, talk to OBS over WebSocket, and be driven from a CLI or a TUI, with plugins, optional end to end
+encryption and TOTP, PGP or passkey second factors. See "The stack" below for what that adds, and "Roadmap" for the order.
+
+The priorities, in order when they conflict: **security, privacy, stability, performance**, then lines of code.
+Everything is secure by default, not on request. Everything works together: a feature that only works in
+isolation is not done. The codebase is clay: when something does not fit, the architecture changes rather than
+the feature being bolted on, and the whole converges on one architecture over time. Encapsulation is per module
+(the renderer, the string API), never per object.
 
 | Area             | Wanted                                                                                                                                        | State                                                                                                                                                                                                                                                                                                                                                                |
 | :--------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -62,106 +78,801 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | Graphics options | antialiasing, motion blur, fov, ... toggleable                                                                                                | `[x]` MSAA, FXAA, shadows, post passes, fov and render scale are player settings, and 37 feature switches cover everything else including culling, sorting and the depth test                                                                                                                                                                                        |
 | Renderer debug   | physics hitboxes and other debug views                                                                                                        | `[x]` buffer views, and every collision shape in either solver drawn over the scene, coloured by body type and dimmed while asleep                                                                                                                                                                                                                                                                                                                     |
 | Audio            | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing                                                             | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's)                                                                                                                              |
-| UI               | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns that float, radio, tabs, draggable and resizable windows with title bar chrome, tables, charts, icons, opacity groups, scrolling, and tab/shift-tab focus for a terminal that has no pointer. Open: a node editor, SVG, the code editor widget |
+| UI               | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[~]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns that float, radio, tabs, draggable and resizable windows with title bar chrome, tables, charts, icons, opacity groups, scrolling, and tab/shift-tab focus for a terminal that has no pointer. Open: the shadcn-like widget set (Phase 4), a node editor, SVG, the code editor widget |
 | Core             | events, entities, input, settings, cache, ... solid                                                                                           | `[x]` one system registry drives frame, tick and render for engine and game, with runtime enable/disable and per-owner accounting, and its entries are callback handles with copied names, so a system registered from a reloaded image survives the reload. Scenes and settings persist through reflection                                                          |
 | Pipelines        | build, assets, reflection                                                                                                                     | `[x]`                                                                                                                                                                                                                                                                                                                                                                |
 | Hot reload       | assets, code, configuration                                                                                                                   | `[x]`                                                                                                                                                                                                                                                                                                                                                                |
 | Tracing          | time and memory per feature (shadows, antialiasing, particles, ...)                                                                           | `[~]` CPU spans, GPU allocation counters, and per-system and per-owner time and memory from the registry; per renderer feature attribution missing                                                                                                                                                                                                                   |
-| CI/CD            | tests and builds with caching                                                                                                                 | `[x]` green on Linux and Windows. `./build dist` stages every target, the changelog is generated, secrets are sops encrypted                                                                                                                                                                                                                                         |
+| CI/CD            | tests and builds with caching                                                                                                                 | `[!]` **red**: every master run since at least 2026-09-22 10:57 fails or is cancelled. See Phase 0 under "Roadmap". `./build dist` stages every target, the changelog is generated, secrets are sops encrypted                                                                                                                                                      |
 | Crash reporting  | one funnel, a window a player can act on, everything a triage needs in it                                                                     | `[~]` log ring, composed report (crash, build, machine, stack, log), its own SDL window with close, copy and send, and a file under the log directory. Open: a transport behind `nya_crash_report_submit`, and a window on the fault path (SDL from a signal handler can deadlock)                                                                                   |
 | Anti-tamper      | integrity checks like the CRC                                                                                                                 | `[x]` executable stamp, chunked code baseline and a sweep every 250 ms, per blob entry hashes, a watchdog at two inlined sites; failure logs and exits 86                                                                                                                                                                                                            |
 | Networking       | attack and cheat resistant, optional end to end public key encryption                                                                         | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders                                                                                                                                                                                          |
 | Web server       | an HTTP server, middleware, typed DTOs, generated OpenAPI                                                                                     | `[~]` `src/nyangine/http/`: router per resource, layer chain, identity extractor, JWT over HMAC-SHA256, OpenAPI and a page generated from the route tables, a metrics resource over the app's own numbers. Open: a login route, and the PGP half of the second factor                                                                                                |
 | Targets          | Linux, Windows, Steam Linux, Steam Windows                                                                                                    | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). A terminal is now a fifth target through `-DNYA_TERMINAL`, verified on Linux only. Web is wanted and not started; Android is out                                                                                                                                                      |
-
-# Unmerged work
-
-Everything from the parallel session is merged. 224 tests pass, `check --strict` is clean, and debug-linux,
-debug-windows and release all build. The five stashes are dealt with; none was dropped, so they are all still
-on the stack and all of them are now either landed or dead.
-
-- `[x]` `renderflags-wip-lc` — landed earlier as `d4700dd`. Re-checked against master line by line: the only
-  differences left are in `src/generated/reflection*`, which the preprocessor rewrites anyway. Nothing in it
-  is unlanded, asset placeholders included — it never carried any, so that item is still open under
-  "Renderer". **Nothing to do; the stash can go.**
-- `[x]` `afl-wip-lc` — dead. Every hunk is on master: `build/fuzz.c` and `build/simulation.c` in `build.c`,
-  the two commands in `cli.c`, `tests/fuzz/fuzz.h` included by its full path everywhere, `FUZZ_INPUT_MAX`
-  gone, `nya_unused(argc, argv)` under `__AFL_HAVE_MANUAL_CONTROL`, the lexer corpus as `.txt`, and the defer
-  order in `test_simulation.c`. **Nothing to do; the stash can go.**
-- `[x]` `social-wip-lc` — landed. The UI split needed one change and it was not a UI one: `NYA_SystemEntry`
-  has `frame`/`tick`/`render` callback handles now rather than an `update` function pointer, and the presence
-  card wants `frame` and no ordering constraint. Every `nya_ui_*` call in it still exists unchanged. It also
-  carried a fix for `discord.h`'s example, which called a `nya_clock_unix_seconds` that does not exist.
-- `[x]` `serde-wip-lc` — landed, but **it is not what its name says**. It does not hash the reflection names
-  and never did. What it contains is the argument for why that cannot be done, and the argument is right:
-  `nya_reflect_to_object` hands `field->name` straight to `nya_object_set` as the document key and writes an
-  enum as its variant's name, so hashing the names in a release build hashes the keys of every settings file,
-  every save and `assets/config/engine.nya`. Hashing only the _lookup_ key does not help, because the lookup
-  key and the written key are the same string. That reasoning is in `base_reflection.h` now, with the sizes
-  measured on this tree (6220 bytes of names, 1339 of them type names). The rest of the stash is a better
-  report for an unknown key, which now lists the keys rather than naming the type, and two settings tests.
-  **If the type layout in a shipping binary is still a worry, the answer is the save format, not reflection.**
-- `[x]` `crashtest-wip-lc` — landed, and it paid for itself immediately. The vendored SDL was configured with
-  `SDL_RENDER=OFF`, so `nya_crash_window_show` had been failing at `SDL_CreateWindowAndRenderer` in every
-  build ever shipped and every crash fell through to the plain message box. Turning the option on was not
-  enough either: vendor rules are `NYA_BUILD_ONCE` keyed on their own archive, so a changed cmake option
-  rebuilds nothing on a machine that has built before. SDL's rules are `NYA_BUILD_IF_OUTDATED` against
-  `vendor_sdl.h` now.
-- `[x]` Both example directories landed: `pong_multiplayer` built and ran as written; `pinball3d` needed its
-  action enum made anonymous, since a named one makes every `nya_input_action_*` call a conversion between
-  two enumeration types and the build rejects that.
-
-Found on the way, and since fixed:
-
-- `[x]` The staleness gap is closed for every vendor, and not the way it was written down here. The same
-  four lines in seventeen files would have been four chances each to get it wrong, so it is one mechanism
-  instead: `NYA_VendorRule` carries `options_file` and `options_stamp`, and `nya_vendor_build` forces every
-  part past its own policy when the recipe is newer than the stamp. SDL moves onto it and loses the four
-  special-cased rules it had, which also ends the 160 ms it spent asking cmake on every build.
-- `[x]` `hook_invalidate_stale_cmake_cache` compares every `-D` against the cache now, not just the
-  compiler and the make program. Getting that right took three corrections that only showed up by running
-  it over all 32 vendor rules: cmake canonicalises booleans, it resolves a bare compiler name to an
-  absolute path, and only the last `-D` for a name counts. It also has to be the last pre-build hook, or
-  it reads a `%CWD%` no cache could ever have held; `hooks.h` says so.
-
-- `[x]` Debug draw and physics hitboxes. `nya_debug_physics3d_draw` and `nya_debug_physics2d_draw` are in
-  `debug/` rather than `physics/`, since `physics.h` is included before `core.h` and cannot name a window.
-  Both return how many bodies they drew, which is what a headless test can hold them to: counting the
-  geometry needs a GPU, and a batch with no buffers records nothing. The 3D scene's switchboard has the
-  toggle.
-- `[~]` Core systems audit, started. Method: every `NYA_API` name against every `.c`, `.h`, `.lua` and
-  `.nya` under src, tests, examples, bench, plugins, assets and packaging; a name appearing at most twice
-  is its own declaration and definition and nothing else. **81 of 1791 public functions are called by
-  nothing at all.** Worst: steam 24, window 13, entity 7, nn 6. The window ones are the whole
-  `nya_window_is_*` family; the entity ones are every spatial query (`nya_entity_query_box`, `_ray`,
-  `_sphere`, `_flags`).
-  `[ ]` Still to decide, and it is a judgement call rather than a sweep: this is a library, so some
-  unexercised surface is deliberate. Each cluster wants a caller, a test, or deletion.
-  `[x]` Steam was the worst of them and is done: `test_steam.c` runs the module against a fake.
-  `[x]` The entity cluster is done too: `test_entity_query3d.c` is the linear-scan oracle for
-  `nya_entity_query_box`, `_box_kind`, `_box_flags`, `_sphere` and the 2D `_flags`, the same oracle the
-  2D radius query already had in the simulation harness.
-  `[x]` The window cluster, `test_window_state.c`, and it found a real bug: `nya_window_is_visible` is
-  the only one of the family that reads the absence of a flag, so on the zero flags of a handle that is
-  not a window it answered true.
-  `[x]` The rng and audio clusters: the four sampled widths and the four audio calls, each carrying the
-  one assertion a bug would hide behind — that a signed width reaches a negative at all, and that an
-  unspecified 3D facing becomes -z rather than the raw zero.
-  `[x]` The nn and cursor clusters, which were the last two the audit named by size. **81 down to 36**,
-  recounted rather than subtracted: the earlier arithmetic in this entry was me taking numbers off a
-  total instead of re-running the sweep, and the sweep is the only thing that knows.
-- `[!]` `tests/gnyame/test_agent` can hang indefinitely, and it outlives the `timeout` the runner wraps it
-  in. Seen twice on 2026-09-22: one instance orphaned for 5h32m, and a later suite run stuck on it for
-  40m against a normal suite time of about 8 minutes. It is not every run — the suite passed 235 of 235
-  several times the same day — so it is intermittent, and it has no wall clock bound of its own
-  (`--episodes` and `--ticks` bound the work, nothing bounds the time). A hung test that escapes its own
-  timeout is worse than a failing one: it stops the suite without saying anything. Give it a deadline.
-- `[!]` The audit's method is worth being honest about. Two earlier runs of it were wrong and were caught
-  by spot checking: one missed `bench/` and called the benchmark harness dead, another excluded headers
-  and called `nya_physics3d_body_attach_with_options` dead when it is reached through a macro. A sweep
-  that is not spot checked is a confident wrong answer.
+| Layering         | a module DAG; a program links only the modules it uses; SDL only behind platform and renderer backends                                        | `[ ]` the include graph has cycles (base↔math, base↔platform, core↔renderer/ui/net/physics, nn→renderer). `net` and `http` sit on `core`, which is SDL, so a CLI tool or a server links the whole engine. `NYA_NO_SDL` stands in for "no core" inside `base`                                                                                                       |
+| Base             | preprocessor passes, reflection, introspection, errors, stack traces, memory debugging, platform info, integrity, custom static analysis      | `[~]` all present except custom analysis rules: `check --strict` is clang-tidy only, and the caller audit, verb pairing and `.clangd` drift are checked by hand or not at all                                                                                                                                                                                         |
+| Standard library | typesafe containers, strings, math, dynamic objects, a safe file, an ORM, crypto, time, a binary wire form                                   | `[~]` containers, strings, math, `NYA_Object`, reflection-driven ORM (as a plugin). Missing: atomic file write as a base call (only saves do it), dates and times, URLs, a binary `.nya` encoding, one crypto module                                                                                                                                                  |
+| Auth             | login, JWT in secure cookies, CSRF defence, revocation, rate limits, TOTP and PGP second factors                                              | `[~]` JWT over HMAC-SHA256 and a PGP challenge seam. No cookies, no login route, no user store, no password hashing, no revocation, no TOTP                                                                                                                                                                                                                           |
+| Web client       | C compiled to wasm, the same `nya_ui_*` calls, the same DTO headers as the server, transport in the `nya` format                            | `[ ]` not started                                                                                                                                                                                                                                                                                                                                                      |
+| Customization    | plugins, editable config, editable UI style files                                                                                             | `[~]` Lua plugins with compile time permissions, hot reloaded `engine.nya`. No UI style files, no signed plugins, no plugin repositories, no VM budgets                                                                                                                                                                                                                  |
+| Examples         | hello world, CLI app, TUI app, multiplayer 2D game, 3D game, HTTP server, web frontend                                                        | `[~]` six of seven exist under other names; the web frontend needs the web target. See "Roadmap"                                                                                                                                                                                                                                                                      |
 
 ---
+
+# Roadmap
+
+Drawn up 2026-09-22 against the framework goal above. Phases are ordered by what unlocks what, not by size.
+Two of them are architecture and the rest are features, since features built on the current layering would
+have to be moved again. Within a phase, items can land in any order. Every item says how we know it is done.
+
+## Target architecture
+
+One direction for every include, and the lower a module sits the fewer programs it assumes:
+
+```
+base      containers, strings, arenas, errors, logging, reflection, ceilings, hashing   (no OS, no SDL)
+platform  clock, files, threads, sockets, processes, IPC, terminal, host probes, CSPRNG (per OS, and web)
+math      scalars, vectors, matrices, noise, random                                     (beside base)
+serde     text and binary `.nya`, json, jsonc, the reflection bridge
+crypto    monocypher behind one API, plus SHA-1/SHA-256/HMAC, base32/64, constant time compare
+db        SQLCipher and the reflection ORM, with migrations and backups
+permissions  roles, overwrites, resolution                 jobs   persistent queue, schedules
+net       transports (UDP, loopback, WebSocket, Steam) and the encrypted session           (no entities)
+tls       mbedTLS behind one API
+http      server, client, routing, layers, cookies, WebSocket, OpenAPI, request logging
+accounts  users, sessions, second factors (TOTP; PGP and passkeys as components)
+app       the loop, systems, events, input, config, assets, windows                    (SDL from here up)
+renderer  2D, 3D, terminal, web backends          audio   mixer, propagation, effects
+ui        widget model, then presenters: shapes (GPU, terminal) and DOM (web)
+desktop_shell  native dialogs, tray, notifications
+physics   Box2D and Box3D                          replicate  snapshots, prediction, lag compensation
+debug     overlay, trace, crash window             testing    property, simulation, sessions, agents
+```
+
+Rules this sets:
+
+- A module includes only modules above it in that list. `./build check` enforces the list, so a cycle is a
+  lint failure rather than a discovery.
+- SDL is named only inside `platform` backends, `app`, `renderer` and `audio`. A CLI tool, a TUI and a server
+  link no SDL at all, which retires `NYA_NO_SDL` as a concept: a module is present or it is not.
+- The web is a platform like Linux and Windows, not a special build of everything: `platform/web`, a renderer
+  backend and a UI presenter. Nothing above them learns that it runs in a browser.
+- One vocabulary type per concept across every module: one string, one array, one error, one dynamic value, one
+  handle shape.
+- Data that is stored, passed through the program, or sent to a client has up to three shapes: Model, SO and
+  DTO. See the next section. A struct never plays two of those roles.
+
+## Model, SO, DTO
+
+Three shapes of one piece of data, each owned by the boundary it serves. Set 2026-09-22.
+
+| Shape     | What it is                                      | Lives in                     | Crosses                    |
+| :-------- | :---------------------------------------------- | :--------------------------- | :------------------------- |
+| **Model** | what is stored: the database row or file record | `<thing>_model.h`, server only | the `db` boundary          |
+| **SO**    | system object: how it moves through the program | `<thing>_so.h`, server only    | nothing; internal          |
+| **DTO**   | what is sent to or received from a client       | `<thing>_dto.h`, shared        | the wire, both directions  |
+
+Take a user. The Model carries `password_hash`, `totp_secret`, `created_at` and the row id. The SO carries
+parsed types (`Email`, `UserId`), the resolved permissions and whatever a request joined in. The DTO carries
+the name and the email the client may see, and nothing else. A new column added to the Model therefore never
+reaches a client by accident: a field reaches the wire only when a DTO names it.
+
+- **The SO is optional.** When a resource is simple enough that the Model is what the program works with,
+  there is no SO and the conversions go Model ↔ DTO. Add an SO when the two would otherwise differ: parsed
+  newtypes, joined data, derived fields, or state that is never stored.
+- **Conversions are the only conversions.** Each is a total function beside the types, named by the style's
+  `from`/`to` vocabulary: `user_so_from_model`, `user_model_from_so`, `user_dto_from_so`, and
+  `user_so_from_dto`, which is fallible, because a DTO from a client is untrusted input and turning it into an
+  SO is where it is parsed. Nothing converts a DTO straight into a Model. The style guide calls conversions
+  between in-house types a smell; these three boundaries are the exception it allows, and nothing else gets
+  one.
+- **Only DTO headers reach the web client.** The `web` profile compiles `*_dto.h` and never `*_model.h` or
+  `*_so.h`, and `./build check` refuses an include that breaks this. The server's storage layout, and any
+  secret in it, cannot be compiled into wasm even by mistake. This is what "types shared between client and
+  server" means here: the DTOs are shared, nothing else.
+- **Each shape has its own reflection** and its own consumer: Models drive the ORM and the migrations, DTOs
+  drive serde on the wire, OpenAPI and the typed client calls. A `@secret` field on a Model is refused as a
+  DTO field by name and type, as a second line of defence behind the rule above.
+- **DTOs are versioned.** A breaking change to a DTO is a new DTO and a new route, never an edit to one a
+  deployed client still sends. The layout hash in binary `.nya` refuses a mismatch instead of misreading it.
+- **Files are grouped by domain:** `users/user_model.h`, `users/user_so.h`, `users/user_dto.h`,
+  `users/user_router.c`. One resource, one directory.
+- **Not only HTTP.** The same split applies to multiplayer snapshots (DTO on the wire, entity state as the SO)
+  and to save files, where the Model is the save record.
+
+## Components: everything is a plugin
+
+The central shape of the framework, set 2026-09-22: **every module above `base`, `platform` and `math` is a
+component that can be added or removed without editing anything else.** The renderer, audio, physics, `net`,
+`http`, `db`, the UI presenters, Steam, Discord, Lua, PGP, TLS: each is a component. A program is a list of
+components, and the examples and gnyame differ only in their lists.
+
+Today adding one costs edits in five places, which is the drift this file keeps recording: an `#ifdef` block in
+`plugins.h` and another in `plugins.c`, a `-D` in `flags.h`, the same `-D` by hand in `.clangd`, and the vendor
+lists in the project rules. Modules that are not "plugins" are worse: `nyangine.h` includes them unconditionally.
+
+What a component is:
+
+- A directory with one descriptor the build reads: its name, the components it depends on, its vendors, its
+  flags, its sources and its tests. It is the only file that states any of these. `plugins/curl/` and
+  `renderer/` look the same to the build.
+- The build resolves the list: it pulls in dependencies, refuses a cycle or a missing dependency with the chain
+  that caused it, and generates everything that repeats the list: the umbrella `nyangine.h`/`nyangine.c`, the
+  `-DNYA_WITH_<NAME>` flags, `.clangd`, the vendor set, the cheatsheet's grouping, the Lua binding set. Nothing
+  in that list is hand maintained, so none of it can drift.
+- At run time a component brings itself up through what already exists: its systems in the registry (with
+  itself as owner, so time and memory are per component for free), its ceilings, its typed config struct from
+  Phase 1, and its assets. The host names no component.
+- Cross-component calls go through a facade that stays compiled when the component is absent and answers
+  `NYA_ERROR_NOT_SUPPORTED`. That is how `steam.h` works today and how `nya_http_second_factor_set` waits for
+  PGP. A caller never writes an `#ifdef` for another component.
+- Removing a component means deleting its line from the program's list. The build then refuses anything that
+  still names it directly, so a hidden dependency shows up as an error.
+
+The list lives in `assets/config/plugins.nya`, beside `engine.nya`, and it is the only place a program says
+what it is made of. The build tool already links `serde`, so it reads the file directly. Two sections, because
+they are decided at different times and by different people:
+
+```
+nya 2 <checksum>
+{
+    components: string[] ["renderer", "audio", "ui", "physics", "net", "http", "db", "tls", "lua"];
+    plugins: object {
+        hello: object { enabled: b8 true; };
+    };
+}
+```
+
+- `components` is read by `./build`. Editing it rebuilds with that set, and it is baked into the binary so the
+  program, its crash report and `nya_build_info` can say what it contains. A shipped binary cannot change it;
+  a user editing it changes nothing but the report. An example has its own `plugins.nya` beside its `main.c`.
+- `plugins` is the run-time half: which user plugins are enabled, and later the repositories they come from.
+  It is hot reloaded like `engine.nya`, validated the same way (the file, the key, what was found, what was
+  expected), and a user copy under `data/` overrides the shipped one. This is the file the in-app plugin list
+  writes, so the UI and the file cannot disagree.
+- A component's own settings do not go here. They stay in `engine.nya` under the component's name, since that
+  is where hot reload and the typed config struct already are.
+
+Two tiers of plugin, and they stay separate:
+
+| Tier                | Written in | Chosen          | Who adds it   | Trust                                         |
+| :------------------ | :--------- | :-------------- | :------------ | :-------------------------------------------- |
+| Component           | C          | at build time   | the developer | full, reviewed, part of the binary            |
+| User plugin         | Lua        | at run time     | the user      | none: sandboxed, permission profile, signed   |
+
+Native plugins loaded at run time (a `.so` from a user) are out. Every guarantee about user plugins rests on
+running inside a VM, and loading native code would give that up. Hot reloading the game's own library is a
+development tool and stays one.
+
+## Examples
+
+Seven, one per kind of program, each the smallest honest version of its kind. They are the answer to "how do I
+start a new project on nyangine", so each builds from `./build run example <name>` and runs in CI.
+
+| Example        | Proves                                                  | Today                                                        |
+| :------------- | :------------------------------------------------------ | :----------------------------------------------------------- |
+| `hello_world`  | a window and one draw                                   | `[x]`                                                         |
+| `cli_app`      | args, files, serde, no window, no SDL linked            | `cli_tool`; `[ ]` still links the whole engine               |
+| `tui_app`      | the terminal backend and `nya_ui_*` in cells            | `tui_dashboard`                                              |
+| `multiplayer_2d` | authority, prediction, encryption, lobby             | `pong_multiplayer`; `net_echo` folds into it                  |
+| `game_3d`      | 3D rendering, physics, audio propagation, post chain    | `pinball3d`                                                  |
+| `http_server`  | TLS, routes, DTOs, OpenAPI, accounts, roles, db, jobs, uploads, WebSocket | `web_server`; `[ ]` all but routes and OpenAPI missing |
+| `web_frontend` | the same UI toolkit in a browser, against `http_server` | `[ ]` needs Phase 4                                          |
+
+`plugin_scripting` stops being an example of its own: plugins are a feature of a program, so the 2D game or the
+TUI loads one. `net_echo` and `plugin_scripting` are deleted once their callers have moved.
+
+## Phase 0 — ground truth
+
+Small, and first, because every later phase trusts these numbers.
+
+- `[!]` **CI is red.** Every master run on 2026-09-22 failed or was cancelled by the next push. Run 35735287476
+  (`c93f4da`) fails two ways:
+  - `vendor-windows`: bootstrapping the build tool fails to link, `ld.lld: error: undefined symbol:
+    BCryptGenRandom`. The bootstrap line lacks `-lbcrypt`, which something the build tool now compiles from
+    `platform` needs. Everything on Windows after it is skipped.
+  - `test-linux`: `test_asset_missing` exits 1 on LeakSanitizer, 66825 bytes in 2051 allocations, all from
+    `ALSA_OpenDevice` through `OpenPhysicalAudioDevice`. The test opens a real audio device on a runner. Either
+    it should not open audio at all, or the leak is ALSA's and wants a justified entry in `.sanitizers/`.
+  Done when a push goes green on both platforms. Pushing one doc commit per minute cancels the previous run
+  before its vendor cache is saved, which is how a red run hid behind "cancelled" all day; batch pushes until
+  CI is green again.
+- `[ ]` `test_agent` gets a wall clock deadline of its own and fails with a message when it passes it. It hung
+  twice on 2026-09-22 and outlived the runner's `timeout`: one instance orphaned for 5h32m, one suite run
+  stuck for 40 minutes against a normal 8. Intermittent (235 of 235 passed several times that day).
+  `--episodes` and `--ticks` bound the work, and nothing bounds the time. Done when a forced hang fails the
+  suite within the deadline instead of stopping it.
+- `[ ]` Custom static analysis in `./build check`, built on `base_lexer` so it costs no dependency. First rules,
+  each one something this file has already recorded going wrong by hand:
+  - the module include order above;
+  - every `NYA_API` has a caller outside its own declaration and definition (the audit, automated, with an
+    allowlist for deliberate library surface);
+  - every verb has its partner in the same header (`create`/`destroy`, `begin`/`end`, ...);
+  - `.clangd` carries every `-D` and include path `flags.h` does;
+  - banned calls (`malloc`, `strcpy`, `sprintf`, `rand`, `system`, ...) outside `platform` and `vendor`.
+  Done when each rule has fired once on a deliberate violation and the tree passes.
+- `[ ]` The last 36 uncalled functions: a caller, a test or deletion, decided per cluster. The audit matched
+  every `NYA_API` name against every `.c`, `.h`, `.lua` and `.nya` in the tree; a name seen at most twice is
+  only its own declaration and definition. It started at 81 of 1791. Steam, entity queries, window state,
+  rng, audio, nn and cursor are done, each with a test, and the window cluster found a real bug
+  (`nya_window_is_visible` answered true for a handle that is not a window). Some unexercised surface is
+  deliberate, since this is a library. Two earlier runs of the sweep were wrong and were caught only by spot
+  checking: one missed `bench/`, the other missed a function reached through a macro. The automated rule
+  above keeps that lesson: its allowlist is reviewed by hand, and it counts macro expansions.
+- `[ ]` `src/nyangine/editor/` is two empty files and no editor is planned. Delete it.
+- `[ ]` `assets/shader/compiled/mesh3d_outline.vert.*` has no source under `assets/shader/source/`. It is left
+  over from the inverted hull that screen space ink replaced. Delete it, and have the shader rule delete
+  compiled outputs whose source is gone.
+
+## Phase 1 — layering
+
+The refactor the rest stands on. Behaviour does not change; the include graph and the link lines do.
+
+- `[ ]` `base` stops including `math` and `platform`. Whatever `base_array.h` needs from math moves down or the
+  include goes; the ceiling registry moves from `core` into `base`, since it is introspection and `base` already
+  calls it under `NYA_NO_SDL` guards.
+- `[ ]` Threads (`core_job.c` uses `SDL_thread`) and sockets (`net_udp.c` and `http_server.c` use SDL_net) move
+  into `platform`, one implementation per OS. SDL_net leaves the vendor list, which also means one socket layer
+  for the web backend to implement rather than SDL's.
+- `[ ]` `net` splits: the transport and the encrypted session need no entity and move below `app`; snapshots,
+  commands and prediction become `replicate` above it. `physics` stops including `core_types.h` by moving the
+  types it shares down.
+- `[ ]` `http_metrics` depends on the app loop, so it moves out of `http` to beside `debug`. `nn` drawing moves
+  out of `nn` the same way, so `nn` is a pure library.
+- `[ ]` The engine owns its configuration, one typed struct per module taken at `init` and swapped whole on
+  reload, instead of `NYA_CONFIG` living in the game DLL. This unblocks "Ceiling auditing" below and the shadow
+  settings that are loaded and read by nothing.
+- `[ ]` Components, as described under "Components: everything is a plugin". Convert the five existing
+  optional dependencies first (curl, sqlite, Lua, Discord, Steam), because they show the five edits most
+  clearly. Then every module above `math`. The generated umbrella header replaces `nyangine.h`'s hand-written
+  list, and the generated `.clangd` ends the "flags are hand maintained" warning in `AGENTS.md`.
+- `[ ]` Profiles are just named component lists: `cli`, `tui`, `server`, `desktop`, `game`, `web`. The project,
+  every example and every test names one or lists its own components. Done when `cli_app` links no SDL, its size
+  is measured and written here, and removing a component from gnyame's list either builds or fails naming the
+  code that still depends on it.
+- `[ ]` Tests per component: a component's tests run in a build that contains it and its dependencies only. A
+  test that passes only because some unrelated component happened to be linked then fails.
+
+## Phase 2 — standard library
+
+What every kind of program in the examples table needs and `base` does not have yet.
+
+- `[ ]` `nya_file_write_atomic`: temp file, write, fsync, rename, fsync the directory. Saves already do this;
+  settings, config writes, the database's side files and plugin installs should share one call rather than each
+  getting it right. Test with the simulation harness injecting a crash between every step.
+- `[ ]` A binary encoding of `.nya` beside the text one: the same `NYA_Object`, the reflection's layout hash in
+  the header so a peer built from other headers is refused rather than misread, and fuzzed like the others.
+  Round trip text ↔ binary ↔ object as a property test. This is the wire format for `application/nya`, for the
+  web client and for saves.
+- `[ ]` **Date and time.** What exists is in `platform/clock/clock.h`: wall clock timestamps as raw `u64` in s,
+  ms, µs and ns; monotonic time; `nya_clock_civil_from_days` and its pair (exact, property tested); and
+  `nya_clock_format_utc`, which writes two fixed formats (readable and filename safe) and is signal safe for the
+  crash path. Nothing parses, nothing knows a time zone, and an instant is a bare `u64`, so seconds and
+  milliseconds can be mixed up. What to add:
+  - Types: `NYA_Instant` (UTC, ns since the epoch, a distinct type), `NYA_Duration`, `NYA_Date` and
+    `NYA_TimeOfDay`. Arithmetic only between the types where it means something. Calendar arithmetic (add a
+    month, end of month, week of year) on dates, never on instants.
+  - Formats in both directions, parsers fuzzed: RFC 3339 / ISO 8601 (JSON, `.nya`, logs), RFC 9110 (cookies,
+    `Date`, `Last-Modified`). JWT `exp` and TOTP steps take `NYA_Instant`.
+  - **Everything is UTC inside.** A time zone is applied only when a value is shown to a person or read from
+    one. The zone rules come from the platform (the tz database on Linux, the OS on Windows, `Intl` on the
+    web), never vendored, so they update with the system.
+  - Locale aware display (month names, 12 or 24 hours, first weekday) through the i18n tables.
+  - Reflection knows the types, so they serialize as RFC 3339 in JSON and `.nya`, map to a column in `db`, and
+    get date and time pickers in the UI.
+  - The simulated clock in the testing harness drives `NYA_Instant` too, so time dependent logic (session
+    expiry, TOTP, retention sweeps) is deterministic under simulation.
+- `[ ]` **A general attribute system for reflection.** Today every annotation is special cased: `@key` became
+  `is_key`, `@hint` an enum of four hints, `@tag` a `tag_value`, and `@skip`, `@flags` and `@on_apply` are each
+  their own path in `src/build/pp/reflection.c`. Every new use (`@redact`, `@secret`, validation, UI labels)
+  would mean another field on `NYA_ReflectField` and another branch in the generator. Instead:
+  - Any `@name` or `@name(arguments)` on a type, field or enum variant becomes an attribute: a name plus typed
+    arguments (`NYA_Value`s), stored in `const` tables like the rest of reflection.
+  - **Components own their vocabulary.** Each component's descriptor declares the attributes it understands
+    and their argument types: `db` declares `@key`, `@unique`, `@index`, `@table(name)`; `http` declares
+    `@redact`; serde declares `@secret` and `@since(version)`; `ui` declares `@label(text)`, `@range(min, max)`,
+    `@step`, `@hint`; validation declares `@min`, `@max`, `@length(min, max)`, `@nonempty`. An attribute nobody
+    declared fails the build, so `@redcat` is a typo caught at compile time, not a silently unredacted field.
+  - Lookup by attribute id, resolved at generation time. Each field also carries a bitset of the argumentless
+    attributes, so hot paths (redaction, serialization) test a bit instead of comparing strings.
+  - The existing special cases become ordinary attributes and their bespoke fields go, as one refactor with
+    the reflection tests as the guard.
+  - What this buys: validation attributes generate the fallible `user_so_from_dto` parse, so a DTO's rules are
+    written once on the field; UI attributes let a property panel or a form be generated from a struct; ORM
+    attributes replace the ORM's own conventions; and OpenAPI reads `@range`, `@length` and `@label` into the
+    schema, so the client, the server and the docs share one statement of every rule.
+- `[ ]` URLs and percent encoding, parsed into a type once at the boundary.
+- `[ ]` A `crypto` module: monocypher's X25519, Ed25519, XChaCha20-Poly1305, BLAKE2b and Argon2id behind our own
+  names, plus SHA-256, HMAC, SHA-1 (TOTP and the WebSocket handshake only), base32, a constant time compare and
+  the OS CSPRNG from `platform`. `net_crypto.c`, `nya_hmac_sha256` and the JWT code move onto it. Every primitive
+  against its published test vectors.
+- `[ ]` `db` as a component: SQLCipher in place of vendored sqlite, plus `plugins/sqlite/orm.h`. The `server`
+  profile includes it. The whole database is encrypted (see "Decisions", encryption at rest). Schema migrations
+  are derived from the difference between two reflections, never hand written. sqlean and sqlvec become
+  components of their own, or go; nothing calls them today that could not live without them.
+- `[ ]` Encrypted fields in `.nya` files: a reflection tag (`@secret`) makes serde write that field encrypted,
+  with XChaCha20-Poly1305 under a key the program supplies. When the PGP component is present, it can also be
+  encrypted to a recipient's public key. For secrets that live in files rather than the database: tokens in a
+  config, keys in a save.
+- `[ ]` Structured logging: a record is a message plus typed key/value fields, formatted per sink. A terminal
+  gets a human line and a server's file gets JSON lines. Still fixed buffers and no allocation on the log path,
+  as today. Sinks for stderr, a size bounded rotating file with a retention limit, and the existing ring. A
+  field can carry a correlation id, so everything logged while serving one request, running one job or ticking
+  one session can be found together.
+- `[ ]` A parsed newtype helper, so `Email`, `UserId` and `Username` are one macro and a fallible `_from_string`
+  each rather than bare strings.
+
+## Phase 3 — the secure server
+
+`http_server` becomes a real application backend. The server trusts nothing from the network, including a
+logged-in user.
+
+- `[ ]` **A threaded server.** Today it is one drain a frame on the thread that called init, at most
+  `NYA_HTTP_MAX_REQUESTS_PER_TICK` (16) requests a frame, and "Thread safety: none". That caps a server at the
+  frame rate and puts every TLS handshake and Argon2id hash on the main thread. The shape:
+  - Non-blocking sockets over the OS readiness API in `platform` (epoll on Linux, IOCP or `WSAPoll` on
+    Windows), an accept and I/O loop on its own thread, and a fixed pool of worker threads that parse, run the
+    layers and the handler, and serialize. The pool size is config (`engine.nya`) with a default derived from
+    the core count, and the bound is written down beside it.
+  - Each worker owns everything that is not thread safe on purpose: its arenas (an arena per exchange,
+    reset after the answer), its SQLCipher connection, its TLS contexts. Nothing is shared except the
+    connection table, the rate limit buckets (sharded by address hash) and the counters, and each of those
+    says how it is made safe.
+  - A route declares where it runs. `WORKER` is the default: handlers over `db` and their own arguments. `MAIN`
+    is for handlers that touch program state (entities, the system registry, the metrics resource): the
+    exchange is queued to the frame, answered there, and handed back to its worker to write. A debug build
+    asserts that a worker never enters a main-thread-only module, so a missing `MAIN` fails loudly the first
+    time it runs.
+  - `workers = 0` keeps today's behaviour: everything drained on the frame. That is the mode simulation and
+    session tests run in, since threads would take their determinism away. The threaded mode gets its own
+    tests under ThreadSanitizer, which joins the sanitizer set for this module.
+  - The header's "what a hostile peer may do" section is rewritten for the threaded shape: which limits are
+    per worker and which are global, and what a slow handler can and cannot hold up.
+  Threads and sockets come from `platform` after Phase 1 rather than from SDL.
+- `[ ]` **Request logging with redaction.** Today `nya_http_layer_log` writes one printf line (method, path,
+  status, microseconds): no request id, no headers, no bodies, nothing redacted because nothing is logged.
+  - Every exchange gets a random request id, returned as `X-Request-Id`. It is attached to every log line,
+    error, trace span and crash report produced while serving that request, including a handler queued to the
+    main thread.
+  - Three levels, set per server in `engine.nya` and changeable on reload: `summary` (the default: method,
+    route, status, duration, bytes in and out, request id, user id, address), `headers`, and `bodies`. Bodies
+    are capped at a written-down size. A binary `.nya` body is logged decoded to text. Any other binary body is
+    logged as size and hash only.
+  - **Redaction happens in one place, before the record reaches any sink**, so no sink (file, ring, crash
+    report, terminal) can leak what another would not:
+    - Headers on a deny list are always redacted, whatever the level: `Authorization`, `Cookie`,
+      `Set-Cookie`, `Proxy-Authorization`, plus a configurable list for API keys.
+    - Body fields are redacted structurally, through the DTO's reflection rather than a regex: a DTO field
+      tagged `@redact` (password, TOTP code, recovery code, PGP response, invite token) is logged as
+      `<redacted>` at any depth.
+    - Query parameters are redacted by name the same way.
+    - Fail closed: a body that does not parse as its route's DTO is logged as size and hash, never raw, since
+      an unparsed body is exactly where an unredacted secret would hide.
+  - **Privacy:** client addresses are truncated in request logs by default (/24 for IPv4, /48 for IPv6), and
+    can be configured to full or none. Security events (failed logins, reused refresh tokens, permission
+    denials) keep the full address with their own, shorter retention, because abuse handling needs it.
+  - The negative space as a property test: fill every `@redact` field of every DTO with a random marker, send
+    it through every level, and assert that the marker appears in no sink's output. A DTO field named like a
+    secret (`password`, `token`, `secret`, `code`) with no `@redact` tag fails `./build check` unless it is
+    marked as deliberately loggable.
+  - Tagged fields are redacted wherever reflection writes them, so the same rule covers `net` messages, IPC
+    control commands and debug dumps, not only HTTP.
+- `[ ]` The Model/SO/DTO split in `http` and `db`: the conversion naming, the `web` profile refusing model and
+  SO headers, and the `@secret` check. `web_server` moves onto it first. Today its notes resource keeps one
+  `ExampleNote` in memory and builds the response by hand as an `NYA_Object` in `note_to_value`, so it has a
+  Model and no DTO type at all.
+- `[ ]` **Role based permissions, modelled on Discord.** A `permissions` component with no dependency on `http`,
+  so the multiplayer server (kick, ban, mute), the IPC control socket and the HTTP routes all check one thing.
+  Today there are four fixed JWT scope bits (`READ`, `WRITE`, `ADMIN`, `SECOND_FACTOR`) and no roles. The model:
+  - **Permissions** are bits in a `u64`, declared by the program as a `@flags` enum, with a few reserved by the
+    engine (`ADMINISTRATOR`, `MANAGE_ROLES`, `MANAGE_USERS`). OpenAPI lists what each route requires.
+  - **Roles** have a name, a position and a permission set. A user holds any number of roles, and everyone
+    implicitly holds `@everyone`. A user's base permissions are the OR of their roles. `ADMINISTRATOR` grants
+    everything. The owner sits above every role.
+  - **Overwrites per resource**, which is what Discord calls a channel. Any resource (a room, a document, a
+    project) can carry allow and deny sets per role and per user, applied in Discord's order: `@everyone`'s
+    deny then allow, then every role's denies together, then every role's allows together, then the user's own
+    deny and allow. The result is a pure function of roles and overwrites, `nya_permission_resolve`.
+  - **Hierarchy stops escalation.** A user edits or assigns only roles below their own highest, grants only
+    permissions they hold themselves, and cannot act on a user whose highest role is equal or above. Property
+    tests assert "no sequence of operations yields a permission its actor did not hold" against random role
+    operations from the simulation harness, and the resolver against a naive oracle.
+  - **Tokens carry who, not what.** The JWT names the user and how they authenticated (password, second
+    factor). Permissions are resolved per request from `db`, cached and invalidated by a role version counter,
+    so taking a role away applies to the next request rather than when a token expires. `SECOND_FACTOR`
+    stops being a scope and becomes the session's authentication strength. A route can require it for
+    dangerous permissions, the way Discord requires 2FA for moderators.
+  - **Deny by default.** A route declares the permission it needs and how the resource is found. The extractor
+    resolves and checks before the handler runs, so a handler cannot be reached unchecked. A route that
+    declares nothing is refused at merge unless it is explicitly `PUBLIC`.
+  - **Every change is audited:** who changed which role or overwrite, from what to what, and when, in an
+    append-only table.
+  - **Callers:** the role editor in `web_frontend` (reorder roles, toggle permissions, set overwrites per
+    resource) is the demonstration, and the multiplayer example gives the host a moderator role.
+  - Plugin permissions stay what they are: compile time, per build, for code rather than people. The two
+    systems share no bits.
+- `[ ]` **Users and sessions**: an `accounts` component over `db`, `crypto` and `permissions`, with a user
+  Model, SO and DTO as in "Model, SO, DTO". Passwords use Argon2id, with the parameters written down beside
+  their measurement.
+  - **Self service:** register, log in, log out, change the password (ends every other session), change the
+    username, set up and remove a second factor, regenerate recovery codes, list and revoke one's own sessions.
+  - **Registration policy**, a config choice per program: open, invite only (single use invite codes, hashed
+    in `db`, with an expiry), or closed with an admin creating accounts. A fresh install has no users, and its
+    first account is created from the CLI and becomes the owner. No default password exists anywhere.
+  - **Recovery without email.** A lost password is recovered with a recovery code, or reset by an admin
+    with `MANAGE_USERS`, which forces a new password at next login and ends every session. Email is not
+    planned (see "Enterprise level").
+  - **Admin management**, behind `MANAGE_USERS` and the role hierarchy: list and search users, see a user's
+    roles and sessions, revoke sessions, disable an account (refused at login, every session ended), ban with
+    a reason and optional expiry, reset a password or second factor, and assign roles below one's own. Every
+    action goes into the same append-only audit table as role changes.
+  - **Lockout without denial of service:** failed logins slow down per account and per address (the rate
+    limit buckets), and never lock an account outright, since an outright lockout lets anyone lock anyone out.
+  - **The user's data is theirs:** export everything stored about the account as one `.nya` or JSON document,
+    and delete the account. Deletion removes the Model rows and their sessions, keeps the audit entries with
+    the user replaced by a tombstone id, and cannot be undone. Both are required, not optional.
+  - **Username and display name** are parsed newtypes: length bounds, a normalised form for uniqueness so
+    look-alike names cannot collide, and no control characters.
+  - **Callers:** `web_frontend` has the self service screens and an admin screen, and `cli_app` gains the
+    owner bootstrap and an admin command set over the IPC control socket, for a server with no browser open.
+  - **Reference:** `~/projects/webapp-template/services/core/server` already implements this stack in Rust
+    (axum, diesel, postgres), about 2.9 kLOC for auth, sessions, users and roles. Port its shape, not its code.
+    It has these, and they are carried over:
+    - Tables `users`, `sessions`, `roles`, `user_roles`, `invites`, `login_attempts`, `login_restrictions` and
+      `encryption_keys` (`crates/models/migrations/0001_auth/up.sql`). Sessions record `valid`,
+      `invalidated_at` and `invalidated_reason`, are closed as abandoned after 30 days unused, and only the
+      newest 100 invalidated rows are kept. Postgres triggers do that sweeping there; here it is a system on a
+      timer, since SQLCipher has no scheduler.
+    - A keyring of the current signing key plus previous ones (`crates/auth/src/keyring.rs`), so the JWT key
+      rotates without logging everyone out. The HMAC secret from one environment variable that `http` has
+      today becomes this.
+    - `constant_time` in `crates/auth/src/defense.rs`: every auth response is padded to at least 200 ms plus
+      up to 15 ms of jitter, so the response time cannot reveal whether a user name exists.
+    - TOTP in two steps (`/otp/enable`, then `/otp/validate` before it takes effect), `/otp/disable`, and
+      regenerating backup codes.
+    - Permissions that know ownership: `CanEditOwnPost` beside `CanEditAnyPost`. The resolver above
+      gets the resource's owner as an input.
+    - Roles with a unique priority and both `permissions` and `permissions_forbidden`, on roles and on users
+      directly. Discord's per-resource overwrites add to that.
+    - Tests split by domain into simulation cases (`tests/simulation/auth_cases.rs`, `session_cases.rs`,
+      `user_cases.rs`) plus fuzzing. Mirror the same split in `tests/nyangine/accounts/`.
+    - Random ids (UUIDs there) rather than sequential ones, so ids cannot be enumerated.
+    Where this plan differs, it does so on purpose. The refresh token is an opaque random value stored hashed,
+    where the template stores JWTs in the row. And there is a refresh token reuse check, which the template
+    does not have.
+- `[ ]` Sessions: an access token and a refresh token. Today only the first exists, minted in process by
+  `nya_http_jwt_encode`, with no route that issues one.
+  - **Access token:** a JWT naming the user, the session and how they authenticated, living minutes (the
+    number written down with its reasoning). Sent in a `__Host-` cookie: `HttpOnly`, `Secure`,
+    `SameSite=Strict`, `Path=/`. Checked by signature alone, no database read, which is why it must be short.
+  - **Refresh token:** 256 random bits from the CSPRNG, not a JWT, sent in its own `__Secure-` cookie whose
+    `Path` is only the refresh route, so it is never sent with an ordinary request. Stored only as a BLAKE2b
+    hash in a session row (user, created, last used, address, user agent, absolute expiry).
+  - **Rotation with reuse detection:** every refresh issues a new pair and retires the old refresh token. A
+    retired token presented again means it was stolen, so the whole session is revoked and the user is told.
+  - **Limits:** idle timeout and absolute lifetime per session. A password change or a lost second factor ends
+    every session but the current one.
+  - **Logout** revokes the session row and clears both cookies. The user can list their sessions ("signed in
+    devices") and revoke any of them, which is a `web_frontend` screen.
+  - A cookie parser that rejects rather than repairs, fuzzed. Both tokens are refused on any route over plain
+    HTTP.
+- `[ ]` CSRF: `SameSite=Strict` plus an `Origin` check on every non-GET route as a layer, so a handler cannot
+  forget it.
+- `[ ]` Simple limits in process, as layers and at accept, each bound a `#define` with its reasoning: connections
+  per address and in total, requests per address as a token bucket, and a stricter bucket with backoff for
+  login and second factors. Over a limit answers 429 or refuses the accept; it never queues unbounded. Limits
+  key on the peer address, never on `X-Forwarded-For` unless a trusted proxy address is configured.
+- `[ ]` **Second factor: TOTP through authenticator apps.** It lands first, and it needs no new dependency.
+  - RFC 6238 with the parameters every app accepts: HMAC-SHA1, 6 digits, a 30 second step, and a 160 bit
+    secret from the CSPRNG. Proven against the RFC's published vectors.
+  - Enrolment in two steps, like the template: the server shows an `otpauth://totp/<issuer>:<user>?secret=...`
+    URI as a QR code and as base32 text, and the factor turns on only after the user enters one valid code.
+    Recovery codes are issued at that moment, shown once and stored hashed.
+  - Verification accepts one step of clock skew either side. It remembers the last step used per user, so one
+    code cannot be replayed within its window. It is rate limited by the login bucket and padded by the
+    constant time defence.
+  - Disabling it or regenerating recovery codes requires a current code or the password again.
+  - A QR encoder is the only new piece. Nayuki's `qrcodegen` (C, MIT, one file, widely used) vendored, or a
+    small one in `base`. It draws through `nya_ui_*` as filled cells, so it works in the native, terminal and
+    web presenters alike.
+- `[ ]` **Second factor: PGP by decryption.** The server encrypts a one-time code to the user's public key; the
+  user decrypts it with their private key (`gpg -d`, or an OpenPGP smartcard such as a YubiKey) and types the
+  code back. The server only ever does public key operations and a constant time comparison, and the private
+  key never leaves the user.
+  - The encrypted message carries context before the code: the program, the account, the time and the
+    requesting address. Someone who decrypts it sees what they are approving, which blunts phishing.
+  - The code is 128 random bits shown as a short word list or base32, so it is easy to type. It is single use,
+    expires in minutes, is bound to the pending login, and is stored hashed. That needs state, so today's
+    stateless HMAC challenge, which can be replayed within its window, is replaced.
+  - Enrolment in two steps: upload the public key, then decrypt one challenge before it counts. Keys that
+    cannot encrypt, or that are expired or revoked, are refused with a reason.
+  - The seam changes: `nya_http_second_factor_set` takes "encrypt this to that key", not "verify this
+    signature". The PGP component fills it, and without the component the option does not appear.
+  - A `pgp` component, off by default; see "Decisions" for the library.
+  A user may enrol both factors and use either one. Recovery codes cover losing both.
+- `[ ]` A security header layer on by default: a strict CSP generated from what the app serves, HSTS,
+  `nosniff`, `frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, and COOP/COEP, which wasm threads need
+  for `SharedArrayBuffer` anyway.
+- `[ ]` A WebSocket server in `http`, sharing one frame codec with the curl client rather than a second copy.
+  It is the live channel for the web client and the transport for browser multiplayer.
+- `[ ]` Static serving of the web bundle: content hashed names, immutable caching, ETags, precompressed at build.
+- `[ ]` TLS in process: mbedTLS vendored and wrapped in `http`, TLS 1.3 first and 1.2 as the floor, certificate
+  and key from files named in config and hot reloaded on change. A handshake is fuzzed like the request parser.
+  Plain HTTP is loopback only, and on a public address it only redirects to HTTPS. The server never sets a
+  `Secure` cookie over plain HTTP.
+- `[ ]` ACME (Let's Encrypt) so a single executable gets and renews its own certificate. Without it, "one
+  binary" still needs certbot beside it. After TLS works with a supplied certificate.
+- `[ ]` `docs/http.md` ("What belongs to a proxy") and the headers of `http.h` and `http_server.h` say TLS and
+  rate limits belong to a proxy. They change in the same commits as the code above.
+- `[ ]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
+  path traversal in static serving, request smuggling, resource exhaustion). Every finding becomes a test.
+
+## Phase 4 — the web client
+
+C compiled to wasm, the same headers as the server, no HTML, CSS or JS written by hand.
+
+- `[ ]` Toolchain: clang's `wasm32` target, which the host clang already has, over wasi-libc, and a JS loader
+  the build generates. The first milestone is `base`, `serde` and `crypto` with their tests running under node.
+  See "Decisions" for the probe.
+- `[ ]` `platform/web`: clock, CSPRNG, storage (OPFS), `fetch`, WebSocket, input events, clipboard. The same
+  interfaces as `platform/linux`.
+- `[ ]` The UI's presenter seam. Today `ui_draw.c` is the only file naming a primitive, which is exactly right
+  for GPU and terminal, but a DOM presenter needs widgets, not shapes. The widget model and layout stay one; a
+  presenter receives widgets and either draws them (shapes) or keeps a DOM in step with them. Native and terminal
+  go through the shape presenter unchanged.
+- `[ ]` The DOM presenter: real `<input>` elements so password managers, autofill, IME and screen readers work,
+  styles from the same `NYA_UIStyle`. A login form drawn on a canvas is refused by every password manager, and
+  that alone decides against canvas-only for apps.
+- `[ ]` A WebGPU backend for render2d, then render3d. Shaders go HLSL → SPIR-V → binding rewrite → naga → WGSL
+  at build time; see "Decisions" for what was measured. Games draw into a canvas
+  through it, with the DOM presenter or the shape presenter over them.
+- `[ ]` Typed calls from the route tables: the client calls a route by its table entry with the request DTO and
+  gets the response DTO, both through binary `.nya`. The client sees DTOs only; see "Model, SO, DTO". The
+  same tables that generate OpenAPI generate this, so a route cannot drift between the two sides.
+- `[ ]` **A widget set like shadcn/ui.** Small, plain, composable widgets that look good with no styling at
+  all, where everything visual comes from theme tokens (colours, radius, spacing, type scale) in the UI style
+  file, the way shadcn/ui draws from CSS variables. Every widget works in all three presenters (GPU, terminal,
+  DOM), is reachable by keyboard, and has a caller in an example. What exists today (`ui.h`) and what is
+  missing:
+
+  | Group      | Have                                                                   | Add                                                                                   |
+  | :--------- | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------ |
+  | Inputs     | button, text input, toggle, radio, slider, dropdown (select), colour picker | checkbox, switch, textarea, input OTP (TOTP and PGP codes), combobox (select with search), toggle group, date picker and calendar (on `NYA_Date`), number input, file drop zone |
+  | Forms      | label, disabled scope                                                   | form: fields from a struct's reflection attributes (`@label`, `@range`, `@length`), inline validation messages, submit state |
+  | Overlays   | scrim, modal event, floating dropdown                                   | dialog, alert dialog (confirm), sheet and drawer, popover, tooltip, hover card, context menu, dropdown menu |
+  | Feedback   | —                                                                       | toast (non-blocking, queued), alert (inline), progress, spinner, skeleton               |
+  | Layout     | panel, window, section (collapsible), tabs, scrolling, space            | card, separator, accordion, resizable split panels, sidebar, aspect ratio box         |
+  | Navigation | tabs                                                                    | menubar, breadcrumb, pagination, command palette (search over registered commands)   |
+  | Data       | table, line and bar chart, icon                                         | data table (sort, filter, select rows, paginate; not virtualised to a million rows), badge, avatar, key-value list, QR code |
+
+  - Themes as tokens: a light and a dark theme ship, following the OS preference where there is one, and a
+    theme is a `.nya` style file (Phase 6 makes those user editable). The existing flat, minimal UI defaults
+    are the starting point; no drop shadows or outlines unless the theme asks.
+  - Overlays share one layer stack with focus trapping and escape to close, so a dialog over a sheet over a
+    page closes in the right order, and a pointer never reaches what an overlay covers.
+  - Toasts and dialogs are driven by state the caller owns, like `NYA_UIWindowState` today, because an
+    immediate mode widget that held its own visibility could never be reopened.
+  - Each widget gets a property test against the agent harness: an agent drives it by keyboard and pointer, and
+    the widget's state never leaves its valid range.
+- `[ ]` `web_frontend`: register, log in with TOTP, list and edit something stored in `http_server`'s database,
+  see another browser's edit arrive over WebSocket, upload a file, manage signed-in devices, and, as an admin,
+  manage users and edit roles. Built only from the widget set below.
+- `[ ]` Hot reload on the web: the dev server pushes a rebuilt module over the WebSocket.
+
+## Phase 5 — engine features, continued
+
+The current track, reordered around one missing primitive.
+
+- `[ ]` Compute passes in the renderer. Raymarched volumes, GPU fluids, GPU particles and screen space
+  reflections all wait on it ("Fluid volumes" says so); it comes before any of them.
+- `[ ]` Reflections: screen space for the scene, planar for still water.
+- `[ ]` Water as a surface: a heightfield of waves with shoreline foam, refraction through the glass path, and
+  the grid solver for what is in the air above it.
+- `[ ]` Weather and sky: one wind field read by particles, fluids, foliage and audio; rain, snow, clouds, stars
+  and fog confined to volumes. Kept to the flat stylized look, never photoreal.
+- `[ ]` Our own stereo panner for interaural delay and head shadow. If it replaces what SDL_mixer does for us,
+  SDL_mixer leaves the vendor list and only its decoders stay.
+- `[ ]` Multiplayer: fragmentation, lag compensation at render time, a WebSocket transport so browsers can join a
+  native server, a player key allowlist, and version rejection that disconnects at once.
+
+## Phase 6 — customization and desktop
+
+- `[ ]` UI style files: `NYA_UIStyle` from a `.nya` theme through reflection, hot reloaded, validated like
+  settings (the file, the key, the value, the range), user editable under `data/`.
+- `[ ]` Signed plugins: an Ed25519 signature over the plugin directory, publisher keys pinned in the program,
+  and a signed repository index. Unsigned plugins load only after an explicit opt-in that says what a plugin can
+  do. Then repositories by URL as under "Plugins".
+- `[ ]` VM budgets: an instruction count hook and a heap ceiling through the allocator, so a plugin can be slow
+  or large but never hang or exhaust the host.
+- `[ ]` The ambient current UI for Lua, runtime asset roots, and the in-app toggles for plugins and systems.
+
+## Phase 7 — hardening and shipping
+
+Most of this is cheap and should be picked up whenever a phase leaves room.
+
+- `[ ]` Shipping flags: `_FORTIFY_SOURCE=3`, `-fstack-clash-protection`, full RELRO and `-z now`, checked on the
+  produced binary rather than trusted from the flag list.
+- `[ ]` Pinned releases: SDL is at `release-3.4.0-1237`, an untagged commit on main, and Box3D is pre-1.0. Pin
+  each vendor to a release tag, or write down beside the submodule why not.
+- `[ ]` An SBOM and a licence allowlist generated from the vendor rules, and a CVE check against it in CI.
+- `[ ]` Scheduled CI: fuzzing from the committed corpus, simulation with random seeds keeping every failure,
+  benchmarks on a fixed runner with regressions flagged.
+- `[ ]` Privacy pass: crash reports strip the home directory, user name and host name before anything leaves
+  the machine and show exactly what will be sent; the metrics resource binds loopback unless told otherwise;
+  nothing phones home.
+- `[ ]` The clang-format gate, as one reformat commit in a quiet window.
+- `[ ]` The open items under "Distribution".
+
+## Enterprise level: what it adds
+
+The phases above make each kind of program possible. "Enterprise level" means more: a company could run its
+business on a program written on this stack. Swept on 2026-09-22 against that bar. The accepted items are
+tagged with the phase they join when that phase begins. The rest were considered and are not planned; they are
+kept below so they are not proposed again without a reason.
+
+One boundary shapes all of it, decided the same day: **a server is one machine and one instance.** No
+clustering, no replicas, no second database backend. In-process state (rate limit buckets, the permission
+cache, live subscriptions, the job queue) never has to be shared with another process, and every design here
+may rely on that.
+
+Accepted:
+
+- `[ ]` **Undo and redo**, built on reflection snapshots of the edited state: a bounded history of deltas
+  between snapshots, grouped into user-level actions, and the same for a game editor tool or a form. Phase 6.
+- `[ ]` **Plural rules and locale formats.** `core_i18n.h` has no plural support today. CLDR plural categories
+  per locale, and number, currency, percentage, date and time formats per locale, from tables generated at
+  build time by the i18n pass rather than an ICU dependency. Phase 2, beside date and time.
+- `[ ]` **Passkeys (WebAuthn)** as a third second factor beside TOTP and PGP, and later as a passwordless
+  login. Needs CBOR parsing and ES256 verification (P-256), neither of which monocypher has; mbedTLS, already
+  vendored for TLS, has both. The attestation and assertion parsers are fuzzed. Phase 3.
+- `[ ]` **Job queue:** persistent in `db`, with retries, exponential backoff, deadlines, unique jobs,
+  scheduled (cron style) jobs, and a bounded worker count. Survives a restart: a job running when the process
+  died runs again, so jobs are written to be idempotent, and the simulation harness kills the process at
+  random points to prove it. The template has `src/tasks/`; here it is a component that server and desktop
+  programs share. Phase 3.
+- `[ ]` **File uploads and downloads:** streaming bodies and multipart, size limits per route, storage by content
+  hash on disk with the metadata in `db`, `Range` requests so downloads resume, the content type decided by
+  the server rather than trusted from the client, and served with `Content-Disposition: attachment` unless
+  the route says otherwise. Phase 3.
+- `[ ]` **Live updates over WebSocket:** publish and subscribe to topics, with presence. A subscription is
+  authorised by the same permission check as the route that reads the same data, and re-checked when the
+  subscriber's roles change. Messages are DTOs in binary `.nya`. Phase 3.
+- `[ ]` **CORS**, configured per route rather than globally, off by default, with the allowed origins listed
+  exactly (no wildcard with credentials, ever). Phase 3.
+- `[ ]` **Prometheus metrics and OpenTelemetry:** a `/metrics` exposition on a separate loopback port by
+  default, fed from what the ceiling, arena and system registries already know plus request counters and
+  latency histograms; OpenTelemetry traces exported over OTLP/HTTP, with the request id as the trace id.
+  Phase 3.
+- `[ ]` **Graceful shutdown:** on SIGTERM or the Windows equivalent, stop accepting, finish in-flight requests
+  up to a deadline, let running jobs reach a checkpoint or be requeued, flush logs, close the database. The
+  deadline is config, and passing it falls back to the crash path, which already has to be safe. Phase 3.
+- `[ ]` **Save and replay versioning:** a save written by an older version loads, through the same `@since`
+  attributes and migrations as `db`. Deterministic replays built on the simulation harness: record the seed
+  and the inputs, play them back, compare the checksums. Phase 5.
+- `[ ]` **Player accessibility:** colour blind palettes (applied through the grading LUT), subtitles and
+  captions for positional sound with a direction indicator, remappable everything (bindings exist), controller
+  glyphs per pad type, and reduced motion (the speed lines and camera shake off). Phase 5.
+- `[ ]` **Reproducible builds:** the same commit gives the same bytes. No timestamps or absolute paths in the
+  binary (`-ffile-prefix-map`, `SOURCE_DATE_EPOCH` for the build info), a sorted link order, and pinned
+  toolchains. CI builds twice and compares. It is what makes a signed binary checkable by someone else.
+  Phase 7.
+- `[ ]` **Soak and load tests:** a server under sustained load for hours under ASan and LSan, recording RSS,
+  open descriptors and p99 latency; a desktop program and a game left running for a day. Memory or
+  descriptors that grow without bound fail the run. A load generator of our own on the HTTP client, so it
+  speaks binary `.nya` and the auth flow. Phase 7.
+
+- `[ ]` **Health route:** `/health` answers 200 while the process can serve, and 503 with the reason while it
+  cannot: shutting down, the database unreachable, the job queue past its limit. It sits on the metrics port
+  (loopback by default), so a supervisor can ask and the internet cannot, and it takes no auth and returns no
+  detail beyond the reason. Phase 3.
+- `[ ]` **Right-to-left text.** Shaping already goes through SDL_ttf and harfbuzz; what is missing is the bidi
+  algorithm (UAX #9) for mixed-direction lines, mirrored layout in the UI (rows, alignment, scroll bars,
+  chevrons), and caret movement and selection that follow visual order in the text field. The direction
+  comes from the locale, with a per-widget override. The vendored SDL_ttf has no bidi: it offers one
+  direction per font (`TTF_SetFontDirection`) and one script (`TTF_SetFontScript`), and no FriBiDi. So UAX #9
+  splits a line into runs, and each run is shaped with its own direction. Either SheenBidi (C, Apache 2.0,
+  small, passes the Unicode conformance tests) vendored, or our own implementation held to those same tests.
+  FriBiDi is LGPL, which is awkward for a static binary. Phase 6.
+- `[ ]` **Tray and native dialogs.** SDL's dialog and tray subsystems come back on, behind a `desktop_shell`
+  component so a game or server does not pay for them: open, save and folder dialogs with filters, a tray
+  icon with a menu, and notifications. On Linux they go through the XDG desktop portal where it exists,
+  which is also what makes them work inside Flatpak. Measure what switching them back on adds to the binary
+  ("Binary size" recorded what switching them off saved). Phase 6.
+- `[ ]` **Database backups.** SQLCipher keeps sqlite's online backup API, so a backup is a page-by-page copy of
+  the live database, taken without stopping writers, and it stays encrypted under the same key. The `db`
+  component runs it from the job queue on a schedule, writes it next to a checksum through
+  `nya_file_write_atomic`, and keeps a bounded number (hourly, daily, weekly). Restore is a CLI command that
+  refuses to overwrite a running database. The simulation harness restores a backup taken at a random point,
+  opens it and checks its integrity (`PRAGMA integrity_check`), because a backup that has never been restored
+  is not one. Copying backups off the machine is the operator's job; the files are encrypted, so any storage
+  will do. Phase 3.
+
+Considered, not planned (2026-09-22):
+
+- Screen reader accessibility (UI Automation, AT-SPI). The web frontend still gets it from real DOM elements.
+- Heavy business widgets beyond the shadcn-like set: a data grid virtualised to a million rows, tree view,
+  rich text, docking.
+- Signed automatic updates outside Steam and the packagers.
+- IME for CJK input, multiple windows per program, and a readiness route separate from health.
+- Organisations (tenants), OpenID Connect and SAML single sign-on.
+- Generated list conventions (pagination, filtering, sorting).
+- Email (SMTP) for verification and resets. Recovery stays with recovery codes and admin resets.
+- Budgets per kind of program checked in CI.
+- A crash report transport with a nyangine server as the receiver.
+- A written threat model per component.
+- Tutorials per kind of program.
+
+## Decisions
+
+Each changes what gets built. A recommendation is given; the call is mine.
+
+- `[x]` **TLS in process or behind a proxy.** Decided 2026-09-22: one executable does the backend and serves
+  the frontend, so TLS (mbedTLS) and simple rate and connection limits are embedded. A proxy is optional, and
+  when one is used it owns what the executable deliberately does not: geo rules, blocklists, a WAF, per-region
+  connection logging and heavy abuse handling. Those are not built here.
+- `[x]` **Web toolchain.** Decided 2026-09-22: try plain clang to `wasm32` first, with our own `platform/web`.
+  Emscripten only if that fails. Probed the same day with the host clang 22.1.8: a C2Y file using `defer`,
+  `ext_vector_type` and `-msimd128` compiles with `--target=wasm32 -nostdlib -Wl,--no-entry` to a 321 byte
+  module, and node runs it with the right answer (`defer` fired). `wasm-ld` and `wasm-opt` are installed.
+  What is missing is a libc: `<string.h>` is not found. Two ways: the wasi-libc sysroot (Arch's `wasi-libc`,
+  small, the one wasi-sdk ships) or a freestanding shim of the few calls `base` uses. Try wasi-libc first. The
+  first real milestone is `base`, `serde` and `crypto` compiled to wasm with their tests run under node.
+- `[x]` **WGSL.** Translated from the SPIR-V the build already produces, never hand written. Tried on
+  2026-09-22 with `naga-cli` 30.0.1 over all 43 compiled `.spv`:
+  - 15 translate as they are.
+  - 22 fail with "Bindings for [N] conflict with other resource". SDL's convention puts a texture and its
+    sampler on the same binding (`t0` and `s0` in `space2`), and WebGPU requires distinct slots. Rewriting the
+    `Binding` decorations in the SPIR-V (texture `n` → `2n`, sampler `n` → `2n+1`) fixes all 22. The WebGPU
+    backend builds its bind groups by the same rule.
+  - 6 fail WGSL's uniform alignment. Each cbuffer ends `float x; float3 pad;`: HLSL packs that `float3` at
+    offset 4, while WGSL wants a `vec3` at a multiple of 16. Spell the padding as three `float`s. The offsets
+    stay the same, so the C structs do not change. The files: `effect_lut`, `effect_output_hdr`,
+    `effect_occlusion`, `effect_occlusion_apply`, `effect_light_shafts`, and `mesh3d_outline.vert`, which has
+    no source any more (see Phase 0).
+  - With both fixes, 37 of 37 translate and the WGSL parses back through naga's validator, 5.3 kLOC in all.
+  - Not verified yet: Chrome compiles WGSL with Tint, which is stricter than naga about derivatives in
+    non-uniform control flow. Five outputs use `dpdx`/`dpdy`/`fwidth`. Run them through Tint or a browser
+    before calling this done.
+  - naga is Rust, so this puts cargo on the shader build machine. That is only Linux, which is already the only
+    host that can run DXC, so no new host needs it. It runs at build time only and ships in nothing. Pin it
+    like a vendor. The binding rewrite is about 30 lines of C in `src/build/`.
+- `[x]` **PGP.** Decided 2026-09-22: vendor a complete library as a `pgp` component, off by
+  default, the way sqlite is optional today. It fills the second factor seam by encrypting a one-time code
+  to the user's key, which the user decrypts (Phase 3), and it backs PGP-encrypted `.nya` fields. Candidate:
+  rnp, Thunderbird's OpenPGP library, which has a C API but needs C++ and Botan. Sequoia
+  needs Rust at build time and in the binary. GPGME is ruled out, because it drives a `gpg` binary found at
+  run time. Measure rnp's size and cross compile (mingw, sniper) before committing to it. TOTP still lands
+  first.
+- `[x]` **Encryption at rest**, meaning files on disk that cannot be read without a key. Decided 2026-09-22:
+  the whole database is encrypted with SQLCipher, and `.nya` files get encrypted fields (Phase 2). What
+  SQLCipher costs and how it fits:
+  - It is a fork of sqlite with the same API and the same file format once decrypted, so it replaces
+    `vendor/sqlite` instead of sitting beside it: one sqlite in the tree, not two. BSD style licence. Its
+    releases trail upstream sqlite by a few weeks; pin to its release tags.
+  - It needs a crypto provider for AES-256, HMAC-SHA512 and PBKDF2. The shipped providers are OpenSSL,
+    LibTomCrypt, NSS and CommonCrypto. mbedTLS, which Phase 3 vendors for TLS anyway, has all three
+    primitives, so a small provider over mbedTLS avoids OpenSSL. Monocypher has no AES, so it cannot be the
+    provider. Measure the provider against SQLCipher's own test suite before trusting it.
+  - The key comes from the environment or from the user at start, is given once through `sqlite3_key`, never
+    reaches a log, a crash report or a config file, and is wiped from memory after use. A missing or wrong key
+    stops the program at startup with a message, like any other bad configuration.
+  - Cost to measure when it lands: binary size, page read and write throughput against plain sqlite on the
+    ORM benches, and cold open time, since key derivation deliberately costs tens of milliseconds.
+- `[x]` **What gnyame is for once the seven examples exist.** Decided 2026-09-22: gnyame is where the project
+  lives. Engine and program are tightly coupled, so the program is developed in this tree beside the engine, and
+  it is the proof that everything composes in one program. Each example proves one kind of program alone and is
+  the starting point for a new one. The verification rule becomes: every feature has a caller in gnyame or an
+  example, and that caller runs in CI.
+- `[x]` **Scaling a server past one machine.** Decided 2026-09-22: it does not. One machine, one instance.
+  No standby, no replication, no Postgres. See "Enterprise level".
+- `[x]` **How a new program uses nyangine.** Decided 2026-09-22: programs live in this tree for now, beside
+  gnyame: one repository, one build, and every engine change tested against every program. Moving a program
+  into its own repository with nyangine as a pinned submodule is for later, once the engine stops being clay.
+- `[x]` **`nn` in the engine.** Decided 2026-09-22: it stays a library module, usable by any program, and
+  it is also a testing mechanism: a DQN or NEAT agent plays a UI or a game through the input queue the way a
+  person would (`testing_agent.h`). It extends to every example that has a UI, not only gnyame: the TUI and
+  the web frontend are UIs an agent can play too. Its drawing still moves out of `nn` (Phase 1), so the
+  module depends on nothing above `math`.
 
 # The stack
 
@@ -177,7 +888,7 @@ In scope, deliberately: not only a server, but the client too.
   the wire, in and out through their reflections. One GET or POST per path, matched exactly: a query parameter
   picks between instances of one shape, and two shapes are two paths. Every bound is in `http_types.h` with its
   size argued, the request parser is fuzzed from a committed corpus, and rate limits and TLS stay with a proxy
-  in front. See `docs/http.md`.
+  in front. See `docs/http.md`. That was reversed on 2026-09-22 (Roadmap, Phase 3): both move in process.
 - `[x]` OpenAPI generated from the handler definitions and the DTO types, served by the app at `/openapi.json`,
   with `/docs` as a page generated from the same walk. Nothing is stored and nothing is hand written: unmount a
   resource and it leaves the document. A debug build asserts a route never answers with a status it did not
@@ -191,7 +902,8 @@ In scope, deliberately: not only a server, but the client too.
   something structural to a build where every vendor is C, static and cross-compiled to mingw and the sniper
   sysroot: Sequoia makes a Rust toolchain a build requirement everywhere, rnp pulls in C++ and Botan, and an
   Ed25519-only parser of our own over the vendored monocypher refuses every RSA key. Decide which users have
-  before paying any of them.
+  before paying any of them. Decided later the same day: a complete library as an opt-in plugin, so only a
+  program that enables it pays the cost. See "Roadmap", "Decisions".
 - `[⏭]` TOTP as the second factor instead: also deferred. Not a wiring job — `nya_hmac_sha256` exists but TOTP
   wants HMAC-SHA1 and base32, neither of which does. About 200 lines, and RFC 6238 publishes test vectors, so
   it would be provable rather than merely written.
@@ -332,8 +1044,8 @@ the packager ones.
   and reads with the checksum enforced, so a file altered outside the game is refused with
   `NYA_ERROR_CORRUPT` rather than half loaded. `test_scene.c` flips one byte in the body and holds it to
   that, including that the world it was going to load into is left alone.
-- `[ ]` `CHANGELOG.md`, generated from history, shipped with every release.
-- `[ ]` `secrets/` committed to GitHub, encrypted with sops and gpg, holding the signing key among other things.
+- `[x]` `CHANGELOG.md`, generated from history, shipped with every release.
+- `[x]` `secrets/` committed to GitHub, encrypted with sops and gpg, holding the signing key among other things.
 - `[ ]` CI/CD produces every release build so Steam and the packagers can pick up a new version.
 
 ## `[ ]` Reported bugs
@@ -1092,6 +1804,18 @@ joystick.
 ---
 
 # Findings
+
+### A crash window that had never opened
+
+The vendored SDL was configured with `SDL_RENDER=OFF`, so `nya_crash_window_show` failed at
+`SDL_CreateWindowAndRenderer` in every build ever shipped, and every crash fell through to the plain message
+box. Turning the option on was not enough: vendor rules were built once, keyed on their own archive, so a
+changed cmake option rebuilt nothing on a machine that had built before. Now `NYA_VendorRule` carries
+`options_file` and `options_stamp`, and a recipe newer than its stamp forces a rebuild, for every vendor
+through one mechanism. `hook_invalidate_stale_cmake_cache` compares every `-D` against the cache, which took
+three corrections found only by running it over all 32 vendor rules: cmake canonicalises booleans, resolves a
+bare compiler name to an absolute path, and keeps only the last `-D` for a name. It must be the last pre-build
+hook; `hooks.h` says why.
 
 ### A script nothing ran
 
