@@ -59,5 +59,5 @@ In theory, building works on Windows. In practice, I don't use Windows, so who k
 builds the Windows targets only, and cannot compile the shaders; a Linux host builds everything.
 
 ```bash
-clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread
+clang build.c -o build.exe -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix -Wno-initializer-overrides -Wno-gcc-compat -I./ -I./src -DNYA_NO_SDL -lm -pthread -lbcrypt
 ```

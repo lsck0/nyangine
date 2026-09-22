@@ -273,17 +273,23 @@
 #define HOST_EXECUTABLE_SUFFIX ".exe"
 
 /*
+ * platform/random calls BCryptGenRandom, so everything linking platform needs bcrypt, the build tool
+ * included. `#pragma comment(lib)` would keep this beside the call, but clang ignores it for mingw.
+ */
+#define PLATFORM_LINK_WINDOWS "-lbcrypt"
+
+/*
  * No sanitizers on a Windows host: -fsanitize=leak has no Windows implementation and asan under mingw
  * is not usable. lld because mold is Linux only.
  */
-#define FLAGS_HOST_NATIVE       "-fuse-ld=lld"
+#define FLAGS_HOST_NATIVE       "-fuse-ld=lld", PLATFORM_LINK_WINDOWS
 
 /** FLAGS_HOST_NATIVE split for a compile and a link. Expands to nothing, comma included, like FLAGS_TARGET_WINDOWS_X86_64. */
 #define FLAGS_HOST_NATIVE_COMPILE
-#define FLAGS_HOST_NATIVE_LINK "-fuse-ld=lld"
+#define FLAGS_HOST_NATIVE_LINK "-fuse-ld=lld", PLATFORM_LINK_WINDOWS
 
 /** The same host flags without the sanitizers. See the Linux definition for why this exists. */
-#define FLAGS_HOST_NATIVE_BENCH "-fuse-ld=lld"
+#define FLAGS_HOST_NATIVE_BENCH "-fuse-ld=lld", PLATFORM_LINK_WINDOWS
 
 #define BACKTRACE_A_HOST        BACKTRACE_A_WINDOWS_X86_64
 #define BACKTRACE_INCLUDES_HOST BACKTRACE_INCLUDES_WINDOWS_X86_64
