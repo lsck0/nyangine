@@ -7,6 +7,7 @@
 
 enum { BONE_ROOT = 0, BONE_COUNT = 1 };
 enum { PARAM_SPEED = 0, PARAM_TURN = 1 };
+enum { CLIP_IDLE = 0, CLIP_WALK = 1, CLIP_RUN = 2, CLIP_COUNT = 3 };
 
 static NYA_SkeletonBone bones[BONE_COUNT];
 static NYA_Skeleton     skeleton;
@@ -14,9 +15,7 @@ static NYA_Skeleton     skeleton;
 static NYA_BoneTransform idle_frames[BONE_COUNT * 2];
 static NYA_BoneTransform walk_frames[BONE_COUNT * 2];
 static NYA_BoneTransform run_frames[BONE_COUNT * 2];
-static NYA_SkeletonClip  clip_idle;
-static NYA_SkeletonClip  clip_walk;
-static NYA_SkeletonClip  clip_run;
+static NYA_SkeletonClip  clips[CLIP_COUNT];
 
 /** A clip that holds its bone at `marker` for its whole length. Constant, so phase cannot confuse it. */
 static void marker_clip(NYA_BoneTransform* frames, NYA_SkeletonClip* clip, f32 marker, f32 duration_s, NYA_ConstCString name) {
@@ -34,21 +33,22 @@ static void rig_build(void) {
         (NYA_SkeletonBone){ .parent = -1, .rest = { .translation = { 0, 0, 0 }, .rotation = nya_quaternion_identity, .scale = { 1, 1, 1 } } };
     (void)snprintf(bones[BONE_ROOT].name, sizeof(bones[BONE_ROOT].name), "root");
 
-    skeleton = (NYA_Skeleton){ .bones = bones, .bone_count = BONE_COUNT };
+    skeleton = (NYA_Skeleton){ .bones = bones, .bone_count = BONE_COUNT, .clips = clips, .clip_count = CLIP_COUNT };
 
     // Different durations on purpose: the weighted average is what the shared phase runs against.
-    marker_clip(idle_frames, &clip_idle, 1.0F, 2.0F, "idle");
-    marker_clip(walk_frames, &clip_walk, 2.0F, 1.0F, "walk");
-    marker_clip(run_frames, &clip_run, 3.0F, 0.5F, "run");
+    marker_clip(idle_frames, &clips[CLIP_IDLE], 1.0F, 2.0F, "idle");
+    marker_clip(walk_frames, &clips[CLIP_WALK], 2.0F, 1.0F, "walk");
+    marker_clip(run_frames, &clips[CLIP_RUN], 3.0F, 0.5F, "run");
 }
 
 /** Builds idle/walk/run on one 1D node at 0, 2 and 6. */
 static s32 locomotion(NYA_BlendTree* tree) {
     nya_blend_tree_init(tree, &skeleton);
 
-    s32 idle = nya_blend_tree_clip(tree, &clip_idle);
-    s32 walk = nya_blend_tree_clip(tree, &clip_walk);
-    s32 run  = nya_blend_tree_clip(tree, &clip_run);
+    // by name, the way a game reaches the clips a model file baked.
+    s32 idle = nya_blend_tree_clip(tree, nya_skeleton_clip(&skeleton, "idle"));
+    s32 walk = nya_blend_tree_clip(tree, nya_skeleton_clip(&skeleton, "walk"));
+    s32 run  = nya_blend_tree_clip(tree, nya_skeleton_clip(&skeleton, "run"));
 
     s32 node = nya_blend_tree_1d(tree, PARAM_SPEED);
 
@@ -63,6 +63,59 @@ static s32 locomotion(NYA_BlendTree* tree) {
 
 s32 main(void) {
     rig_build();
+
+    // ── A clip is found by its name, as the skeleton's own entry, and nothing else is found.
+    {
+        nya_check(nya_skeleton_clip(&skeleton, "walk") == &clips[CLIP_WALK], "a clip's name finds that clip");
+        nya_check(nya_skeleton_clip(&skeleton, "run") == &clips[CLIP_RUN], "and the last one too");
+
+        nya_check(nya_skeleton_clip(&skeleton, "swim") == nullptr, "a name the skeleton lacks is null");
+        nya_check(nya_skeleton_clip(&skeleton, "wal") == nullptr, "and so is a prefix of one");
+        nya_check(nya_skeleton_clip(&skeleton, nullptr) == nullptr, "and no name");
+        nya_check(nya_skeleton_clip(nullptr, "walk") == nullptr, "and no skeleton");
+    }
+
+    // ── Evaluating weighs the tree without moving it: no phase, no pose.
+    {
+        NYA_BlendTree tree = { 0 };
+        s32           node = locomotion(&tree);
+
+        nya_blend_tree_parameter(&tree, PARAM_SPEED, 4.0F);
+        nya_blend_tree_evaluate(&tree);
+
+        // halfway between walk at 2 and run at 6 on the node, and idle not part of it at all.
+        nya_check(fabsf(tree.weights[node] - 1.0F) < 1e-4F, "the root carries the whole weight, got %f", (f64)tree.weights[node]);
+        nya_check(tree.weights[0] == 0.0F, "idle is outside the pair, got %f", (f64)tree.weights[0]);
+        nya_check(fabsf(tree.weights[1] - 0.5F) < 1e-4F, "walk is half, got %f", (f64)tree.weights[1]);
+        nya_check(fabsf(tree.weights[2] - 0.5F) < 1e-4F, "and run the other half, got %f", (f64)tree.weights[2]);
+
+        // one second and half a second, averaged by those weights.
+        nya_check(fabsf(tree.duration_s - 0.75F) < 1e-4F, "the duration is the weighted average, got %f", (f64)tree.duration_s);
+        nya_check(tree.phase == 0.0F, "and nothing advanced, phase %f", (f64)tree.phase);
+
+        // what update then blends is what evaluate said it would.
+        NYA_SkeletonPose pose = { 0 };
+        nya_blend_tree_update(&tree, 0.0F, &pose);
+
+        nya_check(fabsf(pose.local[BONE_ROOT].translation.x - 2.5F) < 1e-4F, "the pose follows those weights, got %f",
+                  (f64)pose.local[BONE_ROOT].translation.x);
+
+        // a parameter moved since is picked up on the next evaluate, and the old weights do not linger.
+        nya_blend_tree_parameter(&tree, PARAM_SPEED, 0.0F);
+        nya_blend_tree_evaluate(&tree);
+
+        nya_check(fabsf(tree.weights[0] - 1.0F) < 1e-4F, "standing still is all idle, got %f", (f64)tree.weights[0]);
+        nya_check(tree.weights[1] == 0.0F && tree.weights[2] == 0.0F, "with walk and run cleared, got %f and %f", (f64)tree.weights[1],
+                  (f64)tree.weights[2]);
+
+        // with no root there is nothing to weigh.
+        NYA_BlendTree empty = { 0 };
+        nya_blend_tree_init(&empty, &skeleton);
+        nya_blend_tree_evaluate(&empty);
+
+        nya_check(empty.duration_s == 0.0F, "an empty tree has no duration, got %f", (f64)empty.duration_s);
+        nya_blend_tree_evaluate(nullptr);
+    }
 
     // ── 1D: the parameter picks a pair, and only that pair.
     {
@@ -176,9 +229,9 @@ s32 main(void) {
         NYA_BlendTree tree = { 0 };
         nya_blend_tree_init(&tree, &skeleton);
 
-        s32 idle = nya_blend_tree_clip(&tree, &clip_idle);
-        s32 walk = nya_blend_tree_clip(&tree, &clip_walk);
-        s32 run  = nya_blend_tree_clip(&tree, &clip_run);
+        s32 idle = nya_blend_tree_clip(&tree, &clips[CLIP_IDLE]);
+        s32 walk = nya_blend_tree_clip(&tree, &clips[CLIP_WALK]);
+        s32 run  = nya_blend_tree_clip(&tree, &clips[CLIP_RUN]);
 
         s32 node = nya_blend_tree_2d(&tree, PARAM_SPEED, PARAM_TURN);
         (void)nya_blend_tree_child(&tree, node, idle, (f32x2){ 0, 0 });
@@ -208,9 +261,9 @@ s32 main(void) {
         NYA_BlendTree tree = { 0 };
         nya_blend_tree_init(&tree, &skeleton);
 
-        s32 idle = nya_blend_tree_clip(&tree, &clip_idle);
-        s32 walk = nya_blend_tree_clip(&tree, &clip_walk);
-        s32 run  = nya_blend_tree_clip(&tree, &clip_run);
+        s32 idle = nya_blend_tree_clip(&tree, &clips[CLIP_IDLE]);
+        s32 walk = nya_blend_tree_clip(&tree, &clips[CLIP_WALK]);
+        s32 run  = nya_blend_tree_clip(&tree, &clips[CLIP_RUN]);
 
         s32 slow = nya_blend_tree_1d(&tree, PARAM_SPEED);
         (void)nya_blend_tree_child(&tree, slow, idle, (f32x2){ 0, 0 });
@@ -246,7 +299,7 @@ s32 main(void) {
         NYA_BlendTree tree = { 0 };
         nya_blend_tree_init(&tree, &skeleton);
 
-        s32 walk = nya_blend_tree_clip(&tree, &clip_walk);
+        s32 walk = nya_blend_tree_clip(&tree, &clips[CLIP_WALK]);
 
         s32 node = nya_blend_tree_2d(&tree, PARAM_SPEED, PARAM_TURN);
         (void)nya_blend_tree_child(&tree, node, walk, (f32x2){ 0, 0 });
@@ -260,7 +313,7 @@ s32 main(void) {
         nya_check(fabsf(pose.local[BONE_ROOT].translation.x - 2.0F) < 1e-4F, "the same clip twice is still that clip, got %f",
                   (f64)pose.local[BONE_ROOT].translation.x);
 
-        nya_check(fabsf(tree.duration_s - clip_walk.duration_s) < 1e-4F, "and its duration is not counted twice, got %f", (f64)tree.duration_s);
+        nya_check(fabsf(tree.duration_s - clips[CLIP_WALK].duration_s) < 1e-4F, "and its duration is not counted twice, got %f", (f64)tree.duration_s);
     }
 
     // ── Malformed trees are refused at build time rather than at frame time.
@@ -268,7 +321,7 @@ s32 main(void) {
         NYA_BlendTree tree = { 0 };
         nya_blend_tree_init(&tree, &skeleton);
 
-        s32 walk = nya_blend_tree_clip(&tree, &clip_walk);
+        s32 walk = nya_blend_tree_clip(&tree, &clips[CLIP_WALK]);
         s32 node = nya_blend_tree_1d(&tree, PARAM_SPEED);
 
         nya_check(!nya_blend_tree_child(&tree, walk, node, (f32x2){ 0, 0 }), "a clip cannot have children");

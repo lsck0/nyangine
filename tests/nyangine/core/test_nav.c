@@ -246,5 +246,60 @@ s32 main(void) {
         nya_check(nya_nav_walkable(grid, 3, 3), "and open it again");
     }
 
+    // ── A tilemap's solid layer becomes the walls, and nothing else on the map does.
+    {
+        enum { MAP_WIDTH = 6, MAP_HEIGHT = 4 };
+
+        // a wall down column 2 with a gap at the bottom, one of its tiles flipped, which is still a tile.
+        const u32 solid[MAP_WIDTH * MAP_HEIGHT] = {
+            0, 0, 1, 0, 0, 0,
+            0, 0, 1, 0, 0, 0,
+            0, 0, NYA_TILEMAP_FLIP_HORIZONTAL | 1, 0, 0, 0,
+            0, 0, 0, 0, 0, 0,
+        };
+
+        // painted everywhere, so a grid built from the wrong layer would be solid wall to wall.
+        u32 ground[MAP_WIDTH * MAP_HEIGHT];
+        for (u32 i = 0; i < MAP_WIDTH * MAP_HEIGHT; i++) ground[i] = 7;
+
+        const NYA_TilemapLayer layers[] = {
+            { .kind = NYA_TILEMAP_LAYER_TILES, .name = "ground", .width = MAP_WIDTH, .height = MAP_HEIGHT, .tiles = ground },
+            { .kind = NYA_TILEMAP_LAYER_TILES, .name = "collision", .width = MAP_WIDTH, .height = MAP_HEIGHT, .tiles = solid },
+        };
+
+        const NYA_Tilemap map = { .width = MAP_WIDTH, .height = MAP_HEIGHT, .layers = layers, .layer_count = 2 };
+
+        NYA_NavGrid* grid = nullptr;
+        NYA_EXPECT(nya_nav_grid_from_tilemap(arena, &map, "collision", &grid));
+
+        nya_check(grid->width == MAP_WIDTH && grid->height == MAP_HEIGHT, "the grid is one cell per tile, got %ux%u", grid->width, grid->height);
+
+        u32 mismatched = 0;
+        for (s32 y = 0; y < MAP_HEIGHT; y++) {
+            for (s32 x = 0; x < MAP_WIDTH; x++) {
+                b8 wall = solid[(y * MAP_WIDTH) + x] != 0;
+                if (nya_nav_walkable(grid, x, y) == wall) mismatched++;
+            }
+        }
+
+        nya_check(mismatched == 0, "every tile on the solid layer, and only those, is blocked; %u cells disagree", mismatched);
+        nya_check(nya_nav_cost_at(grid, 0, 0) == NYA_NAV_COST_DEFAULT, "an open tile costs the default");
+
+        // so a path across has to go down through the gap rather than through the wall.
+        NYA_NavPoint path[32];
+        u32          length = nya_nav_path(grid, (NYA_NavPoint){ 0, 0 }, (NYA_NavPoint){ 5, 0 }, path, 32, (NYA_NavOptions){ 0 });
+
+        nya_check(length > 0, "the far side is reachable through the gap");
+
+        b8 through_gap = false;
+        for (u32 i = 0; i < length; i++) through_gap = through_gap || (path[i].x == 2 && path[i].y == 3);
+        nya_check(through_gap, "and the path goes through it");
+
+        // the two ways to name something that is not there.
+        NYA_Error missing = nya_nav_grid_from_tilemap(arena, &map, "water", &grid);
+        nya_check(!missing.ok && missing.kind == NYA_ERROR_NOT_FOUND, "a layer the map does not have is not found");
+        nya_check(!nya_nav_grid_from_tilemap(arena, nullptr, "collision", &grid).ok, "and no map is refused");
+    }
+
     return nya_check_failures() == 0 ? 0 : 1;
 }

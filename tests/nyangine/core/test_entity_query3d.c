@@ -7,7 +7,7 @@
  *
  * The 3D half had no oracle, no test and no caller. nya_entity_query_box, _box_kind, _box_flags and
  * _sphere were defined and called by nothing in the tree; so was the 2D nya_entity_query_flags. This is
- * the oracle for all five.
+ * the oracle for all five, and for nya_entity_query_ray, which had no caller either.
  *
  * Positions are spread over several grid buckets on purpose — the index is 128 units a bucket — so a
  * query that spans a boundary is the normal case here rather than an edge one.
@@ -91,6 +91,39 @@ static u32 scan_sphere(f32x3 center, f32 radius, OUT NYA_EntityHandle* out) {
   }
 
   return count;
+}
+
+/**
+ * The nearest entity whose centre lies within `radius` of the ray, and how far along the ray that centre
+ * projects. Measured as the distance from the centre to the ray's line, by the cross product, so it does
+ * not share the query's arithmetic.
+ * */
+static NYA_EntityHandle scan_ray(f32x3 origin, f32x3 direction, f32 radius, OUT f32* out_along) {
+  const f32   length = sqrtf((direction.x * direction.x) + (direction.y * direction.y) + (direction.z * direction.z));
+  const f32x3 unit   = direction / length;
+
+  NYA_EntityHandle nearest = NYA_ENTITY_HANDLE_NONE;
+  *out_along               = 0.0F;
+
+  for (u32 slot = 0; slot < nya_entity_slot_count(); slot++) {
+    NYA_Entity* entity = nya_entity_at_slot(slot);
+    if (entity == nullptr) continue;
+
+    const f32x3 to    = entity->position - origin;
+    const f32   along = (to.x * unit.x) + (to.y * unit.y) + (to.z * unit.z);
+    if (along < 0.0F) continue;
+
+    const f32x3 cross = { (to.y * unit.z) - (to.z * unit.y), (to.z * unit.x) - (to.x * unit.z), (to.x * unit.y) - (to.y * unit.x) };
+    const f32   off   = sqrtf((cross.x * cross.x) + (cross.y * cross.y) + (cross.z * cross.z));
+    if (off > radius) continue;
+
+    if (nearest.generation != 0 && along >= *out_along) continue;
+
+    nearest    = entity->handle;
+    *out_along = along;
+  }
+
+  return nearest;
 }
 
 /** Both answers hold the same handles, whatever order each produced them in. */
@@ -250,6 +283,82 @@ s32 main(void) {
     const u32 want = scan_box((f32x3){ -SPREAD, -SPREAD, -SPREAD }, (f32x3){ SPREAD, SPREAD, SPREAD }, false, 0, true, FLAG_SOLID, expected);
 
     nya_check(flat == want, "the 2D flag query ignores z and finds them all, got " FMTu32 " against " FMTu32, flat, want);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a ray picks the nearest entity it passes, as a scan would
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    u32 disagreements = 0;
+    u32 hits          = 0;
+
+    const u32 placed = nya_entity_query_box((f32x3){ -SPREAD, -SPREAD, -SPREAD }, (f32x3){ SPREAD, SPREAD, SPREAD }, found, FOUND_MAX);
+    nya_assert(placed == PLACED);
+
+    for (u32 round = 0; round < 64; round++) {
+      // aimed through a placed entity from outside the volume, so most rays cross several on the way.
+      NYA_Entity* target = nya_entity_get(found[(u32)between(&rng, 0.0F, (f32)(placed - 1))]);
+      nya_assert(target != nullptr);
+
+      const f32x3 origin    = { spread(&rng), spread(&rng), SPREAD * 2.0F };
+      const f32x3 direction = target->position - origin;
+      const f32   radius    = between(&rng, 5.0F, 60.0F);
+
+      f32                    distance      = 0.0F;
+      f32                    want_distance = 0.0F;
+      const NYA_EntityHandle got           = nya_entity_query_ray(origin, direction, radius, &distance);
+      const NYA_EntityHandle want          = scan_ray(origin, direction, radius, &want_distance);
+
+      if (!same_handle(got, want) || fabsf(distance - want_distance) > 0.01F) disagreements++;
+      if (nya_entity_is_valid(got)) hits++;
+
+      // the length of the direction is not the reach of the ray, only its heading.
+      f32 scaled_distance = 0.0F;
+      if (!same_handle(nya_entity_query_ray(origin, direction * 0.001F, radius, &scaled_distance), got)) disagreements++;
+    }
+
+    nya_check(disagreements == 0, "the ray query agrees with a scan, " FMTu32 " rounds disagreed", disagreements);
+
+    // every ray was aimed through an entity, so every one must hit something.
+    nya_check(hits == 64, "and every aimed ray hit, " FMTu32 " of 64 did", hits);
+
+    /*
+     * Far from the placed volume: three in a row on the x axis, one behind the origin. The front one of
+     * the stack is the one picked, and what is behind the ray is never seen.
+     */
+    NYA_EntityHandle behind = nya_entity_spawn(.name = "behind", .position = { 2990.0F, 0.0F, 0.0F });
+    NYA_EntityHandle front  = nya_entity_spawn(.name = "front", .position = { 3010.0F, 0.0F, 0.0F });
+    NYA_EntityHandle back   = nya_entity_spawn(.name = "back", .position = { 3030.0F, 0.0F, 0.0F });
+    NYA_EntityHandle aside  = nya_entity_spawn(.name = "aside", .position = { 3020.0F, 5.0F, 0.0F });
+
+    f32 distance = 0.0F;
+
+    nya_check(same_handle(nya_entity_query_ray((f32x3){ 3000.0F, 0, 0 }, (f32x3){ 1.0F, 0, 0 }, 1.0F, &distance), front),
+              "the nearest of a stack is picked");
+    nya_check(fabsf(distance - 10.0F) < 0.001F, "at its distance along the ray, got %f", (f64)distance);
+
+    // a wider ray reaches the one five units off the axis, but the front one is still nearer.
+    nya_check(same_handle(nya_entity_query_ray((f32x3){ 3000.0F, 0, 0 }, (f32x3){ 1.0F, 0, 0 }, 6.0F, &distance), front),
+              "a wider ray still picks the nearest");
+
+    // turned around, the ray finds the entity that was behind it and nothing of the stack.
+    nya_check(same_handle(nya_entity_query_ray((f32x3){ 3000.0F, 0, 0 }, (f32x3){ -1.0F, 0, 0 }, 1.0F, &distance), behind),
+              "the other way is the one behind");
+
+    // no ray, and no width, is no hit.
+    nya_check(!nya_entity_is_valid(nya_entity_query_ray((f32x3){ 3000.0F, 0, 0 }, (f32x3){ 0, 0, 0 }, 1.0F, &distance)),
+              "a zero direction hits nothing");
+    nya_check(distance == 0.0F, "and reports no distance");
+    nya_check(!nya_entity_is_valid(nya_entity_query_ray((f32x3){ 3000.0F, 0, 0 }, (f32x3){ 1.0F, 0, 0 }, 0.0F, &distance)),
+              "nor does a zero radius");
+
+    nya_entity_despawn(behind);
+    nya_entity_despawn(front);
+    nya_entity_despawn(back);
+    nya_entity_despawn(aside);
+    nya_system_entity_grid_rebuild();
 
     printf("  PASSED\n");
   }

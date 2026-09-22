@@ -62,6 +62,49 @@ static const NYA_TypeReflection R_KNOBS = {
   .field_count = 5,
 };
 
+/*
+ * A window resize's payload, described by hand for the same reason as Knobs. Only the two sizes: the
+ * window handle is an index a peer has no business writing.
+ */
+static const NYA_ReflectField R_RESIZED_FIELDS[] = {
+  { .name = "width", .type = &R_U32, .offset = offsetof(NYA_WindowResizedEvent, width) },
+  { .name = "height", .type = &R_U32, .offset = offsetof(NYA_WindowResizedEvent, height) },
+};
+
+static const NYA_TypeReflection R_RESIZED = {
+  .name        = "NYA_WindowResizedEvent",
+  .kind        = NYA_REFLECT_STRUCT,
+  .size        = sizeof(NYA_WindowResizedEvent),
+  .alignment   = alignof(NYA_WindowResizedEvent),
+  .fields      = R_RESIZED_FIELDS,
+  .field_count = 2,
+};
+
+/** Larger than the union it would be read out of. */
+static const NYA_TypeReflection R_OVERSIZED = {
+  .name = "Oversized", .kind = NYA_REFLECT_STRUCT, .size = sizeof(NYA_Event) + 1, .alignment = alignof(NYA_Event),
+};
+
+static u32                    resized_events = 0;
+static NYA_WindowResizedEvent last_resized   = { 0 };
+
+static void on_resized(NYA_Event* event) {
+  nya_assert(event->type == NYA_EVENT_WINDOW_RESIZED);
+
+  resized_events++;
+  last_resized = event->as_window_resized_event;
+}
+
+/** A json number, whichever integer type the parser gave it. */
+static s64 number_field(const NYA_Object* object, NYA_ConstCString name) {
+  NYA_Value* value = nya_object_get(object, (NYA_CString)name);
+
+  nya_assert(value != nullptr, "no field '%s'", name);
+  nya_assert(value->type == NYA_TYPE_S64 || value->type == NYA_TYPE_U64, "'%s' is not an integer", name);
+
+  return value->type == NYA_TYPE_S64 ? value->as_s64 : (s64)value->as_u64;
+}
+
 static u32         control_messages   = 0;
 static NYA_String* last_message_name  = nullptr;
 static u64         last_message_value = 0;
@@ -403,6 +446,87 @@ s32 main(void) {
     while (nya_system_event_poll(&drained)) {}
 
     printf("  one event pushed, one not pushed after unsubscribing, four bad subscriptions refused\n");
+  }
+
+  printf("TEST: an exposed event carries its payload both ways, and a hidden one carries none\n");
+  {
+    // the ones that would read past the event or name nothing, refused before the socket is up.
+    nya_assert(!nya_control_expose_event(NYA_EVENT_INVALID, &R_RESIZED).ok);
+    nya_assert(!nya_control_expose_event(NYA_EVENT_COUNT, &R_RESIZED).ok);
+    nya_assert(!nya_control_expose_event(NYA_EVENT_WINDOW_RESIZED, nullptr).ok);
+    nya_assert(!nya_control_expose_event(NYA_EVENT_WINDOW_RESIZED, &R_U32).ok);
+    nya_assert(!nya_control_expose_event(NYA_EVENT_WINDOW_RESIZED, &R_OVERSIZED).ok);
+
+    // and hiding what was never exposed, or is not an event at all, is a no-op.
+    nya_control_hide_event(NYA_EVENT_WINDOW_MOVED);
+    nya_control_hide_event(NYA_EVENT_COUNT);
+
+    NYA_IpcName name = unique_name("payload");
+
+    NYA_EXPECT(nya_system_control_init((NYA_ControlConfig){ .name = name, .permissions = NYA_CONTROL_PERMISSION_DISPATCH }));
+    defer nya_system_control_deinit();
+
+    NYA_IpcClient* client = nullptr;
+    NYA_EXPECT(nya_ipc_client_create(test_arena, name, &client));
+    defer nya_ipc_client_destroy(client);
+
+    NYA_String* buffer = nya_string_create(test_arena);
+
+    NYA_EXPECT(nya_control_expose_event(NYA_EVENT_WINDOW_RESIZED, &R_RESIZED));
+
+    nya_assert(reply_is_ok(call(client, buffer, "{\"op\":\"event.subscribe\",\"types\":[\"WINDOW_RESIZED\"]}")));
+
+    // ── Out: what the program raised reaches the peer with its fields read by reflection ──
+    nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_WINDOW_RESIZED, .as_window_resized_event = { .width = 640, .height = 480 } });
+
+    NYA_Object* pushed = receive_message(client, buffer);
+    nya_assert(pushed != nullptr, "the subscriber was told nothing");
+    nya_assert(nya_string_equals(nya_object_get(pushed, "type")->as_string, "WINDOW_RESIZED"));
+
+    NYA_Value* payload = nya_object_get(pushed, "payload");
+    nya_assert(payload != nullptr && payload->type == NYA_TYPE_OBJECT, "an exposed event was pushed without its payload");
+    nya_assert(number_field(&payload->as_object, "width") == 640, "the payload's width did not survive the wire");
+    nya_assert(number_field(&payload->as_object, "height") == 480, "the payload's height did not survive the wire");
+
+    // hidden, the event still reaches a subscriber, but as a bare name: nothing is read out of it.
+    nya_control_hide_event(NYA_EVENT_WINDOW_RESIZED);
+    nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_WINDOW_RESIZED, .as_window_resized_event = { .width = 800, .height = 600 } });
+
+    NYA_Object* bare = receive_message(client, buffer);
+    nya_assert(bare != nullptr, "hiding the payload must not hide the event");
+    nya_assert(nya_object_get(bare, "payload") == nullptr, "a hidden event's payload was still described");
+
+    nya_assert(reply_is_ok(call(client, buffer, "{\"op\":\"event.unsubscribe\",\"types\":[\"WINDOW_RESIZED\"]}")));
+
+    // ── In: a peer's dispatch fills the payload, and only while it is exposed ──
+    NYA_EventHook hook = {
+      .event_type = NYA_EVENT_WINDOW_RESIZED,
+      .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
+      .fn         = nya_callback(on_resized),
+    };
+
+    nya_event_hook_register(hook);
+    defer nya_event_hook_unregister(hook);
+
+    NYA_EXPECT(nya_control_expose_event(NYA_EVENT_WINDOW_RESIZED, &R_RESIZED));
+
+    resized_events = 0;
+    nya_assert(reply_is_ok(call(client, buffer, "{\"op\":\"event.dispatch\",\"type\":\"WINDOW_RESIZED\",\"payload\":{\"width\":1024,\"height\":768}}")));
+
+    nya_assert(resized_events == 1, "the dispatch never reached the hook");
+    nya_assert(last_resized.width == 1024 && last_resized.height == 768, "the hook saw %ux%u", last_resized.width, last_resized.height);
+
+    nya_control_hide_event(NYA_EVENT_WINDOW_RESIZED);
+
+    nya_assert(reply_is_ok(call(client, buffer, "{\"op\":\"event.dispatch\",\"type\":\"WINDOW_RESIZED\",\"payload\":{\"width\":1024,\"height\":768}}")));
+
+    nya_assert(resized_events == 2, "a hidden event type must still dispatch");
+    nya_assert(last_resized.width == 0 && last_resized.height == 0, "a hidden payload was written anyway: %ux%u", last_resized.width, last_resized.height);
+
+    NYA_Event drained = { 0 };
+    while (nya_system_event_poll(&drained)) {}
+
+    printf("  five bad descriptions refused, a payload out and in, and neither once hidden\n");
   }
 
   printf("TEST: nothing a peer can send reaches an assertion\n");

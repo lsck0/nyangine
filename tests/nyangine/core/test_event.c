@@ -184,6 +184,48 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: register_once fires once, is gone from the table, and spares its neighbours
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    immediate_hook_count = 0;
+    deferred_hook_count  = 0;
+
+    NYA_EventType clipboard = NYA_EVENT_CLIPBOARD_UPDATE;
+
+    NYA_EventHook stays = {
+      .event_type = clipboard,
+      .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
+      .fn         = nya_callback(test_deferred_hook),
+    };
+    nya_event_hook_register(stays);
+
+    nya_event_hook_register_once((NYA_EventHook){
+      .event_type = clipboard,
+      .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
+      .fn         = nya_callback(test_immediate_hook),
+    });
+
+    NYA_ArrayᐸNYA_EventHookᐳ* hooks = nya_hmap_get(nya_app_get()->event_system.immediate_event_hooks, clipboard);
+    nya_assert(hooks != nullptr && hooks->length == 2, "both hooks should be registered");
+
+    nya_event_dispatch((NYA_Event){ .type = clipboard });
+    nya_event_dispatch((NYA_Event){ .type = clipboard });
+
+    nya_assert(immediate_hook_count == 1, "a once hook should fire exactly once, fired %d times", immediate_hook_count);
+    nya_assert(deferred_hook_count == 2, "the ordinary hook beside it should fire every time, fired %d times", deferred_hook_count);
+
+    // gone rather than merely skipped, or a hook registered once per frame would grow the table forever.
+    hooks = nya_hmap_get(nya_app_get()->event_system.immediate_event_hooks, clipboard);
+    nya_assert(hooks->length == 1, "the spent hook should be removed, " FMTu64 " remain", hooks->length);
+    nya_assert(!hooks->items[0].one_shot, "and the survivor should be the ordinary one");
+
+    nya_event_hook_unregister(stays);
+
+    NYA_Event e;
+    while (nya_system_event_poll(&e)) {}
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: Hook with false condition does not fire
   // ─────────────────────────────────────────────────────────────────────────────
   {

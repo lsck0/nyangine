@@ -280,6 +280,47 @@ s32 main(void) {
         nya_entity_clear();
     }
 
+    // ── The world matrix places a point the way the hierarchy placed the entity.
+    {
+        NYA_EntityHandle hub = nya_entity_spawn(.name = "hub", .position = { 5.0F, 0, 0 }, .scale = { 2.0F, 2.0F, 2.0F },
+                                                .rotation = nya_quaternion_identity);
+        NYA_EntityHandle arm = nya_entity_spawn(.name = "arm", .position = { 9.0F, 0, 0 }, .scale = { 1, 1, 1 },
+                                                .rotation = nya_quaternion_identity);
+
+        (void)nya_entity_parent_set(arm, hub);
+
+        nya_entity_get(hub)->rotation = nya_quaternion_from_axis_angle((f32x3){ 0, 0, 1 }, 1.5707963F);
+        propagate();
+
+        // a quarter turn takes +x to +y and the scale doubles it, so the hub's local (1, 0, 0) lands at (5, 2, 0).
+        f32x4 tip = nya_matrix_times_vector(nya_entity_world_matrix(nya_entity_get(hub)), (f32x4){ 1.0F, 0, 0, 1.0F });
+
+        nya_check(near_enough(tip.x, 5.0F) && near_enough(tip.y, 2.0F) && near_enough(tip.z, 0.0F),
+                  "the hub's matrix should rotate, scale, then translate, got (%f, %f, %f)", (f64)tip.x, (f64)tip.y, (f64)tip.z);
+
+        // the child's origin is wherever propagation put it, which is what a renderer handed the matrix must agree with.
+        NYA_Entity* child  = nya_entity_get(arm);
+        f32x4       origin = nya_matrix_times_vector(nya_entity_world_matrix(child), (f32x4){ 0, 0, 0, 1.0F });
+
+        nya_check(near_enough(origin.x, child->position.x) && near_enough(origin.y, child->position.y),
+                  "the arm's matrix should sit where the arm is, got (%f, %f) against (%f, %f)", (f64)origin.x, (f64)origin.y,
+                  (f64)child->position.x, (f64)child->position.y);
+        nya_check(near_enough(child->position.x, 5.0F) && near_enough(child->position.y, 4.0F),
+                  "which is its four units out, swung onto y, got (%f, %f)", (f64)child->position.x, (f64)child->position.y);
+
+        // a zeroed scale is an entity nobody sized, and must not collapse everything drawn with it to a point.
+        NYA_Entity unsized = { .position = { 1.0F, 2.0F, 3.0F }, .rotation = nya_quaternion_identity };
+        f32x4      corner  = nya_matrix_times_vector(nya_entity_world_matrix(&unsized), (f32x4){ 1.0F, 1.0F, 1.0F, 1.0F });
+
+        nya_check(near_enough(corner.x, 2.0F) && near_enough(corner.y, 3.0F) && near_enough(corner.z, 4.0F),
+                  "an unset scale should read as one, got (%f, %f, %f)", (f64)corner.x, (f64)corner.y, (f64)corner.z);
+
+        f32x4 unmoved = nya_matrix_times_vector(nya_entity_world_matrix(nullptr), (f32x4){ 3.0F, 4.0F, 5.0F, 1.0F });
+        nya_check(unmoved.x == 3.0F && unmoved.y == 4.0F && unmoved.z == 5.0F, "no entity is the identity");
+
+        nya_entity_clear();
+    }
+
     // ── The degenerate cases.
     {
         nya_check(!nya_entity_parent_set(NYA_ENTITY_HANDLE_NONE, NYA_ENTITY_HANDLE_NONE), "nothing cannot be parented");

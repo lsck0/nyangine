@@ -486,6 +486,40 @@ s32 main(void) {
 
         nya_audio_voice_stop(placed, 0);
       }
+
+      // ── A voice's own filter lands on that voice and on no other ──
+      NYA_SoundVoice muffled   = nya_audio_play_sound(TEST_WAV_PATH, 1.0F);
+      NYA_SoundVoice untouched = nya_audio_play_sound(TEST_WAV_PATH, 1.0F);
+
+      if (muffled.generation != 0 && untouched.generation != 0) {
+        nya_assert(muffled.index != untouched.index, "two live voices must hold two slots");
+
+        NYA_AudioFilterState* filter = &_nya_audio_system.slots[muffled.index].filter;
+        NYA_AudioFilterState* other  = &_nya_audio_system.slots[untouched.index].filter;
+
+        // read back through the atomics the mixer reads, which is as far as a setter's effect can be
+        // seen without capturing output.
+        nya_audio_voice_filter_set(muffled, (NYA_AudioFilter){ .lowpass_hz = 800.0F, .glide_ms = 40.0F });
+
+        nya_assert(atomic_load_explicit(&filter->target_hz, memory_order_relaxed) == 800.0F, "the cutoff must reach the voice");
+        nya_assert(atomic_load_explicit(&filter->glide_ms, memory_order_relaxed) == 40.0F, "and so must the glide");
+        nya_assert(atomic_load_explicit(&other->target_hz, memory_order_relaxed) == 0.0F, "filtering one voice must leave the next one open");
+
+        // negative means off, the same as the bus filter reads it.
+        nya_audio_voice_filter_set(muffled, (NYA_AudioFilter){ .lowpass_hz = -10.0F, .glide_ms = -5.0F });
+
+        nya_assert(atomic_load_explicit(&filter->target_hz, memory_order_relaxed) == 0.0F, "a negative cutoff must clamp to off");
+        nya_assert(atomic_load_explicit(&filter->glide_ms, memory_order_relaxed) == 0.0F, "and a negative glide to none");
+
+        // a handle one generation off names somebody else's sound, and must not retune it.
+        NYA_SoundVoice stale = { .index = untouched.index, .generation = untouched.generation + 1 };
+        nya_audio_voice_filter_set(stale, (NYA_AudioFilter){ .lowpass_hz = 300.0F });
+
+        nya_assert(atomic_load_explicit(&other->target_hz, memory_order_relaxed) == 0.0F, "a stale handle must not reach the slot");
+      }
+
+      nya_audio_voice_stop(muffled, 0);
+      nya_audio_voice_stop(untouched, 0);
     }
   }
 
