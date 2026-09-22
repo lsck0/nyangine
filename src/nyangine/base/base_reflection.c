@@ -12,6 +12,12 @@
 NYA_INTERNAL b8 _nya_reflect_read_integer(NYA_Type primitive, const void* instance, OUT s64* out_value);
 NYA_INTERNAL b8 _nya_reflect_write_integer(NYA_Type primitive, void* instance, s64 value);
 
+/**
+ * A real truncated to an s64, or false when it has no s64: NaN, an infinity, or anything past the range.
+ * The cast alone is undefined there, and a document ({"count": 1e300}, or a binary NaN) chooses it.
+ * */
+NYA_INTERNAL b8 _nya_reflect_real_to_s64(f64 real, OUT s64* out_value);
+
 /** One element of an array or vector, as a value. Shared by both, which differ only in their stride. */
 NYA_INTERNAL NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflection* element, const void* address);
 
@@ -187,8 +193,8 @@ b8 nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value) {
 
         // A whole number written with a decimal point is still a whole number. Truncation is
         // deliberate rather than an error, so "count": 3.0 loads.
-        case NYA_TYPE_F32: *out_value = (s64)value.as_f32; return true;
-        case NYA_TYPE_F64: *out_value = (s64)value.as_f64; return true;
+        case NYA_TYPE_F32: return _nya_reflect_real_to_s64((f64)value.as_f32, out_value);
+        case NYA_TYPE_F64: return _nya_reflect_real_to_s64(value.as_f64, out_value);
 
         default: return false;
     }
@@ -885,6 +891,15 @@ NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflecti
     }
 
     return nya_reflect_read(element, address);
+}
+
+b8 _nya_reflect_real_to_s64(f64 real, OUT s64* out_value) {
+    // -2^63 and 2^63, both exact as an f64. Written as comparisons that a NaN fails, so it is refused too.
+    const f64 lowest = (f64)S64_MIN;
+    if (!(real >= lowest && real < -lowest)) return false;
+
+    *out_value = (s64)real;
+    return true;
 }
 
 b8 _nya_reflect_read_integer(NYA_Type primitive, const void* instance, OUT s64* out_value) {
