@@ -226,6 +226,22 @@ b8 _nya_ui_field(NYA_UI* ui, _NYA_UIWidget widget, b8 start, NYA_Rectf owner, NY
 
         if (composing[0] != '\0') {
             nya_font_draw(ui->window, font, composing, x + caret_x, y, _nya_ui_fade(style->text_dim));
+
+            // the run the IME has selected, the candidate being chosen, is underlined as the part that will change.
+            // Clamped each on its own, since the platform's numbers are not ours to trust with an addition.
+            s32 start = 0, selected = 0;
+            nya_input_text_composition_range(&start, &selected);
+
+            u32 composed = (u32)strlen(composing);
+            u32 from     = (u32)nya_clamp(start, 0, (s32)composed);
+            u32 to       = from + (u32)nya_clamp(selected, 0, (s32)(composed - from));
+
+            if (to > from) {
+                f32 left  = _nya_ui_field_width(font, composing, from);
+                f32 right = _nya_ui_field_width(font, composing, to);
+                nya_render2d_rect(ui->window, x + caret_x + left, y + line - mark, right - left, mark, _nya_ui_fade(style->accent));
+            }
+
             caret_x += roundf(nya_font_width(font, composing));
         }
 
@@ -480,6 +496,9 @@ b8 _nya_ui_field_keys(NYA_UI* ui, char* buffer, u32 capacity, u32* length) {
     }
 
     if (control && nya_input_key_just_pressed(NYA_KEY_V)) {
+        // asked first, since fetching copies whatever is there, and an image or nothing at all is common.
+        if (!nya_clipboard_has_text()) return false;
+
         NYA_ConstCString pasted = nya_clipboard_text(nya_arena_temp);
         u64              size   = strlen(pasted);
         defer nya_arena_free(nya_arena_temp, (void*)pasted, size + 1);

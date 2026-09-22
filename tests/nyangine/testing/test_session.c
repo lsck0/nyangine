@@ -177,6 +177,25 @@ s32 main(void) {
     NYA_WindowHandle window = nya_window_create("session", WINDOW_WIDTH, WINDOW_HEIGHT, NYA_WINDOW_NONE);
     nya_assert(nya_window_is_valid(window));
 
+    // text delivery is per window and off until a field asks for it, which is what the UI's typing relies on.
+    nya_assert(!nya_input_text_active(), "text is delivered before anything asked for it");
+    nya_input_text_begin(window);
+    nya_assert(nya_input_text_active(), "a window that asked for text gets it");
+
+    // an IME's edit arrives as the composition and the run it has selected, which the text field underlines.
+    nya_event_dispatch((NYA_Event){ .type = NYA_EVENT_TEXT_EDITING, .as_text_editing_event = { .window = window, .text = "nihon", .start = 2, .length = 3 } });
+    nya_app_events_pump();
+
+    s32 composition_start = 0, composition_length = 0;
+    nya_input_text_composition_range(&composition_start, &composition_length);
+    nya_assert(strcmp(nya_input_text_composition(), "nihon") == 0, "the composition arrived, got '%s'", nya_input_text_composition());
+    nya_assert(composition_start == 2 && composition_length == 3, "with its selected run, got %d and %d", composition_start, composition_length);
+
+    nya_input_text_end();
+    nya_input_text_composition_range(&composition_start, &composition_length);
+    nya_assert(composition_start == 0 && composition_length == 0, "and letting go of text clears it");
+    nya_assert(!nya_input_text_active(), "and stops getting it when it lets go");
+
     // the agent's only effect on the world, in the tick phase, ordered where a game's systems go.
     nya_system_register((NYA_SystemEntry){ .name   = "test_player",
                                            .after  = "layers",

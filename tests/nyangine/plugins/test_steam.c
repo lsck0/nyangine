@@ -299,6 +299,25 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the social facade answers with the Steam account when Steam is the provider
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    nya_check(nya_social_user_name()[0] == '\0', "before the facade runs it knows nobody");
+
+    // the facade pumps its providers from a frame hook, so the event system has to be there to take it.
+    nya_system_callback_init();
+    NYA_EXPECT(nya_system_events_init());
+    defer nya_system_callback_deinit();
+    defer nya_system_events_deinit();
+
+    NYA_EXPECT(nya_social_init());
+    nya_check(strcmp(nya_social_user_name(), FAKE_USER_NAME) == 0, "and then names the signed in account, got '%s'", nya_social_user_name());
+    nya_social_deinit();
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: achievements reach the client with the name they were given
   // ─────────────────────────────────────────────────────────────────────────────
   {

@@ -142,6 +142,10 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
 
         if (!social) nya_ui_disabled_end(ui);
 
+        // who an invite goes out as, so a player on the wrong account finds out before a friend does.
+        NYA_ConstCString signed_in = nya_social_user_name();
+        if (social && signed_in[0] != '\0') nya_ui_label(ui, signed_in, nya_ui_style_get(window).text_dim);
+
         // only while they are gone, since a window that is showing has its own close button and needs no second
         // switch. This is the whole of what "the caller owns the flag" buys: the UI cannot show a window again.
         if (!_GNY_LOOK_WINDOW.open || !_GNY_WIDGETS_WINDOW.open) {

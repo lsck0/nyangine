@@ -118,6 +118,9 @@ static void registers_late_tick(f32 delta_time_s) {
     nya_unused(delta_time_s);
     log_push("registrar_tick");
 
+    // the reason a registration from here queues rather than applies.
+    nya_assert(nya_system_registry_is_running(), "a system's own tick is inside a run");
+
     // guarded, because this runs every tick and a duplicate name is an assert.
     if (nya_system_registry_count() < 2) {
         nya_system_register((NYA_SystemEntry){ .name = "late", .tick = nya_callback(late_tick) });
@@ -369,7 +372,9 @@ s32 main(void) {
 
         nya_assert(nya_system_registry_finalize().ok);
 
+        nya_assert(!nya_system_registry_is_running(), "outside a run nothing is running");
         nya_system_registry_run(NYA_SYSTEM_PHASE_TICK, 0.016F);
+        nya_assert(!nya_system_registry_is_running(), "and the run is over once it returns");
         nya_assert(log_equals(1, (NYA_ConstCString[]){ "registrar_tick" }), "the new system must not run in the run that added it, got: %s", log_text());
         nya_assert(nya_system_registry_count() == 2, "but it is registered by the time the run returns");
 

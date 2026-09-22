@@ -157,20 +157,12 @@ NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
     { "nya_event_hook_register_once", "no caller when the rule landed" },
     // core_i18n.h
     { "nya_i18n_load_bytes", "no caller when the rule landed" },
-    // core_input.h
-    { "nya_clipboard_has_text", "no caller when the rule landed" },
-    { "nya_input_text_active", "no caller when the rule landed" },
-    { "nya_input_text_composition_range", "no caller when the rule landed" },
     // core_nav.h
     { "nya_nav_grid_from_tilemap", "no caller when the rule landed" },
     // core_skeleton_blend.h
     { "nya_blend_tree_evaluate", "no caller when the rule landed" },
     // core_skeleton.h
     { "nya_skeleton_clip", "no caller when the rule landed" },
-    // core_social.h
-    { "nya_social_user_name", "no caller when the rule landed" },
-    // core_system.h
-    { "nya_system_registry_is_running", "no caller when the rule landed" },
     // http_message.h
     { "nya_http_response_json", "no caller when the rule landed" },
     // nn_dqn.h

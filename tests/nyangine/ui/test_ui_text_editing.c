@@ -218,6 +218,8 @@ s32 main(void) {
         b8 clipboard = nya_clipboard_text_set("probe").ok;
 
         if (clipboard) {
+            nya_check(nya_clipboard_has_text(), "a clipboard just given text says it has some");
+
             editing_start("copy me");
 
             (void)press_with(NYA_KEY_A, NYA_KEYMOD_LCTRL);
