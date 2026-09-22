@@ -93,6 +93,7 @@
 #include "gnyame/sim.h"
 #include "gnyame/robots.h"
 /**/
+#include "gnyame/guild.h"
 #include "gnyame/world.h"
 #include "gnyame/screens.h"
 #include "gnyame/layers/layers.h"

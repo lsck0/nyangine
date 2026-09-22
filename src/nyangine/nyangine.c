@@ -11,6 +11,9 @@
 #ifndef NYA_NO_SDL
 #include "nyangine/crypto/crypto.c"
 #endif
+// below net and http, both of which ask it the same question a game asks it. No SDL and no sockets.
+#include "nyangine/permission/permission.c"
+
 // Each plugin is behind its own NYA_PLUGIN_* flag; see plugins.h.
 #include "nyangine/plugins/plugins.c"
 

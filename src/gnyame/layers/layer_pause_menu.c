@@ -161,6 +161,35 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
         NYA_ConstCString signed_in = nya_social_user_name();
         if (social && signed_in[0] != '\0') nya_ui_label(ui, signed_in, nya_ui_style_get(window).text_dim);
 
+        /*
+         * What this player may do in the session, out of the same table the web interface reads. The
+         * rank is a label rather than a setting: it is the resolver's answer, and the only way to
+         * change it is for somebody who outranks them to say so.
+         */
+        if (gny_guild() != nullptr) {
+            u64 local = gny_guild_local();
+
+            char rank[64] = { 0 };
+            (void)snprintf(rank, sizeof(rank), "%s", gny_guild_rank_name(local));
+
+            if (rank[0] != '\0') nya_ui_label(ui, rank, nya_ui_style_get(window).text_dim);
+
+            // and the one moderation action there is. Greyed out rather than hidden when they may not:
+            // a player who cannot kick should see that the session has moderation, not that it has none.
+            b8 may_kick = gny_guild_may(local, GNY_PERMISSION_KICK);
+
+            if (!may_kick) nya_ui_disabled_begin(ui);
+
+            if (nya_ui_button(ui, "kick the last player to join")) {
+                u64 target = (u64)nya_net_server_peer_count();
+
+                NYA_Error kicked = gny_guild_kick(local, target);
+                if (!kicked.ok) nya_log_info("Not kicked: %s", (NYA_ConstCString)kicked.message);
+            }
+
+            if (!may_kick) nya_ui_disabled_end(ui);
+        }
+
         // only while they are gone, since a window that is showing has its own close button and needs no second
         // switch. This is the whole of what "the caller owns the flag" buys: the UI cannot show a window again.
         if (!_GNY_LOOK_WINDOW.open || !_GNY_WIDGETS_WINDOW.open) {

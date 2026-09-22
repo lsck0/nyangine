@@ -17,6 +17,150 @@
  * */
 #define GNY_WEB_SECRET_ENVIRONMENT "GNYAME_WEB_SECRET"
 
+#define GNY_WEB_GUILD_PATH "/api/guild"
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE GUILD, OVER HTTP
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * The same table the pause menu reads, asked the same questions from a socket. Nothing here knows
+ * about roles or ranks beyond what `permission` answers: the route resolves, the resolver decides, and
+ * a refusal is a 403 for the same reason it greys a button out in the game.
+ */
+
+/** The roles, what each allows by name, and who holds what. What a role editor draws itself from. */
+NYA_INTERNAL NYA_HttpStatus gny_web_guild_read(NYA_HttpExchange* exchange) {
+    NYA_Permissions* guild = gny_guild();
+    if (guild == nullptr) return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
+
+    NYA_Object* body  = nya_object_create(exchange->arena);
+    NYA_Object* roles = nya_object_create(exchange->arena);
+
+    for (u32 role = 0; role < nya_permission_role_count(guild); role++) {
+        NYA_Object* entry = nya_object_create(exchange->arena);
+
+        nya_object_set(entry, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_role_name(guild, role) });
+        nya_object_set(entry, "position", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = nya_permission_role_position(guild, role) });
+
+        // by name rather than as a number: an editor that had to know the bits would be an editor
+        // written for this game, and the whole point is that it is not.
+        NYA_Object*    allowed = nya_object_create(exchange->arena);
+        NYA_Permission allows  = nya_permission_role_allows(guild, role);
+        u32            count   = 0;
+
+        for (u32 bit = 0; bit < 64; bit++) {
+            NYA_Permission one = 1ULL << bit;
+
+            if ((allows & one) == 0 || nya_permission_label(guild, one)[0] == '\0') continue;
+
+            char index[8] = { 0 };
+            (void)snprintf(index, sizeof(index), "%u", count++);
+
+            nya_object_set(allowed, index, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_label(guild, one) });
+        }
+
+        nya_object_set(entry, "allows", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *allowed });
+
+        char index[8] = { 0 };
+        (void)snprintf(index, sizeof(index), "%u", role);
+
+        nya_object_set(roles, index, (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *entry });
+    }
+
+    nya_object_set(body, "roles", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *roles });
+
+    // every permission that has a name, which is the vocabulary a role editor draws its rows from: it
+    // asks the table what exists rather than being compiled against this game's bits.
+    NYA_Object*    vocabulary = nya_object_create(exchange->arena);
+    NYA_Permission labelled   = nya_permission_labelled(guild);
+    u32            named      = 0;
+
+    for (u32 bit = 0; bit < 64; bit++) {
+        if ((labelled & (1ULL << bit)) == 0) continue;
+
+        char index[8] = { 0 };
+        (void)snprintf(index, sizeof(index), "%u", named++);
+
+        nya_object_set(vocabulary, index,
+                       (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_label(guild, 1ULL << bit) });
+    }
+
+    nya_object_set(body, "permissions", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *vocabulary });
+    nya_object_set(body, "members", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = nya_permission_subject_count(guild) });
+    nya_object_set(body, "owner", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_permissions_owner(guild) });
+
+    return nya_http_response_json(exchange->response, exchange->arena, body).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
+}
+
+/**
+ * Drops a player, as the subject the token names.
+ *
+ * The identity's subject is the actor: a token says who you are, and the guild table says what that
+ * means here, which is the split the permission module exists for.
+ * */
+NYA_INTERNAL NYA_HttpStatus gny_web_guild_kick(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity) {
+    if (gny_guild() == nullptr) return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
+
+    u64 actor  = 0;
+    u64 target = 0;
+
+    if (!nya_type_parse(NYA_TYPE_U64, (const u8*)identity->subject, strlen(identity->subject), &actor)) {
+        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "that token names no player in this session");
+    }
+
+    char wanted[24] = { 0 };
+    if (!nya_http_request_query_param(exchange->request, "peer", wanted, sizeof(wanted)) ||
+        !nya_type_parse(NYA_TYPE_U64, (const u8*)wanted, strlen(wanted), &target)) {
+        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_BAD_REQUEST, "which peer: ?peer=<subject>");
+    }
+
+    NYA_Error kicked = gny_guild_kick(actor, target);
+
+    if (!kicked.ok) {
+        // the same refusal the button in the pause menu is greyed out by, arriving over a socket.
+        if (kicked.kind == NYA_ERROR_PERMISSION_DENIED) {
+            return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, (NYA_ConstCString)kicked.message);
+        }
+
+        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_BAD_REQUEST, (NYA_ConstCString)kicked.message);
+    }
+
+    return NYA_HTTP_STATUS_NO_CONTENT;
+}
+
+NYA_INTERNAL const NYA_HttpRoute GNY_WEB_GUILD_ROUTES[] = {
+    {
+     .method      = NYA_HTTP_METHOD_QUERY,
+     .path        = GNY_WEB_GUILD_PATH,
+     .auth        = NYA_HTTP_AUTH_NONE,
+     .handler     = gny_web_guild_read,
+     .summary     = "The session's roles and who is in it",
+     .description = "The same table the game's pause menu reads. Permissions come back by name, so an editor needs to know nothing "
+                        "about this game's bits.",
+     .statuses    = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     },
+    {
+     .method             = NYA_HTTP_METHOD_DELETE,
+     .path               = GNY_WEB_GUILD_PATH,
+     .auth               = NYA_HTTP_AUTH_BEARER,
+     .handler_identified = gny_web_guild_kick,
+     .summary            = "Drops a player",
+     .description        = "`?peer=<subject>`. The token says who is asking; the guild table says whether they may and whether they "
+                           "outrank the player they named. 403 when either answer is no.",
+     .statuses           = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN,
+                             NYA_HTTP_STATUS_SERVICE_UNAVAILABLE },
+     },
+};
+
+NYA_INTERNAL const NYA_HttpRouter GNY_WEB_GUILD_ROUTER = {
+    .name        = "guild",
+    .routes      = GNY_WEB_GUILD_ROUTES,
+    .route_count = nya_carray_length(GNY_WEB_GUILD_ROUTES),
+};
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -75,6 +219,9 @@ void gny_web_start(void) {
      */
     NYA_EXPECT(nya_http_server_merge(nya_http_metrics_router()), "while mounting the metrics resource");
     NYA_EXPECT(nya_http_server_merge(nya_http_openapi_router()), "while mounting the schema resource");
+
+    // and the session's own table, which is the same one the game reads: one question, two callers.
+    NYA_EXPECT(nya_http_server_merge(&GNY_WEB_GUILD_ROUTER), "while mounting the guild resource");
 
     /*
      * The metrics line spells the verb out: the reads are QUERY, so a browser pointed at that path

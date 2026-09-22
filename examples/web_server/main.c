@@ -443,7 +443,7 @@ NYA_INTERNAL NYA_HttpStatus session_issue(NYA_HttpExchange* exchange) {
     char token[NYA_HTTP_MAX_TOKEN_BYTES] = { 0 };
 
     if (!nya_http_jwt_encode(&identity, SESSION_SECRET, sizeof(SESSION_SECRET), token, sizeof(token)).ok) {
-        return NYA_HTTP_STATUS_INTERNAL_SERVER_ERROR;
+        return NYA_HTTP_STATUS_INTERNAL_ERROR;
     }
 
     NYA_Error set = nya_http_response_cookie(exchange->response,
@@ -456,7 +456,7 @@ NYA_INTERNAL NYA_HttpStatus session_issue(NYA_HttpExchange* exchange) {
                                                  .same_site = NYA_HTTP_SAME_SITE_STRICT,
                                              });
 
-    return set.ok ? NYA_HTTP_STATUS_NO_CONTENT : NYA_HTTP_STATUS_INTERNAL_SERVER_ERROR;
+    return set.ok ? NYA_HTTP_STATUS_NO_CONTENT : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
 /** Who the cookie says you are. Reached by the cookie alone, which is the point of the route. */
@@ -466,7 +466,7 @@ NYA_INTERNAL NYA_HttpStatus session_read(NYA_HttpExchange* exchange, const NYA_H
     nya_object_set(body, "subject", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)identity->subject });
     nya_object_set(body, "expires_at_s", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = identity->expires_at_s });
 
-    return nya_http_response_json(exchange->response, exchange->arena, body).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_SERVER_ERROR;
+    return nya_http_response_json(exchange->response, exchange->arena, body).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
 /**
@@ -476,7 +476,7 @@ NYA_INTERNAL NYA_HttpStatus session_read(NYA_HttpExchange* exchange, const NYA_H
 NYA_INTERNAL NYA_HttpStatus session_clear(NYA_HttpExchange* exchange) {
     NYA_Error cleared = nya_http_response_cookie_clear(exchange->response, NYA_HTTP_SESSION_COOKIE, "/", true);
 
-    return cleared.ok ? NYA_HTTP_STATUS_NO_CONTENT : NYA_HTTP_STATUS_INTERNAL_SERVER_ERROR;
+    return cleared.ok ? NYA_HTTP_STATUS_NO_CONTENT : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }
 
 /** One code against the factor that is on. What a login route will call once there is one. */

@@ -3,6 +3,7 @@
 #include "gnyame/config.c"
 #include "gnyame/actions.c"
 #include "gnyame/entities/entities.c"
+#include "gnyame/guild.c"
 #include "gnyame/net.c"
 #include "gnyame/social.c"
 #include "gnyame/sim.c"

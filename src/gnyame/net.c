@@ -30,6 +30,10 @@
 void gny_net_start(void) {
     f32 speed = NYA_CONFIG.game.player_speed > 0.0F ? NYA_CONFIG.game.player_speed : GNY_PLAYER_SPEED;
 
+    // before either branch: a client keeps a table too, so its UI can grey out what the server would
+    // refuse anyway rather than offering a button that always fails.
+    gny_guild_start();
+
     if (GNY_LAUNCH.role == NYA_NET_ROLE_CLIENT) {
         NYA_NetClientConfig config = {
             .replicated_flag   = GNY_FLAG_REPLICATED,
@@ -110,6 +114,8 @@ void gny_net_start(void) {
 void gny_net_stop(void) {
     nya_net_client_disconnect();
     nya_net_server_stop();
+
+    gny_guild_stop();
 }
 
 void gny_net_rejoin(NYA_NetLaunchConfig config) {
@@ -175,6 +181,8 @@ void gny_net_sample_command(OUT NYA_NetCommand* command) {
 
 NYA_EntityHandle gny_net_spawn_player(NYA_NetPeerId peer, NYA_ConstCString name) {
     nya_unused(name);
+
+    gny_guild_join(peer);
 
     f32 spacing = NYA_CONFIG.game.player_spawn_spacing > 0.0F ? NYA_CONFIG.game.player_spawn_spacing : GNY_PLAYER_SPAWN_SPACING;
 

@@ -10,6 +10,7 @@
 #include "nyangine/math/math.h"
 #include "nyangine/nn/nn.h"
 #include "nyangine/platform/platform.h"
+#include "nyangine/permission/permission.h"
 #include "nyangine/plugins/plugins.h"
 #include "nyangine/serde/serde.h"
 

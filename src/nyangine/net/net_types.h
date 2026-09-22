@@ -121,6 +121,9 @@ enum NYA_NetDisconnect {
     /** The server counted too many broken rules for movement or actions. */
     NYA_NET_DISCONNECT_CHEATING,
 
+    /** A moderator dropped the player. Not cheating and not the player's own request; see permission.h. */
+    NYA_NET_DISCONNECT_KICKED,
+
     NYA_NET_DISCONNECT_COUNT,
 };
 

@@ -89,6 +89,7 @@ NYA_INTERNAL const _LintBannedCall _LINT_BANNED_CALLS[] = {
  */
 NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
     { "os",       0 }, { "base",     1 }, { "platform", 2 }, { "math",    2 }, { "serde",   3 }, { "nn",      3 }, { "crypto",  3 },
+    { "permission", 3 },
     { "net",      4 }, { "http",     5 }, { "core",     6 }, { "renderer", 7 }, { "ui",      8 }, { "physics", 9 }, { "debug",   10 },
     { "testing",  11 }, { "plugins", 11 },
 };

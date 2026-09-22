@@ -22,6 +22,7 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 - [`serde`](#serde) — One dynamic value type, serialized to and from json, jsonc and the engine's own format.
 - [`crypto`](#crypto) — Hashes, MACs, AEAD, X25519, Ed25519, Argon2id and base32, over monocypher and its vectors.
 - [`nn`](#nn) — Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else.
+- [`permission`](#permission) — Who may do what to which thing: roles, ranks, overwrites, one resolver, one audit.
 - [`debug`](#debug) — The overlay, the trace, the crash window, and drawing physics shapes and networks.
 - [`plugins`](#plugins) — Optional dependencies behind a flag: curl, sqlite, lua, discord, steam.
 - [`platform`](#platform) — What the host is, and how to talk to it: signals, the terminal and ipc.
@@ -4604,7 +4605,7 @@ b8 nya_net_transport_is_local(const NYA_NetTransport* transport)  // Whether thi
 // types
 enum NYA_NetRole { NYA_NET_ROLE_NONE = 0, NYA_NET_ROLE_SERVER, NYA_NET_ROLE_CLIENT, NYA_NET_ROLE_COUNT, }  // What this process is, with respect to the simulation.
 enum NYA_NetChannel { NYA_NET_CHANNEL_UNRELIABLE = 0, NYA_NET_CHANNEL_RELIABLE, NYA_NET_CHANNEL_COUNT, }  // Which delivery guarantee a message wants.
-enum NYA_NetDisconnect { NYA_NET_DISCONNECT_NONE = 0, NYA_NET_DISCONNECT_REQUESTED, NYA_NET_DISCONNECT_TIMEOUT, NYA_NET_DISCONNECT_FULL, NYA_NET_DISCONNECT_VERSION, NYA_NET_DISCONNECT_PROTOCOL, NYA_NET_DISCONNECT_SERVER_CLOSED, NYA_NET_DISCONNECT_IDENTITY, NYA_NET_DISCONNECT_CHEATING, NYA_NET_DISCONNECT_COUNT, }  // Why a peer is no longer connected.
+enum NYA_NetDisconnect { NYA_NET_DISCONNECT_NONE = 0, NYA_NET_DISCONNECT_REQUESTED, NYA_NET_DISCONNECT_TIMEOUT, NYA_NET_DISCONNECT_FULL, NYA_NET_DISCONNECT_VERSION, NYA_NET_DISCONNECT_PROTOCOL, NYA_NET_DISCONNECT_SERVER_CLOSED, NYA_NET_DISCONNECT_IDENTITY, NYA_NET_DISCONNECT_CHEATING, NYA_NET_DISCONNECT_KICKED, NYA_NET_DISCONNECT_COUNT, }  // Why a peer is no longer connected.
 struct NYA_NetPeerId { u32 index; u32 generation; }  // Identifies a connected peer for as long as it is connected.
 
 // macros
@@ -5422,6 +5423,68 @@ NYA_ConstCString nya_nn_op_name(NYA_NNOp op)  // The op's name, for an error mes
 b8 nya_nn_tensor_is_finite(const NYA_NNTensor* tensor)  // Whether every element of `tensor`, and of its gradient if it has one, is a finite number.
 NYA_NNTensor* nya_nn_graph_find_non_finite(const NYA_NNGraph* graph)  // The first tensor on the tape holding a NaN or an infinity, or null when all of them are finite.
 void nya_nn_backward(NYA_NNGraph* graph, NYA_NNTensor* loss)  // Walks the tape backwards from `loss`, accumulating into every gradient that requires one.
+```
+
+## permission
+
+Who may do what to which thing: roles, ranks, overwrites, one resolver, one audit.
+
+### permission.h
+
+── the permission module ──
+
+```c
+// types
+typedef u64 NYA_Permission  // A set of permissions: one bit each, the program's to name below NYA_PERMISSION_RESERVED.
+typedef enum { NYA_PERMISSION_TARGET_ROLE = 0, NYA_PERMISSION_TARGET_SUBJECT, NYA_PERMISSION_TARGET_COUNT, } NYA_PermissionTarget  // What an overwrite is attached to.
+typedef enum { NYA_PERMISSION_CHANGE_ROLE_ADDED = 0, NYA_PERMISSION_CHANGE_ROLE_EDITED, NYA_PERMISSION_CHANGE_ROLE_REMOVED, NYA_PERMISSION_CHANGE_ROLE_GRANTED, NYA_PERMISSION_CHANGE_ROLE_REVOKED, NYA_PERMISSION_CHANGE_OVERWRITE_SET, NYA_PERMISSION_CHANGE_OVERWRITE_CLEARED, NYA_PERMISSION_CHANGE_OWNER_SET, NYA_PERMISSION_CHANGE_COUNT, } NYA_PermissionChange  // What an audit entry records.
+typedef struct { NYA_PermissionChange change; u64 actor; u64 subject; u64 resource; u32 role; NYA_Permission before_allow; NYA_Permission before_deny; NYA_Permission after_allow; NYA_Permission after_deny; u64 at_s; } NYA_PermissionAudit  // One line of the audit trail: who did what to which, and what it was before and after.
+
+// macros
+NYA_PERMISSION_MAX_ROLES 64  // Roles one table may hold, `@everyone` included.
+NYA_PERMISSION_MAX_ROLE_NAME 32  // A role name, terminator included.
+NYA_PERMISSION_MAX_SUBJECTS 256  // Subjects one table may hold.
+NYA_PERMISSION_MAX_OVERWRITES 256  // Overwrites one table may hold across every resource.
+NYA_PERMISSION_MAX_LABEL 24  // A permission's label, terminator included.
+NYA_PERMISSION_MAX_AUDIT 128  // Audit entries kept, oldest dropped.
+NYA_PERMISSION_ADMINISTRATOR (1ULL << 63)  // Every permission, on every resource, deny or no deny.
+NYA_PERMISSION_MANAGE_ROLES (1ULL << 62)  // May add, edit, reorder and delete roles, and grant those below its own rank.
+NYA_PERMISSION_MANAGE_SUBJECTS (1ULL << 61)  // May act on other subjects it outranks: add them, remove them, change what they hold.
+NYA_PERMISSION_RESERVED  // The three above.
+NYA_PERMISSION_NONE 0ULL  // No permissions at all, which is what an unknown subject resolves to.
+NYA_PERMISSION_ROLE_EVERYONE 0U  // The role every subject holds, whether or not it was granted.
+NYA_PERMISSION_SYSTEM 0ULL  // The actor that answers yes to every check: the owner, a migration, a console command.
+
+// functions
+NYA_Permissions* nya_permissions_create(NYA_Arena* arena)  // A table with `@everyone` in it and nothing else.
+void nya_permissions_destroy(NYA_Permissions* permissions)
+NYA_Error nya_permission_role_add(NYA_Permissions* permissions, u64 actor, NYA_ConstCString name, u16 position, NYA_Permission allow, u64 now_s, OUT u32* out_role)  // Adds a role and answers its index, which is also its bit in a subject's role set.
+NYA_Error nya_permission_role_edit(NYA_Permissions* permissions, u64 actor, u32 role, u16 position, NYA_Permission allow, u64 now_s)  // Replaces a role's position and allow set.
+NYA_Error nya_permission_role_remove(NYA_Permissions* permissions, u64 actor, u32 role, u64 now_s)
+NYA_ConstCString nya_permission_role_name(const NYA_Permissions* permissions, u32 role)  // The role's name, or null for an index no role has.
+u16 nya_permission_role_position(const NYA_Permissions* permissions, u32 role)  // The role's position, or zero for an index no role has.
+NYA_Permission nya_permission_role_allows(const NYA_Permissions* permissions, u32 role)  // What the role allows by itself, before any overwrite.
+u32 nya_permission_role_count(const NYA_Permissions* permissions)  // How many roles the table holds, `@everyone` included.
+NYA_Error nya_permission_role_grant(NYA_Permissions* permissions, u64 actor, u64 subject, u32 role, u64 now_s)  // Gives `subject` the role, adding the subject to the table if it is new.
+NYA_Error nya_permission_role_revoke(NYA_Permissions* permissions, u64 actor, u64 subject, u32 role, u64 now_s)  // Takes the role away again, under the same rules.
+u64 nya_permission_subject_roles(const NYA_Permissions* permissions, u64 subject)  // The roles the subject holds as a bit per role index, `@everyone` included.
+u16 nya_permission_subject_rank(const NYA_Permissions* permissions, u64 subject)  // The highest position among the subject's roles.
+u32 nya_permission_subject_count(const NYA_Permissions* permissions)  // How many subjects the table knows about.
+NYA_Error nya_permissions_owner_set(NYA_Permissions* permissions, u64 actor, u64 subject, u64 now_s)  // Makes `subject` the owner: above every role, every deny and every check.
+u64 nya_permissions_owner(const NYA_Permissions* permissions)  // The owner, or NYA_PERMISSION_SYSTEM when the table has none.
+NYA_Error nya_permission_overwrite_set(NYA_Permissions* permissions, u64 actor, u64 resource, NYA_PermissionTarget target, u64 id, NYA_Permission allow, NYA_Permission deny, u64 now_s)  // Sets one resource's overwrite for a role or a subject, replacing whatever was there.
+NYA_Error nya_permission_overwrite_clear(NYA_Permissions* permissions, u64 actor, u64 resource, NYA_PermissionTarget target, u64 id, u64 now_s)  // Removes it again, under the same rule.
+b8 nya_permission_overwrite_get(const NYA_Permissions* permissions, u64 resource, NYA_PermissionTarget target, u64 id, OUT NYA_Permission* out_allow, OUT NYA_Permission* out_deny)  // The overwrite as stored, or false when the resource carries none for that target.
+u32 nya_permission_overwrite_count(const NYA_Permissions* permissions)  // How many overwrites the table holds, across every resource.
+NYA_Error nya_permission_label_set(NYA_Permissions* permissions, NYA_Permission bit, NYA_ConstCString name)  // Names one bit.
+NYA_ConstCString nya_permission_label(const NYA_Permissions* permissions, NYA_Permission bit)  // The name of one bit, or "" for a bit nobody has named.
+NYA_Permission nya_permission_labelled(const NYA_Permissions* permissions)  // Every bit that has a name, as a set, which is what an editor walks to draw its rows.
+NYA_Permission nya_permission_resolve(const NYA_Permissions* permissions, u64 subject, u64 resource)  // Everything `subject` may do to `resource`, by the six steps in the file note.
+b8 nya_permission_has(const NYA_Permissions* permissions, u64 subject, u64 resource, NYA_Permission required)  // Whether resolving gives every bit of `required`.
+b8 nya_permission_outranks(const NYA_Permissions* permissions, u64 actor, u64 subject)  // Whether `actor` outranks `subject`, which is what every change here is gated on.
+u32 nya_permission_audit_count(const NYA_Permissions* permissions)  // How many entries the ring holds right now, at most NYA_PERMISSION_MAX_AUDIT.
+b8 nya_permission_audit_at(const NYA_Permissions* permissions, u32 index, OUT NYA_PermissionAudit* out_entry)  // Entry `index`, oldest first, or false past the count.
+u64 nya_permission_audit_dropped(const NYA_Permissions* permissions)  // How many entries the ring has dropped since the table was made, which a report says out loud.
 ```
 
 ## debug
