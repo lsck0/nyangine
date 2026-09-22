@@ -230,8 +230,17 @@ void _nya_ui_animate(_NYA_UIWidget* widget) {
 }
 
 void _nya_ui_typing_start(NYA_UI* ui, u64 id, u32 caret, NYA_Rectf field) {
-    nya_assert(ui != nullptr && id != 0);
-    nya_assert(ui->editing == 0, "a field started typing while another already had the keyboard");
+    nya_assert(ui != nullptr && id != 0 && ui->editing != id);
+
+    /*
+     * A click takes the keyboard from whichever field had it. A field declared above the one being typed in
+     * reads the click before the other can see it and let go, so the handover happens here. Only a click:
+     * typing swallows the keys, so nothing on the keyboard can reach a second field.
+     */
+    if (ui->editing != 0) {
+        nya_assert(_nya_ui.pointer_pressed || _nya_ui.pointer_released, "a field started typing while another had the keyboard, and not by a click");
+        _nya_ui_typing_stop(ui);
+    }
 
     ui->editing = id;
     ui->caret   = caret;

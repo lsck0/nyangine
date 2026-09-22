@@ -1,7 +1,8 @@
 /**
  * Editing in the UI's one line field, headless: shift with the arrows selects and typing replaces the selection,
  * control moves and deletes by word, control with A selects everything, the clipboard round trips through copy, cut
- * and paste, and a click past the end of the text puts the caret after it.
+ * and paste, a click past the end of the text puts the caret after it, and a click on one field takes the keyboard
+ * from another that already had it.
  **/
 
 #include "nyangine/nyangine.c"
@@ -92,6 +93,22 @@ static b8 field(void) {
     tick();
 
     return changed;
+}
+
+static char lower[64] = "";
+
+/** The field above and a second field below it, the pause menu's name over its colour picker's hex. */
+static void two_fields(void) {
+    NYA_UI* ui = nya_ui_begin(&window, NYA_UI_PASS_INPUT);
+
+    if (nya_ui_panel_begin(ui, "form", (NYA_UIPanel){ .width = nya_ui_fixed(400) })) {
+        (void)nya_ui_text_input(ui, "name", text, sizeof(text));
+        (void)nya_ui_text_input(ui, "title", lower, sizeof(lower));
+        nya_ui_panel_end(ui);
+    }
+
+    nya_ui_end(ui);
+    tick();
 }
 
 /** Starts typing from scratch with `start` in the buffer and the caret at its end. */
@@ -230,6 +247,32 @@ s32 main(void) {
         type("c");
         (void)field();
         nya_check(nya_string_equals(text, "abc"), "and the caret sits after the last character, got '%s'", text);
+    }
+
+    // ── A click on a field above the one being typed in takes the keyboard. The upper field reads the click
+    //    before the lower one can see it and let go, which the agent found by crashing into it in the pause menu.
+    {
+        nya_ui_focus_reset(&window);
+        text[0]  = '\0';
+        lower[0] = '\0';
+        two_fields();
+
+        tap(NYA_KEY_TAB);
+        two_fields();
+        tap(NYA_KEY_RETURN);
+        two_fields();
+        type("b");
+        two_fields();
+        nya_check(nya_string_equals(lower, "b"), "the lower field has the keyboard first, got '%s'", lower);
+
+        click_at((f32x2){ FIELD.x + FIELD.width - 20.0F, FIELD.y + (FIELD.height * 0.5F) });
+        two_fields();
+        nya_check(nya_ui_typing(&window), "the click starts typing in the upper field");
+
+        type("a");
+        two_fields();
+        nya_check(nya_string_equals(text, "a"), "what is typed next goes to the upper field, got '%s'", text);
+        nya_check(nya_string_equals(lower, "b"), "and the lower one is left as it was, got '%s'", lower);
     }
 
     return nya_check_failures() == 0 ? 0 : 1;
