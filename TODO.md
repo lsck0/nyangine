@@ -288,9 +288,12 @@ Small, and first, because every later phase trusts these numbers.
     two more, both real: `test_control`'s liar case passed vacuously on Linux (it checked for a drop before the
     server had accepted), which a Windows pipe's missing backlog exposed as `ERROR_PIPE_BUSY`; and the Windows
     log was opened `FILE_SHARE_READ` only, so a second process could not log to the same day's file.
-- `[ ]` `net/test_transport` leaked 81 bytes from `nya_net_transport_connect` (net_transport.c:47, reached from
-  test_transport.c:931) once under a loaded parallel run, and passed alone three times. A flaky test is a bug;
-  find which path leaves the allocation behind.
+- `[~]` `net/test_transport` leaked 81 bytes from `nya_net_transport_connect` (net_transport.c:47, reached from
+  test_transport.c:931) once under a loaded parallel run, and passed alone three times. The cause, read from the
+  source rather than reproduced: SDL_net's `NET_Quit` sets `resolver_queue = NULL` without releasing the addresses
+  still on it, so a lookup whose resolver thread had not started yet is lost when the last transport closes. The
+  UDP transport now waits for its own lookup, at most `_NYA_NET_UDP_RESOLVE_WAIT_MS`, before letting go. Close it
+  once a loaded run has passed it many times; report the queue upstream.
 - `[x]` `test_agent` gets a wall clock deadline of its own and fails with a message when it passes it.
   `testing_deadline.h`: a watchdog thread that, past the limit, names the test and sends the stuck thread a
   signal, so the crash path prints *its* backtrace. `test_deadline.c` forces a hang in a child: it fails at 1 s
