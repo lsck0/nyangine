@@ -149,6 +149,15 @@ In scope, deliberately: not only a server, but the client too.
   compared whole. The PGP second factor is half done: the challenge is real and stateless, the signature check
   is a seam (`nya_http_second_factor_set`) and a route that needs one with no verifier installed answers 501.
   An OpenPGP parser is its own piece of work and does not belong inside an HTTP server.
+- `[⏭]` Vendoring an OpenPGP library: deferred on purpose (2026-09-22), not forgotten. There is no small C one,
+  because a complete implementation needs its own bignum and RSA stack. The three real answers each cost
+  something structural to a build where every vendor is C, static and cross-compiled to mingw and the sniper
+  sysroot: Sequoia makes a Rust toolchain a build requirement everywhere, rnp pulls in C++ and Botan, and an
+  Ed25519-only parser of our own over the vendored monocypher refuses every RSA key. Decide which users have
+  before paying any of them.
+- `[⏭]` TOTP as the second factor instead: also deferred. Not a wiring job — `nya_hmac_sha256` exists but TOTP
+  wants HMAC-SHA1 and base32, neither of which does. About 200 lines, and RFC 6238 publishes test vectors, so
+  it would be provable rather than merely written.
 - `[ ]` A login route. There is no way to _get_ a token over HTTP yet, only to present one; tokens are minted
   in-process with `nya_http_jwt_encode`. That wants a user store, which nothing here has.
 - `[ ]` Compile to web: a bundle of HTML, CSS, JS and wasm. WebGPU where it exists, a canvas backend otherwise.
