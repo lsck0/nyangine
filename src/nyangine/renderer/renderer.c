@@ -154,7 +154,32 @@ NYA_Error nya_system_renderer_init(void) {
     // recoverable: no GPU backend is normal without drivers or on CI, and the caller decides what that means.
     SDL_GPUDevice* gpu_device =
         SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_SPIRV, NYA_DEVELOPMENT_BUILD, nullptr);
-    if (gpu_device == nullptr) return nya_error(NYA_ERROR_NOT_SUPPORTED, "SDL_CreateGPUDevice() failed: %s", SDL_GetError());
+
+    if (gpu_device == nullptr) {
+        /*
+         * One failure has a known cause and a one line answer, so it gets said rather than left as
+         * "no supported backend".
+         *
+         * RenderDoc's Vulkan layer has no Wayland support. Under it SDL cannot build an instance that
+         * can make a surface, its Vulkan backend reports itself unsupported, and the only thing anyone
+         * sees is a program that closes the moment it is captured. Forcing SDL onto x11, which is
+         * XWayland here, makes both of them work.
+         *
+         * Probed from the environment rather than by asking Vulkan, because by this point Vulkan has
+         * already refused to say anything at all.
+         */
+        const b8 renderdoc = getenv("ENABLE_VULKAN_RENDERDOC_CAPTURE") != nullptr || getenv("RENDERDOC_CAPTUREOPTS") != nullptr;
+        NYA_ConstCString video = SDL_GetCurrentVideoDriver();
+
+        if (renderdoc && video != nullptr && nya_string_equals((NYA_CString)video, "wayland")) {
+            return nya_error(NYA_ERROR_NOT_SUPPORTED,
+                             "SDL_CreateGPUDevice() failed under RenderDoc on Wayland, which RenderDoc's Vulkan layer does not support. "
+                             "Run with SDL_VIDEO_DRIVER=x11 to capture. (%s)",
+                             SDL_GetError());
+        }
+
+        return nya_error(NYA_ERROR_NOT_SUPPORTED, "SDL_CreateGPUDevice() failed: %s", SDL_GetError());
+    }
 
     app->render_system = (NYA_RenderSystem){
         .gpu_device = gpu_device,
