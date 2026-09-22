@@ -322,6 +322,86 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a settled body sleeps through a teleport, and waking it lets it fall
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_EntityHandle floor = nya_entity_spawn(.name = "floor", .position = { 0.0F, -0.5F, 0.0F });
+    nya_assert(nya_physics3d_body_attach(floor, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 20.0F, 1.0F, 20.0F }));
+
+    NYA_EntityHandle box = nya_entity_spawn(.name = "sleeper", .position = { 0.0F, 0.5F, 0.0F });
+    nya_assert(nya_physics3d_body_attach(box, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 1.0F, 1.0F, 1.0F }));
+
+    NYA_Entity* entity = nya_entity_get(box);
+
+    // five seconds resting on the floor, far past the half second the solver waits before it sleeps a body.
+    step(300);
+    nya_assert(!nya_physics3d_awake(entity), "a body at rest is put to sleep");
+
+    // the step time is what the solver took, so it reads zero only while nothing has been stepped.
+    nya_assert(nya_physics3d_last_step_time_s() > 0.0F, "the last step was timed");
+    nya_assert(nya_physics3d_last_step_time_s() < 1.0F, "in seconds, got %f", (f64)nya_physics3d_last_step_time_s());
+
+    // what a reset in the 3D scene does: moved up with no velocity, and nothing about that wakes it.
+    nya_physics3d_teleport(entity, (f32x3){ 0.0F, 5.0F, 0.0F }, nya_quaternion_identity);
+    nya_physics3d_velocity_set(entity, f32x3_zero);
+    step(30);
+
+    nya_assert(!nya_physics3d_awake(entity), "a teleport leaves it asleep");
+    nya_assert(entity->position.y == 5.0F, "so it hangs where it was put, got %f", (f64)entity->position.y);
+
+    nya_physics3d_wake(entity);
+    nya_assert(nya_physics3d_awake(entity), "waking it wakes it");
+
+    step(30);
+    nya_assert(entity->position.y < 5.0F, "and it falls, to %f", (f64)entity->position.y);
+
+    nya_entity_despawn(box);
+    nya_entity_despawn(floor);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: ten units to the metre make the same fall ten times as long
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    const f32x3 original_gravity = nya_physics3d_gravity();
+    const f32   scales[2]        = { 1.0F, 10.0F };
+
+    f32 fallen[2] = { 0 };
+
+    for (u32 run = 0; run < 2; run++) {
+      /*
+       * Earth's gravity in world units, set before the scale on purpose: the solver was given it through
+       * the old scale, so it reaches 9.81 metres per second squared only if changing the scale converts
+       * it again.
+       */
+      nya_physics3d_gravity_set((f32x3){ 0.0F, -9.81F * scales[run], 0.0F });
+      nya_physics3d_units_per_meter_set(scales[run]);
+
+      nya_assert(nya_physics3d_units_per_meter() == scales[run], "the scale reads back, got %f", (f64)nya_physics3d_units_per_meter());
+
+      NYA_EntityHandle ball = nya_entity_spawn(.name = "dropped", .position = { 0.0F, 0.0F, 0.0F });
+      nya_assert(nya_physics3d_body_attach(ball, .shape = NYA_PHYSICS3D_SHAPE_SPHERE, .radius = 0.5F * scales[run]));
+
+      step(30);
+      fallen[run] = -nya_entity_get(ball)->position.y;
+
+      nya_entity_despawn(ball);
+    }
+
+    nya_physics3d_units_per_meter_set(1.0F);
+    nya_physics3d_gravity_set(original_gravity);
+
+    // half a second of free fall is about 1.2 metres, in whatever units a metre is.
+    nya_assert(fallen[0] > 1.0F && fallen[0] < 1.5F, "a metre a unit falls about 1.2 units, got %f", (f64)fallen[0]);
+    nya_assert(fabsf(fallen[1] - (fallen[0] * scales[1])) < fallen[0] * scales[1] * 0.01F, "ten to the metre falls ten times as far, got %f for %f",
+               (f64)fallen[1], (f64)fallen[0]);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: malformed bodies are refused rather than half built
   // ─────────────────────────────────────────────────────────────────────────────
   {

@@ -142,18 +142,8 @@ NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
     { "nya_nn_neat_step_for", "no caller when the rule landed" },
     // nn_tensor.h
     { "nya_nn_tensor_copy", "no caller when the rule landed" },
-    // physics3d.h
-    { "nya_physics3d_last_step_time_s", "no caller when the rule landed" },
-    { "nya_physics3d_units_per_meter_set", "no caller when the rule landed" },
-    { "nya_physics3d_wake", "no caller when the rule landed" },
     // lua.h
     { "nya_lua_nil", "no caller when the rule landed" },
-    // render_fluid.h
-    { "nya_fluid_render_options", "no caller when the rule landed" },
-    { "nya_fluid_step_time_s", "no caller when the rule landed" },
-    { "nya_fluid_temperature_at", "no caller when the rule landed" },
-    // render_particles.h
-    { "nya_particles_casts_shadow_set", "no caller when the rule landed" },
     // testing_property.h
     { "nya_property_draw_f32_any", "no caller when the rule landed" },
 };

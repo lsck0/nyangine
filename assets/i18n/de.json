@@ -82,6 +82,7 @@
   "cube3d_hitboxes": "hitboxen",
   "cube3d_decals": "abziehbilder",
   "cube3d_culling": "%u verworfen   %u von %u vom ring verdeckt   stein-lod %u bis %u",
+  "cube3d_simulation": "physik %.2f ms   fluid %.2f ms   hitze am feuer %.2f",
 
   "presence_menu": "im menü",
   "presence_sandbox": "physik-sandkasten",

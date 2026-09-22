@@ -122,6 +122,10 @@ void gny_layer_cube3d_on_create(NYA_Window* window) {
     nya_particles_space_set(scene->fire, NYA_PARTICLE_SPACE_3D);
     nya_particles_space_set(scene->smoke, NYA_PARTICLE_SPACE_3D);
 
+    // the dust is opaque untextured grit, so the solid square a billboard casts is its real shadow. the plume's
+    // soft puffs would cast the same square around a sprite that is mostly transparent, so they stay out.
+    nya_particles_casts_shadow_set(scene->dust, true);
+
     // a soft radial sprite on the plume, so overlapping puffs blend instead of showing square edges. the dust stays
     // hard and countable.
     NYA_Error puff = nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXTURE, .handle = GNY_CUBE3D_PUFF_TEXTURE });
@@ -1220,6 +1224,12 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
     u32 farthest_level = 0;
     gny_layer_cube3d_stones_levels(eye, &nearest_level, &farthest_level);
 
+    // what the two solvers cost on the last tick, and how hot the column is in the flames, which is what
+    // shades it from cool to hot. nya_time_s_to_ms truncates to whole milliseconds, and a step is a fraction.
+    f64 physics_ms = (f64)nya_physics3d_last_step_time_s() * 1000.0;
+    f64 fluid_ms   = (f64)nya_fluid_step_time_s(scene->plume) * 1000.0;
+    f64 fire_heat  = nya_fluid_temperature_at(scene->plume, _gny_cube3d_hearth());
+
     // the HUD in screen pixels over the flushed scene. render2d has no depth test, so it lands in front.
     NYA_ConstCString hints[] = {
         scene->grabbed_once ? nya_string_cube3d_hint_drag() : nya_string_cube3d_hint_click(),
@@ -1228,6 +1238,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         nya_string_cube3d_keys(),
         nya_string_cube3d_render_keys(),
         nya_string_cube3d_culling(drawn.culled, drawn.occluded, hidden.tests, nearest_level, farthest_level),
+        nya_string_cube3d_simulation(physics_ms, fluid_ms, fire_heat),
     };
 
     NYA_UI*     ui  = gny_ui_begin(window, NYA_UI_PASS_DRAW);
@@ -1532,4 +1543,7 @@ void _gny_cube3d_body_reset(NYA_EntityHandle handle, f32x3 position) {
     nya_physics3d_teleport(entity, position, nya_quaternion_identity);
     nya_physics3d_velocity_set(entity, f32x3_zero);
     nya_physics3d_angular_velocity_set(entity, f32x3_zero);
+
+    // neither a teleport nor a zero velocity wakes a body, so one that had settled would hang where it was put.
+    nya_physics3d_wake(entity);
 }

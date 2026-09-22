@@ -23,6 +23,9 @@
 /** Steps the simulation section takes. Long enough for a plume to cross the grid several times. */
 #define SIMULATION_STEPS 600
 
+/** What the render options are stored on. Static, since a window is far larger than the stack wants. */
+static NYA_Window window;
+
 /** What a simulated fluid runs on, handed through NYA_SimulationRun.user_data. */
 typedef struct FluidScenario FluidScenario;
 
@@ -365,6 +368,16 @@ s32 main(void) {
     // a sample outside the grid answers rather than reading past the end of the field.
     nya_assert(nya_fluid_density_at(fluid, (f32x3){ -400.0F, 900.0F, 0.0F }) >= 0.0F, "a sample outside is still a number");
 
+    // heat is its own field: a hot emitter warms the cells it covers and adds no smoke to them.
+    f32 ambient = nya_fluid_options(fluid).ambient_temperature;
+
+    nya_fluid_emit(fluid, (NYA_FluidEmitter){ .position = { 8.0F, 8.0F, 0.0F }, .radius = 2.0F, .temperature = 3.0F });
+
+    nya_assert(nya_fluid_temperature_at(fluid, (f32x3){ 8.0F, 8.0F, 0.0F }) > ambient + 1.5F, "hottest at the centre, got " FMTf32,
+               (f64)nya_fluid_temperature_at(fluid, (f32x3){ 8.0F, 8.0F, 0.0F }));
+    nya_assert(nya_fluid_temperature_at(fluid, (f32x3){ 1.0F, 1.0F, 0.0F }) == ambient, "and ambient far from it");
+    nya_assert(interior_density(fluid) == inside, "heat alone adds no density");
+
     u32 index = 0;
     nya_assert(nya_fluid_cell_index(fluid, (f32x3){ 8.0F, 8.0F, 0.0F }, &index), "a point inside has a cell");
     nya_assert(!nya_fluid_cell_index(fluid, (f32x3){ -8.0F, 8.0F, 0.0F }, &index), "a point outside has none");
@@ -404,12 +417,18 @@ s32 main(void) {
 
     f32 emitted = interior_density(solved);
 
+    nya_assert(nya_fluid_step_time_s(solved) == 0.0F, "a volume that has not stepped has cost nothing");
+
     for (u32 step = 0; step < 60; step++) {
       nya_fluid_step(solved, STEP_S);
       nya_fluid_step(barely, STEP_S);
     }
 
     nya_assert(solved->step_count == 60, "every step was counted, got " FMTu64, solved->step_count);
+
+    // a step over this grid takes microseconds, which the monotonic clock resolves.
+    nya_assert(nya_fluid_step_time_s(solved) > 0.0F, "the last step was timed");
+    nya_assert(nya_fluid_step_time_s(solved) < 1.0F, "in seconds, got " FMTf32, (f64)nya_fluid_step_time_s(solved));
     nya_assert(fields_are_finite(solved), "a minute of stepping produced no infinity");
 
     // the projection is what makes it look like a fluid rather than like a blur, so this is the
@@ -625,6 +644,31 @@ s32 main(void) {
 
     nya_fluid_destroy(flat);
     nya_fluid_destroy(box);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a window draws no fluid until it asks, and keeps what it asked for
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    nya_system_renderer_for_window_init(&window);
+
+    NYA_FluidRenderOptions fresh = nya_fluid_render_options(&window);
+    nya_assert(!fresh.enabled, "a new window has fluids off, so a volume costs it nothing");
+    nya_assert(fresh.opacity == 0.0F && fresh.stride == 0, "and every knob is left to its default");
+
+    NYA_FluidRenderOptions asked = { .enabled = true, .opacity = 0.4F, .stride = 2, .hot_temperature = 3.0F };
+    nya_fluid_render_options_set(&window, asked);
+
+    // stored as given, zeroes included: the defaults are resolved at draw time, so a later change to
+    // one reaches every window that left it zero.
+    NYA_FluidRenderOptions stored = nya_fluid_render_options(&window);
+    nya_assert(stored.enabled && stored.opacity == 0.4F && stored.stride == 2 && stored.hot_temperature == 3.0F, "the options read back");
+    nya_assert(stored.threshold == 0.0F && stored.density_full == 0.0F, "and a zero is stored as a zero, not as its default");
+
+    nya_system_renderer_for_window_deinit(&window);
+    nya_assert(!nya_fluid_render_options(&window).enabled, "a torn down window forgets them");
 
     printf("  PASSED\n");
   }

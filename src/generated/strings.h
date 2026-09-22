@@ -21,6 +21,7 @@ typedef enum {
     NYA_STRING_CUBE3D_HITBOXES,
     NYA_STRING_CUBE3D_KEYS,
     NYA_STRING_CUBE3D_RENDER_KEYS,
+    NYA_STRING_CUBE3D_SIMULATION,
     NYA_STRING_CUBE3D_TITLE,
     NYA_STRING_HUD_BOXES,
     NYA_STRING_HUD_GREETING,
@@ -112,6 +113,7 @@ static const NYA_ConstCString NYA_STRING_KEYS[NYA_STRING_COUNT] __attr_allow_unu
     "cube3d_hitboxes",
     "cube3d_keys",
     "cube3d_render_keys",
+    "cube3d_simulation",
     "cube3d_title",
     "hud_boxes",
     "hud_greeting",
@@ -237,6 +239,11 @@ static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_keys(void) 
 /** `cube3d_render_keys` */
 static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_render_keys(void) {
     return _nya_i18n_format(NYA_STRING_CUBE3D_RENDER_KEYS);
+}
+
+/** `cube3d_simulation` */
+static inline __attr_allow_unused NYA_ConstCString nya_string_cube3d_simulation(f64 a0, f64 a1, f64 a2) {
+    return _nya_i18n_format(NYA_STRING_CUBE3D_SIMULATION, a0, a1, a2);
 }
 
 /** `cube3d_title` */
