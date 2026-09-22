@@ -13,7 +13,7 @@
 #include "nyangine/core/core_event.h"
 #include "nyangine/core/core_window.h"
 #include "nyangine/renderer/renderer.h"
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 #include "SDL3_image/SDL_image.h"
 #include "SDL3_mixer/SDL_mixer.h"
 #include "SDL3_ttf/SDL_ttf.h"

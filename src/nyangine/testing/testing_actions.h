@@ -92,7 +92,7 @@ NYA_API void nya_simulation_actions_add(NYA_SimulationRun* run);
 
 /**
  * Registers the reflection round trip over `types`, which the caller supplies because the engine
- * cannot name the generated table: src/generated/reflection.h declares the game's described types
+ * cannot name the generated table: src/genyarated/reflection.h declares the game's described types
  * next to the engine's, and the engine does not know the game.
  *
  * ```c

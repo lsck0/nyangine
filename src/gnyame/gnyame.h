@@ -76,7 +76,7 @@
 #pragma once
 
 #include "nyangine/nyangine.h"
-#include "generated/strings.h"
+#include "genyarated/strings.h"
 // Before the layers, which size the terrain array from GNY_TERRAIN_POINT_COUNT.
 #include "gnyame/constants.h"
 /**/
@@ -195,4 +195,4 @@ void gny_social_request_answer(b8 accept);
 /*
  * The generated reflection tables.
  */
-#include "generated/reflection.h"
+#include "genyarated/reflection.h"

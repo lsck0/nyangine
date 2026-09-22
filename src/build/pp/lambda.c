@@ -13,7 +13,7 @@ typedef struct {
     /** As the walk handed it over: "./src/gnyame/layers/layer_pause_menu.c". */
     char path[NYA_LAMBDA_MAX_PATH];
 
-    /** "./src/generated/lambdas/gnyame_layers_layer_pause_menu_c.h". */
+    /** "./src/genyarated/lambdas/gnyame_layers_layer_pause_menu_c.h". */
     char companion[NYA_LAMBDA_MAX_PATH];
 
     /** What the source has to spell to include it. */

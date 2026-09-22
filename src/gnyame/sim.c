@@ -5,7 +5,7 @@
  * frame and decides once which impacts get a voice and sparks.
  * */
 #include "gnyame/gnyame.h"
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

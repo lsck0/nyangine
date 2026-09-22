@@ -4,7 +4,7 @@
  * A callback written where it is handed over rather than three hundred lines away.
  *
  * ```c
- * // in layer_pause_menu.c, which includes "generated/lambdas/gnyame_layers_layer_pause_menu_c.h"
+ * // in layer_pause_menu.c, which includes "genyarated/lambdas/gnyame_layers_layer_pause_menu_c.h"
  * nya_sim_defer(nya_lambda(gny_locale_apply, void, (void* data), {
  *     u32 index = *(u32*)data;
  *     NYA_Error loaded = nya_i18n_load(_GNY_LOCALES[index].locale, NYA_STRING_KEYS, NYA_STRING_COUNT);

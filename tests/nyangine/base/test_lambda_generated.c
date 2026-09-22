@@ -24,7 +24,7 @@ typedef u32 (*CombineFn)(u32 a, u32 b);
 
 // The bodies below, hoisted out to here before anything compiled, which is why WalkTally is declared
 // above it: a body sees what is in scope at this line and nothing further down. See base_lambda.h.
-#include "generated/lambdas/tests_nyangine_base_test_lambda_generated_c.h"
+#include "genyarated/lambdas/tests_nyangine_base_test_lambda_generated_c.h"
 
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
@@ -106,11 +106,11 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   printf("TEST: the generated tree\n");
   {
-    nya_assert(nya_filesystem_exists("./src/generated/lambdas/tests_nyangine_base_test_lambda_generated_c.h"),
+    nya_assert(nya_filesystem_exists("./src/genyarated/lambdas/tests_nyangine_base_test_lambda_generated_c.h"),
                "the companion this file includes is not in the tree");
 
     NYA_String* manifest = nya_string_create(arena);
-    NYA_EXPECT(nya_file_read("./src/generated/lambdas/manifest.txt", manifest));
+    NYA_EXPECT(nya_file_read("./src/genyarated/lambdas/manifest.txt", manifest));
 
     NYA_CString text = nya_string_to_cstring(arena, manifest);
 

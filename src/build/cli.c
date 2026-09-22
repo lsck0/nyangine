@@ -409,7 +409,7 @@ NYA_INTERNAL NYA_ArgCommand build = {
         },
         &(NYA_ArgCommand){
             .name        = "assets",
-            .description = "Regenerate src/generated/assets.h and src/generated/assets.c from what is on disk.",
+            .description = "Regenerate src/genyarated/assets.h and src/genyarated/assets.c from what is on disk.",
             // bundle_assets, not index_assets: it depends on the index, so this writes the handle
             // header and the byte blob from one walk of the asset tree rather than two that could
             // disagree. Compiling the shaders and the icon comes with it, because the index has to

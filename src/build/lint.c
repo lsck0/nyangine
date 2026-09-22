@@ -52,7 +52,7 @@ typedef struct {
 
 /** The directories and files the rules read. Vendors are not ours to judge; corpora are not source. */
 NYA_INTERNAL const NYA_ConstCString _LINT_ROOTS[] = {
-    "./src/nyangine", "./src/gnyame", "./src/build", "./src/generated", "./examples", "./tests", "./bench",
+    "./src/nyangine", "./src/gnyame", "./src/build", "./src/genyarated", "./examples", "./tests", "./bench",
 };
 NYA_INTERNAL const NYA_ConstCString _LINT_FILES[] = { "./src/main.c", "./build.c" };
 
@@ -540,7 +540,7 @@ void _lint_file_add(Lint* lint, NYA_ConstCString path) {
     NYA_EXPECT(nya_file_read(path, file.text));
 
     if (!nya_string_starts_with(file.path, "./")) nya_string_extend_front(file.path, "./");
-    file.generated = nya_string_starts_with(file.path, "./src/generated/");
+    file.generated = nya_string_starts_with(file.path, "./src/genyarated/");
 
     // UTF-8 names, since a derived type like NYA_ArrayᐸNYA_Stringᐳ is one identifier; character literals, so the
     // quote in '"' cannot open a string that swallows the rest of the file.

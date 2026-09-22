@@ -52,7 +52,7 @@ typedef struct {
 
 /*
  * The primitives and the vectors are not hand written here: the engine defines exactly one of each,
- * in generated/reflection_engine.c, and a second copy under the same name would be a different table
+ * in genyarated/reflection_engine.c, and a second copy under the same name would be a different table
  * describing the same type. Only the types this file invents get tables of their own below.
  */
 

@@ -4,7 +4,7 @@
  * Sky, parallax ridges and motes drawn procedurally behind every screen.
  * */
 #include "gnyame/gnyame.h"
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

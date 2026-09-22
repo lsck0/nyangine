@@ -53,7 +53,7 @@ NYA_INTERNAL void _gny_volume_slider(NYA_UI* ui, NYA_ConstCString label, NYA_Vol
 
 // The nya_lambda bodies written below, hoisted out to here by src/build/pp/lambda.c. After the
 // declarations above and after _GNY_LOCALES, which is what a body of this file may name.
-#include "generated/lambdas/gnyame_layers_layer_pause_menu_c.h"
+#include "genyarated/lambdas/gnyame_layers_layer_pause_menu_c.h"
 
 void gny_layer_pause_menu_on_create(NYA_Window* window) {
     // on "resume", so escape then enter is the quickest way back.

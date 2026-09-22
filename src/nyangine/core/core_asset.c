@@ -13,11 +13,11 @@
 
 /*
  * The filesystem is always there, and the embedded blob is an optional layer in front of it.
- * NYA_ASSET_PREFER_BLOB consults src/generated/assets.c first; anything missing still comes off disk.
+ * NYA_ASSET_PREFER_BLOB consults src/genyarated/assets.c first; anything missing still comes off disk.
  * NYA_ASSET_HOT_RELOAD watches disk files only, since a blob asset has no file.
  */
 #ifdef NYA_ASSET_PREFER_BLOB
-#include "generated/assets.c"
+#include "genyarated/assets.c"
 
 NYA_INTERNAL NYA_Error _nya_asset_load_raw_from_blob(NYA_AssetHandle path, OUT NYA_Asset* out_asset);
 #endif // NYA_ASSET_PREFER_BLOB

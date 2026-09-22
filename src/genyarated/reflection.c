@@ -2,7 +2,7 @@
 
 #include "nyangine/nyangine.h"
 
-#include "generated/reflection.h"
+#include "genyarated/reflection.h"
 
 /*
  * Every size and offset below is an expression rather than a number, so the compiler that is

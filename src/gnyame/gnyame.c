@@ -182,4 +182,4 @@ void gnyame_deinit(void) {
     gny_world_destroy();
 }
 
-#include "generated/reflection.c"
+#include "genyarated/reflection.c"

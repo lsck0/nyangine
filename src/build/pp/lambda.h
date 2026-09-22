@@ -41,7 +41,7 @@
  * Where the companions land. Committed, like the other passes' output, so a fresh clone builds before
  * anything has run.
  * */
-#define NYA_LAMBDA_OUTPUT_DIRECTORY "./src/generated/lambdas"
+#define NYA_LAMBDA_OUTPUT_DIRECTORY "./src/genyarated/lambdas"
 
 /**
  * Every lambda in the tree, one line each, written last.
@@ -53,7 +53,7 @@
 #define NYA_LAMBDA_OUTPUT_MANIFEST NYA_LAMBDA_OUTPUT_DIRECTORY "/manifest.txt"
 
 /** What a source spells to include its own companion, minus the file name. Resolved through -I./src. */
-#define NYA_LAMBDA_INCLUDE_PREFIX "generated/lambdas/"
+#define NYA_LAMBDA_INCLUDE_PREFIX "genyarated/lambdas/"
 
 /** Trees scanned for call sites. Each is walked sorted, so the output is a function of the tree alone. */
 #define NYA_LAMBDA_TREE_ENGINE   "./src/nyangine"

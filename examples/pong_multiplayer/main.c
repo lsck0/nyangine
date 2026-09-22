@@ -26,7 +26,7 @@
  * The ball is not predicted: only the server integrates it, and clients draw the replica the
  * snapshots carry.
  * */
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 #include "nyangine/nyangine.h"
 
 #include "nyangine/nyangine.c"

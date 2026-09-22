@@ -5,7 +5,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-#include "generated/strings.h"
+#include "genyarated/strings.h"
 
 #include "SDL3/SDL_init.h"
 

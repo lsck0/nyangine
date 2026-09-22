@@ -54,7 +54,7 @@
 #define NYA_LUABIND_DIRECTORY "./src/nyangine"
 
 /** The generated C: one marshalling function per binding, and the table they are registered from. */
-#define NYA_LUABIND_OUTPUT_SOURCE "./src/generated/lua_bindings.c"
+#define NYA_LUABIND_OUTPUT_SOURCE "./src/genyarated/lua_bindings.c"
 
 /**
  * The generated Lua. A `---@meta` definitions file, which is what stops an editor calling `nya` an

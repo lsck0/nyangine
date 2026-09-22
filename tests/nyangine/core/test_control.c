@@ -20,7 +20,7 @@
 /*
  * The reflection the generator would emit, written out by hand.
  *
- * src/generated/reflection.c is compiled with the game rather than with the engine, so a test that
+ * src/genyarated/reflection.c is compiled with the game rather than with the engine, so a test that
  * links the shared engine object cannot name nya_reflect_of(anything). Writing the tables here costs
  * a dozen lines and buys two things the generated ones cannot: a struct shaped for exactly what this
  * file exercises, and a raw `char*` field, which nothing in the tree is annotated with yet and which

@@ -21,7 +21,7 @@
  * The table is tilted by rotating the whole playfield rather than by tilting gravity, so the walls,
  * the flippers and the slope agree with each other by construction. Gravity stays pointing down.
  * */
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 #include "nyangine/nyangine.h"
 
 #include "nyangine/nyangine.c"

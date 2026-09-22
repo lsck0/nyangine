@@ -11,7 +11,7 @@
  * macro is what makes a misspelling a link error instead of a null at runtime.
  */
 
-/* ── primitives, defined in generated/reflection_engine.c ── */
+/* ── primitives, defined in genyarated/reflection_engine.c ── */
 
 extern const NYA_TypeReflection _NYA_REFLECT_b8;
 extern const NYA_TypeReflection _NYA_REFLECT_b16;
@@ -99,7 +99,7 @@ extern const NYA_TypeReflection _NYA_REFLECT_NYA_UISkin;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStateSkins;
 extern const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle;
 
-/** Every annotated engine type. The game's are in generated/reflection.h. */
+/** Every annotated engine type. The game's are in genyarated/reflection.h. */
 #define NYA_REFLECT_ENGINE_TYPE_COUNT 62
 
 extern const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT];

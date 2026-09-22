@@ -94,7 +94,7 @@
 #include "nyangine/testing/testing.c"
 
 // Last: every type it describes has to be complete, and it names sizeof and offsetof on all of them.
-#include "generated/reflection_engine.c"
+#include "genyarated/reflection_engine.c"
 
 // windows.h defines these empty, which would silently erase any variable of that name in code after the engine.
 #if OS_WINDOWS

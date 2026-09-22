@@ -5,7 +5,7 @@
  * rather than a layer hook, because music plays on every screen and belongs to no layer.
  * */
 #include "gnyame/gnyame.h"
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 
 void gny_system_music_update(f32 delta_time_s) {
     nya_unused(delta_time_s);

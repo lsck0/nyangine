@@ -43,7 +43,7 @@ NYA_INTERNAL NYA_BuildRule build_shaders = {
 };
 
 /**
- * Generates src/generated/strings.h from the locale files.
+ * Generates src/genyarated/strings.h from the locale files.
  * */
 NYA_INTERNAL NYA_BuildRule generate_strings = {
     .name             = "generate_strings",
@@ -73,7 +73,7 @@ NYA_INTERNAL NYA_BuildRule generate_cheatsheet = {
 };
 
 /**
- * Regenerates src/generated/lua_bindings.c and docs/lua/nya.lua from the @lua annotations.
+ * Regenerates src/genyarated/lua_bindings.c and docs/lua/nya.lua from the @lua annotations.
  * */
 NYA_INTERNAL NYA_BuildRule generate_lua_bindings = {
     .name             = "generate_lua_bindings",

@@ -28,7 +28,7 @@
 #define NYA_I18N_BASE_LOCALE "en"
 
 /** The generated header. Regenerated whenever a locale file changes; do not edit it. */
-#define NYA_I18N_OUTPUT "./src/generated/strings.h"
+#define NYA_I18N_OUTPUT "./src/genyarated/strings.h"
 
 /** Most keys one locale may hold. Generous: a game's whole script is usually a few hundred lines. */
 #define NYA_I18N_MAX_KEYS 1024

@@ -33,10 +33,10 @@
  * game, and then no engine module could name its own type's description, which is exactly what
  * core_scene.c and core_settings.c do.
  * */
-#define NYA_REFLECT_OUTPUT_ENGINE_HEADER "./src/generated/reflection_engine.h"
-#define NYA_REFLECT_OUTPUT_ENGINE_SOURCE "./src/generated/reflection_engine.c"
-#define NYA_REFLECT_OUTPUT_HEADER        "./src/generated/reflection.h"
-#define NYA_REFLECT_OUTPUT_SOURCE        "./src/generated/reflection.c"
+#define NYA_REFLECT_OUTPUT_ENGINE_HEADER "./src/genyarated/reflection_engine.h"
+#define NYA_REFLECT_OUTPUT_ENGINE_SOURCE "./src/genyarated/reflection_engine.c"
+#define NYA_REFLECT_OUTPUT_HEADER        "./src/genyarated/reflection.h"
+#define NYA_REFLECT_OUTPUT_SOURCE        "./src/genyarated/reflection.c"
 
 /** Trees walked for annotations, in this order. The game's own types matter as much as the engine's. */
 #define NYA_REFLECT_ENGINE_DIRECTORY "./src/nyangine"

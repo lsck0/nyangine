@@ -5,7 +5,7 @@
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
 
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 
 #include "SDL3/SDL_init.h"
 

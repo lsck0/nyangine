@@ -27,7 +27,7 @@ build.c                bootstrap entry point; recompiles itself from then on
 src/build/             the build system: rules, CLI, hooks, preprocessor passes (pp/)
 src/nyangine/          the engine
 src/gnyame/            the game that exercises it
-src/generated/         written by the preprocessor passes; never edit by hand
+src/genyarated/         written by the preprocessor passes; never edit by hand
 src/main.c             the executable's entry point and the hot reload host
 tests/nyangine/        one file per unit under test, mirroring src/nyangine
 bench/                 benchmarks
@@ -206,12 +206,12 @@ rejected approaches were rejected. Read the relevant entry before redesigning so
 `src/build/pp/` holds the preprocessor passes. Each is stale-checked, so it costs nothing when its
 inputs have not moved, and each runs as part of an ordinary build:
 
-- `reflection.c` → `src/generated/reflection.{h,c}`, from `@reflect` annotations in the tree.
-- `i18n.c` → `src/generated/strings.h`, from `assets/i18n/*.json`.
-- `asset.c` → `src/generated/assets.{h,c}`, the asset handles and the baked blob.
+- `reflection.c` → `src/genyarated/reflection.{h,c}`, from `@reflect` annotations in the tree.
+- `i18n.c` → `src/genyarated/strings.h`, from `assets/i18n/*.json`.
+- `asset.c` → `src/genyarated/assets.{h,c}`, the asset handles and the baked blob.
 - `cheatsheet.c` → `docs/CHEATSHEET.md`, from the public headers.
-- `luabind.c` → `src/generated/lua_bindings.c` and `docs/lua/nya.lua`, from `@lua` annotations.
-- `lambda.c` → `src/generated/lambdas/`, one companion header per source file that writes a
+- `luabind.c` → `src/genyarated/lua_bindings.c` and `docs/lua/nya.lua`, from `@lua` annotations.
+- `lambda.c` → `src/genyarated/lambdas/`, one companion header per source file that writes a
   `nya_lambda(tag, ReturnType, (params), { body })`, plus the manifest of every tag in the tree. The
   body becomes a file scope function called `_nya_lambda_<tag>` and the macro expands to that name, so
   a lambda cannot capture; see `base_lambda.h`. The source includes its own companion, and the pass

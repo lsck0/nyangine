@@ -5,7 +5,7 @@
  * music and the bloom post chain.
  * */
 #include "gnyame/gnyame.h"
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

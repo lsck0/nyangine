@@ -8,7 +8,7 @@
 #include "nyangine/nyangine.h"
 
 // Both the HUD and the menus name a font, and the handles come from the generated asset index.
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

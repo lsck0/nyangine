@@ -7,7 +7,7 @@
 
 #include "nyangine/renderer/render_internal.h"
 
-#include "generated/assets.h"
+#include "genyarated/assets.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

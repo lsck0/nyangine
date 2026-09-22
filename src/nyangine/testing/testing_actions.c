@@ -21,7 +21,7 @@ struct _NYA_SimulationActions {
 
     /**
      * The described types the reflection action round trips, handed in by the caller. The engine
-     * cannot name src/generated/reflection.h: that file is generated from a scan of the whole tree and
+     * cannot name src/genyarated/reflection.h: that file is generated from a scan of the whole tree and
      * declares the game's types alongside the engine's.
      * */
     const NYA_TypeReflection* const* types;

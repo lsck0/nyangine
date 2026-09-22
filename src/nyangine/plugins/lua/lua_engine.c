@@ -108,7 +108,7 @@ NYA_INTERNAL NYA_Value _nya_lua_handle_value(NYA_Arena* arena, NYA_EntityHandle 
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  *
  * Almost all of them are generated. src/build/pp/luabind.c reads the `@lua` annotations in the engine
- * headers and writes src/generated/lua_bindings.c: one marshalling function per annotated declaration
+ * headers and writes src/genyarated/lua_bindings.c: one marshalling function per annotated declaration
  * and a table of them, included below.
  *
  * What is written by hand here is what a generator cannot see through — a variadic function, a macro
@@ -257,7 +257,7 @@ NYA_INTERNAL const _NYA_LuaBindingEntry _NYA_LUA_MANUAL_BINDINGS[] = {
 };
 
 // After the helpers it calls and the _NYA_LuaBindingEntry it fills in, and never edited by hand.
-#include "generated/lua_bindings.c"
+#include "genyarated/lua_bindings.c"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
