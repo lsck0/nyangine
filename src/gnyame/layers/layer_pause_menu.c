@@ -51,8 +51,9 @@ NYA_INTERNAL void _gny_choice_row(NYA_UI* ui, NYA_ConstCString label, const NYA_
 /** A volume row that writes back to the settings when it moves. */
 NYA_INTERNAL void _gny_volume_slider(NYA_UI* ui, NYA_ConstCString label, NYA_VolumeChannel channel);
 
-/** Loads the locale whose index into _GNY_LOCALES is copied in, at the barrier, so no label in the pass goes stale. */
-NYA_INTERNAL void _gny_locale_apply(void* data);
+// The nya_lambda bodies written below, hoisted out to here by src/build/pp/lambda.c. After the
+// declarations above and after _GNY_LOCALES, which is what a body of this file may name.
+#include "generated/lambdas/gnyame_layers_layer_pause_menu_c.h"
 
 void gny_layer_pause_menu_on_create(NYA_Window* window) {
     // on "resume", so escape then enter is the quickest way back.
@@ -120,7 +121,21 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
                 b8 current = nya_string_equals(nya_i18n_locale(), _GNY_LOCALES[i].locale);
 
                 nya_ui_size(ui, nya_ui_grow(1));
-                if (nya_ui_selectable(ui, _GNY_LOCALES[i].name, current) && !current) nya_sim_defer(_gny_locale_apply, &i, sizeof(i));
+
+                /*
+                 * At the barrier, so no label already laid out this pass goes stale under it. `i` is
+                 * copied by nya_sim_defer rather than captured: the body is a file scope function and
+                 * could not name a local of this one even if it tried.
+                 */
+                if (nya_ui_selectable(ui, _GNY_LOCALES[i].name, current) && !current) {
+                    nya_sim_defer(nya_lambda(gny_locale_apply, void, (void* data), {
+                        u32 index = *(u32*)data;
+                        nya_assert(index < nya_carray_length(_GNY_LOCALES));
+
+                        NYA_Error loaded = nya_i18n_load(_GNY_LOCALES[index].locale, NYA_STRING_KEYS, NYA_STRING_COUNT);
+                        if (!loaded.ok) nya_log_warn("Could not load '%s': %s", _GNY_LOCALES[index].locale, (NYA_ConstCString)loaded.message);
+                    }), &i, sizeof(i));
+                }
             }
 
             nya_ui_panel_end(ui);
@@ -397,12 +412,4 @@ void _gny_volume_slider(NYA_UI* ui, NYA_ConstCString label, NYA_VolumeChannel ch
     f32 volume = nya_settings_volume(channel);
 
     if (nya_ui_slider(ui, label, &volume, 0.0F, 1.0F, GNY_VOLUME_STEP)) nya_settings_volume_set(channel, volume);
-}
-
-void _gny_locale_apply(void* data) {
-    u32 index = *(u32*)data;
-    nya_assert(index < nya_carray_length(_GNY_LOCALES));
-
-    NYA_Error loaded = nya_i18n_load(_GNY_LOCALES[index].locale, NYA_STRING_KEYS, NYA_STRING_COUNT);
-    if (!loaded.ok) nya_log_warn("Could not load the '%s' locale: %s", _GNY_LOCALES[index].locale, (NYA_ConstCString)loaded.message);
 }

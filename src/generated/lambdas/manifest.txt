@@ -2,6 +2,7 @@
 #
 # Every nya_lambda in the tree and where it was written. A tag is one name across all of it,
 # so this is the whole namespace, and the file the pass compares its own age against.
+gny_locale_apply	src/gnyame/layers/layer_pause_menu.c:131
 test_lambda_descending	tests/nyangine/base/test_lambda_generated.c:46
 test_lambda_walk	tests/nyangine/base/test_lambda_generated.c:69
 test_lambda_concatenate	tests/nyangine/base/test_lambda_generated.c:94
