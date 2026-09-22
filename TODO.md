@@ -1049,6 +1049,22 @@ joystick.
 
 # Findings
 
+### A script nothing ran
+
+`assets/scripts/startup.lua` called `nya.log` as a function. `nya.log` is a table — `.info`, `.warn`,
+`.error` — so it failed on line 7, and everything below it, including the `gnyame` table the game reads
+back, never ran. `nya.time` was wrong the same way; the binding is `nya.app.time`.
+
+The file's own comment says it exists so the Lua binding has a caller outside `tests/` that actually
+runs. It had never run, and the comment is exactly why nobody checked: it reads as a guarantee.
+
+It survived because its only caller is `gny_world_script_tick`, which needs a world. A run that sits in
+the menu never reaches it, so the failure was invisible unless you got into the game and read the log —
+which is how it turned up, while chasing something else entirely. The rule it breaks is the one already
+written down under "The verification rule": a caller that only runs in a corner of the game is not a
+caller. The test runs the shipped script now.
+
+
 ### A teleported body has no speed to give away
 
 The pinball flippers were driven by `nya_physics3d_teleport`, which sets the transform without
