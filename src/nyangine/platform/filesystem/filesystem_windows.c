@@ -158,6 +158,14 @@ NYA_Error nya_filesystem_move(NYA_ConstCString old_path, NYA_ConstCString new_pa
     return NYA_OK;
 }
 
+/**
+ * Tries a replace gets, and the first wait between them, doubling each time: 1 + 2 + ... + 64 ms is 127 ms at worst.
+ * Two replaces racing onto one name, or a scanner holding the file for a moment, refuse with ACCESS_DENIED or a
+ * sharing violation that clears by itself; test_file_atomic's racing writers hit it on every Windows run.
+ * */
+#define _NYA_FILESYSTEM_REPLACE_ATTEMPTS      8
+#define _NYA_FILESYSTEM_REPLACE_FIRST_WAIT_MS 1
+
 NYA_Error nya_filesystem_replace(NYA_ConstCString source, NYA_ConstCString destination) {
     nya_assert(source != nullptr);
     nya_assert(destination != nullptr);
@@ -167,11 +175,21 @@ NYA_Error nya_filesystem_replace(NYA_ConstCString source, NYA_ConstCString desti
      * whole durability story here, since Windows has no way to fsync a directory. The A variant like
      * every other call in this file, so the name the temp file was created under is the one moved.
      */
-    if (!MoveFileExA(source, destination, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-        return nya_error(_nya_filesystem_last_error_kind(), "failed to replace '%s' with '%s' (error %lu)", destination, source, GetLastError());
-    }
+    DWORD wait_ms = _NYA_FILESYSTEM_REPLACE_FIRST_WAIT_MS;
 
-    return NYA_OK;
+    for (u32 attempt = 1;; attempt++) {
+        if (MoveFileExA(source, destination, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return NYA_OK;
+
+        DWORD reason    = GetLastError();
+        b8    transient = reason == ERROR_ACCESS_DENIED || reason == ERROR_SHARING_VIOLATION;
+
+        if (!transient || attempt == _NYA_FILESYSTEM_REPLACE_ATTEMPTS) {
+            return nya_error(_nya_filesystem_last_error_kind(), "failed to replace '%s' with '%s' (error %lu)", destination, source, reason);
+        }
+
+        Sleep(wait_ms);
+        wait_ms *= 2;
+    }
 }
 
 NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destination) {
@@ -436,7 +454,9 @@ NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file)
         creation = OPEN_ALWAYS;
     }
 
-    HANDLE handle = CreateFileA(path, access, FILE_SHARE_READ, nullptr, creation, FILE_ATTRIBUTE_NORMAL, nullptr);
+    // FILE_SHARE_DELETE as well, so a file held open can still be renamed over, which is how nya_file_write_atomic
+    // replaces it: on Windows without it a reader holding the old file blocks every writer, where POSIX lets both be.
+    HANDLE handle = CreateFileA(path, access, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, creation, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (handle == INVALID_HANDLE_VALUE) return nya_error(_nya_filesystem_last_error_kind(), "failed to open '%s'", path);
 
     *out_file = (NYA_File){ .handle = handle, .is_open = true };
