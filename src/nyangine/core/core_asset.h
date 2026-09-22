@@ -384,6 +384,19 @@ struct NYA_Asset {
             u32             width;
             u32             height;
 
+            /**
+             * The decoded RGBA8 pixels, tightly packed, kept only where there is no GPU device to
+             * upload them to. Null in every build that has one.
+             *
+             * A backend with no sampler still has to be able to draw a picture, and a terminal is
+             * exactly that: it has no texture to bind and the bytes behind a handle are otherwise
+             * nobody's to read. Where there is a device these are handed to it and dropped, because a
+             * second copy of every texture in system memory buys nothing.
+             *
+             * Owned by the asset system's arena.
+             * */
+            u8* pixels;
+
             /** Carried from the load parameters, because the draw path picks the sampler from it. */
             NYA_TextureFilter filter;
         } as_texture;

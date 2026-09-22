@@ -994,12 +994,64 @@ void nya_render2d_terminal_glyph(NYA_Window* window, f32 x, f32 y, u32 codepoint
  * The features these belong to are reported off; see _nya_render2d_terminal_features.
  */
 
+/**
+ * The asset behind `handle`, when it is a texture with pixels to read. Null otherwise.
+ *
+ * A terminal build creates no GPU device, so the loader keeps the decoded RGBA8 instead of uploading
+ * it; see NYA_Asset.as_texture.pixels. This is what makes a picture drawable here at all.
+ * */
+NYA_INTERNAL const NYA_Asset* _nya_render2d_terminal_texture(NYA_ConstCString handle) {
+    if (handle == nullptr) return nullptr;
+
+    const NYA_Asset* asset = nya_asset_get((NYA_CString)handle);
+
+    if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return nullptr;
+    if (asset->type != NYA_ASSET_TYPE_TEXTURE || asset->as_texture.pixels == nullptr) return nullptr;
+    if (asset->as_texture.width == 0 || asset->as_texture.height == 0) return nullptr;
+
+    return asset;
+}
+
+/** One RGBA8 texel, as a colour. `x` and `y` are clamped into the image. */
+NYA_INTERNAL NYA_Color _nya_render2d_terminal_texel(const NYA_Asset* asset, s32 x, s32 y) {
+    const u32 column = (u32)nya_clamp(x, 0, (s32)asset->as_texture.width - 1);
+    const u32 row    = (u32)nya_clamp(y, 0, (s32)asset->as_texture.height - 1);
+
+    const u8* texel = asset->as_texture.pixels + (((u64)row * asset->as_texture.width + column) * 4ULL);
+
+    return (NYA_Color){ (f32)texel[0] / 255.0F, (f32)texel[1] / 255.0F, (f32)texel[2] / 255.0F, (f32)texel[3] / 255.0F };
+}
+
 void nya_render2d_texture(NYA_Window* window, NYA_ConstCString texture_handle, f32 x, f32 y, NYA_Color tint) {
-    nya_unused(window, texture_handle, x, y, tint);
+    const NYA_Asset* asset = _nya_render2d_terminal_texture(texture_handle);
+    if (asset == nullptr) return;
+
+    nya_render2d_texture_rect(window, texture_handle, 0.0F, 0.0F, (f32)asset->as_texture.width, (f32)asset->as_texture.height, x, y,
+                              (f32)asset->as_texture.width, (f32)asset->as_texture.height, tint);
 }
 
 void nya_render2d_texture_ex(NYA_Window* window, NYA_ConstCString texture_handle, NYA_Render2DTexture params) {
-    nya_unused(window, texture_handle, params);
+    const NYA_Asset* asset = _nya_render2d_terminal_texture(texture_handle);
+    if (asset == nullptr) return;
+
+    // zero means unset, by the same rule the GPU backend reads NYA_Render2DTexture with.
+    const f32 source_width  = params.source_width > 0.0F ? params.source_width : (f32)asset->as_texture.width;
+    const f32 source_height = params.source_height > 0.0F ? params.source_height : (f32)asset->as_texture.height;
+
+    const f32 width  = params.width > 0.0F ? params.width : source_width;
+    const f32 height = params.height > 0.0F ? params.height : source_height;
+
+    NYA_Color tint = params.tint;
+    if (tint.r == 0.0F && tint.g == 0.0F && tint.b == 0.0F && tint.a == 0.0F) tint = NYA_COLOR_WHITE;
+
+    /*
+     * Rotation and flipping are dropped. A cell grid cannot turn a picture without resampling it into
+     * something that reads as noise at this resolution, and a quietly unrotated sprite is a better
+     * answer than a smear. The scale and the source rectangle are honoured, which is what a sprite
+     * sheet actually needs.
+     */
+    nya_render2d_texture_rect(window, texture_handle, params.source_x, params.source_y, source_width, source_height, params.x, params.y, width,
+                              height, tint);
 }
 
 void nya_render2d_texture_rect(
@@ -1015,8 +1067,60 @@ void nya_render2d_texture_rect(
     f32              destination_height,
     NYA_Color        tint
 ) {
-    nya_unused(window, texture_handle, source_x, source_y, source_width, source_height);
-    nya_unused(destination_x, destination_y, destination_width, destination_height, tint);
+    nya_assert(window != nullptr);
+
+    const NYA_Asset* asset = _nya_render2d_terminal_texture(texture_handle);
+    if (asset == nullptr) return;
+
+    if (source_width <= 0.0F || source_height <= 0.0F) return;
+    if (destination_width <= 0.0F || destination_height <= 0.0F) return;
+
+    if (tint.r == 0.0F && tint.g == 0.0F && tint.b == 0.0F && tint.a == 0.0F) tint = NYA_COLOR_WHITE;
+
+    u16 first_column, last_column, first_row, last_row;
+
+    if (!_nya_render2d_terminal_span(destination_x, destination_x + destination_width, NYA_TERMINAL_CELL_WIDTH_PX,
+                                     nya_terminal_columns(), &first_column, &last_column)) {
+        return;
+    }
+    if (!_nya_render2d_terminal_span(destination_y, destination_y + destination_height, NYA_TERMINAL_CELL_HEIGHT_PX, nya_terminal_rows(),
+                                     &first_row, &last_row)) {
+        return;
+    }
+
+    /*
+     * One texel per cell, taken from the cell's centre, rather than an average of the texels it covers.
+     *
+     * A cell is roughly 10 by 18 pixels, so averaging turns a sprite into porridge: every cell lands
+     * near the mean of the image and the shape disappears. Point sampling keeps edges, which is the
+     * only thing legible at this size, and it is what a pixel art sprite wants anyway.
+     */
+    for (u16 row = first_row; row <= last_row; row++) {
+        for (u16 column = first_column; column <= last_column; column++) {
+            const f32 centre_x = ((f32)column + 0.5F) * (f32)NYA_TERMINAL_CELL_WIDTH_PX;
+            const f32 centre_y = ((f32)row + 0.5F) * (f32)NYA_TERMINAL_CELL_HEIGHT_PX;
+
+            if (_nya_render2d_terminal_clipped(centre_x, centre_y)) continue;
+
+            // where this cell falls inside the destination, and therefore inside the source.
+            const f32 u = (centre_x - destination_x) / destination_width;
+            const f32 v = (centre_y - destination_y) / destination_height;
+
+            if (u < 0.0F || u >= 1.0F || v < 0.0F || v >= 1.0F) continue;
+
+            NYA_Color texel = _nya_render2d_terminal_texel(asset, (s32)(source_x + (u * source_width)), (s32)(source_y + (v * source_height)));
+
+            texel.r *= tint.r;
+            texel.g *= tint.g;
+            texel.b *= tint.b;
+            texel.a *= tint.a;
+
+            // a fully transparent texel is the space around a sprite and must not paint over what is there.
+            if (texel.a <= 0.0F) continue;
+
+            _nya_render2d_terminal_paint(column, row, texel);
+        }
+    }
 }
 
 void nya_render2d_nine_slice(NYA_Window* window, NYA_ConstCString texture_handle, NYA_NineSlice params) {

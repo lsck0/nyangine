@@ -76,7 +76,8 @@ typedef struct {
 nya_derive_array(_NYA_AssetPendingUpload);
 
 /** Creates the texture and fills a transfer buffer with its pixels. Records no GPU commands. */
-NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending, OUT NYA_Asset* out_asset);
+NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending, b8 keep_pixels,
+                                                OUT NYA_Asset* out_asset);
 
 /**
  * Creates an RGBA8 texture of `type` and stages `rows`, `height * depth` of them `pitch` bytes apart, for the
@@ -798,7 +799,8 @@ NYA_INTERNAL void _nya_asset_fail(NYA_Asset* asset, const NYA_Error* error) {
  * Staging is per texture; the copy pass is per command buffer, so all textures in a frame share one submit
  * in _nya_asset_flush_uploads.
  */
-NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending, OUT NYA_Asset* out_asset) {
+NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Arrayᐸ_NYA_AssetPendingUploadᐳ* pending, b8 keep_pixels,
+                                                OUT NYA_Asset* out_asset) {
     nya_assert(surface != nullptr);
     nya_assert(pending != nullptr);
     nya_assert(out_asset != nullptr);
@@ -817,6 +819,30 @@ NYA_INTERNAL NYA_Error _nya_asset_stage_texture(SDL_Surface* surface, NYA_Array�
     SDL_GPUTexture* texture = nullptr;
 
     NYA_Error staged = _nya_asset_stage_pixels(SDL_GPU_TEXTURETYPE_2D, width, height, 1, rgba->pixels, (u32)rgba->pitch, pending, &texture);
+
+    /*
+     * No device to upload to is not a failure for a texture asset: it is the terminal and headless
+     * case, and a backend with no sampler still has to be able to draw a picture. The pixels are kept
+     * instead, packed tight because a surface's pitch may exceed its width.
+     *
+     * Only when the caller asks. A texture embedded in an FBX must still fail here, because a mesh
+     * part records an index into `textures` and there is no GPU texture to put in that slot: keeping
+     * pixels for it would leave every part pointing at a null with a count that says otherwise.
+     */
+    if (keep_pixels && !staged.ok && nya_app_get()->render_system.gpu_device == nullptr) {
+        NYA_AssetSystem* system = &nya_app_get()->asset_system;
+
+        u8* kept = nya_arena_alloc(system->allocator, (u64)width * (u64)height * 4ULL);
+
+        if (kept != nullptr) {
+            for (u32 row = 0; row < height; row++) {
+                nya_memcpy(kept + ((u64)row * width * 4ULL), (const u8*)rgba->pixels + ((u64)row * (u64)rgba->pitch), (u64)width * 4ULL);
+            }
+
+            out_asset->as_texture.pixels = kept;
+            staged                       = NYA_OK;
+        }
+    }
 
     if (converted) SDL_DestroySurface(rgba);
 
@@ -1656,7 +1682,7 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                                  */
                                 NYA_Asset staged = { 0 };
 
-                                NYA_Error upload = _nya_asset_stage_texture(surface, pending, &staged);
+                                NYA_Error upload = _nya_asset_stage_texture(surface, pending, false, &staged);
                                 SDL_DestroySurface(surface);
 
                                 if (!upload.ok) {
@@ -2120,7 +2146,7 @@ void _nya_asset_loading_process(NYA_Event* event) {
                     break;
                 }
 
-                NYA_Error upload = _nya_asset_stage_texture(surface, &pending_uploads, asset);
+                NYA_Error upload = _nya_asset_stage_texture(surface, &pending_uploads, true, asset);
                 SDL_DestroySurface(surface);
 
                 if (!upload.ok) {
