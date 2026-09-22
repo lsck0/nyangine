@@ -293,9 +293,6 @@ NYA_API f32 nya_simulation_range_f32(NYA_SimulationRun* run, f32 low, f32 high);
  * */
 NYA_API f32 nya_simulation_shaped_f32(NYA_SimulationRun* run, f32 low, f32 high);
 
-/** One of `count` items, by index. Zero for a count of zero. */
-NYA_API u64 nya_simulation_pick(NYA_SimulationRun* run, u64 count);
-
 /*
  * ─────────────────────────────────────────────────────────
  * TIME

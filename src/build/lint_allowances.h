@@ -207,13 +207,6 @@ NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
     { "nya_fluid_temperature_at", "no caller when the rule landed" },
     // render_particles.h
     { "nya_particles_casts_shadow_set", "no caller when the rule landed" },
-    // testing_agent.h
-    { "nya_agent_score", "no caller when the rule landed" },
     // testing_property.h
     { "nya_property_draw_f32_any", "no caller when the rule landed" },
-    // testing_session.h
-    { "nya_session_chance", "no caller when the rule landed" },
-    { "nya_session_wheel", "no caller when the rule landed" },
-    // testing_simulation.h
-    { "nya_simulation_pick", "no caller when the rule landed" },
 };

@@ -155,11 +155,14 @@ u32 gny_agent_play(NYA_Agent* agent, u64 seed, u64 tick_count, b8 verbose) {
     nya_event_hook_unregister(refuse_quit);
     _GNY_AGENT_EPISODE = nullptr;
 
+    // read before the terminal reward below, which closes the trial and starts the next one's sum at zero.
+    f32 scored = nya_agent_score(agent);
+
     // the episode is over whatever the score: a terminal reward is what tells a DQN not to bootstrap
     // past the end of a run it will never see the next state of.
     nya_agent_reward(agent, 0.0F, true);
 
-    printf("  screens reached %u, quit refused %u, left on '%s'\n", episode.screen_changes, episode.quits_refused, episode.screen);
+    printf("  scored %.1f, screens reached %u, quit refused %u, left on '%s'\n", (f64)scored, episode.screen_changes, episode.quits_refused, episode.screen);
 
     return failures;
 }

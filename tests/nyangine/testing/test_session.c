@@ -97,6 +97,11 @@ static void point_somewhere(NYA_Session* session) {
     nya_session_mouse_click(session, NYA_MOUSE_BUTTON_LEFT);
 }
 
+/** A turn of the wheel, up or down at even odds, through the same event a real wheel sends. */
+static void scroll(NYA_Session* session) {
+    nya_session_wheel(session, nya_session_chance(session, 50) ? 1.0F : -1.0F);
+}
+
 /** What the agent perceives, and what the digest therefore covers. */
 static u32 observe(NYA_Session* session, OUT f32* out_senses, u32 capacity) {
     nya_unused(session);
@@ -133,6 +138,7 @@ static u64 play(u64 seed, u64 ticks, b8 real_time) {
     nya_session_action_add(session, "down", 15, hold_down);
     nya_session_action_add(session, "release", 10, release_all);
     nya_session_action_add(session, "point", 10, point_somewhere);
+    nya_session_action_add(session, "scroll", 5, scroll);
     nya_session_action_add(session, "idle", 40, nullptr);
 
     u32 failures = nya_session_run(session);
@@ -178,6 +184,26 @@ s32 main(void) {
                                            .tick   = nya_callback(player_tick),
                                            .owner  = { .kind = NYA_SYSTEM_OWNER_GAME } });
     NYA_EXPECT(nya_system_registry_finalize());
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a chance is a percentage at its ends too, and the wheel reaches input
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_Session* session = nya_session_create(.seed = 7, .tick_count = 1);
+        defer        nya_session_destroy(session);
+
+        b8 zero_came_up = false, hundred_missed = false;
+        for (u32 i = 0; i < 1000; i++) {
+            zero_came_up   |= nya_session_chance(session, 0);
+            hundred_missed |= !nya_session_chance(session, 100);
+        }
+        nya_assert(!zero_came_up && !hundred_missed, "a chance of 0 came up or one of 100 missed in a thousand draws");
+
+        // dispatched events wait for the frame to pump them, as they do in a played run.
+        nya_session_wheel(session, 3.0F);
+        nya_app_events_pump();
+        nya_assert(nya_input_mouse_wheel_scroll().y == 3.0F, "the wheel turned 3 and input saw %f", (f64)nya_input_mouse_wheel_scroll().y);
+    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // TEST: one seed, played twice, is one run. Without this nothing below means

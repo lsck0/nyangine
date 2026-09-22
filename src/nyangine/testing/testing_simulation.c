@@ -254,10 +254,6 @@ f32 nya_simulation_shaped_f32(NYA_SimulationRun* run, f32 low, f32 high) {
     }
 }
 
-u64 nya_simulation_pick(NYA_SimulationRun* run, u64 count) {
-    return nya_simulation_below(run, count);
-}
-
 /*
  * ─────────────────────────────────────────────────────────
  * TIME
