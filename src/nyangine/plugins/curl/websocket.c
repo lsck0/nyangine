@@ -23,9 +23,6 @@ typedef enum _NYA_WebSocketRead  _NYA_WebSocketRead;
 /** base64 of NYA_WEBSOCKET_KEY_BYTES, the terminator included. */
 #define _NYA_WEBSOCKET_KEY_TEXT_BYTES 25
 
-/** A SHA-1 digest. */
-#define _NYA_WEBSOCKET_SHA1_BYTES 20
-
 /** A close frame's payload is a two byte code and then the reason, inside the control frame limit. */
 #define _NYA_WEBSOCKET_MAX_CLOSE_REASON (NYA_WEBSOCKET_MAX_CONTROL_BYTES - 2)
 
@@ -123,8 +120,6 @@ NYA_INTERNAL NYA_Error _nya_websocket_url_parse(NYA_ConstCString text, OUT _NYA_
 
 /* ── the handshake ── */
 
-NYA_INTERNAL void _nya_websocket_sha1(const u8* data, u64 size, OUT u8 out_digest[_NYA_WEBSOCKET_SHA1_BYTES]);
-
 /** Builds the upgrade request and queues it. */
 NYA_INTERNAL NYA_Error _nya_websocket_handshake_send(NYA_WebSocket* socket, const _NYA_WebSocketUrl* url, const NYA_WebSocketOptions* options)
     __attr_no_discard;
@@ -189,7 +184,7 @@ NYA_Error nya_websocket_accept_from_key(NYA_ConstCString key, OUT char out_accep
     u64 length = strlen(key);
 
     // A key is base64 of sixteen bytes, so it is always exactly this long. A longer one is refused
-    // rather than hashed, which is what keeps the fixed block in _nya_websocket_sha1 a fixed block.
+    // rather than hashed, which is what keeps the material below a fixed size on the stack.
     if (length != _NYA_WEBSOCKET_KEY_TEXT_BYTES - 1) {
         return nya_error(
             NYA_ERROR_INVALID_ARGUMENT,
@@ -211,14 +206,15 @@ NYA_Error nya_websocket_accept_from_key(NYA_ConstCString key, OUT char out_accep
     nya_memcpy(material + material_size, NYA_WEBSOCKET_ACCEPT_GUID, guid_length);
     material_size += guid_length;
 
-    u8 digest[_NYA_WEBSOCKET_SHA1_BYTES] = { 0 };
-    _nya_websocket_sha1(material, material_size, digest);
+    // SHA-1 because RFC 6455 section 4.2.2 names it; see nya_crypto_sha1 for why that is the only use allowed.
+    NYA_CryptoSha1Digest digest = { 0 };
+    nya_crypto_sha1(material, material_size, &digest);
 
     NYA_Arena scratch = nya_arena_create_on_stack(.name = "websocket_accept");
     defer     nya_arena_destroy_on_stack(&scratch);
 
     NYA_String* encoded = nya_string_create(&scratch);
-    nya_base64_encode(encoded, digest, sizeof(digest));
+    nya_base64_encode(encoded, digest.bytes, sizeof(digest.bytes));
 
     nya_assert(encoded->length == NYA_WEBSOCKET_ACCEPT_LENGTH, "base64 of twenty bytes is always twenty eight characters");
 
@@ -715,119 +711,6 @@ NYA_Error _nya_websocket_url_parse(NYA_ConstCString text, OUT _NYA_WebSocketUrl*
     if (written < 0 || (u64)written >= sizeof(out_url->curl_url)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is too long", text);
 
     return NYA_OK;
-}
-
-/*
- * ─────────────────────────────────────────────────────────
- * SHA-1
- * ─────────────────────────────────────────────────────────
- */
-
-/*
- * FIPS 180-4, and here only because RFC 6455 names it. The four round constants below are the RFC 3174
- * ones: the first is 0x5A827999, which is floor(2^30 * sqrt(2)), and the others are the same
- * construction over sqrt(3), sqrt(5) and sqrt(10). Nothing here is a choice.
- *
- * This is not a general hash for the engine to reach for. SHA-1 is broken for anything that needs
- * collision resistance; the websocket handshake uses it as a fixed transformation of a nonce, where a
- * collision buys an attacker nothing, and that is the only place it may be used.
- */
-
-NYA_INTERNAL u32 _nya_websocket_rotate(u32 value, u32 bits) {
-    nya_assert(bits > 0 && bits < 32);
-
-    return (value << bits) | (value >> (32U - bits));
-}
-
-// The additions below are modular by definition: SHA-1 is specified over 32 bit words that wrap, so
-// the unsigned overflow sanitizer would report the algorithm working correctly. Same reason and same
-// spelling as base_hash.c.
-__attr_no_sanitize("unsigned-integer-overflow") void _nya_websocket_sha1(const u8* data, u64 size, OUT u8 out_digest[_NYA_WEBSOCKET_SHA1_BYTES]) {
-    nya_assert(data != nullptr || size == 0);
-    nya_assert(out_digest != nullptr);
-
-    u32 state[5] = { 0x67452301U, 0xEFCDAB89U, 0x98BADCFEU, 0x10325476U, 0xC3D2E1F0U };
-
-    /*
-     * The message, its 0x80 terminator and its 64 bit length, padded to a multiple of 64. Bounded by the
-     * caller: the only thing hashed here is a base64 key plus the RFC's GUID, which is 60 bytes.
-     */
-    nya_assert(size <= 64, "sha1 here only ever hashes a websocket key and the RFC's guid");
-
-    u8  block[128] = { 0 };
-    u64 total      = size;
-
-    nya_memcpy(block, data, size);
-    block[size] = 0x80U;
-
-    u64 blocks = (size + 1 + 8 + 63) / 64;
-    nya_assert(blocks * 64 <= sizeof(block));
-
-    u64 bits = total * 8;
-    for (u32 i = 0; i < 8; i++) block[(blocks * 64) - 1 - i] = (u8)((bits >> (8U * i)) & 0xFFU);
-
-    for (u64 b = 0; b < blocks; b++) {
-        const u8* chunk = block + (b * 64);
-
-        u32 w[80] = { 0 };
-
-        for (u32 i = 0; i < 16; i++) {
-            // widened before the multiply, not after. See the same shape in _nya_sha256_block.
-            u64 at = (u64)i * 4U;
-
-            w[i] = ((u32)chunk[at] << 24) | ((u32)chunk[at + 1] << 16) | ((u32)chunk[at + 2] << 8) | (u32)chunk[at + 3];
-        }
-
-        for (u32 i = 16; i < 80; i++) w[i] = _nya_websocket_rotate(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
-
-        u32 a = state[0];
-        u32 c = state[1];
-        u32 d = state[2];
-        u32 e = state[3];
-        u32 f = state[4];
-
-        for (u32 i = 0; i < 80; i++) {
-            u32 mix      = 0;
-            u32 constant = 0;
-
-            if (i < 20) {
-                mix      = (c & d) | ((~c) & e);
-                constant = 0x5A827999U;
-            } else if (i < 40) {
-                mix      = c ^ d ^ e;
-                constant = 0x6ED9EBA1U;
-            } else if (i < 60) {
-                mix      = (c & d) | (c & e) | (d & e);
-                constant = 0x8F1BBCDCU;
-            } else {
-                mix      = c ^ d ^ e;
-                constant = 0xCA62C1D6U;
-            }
-
-            u32 next = _nya_websocket_rotate(a, 5) + mix + f + constant + w[i];
-
-            f = e;
-            e = d;
-            d = _nya_websocket_rotate(c, 30);
-            c = a;
-            a = next;
-        }
-
-        state[0] += a;
-        state[1] += c;
-        state[2] += d;
-        state[3] += e;
-        state[4] += f;
-    }
-
-    for (u32 i = 0; i < 5; i++) {
-        u64 at = (u64)i * 4U;
-
-        out_digest[at]     = (u8)((state[i] >> 24) & 0xFFU);
-        out_digest[at + 1] = (u8)((state[i] >> 16) & 0xFFU);
-        out_digest[at + 2] = (u8)((state[i] >> 8) & 0xFFU);
-        out_digest[at + 3] = (u8)(state[i] & 0xFFU);
-    }
 }
 
 /*
