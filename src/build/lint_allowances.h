@@ -144,8 +144,6 @@ NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
     { "nya_entity_world_matrix", "no caller when the rule landed" },
     // core_event.h
     { "nya_event_hook_register_once", "no caller when the rule landed" },
-    // core_i18n.h
-    { "nya_i18n_load_bytes", "no caller when the rule landed" },
     // core_nav.h
     { "nya_nav_grid_from_tilemap", "no caller when the rule landed" },
     // core_skeleton_blend.h

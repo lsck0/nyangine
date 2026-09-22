@@ -109,6 +109,12 @@ NYA_Error nya_i18n_load_bytes(NYA_ConstCString locale, const u8* data, u64 size,
      */
     _nya_i18n_commit(locale, strings, nullptr, count);
 
+    // forget the file an earlier nya_i18n_load watched, or editing it would reload that file over these
+    // strings under this locale's name.
+    NYA_I18nSystem* system  = _nya_i18n_system();
+    system->handle          = nullptr;
+    system->fallback_handle = nullptr;
+
     return NYA_OK;
 }
 

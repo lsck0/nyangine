@@ -122,6 +122,42 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a locale from bytes replaces the file's, with no fallback and no watch
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // what a mod or a download hands over: jsonc, and only some of the keys.
+    static const char document[] = "{\n"
+                                   "  // a translator's note, which the file loader allows too\n"
+                                   "  \"menu_start\": \"begin\",\n"
+                                   "  \"hud_greeting\": \"Ahoy, %s!\"\n"
+                                   "}\n";
+
+    NYA_EXPECT(nya_i18n_load_bytes("xx", (const u8*)document, sizeof(document) - 1, NYA_STRING_KEYS, NYA_STRING_COUNT));
+
+    nya_assert(nya_string_equals(nya_i18n_locale(), "xx"), "the locale is the one named, got '%s'", nya_i18n_locale());
+    nya_assert(nya_string_equals(nya_string_menu_start(), "begin"), "got '%s'", nya_string_menu_start());
+    nya_assert(nya_string_equals(nya_string_hud_greeting("Ada"), "Ahoy, Ada!"), "got '%s'", nya_string_hud_greeting("Ada"));
+
+    // no fallback: a key the bytes left out is the placeholder, not the English that was loaded before.
+    NYA_ConstCString quit = nya_i18n_raw(NYA_STRING_MENU_QUIT);
+    nya_assert(quit[0] == '[', "a missing key falls back to nothing, got '%s'", quit);
+
+    // nothing watched: the file the en load registered is let go, so editing it cannot reload over these.
+    nya_assert(nya_app_get()->i18n_system.handle == nullptr, "the previous locale file is still watched");
+    nya_assert(nya_app_get()->i18n_system.fallback_handle == nullptr, "and so is its fallback");
+
+    // bad bytes change nothing, the same as a missing file.
+    static const char broken[] = "{ \"menu_start\": ";
+    nya_assert(!nya_i18n_load_bytes("yy", (const u8*)broken, sizeof(broken) - 1, NYA_STRING_KEYS, NYA_STRING_COUNT).ok, "a truncated document fails");
+    nya_assert(!nya_i18n_load_bytes("yy", (const u8*)document, sizeof(document) - 1, NYA_STRING_KEYS, 0).ok, "and so does a locale with no keys");
+
+    nya_assert(nya_string_equals(nya_i18n_locale(), "xx"), "a failed load keeps the locale, got '%s'", nya_i18n_locale());
+    nya_assert(nya_string_equals(nya_string_menu_start(), "begin"), "and its strings, got '%s'", nya_string_menu_start());
+
+    printf("  PASSED\n");
+  }
+
   printf("PASSED: test_i18n\n");
   return 0;
 }
