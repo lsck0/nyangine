@@ -91,6 +91,13 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
  */
 
 /** Untextured, depth-tested, no depth write. */
+/**
+ * What nya_render3d_mesh leaves where a model should have been and is not: a magenta box at the scale
+ * the caller asked for, outlined rather than solid so a missing prop does not also hide the scene.
+ * */
+#define NYA_RENDER3D_MISSING_MESH_COLOR     ((NYA_Color){ 1.0F, 0.0F, 1.0F, 1.0F })
+#define NYA_RENDER3D_MISSING_MESH_THICKNESS 0.02F
+
 /** The gizmo pipeline: transparent, with neither depth testing nor writing. */
 /**
  * The skinned mesh pipeline. See nya_render3d_skinned_mesh.

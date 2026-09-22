@@ -1089,7 +1089,27 @@ void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center
     } else {
         asset = nya_asset_get((NYA_AssetHandle)handle);
 
-        if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->type != NYA_ASSET_TYPE_MESH) return;
+        if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->type != NYA_ASSET_TYPE_MESH) {
+            /*
+             * A model that is not there leaves a magenta box where it would have stood, by the same
+             * rule and for the same reason as a missing texture: nothing drawn is the same picture as
+             * a draw never made, a model behind the camera, and a scale of zero.
+             *
+             * The caller's own scale is the box, so it is the size the model would have been and in
+             * its place. An outline rather than a solid, because a solid magenta block hides whatever
+             * is behind it and a missing prop should not also cost the scene around it.
+             *
+             * Only for an asset that is really missing. Still LOADING is the ordinary case for a frame
+             * or two after a load is queued, and flashing a box through every load would be worse than
+             * the silence this replaces.
+             */
+            if (nya_asset_is_missing((NYA_AssetHandle)handle)) {
+                nya_asset_missing_report(handle);
+                nya_render3d_cube_outline(window, center, scale, rotation, NYA_RENDER3D_MISSING_MESH_THICKNESS, NYA_RENDER3D_MISSING_MESH_COLOR);
+            }
+
+            return;
+        }
 
         if (asset->as_mesh.part_count == 0 || asset->as_mesh.vertex_count == 0) return;
     }
