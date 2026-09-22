@@ -33,6 +33,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_box2d_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_box2d.h",
+    .options_stamp = BOX2D_BUILD_LINUX_X86_64 "/nya_options.stamp",
+
     .name = "box2d (linux-x86_64)",
 
     .includes     = { "-I./vendor/box2d/include/", "-DB2_MAX_WORLDS=" BOX2D_MAX_WORLDS, },
@@ -73,6 +76,9 @@ NYA_VendorRule vendor_box2d_linux_x86_64 = {
 #endif
 
 NYA_VendorRule vendor_box2d_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_box2d.h",
+    .options_stamp = BOX2D_BUILD_WINDOWS_X86_64 "/nya_options.stamp",
+
     .name = "box2d (windows-x86_64)",
 
     .includes     = { "-I./vendor/box2d/include/", "-DB2_MAX_WORLDS=" BOX2D_MAX_WORLDS, },
@@ -95,7 +101,8 @@ NYA_VendorRule vendor_box2d_windows_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_expand_cwd, },
+            // The cwd is expanded first, so the stale check compares the arguments cmake will actually get.
+            .pre_build_hooks = { &hook_expand_cwd, &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_box2d_windows_x86_64_compile",

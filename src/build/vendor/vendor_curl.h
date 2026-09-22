@@ -73,6 +73,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_curl_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_curl.h",
+    .options_stamp = CURL_BUILD_LINUX_X86_64 "/nya_options.stamp",
+
     .name = "curl (linux-x86_64)",
 
     .includes = { "-I./vendor/curl/include/", },
@@ -112,6 +115,9 @@ NYA_VendorRule vendor_curl_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_curl_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_curl.h",
+    .options_stamp = CURL_BUILD_WINDOWS_X86_64 "/nya_options.stamp",
+
     .name = "curl (windows-x86_64)",
 
     // CURL_STATICLIB is required on Windows. Without it curl.h declares entry points dllimport and linking

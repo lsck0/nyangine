@@ -59,6 +59,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_sqlean_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sqlean.h",
+    .options_stamp = SQLEAN_BUILD_LINUX_X86_64 "nya_options.stamp",
+
     .name = "sqlean (linux-x86_64)",
 
     .includes     = { "-I" SQLEAN_SOURCE, },
@@ -111,6 +114,9 @@ NYA_VendorRule vendor_sqlean_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_sqlean_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sqlean.h",
+    .options_stamp = SQLEAN_BUILD_WINDOWS_X86_64 "nya_options.stamp",
+
     .name = "sqlean (windows-x86_64)",
 
     .includes     = { "-I" SQLEAN_SOURCE, },

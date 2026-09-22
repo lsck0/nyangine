@@ -81,7 +81,7 @@ NYA_VendorRule vendor_sdl_shadercross_host = {
 
             // cmake resolves a relative CMAKE_PREFIX_PATH against the build directory, so it must be
             // made absolute first; hook_expand_cwd does the same for the runtime output dir above.
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_absolutize_cmake_prefix_path, &hook_expand_cwd, },
+            .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, &hook_expand_cwd, &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_shadercross_host_compile",

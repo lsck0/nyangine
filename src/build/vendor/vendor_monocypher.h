@@ -30,6 +30,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_monocypher_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_monocypher.h",
+    .options_stamp = MONOCYPHER_BUILD_LINUX_X86_64 "nya_options.stamp",
+
     .name = "monocypher (linux-x86_64)",
 
     .includes     = { "-I" MONOCYPHER_SOURCE_DIRECTORY, },
@@ -72,6 +75,9 @@ NYA_VendorRule vendor_monocypher_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_monocypher_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_monocypher.h",
+    .options_stamp = MONOCYPHER_BUILD_WINDOWS_X86_64 "nya_options.stamp",
+
     .name = "monocypher (windows-x86_64)",
 
     .includes = { "-I" MONOCYPHER_SOURCE_DIRECTORY, },

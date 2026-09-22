@@ -35,6 +35,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_libbacktrace_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_libbacktrace.h",
+    .options_stamp = BACKTRACE_BUILD_LINUX_X86_64 "nya_options.stamp",
+
     .name = "libbacktrace (linux-x86_64)",
 
     .includes     = { BACKTRACE_INCLUDES_LINUX_X86_64, },
@@ -74,6 +77,9 @@ NYA_VendorRule vendor_libbacktrace_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_libbacktrace_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_libbacktrace.h",
+    .options_stamp = BACKTRACE_BUILD_WINDOWS_X86_64 "nya_options.stamp",
+
     .name = "libbacktrace (windows-x86_64)",
 
     .includes     = { BACKTRACE_INCLUDES_WINDOWS_X86_64, },

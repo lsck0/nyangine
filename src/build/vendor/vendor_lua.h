@@ -24,6 +24,9 @@
     "/libluajit-windows.a"
 
 NYA_VendorRule vendor_lua_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_lua.h",
+    .options_stamp = LUAJIT_SRC "/nya_options_linux.stamp",
+
     .name = "lua (linux-x86_64)",
 
     .includes     = { "-I./vendor/lua/src/", },
@@ -70,6 +73,9 @@ NYA_VendorRule vendor_lua_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_lua_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_lua.h",
+    .options_stamp = LUAJIT_SRC "/nya_options_windows.stamp",
+
     .name = "lua (windows-x86_64)",
 
     .includes     = { "-I./vendor/lua/src/", },

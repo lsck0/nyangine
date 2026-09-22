@@ -55,6 +55,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_ufbx_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_ufbx.h",
+    .options_stamp = UFBX_BUILD_LINUX_X86_64 "nya_options.stamp",
+
     .name = "ufbx (linux-x86_64)",
 
     .cflags       = { "-DUFBX_NO_SCENE_EVALUATION", "-DUFBX_NO_SUBDIVISION", "-DUFBX_NO_TESSELLATION", },
@@ -101,6 +104,9 @@ NYA_VendorRule vendor_ufbx_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_ufbx_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_ufbx.h",
+    .options_stamp = UFBX_BUILD_WINDOWS_X86_64 "nya_options.stamp",
+
     .name = "ufbx (windows-x86_64)",
 
     .cflags       = { "-DUFBX_NO_SCENE_EVALUATION", "-DUFBX_NO_SUBDIVISION", "-DUFBX_NO_TESSELLATION", },

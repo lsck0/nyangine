@@ -59,6 +59,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_sdl_image_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sdl_image.h",
+    .options_stamp = SDL_IMAGE_BUILD_LINUX_X86_64 "/nya_options.stamp",
+
     .name = "sdl-image (linux-x86_64)",
 
     .includes     = { "-I./vendor/sdl-image/include/", },
@@ -80,7 +83,7 @@ NYA_VendorRule vendor_sdl_image_linux_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_absolutize_cmake_prefix_path, },
+            .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_image_linux_x86_64_compile",
@@ -96,6 +99,9 @@ NYA_VendorRule vendor_sdl_image_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_sdl_image_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sdl_image.h",
+    .options_stamp = SDL_IMAGE_BUILD_WINDOWS_X86_64 "/nya_options.stamp",
+
     .name = "sdl-image (windows-x86_64)",
 
     .includes     = { "-I./vendor/sdl-image/include/", },
@@ -118,7 +124,7 @@ NYA_VendorRule vendor_sdl_image_windows_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_absolutize_cmake_prefix_path, },
+            .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_image_windows_x86_64_compile",

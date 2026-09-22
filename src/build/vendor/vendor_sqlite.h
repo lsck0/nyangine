@@ -19,6 +19,9 @@
 #define SQLITE_A_WINDOWS_X86_64 SQLITE_BUILD_WINDOWS_X86_64 "libsqlite3.a"
 
 NYA_VendorRule vendor_sqlite_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sqlite.h",
+    .options_stamp = SQLITE_BUILD_LINUX_X86_64 "nya_options.stamp",
+
     .name = "sqlite (linux-x86_64)",
 
     .includes     = { "-I" SQLITE_BUILD_LINUX_X86_64, },
@@ -52,6 +55,9 @@ NYA_VendorRule vendor_sqlite_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_sqlite_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sqlite.h",
+    .options_stamp = SQLITE_BUILD_WINDOWS_X86_64 "nya_options.stamp",
+
     .name = "sqlite (windows-x86_64)",
 
     .includes     = { "-I" SQLITE_BUILD_WINDOWS_X86_64, },

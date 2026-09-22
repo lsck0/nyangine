@@ -213,14 +213,55 @@ NYA_INTERNAL NYA_Error _nya_build_dispatch(NYA_BuildRule* build_rule) {
     nya_unreachable();
 }
 
+/**
+ * Whether the recipe has been edited since the vendor was last built. See NYA_VendorRule.options_file.
+ * */
+NYA_INTERNAL b8 _nya_vendor_options_changed(const NYA_VendorRule* vendor) {
+    if (vendor->options_file == nullptr || vendor->options_stamp == nullptr) return false;
+    if (!nya_filesystem_exists(vendor->options_file)) return false;
+
+    // No stamp is a tree built before the stamp existed, or one never built. Either way, ask the tools.
+    if (!nya_filesystem_exists(vendor->options_stamp)) return true;
+
+    u64 options_time = 0;
+    u64 stamp_time   = 0;
+    if (!nya_filesystem_last_modified(vendor->options_file, &options_time).ok) return false;
+    if (!nya_filesystem_last_modified(vendor->options_stamp, &stamp_time).ok) return true;
+
+    return options_time > stamp_time;
+}
+
 NYA_Error nya_vendor_build(NYA_VendorRule* vendor) {
     nya_assert(vendor != nullptr);
+
+    const b8 options_changed = _nya_vendor_options_changed(vendor);
+
+    if (options_changed) {
+        nya_log_info("Vendor '%s': %s is newer than its stamp, so every part is rebuilt.", vendor->name, vendor->options_file);
+    }
 
     for (u32 i = 0; i < NYA_VENDOR_MAX_PARTS; i++) {
         NYA_BuildRule* part = vendor->parts[i];
         if (!part) break;
 
-        NYA_TRY(nya_build(part));
+        /*
+         * Forced past the part's own policy rather than through it: a part is ONCE or IF_OUTDATED
+         * against an artifact, and neither question has anything to do with whether somebody edited
+         * the recipe. Put back afterwards, because a rule is shared between vendor lists and a second
+         * list would otherwise inherit a policy this one chose.
+         */
+        const NYA_BuildRulePolicy original = part->policy;
+        if (options_changed) part->policy = NYA_BUILD_ALWAYS;
+
+        const NYA_Error built = nya_build(part);
+
+        part->policy = original;
+        NYA_TRY(built);
+    }
+
+    if (options_changed) {
+        NYA_Error stamped = nya_file_write(vendor->options_stamp, vendor->name);
+        if (!stamped.ok) nya_log_warn("could not stamp '%s' for vendor '%s'; it will rebuild again", vendor->options_stamp, vendor->name);
     }
 
     return NYA_OK;

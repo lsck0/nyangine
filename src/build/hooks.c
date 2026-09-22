@@ -43,6 +43,94 @@ NYA_INTERNAL NYA_CString cmake_cache_value(NYA_Arena* arena, const NYA_String* c
     return nullptr;
 }
 
+/**
+ * Reads the value of a cache entry by its bare name, whatever type cmake recorded it under.
+ *
+ * `cmake_cache_value` wants the `KEY:TYPE` a caller already knows. A `-DKEY=VALUE` on a command line
+ * carries no type, and cmake picks one itself, so a lookup from the command line has to match on the
+ * name up to the colon.
+ * */
+NYA_INTERNAL NYA_CString cmake_cache_value_untyped(NYA_Arena* arena, const NYA_String* cache, NYA_ConstCString key) {
+    NYA_ArrayᐸNYA_Stringᐳ* lines = nya_string_split_lines(arena, cache);
+
+    const u64 key_length = strlen(key);
+
+    nya_array_foreach (lines, line) {
+        NYA_CString text = nya_string_to_cstring(arena, line);
+
+        if (strncmp(text, key, key_length) != 0) continue;
+        if (text[key_length] != ':') continue; // a longer name that merely starts the same way
+
+        NYA_CString equals = strchr(text + key_length, '=');
+        if (equals == nullptr) continue;
+
+        return equals + 1;
+    }
+
+    return nullptr;
+}
+
+/** Case-insensitive equality. <strings.h> is not on this tool's include line. */
+NYA_INTERNAL b8 cmake_same_word(NYA_ConstCString a, NYA_ConstCString b) {
+    for (u64 i = 0;; i++) {
+        const char left  = (a[i] >= 'a' && a[i] <= 'z') ? (char)(a[i] - ('a' - 'A')) : a[i];
+        const char right = (b[i] >= 'a' && b[i] <= 'z') ? (char)(b[i] - ('a' - 'A')) : b[i];
+
+        if (left != right) return false;
+        if (left == '\0') return true;
+    }
+}
+
+/**
+ * Whether two cache values mean the same thing.
+ *
+ * Booleans are the whole reason this is not strcmp: cmake writes back the canonical `ON` or `OFF`
+ * whatever spelling it was given, so `-DSDL_TESTS=0` against a cache holding `OFF` is not a change and
+ * comparing the text would reconfigure on every build forever.
+ * */
+NYA_INTERNAL b8 cmake_truth_of(NYA_ConstCString value, OUT b8* out_truth) {
+    NYA_ConstCString truths[] = { "ON", "TRUE", "YES", "Y", "1" };
+    NYA_ConstCString falses[] = { "OFF", "FALSE", "NO", "N", "0", "IGNORE", "NOTFOUND", "" };
+
+    for (u64 i = 0; i < sizeof(truths) / sizeof(truths[0]); i++) {
+        if (!cmake_same_word(value, truths[i])) continue;
+        *out_truth = true;
+
+        return true;
+    }
+
+    for (u64 i = 0; i < sizeof(falses) / sizeof(falses[0]); i++) {
+        if (!cmake_same_word(value, falses[i])) continue;
+        *out_truth = false;
+
+        return true;
+    }
+
+    return false;
+}
+
+NYA_INTERNAL b8 cmake_values_agree(NYA_ConstCString wanted, NYA_ConstCString cached) {
+    if (nya_string_equals((NYA_CString)wanted, (NYA_CString)cached)) return true;
+
+    /*
+     * A program named rather than located. cmake resolves CMAKE_C_COMPILER=clang against PATH and
+     * writes back /usr/sbin/clang, so the text never matches again and the whole of SDL was thrown
+     * away and rebuilt for a compiler that had not changed.
+     */
+    if (strchr(wanted, '/') == nullptr && cached[0] == '/') {
+        NYA_ConstCString last = strrchr(cached, '/');
+        if (last != nullptr && nya_string_equals((NYA_CString)(last + 1), (NYA_CString)wanted)) return true;
+    }
+
+    b8 wanted_truth = false;
+    b8 cached_truth = false;
+
+    if (!cmake_truth_of(wanted, &wanted_truth)) return false;
+    if (!cmake_truth_of(cached, &cached_truth)) return false;
+
+    return wanted_truth == cached_truth;
+}
+
 void hook_invalidate_stale_cmake_cache(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
 
@@ -80,6 +168,68 @@ void hook_invalidate_stale_cmake_cache(NYA_BuildRule* rule) {
         if (nya_filesystem_exists(value)) continue;
 
         printf("[STALE CACHE] %s records %s = %s, which does not exist here. Reconfiguring.\n", cache_file, keys[i], value);
+        NYA_EXPECT(nya_filesystem_delete_recursive(build_directory), "while discarding a stale cmake build directory");
+        return;
+    }
+
+    /*
+     * And the case that actually bites: an option in the recipe that disagrees with the one the cache
+     * was built from.
+     *
+     * cmake applies a changed -D on a reconfigure for most variables, but not for all of them, and not
+     * for anything a CMakeLists only reads the first time through. Turning SDL_RENDER on is exactly
+     * that kind of change: it had to be found by a test opening a window that had never been able to
+     * open. A wipe is the only answer that is right for every variable, and it costs a full rebuild of
+     * one vendor on the builds where somebody actually edited an option.
+     */
+    for (u64 i = 0; i < NYA_COMMAND_MAX_ARGUMENTS; i++) {
+        NYA_ConstCString argument = rule->command.arguments[i];
+        if (argument == nullptr) break;
+        if (strncmp(argument, "-D", 2) != 0) continue;
+
+        NYA_ConstCString equals = strchr(argument + 2, '=');
+        if (equals == nullptr) continue; // -DFOO with no value defines nothing cmake caches
+
+        // The name is what lies between the -D and the first =, minus any :TYPE the recipe spelled out.
+        NYA_CString name  = nya_arena_alloc(arena, (u64)(equals - argument) - 1);
+        const u64   count = (u64)(equals - (argument + 2));
+        nya_memcpy(name, argument + 2, count);
+        name[count] = '\0';
+
+        NYA_CString colon = strchr(name, ':');
+        if (colon != nullptr) *colon = '\0';
+
+        /*
+         * Only the last -D for a name decides, because that is what cmake does with it. The windows
+         * vendors set CMAKE_C_FLAGS_RELEASE twice, once in vendor_common.h and again in the mingw
+         * toolchain that adds -D__INTRINSIC_DEFINED___cpuidex to it, so comparing the earlier one
+         * against the cache reported a change on every build that ever reached this hook.
+         */
+        b8        overridden = false;
+        const u64 name_length = strlen(name);
+
+        for (u64 j = i + 1; j < NYA_COMMAND_MAX_ARGUMENTS; j++) {
+            NYA_ConstCString later = rule->command.arguments[j];
+            if (later == nullptr) break;
+            if (strncmp(later, "-D", 2) != 0) continue;
+            if (strncmp(later + 2, name, name_length) != 0) continue;
+
+            // The same name, and not merely one that starts with it.
+            const char after = later[2 + name_length];
+            if (after != '=' && after != ':') continue;
+
+            overridden = true;
+            break;
+        }
+
+        if (overridden) continue;
+
+        NYA_CString cached = cmake_cache_value_untyped(arena, cache, name);
+        if (cached == nullptr) continue; // not in the cache: cmake will put it there, nothing is stale
+
+        if (cmake_values_agree(equals + 1, cached)) continue;
+
+        printf("[STALE CACHE] %s records %s = %s, and this build wants %s. Reconfiguring from scratch.\n", cache_file, name, cached, equals + 1);
         NYA_EXPECT(nya_filesystem_delete_recursive(build_directory), "while discarding a stale cmake build directory");
         return;
     }

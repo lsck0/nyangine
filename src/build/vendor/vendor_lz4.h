@@ -21,6 +21,9 @@
     "/liblz4-windows.a"
 
 NYA_VendorRule vendor_lz4_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_lz4.h",
+    .options_stamp = LZ4_LIB "/nya_options_linux.stamp",
+
     .name = "lz4 (linux-x86_64)",
 
     .includes     = { "-I./vendor/lz4/lib/", },
@@ -66,6 +69,9 @@ NYA_VendorRule vendor_lz4_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_lz4_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_lz4.h",
+    .options_stamp = LZ4_LIB "/nya_options_windows.stamp",
+
     .name = "lz4 (windows-x86_64)",
 
     .includes     = { "-I./vendor/lz4/lib/", },

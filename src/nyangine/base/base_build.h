@@ -103,6 +103,30 @@ struct NYA_VendorRule {
     /** Library paths, archives and `-l` flags a consumer needs, appended after the sources. */
     NYA_ConstCString linker_flags[NYA_VENDOR_MAX_FLAGS];
 
+    /**
+     * The file this vendor's build options are written in, usually its own `vendor_*.h`.
+     *
+     * A vendor's parts are NYA_BUILD_ONCE keyed on the archive they produce, so changing a cmake or make
+     * option used to change nothing at all: the archive was still there, every part was skipped, and the
+     * option quietly applied to nobody who had built once already. An option that does nothing until a
+     * rebuild is not an option. Naming the recipe here is the dependency that was always real and was
+     * never written down.
+     *
+     * When this file is newer than `options_stamp`, every part is built whatever its own policy says,
+     * and the stamp is written afterwards. Leave both null for a vendor with no options worth watching.
+     * */
+    NYA_ConstCString options_file;
+
+    /**
+     * Where the stamp for `options_file` is kept, usually beside the artifact.
+     *
+     * A stamp and not the artifact itself: cmake, ninja and make all leave an archive alone when no
+     * source changed, so a no-op rebuild left the archive older than the recipe that triggered it and
+     * the vendor was stale again immediately — rebuilding on every invocation for the rest of the
+     * checkout's life, `./build stats` included, since the vendors are walked before any subcommand.
+     * */
+    NYA_ConstCString options_stamp;
+
     /** Rules that produce the artifact, built in order. */
     NYA_BuildRule* parts[NYA_VENDOR_MAX_PARTS];
 };

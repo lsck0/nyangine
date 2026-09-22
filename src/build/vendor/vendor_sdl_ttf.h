@@ -33,6 +33,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_sdl_ttf_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sdl_ttf.h",
+    .options_stamp = SDL_TTF_BUILD_LINUX_X86_64 "/nya_options.stamp",
+
     .name = "sdl-ttf (linux-x86_64)",
 
     .includes     = { "-I./vendor/sdl-ttf/include/", },
@@ -62,7 +65,7 @@ NYA_VendorRule vendor_sdl_ttf_linux_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_absolutize_cmake_prefix_path, },
+            .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_ttf_linux_x86_64_compile",
@@ -78,6 +81,9 @@ NYA_VendorRule vendor_sdl_ttf_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_sdl_ttf_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sdl_ttf.h",
+    .options_stamp = SDL_TTF_BUILD_WINDOWS_X86_64 "/nya_options.stamp",
+
     .name = "sdl-ttf (windows-x86_64)",
 
     .includes     = { "-I./vendor/sdl-ttf/include/", },
@@ -107,7 +113,7 @@ NYA_VendorRule vendor_sdl_ttf_windows_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_absolutize_cmake_prefix_path, },
+            .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_ttf_windows_x86_64_compile",

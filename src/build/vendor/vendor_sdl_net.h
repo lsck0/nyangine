@@ -29,6 +29,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_sdl_net_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sdl_net.h",
+    .options_stamp = SDL_NET_BUILD_LINUX_X86_64 "/nya_options.stamp",
+
     .name = "sdl-net (linux-x86_64)",
 
     .includes     = { "-I./vendor/sdl-net/include/", },
@@ -50,7 +53,7 @@ NYA_VendorRule vendor_sdl_net_linux_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_absolutize_cmake_prefix_path, },
+            .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_net_linux_x86_64_compile",
@@ -66,6 +69,9 @@ NYA_VendorRule vendor_sdl_net_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_sdl_net_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sdl_net.h",
+    .options_stamp = SDL_NET_BUILD_WINDOWS_X86_64 "/nya_options.stamp",
+
     .name = "sdl-net (windows-x86_64)",
 
     .includes = { "-I./vendor/sdl-net/include/", },
@@ -93,7 +99,7 @@ NYA_VendorRule vendor_sdl_net_windows_x86_64 = {
                 },
             },
 
-            .pre_build_hooks = { &hook_invalidate_stale_cmake_cache, &hook_absolutize_cmake_prefix_path, },
+            .pre_build_hooks = { &hook_absolutize_cmake_prefix_path, &hook_invalidate_stale_cmake_cache, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_net_windows_x86_64_compile",

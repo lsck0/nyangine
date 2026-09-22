@@ -32,6 +32,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_box3d_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_box3d.h",
+    .options_stamp = BOX3D_BUILD_LINUX_X86_64 "/nya_options.stamp",
+
     .name = "box3d (linux-x86_64)",
 
     .includes     = { "-I./vendor/box3d/include/", "-DB3_MAX_WORLDS=" BOX3D_MAX_WORLDS, },
@@ -64,6 +67,9 @@ NYA_VendorRule vendor_box3d_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_box3d_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_box3d.h",
+    .options_stamp = BOX3D_BUILD_WINDOWS_X86_64 "/nya_options.stamp",
+
     .name = "box3d (windows-x86_64)",
 
     .includes     = { "-I./vendor/box3d/include/", "-DB3_MAX_WORLDS=" BOX3D_MAX_WORLDS, },

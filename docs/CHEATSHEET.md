@@ -302,7 +302,7 @@ nya_flag_equals(flags, flag)
 enum NYA_BuildRulePolicy { NYA_BUILD_ALWAYS, NYA_BUILD_ONCE, NYA_BUILD_IF_OUTDATED, NYA_BUILD_COUNT, }
 enum NYA_BuildVendorFlags { NYA_BUILD_VENDOR_FLAGS_ALL, NYA_BUILD_VENDOR_FLAGS_COMPILE, NYA_BUILD_VENDOR_FLAGS_LINK, NYA_BUILD_VENDOR_FLAGS_COUNT, }  // Which of its vendors' flags a rule's command takes.
 struct NYA_BuildRule { NYA_ConstCString name; NYA_BuildRulePolicy policy; b8 is_metarule; NYA_ConstCString input_file; NYA_ConstCString output_file; NYA_Command command; NYA_BuildRule* dependencies[NYA_BUILD_MAX_DEPENDENCIES]; NYA_VendorRule* vendors[NYA_BUILD_MAX_VENDORS]; NYA_BuildVendorFlags vendor_flags; void (*pre_build_hooks[NYA_BUILD_MAX_DEPENDENCIES])(NYA_BuildRule* rule); void (*post_build_hooks[NYA_BUILD_MAX_DEPENDENCIES])(NYA_BuildRule* rule); u32 parallel_arguments_before_vendors; b8 parallel_is_running; u64 last_built_epoch; }
-struct NYA_VendorRule { NYA_ConstCString name; NYA_ConstCString cflags[NYA_VENDOR_MAX_FLAGS]; NYA_ConstCString includes[NYA_VENDOR_MAX_FLAGS]; NYA_ConstCString linker_flags[NYA_VENDOR_MAX_FLAGS]; NYA_BuildRule* parts[NYA_VENDOR_MAX_PARTS]; }
+struct NYA_VendorRule { NYA_ConstCString name; NYA_ConstCString cflags[NYA_VENDOR_MAX_FLAGS]; NYA_ConstCString includes[NYA_VENDOR_MAX_FLAGS]; NYA_ConstCString linker_flags[NYA_VENDOR_MAX_FLAGS]; NYA_ConstCString options_file; NYA_ConstCString options_stamp; NYA_BuildRule* parts[NYA_VENDOR_MAX_PARTS]; }
 
 // macros
 NYA_BUILD_MAX_DEPENDENCIES 64

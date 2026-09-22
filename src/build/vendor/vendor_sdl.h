@@ -19,39 +19,8 @@
 #define SDL_A_LINUX_X86_64   SDL_BUILD_LINUX_X86_64 "libSDL3.a"
 #define SDL_A_WINDOWS_X86_64 SDL_BUILD_WINDOWS_X86_64 "libSDL3.a"
 
-/*
- * What the IF_OUTDATED rules below compare this recipe against, written by hook_stamp_output_file.
- *
- * Not the archive: cmake and ninja leave it alone when no source changed, so a no-op build left the
- * archive older than the recipe that triggered it and the rule was outdated again immediately —
- * firing on every `./build` invocation for the rest of the checkout's life, `./build stats`
- * included, since main walks the vendor rules before dispatching any subcommand.
- */
-#define SDL_CONFIGURED_LINUX_X86_64   SDL_BUILD_LINUX_X86_64 "nya_configured.stamp"
-#define SDL_CONFIGURED_WINDOWS_X86_64 SDL_BUILD_WINDOWS_X86_64 "nya_configured.stamp"
-#define SDL_COMPILED_LINUX_X86_64     SDL_BUILD_LINUX_X86_64 "nya_compiled.stamp"
-#define SDL_COMPILED_WINDOWS_X86_64   SDL_BUILD_WINDOWS_X86_64 "nya_compiled.stamp"
-
 #define SDL_INCLUDES_LINUX_X86_64 "-I./vendor/sdl/include/"
 #define SDL_LINKER_LINUX_X86_64   "-L" SDL_BUILD_LINUX_X86_64, "-lSDL3"
-
-/*
- * This file, as an input the built library depends on.
- *
- * A vendor rule is NYA_BUILD_ONCE keyed on its own archive, so changing a cmake option here used to
- * change nothing at all: the archive was still there, the rule was skipped, and the option quietly
- * applied to nobody who had built once already. Turning SDL_RENDER on is exactly that kind of change,
- * and one that does nothing until a rebuild is not a change. NYA_BUILD_IF_OUTDATED against this file
- * is the dependency that was always there and was never written down.
- *
- * It costs about 160 ms on a build where this file is the newer of the two, since cmake and ninja are
- * then asked and both answer "nothing to do". That is the price of asking the tool rather than
- * guessing from the archive's existence, and it is the right way round.
- *
- * Only SDL carries it, because only SDL's options moved. Every other vendor header has the same gap;
- * see TODO.md.
- */
-#define SDL_OPTIONS_FILE "./src/build/vendor/vendor_sdl.h"
 
 /*
  * Off is what the engine never calls: OpenGL, camera, haptic, dialogs, tray, notifications, OpenXR and
@@ -100,6 +69,9 @@
 // clang-format on
 
 NYA_VendorRule vendor_sdl_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sdl.h",
+    .options_stamp = SDL_BUILD_LINUX_X86_64 "nya_options.stamp",
+
     .name = "sdl (linux-x86_64)",
 
     .includes     = { SDL_INCLUDES_LINUX_X86_64, },
@@ -108,9 +80,8 @@ NYA_VendorRule vendor_sdl_linux_x86_64 = {
     .parts = {
         &(NYA_BuildRule){
             .name        = "vendor_sdl_linux_x86_64_configure",
-            .policy      = NYA_BUILD_IF_OUTDATED,
-            .input_file  = SDL_OPTIONS_FILE,
-            .output_file = SDL_CONFIGURED_LINUX_X86_64,
+            .policy      = NYA_BUILD_ONCE,
+            .output_file = SDL_A_LINUX_X86_64,
 
             .command = {
                 .program   = "cmake",
@@ -122,13 +93,11 @@ NYA_VendorRule vendor_sdl_linux_x86_64 = {
             },
 
             .pre_build_hooks  = { &hook_invalidate_stale_cmake_cache, },
-            .post_build_hooks = { &hook_stamp_output_file, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_linux_x86_64_compile",
-            .policy      = NYA_BUILD_IF_OUTDATED,
-            .input_file  = SDL_OPTIONS_FILE,
-            .output_file = SDL_COMPILED_LINUX_X86_64,
+            .policy      = NYA_BUILD_ONCE,
+            .output_file = SDL_A_LINUX_X86_64,
 
             .command = {
                 .program   = "cmake",
@@ -139,12 +108,14 @@ NYA_VendorRule vendor_sdl_linux_x86_64 = {
                 },
             },
 
-            .post_build_hooks = { &hook_stamp_output_file, },
         },
     },
 };
 
 NYA_VendorRule vendor_sdl_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sdl.h",
+    .options_stamp = SDL_BUILD_WINDOWS_X86_64 "nya_options.stamp",
+
     .name = "sdl (windows-x86_64)",
 
     .includes = { "-I./vendor/sdl/include/", },
@@ -164,9 +135,8 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
     .parts = {
         &(NYA_BuildRule){
             .name        = "vendor_sdl_windows_x86_64_configure",
-            .policy      = NYA_BUILD_IF_OUTDATED,
-            .input_file  = SDL_OPTIONS_FILE,
-            .output_file = SDL_CONFIGURED_WINDOWS_X86_64,
+            .policy      = NYA_BUILD_ONCE,
+            .output_file = SDL_A_WINDOWS_X86_64,
 
             .command = {
                 .program   = "cmake",
@@ -184,13 +154,11 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
             },
 
             .pre_build_hooks  = { &hook_invalidate_stale_cmake_cache, },
-            .post_build_hooks = { &hook_stamp_output_file, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_sdl_windows_x86_64_compile",
-            .policy      = NYA_BUILD_IF_OUTDATED,
-            .input_file  = SDL_OPTIONS_FILE,
-            .output_file = SDL_COMPILED_WINDOWS_X86_64,
+            .policy      = NYA_BUILD_ONCE,
+            .output_file = SDL_A_WINDOWS_X86_64,
 
             .command = {
                 .program   = "cmake",
@@ -201,7 +169,6 @@ NYA_VendorRule vendor_sdl_windows_x86_64 = {
                 },
             },
 
-            .post_build_hooks = { &hook_stamp_output_file, },
         },
     },
 };

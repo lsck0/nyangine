@@ -62,6 +62,9 @@
  */
 
 NYA_VendorRule vendor_sqlvec_linux_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sqlvec.h",
+    .options_stamp = SQLVEC_BUILD_LINUX_X86_64 "nya_options.stamp",
+
     .name = "sqlvec (linux-x86_64)",
 
     .cflags       = { "-DSQLITE_CORE", "-DSQLITE_VEC_STATIC", },
@@ -128,6 +131,9 @@ NYA_VendorRule vendor_sqlvec_linux_x86_64 = {
 };
 
 NYA_VendorRule vendor_sqlvec_windows_x86_64 = {
+    .options_file  = "./src/build/vendor/vendor_sqlvec.h",
+    .options_stamp = SQLVEC_BUILD_WINDOWS_X86_64 "nya_options.stamp",
+
     .name = "sqlvec (windows-x86_64)",
 
     .cflags       = { "-DSQLITE_CORE", "-DSQLITE_VEC_STATIC", },

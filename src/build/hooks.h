@@ -24,7 +24,17 @@
 void hook_create_build_directory(NYA_BuildRule* rule);
 
 /**
- * Deletes a cmake build directory whose cached toolchain no longer exists.
+ * Deletes a cmake build directory whose cache no longer describes this build.
+ *
+ * Two reasons to throw one away: a cached compiler or make program that is not on this machine, and a
+ * `-D` in the recipe that disagrees with what the cache was configured from. The second is the one that
+ * bites, because cmake does not re-derive everything a CMakeLists only reads on the first pass, and an
+ * option that does nothing until a rebuild is not an option.
+ *
+ * **Register it last.** It compares the rule's arguments against the cache, so every hook that rewrites
+ * an argument — `hook_expand_cwd`, `hook_absolutize_cmake_prefix_path` — has to have run first, or it
+ * reads a `%CWD%` or a relative path the cache could never have recorded and wipes the directory on
+ * every build.
  * */
 void hook_invalidate_stale_cmake_cache(NYA_BuildRule* rule);
 
