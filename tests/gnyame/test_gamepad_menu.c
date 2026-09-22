@@ -40,8 +40,6 @@ static void axis(SDL_Joystick* pad, SDL_GamepadAxis which, s16 value) {
 }
 
 s32 main(void) {
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
     // the game loads the player's settings over its bindings, so a scratch data directory keeps real ones out.
     NYA_Arena*  scratch   = nya_arena_create(.name = "test_gamepad_menu_scratch");
     NYA_String* temp_root = nullptr;

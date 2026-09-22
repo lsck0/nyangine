@@ -14,10 +14,6 @@
 #define FACE2 "./assets/fonts/mono.ttf"
 
 s32 main(void) {
-    // no real audio device: nya_system_asset_init brings up SDL_mixer, and without a sound card ALSA leaks
-    // its configuration tree while failing to open one. Same hint as test_asset.c.
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
     b8 sdl_ok = SDL_Init(0);

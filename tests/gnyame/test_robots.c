@@ -17,7 +17,6 @@ static u32 drones(void) {
 
 s32 main(void) {
     SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 
     // the brain and the history are written under the save root, so a scratch one keeps the player's out of this.
     NYA_Arena*  scratch   = nya_arena_create(.name = "test_robots_scratch");

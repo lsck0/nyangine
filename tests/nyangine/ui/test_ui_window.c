@@ -102,8 +102,6 @@ static Scene click_scene(f32x2 at) {
 }
 
 s32 main(void) {
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
     b8 sdl_ok = SDL_Init(0);

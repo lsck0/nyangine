@@ -35,8 +35,6 @@ static NYA_Render3DDecal decal_at(f32 x) {
 }
 
 s32 main(void) {
-  SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
   b8 sdl_ok         = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());

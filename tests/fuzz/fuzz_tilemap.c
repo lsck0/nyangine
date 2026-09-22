@@ -18,10 +18,6 @@
 #define FUZZ_TILEMAP_PATH "./assets/maps/nya_fuzz_tilemap.tmj"
 
 static void fuzz_setup(void) {
-    // no real audio device: nya_system_asset_init opens one, and the driver's own allocations would
-    // be reported against this target. Same as the core asset tests.
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
     b8 sdl_ok = SDL_Init(0);

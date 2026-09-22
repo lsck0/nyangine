@@ -30,10 +30,6 @@ static TTF_Font* pump_until_loaded(NYA_Font font) {
 }
 
 s32 main(void) {
-    // No real audio device: nya_system_asset_init brings up SDL_mixer, and on a machine without a sound
-    // card ALSA leaks its configuration tree while failing to open one. Same reason as test_asset.c.
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
     b8 sdl_ok = SDL_Init(0);

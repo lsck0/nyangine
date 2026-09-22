@@ -95,10 +95,9 @@ s32 main(s32 argc, NYA_CString argv[]) {
 
     if (seed == 0) seed = seed_fresh();
 
-    // no display and no audio device: the agent plays headless, which is the whole point of playing it
+    // no display: the agent plays headless, which is the whole point of playing it
     // a thousand times faster than a person could.
     SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 
     // settings and saves load from the data directory, so a scratch one keeps the player's own bindings
     // and volumes out of a run that presses every key it can find.

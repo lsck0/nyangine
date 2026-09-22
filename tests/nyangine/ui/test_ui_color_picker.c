@@ -98,8 +98,6 @@ static f32 appear_top(void) {
 }
 
 s32 main(void) {
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true, .frame_stats = { .started_ns = nya_clock_get_monotonic_ns() } };
 
     b8 sdl_ok = SDL_Init(0);

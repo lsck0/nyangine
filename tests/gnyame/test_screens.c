@@ -113,7 +113,6 @@ static NYA_Layer layer_stub(NYA_ConstCString id) {
 
 s32 main(void) {
     SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 
     // settings load from the data directory, so a scratch one keeps the player's own bindings out of this.
     NYA_Arena*  scratch   = nya_arena_create(.name = "test_screens_scratch");

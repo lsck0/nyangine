@@ -51,9 +51,6 @@ static b8 pattern_filled(s32 x, s32 y, void* user_data) {
 }
 
 s32 main(void) {
-    // No real audio device; nya_system_asset_init opens one otherwise. Same reason as test_asset.c.
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
     b8 sdl_ok = SDL_Init(0);

@@ -145,9 +145,8 @@ static u64 play(u64 seed, u64 ticks, b8 real_time) {
 }
 
 s32 main(void) {
-    // no display and no audio device, ever: a session is a headless run of the real application.
+    // no display, ever: a session is a headless run of the real application.
     SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
 
     // settings and saves load from the data directory, so a scratch one keeps the player's own out of
     // this and keeps two runs of this test from seeing each other.

@@ -276,6 +276,9 @@ void nya_system_asset_init(void) {
     // not fatal: a build with no audio device runs, it just cannot load sounds.
     if (!TTF_Init()) nya_log_warn("TTF_Init() failed, fonts will not load: %s", SDL_GetError());
 
+    // a test brings the asset system up without nya_app_init, so the driver is chosen here as well.
+    _nya_app_audio_driver_default();
+
     if (!MIX_Init()) {
         nya_log_warn("MIX_Init() failed, sounds will not load: %s", SDL_GetError());
     } else {

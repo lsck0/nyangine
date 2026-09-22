@@ -18,6 +18,13 @@ NYA_App _NYA_APP_INSTANCE;
 
 NYA_INTERNAL void _nya_app_handle_shutdown_signal(NYA_Signal signal);
 
+/**
+ * A test build plays no sound, so it asks SDL for the dummy audio driver. A real device leaks the
+ * driver's own allocations into LeakSanitizer (ALSA on a CI runner). Default priority, so
+ * SDL_AUDIO_DRIVER in the environment still wins. Called before anything brings audio up.
+ * */
+NYA_INTERNAL void _nya_app_audio_driver_default(void);
+
 /** Samples the clock once for the frame and books the time since the last one against the update debt. */
 NYA_INTERNAL void _nya_app_advance_frame_clock(void);
 
@@ -414,6 +421,8 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     // game through XWayland. A hint rather than an override, so SDL_VIDEO_DRIVER in the environment still wins.
     SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "wayland,x11");
 #endif
+
+    _nya_app_audio_driver_default();
 
     if (!SDL_Init(SDL_INIT_EVENTS | SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         nya_signals_deinit();
@@ -867,6 +876,12 @@ void nya_app_options_update(NYA_AppOptions options) {
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+void _nya_app_audio_driver_default(void) {
+#ifdef NYA_TESTING
+    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_DEFAULT);
+#endif
+}
 
 void _nya_app_handle_shutdown_signal(NYA_Signal signal) {
     nya_unused(signal);

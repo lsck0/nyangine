@@ -44,10 +44,6 @@ static f32 pose_error(const NYA_SkeletonPose* a, const NYA_SkeletonPose* b) {
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
-  // no real audio device, or nya_system_asset_init opens one and the ALSA driver's own leaks are
-  // reported against this test. Same as test_asset.c.
-  SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
   _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
   b8 sdl_ok = SDL_Init(0);

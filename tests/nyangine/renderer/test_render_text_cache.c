@@ -57,9 +57,6 @@ static NYA_TextRun cached;
 static NYA_TextRun direct;
 
 s32 main(void) {
-    // no real audio device, for the same reason as test_render_font.c.
-    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
-
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 
     b8 sdl_ok = SDL_Init(0);
