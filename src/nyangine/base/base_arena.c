@@ -813,15 +813,12 @@ void _nya_arena_registry_add(NYA_Arena* arena) {
         if (atomic_compare_exchange_strong(&_nya_arena_registry[i], &expected, arena)) {
             atomic_fetch_add(&_nya_arena_registry_live_count, 1);
 
-#ifndef NYA_NO_SDL
-            // registered on the first arena created, since a zeroed table needs no init. skipped under -DNYA_NO_SDL, which
-            // has no ceiling registry (the build tool). the atomic is read through a plain pointer, which every supported
-            // compiler represents identically, and the registry only reads.
+            // registered on the first arena created, since a zeroed table needs no init. the atomic is read through a
+            // plain pointer, which every supported compiler represents identically, and the registry only reads.
             static atomic b8 ceiling_registered = false;
             if (!atomic_exchange(&ceiling_registered, true)) {
                 nya_ceiling_register("arenas", NYA_ARENA_REGISTRY_MAX, (const u32*)&_nya_arena_registry_live_count);
             }
-#endif
 
             return;
         }
@@ -862,13 +859,11 @@ NYA_ArenaCallsiteStats _nya_arena_callsite_snapshot(const _NYA_ArenaCallsiteRow*
 }
 
 _NYA_ArenaCallsiteRow* _nya_arena_callsite_for(const char* arena_name, const char* file, u32 line, const char* function) {
-#ifndef NYA_NO_SDL
     // registered on the first callsite recorded; see _nya_arena_registry_add.
     static atomic b8 ceiling_registered = false;
     if (!atomic_exchange(&ceiling_registered, true)) {
         nya_ceiling_register("arena_callsites", _NYA_ARENA_CALLSITE_MAX, (const u32*)&_nya_arena_callsite_count);
     }
-#endif
 
     u32 count = atomic_load(&_nya_arena_callsite_count);
     if (count > _NYA_ARENA_CALLSITE_MAX) count = _NYA_ARENA_CALLSITE_MAX;

@@ -350,6 +350,25 @@ u32 nya_cache_count(const NYA_Cache* cache)
 u32 nya_cache_capacity(const NYA_Cache* cache)
 ```
 
+### base_ceiling.h
+
+```c
+// macros
+NYA_CEILING_REGISTRY_MAX 48  // How many ceilings can register, ever.
+NYA_GAUGE_REGISTRY_MAX 16  // How many byte gauges can register, ever.
+
+// functions
+void nya_ceiling_register(NYA_ConstCString name, u32 capacity, const u32* live)  // Registers a ceiling for visibility: a name, its fixed capacity, and a pointer to the existing live counter.
+u32 nya_ceiling_count(void)  // How many ceilings are registered.
+NYA_ConstCString nya_ceiling_name_at(u32 index)  // Sorted by fullness (live/capacity), fullest first.
+u32 nya_ceiling_capacity_at(u32 index)
+u32 nya_ceiling_live_at(u32 index)
+void nya_gauge_register(NYA_ConstCString name, const u64* bytes)  // Registers a byte gauge: a name and a pointer to an existing running byte count.
+u32 nya_gauge_count(void)  // How many gauges are registered.
+NYA_ConstCString nya_gauge_name_at(u32 index)  // In registration order, so a HUD row does not move.
+u64 nya_gauge_bytes_at(u32 index)
+```
+
 ### base_clock.h
 
 ```c
@@ -1531,25 +1550,6 @@ void nya_system_callback_init(void)
 void nya_system_callback_deinit(void)
 void* nya_callback_get(NYA_CallbackHandle handle)
 NYA_CallbackHandle _nya_callback(NYA_Callback callback)
-```
-
-### core_ceiling.h
-
-```c
-// macros
-NYA_CEILING_REGISTRY_MAX 48  // How many ceilings can register, ever.
-NYA_GAUGE_REGISTRY_MAX 16  // How many byte gauges can register, ever.
-
-// functions
-void nya_ceiling_register(NYA_ConstCString name, u32 capacity, const u32* live)  // Registers a ceiling for visibility: a name, its fixed capacity, and a pointer to the existing live counter.
-u32 nya_ceiling_count(void)  // How many ceilings are registered.
-NYA_ConstCString nya_ceiling_name_at(u32 index)  // Sorted by fullness (live/capacity), fullest first.
-u32 nya_ceiling_capacity_at(u32 index)
-u32 nya_ceiling_live_at(u32 index)
-void nya_gauge_register(NYA_ConstCString name, const u64* bytes)  // Registers a byte gauge: a name and a pointer to an existing running byte count.
-u32 nya_gauge_count(void)  // How many gauges are registered.
-NYA_ConstCString nya_gauge_name_at(u32 index)  // In registration order, so a HUD row does not move.
-u64 nya_gauge_bytes_at(u32 index)
 ```
 
 ### core_config.h

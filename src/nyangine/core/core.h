@@ -8,7 +8,6 @@
 #include "nyangine/core/core_audio_effects.h"
 #include "nyangine/core/core_audio_propagation.h"
 #include "nyangine/core/core_callback.h"
-#include "nyangine/core/core_ceiling.h"
 #include "nyangine/core/core_config.h"
 #include "nyangine/core/core_control.h"
 #include "nyangine/core/core_entity.h"

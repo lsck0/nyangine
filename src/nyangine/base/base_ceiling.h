@@ -1,5 +1,5 @@
 /**
- * @file core_ceiling.h
+ * @file base_ceiling.h
  *
  * ```c
  * // once, wherever the pool's own counter first becomes meaningful:
@@ -70,7 +70,7 @@ NYA_API NYA_ConstCString nya_gauge_name_at(u32 index) __attr_no_discard;
 NYA_API u64              nya_gauge_bytes_at(u32 index) __attr_no_discard;
 
 #ifdef NYA_TESTING
-/** Returns the registry to its just-linked state: no ceilings and no gauges. Test-only, same reasoning as
- *  _nya_system_registry_reset_for_test in core_system.h. */
+/** Returns the registry to its just-linked state: no ceilings and no gauges. Test-only: registration is
+ *  one way, so a test that fills the registry would otherwise poison every test after it. */
 NYA_INTERNAL void _nya_ceiling_registry_reset_for_test(void);
 #endif

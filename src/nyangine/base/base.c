@@ -4,6 +4,7 @@
 #include "nyangine/base/base_base64.c"
 #include "nyangine/base/base_bench.c"
 #include "nyangine/base/base_build.c"
+#include "nyangine/base/base_ceiling.c"
 #include "nyangine/base/base_clock.c"
 #include "nyangine/base/base_clock_format.c"
 #include "nyangine/base/base_clock_instant.c"

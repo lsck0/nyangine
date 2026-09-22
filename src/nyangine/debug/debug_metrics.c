@@ -2,8 +2,8 @@
 
 #include "nyangine/base/base_arena.h"
 #include "nyangine/base/base_assert.h"
+#include "nyangine/base/base_ceiling.h"
 #include "nyangine/core/core_app.h"
-#include "nyangine/core/core_ceiling.h"
 #include "nyangine/debug/debug_metrics.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/base/base_clock.h"

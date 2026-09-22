@@ -501,10 +501,8 @@ void _nya_cache_ceiling_attach(NYA_Cache* cache) {
         row  = &_nya_cache_ceilings[_nya_cache_ceiling_count++];
         *row = (_NYA_CacheCeiling){ .name = cache->options.name, .capacity = cache->options.capacity };
 
-#ifndef NYA_NO_SDL
-        // once per name, since the registry cannot forget a row. skipped under -DNYA_NO_SDL, which has no registry.
+        // once per name, since the registry cannot forget a row.
         nya_ceiling_register(row->name, row->capacity, &row->live);
-#endif
     }
 
     nya_assert(row->capacity == cache->options.capacity, "caches sharing the ceiling '%s' must share a capacity (" FMTu32 " and " FMTu32 ")",

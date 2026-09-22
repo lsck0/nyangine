@@ -534,11 +534,8 @@ NYA_Error nya_terminal_open(NYA_TerminalOptions options) {
     _nya_terminal.capabilities = _nya_terminal_probe(options, true);
     _nya_terminal.open         = true;
 
-#ifndef NYA_NO_SDL
-    // skipped under -DNYA_NO_SDL, which is the build tool and has no ceiling registry.
     nya_ceiling_register("terminal_cells", (u32)NYA_TERMINAL_CELL_MAX, &_nya_terminal.cells_live);
     nya_ceiling_register("terminal_input_residue", NYA_TERMINAL_RESIDUE_MAX, &_nya_terminal.residue_live);
-#endif
 
     if (options.alternate_screen) _nya_terminal_push_cstring("\x1b[?1049h");
     if (!options.cursor_visible) _nya_terminal_push_cstring("\x1b[?25l");

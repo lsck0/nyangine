@@ -5,10 +5,10 @@
 #include "SDL3/SDL_error.h"
 
 #include "nyangine/base/base_assert.h"
+#include "nyangine/base/base_ceiling.h"
 #include "nyangine/base/base_compare.h"
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_string.h"
-#include "nyangine/core/core_ceiling.h"
 #include "nyangine/core/core_event.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/base/base_clock.h"

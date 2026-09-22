@@ -128,16 +128,13 @@ NYA_ConstCString nya_log_tag_get(void) {
 }
 
 void nya_log_sink_add(NYA_LogSink sink, void* user_data) {
-#ifndef NYA_NO_SDL
     // registered on first use, since logging has no init and comes up before everything. Guarded so
-    // tests adding and clearing sinks in a loop register once. Skipped under -DNYA_NO_SDL, which excludes
-    // core and its ceiling registry (the build tool is such a build).
+    // tests adding and clearing sinks in a loop register once.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("log_sinks", NYA_LOG_SINK_MAX, &_nya_log_sink_count);
         ceiling_registered = true;
     }
-#endif
 
     if (sink == nullptr) return;
     if (_nya_log_sink_count >= NYA_LOG_SINK_MAX) return;
@@ -177,9 +174,8 @@ void nya_log_sink_clear(void) {
 
 /** Copies one rendered line into the ring, evicting the oldest once it is full. */
 NYA_INTERNAL void _nya_log_ring_push(NYA_LogLevel level, NYA_ConstCString message, u32 length) {
-#ifndef NYA_NO_SDL
     /*
-     * See nya_log_sink_add's identical comment, including why this is skipped under -DNYA_NO_SDL.
+     * See nya_log_sink_add's identical comment.
      *
      * Two differences from every other ceiling, both because this is the only one registered from the
      * log path itself. The flag is set before the call, not after, or a registration that logs arrives
@@ -192,7 +188,6 @@ NYA_INTERNAL void _nya_log_ring_push(NYA_LogLevel level, NYA_ConstCString messag
         ceiling_registered = true;
         if (nya_ceiling_count() < NYA_CEILING_REGISTRY_MAX) nya_ceiling_register("log_ring", NYA_LOG_RING_MAX, &_nya_log_ring_count);
     }
-#endif
 
     if (length > NYA_LOG_RING_LINE_MAX - 1) length = NYA_LOG_RING_LINE_MAX - 1;
 
@@ -413,14 +408,12 @@ void nya_log_directory_roll(void) {
 }
 
 NYA_Error nya_crash_observer_add(NYA_CrashObserver observer, void* user_data) {
-#ifndef NYA_NO_SDL
-    // See nya_log_sink_add's identical comment, including why this is skipped under -DNYA_NO_SDL.
+    // See nya_log_sink_add's identical comment.
     static b8 ceiling_registered = false;
     if (!ceiling_registered) {
         nya_ceiling_register("crash_observers", NYA_CRASH_OBSERVER_MAX, &_nya_crash_observer_count);
         ceiling_registered = true;
     }
-#endif
 
     if (observer == nullptr) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "crash observer is null");
     if (_nya_crash_observer_count >= NYA_CRASH_OBSERVER_MAX) {
