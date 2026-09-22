@@ -145,11 +145,6 @@ NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
     // base_string.h
     { "nya_string_create_with_capacity_on_stack", "no caller when the rule landed" },
     { "nya_string_println", "no caller when the rule landed" },
-    // core_asset.h
-    { "nya_asset_blob_at", "no caller when the rule landed" },
-    { "nya_asset_blob_count", "no caller when the rule landed" },
-    { "nya_asset_blob_find", "no caller when the rule landed" },
-    { "nya_asset_enumerate", "no caller when the rule landed" },
     // core_audio.h
     { "nya_audio_voice_filter_set", "no caller when the rule landed" },
     // core_control.h
