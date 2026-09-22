@@ -13,6 +13,9 @@
 // bundle is a resource a program merges, not something the listener knows about.
 #include "nyangine/http/http_static.c"
 /**/
+// the wire format, which depends on nothing else here and is what the curl plugin frames through.
+#include "nyangine/http/http_websocket.c"
+/**/
 // after the router, which it dispatches through, and before openapi, which reads its mount table.
 #include "nyangine/http/http_server.c"
 /**/

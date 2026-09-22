@@ -4845,6 +4845,51 @@ NYA_ConstCString nya_http_media_type_text(NYA_HttpMediaType media_type)  // The 
 NYA_HttpMediaType nya_http_media_type_parse(const char* text, u64 size)  // The media type `text` names, ignoring any parameters after a ';' and ignoring case.
 ```
 
+### http_websocket.h
+
+RFC 6455 on the wire: the frame header, the mask, the fragments, the control frames and the closing
+
+```c
+// types
+enum NYA_WebSocketOpcode { NYA_WEBSOCKET_OPCODE_CONTINUATION = 0x0, NYA_WEBSOCKET_OPCODE_TEXT = 0x1, NYA_WEBSOCKET_OPCODE_BINARY = 0x2, NYA_WEBSOCKET_OPCODE_CLOSE = 0x8, NYA_WEBSOCKET_OPCODE_PING = 0x9, NYA_WEBSOCKET_OPCODE_PONG = 0xA, }  // The four bit opcode in a frame header.
+enum NYA_WebSocketClose { NYA_WEBSOCKET_CLOSE_NONE = 0, NYA_WEBSOCKET_CLOSE_NORMAL = 1000, NYA_WEBSOCKET_CLOSE_GOING_AWAY = 1001, NYA_WEBSOCKET_CLOSE_PROTOCOL_ERROR = 1002, NYA_WEBSOCKET_CLOSE_UNSUPPORTED = 1003, NYA_WEBSOCKET_CLOSE_ABNORMAL = 1006, NYA_WEBSOCKET_CLOSE_INVALID_PAYLOAD = 1007, NYA_WEBSOCKET_CLOSE_POLICY = 1008, NYA_WEBSOCKET_CLOSE_TOO_LARGE = 1009, NYA_WEBSOCKET_CLOSE_EXTENSION = 1010, NYA_WEBSOCKET_CLOSE_INTERNAL = 1011, NYA_WEBSOCKET_CLOSE_TLS = 1015, }  // RFC 6455 section 7.4.1, plus the two this engine raises on its own.
+enum NYA_WebSocketEventKind { NYA_WEBSOCKET_EVENT_NONE = 0, NYA_WEBSOCKET_EVENT_OPEN, NYA_WEBSOCKET_EVENT_TEXT, NYA_WEBSOCKET_EVENT_BINARY, NYA_WEBSOCKET_EVENT_PONG, NYA_WEBSOCKET_EVENT_CLOSED, NYA_WEBSOCKET_EVENT_KIND_COUNT, }
+enum NYA_WebSocketFrameResult { NYA_WEBSOCKET_FRAME_OK, NYA_WEBSOCKET_FRAME_INCOMPLETE, NYA_WEBSOCKET_FRAME_INVALID, NYA_WEBSOCKET_FRAME_RESULT_COUNT, }  // What nya_websocket_frame_decode made of the bytes.
+enum NYA_WebSocketRole { NYA_WEBSOCKET_ROLE_CLIENT, NYA_WEBSOCKET_ROLE_SERVER, NYA_WEBSOCKET_ROLE_COUNT, }  // Which end of the connection a protocol is.
+struct NYA_WebSocketFrame { b8 fin; NYA_WebSocketOpcode opcode; b8 masked; u8 mask[4]; u64 payload_size; u64 header_size; }  // One frame header, as it appears on the wire.
+struct NYA_WebSocketEvent { NYA_WebSocketEventKind kind; const u8* data; u64 size; NYA_WebSocketClose code; NYA_ConstCString reason; }
+struct NYA_WebSocketProtocolConfig { NYA_WebSocketRole role; u8* message; u64 message_capacity; u8* send; u64 send_capacity; u64 max_frame_bytes; }  // Everything a protocol needs, and every buffer it will ever use.
+struct NYA_WebSocketProtocol { NYA_WebSocketRole role; u8* message; u64 message_capacity; u64 message_size; NYA_WebSocketOpcode message_opcode; u32 message_fragments; u8* send; u64 send_capacity; u64 send_size; u64 max_frame_bytes; b8 in_payload; NYA_WebSocketFrame frame; u64 payload_read; u8 control[NYA_WEBSOCKET_MAX_CONTROL_BYTES + 1]; u64 control_size; b8 close_sent; b8 closed; NYA_WebSocketClose close_code; char close_reason[NYA_WEBSOCKET_MAX_CLOSE_REASON_BYTES + 1]; }  // One connection's framing state.
+
+// macros
+NYA_WEBSOCKET_MAX_HEADER_BYTES 14  // Longest frame header: two bytes, an eight byte length, and a four byte mask.
+NYA_WEBSOCKET_MAX_CONTROL_BYTES 125  // RFC 6455: a control frame's payload never exceeds this, and it is never fragmented.
+NYA_WEBSOCKET_MAX_CLOSE_REASON_BYTES (NYA_WEBSOCKET_MAX_CONTROL_BYTES - 2)  // What is left of a control frame for a close reason once the two byte code is in it.
+NYA_WEBSOCKET_KEY_BYTES 16  // The nonce a client sends, before base64.
+NYA_WEBSOCKET_KEY_TEXT_BYTES 25  // base64 of NYA_WEBSOCKET_KEY_BYTES, the terminator included.
+NYA_WEBSOCKET_ACCEPT_LENGTH 28  // base64 of a twenty byte SHA-1, which is what Sec-WebSocket-Accept always is.
+NYA_WEBSOCKET_VERSION 13  // The only version of the protocol this engine speaks, on either end.
+NYA_WEBSOCKET_ACCEPT_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"  // The constant RFC 6455 section 1.3 appends to the client's key before hashing it.
+NYA_WEBSOCKET_MAX_FRAGMENTS 64  // Frames one assembled message may be built from.
+NYA_WEBSOCKET_MAX_FRAMES_PER_RECEIVE 64  // Frames one nya_websocket_protocol_receive handles before it returns regardless.
+
+// functions
+NYA_Error nya_websocket_frame_encode( NYA_WebSocketOpcode opcode, b8 fin, u64 payload_size, const u8 mask[4], OUT u8 out_header[NYA_WEBSOCKET_MAX_HEADER_BYTES], OUT u64* out_header_size )  // Writes the header for a frame of `payload_size` bytes into `out_header`, and says how long it is.
+NYA_WebSocketFrameResult nya_websocket_frame_decode(const u8* data, u64 size, OUT NYA_WebSocketFrame* out_frame)  // Reads one frame header out of `data`.
+NYA_Error nya_websocket_accept_from_key(NYA_ConstCString key, OUT char out_accept[NYA_WEBSOCKET_ACCEPT_LENGTH + 1])  // The Sec-WebSocket-Accept a server owes for `key`: base64(sha1(key + the RFC's GUID)).
+NYA_ConstCString nya_websocket_close_name(NYA_WebSocketClose code)  // A close code as text, for a log line.
+NYA_Error nya_websocket_protocol_open(OUT NYA_WebSocketProtocol* protocol, NYA_WebSocketProtocolConfig config)
+NYA_Error nya_websocket_protocol_close(NYA_WebSocketProtocol* protocol, NYA_WebSocketClose code, NYA_ConstCString reason)
+b8 nya_websocket_protocol_receive(NYA_WebSocketProtocol* protocol, const u8* data, u64 size, OUT u64* out_consumed, OUT NYA_WebSocketEvent* out_event)  // Feeds received bytes in and takes at most one message out.
+NYA_Error nya_websocket_protocol_send(NYA_WebSocketProtocol* protocol, NYA_WebSocketOpcode opcode, const u8* data, u64 size)  // Frames `data` as one whole message and queues it, masked when this end is a client.
+const u8* nya_websocket_protocol_pending(const NYA_WebSocketProtocol* protocol, OUT u64* out_size)  // What is queued for the socket, and how much.
+void nya_websocket_protocol_flushed(NYA_WebSocketProtocol* protocol, u64 count)  // Takes `count` bytes off the front of the queue, once the socket has accepted them.
+void nya_websocket_protocol_fail(NYA_WebSocketProtocol* protocol, NYA_WebSocketClose code, NYA_ConstCString reason)
+NYA_WebSocketClose nya_websocket_protocol_close_code(const NYA_WebSocketProtocol* protocol)  // Why the conversation ended, or NYA_WEBSOCKET_CLOSE_NONE while it has not.
+b8 nya_websocket_protocol_is_closed(const NYA_WebSocketProtocol* protocol)  // Whether the conversation is over.
+b8 nya_websocket_protocol_is_closing(const NYA_WebSocketProtocol* protocol)  // Whether a close frame has gone out and the peer's answer has not come back.
+```
+
 ## serde
 
 One dynamic value type, serialized to and from json, jsonc and the engine's own format.
@@ -5490,25 +5535,14 @@ An outgoing WebSocket client, RFC 6455, over `ws://` and `wss://`. What talks to
 ```c
 // types
 enum NYA_WebSocketState { NYA_WEBSOCKET_STATE_CONNECTING, NYA_WEBSOCKET_STATE_HANDSHAKING, NYA_WEBSOCKET_STATE_OPEN, NYA_WEBSOCKET_STATE_CLOSING, NYA_WEBSOCKET_STATE_CLOSED, NYA_WEBSOCKET_STATE_COUNT, }
-enum NYA_WebSocketOpcode { NYA_WEBSOCKET_OPCODE_CONTINUATION = 0x0, NYA_WEBSOCKET_OPCODE_TEXT = 0x1, NYA_WEBSOCKET_OPCODE_BINARY = 0x2, NYA_WEBSOCKET_OPCODE_CLOSE = 0x8, NYA_WEBSOCKET_OPCODE_PING = 0x9, NYA_WEBSOCKET_OPCODE_PONG = 0xA, }  // The four bit opcode in a frame header.
-enum NYA_WebSocketClose { NYA_WEBSOCKET_CLOSE_NONE = 0, NYA_WEBSOCKET_CLOSE_NORMAL = 1000, NYA_WEBSOCKET_CLOSE_GOING_AWAY = 1001, NYA_WEBSOCKET_CLOSE_PROTOCOL_ERROR = 1002, NYA_WEBSOCKET_CLOSE_UNSUPPORTED = 1003, NYA_WEBSOCKET_CLOSE_ABNORMAL = 1006, NYA_WEBSOCKET_CLOSE_INVALID_PAYLOAD = 1007, NYA_WEBSOCKET_CLOSE_POLICY = 1008, NYA_WEBSOCKET_CLOSE_TOO_LARGE = 1009, NYA_WEBSOCKET_CLOSE_EXTENSION = 1010, NYA_WEBSOCKET_CLOSE_INTERNAL = 1011, NYA_WEBSOCKET_CLOSE_TLS = 1015, }  // RFC 6455 section 7.4.1, plus the two this module raises on its own.
-enum NYA_WebSocketEventKind { NYA_WEBSOCKET_EVENT_NONE = 0, NYA_WEBSOCKET_EVENT_OPEN, NYA_WEBSOCKET_EVENT_TEXT, NYA_WEBSOCKET_EVENT_BINARY, NYA_WEBSOCKET_EVENT_PONG, NYA_WEBSOCKET_EVENT_CLOSED, NYA_WEBSOCKET_EVENT_KIND_COUNT, }
-enum NYA_WebSocketFrameResult { NYA_WEBSOCKET_FRAME_OK, NYA_WEBSOCKET_FRAME_INCOMPLETE, NYA_WEBSOCKET_FRAME_INVALID, NYA_WEBSOCKET_FRAME_RESULT_COUNT, }  // What nya_websocket_frame_decode made of the bytes.
-struct NYA_WebSocketFrame { b8 fin; NYA_WebSocketOpcode opcode; b8 masked; u8 mask[4]; u64 payload_size; u64 header_size; }  // One frame header, as it appears on the wire.
-struct NYA_WebSocketEvent { NYA_WebSocketEventKind kind; const u8* data; u64 size; NYA_WebSocketClose code; NYA_ConstCString reason; }
 struct NYA_WebSocketOptions { NYA_ConstCString url; NYA_ConstCString subprotocol; NYA_RequestHeader headers[NYA_REQUEST_MAX_HEADERS]; NYA_ConstCString bearer_token; u64 handshake_timeout_ms; u64 max_message_bytes; b8 insecure_skip_tls_verify; }
 
 // macros
-NYA_WEBSOCKET_MAX_HEADER_BYTES 14  // Longest frame header: two bytes, an eight byte length, and a four byte mask.
-NYA_WEBSOCKET_MAX_CONTROL_BYTES 125  // RFC 6455: a control frame's payload never exceeds this, and it is never fragmented.
-NYA_WEBSOCKET_KEY_BYTES 16  // The nonce a client sends, before base64.
-NYA_WEBSOCKET_ACCEPT_LENGTH 28  // base64 of a twenty byte SHA-1, which is what Sec-WebSocket-Accept always is.
 NYA_WEBSOCKET_MAX_HANDSHAKE_BYTES 8192  // Bytes of upgrade response headers read before the connection is given up on.
 NYA_WEBSOCKET_SEND_BYTES 65536  // Queued outgoing bytes, frame headers included.
 NYA_WEBSOCKET_RECEIVE_BYTES 16384  // What one read takes from the socket at a time.
 NYA_WEBSOCKET_DEFAULT_MAX_MESSAGE_BYTES 262144  // The default ceiling on one assembled message, fragments included.
 NYA_WEBSOCKET_DEFAULT_TIMEOUT_MS 30000  // What the whole connect, TLS and upgrade are given before the socket gives up.
-NYA_WEBSOCKET_ACCEPT_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"  // The constant RFC 6455 section 1.3 appends to the client's key before hashing it.
 
 // functions
 NYA_Error nya_websocket_create(NYA_Arena* arena, NYA_WebSocketOptions options, OUT NYA_WebSocket** out_socket)  // Parses the options, allocates the socket's buffers from `arena`, and starts connecting.
@@ -5520,10 +5554,6 @@ NYA_Error nya_websocket_send_binary(NYA_WebSocket* socket, const u8* data, u64 s
 NYA_Error nya_websocket_send_object(NYA_WebSocket* socket, NYA_Arena* arena, const NYA_Object* body)  // Serializes `body` as compact json and sends it as text.
 NYA_Error nya_websocket_ping(NYA_WebSocket* socket, const u8* data, u64 size)  // Queues a ping.
 NYA_Error nya_websocket_close(NYA_WebSocket* socket, NYA_WebSocketClose code, NYA_ConstCString reason)  // Starts the closing handshake: sends a close frame and moves to CLOSING.
-NYA_Error nya_websocket_frame_encode( NYA_WebSocketOpcode opcode, b8 fin, u64 payload_size, const u8 mask[4], OUT u8 out_header[NYA_WEBSOCKET_MAX_HEADER_BYTES], OUT u64* out_header_size )  // Writes the header for a frame of `payload_size` bytes into `out_header`, and says how long it is.
-NYA_WebSocketFrameResult nya_websocket_frame_decode(const u8* data, u64 size, OUT NYA_WebSocketFrame* out_frame)  // Reads one frame header out of `data`.
-NYA_Error nya_websocket_accept_from_key(NYA_ConstCString key, OUT char out_accept[NYA_WEBSOCKET_ACCEPT_LENGTH + 1])  // The Sec-WebSocket-Accept a server owes for `key`: base64(sha1(key + the RFC's GUID)).
-NYA_ConstCString nya_websocket_close_name(NYA_WebSocketClose code)  // A close code as text, for a log line.
 ```
 
 ### discord.h

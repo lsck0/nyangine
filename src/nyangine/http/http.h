@@ -15,6 +15,7 @@
  * http_totp.h      the TOTP second factor: enrolment, recovery codes, and one verification
  * http_server.h    the listener, the connections and the drain
  * http_static.h    the web bundle out of the asset system: hashed names, ETags, one route per file
+ * http_websocket.h the RFC 6455 wire format, shared with the curl client in plugins/curl
  * http_openapi.h   the OpenAPI document and the browsable page, both generated from the route table
  * ../debug/debug_metrics.h   the first resource, this program's own numbers; in debug, since it reads the app loop
  * ```
@@ -61,3 +62,4 @@
 #include "nyangine/http/http_static.h"
 #include "nyangine/http/http_totp.h"
 #include "nyangine/http/http_types.h"
+#include "nyangine/http/http_websocket.h"
