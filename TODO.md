@@ -131,6 +131,9 @@ Found on the way, and since fixed:
   `[ ]` Still to decide, and it is a judgement call rather than a sweep: this is a library, so some
   unexercised surface is deliberate. Each cluster wants a caller, a test, or deletion.
   `[x]` Steam was the worst of them and is done: `test_steam.c` runs the module against a fake.
+  `[x]` The entity cluster is done too: `test_entity_query3d.c` is the linear-scan oracle for
+  `nya_entity_query_box`, `_box_kind`, `_box_flags`, `_sphere` and the 2D `_flags`, the same oracle the
+  2D radius query already had in the simulation harness. 81 down to 52.
 - `[!]` The audit's method is worth being honest about. Two earlier runs of it were wrong and were caught
   by spot checking: one missed `bench/` and called the benchmark harness dead, another excluded headers
   and called `nya_physics3d_body_attach_with_options` dead when it is reached through a macro. A sweep
