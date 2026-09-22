@@ -171,3 +171,44 @@ u32 _nya_render3d_pass_run(const u8* passes, u32 at, u32 end, u32 pass, OUT u32*
 
     return last - at;
 }
+
+b8 nya_render3d_skinned_bounds(const f32_4x4* palette, u32 bone_count, f32_4x4 model, f32x3 rest_min, f32x3 rest_max,
+                               OUT f32x3* out_center, OUT f32* out_radius) {
+    nya_assert(out_center != nullptr);
+    nya_assert(out_radius != nullptr);
+
+    if (palette == nullptr || bone_count == 0) return false;
+
+    const u32 bones = bone_count < NYA_SHADER_SKIN_MAX_BONES ? bone_count : NYA_SHADER_SKIN_MAX_BONES;
+
+    f32x3 minimum = { F32_MAX, F32_MAX, F32_MAX };
+    f32x3 maximum = { -F32_MAX, -F32_MAX, -F32_MAX };
+
+    for (u32 b = 0; b < bones; b++) {
+        const f32_4x4 placed = model * palette[b];
+
+        // column three is the translation: where this bone ended up in the world.
+        const f32x3 origin = { placed[0][3], placed[1][3], placed[2][3] };
+
+        minimum = nya_min(minimum, origin);
+        maximum = nya_max(maximum, origin);
+    }
+
+    /*
+     * The rest model's radius, scaled by the model transform's largest axis, so the skin hanging off
+     * each bone is inside the sphere. The largest of the three column lengths, because a non-uniform
+     * scale still has to cover its longest direction.
+     */
+    const f32x3 extent = (rest_max - rest_min) * 0.5F;
+
+    const f32 scale = nya_max(
+        nya_vector_length((f32x3){ model[0][0], model[1][0], model[2][0] }),
+        nya_max(nya_vector_length((f32x3){ model[0][1], model[1][1], model[2][1] }),
+                nya_vector_length((f32x3){ model[0][2], model[1][2], model[2][2] }))
+    );
+
+    *out_center = (maximum + minimum) * 0.5F;
+    *out_radius = nya_vector_length((maximum - minimum) * 0.5F) + (nya_vector_length(extent) * scale);
+
+    return true;
+}

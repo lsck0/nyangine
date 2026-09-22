@@ -1016,13 +1016,43 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
     skin->tint_b = tint.b;
     skin->tint_a = tint.a;
 
+    /*
+     * Which passes see it, from the pose rather than from the rest bounds.
+     *
+     * A skinned mesh is wherever its bones are, and the rest bounds only say where it stands before it
+     * is animated. The bone origins are already in world space here — `placed` folded the model in — so
+     * their box is where the skeleton actually is, and padding it by the rest model's own radius covers
+     * the skin hanging off each bone. Loose on purpose: a bound that is too big costs a draw that could
+     * have been skipped, and one that is too small deletes a limb from a shadow.
+     *
+     * Without this the posed mesh was recorded for every pass, camera and all three shadow cascades, and
+     * drawn whether or not it was anywhere near any of them.
+     */
+    _nya_render3d_passes_prepare(window);
+
+    // a mesh whose bounds are not known yet is seen by every pass, as an instanced one is.
+    u8 passes = (u8)((1U << batch->pass_count) - 1U);
+
+    f32x3 rest_min = f32x3_zero;
+    f32x3 rest_max = f32x3_zero;
+    (void)_nya_render3d_resolved_bounds(registered, asset, &rest_min, &rest_max);
+
+    f32x3 center = f32x3_zero;
+    f32   radius = 0.0F;
+
+    if (nya_render3d_skinned_bounds(palette, bone_count, model, rest_min, rest_max, &center, &radius)) {
+        passes = _nya_render3d_passes_seeing(window, center, radius);
+        if (passes == 0) return;
+    }
+
     // what came before draws before it, as its own segment.
     nya_render3d_flush(window);
 
     NYA_Render3DSegment* segment = &batch->segments[batch->segment_count];
 
-    segment->skinned = handle;
-    segment->skin    = skin;
+    segment->skinned        = handle;
+    segment->skin           = skin;
+    segment->skinned_passes = passes;
 
     _nya_render3d_segment_close(window);
 }
@@ -1763,7 +1793,8 @@ void _nya_render3d_pass_draw(NYA_Window* window, u32 pass) {
         if (pass > 0 && !segment->casts_shadow) continue;
 
         if (segment->skinned != nullptr) {
-            _nya_render3d_skinned_draw(window, segment, uniform, pass);
+            // the bits _nya_render3d_passes_seeing set when the pose was recorded.
+            if ((segment->skinned_passes & (u8)(1U << pass)) != 0) _nya_render3d_skinned_draw(window, segment, uniform, pass);
             continue;
         }
 

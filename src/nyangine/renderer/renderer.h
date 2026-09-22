@@ -639,6 +639,15 @@ struct NYA_Render3DSegment {
     NYA_ConstCString                    skinned;
     const struct NYA_ShaderSkinUniform* skin;
 
+    /**
+     * Which passes see the posed mesh, one bit each, as a mesh group carries for the geometry above.
+     *
+     * Only a skinned segment uses it. The immediate and instanced paths decide per object and per group,
+     * both of which a skinned segment has neither of: it is one draw of one mesh, so the answer belongs
+     * to the segment. Zero is a segment that nothing sees, which is drawn by no pass at all.
+     * */
+    u8 skinned_passes;
+
     NYA_Render3DMaterial material;
     NYA_Render3DBlend    blend;
     NYA_Render3DDepth    depth;

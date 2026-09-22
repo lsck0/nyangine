@@ -854,6 +854,22 @@ NYA_API b8 nya_render3d_mesh_bounds(NYA_Window* window, NYA_ConstCString handle,
  * ```
  * */
 /**
+ * The world-space sphere a posed mesh occupies, for culling it.
+ *
+ * `palette` is the bone matrices as nya_render3d_skinned_mesh takes them, `model` the transform it
+ * places them with, and `rest_min`/`rest_max` the mesh's own bounds before it was animated.
+ *
+ * The sphere is around the posed bone origins, padded by the rest model's radius: a skinned mesh is
+ * wherever its bones are, and its rest bounds only say where it stands before it is animated. Loose on
+ * purpose. A bound that is too big costs a draw that could have been skipped; one that is too small
+ * takes a limb out of a shadow, and that is visible.
+ *
+ * False when there are no bones to bound, which is a draw with nothing to place.
+ * */
+NYA_API b8 nya_render3d_skinned_bounds(const f32_4x4* palette, u32 bone_count, f32_4x4 model, f32x3 rest_min, f32x3 rest_max,
+                                       OUT f32x3* out_center, OUT f32* out_radius) __attr_no_discard;
+
+/**
  * Draws a skinned mesh, posed by `palette`. See core_skeleton.h for how a palette is built.
  *
  * ```c

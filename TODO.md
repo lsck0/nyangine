@@ -270,7 +270,10 @@ the packager ones.
   seven MSAA samples, a field of view of 200 — which its setter corrected in silence. Both loaders compare
   what was asked for against what was kept and name the key, the value and the range. Read back from the
   setter rather than against limits written out again, so there is one place that decides.
-  `[ ]` Still open: save data is the opposite and wants an integrity check.
+  Save data is the opposite and already has its integrity check: `NYA_SAVE_FLAGS_DATA` writes obfuscated
+  and reads with the checksum enforced, so a file altered outside the game is refused with
+  `NYA_ERROR_CORRUPT` rather than half loaded. `test_scene.c` flips one byte in the body and holds it to
+  that, including that the world it was going to load into is left alone.
 - `[ ]` `CHANGELOG.md`, generated from history, shipped with every release.
 - `[ ]` `secrets/` committed to GitHub, encrypted with sops and gpg, holding the signing key among other things.
 - `[ ]` CI/CD produces every release build so Steam and the packagers can pick up a new version.
