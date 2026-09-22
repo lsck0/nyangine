@@ -181,6 +181,12 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
         b8 shares_engine      = !terminal_flavour && _test_shares_engine(test_cstr, header_identifiers);
         tests_sharing_engine += shares_engine ? 1 : 0;
 
+        // the baked blob is generated for release builds only, so a test that compiles the engine the way a
+        // release does asks for it here. Found when test_asset_blob passed locally and CI had no assets.c.
+        NYA_String* source = nya_string_create(nya_arena_global);
+        NYA_EXPECT(nya_file_read(test_cstr, source), "while reading '%s'", test_cstr);
+        const b8 wants_blob = nya_string_contains(source, "#define NYA_ASSET_PREFER_BLOB");
+
         NYA_String*    compile_test_name = nya_string_sprintf(nya_arena_global, "compile_test:%s", test_binary);
         NYA_BuildRule* compile_test_rule = nya_arena_alloc(nya_arena_global, sizeof(NYA_BuildRule));
         *compile_test_rule = (NYA_BuildRule){
@@ -188,7 +194,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
             .policy      = NYA_BUILD_ALWAYS,
             .output_file = test_object,
 
-            .dependencies = { &build_shaders, &index_assets, },
+            .dependencies = { &build_shaders, &index_assets, wants_blob ? &bundle_assets : nullptr, },
 
             .command = {
                 .program   = CC,
