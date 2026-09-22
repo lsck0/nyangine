@@ -21,6 +21,12 @@
 #include "SDL3/SDL_init.h"
 #include "SDL3/SDL_video.h"
 
+/** A borderless widget's answer: every pixel drags the window. */
+static NYA_WindowRegion region_draggable(NYA_WindowHandle window, s32 x, s32 y, void* user_data) {
+  nya_unused(window, x, y, user_data);
+  return NYA_WINDOW_REGION_DRAGGABLE;
+}
+
 s32 main(void) {
   // No display on CI, and nothing here is ever presented.
   SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
@@ -227,6 +233,129 @@ s32 main(void) {
 
     nya_cursor_set(original);
     nya_cursor_visible_set(was_shown);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: geometry reads back, and requests answer for their own window only
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * The second cluster the caller rule found: geometry, opacity, grab, flash and sync had no caller. As
+     * above, a request the window system may refuse is not asserted to have taken. What is asserted is
+     * what holds on any driver: the reads describe a window of the size it was created at, a request
+     * answers what nya_window_geometry_is_client_controlled says, and nothing answers for a non-window.
+     */
+    u32 width = 0, height = 0, pixel_width = 0, pixel_height = 0;
+    nya_window_size(window, &width, &height);
+    nya_window_size_in_pixels(window, &pixel_width, &pixel_height);
+
+    nya_check(width == 320 && height == 240, "the logical size is the created one, got " FMTu32 "x" FMTu32, width, height);
+    nya_check(pixel_width >= width && pixel_height >= height, "and the pixel size is at least that, got " FMTu32 "x" FMTu32, pixel_width, pixel_height);
+
+    s32 x = 0, y = 0;
+    nya_window_position(window, &x, &y);
+
+    const b8 client = nya_window_geometry_is_client_controlled();
+    nya_check(nya_window_request_size(window, 300, 200) == client, "a size request answers whether the client controls geometry");
+    nya_check(nya_window_request_position(window, x, y) == client, "and so does a position request");
+    nya_check(nya_window_request_minimum_size(window, 100, 80) == client, "and a floor");
+    nya_check(nya_window_request_maximum_size(window, 2000, 1500) == client, "and a ceiling");
+    nya_check(nya_window_request_aspect_ratio(window, 0.0F, 0.0F) == client, "and removing the aspect lock");
+    nya_window_sync(window);
+
+    // a handle that is not a window answers false, and writes nothing through its out parameters.
+    const NYA_WindowHandle nowhere = { 0 };
+    u32                    untouched = 77;
+    nya_window_size(nowhere, &untouched, nullptr);
+    nya_check(untouched == 77, "a size read from a non-window leaves the out parameter alone");
+    nya_check(!nya_window_request_size(nowhere, 1, 1), "and a request to one answers false");
+
+    nya_window_set_opacity(window, 0.5F);
+    const f32 opacity = nya_window_opacity(window);
+    nya_check(opacity >= 0.0F && opacity <= 1.0F, "opacity reads inside its range, got %f", (f64)opacity);
+    nya_window_set_opacity(window, 3.0F);
+    nya_check(nya_window_opacity(window) <= 1.0F, "and a value past it is clamped rather than handed to SDL, got %f", (f64)nya_window_opacity(window));
+    nya_check(nya_window_opacity(nowhere) == 1.0F, "a non-window is opaque");
+
+    nya_window_set_focusable(window, false);
+    nya_window_set_focusable(window, true);
+
+    nya_window_set_mouse_grabbed(window, true);
+    (void)nya_window_is_mouse_grabbed(window);
+    nya_window_set_mouse_grabbed(window, false);
+    nya_check(!nya_window_is_mouse_grabbed(window), "letting go of the pointer reads as let go");
+
+    nya_window_set_relative_mouse(window, true);
+    (void)nya_window_is_relative_mouse(window);
+    nya_window_set_relative_mouse(window, false);
+    nya_check(!nya_window_is_relative_mouse(window), "leaving relative mode reads as left");
+    nya_check(!nya_window_is_mouse_grabbed(nowhere) && !nya_window_is_relative_mouse(nowhere), "a non-window grabs nothing");
+
+    nya_window_flash(window, NYA_FLASH_BRIEFLY);
+    nya_window_flash(window, NYA_FLASH_CANCEL);
+
+    nya_window_hide(window);
+    nya_window_show(window);
+
+    nya_check(nya_window_is_valid(window), "the window survives all of it");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the display mode and the driver name answer
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    const NYA_DisplayMode mode = nya_window_display_mode(window);
+    nya_check(mode.width >= 0 && mode.height >= 0 && mode.refresh_rate >= 0.0F, "the display mode is not negative, got %dx%d", mode.width, mode.height);
+
+    const NYA_DisplayMode nothing = nya_window_display_mode((NYA_WindowHandle){ 0 });
+    nya_check(nothing.width == 0 && nothing.height == 0, "and a non-window has no display to report");
+
+    nya_check(strcmp(nya_video_driver(), "offscreen") == 0, "the driver is the one this test asked for, got '%s'", nya_video_driver());
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the region callback is what the platform's hit test asks
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * The platform calls the hit test while the pointer moves, which no test can make it do, so it is
+     * called here the way SDL would. Removing the callback must hand the question back to the platform.
+     */
+    NYA_Window* target = nya_window_get(window);
+    SDL_Point   inside = { 10, 10 };
+
+    nya_window_region_set(window, nya_callback(region_draggable), nullptr);
+    nya_check(_nya_window_hit_test(target->sdl_window, &inside, target) == SDL_HITTEST_DRAGGABLE, "the installed callback answers the hit test");
+
+    nya_window_region_set(window, 0, nullptr);
+    nya_check(_nya_window_hit_test(target->sdl_window, &inside, target) == SDL_HITTEST_NORMAL, "and with it removed the answer is normal");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a layer is switched off and on by id, and only that layer
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    nya_layer_push(window, _nya_layer_with_id((NYA_Layer){ .enabled = true }, "first"));
+    nya_layer_push(window, _nya_layer_with_id((NYA_Layer){ .enabled = true }, "second"));
+
+    nya_layer_disable(window, "first");
+    nya_check(!nya_layer_get(window, "first")->enabled, "disabling a layer switches it off");
+    nya_check(nya_layer_get(window, "second")->enabled, "and leaves its neighbour on");
+
+    nya_layer_enable(window, "first");
+    nya_check(nya_layer_get(window, "first")->enabled, "enabling it switches it back on");
+
+    // an id nothing pushed is not a layer, and asking about it changes nothing.
+    nya_layer_disable(window, "absent");
+    nya_check(nya_layer_get(window, "absent") == nullptr, "an unknown id stays unknown");
 
     printf("  PASSED\n");
   }
