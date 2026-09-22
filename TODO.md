@@ -340,9 +340,11 @@ Small, and first, because every later phase trusts these numbers.
 
 The refactor the rest stands on. Behaviour does not change; the include graph and the link lines do.
 
-- `[ ]` `base` stops including `math` and `platform`. Whatever `base_array.h` needs from math moves down or the
-  include goes; the ceiling registry moves from `core` into `base`, since it is introspection and `base` already
-  calls it under `NYA_NO_SDL` guards.
+- `[~]` `base` stops including `math` and `platform`. The math half is done: `nya_min` and `nya_max` moved down
+  into `base_compare.h` and the vector and matrix array derivations up into math, and the lint rule now refuses
+  the edge. The platform half is not four stray includes: see "Where base gets pages, time and files" under
+  Decisions. The ceiling registry also moves from `core` into `base`, since it is introspection and `base`
+  already calls it under `NYA_NO_SDL` guards.
 - `[ ]` Threads (`core_job.c` uses `SDL_thread`) and sockets (`net_udp.c` and `http_server.c` use SDL_net) move
   into `platform`, one implementation per OS. SDL_net leaves the vendor list, which also means one socket layer
   for the web backend to implement rather than SDL's.
@@ -955,6 +957,23 @@ Each changes what gets built. A recommendation is given; the call is mine.
 - `[x]` **How a new program uses nyangine.** Decided 2026-09-22: programs live in this tree for now, beside
   gnyame: one repository, one build, and every engine change tested against every program. Moving a program
   into its own repository with nyangine as a pinned submodule is for later, once the engine stops being clay.
+- `[ ]` **Where base gets pages, time and files.** Found 2026-09-22 while taking `base` off `platform`. The four
+  includes the lint rule counts are the visible part: arenas reserve and commit pages (`platform/memory`), perf and
+  logging read clocks, the log's file sink opens and appends to a file, and `base_file`, `base_build` (the build
+  framework), `base_integrity` and `base_version` are OS services that happen to live in `base`. The target says
+  `base` has no OS, so something has to give. Options:
+  - An `os` layer below `base`: raw pages, the two clocks and raw file descriptors, written against libc and the
+    syscalls with no dependency on `base` at all. `base` uses it; `platform` keeps the rich API (`NYA_String`,
+    `NYA_Error`, walking, commands) on top of both. `base_file`, `base_build`, `base_integrity` and `base_version`
+    move up into `platform` or a `tooling` module, since they are services rather than vocabulary.
+  - Function pointers installed at startup (a page provider, a clock, a log writer). Keeps `base` pure, but it is
+    startup registration, which the style guide avoids, and everything in `base` then depends on an install
+    having happened.
+  - Accept `platform/memory` and `platform/clock` beside `base` at rank zero, as math already is, and move only
+    the services up.
+  Recommendation: the first. It is what the other two converge to once the page provider and the clock need a
+  home, and a web target then implements `os` once (pages from `memory.grow`, time from the host) instead of
+  every module learning about wasm.
 - `[x]` **`nn` in the engine.** Decided 2026-09-22: it stays a library module, usable by any program, and
   it is also a testing mechanism: a DQN or NEAT agent plays a UI or a game through the input queue the way a
   person would (`testing_agent.h`). It extends to every example that has a UI, not only gnyame: the TUI and
