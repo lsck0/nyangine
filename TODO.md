@@ -395,8 +395,11 @@ the packager ones.
 - `[x]` Placeholders for missing assets. Magenta with a black cross, drawn with the shape pipeline rather
   than a generated texture, so it needs no GPU resource and cannot itself fail to load. `nya_asset_is_missing`
   keeps an asset that is merely still LOADING out of it, or every load would flash, and
-  `nya_asset_missing_report` warns once per handle rather than once per frame. Textures only so far; a
-  missing mesh still draws nothing.
+  `nya_asset_missing_report` warns once per handle rather than once per frame. A missing model gets the
+  same treatment: an outlined magenta box at the caller's own scale and transform, outlined rather than
+  solid so a missing prop does not hide the scene behind it too. Not reachable from a test, since
+  `render3d_headless.c` is a stub; verified by pointing the demo's model handle at a file that is not
+  there and watching it warn once and carry on.
 - `[ ]` Character customization: recolour, retexture and paint a loaded default model. Clothes and hair later.
 
 ## `[ ]` Engine
