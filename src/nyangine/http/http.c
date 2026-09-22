@@ -4,6 +4,8 @@
 /**/
 #include "nyangine/http/http_auth.c"
 #include "nyangine/http/http_message.c"
+// beside http_auth.c and independent of it: it answers the second factor, where that answers the first.
+#include "nyangine/http/http_totp.c"
 /**/
 #include "nyangine/http/http_router.c"
 /**/

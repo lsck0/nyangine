@@ -4685,6 +4685,38 @@ const NYA_HttpRouter* nya_http_server_router_at(u32 index)
 NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Reads a signing secret out of the environment variable `variable`.
 ```
 
+### http_totp.h
+
+The second factor as an account sees it: enrolling one authenticator, and answering one code.
+
+```c
+// types
+enum NYA_HttpTotpVerdict { NYA_HTTP_TOTP_REFUSED = 0, NYA_HTTP_TOTP_ACCEPTED, NYA_HTTP_TOTP_RATE_LIMITED, }  // What one attempt came to.
+struct NYA_HttpTotpRecoveryHash { u8 bytes[NYA_HTTP_TOTP_RECOVERY_HASH_BYTES]; }  // One recovery code as it is stored: hashed, never the code itself.
+struct NYA_HttpTotpEnrolment { NYA_CryptoTotpSecret secret; char secret_base32[NYA_HTTP_TOTP_SECRET_TEXT_BYTES]; char uri[NYA_HTTP_TOTP_URI_BYTES]; char recovery[NYA_HTTP_TOTP_RECOVERY_CODES][NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES]; NYA_HttpTotpRecoveryHash recovery_hash[NYA_HTTP_TOTP_RECOVERY_CODES]; }  // Everything one enrolment produces, and all of it secret but the hashes.
+struct NYA_HttpTotpGuard { u64 last_counter; u32 attempts; u64 window_started_s; }  // What one account's second factor remembers between attempts.
+
+// macros
+NYA_HTTP_TOTP_ISSUER_MAX 64  // Longest issuer and account in an enrolment, terminator included.
+NYA_HTTP_TOTP_ACCOUNT_MAX 64
+NYA_HTTP_TOTP_SECRET_TEXT_BYTES  // A twenty byte secret is exactly thirty two base32 characters, so the padding never appears.
+NYA_HTTP_TOTP_URI_BYTES 768  // Longest otpauth URI, terminator included.
+NYA_HTTP_TOTP_RECOVERY_CODES 10  // Recovery codes issued at enrolment, and the entropy in each.
+NYA_HTTP_TOTP_RECOVERY_SECRET_BYTES 10
+NYA_HTTP_TOTP_RECOVERY_GROUP 8
+NYA_HTTP_TOTP_RECOVERY_TEXT_BYTES
+NYA_HTTP_TOTP_RECOVERY_HASH_BYTES 32
+NYA_HTTP_TOTP_SKEW_STEPS 1  // How many steps either side of the current one a code is still accepted in.
+NYA_HTTP_TOTP_ATTEMPTS_MAX 5  // Attempts one account may spend on a second factor, and the seconds they are counted over.
+NYA_HTTP_TOTP_ATTEMPT_WINDOW_S 60
+
+// functions
+NYA_Error nya_http_totp_enrol_create(NYA_ConstCString issuer, NYA_ConstCString account, OUT NYA_HttpTotpEnrolment* out_enrolment)  // A fresh secret, the URI an authenticator scans, and NYA_HTTP_TOTP_RECOVERY_CODES recovery codes.
+void nya_http_totp_enrol_destroy(NYA_HttpTotpEnrolment* enrolment)  // Wipes the whole enrolment, secret, URI, base32 and codes alike.
+NYA_HttpTotpVerdict nya_http_totp_verify(NYA_HttpTotpGuard* guard, const NYA_CryptoTotpSecret* secret, NYA_ConstCString code, u64 now_s)  // Whether `code` is this secret's, for the step `now_s` falls in or either neighbour.
+NYA_HttpTotpVerdict nya_http_totp_recovery_redeem(NYA_HttpTotpGuard* guard, NYA_HttpTotpRecoveryHash* hashes, u32 count, NYA_ConstCString code, u64 now_s)  // Whether `code` is one of `count` unspent recovery codes, and spends it if it is.
+```
+
 ### http_types.h
 
 The vocabulary of one HTTP exchange: what a client may ask, what this program may answer, and the

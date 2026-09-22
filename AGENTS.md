@@ -55,7 +55,7 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | `ui`       | immediate mode widgets                                                       |
 | `physics`  | Box2D and Box3D behind one interface                                         |
 | `net`      | encrypted UDP client and server, snapshots, prediction                        |
-| `http`     | an HTTP/1.1 server, routing and layers, JWT, OpenAPI generated from both       |
+| `http`     | an HTTP/1.1 server, routing and layers, JWT, the TOTP second factor, OpenAPI generated from the routes |
 | `serde`    | one dynamic value type, to and from json, jsonc and `.nya` (text and binary)  |
 | `nn`       | tensors, layers, optimizers, DQN, NEAT                                       |
 | `debug`    | the overlay, the trace, the crash window, and drawing physics and networks   |

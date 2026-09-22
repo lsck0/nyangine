@@ -19,6 +19,11 @@
  * curl -X QUERY 'localhost:47800/api/notes?contains=first+note' -d '{}'         # only the notes containing it
  * curl -X POST  localhost:47800/api/notes -d '{"text":"the first note"}'
  * curl -X DELETE localhost:47800/api/notes -d '{"id":1}'
+ * curl -X POST localhost:47800/api/otp/enrol    # the URI to scan, the secret to type, the recovery codes
+ * # the three below want -H 'Content-Type: application/json', since a body without one is not a document
+ * curl -X POST localhost:47800/api/otp/activate -d '{"code":"123456"}'   # the factor is off until this passes
+ * curl -X POST localhost:47800/api/otp/verify   -d '{"code":"123456"}'   # 204, or 401, or 429
+ * curl -X POST localhost:47800/api/otp/recover  -d '{"code":"ABCDEFGH-IJKLMNOP"}'
  * curl localhost:47800/docs                 # the generated page
  * curl localhost:47800/openapi.json         # the document it is generated from
  * curl -X QUERY localhost:47800/api/metrics -d '{}'
@@ -199,6 +204,138 @@ NYA_INTERNAL NYA_HttpStatus notes_delete(NYA_HttpExchange* exchange) {
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE SECOND FACTOR
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+#define OTP_ENROL_PATH    "/api/otp/enrol"
+#define OTP_ACTIVATE_PATH "/api/otp/activate"
+#define OTP_VERIFY_PATH   "/api/otp/verify"
+#define OTP_RECOVER_PATH  "/api/otp/recover"
+
+/**
+ * The one account this example has a factor for.
+ *
+ * The engine holds none of this: http_totp.h takes the secret and the guard as arguments and hands
+ * them straight back, precisely so that where an account lives is the program's business. In a real
+ * server these fields are columns on a user row; there is no user store in this engine yet, which is
+ * why they are a struct here. See TODO.md, "Web".
+ *
+ * `active` is the second half of RFC 6238 enrolment: a secret exists from the moment /enrol answers,
+ * and it is not a factor until one code has been verified against it at /activate. Until then losing
+ * the QR code costs nothing, because nothing has been turned on.
+ * */
+typedef struct {
+    b8                       enrolled;
+    b8                       active;
+    NYA_CryptoTotpSecret     secret;
+    NYA_HttpTotpRecoveryHash recovery[NYA_HTTP_TOTP_RECOVERY_CODES];
+    NYA_HttpTotpGuard        guard;
+} ExampleFactor;
+
+static ExampleFactor FACTOR = { 0 };
+
+/** The code out of a request body, or null when the body is not `{"code":"..."}`. */
+NYA_INTERNAL NYA_ConstCString otp_submitted_code(NYA_HttpExchange* exchange) {
+    NYA_Object* incoming = nullptr;
+    if (!nya_http_request_document(exchange->request, exchange->arena, &incoming).ok) return nullptr;
+
+    NYA_Value* code = nya_object_get(incoming, "code");
+    if (code == nullptr || code->type != NYA_TYPE_STRING) return nullptr;
+
+    return (NYA_ConstCString)code->as_string;
+}
+
+/**
+ * One verdict as a status.
+ *
+ * A refusal is 401 whatever caused it — a wrong code, a replayed one, or a factor that was never
+ * turned on — because a caller that could tell those apart could tell which accounts have a factor
+ * and which of its guesses had once been real. Only the limit answers differently, and it has to:
+ * 429 is not a statement about the code, it is a statement about how often this one asked.
+ * */
+NYA_INTERNAL NYA_HttpStatus otp_status(NYA_HttpTotpVerdict verdict) {
+    switch (verdict) {
+        case NYA_HTTP_TOTP_ACCEPTED: return NYA_HTTP_STATUS_NO_CONTENT;
+        case NYA_HTTP_TOTP_RATE_LIMITED: return NYA_HTTP_STATUS_TOO_MANY_REQUESTS;
+        case NYA_HTTP_TOTP_REFUSED:
+        default: return NYA_HTTP_STATUS_UNAUTHORIZED;
+    }
+}
+
+/**
+ * Starts an enrolment and answers with everything that is only ever shown once.
+ *
+ * The URI is what a QR code on a real page would encode; here it goes out as text, because this
+ * example has no UI. Every field in the answer is the secret or is derived from it, which is why the
+ * enrolment is wiped before this returns and why a real deployment serves this over TLS alone.
+ * */
+NYA_INTERNAL NYA_HttpStatus otp_enrol(NYA_HttpExchange* exchange) {
+    NYA_HttpTotpEnrolment enrolment = { 0 };
+    if (!nya_http_totp_enrol_create("nyangine web_server", "luca", &enrolment).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+
+    defer nya_http_totp_enrol_destroy(&enrolment);
+
+    NYA_Object* body = nya_object_create(exchange->arena);
+    NYA_ArrayᐸNYA_Valueᐳ* codes = nya_array_create(exchange->arena, NYA_Value);
+
+    for (u32 i = 0; i < NYA_HTTP_TOTP_RECOVERY_CODES; i++) {
+        // copied into the response's arena: the enrolment itself is wiped on the way out of here.
+        NYA_CString text = nya_string_to_cstring(exchange->arena, nya_string_from(exchange->arena, enrolment.recovery[i]));
+        nya_array_push_back(codes, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = text }));
+    }
+
+    nya_object_set(body, "uri", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)enrolment.uri });
+    nya_object_set(body, "secret", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)enrolment.secret_base32 });
+    nya_object_set(body, "recovery", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *codes });
+
+    // the factor is not on yet: /activate has to see one code first.
+    FACTOR = (ExampleFactor){ .enrolled = true, .secret = enrolment.secret };
+    for (u32 i = 0; i < NYA_HTTP_TOTP_RECOVERY_CODES; i++) FACTOR.recovery[i] = enrolment.recovery_hash[i];
+
+    if (!nya_http_response_document(exchange->response, exchange->arena, body, nya_http_request_accepts(exchange->request)).ok) {
+        return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    }
+
+    return NYA_HTTP_STATUS_CREATED;
+}
+
+/** Turns the pending enrolment on, once one code proves the authenticator holds the same secret. */
+NYA_INTERNAL NYA_HttpStatus otp_activate(NYA_HttpExchange* exchange) {
+    NYA_ConstCString code = otp_submitted_code(exchange);
+    if (code == nullptr) return NYA_HTTP_STATUS_BAD_REQUEST;
+
+    // no enrolment is the same refusal as a wrong code; see otp_status.
+    if (!FACTOR.enrolled) return NYA_HTTP_STATUS_UNAUTHORIZED;
+
+    NYA_HttpTotpVerdict verdict = nya_http_totp_verify(&FACTOR.guard, &FACTOR.secret, code, exchange->now_s);
+    if (verdict == NYA_HTTP_TOTP_ACCEPTED) FACTOR.active = true;
+
+    return otp_status(verdict);
+}
+
+/** One code against the factor that is on. What a login route will call once there is one. */
+NYA_INTERNAL NYA_HttpStatus otp_verify(NYA_HttpExchange* exchange) {
+    NYA_ConstCString code = otp_submitted_code(exchange);
+    if (code == nullptr) return NYA_HTTP_STATUS_BAD_REQUEST;
+
+    if (!FACTOR.active) return NYA_HTTP_STATUS_UNAUTHORIZED;
+
+    return otp_status(nya_http_totp_verify(&FACTOR.guard, &FACTOR.secret, code, exchange->now_s));
+}
+
+/** One recovery code, for the phone that is gone. Spent by the call, so it works exactly once. */
+NYA_INTERNAL NYA_HttpStatus otp_recover(NYA_HttpExchange* exchange) {
+    NYA_ConstCString code = otp_submitted_code(exchange);
+    if (code == nullptr) return NYA_HTTP_STATUS_BAD_REQUEST;
+
+    if (!FACTOR.active) return NYA_HTTP_STATUS_UNAUTHORIZED;
+
+    return otp_status(nya_http_totp_recovery_redeem(&FACTOR.guard, FACTOR.recovery, nya_carray_length(FACTOR.recovery), code, exchange->now_s));
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * THE ROUTE TABLE
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -244,6 +381,63 @@ NYA_INTERNAL const NYA_HttpRouter NOTE_ROUTER = {
     .name        = "notes",
     .routes      = NOTE_ROUTES,
     .route_count = nya_carray_length(NOTE_ROUTES),
+};
+
+/*
+ * The second factor's own table. A separate router rather than four more rows above, because these
+ * are not a resource: they are three steps of one flow, and a program that wants notes without a
+ * factor merges one and not the other.
+ */
+NYA_INTERNAL const NYA_HttpRoute OTP_ROUTES[] = {
+    {
+     .method      = NYA_HTTP_METHOD_POST,
+     .path        = OTP_ENROL_PATH,
+     .auth        = NYA_HTTP_AUTH_NONE,
+     .handler     = otp_enrol,
+     .summary     = "Starts enrolling an authenticator",
+     .description = "Answers with the otpauth URI to scan, the secret as base32 to type, and the recovery codes. All three are "
+                        "shown once and never again, and the factor is not on until a code is posted to /api/otp/activate.",
+     .statuses    = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     },
+    {
+     .method      = NYA_HTTP_METHOD_POST,
+     .path        = OTP_ACTIVATE_PATH,
+     .auth        = NYA_HTTP_AUTH_NONE,
+     .handler     = otp_activate,
+     .summary     = "Turns the enrolment on",
+     .description = "`{\"code\":\"123456\"}`. The second step of enrolment: proves the authenticator holds the same secret before "
+                        "anything depends on it.",
+     .statuses    = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN,
+                          NYA_HTTP_STATUS_TOO_MANY_REQUESTS },
+     },
+    {
+     .method      = NYA_HTTP_METHOD_POST,
+     .path        = OTP_VERIFY_PATH,
+     .auth        = NYA_HTTP_AUTH_NONE,
+     .handler     = otp_verify,
+     .summary     = "Answers one code",
+     .description = "`{\"code\":\"123456\"}`. One step of clock skew either side is accepted, and a code works once: the same "
+                        "digits inside the same thirty seconds are refused the second time.",
+     .statuses    = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN,
+                          NYA_HTTP_STATUS_TOO_MANY_REQUESTS },
+     },
+    {
+     .method      = NYA_HTTP_METHOD_POST,
+     .path        = OTP_RECOVER_PATH,
+     .auth        = NYA_HTTP_AUTH_NONE,
+     .handler     = otp_recover,
+     .summary     = "Spends one recovery code",
+     .description = "`{\"code\":\"ABCDEFGH-IJKLMNOP\"}`, for the phone that is gone. Case and the dash do not matter; the code "
+                        "does, and it works exactly once.",
+     .statuses    = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN,
+                          NYA_HTTP_STATUS_TOO_MANY_REQUESTS },
+     },
+};
+
+NYA_INTERNAL const NYA_HttpRouter OTP_ROUTER = {
+    .name        = "second factor",
+    .routes      = OTP_ROUTES,
+    .route_count = nya_carray_length(OTP_ROUTES),
 };
 
 /*
@@ -304,6 +498,13 @@ s32 main(s32 argc, char** argv) {
     // Merged at the root.
     NYA_EXPECT(nya_http_server_merge(&NOTE_ROUTER), "while merging the notes resource");
     defer nya_http_server_unmerge(&NOTE_ROUTER);
+
+    /*
+     * The TOTP second factor. Merged here and not inside the engine for the reason the notes are: the
+     * secret and the guard belong to whoever owns the account, which is this program.
+     */
+    NYA_EXPECT(nya_http_server_merge(&OTP_ROUTER), "while merging the second factor");
+    defer nya_http_server_unmerge(&OTP_ROUTER);
 
     /*
      * The engine's own metrics, which are reflected DTOs: asked for as application/nya-binary they go

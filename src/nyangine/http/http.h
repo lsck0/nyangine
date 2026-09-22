@@ -12,6 +12,7 @@
  * http_message.h   the wire boundary: bytes in, NYA_HttpRequest out; NYA_HttpResponse in, bytes out
  * http_router.h    routes, the layer chain, the identity extractor, and dispatch
  * http_auth.h      JWT over HMAC-SHA256, the bearer extractor, and the second factor seam
+ * http_totp.h      the TOTP second factor: enrolment, recovery codes, and one verification
  * http_server.h    the listener, the connections and the drain
  * http_openapi.h   the OpenAPI document and the browsable page, both generated from the route table
  * ../debug/debug_metrics.h   the first resource, this program's own numbers; in debug, since it reads the app loop
@@ -56,4 +57,5 @@
 #include "nyangine/http/http_openapi.h"
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_server.h"
+#include "nyangine/http/http_totp.h"
 #include "nyangine/http/http_types.h"
