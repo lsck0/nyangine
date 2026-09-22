@@ -6,9 +6,10 @@
 
 ## Where it stands
 
-235 tests pass locally, `check --strict` reports nothing, and debug, release, debug-windows and steam-windows
-build. **CI is red** (Phase 0 under "Roadmap"). The title screen logs one line in twenty seconds, where it logged
-6813.
+236 tests pass locally, `check --strict` reports nothing, and debug, release, debug-windows and steam-windows
+build. **CI is red, and closing**: both failures Phase 0 named are fixed and green on Linux; the Windows tests had
+never compiled and are being fixed one push at a time. The title screen logs one line in twenty seconds, where it
+logged 6813.
 
 The plan from here is "Roadmap" below, drawn up 2026-09-22 when the scope became the framework for all software.
 
@@ -257,7 +258,7 @@ start a new project on nyangine", so each builds from `./build run example <name
 | `multiplayer_2d` | authority, prediction, encryption, lobby             | `pong_multiplayer`; `net_echo` folds into it                  |
 | `game_3d`      | 3D rendering, physics, audio propagation, post chain    | `pinball3d`                                                  |
 | `http_server`  | TLS, routes, DTOs, OpenAPI, accounts, roles, db, jobs, uploads, WebSocket | `web_server`; `[ ]` all but routes and OpenAPI missing |
-| `web_frontend` | the same UI toolkit in a browser, against `http_server` | `[ ]` needs Phase 4                                          |
+| `web_frontend` | the same UI toolkit in a browser, against `http_server`, as wasm (CSR) and server rendered (SSR) | `[ ]` needs Phase 4 |
 
 `plugin_scripting` stops being an example of its own: plugins are a feature of a program, so the 2D game or the
 TUI loads one. `net_echo` and `plugin_scripting` are deleted once their callers have moved.
@@ -277,11 +278,20 @@ Small, and first, because every later phase trusts these numbers.
   Done when a push goes green on both platforms. Pushing one doc commit per minute cancels the previous run
   before its vendor cache is saved, which is how a red run hid behind "cancelled" all day; batch pushes until
   CI is green again.
-- `[ ]` `test_agent` gets a wall clock deadline of its own and fails with a message when it passes it. It hung
-  twice on 2026-09-22 and outlived the runner's `timeout`: one instance orphaned for 5h32m, one suite run
-  stuck for 40 minutes against a normal 8. Intermittent (235 of 235 passed several times that day).
-  `--episodes` and `--ticks` bound the work, and nothing bounds the time. Done when a forced hang fails the
-  suite within the deadline instead of stopping it.
+  - `[x]` Both fixed (run 35742147094: `vendor-windows`, `test-linux` and every Linux job green). The build tool
+    links `-lbcrypt` on Windows through `PLATFORM_LINK_WINDOWS`; `#pragma comment(lib)` was tried and clang
+    ignores it for mingw. Every test build defaults to SDL's dummy audio driver, so the 34 hand written hints
+    are gone and a new test cannot forget one.
+  - `[~]` With the bootstrap fixed, `test-windows` got far enough to show that the tests had never compiled on
+    Windows: `test_server.c` called `setenv`, and `test_render2d_merge.c` defined `TEXT` over `windows.h`'s.
+    Both fixed, and every test now passes `-fsyntax-only` for `x86_64-w64-mingw32`. What they do when they
+    run there is the next push's answer.
+- `[x]` `test_agent` gets a wall clock deadline of its own and fails with a message when it passes it.
+  `testing_deadline.h`: a watchdog thread that, past the limit, names the test and sends the stuck thread a
+  signal, so the crash path prints *its* backtrace. `test_deadline.c` forces a hang in a child: it fails at 1 s
+  with the spinning function in its report. The hang itself was two bugs, not a slow run; see "An assertion
+  nobody could dismiss" under Findings. 120 regression runs under six way parallel load: 0 failures, where
+  about one in thirty hung before.
 - `[ ]` Custom static analysis in `./build check`, built on `base_lexer` so it costs no dependency. First rules,
   each one something this file has already recorded going wrong by hand:
   - the module include order above;
@@ -596,6 +606,9 @@ logged-in user.
 - `[ ]` A WebSocket server in `http`, sharing one frame codec with the curl client rather than a second copy.
   It is the live channel for the web client and the transport for browser multiplayer.
 - `[ ]` Static serving of the web bundle: content hashed names, immutable caching, ETags, precompressed at build.
+  HTML, CSS and JS are assets like any other (set 2026-09-22): they go through the asset system, so they get
+  its handles, its hot reload in development and its baked blob in a release, and the server serves them from
+  there. No second pipeline for web files.
 - `[ ]` TLS in process: mbedTLS vendored and wrapped in `http`, TLS 1.3 first and 1.2 as the floor, certificate
   and key from files named in config and hot reloaded on change. A handshake is fuzzed like the request parser.
   Plain HTTP is loopback only, and on a public address it only redirects to HTTPS. The server never sets a
@@ -619,10 +632,36 @@ C compiled to wasm, the same headers as the server, no HTML, CSS or JS written b
 - `[ ]` The UI's presenter seam. Today `ui_draw.c` is the only file naming a primitive, which is exactly right
   for GPU and terminal, but a DOM presenter needs widgets, not shapes. The widget model and layout stay one; a
   presenter receives widgets and either draws them (shapes) or keeps a DOM in step with them. Native and terminal
-  go through the shape presenter unchanged.
+  go through the shape presenter unchanged. **One widget, four backends** (set 2026-09-22): the same `nya_ui_*`
+  call works unchanged on the GPU, in a terminal, in the browser as wasm (CSR) and rendered on the server (SSR,
+  below). A widget that only works on some of them is not finished, and each widget's example runs on all four.
 - `[ ]` The DOM presenter: real `<input>` elements so password managers, autofill, IME and screen readers work,
   styles from the same `NYA_UIStyle`. A login form drawn on a canvas is refused by every password manager, and
   that alone decides against canvas-only for apps.
+- `[ ]` **Server rendered UI, htmx style (SSR).** Asked for 2026-09-22: a program that does not want a whole wasm
+  client returns its UI from the server and keeps the state between requests. The same UI code, run per request:
+  - An HTML presenter beside the DOM one. Where the DOM presenter keeps live elements in step, this one writes
+    the widgets out as HTML text once, escaping in one place. Every interactive widget becomes a real form
+    element carrying its widget id, which is already a stable hash of scope and label, so a posted id finds its
+    widget again on the next request with no table of its own.
+  - A request is one UI pass: the server decodes the post into the same input the other backends feed the UI
+    (which widget was activated, what a field now holds), runs the pass, and answers the panel that changed as a
+    fragment. htmx swaps it in (`hx-post`, `hx-target`, `hx-swap`), so there is no page reload and no JS of ours.
+    Without JS it still works as plain forms and full page loads.
+  - htmx vendored and pinned like any other vendor (one file, 0BSD, about 16 KB compressed), an asset served
+    from the static bundle so the CSP needs only `script-src 'self'`. Configured with `allowEval` off and
+    `selfRequestsOnly` on, so it can neither run strings as code nor talk to another origin. Nothing of it is
+    hand written.
+  - State between requests: the UI's own state (focus, which panel is open, a window's position, a half typed
+    field) in a cookie, encrypted and authenticated with XChaCha20-Poly1305 under a server key, bound to the
+    session so it cannot be replayed into another one, and bounded by the 4096 byte cookie limit with the bound
+    asserted. Anything larger, and anything that is really the user's data, lives in the session row in `db`
+    instead. A cookie is never trusted as more than a hint: a tampered one fails to decrypt and the UI starts
+    fresh.
+  - Security is what the server already has: CSRF through `SameSite=Strict` and the `Origin` layer, permissions
+    checked per request before the pass runs, and redaction of the posted fields through their DTOs.
+  - Caller: `http_server` serves the same screens `web_frontend` runs as wasm, from the same source file, so the
+    two can be compared side by side. Depends on the presenter seam, cookies and the threaded server.
 - `[ ]` A WebGPU backend for render2d, then render3d. Shaders go HLSL → SPIR-V → binding rewrite → naga → WGSL
   at build time; see "Decisions" for what was measured. Games draw into a canvas
   through it, with the DOM presenter or the shape presenter over them.
@@ -873,6 +912,25 @@ Each changes what gets built. A recommendation is given; the call is mine.
   person would (`testing_agent.h`). It extends to every example that has a UI, not only gnyame: the TUI and
   the web frontend are UIs an agent can play too. Its drawing still moves out of `nn` (Phase 1), so the
   module depends on nothing above `math`.
+- `[ ]` **Lambdas through a preprocessor pass.** Asked 2026-09-22. C has no function literals, and every
+  callback here (`nya_callback`, event hooks, systems, comparators) is a named function somewhere else in the
+  file. What a pass could do, and where it stops:
+  - Possible: non-capturing lambdas. `nya_lambda(void, (NYA_Event* event), { ... })` at the use site expands
+    to a generated name; the pass lifts the body into a function defined in a generated file included at the
+    end of the same `.c`, with its prototype in one included at the top. The body sits after every static it
+    might name, `#line` keeps the debugger and the diagnostics on the original line, and `base_lexer` finds
+    the call without a parser. About the size of `luabind.c`.
+  - Not possible without cost: captures. A capture is a context that outlives the frame, which in C means an
+    allocation and a lifetime someone owns. The engine's callbacks already take `void* user_data`, and a
+    struct passed through it is the honest spelling of a capture.
+  - The catches: the name must survive hot reload, since `nya_callback` resolves by name and a lambda named
+    for its line is renamed by an edit above it, so the name would come from the enclosing function and an
+    index instead. clangd sees an undefined name until the pass has run once. And the passes today only write
+    side files; this would be the first that changes what a source file compiles to.
+  - Clang's blocks (`-fblocks`) do capture, but a block is not a function pointer, needs a runtime library,
+    and cannot go through the callback registry at all.
+  - Recommendation: not yet. The five callers that would read better do not outweigh the first pass that
+    rewrites a translation unit. Revisit if the UI or the job system grows a real need for inline callbacks.
 
 # The stack
 
@@ -1804,6 +1862,16 @@ joystick.
 ---
 
 # Findings
+
+### An assertion nobody could dismiss
+
+`test_agent` hung about one run in thirty, once for 5h32m, and it was not slow. The agent found a real bug: typing
+in the pause menu's colour picker hex field, then clicking the name field above it. The name field is declared
+first, so it read the click and started typing before the hex field could let go, and `_nya_ui_typing_start`
+asserted. The assertion was wrong; a click hands the keyboard over now. Then the crash reporter opened its window
+on the offscreen driver and waited for a click that no test can make. A run with nobody watching now writes the
+report to a file, and the test deadline turns any hang left into a failure with a backtrace. `ptrace` is limited
+to children here (Yama 1), so the stacks came from running each agent under `gdb` directly and interrupting it.
 
 ### A crash window that had never opened
 
