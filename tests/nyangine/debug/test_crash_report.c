@@ -10,11 +10,17 @@
  *
  * And once more in a child process that really crashes with the reporter registered, which must write
  * the report and exit: nobody is at a test to dismiss a window, and test_agent hung in one for hours.
+ * That child crashes two watched frames deep, on a comparison, so the report it leaves behind is what
+ * holds the values a report is supposed to carry to account: the operands of the assertion and every
+ * local of both frames.
  * */
 
 // after the engine, which is what decides how SDL is configured; see the fuzz targets for the same rule.
 #include "nyangine/nyangine.c"
 #include "nyangine/nyangine.h"
+
+// What nya_watch() below expands to, written by src/build/pp/watch.c from the @watch annotations.
+#include "genyarated/watches/tests_nyangine_debug_test_crash_report_c.h"
 
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_init.h"
@@ -74,6 +80,27 @@ static NYA_CrashInfo crash_of(NYA_CrashSource source, NYA_ConstCString message) 
     return info;
 }
 
+/** The innermost watched frame. It fails a comparison, which is what puts both operands in the report. */
+// @watch
+static u32 child_stone_face(u32 at, u32 wanted) {
+    u32 emitted = at + 3;
+    nya_watch(child_stone_face);
+
+    nya_assert_eq(emitted, wanted);
+
+    return emitted;
+}
+
+/** The frame above it, so the report has two of them to print innermost first. */
+// @watch
+static u32 child_stone_row(u32 sides, u32 segments) {
+    NYA_ConstCString shape = sides == 4 ? "rectangle" : "octagon";
+    u32              at    = sides * segments;
+    nya_watch(child_stone_row);
+
+    return child_stone_face(at, at + 4);
+}
+
 /** Crashes the way a test does, with a video subsystem up so the window could open if it were asked to. */
 static void child_crash_unattended(void) {
     nya_test_deadline_start("the crashing child", CHILD_DEADLINE_S);
@@ -86,7 +113,10 @@ static void child_crash_unattended(void) {
     NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY "/child", 14));
     NYA_EXPECT(nya_crash_reporter_init());
 
-    nya_assert(false, "the child crashes on purpose");
+    // Two frames deep and on a comparison, so the report has to carry both operands and both frames.
+    (void)child_stone_row(4, 2);
+
+    nya_assert(false, "the child was supposed to crash before here");
 }
 
 s32 main(s32 argc, NYA_CString argv[]) {
@@ -286,6 +316,46 @@ s32 main(s32 argc, NYA_CString argv[]) {
         nya_check(nya_string_contains(child.stderr_content, "Crash report written to " TEST_DIRECTORY), "and named the report it wrote");
 
         if (nya_check_failures() > 0) (void)fprintf(stderr, "child stderr:\n%.*s\n", (int)child.stderr_content->length, child.stderr_content->items);
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // TEST: and that report says what the program held, not only where it stopped:
+        //       both operands of the comparison that failed, and every local of both
+        //       watched frames, the innermost first
+        // ─────────────────────────────────────────────────────────────────────────────
+        NYA_ArrayᐸNYA_DirectoryEntryᐳ* written = nullptr;
+        NYA_EXPECT(nya_filesystem_list(arena, TEST_DIRECTORY "/child", &written));
+
+        NYA_String* report_file = nullptr;
+        nya_array_foreach (written, entry) {
+            if (!nya_string_starts_with(entry->name, "crash-")) continue;
+
+            report_file = nya_string_create(arena);
+            NYA_EXPECT(nya_file_read(nya_string_to_cstring(arena, nya_string_sprintf(arena, "%s/%s", TEST_DIRECTORY "/child",
+                                                                                     nya_string_to_cstring(arena, entry->name))),
+                                     report_file));
+        }
+
+        nya_check(report_file != nullptr, "the child should have left a crash report behind");
+
+        if (report_file != nullptr) {
+            NYA_ConstCString body = nya_string_to_cstring(arena, report_file);
+
+            nya_check(nya_string_contains(body, "emitted == wanted, where emitted is 11 and wanted is 12"),
+                      "the report should carry the failed comparison with both of its operands");
+
+            nya_check(nya_string_contains(body, "\nWatched values\n"), "the report should have a watched values block");
+            nya_check(nya_string_contains(body, "u32 emitted = 11"), "and the innermost frame's own local");
+            nya_check(nya_string_contains(body, "u32 sides = 4"), "and the frame above it, which the crash came through");
+            nya_check(nya_string_contains(body, "NYA_ConstCString shape = \"rectangle\""), "including a string, printed as its text");
+
+            // Innermost first: the frame that crashed is the one somebody reads first.
+            const char* face = strstr(body, "child_stone_face");
+            const char* row  = strstr(body, "child_stone_row");
+
+            nya_check(face != nullptr && row != nullptr && face < row, "the innermost frame should come first in the report");
+
+            if (nya_check_failures() > 0) (void)fprintf(stderr, "child report:\n%s\n", body);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

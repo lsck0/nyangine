@@ -127,6 +127,53 @@ enclosing function is a compile error rather than a pointer into a frame that ha
 Callbacks here are stored, queued or called from another thread, and all three outlive the expression
 that made one.
 
+## Crashes
+
+An assertion, a panic, a thrown error and a hardware fault all arrive at one sink, which composes one
+report: what happened, the stack, the build, the machine, what the program's variables held, and the
+last few hundred log lines. Everything but a fault opens a window with it; a fault, a headless run and
+a test write it to a file beside the log and name it on stderr.
+
+Two things put values in that report, and both print a value the same way.
+
+A comparison assertion carries its operands:
+
+```c
+nya_assert_eq(written, expected);   // written == expected, where written is 6 and expected is 8
+```
+
+And a function can ask for its locals to be in the report, which costs a handful of stores per call
+and nothing at all to a function that does not ask:
+
+```c
+// @watch
+u32 build_row(u32 sides, u32 segments) {
+    u32 at = 0;
+    nya_watch(build_row);   // the parameters and everything declared above this
+    ...
+}
+```
+
+The preprocessor writes the registration into a companion header the file includes: each local's name,
+its type as it was written and its address go into a fixed per thread ring, and a `defer` takes them
+out again on every path out of the function, which is what keeps the report from reading a frame that
+has already returned. The crash path walks that ring innermost frame first, without allocating and
+without taking a lock, so a fault handler can walk it too.
+
+```
+Watched values
+  child_stone_face
+    u32 at = 8
+    u32 wanted = 12
+    u32 emitted = 11
+  child_stone_row
+    u32 sides = 4
+    NYA_ConstCString shape = "rectangle"
+```
+
+Not DWARF: reading a variable out of the debug information needs a register context per frame and an
+expression evaluator, and in a release build the locations are gone. See `base_watch.h`.
+
 ## What to read next
 
 - [The HTTP server](http.md) for the one module with a page of its own so far.

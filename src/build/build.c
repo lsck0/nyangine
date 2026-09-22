@@ -7,6 +7,7 @@
 #include "build/pp/lambda.c"
 #include "build/pp/luabind.c"
 #include "build/pp/reflection.c"
+#include "build/pp/watch.c"
 /**/
 #include "build/hooks.c"
 #include "build/test.c"

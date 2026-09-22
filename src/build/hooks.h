@@ -148,5 +148,8 @@ void hook_generate_lua_bindings(NYA_BuildRule* rule);
 /** Regenerates one companion header per source file that writes a nya_lambda. See build/pp/lambda.h. */
 void hook_generate_lambdas(NYA_BuildRule* rule);
 
+/** Regenerates one companion header per source file with a watched function. See build/pp/watch.h. */
+void hook_generate_watches(NYA_BuildRule* rule);
+
 /** Wrapper around nya_asset_bundle. */
 void hook_bundle_assets(NYA_BuildRule* rule);

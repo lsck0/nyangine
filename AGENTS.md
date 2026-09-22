@@ -161,6 +161,8 @@ stands.
   `init`/`shutdown`, `begin`/`end`, `push`/`pop`, `attach`/`detach`.
 - Fallible calls return `NYA_Error` and are `__attr_no_discard`. `NYA_TRY(expr)` propagates,
   `NYA_EXPECT(expr, "context")` crashes through the crash sink with a backtrace.
+- A comparison gets `nya_assert_eq(a, b)` or one of its five siblings, which report what each side
+  held; plain `nya_assert(condition, ...)` is for everything else. See `base_watch.h`.
 - `defer` is C2Y's, from `<stddefer.h>` and `-fdefer-ts`, not a macro of ours. It fires at the end
   of the enclosing *block*, so a `defer` inside an `if` runs before the `if` does.
 - Fixed capacity arrays register with `nya_ceiling_register` so the debug overlay can show how full
@@ -211,6 +213,10 @@ inputs have not moved, and each runs as part of an ordinary build:
 - `asset.c` → `src/genyarated/assets.{h,c}`, the asset handles and the baked blob.
 - `cheatsheet.c` → `docs/CHEATSHEET.md`, from the public headers.
 - `luabind.c` → `src/genyarated/lua_bindings.c` and `docs/lua/nya.lua`, from `@lua` annotations.
+- `watch.c` → `src/genyarated/watches/`, one companion header per source file with a `// @watch`
+  function, plus the manifest of every watched function. Each macro registers that function's
+  parameters and the locals above its `nya_watch(name)` call into base_watch.h's per thread ring and
+  ends the frame in a `defer`, so a crash report can print what they held; see `base_watch.h`.
 - `lambda.c` → `src/genyarated/lambdas/`, one companion header per source file that writes a
   `nya_lambda(tag, ReturnType, (params), { body })`, plus the manifest of every tag in the tree. The
   body becomes a file scope function called `_nya_lambda_<tag>` and the macro expands to that name, so

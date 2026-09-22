@@ -689,6 +689,12 @@ void hook_generate_lambdas(NYA_BuildRule* rule) {
     nya_lambda_generate();
 }
 
+void hook_generate_watches(NYA_BuildRule* rule) {
+    nya_unused(rule);
+
+    nya_watch_generate();
+}
+
 void hook_index_assets(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
 

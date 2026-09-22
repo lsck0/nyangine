@@ -6,6 +6,9 @@
  * */
 #include "gnyame/gnyame.h"
 
+// What nya_watch() below expands to, written by src/build/pp/watch.c from the @watch annotation.
+#include "genyarated/watches/gnyame_robots_c.h"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
@@ -93,8 +96,10 @@ f32x2 gny_robot_neat_thrust(NYA_NeatNetwork* brain, const f32 senses[GNY_ROBOT_S
     return (f32x2){ (f32)nya_nn_neat_network_get_output(brain, "thrust_x"), (f32)nya_nn_neat_network_get_output(brain, "thrust_y") };
 }
 
+// @watch
 f32x2 gny_robot_dqn_thrust(u32 action) {
-    nya_assert(action < GNY_ROBOT_DQN_ACTIONS);
+    nya_assert_lt(action, (u32)GNY_ROBOT_DQN_ACTIONS);
+    nya_watch(gny_robot_dqn_thrust);
 
     if (action == 0) return f32x2_zero;
 

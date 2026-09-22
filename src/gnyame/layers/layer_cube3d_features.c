@@ -11,6 +11,9 @@
  * */
 #include "gnyame/gnyame.h"
 
+// What nya_watch() below expands to, written by src/build/pp/watch.c from the @watch annotation.
+#include "genyarated/watches/gnyame_layers_layer_cube3d_features_c.h"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
@@ -130,13 +133,16 @@ void _gny_cube3d_feature_row(NYA_UI* ui, NYA_Window* window, NYA_RenderToggle* s
     nya_ui_panel_end(ui);
 }
 
+// @watch
 void _gny_cube3d_feature_column(NYA_UI* ui, NYA_Window* window, NYA_ConstCString id, u32 first, u32 end) {
-    nya_assert(first < end && end <= NYA_RENDER_FEATURE_COUNT);
+    nya_assert_lt(first, end);
+    nya_assert_le(end, (u32)NYA_RENDER_FEATURE_COUNT);
 
     if (!nya_ui_panel_begin(ui, id, (NYA_UIPanel){ .width = nya_ui_grow(1), .frameless = true })) return;
 
     // read as an array, which the static asserts in render_features.h make legal.
     NYA_RenderToggle* switches = (NYA_RenderToggle*)&NYA_CONFIG.engine.renderer.features;
+    nya_watch(_gny_cube3d_feature_column);
 
     for (u32 feature = first; feature < end; feature++) _gny_cube3d_feature_row(ui, window, switches, (NYA_RenderFeature)feature);
 

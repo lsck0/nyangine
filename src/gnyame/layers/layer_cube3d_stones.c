@@ -16,6 +16,9 @@
  * */
 #include "gnyame/gnyame.h"
 
+// What nya_watch() below expands to, written by src/build/pp/watch.c from the @watch annotation.
+#include "genyarated/watches/gnyame_layers_layer_cube3d_stones_c.h"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * CONSTANTS
@@ -338,6 +341,7 @@ u32 _gny_cube3d_stone_face(NYA_Vertex3D* out, f32x3 a, f32x3 b, f32x3 c, f32x3 d
     return 6;
 }
 
+// @watch
 u32 _gny_cube3d_stone_build(NYA_Vertex3D* out, u32 sides, u32 segments) {
     nya_assert(out != nullptr);
     nya_assert(sides == 4 || sides == 8, "the section is a rectangle or a rectangle with its corners cut off");
@@ -346,6 +350,7 @@ u32 _gny_cube3d_stone_build(NYA_Vertex3D* out, u32 sides, u32 segments) {
     const f32x2* section = sides == 4 ? _GNY_CUBE3D_STONE_SECTION_4 : _GNY_CUBE3D_STONE_SECTION_8;
 
     u32 at = 0;
+    nya_watch(_gny_cube3d_stone_build);
 
     /*
      * The walls, band by band up the height. The section shrinks linearly toward the top, so however many bands
@@ -394,8 +399,9 @@ u32 _gny_cube3d_stone_build(NYA_Vertex3D* out, u32 sides, u32 segments) {
         out[at++] = nya_vertex3d((f32x3){ next.x, 0.0F, next.y }, cap, (f32x3){ 0.0F, -1.0F, 0.0F }, f32x2_zero);
     }
 
-    nya_assert(at == (sides * segments * 6) + (sides * 6), "a stone level emitted %u vertices, not what it sized for", at);
-    nya_assert(at <= GNY_CUBE3D_STONE_VERTICES_MAX, "a stone level overran GNY_CUBE3D_STONE_VERTICES_MAX");
+    // both sides printed: what a level emitted is only ever wrong against what it sized itself for.
+    nya_assert_eq(at, (sides * segments * 6) + (sides * 6));
+    nya_assert_le(at, (u32)GNY_CUBE3D_STONE_VERTICES_MAX);
 
     return at;
 }

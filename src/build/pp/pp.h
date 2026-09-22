@@ -28,6 +28,7 @@
 #include "build/pp/lambda.h"
 #include "build/pp/luabind.h"
 #include "build/pp/reflection.h"
+#include "build/pp/watch.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -92,6 +93,16 @@ NYA_INTERNAL NYA_BuildRule generate_lambdas = {
     .post_build_hooks = { &hook_generate_lambdas, },
 };
 
+/**
+ * Regenerates the watch registrations from the @watch annotations in the tree.
+ * */
+NYA_INTERNAL NYA_BuildRule generate_watches = {
+    .name             = "generate_watches",
+    .policy           = NYA_BUILD_ALWAYS,
+    .is_metarule      = true,
+    .post_build_hooks = { &hook_generate_watches, },
+};
+
 NYA_INTERNAL NYA_BuildRule index_assets = {
     .name             = "index_assets",
     .is_metarule      = true,
@@ -109,8 +120,10 @@ NYA_INTERNAL NYA_BuildRule index_assets = {
     //
     // generate_lambdas is here for the reason generate_lua_bindings is, and more sharply: it writes the
     // headers the sources it read include, so a body and the function it becomes cannot land in
-    // different builds.
-    .dependencies     = { &build_shaders, &generate_strings, &generate_reflection, &generate_lua_bindings, &generate_cheatsheet, &generate_lambdas, },
+    // different builds. generate_watches writes the same kind of header for the same reason: a local
+    // added to a watched function and the line that registers it are one edit.
+    .dependencies     = { &build_shaders,        &generate_strings,   &generate_reflection, &generate_lua_bindings,
+                          &generate_cheatsheet,  &generate_lambdas,   &generate_watches, },
     .post_build_hooks = { &hook_index_assets, },
 };
 
