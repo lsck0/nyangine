@@ -145,5 +145,4 @@ NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
     // lua.h
     { "nya_lua_nil", "no caller when the rule landed" },
     // testing_property.h
-    { "nya_property_draw_f32_any", "no caller when the rule landed" },
 };

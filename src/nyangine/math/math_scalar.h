@@ -48,7 +48,13 @@
         _nya_max_a > _nya_max_b ? _nya_max_a : _nya_max_b;                                                                                           \
     })
 
-/** Clamps `value` into [`min`, `max`]. An inverted range is a bug, not a silently empty interval. */
+/**
+ * Clamps `value` into [`min`, `max`]. An inverted range is a bug, not a silently empty interval.
+ *
+ * NaN lands on `min`: it compares false both ways, so without the first test it walked through as NaN. Text never
+ * parses to one, but a 0/0 upstream or a peer's raw bytes do, and "clamped" has to mean in range. For integers the
+ * first test is always false.
+ * */
 #define nya_clamp(value, min, max)                                                                                                                   \
     ({                                                                                                                                               \
         __auto_type _nya_clamp_value = (value);                                                                                                      \
@@ -57,7 +63,10 @@
         nya_assert_type_match(_nya_clamp_value, _nya_clamp_min);                                                                                     \
         nya_assert_type_match(_nya_clamp_value, _nya_clamp_max);                                                                                     \
         nya_assert(_nya_clamp_min <= _nya_clamp_max, "nya_clamp called with an inverted range.");                                                    \
-        _nya_clamp_value < _nya_clamp_min ? _nya_clamp_min : (_nya_clamp_value > _nya_clamp_max ? _nya_clamp_max : _nya_clamp_value);                \
+        _nya_clamp_value != _nya_clamp_value ? _nya_clamp_min                                                                                        \
+        : _nya_clamp_value < _nya_clamp_min  ? _nya_clamp_min                                                                                        \
+        : _nya_clamp_value > _nya_clamp_max  ? _nya_clamp_max                                                                                        \
+                                             : _nya_clamp_value;                                                                                      \
     })
 
 /**

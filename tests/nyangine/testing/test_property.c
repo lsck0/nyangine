@@ -36,6 +36,15 @@ nya_derive_dict(u32);
  */
 
 /** base64: decoding what was encoded gives back exactly the bytes that went in. */
+/** Clamping lands inside the range for every float, infinities and NaN included, since settings files and peers send those too. */
+static b8 law_clamp_lands_in_range(NYA_Property* property) {
+    f32 value   = nya_property_draw_f32_any(property);
+    f32 clamped = nya_clamp(value, 0.0F, 1.0F);
+
+    nya_property_note(property, "clamp(%f) = %f", (f64)value, (f64)clamped);
+    return clamped >= 0.0F && clamped <= 1.0F;
+}
+
 static b8 law_base64_round_trips(NYA_Property* property) {
     u8  bytes[BYTES_MAX];
     u32 count = (u32)nya_property_draw_below(property, BYTES_MAX + 1);
@@ -936,6 +945,7 @@ s32 main(void) {
     u32 failures = 0;
 
     printf("TEST: round trips\n");
+    failures += nya_property_check("clamping lands in the range for any float", CASES, SEED, law_clamp_lands_in_range);
     failures += nya_property_check("base64 round trips", CASES, SEED, law_base64_round_trips);
     failures += nya_property_check("compression round trips", CASES, SEED, law_compress_round_trips);
     failures += nya_property_check("percent encoding round trips", CASES, SEED, law_percent_round_trips);
