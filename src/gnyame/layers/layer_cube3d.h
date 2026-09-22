@@ -75,6 +75,15 @@ typedef struct GNY_Cube3DScene {
     /** The hint stops once the cube has been grabbed. */
     b8 grabbed_once;
 
+    /**
+     * Draws every collision shape over the scene. Off by default; the switchboard turns it on.
+     *
+     * Kept on the scene rather than in NYA_CONFIG.engine.renderer.features, because it is not one: the
+     * renderer never asks about it and a saved config that came back with the hitboxes on would be a
+     * puzzle rather than a setting.
+     * */
+    b8 show_hitboxes;
+
     NYA_ParticleSystem* dust;
 
     /** Fire adds and smoke blends, so they are two systems. */
@@ -128,8 +137,11 @@ typedef struct GNY_Cube3DScene {
 /**
  * Draws the render feature switchboard over the scene: one row per NYA_RenderFeature, writing
  * NYA_CONFIG.engine.renderer.features. Only while `features_open`; `0` toggles it.
+ *
+ * `show_hitboxes` is the scene's own flag and not one of those rows, which is why it is passed rather
+ * than read from the config with the rest.
  * */
-void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window);
+void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window, b8* show_hitboxes);
 
 /**
  * Registers the standing stones' three meshes and their detail chain, once per run and again after a code

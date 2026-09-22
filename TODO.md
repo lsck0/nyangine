@@ -26,11 +26,11 @@ terminal backend landed and nothing wraps `gh` with it yet. The web client is th
 
 | Area         | Decision                                                                                     |
 | :----------- | :------------------------------------------------------------------------------------------- |
-| Workflow     | Edit files directly. GitHub is a backup: push to preserve work, not as review or process.     |
+| Workflow     | Edit files directly. GitHub is a backup: push to preserve work, not as review or process.    |
 | Comments     | Keep the why, cut the essay. One to three lines per prose block.                             |
 | Gamepad      | `NYA_InputBinding` is a union of key, gamepad button, or axis past a threshold.              |
 | Subsystems   | `core_system.h` registers engine subsystems and game systems alike.                          |
-| Config       | `NYA_CONFIG` hot reloads from `assets/config/engine.nya`, backed by reflection.               |
+| Config       | `NYA_CONFIG` hot reloads from `assets/config/engine.nya`, backed by reflection.              |
 | Ceilings     | Fixed capacity arrays register with `nya_ceiling_register`.                                  |
 | Verification | Every engine feature gets a caller in `gnyame`, not only a test. Verify by running the game. |
 
@@ -48,24 +48,24 @@ mix 2D and 3D rendering, put a UI over it, serve a web interface for its own met
 programs, talk to OBS over WebSocket, and be driven from a CLI or a TUI, with plugins, optional end to end
 encryption and PGP-backed second factors. See "The stack" below for what that adds.
 
-| Area | Wanted | State |
-| :--- | :--- | :--- |
-| 2D/3D renderer | animation, particles, atmosphere, liquids, opacity, reflections, dynamic LOD, eye adaptation | `[~]` animation, particles, fog, glass, terrain and mesh LOD, eye adaptation, light shafts, aerial perspective and motion blur exist; volumetrics, liquids and reflections missing |
-| Post processing | a composable chain | `[x]` occlusion, ink, depth of field, FXAA, grade, bloom, speed lines, HDR output |
-| Graphics options | antialiasing, motion blur, fov, ... toggleable | `[x]` MSAA, FXAA, shadows, post passes, fov and render scale are player settings, and 37 feature switches cover everything else including culling, sorting and the depth test |
-| Renderer debug | physics hitboxes and other debug views | `[~]` buffer views exist; physics shapes missing |
-| Audio | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's) |
-| UI | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns that float, radio, tabs, draggable and resizable windows with title bar chrome, tables, charts, icons, opacity groups, scrolling, and tab/shift-tab focus for a terminal that has no pointer. Open: a node editor, SVG, the code editor widget |
-| Core | events, entities, input, settings, cache, ... solid | `[x]` one system registry drives frame, tick and render for engine and game, with runtime enable/disable and per-owner accounting, and its entries are callback handles with copied names, so a system registered from a reloaded image survives the reload. Scenes and settings persist through reflection |
-| Pipelines | build, assets, reflection | `[x]` |
-| Hot reload | assets, code, configuration | `[x]` |
-| Tracing | time and memory per feature (shadows, antialiasing, particles, ...) | `[~]` CPU spans, GPU allocation counters, and per-system and per-owner time and memory from the registry; per renderer feature attribution missing |
-| CI/CD | tests and builds with caching | `[x]` green on Linux and Windows. `./build dist` stages every target, the changelog is generated, secrets are sops encrypted |
-| Crash reporting | one funnel, a window a player can act on, everything a triage needs in it | `[~]` log ring, composed report (crash, build, machine, stack, log), its own SDL window with close, copy and send, and a file under the log directory. Open: a transport behind `nya_crash_report_submit`, and a window on the fault path (SDL from a signal handler can deadlock) |
-| Anti-tamper | integrity checks like the CRC | `[x]` executable stamp, chunked code baseline and a sweep every 250 ms, per blob entry hashes, a watchdog at two inlined sites; failure logs and exits 86 |
-| Networking | attack and cheat resistant, optional end to end public key encryption | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders |
-| Web server | an HTTP server, middleware, typed DTOs, generated OpenAPI | `[~]` `src/nyangine/http/`: router per resource, layer chain, identity extractor, JWT over HMAC-SHA256, OpenAPI and a page generated from the route tables, a metrics resource over the app's own numbers. Open: a login route, and the PGP half of the second factor |
-| Targets | Linux, Windows, Steam Linux, Steam Windows | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). A terminal is now a fifth target through `-DNYA_TERMINAL`, verified on Linux only. Web is wanted and not started; Android is out |
+| Area             | Wanted                                                                                                                                        | State                                                                                                                                                                                                                                                                                                                                                                |
+| :--------------- | :-------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2D/3D renderer   | animation, particles, atmosphere, liquids, opacity, reflections, dynamic LOD, eye adaptation                                                  | `[~]` animation, particles, fog, glass, terrain and mesh LOD, eye adaptation, light shafts, aerial perspective and motion blur exist; volumetrics, liquids and reflections missing                                                                                                                                                                                   |
+| Post processing  | a composable chain                                                                                                                            | `[x]` occlusion, ink, depth of field, FXAA, grade, bloom, speed lines, HDR output                                                                                                                                                                                                                                                                                    |
+| Graphics options | antialiasing, motion blur, fov, ... toggleable                                                                                                | `[x]` MSAA, FXAA, shadows, post passes, fov and render scale are player settings, and 37 feature switches cover everything else including culling, sorting and the depth test                                                                                                                                                                                        |
+| Renderer debug   | physics hitboxes and other debug views                                                                                                        | `[~]` buffer views exist; physics shapes missing                                                                                                                                                                                                                                                                                                                     |
+| Audio            | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing                                                             | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's)                                                                                                                              |
+| UI               | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns that float, radio, tabs, draggable and resizable windows with title bar chrome, tables, charts, icons, opacity groups, scrolling, and tab/shift-tab focus for a terminal that has no pointer. Open: a node editor, SVG, the code editor widget |
+| Core             | events, entities, input, settings, cache, ... solid                                                                                           | `[x]` one system registry drives frame, tick and render for engine and game, with runtime enable/disable and per-owner accounting, and its entries are callback handles with copied names, so a system registered from a reloaded image survives the reload. Scenes and settings persist through reflection                                                          |
+| Pipelines        | build, assets, reflection                                                                                                                     | `[x]`                                                                                                                                                                                                                                                                                                                                                                |
+| Hot reload       | assets, code, configuration                                                                                                                   | `[x]`                                                                                                                                                                                                                                                                                                                                                                |
+| Tracing          | time and memory per feature (shadows, antialiasing, particles, ...)                                                                           | `[~]` CPU spans, GPU allocation counters, and per-system and per-owner time and memory from the registry; per renderer feature attribution missing                                                                                                                                                                                                                   |
+| CI/CD            | tests and builds with caching                                                                                                                 | `[x]` green on Linux and Windows. `./build dist` stages every target, the changelog is generated, secrets are sops encrypted                                                                                                                                                                                                                                         |
+| Crash reporting  | one funnel, a window a player can act on, everything a triage needs in it                                                                     | `[~]` log ring, composed report (crash, build, machine, stack, log), its own SDL window with close, copy and send, and a file under the log directory. Open: a transport behind `nya_crash_report_submit`, and a window on the fault path (SDL from a signal handler can deadlock)                                                                                   |
+| Anti-tamper      | integrity checks like the CRC                                                                                                                 | `[x]` executable stamp, chunked code baseline and a sweep every 250 ms, per blob entry hashes, a watchdog at two inlined sites; failure logs and exits 86                                                                                                                                                                                                            |
+| Networking       | attack and cheat resistant, optional end to end public key encryption                                                                         | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders                                                                                                                                                                                          |
+| Web server       | an HTTP server, middleware, typed DTOs, generated OpenAPI                                                                                     | `[~]` `src/nyangine/http/`: router per resource, layer chain, identity extractor, JWT over HMAC-SHA256, OpenAPI and a page generated from the route tables, a metrics resource over the app's own numbers. Open: a login route, and the PGP half of the second factor                                                                                                |
+| Targets          | Linux, Windows, Steam Linux, Steam Windows                                                                                                    | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). A terminal is now a fifth target through `-DNYA_TERMINAL`, verified on Linux only. Web is wanted and not started; Android is out                                                                                                                                                      |
 
 # Unmerged work
 
@@ -89,7 +89,7 @@ on the stack and all of them are now either landed or dead.
   and never did. What it contains is the argument for why that cannot be done, and the argument is right:
   `nya_reflect_to_object` hands `field->name` straight to `nya_object_set` as the document key and writes an
   enum as its variant's name, so hashing the names in a release build hashes the keys of every settings file,
-  every save and `assets/config/engine.nya`. Hashing only the *lookup* key does not help, because the lookup
+  every save and `assets/config/engine.nya`. Hashing only the _lookup_ key does not help, because the lookup
   key and the written key are the same string. That reasoning is in `base_reflection.h` now, with the sizes
   measured on this tree (6220 bytes of names, 1339 of them type names). The rest of the stash is a better
   report for an unknown key, which now lists the keys rather than naming the type, and two settings tests.
@@ -139,7 +139,7 @@ In scope, deliberately: not only a server, but the client too.
   compared whole. The PGP second factor is half done: the challenge is real and stateless, the signature check
   is a seam (`nya_http_second_factor_set`) and a route that needs one with no verifier installed answers 501.
   An OpenPGP parser is its own piece of work and does not belong inside an HTTP server.
-- `[ ]` A login route. There is no way to *get* a token over HTTP yet, only to present one; tokens are minted
+- `[ ]` A login route. There is no way to _get_ a token over HTTP yet, only to present one; tokens are minted
   in-process with `nya_http_jwt_encode`. That wants a user store, which nothing here has.
 - `[ ]` Compile to web: a bundle of HTML, CSS, JS and wasm. WebGPU where it exists, a canvas backend otherwise.
 - `[ ]` A UI backend that emits HTML, CSS and JS from the same `nya_ui_*` calls the native backend draws, ahead
@@ -169,7 +169,6 @@ In scope, deliberately: not only a server, but the client too.
 - `[x]` A TUI stands up the callback, event and input systems and no more. Two things it has to do itself:
   dispatch `NYA_EVENT_UPDATING_ENDED` once a frame, or the input system never rolls its just-pressed edges, and
   size everything in whole cells, or a size lands between two and the cell it rounds to is nobody's choice.
-- `[ ]` Nothing wraps `gh` yet, which was the motivating case.
 - `[ ]` Layers are recorded here and sort nothing, so two overlapping top level panels are hit tested by the
   stack and drawn in call order: a TUI puts its panels beside each other until there is a sorted cell buffer.
 - `[ ]` The Windows half (`terminal_windows.c`) is written against the console's virtual terminal modes and has
@@ -187,11 +186,6 @@ In scope, deliberately: not only a server, but the client too.
 - `[x]` An outgoing REST client exists (`plugins/curl/request.h`) but nothing calls it.
 - `[x]` An HTTP server with OpenAPI generated from the handlers; see "Web" above. Its first resource is this
   program's own metrics, which `gnyame` serves when `GNYAME_WEB_PORT` names a port.
-
-## `[ ]` ruey
-
-`~/projects/ruey`, a Twitch client with integrations, gets rewritten into nyangine later. The WebSocket client,
-the terminal backend and the HTTP server all exist now, so it is startable.
 
 ---
 
@@ -235,7 +229,7 @@ and can do anything the program can.
 - `[x]` A permission system the game fixes **once, at compile time**: `-DNYA_PLUGIN_PERMISSION_PROFILE`, four
   profiles, refused at load with a line naming each permission the manifest asked for and did not get.
   Enforcement is which bindings exist in the VM: a denied call is a name that was never registered, not a call
-  that refuses. Read PERMISSIONS in `core_plugin.h` for what that does *not* guarantee — no instruction
+  that refuses. Read PERMISSIONS in `core_plugin.h` for what that does _not_ guarantee — no instruction
   budget, no heap ceiling, no signature, permission granularity rather than object granularity.
 - `[~]` Users can enable and disable engine systems and load their own assets. `nya_plugin_enable`/`_disable`
   and `nya_system_enable`/`_disable` are there; nothing in the UI drives them, and a plugin's `assets/` is not
@@ -245,11 +239,11 @@ and can do anything the program can.
 
 Modes, restated so they stop drifting:
 
-| Mode | Meaning |
-| :--- | :--- |
-| `debug` | Something is wrong in the code; find it. Sanitizers on. |
-| `dev` | Ordinary development. Sanitizers off. |
-| `release` | What users get. Optimized. |
+| Mode      | Meaning                                                 |
+| :-------- | :------------------------------------------------------ |
+| `debug`   | Something is wrong in the code; find it. Sanitizers on. |
+| `dev`     | Ordinary development. Sanitizers off.                   |
+| `release` | What users get. Optimized.                              |
 
 `debug` and `dev` both use filesystem assets with hot reload, and both produce perf data. `release` has
 submodes: plain release is native, `steam` is release through Steam, and flatpak, pacman, AUR, scoop and nix are
@@ -457,16 +451,6 @@ the packager ones.
   panel with one row per `NYA_RenderFeature`, cycling auto/on/off into `engine.renderer.features`, which
   `gny_config_renderer_apply` already feeds to `nya_render_features_set` every frame. Until now only a config
   file edit reached those 28 switches.
-
-## `[?]` Nyangine as a dependency
-
-Open question, deliberately unanswered for now. When a project uses nyangine and the engine changes, how do the
-patches move across? A submodule does not obviously work, because the engine and the game are deeply
-integrated — and splitting them is not wanted. Decision deferred until there is a second real project.
-
-## `[⏭]` Android
-
-Out of scope. Nothing android-related is planned or listed.
 
 ---
 
@@ -728,12 +712,12 @@ of transfer buffers, now 7 KB.
 
 Two cascades plus the camera pass by default, all drawing one upload. Before that change:
 
-| Symbol                        | Share | Note                           |
-| :---------------------------- | ----: | :----------------------------- |
-| `VULKAN_UploadToBuffer`       |  2.4% | four uploads of the same data  |
-| `_nya_render2d_quad`          |  1.6% |                                |
-| `nya_render2d_text_with_font` |  1.2% | shaping per string per frame   |
-| `nya_render3d_quad`           |  1.2% |                                |
+| Symbol                        | Share | Note                          |
+| :---------------------------- | ----: | :---------------------------- |
+| `VULKAN_UploadToBuffer`       |  2.4% | four uploads of the same data |
+| `_nya_render2d_quad`          |  1.6% |                               |
+| `nya_render2d_text_with_font` |  1.2% | shaping per string per frame  |
+| `nya_render3d_quad`           |  1.2% |                               |
 
 Done: `nya_render3d_sphere` draws a registered unit sphere, the shadow pass no longer sorts, terrain
 physics is a heightfield.
@@ -782,13 +766,13 @@ Linux release 21.5 to 11.5 MB, Windows 23.6 to 10.8 MB, with every plugin still 
 
 From `nm --size-sort -S` on the release binary. `.bss` went from 2.45 MB to 0.77 MB.
 
-| Object                                | Size         |                                          |
-| :------------------------------------ | -----------: | :--------------------------------------- |
-| `NYA_ASSET_BLOB`                      | 2.4 MB       | `.rodata`, LZ4 per entry                 |
-| `b3_worlds` / `b2_worlds`             | 37 + 21 KB   | 8 worlds each via the vendor rules (was 596 + 344 KB) |
-| `_nya_audio_system`                   | 3.6 KB       | reverb lines allocated per bus on first use (was 446 KB) |
-| `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` | 4 + 3 KB     | replica map only for remote clients, peers per used slot |
-| `dphaseTable` / `tllTable`            | 256 + 128 KB | vendored audio decoder tables            |
+| Object                                |         Size |                                                          |
+| :------------------------------------ | -----------: | :------------------------------------------------------- |
+| `NYA_ASSET_BLOB`                      |       2.4 MB | `.rodata`, LZ4 per entry                                 |
+| `b3_worlds` / `b2_worlds`             |   37 + 21 KB | 8 worlds each via the vendor rules (was 596 + 344 KB)    |
+| `_nya_audio_system`                   |       3.6 KB | reverb lines allocated per bus on first use (was 446 KB) |
+| `_NYA_NET_CLIENT` / `_NYA_NET_SERVER` |     4 + 3 KB | replica map only for remote clients, peers per used slot |
+| `dphaseTable` / `tllTable`            | 256 + 128 KB | vendored audio decoder tables                            |
 
 Release RSS: 2D game 72.2 to 66.8 MiB, 3D demo 77.9 to 72.5 MiB. The entity table reserves address space and
 commits 256 slots (172 KB) at a time as spawning reaches them, instead of 5.25 MiB zeroed at startup; spawn
@@ -804,10 +788,10 @@ chain holds its second target, single sampled without depth, only while two or m
 
 `gpu_textures` at 1280x720, debug, by sample count 1 / 2 / 4 / 8:
 
-| Scene    |    1 |    2 |    4 |     8 |
-| :------- | ---: | ---: | ---: | ----: |
-| 2D game  |  7.1 | 24.7 | 45.8 |  88.0 |
-| 3D demo  | 40.2 | 61.3 | 89.4 | 145.6 |
+| Scene   |    1 |    2 |    4 |     8 |
+| :------ | ---: | ---: | ---: | ----: |
+| 2D game |  7.1 | 24.7 | 45.8 |  88.0 |
+| 3D demo | 40.2 | 61.3 | 89.4 | 145.6 |
 
 At 4x this was 77.5 and 107.0 MiB before. The debug overlay's `gpu_textures`, `gpu_buffers` and
 `gpu_transfer` rows count what SDL is asked for, not the driver's pages.
@@ -912,10 +896,6 @@ frame times. Release: pause menu draw about 0.02 ms and 20 draw calls, input pas
 - `[ ]` No multi-line text field, and no navigation into an open dropdown with the keys alone.
 - `[ ]` The German key hint line runs past a 1280 wide window.
 
-## `[ ]` Editor
-
-`src/nyangine/editor/editor.c` and `.h` are empty.
-
 ## `[~]` Packaging and distribution
 
 `packaging/` holds an AUR `gnyame-bin` package, a Flatpak manifest wrapping the release tarball, winget and
@@ -950,6 +930,7 @@ frame. No SteamStub DRM wrapper: it rewrites the exe, breaking the integrity CRC
 - `[ ]` None of it has run against a real Steam client. It is tested against a fake implementation of the
   transport interface, which proves the shape and nothing about Valve's behaviour.
 - `[ ]` A real depot upload has not been exercised.
+
 ## `[~]` CI
 
 First fully green run on 2026-09-17 (Linux and Windows: vendors, check, tests, builds). A push cancels the
@@ -967,14 +948,15 @@ build jobs restore it.
   before including the engine or name a `_nya_`/`_NYA_` identifier: 82 of 163 share it. Measured on the
   8 thread dev machine, other builds running beside it:
 
-  | Command                       | Before | Split, no cache | ccache cold | ccache warm |
-  | :---------------------------- | -----: | --------------: | ----------: | ----------: |
-  | `./build run test`            |  106 s |            73 s |       123 s |        27 s |
-  | `./build build debug-linux`   |        |                 |       5.0 s |       1.6 s |
-  | `./build build release`       |        |                 |      18.8 s |      12.7 s |
+  | Command                     | Before | Split, no cache | ccache cold | ccache warm |
+  | :-------------------------- | -----: | --------------: | ----------: | ----------: |
+  | `./build run test`          |  106 s |            73 s |       123 s |        27 s |
+  | `./build build debug-linux` |        |                 |       5.0 s |       1.6 s |
+  | `./build build release`     |        |                 |      18.8 s |      12.7 s |
 
   Warm, the 27 s is about 19 s of running tests one at a time and the links. Release stays slow warm
   because both executables are LTO, and LTO codegen happens in the link.
+
 - Compile commands no longer carry the commit hash, so a new commit gets 170 of 170 direct ccache hits
   and a 27 s warm test run (was preprocessed hits and 42 s).
 - The shared engine scan lexes the engine headers and shares the engine when every `_nya_`/`_NYA_` name a
@@ -1019,8 +1001,7 @@ doing the opposite, which is what made it hard to see.
 
 A kinematic body has to be given its velocity and left to the solver, which integrates it and carries
 the contact. Measured both ways over the same path at the same speed: a paddle sweeping at 6 m/s into a
-ball with 0.35 restitution sends it off at 8.1 m/s, and the same paddle teleported leaves it at exactly
-0. That pair is a test now, because the difference is invisible in a screenshot and the wrong one looks
+ball with 0.35 restitution sends it off at 8.1 m/s, and the same paddle teleported leaves it at exactly 0. That pair is a test now, because the difference is invisible in a screenshot and the wrong one looks
 like a physics tuning problem rather than a wrong call.
 
 The general rule: teleport is for putting something somewhere, never for moving it. Anything that has to
@@ -1071,14 +1052,14 @@ zero that is `~0 + 1`, an unsigned overflow back to zero: the right answer by un
 "-0" until an HTTP body did.
 
 The fix is to stop negating through unsigned arithmetic. `S128_MIN` is the one value with no positive
-counterpart, so it is *built* rather than negated into; everything else is known to fit `s128` by the
+counterpart, so it is _built_ rather than negated into; everything else is known to fit `s128` by the
 limit check above it and negates as a signed value. Found by AFL on `fuzz_http_request` at 1.5 million
 executions, reached through serde's JSON numbers, and kept as a regression input.
 
 ### An idle timeout that reads the clock before the work measures the wrong interval
 
 The HTTP drain read the monotonic clock once at the top of the tick and compared it against each
-connection's last-activity stamp. Receiving stamps the connection with a *fresh* reading, so on any
+connection's last-activity stamp. Receiving stamps the connection with a _fresh_ reading, so on any
 connection that had just been read from, the subtraction was "earlier minus later" on two unsigned
 times: an enormous number, and an immediate drop of a perfectly healthy peer.
 

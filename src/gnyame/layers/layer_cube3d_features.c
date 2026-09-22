@@ -32,8 +32,8 @@ NYA_INTERNAL void _gny_cube3d_feature_column(NYA_UI* ui, NYA_Window* window, NYA
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window) {
-    nya_assert(ui != nullptr && window != nullptr);
+void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window, b8* show_hitboxes) {
+    nya_assert(ui != nullptr && window != nullptr && show_hitboxes != nullptr);
 
     NYA_UIPanel panel = {
         .anchor    = NYA_UI_ANCHOR_RIGHT,
@@ -57,6 +57,13 @@ void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window) {
 
         nya_ui_panel_end(ui);
     }
+
+    /*
+     * Not one of the rows above, and deliberately below them: the switches are the renderer's, read
+     * from the config every frame, and this one is the scene's own. It draws what the solver holds
+     * rather than changing how anything is rendered.
+     */
+    (void)nya_ui_toggle(ui, nya_string_cube3d_hitboxes(), show_hitboxes);
 
     // nothing to put back while every switch is already on default.
     NYA_RenderToggle* switches = (NYA_RenderToggle*)&NYA_CONFIG.engine.renderer.features;

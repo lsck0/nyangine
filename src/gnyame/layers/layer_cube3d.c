@@ -1136,6 +1136,13 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
 
     nya_fluid_draw(window, scene->plume);
 
+    /*
+     * Last inside the scene, so the shapes sit over everything they belong to. The stones, the cubes,
+     * the pill and the terrain all have bodies, and the terrain's heightfield is the one this does not
+     * draw; see debug_physics.h.
+     */
+    if (scene->show_hitboxes) (void)nya_debug_physics3d_draw(window);
+
     nya_render3d_end(window);
 }
 
@@ -1232,7 +1239,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
         nya_ui_panel_end(ui);
     }
 
-    if (scene->features_open) gny_layer_cube3d_features_draw(ui, window);
+    if (scene->features_open) gny_layer_cube3d_features_draw(ui, window, &scene->show_hitboxes);
 
     nya_ui_end(ui);
 

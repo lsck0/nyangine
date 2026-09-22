@@ -4815,6 +4815,23 @@ f32 nya_debug_frame_time_average_ms(void)  // Average milliseconds of work per f
 f32 nya_debug_frame_time_worst_ms(void)  // Milliseconds the worst observed frame took, over the same window.
 ```
 
+### debug_physics.h
+
+The collision shapes, drawn over the scene they belong to.
+
+```c
+// macros
+NYA_DEBUG_PHYSICS_COLOR_STATIC ((NYA_Color){ 0.20F, 0.90F, 0.35F, 0.85F })  // Green for static, blue for kinematic, yellow for dynamic.
+NYA_DEBUG_PHYSICS_COLOR_KINEMATIC ((NYA_Color){ 0.30F, 0.60F, 1.00F, 0.85F })
+NYA_DEBUG_PHYSICS_COLOR_DYNAMIC ((NYA_Color){ 1.00F, 0.85F, 0.20F, 0.85F })
+NYA_DEBUG_PHYSICS_ASLEEP_ALPHA 0.33F  // How much of the alpha a sleeping body keeps.
+NYA_DEBUG_PHYSICS_CIRCLE_SEGMENTS 12  // Segments in a debug circle.
+
+// functions
+u32 nya_debug_physics3d_draw(NYA_Window* window)  // Draws every 3D collision shape in the current world.
+u32 nya_debug_physics2d_draw(NYA_Window* window)  // Draws every 2D collision shape in the current world, in world units.
+```
+
 ### debug_trace.h
 
 ```c
