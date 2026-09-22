@@ -292,5 +292,71 @@ s32 main(void) {
     }
   }
 
-  return 0;
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: every sampled width, including the four nothing had ever called
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * s8, s16, s64 and f16 had no caller anywhere in the tree, and u16 had one. They are each a cast
+     * and a clamp over nya_rng_sample_f64, so what can be wrong with them is the clamp: the wrong
+     * bound, or a bound of the wrong sign. That is invisible until someone asks for a negative.
+     *
+     * A range wider than the type on purpose, so the clamp is what decides the answer rather than the
+     * distribution never reaching the edges.
+     */
+    NYA_RNG width_rng = nya_rng_create(.seed = "D7150000000BEEF5");
+
+    const NYA_RNGDistribution wide = {
+      .type    = NYA_RNG_DISTRIBUTION_UNIFORM,
+      .uniform = { .min = -1e9, .max = 1e9 },
+    };
+
+    b8 saw_negative_s8  = false;
+    b8 saw_negative_s16 = false;
+    b8 saw_negative_s64 = false;
+    b8 saw_negative_f16 = false;
+
+    for (u32 i = 0; i < 4096; i++) {
+      const s8  a = nya_rng_sample_s8(&width_rng, wide);
+      const s16 b = nya_rng_sample_s16(&width_rng, wide);
+      const s64 c = nya_rng_sample_s64(&width_rng, wide);
+      const f16 d = nya_rng_sample_f16(&width_rng, wide);
+
+      // The clamp has to land inside the type, or the cast that follows it is undefined.
+      nya_assert(a >= S8_MIN && a <= S8_MAX, "s8 sample out of range");
+      nya_assert(b >= S16_MIN && b <= S16_MAX, "s16 sample out of range");
+      nya_assert((f32)d >= (f32)F16_MIN && (f32)d <= (f32)F16_MAX, "f16 sample out of range");
+
+      saw_negative_s8  = saw_negative_s8 || a < 0;
+      saw_negative_s16 = saw_negative_s16 || b < 0;
+      saw_negative_s64 = saw_negative_s64 || c < 0;
+      saw_negative_f16 = saw_negative_f16 || (f32)d < 0.0F;
+    }
+
+    /*
+     * The half that would go unnoticed. F16_MIN here is -65504, the most negative half, and not the C
+     * library's FLT_MIN convention of the smallest positive normal — clamping to that convention would
+     * push every negative sample up to a tiny positive one and the generator would silently never
+     * return a negative number again.
+     */
+    nya_check(saw_negative_s8, "s8 sampling reaches negative numbers");
+    nya_check(saw_negative_s16, "s16 sampling reaches negative numbers");
+    nya_check(saw_negative_s64, "s64 sampling reaches negative numbers");
+    nya_check(saw_negative_f16, "f16 sampling reaches negative numbers");
+
+    // And the unsigned widths, which cannot be negative and must not wrap into something huge.
+    for (u32 i = 0; i < 1024; i++) {
+      const NYA_RNGDistribution small = {
+        .type    = NYA_RNG_DISTRIBUTION_UNIFORM,
+        .uniform = { .min = 0.0, .max = 255.0 },
+      };
+
+      nya_assert(nya_rng_sample_u8(&width_rng, small) <= U8_MAX, "u8 sample out of range");
+      nya_assert(nya_rng_sample_u16(&width_rng, small) <= 255, "u16 sample out of its asked range");
+    }
+
+    printf("  PASSED\n");
+  }
+
+  return nya_check_failures() == 0 ? 0 : 1;
 }
