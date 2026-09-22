@@ -73,6 +73,14 @@ u32 nya_debug_physics3d_draw(NYA_Window* window) {
 
     u32 drawn = 0;
 
+    /*
+     * Over the scene rather than in it: a box's outline lies on the faces of the crate it belongs to and
+     * would lose the depth test to them half the time. Handed back as found, since the mode outlives the
+     * frame and a caller already drawing overlays wants to stay there.
+     */
+    NYA_Render3DDepth depth_before = nya_render3d_depth(window);
+    nya_render3d_depth_set(window, NYA_RENDER3D_DEPTH_OVERLAY);
+
     nya_entity_foreach (entity) {
         if (!entity->physics3d.attached) continue;
 
@@ -123,6 +131,8 @@ u32 nya_debug_physics3d_draw(NYA_Window* window) {
             default: break;
         }
     }
+
+    nya_render3d_depth_set(window, depth_before);
 
     return drawn;
 }

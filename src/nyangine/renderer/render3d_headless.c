@@ -203,6 +203,19 @@ void nya_render3d_blend_set(NYA_Window* window, NYA_Render3DBlend blend) {
     nya_unused(window, blend);
 }
 
+// stored, like the light: a caller that switches to the overlay and back is testable only if the mode reads back.
+void nya_render3d_depth_set(NYA_Window* window, NYA_Render3DDepth depth) {
+    nya_assert(window != nullptr);
+
+    window->render_system.mesh_batch.depth = depth;
+}
+
+NYA_Render3DDepth nya_render3d_depth(NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    return window->render_system.mesh_batch.depth;
+}
+
 // Real rather than stubbed, both of them: the culling path is CPU only and a headless test is the
 // only place it can be driven without a GPU. See render_occlusion.h.
 void nya_render3d_occlusion(NYA_Window* window, const NYA_OcclusionBuffer* buffer) {

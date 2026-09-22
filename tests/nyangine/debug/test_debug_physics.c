@@ -127,6 +127,30 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the hitboxes go over the scene, and the scene gets its depth mode back
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_EntityHandle box = nya_entity_spawn(.name = "box", .position = { 0.0F, 0.0F, 0.0F });
+    nya_assert(nya_physics3d_body_attach(box, .type = NYA_PHYSICS_BODY_STATIC, .shape = NYA_PHYSICS3D_SHAPE_BOX, .size = { 1.0F, 1.0F, 1.0F }));
+
+    // the mode outlives nya_render3d_end, so an overlay left switched on would float the next frame's
+    // world over itself.
+    nya_render3d_depth_set(window, NYA_RENDER3D_DEPTH_DEFAULT);
+    nya_check(drawn_3d(window) == 1, "the box is drawn");
+    nya_check(nya_render3d_depth(window) == NYA_RENDER3D_DEPTH_DEFAULT, "and the world after it is depth tested again");
+
+    // a caller already drawing overlays stays in them.
+    nya_render3d_depth_set(window, NYA_RENDER3D_DEPTH_OVERLAY);
+    nya_check(drawn_3d(window) == 1, "the box is drawn from inside an overlay");
+    nya_check(nya_render3d_depth(window) == NYA_RENDER3D_DEPTH_OVERLAY, "and the overlay is left as it was found");
+
+    nya_render3d_depth_set(window, NYA_RENDER3D_DEPTH_DEFAULT);
+    nya_entity_despawn(box);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: the 2D overlay walks the 2D solver's bodies and nobody else's
   // ─────────────────────────────────────────────────────────────────────────────
   {
