@@ -39,6 +39,10 @@ struct _NYA_NetLoopbackEndpoint {
     b8 connect_pending;
     b8 connected;
 
+    /** The far end let go, and why. Reported once the messages it sent before that have been polled. */
+    b8                disconnect_pending;
+    NYA_NetDisconnect disconnect_reason;
+
     NYA_NetPeerStats stats;
 };
 
@@ -165,7 +169,15 @@ b8 _nya_net_loopback_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent
         return true;
     }
 
-    if (endpoint->inbox->length == 0) return false;
+    // what the far end sent before it let go comes first, as it would off a wire, and then the disconnect.
+    if (endpoint->inbox->length == 0) {
+        if (!endpoint->disconnect_pending) return false;
+
+        endpoint->disconnect_pending = false;
+        *out_event = (NYA_NetTransportEvent){ .kind = NYA_NET_TRANSPORT_EVENT_DISCONNECTED, .peer = _NYA_NET_LOOPBACK_PEER, .reason = endpoint->disconnect_reason };
+
+        return true;
+    }
 
     _NYA_NetLoopbackMessage message = endpoint->inbox->items[0];
     nya_array_remove(endpoint->inbox, 0);
@@ -196,19 +208,21 @@ b8 _nya_net_loopback_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent
 }
 
 void _nya_net_loopback_disconnect(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason) {
-    nya_unused(peer, reason);
+    nya_unused(peer);
+    nya_assert((u32)reason < NYA_NET_DISCONNECT_COUNT);
 
     _NYA_NetLoopbackEndpoint* endpoint = transport->state;
 
     endpoint->connected       = false;
     endpoint->connect_pending = false;
 
-    // The far end learns about it the same way a socket peer would: as an event on its next poll.
-    // Written directly rather than through its inbox because a disconnect is not a message, and
-    // queueing it behind whatever is already there would deliver it after data from a dead peer.
-    if (endpoint->other != nullptr) {
-        endpoint->other->connected       = false;
-        endpoint->other->connect_pending = false;
+    // the far end learns about it the way a socket peer would: as a DISCONNECTED event with the reason, after
+    // whatever was already sent to it. It never did before, so a client on a listen server was not told.
+    if (endpoint->other != nullptr && (endpoint->other->connected || endpoint->other->connect_pending)) {
+        endpoint->other->connected          = false;
+        endpoint->other->connect_pending    = false;
+        endpoint->other->disconnect_pending = true;
+        endpoint->other->disconnect_reason  = reason;
     }
 }
 

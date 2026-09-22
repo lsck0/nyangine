@@ -205,6 +205,21 @@ s32 main(void) {
     u64 used_after = nya_arena_stats(arena).used_bytes;
     nya_assert(used_after <= used_before + sizeof(payload), "the arena grew from " FMTu64 " to " FMTu64 " bytes", used_before, used_after);
 
+    // a disconnect reaches the far end with its reason, after what was sent before it, as it would off a wire.
+    NYA_EXPECT(nya_net_transport_send(a, ca.last_peer, NYA_NET_CHANNEL_RELIABLE, payload, sizeof(payload)));
+    nya_net_transport_disconnect(a, ca.last_peer, NYA_NET_DISCONNECT_CHEATING);
+
+    NYA_NetTransportEvent last  = { 0 };
+    NYA_NetTransportEvent event = { 0 };
+    u32                   seen  = 0;
+    while (nya_net_transport_poll(b, &event)) {
+      nya_assert(seen == 0 || last.kind != NYA_NET_TRANSPORT_EVENT_DISCONNECTED, "nothing arrives after the disconnect");
+      last = event;
+      seen++;
+    }
+    nya_assert(seen == 2 && last.kind == NYA_NET_TRANSPORT_EVENT_DISCONNECTED, "the message and then the disconnect, got %u events", seen);
+    nya_assert(last.reason == NYA_NET_DISCONNECT_CHEATING, "with the reason it was given, got %d", (int)last.reason);
+
     nya_net_transport_destroy(a);
     nya_net_transport_destroy(b);
   }
