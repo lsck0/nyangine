@@ -346,8 +346,11 @@ The refactor the rest stands on. Behaviour does not change; the include graph an
   down into `base_compare.h` and the vector and matrix array derivations up into math. Platform: an `os` layer
   below `base` (see "Where base gets pages, time and files" under Decisions) now holds the syscalls, and the
   file system, commands and clocks came down into `base` on top of it, so the `base -> platform` allowance is
-  deleted rather than lowered. Left in this item: the ceiling registry moves from `core` into `base`, since it
-  is introspection and `base` already calls it under `NYA_NO_SDL` guards.
+  deleted rather than lowered. The ceiling registry moved too: all of it, since every function in it is a
+  registry over a name, a bound and a borrowed counter, and `base_arena.c`, `base_cache.c` and `base_logging.c`
+  were already reaching up for it. It is `base/base_ceiling.*` now, the `NYA_NO_SDL` guards around those calls
+  are gone because there is nothing left to guard, and the build tool keeps its own ceilings as a result. The
+  `http -> core` allowance fell from 2 to 1 with it.
 - `[ ]` Threads (`core_job.c` uses `SDL_thread`) and sockets (`net_udp.c` and `http_server.c` use SDL_net) move
   into `os`, one file per target, with whatever wants an arena or an `NYA_Error` on top of them in `base` — the
   shape the file system, commands and clocks already have. SDL_net leaves the vendor list, which also means one
@@ -643,7 +646,12 @@ logged-in user.
   the per address connection cap at accept, and a token bucket per address in the server (64 tracked, the
   stalest evicted) answering 429 with Retry-After. Missing: the login bucket with backoff (waits for the
   login route) and the trusted proxy address.
-- `[ ]` **Second factor: TOTP through authenticator apps.** It lands first, and it needs no new dependency.
+- `[~]` **Second factor: TOTP through authenticator apps.** It lands first, and it needs no new dependency.
+  Landed 2026-09-22: `crypto/crypto_totp.*` is the primitive (counter to six digits) and `http/http_totp.*` the
+  enrolment, the verification, the replay guard and the per account limit, with `examples/web_server/` holding
+  the secret and the guard since there is no user store yet. Proven against RFC 4226 appendix D and all six
+  RFC 6238 SHA-1 rows. Missing: the QR encoder (the URI is text only), disable and reissue, the constant time
+  response padding, and the per address limit on the login route that does not exist yet.
   - RFC 6238 with the parameters every app accepts: HMAC-SHA1, 6 digits, a 30 second step, and a 160 bit
     secret from the CSPRNG. Proven against the RFC's published vectors.
   - Enrolment in two steps, like the template: the server shows an `otpauth://totp/<issuer>:<user>?secret=...`
@@ -678,12 +686,26 @@ logged-in user.
   shut, `nosniff`, `no-referrer`, COOP, COEP and CORP. A response that sets a header of the same name replaces
   the default; `/docs` does, naming its one style block by SHA-256, and `test_server` checks the hash against
   the page it serves. Left: HSTS, which waits for TLS, and generating the policy for the static web bundle.
-- `[ ]` A WebSocket server in `http`, sharing one frame codec with the curl client rather than a second copy.
-  It is the live channel for the web client and the transport for browser multiplayer.
-- `[ ]` Static serving of the web bundle: content hashed names, immutable caching, ETags, precompressed at build.
+- `[~]` A WebSocket server in `http`, sharing one frame codec with the curl client rather than a second copy.
+  It is the live channel for the web client and the transport for browser multiplayer. Landed 2026-09-22:
+  `http/http_websocket.*` is the RFC 6455 wire format for both ends, the curl plugin includes it and lost ~350
+  lines, and `http/http_websocket_server.*` runs the upgrade and the sockets on the listener that was already
+  there. The upgrade spends a rate limit token, keeps its connection slot and per address cap, and goes through
+  the cross site check — which it did not before, since the router only applied that to unsafe methods and an
+  upgrade is a GET. Fuzzed with 34 committed inputs, where a decoded header must re-encode byte for byte and
+  the same bytes fed whole and one at a time must end in the same state. Missing: permessage-deflate and every
+  extension, subprotocol negotiation, sending a message in fragments, authentication on a stream, and 426 for a
+  bad version (it answers 400 with the version in the problem body, since the status enum has no 426).
+- `[~]` Static serving of the web bundle: content hashed names, immutable caching, ETags, precompressed at build.
   HTML, CSS and JS are assets like any other (set 2026-09-22): they go through the asset system, so they get
   its handles, its hot reload in development and its baked blob in a release, and the server serves them from
-  there. No second pipeline for web files.
+  there. No second pipeline for web files. Landed 2026-09-22 as `http/http_static.*`: one exact route per file
+  and no path resolution anywhere, so a request either is a mounted string or it is a 404 and there is no root
+  to escape. SHA-256 at mount spells both the hashed name and the ETag, `If-None-Match` answers 304, and the
+  caller reads the bytes through `nya_asset_read` so `http` does not grow an edge into `core`. Missing: gzip or
+  brotli, which needs a vendored compressor a browser can decode — LZ4 is not one, so nothing sets
+  `Content-Encoding` and nothing sets `Vary`. No ranges, no `Last-Modified`, and a mount is a snapshot rather
+  than hot reloaded, because the hash has to describe the bytes going out.
 - `[ ]` TLS in process: mbedTLS vendored and wrapped in `http`, TLS 1.3 first and 1.2 as the floor, certificate
   and key from files named in config and hot reloaded on change. A handshake is fuzzed like the request parser.
   Plain HTTP is loopback only, and on a public address it only redirects to HTTPS. The server never sets a
@@ -704,7 +726,17 @@ C compiled to wasm, the same headers as the server, no HTML, CSS or JS written b
   See "Decisions" for the probe.
 - `[ ]` `platform/web`: clock, CSPRNG, storage (OPFS), `fetch`, WebSocket, input events, clipboard. The same
   interfaces as `platform/linux`.
-- `[ ]` The UI's presenter seam. Today `ui_draw.c` is the only file naming a primitive, which is exactly right
+- `[~]` The UI's presenter seam. Landed 2026-09-22: `ui/ui_present.h` is the interface, `ui_present_shape.c`
+  today's drawing behind it, and `ui_present_record.c` a presenter that draws nothing and keeps the widget
+  stream, reachable from gnyame on one key and used by the tests to drive a UI with no font and no GPU.
+  Dispatch is one indirect call per widget, never per glyph, and the twenty widget kinds go through one switch
+  so a new kind is a `-Wswitch` error rather than a null pointer. The claim below was false when it was
+  written: `ui_widgets.c`, `ui_layout.c`, `ui_text.c` and `ui_window.c` held about sixty direct
+  `nya_render2d_*`/`nya_font_*` calls, all now behind the seam, and `NYA_Font` left the module. Left before a
+  DOM presenter: the UI still hit tests the pointer itself, so a presenter cannot report an activation; there
+  is no per pass retire for an element that stopped being declared; and text is measured synchronously rather
+  than placed by the backend. The original entry, kept because its four backend rule still stands:
+  Today `ui_draw.c` is the only file naming a primitive, which is exactly right
   for GPU and terminal, but a DOM presenter needs widgets, not shapes. The widget model and layout stay one; a
   presenter receives widgets and either draws them (shapes) or keeps a DOM in step with them. Native and terminal
   go through the shape presenter unchanged. **One widget, four backends** (set 2026-09-22): the same `nya_ui_*`
@@ -1261,12 +1293,25 @@ the packager ones.
 
   Measured rather than assumed: three full parallel suite runs, both green in all three, 230 of 230 each
   time.
-- `[ ]` `test_attack` failed once in a full suite run on 2026-09-22, at "an over-length fragment inside a
-  legal sealed datagram is refused": the server held no peer afterwards. It passed the rerun and 8 of 8
-  runs alone, with two other checkouts running their suites on the same machine at the time. No warning
-  was logged, so the peer went by a path that removes silently or by the timeout. Unreproduced. A parallel
-  checkout saw the same failure while another `test_attack` held UDP port 48100, so two suites on one machine
-  crossing ports is the likely cause; the test range should come from the OS (port 0) rather than a scan.
+- `[x]` `test_attack` failed once in a full suite run on 2026-09-22, at "an over-length fragment inside a
+  legal sealed datagram is refused": the server held no peer afterwards. Two suites on one machine were
+  crossing ports — a parallel checkout saw the same failure while another `test_attack` held UDP port 48100.
+  Fixed in its shape: every net and http test binds port zero and reads back what the kernel gave, and every
+  `FIRST_PORT`/`LAST_PORT` scan is gone from the tree. That needed the transport to be able to say what it
+  bound (`nya_net_transport_port`, `nya_net_server_port`) and `net_port.c` to ask the OS for one, since
+  SDL_net has no call that reports it — the one place in the engine that opens a socket without SDL_net, and
+  it says why. `examples/net_echo` connects its client to the port the server was given, and gnyame's HUD
+  shows what was bound rather than what was asked for. Proven with 12 consecutive net suite runs and 8
+  concurrent server and client pairs on 8 distinct ports.
+- `[x]` `test_transport` went red on test-windows with "80 ms of added round trip measured as 257.1 ms" against
+  a bound of 250. The bound was the bug: the drain loop sleeps between polls, a sleep rounds up to the host's
+  scheduler tick (about a millisecond here and fifteen on Windows), and under that link most datagrams are
+  lost, the survivors queue behind sixty sends, and the estimate is an average still climbing. It reads 52 ms
+  on a loaded machine and 180 on an idle one for the same 80 imposed. A baseline measured with nothing imposed
+  did not help either: the estimate is timed off the ack fields a datagram carries, so a phase where only one
+  side sends never samples anything. What the case asserts now is what holds on any host — an estimate cannot
+  exceed the exchange it was measured in. That latency is applied at all is the case above it, which times one
+  datagram against the wall clock.
 - `[x]` RenderDoc closed immediately because its Vulkan layer has no Wayland support: SDL cannot build an
   instance that can make a surface, its Vulkan backend reports itself unsupported, and the renderer
   subsystem fails at startup. Not the anti-tamper check, not the validation layers (the release build fails
@@ -1290,6 +1335,21 @@ the packager ones.
 - `[x]` The report carries build info, platform info (CPU, RAM, VRAM), the log ring and the error with its
   stack. Build metadata comes from `nya_build_info` so the report, the menu corner and the log agree.
 - `[x]` Send to developer writes a file under the log directory and names the path.
+- `[x]` The report says what the variables held, asked for 2026-09-22 and built the same day, in two tiers.
+  `nya_assert_eq/_ne/_lt/_le/_gt/_ge` print both operands rather than only the expression text, through one
+  `_Generic` map over every width up to `u128`, the floats, `bool`, `char`, C strings and `NYA_String*`, with
+  each side captured once so an operand with a side effect is evaluated once. A function marked `// @watch`
+  with `nya_watch(name)` below its declarations gets generated code registering its locals — name, type and a
+  pointer — into a 64 entry thread local ring that the report walks innermost first; `defer` unregisters on
+  every early return, so a pointer into a dead frame is never read, and `nya_expect_crash`'s `longjmp`, which
+  runs no defer, saves and restores the mark by hand. The walk allocates nothing and takes no lock, because it
+  runs where the heap may already be broken.
+  - Not done, and the header says why: DWARF locals. A location is an expression evaluated against a per frame
+    register context, which needs the unwinder to hand back registers and a small stack machine, and a release
+    build has largely dropped the locations anyway. The opt in ring is what pays without that.
+  - The pass reads plain declarators only. Arrays, several declarators in one statement, function pointers and
+    locals in an inner block are written into the generated companion as "not watched", so the omission shows
+    up in review rather than silently.
 - `[ ]` A transport behind `nya_crash_report_submit`. Deliberately deferred: no endpoint chosen yet.
 - `[ ]` A window on the hardware fault path. A fault arrives in a signal handler on the faulting thread, and
   calling SDL from there can deadlock against a lock that thread already holds, so a fault writes the file

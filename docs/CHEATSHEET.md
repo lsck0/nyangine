@@ -4764,6 +4764,28 @@ const NYA_HttpRouter* nya_http_server_router_at(u32 index)
 NYA_Error nya_http_secret_from_environment(NYA_ConstCString variable, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Reads a signing secret out of the environment variable `variable`.
 ```
 
+### http_static.h
+
+The web bundle, served out of the asset system: a page, its stylesheet and its script, each at a
+
+```c
+// types
+struct NYA_HttpStaticFile { NYA_ConstCString asset; const u8* data; u64 size; NYA_ConstCString path; }  // One file of the bundle: which asset, its bytes, and the unhashed path it also answers at.
+struct NYA_HttpStaticConfig { const NYA_HttpStaticFile* files; u32 count; NYA_ConstCString root; NYA_ConstCString prefix; }
+
+// macros
+NYA_HTTP_STATIC_PREFIX "/static"  // Where the hashed names live when a mount does not say.
+NYA_HTTP_STATIC_ROOT "./assets/web"  // The asset directory a mount serves out of when it does not say.
+NYA_HTTP_STATIC_PAGE_CSP  // The policy an HTML file from the bundle is served under, replacing the server's default.
+
+// functions
+NYA_Error nya_http_static_mount(NYA_HttpStaticConfig config)  // Takes a copy of every listed file, hashes it, and builds the route table.
+void nya_http_static_unmount(void)  // Drops every file and frees the bytes.
+const NYA_HttpRouter* nya_http_static_router(void)  // The bundle's routes.
+NYA_ConstCString nya_http_static_url(NYA_ConstCString asset)  // The hashed URL `asset` is served at — "/static/app.1f0a….css" — or null when it is not mounted.
+u32 nya_http_static_file_count(void)  // How many files the current mount serves.
+```
+
 ### http_totp.h
 
 The second factor as an account sees it: enrolling one authenticator, and answering one code.
@@ -4803,8 +4825,8 @@ The vocabulary of one HTTP exchange: what a client may ask, what this program ma
 ```c
 // types
 enum NYA_HttpMethod { NYA_HTTP_METHOD_NONE = 0, NYA_HTTP_METHOD_GET, NYA_HTTP_METHOD_HEAD, NYA_HTTP_METHOD_QUERY, NYA_HTTP_METHOD_POST, NYA_HTTP_METHOD_PUT, NYA_HTTP_METHOD_PATCH, NYA_HTTP_METHOD_DELETE, NYA_HTTP_METHOD_OPTIONS, NYA_HTTP_METHOD_COUNT, }  // The verb.
-enum NYA_HttpStatus { NYA_HTTP_STATUS_NONE = 0, NYA_HTTP_STATUS_OK = 200, NYA_HTTP_STATUS_CREATED = 201, NYA_HTTP_STATUS_NO_CONTENT = 204, NYA_HTTP_STATUS_BAD_REQUEST = 400, NYA_HTTP_STATUS_UNAUTHORIZED = 401, NYA_HTTP_STATUS_FORBIDDEN = 403, NYA_HTTP_STATUS_NOT_FOUND = 404, NYA_HTTP_STATUS_METHOD_NOT_ALLOWED = 405, NYA_HTTP_STATUS_REQUEST_TIMEOUT = 408, NYA_HTTP_STATUS_LENGTH_REQUIRED = 411, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE = 413, NYA_HTTP_STATUS_URI_TOO_LONG = 414, NYA_HTTP_STATUS_UNSUPPORTED_MEDIA = 415, NYA_HTTP_STATUS_UNPROCESSABLE = 422, NYA_HTTP_STATUS_TOO_MANY_REQUESTS = 429, NYA_HTTP_STATUS_HEADERS_TOO_LARGE = 431, NYA_HTTP_STATUS_INTERNAL_ERROR = 500, NYA_HTTP_STATUS_NOT_IMPLEMENTED = 501, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE = 503, NYA_HTTP_STATUS_HTTP_VERSION = 505, }  // Every status this server can produce, and the only values a handler may return.
-enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_NYA, NYA_HTTP_MEDIA_NYA_BINARY, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
+enum NYA_HttpStatus { NYA_HTTP_STATUS_NONE = 0, NYA_HTTP_STATUS_OK = 200, NYA_HTTP_STATUS_CREATED = 201, NYA_HTTP_STATUS_NO_CONTENT = 204, NYA_HTTP_STATUS_NOT_MODIFIED = 304, NYA_HTTP_STATUS_BAD_REQUEST = 400, NYA_HTTP_STATUS_UNAUTHORIZED = 401, NYA_HTTP_STATUS_FORBIDDEN = 403, NYA_HTTP_STATUS_NOT_FOUND = 404, NYA_HTTP_STATUS_METHOD_NOT_ALLOWED = 405, NYA_HTTP_STATUS_REQUEST_TIMEOUT = 408, NYA_HTTP_STATUS_LENGTH_REQUIRED = 411, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE = 413, NYA_HTTP_STATUS_URI_TOO_LONG = 414, NYA_HTTP_STATUS_UNSUPPORTED_MEDIA = 415, NYA_HTTP_STATUS_UNPROCESSABLE = 422, NYA_HTTP_STATUS_TOO_MANY_REQUESTS = 429, NYA_HTTP_STATUS_HEADERS_TOO_LARGE = 431, NYA_HTTP_STATUS_INTERNAL_ERROR = 500, NYA_HTTP_STATUS_NOT_IMPLEMENTED = 501, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE = 503, NYA_HTTP_STATUS_HTTP_VERSION = 505, }  // Every status this server can produce, and the only values a handler may return.
+enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_NYA, NYA_HTTP_MEDIA_NYA_BINARY, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_CSS, NYA_HTTP_MEDIA_JAVASCRIPT, NYA_HTTP_MEDIA_SVG, NYA_HTTP_MEDIA_PNG, NYA_HTTP_MEDIA_ICON, NYA_HTTP_MEDIA_WOFF2, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
 struct NYA_HttpHeader { char name[NYA_HTTP_MAX_HEADER_NAME]; char value[NYA_HTTP_MAX_HEADER_VALUE]; }  // One header, both halves bounded and null terminated.
 struct NYA_HttpRequest { NYA_HttpMethod method; char path[NYA_HTTP_MAX_PATH]; NYA_Url target; NYA_HttpHeader headers[NYA_HTTP_MAX_HEADERS]; u32 header_count; NYA_HttpMediaType media_type; b8 keep_alive; u8 body[NYA_HTTP_MAX_BODY_BYTES + 1]; u64 body_size; }  // A request that parsed.
 struct NYA_HttpResponse { NYA_HttpStatus status; NYA_HttpMediaType media_type; NYA_HttpHeader headers[NYA_HTTP_MAX_RESPONSE_HEADERS]; u32 header_count; u8* body; u64 body_capacity; u64 body_size; char request_id[NYA_HTTP_REQUEST_ID_SIZE]; }  // What a handler fills in.
@@ -4831,6 +4853,12 @@ NYA_HTTP_MAX_HEADER_NAME 48  // Longest header name kept, terminator included.
 NYA_HTTP_MAX_HEADER_VALUE 512  // Longest header value kept, terminator included.
 NYA_HTTP_MAX_RESPONSE_HEADERS 8  // Headers a handler may add beyond the ones the server always writes.
 NYA_HTTP_MAX_PATH 256  // Longest path after percent-decoding, terminator included.
+NYA_HTTP_MAX_STATIC_FILES 32  // Files one mount of the web bundle serves; see http_static.h.
+NYA_HTTP_MAX_STATIC_FILE_BYTES 65536  // Bytes of one served file.
+NYA_HTTP_MAX_STATIC_BYTES (1024ULL * 1024ULL)  // Bytes every mounted file together, which is the whole memory cost of a mount.
+NYA_HTTP_STATIC_HASH_DIGITS 16  // Hex digits of the content hash that names a file and spells its ETag.
+NYA_HTTP_STATIC_IMMUTABLE_MAX_AGE_S 31536000  // Seconds a hashed name may be cached: a year, which is the longest RFC 9111 suggests anybody use.
+NYA_HTTP_MAX_STATIC_ASSET 192  // Longest asset handle a mount will serve, terminator included.
 
 // functions
 NYA_ConstCString nya_http_method_text(NYA_HttpMethod method)  // "GET", "POST", ...
