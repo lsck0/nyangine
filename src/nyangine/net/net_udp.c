@@ -40,6 +40,13 @@
 
 #define _NYA_NET_UDP_PROTOCOL 0x6E796106U /* "nya" + version 6 */
 
+/**
+ * How long destroying a transport waits for a hostname it is still resolving. A name answers in milliseconds, and
+ * NXDOMAIN for a made up one is as quick; the wait exists for the resolver thread that has not started yet on a
+ * loaded machine. Bounded, since a transport closed mid lookup must not stall the program that closed it.
+ * */
+#define _NYA_NET_UDP_RESOLVE_WAIT_MS 1000
+
 #define _NYA_NET_UDP_KIND_DATA       0
 #define _NYA_NET_UDP_KIND_CONNECT    1
 #define _NYA_NET_UDP_KIND_ACCEPT     2
@@ -671,6 +678,14 @@ void _nya_net_udp_destroy(NYA_NetTransport* transport) {
     _nya_net_udp_release_delayed(state, true);
 
     if (state->connect_address != nullptr) {
+        /*
+         * SDL_net's NET_Quit drops addresses still queued for its resolver without releasing them (resolver_queue
+         * is set to NULL in SDL_net.c at 4dd9d84), which LeakSanitizer reported as 81 bytes from test_transport
+         * under load. Waiting out this transport's own lookup first keeps it off that queue. Delete once
+         * SDL_net releases the queue itself.
+         */
+        if (state->resolving) (void)NET_WaitUntilResolved(state->connect_address, _NYA_NET_UDP_RESOLVE_WAIT_MS);
+
         NET_UnrefAddress(state->connect_address);
         state->connect_address = nullptr;
     }
