@@ -9,9 +9,12 @@ of names that cannot be out of date. When the cheatsheet and this file disagree,
 nyangine is written in C2Y, built with clang, rendered through SDL3's GPU API. It ships as one
 build of the engine plus `gnyame`, a small game that exists to exercise every engine feature.
 
-It started as a game engine. It is becoming one stack for everything: games, desktop UI, TUI, CLI,
-web servers and web clients, all in the same program and all composing. `TODO.md` states that scope
-and what is missing from it. What is not scope: Android, and a second game.
+It started as a game engine. It is becoming the framework for all of its author's software: one stack
+for enterprise level desktop applications, web applications and games, plus TUI and CLI programs, all
+composing in one program. Priorities, in order when they conflict: security, privacy, stability,
+performance, then lines of code. `TODO.md` states that scope, and its "Roadmap" section is the plan and
+the order of work. Read it before choosing what to build. What is not scope: Android, a second game, and scaling a
+server past one machine.
 
 Style: data oriented procedural C. Plain structs and functions that transform them, arenas rather
 than `malloc`, assertions kept in release builds, fixed capacities with the bound written down. The
@@ -57,9 +60,11 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | `plugins`  | optional dependencies behind a flag: curl, sqlite, lua, discord, steam        |
 | `editor`   | empty. `editor.c` and `editor.h` contain nothing.                             |
 
-Not in the engine yet, and wanted: a wasm and WebGPU/canvas target, and a UI backend emitting
-HTML/CSS/JS from the same `nya_ui_*` calls. `TODO.md` has the detail. Do not describe any of it as if
-it exists.
+Not in the engine yet, and planned in `TODO.md`'s roadmap: the module layering and the component
+system (every module above `base`, `platform` and `math` added or removed by one line in
+`assets/config/plugins.nya`), a wasm target with a WebGPU renderer and a DOM UI presenter, TLS, the
+accounts, roles and sessions stack, and SQLCipher. Do not describe any of it as if it exists; the
+layout above and the flags below are how the tree works today.
 
 ### The three 2D backends
 
@@ -139,7 +144,9 @@ machine. Verify on Linux.
 `-DNYA_PLUGIN_*`. **Add a vendor or a plugin flag to `src/build/flags.h` and you must add it to
 `.clangd` too.** Nothing checks this: when the two disagree the editor silently analyses the tree
 under the wrong flags, a whole module becomes an empty translation unit, and you edit it blind with
-no diagnostics, no completion and no rename coverage. That has already happened three times.
+no diagnostics, no completion and no rename coverage. That has already happened three times. The
+roadmap's component system generates `.clangd` from the build and ends this; until it lands, the rule
+stands.
 
 ## Conventions
 
@@ -177,13 +184,18 @@ From `TODO.md`, which is the planning document and lives in the repository with 
 | Subsystems   | `core_system.h` registers engine subsystems and game systems alike.                         |
 | Config       | `NYA_CONFIG` hot reloads from `assets/config/engine.nya`, backed by reflection.              |
 | Ceilings     | Fixed capacity arrays register with `nya_ceiling_register`.                                 |
-| Verification | Every engine feature gets a caller in `gnyame`, not only a test. Verify by running the game. |
+| Verification | Every feature gets a caller in `gnyame` or one of the examples, not only a test, and that caller runs in CI. |
+| Data shapes  | Model (stored), optional SO (inside the program), DTO (on the wire). Only DTOs reach a client. |
+| Servers      | One machine, one instance. TLS and simple rate limits in process; a proxy is optional.     |
+| Programs     | Live in this tree beside gnyame for now.                                                   |
 | Plugins      | `core_plugin.h` loads `plugins/<name>/`. Permissions are fixed at compile time by `-DNYA_PLUGIN_PERMISSION_PROFILE`. |
 | Lua bindings | Generated from `@lua` annotations by `src/build/pp/luabind.c`. Never hand written unless they cannot be generated. |
 
-That last one is load-bearing. **A feature with no caller in `gnyame` is not finished**, however
-green its tests are: this codebase is verified by running the game and looking at it, and a test
-that passes against code nothing calls has proved very little. Add the caller in the same change.
+The verification rule is load-bearing. **A feature with no caller in `gnyame` or an example is not
+finished**, however green its tests are: this codebase is verified by running programs and looking at
+them, and a test that passes against code nothing calls has proved very little. Add the caller in the
+same change. gnyame is where the project lives and proves everything composes; each example in
+`examples/` proves one kind of program alone.
 
 `TODO.md` also carries what is unfinished per area and a findings section recording bugs and why
 rejected approaches were rejected. Read the relevant entry before redesigning something.
@@ -209,5 +221,5 @@ Never hand-edit any of those outputs, `docs/CHEATSHEET.md` included: change the 
 ./build check --strict
 ```
 
-All three must pass, and the feature must have a caller in `gnyame`. Every commit compiles and
+All three must pass, and the feature must have a caller in `gnyame` or an example. Every commit compiles and
 passes the tests on its own.
