@@ -654,6 +654,36 @@ s32 main(void) {
     nya_assert(cc.messages == before + 1, "the delayed datagram never arrived");
     nya_assert(took_ms >= 115, "120 ms of latency delivered in %llu ms", (unsigned long long)took_ms);
 
+    // ── what the same exchange measures with nothing imposed ───────────────────
+    /*
+     * The baseline the next case is read against. An absolute bound on a round trip measures the host's
+     * scheduler as much as the transport: the drain loop sleeps between polls, and a sleep rounds up to
+     * the scheduler's tick, which is about a millisecond here and about fifteen on Windows. So the
+     * question this asks is not "how many milliseconds" but "is the imposed latency visible on top of
+     * whatever this machine already costs".
+     */
+    nya_net_transport_condition(server, (NYA_NetConditions){ 0 });
+    nya_net_transport_condition(client, (NYA_NetConditions){ 0 });
+
+    before = cc.messages;
+
+    for (u32 i = 0; i < 10; i++) {
+      u8 message[64];
+      fill(message, sizeof(message), (u8)i);
+      NYA_EXPECT(nya_net_transport_send(server, to_client, NYA_NET_CHANNEL_RELIABLE, message, sizeof(message)));
+    }
+
+    u64 clean_deadline = nya_clock_get_monotonic_ms() + 5000;
+    while (cc.messages < before + 10 && nya_clock_get_monotonic_ms() < clean_deadline) {
+      drain(client, &cc);
+      drain(server, &cs);
+      sleep_ms(2);
+    }
+
+    nya_assert(cc.messages == before + 10, "the clean exchange did not arrive");
+
+    f32 clean_rtt_ms = nya_net_transport_stats(server, to_client).rtt_ms;
+
     // ── everything at once, both ways ──────────────────────────────────────────
     NYA_NetConditions bad = { .latency_ms = 40, .jitter_ms = 20, .loss_percent = 10.0F, .duplicate_percent = 10.0F, .reorder_percent = 10.0F };
 
@@ -670,7 +700,8 @@ s32 main(void) {
       NYA_EXPECT(nya_net_transport_send(server, to_client, NYA_NET_CHANNEL_RELIABLE, message, sizeof(message)));
     }
 
-    u64 deadline = nya_clock_get_monotonic_ms() + 15000;
+    u64 phase_started_ms = nya_clock_get_monotonic_ms();
+    u64 deadline         = phase_started_ms + 15000;
     while (cc.messages < before + count && nya_clock_get_monotonic_ms() < deadline) {
       drain(client, &cc);
       drain(server, &cs);
@@ -685,6 +716,8 @@ s32 main(void) {
       sleep_ms(2);
     }
 
+    u64 phase_ms = nya_clock_get_monotonic_ms() - phase_started_ms;
+
     nya_assert(cc.messages == before + count, "%u of %u reliable messages arrived through a bad link", cc.messages - before, count);
 
     for (u32 i = 0; i < count; i++) nya_assert(cc.first_byte[before + i] == (u8)i, "message %u arrived out of order", i);
@@ -692,11 +725,25 @@ s32 main(void) {
     NYA_NetPeerStats received = nya_net_transport_stats(client, cc.last_peer);
     NYA_NetPeerStats sent     = nya_net_transport_stats(server, to_client);
 
-    printf("  60 reliable messages in order: %.1f ms rtt, %.1f ms jitter, %.0f%% loss, %llu resends; %llu duplicates rejected\n", (f64)sent.rtt_ms,
+    printf("  60 reliable messages in order: %.1f ms rtt over a clean %.1f ms, %.1f ms jitter, %.0f%% loss, %llu resends; %llu duplicates rejected\n", (f64)sent.rtt_ms, (f64)clean_rtt_ms,
            (f64)sent.jitter_ms, (f64)(sent.packet_loss * 100.0F), (unsigned long long)sent.retransmits, (unsigned long long)received.packets_rejected);
 
     nya_assert(received.packets_rejected > 0, "10%% duplication produced no rejected replays");
-    nya_assert(sent.rtt_ms > 60.0F && sent.rtt_ms < 250.0F, "80 ms of added round trip measured as %.1f ms", (f64)sent.rtt_ms);
+    /*
+     * 40 ms each way has to show up on top of the clean reading, and the estimate has to stay inside the
+     * time the exchange actually took: an estimator that counted queueing or a resend as one round trip
+     * would report longer than the whole run, which is the failure an absolute upper bound was standing
+     * in for. Both hold whatever the host's scheduler costs, which a fixed 250 ms did not.
+     */
+    nya_assert(sent.rtt_ms > clean_rtt_ms + 60.0F, "80 ms of added round trip measured as %.1f ms over a clean %.1f ms", (f64)sent.rtt_ms,
+               (f64)clean_rtt_ms);
+    nya_assert(sent.rtt_ms <= (f32)phase_ms, "a %.1f ms round trip out of an exchange that took %llu ms", (f64)sent.rtt_ms,
+               (unsigned long long)phase_ms);
+
+    // and an order of magnitude over what was imposed is the estimator counting something that is not a
+    // round trip, whatever the machine: 80 ms goes in, and a loaded host moves the clean reading, not this.
+    nya_assert(sent.rtt_ms < clean_rtt_ms + (8.0F * 80.0F), "a %.1f ms round trip out of 80 ms imposed and a clean %.1f ms", (f64)sent.rtt_ms,
+               (f64)clean_rtt_ms);
 
     nya_net_transport_destroy(client);
     nya_net_transport_destroy(server);
