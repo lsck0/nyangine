@@ -16,6 +16,12 @@ NYA_INTERNAL NYA_BuildRulePolicy    _nya_asset_shader_policy(u64 newest_include,
 NYA_INTERNAL b8 _nya_asset_shader_outdated(NYA_BuildRulePolicy policy, NYA_ConstCString source, NYA_ConstCString target) __attr_no_discard;
 
 /**
+ * Deletes every compiled shader whose `.hlsl` is gone. Found as `mesh3d_outline.vert.*`, left over from the
+ * inverted hull outline after screen space ink replaced it, and still baked into every release blob.
+ * */
+NYA_INTERNAL void _nya_asset_shader_prune(void);
+
+/**
  * Every format shaders compile to: the name shadercross takes, the file suffix, and the targets that bake it into
  * the release blob, which are the ones with an SDL GPU backend that accepts it. Vulkan takes SPIR-V, Direct3D 12
  * DXIL, Metal MSL. The loader picks by what the device accepts (_nya_asset_pick_correct_compiled_shader), so a
@@ -66,7 +72,8 @@ void nya_asset_compile_shaders(void) {
     // predate its own outputs.
     NYA_ArrayᐸNYA_Stringᐳ* shaders = _nya_asset_walk(SHADER_SOURCE_DIRECTORY);
 
-    NYA_EXPECT(nya_filesystem_create_directory("./assets/shader/compiled/"));
+    NYA_EXPECT(nya_filesystem_create_directory(SHADER_COMPILED_DIRECTORY));
+    _nya_asset_shader_prune();
 
     nya_array_foreach (shaders, shader) {
         if (!nya_string_ends_with(shader, ".hlsl")) continue;
@@ -74,7 +81,7 @@ void nya_asset_compile_shaders(void) {
         NYA_CString source = nya_string_to_cstring(nya_arena_global, shader);
         nya_string_strip_prefix(shader, SHADER_SOURCE_DIRECTORY "/");
         nya_string_strip_suffix(shader, ".hlsl");
-        nya_string_extend_front(shader, "./assets/shader/compiled/");
+        nya_string_extend_front(shader, SHADER_COMPILED_DIRECTORY "/");
 
         for (u32 i = 0; i < nya_carray_length(_NYA_ASSET_SHADER_FORMATS); i++) {
             NYA_CString target = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s%s", (int)shader->length, shader->items, _NYA_ASSET_SHADER_FORMATS[i][1]));
@@ -325,6 +332,30 @@ NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_enumerate(void) {
 /**
  * Collects every regular file under `directory`, sorted.
  * */
+void _nya_asset_shader_prune(void) {
+    NYA_ArrayᐸNYA_Stringᐳ* compiled = _nya_asset_walk(SHADER_COMPILED_DIRECTORY);
+
+    nya_array_foreach (compiled, file) {
+        NYA_CString path = nya_string_to_cstring(nya_arena_global, file);
+
+        // only what shadercross writes: anything else in the directory is not this rule's to judge.
+        u32 format = nya_carray_length(_NYA_ASSET_SHADER_FORMATS);
+        for (u32 i = 0; i < nya_carray_length(_NYA_ASSET_SHADER_FORMATS); i++) {
+            if (nya_string_ends_with(file, _NYA_ASSET_SHADER_FORMATS[i][1])) format = i;
+        }
+        if (format == nya_carray_length(_NYA_ASSET_SHADER_FORMATS)) continue;
+
+        nya_string_strip_prefix(file, SHADER_COMPILED_DIRECTORY "/");
+        nya_string_strip_suffix(file, _NYA_ASSET_SHADER_FORMATS[format][1]);
+
+        NYA_String* source = nya_string_sprintf(nya_arena_global, SHADER_SOURCE_DIRECTORY "/%.*s.hlsl", (int)file->length, file->items);
+        if (nya_filesystem_exists(nya_string_to_cstring(nya_arena_global, source))) continue;
+
+        NYA_EXPECT(nya_filesystem_delete(path));
+        nya_log_info("Deleted %s: its source %.*s is gone.", path, (int)source->length, source->items);
+    }
+}
+
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_walk(NYA_ConstCString directory) {
     nya_assert(directory != nullptr);
 

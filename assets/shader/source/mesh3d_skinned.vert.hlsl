@@ -31,7 +31,7 @@ cbuffer Uniforms : register(b0, space1) {
 // b1/space1, beside the view-projection rather than at space3. SDL_GPU assigns uniform slots by
 // *stage*: a vertex shader's are space1. Putting this at space3 asks for a fragment binding from a
 // vertex shader, which Vulkan tolerates and D3D12 refuses — the same mistake the outline pipeline
-// made once, recorded in mesh3d_outline.vert.hlsl.
+// made once, before screen space ink replaced its inverted hull.
 // 64 bones, three rows each. Matches NYA_ShaderSkinUniform and NYA_SHADER_SKIN_MAX_BONES, which
 // uniforms.h keeps on the C side — the shaders here do not include it, so the number is written out
 // in both places and checked by a static assertion beside nya_render3d_skinned_mesh.

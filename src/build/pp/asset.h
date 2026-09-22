@@ -22,6 +22,12 @@
 #define SHADER_SOURCE_DIRECTORY "./assets/shader/source"
 
 /**
+ * Where shadercross writes, one file per shader and format, named after the source. Everything in it is baked
+ * into the release blob, so a file whose source is gone is removed rather than shipped.
+ * */
+#define SHADER_COMPILED_DIRECTORY "./assets/shader/compiled"
+
+/**
  * A directory under ./assets/ that holds no assets: no code loads from it, so it is neither indexed nor baked into
  * the release blob. The icon set is 1383 SVGs kept for picking from. Remove the line once something loads one.
  * */
