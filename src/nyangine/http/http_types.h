@@ -172,6 +172,65 @@
 #define NYA_HTTP_MAX_PATH 256
 
 /*
+ * ─────────────────────────────────────────────────────────
+ * THE STATIC BUNDLE
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * Files one mount of the web bundle serves; see http_static.h.
+ *
+ * A bundle is a page, a stylesheet, a script, a favicon and a font or two. Thirty two is several times
+ * that and still a table small enough to walk, and a mount past it is refused at startup rather than
+ * silently serving a prefix of what was asked for.
+ * */
+#define NYA_HTTP_MAX_STATIC_FILES 32
+
+/**
+ * Bytes of one served file.
+ *
+ * A file goes out of the one shared response buffer in a single write, so it cannot be larger than that
+ * buffer; the static assert in http_static.c holds this to it. This is also the bound that says what
+ * this is for: a web bundle, not a download service. A video belongs behind a proxy that can do ranges.
+ * */
+#define NYA_HTTP_MAX_STATIC_FILE_BYTES 65536
+
+/**
+ * Bytes every mounted file together, which is the whole memory cost of a mount.
+ *
+ * The bytes are read once at mount and kept, so a request costs a memcpy and never a read: a file that
+ * changed under a running server would otherwise be served under the hash of what it used to be. One
+ * megabyte is a generous bundle and a number a person notices the program asking for.
+ * */
+#define NYA_HTTP_MAX_STATIC_BYTES (1024ULL * 1024ULL)
+
+/**
+ * Hex digits of the content hash that names a file and spells its ETag.
+ *
+ * Sixteen is 64 bits of SHA-256, which is past any accidental collision in a table of at most
+ * NYA_HTTP_MAX_STATIC_FILES and short enough to read in a URL. The full digest would make every name in
+ * the bundle unreadable to buy strength nothing here is asking for.
+ * */
+#define NYA_HTTP_STATIC_HASH_DIGITS 16
+
+/**
+ * Seconds a hashed name may be cached: a year, which is the longest RFC 9111 suggests anybody use.
+ *
+ * Safe only because the name contains the hash of the content, so new content is a new name and nothing
+ * cached under the old one is ever wrong. The unhashed paths get no max-age at all; see http_static.h.
+ * */
+#define NYA_HTTP_STATIC_IMMUTABLE_MAX_AGE_S 31536000
+
+/**
+ * Longest asset handle a mount will serve, terminator included.
+ *
+ * The handle plus the hash plus the mount prefix has to fit NYA_HTTP_MAX_PATH once it becomes a URL,
+ * which is what this is really bounding; it is checked at mount, where a name that does not fit is a
+ * refusal a person can read rather than a truncation nobody sees.
+ * */
+#define NYA_HTTP_MAX_STATIC_ASSET 192
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -231,6 +290,14 @@ enum NYA_HttpStatus {
     NYA_HTTP_STATUS_CREATED    = 201,
     NYA_HTTP_STATUS_NO_CONTENT = 204,
 
+    /**
+     * The caller's copy is still the one this server would send, so it is not sent again.
+     *
+     * Carries no body, by RFC 9110: the validators that produced it go out and nothing else. What a
+     * conditional request on the static bundle answers with; see http_static.h.
+     * */
+    NYA_HTTP_STATUS_NOT_MODIFIED = 304,
+
     NYA_HTTP_STATUS_BAD_REQUEST        = 400,
     NYA_HTTP_STATUS_UNAUTHORIZED       = 401,
     NYA_HTTP_STATUS_FORBIDDEN          = 403,
@@ -285,6 +352,22 @@ enum NYA_HttpMediaType {
 
     NYA_HTTP_MEDIA_TEXT,
     NYA_HTTP_MEDIA_HTML,
+
+    /*
+     * What a web bundle is made of. Each one is here so that http_static.h can name a file's type from
+     * the file's own suffix and refuse to serve a suffix that is not in this list: a served byte range
+     * whose type nobody could name is exactly what `nosniff` exists to stop a browser guessing at.
+     */
+
+    NYA_HTTP_MEDIA_CSS,
+    NYA_HTTP_MEDIA_JAVASCRIPT,
+
+    /** `image/svg+xml`. A document, not a picture, which is why the bundle's policy covers it. */
+    NYA_HTTP_MEDIA_SVG,
+
+    NYA_HTTP_MEDIA_PNG,
+    NYA_HTTP_MEDIA_ICON,
+    NYA_HTTP_MEDIA_WOFF2,
 
     /** Anything else a client announced. Never produced by this server. */
     NYA_HTTP_MEDIA_OTHER,
