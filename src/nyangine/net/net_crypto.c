@@ -1,7 +1,5 @@
 #include "nyangine/nyangine.h"
 
-#include "monocypher.h"
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
@@ -9,7 +7,20 @@
  */
 
 /** Poly1305 tag length, appended to every sealed packet. */
-#define _NYA_NET_MAC_SIZE 16
+#define _NYA_NET_MAC_SIZE NYA_CRYPTO_TAG_BYTES
+
+/** The protocol's name, hashed first into the premaster so these bytes can never be another protocol's. */
+#define _NYA_NET_CRYPTO_PROTOCOL "nyangine udp 6"
+
+/** The premaster hashes the protocol's name and five keys: two exchanges and three public keys. */
+#define _NYA_NET_CRYPTO_PREMASTER_KEYS  5
+#define _NYA_NET_CRYPTO_PREMASTER_BYTES ((sizeof(_NYA_NET_CRYPTO_PROTOCOL) - 1) + ((u64)NYA_NET_KEY_SIZE * _NYA_NET_CRYPTO_PREMASTER_KEYS))
+
+/** What the RESPONSE key is derived for, as the BLAKE2b message under the premaster. */
+#define _NYA_NET_CRYPTO_RESPONSE "response"
+
+static_assert(NYA_NET_KEY_SIZE == NYA_CRYPTO_EXCHANGE_KEY_BYTES, "a net key is an X25519 key");
+static_assert(NYA_NET_KEY_SIZE == NYA_CRYPTO_KEY_BYTES, "a session key is an XChaCha20-Poly1305 key");
 
 /**
  * X25519 of a secret and a public key. False when the result is all zero, which is what a low order public key
@@ -42,8 +53,6 @@ NYA_INTERNAL void _nya_net_crypto_seal(const u8* key, u64 counter, const u8* ad,
 NYA_INTERNAL b8 _nya_net_crypto_open(const u8* key, u64 counter, const u8* ad, u64 ad_size, u8* text, u64 size, const u8* mac)
     __attr_no_discard;
 
-NYA_INTERNAL void _nya_net_crypto_wipe(void* secret, u64 size);
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -55,11 +64,13 @@ NYA_Error nya_net_key_pair_create(OUT NYA_NetKeyPair* out_key_pair) {
 
     *out_key_pair = (NYA_NetKeyPair){ 0 };
 
-    u8 secret[NYA_NET_KEY_SIZE] = { 0 };
-    if (!nya_random_bytes(secret, sizeof(secret))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
+    NYA_CryptoExchangeKeyPair pair = { 0 };
+    defer nya_crypto_exchange_key_pair_destroy(&pair);
 
-    *out_key_pair = nya_net_key_pair_from_secret(secret);
-    _nya_net_crypto_wipe(secret, sizeof(secret));
+    NYA_TRY(nya_crypto_exchange_key_pair_create(&pair));
+
+    nya_memcpy(out_key_pair->secret_key, pair.secret_key.bytes, NYA_NET_KEY_SIZE);
+    nya_memcpy(out_key_pair->public_key, pair.public_key.bytes, NYA_NET_KEY_SIZE);
 
     return NYA_OK;
 }
@@ -67,10 +78,18 @@ NYA_Error nya_net_key_pair_create(OUT NYA_NetKeyPair* out_key_pair) {
 NYA_NetKeyPair nya_net_key_pair_from_secret(const u8* secret_key) {
     nya_assert(secret_key != nullptr);
 
-    NYA_NetKeyPair pair = { 0 };
+    NYA_CryptoExchangeSecretKey secret = { 0 };
+    nya_memcpy(secret.bytes, secret_key, NYA_NET_KEY_SIZE);
 
-    nya_memcpy(pair.secret_key, secret_key, NYA_NET_KEY_SIZE);
-    crypto_x25519_public_key(pair.public_key, pair.secret_key);
+    NYA_CryptoExchangeKeyPair derived = { 0 };
+    nya_crypto_exchange_key_pair_from_secret(&secret, &derived);
+
+    NYA_NetKeyPair pair = { 0 };
+    nya_memcpy(pair.secret_key, derived.secret_key.bytes, NYA_NET_KEY_SIZE);
+    nya_memcpy(pair.public_key, derived.public_key.bytes, NYA_NET_KEY_SIZE);
+
+    nya_crypto_wipe(&secret, sizeof(secret));
+    nya_crypto_exchange_key_pair_destroy(&derived);
 
     return pair;
 }
@@ -144,7 +163,7 @@ NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* o
 
         if (secret != nullptr && secret->type == NYA_TYPE_STRING && nya_net_key_from_hex(secret->as_string, key) && nya_net_key_is_set(key)) {
             *out_key_pair = nya_net_key_pair_from_secret(key);
-            _nya_net_crypto_wipe(key, sizeof(key));
+            nya_crypto_wipe(key, sizeof(key));
             return NYA_OK;
         }
 
@@ -163,7 +182,7 @@ NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* o
     nya_object_set(fresh, "secret_key", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = hex });
 
     NYA_Error written = nya_save_write(relative, fresh, NYA_SERDE_NONE);
-    _nya_net_crypto_wipe(hex, sizeof(hex));
+    nya_crypto_wipe(hex, sizeof(hex));
 
     return written;
 }
@@ -175,30 +194,48 @@ NYA_Error nya_net_key_pair_load(NYA_ConstCString relative, OUT NYA_NetKeyPair* o
  */
 
 b8 _nya_net_crypto_exchange(OUT u8* shared, const u8* secret_key, const u8* public_key) {
-    crypto_x25519(shared, secret_key, public_key);
+    NYA_CryptoExchangeSecretKey secret = { 0 };
+    NYA_CryptoExchangePublicKey public = { 0 };
+    NYA_CryptoSharedSecret      result = { 0 };
 
-    return nya_net_key_is_set(shared);
+    nya_memcpy(secret.bytes, secret_key, NYA_NET_KEY_SIZE);
+    nya_memcpy(public.bytes, public_key, NYA_NET_KEY_SIZE);
+
+    b8 accepted = nya_crypto_exchange(&secret, &public, &result);
+    nya_memcpy(shared, result.bytes, NYA_NET_KEY_SIZE);
+
+    nya_crypto_wipe(&secret, sizeof(secret));
+    nya_crypto_wipe(&result, sizeof(result));
+
+    return accepted;
 }
 
 void _nya_net_crypto_premaster(
     OUT u8* premaster, const u8* dh_ephemeral_static, const u8* dh_static_static, const u8* server_static, const u8* client_ephemeral,
     const u8* client_static
 ) {
-    crypto_blake2b_ctx context;
-    crypto_blake2b_init(&context, NYA_NET_KEY_SIZE);
+    // one buffer hashed once is the same BLAKE2b as the pieces fed in turn, so the bytes on the wire are
+    // what they were when this streamed.
+    u8  transcript[_NYA_NET_CRYPTO_PREMASTER_BYTES] = { 0 };
+    u64 at                                          = 0;
 
-    // the protocol name first, so these bytes can never be mistaken for another protocol's.
-    crypto_blake2b_update(&context, (const u8*)"nyangine udp 6", 14);
-    crypto_blake2b_update(&context, dh_ephemeral_static, NYA_NET_KEY_SIZE);
-    crypto_blake2b_update(&context, dh_static_static, NYA_NET_KEY_SIZE);
-    crypto_blake2b_update(&context, server_static, NYA_NET_KEY_SIZE);
-    crypto_blake2b_update(&context, client_ephemeral, NYA_NET_KEY_SIZE);
-    crypto_blake2b_update(&context, client_static, NYA_NET_KEY_SIZE);
-    crypto_blake2b_final(&context, premaster);
+    nya_memcpy(transcript + at, _NYA_NET_CRYPTO_PROTOCOL, sizeof(_NYA_NET_CRYPTO_PROTOCOL) - 1);
+    at += sizeof(_NYA_NET_CRYPTO_PROTOCOL) - 1;
+
+    const u8* parts[_NYA_NET_CRYPTO_PREMASTER_KEYS] = { dh_ephemeral_static, dh_static_static, server_static, client_ephemeral, client_static };
+    for (u32 i = 0; i < nya_carray_length(parts); i++) {
+        nya_memcpy(transcript + at, parts[i], NYA_NET_KEY_SIZE);
+        at += NYA_NET_KEY_SIZE;
+    }
+
+    nya_assert(at == sizeof(transcript));
+
+    nya_crypto_blake2b(transcript, sizeof(transcript), premaster, NYA_NET_KEY_SIZE);
+    nya_crypto_wipe(transcript, sizeof(transcript));
 }
 
 void _nya_net_crypto_response_key(OUT u8* key, const u8* premaster) {
-    crypto_blake2b_keyed(key, NYA_NET_KEY_SIZE, premaster, NYA_NET_KEY_SIZE, (const u8*)"response", 8);
+    nya_crypto_blake2b_keyed(premaster, NYA_NET_KEY_SIZE, (const u8*)_NYA_NET_CRYPTO_RESPONSE, sizeof(_NYA_NET_CRYPTO_RESPONSE) - 1, key, NYA_NET_KEY_SIZE);
 }
 
 void _nya_net_crypto_session(OUT u8* client_to_server, OUT u8* server_to_client, const u8* premaster, const u8* dh_ephemeral, const u8* server_ephemeral) {
@@ -207,36 +244,41 @@ void _nya_net_crypto_session(OUT u8* client_to_server, OUT u8* server_to_client,
     nya_memcpy(material + NYA_NET_KEY_SIZE, server_ephemeral, NYA_NET_KEY_SIZE);
 
     u8 keys[NYA_NET_KEY_SIZE * 2] = { 0 };
-    crypto_blake2b_keyed(keys, sizeof(keys), premaster, NYA_NET_KEY_SIZE, material, sizeof(material));
+    nya_crypto_blake2b_keyed(premaster, NYA_NET_KEY_SIZE, material, sizeof(material), keys, sizeof(keys));
 
     nya_memcpy(client_to_server, keys, NYA_NET_KEY_SIZE);
     nya_memcpy(server_to_client, keys + NYA_NET_KEY_SIZE, NYA_NET_KEY_SIZE);
 
-    _nya_net_crypto_wipe(material, sizeof(material));
-    _nya_net_crypto_wipe(keys, sizeof(keys));
+    nya_crypto_wipe(material, sizeof(material));
+    nya_crypto_wipe(keys, sizeof(keys));
 }
 
 void _nya_net_crypto_seal(const u8* key, u64 counter, const u8* ad, u64 ad_size, u8* text, u64 size, OUT u8* mac) {
-    u8 nonce[24] = { 0 };
-    for (u32 i = 0; i < 8; i++) nonce[i] = (u8)((counter >> (i * 8)) & 0xFF);
+    NYA_CryptoKey32   session = { 0 };
+    NYA_CryptoNonce24 nonce   = nya_crypto_nonce_from_counter(counter);
+    NYA_CryptoTag16   tag     = { 0 };
 
-    // a tag over the header alone still needs somewhere to point the text.
-    u8 none = 0;
-    if (text == nullptr) text = &none;
+    nya_memcpy(session.bytes, key, NYA_NET_KEY_SIZE);
 
-    crypto_aead_lock(text, mac, key, nonce, ad, ad_size, text, size);
+    nya_crypto_aead_encrypt(&session, &nonce, (NYA_CryptoAeadMessage){ .text = text, .text_size = size, .associated = ad, .associated_size = ad_size }, &tag);
+    nya_memcpy(mac, tag.bytes, NYA_CRYPTO_TAG_BYTES);
+
+    nya_crypto_key_destroy(&session);
 }
 
 b8 _nya_net_crypto_open(const u8* key, u64 counter, const u8* ad, u64 ad_size, u8* text, u64 size, const u8* mac) {
-    u8 nonce[24] = { 0 };
-    for (u32 i = 0; i < 8; i++) nonce[i] = (u8)((counter >> (i * 8)) & 0xFF);
+    NYA_CryptoKey32   session = { 0 };
+    NYA_CryptoNonce24 nonce   = nya_crypto_nonce_from_counter(counter);
+    NYA_CryptoTag16   tag     = { 0 };
 
-    u8 none = 0;
-    if (text == nullptr) text = &none;
+    nya_memcpy(session.bytes, key, NYA_NET_KEY_SIZE);
+    nya_memcpy(tag.bytes, mac, NYA_CRYPTO_TAG_BYTES);
 
-    return crypto_aead_unlock(text, mac, key, nonce, ad, ad_size, text, size) == 0;
-}
+    b8 opened = nya_crypto_aead_decrypt(
+        &session, &nonce, (NYA_CryptoAeadMessage){ .text = text, .text_size = size, .associated = ad, .associated_size = ad_size }, &tag
+    );
 
-void _nya_net_crypto_wipe(void* secret, u64 size) {
-    crypto_wipe(secret, size);
+    nya_crypto_key_destroy(&session);
+
+    return opened;
 }

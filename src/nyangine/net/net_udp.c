@@ -536,7 +536,7 @@ NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptions optio
         .dice            = _nya_net_udp_read_u64(cookie_key + 16) | 1,
     };
 
-    _nya_net_crypto_wipe(cookie_key, sizeof(cookie_key));
+    nya_crypto_wipe(cookie_key, sizeof(cookie_key));
 
     // the public half is derived rather than trusted, so a caller cannot pair a secret with the wrong public key.
     if (nya_net_key_is_set(options.identity.secret_key)) state->identity = nya_net_key_pair_from_secret(options.identity.secret_key);
@@ -697,9 +697,9 @@ void _nya_net_udp_destroy(NYA_NetTransport* transport) {
 
     nya_arena_destroy(state->delivered);
 
-    _nya_net_crypto_wipe(&state->identity, sizeof(state->identity));
-    _nya_net_crypto_wipe(&state->ephemeral, sizeof(state->ephemeral));
-    _nya_net_crypto_wipe(state->premaster, sizeof(state->premaster));
+    nya_crypto_wipe(&state->identity, sizeof(state->identity));
+    nya_crypto_wipe(&state->ephemeral, sizeof(state->ephemeral));
+    nya_crypto_wipe(state->premaster, sizeof(state->premaster));
 
     transport->state = nullptr;
 
@@ -1167,11 +1167,11 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NET_Address* addr
     u8 dh_ephemeral[NYA_NET_KEY_SIZE]        = { 0 };
 
     defer {
-        _nya_net_crypto_wipe(dh_ephemeral_static, sizeof(dh_ephemeral_static));
-        _nya_net_crypto_wipe(dh_static_static, sizeof(dh_static_static));
-        _nya_net_crypto_wipe(premaster, sizeof(premaster));
-        _nya_net_crypto_wipe(response_key, sizeof(response_key));
-        _nya_net_crypto_wipe(dh_ephemeral, sizeof(dh_ephemeral));
+        nya_crypto_wipe(dh_ephemeral_static, sizeof(dh_ephemeral_static));
+        nya_crypto_wipe(dh_static_static, sizeof(dh_static_static));
+        nya_crypto_wipe(premaster, sizeof(premaster));
+        nya_crypto_wipe(response_key, sizeof(response_key));
+        nya_crypto_wipe(dh_ephemeral, sizeof(dh_ephemeral));
     }
 
     if (!_nya_net_crypto_exchange(dh_ephemeral_static, state->identity.secret_key, client_ephemeral)) return;
@@ -1185,7 +1185,7 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NET_Address* addr
     if (!_nya_net_crypto_open(response_key, 0, data, _NYA_NET_UDP_RESPONSE_TAGGED, nullptr, 0, mac)) return;
 
     NYA_NetKeyPair server_ephemeral = { 0 };
-    defer _nya_net_crypto_wipe(&server_ephemeral, sizeof(server_ephemeral));
+    defer nya_crypto_wipe(&server_ephemeral, sizeof(server_ephemeral));
 
     if (!nya_net_key_pair_create(&server_ephemeral).ok) return;
     if (!_nya_net_crypto_exchange(dh_ephemeral, server_ephemeral.secret_key, client_ephemeral)) return;
@@ -1236,9 +1236,9 @@ void _nya_net_udp_handle_challenge(NYA_NetTransport* transport, u32 peer_index, 
     u8 response_key[NYA_NET_KEY_SIZE]        = { 0 };
 
     defer {
-        _nya_net_crypto_wipe(dh_ephemeral_static, sizeof(dh_ephemeral_static));
-        _nya_net_crypto_wipe(dh_static_static, sizeof(dh_static_static));
-        _nya_net_crypto_wipe(response_key, sizeof(response_key));
+        nya_crypto_wipe(dh_ephemeral_static, sizeof(dh_ephemeral_static));
+        nya_crypto_wipe(dh_static_static, sizeof(dh_static_static));
+        nya_crypto_wipe(response_key, sizeof(response_key));
     }
 
     if (!_nya_net_crypto_exchange(dh_ephemeral_static, state->ephemeral.secret_key, server_key)) return;
@@ -1281,9 +1281,9 @@ void _nya_net_udp_handle_accept(NYA_NetTransport* transport, u32 peer_index, con
     u8 receive_key[NYA_NET_KEY_SIZE]  = { 0 };
 
     defer {
-        _nya_net_crypto_wipe(dh_ephemeral, sizeof(dh_ephemeral));
-        _nya_net_crypto_wipe(send_key, sizeof(send_key));
-        _nya_net_crypto_wipe(receive_key, sizeof(receive_key));
+        nya_crypto_wipe(dh_ephemeral, sizeof(dh_ephemeral));
+        nya_crypto_wipe(send_key, sizeof(send_key));
+        nya_crypto_wipe(receive_key, sizeof(receive_key));
     }
 
     if (!_nya_net_crypto_exchange(dh_ephemeral, state->ephemeral.secret_key, server_ephemeral)) return;
@@ -1303,8 +1303,8 @@ void _nya_net_udp_handle_accept(NYA_NetTransport* transport, u32 peer_index, con
     state->connecting   = false;
     state->has_response = false;
 
-    _nya_net_crypto_wipe(&state->ephemeral, sizeof(state->ephemeral));
-    _nya_net_crypto_wipe(state->premaster, sizeof(state->premaster));
+    nya_crypto_wipe(&state->ephemeral, sizeof(state->ephemeral));
+    nya_crypto_wipe(state->premaster, sizeof(state->premaster));
 
     _nya_net_udp_event(state, (_NYA_NetUdpEvent){
         .kind = NYA_NET_TRANSPORT_EVENT_CONNECTED,
@@ -1789,7 +1789,7 @@ void _nya_net_udp_remove_peer(NYA_NetTransport* transport, u32 peer_index, NYA_N
 
     // everything but the generation, which is bumped when the slot is reused so stale handles fail. the keys go too.
     u32 generation = connection->generation;
-    _nya_net_crypto_wipe(connection, sizeof(*connection));
+    nya_crypto_wipe(connection, sizeof(*connection));
     connection->generation = generation;
 
     if (notify) _nya_net_udp_event(state, (_NYA_NetUdpEvent){ .kind = NYA_NET_TRANSPORT_EVENT_DISCONNECTED, .peer = id, .reason = reason });
