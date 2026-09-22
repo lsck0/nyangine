@@ -188,8 +188,13 @@ In scope, deliberately: not only a server, but the client too.
 - `[x]` A TUI stands up the callback, event and input systems and no more. Two things it has to do itself:
   dispatch `NYA_EVENT_UPDATING_ENDED` once a frame, or the input system never rolls its just-pressed edges, and
   size everything in whole cells, or a size lands between two and the cell it rounds to is nobody's choice.
-- `[ ]` Layers are recorded here and sort nothing, so two overlapping top level panels are hit tested by the
-  stack and drawn in call order: a TUI puts its panels beside each other until there is a sorted cell buffer.
+- `[x]` There is a sorted cell buffer now. Each cell remembers the layer it was last written at and a write
+  wins only at or above it, so `nya_render2d_layer_set` decides instead of call order and a raised panel is
+  on top. Two choke points, the fill and the glyph.
+- `[x]` The backend is testable at all, which it was not: every test links one shared engine built without
+  `NYA_TERMINAL`, so a test under `tests/nyangine/terminal/` builds its own against the terminal backend,
+  and `NYA_TerminalOptions.detached` opens the grid with no tty. Off by default — a TUI for a person should
+  still fail loudly rather than draw into a pipe.
 - `[ ]` The Windows half (`terminal_windows.c`) is written against the console's virtual terminal modes and has
   never run.
 - `[ ]` Textures by asset handle draw nothing: a terminal has no sampler, and the pixels behind a handle are
