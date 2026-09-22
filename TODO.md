@@ -1541,7 +1541,9 @@ up. Under 120 ms, 20 ms jitter and 5% loss, prediction converges with no correct
 - `[ ]` Cumulative acks only; lag compensation rewinds to the acknowledged tick, not the render time.
 - `[x]` Hostname resolution no longer blocks: the name is polled from the transport's update, so connect
   returns at once. Measured 1005 ms before, 0 ms after. The failure arrives as a DISCONNECTED event now.
-- `[ ]` Version-rejected peers still linger until timeout.
+- `[x]` Version-rejected peers still linger until timeout. The server disconnects a refused peer (wrong version,
+  or a full server) right after its REJECT, with the reason in the disconnect itself, so a peer whose REJECT was
+  lost still learns why. Testing it found the loopback transport never reported a disconnect to the far end.
 - `[ ]` No allowlist API for player keys; the Steam transport is a stub.
 
 ## `[~]` Steam targets and anti-tamper

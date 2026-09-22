@@ -499,6 +499,14 @@ s32 main(void) {
     nya_assert(SPAWN_CALLS == 0, "a peer with the wrong version was given an entity");
     nya_assert(nya_net_server_peer_count() == 0, "a peer with the wrong version was admitted");
 
+    // and it is dropped at once, told why, rather than left holding a connection until it times out.
+    b8                    dropped = false;
+    NYA_NetTransportEvent event   = { 0 };
+    while (nya_net_transport_poll(real_client, &event)) {
+      if (event.kind == NYA_NET_TRANSPORT_EVENT_DISCONNECTED) dropped = event.reason == NYA_NET_DISCONNECT_VERSION;
+    }
+    nya_assert(dropped, "a peer with the wrong version was not disconnected with that reason");
+
     nya_net_transport_destroy(server_end);
     nya_net_transport_destroy(client_end);
     nya_net_server_stop();

@@ -841,6 +841,10 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
 
         nya_log_warn("Refused a peer speaking protocol %llu/%llu; this build speaks %d/%d.", (unsigned long long)their_protocol,
                  (unsigned long long)their_snapshot, NYA_NET_PROTOCOL_VERSION, NYA_NET_SNAPSHOT_VERSION);
+
+        // and dropped now rather than left to time out holding a connection slot. The disconnect carries the
+        // reason itself, so a peer whose REJECT was lost still learns why; only the version numbers are lost with it.
+        nya_net_transport_disconnect(transport, peer, NYA_NET_DISCONNECT_VERSION);
         return;
     }
 
@@ -860,6 +864,8 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
         NYA_EXPECT(nya_net_message_write_object(scratch, payload, reject));
         (void)nya_net_transport_send(transport, peer, NYA_NET_CHANNEL_RELIABLE, payload->items, payload->length);
 
+        // the same as a version refusal: a full server has no slot to lend one while it times out.
+        nya_net_transport_disconnect(transport, peer, NYA_NET_DISCONNECT_FULL);
         return;
     }
 
