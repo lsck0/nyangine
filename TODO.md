@@ -523,7 +523,11 @@ nothing when off.
 - A skinned, animated bar (bender.fbx) in the 3D demo, lit and shadow casting, posed once per tick so
   every cascade matches the camera; `f` freezes it. The 2D ledge marker is an animated sprite with a frame
   event. `game.animation_speed` sets both clocks live.
-- `[ ]` The skinned draw sets no bounds, so it is never culled, and ignores material parts and textures.
+- `[x]` The skinned draw is culled now: `nya_render3d_skinned_bounds` gives the sphere the pose occupies,
+  taken from the posed bone origins rather than the rest box and padded by the rest radius. It sits in
+  `render_cull.c`, which both builds include, so a headless test reaches the real arithmetic.
+- `[ ]` The skinned draw still ignores material parts and textures: one segment, one draw, no per-part
+  material and no texture binding, where `nya_render3d_mesh` honours both.
 - `[ ]` No test reaches the non-headless skinned draw.
 - A ring of six standing stones around the basin in the 3D demo, which is what gave three features their first
   caller in the game. Each slab is built here rather than loaded, at three detail levels registered with
