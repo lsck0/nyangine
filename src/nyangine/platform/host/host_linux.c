@@ -110,3 +110,15 @@ void nya_host_kernel_name(OUT u8* buffer, u32 capacity) {
     // the build banner with a timestamp in it and says nothing extra.
     (void)snprintf((char*)buffer, capacity, "%s %s", system.sysname, system.release);
 }
+
+b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value) {
+    nya_assert(name != nullptr && value != nullptr);
+
+    return setenv(name, value, 1) == 0;
+}
+
+b8 nya_host_environment_remove(NYA_ConstCString name) {
+    nya_assert(name != nullptr);
+
+    return unsetenv(name) == 0;
+}

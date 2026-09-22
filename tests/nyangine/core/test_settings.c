@@ -66,13 +66,8 @@ s32 main(void) {
   // successful outcome of "make sure this is gone".
   (void)nya_filesystem_delete_recursive(save_home_cstring);
 
-#if OS_WINDOWS
-  (void)_putenv_s("XDG_DATA_HOME", save_home_cstring);
-  (void)_putenv_s("APPDATA", save_home_cstring);
-#else
-  setenv("XDG_DATA_HOME", save_home_cstring, 1);
-  setenv("APPDATA", save_home_cstring, 1);
-#endif
+  nya_assert(nya_host_environment_set("XDG_DATA_HOME", save_home_cstring));
+  nya_assert(nya_host_environment_set("APPDATA", save_home_cstring));
 
   NYA_EXPECT(nya_system_save_init());
   nya_system_settings_init();

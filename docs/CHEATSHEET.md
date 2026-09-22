@@ -5295,6 +5295,8 @@ b8 nya_host_memory_total_bytes(OUT u64* out_bytes)  // Physical RAM installed.
 b8 nya_host_gpu_memory_total_bytes(OUT u64* out_bytes)  // Video memory on the display adapter.
 void nya_host_distribution_name(OUT u8* buffer, u32 capacity)  // Writes which system this is, null terminated and truncated to `capacity`.
 void nya_host_kernel_name(OUT u8* buffer, u32 capacity)  // Writes the kernel, null terminated and truncated to `capacity`.
+b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value)  // Sets `name` to `value` in this process's environment, replacing what was there.
+b8 nya_host_environment_remove(NYA_ConstCString name)  // Removes `name` from this process's environment.
 ```
 
 ### ipc.h

@@ -407,17 +407,17 @@ s32 main(void) {
         );
         nya_assert(size == 0);
 
-        nya_assert(setenv("NYANGINE_TEST_SECRET", "short", 1) == 0);
+        nya_assert(nya_host_environment_set("NYANGINE_TEST_SECRET", "short"));
         nya_assert(
             nya_http_secret_from_environment("NYANGINE_TEST_SECRET", buffer, sizeof(buffer), &size).kind == NYA_ERROR_INVALID_ARGUMENT,
             "a guessable secret is refused rather than accepted and quietly useless"
         );
 
-        nya_assert(setenv("NYANGINE_TEST_SECRET", (const char*)SECRET, 1) == 0);
+        nya_assert(nya_host_environment_set("NYANGINE_TEST_SECRET", (const char*)SECRET));
         nya_assert(nya_http_secret_from_environment("NYANGINE_TEST_SECRET", buffer, sizeof(buffer), &size).ok);
         nya_assert(size == SECRET_SIZE && memcmp(buffer, SECRET, size) == 0);
 
-        nya_assert(unsetenv("NYANGINE_TEST_SECRET") == 0);
+        nya_assert(nya_host_environment_remove("NYANGINE_TEST_SECRET"));
     }
 
     printf("PASSED: http server\n");

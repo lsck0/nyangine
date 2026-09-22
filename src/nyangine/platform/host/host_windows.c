@@ -69,3 +69,17 @@ void nya_host_kernel_name(OUT u8* buffer, u32 capacity) {
      */
     (void)snprintf((char*)buffer, capacity, "Windows NT");
 }
+
+b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value) {
+    nya_assert(name != nullptr && value != nullptr);
+
+    // the CRT's copy rather than SetEnvironmentVariable, since getenv reads the CRT's and not the OS block.
+    return _putenv_s(name, value) == 0;
+}
+
+b8 nya_host_environment_remove(NYA_ConstCString name) {
+    nya_assert(name != nullptr);
+
+    // an empty value is how the CRT spells removal.
+    return _putenv_s(name, "") == 0;
+}

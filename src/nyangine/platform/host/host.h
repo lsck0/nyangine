@@ -79,3 +79,21 @@ NYA_API void nya_host_distribution_name(OUT u8* buffer, u32 capacity);
  * nya_host_distribution_name already prints, and this says so rather than repeating it.
  * */
 NYA_API void nya_host_kernel_name(OUT u8* buffer, u32 capacity);
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * ENVIRONMENT
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * Sets `name` to `value` in this process's environment, replacing what was there. False when the OS
+ * refuses, as it does for a name holding `=`. Children started afterwards inherit it.
+ *
+ * Not thread safe on any OS: another thread reading the environment at the same time may see it torn.
+ * Meant for tests and start up, before threads exist.
+ * */
+NYA_API b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value) __attr_no_discard;
+
+/** Removes `name` from this process's environment. Removing a name that is not set succeeds. */
+NYA_API b8 nya_host_environment_remove(NYA_ConstCString name) __attr_no_discard;
