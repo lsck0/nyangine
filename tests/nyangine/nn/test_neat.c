@@ -442,6 +442,36 @@ s32 main(void) {
     printf("  PASSED\n");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: stepping by time runs the configured rate, carries the fraction, and drops a stall's backlog
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Neat* neat = nya_nn_neat_create((NYA_NeatConfig){
+      .seed                   = xor_seed(arena),
+      .trial_function         = xor_trial,
+      .activation_function    = nya_nn_neat_sigmoid,
+      .activation_steps       = 4,
+      .population_size        = 20,
+      .rng_seed               = "0000000000000007",
+      .generations_per_second = 4.0F,
+      .max_steps_per_frame    = 3,
+    });
+    defer nya_nn_neat_destroy(neat);
+
+    // a quarter of a generation per call: nothing until the fourth, which carries the other three.
+    u32 taken = 0;
+    for (u32 frame = 0; frame < 3; frame++) taken += nya_nn_neat_step_for(neat, 1.0F / 16.0F);
+    nya_check(taken == 0, "a fraction of a generation runs none yet, ran " FMTu32, taken);
+    nya_check(nya_nn_neat_step_for(neat, 1.0F / 16.0F) == 1, "and the fraction carried makes one");
+    nya_check(nya_nn_neat_generation(neat) == 1, "which is a real generation, at " FMTu32, nya_nn_neat_generation(neat));
+
+    // a ten second stall owes forty; the cap runs three and the rest is dropped rather than paid later.
+    nya_check(nya_nn_neat_step_for(neat, 10.0F) == 3, "a stall runs at most the cap");
+    nya_check(nya_nn_neat_step_for(neat, 0.0F) == 0, "and leaves no backlog behind it");
+
+    printf("  PASSED\n");
+  }
+
   printf("PASSED: test_neat\n");
   return nya_check_failures() == 0 ? 0 : 1;
 }

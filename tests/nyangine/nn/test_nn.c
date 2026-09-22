@@ -631,6 +631,29 @@ int main(void) {
     printf("  PASSED\n");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a copy takes the values and leaves the gradient where it was
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_NNTensor* source      = nya_nn_tensor_create(arena, NYA_NN_SHAPE(2, 3), true);
+    NYA_NNTensor* destination = nya_nn_tensor_create(arena, NYA_NN_SHAPE(2, 3), true);
+
+    for (u32 i = 0; i < source->count; i++) {
+      source->data[i]      = (f32)i + 0.5F;
+      source->grad[i]      = 99.0F;
+      destination->grad[i] = -1.0F;
+    }
+
+    nya_nn_tensor_copy(destination, source);
+
+    for (u32 i = 0; i < source->count; i++) {
+      nya_check(destination->data[i] == source->data[i], "value " FMTu32 " copied, got %f", i, (f64)destination->data[i]);
+      nya_check(destination->grad[i] == -1.0F, "gradient " FMTu32 " left alone, got %f", i, (f64)destination->grad[i]);
+    }
+
+    printf("  PASSED\n");
+  }
+
   printf("PASSED: test_nn\n");
   return nya_check_failures() == 0 ? 0 : 1;
 }

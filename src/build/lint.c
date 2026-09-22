@@ -225,7 +225,7 @@ void _lint_rule_banned_calls(Lint* lint) {
  * the edge is allowed with its count, and the count may only fall.
  */
 void _lint_rule_layering(Lint* lint) {
-    u32 counts[nya_carray_length(_LINT_LAYERING_ALLOWED)] = { 0 };
+    u32 counts[nya_carray_length(_LINT_LAYERING_ALLOWED)] = {};
 
     nya_array_foreach (lint->files, file) {
         NYA_String* from = _lint_module_of(nya_arena_global, file->path);
@@ -282,7 +282,7 @@ void _lint_rule_layering(Lint* lint) {
  * constructors are macros over a function taking an options struct.
  */
 void _lint_rule_verb_pairs(Lint* lint) {
-    b8 used[nya_carray_length(_LINT_VERB_PAIRS_ALLOWED)] = { 0 };
+    b8 used[nya_carray_length(_LINT_VERB_PAIRS_ALLOWED)] = {};
 
     nya_array_foreach (lint->files, file) {
         if (!nya_string_ends_with(file->path, ".h") || !nya_string_contains(file->path, "src/nyangine/")) continue;
@@ -379,7 +379,7 @@ void _lint_rule_callers(Lint* lint) {
         }
     }
 
-    b8 used[nya_carray_length(_LINT_CALLERS_ALLOWED)] = { 0 };
+    b8 used[nya_carray_length(_LINT_CALLERS_ALLOWED)] = {};
 
     nya_array_foreach (lint->files, file) {
         if (!nya_string_ends_with(file->path, ".h") || !nya_string_contains(file->path, "src/nyangine/")) continue;

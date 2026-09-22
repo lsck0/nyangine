@@ -289,6 +289,12 @@ int main(void) {
 
     nya_assert(learned_return > 0.8F, "plain DQN returned %f, expected better than 0.8", (f64)learned_return);
 
+    // the network handed out is the one that acts: its own forward pass gives the agent's action values.
+    NYA_NNGraph*  graph   = nya_nn_graph_create(arena);
+    NYA_NNTensor* input   = nya_nn_tensor_from(graph, NYA_NN_SHAPE(1, TEST_DQN_CORRIDOR), start);
+    NYA_NNTensor* outputs = nya_nn_sequential_forward(nya_nn_dqn_network(agent), graph, input);
+    nya_assert(outputs->count == 2 && outputs->data[0] == values[0] && outputs->data[1] == values[1], "the network is the one acting");
+
     printf("  PASSED: plain DQN branch\n");
   }
 

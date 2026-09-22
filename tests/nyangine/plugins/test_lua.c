@@ -82,6 +82,16 @@ s32 main(void) {
         nya_check(result.type == NYA_TYPE_STRING, "a string comes back as one, got %s", NYA_TYPE_NAME_MAP[result.type]);
         nya_check(nya_string_equals(result.as_string, "hello world"), "got '%s'", result.as_string);
 
+        // nil is an argument like any other, and a global set to it is gone rather than present and empty.
+        NYA_EXPECT(nya_lua_run(vm, "function is_nil(value) return value == nil end", "is_nil"));
+        NYA_Value nothing = nya_lua_nil();
+        NYA_Value was_nil = { 0 };
+        NYA_EXPECT(nya_lua_call(vm, arena, "is_nil", &nothing, 1, &was_nil));
+        nya_check(was_nil.type == NYA_TYPE_B8 && was_nil.as_b8, "nil arrives in Lua as nil");
+
+        NYA_EXPECT(nya_lua_global_set(vm, "greet", &nothing));
+        nya_check(!nya_lua_has_function(vm, "greet"), "setting a global to nil removes it");
+
         // Calling something that is not a function is NOT_FOUND rather than a failure, so an optional
         // hook that a script simply did not define is distinguishable from one that threw.
         NYA_Error missing = nya_lua_call(vm, arena, "no_such_function", nullptr, 0, nullptr);

@@ -129,20 +129,8 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
  */
 
 /**
- * Public functions nothing calls, found by the first run of the rule and grouped by header. Stricter than the audit
- * TODO.md recorded, which matched names as text and so counted a doc comment or a string naming a function as a
- * call. Each is Phase 0's to decide per cluster: a caller, a test, or deletion.
+ * Public functions nothing calls. Empty: the 81 the first run found were each given a caller or a test, or
+ * deleted. An entry belongs here only for surface kept on purpose, with that purpose as its reason.
  * */
 NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
-    // http_message.h
-    { "nya_http_response_json", "no caller when the rule landed" },
-    // nn_dqn.h
-    { "nya_nn_dqn_network", "no caller when the rule landed" },
-    // nn_neat.h
-    { "nya_nn_neat_step_for", "no caller when the rule landed" },
-    // nn_tensor.h
-    { "nya_nn_tensor_copy", "no caller when the rule landed" },
-    // lua.h
-    { "nya_lua_nil", "no caller when the rule landed" },
-    // testing_property.h
 };
