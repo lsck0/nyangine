@@ -195,8 +195,11 @@ In scope, deliberately: not only a server, but the client too.
   `NYA_TERMINAL`, so a test under `tests/nyangine/terminal/` builds its own against the terminal backend,
   and `NYA_TerminalOptions.detached` opens the grid with no tty. Off by default — a TUI for a person should
   still fail loudly rather than draw into a pipe.
-- `[ ]` The Windows half (`terminal_windows.c`) is written against the console's virtual terminal modes and has
-  never run.
+- `[~]` The Windows half (`terminal_windows.c`) is written against the console's virtual terminal modes. It
+  had never been *compiled* either — every target picks the GPU renderer, and the one unit that compiles the
+  terminal backend is built for the host. `./build build terminal-windows` cross compiles it now, and the
+  object really contains it rather than the Linux half. It still has never *run*; that needs a windows
+  machine.
 - `[x]` Textures by asset handle draw. The pixels are the backend's to read after all: a terminal build makes
   no GPU device, so the loader keeps the decoded RGBA8 rather than failing to upload it, and the backend
   samples one texel per cell from the centre. Point sampled, not averaged — a cell is about 10 by 18 pixels
