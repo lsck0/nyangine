@@ -11,13 +11,14 @@ NYA_String* nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeF
     nya_assert(object != nullptr);
 
     switch (format) {
-        case NYA_SERDE_FORMAT_NYA:   return nya_serde_nya_serialize(arena, object, flags);
-        case NYA_SERDE_FORMAT_JSON:  return nya_serde_json_serialize(arena, object, flags);
-        case NYA_SERDE_FORMAT_JSONC: return nya_serde_jsonc_serialize(arena, object, flags);
+        case NYA_SERDE_FORMAT_NYA:        return nya_serde_nya_serialize(arena, object, flags);
+        case NYA_SERDE_FORMAT_JSON:       return nya_serde_json_serialize(arena, object, flags);
+        case NYA_SERDE_FORMAT_JSONC:      return nya_serde_jsonc_serialize(arena, object, flags);
+        case NYA_SERDE_FORMAT_NYA_BINARY: return nya_serde_nya_binary_serialize(arena, object, flags);
 
-        default:                     nya_log_panic("Unknown serialization format %d.", (int)format);
+        default:                          nya_log_panic("Unknown serialization format %d.", (int)format);
     }
-    static_assert(NYA_SERDE_FORMAT_COUNT == 3, "Unhandled NYA_SerdeFormat value.");
+    static_assert(NYA_SERDE_FORMAT_COUNT == 4, "Unhandled NYA_SerdeFormat value.");
 }
 
 NYA_Error nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFormat format, NYA_SerdeFlags flags, OUT NYA_Object** out_object) {
@@ -25,17 +26,23 @@ NYA_Error nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeF
     nya_assert(out_object != nullptr);
 
     switch (format) {
-        case NYA_SERDE_FORMAT_NYA:   return nya_serde_nya_deserialize(arena, data, size, flags, out_object);
-        case NYA_SERDE_FORMAT_JSON:  return nya_serde_json_deserialize(arena, data, size, flags, out_object);
-        case NYA_SERDE_FORMAT_JSONC: return nya_serde_jsonc_deserialize(arena, data, size, flags, out_object);
+        case NYA_SERDE_FORMAT_NYA:        return nya_serde_nya_deserialize(arena, data, size, flags, out_object);
+        case NYA_SERDE_FORMAT_JSON:       return nya_serde_json_deserialize(arena, data, size, flags, out_object);
+        case NYA_SERDE_FORMAT_JSONC:      return nya_serde_jsonc_deserialize(arena, data, size, flags, out_object);
+        case NYA_SERDE_FORMAT_NYA_BINARY: return nya_serde_nya_binary_deserialize(arena, data, size, flags, out_object);
 
-        default:                     nya_log_panic("Unknown serialization format %d.", (int)format);
+        default:                          nya_log_panic("Unknown serialization format %d.", (int)format);
     }
-    static_assert(NYA_SERDE_FORMAT_COUNT == 3, "Unhandled NYA_SerdeFormat value.");
+    static_assert(NYA_SERDE_FORMAT_COUNT == 4, "Unhandled NYA_SerdeFormat value.");
 }
 
 NYA_SerdeFormat nya_serde_detect_format(const u8* data, u64 size) {
     if (data == nullptr || size == 0) return NYA_SERDE_FORMAT_COUNT;
+
+    // a leading 0x89 is no text format either, and the whole magic makes it this one.
+    if (size >= NYA_SERDE_NYA_BINARY_MAGIC_BYTES && nya_memcmp(data, NYA_SERDE_NYA_BINARY_MAGIC, NYA_SERDE_NYA_BINARY_MAGIC_BYTES) == 0) {
+        return NYA_SERDE_FORMAT_NYA_BINARY;
+    }
 
     // An obfuscated nya document is identified by its leading magic byte, which is not valid at the
     // start of any text format.

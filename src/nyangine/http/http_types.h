@@ -265,6 +265,15 @@ enum NYA_HttpMediaType {
      * */
     NYA_HTTP_MEDIA_NYA,
 
+    /**
+     * The same document as compact bytes, `application/nya-binary`; see serde_nya_binary.h.
+     *
+     * Its own media type rather than a parameter on `application/nya`, because an Accept header that
+     * names the text form must never be answered with bytes a text reader cannot parse. A reflected DTO
+     * goes out in it carrying its layout hash, so a client built from other headers is refused.
+     * */
+    NYA_HTTP_MEDIA_NYA_BINARY,
+
     NYA_HTTP_MEDIA_TEXT,
     NYA_HTTP_MEDIA_HTML,
 

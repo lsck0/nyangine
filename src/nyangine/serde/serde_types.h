@@ -27,6 +27,12 @@ enum NYA_SerdeFormat {
      * */
     NYA_SERDE_FORMAT_JSONC,
 
+    /**
+     * The native format as compact bytes, untyped through this dispatch. See serde_nya_binary.h for the
+     * typed form a DTO travels in.
+     * */
+    NYA_SERDE_FORMAT_NYA_BINARY,
+
     NYA_SERDE_FORMAT_COUNT,
 };
 
@@ -34,6 +40,7 @@ __attr_allow_unused static NYA_ConstCString NYA_SERDE_FORMAT_NAME_MAP[NYA_SERDE_
     [NYA_SERDE_FORMAT_NYA]   = "nya",
     [NYA_SERDE_FORMAT_JSON]  = "json",
     [NYA_SERDE_FORMAT_JSONC] = "jsonc",
+    [NYA_SERDE_FORMAT_NYA_BINARY] = "nya-binary",
 };
 
 enum NYA_SerdeFlags {

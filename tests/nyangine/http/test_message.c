@@ -580,6 +580,59 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: application/nya-binary, a DTO out and the same DTO back in.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_HttpRequest* asking   = nullptr;
+        u64              consumed = 0;
+        NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
+
+        // named first because its name contains the text form's: this is the case that ordering is for.
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: application/nya-binary\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_NYA_BINARY, "a caller that names the binary form is answered in it");
+
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: application/nya\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_NYA, "and one that names the text form never gets bytes");
+
+        nya_check(nya_string_equals(nya_http_media_type_text(NYA_HTTP_MEDIA_NYA_BINARY), "application/nya-binary"), "bytes carry no charset");
+
+        u8               body[256] = { 0 };
+        NYA_HttpResponse response  = { 0 };
+        nya_http_response_create(&response, body, sizeof(body));
+        defer nya_http_response_destroy(&response);
+
+        NYA_HttpAccountingDto sent = { .enabled = true };
+        nya_assert(nya_http_response_reflect_as(&response, arena, nya_reflect_of(NYA_HttpAccountingDto), &sent, NYA_HTTP_MEDIA_NYA_BINARY).ok);
+        nya_check(response.media_type == NYA_HTTP_MEDIA_NYA_BINARY, "the answer is labelled as what it is");
+
+        // the answer, sent back as a request body: what a client built from the same headers would do.
+        NYA_String* wire = nya_string_sprintf(
+            arena,
+            "PUT /a HTTP/1.1\r\nContent-Type: application/nya-binary\r\nContent-Length: " FMTu64 "\r\n\r\n",
+            response.body_size
+        );
+        for (u64 i = 0; i < response.body_size; i++) nya_string_push_back(wire, response.body[i]);
+
+        NYA_HttpRequest* request = nya_arena_alloc(arena, sizeof(NYA_HttpRequest));
+        nya_assert(nya_http_request_parse(wire->items, wire->length, request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_check(request->media_type == NYA_HTTP_MEDIA_NYA_BINARY, "application/nya-binary is recognised, got %d", (int)request->media_type);
+
+        NYA_HttpAccountingDto received = { 0 };
+        nya_check(nya_http_request_reflect(request, arena, nya_reflect_of(NYA_HttpAccountingDto), &received).ok, "the same DTO reads it back");
+        nya_check(received.enabled, "with its field in it");
+
+        // another DTO's layout is refused, not read into the wrong fields, and so is reading it untyped.
+        NYA_HttpProblem problem = { 0 };
+        nya_check(!nya_http_request_reflect(request, arena, nya_reflect_of(NYA_HttpProblem), &problem).ok, "a different layout is refused");
+
+        NYA_Object* untyped = nullptr;
+        nya_check(!nya_http_request_document(request, arena, &untyped).ok, "a typed body is not an untyped document");
+        nya_check(!nya_http_request_json(request, arena, &untyped).ok, "and not JSON");
+
+        printf("  PASSED\n");
+    }
+
     printf("PASSED: http message\n");
 
     return nya_check_failures() == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

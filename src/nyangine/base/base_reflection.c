@@ -73,6 +73,20 @@ NYA_INTERNAL u32 _nya_reflect_check_object(
 );
 
 /*
+ * The layout hash. See nya_reflect_layout_hash.
+ */
+
+/** Stable names for the kinds, hashed instead of their enum values for the reason NYA_TYPE_NAME_MAP is. */
+NYA_INTERNAL const NYA_ConstCString _NYA_REFLECT_KIND_NAME_MAP[NYA_REFLECT_COUNT] = {
+    [NYA_REFLECT_PRIMITIVE] = "primitive", [NYA_REFLECT_STRUCT] = "struct", [NYA_REFLECT_UNION] = "union",     [NYA_REFLECT_ENUM] = "enum",
+    [NYA_REFLECT_ARRAY] = "array",         [NYA_REFLECT_VECTOR] = "vector", [NYA_REFLECT_POINTER] = "pointer",
+};
+
+NYA_INTERNAL u64 _nya_reflect_layout_feed_u64(u64 hash, u64 value);
+NYA_INTERNAL u64 _nya_reflect_layout_feed_text(u64 hash, NYA_ConstCString text);
+NYA_INTERNAL u64 _nya_reflect_layout_feed_type(u64 hash, const NYA_TypeReflection* type, u32 depth);
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -170,6 +184,12 @@ b8 nya_reflect_is_char_array(const NYA_TypeReflection* type) {
 
     return type->kind == NYA_REFLECT_ARRAY && type->element != nullptr && type->element->kind == NYA_REFLECT_PRIMITIVE &&
            type->element->primitive == NYA_TYPE_CHAR;
+}
+
+u64 nya_reflect_layout_hash(const NYA_TypeReflection* type) {
+    nya_assert(type != nullptr);
+
+    return _nya_reflect_layout_feed_type(NYA_HASH_FNV1A_OFFSET_BASIS, type, 0);
 }
 
 b8 nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value) {
@@ -947,6 +967,90 @@ b8 _nya_reflect_write_integer(NYA_Type primitive, void* instance, s64 value) {
 
         case NYA_TYPE_CHAR: *(char*)instance = (char)value; return true;
 
-        default: return false;
+        default:            return false;
+    }
+}
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * THE LAYOUT HASH
+ * ─────────────────────────────────────────────────────────
+ */
+
+/** Eight bytes, least significant first, whatever the host's order. */
+u64 _nya_reflect_layout_feed_u64(u64 hash, u64 value) {
+    u8 bytes[sizeof(u64)];
+    for (u32 i = 0; i < sizeof(u64); i++) bytes[i] = (u8)(value >> (i * 8));
+
+    return nya_hash_fnv1a_continue(hash, bytes, sizeof(bytes));
+}
+
+/** Length first, so "ab" then "c" and "a" then "bc" do not hash alike. */
+u64 _nya_reflect_layout_feed_text(u64 hash, NYA_ConstCString text) {
+    NYA_ConstCString present = text != nullptr ? text : "";
+    u64              length  = strlen(present);
+
+    hash = _nya_reflect_layout_feed_u64(hash, length);
+    return nya_hash_fnv1a_continue(hash, present, length);
+}
+
+u64 _nya_reflect_layout_feed_type(u64 hash, const NYA_TypeReflection* type, u32 depth) {
+    nya_assert(type != nullptr);
+    nya_assert(type->kind >= 0 && type->kind < NYA_REFLECT_COUNT, "a reflection table holds a kind outside the enum");
+    nya_assert(type->primitive >= 0 && type->primitive < NYA_TYPE_COUNT, "a reflection table holds a primitive outside the enum");
+    nya_assert(depth < NYA_REFLECT_LAYOUT_DEPTH_MAX, "'%s' nests deeper than NYA_REFLECT_LAYOUT_DEPTH_MAX", type->name);
+
+    hash = _nya_reflect_layout_feed_text(hash, _NYA_REFLECT_KIND_NAME_MAP[type->kind]);
+    hash = _nya_reflect_layout_feed_u64(hash, type->size);
+    hash = _nya_reflect_layout_feed_u64(hash, type->alignment);
+
+    switch (type->kind) {
+        case NYA_REFLECT_PRIMITIVE: return _nya_reflect_layout_feed_text(hash, NYA_TYPE_NAME_MAP[type->primitive]);
+
+        case NYA_REFLECT_ENUM:      {
+            hash = _nya_reflect_layout_feed_text(hash, NYA_TYPE_NAME_MAP[type->primitive]);
+            hash = _nya_reflect_layout_feed_u64(hash, type->is_bitflags ? 1 : 0);
+            hash = _nya_reflect_layout_feed_u64(hash, type->variant_count);
+
+            for (u32 i = 0; i < type->variant_count; i++) {
+                hash = _nya_reflect_layout_feed_text(hash, type->variants[i].name);
+                hash = _nya_reflect_layout_feed_u64(hash, (u64)type->variants[i].value);
+            }
+            return hash;
+        }
+
+        case NYA_REFLECT_STRUCT:
+        case NYA_REFLECT_UNION:  {
+            hash = _nya_reflect_layout_feed_u64(hash, type->field_count);
+
+            for (u32 i = 0; i < type->field_count; i++) {
+                const NYA_ReflectField* field = &type->fields[i];
+
+                hash = _nya_reflect_layout_feed_text(hash, field->name);
+                hash = _nya_reflect_layout_feed_u64(hash, field->offset);
+                hash = _nya_reflect_layout_feed_u64(hash, field->has_tag_value ? 1 : 0);
+                hash = _nya_reflect_layout_feed_u64(hash, (u64)field->tag_value);
+                hash = _nya_reflect_layout_feed_type(hash, field->type, depth + 1);
+            }
+
+            // the name, and an empty one for none: an untagged union and one tagged by a field
+            // called "" cannot both exist, since a field always has a name.
+            return _nya_reflect_layout_feed_text(hash, type->tag_field != nullptr ? type->tag_field->name : "");
+        }
+
+        case NYA_REFLECT_ARRAY:
+        case NYA_REFLECT_VECTOR: {
+            hash = _nya_reflect_layout_feed_u64(hash, type->element_count);
+            return _nya_reflect_layout_feed_type(hash, type->element, depth + 1);
+        }
+
+        case NYA_REFLECT_POINTER: {
+            if (type->element == nullptr) return _nya_reflect_layout_feed_text(hash, "void");
+
+            hash = _nya_reflect_layout_feed_text(hash, _NYA_REFLECT_KIND_NAME_MAP[type->element->kind]);
+            return _nya_reflect_layout_feed_text(hash, NYA_TYPE_NAME_MAP[type->element->primitive]);
+        }
+
+        default: nya_unreachable();
     }
 }

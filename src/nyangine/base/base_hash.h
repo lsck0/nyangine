@@ -6,11 +6,27 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * CONSTANTS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/** FNV-1a's 64 bit offset basis and prime, as the reference (draft-eastlake-fnv) gives them. */
+#define NYA_HASH_FNV1A_OFFSET_BASIS 14695981039346656037ULL
+#define NYA_HASH_FNV1A_PRIME        1099511628211ULL
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FUNCTIONS AND MACROS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
 NYA_API u64 nya_hash_fnv1a(const void* data, u64 size) __attr_overloaded;
+
+/**
+ * Folds `size` more bytes into a running FNV-1a `hash`, for input that arrives in pieces. Starting from
+ * NYA_HASH_FNV1A_OFFSET_BASIS gives exactly what nya_hash_fnv1a gives for the pieces laid end to end.
+ * */
+NYA_API u64 nya_hash_fnv1a_continue(u64 hash, const void* data, u64 size) __attr_no_discard;
 NYA_API u64 nya_hash_fnv1a(NYA_ConstCString string) __attr_overloaded;
 NYA_API u64 nya_hash_fnv1a(NYA_String string) __attr_overloaded;
 

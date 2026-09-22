@@ -165,11 +165,12 @@ NYA_API b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_Cons
  * requests.
  * */
 /**
- * The body as a document, whichever of the two formats the caller announced.
+ * The body as a document, whichever of the formats the caller announced.
  *
- * `application/json` and `application/nya` both parse to an NYA_Object, so a handler asks for a
- * document and never learns which arrived. The native format is what two nyangine programs use
- * between themselves; JSON is what everything else uses, and neither is privileged here.
+ * `application/json`, `application/nya` and `application/nya-binary` all parse to an NYA_Object, so a
+ * handler asks for a document and never learns which arrived. The native formats are what two
+ * nyangine programs use between themselves; JSON is what everything else uses, and none is privileged
+ * here. A binary body must be untyped here; a typed one belongs to nya_http_request_reflect.
  *
  * The native format's checksum is not enforced: it guards a file on disk against a torn write, and a
  * request body has TCP underneath it. Enforcing it would refuse every document composed by hand.
@@ -179,18 +180,23 @@ NYA_API NYA_Error nya_http_request_document(const NYA_HttpRequest* request, NYA_
 /**
  * Which document format this caller asked to be answered in.
  *
- * NYA_HTTP_MEDIA_NYA only when Accept names `application/nya`; JSON for everything else, including no
- * Accept header and the wildcard a browser sends. A wildcard is not a statement that a client can read
+ * NYA_HTTP_MEDIA_NYA_BINARY when Accept names `application/nya-binary`, NYA_HTTP_MEDIA_NYA when it
+ * names `application/nya`; JSON for everything else, including no Accept header and the wildcard a
+ * browser sends. A wildcard is not a statement that a client can read
  * the native format, and a caller that has never heard of this engine must not be handed one.
  * */
 NYA_API NYA_HttpMediaType nya_http_request_accepts(const NYA_HttpRequest* request) __attr_no_discard;
 
-/** The JSON half of nya_http_request_document. Refuses a body that announced the native format. */
+/** The JSON half of nya_http_request_document. Refuses a body that announced either native format. */
 NYA_API NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object) __attr_no_discard;
 
 /**
  * The body straight into `out_dto`, by the DTO's own reflection. The total conversion in: after this
  * returns OK the handler holds its request type and never the bytes.
+ *
+ * Any document format. An `application/nya-binary` body must carry this type's layout hash, so a
+ * client built from other headers is refused with both hashes named rather than read into the wrong
+ * fields; see serde_nya_binary.h.
  *
  * `out_dto` is zeroed first, so a field the document omits reads as zero rather than as whatever the
  * last request left there. Every failure of nya_http_request_json, plus NYA_ERROR_PARSE when the
@@ -230,7 +236,8 @@ NYA_API NYA_Error nya_http_response_printf(NYA_HttpResponse* response, NYA_HttpM
 
 /** Renders `object` as JSON into the body. `arena` is scratch and holds nothing once this returns. */
 /**
- * The body as a document in `media`, which is NYA_HTTP_MEDIA_JSON or NYA_HTTP_MEDIA_NYA.
+ * The body as a document in `media`: NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_NYA or, untyped,
+ * NYA_HTTP_MEDIA_NYA_BINARY.
  *
  * Pair with nya_http_request_accepts to answer a caller in whatever it asked for.
  * */
@@ -245,7 +252,10 @@ NYA_API NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* 
  * here uses: the schema in the OpenAPI document is generated from the same table, so a field added to
  * the DTO appears in both without either being edited.
  * */
-/** nya_http_response_reflect in `media`, for a handler that has asked what the caller accepts. */
+/**
+ * nya_http_response_reflect in `media`, for a handler that has asked what the caller accepts. As
+ * `application/nya-binary` the body carries the type's layout hash, which the client's decode checks.
+ * */
 NYA_API NYA_Error nya_http_response_reflect_as(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto,
                                                NYA_HttpMediaType media) __attr_no_discard;
 

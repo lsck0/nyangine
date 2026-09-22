@@ -311,6 +311,172 @@ static b8 law_serde_jsonc_round_trips(NYA_Property* property) {
     return serde_round_trips(property, NYA_SERDE_FORMAT_JSONC);
 }
 
+static b8 law_serde_nya_binary_round_trips(NYA_Property* property) {
+    return serde_round_trips(property, NYA_SERDE_FORMAT_NYA_BINARY);
+}
+
+/*
+ * The binary .nya against the text one, over documents with every type and nesting, compared as
+ * bytes. The binary form has one encoding per object, so two objects that encode alike hold the same
+ * values bit for bit, where the flat laws above have to allow for a decimal format's rounding.
+ */
+
+/** How deep the generated documents nest: an array of objects holding arrays. The bound itself is a table case in test_serde_nya_binary.c. */
+#define NESTING_MAX 3
+
+/** Members or elements one container gets at most. */
+#define CONTAINER_ITEMS_MAX 6
+
+/** Every scalar type the binary form has a tag for, which is every one the text form writes. */
+static const NYA_Type SCALAR_TYPES[] = {
+    NYA_TYPE_NULL, NYA_TYPE_B8,  NYA_TYPE_B16,  NYA_TYPE_B32,  NYA_TYPE_B64,  NYA_TYPE_B128,   NYA_TYPE_U8,  NYA_TYPE_U16,
+    NYA_TYPE_U32,  NYA_TYPE_U64, NYA_TYPE_U128, NYA_TYPE_S8,   NYA_TYPE_S16,  NYA_TYPE_S32,    NYA_TYPE_S64, NYA_TYPE_S128,
+    NYA_TYPE_F16,  NYA_TYPE_F32, NYA_TYPE_F64,  NYA_TYPE_F128, NYA_TYPE_CHAR, NYA_TYPE_STRING,
+};
+
+static NYA_Value draw_scalar(NYA_Property* property, NYA_Type type) {
+    NYA_Value value = { .type = type };
+    nya_memset(&value.as_u128, 0, sizeof(value.as_u128));
+
+    u64 bits = nya_property_draw_u64(property);
+
+    switch (type) {
+        case NYA_TYPE_NULL:   break;
+
+        case NYA_TYPE_B8:     value.as_b8 = (b8)(bits & 1); break;
+        case NYA_TYPE_B16:    value.as_b16 = (b16)(bits & 1); break;
+        case NYA_TYPE_B32:    value.as_b32 = (b32)(bits & 1); break;
+        case NYA_TYPE_B64:    value.as_b64 = (b64)(bits & 1); break;
+        case NYA_TYPE_B128:   value.as_b128 = (b128)(bits & 1); break;
+
+        case NYA_TYPE_U8:     value.as_u8 = (u8)bits; break;
+        case NYA_TYPE_U16:    value.as_u16 = (u16)bits; break;
+        case NYA_TYPE_U32:    value.as_u32 = (u32)bits; break;
+        case NYA_TYPE_U64:    value.as_u64 = bits; break;
+        case NYA_TYPE_U128:   value.as_u128 = ((u128)nya_property_draw_u64(property) << 64) | bits; break;
+
+        case NYA_TYPE_S8:     value.as_s8 = (s8)(u8)bits; break;
+        case NYA_TYPE_S16:    value.as_s16 = (s16)(u16)bits; break;
+        case NYA_TYPE_S32:    value.as_s32 = (s32)(u32)bits; break;
+        case NYA_TYPE_S64:    value.as_s64 = (s64)bits; break;
+        case NYA_TYPE_S128:   value.as_s128 = (s128)(((u128)nya_property_draw_u64(property) << 64) | bits); break;
+
+        // finite only, for the reason draw_object gives. The divisions fill the significand, so the
+        // text form's hexadecimal has every bit to carry.
+        case NYA_TYPE_F16:    value.as_f16 = (f16)nya_property_draw_f32(property, -1000.0F, 1000.0F); break;
+        case NYA_TYPE_F32:    value.as_f32 = nya_property_draw_f32(property, -1.0e6F, 1.0e6F); break;
+        case NYA_TYPE_F64:    value.as_f64 = (f64)nya_property_draw_f32(property, -1.0e6F, 1.0e6F) / 3.0; break;
+        case NYA_TYPE_F128:   value.as_f128 = (f128)nya_property_draw_f32(property, -1.0e6F, 1.0e6F) / 3.0L; break;
+
+        // a letter: the text form writes a char as a one character string and reads its first byte,
+        // so an escaped quote would come back as the backslash.
+        case NYA_TYPE_CHAR:   value.as_char = (char)('a' + bits % 26); break;
+        case NYA_TYPE_STRING: value.as_string = nya_property_draw_text(property, 16); break;
+
+        default:              nya_unreachable();
+    }
+
+    return value;
+}
+
+static NYA_Value draw_value(NYA_Property* property, u32 depth);
+
+static NYA_Object* draw_document(NYA_Property* property, u32 depth) {
+    NYA_Object* object = nya_object_create(property->allocator);
+
+    u32 members = (u32)nya_property_draw_below(property, CONTAINER_ITEMS_MAX + 1);
+    for (u32 i = 0; i < members; i++) nya_object_set(object, draw_key(property, 8), draw_value(property, depth + 1));
+
+    return object;
+}
+
+static NYA_Value draw_value(NYA_Property* property, u32 depth) {
+    u64 shape = depth < NESTING_MAX ? nya_property_draw_below(property, 4) : 0;
+
+    switch (shape) {
+        case 1: return (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *draw_document(property, depth) };
+
+        // one element type throughout, which both forms write once for the whole array.
+        case 2: {
+            NYA_Type type     = SCALAR_TYPES[nya_property_draw_below(property, nya_carray_length(SCALAR_TYPES))];
+            u32      elements = (u32)nya_property_draw_below(property, CONTAINER_ITEMS_MAX + 1);
+
+            NYA_ArrayᐸNYA_Valueᐳ* array = nya_array_create(property->allocator, NYA_Value);
+            for (u32 i = 0; i < elements; i++) nya_array_push_back(array, draw_scalar(property, type));
+
+            return (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *array };
+        }
+
+        // anything at all, containers included, which is where `any` and nested arrays come from.
+        case 3: {
+            u32 elements = (u32)nya_property_draw_below(property, CONTAINER_ITEMS_MAX + 1);
+
+            NYA_ArrayᐸNYA_Valueᐳ* array = nya_array_create(property->allocator, NYA_Value);
+            for (u32 i = 0; i < elements; i++) nya_array_push_back(array, draw_value(property, depth + 1));
+
+            return (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *array };
+        }
+
+        default: return draw_scalar(property, SCALAR_TYPES[nya_property_draw_below(property, nya_carray_length(SCALAR_TYPES))]);
+    }
+}
+
+/** Whether `object` encodes to exactly `expected`. Notes which stage lost something when it does not. */
+static b8 encodes_to(NYA_Property* property, const NYA_Object* object, const NYA_String* expected, NYA_ConstCString stage) {
+    NYA_String* bytes   = nullptr;
+    NYA_Error   encoded = nya_serde_nya_binary_encode(property->allocator, object, nullptr, &bytes);
+
+    if (!encoded.ok) {
+        nya_property_note(property, "%s would not encode: %s", stage, (NYA_ConstCString)encoded.message);
+        return false;
+    }
+
+    if (bytes->length != expected->length || nya_memcmp(bytes->items, expected->items, bytes->length) != 0) {
+        nya_property_note(
+            property,
+            "%s encodes to %llu bytes that differ from the original's %llu",
+            stage,
+            (unsigned long long)bytes->length,
+            (unsigned long long)expected->length
+        );
+        return false;
+    }
+
+    return true;
+}
+
+/** object -> binary -> object -> text -> object -> binary: every step keeps every value, bit for bit. */
+static b8 law_serde_nya_binary_matches_text(NYA_Property* property) {
+    NYA_Object* original = draw_document(property, 0);
+
+    NYA_String* bytes   = nullptr;
+    NYA_Error   encoded = nya_serde_nya_binary_encode(property->allocator, original, nullptr, &bytes);
+    if (!encoded.ok) {
+        nya_property_note(property, "the original would not encode: %s", (NYA_ConstCString)encoded.message);
+        return false;
+    }
+
+    NYA_Object* decoded = nullptr;
+    NYA_Error   parsed  = nya_serde_nya_binary_decode(property->allocator, bytes->items, bytes->length, nullptr, &decoded);
+    if (!parsed.ok) {
+        nya_property_note(property, "binary would not read back what it wrote: %s", (NYA_ConstCString)parsed.message);
+        return false;
+    }
+    if (!encodes_to(property, decoded, bytes, "the decoded object")) return false;
+
+    NYA_SerdeFlags flags = nya_property_draw_bool(property, 50) ? NYA_SERDE_PRETTY : NYA_SERDE_NONE;
+    NYA_String*    text  = nya_serialize(property->allocator, decoded, NYA_SERDE_FORMAT_NYA, flags);
+
+    NYA_Object* from_text = nullptr;
+    NYA_Error   read      = nya_deserialize(property->allocator, text->items, text->length, NYA_SERDE_FORMAT_NYA, flags, &from_text);
+    if (!read.ok) {
+        nya_property_note(property, "the text form would not read what it wrote for a decoded document: %s", (NYA_ConstCString)read.message);
+        return false;
+    }
+
+    return encodes_to(property, from_text, bytes, "the document read back from text");
+}
+
 /** A run of commands survives the wire: same count, same ticks, same inputs. */
 static b8 law_net_command_round_trips(NYA_Property* property) {
     NYA_NetCommand sent[NYA_NET_COMMAND_REDUNDANCY] = { 0 };
@@ -953,6 +1119,8 @@ s32 main(void) {
     failures += nya_property_check("serde nya round trips", CASES, SEED, law_serde_nya_round_trips);
     failures += nya_property_check("serde json round trips", CASES, SEED, law_serde_json_round_trips);
     failures += nya_property_check("serde jsonc round trips", CASES, SEED, law_serde_jsonc_round_trips);
+    failures += nya_property_check("serde binary nya round trips", CASES, SEED, law_serde_nya_binary_round_trips);
+    failures += nya_property_check("binary nya and text nya agree bit for bit", CASES, SEED, law_serde_nya_binary_matches_text);
     failures += nya_property_check("net commands round trip", CASES, SEED, law_net_command_round_trips);
     failures += nya_property_check("net snapshots round trip", CASES, SEED, law_net_snapshot_round_trips);
 

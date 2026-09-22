@@ -283,6 +283,46 @@ NYA_API b8 nya_reflect_variant_value(const NYA_TypeReflection* type, NYA_ConstCS
  * */
 NYA_API b8 nya_reflect_is_char_array(const NYA_TypeReflection* type) __attr_no_discard;
 
+/*
+ * ─────────────────────────────────────────────────────────
+ * THE LAYOUT HASH
+ * ─────────────────────────────────────────────────────────
+ *
+ * One number that changes whenever a document written from this type could be read wrongly by a build
+ * whose type differs. The binary `.nya` header carries it, so a peer built from other headers is
+ * refused by name instead of misread; see serde_nya_binary.h.
+ *
+ * What it covers, walked depth first from `type` in declaration order:
+ *
+ * - every type met: its kind, its `size` and its `alignment`
+ * - a primitive, and an enum's underlying integer: the type's name ("u32"), not its NYA_Type number,
+ *   so inserting a member into NYA_Type does not change every hash
+ * - an enum: whether it is bitflags, and every variant's name and value, since a document carries
+ *   the name and a renamed or renumbered variant reads as a different one
+ * - a struct or union: every field's name, `offset` and tag value, then the field's type; and a
+ *   union's tag field by name
+ * - an array or vector: its element count, then the element type
+ * - a pointer: only the pointee's kind and primitive, since reflection follows nothing but `char*`
+ *   and a self referencing type would otherwise never end
+ *
+ * What it leaves out, because none of it changes what a document means: type names (renaming a
+ * struct is not a layout change), hints, `is_key` and `on_apply`.
+ *
+ * Offsets and sizes are the compiler's, so a 32 bit peer disagrees with a 64 bit one over any type
+ * holding a pointer, `char*` included. That is the intended strictness; a DTO meant for both carries
+ * `char[N]` rather than a string pointer. FNV-1a 64 over an explicit little endian stream, so the
+ * answer does not depend on the host's byte order, and the same on every run of every build.
+ * */
+
+/**
+ * Deepest nesting of described types the hash walks. The described types in the tree nest a handful of
+ * levels; the tables are generated and const, so going past this is a broken table and asserted.
+ * */
+#define NYA_REFLECT_LAYOUT_DEPTH_MAX 32
+
+/** The layout hash of `type`. Pure, allocates nothing, walks the whole description on every call. */
+NYA_API u64 nya_reflect_layout_hash(const NYA_TypeReflection* type) __attr_no_discard;
+
 /**
  * The numeric content of a value, however it was spelled: every integer width and every boolean
  * widens, a char reads as its byte, and a whole number written with a decimal point truncates, so

@@ -6,24 +6,26 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_INTERNAL const u64 FNV_OFFSET_BASIS = 14695981039346656037ULL;
-NYA_INTERNAL const u64 FNV_PRIME        = 1099511628211ULL;
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-__attr_no_sanitize("unsigned-integer-overflow") u64 nya_hash_fnv1a(const void* data, u64 size) __attr_overloaded {
+u64 nya_hash_fnv1a(const void* data, u64 size) __attr_overloaded {
     nya_assert(data != nullptr);
 
+    return nya_hash_fnv1a_continue(NYA_HASH_FNV1A_OFFSET_BASIS, data, size);
+}
+
+__attr_no_sanitize("unsigned-integer-overflow") u64 nya_hash_fnv1a_continue(u64 hash, const void* data, u64 size) {
+    nya_assert(data != nullptr || size == 0);
+
     const u8* bytes = (const u8*)data;
-    u64       hash  = FNV_OFFSET_BASIS;
 
     for (u64 i = 0; i < size; ++i) {
         hash ^= bytes[i];
-        hash *= FNV_PRIME;
+        hash *= NYA_HASH_FNV1A_PRIME;
     }
 
     return hash;
@@ -32,22 +34,22 @@ __attr_no_sanitize("unsigned-integer-overflow") u64 nya_hash_fnv1a(const void* d
 __attr_no_sanitize("unsigned-integer-overflow") u64 nya_hash_fnv1a(NYA_ConstCString string) __attr_overloaded {
     nya_assert(string != nullptr);
 
-    u64 hash = FNV_OFFSET_BASIS;
+    u64 hash = NYA_HASH_FNV1A_OFFSET_BASIS;
 
     for (u64 i = 0; string[i] != '\0'; ++i) {
         hash ^= (u8)string[i];
-        hash *= FNV_PRIME;
+        hash *= NYA_HASH_FNV1A_PRIME;
     }
 
     return hash;
 }
 
 __attr_no_sanitize("unsigned-integer-overflow") u64 nya_hash_fnv1a(NYA_String string) __attr_overloaded {
-    u64 hash = FNV_OFFSET_BASIS;
+    u64 hash = NYA_HASH_FNV1A_OFFSET_BASIS;
 
     for (u64 i = 0; i < string.length; ++i) {
         hash ^= string.items[i];
-        hash *= FNV_PRIME;
+        hash *= NYA_HASH_FNV1A_PRIME;
     }
 
     return hash;

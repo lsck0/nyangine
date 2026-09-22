@@ -501,11 +501,14 @@ void nya_file_write_atomic_fault_set(NYA_FileAtomicStep step, NYA_FileAtomicFaul
 
 ```c
 // macros
+NYA_HASH_FNV1A_OFFSET_BASIS 14695981039346656037ULL  // FNV-1a's 64 bit offset basis and prime, as the reference (draft-eastlake-fnv) gives them.
+NYA_HASH_FNV1A_PRIME 1099511628211ULL
 NYA_SHA256_BYTES 32  // The digest, in bytes.
 NYA_SHA256_BLOCK_BYTES 64  // One SHA-256 block, which is also the key length HMAC pads to.
 
 // functions
 u64 nya_hash_fnv1a(const void* data, u64 size)
+u64 nya_hash_fnv1a_continue(u64 hash, const void* data, u64 size)  // Folds `size` more bytes into a running FNV-1a `hash`, for input that arrives in pieces.
 u64 nya_hash_fnv1a(NYA_ConstCString string)
 u64 nya_hash_fnv1a(NYA_String string)
 u64 nya_hash_wyhash(const void* data, u64 size)  // wyhash (final version 4, default seed and secret), eight bytes at a time.
@@ -810,6 +813,7 @@ typedef void (*NYA_ReflectReportFn)(NYA_ConstCString path, NYA_ConstCString foun
 
 // macros
 nya_reflect_of(type)  // The reflection for `type`, by its bare name: `nya_reflect_of(NYA_Entity)`.
+NYA_REFLECT_LAYOUT_DEPTH_MAX 32  // Deepest nesting of described types the hash walks.
 NYA_REFLECT_PATH_MAX 256  // Longest dotted path a report carries, terminator included.
 
 // functions
@@ -819,6 +823,7 @@ void* nya_reflect_field_pointer(void* instance, const NYA_ReflectField* field)  
 NYA_ConstCString nya_reflect_variant_name(const NYA_TypeReflection* type, s64 value)  // The name of the variant with `value`, or null.
 b8 nya_reflect_variant_value(const NYA_TypeReflection* type, NYA_ConstCString name, OUT s64* out_value)  // The value of the variant called `name`.
 b8 nya_reflect_is_char_array(const NYA_TypeReflection* type)
+u64 nya_reflect_layout_hash(const NYA_TypeReflection* type)  // The layout hash of `type`.
 b8 nya_reflect_value_to_s64(NYA_Value value, OUT s64* out_value)
 b8 nya_reflect_value_to_f64(NYA_Value value, OUT f64* out_value)  // The same for a real.
 NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance)  // Reads one primitive field out of `instance` as an NYA_Value.
@@ -4396,7 +4401,7 @@ NYA_HTTP_MAX_RESPONSE_HEAD_BYTES 5376  // Bytes the rendered status line and hea
 NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, OUT NYA_HttpRequest* out_request, OUT u64* out_consumed, OUT NYA_HttpStatus* out_status)  // Parses one request out of the front of `data`.
 NYA_ConstCString nya_http_request_header(const NYA_HttpRequest* request, NYA_ConstCString name)  // The value of the header called `name`, or null when there is none.
 b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString name, OUT char* buffer, u64 capacity)  // Percent-decodes the query parameter called `name` into `buffer`, null terminated.
-NYA_Error nya_http_request_document(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object)  // The body as a document, whichever of the two formats the caller announced.
+NYA_Error nya_http_request_document(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object)  // The body as a document, whichever of the formats the caller announced.
 NYA_HttpMediaType nya_http_request_accepts(const NYA_HttpRequest* request)  // Which document format this caller asked to be answered in.
 NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object)  // The JSON half of nya_http_request_document.
 NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, OUT void* out_dto)  // The body straight into `out_dto`, by the DTO's own reflection.
@@ -4406,7 +4411,7 @@ void nya_http_response_reset(NYA_HttpResponse* response)  // Empties the body, t
 NYA_Error nya_http_response_bytes(NYA_HttpResponse* response, const u8* data, u64 size, NYA_HttpMediaType media_type)  // NYA_ERROR_OUT_OF_MEMORY when the body would not fit, which is a bug in the handler and not in the request.
 NYA_Error nya_http_response_text(NYA_HttpResponse* response, NYA_ConstCString text, NYA_HttpMediaType media_type)
 NYA_Error nya_http_response_printf(NYA_HttpResponse* response, NYA_HttpMediaType media_type, NYA_ConstCString format, ...)
-NYA_Error nya_http_response_document(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object, NYA_HttpMediaType media)  // The body as a document in `media`, which is NYA_HTTP_MEDIA_JSON or NYA_HTTP_MEDIA_NYA.
+NYA_Error nya_http_response_document(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object, NYA_HttpMediaType media)
 NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object)  // nya_http_response_document as JSON.
 NYA_Error nya_http_response_reflect_as(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto, NYA_HttpMediaType media)  // nya_http_response_reflect in `media`, for a handler that has asked what the caller accepts.
 NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto)
@@ -4500,7 +4505,7 @@ The vocabulary of one HTTP exchange: what a client may ask, what this program ma
 // types
 enum NYA_HttpMethod { NYA_HTTP_METHOD_NONE = 0, NYA_HTTP_METHOD_GET, NYA_HTTP_METHOD_HEAD, NYA_HTTP_METHOD_QUERY, NYA_HTTP_METHOD_POST, NYA_HTTP_METHOD_PUT, NYA_HTTP_METHOD_PATCH, NYA_HTTP_METHOD_DELETE, NYA_HTTP_METHOD_OPTIONS, NYA_HTTP_METHOD_COUNT, }  // The verb.
 enum NYA_HttpStatus { NYA_HTTP_STATUS_NONE = 0, NYA_HTTP_STATUS_OK = 200, NYA_HTTP_STATUS_CREATED = 201, NYA_HTTP_STATUS_NO_CONTENT = 204, NYA_HTTP_STATUS_BAD_REQUEST = 400, NYA_HTTP_STATUS_UNAUTHORIZED = 401, NYA_HTTP_STATUS_FORBIDDEN = 403, NYA_HTTP_STATUS_NOT_FOUND = 404, NYA_HTTP_STATUS_METHOD_NOT_ALLOWED = 405, NYA_HTTP_STATUS_REQUEST_TIMEOUT = 408, NYA_HTTP_STATUS_LENGTH_REQUIRED = 411, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE = 413, NYA_HTTP_STATUS_URI_TOO_LONG = 414, NYA_HTTP_STATUS_UNSUPPORTED_MEDIA = 415, NYA_HTTP_STATUS_UNPROCESSABLE = 422, NYA_HTTP_STATUS_TOO_MANY_REQUESTS = 429, NYA_HTTP_STATUS_HEADERS_TOO_LARGE = 431, NYA_HTTP_STATUS_INTERNAL_ERROR = 500, NYA_HTTP_STATUS_NOT_IMPLEMENTED = 501, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE = 503, NYA_HTTP_STATUS_HTTP_VERSION = 505, }  // Every status this server can produce, and the only values a handler may return.
-enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_NYA, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
+enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_NYA, NYA_HTTP_MEDIA_NYA_BINARY, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
 struct NYA_HttpHeader { char name[NYA_HTTP_MAX_HEADER_NAME]; char value[NYA_HTTP_MAX_HEADER_VALUE]; }  // One header, both halves bounded and null terminated.
 struct NYA_HttpRequest { NYA_HttpMethod method; char path[NYA_HTTP_MAX_PATH]; NYA_Url target; NYA_HttpHeader headers[NYA_HTTP_MAX_HEADERS]; u32 header_count; NYA_HttpMediaType media_type; b8 keep_alive; u8 body[NYA_HTTP_MAX_BODY_BYTES + 1]; u64 body_size; }  // A request that parsed.
 struct NYA_HttpResponse { NYA_HttpStatus status; NYA_HttpMediaType media_type; NYA_HttpHeader headers[NYA_HTTP_MAX_RESPONSE_HEADERS]; u32 header_count; u8* body; u64 body_capacity; u64 body_size; }  // What a handler fills in.
@@ -4588,6 +4593,29 @@ NYA_Error nya_serde_nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, 
 u64 nya_serde_nya_checksum(const NYA_Object* object)  // Checksum of an object tree.
 ```
 
+### serde_nya_binary.h
+
+The same NYA_Object as the text `.nya`, as compact bytes: what two nyangine programs send each other
+
+```c
+// macros
+NYA_SERDE_NYA_BINARY_MAGIC "\x89nya"  // The first four bytes.
+NYA_SERDE_NYA_BINARY_MAGIC_BYTES 4
+NYA_SERDE_NYA_BINARY_VERSION 1
+NYA_SERDE_NYA_BINARY_HEADER_BYTES 16
+NYA_SERDE_NYA_BINARY_FLAG_TYPED 0x0001  // The one flag the header defines.
+NYA_SERDE_NYA_BINARY_SIZE_MAX (4ULL * 1024 * 1024)  // Largest document either side handles, header included.
+NYA_SERDE_NYA_BINARY_VALUE_COUNT_MAX (1U << 18)  // Values in one document, every nesting level counted.
+NYA_SERDE_NYA_BINARY_DEPTH_MAX 128  // Nesting of objects and arrays, the root object being depth one.
+NYA_SERDE_NYA_BINARY_KEY_BYTES_MAX 255  // Longest key, in bytes.
+
+// functions
+NYA_Error nya_serde_nya_binary_encode(NYA_Arena* arena, const NYA_Object* object, const NYA_TypeReflection* type, OUT NYA_String** out_bytes)  // Encodes `object` into `out_bytes`, allocated from `arena`.
+NYA_Error nya_serde_nya_binary_decode(NYA_Arena* arena, const u8* data, u64 size, const NYA_TypeReflection* type, OUT NYA_Object** out_object)  // Decodes `size` bytes into `out_object`, allocated from `arena`.
+NYA_String* nya_serde_nya_binary_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeFlags flags)  // nya_serde_nya_binary_encode without a type, in the shape the dispatch in serde.h wants.
+NYA_Error nya_serde_nya_binary_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeFlags flags, OUT NYA_Object** out_object)  // nya_serde_nya_binary_decode without a type.
+```
+
 ### serde_reflect.h
 
 A reflected struct straight to and from a file. The low-level pair is
@@ -4602,7 +4630,7 @@ NYA_Error nya_reflect_load_file(const NYA_TypeReflection* type, void* instance, 
 
 ```c
 // types
-enum NYA_SerdeFormat { NYA_SERDE_FORMAT_NYA, NYA_SERDE_FORMAT_JSON, NYA_SERDE_FORMAT_JSONC, NYA_SERDE_FORMAT_COUNT, }
+enum NYA_SerdeFormat { NYA_SERDE_FORMAT_NYA, NYA_SERDE_FORMAT_JSON, NYA_SERDE_FORMAT_JSONC, NYA_SERDE_FORMAT_NYA_BINARY, NYA_SERDE_FORMAT_COUNT, }
 enum NYA_SerdeFlags { NYA_SERDE_NONE = 0, NYA_SERDE_PRETTY = 1 << 0, NYA_SERDE_OBFUSCATE = 1 << 1, NYA_SERDE_NO_CHECKSUM = 1 << 2, _NYA_SERDE_NO_TYPE_SPECIFIER = 1 << 3, }
 ```
 

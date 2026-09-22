@@ -71,20 +71,24 @@ NYA_INTERNAL const _NYA_HttpStatusRow _NYA_HTTP_STATUS_ROWS[] = {
  * as latin-1 by some proxies, which turns a UTF-8 name in a metrics row into mojibake.
  * */
 NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_TEXT[NYA_HTTP_MEDIA_COUNT] = {
-    [NYA_HTTP_MEDIA_NONE]  = "",
-    [NYA_HTTP_MEDIA_JSON]  = "application/json; charset=utf-8",
-    [NYA_HTTP_MEDIA_NYA]   = "application/nya; charset=utf-8",
-    [NYA_HTTP_MEDIA_TEXT]  = "text/plain; charset=utf-8",
-    [NYA_HTTP_MEDIA_HTML]  = "text/html; charset=utf-8",
-    [NYA_HTTP_MEDIA_OTHER] = "",
+    [NYA_HTTP_MEDIA_NONE]       = "",
+    [NYA_HTTP_MEDIA_JSON]       = "application/json; charset=utf-8",
+    [NYA_HTTP_MEDIA_NYA]        = "application/nya; charset=utf-8",
+    [NYA_HTTP_MEDIA_NYA_BINARY] = "application/nya-binary", // bytes, which a charset would misdescribe
+    [NYA_HTTP_MEDIA_TEXT]       = "text/plain; charset=utf-8",
+    [NYA_HTTP_MEDIA_HTML]       = "text/html; charset=utf-8",
+    [NYA_HTTP_MEDIA_OTHER]      = "",
 };
 
 /** What each media type is called on the wire, without parameters, for matching an incoming header. */
 NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_ESSENCE[NYA_HTTP_MEDIA_COUNT] = {
-    [NYA_HTTP_MEDIA_NONE] = "",           [NYA_HTTP_MEDIA_JSON] = "application/json",
-    [NYA_HTTP_MEDIA_NYA]  = "application/nya",
-    [NYA_HTTP_MEDIA_TEXT] = "text/plain", [NYA_HTTP_MEDIA_HTML] = "text/html",
-    [NYA_HTTP_MEDIA_OTHER] = "",
+    [NYA_HTTP_MEDIA_NONE]       = "",
+    [NYA_HTTP_MEDIA_JSON]       = "application/json",
+    [NYA_HTTP_MEDIA_NYA]        = "application/nya",
+    [NYA_HTTP_MEDIA_NYA_BINARY] = "application/nya-binary",
+    [NYA_HTTP_MEDIA_TEXT]       = "text/plain",
+    [NYA_HTTP_MEDIA_HTML]       = "text/html",
+    [NYA_HTTP_MEDIA_OTHER]      = "",
 };
 
 /*

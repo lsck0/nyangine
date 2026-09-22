@@ -14,6 +14,12 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/**
+ * Writes `dto` in whatever the caller asked for: JSON by default, the text or binary native form when
+ * Accept names it, the binary one carrying the DTO's layout hash.
+ * */
+NYA_INTERNAL NYA_Error _nya_http_metrics_answer(NYA_HttpExchange* exchange, const NYA_TypeReflection* type, const void* dto) __attr_no_discard;
+
 NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_query(NYA_HttpExchange* exchange);
 NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_ceilings_query(NYA_HttpExchange* exchange);
 NYA_INTERNAL NYA_HttpStatus _nya_http_metrics_arenas_query(NYA_HttpExchange* exchange);
@@ -140,7 +146,7 @@ NYA_HttpStatus _nya_http_metrics_query(NYA_HttpExchange* exchange) {
         metrics.min_frame_time_ns = frame->min_frame_time_ns;
     }
 
-    if (!nya_http_response_reflect(exchange->response, exchange->arena, nya_reflect_of(NYA_HttpMetricsDto), &metrics).ok) {
+    if (!_nya_http_metrics_answer(exchange, nya_reflect_of(NYA_HttpMetricsDto), &metrics).ok) {
         return NYA_HTTP_STATUS_INTERNAL_ERROR;
     }
 
@@ -179,7 +185,7 @@ NYA_HttpStatus _nya_http_metrics_ceilings_query(NYA_HttpExchange* exchange) {
         ceilings->count++;
     }
 
-    if (!nya_http_response_reflect(exchange->response, exchange->arena, nya_reflect_of(NYA_HttpCeilingsDto), ceilings).ok) {
+    if (!_nya_http_metrics_answer(exchange, nya_reflect_of(NYA_HttpCeilingsDto), ceilings).ok) {
         return NYA_HTTP_STATUS_INTERNAL_ERROR;
     }
 
@@ -218,7 +224,7 @@ NYA_HttpStatus _nya_http_metrics_arenas_query(NYA_HttpExchange* exchange) {
         arenas->count++;
     }
 
-    if (!nya_http_response_reflect(exchange->response, exchange->arena, nya_reflect_of(NYA_HttpArenasDto), arenas).ok) {
+    if (!_nya_http_metrics_answer(exchange, nya_reflect_of(NYA_HttpArenasDto), arenas).ok) {
         return NYA_HTTP_STATUS_INTERNAL_ERROR;
     }
 
@@ -250,7 +256,7 @@ NYA_HttpStatus _nya_http_metrics_systems_query(NYA_HttpExchange* exchange) {
         systems.count++;
     }
 
-    if (!nya_http_response_reflect(exchange->response, exchange->arena, nya_reflect_of(NYA_HttpSystemsDto), &systems).ok) {
+    if (!_nya_http_metrics_answer(exchange, nya_reflect_of(NYA_HttpSystemsDto), &systems).ok) {
         return NYA_HTTP_STATUS_INTERNAL_ERROR;
     }
 
@@ -265,8 +271,11 @@ NYA_HttpStatus _nya_http_metrics_accounting_put(NYA_HttpExchange* exchange, cons
     if (!parsed.ok) {
         // "the body is not JSON" and "the body is not this DTO" are the same answer to a caller: the
         // schema says what the body is, and the error does not hand back an internal parse chain.
-        if (exchange->request->media_type != NYA_HTTP_MEDIA_JSON && exchange->request->body_size > 0) {
-            return nya_http_response_problem(exchange, NYA_HTTP_STATUS_UNSUPPORTED_MEDIA, "this route takes application/json");
+        NYA_HttpMediaType media    = exchange->request->media_type;
+        b8                document = media == NYA_HTTP_MEDIA_JSON || media == NYA_HTTP_MEDIA_NYA || media == NYA_HTTP_MEDIA_NYA_BINARY;
+
+        if (!document && exchange->request->body_size > 0) {
+            return nya_http_response_problem(exchange, NYA_HTTP_STATUS_UNSUPPORTED_MEDIA, "this route takes application/json or a .nya document");
         }
 
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_BAD_REQUEST, "the body is not a NYA_HttpAccountingDto");
@@ -284,11 +293,15 @@ NYA_HttpStatus _nya_http_metrics_accounting_put(NYA_HttpExchange* exchange, cons
     // stop being the same the day enabling can fail.
     NYA_HttpAccountingDto reached = { .enabled = nya_system_accounting_is_enabled() };
 
-    if (!nya_http_response_reflect(exchange->response, exchange->arena, nya_reflect_of(NYA_HttpAccountingDto), &reached).ok) {
+    if (!_nya_http_metrics_answer(exchange, nya_reflect_of(NYA_HttpAccountingDto), &reached).ok) {
         return NYA_HTTP_STATUS_INTERNAL_ERROR;
     }
 
     return NYA_HTTP_STATUS_OK;
+}
+
+NYA_Error _nya_http_metrics_answer(NYA_HttpExchange* exchange, const NYA_TypeReflection* type, const void* dto) {
+    return nya_http_response_reflect_as(exchange->response, exchange->arena, type, dto, nya_http_request_accepts(exchange->request));
 }
 
 void _nya_http_metrics_name(char* destination, u64 capacity, NYA_ConstCString text) {
