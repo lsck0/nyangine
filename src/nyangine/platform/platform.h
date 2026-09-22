@@ -3,7 +3,6 @@
 #include "nyangine/platform/clock/clock.h"
 #include "nyangine/platform/clock/clock_format.h"
 #include "nyangine/platform/clock/clock_instant.h"
-#include "nyangine/platform/command/command.h"
 #include "nyangine/platform/host/host.h"
 #include "nyangine/platform/ipc/ipc.h"
 #include "nyangine/platform/signals/signals.h"

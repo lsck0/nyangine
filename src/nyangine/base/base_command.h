@@ -1,7 +1,29 @@
+/**
+ * @file base_command.h
+ *
+ * Running another program: what to start, what it wrote, and what it returned.
+ *
+ * ```c
+ * NYA_Command command = {
+ *     .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
+ *     .arena     = arena,
+ *     .program   = "git",
+ *     .arguments = { "rev-parse", "HEAD", nullptr },
+ * };
+ * NYA_TRY(nya_command_run(&command));
+ * defer nya_command_destroy(&command);
+ * ```
+ *
+ * One implementation over os_process.h and no second one: assembling the arguments, capturing the
+ * output and draining two pipes without deadlocking a child that fills one of them is the same work on
+ * every target, and it used to be written twice. What is genuinely per target — forking, CreateProcess,
+ * which handle is readable — is below this, in `os`.
+ * */
 #pragma once
 
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_string.h"
+#include "nyangine/os/os_process.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -18,7 +40,7 @@
 #define NYA_COMMAND_MAX_ENV_VARS  128
 
 /** Most commands one nya_command_wait_ready call watches. The Windows wait takes no more than 64 handles. */
-#define NYA_COMMAND_MAX_WAIT_READY 64
+#define NYA_COMMAND_MAX_WAIT_READY NYA_OS_PROCESS_WAIT_MAX
 
 typedef enum NYA_CommandFlags NYA_CommandFlags;
 typedef struct NYA_Command    NYA_Command;
@@ -59,15 +81,12 @@ struct NYA_Command {
      * keep alive alongside it.
      */
 
-    /** Process id on Linux, a HANDLE cast to this on Windows. Zero when nothing is running. */
-    u64 process_handle;
-
-    /** Windows keeps a second handle for the thread; unused elsewhere. */
-    u64 thread_handle;
+    /** What was started. Zeroed when nothing is running. */
+    NYA_OsProcess process;
 
     /** Read ends of the child's pipes, held open until the wait drains them. */
-    s32 stdout_pipe;
-    s32 stderr_pipe;
+    NYA_OsPipe stdout_pipe;
+    NYA_OsPipe stderr_pipe;
 
     u64 start_time_ms;
 };

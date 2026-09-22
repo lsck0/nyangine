@@ -111,11 +111,13 @@ void nya_host_kernel_name(OUT u8* buffer, u32 capacity) {
     (void)snprintf((char*)buffer, capacity, "%s %s", system.sysname, system.release);
 }
 
-u32 nya_host_process_id(void) {
-    pid_t id = getpid();
-    nya_assert(id > 0);
+u32 nya_platform_processor_count(void) {
+    // _SC_NPROCESSORS_ONLN, not _CONF: the online count is what is actually schedulable now, which
+    // is the smaller number on a machine with cores offline and the honest answer either way.
+    long count = sysconf(_SC_NPROCESSORS_ONLN);
+    if (count < 1) return 1;
 
-    return (u32)id;
+    return (u32)count;
 }
 
 b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value) {

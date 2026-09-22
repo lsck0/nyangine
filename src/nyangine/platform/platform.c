@@ -11,13 +11,11 @@
 #include "nyangine/platform/terminal/terminal.c"
 
 #if OS_WINDOWS
-#include "nyangine/platform/command/command_windows.c"
 #include "nyangine/platform/host/host_windows.c"
 #include "nyangine/platform/ipc/ipc_windows.c"
 #include "nyangine/platform/signals/signals_windows.c"
 #include "nyangine/platform/terminal/terminal_windows.c"
 #elif OS_LINUX
-#include "nyangine/platform/command/command_linux.c"
 #include "nyangine/platform/host/host_linux.c"
 #include "nyangine/platform/ipc/ipc_linux.c"
 #include "nyangine/platform/signals/signals_linux.c"

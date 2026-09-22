@@ -80,9 +80,6 @@ NYA_API void nya_host_distribution_name(OUT u8* buffer, u32 capacity);
  * */
 NYA_API void nya_host_kernel_name(OUT u8* buffer, u32 capacity);
 
-/** This process's id. Unique among running processes, reused after one exits. */
-NYA_API u32 nya_host_process_id(void) __attr_no_discard;
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * ENVIRONMENT

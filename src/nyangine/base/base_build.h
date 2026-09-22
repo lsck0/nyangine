@@ -3,8 +3,8 @@
  * */
 #pragma once
 
+#include "nyangine/base/base_command.h"
 #include "nyangine/base/base_string.h"
-#include "nyangine/platform/command/command.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -253,7 +253,7 @@ NYA_INTERNAL NYA_ConstCString _nya_file_atomic_target(NYA_Arena* arena, NYA_Cons
 
 /** Creates a temp file beside `target` that nobody else can be holding, and opens it for writing. */
 NYA_INTERNAL NYA_Error _nya_file_atomic_open_temporary(NYA_Arena* arena, NYA_ConstCString target, OUT NYA_File* out_file, OUT NYA_CString* out_path) {
-    u32       process_id = nya_host_process_id();
+    u32       process_id = nya_os_process_id();
     NYA_Error error      = NYA_OK;
 
     // exclusive, so a stale temp left by a dead process with a recycled pid is stepped over, not reused.

@@ -1,4 +1,4 @@
-#include <process.h>
+#include <windows.h>
 
 #include "nyangine/nyangine.h"
 
@@ -72,9 +72,13 @@ void nya_host_kernel_name(OUT u8* buffer, u32 capacity) {
     (void)snprintf((char*)buffer, capacity, "Windows NT");
 }
 
-u32 nya_host_process_id(void) {
-    // the CRT's, so this file needs no windows.h; it is GetCurrentProcessId underneath.
-    return (u32)_getpid();
+u32 nya_platform_processor_count(void) {
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+
+    if (info.dwNumberOfProcessors < 1) return 1;
+
+    return (u32)info.dwNumberOfProcessors;
 }
 
 b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value) {
