@@ -60,16 +60,6 @@ NYA_INTERNAL b8 _nya_http_parse_decimal(const char* text, u64 size, u64 limit, O
 /** Hexadecimal, same contract. Used for a chunk size and nothing else. */
 NYA_INTERNAL b8 _nya_http_parse_hex(const char* text, u64 size, u64 limit, OUT u64* out_value);
 
-/**
- * Percent-decodes `size` bytes into `out_path`, and refuses rather than repairing: a bad escape, a
- * decoded control byte, a decoded NUL, a path not starting with '/', and any "." or ".." segment
- * after decoding. That last check is after decoding on purpose, so "%2e%2e%2f" is caught too.
- * */
-NYA_INTERNAL b8 _nya_http_decode_path(const char* text, u64 size, OUT char* out_path, u64 capacity);
-
-/** Percent-decodes a query parameter value, where '+' is a space and the segment rules do not apply. */
-NYA_INTERNAL b8 _nya_http_decode_form(const char* text, u64 size, OUT char* out_value, u64 capacity);
-
 /** Copies `size` bytes and null terminates, or fails when they do not fit. Never truncates silently. */
 NYA_INTERNAL b8 _nya_http_copy_bounded(OUT char* destination, u64 capacity, const char* source, u64 size);
 
@@ -341,32 +331,13 @@ b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString
     nya_assert(buffer != nullptr);
     nya_assert(capacity > 0);
 
-    buffer[0] = '\0';
+    b8 found = false;
 
-    u64 wanted = 0;
-    while (name[wanted] != '\0') wanted++;
+    // a name given twice, a value too long and an absent name all read as no value; the url module says
+    // which it was, and a handler that needs to tell them apart calls it on request->target itself.
+    if (!nya_url_query_find(&request->target, name, buffer, capacity, &found).ok) return false;
 
-    u64 cursor = 0;
-    u64 length = 0;
-    while (length < NYA_HTTP_MAX_QUERY && request->query[length] != '\0') length++;
-
-    while (cursor < length) {
-        u64 pair_end = cursor;
-        while (pair_end < length && request->query[pair_end] != '&') pair_end++;
-
-        u64 equals = cursor;
-        while (equals < pair_end && request->query[equals] != '=') equals++;
-
-        if (equals - cursor == wanted && memcmp(request->query + cursor, name, wanted) == 0) {
-            u64 value_start = equals < pair_end ? equals + 1 : pair_end;
-
-            return _nya_http_decode_form(request->query + value_start, pair_end - value_start, buffer, capacity);
-        }
-
-        cursor = pair_end + 1;
-    }
-
-    return false;
+    return found;
 }
 
 NYA_Error nya_http_request_document(const NYA_HttpRequest* request, NYA_Arena* arena, NYA_Object** out_object) {
@@ -760,104 +731,6 @@ b8 _nya_http_parse_hex(const char* text, u64 size, u64 limit, u64* out_value) {
     return true;
 }
 
-b8 _nya_http_decode_path(const char* text, u64 size, char* out_path, u64 capacity) {
-    nya_assert(capacity > 0);
-
-    out_path[0] = '\0';
-
-    if (size == 0 || text[0] != '/') return false;
-
-    u64 written = 0;
-
-    for (u64 index = 0; index < size; index++) {
-        char decoded = text[index];
-
-        if (decoded == '%') {
-            u8 high = 0;
-            u8 low  = 0;
-
-            if (index + 2 >= size) return false;
-            if (!_nya_http_hex_digit(text[index + 1], &high)) return false;
-            if (!_nya_http_hex_digit(text[index + 2], &low)) return false;
-
-            u8 byte = (u8)((u32)high * 16U + (u32)low);
-
-            // a decoded NUL would end the path early for anything that treats it as a C string, and it
-            // is caught by the same rule as every other control byte. Neither is repaired into something
-            // else.
-            if (byte < 0x20 || byte == 0x7F) return false;
-
-            decoded  = (char)byte;
-            index   += 2;
-        } else if ((u8)decoded < 0x20 || (u8)decoded == 0x7F) {
-            return false;
-        }
-
-        if (written + 1 >= capacity) return false;
-
-        out_path[written++] = decoded;
-    }
-
-    out_path[written] = '\0';
-
-    /*
-     * The traversal check, after decoding: "%2e%2e%2f" is "../" and has to be caught by the same rule
-     * that catches "../". Refused rather than collapsed, because a path that meant to climb is not a
-     * path this server has a resource for, and normalising it invents one.
-     */
-    u64 segment = 1;
-    while (segment <= written) {
-        u64 end = segment;
-        while (end < written && out_path[end] != '/') end++;
-
-        u64 length = end - segment;
-
-        if (length == 1 && out_path[segment] == '.') return false;
-        if (length == 2 && out_path[segment] == '.' && out_path[segment + 1] == '.') return false;
-
-        segment = end + 1;
-    }
-
-    return true;
-}
-
-b8 _nya_http_decode_form(const char* text, u64 size, char* out_value, u64 capacity) {
-    nya_assert(capacity > 0);
-
-    out_value[0] = '\0';
-
-    u64 written = 0;
-
-    for (u64 index = 0; index < size; index++) {
-        char decoded = text[index];
-
-        if (decoded == '+') {
-            decoded = ' ';
-        } else if (decoded == '%') {
-            u8 high = 0;
-            u8 low  = 0;
-
-            if (index + 2 >= size) return false;
-            if (!_nya_http_hex_digit(text[index + 1], &high)) return false;
-            if (!_nya_http_hex_digit(text[index + 2], &low)) return false;
-
-            u8 byte = (u8)((u32)high * 16U + (u32)low);
-            if (byte == 0) return false;
-
-            decoded  = (char)byte;
-            index   += 2;
-        }
-
-        if (written + 1 >= capacity) return false;
-
-        out_value[written++] = decoded;
-    }
-
-    out_value[written] = '\0';
-
-    return true;
-}
-
 b8 _nya_http_copy_bounded(char* destination, u64 capacity, const char* source, u64 size) {
     nya_assert(capacity > 0);
 
@@ -910,26 +783,20 @@ NYA_HttpStatus _nya_http_parse_request_line(const char* line, u64 length, NYA_Ht
      * authority form is for CONNECT, which this server does not implement. Accepting either would mean
      * deciding what host a request was for, which is a decision a proxy in front has already made.
      */
-    if (target_size == 0 || target[0] != '/') return NYA_HTTP_STATUS_BAD_REQUEST;
+    NYA_UrlFailure failure = { 0 };
 
-    u64 question = 0;
-    while (question < target_size && target[question] != '?') question++;
-
-    if (!_nya_http_decode_path(target, question, out_request->path, sizeof(out_request->path))) {
-        // too long and malformed are different answers, and a caller cannot tell them apart from the
-        // decoder's bool, so the length is checked here where the raw size is still in hand.
-        if (question >= sizeof(out_request->path)) return NYA_HTTP_STATUS_URI_TOO_LONG;
-
-        return NYA_HTTP_STATUS_BAD_REQUEST;
+    // parsed in place: the request outlives the receive buffer the target was read from.
+    if (!nya_url_parse_target(target, target_size, &out_request->target, &failure).ok) {
+        return failure.rule == NYA_URL_RULE_TOO_LONG ? NYA_HTTP_STATUS_URI_TOO_LONG : NYA_HTTP_STATUS_BAD_REQUEST;
     }
 
-    if (question < target_size) {
-        u64 query_size = target_size - question - 1;
-
-        if (!_nya_http_copy_bounded(out_request->query, sizeof(out_request->query), target + question + 1, query_size)) {
-            return NYA_HTTP_STATUS_URI_TOO_LONG;
-        }
+    // the target parsed, so the only way its path cannot be decoded is not fitting the buffer.
+    u64 path_length = 0;
+    if (!nya_url_path_decode(&out_request->target, out_request->path, sizeof(out_request->path), &path_length).ok) {
+        return NYA_HTTP_STATUS_URI_TOO_LONG;
     }
+
+    nya_assert(path_length > 0 && out_request->path[0] == '/');
 
     return NYA_HTTP_STATUS_NONE;
 }

@@ -38,10 +38,11 @@
  *
  * ── what the parser promises ──
  *
- * On NYA_HTTP_PARSE_DONE, and only then: `method` names a verb, `path` is null terminated, starts
- * with '/', is percent-decoded and contains no "." or ".." segment, `query` is null terminated,
- * `header_count` is at most NYA_HTTP_MAX_HEADERS with every name and value null terminated inside
- * their bounds, `body_size` is at most NYA_HTTP_MAX_BODY_BYTES, and `consumed` is at most `size`.
+ * On NYA_HTTP_PARSE_DONE, and only then: `method` names a verb, `target` is an NYA_Url with every
+ * promise base_url.h makes, `path` is that target's path decoded, null terminated, starting with '/'
+ * and with no "." or ".." segment, `header_count` is at most NYA_HTTP_MAX_HEADERS with every name and
+ * value null terminated inside their bounds, `body_size` is at most NYA_HTTP_MAX_BODY_BYTES, and
+ * `consumed` is at most `size`.
  * Those are the invariants the fuzz target asserts, and they are what lets everything downstream take
  * the struct rather than the bytes.
  *
@@ -146,9 +147,10 @@ NYA_API NYA_ConstCString nya_http_request_header(const NYA_HttpRequest* request,
 /**
  * Percent-decodes the query parameter called `name` into `buffer`, null terminated.
  *
- * False when there is no such parameter, or when its decoded value does not fit `capacity`; `buffer`
- * is left holding an empty string in both cases, so a caller that ignores the return value gets the
- * empty default rather than the previous request's value.
+ * False when there is no such parameter, when the name is given twice (see nya_url_query_find), or
+ * when its decoded value does not fit `capacity`; `buffer` is left holding an empty string in all
+ * three, so a caller that ignores the return value gets the empty default rather than the previous
+ * request's value.
  * */
 NYA_API b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString name, OUT char* buffer, u64 capacity);
 

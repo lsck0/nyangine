@@ -49,7 +49,8 @@ s32 main(void) {
 
         nya_assert(request->method == NYA_HTTP_METHOD_GET);
         nya_assert(nya_string_equals(request->path, "/api/metrics"));
-        nya_assert(nya_string_equals(request->query, "view=frame"));
+        nya_assert(request->target.has_query && request->target.query.length == strlen("view=frame"));
+        nya_assert(nya_memcmp(request->target.text + request->target.query.offset, "view=frame", request->target.query.length) == 0);
         nya_assert(request->header_count == 2);
         nya_assert(request->body_size == 0);
         nya_assert(request->keep_alive, "HTTP/1.1 keeps the connection unless it says otherwise");
@@ -260,6 +261,36 @@ s32 main(void) {
 
         nya_assert(parse(arena, "GET /api/%6det%72ics HTTP/1.1\r\nHost: x\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_assert(nya_string_equals(request->path, "/api/metrics"));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: the target goes through base_url, so its rules are the server's rules.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        // an encoded '/' would move a segment boundary after the router's checks ran.
+        nya_assert(refusal(arena, "GET /api/a%2Fb HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+
+        // a path starting "//" is a host to anything that echoes it into a Location header.
+        nya_assert(refusal(arena, "GET //evil.example/ HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+
+        // no client sends a fragment, and a raw byte outside RFC 3986 is not a target.
+        nya_assert(refusal(arena, "GET /a#b HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "GET /a?x={} HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "GET * HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+
+        NYA_HttpRequest* request  = nullptr;
+        u64              consumed = 0;
+        NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
+        char             value[32] = { 0 };
+
+        nya_assert(parse(arena, "GET /s?q=a+b%2Bc&page=2&page=3 HTTP/1.1\r\nHost: x\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+
+        nya_assert(nya_http_request_query_param(request, "q", value, sizeof(value)));
+        nya_assert(nya_string_equals(value, "a b+c"), "'+' is a space in a query and %%2B is a plus");
+
+        // which of two values a proxy and a handler each pick is the pollution bug; neither is answered.
+        nya_assert(!nya_http_request_query_param(request, "page", value, sizeof(value)));
+        nya_assert(value[0] == '\0');
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

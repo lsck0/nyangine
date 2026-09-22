@@ -1,0 +1,1 @@
+ws://user:pass@my_host.internal/socket?#

@@ -1016,6 +1016,37 @@ b8 nya_type_parse(NYA_Type target, const u8* data, u64 length, OUT void* out_val
 b8 nya_type_name_parse(const u8* data, u64 length, OUT NYA_Type* out_type, OUT NYA_ConstCString* out_type_name)
 ```
 
+### base_url.h
+
+URLs and percent encoding, parsed once where the text arrives.
+
+```c
+// types
+enum NYA_UrlScheme { NYA_URL_SCHEME_NONE = 0, NYA_URL_SCHEME_HTTP, NYA_URL_SCHEME_HTTPS, NYA_URL_SCHEME_WS, NYA_URL_SCHEME_WSS, NYA_URL_SCHEME_COUNT, }  // The schemes this engine speaks.
+enum NYA_UrlHostKind { NYA_URL_HOST_NONE = 0, NYA_URL_HOST_NAME, NYA_URL_HOST_IPV4, NYA_URL_HOST_IPV6, NYA_URL_HOST_COUNT, }  // What the host turned out to be.
+enum NYA_UrlRule { NYA_URL_RULE_NONE = 0, NYA_URL_RULE_EMPTY, NYA_URL_RULE_TOO_LONG, NYA_URL_RULE_CONTROL_CHARACTER, NYA_URL_RULE_SPACE, NYA_URL_RULE_CHARACTER, NYA_URL_RULE_PERCENT_MALFORMED, NYA_URL_RULE_SCHEME_MISSING, NYA_URL_RULE_SCHEME_UNKNOWN, NYA_URL_RULE_AUTHORITY_MISSING, NYA_URL_RULE_HOST_EMPTY, NYA_URL_RULE_HOST_TOO_LONG, NYA_URL_RULE_HOST_MALFORMED, NYA_URL_RULE_IPV6_MALFORMED, NYA_URL_RULE_PORT_MALFORMED, NYA_URL_RULE_PORT_OUT_OF_RANGE, NYA_URL_RULE_PATH_NOT_ABSOLUTE, NYA_URL_RULE_PATH_ENCODED_SLASH, NYA_URL_RULE_PATH_DOT_SEGMENT, NYA_URL_RULE_PATH_DOUBLE_SLASH, NYA_URL_RULE_COUNT, }  // Which rule a refused URL broke.
+struct NYA_UrlSpan { u16 offset; u16 length; }  // A component: where it sits in NYA_Url.text and how long it is.
+struct NYA_Url { NYA_UrlScheme scheme; NYA_UrlHostKind host_kind; b8 has_userinfo; b8 has_port; b8 has_query; b8 has_fragment; u16 port; NYA_UrlSpan host; NYA_UrlSpan path; NYA_UrlSpan query; NYA_UrlSpan fragment; u16 length; char text[NYA_URL_MAX_BYTES]; }  // A URL that parsed.
+struct NYA_UrlFailure { NYA_UrlRule rule; u32 offset; }  // Which rule a refusal broke and the byte of the input it broke it at.
+
+// macros
+NYA_URL_MAX_BYTES 2048  // Longest URL accepted, in bytes.
+NYA_URL_HOST_MAX_BYTES 253  // Longest host name.
+NYA_URL_HOST_LABEL_MAX_BYTES 63  // Longest label between two dots of a host name, from RFC 1035.
+NYA_URL_IPV6_MAX_BYTES 45  // Longest IPv6 literal inside the brackets: eight groups of four, or six and an embedded dotted quad.
+NYA_URL_PORT_MAX_DIGITS 5  // Digits in a port.
+
+// functions
+NYA_Error nya_url_parse(const char* text, u64 size, OUT NYA_Url* out_url, OUT NYA_UrlFailure* out_failure)  // Parses an absolute URL with one of the schemes in NYA_UrlScheme.
+NYA_Error nya_url_parse_target(const char* text, u64 size, OUT NYA_Url* out_url, OUT NYA_UrlFailure* out_failure)
+NYA_Error nya_url_format(const NYA_Url* url, OUT char* buffer, u64 capacity, OUT u64* out_length)  // Renders `url` into `buffer`, null terminated, `out_length` not counting the terminator.
+NYA_Error nya_url_path_decode(const NYA_Url* url, OUT char* buffer, u64 capacity, OUT u64* out_length)  // The path, percent-decoded and null terminated.
+NYA_Error nya_url_query_find(const NYA_Url* url, NYA_ConstCString name, OUT char* buffer, u64 capacity, OUT b8* out_found)
+NYA_ConstCString nya_url_rule_text(NYA_UrlRule rule)  // The rule's name, for a log line.
+NYA_Error nya_percent_encode(const u8* data, u64 size, OUT char* buffer, u64 capacity, OUT u64* out_length)
+NYA_Error nya_percent_decode(const char* text, u64 size, OUT u8* buffer, u64 capacity, OUT u64* out_length)
+```
+
 ### base_version.h
 
 What this binary is: version, commit, build kind, and when it was built.
@@ -4491,7 +4522,7 @@ enum NYA_HttpMethod { NYA_HTTP_METHOD_NONE = 0, NYA_HTTP_METHOD_GET, NYA_HTTP_ME
 enum NYA_HttpStatus { NYA_HTTP_STATUS_NONE = 0, NYA_HTTP_STATUS_OK = 200, NYA_HTTP_STATUS_CREATED = 201, NYA_HTTP_STATUS_NO_CONTENT = 204, NYA_HTTP_STATUS_BAD_REQUEST = 400, NYA_HTTP_STATUS_UNAUTHORIZED = 401, NYA_HTTP_STATUS_FORBIDDEN = 403, NYA_HTTP_STATUS_NOT_FOUND = 404, NYA_HTTP_STATUS_METHOD_NOT_ALLOWED = 405, NYA_HTTP_STATUS_REQUEST_TIMEOUT = 408, NYA_HTTP_STATUS_LENGTH_REQUIRED = 411, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE = 413, NYA_HTTP_STATUS_URI_TOO_LONG = 414, NYA_HTTP_STATUS_UNSUPPORTED_MEDIA = 415, NYA_HTTP_STATUS_UNPROCESSABLE = 422, NYA_HTTP_STATUS_HEADERS_TOO_LARGE = 431, NYA_HTTP_STATUS_INTERNAL_ERROR = 500, NYA_HTTP_STATUS_NOT_IMPLEMENTED = 501, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE = 503, NYA_HTTP_STATUS_HTTP_VERSION = 505, }  // Every status this server can produce, and the only values a handler may return.
 enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_NYA, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
 struct NYA_HttpHeader { char name[NYA_HTTP_MAX_HEADER_NAME]; char value[NYA_HTTP_MAX_HEADER_VALUE]; }  // One header, both halves bounded and null terminated.
-struct NYA_HttpRequest { NYA_HttpMethod method; char path[NYA_HTTP_MAX_PATH]; char query[NYA_HTTP_MAX_QUERY]; NYA_HttpHeader headers[NYA_HTTP_MAX_HEADERS]; u32 header_count; NYA_HttpMediaType media_type; b8 keep_alive; u8 body[NYA_HTTP_MAX_BODY_BYTES + 1]; u64 body_size; }  // A request that parsed.
+struct NYA_HttpRequest { NYA_HttpMethod method; char path[NYA_HTTP_MAX_PATH]; NYA_Url target; NYA_HttpHeader headers[NYA_HTTP_MAX_HEADERS]; u32 header_count; NYA_HttpMediaType media_type; b8 keep_alive; u8 body[NYA_HTTP_MAX_BODY_BYTES + 1]; u64 body_size; }  // A request that parsed.
 struct NYA_HttpResponse { NYA_HttpStatus status; NYA_HttpMediaType media_type; NYA_HttpHeader headers[NYA_HTTP_MAX_RESPONSE_HEADERS]; u32 header_count; u8* body; u64 body_capacity; u64 body_size; }  // What a handler fills in.
 
 // macros
@@ -4510,7 +4541,6 @@ NYA_HTTP_MAX_HEADER_NAME 48  // Longest header name kept, terminator included.
 NYA_HTTP_MAX_HEADER_VALUE 512  // Longest header value kept, terminator included.
 NYA_HTTP_MAX_RESPONSE_HEADERS 8  // Headers a handler may add beyond the ones the server always writes.
 NYA_HTTP_MAX_PATH 256  // Longest path after percent-decoding, terminator included.
-NYA_HTTP_MAX_QUERY 256  // Longest query string, terminator included.
 
 // functions
 NYA_ConstCString nya_http_method_text(NYA_HttpMethod method)  // "GET", "POST", ...

@@ -414,6 +414,281 @@ static b8 law_net_snapshot_round_trips(NYA_Property* property) {
     return true;
 }
 
+/** percent encoding: decoding what was encoded gives back the bytes, and the encoding holds nothing a URL would refuse. */
+static b8 law_percent_round_trips(NYA_Property* property) {
+    u8  bytes[BYTES_MAX];
+    u32 count = (u32)nya_property_draw_below(property, BYTES_MAX + 1);
+
+    nya_property_draw_bytes(property, bytes, count);
+
+    char encoded[BYTES_MAX * 3 + 1];
+    u64  encoded_length = 0;
+
+    if (!nya_percent_encode(bytes, count, encoded, sizeof(encoded), &encoded_length).ok) {
+        nya_property_note(property, "%u bytes did not encode into three times their size", count);
+        return false;
+    }
+
+    // every byte out is unreserved or starts an escape of two upper case hex digits.
+    for (u64 i = 0; i < encoded_length; i++) {
+        char c = encoded[i];
+
+        if (c == '%') {
+            b8 hex = i + 2 < encoded_length && isxdigit((u8)encoded[i + 1]) && isxdigit((u8)encoded[i + 2]) && !islower((u8)encoded[i + 1]) &&
+                     !islower((u8)encoded[i + 2]);
+
+            if (!hex) {
+                nya_property_note(property, "a '%%' at %llu does not start an upper case escape", (unsigned long long)i);
+                return false;
+            }
+
+            i += 2;
+            continue;
+        }
+
+        if (!isalnum((u8)c) && c != '-' && c != '.' && c != '_' && c != '~') {
+            nya_property_note(property, "the encoding carries a raw 0x%02x", (unsigned)(u8)c);
+            return false;
+        }
+    }
+
+    u8  decoded[BYTES_MAX];
+    u64 decoded_length = 0;
+
+    if (!nya_percent_decode(encoded, encoded_length, decoded, sizeof(decoded), &decoded_length).ok) {
+        nya_property_note(property, "the decoder refused what the encoder wrote");
+        return false;
+    }
+
+    if (decoded_length != count) {
+        nya_property_note(property, "%u bytes in, %llu out", count, (unsigned long long)decoded_length);
+        return false;
+    }
+
+    return nya_memcmp(decoded, bytes, count) == 0;
+}
+
+/** Appends `text` to a URL being built, the bound asserted rather than trusted. */
+static void url_append(char* url, u64* length, NYA_ConstCString text, u64 text_length) {
+    nya_assert(*length + text_length < NYA_URL_MAX_BYTES, "a generated url outgrew the bound");
+
+    nya_memcpy(url + *length, text, text_length);
+    *length += text_length;
+}
+
+/** Longest raw component the URL law draws before encoding it. */
+#define URL_PART_MAX 16
+
+/**
+ * Between `length_min` and `length_max` raw bytes for one component. Never NUL, since no component may
+ * decode to one; for a path segment also no control and no '/', and never "." or "..".
+ * */
+static u32 url_draw_raw(NYA_Property* property, OUT u8* raw, u32 length_min, u32 length_max, b8 path_segment) {
+    nya_assert(length_min <= length_max && length_max <= URL_PART_MAX);
+
+    u32 count = length_min + (u32)nya_property_draw_below(property, length_max - length_min + 1);
+
+    for (u32 i = 0; i < count; i++) {
+        u8 byte = nya_property_draw_u8(property);
+
+        if (byte == 0 || (path_segment && (byte < 0x20 || byte == 0x7F || byte == '/'))) byte = 'a';
+
+        raw[i] = byte;
+    }
+
+    // refused however it is spelled, so a generated segment is never one.
+    if (path_segment && count > 0 && count <= 2 && raw[0] == '.' && raw[count - 1] == '.') raw[0] = 'd';
+
+    return count;
+}
+
+/** `raw` percent-encoded onto the URL. */
+static void url_append_encoded(char* url, u64* length, const u8* raw, u32 count) {
+    char encoded[URL_PART_MAX * 3 + 1];
+    u64  encoded_length = 0;
+
+    NYA_EXPECT(nya_percent_encode(raw, count, encoded, sizeof(encoded), &encoded_length));
+    url_append(url, length, encoded, encoded_length);
+}
+
+/** A host of the drawn kind, written as a URL writes it. */
+static void url_append_host(NYA_Property* property, char* url, u64* length) {
+    char host[64];
+    s32  written = 0;
+
+    switch (nya_property_draw_below(property, 3)) {
+        case 0: {
+            u8 octets[4];
+            nya_property_draw_bytes(property, octets, sizeof(octets));
+
+            written = snprintf(host, sizeof(host), "%u.%u.%u.%u", (unsigned)octets[0], (unsigned)octets[1], (unsigned)octets[2], (unsigned)octets[3]);
+        } break;
+
+        case 1: {
+            // eight groups, with the zero run in the middle compressed some of the time.
+            unsigned groups[8];
+            for (u32 i = 0; i < 8; i++) groups[i] = (unsigned)nya_property_draw_below(property, 0x10000);
+
+            if (nya_property_draw_bool(property, 50)) {
+                written = snprintf(host, sizeof(host), "[%x:%x::%x:%x]", groups[0], groups[1], groups[6], groups[7]);
+            } else {
+                written = snprintf(
+                    host,
+                    sizeof(host),
+                    "[%x:%x:%x:%x:%x:%x:%x:%x]",
+                    groups[0],
+                    groups[1],
+                    groups[2],
+                    groups[3],
+                    groups[4],
+                    groups[5],
+                    groups[6],
+                    groups[7]
+                );
+            }
+        } break;
+
+        default: {
+            // labels of letters, digits and '_', the last starting with a letter so it is never read as an address.
+            static const char ALPHABET[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+
+            u32 labels = 1 + (u32)nya_property_draw_below(property, 4);
+
+            for (u32 label = 0; label < labels; label++) {
+                u32 label_length = 1 + (u32)nya_property_draw_below(property, 8);
+
+                if (label > 0) host[written++] = '.';
+
+                for (u32 i = 0; i < label_length; i++) {
+                    u32 letters = (label == labels - 1 && i == 0) ? 52 : (u32)(nya_carray_length(ALPHABET) - 1);
+                    host[written++] = ALPHABET[nya_property_draw_u8(property) % letters];
+                }
+            }
+        } break;
+    }
+
+    nya_assert(written > 0 && (u64)written < sizeof(host));
+    url_append(url, length, host, (u64)written);
+}
+
+/** Whether two parsed URLs say the same thing, component by component. */
+static b8 url_equals(const NYA_Url* a, const NYA_Url* b) {
+    b8 flags = a->scheme == b->scheme && a->host_kind == b->host_kind && a->has_userinfo == b->has_userinfo && a->has_port == b->has_port &&
+               a->port == b->port && a->has_query == b->has_query && a->has_fragment == b->has_fragment;
+
+    NYA_UrlSpan a_spans[] = { a->host, a->path, a->query, a->fragment };
+    NYA_UrlSpan b_spans[] = { b->host, b->path, b->query, b->fragment };
+
+    for (u32 i = 0; i < nya_carray_length(a_spans) && flags; i++) {
+        flags = a_spans[i].length == b_spans[i].length && nya_memcmp(a->text + a_spans[i].offset, b->text + b_spans[i].offset, a_spans[i].length) == 0;
+    }
+
+    return flags;
+}
+
+/**
+ * URLs: anything built from legal parts parses, renders, and parses again to the same URL, and a query
+ * parameter written through nya_percent_encode is found and decodes to exactly what was written.
+ * */
+static b8 law_url_round_trips(NYA_Property* property) {
+    static const NYA_ConstCString SCHEMES[] = { "http://", "HTTPS://", "ws://", "wss://" };
+
+    char url_text[NYA_URL_MAX_BYTES];
+    u64  length = 0;
+    b8   target = nya_property_draw_bool(property, 25);
+
+    if (!target) {
+        NYA_ConstCString scheme = SCHEMES[nya_property_draw_below(property, nya_carray_length(SCHEMES))];
+        url_append(url_text, &length, scheme, strlen(scheme));
+        url_append_host(property, url_text, &length);
+
+        if (nya_property_draw_bool(property, 50)) {
+            char port[8];
+            s32  written = snprintf(port, sizeof(port), ":%u", 1U + (u32)nya_property_draw_below(property, 65535));
+            url_append(url_text, &length, port, (u64)written);
+        }
+    }
+
+    // a target always has a path; an absolute URL may have none.
+    u32 segments = (u32)nya_property_draw_below(property, 5) + (target ? 1U : 0U);
+    for (u32 i = 0; i < segments; i++) {
+        u8  raw[URL_PART_MAX];
+        u32 count = url_draw_raw(property, raw, 1, 8, true);
+
+        url_append(url_text, &length, "/", 1);
+        url_append_encoded(url_text, &length, raw, count);
+    }
+
+    // the query is k<i>=<value>, so the names are distinct and the law knows what each one should hold.
+    u32 pairs     = 0;
+    b8  has_query = nya_property_draw_bool(property, 60);
+    u8  values[4][URL_PART_MAX];
+    u32 value_lengths[4] = { 0 };
+
+    if (has_query) {
+        url_append(url_text, &length, "?", 1);
+        pairs = (u32)nya_property_draw_below(property, 5);
+
+        for (u32 i = 0; i < pairs; i++) {
+            char key[8];
+            s32  written = snprintf(key, sizeof(key), "%sk%u=", i > 0 ? "&" : "", i);
+            url_append(url_text, &length, key, (u64)written);
+
+            value_lengths[i] = url_draw_raw(property, values[i], 0, URL_PART_MAX, false);
+            url_append_encoded(url_text, &length, values[i], value_lengths[i]);
+        }
+    }
+
+    if (!target && nya_property_draw_bool(property, 30)) {
+        u8  raw[URL_PART_MAX];
+        u32 count = url_draw_raw(property, raw, 0, 8, false);
+
+        url_append(url_text, &length, "#", 1);
+        url_append_encoded(url_text, &length, raw, count);
+    }
+
+    NYA_Url        first   = { 0 };
+    NYA_UrlFailure failure = { 0 };
+    NYA_Error      parsed  = target ? nya_url_parse_target(url_text, length, &first, &failure) : nya_url_parse(url_text, length, &first, &failure);
+
+    if (!parsed.ok) {
+        nya_property_note(property, "'%.*s' was refused: %s at %u", (int)length, url_text, nya_url_rule_text(failure.rule), failure.offset);
+        return false;
+    }
+
+    char formatted[NYA_URL_MAX_BYTES + 1];
+    u64  formatted_length = 0;
+    NYA_EXPECT(nya_url_format(&first, formatted, sizeof(formatted), &formatted_length));
+
+    NYA_Url second = { 0 };
+    parsed         = target ? nya_url_parse_target(formatted, formatted_length, &second, &failure) : nya_url_parse(formatted, formatted_length, &second, &failure);
+
+    if (!parsed.ok || !url_equals(&first, &second)) {
+        nya_property_note(property, "'%.*s' rendered as '%s', which does not parse back to it", (int)length, url_text, formatted);
+        return false;
+    }
+
+    for (u32 i = 0; i < pairs; i++) {
+        char name[8];
+        (void)snprintf(name, sizeof(name), "k%u", i);
+
+        char value[32];
+        b8   found = false;
+
+        if (!nya_url_query_find(&second, name, value, sizeof(value), &found).ok || !found) {
+            nya_property_note(property, "'%s' in '%s' was not found", name, formatted);
+            return false;
+        }
+
+        if (strlen(value) != value_lengths[i] || nya_memcmp(value, values[i], value_lengths[i]) != 0) {
+            nya_property_note(property, "'%s' in '%s' decoded to '%s'", name, formatted, value);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * CONTAINER LAWS
@@ -663,6 +938,8 @@ s32 main(void) {
     printf("TEST: round trips\n");
     failures += nya_property_check("base64 round trips", CASES, SEED, law_base64_round_trips);
     failures += nya_property_check("compression round trips", CASES, SEED, law_compress_round_trips);
+    failures += nya_property_check("percent encoding round trips", CASES, SEED, law_percent_round_trips);
+    failures += nya_property_check("urls round trip through their rendering", CASES, SEED, law_url_round_trips);
     failures += nya_property_check("serde nya round trips", CASES, SEED, law_serde_nya_round_trips);
     failures += nya_property_check("serde json round trips", CASES, SEED, law_serde_json_round_trips);
     failures += nya_property_check("serde jsonc round trips", CASES, SEED, law_serde_jsonc_round_trips);

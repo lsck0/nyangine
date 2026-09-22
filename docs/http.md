@@ -259,9 +259,13 @@ request, and a request that does not fit is answered with the status that says s
 - A request carrying both `Content-Length` and `Transfer-Encoding` is refused. There is no safe
   preference: two intermediaries pick different ones and disagree about where the next request
   starts, which is request smuggling.
-- A path is percent-decoded *before* the `.` and `..` check, so `%2e%2e%2f` is caught by the same rule
-  as `../`. It is refused rather than collapsed: a path that meant to climb is not a path this server
-  has a resource for.
+- The request target is parsed by `nya_url_parse_target` (`base_url.h`), the same parser everything
+  else in the engine uses. A path is percent-decoded *before* the `.` and `..` check, so `%2e%2e` is
+  caught by the same rule as `..`. It is refused rather than collapsed: a path that meant to climb is not
+  a path this server has a resource for. So are `%2F` inside a segment, a path starting `//`, a
+  fragment, and any byte outside RFC 3986.
+- A query parameter named twice is no value at all rather than the first or the last, since a proxy
+  that reads one and a handler that reads the other is parameter pollution.
 - A stream the parser has given up on is closed, never resynchronised. Guessing where the next request
   begins is the same bug again.
 - A response header carrying a CR or LF is refused rather than stripped, which is response splitting.

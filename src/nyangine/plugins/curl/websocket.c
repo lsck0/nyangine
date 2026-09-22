@@ -665,80 +665,42 @@ NYA_Error _nya_websocket_url_parse(NYA_ConstCString text, OUT _NYA_WebSocketUrl*
 
     if (text == nullptr || text[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a websocket needs a url");
 
-    b8               secure = false;
-    NYA_ConstCString cursor = nullptr;
+    // the one url parser; what is left here is what a websocket adds to its rules.
+    NYA_Url url = { 0 };
+    NYA_TRY(nya_url_parse(text, strlen(text), &url, nullptr));
 
-    if (nya_string_starts_with(text, "wss://")) {
-        secure = true;
-        cursor = text + strlen("wss://");
-    } else if (nya_string_starts_with(text, "ws://")) {
-        cursor = text + strlen("ws://");
-    } else {
-        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is not a ws or wss url", text);
-    }
+    if (url.scheme != NYA_URL_SCHEME_WS && url.scheme != NYA_URL_SCHEME_WSS) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is not a ws or wss url", text);
 
     // Refused rather than sent on: credentials in a url end up in logs, and the Authorization header is
     // the option that exists for this.
-    for (NYA_ConstCString scan = cursor; *scan != '\0' && *scan != '/'; scan++) {
-        if (*scan == '@') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a websocket url may not carry credentials");
-    }
+    if (url.has_userinfo) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a websocket url may not carry credentials");
 
-    u64 host_length = 0;
-    while (cursor[host_length] != '\0' && cursor[host_length] != ':' && cursor[host_length] != '/') host_length++;
+    // RFC 6455 3: a fragment has no meaning in a websocket url and must not be used.
+    if (url.has_fragment) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a websocket url may not carry a fragment");
 
-    if (host_length == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' has no host", text);
-    if (host_length >= sizeof(out_url->host)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the host in '%s' is too long", text);
+    b8 secure = url.scheme == NYA_URL_SCHEME_WSS;
+    b8 ipv6   = url.host_kind == NYA_URL_HOST_IPV6;
 
-    nya_memcpy(out_url->host, cursor, host_length);
-    cursor += host_length;
+    // bracketed when it is an IPv6 literal, since both the Host header and curl's url need it that way.
+    s32 host_written = snprintf(out_url->host, sizeof(out_url->host), ipv6 ? "[%.*s]" : "%.*s", (int)url.host.length, url.text + url.host.offset);
+    if (host_written < 0 || (u64)host_written >= sizeof(out_url->host)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the host in '%s' is too long", text);
 
-    u32 port = secure ? 443U : 80U;
-
-    if (*cursor == ':') {
-        cursor++;
-
-        u32 parsed = 0;
-        u32 digits = 0;
-
-        while (*cursor >= '0' && *cursor <= '9') {
-            parsed = (parsed * 10U) + (u32)(*cursor - '0');
-            cursor++;
-            digits++;
-
-            if (parsed > 65535U || digits > 5) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the port in '%s' is not a port", text);
-        }
-
-        if (digits == 0 || parsed == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the port in '%s' is not a port", text);
-
-        port = parsed;
-    }
-
-    u64 path_length = strlen(cursor);
-
-    if (path_length == 0) {
-        out_url->path[0] = '/';
-    } else {
-        if (*cursor != '/') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' has something after the port that is not a path", text);
-        if (path_length >= sizeof(out_url->path)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the path in '%s' is too long", text);
-
-        // A request line is one line, so anything that could end it early cannot be in the path.
-        for (u64 i = 0; i < path_length; i++) {
-            u8 character = (u8)cursor[i];
-            if (character <= 0x20U || character == 0x7FU)
-                return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the path in '%s' has a control character", text);
-        }
-
-        nya_memcpy(out_url->path, cursor, path_length);
-    }
-
-    // The host goes into a Host header and into curl's url, so the same rule applies to it.
-    for (u64 i = 0; i < host_length; i++) {
-        u8 character = (u8)out_url->host[i];
-        if (character <= 0x20U || character == 0x7FU) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the host in '%s' has a control character", text);
-    }
+    // the path stays encoded: it goes onto the request line exactly as the url wrote it. Empty means the root.
+    s32 path_written = snprintf(
+        out_url->path,
+        sizeof(out_url->path),
+        "%s%.*s%s%.*s",
+        url.path.length == 0 ? "/" : "",
+        (int)url.path.length,
+        url.text + url.path.offset,
+        url.has_query ? "?" : "",
+        (int)url.query.length,
+        url.text + url.query.offset
+    );
+    if (path_written < 0 || (u64)path_written >= sizeof(out_url->path)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the path in '%s' is too long", text);
 
     out_url->secure = secure;
-    out_url->port   = (u16)port;
+    out_url->port   = url.has_port ? url.port : (secure ? 443U : 80U);
 
     s32 written = snprintf(
         out_url->curl_url,

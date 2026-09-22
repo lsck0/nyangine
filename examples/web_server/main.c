@@ -14,6 +14,7 @@
  * ```
  * curl -X QUERY localhost:47800/api/notes -H 'Content-Type: application/json' -d '{}'
  * curl -X QUERY localhost:47800/api/notes -H 'Accept: application/nya' -d '{}'   # the native format
+ * curl -X QUERY 'localhost:47800/api/notes?contains=first+note' -d '{}'         # only the notes containing it
  * curl -X POST  localhost:47800/api/notes -d '{"text":"the first note"}'
  * curl -X DELETE localhost:47800/api/notes -d '{"id":1}'
  * curl localhost:47800/docs                 # the generated page
@@ -102,17 +103,29 @@ NYA_INTERNAL NYA_Value note_to_value(NYA_Arena* arena, const ExampleNote* note) 
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Every note. */
+/** Every note, or with `?contains=text` only the ones whose text contains it. */
 NYA_INTERNAL NYA_HttpStatus notes_query(NYA_HttpExchange* exchange) {
     NYA_Object* body  = nya_object_create(exchange->arena);
     NYA_ArrayᐸNYA_Valueᐳ* notes = nya_array_create(exchange->arena, NYA_Value);
 
+    /*
+     * Decoded by the parser that read the target, so "first+note" and "first%20note" are both "first note".
+     * Asked of the target directly: a repeated name or an overlong filter answers 400, where
+     * nya_http_request_query_param would read either as no filter and answer with everything.
+     */
+    char contains[NOTE_TEXT_MAX] = { 0 };
+    b8   filtered                = false;
+
+    if (!nya_url_query_find(&exchange->request->target, "contains", contains, sizeof(contains), &filtered).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
+
     for (u32 i = 0; i < NOTE_COUNT; i++) {
+        if (filtered && strstr(NOTES[i].text, contains) == nullptr) continue;
+
         NYA_Value value = note_to_value(exchange->arena, &NOTES[i]);
         nya_array_push_back(notes, value);
     }
 
-    nya_object_set(body, "count", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NOTE_COUNT });
+    nya_object_set(body, "count", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = notes->length });
     nya_object_set(body, "notes", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *notes });
 
         /*
@@ -201,8 +214,8 @@ NYA_INTERNAL const NYA_HttpRoute NOTE_ROUTES[] = {
      .auth          = NYA_HTTP_AUTH_NONE,
      .handler       = notes_query,
      .summary       = "Every note",
-     .description   = "A read, and therefore a QUERY rather than a GET.",
-     .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     .description   = "A read, and therefore a QUERY rather than a GET. `?contains=text` keeps the notes containing it.",
+     .statuses      = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
      .method        = NYA_HTTP_METHOD_POST,

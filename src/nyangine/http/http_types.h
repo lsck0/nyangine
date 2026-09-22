@@ -37,6 +37,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/base/base_url.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -133,11 +134,8 @@
 /** Headers a handler may add beyond the ones the server always writes. */
 #define NYA_HTTP_MAX_RESPONSE_HEADERS 8
 
-/** Longest path after percent-decoding, terminator included. */
+/** Longest path after percent-decoding, terminator included. The raw target is bounded by NYA_URL_MAX_BYTES. */
 #define NYA_HTTP_MAX_PATH 256
-
-/** Longest query string, terminator included. Kept raw; see nya_http_request_query. */
-#define NYA_HTTP_MAX_QUERY 256
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -272,8 +270,11 @@ struct NYA_HttpRequest {
      * */
     char path[NYA_HTTP_MAX_PATH];
 
-    /** Everything after the '?', undecoded. Empty when there was none. See nya_http_request_query. */
-    char query[NYA_HTTP_MAX_QUERY];
+    /**
+     * The request target as nya_url_parse_target read it; `path` above is its path decoded. The query
+     * is read through nya_http_request_query_param, which is nya_url_query_find, so there is one parser.
+     * */
+    NYA_Url target;
 
     NYA_HttpHeader headers[NYA_HTTP_MAX_HEADERS];
     u32            header_count;

@@ -70,9 +70,9 @@ static void fuzz_once(const u8* data, u64 size) {
     while (path_length < NYA_HTTP_MAX_PATH && request->path[path_length] != '\0') path_length++;
     nya_assert(path_length < NYA_HTTP_MAX_PATH, "the path is not terminated");
 
-    u64 query_length = 0;
-    while (query_length < NYA_HTTP_MAX_QUERY && request->query[query_length] != '\0') query_length++;
-    nya_assert(query_length < NYA_HTTP_MAX_QUERY, "the query is not terminated");
+    // the target is an NYA_Url, and every span in it lies inside what it stored.
+    nya_assert(request->target.scheme == NYA_URL_SCHEME_NONE && request->target.length <= NYA_URL_MAX_BYTES);
+    nya_assert((u32)request->target.query.offset + request->target.query.length <= request->target.length, "the query reaches past the target");
 
     nya_assert(request->body[request->body_size] == '\0', "the body is not terminated one past its end");
 

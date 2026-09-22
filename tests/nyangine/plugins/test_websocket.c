@@ -354,6 +354,8 @@ s32 main(void) {
       "ws://example.com:abc",
       "ws://example.com nope",
       "ws://example.com/path with a space",
+      "ws://example.com/#top",
+      "ws://0x7f.1/",
     };
 
     for (u32 i = 0; i < sizeof(refused) / sizeof(refused[0]); i++) {
@@ -384,7 +386,7 @@ s32 main(void) {
     // Destroying nothing is a no-op, so this pairs with a failed create.
     nya_websocket_destroy(nullptr);
 
-    printf("  eleven bad urls and two bad headers refused\n");
+    printf("  thirteen bad urls and two bad headers refused\n");
   }
 
   printf("TEST: the whole exchange against a server\n");
