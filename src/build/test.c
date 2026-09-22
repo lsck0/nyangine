@@ -121,7 +121,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
 
         .command = {
             .program   = CC,
-            .arguments = { CC_LAUNCHED,
+            .arguments = {
                 TEST_ENGINE_SOURCE,
                 "-c", "-o", TEST_ENGINE_OBJECT,
                 CFLAGS,
@@ -198,7 +198,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
 
             .command = {
                 .program   = CC,
-                .arguments = { CC_LAUNCHED,
+                .arguments = {
                     test_cstr,
                     "-c", "-o", test_object,
                     CFLAGS,
@@ -241,7 +241,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
 
             .command = {
                 .program   = CC,
-                .arguments = { CC_LAUNCHED,
+                .arguments = {
                     test_object,
                     "-o", test_binary,
                     CFLAGS,

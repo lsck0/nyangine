@@ -12,7 +12,7 @@
 #define WINDRES "windres"
 
 /** Native, so the ordinary compiler and archiver. */
-#define NYA_WINDOWS_CC CC_BINARY
+#define NYA_WINDOWS_CC CC
 #define NYA_WINDOWS_AR "ar"
 
 /** Not cross compiling, so LuaJIT's host compiler is the compiler. Named, since its Makefile defaults to gcc. */

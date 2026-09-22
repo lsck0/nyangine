@@ -45,7 +45,7 @@ NYA_VendorRule vendor_lua_linux_x86_64 = {
 
             .command = {
                 .program   = "make",
-                .arguments = { "-C", LUAJIT_SRC, "clean", CC_MAKE, },
+                .arguments = { "-C", LUAJIT_SRC, "clean", VENDOR_CC_MAKE, },
             },
         },
         &(NYA_BuildRule){
@@ -55,7 +55,7 @@ NYA_VendorRule vendor_lua_linux_x86_64 = {
 
             .command = {
                 .program   = "make",
-                .arguments = { "-C", LUAJIT_SRC, "libluajit.a", "-j", NPROCS, CC_MAKE, },
+                .arguments = { "-C", LUAJIT_SRC, "libluajit.a", "-j", NPROCS, VENDOR_CC_MAKE, },
             },
         },
         &(NYA_BuildRule){
@@ -89,7 +89,7 @@ NYA_VendorRule vendor_lua_windows_x86_64 = {
 
             .command = {
                 .program   = "make",
-                .arguments = { "-C", LUAJIT_SRC, "clean", CC_MAKE, },
+                .arguments = { "-C", LUAJIT_SRC, "clean", VENDOR_CC_MAKE, },
             },
         },
         &(NYA_BuildRule){

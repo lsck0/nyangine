@@ -213,7 +213,7 @@ NYA_INTERNAL NYA_BuildRule update_submodules = {
  * */
 NYA_INTERNAL NYA_Command build_rebuild_command = {
     .program   = CC,
-    .arguments = { CC_LAUNCHED,
+    .arguments = {
         "build.c",
         "-o", BUILD_TOOL_BINARY,
         CFLAGS,

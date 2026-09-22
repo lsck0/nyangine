@@ -101,17 +101,19 @@ clang build.c -o build -std=c2y -mavx -mavx2 -fdefer-ts -fenable-matrix \
 `./build` with no arguments lists every command. The first run builds every vendored dependency,
 which takes tens of minutes; after that the artifacts are cached.
 
-**Compiler cache.** With `sccache` or `ccache` on the PATH the tool puts it in front of every compile
-it runs — the engine, gnyame, the tests, the examples, the benchmarks and every vendor, whether that
-vendor is built by a direct call, a Makefile or cmake. Without either, nothing changes. It is detected
-once at startup (`./build` says "Compiling through sccache") so there is nothing to configure.
+**Compiler cache, for the vendors.** With `sccache` or `ccache` on the PATH the tool puts it in front
+of the vendor builds — every vendor, whether it is built by a direct call, a Makefile or cmake — and
+in front of nothing else. Detected once at startup; `./build` says "Building the vendors through
+sccache" when it found one, and without either nothing changes.
 
-sccache is preferred because it is the one that can be central: its storage is a directory, an S3
-bucket or a Redis, so several checkouts and a CI runner share one cache. ccache is the faster of the
-two on this tree, because the engine is a unity build and ccache's direct mode skips the preprocess
-that sccache needs to compute its key — an sccache hit on the engine saved 185 ms of 2750 when it was
-measured. The win for either is everything that is not one unity TU: the vendors, and a fresh checkout
-or worktree where nothing has been built yet.
+The engine, gnyame, the tests and the examples call the compiler directly on purpose. A cache decides
+it has seen a compile before by hashing what the compiler would see, and sccache does that by
+preprocessing the translation unit; this tree is a unity build, so one translation unit is the whole
+engine, and preprocessing it costs nearly as much as compiling it — measured, a hit saved 185 ms of
+2750, and a miss pays the preprocess *on top of* the compile. Both numbers get worse as the engine
+grows. The vendors are the opposite shape: hundreds of small files at `-O2`, rebuilt from nothing by
+every fresh checkout and every worktree, and sccache's storage can be a directory, an S3 bucket or a
+Redis, so all of them share one.
 
 ```bash
 ./build run debug              # sanitized

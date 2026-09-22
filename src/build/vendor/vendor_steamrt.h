@@ -264,8 +264,8 @@ NYA_INTERNAL NYA_BuildRule* _nya_steamrt_derive_part(const NYA_BuildRule* linux,
         // clang and ninja from the host, not the SDK's clang 11. lld, because GNU ld resolves a shared library's own
         // dependencies against the host and fails every configure check that links X11.
         NYA_ConstCString toolchain[] = {
-            "-DCMAKE_C_COMPILER=" CC_BINARY,
-            "-DCMAKE_CXX_COMPILER=" CC_BINARY "++",
+            "-DCMAKE_C_COMPILER=" CC,
+            "-DCMAKE_CXX_COMPILER=" CC "++",
             "-DCMAKE_SYSROOT=%SYSROOT%",
             "-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER",
             "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld",

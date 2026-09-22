@@ -50,7 +50,7 @@ void simulation_runner(NYA_ArgCommand* command) {
 
         .command = {
             .program   = CC,
-            .arguments = { CC_LAUNCHED,
+            .arguments = {
                 SIMULATION_SOURCE,
                 "-c", "-o", object,
                 CFLAGS,
@@ -81,7 +81,7 @@ void simulation_runner(NYA_ArgCommand* command) {
 
         .command = {
             .program   = CC,
-            .arguments = { CC_LAUNCHED,
+            .arguments = {
                 object,
                 "-o", SIMULATION_BINARY,
                 CFLAGS,
