@@ -87,6 +87,12 @@ NYA_EntityHandle gny_entity_ledge_create(f32x2 position, f32x2 size, f32 patrol_
     // not fatal: the marker draws nothing until a sheet loads.
     if (!sheet.ok) nya_log_warn("%s", (NYA_ConstCString)sheet.message);
 
+    // the atlas's own sprite, centred and untinted like any cell of a sheet, so the scale is the one thing
+    // the marker decides.
+    NYA_SpriteAtlas atlas  = nya_sprite_atlas_grid(GNY_LEDGE_MARKER_SHEET, GNY_LEDGE_MARKER_CELL, GNY_LEDGE_MARKER_CELL);
+    NYA_Sprite      sprite = nya_sprite_from_atlas(&atlas, 0);
+    sprite.scale           = (f32x2){ GNY_LEDGE_MARKER_SCALE, GNY_LEDGE_MARKER_SCALE };
+
     NYA_EntityHandle marker = nya_entity_spawn(
         .name         = "ledge_marker",
         .type         = GNY_ENTITY_LEDGE,
@@ -97,8 +103,8 @@ NYA_EntityHandle gny_entity_ledge_create(f32x2 position, f32x2 size, f32 patrol_
         .on_animation = nya_callback(gny_entity_ledge_marker_on_animation),
         .visual       = {
             .kind   = NYA_ENTITY_VISUAL_ANIMATION,
-            .atlas  = nya_sprite_atlas_grid(GNY_LEDGE_MARKER_SHEET, GNY_LEDGE_MARKER_CELL, GNY_LEDGE_MARKER_CELL),
-            .sprite = { .origin = { 0.5F, 0.5F }, .scale = { GNY_LEDGE_MARKER_SCALE, GNY_LEDGE_MARKER_SCALE } },
+            .atlas  = atlas,
+            .sprite = sprite,
         },
     );
 

@@ -148,8 +148,6 @@ NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
     { "nya_physics3d_wake", "no caller when the rule landed" },
     // lua.h
     { "nya_lua_nil", "no caller when the rule landed" },
-    // render2d_sprite.h
-    { "nya_sprite_from_atlas", "no caller when the rule landed" },
     // render2d_terminal.h
     { "nya_render2d_terminal_glyph", "no caller when the rule landed" },
     { "nya_render2d_terminal_image", "no caller when the rule landed" },
