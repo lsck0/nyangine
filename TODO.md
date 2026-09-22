@@ -139,7 +139,10 @@ Found on the way, and since fixed:
   not a window it answered true.
   `[x]` The rng and audio clusters: the four sampled widths and the four audio calls, each carrying the
   one assertion a bug would hide behind — that a signed width reaches a negative at all, and that an
-  unspecified 3D facing becomes -z rather than the raw zero. 81 down to 31.
+  unspecified 3D facing becomes -z rather than the raw zero.
+  `[x]` The nn and cursor clusters, which were the last two the audit named by size. **81 down to 36**,
+  recounted rather than subtracted: the earlier arithmetic in this entry was me taking numbers off a
+  total instead of re-running the sweep, and the sweep is the only thing that knows.
 - `[!]` The audit's method is worth being honest about. Two earlier runs of it were wrong and were caught
   by spot checking: one missed `bench/` and called the benchmark harness dead, another excluded headers
   and called `nya_physics3d_body_attach_with_options` dead when it is reached through a macro. A sweep
