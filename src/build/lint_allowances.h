@@ -19,7 +19,7 @@
  * replication above it, http_metrics and nn's drawing move out, and core stops reaching up into what it drives.
  * */
 NYA_INTERNAL const _LintEdge _LINT_LAYERING_ALLOWED[] = {
-    { "base",     "platform", 4 },
+    { "base",     "platform", 2 },
     { "net",      "core",     4 },
     { "http",     "core",     2 },
     { "core",     "renderer", 7 },

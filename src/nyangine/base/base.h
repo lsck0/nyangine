@@ -20,6 +20,7 @@
 #include "nyangine/base/base_dll.h"
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_file.h"
+#include "nyangine/base/base_filesystem.h"
 #include "nyangine/base/base_hash.h"
 #include "nyangine/base/base_heap.h"
 #include "nyangine/base/base_hmap.h"

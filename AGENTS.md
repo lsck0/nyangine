@@ -45,9 +45,9 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 
 | Module     | What is in it                                                               |
 | :--------- | :-------------------------------------------------------------------------- |
-| `os`       | the syscalls: pages, the two clocks, the kernel's random source              |
-| `base`     | arenas, strings, arrays, dicts, logging, errors, assertions, files, hashing   |
-| `platform` | clock, filesystem, process spawning, signals, the terminal                   |
+| `os`       | the syscalls: files, pages, the two clocks, the kernel's random source        |
+| `base`     | arenas, strings, arrays, dicts, logging, errors, assertions, the file system  |
+| `platform` | clock, process spawning, signals, the terminal                               |
 | `math`     | scalars, vectors, matrices, quaternions, shapes, noise, random, springs       |
 | `crypto`   | hashes, HMAC, XChaCha20-Poly1305, X25519, Ed25519, Argon2id, base32; monocypher |
 | `core`     | the app loop, entities, systems, events, input, audio, assets, config, saves  |

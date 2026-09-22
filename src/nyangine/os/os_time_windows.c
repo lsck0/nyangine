@@ -47,3 +47,8 @@ u64 nya_os_time_monotonic_ns(void) {
     // split, because ticks * 1e9 overflows a u64 after about 18 seconds at a 1 GHz counter.
     return ((ticks / frequency) * 1'000'000'000ULL) + (((ticks % frequency) * 1'000'000'000ULL) / frequency);
 }
+
+// Sleep rounds up to the scheduler's tick, which is ~15 ms unless something raised the timer resolution.
+void nya_os_time_sleep_ms(u32 milliseconds) {
+    Sleep(milliseconds);
+}

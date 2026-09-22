@@ -11,7 +11,7 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 
 ## Modules
 
-- [`base`](#base) — Arenas, strings, arrays, logging, errors, assertions, hashing, files. No SDL, no window.
+- [`base`](#base) — Arenas, strings, arrays, logging, errors, assertions, hashing, the file system. No SDL.
 - [`core`](#core) — The application loop: entities, systems, events, input, audio, assets, config, saves.
 - [`math`](#math) — Scalars, vectors, matrices, quaternions, shapes, noise, random, springs and tweens.
 - [`renderer`](#renderer) — 2D and 3D drawing, cameras, text, particles, post processing and render targets.
@@ -24,12 +24,12 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 - [`nn`](#nn) — Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else.
 - [`debug`](#debug) — The overlay, the trace, the crash window, and drawing physics shapes and networks.
 - [`plugins`](#plugins) — Optional dependencies behind a flag: curl, sqlite, lua, discord, steam.
-- [`platform`](#platform) — The thin OS layer: clock, filesystem, process spawning, signals and the terminal.
-- [`os`](#os) — The syscalls themselves: pages, the two clocks, the kernel's random source.
+- [`platform`](#platform) — The thin OS layer: the clock, process spawning, signals and the terminal.
+- [`os`](#os) — The syscalls themselves: files, pages, the two clocks, the kernel's random source.
 
 ## base
 
-Arenas, strings, arrays, logging, errors, assertions, hashing, files. No SDL, no window.
+Arenas, strings, arrays, logging, errors, assertions, hashing, the file system. No SDL.
 
 ### base_arena.h
 
@@ -497,6 +497,56 @@ NYA_Error nya_file_append(const NYA_String* path, NYA_ConstCString content)
 NYA_Error nya_file_write_atomic(const char* path, const NYA_String* content)  // Replaces all of `path` with `content`, so that after a crash anywhere it holds the old bytes or the new.
 NYA_Error nya_file_write_atomic(const char* path, NYA_ConstCString content)
 void nya_file_write_atomic_fault_set(NYA_FileAtomicStep step, NYA_FileAtomicFault fault)  // Arms `fault` for the next write on this thread that reaches `step`, just before the step runs.
+```
+
+### base_filesystem.h
+
+The file system with arenas, strings and errors: one implementation over os_file.h's primitives,
+
+```c
+// types
+enum NYA_FileType { NYA_FILE_TYPE_UNKNOWN, NYA_FILE_TYPE_FILE, NYA_FILE_TYPE_DIRECTORY, NYA_FILE_TYPE_SYMLINK, NYA_FILE_TYPE_COUNT, }
+struct NYA_FileInfo { NYA_FileType type; u64 size; u64 modified_at; u64 created_at; u64 accessed_at; b8 readonly; }  // Timestamps are milliseconds since the unix epoch on both platforms.
+struct NYA_DirectoryEntry { NYA_String* name; NYA_FileType type; u64 size; u64 modified_at; }  // One entry of a directory listing.
+typedef b8 (*NYA_WalkCallback)(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data)  // Called once per entry while walking.
+typedef enum { NYA_FILE_MODE_READ = 1 << 0, NYA_FILE_MODE_WRITE = 1 << 1, NYA_FILE_MODE_APPEND = 1 << 2, NYA_FILE_MODE_CREATE = 1 << 3, NYA_FILE_MODE_TRUNCATE = 1 << 4, NYA_FILE_MODE_EXCLUSIVE = 1 << 5, } NYA_FileMode
+typedef enum { NYA_FILE_SEEK_SET, NYA_FILE_SEEK_CURRENT, NYA_FILE_SEEK_END, } NYA_FileSeek
+struct NYA_File { NYA_OsFile os; b8 is_open; }
+
+// macros
+NYA_FILESYSTEM_WALK_DEPTH_MAX 256  // Bounds the recursion in walk and copy, so a symlink loop fails loudly instead of blowing the stack.
+
+// functions
+b8 nya_filesystem_exists(NYA_ConstCString path)  // True if anything exists at `path`, file or directory.
+b8 nya_filesystem_is_file(NYA_ConstCString path)
+b8 nya_filesystem_is_directory(NYA_ConstCString path)
+NYA_Error nya_filesystem_info(NYA_ConstCString path, OUT NYA_FileInfo* out_info)  // Everything known about one entry, in a single stat.
+NYA_Error nya_filesystem_size(NYA_ConstCString path, OUT u64* out_size)
+NYA_Error nya_filesystem_last_modified(NYA_ConstCString path, OUT u64* out_timestamp)  // Milliseconds since the unix epoch, the same unit and value as NYA_FileInfo.modified_at.
+NYA_Error nya_filesystem_absolute(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_String** out_path)  // Resolves symlinks and relative segments into an absolute path.
+NYA_Error nya_filesystem_move(NYA_ConstCString source, NYA_ConstCString destination)
+NYA_Error nya_filesystem_replace(NYA_ConstCString source, NYA_ConstCString destination)  // Renames `source` over `destination` in one step, so a reader finds the old file or the new one.
+NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destination)
+NYA_Error nya_filesystem_delete(NYA_ConstCString path)
+NYA_Error nya_filesystem_create_directory(NYA_ConstCString path)  // Creates a directory and every missing parent, like `mkdir -p`.
+NYA_Error nya_filesystem_delete_recursive(NYA_ConstCString path)  // Deletes a directory and everything under it.
+NYA_Error nya_filesystem_copy_recursive(NYA_ConstCString source, NYA_ConstCString destination)  // Copies a directory tree.
+NYA_Error nya_filesystem_list(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_ArrayᐸNYA_DirectoryEntryᐳ** out_entries)  // Lists one directory level, metadata included.
+NYA_Error nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkCallback callback, void* user_data)  // Depth first walk of everything under `path`.
+NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file)
+void nya_file_close(NYA_File* file)
+b8 nya_file_is_open(const NYA_File* file)
+NYA_Error nya_file_read_bytes(NYA_File* file, OUT u8* buffer, u64 length, OUT u64* out_read)  // Reads up to `length` bytes.
+NYA_Error nya_file_write_bytes(NYA_File* file, const u8* buffer, u64 length)
+NYA_Error nya_file_seek(NYA_File* file, s64 offset, NYA_FileSeek origin)
+NYA_Error nya_file_tell(NYA_File* file, OUT u64* out_offset)
+NYA_Error nya_file_truncate(NYA_File* file, u64 length)
+NYA_Error nya_file_flush(NYA_File* file)
+NYA_Error nya_filesystem_working_directory(NYA_Arena* arena, OUT NYA_String** out_path)
+NYA_Error nya_filesystem_working_directory_set(NYA_ConstCString path)
+NYA_Error nya_filesystem_executable_path(NYA_Arena* arena, OUT NYA_String** out_path)  // Absolute path of the running executable.
+NYA_Error nya_filesystem_temp_directory(NYA_Arena* arena, OUT NYA_String** out_path)
+NYA_Error nya_filesystem_user_data_directory(NYA_Arena* arena, NYA_ConstCString application, OUT NYA_String** out_path)  // Per user writable location for saves and logs.
 ```
 
 ### base_hash.h
@@ -5421,7 +5471,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size)  // Wher
 
 ## platform
 
-The thin OS layer: clock, filesystem, process spawning, signals and the terminal.
+The thin OS layer: the clock, process spawning, signals and the terminal.
 
 ### clock.h
 
@@ -5548,54 +5598,6 @@ NYA_Error nya_command_wait(NYA_Command* command)  // Waits for a spawned command
 NYA_Error nya_command_try_wait(NYA_Command* command, b8* out_finished)
 void nya_command_wait_ready(NYA_Command* const* commands, u32 count, u32 timeout_ms)  // Sleeps until one of the spawned `commands` may have progressed, or `timeout_ms` passes.
 void nya_command_destroy(NYA_Command* command)
-```
-
-### filesystem.h
-
-```c
-// types
-enum NYA_FileType { NYA_FILE_TYPE_UNKNOWN, NYA_FILE_TYPE_FILE, NYA_FILE_TYPE_DIRECTORY, NYA_FILE_TYPE_SYMLINK, NYA_FILE_TYPE_COUNT, }
-struct NYA_FileInfo { NYA_FileType type; u64 size; u64 modified_at; u64 created_at; u64 accessed_at; b8 readonly; }  // Timestamps are milliseconds since the unix epoch on both platforms.
-struct NYA_DirectoryEntry { NYA_String* name; NYA_FileType type; u64 size; u64 modified_at; }  // One entry of a directory listing.
-typedef b8 (*NYA_WalkCallback)(NYA_ConstCString path, const NYA_DirectoryEntry* entry, void* user_data)  // Called once per entry while walking.
-typedef enum { NYA_FILE_MODE_READ = 1 << 0, NYA_FILE_MODE_WRITE = 1 << 1, NYA_FILE_MODE_APPEND = 1 << 2, NYA_FILE_MODE_CREATE = 1 << 3, NYA_FILE_MODE_TRUNCATE = 1 << 4, NYA_FILE_MODE_EXCLUSIVE = 1 << 5, } NYA_FileMode
-typedef enum { NYA_FILE_SEEK_SET, NYA_FILE_SEEK_CURRENT, NYA_FILE_SEEK_END, } NYA_FileSeek
-struct NYA_File { void* handle; s32 descriptor; b8 is_open; }
-
-// macros
-NYA_FILESYSTEM_WALK_DEPTH_MAX 256  // Bounds the recursion in walk and copy, so a symlink loop fails loudly instead of blowing the stack.
-
-// functions
-b8 nya_filesystem_exists(NYA_ConstCString path)  // True if anything exists at `path`, file or directory.
-b8 nya_filesystem_is_file(NYA_ConstCString path)
-b8 nya_filesystem_is_directory(NYA_ConstCString path)
-NYA_Error nya_filesystem_info(NYA_ConstCString path, OUT NYA_FileInfo* out_info)  // Everything known about one entry, in a single stat.
-NYA_Error nya_filesystem_size(NYA_ConstCString path, OUT u64* out_size)
-NYA_Error nya_filesystem_last_modified(NYA_ConstCString path, OUT u64* out_timestamp)  // Milliseconds since the unix epoch, the same unit and value as NYA_FileInfo.modified_at.
-NYA_Error nya_filesystem_absolute(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_String** out_path)  // Resolves symlinks and relative segments into an absolute path.
-NYA_Error nya_filesystem_move(NYA_ConstCString source, NYA_ConstCString destination)
-NYA_Error nya_filesystem_replace(NYA_ConstCString source, NYA_ConstCString destination)  // Renames `source` over `destination` in one step, so a reader finds the old file or the new one.
-NYA_Error nya_filesystem_copy(NYA_ConstCString source, NYA_ConstCString destination)
-NYA_Error nya_filesystem_delete(NYA_ConstCString path)
-NYA_Error nya_filesystem_create_directory(NYA_ConstCString path)  // Creates a directory and every missing parent, like `mkdir -p`.
-NYA_Error nya_filesystem_delete_recursive(NYA_ConstCString path)  // Deletes a directory and everything under it.
-NYA_Error nya_filesystem_copy_recursive(NYA_ConstCString source, NYA_ConstCString destination)  // Copies a directory tree.
-NYA_Error nya_filesystem_list(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_ArrayᐸNYA_DirectoryEntryᐳ** out_entries)  // Lists one directory level, metadata included.
-NYA_Error nya_filesystem_walk(NYA_Arena* arena, NYA_ConstCString path, NYA_WalkCallback callback, void* user_data)  // Depth first walk of everything under `path`.
-NYA_Error nya_file_open(NYA_ConstCString path, u32 mode, OUT NYA_File* out_file)
-void nya_file_close(NYA_File* file)
-b8 nya_file_is_open(const NYA_File* file)
-NYA_Error nya_file_read_bytes(NYA_File* file, OUT u8* buffer, u64 length, OUT u64* out_read)  // Reads up to `length` bytes.
-NYA_Error nya_file_write_bytes(NYA_File* file, const u8* buffer, u64 length)
-NYA_Error nya_file_seek(NYA_File* file, s64 offset, NYA_FileSeek origin)
-NYA_Error nya_file_tell(NYA_File* file, OUT u64* out_offset)
-NYA_Error nya_file_truncate(NYA_File* file, u64 length)
-NYA_Error nya_file_flush(NYA_File* file)
-NYA_Error nya_filesystem_working_directory(NYA_Arena* arena, OUT NYA_String** out_path)
-NYA_Error nya_filesystem_working_directory_set(NYA_ConstCString path)
-NYA_Error nya_filesystem_executable_path(NYA_Arena* arena, OUT NYA_String** out_path)  // Absolute path of the running executable.
-NYA_Error nya_filesystem_temp_directory(NYA_Arena* arena, OUT NYA_String** out_path)
-NYA_Error nya_filesystem_user_data_directory(NYA_Arena* arena, NYA_ConstCString application, OUT NYA_String** out_path)  // Per user writable location for saves and logs.
 ```
 
 ### host.h
@@ -5732,7 +5734,57 @@ u32 nya_terminal_utf8_decode(const u8* bytes, u64 size, OUT u32* out_codepoint) 
 
 ## os
 
-The syscalls themselves: pages, the two clocks, the kernel's random source.
+The syscalls themselves: files, pages, the two clocks, the kernel's random source.
+
+### os_file.h
+
+The file system as the operating system offers it: one call per function, paths as `const char*`,
+
+```c
+// types
+enum NYA_OsFileStatus { NYA_OS_FILE_STATUS_OK, NYA_OS_FILE_STATUS_NOT_FOUND, NYA_OS_FILE_STATUS_DENIED, NYA_OS_FILE_STATUS_EXISTS, NYA_OS_FILE_STATUS_BUSY, NYA_OS_FILE_STATUS_INVALID, NYA_OS_FILE_STATUS_NO_MEMORY, NYA_OS_FILE_STATUS_UNSUPPORTED, NYA_OS_FILE_STATUS_IO, NYA_OS_FILE_STATUS_FAILED, NYA_OS_FILE_STATUS_COUNT, }  // Why a call did not work, in the few kinds both platforms can tell apart.
+enum NYA_OsFileKind { NYA_OS_FILE_KIND_UNKNOWN, NYA_OS_FILE_KIND_FILE, NYA_OS_FILE_KIND_DIRECTORY, NYA_OS_FILE_KIND_SYMLINK, }  // What is at a path.
+enum NYA_OsFileSeek { NYA_OS_FILE_SEEK_SET, NYA_OS_FILE_SEEK_CURRENT, NYA_OS_FILE_SEEK_END, }
+struct NYA_OsFile { void* handle; s32 descriptor; }  // An open file: a descriptor on POSIX, a HANDLE on Windows.
+struct NYA_OsFileStat { NYA_OsFileKind kind; u64 size; u64 modified_ms; u64 created_ms; u64 accessed_ms; b8 readonly; }  // Timestamps are milliseconds since the unix epoch on both platforms.
+struct NYA_OsDirectory { void* handle; b8 pending; u64 storage[64]; }  // A directory being read.
+struct NYA_OsDirectoryEntry { char name[NYA_OS_FILE_NAME_MAX]; NYA_OsFileKind kind; u64 size; u64 modified_ms; b8 has_metadata; }  // One entry of a listing.
+
+// macros
+NYA_OS_PATH_MAX 260  // The longest path the host's calls take, which is what every buffer here is sized to.
+NYA_OS_FILE_NAME_MAX 260  // One directory entry's name.
+NYA_OS_FILE_NONE ((NYA_OsFile){ .handle = nullptr })  // A handle naming nothing, which is what a closed file holds.
+
+// functions
+NYA_OsFileStatus nya_os_file_open(const char* path, u32 flags, OUT NYA_OsFile* out_file)
+void nya_os_file_close(NYA_OsFile* file)
+NYA_OsFileStatus nya_os_file_read(NYA_OsFile* file, OUT u8* buffer, u64 size, OUT u64* out_read)  // Reads up to `size` bytes.
+NYA_OsFileStatus nya_os_file_write(NYA_OsFile* file, const u8* buffer, u64 size, OUT u64* out_written)  // Writes up to `size` bytes and reports how many landed: both platforms may take fewer than asked.
+NYA_OsFileStatus nya_os_file_seek(NYA_OsFile* file, s64 offset, NYA_OsFileSeek origin)
+NYA_OsFileStatus nya_os_file_tell(NYA_OsFile* file, OUT u64* out_offset)
+NYA_OsFileStatus nya_os_file_truncate(NYA_OsFile* file, u64 length)
+NYA_OsFileStatus nya_os_file_sync(NYA_OsFile* file)  // Puts what has been written on the device.
+NYA_OsFileStatus nya_os_directory_sync(const char* path)  // The same for a directory, which is what makes a rename inside it survive a power cut.
+NYA_OsFileStatus nya_os_file_stat(const char* path, b8 follow_links, OUT NYA_OsFileStat* out_stat)  // Everything one stat knows.
+NYA_OsFileStatus nya_os_file_mode_get(const char* path, OUT u32* out_mode)  // The permission bits, POSIX style and masked to 0o7777.
+NYA_OsFileStatus nya_os_file_mode_set(const char* path, u32 mode)
+NYA_OsFileStatus nya_os_path_absolute(const char* path, OUT char* out_path, u64 size)  // Resolves links and relative segments.
+NYA_OsFileStatus nya_os_file_rename(const char* source, const char* destination)  // Moves `source` onto `destination`, across volumes too, replacing whatever was there.
+NYA_OsFileStatus nya_os_file_replace(const char* source, const char* destination)
+NYA_OsFileStatus nya_os_file_unlink(const char* path)  // Removes one name.
+NYA_OsFileStatus nya_os_file_link_read(const char* path, OUT char* out_target, u64 size)  // Where a symlink points, null terminated.
+NYA_OsFileStatus nya_os_file_link_set(const char* path, const char* target)  // A new symlink at `path` pointing at `target`.
+NYA_OsFileStatus nya_os_directory_create(const char* path)  // One directory, whose parent must exist.
+NYA_OsFileStatus nya_os_directory_destroy(const char* path)  // Removes one empty directory.
+NYA_OsFileStatus nya_os_directory_open(const char* path, OUT NYA_OsDirectory* out_directory)
+b8 nya_os_directory_next(NYA_OsDirectory* directory, OUT NYA_OsDirectoryEntry* out_entry)  // The next entry, `.` and `..` included, or false once there are none left.
+void nya_os_directory_close(NYA_OsDirectory* directory)
+NYA_OsFileStatus nya_os_working_directory_get(OUT char* out_path, u64 size)
+NYA_OsFileStatus nya_os_working_directory_set(const char* path)
+NYA_OsFileStatus nya_os_executable_path(OUT char* out_path, u64 size)  // Absolute path of the running executable.
+NYA_OsFileStatus nya_os_temp_directory(OUT char* out_path, u64 size)
+NYA_OsFileStatus nya_os_user_data_directory(OUT char* out_path, u64 size)  // Where this user's own data goes, without an application name on it: that is the caller's to join.
+```
 
 ### os_page.h
 
@@ -5762,11 +5814,12 @@ b8 nya_os_random_bytes(OUT u8* out, u64 size)  // Fills `out` with `size` unpred
 
 ### os_time.h
 
-The two clocks the operating system has, in nanoseconds and nothing else.
+The two clocks the operating system has, in nanoseconds, and the one way to wait on them.
 
 ```c
 // functions
 u64 nya_os_time_wall_ns(void)  // Nanoseconds since the Unix epoch, from the system clock.
 u64 nya_os_time_monotonic_ns(void)  // Nanoseconds from an arbitrary zero, counting up and never back.
+void nya_os_time_sleep_ms(u32 milliseconds)
 ```
 

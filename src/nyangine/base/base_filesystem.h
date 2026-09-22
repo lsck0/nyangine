@@ -1,5 +1,9 @@
 /**
- * @file filesystem.h
+ * @file base_filesystem.h
+ *
+ * The file system with arenas, strings and errors: one implementation over os_file.h's primitives,
+ * rather than one per target. What is left below is what a descriptor and a HANDLE genuinely differ
+ * about; walking, `mkdir -p`, the recursive delete and copy and the atomic replace are all up here.
  * */
 #pragma once
 
@@ -8,6 +12,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_string.h"
+#include "nyangine/os/os_file.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -172,12 +177,9 @@ typedef enum {
 } NYA_FileSeek;
 
 struct NYA_File {
-#if OS_WINDOWS
-    void* handle;
-#else
-    s32 descriptor;
-#endif
-    b8 is_open;
+    /** The descriptor or the HANDLE; only base_filesystem.c and the os layer look inside it. */
+    NYA_OsFile os;
+    b8         is_open;
 };
 
 /** `mode` is NYA_FileMode flags, a u32 because a combination is not itself an enumerator. */

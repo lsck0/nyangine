@@ -4,7 +4,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_types.h"
-#include "nyangine/platform/filesystem/filesystem.h"
+#include "nyangine/base/base_filesystem.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

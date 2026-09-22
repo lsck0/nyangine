@@ -1,7 +1,7 @@
 /**
  * @file os_time.h
  *
- * The two clocks the operating system has, in nanoseconds and nothing else.
+ * The two clocks the operating system has, in nanoseconds, and the one way to wait on them.
  *
  * ```c
  * u64 started_ns = nya_os_time_monotonic_ns();
@@ -37,3 +37,12 @@ NYA_API u64 nya_os_time_wall_ns(void) __attr_no_discard;
  * Windows; neither counts time the machine spent suspended, which is time the program did not run.
  * */
 NYA_API u64 nya_os_time_monotonic_ns(void) __attr_no_discard;
+
+/**
+ * Gives the processor back for at least `milliseconds`, and for as much longer as the host's scheduler
+ * rounds up to. `nanosleep` on Linux, Sleep on Windows.
+ *
+ * Here rather than in a caller because waiting is a system call: a backoff loop that has to wait
+ * between two tries of something has nowhere else to get one. Zero yields the rest of the slice.
+ * */
+NYA_API void nya_os_time_sleep_ms(u32 milliseconds);

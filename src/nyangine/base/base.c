@@ -7,6 +7,8 @@
 #include "nyangine/base/base_compress.c"
 #include "nyangine/base/base_crc.c"
 #include "nyangine/base/base_error.c"
+#include "nyangine/base/base_filesystem.c"
+// after base_filesystem.c: the whole-file helpers are written over its handles.
 #include "nyangine/base/base_file.c"
 #include "nyangine/base/base_hash.c"
 // after base_hash.c, whose inline hash it calls.
