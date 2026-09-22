@@ -523,6 +523,57 @@ s32 main(void) {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the four audio calls nothing in the tree had ever made
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * nya_audio_listener_3d_get, nya_audio_stop_sounds, nya_audio_crossfade_music and
+     * nya_audio_voice_path_get had no caller anywhere. The 2D listener round trip is tested above;
+     * the 3D one, which is what a 3D scene actually sets, was not.
+     */
+
+    // Unspecified forward is -z and unspecified up is +y, which is the graphics convention the
+    // header promises. A getter that hands back the raw zeroes would put every sound behind the ear.
+    nya_audio_listener_3d_set((NYA_AudioListener3D){ .position = { 3.0F, 4.0F, 5.0F } });
+
+    const NYA_AudioListener3D defaulted = nya_audio_listener_3d_get();
+
+    nya_check(defaulted.position[0] == 3.0F && defaulted.position[1] == 4.0F && defaulted.position[2] == 5.0F,
+              "the 3D listener position reads back as it was set");
+    nya_check(defaulted.forward[2] == -1.0F, "an unspecified facing becomes -z, got %f", (f64)defaulted.forward[2]);
+    nya_check(defaulted.up[1] == 1.0F, "and an unspecified up becomes +y, got %f", (f64)defaulted.up[1]);
+    nya_check(defaulted.reference_distance == 1.0F, "and an unspecified reference distance becomes one, got %f",
+              (f64)defaulted.reference_distance);
+
+    // What was asked for is kept when it was asked for.
+    nya_audio_listener_3d_set((NYA_AudioListener3D){
+      .position           = { 0.0F, 0.0F, 0.0F },
+      .forward            = { 1.0F, 0.0F, 0.0F },
+      .up                 = { 0.0F, 0.0F, 1.0F },
+      .reference_distance = 8.0F,
+    });
+
+    const NYA_AudioListener3D given = nya_audio_listener_3d_get();
+    nya_check(given.forward[0] == 1.0F, "a given facing is kept, got %f", (f64)given.forward[0]);
+    nya_check(given.reference_distance == 8.0F, "and a given reference distance, got %f", (f64)given.reference_distance);
+
+    // Stopping every sound is safe with none playing, and with no device at all.
+    nya_audio_stop_sounds();
+    nya_audio_stop_sounds();
+
+    // A crossfade to a handle behind nothing must not start a track or fall over.
+    nya_audio_crossfade_music("./assets/sounds/there_is_no_such_track.ogg", (NYA_MusicParams){ 0 }, 250);
+
+    // Zeroed for a dead handle, which is the contract, and the case a caller reaches by keeping a
+    // voice past the end of its sound.
+    const NYA_AudioPath nothing = nya_audio_voice_path_get((NYA_SoundVoice){ 0 });
+
+    nya_check(nothing.occlusion == 0.0F && nothing.gain == 0.0F && !nothing.traced, "a dead voice has no propagation path");
+
+    printf("  PASSED\n");
+  }
+
   printf("PASSED: test_audio\n");
-  return 0;
+  return nya_check_failures() == 0 ? 0 : 1;
 }
