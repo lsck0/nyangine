@@ -230,7 +230,9 @@ NYA_Error nya_log_file_open(NYA_ConstCString path) {
     if (path == nullptr) return NYA_OK;
 
 #if OS_WINDOWS
-    _nya_log_file = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    // shared for writing as well, as O_APPEND is on Linux: a second process logging to the same day's file,
+    // a second copy of the game or a crashing child, was refused its log. FILE_APPEND_DATA keeps each write whole.
+    _nya_log_file = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (_nya_log_file == INVALID_HANDLE_VALUE) return nya_error(NYA_ERROR_IO, "could not open the log file '%s'", path);
 #else
     _nya_log_file = open(path, O_WRONLY | O_CREAT | O_APPEND, 0o644);

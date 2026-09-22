@@ -81,7 +81,9 @@ static void child_crash_unattended(void) {
     SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
     (void)SDL_Init(SDL_INIT_VIDEO);
 
-    NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY, 14));
+    // a directory of its own: the parent still holds today's log open in TEST_DIRECTORY, and Windows
+    // refuses a second process that file.
+    NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY "/child", 14));
     NYA_EXPECT(nya_crash_reporter_init());
 
     nya_assert(false, "the child crashes on purpose");
