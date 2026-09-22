@@ -53,7 +53,7 @@ encryption and PGP-backed second factors. See "The stack" below for what that ad
 | 2D/3D renderer   | animation, particles, atmosphere, liquids, opacity, reflections, dynamic LOD, eye adaptation                                                  | `[~]` animation, particles, fog, glass, terrain and mesh LOD, eye adaptation, light shafts, aerial perspective and motion blur exist; volumetrics, liquids and reflections missing                                                                                                                                                                                   |
 | Post processing  | a composable chain                                                                                                                            | `[x]` occlusion, ink, depth of field, FXAA, grade, bloom, speed lines, HDR output                                                                                                                                                                                                                                                                                    |
 | Graphics options | antialiasing, motion blur, fov, ... toggleable                                                                                                | `[x]` MSAA, FXAA, shadows, post passes, fov and render scale are player settings, and 37 feature switches cover everything else including culling, sorting and the depth test                                                                                                                                                                                        |
-| Renderer debug   | physics hitboxes and other debug views                                                                                                        | `[~]` buffer views exist; physics shapes missing                                                                                                                                                                                                                                                                                                                     |
+| Renderer debug   | physics hitboxes and other debug views                                                                                                        | `[x]` buffer views, and every collision shape in either solver drawn over the scene, coloured by body type and dimmed while asleep                                                                                                                                                                                                                                                                                                                     |
 | Audio            | raytraced: occlusion, diffraction, echoes, room estimation; sound post processing                                                             | `[x]` partial occlusion, transmission, diffraction, room driven reverb, echo taps; per bus chain (filters, EQ, compressor, echo, reverb, limiter). Open: interaural delay and head shadow (needs our own panner instead of SDL_mixer's)                                                                                                                              |
 | UI               | immediate layout, styling, animation; widgets incl. colour picker, sliders, buttons, inputs; debug look by default, texture skins for game UI | `[x]` seven files by domain, fixed scale, nine-slice skins, full text editing with selection and clipboard, dropdowns that float, radio, tabs, draggable and resizable windows with title bar chrome, tables, charts, icons, opacity groups, scrolling, and tab/shift-tab focus for a terminal that has no pointer. Open: a node editor, SVG, the code editor widget |
 | Core             | events, entities, input, settings, cache, ... solid                                                                                           | `[x]` one system registry drives frame, tick and render for engine and game, with runtime enable/disable and per-owner accounting, and its entries are callback handles with copied names, so a system registered from a reloaded image survives the reload. Scenes and settings persist through reflection                                                          |
@@ -104,15 +104,25 @@ on the stack and all of them are now either landed or dead.
   action enum made anonymous, since a named one makes every `nya_input_action_*` call a conversion between
   two enumeration types and the build rejects that.
 
-Found on the way, not fixed:
+Found on the way, and since fixed:
 
-- `[ ]` Every vendor header except `vendor_sdl.h` still has the staleness gap: change a cmake option in one
-  and nothing rebuilds. The fix is the same four lines per file, `NYA_BUILD_IF_OUTDATED` against the header
-  that holds the options.
-- `[ ]` `hook_invalidate_stale_cmake_cache` only notices a missing compiler or make program. It does not
-  notice that the arguments changed, which is the case that actually bites.
+- `[x]` The staleness gap is closed for every vendor, and not the way it was written down here. The same
+  four lines in seventeen files would have been four chances each to get it wrong, so it is one mechanism
+  instead: `NYA_VendorRule` carries `options_file` and `options_stamp`, and `nya_vendor_build` forces every
+  part past its own policy when the recipe is newer than the stamp. SDL moves onto it and loses the four
+  special-cased rules it had, which also ends the 160 ms it spent asking cmake on every build.
+- `[x]` `hook_invalidate_stale_cmake_cache` compares every `-D` against the cache now, not just the
+  compiler and the make program. Getting that right took three corrections that only showed up by running
+  it over all 32 vendor rules: cmake canonicalises booleans, it resolves a bare compiler name to an
+  absolute path, and only the last `-D` for a name counts. It also has to be the last pre-build hook, or
+  it reads a `%CWD%` no cache could ever have held; `hooks.h` says so.
 
-- `[ ]` Not started: debug draw and physics hitboxes, core systems audit.
+- `[x]` Debug draw and physics hitboxes. `nya_debug_physics3d_draw` and `nya_debug_physics2d_draw` are in
+  `debug/` rather than `physics/`, since `physics.h` is included before `core.h` and cannot name a window.
+  Both return how many bodies they drew, which is what a headless test can hold them to: counting the
+  geometry needs a GPU, and a batch with no buffers records nothing. The 3D scene's switchboard has the
+  toggle.
+- `[ ]` Not started: core systems audit.
 
 ---
 
