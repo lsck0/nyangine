@@ -185,7 +185,7 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
     _gny_widgets_panel(window, ui);
 
     nya_ui_style_pop(ui);
-    nya_ui_end(ui);
+    gny_ui_end(window, ui);
 }
 
 void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui) {

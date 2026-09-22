@@ -78,7 +78,7 @@ void gny_layer_ui_on_render(NYA_Window* window) {
         nya_ui_panel_end(ui);
     }
 
-    nya_ui_end(ui);
+    gny_ui_end(window, ui);
 
     // frame graph, draw calls, arena memory and the fullest ceilings, or the trace table, all from the engine.
     gny_overlay_draw(window);

@@ -52,7 +52,7 @@ void _gny_main_menu(NYA_Window* window, NYA_UIPass pass) {
 
     _gny_main_menu_build_stamp(ui, window);
 
-    nya_ui_end(ui);
+    gny_ui_end(window, ui);
 }
 
 /**

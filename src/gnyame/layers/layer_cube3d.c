@@ -1252,7 +1252,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
 
     if (scene->features_open) gny_layer_cube3d_features_draw(ui, window, &scene->show_hitboxes);
 
-    nya_ui_end(ui);
+    gny_ui_end(window, ui);
 
     // the overlay reads the current font.
     nya_render2d_font_set(GNY_UI_FONT, GNY_UI_FONT_SIZE);

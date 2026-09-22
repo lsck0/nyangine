@@ -103,5 +103,18 @@ void gny_config_renderer_apply(NYA_Window* window);
 /** Hands each bus its effects from NYA_CONFIG. Cheap when nothing changed, so it runs every tick under every screen. */
 void gny_config_audio_apply(void);
 
-/** nya_ui_begin with the style in NYA_CONFIG, so every menu and HUD pass follows edits to the file. */
+/**
+ * nya_ui_begin with the style in NYA_CONFIG, so every menu and HUD pass follows edits to the file, and with the
+ * window's presenter chosen: the shape one normally, the recording one while `gny_ui_record` is on.
+ *
+ * Paired with gny_ui_end, which is what writes a recorded pass out; a layer calls neither `nya_ui_begin` nor
+ * `nya_ui_end` itself.
+ * */
 NYA_UI* gny_ui_begin(NYA_Window* window, NYA_UIPass pass);
+void    gny_ui_end(NYA_Window* window, NYA_UI* ui);
+
+/**
+ * Sends the UI's draw passes to the recording presenter and logs each one, or stops. The same `nya_ui_*` calls, a
+ * different backend: what proves the presenter seam from inside a running program rather than from a test.
+ * */
+void gny_ui_record_toggle(void);

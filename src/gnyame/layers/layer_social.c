@@ -74,5 +74,5 @@ void _gny_social_prompt(NYA_Window* window, NYA_UIPass pass) {
         nya_ui_panel_end(ui);
     }
 
-    nya_ui_end(ui);
+    gny_ui_end(window, ui);
 }

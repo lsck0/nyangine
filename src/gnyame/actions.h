@@ -46,6 +46,12 @@ enum {
     GNY_ACTION_TRACE_CAPTURE,
 
     /**
+     * Sends the UI's draw passes to the recording presenter instead of the shape one, and logs what each of them
+     * declared. Nothing is drawn while it is on, which is the point: the same menu code is going somewhere else.
+     * */
+    GNY_ACTION_RECORD_UI,
+
+    /**
      * The overlay's systems page: move the cursor down the list, and switch the marked system off or
      * back on. Disabling `physics2d` is a freeze frame with everything else still running; disabling
      * `player_input` takes the keys away without touching the camera. See core_system.h.

@@ -308,6 +308,11 @@ b8 gny_overlay_key(const NYA_KeyEvent* key) {
         return true;
     }
 
+    if (nya_input_action_matches(GNY_ACTION_RECORD_UI, key->key, key->modifier_flags)) {
+        gny_ui_record_toggle();
+        return true;
+    }
+
     if (nya_input_action_matches(GNY_ACTION_CYCLE_TRACE_SORT, key->key, key->modifier_flags)) {
         world->trace_sort = (NYA_TraceSort)(((u32)world->trace_sort + 1) % NYA_TRACE_SORT_COUNT);
         return true;

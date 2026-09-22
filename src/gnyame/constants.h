@@ -293,6 +293,9 @@
 #define GNY_UI_MARGIN  16.0F
 #define GNY_UI_WARNING ((NYA_Color){ 0.95F, 0.42F, 0.32F, 1.0F })
 
+/** How much of a recorded UI pass one log line carries. Past this the tail is cut; see gny_ui_record_toggle. */
+#define GNY_UI_RECORD_DUMP_MAX 8192
+
 /** The HUD's status panel, and the space kept free at the top right for the debug overlay. */
 #define GNY_UI_PANEL_WIDTH   300.0F
 #define GNY_UI_OVERLAY_WIDTH 340.0F

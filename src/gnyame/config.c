@@ -46,8 +46,46 @@ void gny_config_audio_apply(void) {
     nya_audio_bus_effects_set(NYA_AUDIO_BUS_MASTER, audio->master);
 }
 
+/* One pass is open at a time, so one recorder serves every window and every layer. */
+NYA_INTERNAL NYA_UIRecorder _gny_ui_recorder;
+NYA_INTERNAL b8             _gny_ui_recording;
+
 NYA_UI* gny_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     nya_ui_style_set(window, NYA_CONFIG.engine.ui);
 
+    // an input pass reads the pointer against what the last draw pass measured, so both go through one presenter.
+    nya_ui_presenter_set(window, _gny_ui_recording ? nya_ui_recorder_presenter(&_gny_ui_recorder) : nullptr);
+
+    if (_gny_ui_recording) nya_ui_recorder_reset(&_gny_ui_recorder);
+
     return nya_ui_begin(window, pass);
+}
+
+void gny_ui_end(NYA_Window* window, NYA_UI* ui) {
+    nya_assert(window != nullptr && ui != nullptr);
+
+    nya_ui_end(ui);
+
+    if (!_gny_ui_recording || nya_ui_recorder_count(&_gny_ui_recorder) == 0) return;
+
+    // one line per widget, which is the whole pass: a menu read rather than looked at.
+    char dump[GNY_UI_RECORD_DUMP_MAX];
+    (void)nya_ui_recorder_write(&_gny_ui_recorder, dump, sizeof(dump));
+
+    nya_log_info("ui pass, %u widgets through the \"%s\" presenter:\n%s", nya_ui_recorder_count(&_gny_ui_recorder),
+                 nya_ui_presenter_get(window)->name, dump);
+}
+
+void gny_ui_record_toggle(void) {
+    _gny_ui_recording = !_gny_ui_recording;
+
+    if (_gny_ui_recording) {
+        // measured in cells, so a dump lines up and reads like the terminal backend rather than like a font.
+        nya_ui_recorder_init(&_gny_ui_recorder, NYA_UI_RECORD_CELL);
+        nya_log_info("ui recording on: the menus draw nothing and are logged instead");
+        return;
+    }
+
+    nya_ui_recorder_deinit(&_gny_ui_recorder);
+    nya_log_info("ui recording off");
 }
