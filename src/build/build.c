@@ -4,6 +4,7 @@
 #include "build/pp/asset.c"
 #include "build/pp/cheatsheet.c"
 #include "build/pp/i18n.c"
+#include "build/pp/lambda.c"
 #include "build/pp/luabind.c"
 #include "build/pp/reflection.c"
 /**/

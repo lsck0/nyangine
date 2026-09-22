@@ -621,6 +621,15 @@ b8 _nya_integrity_started
 u64 _nya_integrity_stamped_mac(void)  // The MAC stamped into this executable, read from memory.
 ```
 
+### base_lambda.h
+
+A callback written where it is handed over rather than three hundred lines away.
+
+```c
+// macros
+nya_lambda(tag, ...)
+```
+
 ### base_lexer.h
 
 ```c

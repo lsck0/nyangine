@@ -8,8 +8,9 @@
  * command of their own; they exist so the rest of the build system can depend on a pass by name and
  * get the ordering that comes with it. Shaders compile, locales become strings.h, the @reflect
  * annotations become reflection.{h,c}, the asset tree becomes assets.h, and only then does the blob
- * get bundled. They live here rather than beside the project rules because the hooks they hang off
- * are the ones declared in this directory.
+ * get bundled, and the nya_lambda bodies become the companion headers their own sources include. They
+ * live here rather than beside the project rules because the hooks they hang off are the ones declared
+ * in this directory.
  * */
 #pragma once
 
@@ -24,6 +25,7 @@
 #include "build/pp/asset.h"
 #include "build/pp/cheatsheet.h"
 #include "build/pp/i18n.h"
+#include "build/pp/lambda.h"
 #include "build/pp/luabind.h"
 #include "build/pp/reflection.h"
 
@@ -80,6 +82,16 @@ NYA_INTERNAL NYA_BuildRule generate_lua_bindings = {
     .post_build_hooks = { &hook_generate_lua_bindings, },
 };
 
+/**
+ * Regenerates the lambda companions from the nya_lambda call sites in the tree.
+ * */
+NYA_INTERNAL NYA_BuildRule generate_lambdas = {
+    .name             = "generate_lambdas",
+    .policy           = NYA_BUILD_ALWAYS,
+    .is_metarule      = true,
+    .post_build_hooks = { &hook_generate_lambdas, },
+};
+
 NYA_INTERNAL NYA_BuildRule index_assets = {
     .name             = "index_assets",
     .is_metarule      = true,
@@ -94,7 +106,11 @@ NYA_INTERNAL NYA_BuildRule index_assets = {
     // generate_cheatsheet writes no source at all, and hangs here so that a header edit and the
     // reference to it land in the same build. A document that regenerates only when asked is a
     // document that is wrong by the time anyone asks.
-    .dependencies     = { &build_shaders, &generate_strings, &generate_reflection, &generate_lua_bindings, &generate_cheatsheet, },
+    //
+    // generate_lambdas is here for the reason generate_lua_bindings is, and more sharply: it writes the
+    // headers the sources it read include, so a body and the function it becomes cannot land in
+    // different builds.
+    .dependencies     = { &build_shaders, &generate_strings, &generate_reflection, &generate_lua_bindings, &generate_cheatsheet, &generate_lambdas, },
     .post_build_hooks = { &hook_index_assets, },
 };
 

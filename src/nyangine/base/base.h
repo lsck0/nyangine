@@ -25,6 +25,7 @@
 #include "nyangine/base/base_hmap.h"
 #include "nyangine/base/base_hset.h"
 #include "nyangine/base/base_integrity.h"
+#include "nyangine/base/base_lambda.h"
 #include "nyangine/base/base_lexer.h"
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_memory.h"

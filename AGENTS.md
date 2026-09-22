@@ -211,6 +211,11 @@ inputs have not moved, and each runs as part of an ordinary build:
 - `asset.c` → `src/generated/assets.{h,c}`, the asset handles and the baked blob.
 - `cheatsheet.c` → `docs/CHEATSHEET.md`, from the public headers.
 - `luabind.c` → `src/generated/lua_bindings.c` and `docs/lua/nya.lua`, from `@lua` annotations.
+- `lambda.c` → `src/generated/lambdas/`, one companion header per source file that writes a
+  `nya_lambda(tag, ReturnType, (params), { body })`, plus the manifest of every tag in the tree. The
+  body becomes a file scope function called `_nya_lambda_<tag>` and the macro expands to that name, so
+  a lambda cannot capture; see `base_lambda.h`. The source includes its own companion, and the pass
+  says so by name when it does not.
 
 Never hand-edit any of those outputs, `docs/CHEATSHEET.md` included: change the header and rebuild.
 

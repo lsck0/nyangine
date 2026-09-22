@@ -111,6 +111,22 @@ startup cost.
 typedef struct { f32 gravity; u32 substeps; } MyOptions;
 ```
 
+## Lambdas
+
+A callback can be written where it is handed over. The preprocessor reads every
+`nya_lambda(tag, ReturnType, (params), { body })` before anything compiles and writes the body out as
+a real function, which the file that wrote it includes back in; the macro expands to that function's
+name, so what reaches the call is a plain function pointer.
+
+```c
+nya_sim_defer(nya_lambda(reset_score, void, (void* data), { *(u32*)data = 0; }), &score, sizeof(score));
+```
+
+It cannot capture, and that is why it is safe: the function is at file scope, so naming a local of the
+enclosing function is a compile error rather than a pointer into a frame that has already returned.
+Callbacks here are stored, queued or called from another thread, and all three outlive the expression
+that made one.
+
 ## What to read next
 
 - [The HTTP server](http.md) for the one module with a page of its own so far.
