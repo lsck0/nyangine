@@ -197,8 +197,12 @@ In scope, deliberately: not only a server, but the client too.
   still fail loudly rather than draw into a pipe.
 - `[ ]` The Windows half (`terminal_windows.c`) is written against the console's virtual terminal modes and has
   never run.
-- `[ ]` Textures by asset handle draw nothing: a terminal has no sampler, and the pixels behind a handle are
-  not the backend's to read. Pictures go through `nya_render2d_terminal_image` instead.
+- `[x]` Textures by asset handle draw. The pixels are the backend's to read after all: a terminal build makes
+  no GPU device, so the loader keeps the decoded RGBA8 rather than failing to upload it, and the backend
+  samples one texel per cell from the centre. Point sampled, not averaged — a cell is about 10 by 18 pixels
+  and an average lands every cell near the mean of the image. Rotation and flipping are dropped; a cell grid
+  cannot turn a picture without resampling it into noise. `nya_render2d_terminal_image` is still the way to
+  put a real picture up where kitty graphics exist.
 
 ## `[~]` IPC and talking to other programs
 
