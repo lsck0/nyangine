@@ -16,6 +16,9 @@
  */
 
 #define WINDOWS_X86_64_DEBUG_OBJECT     OBJECT_DIRECTORY "/" WINDOWS_X86_64_DEBUG_BINARY OBJECT_SUFFIX
+
+/** The terminal backend cross compiled for windows; see compile_terminal_windows. */
+#define WINDOWS_X86_64_TERMINAL_OBJECT  OBJECT_DIRECTORY "/nya_terminal_windows" OBJECT_SUFFIX
 #define WINDOWS_X86_64_DEBUG_DLL_OBJECT OBJECT_DIRECTORY "/" WINDOWS_X86_64_DEBUG_DLL OBJECT_SUFFIX
 #define WINDOWS_X86_64_DEV_OBJECT       OBJECT_DIRECTORY "/" WINDOWS_X86_64_DEV_BINARY OBJECT_SUFFIX
 #define WINDOWS_X86_64_DEV_DLL_OBJECT   OBJECT_DIRECTORY "/" WINDOWS_X86_64_DEV_DLL OBJECT_SUFFIX
@@ -71,6 +74,44 @@ NYA_INTERNAL NYA_BuildRule build_project_debug_executable_windows = {
     .vendors      = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
     .vendor_flags = NYA_BUILD_VENDOR_FLAGS_LINK,
     .dependencies = { &compile_project_debug_executable_windows, },
+};
+
+/**
+ * The terminal backend, cross compiled for windows.
+ *
+ * `platform/terminal/terminal_windows.c` had never been compiled by anything. Every build target picks
+ * the GPU renderer, and the one translation unit that compiles the terminal backend — the dashboard
+ * example, in `./build check` — is built for the host, so on a Linux machine it reaches
+ * `terminal_linux.c` and the windows half sat there unread since the day it was written.
+ *
+ * Compiled and not linked: linking wants the windows vendor archives and an SDL that a TUI does not
+ * use, and what is in question is whether this code still compiles against the Win32 console API, not
+ * whether a windows binary comes out. It still has never *run*; that needs a windows machine.
+ * */
+NYA_INTERNAL NYA_BuildRule compile_terminal_windows = {
+    .name        = "compile_terminal_windows",
+    .policy      = NYA_BUILD_ALWAYS,
+    .output_file = WINDOWS_X86_64_TERMINAL_OBJECT,
+
+    .command = {
+        .program   = CC,
+        .arguments = {
+            TERMINAL_SOURCE_PATH,
+            "-c", "-o", WINDOWS_X86_64_TERMINAL_OBJECT,
+            CFLAGS,
+            WARNINGS,
+            INCLUDE_PATHS,
+            FLAGS_PLUGINS,
+            FLAGS_DEBUG,
+            FLAGS_TERMINAL,
+            FLAGS_TARGET_WINDOWS_X86_64
+        },
+    },
+
+    .pre_build_hooks = { &hook_add_version_flag, &hook_add_build_info_flag, &hook_create_output_directory, &hook_use_compiler_cache, },
+    .vendors         = { NYA_PROJECT_VENDORS_WINDOWS_X86_64, },
+    .vendor_flags    = NYA_BUILD_VENDOR_FLAGS_COMPILE,
+    .dependencies    = { &build_shaders, &index_assets, },
 };
 
 NYA_INTERNAL NYA_BuildRule compile_project_debug_dll_windows = {

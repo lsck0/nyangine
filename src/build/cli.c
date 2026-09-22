@@ -336,6 +336,11 @@ NYA_INTERNAL NYA_ArgCommand build = {
             .description = "Build the windows debug dll.",
             .build_rule  = &build_project_debug_dll_windows,
         },
+        &(NYA_ArgCommand){
+            .name        = "terminal-windows",
+            .description = "Compile the terminal backend for windows. Compiles only: nothing here has ever run on windows.",
+            .build_rule  = &compile_terminal_windows,
+        },
 #if !OS_WINDOWS
         &(NYA_ArgCommand){
             .name        = "dev-linux",
