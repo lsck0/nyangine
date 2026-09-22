@@ -92,7 +92,7 @@ the feature being bolted on, and the whole converges on one architecture over ti
 | Targets          | Linux, Windows, Steam Linux, Steam Windows                                                                                                    | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). A terminal is now a fifth target through `-DNYA_TERMINAL`, verified on Linux only. Web is wanted and not started; Android is out                                                                                                                                                      |
 | Layering         | a module DAG; a program links only the modules it uses; SDL only behind platform and renderer backends                                        | `[ ]` the include graph has cycles (base↔math, base↔platform, core↔renderer/ui/net/physics, nn→renderer, renderer→debug, http→core), now each a counted allowance in the lint rule that can only fall. `net` and `http` sit on `core`, which is SDL, so a CLI tool or a server links the whole engine. `NYA_NO_SDL` stands in for "no core" inside `base`                                                                                                       |
 | Base             | preprocessor passes, reflection, introspection, errors, stack traces, memory debugging, platform info, integrity, custom static analysis      | `[x]` all present; `check --strict` runs the project's own lint rules (`src/build/lint.c`) before clang-tidy: banned calls, module order, verb pairs, callers, `.clangd` drift                                                                                                                                                                                         |
-| Standard library | typesafe containers, strings, math, dynamic objects, a safe file, an ORM, crypto, time, a binary wire form                                   | `[~]` containers, strings, math, `NYA_Object`, reflection-driven ORM (as a plugin). Missing: atomic file write as a base call (only saves do it), dates and times, URLs, a binary `.nya` encoding, one crypto module                                                                                                                                                  |
+| Standard library | typesafe containers, strings, math, dynamic objects, a safe file, an ORM, crypto, time, a binary wire form                                   | `[~]` containers, strings, math, `NYA_Object`, reflection-driven ORM (as a plugin). Missing: atomic file write as a base call (only saves do it), dates and times, URLs, one crypto module                                                                                                                                                  |
 | Auth             | login, JWT in secure cookies, CSRF defence, revocation, rate limits, TOTP and PGP second factors                                              | `[~]` JWT over HMAC-SHA256 and a PGP challenge seam. No cookies, no login route, no user store, no password hashing, no revocation, no TOTP                                                                                                                                                                                                                           |
 | Web client       | C compiled to wasm, the same `nya_ui_*` calls, the same DTO headers as the server, transport in the `nya` format                            | `[ ]` not started                                                                                                                                                                                                                                                                                                                                                      |
 | Customization    | plugins, editable config, editable UI style files                                                                                             | `[~]` Lua plugins with compile time permissions, hot reloaded `engine.nya`. No UI style files, no signed plugins, no plugin repositories, no VM budgets                                                                                                                                                                                                                  |
@@ -386,10 +386,14 @@ What every kind of program in the examples table needs and `base` does not have 
   the target is always the old bytes or the new. Open: the Windows half has only been syntax checked, a real
   crash leaves a `<target>.<pid>.<n>.tmp` beside the file with nothing sweeping them, and on Windows a symlinked
   target is replaced by a plain file. The database side files and plugin installs do not exist yet.
-- `[ ]` A binary encoding of `.nya` beside the text one: the same `NYA_Object`, the reflection's layout hash in
+- `[~]` A binary encoding of `.nya` beside the text one: the same `NYA_Object`, the reflection's layout hash in
   the header so a peer built from other headers is refused rather than misread, and fuzzed like the others.
   Round trip text ↔ binary ↔ object as a property test. This is the wire format for `application/nya`, for the
-  web client and for saves.
+  web client and for saves. Landed: `serde_nya_binary` (spec in its header), `nya_reflect_layout_hash`, the
+  round trip laws, a fuzz target asserting re-encode byte identity, and HTTP serving it as
+  `application/nya-binary`, typed or untyped. Missing: saves still use the text form, and the OpenAPI document
+  lists only JSON. The hash covers offsets, so a wasm32 peer is refused for any DTO holding a pointer; a DTO
+  meant for both uses `char[N]`.
 - `[~]` **Date and time.** Landed: `clock_instant.h` (`NYA_Instant` and `NYA_Duration` as one field `s64` ns
   structs, `NYA_Date`, `NYA_TimeOfDay`, ISO weekday and week, overflow asserted or refused through `_checked`
   twins, never wrapped) and `clock_format.h` (RFC 3339 and RFC 9110 IMF-fixdate both ways, each refusal naming
@@ -1226,7 +1230,9 @@ the packager ones.
 - `[ ]` `test_attack` failed once in a full suite run on 2026-09-22, at "an over-length fragment inside a
   legal sealed datagram is refused": the server held no peer afterwards. It passed the rerun and 8 of 8
   runs alone, with two other checkouts running their suites on the same machine at the time. No warning
-  was logged, so the peer went by a path that removes silently or by the timeout. Unreproduced.
+  was logged, so the peer went by a path that removes silently or by the timeout. Unreproduced. A parallel
+  checkout saw the same failure while another `test_attack` held UDP port 48100, so two suites on one machine
+  crossing ports is the likely cause; the test range should come from the OS (port 0) rather than a scan.
 - `[x]` RenderDoc closed immediately because its Vulkan layer has no Wayland support: SDL cannot build an
   instance that can make a surface, its Vulkan backend reports itself unsupported, and the renderer
   subsystem fails at startup. Not the anti-tamper check, not the validation layers (the release build fails
