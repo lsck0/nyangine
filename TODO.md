@@ -618,8 +618,14 @@ logged-in user.
     Where this plan differs, it does so on purpose. The refresh token is an opaque random value stored hashed,
     where the template stores JWTs in the row. And there is a refresh token reuse check, which the template
     does not have.
-- `[ ]` Sessions: an access token and a refresh token. Today only the first exists, minted in process by
-  `nya_http_jwt_encode`, with no route that issues one.
+- `[~]` Sessions: an access token and a refresh token. In as of 2026-09-22: cookies in both directions
+  (`http/http_cookie.*`), the extractor reading the access token from the `__Host-session` cookie when there is
+  no `Authorization` header, and `examples/web_server` issuing one where a real server would — after the second
+  factor proves the account, signed with a secret it makes from the CSPRNG at startup. The `__Host-` and
+  `__Secure-` rules are enforced at the call rather than left to the browser to drop silently, and the parser is
+  fuzzed with re-rendering as its oracle. Missing: the refresh token and its rotation, which need a session row
+  and therefore the user store; logout that revokes rather than only clearing the cookie; the idle and absolute
+  limits; and the signed in devices list.
   - **Access token:** a JWT naming the user, the session and how they authenticated, living minutes (the
     number written down with its reasoning). Sent in a `__Host-` cookie: `HttpOnly`, `Secure`,
     `SameSite=Strict`, `Path=/`. Checked by signature alone, no database read, which is why it must be short.
@@ -638,7 +644,9 @@ logged-in user.
   forget it. The origin half is in: dispatch refuses a request that changes something (any method that is not
   safe) with 403 before every layer and the handler when `Sec-Fetch-Site` is anything but `same-origin` or
   `none`, or when `Origin` names another host than `Host`; one with neither is not a browser page and passes.
-  The router's table check makes every write route declare 403. `SameSite=Strict` waits for the cookies.
+  The router's table check makes every write route declare 403. `SameSite=Strict` is in with the cookies:
+  `NYA_HTTP_SAME_SITE_STRICT` is the default of `NYA_HttpCookie`, so a session cookie carries it unless a caller
+  writes otherwise, and `http_auth.h` says why the cookie form of a token is only safe with both defences.
 - `[~]` Simple limits in process, as layers and at accept, each bound a `#define` with its reasoning: connections
   per address and in total, requests per address as a token bucket, and a stricter bucket with backoff for
   login and second factors. Over a limit answers 429 or refuses the accept; it never queues unbounded. Limits
