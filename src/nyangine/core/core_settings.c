@@ -170,8 +170,23 @@ void nya_settings_from_object(const NYA_Object* object) {
         f32 levels[NYA_VOLUME_CHANNEL_COUNT] = { 0 };
         nya_memcpy(levels, &volumes, sizeof(levels));
 
+        /*
+         * The field names come from the reflection rather than a second table here, so a channel
+         * renamed in the header cannot be reported under its old name. They are in channel order for
+         * the reason NYA_SettingsVolumes exists at all.
+         */
+        const NYA_TypeReflection* volume_type = nya_reflect_of(NYA_SettingsVolumes);
+
         for (u32 channel = 0; channel < NYA_VOLUME_CHANNEL_COUNT; channel++) {
             nya_settings_volume_set((NYA_VolumeChannel)channel, levels[channel]);
+
+            // Said rather than silently corrected. A person who typed 5 meant something by it, and a
+            // level that quietly becomes 1 is a setting that looks ignored.
+            const f32 kept = nya_settings_volume((NYA_VolumeChannel)channel);
+            if (kept == levels[channel]) continue;
+
+            nya_log_warn("%s: 'volumes.%s' is %.3f, expected 0 to 1; using %.3f.", NYA_SETTINGS_FILE,
+                         channel < volume_type->field_count ? volume_type->fields[channel].name : "?", (f64)levels[channel], (f64)kept);
         }
     } else if (volumes_value != nullptr) {
         nya_log_warn("%s: 'volumes' is not a block of settings; leaving every channel alone.", NYA_SETTINGS_FILE);
@@ -193,7 +208,35 @@ void nya_settings_from_object(const NYA_Object* object) {
 
         _nya_settings_section_read("graphics", nya_reflect_of(NYA_SettingsGraphics), &graphics, &graphics_value->as_object);
 
+        const NYA_SettingsGraphics asked = graphics;
         nya_settings_graphics_set(graphics);
+
+        /*
+         * What was asked for against what was kept. Read back from the setter rather than checked
+         * against ranges written out again here: the setter is the one place that decides, and a
+         * second copy of its limits would be a second thing to keep in step.
+         */
+        const NYA_SettingsGraphics kept = nya_settings()->graphics;
+
+        if (kept.msaa_samples != asked.msaa_samples) {
+            nya_log_warn("%s: 'graphics.msaa_samples' is " FMTu32 ", expected 1, 2, 4 or 8; using " FMTu32 ".", NYA_SETTINGS_FILE,
+                         asked.msaa_samples, kept.msaa_samples);
+        }
+        if (kept.shadows != asked.shadows) {
+            // The variant names come from the reflection, so a quality level added later names itself.
+            const NYA_TypeReflection* quality = nya_reflect_of(NYA_GraphicsQuality);
+            NYA_ConstCString          using   = (u32)kept.shadows < quality->variant_count ? quality->variants[kept.shadows].name : "?";
+
+            nya_log_warn("%s: 'graphics.shadows' is %d, which is not a quality level in this build; using %s.", NYA_SETTINGS_FILE,
+                         (int)asked.shadows, using);
+        }
+        if (kept.fov != asked.fov) {
+            nya_log_warn("%s: 'graphics.fov' is %.1f, expected 30 to 120 degrees; using %.1f.", NYA_SETTINGS_FILE, (f64)asked.fov, (f64)kept.fov);
+        }
+        if (kept.render_scale != asked.render_scale) {
+            nya_log_warn("%s: 'graphics.render_scale' is %.3f, expected 0.25 to 1; using %.3f.", NYA_SETTINGS_FILE, (f64)asked.render_scale,
+                         (f64)kept.render_scale);
+        }
     } else if (graphics_value != nullptr) {
         nya_log_warn("%s: 'graphics' is not a block of settings; leaving every option alone.", NYA_SETTINGS_FILE);
     }

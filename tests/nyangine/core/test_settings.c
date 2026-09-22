@@ -24,6 +24,19 @@ static void feed_key(NYA_Keycode key, b8 down, NYA_KeyModFlag modifiers) {
   nya_system_input_handle_event(&event);
 }
 
+/** Every warning the settings loader produced, joined, so a test can look for what it named. */
+static u8  warnings[4096];
+static u32 warnings_length = 0;
+
+static void collect_warnings(NYA_LogLevel level, NYA_ConstCString message, u32 length, void* user_data) {
+  nya_unused(length, user_data);
+
+  if (level != NYA_LOG_LEVEL_WARN) return;
+  if (warnings_length >= sizeof(warnings) - 1) return;
+
+  warnings_length += (u32)snprintf((char*)warnings + warnings_length, sizeof(warnings) - warnings_length, "%s\n", message);
+}
+
 /** The end-of-update hook that clears the one-frame edges. */
 static void end_frame(void) {
   NYA_Event event = { .type = NYA_EVENT_UPDATING_ENDED };
@@ -559,6 +572,77 @@ s32 main(void) {
     NYA_String* after = nya_string_create(arena);
     NYA_EXPECT(nya_file_read(path_cstring, after));
     nya_assert(after->length == strlen(edited), "loading does not rewrite the file the player edited");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a value that is in range for its type but not for its meaning is
+  //       corrected out loud, naming the key, what was in the file, and what
+  //       was kept
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: out of range settings\n");
+  {
+    nya_settings_reset();
+
+    NYA_Arena* arena = nya_arena_create(.name = "test_settings_out_of_range");
+    defer nya_arena_destroy(arena);
+
+    NYA_String* path         = nya_save_path(arena, NYA_SETTINGS_FILE);
+    NYA_CString path_cstring = nya_string_to_cstring(arena, path);
+
+    /*
+     * Every one of these parses. A checker that only asks about types has nothing to say about any of
+     * them, and the setter quietly corrected all four, which is what made a hand edited file feel
+     * ignored: the number in the file and the number in the game disagreed and nothing said why.
+     */
+    NYA_ConstCString edited =
+      "nya 2 0\n"
+      "{\n"
+      "    save_version: u32 1;\n"
+      "    volumes: object {\n"
+      "        master: f32 5.0;\n"
+      "    };\n"
+      "    graphics: object {\n"
+      "        msaa_samples: u32 7;\n"
+      "        fov: f32 200.0;\n"
+      "        render_scale: f32 4.0;\n"
+      "    };\n"
+      "}\n";
+
+    NYA_EXPECT(nya_file_write(path_cstring, edited));
+
+    warnings_length = 0;
+    warnings[0]     = '\0';
+    nya_log_sink_add(collect_warnings, nullptr);
+
+    NYA_EXPECT(nya_settings_load());
+
+    (void)nya_log_sink_remove(collect_warnings, nullptr);
+
+    // Corrected, as before.
+    nya_check(nya_settings_volume(NYA_VOLUME_CHANNEL_MASTER) == 1.0F, "a volume over one is brought back to one, got %f",
+              (f64)nya_settings_volume(NYA_VOLUME_CHANNEL_MASTER));
+    nya_check(nya_settings_graphics().msaa_samples == 4, "seven samples becomes four, got " FMTu32, nya_settings_graphics().msaa_samples);
+    nya_check(nya_settings_graphics().fov == 120.0F, "a field of view of 200 becomes 120, got %f", (f64)nya_settings_graphics().fov);
+    nya_check(nya_settings_graphics().render_scale == 1.0F, "a render scale of 4 becomes 1, got %f", (f64)nya_settings_graphics().render_scale);
+
+    // And said so. Each message has to carry the key, since a player with a broken file needs to know
+    // which line to go and fix.
+    NYA_ConstCString expected_keys[] = { "volumes.master", "graphics.msaa_samples", "graphics.fov", "graphics.render_scale" };
+
+    for (u32 i = 0; i < sizeof(expected_keys) / sizeof(expected_keys[0]); i++) {
+      nya_check(strstr((const char*)warnings, expected_keys[i]) != nullptr, "the warnings should name '%s'", expected_keys[i]);
+    }
+
+    // The value that was in the file, so the message matches what the player is looking at.
+    nya_check(strstr((const char*)warnings, "5.000") != nullptr, "and the volume that was written");
+    nya_check(strstr((const char*)warnings, "200.0") != nullptr, "and the field of view that was written");
+
+    // And what it will be instead, so nobody has to guess what the game is running with.
+    nya_check(strstr((const char*)warnings, "expected 0 to 1") != nullptr, "and the range a volume has to be in");
+    nya_check(strstr((const char*)warnings, "expected 30 to 120 degrees") != nullptr, "and the range a field of view has to be in");
+    nya_check(strstr((const char*)warnings, "1, 2, 4 or 8") != nullptr, "and the sample counts that exist");
 
     printf("  PASSED\n");
   }
