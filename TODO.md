@@ -6,8 +6,8 @@
 
 ## Where it stands
 
-227 tests pass, `check --strict` reports nothing, and debug, release and steam-windows build. The title
-screen logs one line in twenty seconds, where it logged 6813.
+235 tests pass, `check --strict` reports nothing, and debug, release, debug-windows and steam-windows build.
+The title screen logs one line in twenty seconds, where it logged 6813.
 
 Landed since the scope widened: the build system reorganised with `./build dist`, a `secrets/` tree encrypted
 with sops, and a generated changelog; an IPC control socket and a WebSocket client, both fuzzed; a crash
@@ -17,8 +17,15 @@ achievements, and Discord presence and invites behind one facade; scene persiste
 shadow lag and the fire flicker fixed with measurements; the UI split into seven files with fixed scale and
 eleven new widgets; and one system registry driving the frame for engine and game alike.
 
-In progress now: fluids, the plugin system, the HTTP server, and fast-forward with DQN driving the game. The
-terminal backend landed and nothing wraps `gh` with it yet. The web client is the one large thing not started. See "The stack" and "Requested".
+In progress now: fluids, the plugin system, and fast-forward with DQN driving the game. The HTTP server has
+its own example and speaks `application/nya` as well as JSON. The terminal backend landed, sorts its cells
+and can be tested; nothing wraps `gh` with it yet. The web client is the one large thing not started. See
+"The stack" and "Requested".
+
+A standing caution, learned the hard way over one long session: several things recorded here as done had
+never run. A Lua script whose own comment said it existed to be exercised, a Steam module described as
+"tested against a fake" with no test at all, every 3D spatial query, and the whole `nya_window_is_*` family.
+A claim in this file is not evidence. The audit under "Engine" is the general form of that question.
 
 ---
 
@@ -1015,8 +1022,9 @@ with `net_steam.c` a working transport satisfying the same interface as UDP and 
 `SteamAPI_RestartAppIfNecessary` runs first, init falls back when no client is running, callbacks run each
 frame. No SteamStub DRM wrapper: it rewrites the exe, breaking the integrity CRC and the signature.
 
-- `[ ]` None of it has run against a real Steam client. It is tested against a fake implementation of the
-  transport interface, which proves the shape and nothing about Valve's behaviour.
+- `[ ]` None of it has run against a real Steam client. `test_steam.c` runs the module against a fake,
+  which proves the shape and nothing about Valve's behaviour. That test was written on 2026-09-22; until
+  then this section claimed it existed and it did not.
 - `[ ]` A real depot upload has not been exercised.
 
 ## `[~]` CI
