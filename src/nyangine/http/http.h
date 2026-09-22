@@ -16,6 +16,7 @@
  * http_server.h    the listener, the connections and the drain
  * http_static.h    the web bundle out of the asset system: hashed names, ETags, one route per file
  * http_websocket.h the RFC 6455 wire format, shared with the curl client in plugins/curl
+ * http_websocket_server.h  the upgrade, and a connection that outlives the exchange that made it
  * http_openapi.h   the OpenAPI document and the browsable page, both generated from the route table
  * ../debug/debug_metrics.h   the first resource, this program's own numbers; in debug, since it reads the app loop
  * ```
@@ -48,9 +49,10 @@
  *
  * It is the server half of "one stack for everything": a nyangine program that serves a web interface
  * for its own metrics, with the DTOs the schema is generated from being the same types a generated
- * client would be generated from. Connections and requests are limited per address in process (see
- * http_server.h). TLS and request size policy above these bounds still belong to a proxy in front,
- * until TLS lands in process as TODO.md plans.
+ * client would be generated from, and a WebSocket where a poll is the wrong shape for what it has to
+ * say. Connections, requests and sockets are limited per address in process (see http_server.h). TLS
+ * and request size policy above these bounds still belong to a proxy in front, until TLS lands in
+ * process as TODO.md plans.
  * */
 #pragma once
 
@@ -63,3 +65,4 @@
 #include "nyangine/http/http_totp.h"
 #include "nyangine/http/http_types.h"
 #include "nyangine/http/http_websocket.h"
+#include "nyangine/http/http_websocket_server.h"

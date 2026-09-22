@@ -52,6 +52,10 @@
  * NYA_HTTP_MAX_PENDING_WRITE_BYTES outstanding is dropped rather than buffered further. It may send
  * nonsense: every refusal is a status and a close, and nothing it sends reaches an assertion.
  *
+ * A connection that asks to be upgraded stops being an HTTP one and becomes a WebSocket on the same
+ * socket, in the same slot, under the same per address cap; see http_websocket_server.h, which is where
+ * the handshake and the bounds on what follows it are. It is drained from the same tick.
+ *
  * One address may hold NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS connections; the next is closed at
  * accept. Each address spends one token per request from a bucket of `request_burst` refilled at
  * `requests_per_second`; an empty bucket answers 429 with Retry-After and closes. The address is the

@@ -1,8 +1,8 @@
 # The HTTP server
 
 A nyangine program can serve HTTP: routing, a middleware chain, typed request and response structs,
-JSON bodies through `serde`, JWT authentication, an OpenAPI document generated from the handlers
-themselves, and a web bundle served out of the asset system with content hashed names and ETags.
+JSON bodies through `serde`, JWT authentication, WebSockets, an OpenAPI document generated from the
+handlers themselves, and a web bundle served out of the asset system with content hashed names and ETags.
 
 It is off unless a program turns it on. Before `nya_system_http_init` there is no thread, no socket
 and no allocation, and a build that never calls it links the same as one written before the module
@@ -368,7 +368,7 @@ request, and a request that does not fit is answered with the status that says s
 Nothing a client can send reaches an assertion. A hostile peer is an operating error, and an assert on
 one is a denial of service.
 
-`nya_http_request_parse` is a pure function over a byte range, which is why it is the fuzz target:
+`nya_http_request_parse` is a pure function over a byte range, which is why it is a fuzz target:
 `tests/fuzz/fuzz_http_request.c`, replayed from a committed corpus on every `./build run test` and
 driven by `./build run fuzz http_request`.
 
@@ -413,6 +413,130 @@ bucket answers `429 Too Many Requests` with `Retry-After` and closes. The three 
 `NYA_HttpConfig`, zero meaning the default above. The address is the socket's peer and never
 `X-Forwarded-For`, so behind a proxy every client shares one budget; trusting a proxy's header waits
 for a configured proxy address.
+
+## WebSockets
+
+A path can be a stream instead of a resource. `nya_http_websocket_route_add` mounts one, an upgrade on
+it is answered with a 101, and the socket stops being an HTTP connection and starts being a WebSocket
+on the same file descriptor:
+
+```c
+NYA_INTERNAL void on_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* data, u64 size) {
+    if (is_text && size == 3 && nya_memcmp(data, "now", 3) == 0) push_a_snapshot(socket);
+}
+
+NYA_INTERNAL const NYA_HttpWebSocketRoute STREAM = {
+    .path       = "/ws/notes",
+    .summary    = "a snapshot of the notes and this server, pushed",
+    .on_open    = stream_open,
+    .on_message = on_message,
+};
+
+NYA_EXPECT(nya_http_websocket_route_add(&STREAM));
+defer nya_http_websocket_route_remove(&STREAM);
+
+// from the program's own loop, whenever there is something to say
+(void)nya_http_websocket_broadcast_text("/ws/notes", json);
+```
+
+`examples/web_server/main.c` is the caller to read: it pushes a snapshot when a peer connects, again
+whenever a note is written or removed, and once a second regardless.
+
+### One codec, two ends
+
+The framing, the masking, the fragment assembly, the pongs and the close codes are `http_websocket.h`,
+and both ends of this engine run it: the server here and the `ws://`/`wss://` client in
+`plugins/curl/websocket.h`. There is one frame decoder in the tree, which is the only way two ends can
+be relied on to refuse the same things. The codec links no socket — it is bytes in and bytes out over
+buffers the caller owns — which is why the plugin can reach up into `http` for it and why it is what
+the fuzzer drives.
+
+`nya_websocket_protocol_open` gives a connection its framing over two buffers, `_receive` takes bytes
+and hands back whole messages, `_send` frames one, `_close` says goodbye, and `_pending`/`_flushed` are
+what a caller moves between it and its socket. A server-side handler reaches the same calls through
+`nya_http_websocket_protocol`, so sending a binary message or a ping from a handler is the same call
+the client end makes.
+
+### The upgrade is a request like any other
+
+It arrives on the same listener, is parsed by the same parser, and spends a token from its address's
+bucket before it is looked at. **A socket does not escape the server's limits by becoming a
+WebSocket**: it keeps the connection slot it was accepted into, and it is counted again against the
+WebSocket bounds below.
+
+It also goes through the origin check (`Sec-Fetch-Site`, then `Origin` against `Host`) that every
+unsafe request goes through. An upgrade is a GET, so nothing about the method would have brought it
+there, and a socket a page on another site opened would read everything the program pushes for as long
+as it stayed open. **A cross-site upgrade is refused with 403.**
+
+| Refused                                                            | Answer |
+| :----------------------------------------------------------------- | :----- |
+| a path with no stream mounted                                       | 404    |
+| an upgrade from another site                                        | 403    |
+| a handshake that is not one: not a GET, no `Sec-WebSocket-Key`, a key that is not a key, a version that is not 13 | 400 |
+| a byte of anything sent after the request and before the 101        | 400    |
+| the table, or this address's share of it, already full              | 503    |
+
+The last 400 is worth its own line: RFC 6455 says a client sends nothing until the 101 comes back, so
+bytes already in the buffer are either a client that does not follow the protocol or a request being
+smuggled through whatever is in front of this server, and neither is worth telling apart. 426 would be
+the RFC's answer for the version, and this server's status set has no 426; the version a client must
+use is in the problem body instead.
+
+### What a connected peer may do
+
+Anything, inside the bounds. A client frame is always masked and a server frame never is, and a frame
+the wrong way round is a close with 1002 rather than something tolerated — an endpoint that accepts
+both is one whose own traffic can be replayed back at it. A reserved bit, an unknown opcode, a control
+frame that is fragmented or over 125 bytes, a length that is not in its shortest form, text that is not
+UTF-8 and a close code the RFC reserves are each a close with the code that says which. None of them
+assert, and none of them allocate.
+
+A peer that goes quiet is pinged after `NYA_HTTP_WEBSOCKET_PING_INTERVAL_MS` and dropped after
+`NYA_HTTP_WEBSOCKET_IDLE_TIMEOUT_MS`, so a connection whose other end is gone without a FIN — a laptop
+that slept, a NAT that dropped the entry — cannot be held forever. A peer that stops reading is dropped
+once more than `NYA_HTTP_MAX_PENDING_WRITE_BYTES` is queued for it, which is the bound an HTTP answer
+gets.
+
+`nya_websocket_protocol_receive` is a pure function over a byte range and a caller's buffers, which is
+why it is the second fuzz target: `tests/fuzz/fuzz_websocket_frame.c`, replayed from a committed corpus
+on every `./build run test` and driven by `./build run fuzz websocket_frame`. It feeds the same bytes
+to both roles, and then to a server a byte at a time, because a decoder that reads a header differently
+across a split is one a peer can steer by choosing its packet sizes.
+
+### Bounds
+
+| Constant                               | Default | What it holds                                            |
+| :------------------------------------- | ------: | :------------------------------------------------------- |
+| `NYA_HTTP_MAX_WEBSOCKETS`              |       4 | sockets at once, out of the 8 connections                 |
+| `NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS`  |       2 | sockets one address may hold                              |
+| `NYA_HTTP_MAX_WEBSOCKET_ROUTES`        |       4 | streams a program may mount                               |
+| `NYA_HTTP_WEBSOCKET_MAX_FRAME_BYTES`   |    4096 | one frame's payload, refused on the header alone          |
+| `NYA_HTTP_WEBSOCKET_MAX_MESSAGE_BYTES` |    8192 | one message, every fragment counted                       |
+| `NYA_WEBSOCKET_MAX_FRAGMENTS`          |      64 | fragments one message may be built from                   |
+| `NYA_HTTP_WEBSOCKET_SEND_BYTES`        |   16384 | queued outgoing bytes per socket                          |
+| `NYA_HTTP_WEBSOCKET_RECEIVE_BYTES`     |    4096 | one read off one socket                                   |
+| `NYA_HTTP_WEBSOCKET_IDLE_TIMEOUT_MS`   |   30000 | silence before a socket is dropped                        |
+| `NYA_HTTP_WEBSOCKET_PING_INTERVAL_MS`  |   10000 | silence before the server asks whether anyone is there    |
+| `NYA_HTTP_WEBSOCKET_MAX_MESSAGES_PER_TICK` |   8 | messages one peer is handed per drain                     |
+
+A socket costs its receive, send and message buffers, about twenty eight kilobytes at the defaults, and
+the table is allocated when the first stream is mounted and not before.
+
+### What is not implemented
+
+- **Authentication.** A stream is open to anyone who can reach the port, which is what the loopback
+  bind and the origin check are doing the work of. A browser cannot set an `Authorization` header on a
+  WebSocket, so a token would have to arrive in the query string or in the first message, and neither
+  is a decision to make as a side effect of adding framing.
+- **Subprotocol negotiation.** A `Sec-WebSocket-Protocol` offer is ignored rather than answered, which
+  RFC 6455 allows and which means a client must not require one.
+- **permessage-deflate**, and every other extension. `Sec-WebSocket-Extensions` is never negotiated, so
+  the three reserved bits stay zero and a frame that sets one is refused.
+- **Sending a message in fragments.** Receiving one is supported, because a peer's fragmentation is not
+  ours to decide; nothing here needs to send one.
+- **The OpenAPI document** does not describe a stream. The specification describes requests and
+  answers, and this is neither, so a mounted route is documented by its `summary` and in prose.
 
 ## What belongs to a proxy
 

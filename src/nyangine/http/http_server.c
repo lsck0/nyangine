@@ -38,6 +38,9 @@ struct _NYA_HttpConnection {
     /** Answered with `Connection: close`, so it is dropped as soon as the answer is queued. */
     b8 closing;
 
+    /** Answered with a 101, so the bytes on it are frames and http_websocket_server.c owns them. */
+    b8 upgraded;
+
     /** The peer, as SDL_net spells it. What the per address limits key on, and never a forwarded header. */
     char address[NYA_HTTP_MAX_ADDRESS];
 };
@@ -253,6 +256,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 
     nya_ceiling_register("http_connections", _NYA_HTTP->max_connections, &_NYA_HTTP->connection_count);
     nya_ceiling_register("http_rate_buckets", NYA_HTTP_MAX_RATE_BUCKETS, &_NYA_HTTP->bucket_count);
+    nya_ceiling_register("http_websockets", NYA_HTTP_MAX_WEBSOCKETS, &_NYA_HTTP_WEBSOCKET_COUNT);
 
     /*
      * Drained where input is drained, for the same reason the control socket is: a request is input
@@ -293,6 +297,9 @@ void nya_system_http_deinit(void) {
 
     for (u32 index = 0; index < NYA_HTTP_MAX_CONNECTIONS; index++) _nya_http_close(&_NYA_HTTP->connections[index]);
 
+    // after the connections, so every close was reported while its socket was still open.
+    _nya_http_websocket_shutdown();
+
     NET_DestroyServer(_NYA_HTTP->listener);
 
     // the secret leaves no copy behind in a freed region waiting to be handed out again.
@@ -319,6 +326,13 @@ void nya_system_http_tick(void) {
         _NYA_HttpConnection* connection = &_NYA_HTTP->connections[index];
 
         if (connection->socket == nullptr) continue;
+
+        // a connection that upgraded is drained by the websocket table, under its own bounds; it keeps
+        // the slot it was accepted into, so it never escapes the ones above.
+        if (connection->upgraded) {
+            if (!_nya_http_websocket_tick(connection->socket)) _nya_http_close(connection);
+            continue;
+        }
 
         if (!_nya_http_receive(connection)) {
             _nya_http_close(connection);
@@ -579,6 +593,32 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, u32* budget) {
         (*budget)--;
         _NYA_HTTP->request_count++;
 
+        /*
+         * The upgrade is answered here rather than through the router: what follows a 101 is frames and
+         * not a response, so it cannot go through nya_http_response_head. Everything before this point
+         * still happened to it — it was accepted under the connection bounds, parsed by the same parser
+         * and has spent its token — and the rest of the handshake's rules are the websocket's.
+         */
+        if (_nya_http_websocket_is_upgrade(&_NYA_HTTP->request)) {
+            NYA_ConstCString detail  = "";
+            NYA_HttpStatus   refusal = _nya_http_websocket_upgrade(
+                connection->socket,
+                connection->address,
+                &_NYA_HTTP->request,
+                connection->received_size,
+                &detail
+            );
+
+            if (refusal != NYA_HTTP_STATUS_NONE) {
+                _nya_http_refuse(connection, refusal, detail, 0);
+                return false;
+            }
+
+            connection->upgraded = true;
+
+            return true;
+        }
+
         if (!_nya_http_answer(connection, keep_alive)) return false;
 
         if (!keep_alive) {
@@ -740,6 +780,9 @@ b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {
 
 void _nya_http_close(_NYA_HttpConnection* connection) {
     if (connection->socket == nullptr) return;
+
+    // the report that the socket is gone, while the socket is still the thing that is going.
+    if (connection->upgraded) _nya_http_websocket_detach(connection->socket);
 
     NET_DestroyStreamSocket(connection->socket);
 

@@ -4890,6 +4890,41 @@ b8 nya_websocket_protocol_is_closed(const NYA_WebSocketProtocol* protocol)  // W
 b8 nya_websocket_protocol_is_closing(const NYA_WebSocketProtocol* protocol)  // Whether a close frame has gone out and the peer's answer has not come back.
 ```
 
+### http_websocket_server.h
+
+The server end of RFC 6455: the upgrade, and a connection that outlives the exchange that made it.
+
+```c
+// types
+typedef void (*NYA_HttpWebSocketOpenFn)(NYA_HttpWebSocket* socket)  // Called once, after the 101 has gone out and before any message.
+typedef void (*NYA_HttpWebSocketMessageFn)(NYA_HttpWebSocket* socket, b8 is_text, const u8* data, u64 size)  // Called for one whole message, fragments already joined.
+typedef void (*NYA_HttpWebSocketCloseFn)(NYA_HttpWebSocket* socket, NYA_WebSocketClose code)  // Called once when the connection ends, for any reason, including a refusal.
+struct NYA_HttpWebSocketRoute { NYA_ConstCString path; NYA_ConstCString summary; NYA_HttpWebSocketOpenFn on_open; NYA_HttpWebSocketMessageFn on_message; NYA_HttpWebSocketCloseFn on_close; }  // One path a client may upgrade on, and what happens when it does.
+
+// macros
+NYA_HTTP_MAX_WEBSOCKETS 4  // WebSocket connections held at once, out of the NYA_HTTP_MAX_CONNECTIONS the listener accepts.
+NYA_HTTP_MAX_WEBSOCKETS_PER_ADDRESS 2  // WebSocket connections one address may hold.
+NYA_HTTP_MAX_WEBSOCKET_ROUTES 4  // Paths a program may mount.
+NYA_HTTP_WEBSOCKET_MAX_FRAME_BYTES 4096  // Bytes of payload one frame may announce.
+NYA_HTTP_WEBSOCKET_MAX_MESSAGE_BYTES NYA_HTTP_MAX_BODY_BYTES  // Bytes of one assembled message, every fragment counted.
+NYA_HTTP_WEBSOCKET_SEND_BYTES (NYA_HTTP_WEBSOCKET_MAX_MESSAGE_BYTES * 2)  // Queued outgoing bytes per connection, frame headers included.
+NYA_HTTP_WEBSOCKET_RECEIVE_BYTES 4096  // What one read takes off the socket at a time.
+NYA_HTTP_WEBSOCKET_IDLE_TIMEOUT_MS 30000  // Silence before a connection is dropped.
+NYA_HTTP_WEBSOCKET_PING_INTERVAL_MS 10000  // Silence before the server pings.
+NYA_HTTP_WEBSOCKET_MAX_MESSAGES_PER_TICK 8  // Messages handed to a handler from one connection in one tick.
+
+// functions
+NYA_Error nya_http_websocket_route_add(const NYA_HttpWebSocketRoute* route)  // Mounts `route`, so an upgrade on its path is answered rather than refused.
+void nya_http_websocket_route_remove(const NYA_HttpWebSocketRoute* route)  // Unmounts it.
+NYA_Error nya_http_websocket_send_text(NYA_HttpWebSocket* socket, NYA_ConstCString text)  // Queues `text` as one message for `socket`, to go out on the next drain.
+u32 nya_http_websocket_broadcast_text(NYA_ConstCString path, NYA_ConstCString text)  // The same message to every connection on `path`, and how many of them took it.
+NYA_WebSocketProtocol* nya_http_websocket_protocol(NYA_HttpWebSocket* socket)
+u32 nya_http_websocket_count(void)  // How many connections are open.
+NYA_HttpWebSocket* nya_http_websocket_at(u32 index)  // The `index`th open connection, or null.
+NYA_ConstCString nya_http_websocket_path(const NYA_HttpWebSocket* socket)  // The path it upgraded on, which is its route's.
+NYA_ConstCString nya_http_websocket_address(const NYA_HttpWebSocket* socket)  // The peer as the socket reports it, in full, never a forwarded header.
+```
+
 ## serde
 
 One dynamic value type, serialized to and from json, jsonc and the engine's own format.
