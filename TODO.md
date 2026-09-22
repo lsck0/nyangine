@@ -309,10 +309,11 @@ Small, and first, because every later phase trusts these numbers.
   deliberate, since this is a library. Two earlier runs of the sweep were wrong and were caught only by spot
   checking: one missed `bench/`, the other missed a function reached through a macro. The automated rule
   above keeps that lesson: its allowlist is reviewed by hand, and it counts macro expansions.
-- `[ ]` `src/nyangine/editor/` is two empty files and no editor is planned. Delete it.
-- `[ ]` `assets/shader/compiled/mesh3d_outline.vert.*` has no source under `assets/shader/source/`. It is left
-  over from the inverted hull that screen space ink replaced. Delete it, and have the shader rule delete
-  compiled outputs whose source is gone.
+- `[x]` `src/nyangine/editor/` is two empty files and no editor is planned. Deleted.
+- `[x]` `assets/shader/compiled/mesh3d_outline.vert.*` has no source under `assets/shader/source/`. It is left
+  over from the inverted hull that screen space ink replaced. The shader rule now deletes compiled outputs whose
+  source is gone, before it compiles, since everything in that directory is baked into the release blob. It
+  found `mesh3d_outline.frag.*` orphaned as well: six files in all.
 
 ## Phase 1 — layering
 
@@ -866,8 +867,8 @@ Each changes what gets built. A recommendation is given; the call is mine.
   - 6 fail WGSL's uniform alignment. Each cbuffer ends `float x; float3 pad;`: HLSL packs that `float3` at
     offset 4, while WGSL wants a `vec3` at a multiple of 16. Spell the padding as three `float`s. The offsets
     stay the same, so the C structs do not change. The files: `effect_lut`, `effect_output_hdr`,
-    `effect_occlusion`, `effect_occlusion_apply`, `effect_light_shafts`, and `mesh3d_outline.vert`, which has
-    no source any more (see Phase 0).
+    `effect_occlusion`, `effect_occlusion_apply`, `effect_light_shafts`, and `mesh3d_outline.vert`, which had
+    no source and is now deleted by the shader rule (see Phase 0).
   - With both fixes, 37 of 37 translate and the WGSL parses back through naga's validator, 5.3 kLOC in all.
   - Not verified yet: Chrome compiles WGSL with Tint, which is stricter than naga about derivatives in
     non-uniform control flow. Five outputs use `dpdx`/`dpdy`/`fwidth`. Run them through Tint or a browser
