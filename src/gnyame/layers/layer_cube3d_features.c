@@ -26,6 +26,15 @@ NYA_INTERNAL void _gny_cube3d_feature_row(NYA_UI* ui, NYA_Window* window, NYA_Re
 /** The rows from `first` up to but not including `end`, as one column. */
 NYA_INTERNAL void _gny_cube3d_feature_column(NYA_UI* ui, NYA_Window* window, NYA_ConstCString id, u32 first, u32 end);
 
+/**
+ * Every cell of the decal sheet, drawn at icon size with the index that names it.
+ *
+ * A legend rather than a control: `mark->cell` picks one of these when a cube lands, and which number
+ * is which splat is otherwise only answerable by opening the PNG. It is also the only thing in the game
+ * that calls nya_ui_icon, which had been written, tested and never drawn by a caller.
+ * */
+NYA_INTERNAL void _gny_cube3d_decal_legend(NYA_UI* ui);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -64,6 +73,8 @@ void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window, b8* show_hit
      * rather than changing how anything is rendered.
      */
     (void)nya_ui_toggle(ui, nya_string_cube3d_hitboxes(), show_hitboxes);
+
+    _gny_cube3d_decal_legend(ui);
 
     // nothing to put back while every switch is already on default.
     NYA_RenderToggle* switches = (NYA_RenderToggle*)&NYA_CONFIG.engine.renderer.features;
@@ -128,6 +139,40 @@ void _gny_cube3d_feature_column(NYA_UI* ui, NYA_Window* window, NYA_ConstCString
     NYA_RenderToggle* switches = (NYA_RenderToggle*)&NYA_CONFIG.engine.renderer.features;
 
     for (u32 feature = first; feature < end; feature++) _gny_cube3d_feature_row(ui, window, switches, (NYA_RenderFeature)feature);
+
+    nya_ui_panel_end(ui);
+}
+
+void _gny_cube3d_decal_legend(NYA_UI* ui) {
+    nya_assert(ui != nullptr);
+
+    if (!nya_ui_panel_begin(ui, "cube3d_decal_legend",
+                            (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .align = NYA_UI_ALIGN_CENTER, .frameless = true })) {
+        return;
+    }
+
+    nya_ui_size(ui, nya_ui_grow(1));
+    nya_ui_label(ui, nya_string_cube3d_decals());
+
+    for (u32 cell = 0; cell < GNY_CUBE3D_DECAL_COLUMNS * GNY_CUBE3D_DECAL_ROWS; cell++) {
+        // the same row-major order nya_render3d_decal cuts the sheet in, so the numbers agree.
+        const u32 column = cell % GNY_CUBE3D_DECAL_COLUMNS;
+        const u32 row    = cell / GNY_CUBE3D_DECAL_COLUMNS;
+
+        nya_ui_icon(ui,
+                    (NYA_UIIcon){
+                        .texture      = GNY_CUBE3D_DECAL_TEXTURE,
+                        .source_x     = (f32)column * GNY_CUBE3D_DECAL_CELL_SIZE,
+                        .source_y     = (f32)row * GNY_CUBE3D_DECAL_CELL_SIZE,
+                        .source_width = GNY_CUBE3D_DECAL_CELL_SIZE,
+                        .source_height = GNY_CUBE3D_DECAL_CELL_SIZE,
+                    },
+                    GNY_CUBE3D_DECAL_ICON_SIZE);
+
+        u8 number[8] = { 0 };
+        (void)snprintf((char*)number, sizeof(number), FMTu32, cell);
+        nya_ui_label(ui, (NYA_ConstCString)number);
+    }
 
     nya_ui_panel_end(ui);
 }

@@ -1041,6 +1041,17 @@
 #define GNY_CUBE3D_DECAL_TEXTURE NYA_ASSET_TEXTURES_DECALS_PNG
 #define GNY_CUBE3D_DECAL_BLOB    2
 
+/**
+ * The decal sheet's grid, and how big one of its cells is drawn as a UI icon.
+ *
+ * The same numbers the decal draws pass, named once so the switchboard's legend cannot disagree with
+ * what the ground actually gets stamped with.
+ * */
+#define GNY_CUBE3D_DECAL_COLUMNS   2
+#define GNY_CUBE3D_DECAL_ROWS      2
+#define GNY_CUBE3D_DECAL_CELL_SIZE 128.0F
+#define GNY_CUBE3D_DECAL_ICON_SIZE 28.0F
+
 /** Impact marks kept at once. The oldest is painted over. */
 #define GNY_CUBE3D_MARK_COUNT 48
 
