@@ -3,6 +3,8 @@
 
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_object.h"
+#include "nyangine/crypto/crypto_hash.h"
+#include "nyangine/crypto/crypto_secret.h"
 #include "nyangine/http/http_auth.h"
 #include "nyangine/serde/serde.h"
 
@@ -72,7 +74,7 @@ NYA_INTERNAL b8 _nya_http_claim_u64(const NYA_Object* payload, NYA_ConstCString 
 
 /** The HMAC of `subject` and the window `now_s` falls in, which is what a challenge is. */
 NYA_INTERNAL void
-_nya_http_challenge_for_window(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 window, OUT u8 out_challenge[NYA_SHA256_BYTES]);
+_nya_http_challenge_for_window(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 window, OUT u8 out_challenge[NYA_CRYPTO_SHA256_BYTES]);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -152,8 +154,8 @@ NYA_Error nya_http_jwt_encode(const NYA_HttpIdentity* identity, const u8* secret
 
     signing_size += encoded;
 
-    u8 tag[NYA_SHA256_BYTES] = { 0 };
-    nya_hmac_sha256(secret, secret_size, (const u8*)signing_input, signing_size, tag);
+    NYA_CryptoSha256Digest tag = { 0 };
+    nya_crypto_hmac_sha256(secret, secret_size, (const u8*)signing_input, signing_size, &tag);
 
     if (signing_size + 1 >= capacity) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the token does not fit the caller's buffer");
 
@@ -161,7 +163,7 @@ NYA_Error nya_http_jwt_encode(const NYA_HttpIdentity* identity, const u8* secret
     out_token[signing_size] = '.';
 
     u64 tag_size = 0;
-    if (!_nya_http_base64url_encode(tag, sizeof(tag), out_token + signing_size + 1, capacity - signing_size - 1, &tag_size)) {
+    if (!_nya_http_base64url_encode(tag.bytes, sizeof(tag.bytes), out_token + signing_size + 1, capacity - signing_size - 1, &tag_size)) {
         out_token[0] = '\0';
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the token does not fit the caller's buffer");
     }
@@ -203,19 +205,19 @@ nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* sec
      * The signature, before the header and before the payload. A token that does not verify never has
      * its claims parsed, so a forged one cannot reach a JSON parser at all.
      */
-    u8  signature[NYA_SHA256_BYTES + 4] = { 0 };
+    u8  signature[NYA_CRYPTO_SHA256_BYTES + 4] = { 0 };
     u64 signature_size                  = 0;
 
     if (!_nya_http_base64url_decode(token + second + 1, size - second - 1, signature, sizeof(signature), &signature_size)) {
         return nya_error(NYA_ERROR_PARSE, "the signature is not base64url");
     }
 
-    if (signature_size != NYA_SHA256_BYTES) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the signature is the wrong length");
+    if (signature_size != NYA_CRYPTO_SHA256_BYTES) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the signature is the wrong length");
 
-    u8 expected[NYA_SHA256_BYTES] = { 0 };
-    nya_hmac_sha256(secret, secret_size, (const u8*)token, second, expected);
+    NYA_CryptoSha256Digest expected = { 0 };
+    nya_crypto_hmac_sha256(secret, secret_size, (const u8*)token, second, &expected);
 
-    if (!nya_hash_equals_constant_time(signature, expected, NYA_SHA256_BYTES)) {
+    if (!nya_crypto_equals(signature, expected.bytes, NYA_CRYPTO_SHA256_BYTES)) {
         return nya_error(NYA_ERROR_PERMISSION_DENIED, "the signature does not match");
     }
 
@@ -324,10 +326,10 @@ b8 nya_http_scope_contains(const NYA_HttpIdentity* identity, NYA_HttpScope requi
  * ─────────────────────────────────────────────────────────
  */
 
-NYA_Error nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, u8 out_challenge[NYA_SHA256_BYTES]) {
+NYA_Error nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, u8 out_challenge[NYA_CRYPTO_SHA256_BYTES]) {
     nya_assert(out_challenge != nullptr);
 
-    memset(out_challenge, 0, NYA_SHA256_BYTES);
+    memset(out_challenge, 0, NYA_CRYPTO_SHA256_BYTES);
 
     if (secret == nullptr || secret_size < NYA_HTTP_MIN_SECRET_BYTES) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a challenge secret is at least %d bytes", NYA_HTTP_MIN_SECRET_BYTES);
@@ -342,7 +344,7 @@ NYA_Error nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, 
     return NYA_OK;
 }
 
-b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, const u8 challenge[NYA_SHA256_BYTES]) {
+b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, const u8 challenge[NYA_CRYPTO_SHA256_BYTES]) {
     if (challenge == nullptr || secret == nullptr || secret_size < NYA_HTTP_MIN_SECRET_BYTES) return false;
     if (subject == nullptr || !_nya_http_subject_is_valid(subject, strlen(subject))) return false;
 
@@ -352,14 +354,14 @@ b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 sec
      * This window and the one before it. Both are always computed and both comparisons always run, so
      * how long this takes says nothing about which one matched or whether either did.
      */
-    u8 current[NYA_SHA256_BYTES]  = { 0 };
-    u8 previous[NYA_SHA256_BYTES] = { 0 };
+    u8 current[NYA_CRYPTO_SHA256_BYTES]  = { 0 };
+    u8 previous[NYA_CRYPTO_SHA256_BYTES] = { 0 };
 
     _nya_http_challenge_for_window(subject, secret, secret_size, window, current);
     _nya_http_challenge_for_window(subject, secret, secret_size, window > 0 ? window - 1 : window, previous);
 
-    b8 matches_current  = nya_hash_equals_constant_time(challenge, current, NYA_SHA256_BYTES);
-    b8 matches_previous = nya_hash_equals_constant_time(challenge, previous, NYA_SHA256_BYTES);
+    b8 matches_current  = nya_crypto_equals(challenge, current, NYA_CRYPTO_SHA256_BYTES);
+    b8 matches_previous = nya_crypto_equals(challenge, previous, NYA_CRYPTO_SHA256_BYTES);
 
     return matches_current || matches_previous;
 }
@@ -499,7 +501,7 @@ b8 _nya_http_claim_u64(const NYA_Object* payload, NYA_ConstCString key, u64* out
     return true;
 }
 
-void _nya_http_challenge_for_window(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 window, u8 out_challenge[NYA_SHA256_BYTES]) {
+void _nya_http_challenge_for_window(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 window, u8 out_challenge[NYA_CRYPTO_SHA256_BYTES]) {
     // the window as text beside the subject, separated by a byte the subject alphabet excludes, so no
     // pair of (subject, window) can be written two ways.
     char message[NYA_HTTP_MAX_SUBJECT + 32] = { 0 };
@@ -508,5 +510,8 @@ void _nya_http_challenge_for_window(NYA_ConstCString subject, const u8* secret, 
 
     nya_assert(size > 0 && (u64)size < sizeof(message), "a challenge message is bounded by the subject's own bound");
 
-    nya_hmac_sha256(secret, secret_size, (const u8*)message, (u64)size, out_challenge);
+    NYA_CryptoSha256Digest tag = { 0 };
+    nya_crypto_hmac_sha256(secret, secret_size, (const u8*)message, (u64)size, &tag);
+
+    memcpy(out_challenge, tag.bytes, sizeof(tag.bytes));
 }

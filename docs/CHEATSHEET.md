@@ -20,6 +20,7 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 - [`net`](#net) — Encrypted UDP client and server: handshake, commands, delta snapshots and prediction.
 - [`http`](#http) — An HTTP/1.1 server, its router and layers, JWT auth, and OpenAPI generated from both.
 - [`serde`](#serde) — One dynamic value type, serialized to and from json, jsonc and the engine's own format.
+- [`crypto`](#crypto) — Hashes, MACs, AEAD, X25519, Ed25519, Argon2id and base32, over monocypher and its vectors.
 - [`nn`](#nn) — Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else.
 - [`debug`](#debug) — The overlay, the trace, the crash window, and drawing physics shapes and networks.
 - [`plugins`](#plugins) — Optional dependencies behind a flag: curl, sqlite, lua, discord, steam.
@@ -503,8 +504,6 @@ void nya_file_write_atomic_fault_set(NYA_FileAtomicStep step, NYA_FileAtomicFaul
 // macros
 NYA_HASH_FNV1A_OFFSET_BASIS 14695981039346656037ULL  // FNV-1a's 64 bit offset basis and prime, as the reference (draft-eastlake-fnv) gives them.
 NYA_HASH_FNV1A_PRIME 1099511628211ULL
-NYA_SHA256_BYTES 32  // The digest, in bytes.
-NYA_SHA256_BLOCK_BYTES 64  // One SHA-256 block, which is also the key length HMAC pads to.
 
 // functions
 u64 nya_hash_fnv1a(const void* data, u64 size)
@@ -515,9 +514,6 @@ u64 nya_hash_wyhash(const void* data, u64 size)  // wyhash (final version 4, def
 u64 nya_siphash(const void* data, u64 size, u64 key_low, u64 key_high)  // SipHash-2-4: a keyed hash, i.e.
 f32 nya_ihash2(s32 x, s32 y, u32 seed)
 f32 nya_ihash3(s32 x, s32 y, s32 z, u32 seed)
-void nya_sha256(const u8* data, u64 size, OUT u8 out_digest[NYA_SHA256_BYTES])  // SHA-256 of `size` bytes.
-void nya_hmac_sha256(const u8* key, u64 key_size, const u8* data, u64 size, OUT u8 out_tag[NYA_SHA256_BYTES])  // HMAC-SHA256, RFC 2104.
-b8 nya_hash_equals_constant_time(const u8* a, const u8* b, u64 size)  // Whether two tags are equal, in time that does not depend on where they first differ.
 ```
 
 ### base_heap.h
@@ -4384,8 +4380,8 @@ NYA_Error nya_http_jwt_encode(const NYA_HttpIdentity* identity, const u8* secret
 NYA_Error nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* secret, u64 secret_size, u64 now_s, OUT NYA_HttpIdentity* out_identity)  // Verifies `token` and parses what it claims.
 b8 nya_http_bearer_token(const NYA_HttpRequest* request, OUT const char** out_token, OUT u64* out_size)  // The token out of `Authorization: Bearer <token>`, pointing into the request and copying nothing.
 b8 nya_http_scope_contains(const NYA_HttpIdentity* identity, NYA_HttpScope required)  // Whether `identity` carries every bit in `required`.
-NYA_Error nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, OUT u8 out_challenge[NYA_SHA256_BYTES])  // A challenge for `subject`, valid for the window `now_s` falls in.
-b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, const u8 challenge[NYA_SHA256_BYTES])  // Whether `challenge` is one this server issued for `subject`, in the current window or the one before it.
+NYA_Error nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, OUT u8 out_challenge[NYA_CRYPTO_SHA256_BYTES])  // A challenge for `subject`, valid for the window `now_s` falls in.
+b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, const u8 challenge[NYA_CRYPTO_SHA256_BYTES])  // Whether `challenge` is one this server issued for `subject`, in the current window or the one before it.
 void nya_http_second_factor_set(NYA_HttpSecondFactorFn verify)  // Installs the signature verifier.
 NYA_HttpSecondFactorFn nya_http_second_factor(void)  // What nya_http_second_factor_set last installed, or null.
 ```
@@ -4638,6 +4634,160 @@ NYA_Error nya_reflect_load_file(const NYA_TypeReflection* type, void* instance, 
 // types
 enum NYA_SerdeFormat { NYA_SERDE_FORMAT_NYA, NYA_SERDE_FORMAT_JSON, NYA_SERDE_FORMAT_JSONC, NYA_SERDE_FORMAT_NYA_BINARY, NYA_SERDE_FORMAT_COUNT, }
 enum NYA_SerdeFlags { NYA_SERDE_NONE = 0, NYA_SERDE_PRETTY = 1 << 0, NYA_SERDE_OBFUSCATE = 1 << 1, NYA_SERDE_NO_CHECKSUM = 1 << 2, _NYA_SERDE_NO_TYPE_SPECIFIER = 1 << 3, }
+```
+
+## crypto
+
+Hashes, MACs, AEAD, X25519, Ed25519, Argon2id and base32, over monocypher and its vectors.
+
+### crypto_aead.h
+
+XChaCha20-Poly1305: authenticated encryption, in place.
+
+```c
+// types
+struct NYA_CryptoNonce24 { u8 bytes[NYA_CRYPTO_NONCE_BYTES]; }  // Never reused under one key: two messages under one nonce leak their XOR and let the tag be forged.
+struct NYA_CryptoTag16 { u8 bytes[NYA_CRYPTO_TAG_BYTES]; }  // The Poly1305 tag that travels with a ciphertext.
+struct NYA_CryptoAeadMessage { u8* text; u64 text_size; const u8* associated; u64 associated_size; }  // What one call encrypts and what it only authenticates.
+
+// macros
+NYA_CRYPTO_NONCE_BYTES 24
+NYA_CRYPTO_TAG_BYTES 16
+
+// functions
+NYA_Error nya_crypto_nonce_random(OUT NYA_CryptoNonce24* out_nonce)  // A nonce from the operating system's random source.
+NYA_CryptoNonce24 nya_crypto_nonce_from_counter(u64 counter)
+void nya_crypto_aead_encrypt(const NYA_CryptoKey32* key, const NYA_CryptoNonce24* nonce, NYA_CryptoAeadMessage message, OUT NYA_CryptoTag16* out_tag)  // Encrypts `message.text` in place and writes the tag over it and `message.associated`.
+b8 nya_crypto_aead_decrypt(const NYA_CryptoKey32* key, const NYA_CryptoNonce24* nonce, NYA_CryptoAeadMessage message, const NYA_CryptoTag16* tag)  // Decrypts `message.text` in place when `tag` matches, and returns true.
+```
+
+### crypto_encoding.h
+
+base32, RFC 4648 section 6, for TOTP secrets.
+
+```c
+// macros
+NYA_CRYPTO_BASE32_GROUP_BYTES 5  // Five bytes are one group of eight characters, and a short last group is padded to eight.
+NYA_CRYPTO_BASE32_GROUP_CHARACTERS 8
+NYA_CRYPTO_BASE32_LENGTH(size)  // Characters `size` bytes encode to, padding included and the terminator not.
+
+// functions
+NYA_Error nya_crypto_base32_encode(const u8* data, u64 size, OUT char* out_text, u64 capacity, OUT u64* out_length)
+NYA_Error nya_crypto_base32_decode(const char* text, u64 length, OUT u8* out_data, u64 capacity, OUT u64* out_size)
+```
+
+### crypto_exchange.h
+
+X25519 key agreement, RFC 7748.
+
+```c
+// types
+struct NYA_CryptoExchangeSecretKey { u8 bytes[NYA_CRYPTO_EXCHANGE_KEY_BYTES]; }
+struct NYA_CryptoExchangePublicKey { u8 bytes[NYA_CRYPTO_EXCHANGE_KEY_BYTES]; }
+struct NYA_CryptoExchangeKeyPair { NYA_CryptoExchangeSecretKey secret_key; NYA_CryptoExchangePublicKey public_key; }
+struct NYA_CryptoSharedSecret { u8 bytes[NYA_CRYPTO_EXCHANGE_KEY_BYTES]; }
+
+// macros
+NYA_CRYPTO_EXCHANGE_KEY_BYTES 32  // RFC 7748 section 5: scalars, u-coordinates and so every key here are 32 bytes.
+
+// functions
+NYA_Error nya_crypto_exchange_key_pair_create(OUT NYA_CryptoExchangeKeyPair* out_key_pair)  // A pair from the operating system's random source.
+void nya_crypto_exchange_key_pair_destroy(NYA_CryptoExchangeKeyPair* key_pair)  // Wipes both halves.
+void nya_crypto_exchange_key_pair_from_secret(const NYA_CryptoExchangeSecretKey* secret_key, OUT NYA_CryptoExchangeKeyPair* out_key_pair)  // Any 32 bytes are a valid secret key; the curve clamps them.
+b8 nya_crypto_exchange( const NYA_CryptoExchangeSecretKey* secret_key, const NYA_CryptoExchangePublicKey* public_key, OUT NYA_CryptoSharedSecret* out_shared )  // X25519 of our secret key and their public key.
+```
+
+### crypto_hash.h
+
+Hashes and MACs: SHA-256, BLAKE2b, and SHA-1 for two old protocols.
+
+```c
+// types
+struct NYA_CryptoSha256Digest { u8 bytes[NYA_CRYPTO_SHA256_BYTES]; }  // A SHA-256 digest, and an HMAC-SHA256 tag, which has the same shape.
+struct NYA_CryptoSha1Digest { u8 bytes[NYA_CRYPTO_SHA1_BYTES]; }  // A SHA-1 digest, and an HMAC-SHA1 tag.
+struct NYA_CryptoSha256 { u32 state[8]; u8 block[NYA_CRYPTO_SHA256_BLOCK_BYTES]; u64 total_bytes; u32 block_used; }  // A SHA-256 in progress.
+
+// macros
+NYA_CRYPTO_SHA256_BYTES 32  // FIPS 180-4 fixes both, and nothing about them is configurable.
+NYA_CRYPTO_SHA256_BLOCK_BYTES 64
+NYA_CRYPTO_SHA1_BYTES 20
+NYA_CRYPTO_SHA1_BLOCK_BYTES 64
+NYA_CRYPTO_BLAKE2B_BYTES_MAX 64  // RFC 7693: a BLAKE2b digest is 1 to 64 bytes and its key 0 to 64.
+NYA_CRYPTO_BLAKE2B_KEY_BYTES_MAX 64
+
+// functions
+void nya_crypto_sha256(const u8* data, u64 size, OUT NYA_CryptoSha256Digest* out_digest)
+void nya_crypto_sha256_begin(OUT NYA_CryptoSha256* out_sha256)
+void nya_crypto_sha256_update(NYA_CryptoSha256* sha256, const u8* data, u64 size)
+void nya_crypto_sha256_end(NYA_CryptoSha256* sha256, OUT NYA_CryptoSha256Digest* out_digest)  // Writes the digest and wipes `sha256`, which must be begun again before it is fed.
+void nya_crypto_hmac_sha256(const u8* key, u64 key_size, const u8* data, u64 size, OUT NYA_CryptoSha256Digest* out_tag)  // HMAC-SHA256, RFC 2104.
+void nya_crypto_blake2b(const u8* data, u64 size, OUT u8* out_hash, u64 hash_size)
+void nya_crypto_blake2b_keyed(const u8* key, u64 key_size, const u8* data, u64 size, OUT u8* out_hash, u64 hash_size)  // BLAKE2b under a key of 1 to NYA_CRYPTO_BLAKE2B_KEY_BYTES_MAX bytes.
+void nya_crypto_sha1(const u8* data, u64 size, OUT NYA_CryptoSha1Digest* out_digest)
+void nya_crypto_hmac_sha1(const u8* key, u64 key_size, const u8* data, u64 size, OUT NYA_CryptoSha1Digest* out_tag)  // HMAC-SHA1, RFC 2104, which is what RFC 6238 TOTP is defined over.
+```
+
+### crypto_kdf.h
+
+Argon2id, RFC 9106, for anything a person types.
+
+```c
+// types
+struct NYA_CryptoArgon2idOptions { const u8* password; u64 password_size; const u8* salt; u64 salt_size; const u8* key; u64 key_size; const u8* associated; u64 associated_size; u32 memory_kib; u32 passes; u32 lanes; }  // The inputs and costs of one Argon2id call.
+
+// macros
+NYA_CRYPTO_ARGON2ID_MEMORY_KIB 65536  // RFC 9106 section 4's second recommended option: t=3, p=4, m=2^16 KiB, a 128 bit salt.
+NYA_CRYPTO_ARGON2ID_PASSES 3
+NYA_CRYPTO_ARGON2ID_LANES 4
+NYA_CRYPTO_ARGON2ID_SALT_BYTES 16  // RFC 9106 section 3.1: 128 bits are enough for every use, and 64 is the floor this refuses below.
+NYA_CRYPTO_ARGON2ID_SALT_BYTES_MIN 8
+NYA_CRYPTO_ARGON2ID_HASH_BYTES_MIN 4  // RFC 9106 section 3.1: a tag is at least four bytes.
+nya_crypto_argon2id(arena, out_hash, hash_size, ...)  // Hashes `.password` under `.salt` into `hash_size` bytes.
+
+// functions
+NYA_Error _nya_crypto_argon2id(NYA_Arena* arena, OUT u8* out_hash, u64 hash_size, NYA_CryptoArgon2idOptions options)  // nya_crypto_argon2id with every option spelled out.
+```
+
+### crypto_secret.h
+
+Secret keys, constant time comparison, and wiping.
+
+```c
+// types
+struct NYA_CryptoKey32 { u8 bytes[NYA_CRYPTO_KEY_BYTES]; }  // A symmetric secret: an AEAD key, a MAC key, a signing seed.
+
+// macros
+NYA_CRYPTO_KEY_BYTES 32  // 256 bits, the key size of every symmetric primitive here and the seed size of both curves.
+
+// functions
+NYA_Error nya_crypto_key_create(OUT NYA_CryptoKey32* out_key)  // A key from the operating system's random source.
+void nya_crypto_key_destroy(NYA_CryptoKey32* key)  // Wipes the key.
+b8 nya_crypto_equals(const u8* a, const u8* b, u64 size)  // Whether `size` bytes at `a` and `b` are equal, in time that depends on `size` alone.
+void nya_crypto_wipe(void* secret, u64 size)  // Zeroes `size` bytes in a way the optimizer may not remove.
+```
+
+### crypto_sign.h
+
+Ed25519 signatures, RFC 8032.
+
+```c
+// types
+struct NYA_CryptoSignSecretKey { u8 bytes[NYA_CRYPTO_SIGN_SECRET_KEY_BYTES]; }  // The 32 byte seed followed by the public key.
+struct NYA_CryptoSignPublicKey { u8 bytes[NYA_CRYPTO_SIGN_PUBLIC_KEY_BYTES]; }
+struct NYA_CryptoSignKeyPair { NYA_CryptoSignSecretKey secret_key; NYA_CryptoSignPublicKey public_key; }
+struct NYA_CryptoSignature { u8 bytes[NYA_CRYPTO_SIGNATURE_BYTES]; }
+
+// macros
+NYA_CRYPTO_SIGN_SECRET_KEY_BYTES 64  // The seed and the public key half, which is how monocypher lays an expanded secret key out.
+NYA_CRYPTO_SIGN_PUBLIC_KEY_BYTES 32
+NYA_CRYPTO_SIGNATURE_BYTES 64
+
+// functions
+NYA_Error nya_crypto_sign_key_pair_create(OUT NYA_CryptoSignKeyPair* out_key_pair)  // A pair from the operating system's random source.
+void nya_crypto_sign_key_pair_destroy(NYA_CryptoSignKeyPair* key_pair)  // Wipes both halves.
+void nya_crypto_sign_key_pair_from_seed(const NYA_CryptoKey32* seed, OUT NYA_CryptoSignKeyPair* out_key_pair)  // The pair RFC 8032 derives from a seed, which is the "secret key" its test vectors print.
+void nya_crypto_sign(const NYA_CryptoSignSecretKey* secret_key, const u8* message, u64 size, OUT NYA_CryptoSignature* out_signature)  // Deterministic: the same key and message always give the same signature, so no nonce can be reused.
+b8 nya_crypto_sign_verify(const NYA_CryptoSignPublicKey* public_key, const u8* message, u64 size, const NYA_CryptoSignature* signature)  // Whether `signature` is `public_key`'s over exactly `message`.
 ```
 
 ## nn

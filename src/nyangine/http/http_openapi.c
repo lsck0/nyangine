@@ -1,6 +1,7 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_version.h"
+#include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/http/http_openapi.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/serde/serde.h"
@@ -367,11 +368,11 @@ NYA_HttpStatus _nya_http_docs_get(NYA_HttpExchange* exchange) {
     NYA_Error written = nya_http_response_bytes(exchange->response, (const u8*)html->items, html->length, NYA_HTTP_MEDIA_HTML);
 
     // the default policy with the page's own style block allowed by its hash, and nothing else loosened.
-    u8 digest[NYA_SHA256_BYTES] = { 0 };
-    nya_sha256((const u8*)_NYA_HTTP_PAGE_STYLE, sizeof(_NYA_HTTP_PAGE_STYLE) - 1, digest);
+    NYA_CryptoSha256Digest digest = { 0 };
+    nya_crypto_sha256((const u8*)_NYA_HTTP_PAGE_STYLE, sizeof(_NYA_HTTP_PAGE_STYLE) - 1, &digest);
 
     NYA_String* hash = nya_string_create(exchange->arena);
-    nya_base64_encode(hash, digest, sizeof(digest));
+    nya_base64_encode(hash, digest.bytes, sizeof(digest.bytes));
 
     NYA_String* policy = nya_string_sprintf(exchange->arena, "default-src 'none'; style-src 'sha256-%.*s'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
                                             (int)hash->length, hash->items);

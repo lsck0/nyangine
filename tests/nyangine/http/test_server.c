@@ -522,10 +522,10 @@ s32 main(void) {
         NYA_ConstCString close = open != nullptr ? strstr(open, "</style>") : nullptr;
         nya_assert(open != nullptr && close != nullptr, "the page carries a style block");
 
-        u8 digest[NYA_SHA256_BYTES] = { 0 };
-        nya_sha256((const u8*)open + 7, (u64)(close - (open + 7)), digest);
+        NYA_CryptoSha256Digest digest = { 0 };
+        nya_crypto_sha256((const u8*)open + 7, (u64)(close - (open + 7)), &digest);
         NYA_String* hash = nya_string_create(arena);
-        nya_base64_encode(hash, digest, sizeof(digest));
+        nya_base64_encode(hash, digest.bytes, sizeof(digest.bytes));
 
         NYA_String* allowed = nya_string_sprintf(arena, "style-src 'sha256-%.*s'", (int)hash->length, hash->items);
         nya_assert(nya_string_contains(page, nya_string_to_cstring(arena, allowed)), "the CSP allows exactly the page's own style block");

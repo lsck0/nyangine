@@ -225,7 +225,7 @@ the draft would land.
 
 ## Authentication
 
-`Authorization: Bearer <jwt>`, HS256 over `base_hash.c`'s HMAC-SHA256.
+`Authorization: Bearer <jwt>`, HS256 over the crypto module's HMAC-SHA256 (`crypto_hash.h`).
 
 **What is real.** Encoding and decoding, with the checks in this order, which is the security
 property: the length bound, then the three-part shape, then the signature in constant time, then the

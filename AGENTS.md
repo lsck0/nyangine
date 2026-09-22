@@ -48,6 +48,7 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | `base`     | arenas, strings, arrays, dicts, logging, errors, assertions, files, hashing   |
 | `platform` | clock, filesystem, process spawning, signals, raw memory, the terminal        |
 | `math`     | scalars, vectors, matrices, quaternions, shapes, noise, random, springs       |
+| `crypto`   | hashes, HMAC, XChaCha20-Poly1305, X25519, Ed25519, Argon2id, base32; monocypher |
 | `core`     | the app loop, entities, systems, events, input, audio, assets, config, saves  |
 | `renderer` | 2D and 3D drawing, cameras, text, particles, post processing, three backends  |
 | `ui`       | immediate mode widgets                                                       |

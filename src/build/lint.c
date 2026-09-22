@@ -88,8 +88,9 @@ NYA_INTERNAL const _LintBannedCall _LINT_BANNED_CALLS[] = {
  * the roadmap calls `app`.
  */
 NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
-    { "base",     0 }, { "platform", 1 }, { "math",    1 }, { "serde",   2 }, { "nn",      2 }, { "net",     3 }, { "http",    4 },
-    { "core",     5 }, { "renderer", 6 }, { "ui",      7 }, { "physics", 8 }, { "debug",   9 }, { "testing", 10 }, { "plugins", 10 },
+    { "base",     0 }, { "platform", 1 }, { "math",    1 }, { "serde",   2 }, { "nn",      2 }, { "crypto",  2 }, { "net",     3 },
+    { "http",     4 }, { "core",     5 }, { "renderer", 6 }, { "ui",      7 }, { "physics", 8 }, { "debug",   9 }, { "testing", 10 },
+    { "plugins",  10 },
 };
 
 /** The pairs from the style guide's verb vocabulary, with the engine's own init/deinit for init/shutdown. */

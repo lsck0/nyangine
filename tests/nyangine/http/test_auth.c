@@ -178,11 +178,11 @@ s32 main(void) {
         NYA_String* signing_input =
             nya_string_sprintf(arena, "%s.%s", nya_string_to_cstring(arena, encoded_header), nya_string_to_cstring(arena, encoded_payload));
 
-        u8 tag[NYA_SHA256_BYTES] = { 0 };
-        nya_hmac_sha256(SECRET, SECRET_SIZE, (const u8*)signing_input->items, signing_input->length, tag);
+        NYA_CryptoSha256Digest tag = { 0 };
+        nya_crypto_hmac_sha256(SECRET, SECRET_SIZE, (const u8*)signing_input->items, signing_input->length, &tag);
 
         NYA_String* encoded_tag = nya_string_create(arena);
-        nya_base64_encode(encoded_tag, tag, sizeof(tag));
+        nya_base64_encode(encoded_tag, tag.bytes, sizeof(tag.bytes));
         nya_string_remove(encoded_tag, "=");
         nya_string_replace(encoded_tag, "+", "-");
         nya_string_replace(encoded_tag, "/", "_");
@@ -251,7 +251,7 @@ s32 main(void) {
     // TEST: the second factor challenge, which is stateless and windowed.
     // ─────────────────────────────────────────────────────────────────────────────
     {
-        u8 challenge[NYA_SHA256_BYTES] = { 0 };
+        u8 challenge[NYA_CRYPTO_SHA256_BYTES] = { 0 };
 
         nya_assert(nya_http_challenge_create("luca", SECRET, SECRET_SIZE, NOW_S, challenge).ok);
 

@@ -3,6 +3,11 @@
 #include "nyangine/nn/nn.c"
 #include "nyangine/platform/platform.c"
 #include "nyangine/serde/serde.c"
+// Guarded: monocypher is on the project's include line and not the build tool's, which hashes nothing.
+// Before the plugins, whose websocket handshake is SHA-1, and before net and http, which it serves.
+#ifndef NYA_NO_SDL
+#include "nyangine/crypto/crypto.c"
+#endif
 // Each plugin is behind its own NYA_PLUGIN_* flag; see plugins.h.
 #include "nyangine/plugins/plugins.c"
 

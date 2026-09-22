@@ -27,7 +27,7 @@
  *
  * ── what is real and what is a seam ──
  *
- * The JWT is real: HS256 over base_hash.c's HMAC-SHA256, with the signature checked in constant time
+ * The JWT is real: HS256 over the crypto module's HMAC-SHA256, with the signature checked in constant time
  * and checked *before* the payload is parsed, so a forged token never reaches a JSON parser. `alg` is
  * compared against "HS256" and nothing else, which is the whole of the `alg: none` and the
  * RS256-downgrade family.
@@ -49,8 +49,8 @@
 #include "nyangine/base/base_arena.h"
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_error.h"
-#include "nyangine/base/base_hash.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/http/http_types.h"
 
 /*
@@ -71,7 +71,7 @@
  * */
 #define NYA_HTTP_MAX_TOKEN_BYTES 512
 
-/** Longest signing secret. Longer keys are hashed down by HMAC anyway; see nya_hmac_sha256. */
+/** Longest signing secret. Longer keys are hashed down by HMAC anyway; see nya_crypto_hmac_sha256. */
 #define NYA_HTTP_MAX_SECRET_BYTES 64
 
 /** Shortest secret that will be accepted. Under this a token is guessable, so it is refused at startup. */
@@ -218,14 +218,14 @@ NYA_API b8 nya_http_scope_contains(const NYA_HttpIdentity* identity, NYA_HttpSco
  * recognises what it issued.
  * */
 NYA_API NYA_Error
-nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, OUT u8 out_challenge[NYA_SHA256_BYTES])
+nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, OUT u8 out_challenge[NYA_CRYPTO_SHA256_BYTES])
     __attr_no_discard;
 
 /**
  * Whether `challenge` is one this server issued for `subject`, in the current window or the one
  * before it. Constant time, so a near miss does not say how near.
  * */
-NYA_API b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, const u8 challenge[NYA_SHA256_BYTES])
+NYA_API b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, const u8 challenge[NYA_CRYPTO_SHA256_BYTES])
     __attr_no_discard;
 
 /** Installs the signature verifier. Null removes it, which is what the engine ships with. */
