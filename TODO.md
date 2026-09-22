@@ -284,8 +284,13 @@ Small, and first, because every later phase trusts these numbers.
     are gone and a new test cannot forget one.
   - `[~]` With the bootstrap fixed, `test-windows` got far enough to show that the tests had never compiled on
     Windows: `test_server.c` called `setenv`, and `test_render2d_merge.c` defined `TEXT` over `windows.h`'s.
-    Both fixed, and every test now passes `-fsyntax-only` for `x86_64-w64-mingw32`. What they do when they
-    run there is the next push's answer.
+    Both fixed, and every test now passes `-fsyntax-only` for `x86_64-w64-mingw32`. Running there then found
+    two more, both real: `test_control`'s liar case passed vacuously on Linux (it checked for a drop before the
+    server had accepted), which a Windows pipe's missing backlog exposed as `ERROR_PIPE_BUSY`; and the Windows
+    log was opened `FILE_SHARE_READ` only, so a second process could not log to the same day's file.
+- `[ ]` `net/test_transport` leaked 81 bytes from `nya_net_transport_connect` (net_transport.c:47, reached from
+  test_transport.c:931) once under a loaded parallel run, and passed alone three times. A flaky test is a bug;
+  find which path leaves the allocation behind.
 - `[x]` `test_agent` gets a wall clock deadline of its own and fails with a message when it passes it.
   `testing_deadline.h`: a watchdog thread that, past the limit, names the test and sends the stuck thread a
   signal, so the crash path prints *its* backtrace. `test_deadline.c` forces a hang in a child: it fails at 1 s
@@ -312,7 +317,10 @@ Small, and first, because every later phase trusts these numbers.
   as identifiers, where the old audit matched text and counted a doc comment or a string naming a function as
   a call, so it finds 81 where the audit's count had come down to 36 (the window, Steam, fluid and renderer
   clusters are most of the difference). Every entry sits in `_LINT_CALLERS_ALLOWED`, grouped by header; each
-  cluster decided removes its lines. Some unexercised surface is deliberate, since this is a library: that
+  cluster decided removes its lines. Down to 20 after the window, Steam, testing, asset blob, input, base and core
+  clusters: tests, real callers, two deletions (`nya_simulation_pick`, a duplicate of `nya_simulation_below`, and
+  `nya_string_println`) and one bug found (`nya_i18n_load_bytes` kept watching the previous locale's file). Some
+  unexercised surface is deliberate, since this is a library: that
   becomes an entry with a real reason instead of "no caller when the rule landed". Earlier: steam, entity
   queries, window state, rng, audio, nn and cursor got tests, and the window cluster found a real bug
   (`nya_window_is_visible` answered true for a handle that is not a window).
@@ -347,6 +355,13 @@ The refactor the rest stands on. Behaviour does not change; the include graph an
   optional dependencies first (curl, sqlite, Lua, Discord, Steam), because they show the five edits most
   clearly. Then every module above `math`. The generated umbrella header replaces `nyangine.h`'s hand-written
   list, and the generated `.clangd` ends the "flags are hand maintained" warning in `AGENTS.md`.
+- `[ ]` **Programs compose**, asked for 2026-09-22: a full 3D game can also host an HTTP server for something,
+  and can be started as one path of a CLI. So a program's `main` is a CLI over `nya_args` (the build tool's
+  command tree, already in `base`), and "run the game" is one command of it beside others such as a headless
+  dedicated server with its HTTP API, a TUI dashboard over the same state, or a one shot export. gnyame is the
+  proof: `gnyame` plays, `gnyame serve` runs headless and serves, `gnyame export ...` does its job and exits,
+  each with only the subsystems it needs brought up. Components decide what is linked; the command decides what
+  is started. Done when gnyame has those paths and CI runs each.
 - `[ ]` Profiles are just named component lists: `cli`, `tui`, `server`, `desktop`, `game`, `web`. The project,
   every example and every test names one or lists its own components. Done when `cli_app` links no SDL, its size
   is measured and written here, and removing a component from gnyame's list either builds or fails naming the
@@ -358,14 +373,27 @@ The refactor the rest stands on. Behaviour does not change; the include graph an
 
 What every kind of program in the examples table needs and `base` does not have yet.
 
-- `[ ]` `nya_file_write_atomic`: temp file, write, fsync, rename, fsync the directory. Saves already do this;
-  settings, config writes, the database's side files and plugin installs should share one call rather than each
-  getting it right. Test with the simulation harness injecting a crash between every step.
+- `[x]` `nya_file_write_atomic`: temp file, write, fsync, rename, fsync the directory. `base_file.h`, with
+  `nya_filesystem_replace` and `NYA_FILE_MODE_EXCLUSIVE` under it. `nya_serde_save_file` and so saves,
+  settings, scenes, key files and trained networks use it, as do tilemap saves, the plugin `nya.file.write`
+  binding, trace captures and the integrity stamp; there was no config write back to move. `test_file_atomic.c`
+  fails and crashes it before every step, directly and under the simulation harness (4 seeds × 160 steps), and
+  the target is always the old bytes or the new. Open: the Windows half has only been syntax checked, a real
+  crash leaves a `<target>.<pid>.<n>.tmp` beside the file with nothing sweeping them, and on Windows a symlinked
+  target is replaced by a plain file. The database side files and plugin installs do not exist yet.
 - `[ ]` A binary encoding of `.nya` beside the text one: the same `NYA_Object`, the reflection's layout hash in
   the header so a peer built from other headers is refused rather than misread, and fuzzed like the others.
   Round trip text ↔ binary ↔ object as a property test. This is the wire format for `application/nya`, for the
   web client and for saves.
-- `[ ]` **Date and time.** What exists is in `platform/clock/clock.h`: wall clock timestamps as raw `u64` in s,
+- `[~]` **Date and time.** Landed: `clock_instant.h` (`NYA_Instant` and `NYA_Duration` as one field `s64` ns
+  structs, `NYA_Date`, `NYA_TimeOfDay`, ISO weekday and week, overflow asserted or refused through `_checked`
+  twins, never wrapped) and `clock_format.h` (RFC 3339 and RFC 9110 IMF-fixdate both ways, each refusal naming
+  its rule and byte, leap seconds and the obsolete date forms refused on purpose), property tested and fuzzed.
+  `nya_instant_now` reads through `nya_instant_source_set`, which simulations and sessions install. The HTTP
+  server's `Date` header is the caller. Left: time zones, locale display, reflection and serde, the UI pickers,
+  JWT `exp` and TOTP on `NYA_Instant`, and moving the raw `u64` callers (crash report, build time, log
+  rotation, robots) over. The original list:
+  What existed was in `platform/clock/clock.h`: wall clock timestamps as raw `u64` in s,
   ms, µs and ns; monotonic time; `nya_clock_civil_from_days` and its pair (exact, property tested); and
   `nya_clock_format_utc`, which writes two fixed formats (readable and filename safe) and is signal safe for the
   crash path. Nothing parses, nothing knows a time zone, and an instant is a bare `u64`, so seconds and
@@ -402,7 +430,13 @@ What every kind of program in the examples table needs and `base` does not have 
     written once on the field; UI attributes let a property panel or a form be generated from a struct; ORM
     attributes replace the ORM's own conventions; and OpenAPI reads `@range`, `@length` and `@label` into the
     schema, so the client, the server and the docs share one statement of every rule.
-- `[ ]` URLs and percent encoding, parsed into a type once at the boundary.
+- `[x]` URLs and percent encoding, parsed into a type once at the boundary. `base_url.h`: `nya_url_parse` for
+  absolute http/https/ws/wss URLs and `nya_url_parse_target` for a request target, one bounded copy with each
+  part an offset into it (slices into the receive buffer would dangle when it shifts), strict RFC 3986, and every
+  refusal naming its rule and byte. It refuses the SSRF spellings of numeric hosts (`0x7f.1`, `2130706433`),
+  `.`/`..` segments however encoded, `%2F` in a segment and a leading `//`, and a query name given twice.
+  The HTTP server and the websocket plugin both use it and their two hand written parsers are gone, so a request
+  whose target breaks those rules now gets 400. Property tested, fuzzed (5 minutes of AFL++, nothing found).
 - `[ ]` A `crypto` module: monocypher's X25519, Ed25519, XChaCha20-Poly1305, BLAKE2b and Argon2id behind our own
   names, plus SHA-256, HMAC, SHA-1 (TOTP and the WebSocket handshake only), base32, a constant time compare and
   the OS CSPRNG from `platform`. `net_crypto.c`, `nya_hmac_sha256` and the JWT code move onto it. Every primitive
