@@ -665,8 +665,18 @@ void _nya_crash_reporter_observe(const NYA_CrashInfo* info, void* user_data) {
      * A fault gets the file rather than the window, and gets it without being asked: see debug_crash.h for
      * why SDL is not called from a signal handler. The path goes out through write(2), the only output
      * that is safe here.
+     *
+     * So does a run nobody is watching. The window waits for a click, and a test or a headless server
+     * that crashed into it hung there instead of failing: test_agent did, for 5h32m once.
      */
-    if (info->fault_path) {
+#ifdef NYA_TESTING
+    const b8 unattended = true;
+#else
+    // read directly rather than through nya_app_get, which asserts, and a crash can come before the app is up.
+    const b8 unattended = _NYA_APP_INSTANCE.initialized && _NYA_APP_INSTANCE.options.headless;
+#endif
+
+    if (info->fault_path || unattended) {
         u8 path[NYA_CRASH_REPORT_PATH_MAX] = { 0 };
         if (!nya_crash_report_submit((NYA_ConstCString)_nya_crash_report_buffer, path, (u32)sizeof(path)).ok) return;
 

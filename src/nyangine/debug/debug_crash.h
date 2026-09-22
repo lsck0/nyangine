@@ -20,7 +20,8 @@
  * from, what the build is, what the machine is, and the last NYA_LOG_RING_MAX log lines, which is the
  * part that usually says what the program was actually doing.
  *
- * For everything but a fault the report is shown in a window with Close, Copy and Send to developer.
+ * For everything but a fault the report is shown in a window with Close, Copy and Send to developer,
+ * unless nobody is there to press one: a test build or a headless app writes the file instead.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────
  *

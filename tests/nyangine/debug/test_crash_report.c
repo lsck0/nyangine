@@ -7,6 +7,9 @@
  * where it must decline rather than fail, and once for real, where it must come up, draw and go away
  * again when it is dismissed. That second one is what caught SDL_RENDER being off in the vendored SDL,
  * which had left the window unable to open in any build ever shipped; see vendor_sdl.h.
+ *
+ * And once more in a child process that really crashes with the reporter registered, which must write
+ * the report and exit: nobody is at a test to dismiss a window, and test_agent hung in one for hours.
  * */
 
 // after the engine, which is what decides how SDL is configured; see the fuzz targets for the same rule.
@@ -33,6 +36,9 @@
  * there so that a dropped or filtered event costs a slow test instead of a stuck one.
  * */
 #define DISMISS_ATTEMPTS_MAX 20
+
+/** A crash that reaches the window hangs until this, and fails there instead of stopping the suite. */
+#define CHILD_DEADLINE_S 10
 
 /** Cleared once nya_crash_window_show has returned, so the dismisser stops knocking. */
 static atomic_bool window_open = false;
@@ -68,7 +74,22 @@ static NYA_CrashInfo crash_of(NYA_CrashSource source, NYA_ConstCString message) 
     return info;
 }
 
-s32 main(void) {
+/** Crashes the way a test does, with a video subsystem up so the window could open if it were asked to. */
+static void child_crash_unattended(void) {
+    nya_test_deadline_start("the crashing child", CHILD_DEADLINE_S);
+
+    SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "offscreen", SDL_HINT_OVERRIDE);
+    (void)SDL_Init(SDL_INIT_VIDEO);
+
+    NYA_EXPECT(nya_log_directory_open(TEST_DIRECTORY, 14));
+    NYA_EXPECT(nya_crash_reporter_init());
+
+    nya_assert(false, "the child crashes on purpose");
+}
+
+s32 main(s32 argc, NYA_CString argv[]) {
+    if (argc == 2 && nya_string_equals(argv[1], "--crash")) child_crash_unattended();
+
     if (nya_filesystem_exists(TEST_DIRECTORY)) NYA_EXPECT(nya_filesystem_delete_recursive(TEST_DIRECTORY));
 
     const NYA_LogLevel original_level = nya_log_level_get();
@@ -241,6 +262,29 @@ s32 main(void) {
     NYA_EXPECT(nya_crash_reporter_init()); // idempotent, so a hot reload does not register a second
     nya_crash_reporter_deinit();
     nya_crash_reporter_deinit(); // and the teardown takes anything, including nothing
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a test that crashes writes the report and exits, rather than waiting
+    //       in a window for a click nobody will make
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_Arena* arena = nya_arena_create(.name = "test_crash_report_child");
+        defer      nya_arena_destroy(arena);
+
+        NYA_Command child = {
+            .arena     = arena,
+            .flags     = NYA_COMMAND_FLAG_OUTPUT_CAPTURE,
+            .program   = argv[0],
+            .arguments = { "--crash", nullptr },
+        };
+        NYA_EXPECT(nya_command_run(&child));
+
+        nya_check(child.exit_code != 0, "the child crashed, so it fails, got exit code %d", child.exit_code);
+        nya_check(!nya_string_contains(child.stderr_content, "[DEADLINE]"), "it exited by itself rather than at its deadline");
+        nya_check(nya_string_contains(child.stderr_content, "Crash report written to " TEST_DIRECTORY), "and named the report it wrote");
+
+        if (nya_check_failures() > 0) (void)fprintf(stderr, "child stderr:\n%.*s\n", (int)child.stderr_content->length, child.stderr_content->items);
+    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // CLEANUP
