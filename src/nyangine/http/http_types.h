@@ -80,6 +80,15 @@
 #define NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND 20
 #define NYA_HTTP_DEFAULT_REQUEST_BURST       40
 
+/** Longest address, terminator included. An IPv6 address in full is 45 characters. */
+#define NYA_HTTP_MAX_ADDRESS 48
+
+/**
+ * A request id: 64 random bits as 16 hex digits, and the terminator. Enough that two requests a log is
+ * searched across never share one, and short enough to read aloud from a bug report.
+ * */
+#define NYA_HTTP_REQUEST_ID_SIZE 17
+
 /**
  * Bytes of request line and headers together.
  *
@@ -346,6 +355,9 @@ struct NYA_HttpResponse {
     u8* body;
     u64 body_capacity;
     u64 body_size;
+
+    /** Sent as `X-Request-Id` when set. The server sets it; nya_http_response_reset leaves it alone. */
+    char request_id[NYA_HTTP_REQUEST_ID_SIZE];
 };
 
 /*
@@ -390,6 +402,13 @@ NYA_API b8 nya_http_method_allows_body(NYA_HttpMethod method) __attr_no_discard;
 
 /** "OK", "Not Found", ... the reason phrase. Empty for a status this server does not produce. */
 NYA_API NYA_ConstCString nya_http_status_text(NYA_HttpStatus status) __attr_no_discard;
+
+/**
+ * `address` with its host part dropped, for a log: 203.0.113.7 becomes 203.0.113.0/24, and
+ * 2001:db8:1:2::5 becomes 2001:db8:1::/48. The network still says where abuse comes from; the host no
+ * longer says who. Anything that is not an address becomes "unknown" rather than being copied through.
+ * */
+NYA_API void nya_http_address_truncate(NYA_ConstCString address, OUT char* out, u64 capacity);
 
 /** Whether `status` is one of the listed codes, i.e. something this server may actually answer. */
 NYA_API b8 nya_http_status_is_valid(NYA_HttpStatus status) __attr_no_discard;

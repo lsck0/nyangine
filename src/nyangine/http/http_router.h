@@ -10,7 +10,7 @@
  *
  * nya_http_chain_next        a layer calls this to run the rest of the chain
  *
- * nya_http_layer_log         the one layer the engine ships: a line per request, with its duration
+ * nya_http_layer_log         the one layer the engine ships: a summary line per request, tagged with its id
  *
  * nya_http_response_problem  the error body every refusal here carries
  * ```
@@ -198,6 +198,12 @@ struct NYA_HttpExchange {
 
     /** Monotonic nanoseconds at the start of the exchange, for a layer that wants a duration. */
     u64 started_ns;
+
+    /**
+     * The peer as the socket reports it, in full. Never a forwarded header. What a security event keeps;
+     * a request log truncates it with nya_http_address_truncate. "" when the exchange has no socket.
+     * */
+    NYA_ConstCString address;
 };
 
 /** A handler on a route that demands nothing of its caller. */
@@ -332,7 +338,10 @@ NYA_API NYA_HttpStatus nya_http_router_dispatch(
 NYA_API NYA_HttpStatus nya_http_chain_next(NYA_HttpExchange* exchange, NYA_HttpChain* chain);
 
 /**
- * One log line per request: method, path, status and how long the rest of the chain took.
+ * One log line per request: method, the matched route's path, status, how long the rest of the chain
+ * took, body bytes in and out, the caller's network (nya_http_address_truncate) and subject. The request
+ * id arrives through the server's log tag. The route's path rather than the request's, so a query string
+ * never reaches the log.
  *
  * Outermost when a program installs it, so the duration is the whole exchange and the status is
  * whatever anything inside decided.

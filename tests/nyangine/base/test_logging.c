@@ -208,6 +208,31 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a tag lands on every line until it is cleared, and is cut at its bound
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    nya_log_level_set(NYA_LOG_LEVEL_INFO);
+    nya_log_ring_clear();
+
+    nya_check(nya_log_tag_get()[0] == '\0', "no tag until one is set");
+
+    nya_log_tag_set("req=0123456789abcdef");
+    nya_log_info("tagged");
+    nya_log_tag_clear();
+    nya_log_info("untagged");
+
+    nya_check(nya_log_ring_count() == 2, "two lines, got %u", nya_log_ring_count());
+    nya_check(strstr(nya_log_ring_at(0), "[INFO] [req=0123456789abcdef] ") != nullptr, "got '%s'", nya_log_ring_at(0));
+    nya_check(strstr(nya_log_ring_at(1), "req=") == nullptr, "a cleared tag is gone from the next line");
+
+    char long_tag[NYA_LOG_TAG_MAX_LENGTH * 2] = { 0 };
+    nya_memset(long_tag, 'x', sizeof(long_tag) - 1);
+    nya_log_tag_set(long_tag);
+    nya_check(strlen(nya_log_tag_get()) == NYA_LOG_TAG_MAX_LENGTH - 1, "a long tag is cut, not overrun");
+    nya_log_tag_clear();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
   // ─────────────────────────────────────────────────────────────────────────────
   nya_log_level_set(original_level);

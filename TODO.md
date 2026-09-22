@@ -493,8 +493,12 @@ logged-in user.
   - The header's "what a hostile peer may do" section is rewritten for the threaded shape: which limits are
     per worker and which are global, and what a slow handler can and cannot hold up.
   Threads and sockets come from `platform` after Phase 1 rather than from SDL.
-- `[ ]` **Request logging with redaction.** Today `nya_http_layer_log` writes one printf line (method, path,
-  status, microseconds): no request id, no headers, no bodies, nothing redacted because nothing is logged.
+- `[~]` **Request logging with redaction.** Landed: a random `X-Request-Id` on every answer, set as the
+  thread's log tag (`nya_log_tag_set`) while the request is served, so every line it causes carries it; and
+  the summary line (method, route, status, duration, bytes in and out, subject, address truncated to /24 or
+  /48). Missing: the `headers` and `bodies` levels and their config, the header deny list, `@redact`, the
+  address setting (full or none), the tag on a handler queued to the main thread, a trace span or the crash
+  report's own fields (it reaches the report only through the ring), and the property test.
   - Every exchange gets a random request id, returned as `X-Request-Id`. It is attached to every log line,
     error, trace span and crash report produced while serving that request, including a handler queued to the
     main thread.

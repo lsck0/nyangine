@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <string.h>
+
 #include "nyangine/base/base_assert.h"
 #include "nyangine/http/http_types.h"
 
@@ -97,6 +100,13 @@ NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_ESSENCE[NYA_HTTP_MEDIA_COUNT] = {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/** Four decimal octets and nothing else. No leading zeros past one digit, since some readers take those as octal. */
+NYA_INTERNAL b8 _nya_http_parse_ipv4(const char* text, u64 size, OUT u8* out_octets) __attr_no_discard;
+
+/** Eight groups, `::` at most once, and an IPv4 tail in the last two. What inet_pton accepts, without the platform. */
+NYA_INTERNAL b8 _nya_http_parse_ipv6(const char* text, u64 size, OUT u16* out_groups) __attr_no_discard;
+
+
 /*
  * These two are defined here and used by every other file in the module, which works because http.c
  * includes this one first; see the note there. They are not declared in http_types.h on purpose: a
@@ -169,6 +179,38 @@ NYA_ConstCString nya_http_status_text(NYA_HttpStatus status) {
     return "";
 }
 
+void nya_http_address_truncate(NYA_ConstCString address, OUT char* out, u64 capacity) {
+    nya_assert(address != nullptr && out != nullptr && capacity > 0);
+
+    u64 size = strnlen(address, NYA_HTTP_MAX_ADDRESS);
+
+    // a zone names the interface, not the peer, and it is not part of the network either.
+    const char* zone = memchr(address, '%', size);
+    if (zone != nullptr) size = (u64)(zone - address);
+
+    u8  octets[4] = { 0 };
+    u16 groups[8] = { 0 };
+
+    if (_nya_http_parse_ipv4(address, size, octets)) {
+        (void)snprintf(out, capacity, "%u.%u.%u.0/24", octets[0], octets[1], octets[2]);
+        return;
+    }
+
+    if (_nya_http_parse_ipv6(address, size, groups)) {
+        // an IPv4 peer on a dual stack socket arrives as ::ffff:a.b.c.d, and is the IPv4 network it is.
+        b8 mapped = groups[0] == 0 && groups[1] == 0 && groups[2] == 0 && groups[3] == 0 && groups[4] == 0 && groups[5] == 0xFFFF;
+
+        if (mapped) {
+            (void)snprintf(out, capacity, "%u.%u.%u.0/24", groups[6] >> 8, groups[6] & 0xFF, groups[7] >> 8);
+        } else {
+            (void)snprintf(out, capacity, "%x:%x:%x::/48", groups[0], groups[1], groups[2]);
+        }
+        return;
+    }
+
+    (void)snprintf(out, capacity, "unknown");
+}
+
 b8 nya_http_status_is_valid(NYA_HttpStatus status) {
     for (u64 index = 0; index < nya_carray_length(_NYA_HTTP_STATUS_ROWS); index++) {
         if (_NYA_HTTP_STATUS_ROWS[index].status == status) return true;
@@ -205,6 +247,114 @@ NYA_HttpMediaType nya_http_media_type_parse(const char* text, u64 size) {
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+b8 _nya_http_parse_ipv4(const char* text, u64 size, OUT u8* out_octets) {
+    u32 octet = 0;
+    u32 value = 0;
+    u32 digits = 0;
+
+    for (u64 index = 0; index <= size; index++) {
+        char character = index < size ? text[index] : '.';
+
+        if (character >= '0' && character <= '9') {
+            if (digits > 0 && value == 0) return false;
+
+            value = (value * 10) + (u32)(character - '0');
+            digits++;
+
+            if (digits > 3 || value > 255) return false;
+            continue;
+        }
+
+        if (character != '.' || digits == 0 || octet >= 4) return false;
+
+        out_octets[octet++] = (u8)value;
+        value               = 0;
+        digits              = 0;
+    }
+
+    return octet == 4;
+}
+
+b8 _nya_http_parse_ipv6(const char* text, u64 size, OUT u16* out_groups) {
+    u16 head[8]    = { 0 };
+    u16 tail[8]    = { 0 };
+    u32 head_count = 0;
+    u32 tail_count = 0;
+    b8  elided     = false;
+
+    u64 at = 0;
+
+    if (size >= 2 && text[0] == ':' && text[1] == ':') {
+        elided  = true;
+        at      = 2;
+    } else if (size >= 1 && text[0] == ':') {
+        return false;
+    }
+
+    while (at < size) {
+        u64 end = at;
+        while (end < size && text[end] != ':') end++;
+
+        u16* groups = elided ? tail : head;
+        u32* count  = elided ? &tail_count : &head_count;
+
+        // the last piece may be an IPv4 address, standing for the last two groups.
+        if (end == size && memchr(text + at, '.', end - at) != nullptr) {
+            u8 octets[4] = { 0 };
+            if (*count + 2 > 8 || !_nya_http_parse_ipv4(text + at, end - at, octets)) return false;
+
+            groups[(*count)++] = (u16)((octets[0] << 8) | octets[1]);
+            groups[(*count)++] = (u16)((octets[2] << 8) | octets[3]);
+            break;
+        }
+
+        if (end == at || end - at > 4 || *count >= 8) return false;
+
+        u32 value = 0;
+        for (u64 index = at; index < end; index++) {
+            char character = text[index];
+            u32  digit     = 0;
+
+            if (character >= '0' && character <= '9') {
+                digit = (u32)(character - '0');
+            } else if (character >= 'a' && character <= 'f') {
+                digit = (u32)(character - 'a' + 10);
+            } else if (character >= 'A' && character <= 'F') {
+                digit = (u32)(character - 'A' + 10);
+            } else {
+                return false;
+            }
+
+            value = (value << 4) | digit;
+        }
+
+        groups[(*count)++] = (u16)value;
+        at                 = end;
+
+        if (at == size) break;
+
+        // one colon separates; two elide, once.
+        at++;
+        if (at < size && text[at] == ':') {
+            if (elided) return false;
+
+            elided = true;
+            at++;
+        } else if (at == size) {
+            return false;
+        }
+    }
+
+    if (elided ? head_count + tail_count >= 8 : head_count != 8) return false;
+
+    for (u32 index = 0; index < 8; index++) out_groups[index] = 0;
+    for (u32 index = 0; index < head_count; index++) out_groups[index] = head[index];
+    for (u32 index = 0; index < tail_count; index++) out_groups[8 - tail_count + index] = tail[index];
+
+    return true;
+}
+
 
 char _nya_http_lower(char character) {
     if (character >= 'A' && character <= 'Z') return (char)(character - 'A' + 'a');

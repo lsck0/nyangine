@@ -20,6 +20,9 @@
 #define NYA_LOG_SINK_MAX             8
 #define NYA_LOG_MESSAGE_MAX_LENGTH   2048
 
+/** A tag names what a thread is working on, such as a request id, so it is short: 32 bytes with the terminator. */
+#define NYA_LOG_TAG_MAX_LENGTH 32
+
 /**
  * Lines the ring holds, and how much of each it keeps.
  *
@@ -153,6 +156,18 @@ NYA_API void nya_log_sink_add(NYA_LogSink sink, void* user_data);
 NYA_API b8 nya_log_sink_remove(NYA_LogSink sink, void* user_data);
 
 NYA_API void nya_log_sink_clear(void);
+
+/**
+ * Tags every line this thread logs until cleared, as `[LEVEL] [tag] function (...)`. The HTTP server
+ * sets a request's id here while serving it, so every line the request causes can be found by it,
+ * including the ring a crash report prints. One tag, not a stack: whoever sets it clears it. Copied, and
+ * cut at NYA_LOG_TAG_MAX_LENGTH - 1 bytes.
+ * */
+NYA_API void nya_log_tag_set(NYA_ConstCString tag);
+NYA_API void nya_log_tag_clear(void);
+
+/** The current thread's tag, or "" when there is none. */
+NYA_API NYA_ConstCString nya_log_tag_get(void) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────

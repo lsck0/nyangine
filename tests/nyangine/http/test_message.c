@@ -633,6 +633,60 @@ s32 main(void) {
         printf("  PASSED\n");
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: an address loses its host part, and anything else becomes "unknown".
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        static const NYA_ConstCString CASES[][2] = {
+            { "203.0.113.7",             "203.0.113.0/24" },
+            { "0.0.0.0",                 "0.0.0.0/24" },
+            { "255.255.255.255",         "255.255.255.0/24" },
+            { "2001:db8:1:2::5",         "2001:db8:1::/48" },
+            { "2001:DB8:0:0:0:0:0:1",    "2001:db8:0::/48" },
+            { "::1",                     "0:0:0::/48" },
+            { "fe80::1%eth0",            "fe80:0:0::/48" },
+            { "::ffff:198.51.100.23",    "198.51.100.0/24" },
+            { "",                        "unknown" },
+            { "unknown",                 "unknown" },
+            { "256.1.1.1",               "unknown" },
+            { "1.2.3",                   "unknown" },
+            { "1.2.3.4.5",               "unknown" },
+            { "01.2.3.4",                "unknown" },
+            { "1::2::3",                 "unknown" },
+            { "1:2:3:4:5:6:7:8:9",       "unknown" },
+            { "1:2:3:4:5:6:7",           "unknown" },
+            { "12345::1",                "unknown" },
+            { ":1:2:3:4:5:6:7",          "unknown" },
+            { "1:2:3:4:5:6:7:",          "unknown" },
+            { "1.2.3.4\r\nInjected: yes", "unknown" },
+        };
+
+        for (u32 index = 0; index < nya_carray_length(CASES); index++) {
+            char out[NYA_HTTP_MAX_ADDRESS] = { 0 };
+            nya_http_address_truncate(CASES[index][0], out, sizeof(out));
+            nya_check(strcmp(out, CASES[index][1]) == 0, "'%s' became '%s', not '%s'", CASES[index][0], out, CASES[index][1]);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a response with a request id says so in its head, and reset keeps it.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        u8 body[16] = { 0 };
+
+        NYA_HttpResponse response = { 0 };
+        nya_http_response_create(&response, body, sizeof(body));
+        defer nya_http_response_destroy(&response);
+
+        (void)snprintf(response.request_id, sizeof(response.request_id), "0123456789abcdef");
+        nya_http_response_reset(&response);
+
+        u8  head[NYA_HTTP_MAX_RESPONSE_HEAD_BYTES] = { 0 };
+        u64 head_size                              = 0;
+        nya_assert(nya_http_response_head(&response, NYA_HTTP_STATUS_OK, true, (NYA_Instant){ 0 }, head, sizeof(head), &head_size).ok);
+        nya_check(strstr((const char*)head, "X-Request-Id: 0123456789abcdef\r\n") != nullptr, "got:\n%s", (const char*)head);
+    }
+
     printf("PASSED: http message\n");
 
     return nya_check_failures() == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

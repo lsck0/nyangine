@@ -12,6 +12,7 @@
 #include "nyangine/core/core_event.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/platform/clock/clock.h"
+#include "nyangine/platform/random/random.h"
 #include "SDL3_net/SDL_net.h"
 
 /*
@@ -118,6 +119,9 @@ NYA_INTERNAL b8 _nya_http_answer(_NYA_HttpConnection* connection, b8 keep_alive)
 
 /** Writes one status with a problem body and nothing else, for a request that never became one. A nonzero `retry_after_s` becomes `Retry-After`. */
 NYA_INTERNAL void _nya_http_refuse(_NYA_HttpConnection* connection, NYA_HttpStatus status, NYA_ConstCString detail, u32 retry_after_s);
+
+/** A fresh request id: 64 bits from the CSPRNG as hex. */
+NYA_INTERNAL void _nya_http_request_id(OUT char* out);
 
 /** Spends one token from `address`'s bucket. False when it is empty, with the seconds until one refills. */
 NYA_INTERNAL b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) __attr_no_discard;
@@ -595,6 +599,8 @@ b8 _nya_http_answer(_NYA_HttpConnection* connection, b8 keep_alive) {
     nya_http_response_create(&response, _NYA_HTTP->response_body, sizeof(_NYA_HTTP->response_body));
     defer nya_http_response_destroy(&response);
 
+    _nya_http_request_id(response.request_id);
+
     NYA_HttpExchange exchange = {
         .request     = &_NYA_HTTP->request,
         .response    = &response,
@@ -603,7 +609,14 @@ b8 _nya_http_answer(_NYA_HttpConnection* connection, b8 keep_alive) {
         .secret_size = _NYA_HTTP->secret_size,
         .now_s       = nya_clock_get_timestamp_s(),
         .started_ns  = nya_clock_get_monotonic_ns(),
+        .address     = connection->address,
     };
+
+    // every line the request causes carries its id, so a report quoting X-Request-Id finds all of them.
+    char tag[NYA_LOG_TAG_MAX_LENGTH] = { 0 };
+    (void)snprintf(tag, sizeof(tag), "req=%s", response.request_id);
+    nya_log_tag_set(tag);
+    defer nya_log_tag_clear();
 
     NYA_HttpStatus status =
         nya_http_router_dispatch(&exchange, _NYA_HTTP->routers, _NYA_HTTP->router_count, _NYA_HTTP->layers, _NYA_HTTP->layer_count);
@@ -621,6 +634,8 @@ void _nya_http_refuse(_NYA_HttpConnection* connection, NYA_HttpStatus status, NY
     NYA_HttpResponse response = { 0 };
     nya_http_response_create(&response, _NYA_HTTP->response_body, sizeof(_NYA_HTTP->response_body));
     defer nya_http_response_destroy(&response);
+
+    _nya_http_request_id(response.request_id);
 
     NYA_Error written = nya_http_response_printf(
         &response,
@@ -668,6 +683,18 @@ b8 _nya_http_write(_NYA_HttpConnection* connection, const NYA_HttpResponse* resp
     nya_assert(response->body_size <= (u64)S32_MAX, "the response buffer is sixty four kilobytes");
 
     return NET_WriteToStreamSocket(connection->socket, response->body, (s32)response->body_size);
+}
+
+void _nya_http_request_id(OUT char* out) {
+    u8 bits[8] = { 0 };
+
+    // an id only has to be unique, not secret, so a CSPRNG that fails falls back to the request count
+    // rather than refusing the request.
+    if (!nya_random_bytes(bits, sizeof(bits))) {
+        for (u32 index = 0; index < sizeof(bits); index++) bits[index] = (u8)(_NYA_HTTP->request_count >> (index * 8));
+    }
+
+    for (u32 index = 0; index < sizeof(bits); index++) (void)snprintf(out + ((u64)index * 2), 3, "%02x", bits[index]);
 }
 
 b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {

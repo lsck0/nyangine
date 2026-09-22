@@ -15,7 +15,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** The fixed part of a rendered head: the status line, Content-Length, Content-Type, Connection and Date. */
+/** The fixed part of a rendered head: the status line, Content-Length, Content-Type, Connection, Date and X-Request-Id. */
 #define _NYA_HTTP_FIXED_HEAD_BYTES 256
 
 /*
@@ -617,6 +617,11 @@ NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatu
 
     (void)snprintf(line, sizeof(line), "Date: %s\r\n", (const char*)stamp);
     if (!_nya_http_head_append(buffer, capacity, &size, line)) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the response head does not fit");
+
+    if (response->request_id[0] != '\0') {
+        (void)snprintf(line, sizeof(line), "X-Request-Id: %s\r\n", response->request_id);
+        if (!_nya_http_head_append(buffer, capacity, &size, line)) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the response head does not fit");
+    }
 
     for (u32 index = 0; index < nya_carray_length(_NYA_HTTP_SECURITY_HEADERS); index++) {
         NYA_ConstCString name = _NYA_HTTP_SECURITY_HEADERS[index][0];

@@ -301,6 +301,16 @@ driven by `./build run fuzz http_request`.
 
 Every one is a `#define` a consumer can override from the command line.
 
+## Request ids and the log line
+
+Every answer carries `X-Request-Id`, 64 random bits in hex, refusals included. While a request is
+served the server sets it as the thread's log tag (`nya_log_tag_set`), so every line the request causes
+reads `[INFO] [req=…] …`, in the file, the terminal and the ring a crash report prints. `nya_http_layer_log`
+adds one summary line: method, the matched route's path, status, duration, body bytes in and out, the
+caller's network and subject. The route's path and not the request's, so a query string is never
+logged; the network and not the address, `/24` for IPv4 and `/48` for IPv6, so the log says where
+traffic comes from without saying who. The exchange keeps the full address for what needs it.
+
 ## Limits in process
 
 One address holds at most `max_connections_per_address` connections; the next is closed at accept

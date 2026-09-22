@@ -28,6 +28,9 @@ NYA_INTERNAL u32                     _nya_log_sink_count                        
 NYA_INTERNAL _NYA_CrashObserverEntry _nya_crash_observers[NYA_CRASH_OBSERVER_MAX] = { 0 };
 NYA_INTERNAL u32                     _nya_crash_observer_count                    = 0;
 
+/** What nya_log_tag_set left for this thread. Per thread, so a worker's tag never lands on another's line. */
+NYA_INTERNAL thread_local char _nya_log_tag[NYA_LOG_TAG_MAX_LENGTH] = { 0 };
+
 /** Guards against an observer, or the renderer it drives, crashing inside the crash handler. */
 NYA_INTERNAL thread_local u32 _nya_crash_depth = 0;
 /** Ensures that when several threads fault at once only the first one reports. */
@@ -108,6 +111,20 @@ NYA_LogLevel nya_log_level_get(void) {
 
 void nya_log_level_set(NYA_LogLevel level) {
     _nya_log_level_current = level;
+}
+
+void nya_log_tag_set(NYA_ConstCString tag) {
+    nya_assert(tag != nullptr);
+
+    (void)snprintf(_nya_log_tag, sizeof(_nya_log_tag), "%s", tag);
+}
+
+void nya_log_tag_clear(void) {
+    _nya_log_tag[0] = '\0';
+}
+
+NYA_ConstCString nya_log_tag_get(void) {
+    return _nya_log_tag;
 }
 
 void nya_log_sink_add(NYA_LogSink sink, void* user_data) {
@@ -465,7 +482,9 @@ void _nya_log_message(NYA_LogLevel level, NYA_ConstCString function, NYA_ConstCS
     if (level < _nya_log_level_current) return;
 
     char buffer[NYA_LOG_MESSAGE_MAX_LENGTH];
-    s32  written = snprintf(buffer, sizeof(buffer), "[%s] %s (%s:%u): ", _NYA_LOG_LEVEL_NAME_MAP[level], function, file, line);
+    s32  written = _nya_log_tag[0] != '\0'
+                       ? snprintf(buffer, sizeof(buffer), "[%s] [%s] %s (%s:%u): ", _NYA_LOG_LEVEL_NAME_MAP[level], _nya_log_tag, function, file, line)
+                       : snprintf(buffer, sizeof(buffer), "[%s] %s (%s:%u): ", _NYA_LOG_LEVEL_NAME_MAP[level], function, file, line);
     if (written < 0) return;
 
     u32 length = (u32)written < sizeof(buffer) ? (u32)written : sizeof(buffer) - 1;

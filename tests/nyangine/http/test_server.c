@@ -435,6 +435,57 @@ s32 main(void) {
 
         nya_assert(exchange(again, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
         nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 429 "));
+        nya_assert(strstr(answer, "X-Request-Id: ") != nullptr, "a refusal has an id too, so it can be reported");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: every answer has its own id, and the request's log line carries it.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };
+
+        u16   port = start_server((NYA_HttpConfig){ .layers = LAYERS, .layer_count = nya_carray_length(LAYERS) });
+        defer nya_system_http_deinit();
+
+        nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
+
+        NET_StreamSocket* client = connect_to(port);
+        defer             NET_DestroyStreamSocket(client);
+
+        NYA_LogLevel level = nya_log_level_get();
+        nya_log_level_set(NYA_LOG_LEVEL_INFO);
+        defer nya_log_level_set(level);
+
+        char ids[2][NYA_HTTP_REQUEST_ID_SIZE] = { 0 };
+
+        for (u32 index = 0; index < 2; index++) {
+            nya_log_ring_clear();
+
+            nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH "?token=hunter2 HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+
+            const char* header = strstr(answer, "X-Request-Id: ");
+            nya_assert(header != nullptr, "got:\n%s", answer);
+            (void)snprintf(ids[index], sizeof(ids[index]), "%.16s", header + 14);
+            nya_assert(strlen(ids[index]) == NYA_HTTP_REQUEST_ID_SIZE - 1);
+
+            char tag[NYA_LOG_TAG_MAX_LENGTH] = { 0 };
+            (void)snprintf(tag, sizeof(tag), "[req=%s]", ids[index]);
+
+            b8 found = false;
+            for (u32 line = 0; line < nya_log_ring_count(); line++) {
+                NYA_ConstCString text = nya_log_ring_at(line);
+                if (strstr(text, tag) == nullptr) continue;
+
+                found = true;
+                nya_assert(strstr(text, "QUERY " NYA_HTTP_METRICS_PATH " -> 200") != nullptr, "got '%s'", text);
+                nya_assert(strstr(text, "from 127.0.0.0/24") != nullptr, "the address is truncated: '%s'", text);
+                nya_assert(strstr(text, "hunter2") == nullptr, "the query string is the caller's and never logged: '%s'", text);
+            }
+            nya_assert(found, "no log line carried the id the response did");
+        }
+
+        nya_assert(strcmp(ids[0], ids[1]) != 0, "two requests, one id");
+        nya_assert(nya_log_tag_get()[0] == '\0', "the tag is gone once the request is");
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

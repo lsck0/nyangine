@@ -328,12 +328,22 @@ NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* nex
 
     u64 elapsed_us = (nya_clock_get_monotonic_ns() - started_ns) / 1000;
 
+    char network[NYA_HTTP_MAX_ADDRESS] = { 0 };
+    nya_http_address_truncate(exchange->address != nullptr ? exchange->address : "", network, sizeof(network));
+
+    // the route's own path, never the request's: that is the caller's text, query string and all, and a
+    // token in a query would land in the log. An unmatched request is logged as such for the same reason.
+    // the request id is not here because the server's log tag already puts it on this line.
     nya_log_info(
-        "%s %s -> %d (%llu us)",
+        "%s %s -> %d (%llu us, %llu in, %llu out) from %s as %s",
         nya_http_method_text(exchange->request->method),
-        exchange->request->path,
+        exchange->route != nullptr ? exchange->route->path : "(no route)",
         (s32)status,
-        (unsigned long long)elapsed_us
+        (unsigned long long)elapsed_us,
+        (unsigned long long)exchange->request->body_size,
+        (unsigned long long)exchange->response->body_size,
+        network,
+        exchange->identified ? exchange->identity.subject : "-"
     );
 
     return status;

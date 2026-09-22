@@ -655,6 +655,7 @@ NYA_CRASH_MESSAGE_MAX_LENGTH 1024  // Roomy enough that a thrown error can carry
 NYA_CRASH_OBSERVER_MAX 8
 NYA_LOG_SINK_MAX 8
 NYA_LOG_MESSAGE_MAX_LENGTH 2048
+NYA_LOG_TAG_MAX_LENGTH 32  // A tag names what a thread is working on, such as a request id, so it is short: 32 bytes with the terminator.
 NYA_LOG_RING_MAX 256  // Lines the ring holds, and how much of each it keeps.
 NYA_LOG_RING_LINE_MAX 256
 nya_log_trace(format, ...)
@@ -670,6 +671,9 @@ void nya_log_level_set(NYA_LogLevel level)
 void nya_log_sink_add(NYA_LogSink sink, void* user_data)  // Adds a log sink.
 b8 nya_log_sink_remove(NYA_LogSink sink, void* user_data)  // Removes the sink registered with exactly this callback and user data.
 void nya_log_sink_clear(void)
+void nya_log_tag_set(NYA_ConstCString tag)  // Tags every line this thread logs until cleared, as `[LEVEL] [tag] function (...)`.
+void nya_log_tag_clear(void)
+NYA_ConstCString nya_log_tag_get(void)  // The current thread's tag, or "" when there is none.
 u32 nya_log_ring_count(void)  // Lines held, at most NYA_LOG_RING_MAX.
 NYA_ConstCString nya_log_ring_at(u32 index)  // Line `index`, oldest first.
 NYA_LogLevel nya_log_ring_level_at(u32 index)  // The level line `index` was logged at.
@@ -4445,7 +4449,7 @@ Which handler answers a request, what runs around it, and what has to be true be
 // types
 enum NYA_HttpAuth { NYA_HTTP_AUTH_NONE = 0, NYA_HTTP_AUTH_BEARER, }  // What a route demands of its caller before the handler is reached.
 struct NYA_HttpProblem { u32 status; char error[48]; char detail[192]; }  // The body every refusal carries, so a client parses one shape whatever went wrong.
-struct NYA_HttpExchange { const NYA_HttpRequest* request; NYA_HttpResponse* response; const NYA_HttpRoute* route; NYA_Arena* arena; NYA_HttpIdentity identity; b8 identified; const u8* secret; u64 secret_size; u64 now_s; u64 started_ns; }  // One request being answered.
+struct NYA_HttpExchange { const NYA_HttpRequest* request; NYA_HttpResponse* response; const NYA_HttpRoute* route; NYA_Arena* arena; NYA_HttpIdentity identity; b8 identified; const u8* secret; u64 secret_size; u64 now_s; u64 started_ns; NYA_ConstCString address; }  // One request being answered.
 typedef NYA_HttpStatus (*NYA_HttpHandlerFn)(NYA_HttpExchange* exchange)  // A handler on a route that demands nothing of its caller.
 typedef NYA_HttpStatus (*NYA_HttpIdentifiedFn)(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity)  // A handler on a route that demands an identity.
 typedef NYA_HttpStatus (*NYA_HttpLayerFn)(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // One layer of the onion.
@@ -4463,7 +4467,7 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router)
 const NYA_HttpRoute* nya_http_router_find(const NYA_HttpRouter* const* routers, u32 router_count, NYA_HttpMethod method, NYA_ConstCString path, OUT b8* out_path_exists)  // The route for `method` and `path`, or null.
 NYA_HttpStatus nya_http_router_dispatch( NYA_HttpExchange* exchange, const NYA_HttpRouter* const* routers, u32 router_count, const NYA_HttpLayerFn* layers, u32 layer_count )
 NYA_HttpStatus nya_http_chain_next(NYA_HttpExchange* exchange, NYA_HttpChain* chain)  // Runs the rest of the chain.
-NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // One log line per request: method, path, status and how long the rest of the chain took.
+NYA_HttpStatus nya_http_layer_log(NYA_HttpExchange* exchange, NYA_HttpChain* next)
 NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpStatus status, NYA_ConstCString detail)  // Replaces the response body with a NYA_HttpProblem for `status`.
 ```
 
@@ -4476,7 +4480,6 @@ The listener: a TCP port, a handful of connections, and one drain a frame that r
 struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; const NYA_HttpLayerFn* layers; u32 layer_count; }
 
 // macros
-NYA_HTTP_MAX_ADDRESS 48  // Longest bind address, terminator included.
 NYA_HTTP_IDLE_TIMEOUT_MS 5000  // How long a connection may sit without a complete request before it is dropped.
 NYA_HTTP_MAX_REQUESTS_PER_TICK 16  // Requests answered in one tick, across every connection.
 NYA_HTTP_MAX_ACCEPTS_PER_TICK 4  // Connections accepted in one tick.
@@ -4508,7 +4511,7 @@ enum NYA_HttpStatus { NYA_HTTP_STATUS_NONE = 0, NYA_HTTP_STATUS_OK = 200, NYA_HT
 enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_NYA, NYA_HTTP_MEDIA_NYA_BINARY, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
 struct NYA_HttpHeader { char name[NYA_HTTP_MAX_HEADER_NAME]; char value[NYA_HTTP_MAX_HEADER_VALUE]; }  // One header, both halves bounded and null terminated.
 struct NYA_HttpRequest { NYA_HttpMethod method; char path[NYA_HTTP_MAX_PATH]; NYA_Url target; NYA_HttpHeader headers[NYA_HTTP_MAX_HEADERS]; u32 header_count; NYA_HttpMediaType media_type; b8 keep_alive; u8 body[NYA_HTTP_MAX_BODY_BYTES + 1]; u64 body_size; }  // A request that parsed.
-struct NYA_HttpResponse { NYA_HttpStatus status; NYA_HttpMediaType media_type; NYA_HttpHeader headers[NYA_HTTP_MAX_RESPONSE_HEADERS]; u32 header_count; u8* body; u64 body_capacity; u64 body_size; }  // What a handler fills in.
+struct NYA_HttpResponse { NYA_HttpStatus status; NYA_HttpMediaType media_type; NYA_HttpHeader headers[NYA_HTTP_MAX_RESPONSE_HEADERS]; u32 header_count; u8* body; u64 body_capacity; u64 body_size; char request_id[NYA_HTTP_REQUEST_ID_SIZE]; }  // What a handler fills in.
 
 // macros
 NYA_HTTP_MAX_CONNECTIONS 8  // Connections held at once.
@@ -4516,6 +4519,8 @@ NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS 4  // Connections one address may hold at o
 NYA_HTTP_MAX_RATE_BUCKETS 64  // Addresses whose request budget is remembered at once.
 NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND 20
 NYA_HTTP_DEFAULT_REQUEST_BURST 40
+NYA_HTTP_MAX_ADDRESS 48  // Longest address, terminator included.
+NYA_HTTP_REQUEST_ID_SIZE 17  // A request id: 64 random bits as 16 hex digits, and the terminator.
 NYA_HTTP_MAX_HEAD_BYTES 4096  // Bytes of request line and headers together.
 NYA_HTTP_MAX_BODY_BYTES 8192  // Bytes of request body, after any chunked encoding is undone.
 NYA_HTTP_MAX_CHUNKS 64  // Chunks one chunked body may be built from.
@@ -4538,6 +4543,7 @@ b8 nya_http_method_is_valid(NYA_HttpMethod method)  // Whether `method` names a 
 b8 nya_http_method_is_safe(NYA_HttpMethod method)  // Whether `method` is safe: it reads and changes nothing, so a repeat of it is the same request.
 b8 nya_http_method_allows_body(NYA_HttpMethod method)  // Whether a request with `method` may carry a body.
 NYA_ConstCString nya_http_status_text(NYA_HttpStatus status)  // "OK", "Not Found", ...
+void nya_http_address_truncate(NYA_ConstCString address, OUT char* out, u64 capacity)
 b8 nya_http_status_is_valid(NYA_HttpStatus status)  // Whether `status` is one of the listed codes, i.e.
 NYA_ConstCString nya_http_media_type_text(NYA_HttpMediaType media_type)  // The full Content-Type header value, charset included.
 NYA_HttpMediaType nya_http_media_type_parse(const char* text, u64 size)  // The media type `text` names, ignoring any parameters after a ';' and ignoring case.

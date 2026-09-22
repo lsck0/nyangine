@@ -77,9 +77,6 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Longest bind address, terminator included. An IPv6 address in full is 45 characters. */
-#define NYA_HTTP_MAX_ADDRESS 48
-
 /**
  * How long a connection may sit without a complete request before it is dropped.
  *
