@@ -98,18 +98,16 @@ NYA_INTERNAL NYA_HttpStatus gny_web_guild_read(NYA_HttpExchange* exchange) {
 /**
  * Drops a player, as the subject the token names.
  *
- * The identity's subject is the actor: a token says who you are, and the guild table says what that
- * means here, which is the split the permission module exists for.
+ * By the time this runs the caller has been resolved against the guild table and found to hold KICK
+ * here: the route declares it, so the extractor checked before this was called and a handler cannot be
+ * reached unchecked. What is left is the hierarchy, which is about these two players rather than about
+ * the route, and gny_guild_kick is where that lives.
  * */
 NYA_INTERNAL NYA_HttpStatus gny_web_guild_kick(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity) {
     if (gny_guild() == nullptr) return NYA_HTTP_STATUS_SERVICE_UNAVAILABLE;
 
-    u64 actor  = 0;
+    u64 actor  = gny_guild_subject_of(identity);
     u64 target = 0;
-
-    if (!nya_type_parse(NYA_TYPE_U64, (const u8*)identity->subject, strlen(identity->subject), &actor)) {
-        return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "that token names no player in this session");
-    }
 
     char wanted[24] = { 0 };
     if (!nya_http_request_query_param(exchange->request, "peer", wanted, sizeof(wanted)) ||
@@ -146,10 +144,12 @@ NYA_INTERNAL const NYA_HttpRoute GNY_WEB_GUILD_ROUTES[] = {
      .method             = NYA_HTTP_METHOD_DELETE,
      .path               = GNY_WEB_GUILD_PATH,
      .auth               = NYA_HTTP_AUTH_BEARER,
+     .permission         = GNY_PERMISSION_KICK,
+     .resource           = GNY_GUILD_SESSION,
      .handler_identified = gny_web_guild_kick,
      .summary            = "Drops a player",
-     .description        = "`?peer=<subject>`. The token says who is asking; the guild table says whether they may and whether they "
-                           "outrank the player they named. 403 when either answer is no.",
+     .description        = "`?peer=<subject>`. The route declares the permission, so the caller is resolved against the guild table "
+                           "before the handler runs; what is left to the handler is whether they outrank the player they named.",
      .statuses           = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN,
                              NYA_HTTP_STATUS_SERVICE_UNAVAILABLE },
      },
@@ -220,7 +220,11 @@ void gny_web_start(void) {
     NYA_EXPECT(nya_http_server_merge(nya_http_metrics_router()), "while mounting the metrics resource");
     NYA_EXPECT(nya_http_server_merge(nya_http_openapi_router()), "while mounting the schema resource");
 
-    // and the session's own table, which is the same one the game reads: one question, two callers.
+    /*
+     * And the session's own table, which is the same one the game reads: one question, two callers. The
+     * guild installs it, because the guild is what ends when a session ends; a route that demands a
+     * permission with no session answers 503 rather than reading a table that has been freed.
+     */
     NYA_EXPECT(nya_http_server_merge(&GNY_WEB_GUILD_ROUTER), "while mounting the guild resource");
 
     /*

@@ -69,6 +69,10 @@ void gny_guild_start(void) {
     NYA_EXPECT(nya_permission_label_set(GNY_GUILD.permissions, GNY_PERMISSION_KICK, "kick"), "while labelling KICK");
     NYA_EXPECT(nya_permission_label_set(GNY_GUILD.permissions, GNY_PERMISSION_MANAGE_SESSION, "manage session"), "while labelling MANAGE_SESSION");
 
+    // whatever the web interface is doing, a route that resolves a permission resolves it against this
+    // table, and stops being answerable the moment the session ends.
+    nya_http_permissions_set(GNY_GUILD.permissions, gny_guild_subject_of);
+
     // the process running the session owns it. A client owns nothing: its table is the server's word
     // about what it may ask for, and the server checks again anyway.
     if (GNY_LAUNCH.role == NYA_NET_ROLE_SERVER) {
@@ -88,6 +92,10 @@ void gny_guild_start(void) {
 void gny_guild_stop(void) {
     if (GNY_GUILD.arena == nullptr) return;
 
+    // the HTTP side first: a route that demands a permission has to start answering 503 before the
+    // table it would have read is freed, rather than after.
+    nya_http_permissions_set(nullptr, nullptr);
+
     // emptied before the arena goes, so anything still holding the table sees a session with nobody in
     // it rather than the last one's roles.
     if (GNY_GUILD.permissions != nullptr) nya_permissions_destroy(GNY_GUILD.permissions);
@@ -95,6 +103,14 @@ void gny_guild_stop(void) {
     nya_arena_destroy(GNY_GUILD.arena);
 
     nya_memset(&GNY_GUILD, 0, sizeof(GNY_GUILD));
+}
+
+u64 gny_guild_subject_of(const NYA_HttpIdentity* identity) {
+    u64 subject = 0;
+
+    if (!nya_type_parse(NYA_TYPE_U64, (const u8*)identity->subject, strlen(identity->subject), &subject)) return NYA_PERMISSION_SYSTEM;
+
+    return subject;
 }
 
 NYA_Permissions* gny_guild(void) {

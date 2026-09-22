@@ -82,5 +82,13 @@ b8 gny_guild_may(u64 subject, enum GnyPermission permission) __attr_no_discard;
  * */
 NYA_Error gny_guild_kick(u64 actor, u64 target) __attr_no_discard;
 
+/**
+ * Which player a token is: the subject claim read as the peer's subject id.
+ *
+ * The program's own, because only the program knows what its ids mean. A claim that is not one of them
+ * answers NYA_PERMISSION_SYSTEM, which the HTTP extractor refuses rather than obeys.
+ * */
+u64 gny_guild_subject_of(const NYA_HttpIdentity* identity) __attr_no_discard;
+
 /** The name of the highest role the subject holds, for a HUD line. "@everyone" when they hold nothing else. */
 NYA_ConstCString gny_guild_rank_name(u64 subject) __attr_no_discard;

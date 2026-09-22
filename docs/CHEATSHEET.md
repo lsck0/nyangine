@@ -4745,7 +4745,7 @@ typedef NYA_HttpStatus (*NYA_HttpHandlerFn)(NYA_HttpExchange* exchange)  // A ha
 typedef NYA_HttpStatus (*NYA_HttpIdentifiedFn)(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity)  // A handler on a route that demands an identity.
 typedef NYA_HttpStatus (*NYA_HttpLayerFn)(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // One layer of the onion.
 struct NYA_HttpChain { const NYA_HttpLayerFn* layers; u32 count; u32 index; }  // Where a dispatch has got to in the layer chain.
-struct NYA_HttpRoute { NYA_HttpMethod method; NYA_ConstCString path; NYA_HttpAuth auth; NYA_HttpScope scope; NYA_HttpHandlerFn handler; NYA_HttpIdentifiedFn handler_identified; NYA_ConstCString summary; NYA_ConstCString description; const NYA_TypeReflection* request_type; const NYA_TypeReflection* response_type; NYA_HttpStatus statuses[NYA_HTTP_MAX_STATUSES]; }  // One path and one method, with everything true of it beside it.
+struct NYA_HttpRoute { NYA_HttpMethod method; NYA_ConstCString path; NYA_HttpAuth auth; NYA_HttpScope scope; NYA_Permission permission; u64 resource; u64 (*resource_of)(const NYA_HttpExchange* exchange); NYA_HttpHandlerFn handler; NYA_HttpIdentifiedFn handler_identified; NYA_ConstCString summary; NYA_ConstCString description; const NYA_TypeReflection* request_type; const NYA_TypeReflection* response_type; NYA_HttpStatus statuses[NYA_HTTP_MAX_STATUSES]; }  // One path and one method, with everything true of it beside it.
 struct NYA_HttpRouter { NYA_ConstCString name; const NYA_HttpRoute* routes; u32 route_count; const NYA_HttpLayerFn* layers; u32 layer_count; }  // One resource's routes, plus whatever wraps only them.
 
 // macros
@@ -4754,6 +4754,8 @@ NYA_HTTP_MAX_LAYERS 8  // Layers one router may carry, and the same again at the
 NYA_HTTP_MAX_ROUTERS 8  // Routers merged at the root: one per resource, so this is a count of resources.
 
 // functions
+void nya_http_permissions_set(NYA_Permissions* permissions, u64 (*subject_of)(const NYA_HttpIdentity* identity))
+NYA_Permissions* nya_http_permissions(void)  // The table in use, or null when none was installed.
 NYA_Error nya_http_router_check(const NYA_HttpRouter* router)
 const NYA_HttpRoute* nya_http_router_find(const NYA_HttpRouter* const* routers, u32 router_count, NYA_HttpMethod method, NYA_ConstCString path, OUT b8* out_path_exists)  // The route for `method` and `path`, or null.
 NYA_HttpStatus nya_http_router_dispatch( NYA_HttpExchange* exchange, const NYA_HttpRouter* const* routers, u32 router_count, const NYA_HttpLayerFn* layers, u32 layer_count )

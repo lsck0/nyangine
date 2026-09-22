@@ -109,6 +109,7 @@
 #include "nyangine/http/http_auth.h"
 #include "nyangine/http/http_message.h"
 #include "nyangine/http/http_types.h"
+#include "nyangine/permission/permission.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -248,6 +249,36 @@ struct NYA_HttpRoute {
     /** Every bit the caller's identity has to carry. Only meaningful when `auth` is not _NONE. */
     NYA_HttpScope scope;
 
+    /**
+     * Every permission the caller has to hold in the table `nya_http_permissions_set` installed, checked
+     * before the handler runs and answered with 403 when it does not.
+     *
+     * Zero is "any verified caller", which is what a route about the caller's own things takes. This is
+     * not NYA_HttpScope: a scope is what the token says, and a permission is what the program's own
+     * table says about whoever the token names, so taking a role away applies to the next request
+     * rather than when a token expires. See permission.h.
+     *
+     * Only meaningful when `auth` is not _NONE: there is nobody to resolve for an unauthenticated route.
+     * */
+    NYA_Permission permission;
+
+    /**
+     * Which resource the permission is checked against — a room, a document, a guild.
+     *
+     * Zero is the program itself, which is what a route that is not about one particular thing takes.
+     * A route whose resource comes out of the request sets `resource_of` instead.
+     * */
+    u64 resource;
+
+    /**
+     * Works out the resource from the request, for a route whose permission is about the thing being
+     * asked for rather than about the program. Null means `resource` is used as it stands.
+     *
+     * It runs before the handler and before any body is read, so it reads the path and the query and
+     * nothing else. Returning zero is "the program itself", the same as leaving both unset.
+     * */
+    u64 (*resource_of)(const NYA_HttpExchange* exchange);
+
     /** Set exactly when `auth` is NYA_HTTP_AUTH_NONE. */
     NYA_HttpHandlerFn handler;
 
@@ -295,6 +326,23 @@ struct NYA_HttpRouter {
  * FUNCTIONS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+/**
+ * Installs the table every route's `permission` is resolved against, and how a verified identity
+ * becomes a subject in it.
+ *
+ * Both null is the default and means no route may demand a permission: a server that cannot resolve one
+ * must refuse rather than pass, so a route declaring a permission answers 503 instead. That is the same
+ * shape as a missing signing secret, and for the same reason.
+ *
+ * `subject_of` is the program's, because only the program knows what its subject ids are: a user row's
+ * key, a peer index, a hash of the subject claim. Returning NYA_PERMISSION_SYSTEM is refused rather than
+ * obeyed — that id answers yes to everything, and a token must never resolve to it.
+ * */
+NYA_API void nya_http_permissions_set(NYA_Permissions* permissions, u64 (*subject_of)(const NYA_HttpIdentity* identity));
+
+/** The table in use, or null when none was installed. */
+NYA_API NYA_Permissions* nya_http_permissions(void) __attr_no_discard;
 
 /**
  * Whether `router` is a table this server will serve, and an error naming the offending route when it

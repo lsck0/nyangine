@@ -29,6 +29,12 @@ NYA_INTERNAL const NYA_HttpMethod _NYA_HTTP_HEAD_FALLBACK[] = { NYA_HTTP_METHOD_
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/** The table every route's permission is resolved against, and how an identity becomes a subject in it. */
+NYA_INTERNAL struct {
+    NYA_Permissions* permissions;
+    u64 (*subject_of)(const NYA_HttpIdentity* identity);
+} _NYA_HTTP_PERMISSIONS = { 0 };
+
 /** The extractor and then the handler: what the innermost step of the chain is. */
 NYA_INTERNAL NYA_HttpStatus _nya_http_router_run_route(NYA_HttpExchange* exchange);
 
@@ -166,6 +172,23 @@ NYA_Error nya_http_router_check(const NYA_HttpRouter* router) {
             );
         }
 
+        // a permission is only answerable for somebody the extractor has identified, and a route that
+        // asks for one can be told no by a server with no table, so it says so in its statuses too.
+        if (route->permission != NYA_PERMISSION_NONE && route->auth == NYA_HTTP_AUTH_NONE) {
+            return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%s %s demands a permission, so it needs an identity to resolve one for",
+                             nya_http_method_text(route->method), route->path);
+        }
+
+        if (route->permission != NYA_PERMISSION_NONE && !_nya_http_route_declares(route, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE)) {
+            return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%s %s demands a permission, so it has to declare 503 for a server with no table",
+                             nya_http_method_text(route->method), route->path);
+        }
+
+        if (route->resource_of != nullptr && route->permission == NYA_PERMISSION_NONE) {
+            return nya_error(NYA_ERROR_INVALID_ARGUMENT, "%s %s works out a resource it never checks a permission against",
+                             nya_http_method_text(route->method), route->path);
+        }
+
         for (u32 status = 0; status < NYA_HTTP_MAX_STATUSES && route->statuses[status] != NYA_HTTP_STATUS_NONE; status++) {
             if (nya_http_status_is_valid(route->statuses[status])) continue;
 
@@ -223,6 +246,19 @@ nya_http_router_find(const NYA_HttpRouter* const* routers, u32 router_count, NYA
     }
 
     return matched;
+}
+
+void nya_http_permissions_set(NYA_Permissions* permissions, u64 (*subject_of)(const NYA_HttpIdentity* identity)) {
+    // both or neither: a table with no way to name a subject in it cannot answer anything, and a
+    // resolver with no table has nothing to ask.
+    nya_assert((permissions == nullptr) == (subject_of == nullptr), "a permission table and its subject resolver are installed together");
+
+    _NYA_HTTP_PERMISSIONS.permissions = permissions;
+    _NYA_HTTP_PERMISSIONS.subject_of  = subject_of;
+}
+
+NYA_Permissions* nya_http_permissions(void) {
+    return _NYA_HTTP_PERMISSIONS.permissions;
 }
 
 NYA_HttpStatus nya_http_router_dispatch(
@@ -448,6 +484,39 @@ NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* exchange) {
         exchange->identity = (NYA_HttpIdentity){ 0 };
 
         return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "that token does not carry the scope this route needs");
+    }
+
+    /*
+     * And what the program's own table says about whoever the token names, which is a different question
+     * from what the token claims: a role taken away applies to the next request, where a scope applies
+     * when the token expires. Checked here so that a handler cannot be reached unchecked.
+     */
+    if (route->permission != NYA_PERMISSION_NONE) {
+        if (_NYA_HTTP_PERMISSIONS.permissions == nullptr || _NYA_HTTP_PERMISSIONS.subject_of == nullptr) {
+            exchange->identity = (NYA_HttpIdentity){ 0 };
+
+            // the same shape as a missing signing secret: the server cannot answer the question this
+            // route asks, so it says so rather than letting the request through.
+            return nya_http_response_problem(exchange, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE, "this route needs a permission table and none is installed");
+        }
+
+        u64 subject = _NYA_HTTP_PERMISSIONS.subject_of(&exchange->identity);
+
+        // NYA_PERMISSION_SYSTEM answers yes to everything, so a token resolving to it is refused rather
+        // than obeyed: it is the program's own id, and nothing arriving over a socket may borrow it.
+        if (subject == NYA_PERMISSION_SYSTEM) {
+            exchange->identity = (NYA_HttpIdentity){ 0 };
+
+            return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "that token names nobody this server knows");
+        }
+
+        u64 resource = route->resource_of != nullptr ? route->resource_of(exchange) : route->resource;
+
+        if (!nya_permission_has(_NYA_HTTP_PERMISSIONS.permissions, subject, resource, route->permission)) {
+            exchange->identity = (NYA_HttpIdentity){ 0 };
+
+            return nya_http_response_problem(exchange, NYA_HTTP_STATUS_FORBIDDEN, "that caller may not do this here");
+        }
     }
 
     exchange->identified = true;

@@ -108,6 +108,54 @@ static const NYA_HttpRoute ROUTES[] = {
      },
 };
 
+/** Reached only when the extractor resolved a permission for the caller; recorded so a test can say so. */
+static NYA_HttpStatus guarded_delete(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity) {
+    record('P');
+
+    return nya_http_response_text(exchange->response, identity->subject, NYA_HTTP_MEDIA_TEXT).ok ? NYA_HTTP_STATUS_OK
+                                                                                                 : NYA_HTTP_STATUS_INTERNAL_ERROR;
+}
+
+/** The room a request names, for the route whose permission is about the room rather than the program. */
+static u64 room_of(const NYA_HttpExchange* exchange) {
+    char room[16] = { 0 };
+
+    if (!nya_http_request_query_param(exchange->request, "room", room, sizeof(room))) return 0;
+
+    u64 id = 0;
+
+    return nya_type_parse(NYA_TYPE_U64, (const u8*)room, strlen(room), &id) ? id : 0;
+}
+
+#define TEST_PERMISSION_SWEEP (1ULL << 0)
+
+static const NYA_HttpRoute PERMISSION_ROUTES[] = {
+    {
+     .method             = NYA_HTTP_METHOD_DELETE,
+     .path               = "/api/room",
+     .auth               = NYA_HTTP_AUTH_BEARER,
+     .permission         = TEST_PERMISSION_SWEEP,
+     .resource_of        = room_of,
+     .handler_identified = guarded_delete,
+     .summary            = "A route behind a permission",
+     .statuses           = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE,
+                             NYA_HTTP_STATUS_INTERNAL_ERROR },
+     },
+};
+
+static const NYA_HttpRouter PERMISSION_ROUTER = {
+    .name        = "room",
+    .routes      = PERMISSION_ROUTES,
+    .route_count = nya_carray_length(PERMISSION_ROUTES),
+};
+
+/** The subject a token names here: the claim read as a number, which is what a program's own would do. */
+static u64 subject_of(const NYA_HttpIdentity* identity) {
+    u64 subject = 0;
+
+    return nya_type_parse(NYA_TYPE_U64, (const u8*)identity->subject, strlen(identity->subject), &subject) ? subject : NYA_PERMISSION_SYSTEM;
+}
+
 static const NYA_HttpRouter ROUTER = {
     .name        = "thing",
     .routes      = ROUTES,
@@ -120,7 +168,12 @@ static const NYA_HttpRouter ROUTER = {
 static void make_request(OUT NYA_HttpRequest* request, NYA_HttpMethod method, NYA_ConstCString path, NYA_ConstCString authorization) {
     *request = (NYA_HttpRequest){ .method = method, .keep_alive = true };
 
-    (void)snprintf(request->path, sizeof(request->path), "%s", path);
+    // path and query as the parser would leave them: a route matches the path, and a query is read
+    // from the target, so a helper that put the whole target in the path would match nothing.
+    NYA_UrlFailure failure = { 0 };
+    NYA_EXPECT(nya_url_parse_target(path, strlen(path), &request->target, &failure), "while building a request");
+
+    (void)snprintf(request->path, sizeof(request->path), "%.*s", (int)request->target.path.length, request->target.text + request->target.path.offset);
 
     if (authorization == nullptr) return;
 
@@ -480,6 +533,87 @@ s32 main(void) {
             nya_http_router_dispatch(&secretless, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_SERVICE_UNAVAILABLE,
             "a route needing a token on a server that cannot check one is not the caller's fault"
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a route's permission is resolved before the handler, not inside it.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        nya_assert(nya_http_router_check(&PERMISSION_ROUTER).ok, "the table is one the server will serve");
+
+        const NYA_HttpRouter* routers[] = { &PERMISSION_ROUTER };
+
+        NYA_HttpIdentity sweeper = {
+            .scope        = NYA_HTTP_SCOPE_WRITE,
+            .issued_at_s  = NOW_S,
+            .expires_at_s = NOW_S + 300,
+        };
+
+        (void)snprintf(sweeper.subject, sizeof(sweeper.subject), "%s", "7");
+
+        char token[NYA_HTTP_MAX_TOKEN_BYTES] = { 0 };
+        nya_assert(nya_http_jwt_encode(&sweeper, SECRET, SECRET_SIZE, token, sizeof(token)).ok);
+
+        // no table installed: the server cannot answer the question the route asks, so it says so
+        // rather than letting the request through.
+        nya_http_permissions_set(nullptr, nullptr);
+
+        make_request(request, NYA_HTTP_METHOD_DELETE, "/api/room?room=3", token);
+
+        NYA_HttpExchange exchange = {
+            .request = request, .response = &response, .arena = arena, .secret = SECRET, .secret_size = SECRET_SIZE, .now_s = NOW_S,
+        };
+
+        ORDER_LENGTH = 0;
+        ORDER[0]     = '\0';
+        nya_http_response_reset(&response);
+
+        nya_assert(nya_http_router_dispatch(&exchange, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_SERVICE_UNAVAILABLE);
+        nya_assert(ORDER_LENGTH == 0, "and the handler did not run");
+
+        // a table where the caller holds nothing: 403, and again the handler is never reached.
+        NYA_Permissions* rooms = nya_permissions_create(arena);
+        nya_assert(rooms != nullptr);
+
+        nya_http_permissions_set(rooms, subject_of);
+        defer nya_http_permissions_set(nullptr, nullptr);
+
+        nya_assert(nya_http_permissions() == rooms, "the table a route resolves against is the one that was installed");
+
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_router_dispatch(&exchange, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_FORBIDDEN);
+        nya_assert(ORDER_LENGTH == 0, "a caller holding nothing never reaches the handler");
+
+        // given the permission on room 3 only, which is what resource_of picks out of the request.
+        nya_assert(nya_permission_overwrite_set(rooms, NYA_PERMISSION_SYSTEM, 3, NYA_PERMISSION_TARGET_SUBJECT, 7, TEST_PERMISSION_SWEEP, 0, NOW_S).ok);
+
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_router_dispatch(&exchange, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_OK);
+        nya_assert(nya_string_equals(ORDER, "P"), "the handler ran once the table said yes");
+
+        // the same caller, a different room: the permission is about the resource, not about them.
+        make_request(request, NYA_HTTP_METHOD_DELETE, "/api/room?room=4", token);
+
+        ORDER_LENGTH = 0;
+        ORDER[0]     = '\0';
+        nya_http_response_reset(&response);
+
+        nya_assert(nya_http_router_dispatch(&exchange, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_FORBIDDEN);
+        nya_assert(ORDER_LENGTH == 0, "another room is another answer");
+
+        // a token naming nobody the program knows resolves to the system id, which is refused rather
+        // than obeyed: that id answers yes to everything.
+        NYA_HttpIdentity nobody = sweeper;
+        (void)snprintf(nobody.subject, sizeof(nobody.subject), "%s", "not-a-number");
+
+        char anonymous[NYA_HTTP_MAX_TOKEN_BYTES] = { 0 };
+        nya_assert(nya_http_jwt_encode(&nobody, SECRET, SECRET_SIZE, anonymous, sizeof(anonymous)).ok);
+
+        make_request(request, NYA_HTTP_METHOD_DELETE, "/api/room?room=3", anonymous);
+
+        nya_http_response_reset(&response);
+        nya_assert(nya_http_router_dispatch(&exchange, routers, 1, nullptr, 0) == NYA_HTTP_STATUS_FORBIDDEN);
+        nya_assert(ORDER_LENGTH == 0, "and the system id is not something a token may borrow");
     }
 
     printf("PASSED: http router\n");
