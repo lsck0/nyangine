@@ -106,6 +106,17 @@ static NYA_Error send_message(NYA_IpcClient* client, NYA_ConstCString json) {
 }
 
 /**
+ * Ticks the control surface until it holds `count` connections. A client's connect returning is not the
+ * server having accepted it: unix queues it in the listen backlog and a Windows pipe holds it in the one
+ * waiting instance, and a check for "dropped" made before the accept passes without testing anything.
+ * */
+static void connections_wait_for(u32 count) {
+  for (u32 tick = 0; tick < ANSWER_TICKS && nya_control_connection_count() != count; tick++) nya_system_control_tick();
+
+  nya_assert(nya_control_connection_count() == count, "expected %u connections, have %u", count, nya_control_connection_count());
+}
+
+/**
  * Ticks the control surface until one whole reply is buffered, then parses it. Null when nothing came
  * back inside ANSWER_TICKS, which is how the hostile cases prove that a peer was dropped.
  * */
@@ -446,6 +457,7 @@ s32 main(void) {
     NYA_IpcClient* client = nullptr;
     NYA_EXPECT(nya_ipc_client_create(test_arena, name, &client));
     defer nya_ipc_client_destroy(client);
+    connections_wait_for(1);
 
     // A header announcing more than a message may be, and not a byte of body behind it.
     u8 header[NYA_CONTROL_HEADER_BYTES] = { 0xFF, 0xFF, 0xFF, 0xFF };
@@ -459,6 +471,7 @@ s32 main(void) {
     NYA_IpcClient* second = nullptr;
     NYA_EXPECT(nya_ipc_client_create(test_arena, name, &second));
     defer nya_ipc_client_destroy(second);
+    connections_wait_for(1);
 
     u8 empty[NYA_CONTROL_HEADER_BYTES] = { 0, 0, 0, 0 };
     NYA_EXPECT(nya_ipc_client_send(second, empty, sizeof(empty)));
