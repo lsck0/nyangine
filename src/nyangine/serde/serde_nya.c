@@ -436,6 +436,11 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_typed_value(_NYA_SerdeNyaParser* par
 
     if (_nya_serde_nya_token_equals(parser, token, "null")) {
         parser->index++;
+
+        // the writer spells an array of nulls `null[] [null, null]`, which read as a bare null and
+        // then a stray '[' until the marker was looked for here.
+        if (_nya_serde_nya_accept_array_marker(parser)) return _nya_serde_nya_parse_array(parser, NYA_TYPE_NULL, out_value);
+
         *out_value = (NYA_Value){ .type = NYA_TYPE_NULL };
         return NYA_OK;
     }
