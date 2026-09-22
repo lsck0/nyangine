@@ -292,5 +292,65 @@ s32 main(void) {
         nya_lua_destroy(doomed);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: the script the game actually ships runs, and hands back what the game
+    //       reads out of it
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        /*
+         * Nothing tested this. Its only caller is gny_world_script_tick, which runs when a world
+         * exists, so a menu run never reaches it — and it had been calling nya.log as a function when
+         * the binding is nya.log.info, a table, and nya.time when the binding is nya.app.time. It
+         * failed on its first line, which meant the `gnyame` table below it was never set either, and
+         * the one thing the file exists for was quietly not happening.
+         */
+        nya_system_callback_init();
+        NYA_EXPECT(nya_system_events_init());
+        nya_system_asset_init();
+
+        defer nya_system_asset_deinit();
+        defer nya_system_events_deinit();
+        defer nya_system_callback_deinit();
+
+        NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){ .type = NYA_ASSET_TYPE_TEXT, .handle = NYA_ASSET_SCRIPTS_STARTUP_LUA }));
+
+        NYA_Event ended = { .type = NYA_EVENT_FRAME_ENDED };
+        _nya_asset_loading_process(&ended);
+
+        NYA_LuaVM* startup = nullptr;
+        NYA_EXPECT(nya_lua_create(arena, (NYA_LuaOptions){ .engine_api = true }, &startup));
+        defer nya_lua_destroy(startup);
+
+        const NYA_Error ran = nya_lua_run_asset(startup, NYA_ASSET_SCRIPTS_STARTUP_LUA);
+        nya_check(ran.ok, "the shipped startup script runs: %s", (NYA_ConstCString)ran.message);
+
+        if (ran.ok) {
+            // What gny_world_script_tick reads back, asked for the same way it asks.
+            NYA_Value config = { 0 };
+
+            nya_check(nya_lua_global_get(startup, arena, "gnyame", &config).ok, "and leaves the gnyame table behind");
+            nya_check(config.type == NYA_TYPE_OBJECT, "which is an object, got %s", NYA_TYPE_NAME_MAP[config.type]);
+
+            if (config.type == NYA_TYPE_OBJECT) {
+                NYA_Value* greeting = nya_object_get(&config.as_object, "greeting");
+
+                nya_check(greeting != nullptr && greeting->type == NYA_TYPE_STRING, "with a greeting in it");
+
+                // nya.app.time filled this in, so a wrong binding name shows up here as a missing key.
+                NYA_Value* spawned = nya_object_get(&config.as_object, "spawned_at");
+                nya_check(spawned != nullptr, "and the time the engine gave it");
+            }
+
+            // The optional hook the game calls once a second, with the argument it passes.
+            nya_check(nya_lua_has_function(startup, "gnyame_tick"), "and defines gnyame_tick");
+
+            NYA_Value crates = nya_lua_number(64.0);
+            NYA_Value result = { 0 };
+            nya_check(nya_lua_call(startup, arena, "gnyame_tick", &crates, 1, &result).ok, "which can be called");
+        }
+
+        printf("  PASSED\n");
+    }
+
     return nya_check_failures() == 0 ? 0 : 1;
 }
