@@ -90,8 +90,8 @@ the feature being bolted on, and the whole converges on one architecture over ti
 | Networking       | attack and cheat resistant, optional end to end public key encryption                                                                         | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders                                                                                                                                                                                          |
 | Web server       | an HTTP server, middleware, typed DTOs, generated OpenAPI                                                                                     | `[~]` `src/nyangine/http/`: router per resource, layer chain, identity extractor, JWT over HMAC-SHA256, OpenAPI and a page generated from the route tables, a metrics resource over the app's own numbers. Open: a login route, and the PGP half of the second factor                                                                                                |
 | Targets          | Linux, Windows, Steam Linux, Steam Windows                                                                                                    | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). A terminal is now a fifth target through `-DNYA_TERMINAL`, verified on Linux only. Web is wanted and not started; Android is out                                                                                                                                                      |
-| Layering         | a module DAG; a program links only the modules it uses; SDL only behind platform and renderer backends                                        | `[ ]` the include graph has cycles (base↔math, base↔platform, core↔renderer/ui/net/physics, nn→renderer). `net` and `http` sit on `core`, which is SDL, so a CLI tool or a server links the whole engine. `NYA_NO_SDL` stands in for "no core" inside `base`                                                                                                       |
-| Base             | preprocessor passes, reflection, introspection, errors, stack traces, memory debugging, platform info, integrity, custom static analysis      | `[~]` all present except custom analysis rules: `check --strict` is clang-tidy only, and the caller audit, verb pairing and `.clangd` drift are checked by hand or not at all                                                                                                                                                                                         |
+| Layering         | a module DAG; a program links only the modules it uses; SDL only behind platform and renderer backends                                        | `[ ]` the include graph has cycles (base↔math, base↔platform, core↔renderer/ui/net/physics, nn→renderer, renderer→debug, http→core), now each a counted allowance in the lint rule that can only fall. `net` and `http` sit on `core`, which is SDL, so a CLI tool or a server links the whole engine. `NYA_NO_SDL` stands in for "no core" inside `base`                                                                                                       |
+| Base             | preprocessor passes, reflection, introspection, errors, stack traces, memory debugging, platform info, integrity, custom static analysis      | `[x]` all present; `check --strict` runs the project's own lint rules (`src/build/lint.c`) before clang-tidy: banned calls, module order, verb pairs, callers, `.clangd` drift                                                                                                                                                                                         |
 | Standard library | typesafe containers, strings, math, dynamic objects, a safe file, an ORM, crypto, time, a binary wire form                                   | `[~]` containers, strings, math, `NYA_Object`, reflection-driven ORM (as a plugin). Missing: atomic file write as a base call (only saves do it), dates and times, URLs, a binary `.nya` encoding, one crypto module                                                                                                                                                  |
 | Auth             | login, JWT in secure cookies, CSRF defence, revocation, rate limits, TOTP and PGP second factors                                              | `[~]` JWT over HMAC-SHA256 and a PGP challenge seam. No cookies, no login route, no user store, no password hashing, no revocation, no TOTP                                                                                                                                                                                                                           |
 | Web client       | C compiled to wasm, the same `nya_ui_*` calls, the same DTO headers as the server, transport in the `nya` format                            | `[ ]` not started                                                                                                                                                                                                                                                                                                                                                      |
@@ -292,23 +292,33 @@ Small, and first, because every later phase trusts these numbers.
   with the spinning function in its report. The hang itself was two bugs, not a slow run; see "An assertion
   nobody could dismiss" under Findings. 120 regression runs under six way parallel load: 0 failures, where
   about one in thirty hung before.
-- `[ ]` Custom static analysis in `./build check`, built on `base_lexer` so it costs no dependency. First rules,
-  each one something this file has already recorded going wrong by hand:
-  - the module include order above;
-  - every `NYA_API` has a caller outside its own declaration and definition (the audit, automated, with an
-    allowlist for deliberate library surface);
-  - every verb has its partner in the same header (`create`/`destroy`, `begin`/`end`, ...);
-  - `.clangd` carries every `-D` and include path `flags.h` does;
-  - banned calls (`malloc`, `strcpy`, `sprintf`, `rand`, `system`, ...) outside `platform` and `vendor`.
-  Done when each rule has fired once on a deliberate violation and the tree passes.
-- `[ ]` The last 36 uncalled functions: a caller, a test or deletion, decided per cluster. The audit matched
-  every `NYA_API` name against every `.c`, `.h`, `.lua` and `.nya` in the tree; a name seen at most twice is
-  only its own declaration and definition. It started at 81 of 1791. Steam, entity queries, window state,
-  rng, audio, nn and cursor are done, each with a test, and the window cluster found a real bug
-  (`nya_window_is_visible` answered true for a handle that is not a window). Some unexercised surface is
-  deliberate, since this is a library. Two earlier runs of the sweep were wrong and were caught only by spot
-  checking: one missed `bench/`, the other missed a function reached through a macro. The automated rule
-  above keeps that lesson: its allowlist is reviewed by hand, and it counts macro expansions.
+- `[x]` Custom static analysis in `./build check`, built on `base_lexer` so it costs no dependency.
+  `src/build/lint.c`, run before clang-tidy by every whole `./build check` and fatal under `--strict`; it reads
+  748 files in about 0.6 s. Six rules: banned calls outside `platform/`; the module order from "Target
+  architecture"; verb pairs in the same header; a caller for every `NYA_API`; `.clangd` against every `-D` and
+  include the build uses; and a file the lexer misread, since every other rule trusts the tokens. Each fired on a
+  deliberate violation before landing. Where the tree has debt the rule allows it by name with a reason in
+  `src/build/lint_allowances.h`, and an allowance that stops being needed is itself a finding, so the list only
+  shrinks: 9 layering edges (Phase 1's), 82 verb pairs and 81 uncalled functions today.
+  - The first run found real drift at once: five vendor defines missing from `.clangd`.
+  - Two bugs in the rule itself were caught by spot checking, like the audit's before it. A C23 digit separator
+    (`0x8000'0000U`) opened a character literal in the lexer and hid all of `host.c`, so the lexer learned C's
+    literals behind a flag. And a walk callback that returns false ends the whole walk, not one directory, which
+    had quietly cut the `tests/` tree short at the fuzz corpus.
+  - The verb rule judges public names only and skips `_is_` predicates. Most of its allowances are the
+    vocabulary's gaps rather than bugs: containers insert with `set` and pair it with `remove`, GPU resources
+    are created and released, and arena owned objects have no destroy. Deciding those words is its own item.
+- `[ ]` The uncalled functions: a caller, a test or deletion, decided per cluster. The rule above counts them
+  as identifiers, where the old audit matched text and counted a doc comment or a string naming a function as
+  a call, so it finds 81 where the audit's count had come down to 36 (the window, Steam, fluid and renderer
+  clusters are most of the difference). Every entry sits in `_LINT_CALLERS_ALLOWED`, grouped by header; each
+  cluster decided removes its lines. Some unexercised surface is deliberate, since this is a library: that
+  becomes an entry with a real reason instead of "no caller when the rule landed". Earlier: steam, entity
+  queries, window state, rng, audio, nn and cursor got tests, and the window cluster found a real bug
+  (`nya_window_is_visible` answered true for a handle that is not a window).
+- `[ ]` The verb vocabulary's gaps the verb rule turned up: `set`/`remove` on every container, `create`/`release`
+  on GPU resources, arena owned objects with no `destroy`, and brackets like `nya_trace_frame_end` whose other
+  half is implicit. Decide the words once, in the style guide, then rename or pair.
 - `[x]` `src/nyangine/editor/` is two empty files and no editor is planned. Deleted.
 - `[x]` `assets/shader/compiled/mesh3d_outline.vert.*` has no source under `assets/shader/source/`. It is left
   over from the inverted hull that screen space ink replaced. The shader rule now deletes compiled outputs whose
