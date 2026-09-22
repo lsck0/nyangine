@@ -519,7 +519,10 @@ the packager ones.
   interpolated replicas) and `pinball3d` (3D physics with joints, impulses and collision events; the
   flippers are driven by their velocity so the sweep throws the ball, see "A teleported body has no
   speed to give away").
-  `[ ]` Still to do: a server plus client web app, now that the HTTP server exists.
+  `[x]` `web_server` — an HTTP resource with the four verbs, `/docs` and `/openapi.json` generated from
+  the route table, and `application/nya` negotiated against JSON. Gives `src/nyangine/http` its first
+  caller outside tests.
+  `[ ]` Still to do: the client half of that web app, which needs the web target.
 - `[x]` The 3D demo's graphics menu. It gets no settings menu of its own: the pause menu's graphics panel owns
   `NYA_SettingsGraphics` and escape reaches it from the 3D scene now, and a second panel over the same values
   would be two places that can disagree. What it got instead is the switchboard nothing else drove: `0` opens a
@@ -686,7 +689,9 @@ up. Under 120 ms, 20 ms jitter and 5% loss, prediction converges with no correct
 
 - `[ ]` One fragment per datagram; 28 bytes per packet overhead dominates small snapshots.
 - `[ ]` Cumulative acks only; lag compensation rewinds to the acknowledged tick, not the render time.
-- `[ ]` Version-rejected peers linger until timeout; hostname resolution blocks up to 5 s.
+- `[x]` Hostname resolution no longer blocks: the name is polled from the transport's update, so connect
+  returns at once. Measured 1005 ms before, 0 ms after. The failure arrives as a DISCONNECTED event now.
+- `[ ]` Version-rejected peers still linger until timeout.
 - `[ ]` No allowlist API for player keys; the Steam transport is a stub.
 
 ## `[~]` Steam targets and anti-tamper
