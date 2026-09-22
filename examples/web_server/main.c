@@ -30,6 +30,7 @@
  * curl localhost:47800/docs                 # the generated page
  * curl localhost:47800/openapi.json         # the document it is generated from
  * curl -X QUERY localhost:47800/api/metrics -d '{}'
+ * websocat ws://127.0.0.1:47800/ws/notes    # the stream: a snapshot a second, and one per write
  * ```
  *
  * ## This is net_echo's sibling
@@ -54,6 +55,15 @@
  * So the bodies here are built and read as `NYA_Object`, which is the vocabulary type underneath the
  * reflected path anyway and needs no generation step. Everything else — the router, the verbs, the
  * layers, the generated document — is exactly what a reflected resource uses.
+ *
+ * ## The stream
+ *
+ * `/ws/notes` is a WebSocket, and it is here because a poll is the wrong shape for "tell me when
+ * something changes": a page that wants to stay current has to ask every second and is wrong for most
+ * of that second, where a socket is told once, when it happens. This one pushes a snapshot when a peer
+ * connects, again whenever a note is written or removed, and once a second regardless so an idle page
+ * can still see the server is alive. A client may send `now` to ask for one out of turn; anything else
+ * it sends is ignored, because a stream that takes commands is an API and this one is a view.
  *
  * ## QUERY rather than GET
  *
@@ -122,6 +132,67 @@ NYA_INTERNAL NYA_Value note_to_value(NYA_Arena* arena, const ExampleNote* note) 
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE STREAM
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+#define NOTES_STREAM_PATH "/ws/notes"
+
+/** How often a snapshot goes out to everyone, whether or not anything changed. */
+#define STREAM_INTERVAL_MS 1000
+
+/** One snapshot as compact json: what is stored, and what this server has been doing. */
+NYA_INTERNAL NYA_CString stream_snapshot(NYA_Arena* arena) {
+    NYA_Object* body = nya_object_create(arena);
+
+    nya_object_set(body, "notes", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NOTE_COUNT });
+    nya_object_set(body, "requests", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_request_count() });
+    nya_object_set(body, "connections", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_connection_count() });
+    nya_object_set(body, "listeners", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_websocket_count() });
+    nya_object_set(body, "uptime_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)nya_clock_get_monotonic_ns() / 1e9 });
+
+    NYA_String* text = nya_serialize(arena, body, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
+    if (text == nullptr) return "{}";
+
+    return nya_string_to_cstring(arena, text);
+}
+
+/** Pushes one to everybody on the stream. Called on a tick and whenever the notes change. */
+NYA_INTERNAL void stream_push(void) {
+    if (nya_http_websocket_count() == 0) return;
+
+    NYA_Arena scratch = nya_arena_create_on_stack(.name = "stream_snapshot");
+    defer     nya_arena_destroy_on_stack(&scratch);
+
+    (void)nya_http_websocket_broadcast_text(NOTES_STREAM_PATH, stream_snapshot(&scratch));
+}
+
+/** A peer that has just connected gets the current state rather than waiting for the next tick. */
+NYA_INTERNAL void stream_open(NYA_HttpWebSocket* socket) {
+    NYA_Arena scratch = nya_arena_create_on_stack(.name = "stream_snapshot");
+    defer     nya_arena_destroy_on_stack(&scratch);
+
+    // Its own failure and nobody else's: a peer whose queue is full is dropped by the server's own
+    // pending-write bound, and the loop carries on.
+    (void)nya_http_websocket_send_text(socket, stream_snapshot(&scratch));
+}
+
+NYA_INTERNAL void stream_message(NYA_HttpWebSocket* socket, b8 is_text, const u8* data, u64 size) {
+    // "now" and nothing else. A view does not take commands, so anything else is read and dropped.
+    if (!is_text || size != 3 || nya_memcmp(data, "now", 3) != 0) return;
+
+    stream_open(socket);
+}
+
+NYA_INTERNAL const NYA_HttpWebSocketRoute NOTES_STREAM = {
+    .path       = NOTES_STREAM_PATH,
+    .summary    = "a snapshot of the notes and this server, pushed",
+    .on_open    = stream_open,
+    .on_message = stream_message,
+};
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * HANDLERS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -183,6 +254,9 @@ NYA_INTERNAL NYA_HttpStatus notes_post(NYA_HttpExchange* exchange) {
     NEXT_ID++;
     NOTE_COUNT++;
 
+    // what the stream is for: whoever is watching hears about this now rather than on their next poll.
+    stream_push();
+
     NYA_Value stored = note_to_value(exchange->arena, note);
         const NYA_HttpMediaType answer = nya_http_request_accepts(exchange->request);
 
@@ -211,6 +285,8 @@ NYA_INTERNAL NYA_HttpStatus notes_delete(NYA_HttpExchange* exchange) {
         // Order is not promised, so the last one fills the hole rather than shifting the rest.
         NOTES[i] = NOTES[NOTE_COUNT - 1];
         NOTE_COUNT--;
+
+        stream_push();
 
         return NYA_HTTP_STATUS_NO_CONTENT;
     }
@@ -616,16 +692,37 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_http_server_merge(nya_http_static_router()), "while merging the web bundle");
     defer nya_http_server_unmerge(nya_http_static_router());
 
+    /*
+     * The stream. A websocket route is not in the OpenAPI document — the specification describes
+     * requests and answers, and this is neither — so it is mounted on its own and documented in the
+     * line below and in this file's comment.
+     */
+    NYA_EXPECT(nya_http_websocket_route_add(&NOTES_STREAM), "while mounting the notes stream");
+    defer nya_http_websocket_route_remove(&NOTES_STREAM);
+
     nya_log_info("Serving on http://127.0.0.1:%u — / for the page, /docs for the generated one, ctrl-c to stop.", nya_http_server_port());
     nya_log_info("The stylesheet is also at %s, cached for a year.", nya_http_static_url(NYA_ASSET_WEB_APP_CSS));
+    nya_log_info("Streaming on ws://127.0.0.1:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", nya_http_server_port());
 
     /*
      * The drain is the whole loop. nya_system_http_tick accepts what is waiting, reads what has
      * arrived and answers what is complete, and returns rather than blocking, so a program that has
      * other work to do puts this beside it instead of around it.
      */
+    u64 pushed_at_ms = 0;
+
     while (RUNNING) {
         nya_system_http_tick();
+
+        // The other half of a stream: the server has something to say on its own schedule rather than
+        // only when it is asked. A tick with nobody listening builds nothing.
+        u64 now_ms = nya_clock_get_timestamp_ms();
+
+        if (now_ms - pushed_at_ms >= STREAM_INTERVAL_MS) {
+            pushed_at_ms = now_ms;
+            stream_push();
+        }
+
         // as net_echo and the frame limiter do: a real sleep, so the loop does not spin a core.
         SDL_Delay(TICK_SLEEP_MS);
     }
