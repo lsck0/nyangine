@@ -18,10 +18,15 @@ static f32 vector_length(f32x3 v) {
   return sqrtf(s.x + s.y + s.z);
 }
 
+static f32 signed_unit(NYA_RNG* rng) {
+  return nya_rng_sample_f32(rng, (NYA_RNGDistribution){ .type = NYA_RNG_DISTRIBUTION_UNIFORM, .uniform = { .min = -1.0, .max = 1.0 } });
+}
+
 s32 main(void) {
   setvbuf(stdout, nullptr, _IONBF, 0);
 
-  srand(20240607);
+  // fixed seed, so a failing trial is the same trial on every run
+  NYA_RNG rng = nya_rng_create(.seed = "20240607");
 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST: euler round trip away from the poles
@@ -31,9 +36,9 @@ s32 main(void) {
     for (u32 trial = 0; trial < 500; trial++) {
       // pitch kept clear of +-90 degrees, where yaw and roll stop being separable. A property of euler
       // angles, not a defect.
-      f32 pitch = ((f32)(rand() % 2000) / 1000.0F - 1.0F) * 1.3F;
-      f32 yaw   = ((f32)(rand() % 2000) / 1000.0F - 1.0F) * 3.1F;
-      f32 roll  = ((f32)(rand() % 2000) / 1000.0F - 1.0F) * 3.1F;
+      f32 pitch = signed_unit(&rng) * 1.3F;
+      f32 yaw   = signed_unit(&rng) * 3.1F;
+      f32 roll  = signed_unit(&rng) * 3.1F;
 
       NYA_Quaternion q = nya_quaternion_from_euler(pitch, yaw, roll);
 
@@ -61,19 +66,19 @@ s32 main(void) {
   {
     for (u32 trial = 0; trial < 500; trial++) {
       f32x3 axis = {
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
+        signed_unit(&rng),
+        signed_unit(&rng),
+        signed_unit(&rng),
       };
       if (vector_length(axis) < 1e-3F) continue;
 
-      f32            angle = ((f32)(rand() % 2000) / 1000.0F - 1.0F) * 3.14F;
+      f32            angle = signed_unit(&rng) * 3.14F;
       NYA_Quaternion q     = nya_quaternion_from_axis_angle(axis, angle);
 
       f32x3 v = {
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
+        signed_unit(&rng),
+        signed_unit(&rng),
+        signed_unit(&rng),
       };
 
       f32x3   rotated = nya_quaternion_rotate(q, v);
@@ -93,13 +98,13 @@ s32 main(void) {
   {
     for (u32 trial = 0; trial < 500; trial++) {
       f32x3 axis = {
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
+        signed_unit(&rng),
+        signed_unit(&rng),
+        signed_unit(&rng),
       };
       if (vector_length(axis) < 1e-3F) continue;
 
-      f32            angle = ((f32)(rand() % 2000) / 1000.0F - 1.0F) * 3.14F;
+      f32            angle = signed_unit(&rng) * 3.14F;
       NYA_Quaternion q     = nya_quaternion_from_axis_angle(axis, angle);
 
       // Shepperd's method has four branches; a random axis exercises all of them.
@@ -161,14 +166,14 @@ s32 main(void) {
   {
     for (u32 trial = 0; trial < 300; trial++) {
       f32x3 from = {
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
+        signed_unit(&rng),
+        signed_unit(&rng),
+        signed_unit(&rng),
       };
       f32x3 to = {
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
-        (f32)(rand() % 2000) / 1000.0F - 1.0F,
+        signed_unit(&rng),
+        signed_unit(&rng),
+        signed_unit(&rng),
       };
       if (vector_length(from) < 1e-2F || vector_length(to) < 1e-2F) continue;
 
@@ -195,10 +200,12 @@ s32 main(void) {
   printf("TEST: colour round trips\n");
   {
     for (u32 trial = 0; trial < 2000; trial++) {
-      u8 r = (u8)(rand() % 256);
-      u8 g = (u8)(rand() % 256);
-      u8 b = (u8)(rand() % 256);
-      u8 a = (u8)(rand() % 256);
+      u8 channels[4];
+      nya_rng_gen_bytes(&rng, channels, sizeof(channels));
+      u8 r = channels[0];
+      u8 g = channels[1];
+      u8 b = channels[2];
+      u8 a = channels[3];
 
       NYA_Color color = nya_color_from_u8(r, g, b, a);
 

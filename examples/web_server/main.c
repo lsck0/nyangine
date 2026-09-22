@@ -255,7 +255,14 @@ s32 main(s32 argc, char** argv) {
 
     // Deliberately not base_args: one option, and the point of the file is the server.
     for (s32 i = 1; i + 1 < argc; i++) {
-        if (strcmp(argv[i], "--port") == 0) port = (u16)atoi(argv[i + 1]);
+        if (strcmp(argv[i], "--port") != 0) continue;
+
+        // atoi would turn "80a" into 80 and "http" into 0, serving on a port nobody asked for
+        NYA_ConstCString text = argv[i + 1];
+        if (!nya_type_parse(NYA_TYPE_U16, (const u8*)text, strlen(text), &port)) {
+            nya_log_error("--port expects a number from 0 to 65535, got '%s'.", text);
+            return EXIT_FAILURE;
+        }
     }
 
     nya_log_level_set(NYA_LOG_LEVEL_INFO);

@@ -34,6 +34,9 @@
 #define RESPONSE_SIZE  93
 #define ACCEPT_SIZE    53
 
+/* the largest datagram raw_send builds, under the 65507 bytes UDP carries over IPv4. */
+#define RAW_PACKET_SIZE_MAX 65000
+
 static void sleep_ms(u32 milliseconds) {
   struct timespec request = { .tv_sec = milliseconds / 1000, .tv_nsec = (long)(milliseconds % 1000) * 1000000L };
   (void)nanosleep(&request, nullptr);
@@ -159,10 +162,11 @@ static b8 raw_handshake(RawPeer* peer, NET_Address* target, u16 port, NYA_NetTra
 
 /** Seals `body` behind a header and sends it as the raw peer. `body` is encrypted in place. */
 static void raw_send(RawPeer* peer, NET_Address* target, u16 port, u8 kind, u8 fragment_count, u8* body, u64 body_size) {
-  nya_assert(HEADER_SIZE + body_size + MAC_SIZE <= 65000);
+  nya_assert(HEADER_SIZE + body_size + MAC_SIZE <= RAW_PACKET_SIZE_MAX);
 
-  u64 total  = HEADER_SIZE + body_size + MAC_SIZE;
-  u8* packet = malloc(total);
+  // static, not on the stack: 64 KB is a lot of frame, and the test sends from one thread only
+  static u8 packet[RAW_PACKET_SIZE_MAX];
+  u64       total = HEADER_SIZE + body_size + MAC_SIZE;
 
   u64 sequence = peer->sequence++;
 
@@ -177,8 +181,6 @@ static void raw_send(RawPeer* peer, NET_Address* target, u16 port, u8 kind, u8 f
   _nya_net_crypto_seal(peer->send_key, sequence, packet, HEADER_SIZE, packet + HEADER_SIZE, body_size, packet + HEADER_SIZE + body_size);
 
   (void)NET_SendDatagram(peer->socket, target, port, packet, (int)total);
-
-  free(packet);
 }
 
 /** Writes one fragment header at `out`, returning its size. */

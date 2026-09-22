@@ -325,8 +325,9 @@ s32 main(void) {
       NYA_Object* player = nya_object_create(arena);
       char        name_buf[32];
       snprintf(name_buf, sizeof(name_buf), "player_%u", i);
-      char* name_str = nya_arena_alloc(arena, strlen(name_buf) + 1);
-      strcpy(name_str, name_buf);
+      u64   name_size = strlen(name_buf) + 1;
+      char* name_str  = nya_arena_alloc(arena, name_size);
+      snprintf(name_str, name_size, "%s", name_buf);
       nya_object_set(player, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = name_str });
       nya_object_set(player, "score", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = i * 100 });
       NYA_Value p = { .type = NYA_TYPE_OBJECT, .as_object = *player };
@@ -735,8 +736,9 @@ s32 main(void) {
     for (u32 i = 0; i < 64; i++) {
       char key_buf[16];
       snprintf(key_buf, sizeof(key_buf), "key_%u", i);
-      char* key_str = nya_arena_alloc(arena, strlen(key_buf) + 1);
-      strcpy(key_str, key_buf);
+      u64   key_size = strlen(key_buf) + 1;
+      char* key_str  = nya_arena_alloc(arena, key_size);
+      snprintf(key_str, key_size, "%s", key_buf);
       nya_object_set(obj, key_str, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = i });
     }
     nya_assert(obj->length == 64);

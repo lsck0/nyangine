@@ -10,7 +10,8 @@
 #define FILE_BYTES (12ULL * 1024ULL * 1024ULL)
 
 s32 main(void) {
-    u8* file = malloc(FILE_BYTES);
+    NYA_Arena* arena = nya_arena_create(.name = "bench_integrity");
+    u8*        file  = nya_arena_alloc(arena, FILE_BYTES);
     nya_assert(file != nullptr);
     for (u64 i = 0; i < FILE_BYTES; i++) file[i] = (u8)((i * 2654435761ULL) >> 13);
     const u8* code = file + (FILE_BYTES - CODE_BYTES);
@@ -38,6 +39,6 @@ s32 main(void) {
     nya_bench("asset entry check, 256 KB", 1, { nya_bench_keep(nya_integrity_hash(file, 256 * 1024)); });
 
     s32 result = nya_bench_end();
-    free(file);
+    nya_arena_destroy(arena);
     return result;
 }

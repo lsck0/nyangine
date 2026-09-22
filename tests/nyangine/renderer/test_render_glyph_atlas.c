@@ -27,10 +27,16 @@ static const char PRINTABLE[] = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLM
 /** Too large for the stack. */
 static NYA_TextRun run;
 
-/** Zeroed coverage for `grid`, from the C heap rather than an arena so the sanitizer sees a write past either end. */
-static u8* coverage_create(NYA_GlyphGrid grid) {
-    u8* coverage = calloc(1, (size_t)grid.atlas_width * (size_t)grid.atlas_height);
+/**
+ * Zeroed coverage for `grid`. The arena poisons the padding after every allocation, and what lies before
+ * one is either the previous allocation's padding or the region's own heap redzone, so the sanitizer
+ * still sees a write past either end.
+ */
+static u8* coverage_create(NYA_Arena* arena, NYA_GlyphGrid grid) {
+    u64 size     = (u64)grid.atlas_width * (u64)grid.atlas_height;
+    u8* coverage = nya_arena_alloc(arena, size);
     nya_assert(coverage != nullptr);
+    nya_memset(coverage, 0, size);
 
     return coverage;
 }
@@ -58,9 +64,12 @@ static u8 alpha_at(s32 x, s32 y) {
 }
 
 /** An RGBA32 image of `alpha_at` with zero colour, so a copy of the wrong channel shows. Rows are `pitch` apart. */
-static u8* image_create(s32 width, s32 height, s32 pitch) {
-    u8* pixels = calloc(1, (size_t)pitch * (size_t)height);
+static u8* image_create(NYA_Arena* arena, s32 width, s32 height, s32 pitch) {
+    u64 size   = (u64)pitch * (u64)height;
+    u8* pixels = nya_arena_alloc(arena, size);
     nya_assert(pixels != nullptr);
+    // zeroed: the colour channels and the padding past `width` must read as nothing
+    nya_memset(pixels, 0, size);
 
     for (s32 y = 0; y < height; y++) {
         for (s32 x = 0; x < width; x++) pixels[((size_t)y * (size_t)pitch) + ((size_t)x * 4) + 3] = alpha_at(x, y);
@@ -99,8 +108,10 @@ static void check_face(TTF_Font* font, NYA_ConstCString label, b8 distance_field
     nya_check(nya_text_shape(font, PRINTABLE, 0, 0, &run), "%s: printable ASCII shapes", label);
     nya_check(run.glyph_count > 0 && run.glyph_count <= NYA_RENDER2D_GLYPH_CAPACITY, "%s: into a slot each, got %u", label, run.glyph_count);
 
-    u8* coverage = coverage_create(grid);
-    defer free(coverage);
+    NYA_Arena* arena = nya_arena_create(.name = "check_face");
+    defer      nya_arena_destroy(arena);
+
+    u8* coverage = coverage_create(arena, grid);
 
     u8 darkest = 0;
 
@@ -187,12 +198,12 @@ s32 main(void) {
 
     // ── A write lands one texel in from the cell's corner, copies alpha only, and nothing else changes.
     {
-        const u32 slot  = NYA_RENDER2D_GLYPH_COLUMNS + 1;
-        u8*       atlas = coverage_create(GRID);
-        defer     free(atlas);
+        NYA_Arena* arena = nya_arena_create(.name = "glyph_cell");
+        defer      nya_arena_destroy(arena);
 
-        u8*   pixels = image_create(4, 5, 4 * 4);
-        defer free(pixels);
+        const u32 slot   = NYA_RENDER2D_GLYPH_COLUMNS + 1;
+        u8*       atlas  = coverage_create(arena, GRID);
+        u8*       pixels = image_create(arena, 4, 5, 4 * 4);
 
         NYA_Glyph glyph = _nya_render2d_glyph_cell_write(atlas, GRID, slot, pixels, 4, 5, 4 * 4);
 
@@ -230,11 +241,11 @@ s32 main(void) {
 
     // ── Rows are `pitch` apart, which SDL may pad past four bytes a pixel.
     {
-        u8*   atlas = coverage_create(GRID);
-        defer free(atlas);
+        NYA_Arena* arena = nya_arena_create(.name = "glyph_cell");
+        defer      nya_arena_destroy(arena);
 
-        u8*   pixels = image_create(3, 3, (3 * 4) + 5);
-        defer free(pixels);
+        u8* atlas  = coverage_create(arena, GRID);
+        u8* pixels = image_create(arena, 3, 3, (3 * 4) + 5);
 
         (void)_nya_render2d_glyph_cell_write(atlas, GRID, 2, pixels, 3, 3, (3 * 4) + 5);
         nya_check(cell_holds_image(atlas, GRID, 2, 3, 3), "a padded image copies as if it were packed");
@@ -242,14 +253,15 @@ s32 main(void) {
 
     // ── An image larger than the cell is clipped to it, even in the last cell, where a spill leaves the buffer.
     {
-        const u32 slot  = NYA_RENDER2D_GLYPH_CAPACITY - 1;
-        u8*       atlas = coverage_create(GRID);
-        defer     free(atlas);
+        NYA_Arena* arena = nya_arena_create(.name = "glyph_cell");
+        defer      nya_arena_destroy(arena);
 
-        s32   width  = GRID.cell_width + 10;
-        s32   height = GRID.cell_height + 10;
-        u8*   pixels = image_create(width, height, width * 4);
-        defer free(pixels);
+        const u32 slot  = NYA_RENDER2D_GLYPH_CAPACITY - 1;
+        u8*       atlas = coverage_create(arena, GRID);
+
+        s32 width  = GRID.cell_width + 10;
+        s32 height = GRID.cell_height + 10;
+        u8* pixels = image_create(arena, width, height, width * 4);
 
         NYA_Glyph glyph = _nya_render2d_glyph_cell_write(atlas, GRID, slot, pixels, width, height, width * 4);
 
@@ -263,12 +275,12 @@ s32 main(void) {
 
     // ── An empty image leaves the cell alone; a smaller glyph over a larger one leaves no old ink.
     {
-        const u32 slot  = 3;
-        u8*       atlas = coverage_create(GRID);
-        defer     free(atlas);
+        NYA_Arena* arena = nya_arena_create(.name = "glyph_cell");
+        defer      nya_arena_destroy(arena);
 
-        u8*   large = image_create(5, 7, 5 * 4);
-        defer free(large);
+        const u32 slot  = 3;
+        u8*       atlas = coverage_create(arena, GRID);
+        u8*       large = image_create(arena, 5, 7, 5 * 4);
 
         (void)_nya_render2d_glyph_cell_write(atlas, GRID, slot, large, 5, 7, 5 * 4);
 
@@ -276,8 +288,7 @@ s32 main(void) {
         nya_check(nothing.width == 0.0F && nothing.u1 == 0.0F, "an empty image bakes a zero glyph");
         nya_check(cell_holds_image(atlas, GRID, slot, 5, 7), "and does not touch the cell");
 
-        u8*   small = image_create(2, 2, 2 * 4);
-        defer free(small);
+        u8* small = image_create(arena, 2, 2, 2 * 4);
 
         (void)_nya_render2d_glyph_cell_write(atlas, GRID, slot, small, 2, 2, 2 * 4);
         nya_check(cell_holds_image(atlas, GRID, slot, 2, 2), "a smaller glyph written over it replaces it whole");

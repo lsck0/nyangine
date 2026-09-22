@@ -706,7 +706,17 @@ s32 main(void) {
   {
     // Asserting on substrings cannot catch an unbalanced quote three lines away, and a completion
     // script that does not parse fails silently at use. Skipped where there is no zsh to ask.
-    if (system("command -v zsh > /dev/null 2>&1") == 0) {
+    NYA_Command probe = {
+      .arena     = arena,
+      .flags     = NYA_COMMAND_FLAG_OUTPUT_SUPPRESS,
+      .program   = "zsh",
+      .arguments = { "--version", nullptr },
+    };
+    // a missing zsh fails the exec in the child, which exits 127 rather than failing the run
+    b8 zsh_available = nya_command_run(&probe).ok && probe.exit_code == 0;
+    nya_command_destroy(&probe);
+
+    if (zsh_available) {
       NYA_ArgParameter tricky_flag = {
         .kind        = NYA_ARG_PARAMETER_KIND_FLAG,
         .value.type  = NYA_TYPE_B8,
@@ -746,10 +756,16 @@ s32 main(void) {
       (void)fwrite(script, 1, strlen(script), file);
       (void)fclose(file);
 
-      s32 status = system("zsh -n ./_test_args_completion.zsh");
+      NYA_Command check = {
+        .arena     = arena,
+        .program   = "zsh",
+        .arguments = { "-n", path, nullptr },
+      };
+      NYA_EXPECT(nya_command_run(&check));
+      nya_command_destroy(&check);
       (void)remove(path);
 
-      nya_assert(status == 0, "generated zsh script does not parse:\n%s", script);
+      nya_assert(check.exit_code == 0, "generated zsh script does not parse:\n%s", script);
     }
   }
 
