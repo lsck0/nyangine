@@ -5390,7 +5390,7 @@ enum NYA_TerminalKey { NYA_TERMINAL_KEY_NONE = 0, NYA_TERMINAL_KEY_ESCAPE, NYA_T
 enum NYA_TerminalModifierFlag { NYA_TERMINAL_MODIFIER_NONE = 0, NYA_TERMINAL_MODIFIER_SHIFT = 1U << 0U, NYA_TERMINAL_MODIFIER_ALT = 1U << 1U, NYA_TERMINAL_MODIFIER_CTRL = 1U << 2U, }  // Modifier bits, matching the xterm encoding minus its bias so they can be or'd.
 enum NYA_TerminalMouseButton { NYA_TERMINAL_MOUSE_BUTTON_NONE = 0, NYA_TERMINAL_MOUSE_BUTTON_LEFT, NYA_TERMINAL_MOUSE_BUTTON_MIDDLE, NYA_TERMINAL_MOUSE_BUTTON_RIGHT, NYA_TERMINAL_MOUSE_BUTTON_COUNT, }  // Which button a mouse report named.
 struct NYA_TerminalInput { NYA_TerminalInputKind kind; NYA_TerminalKey key; u32 codepoint; u16 modifiers; u16 column; u16 row; NYA_TerminalMouseButton button; b8 is_down; s8 wheel; }  // One decoded thing from the terminal.
-struct NYA_TerminalOptions { b8 alternate_screen; b8 mouse; b8 cursor_visible; }  // What `nya_terminal_open` is asked for.
+struct NYA_TerminalOptions { b8 alternate_screen; b8 mouse; b8 cursor_visible; b8 detached; }  // What `nya_terminal_open` is asked for.
 
 // macros
 NYA_TERMINAL_COLUMNS_MAX 400  // Widest grid held.

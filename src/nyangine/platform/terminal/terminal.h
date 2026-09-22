@@ -378,6 +378,11 @@ struct NYA_TerminalOptions {
      * wherever the last cell was written is the single most obvious tell of a TUI drawn badly.
      * */
     b8 cursor_visible;
+
+    /**
+     * Open the grid even where there is no terminal to put into raw mode.
+     * */
+    b8 detached;
 };
 
 /*
@@ -393,6 +398,12 @@ struct NYA_TerminalOptions {
  * Fails, without having changed anything, when standard input is not a terminal or the OS refuses
  * raw mode. That is an operating error and not a crash: a program piped into a file should say so
  * and carry on, and `nya_terminal_is_open` stays false.
+ *
+ * `options.detached` is the exception, and it is deliberately not the default. It opens the grid
+ * without raw mode, so a caller that only writes cells and never reads a key works with no terminal
+ * at all: a test, a snapshot of a screen, a TUI rendered into a file. Input stays silent and
+ * `capabilities.is_terminal` is false, so nothing mistakes it for the real thing. A TUI meant for a
+ * person should leave it off and fail loudly instead of drawing blind into a pipe.
  *
  * Calling it twice is the programmer error and asserts.
  * */

@@ -504,7 +504,8 @@ NYA_INTERNAL b8 _nya_terminal_size_refresh(void) {
 NYA_Error nya_terminal_open(NYA_TerminalOptions options) {
     nya_assert(!_nya_terminal.open, "nya_terminal_open called twice without a close");
 
-    if (!_nya_terminal_raw_mode_begin()) {
+    // Raw mode is about reading keys, and a detached grid never reads one. See NYA_TerminalOptions.detached.
+    if (!_nya_terminal_raw_mode_begin() && !options.detached) {
         return nya_error(NYA_ERROR_NOT_SUPPORTED, "the terminal will not go into raw mode; is standard input a terminal?");
     }
 

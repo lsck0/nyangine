@@ -42,6 +42,20 @@ typedef struct {
     /** Mirrored so the measurements that take no font have one to name, as the headless backend does. */
     NYA_ConstCString font_path;
     f32              font_point_size;
+
+    /**
+     * What nya_render2d_layer_set last asked for, and the layer each cell was last written at.
+     *
+     * A terminal writes cells where they are drawn and has no batch to sort afterwards, so the sorting
+     * happens here instead: a write wins only when its layer is at least the one already in the cell.
+     * Without it a raised panel was covered by whatever was declared after it, because call order was
+     * the only order there was, and the UI's whole notion of a panel on top meant nothing on a TUI.
+     *
+     * Reset to zero every frame with the clear, so a cell nobody writes this frame does not defend
+     * itself with last frame's layer.
+     * */
+    s32 layer;
+    u8  cell_layers[NYA_TERMINAL_ROWS_MAX][NYA_TERMINAL_COLUMNS_MAX];
 } _NYA_Render2DTerminal;
 
 NYA_INTERNAL _NYA_Render2DTerminal _nya_render2d_terminal = { 0 };
@@ -81,6 +95,28 @@ NYA_INTERNAL b8 _nya_render2d_terminal_clipped(f32 x, f32 y) {
 }
 
 /**
+ * Whether a write at the current layer may have this cell, and claims it when it may.
+ *
+ * At least, not greater than: a panel draws its fill and then its text at the same layer, and the text
+ * has to land on the fill it just laid down.
+ *
+ * The layer is clamped into a byte. A UI that hands out more than 255 distinct layers has a stack
+ * deeper than anything a terminal can usefully show, and clamping puts those together at the top
+ * rather than wrapping one under another.
+ * */
+NYA_INTERNAL b8 _nya_render2d_terminal_claim(u16 column, u16 row) {
+    if (column >= NYA_TERMINAL_COLUMNS_MAX || row >= NYA_TERMINAL_ROWS_MAX) return false;
+
+    const u8 wanted = (u8)nya_clamp(_nya_render2d_terminal.layer, 0, 255);
+
+    if (wanted < _nya_render2d_terminal.cell_layers[row][column]) return false;
+
+    _nya_render2d_terminal.cell_layers[row][column] = wanted;
+
+    return true;
+}
+
+/**
  * Paints one cell.
  *
  * An opaque fill erases whatever character was there, because a panel drawn over a label has to hide
@@ -88,6 +124,8 @@ NYA_INTERNAL b8 _nya_render2d_terminal_clipped(f32 x, f32 y) {
  * menu reads as a scrim rather than as an erase.
  * */
 NYA_INTERNAL void _nya_render2d_terminal_paint(u16 column, u16 row, NYA_Color color) {
+    if (!_nya_render2d_terminal_claim(column, row)) return;
+
     NYA_TerminalCell cell = nya_terminal_cell_get(column, row);
 
     cell.background = _nya_render2d_terminal_blend(cell.background, color);
@@ -294,6 +332,10 @@ void nya_render2d_terminal_frame_begin(NYA_Window* window, NYA_Color clear) {
 
     nya_terminal_clear(nya_terminal_ink(clear.r, clear.g, clear.b));
 
+    // with the clear, and not before it: a cleared cell is one nothing has claimed this frame.
+    nya_memset(_nya_render2d_terminal.cell_layers, 0, sizeof(_nya_render2d_terminal.cell_layers));
+    _nya_render2d_terminal.layer = 0;
+
     _nya_render2d_terminal.clip = (NYA_Rectf){ 0.0F, 0.0F, (f32)window->screen_width, (f32)window->screen_height };
 }
 
@@ -324,8 +366,9 @@ void nya_render2d_flush(NYA_Window* window) {
 void nya_render2d_layer_set(NYA_Window* window, s32 layer) {
     nya_assert(window != nullptr);
 
-    // painter's order, and nothing sorts, so the layer is recorded and read back but changes nothing.
+    // Recorded on the batch for nya_render2d_layer to read back, and kept here for the cell gate above.
     window->render_system.draw_batch.layer = layer;
+    _nya_render2d_terminal.layer           = layer;
 }
 
 s32 nya_render2d_layer(NYA_Window* window) {
@@ -725,6 +768,7 @@ NYA_INTERNAL u32 _nya_render2d_terminal_write(f32 x, f32 y, NYA_ConstCString tex
         f32 centre_y = ((f32)row + 0.5F) * (f32)NYA_TERMINAL_CELL_HEIGHT_PX;
 
         if (_nya_render2d_terminal_clipped(centre_x, centre_y)) continue;
+        if (!_nya_render2d_terminal_claim((u16)target, (u16)row)) continue;
 
         NYA_TerminalCell cell = nya_terminal_cell_get((u16)target, (u16)row);
 

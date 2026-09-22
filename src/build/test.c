@@ -167,7 +167,18 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
         nya_string_extend(test, HOST_EXECUTABLE_SUFFIX);
         NYA_CString test_binary = nya_string_to_cstring(nya_arena_global, test);
 
-        b8 shares_engine      = _test_shares_engine(test_cstr, header_identifiers);
+        /*
+         * A test under tests/nyangine/terminal/ is compiled against the terminal backend instead of the
+         * GPU one, and therefore against its own engine: the shared engine object is built once without
+         * NYA_TERMINAL, and linking a test that was compiled with it against that object would mix two
+         * different render2d implementations in one binary.
+         *
+         * Everything under src/nyangine/renderer/render2d_terminal.c had no test at all before this,
+         * because there was no way to ask for that flavour.
+         */
+        const b8 terminal_flavour = strstr(test_cstr, "/terminal/") != nullptr;
+
+        b8 shares_engine      = !terminal_flavour && _test_shares_engine(test_cstr, header_identifiers);
         tests_sharing_engine += shares_engine ? 1 : 0;
 
         NYA_String*    compile_test_name = nya_string_sprintf(nya_arena_global, "compile_test:%s", test_binary);
@@ -211,6 +222,7 @@ void _test_run_all(NYA_ArgCommand* command, b8 coverage) {
         if (shares_engine) {
             _test_append_arguments(compile_test_rule, (NYA_ConstCString[]){ "-iquote", TEST_ENGINE_SHIM_DIRECTORY, "-include", TEST_ENGINE_SHIM, nullptr });
         }
+        if (terminal_flavour) _test_append_arguments(compile_test_rule, (NYA_ConstCString[]){ FLAGS_TERMINAL, nullptr });
         if (coverage) _test_append_arguments(compile_test_rule, (NYA_ConstCString[]){ FLAGS_COVERAGE, nullptr });
 
         NYA_String*    link_test_name = nya_string_sprintf(nya_arena_global, "link_test:%s", test_binary);
