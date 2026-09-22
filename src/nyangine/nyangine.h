@@ -36,6 +36,7 @@
 #include "nyangine/debug/debug.h"
 #include "nyangine/renderer/renderer.h"
 #include "nyangine/ui/ui.h"
+#include "nyangine/ui/ui_present.h"
 // Only under NYA_TESTING: the simulation harness drives entities, physics, storage and the frame
 // loop, so it has to see all of them.
 #include "nyangine/testing/testing.h"

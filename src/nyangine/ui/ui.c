@@ -50,7 +50,6 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     _nya_ui.depth           = 0;
     _nya_ui.editing_seen    = false;
     _nya_ui.typing_at_begin = ui->editing != 0;
-    _nya_ui.looks[0]        = _nya_ui_look_build(&ui->style, ui->scale);
     _nya_ui.look_depth      = 0;
     _nya_ui.next_set        = false;
     _nya_ui.disabled        = 0;
@@ -58,7 +57,11 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     _nya_ui.drag_started    = false;
     _nya_ui.opacities[0]    = 1.0F;
     _nya_ui.opacity_depth   = 0;
-    _nya_ui.layer_base      = _nya_ui_layer_get(ui);
+
+    // before anything is measured, since every size the pass adds up comes back out of the presenter.
+    _nya_ui_look_build(ui, 0);
+
+    _nya_ui.layer_base = _nya_ui_layer_get(ui);
 
     // a panel opened in either of this window's last two passes is still standing; one older is a slot the table
     // has not reused yet, and a stale rectangle must not occlude anything.
@@ -264,7 +267,14 @@ NYA_UI* _nya_ui_context(const NYA_Window* window) {
     NYA_UI* ui = &_nya_ui.windows[window->handle.index];
 
     b8 same = ui->claimed && ui->handle.generation == window->handle.generation;
-    if (!same) *ui = (NYA_UI){ .claimed = true, .handle = window->handle, .style = _nya_ui_style_resolve((NYA_UIStyle){ 0 }) };
+    if (!same) {
+        *ui = (NYA_UI){
+            .claimed = true,
+            .handle  = window->handle,
+            .present = nya_ui_presenter_shape(),
+            .style   = _nya_ui_style_resolve((NYA_UIStyle){ 0 }),
+        };
+    }
 
     return ui;
 }

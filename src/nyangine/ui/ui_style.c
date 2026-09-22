@@ -33,8 +33,9 @@ void nya_ui_style_push(NYA_UI* ui, NYA_UIStyle style) {
 
     NYA_UIStyle resolved = _nya_ui_style_resolve(style);
 
-    _nya_ui.look_depth                += 1;
-    _nya_ui.looks[_nya_ui.look_depth]  = _nya_ui_look_build(&resolved, ui->scale);
+    _nya_ui.look_depth += 1;
+
+    _nya_ui_look_build_at(ui, _nya_ui.look_depth, &resolved);
 }
 
 void nya_ui_style_pop(NYA_UI* ui) {
@@ -42,6 +43,8 @@ void nya_ui_style_pop(NYA_UI* ui) {
     nya_assert(_nya_ui.look_depth > 0, "nya_ui_style_pop without a push");
 
     _nya_ui.look_depth -= 1;
+
+    ui->present->look_use(ui->present->state, _nya_ui.look_depth);
 }
 
 f32 nya_ui_scale(const NYA_Window* window) {
@@ -142,45 +145,22 @@ f32 _nya_ui_scale_derive(const NYA_Window* window, const NYA_UIStyle* style) {
     return nya_max(scale, NYA_UI_SCALE_MIN);
 }
 
-_NYA_UILook _nya_ui_look_build(const NYA_UIStyle* style, f32 scale) {
-    _NYA_UILook look = {
-        .style       = *style,
-        .margin      = roundf(style->margin * scale),
-        .padding     = roundf(style->padding * scale),
-        .spacing     = roundf(style->spacing * scale),
-        .radius      = roundf(style->radius * scale),
-        .outline     = roundf(style->outline * scale),
-        .depth       = roundf(style->depth * scale),
-        .pop         = roundf(style->pop * scale),
-        .focus_bar   = nya_max(roundf(style->focus_bar * scale), 1.0F),
-        .item_height = roundf(style->item_height * scale),
-    };
-
-    // by name every pass, since the registry can change under a hot reload.
-    NYA_Font body  = nya_font_resolve(style->font[0] != '\0' ? nya_font_named(style->font) : NYA_FONT_NONE);
-    NYA_Font title = style->title_font[0] != '\0' ? nya_font_resolve(nya_font_named(style->title_font)) : body;
-
-    const f32 sizes[NYA_UI_TEXT_COUNT] = {
-        [NYA_UI_TEXT_INHERIT] = style->body_size,
-        [NYA_UI_TEXT_BODY]    = style->body_size,
-        [NYA_UI_TEXT_SMALL]   = style->small_size,
-        [NYA_UI_TEXT_TITLE]   = style->title_size,
-    };
-
-    // rasterised at the scaled size in whole points, so text is as crisp at 4K as at 720p.
-    for (u32 i = 0; i < NYA_UI_TEXT_COUNT; i++) {
-        NYA_Font face = i == NYA_UI_TEXT_TITLE ? title : body;
-
-        look.fonts[i] = nya_font(face.path, nya_max(roundf(sizes[i] * scale), 1.0F));
-        if (!nya_font_equals(look.fonts[i], face) && nya_font_sdf(face) && !nya_font_sdf(look.fonts[i])) (void)nya_font_sdf_set(look.fonts[i], true);
-
-        look.line_heights[i] = nya_font_valid(look.fonts[i]) ? ceilf(nya_font_metrics(look.fonts[i]).line_height) : 0.0F;
-    }
-
-    return look;
+void _nya_ui_look_build(const NYA_UI* ui, u32 depth) {
+    _nya_ui_look_build_at(ui, depth, &ui->style);
 }
 
-const _NYA_UILook* _nya_ui_look(void) {
+void _nya_ui_look_build_at(const NYA_UI* ui, u32 depth, const NYA_UIStyle* style) {
+    nya_assert(ui != nullptr && style != nullptr && ui->present != nullptr);
+    nya_assert(depth <= NYA_UI_STYLE_DEPTH_MAX);
+
+    const NYA_UIPresenter* present = ui->present;
+
+    // the backend turns the style into pixels, so a grid can round a padding to a cell and the layout never knows.
+    present->look_build(present->state, depth, style, ui->scale, &_nya_ui.looks[depth]);
+    present->look_use(present->state, depth);
+}
+
+const NYA_UILook* _nya_ui_look(void) {
     return &_nya_ui.looks[_nya_ui.look_depth];
 }
 
@@ -189,33 +169,7 @@ f32 _nya_ui_px(f32 value) {
 }
 
 f32 _nya_ui_item_height(const _NYA_UILayout* layout) {
-    const _NYA_UILook* look = _nya_ui_look();
+    const NYA_UILook* look = _nya_ui_look();
 
     return look->item_height > 0.0F ? look->item_height : look->line_heights[layout->text] + roundf(look->padding * 1.5F);
-}
-
-NYA_Color _nya_ui_color(const NYA_UIStateColors* colors, _NYA_UIWidget widget) {
-    if (widget.disabled) return colors->disabled;
-
-    return nya_color_mix(nya_color_mix(colors->normal, colors->focused, widget.focus), colors->pressed, widget.press);
-}
-
-NYA_UISkin _nya_ui_skin(const NYA_UIStateSkins* skins, _NYA_UIWidget widget) {
-    const NYA_UISkin* skin = &skins->normal;
-
-    if (widget.disabled) {
-        skin = &skins->disabled;
-    } else if (widget.held) {
-        skin = &skins->pressed;
-    } else if (widget.focused) {
-        skin = &skins->focused;
-    }
-
-    if (skin->texture[0] != '\0' || skin->source_width > 0.0F) return *skin;
-
-    NYA_UISkin fallback = skins->normal;
-    NYA_Color  tint     = skin->tint;
-    if (tint.r != 0.0F || tint.g != 0.0F || tint.b != 0.0F || tint.a != 0.0F) fallback.tint = tint;
-
-    return fallback;
 }

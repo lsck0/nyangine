@@ -39,8 +39,8 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
 
     if (!nya_ui_panel_begin(ui, id, panel)) return false;
 
-    _NYA_UILayout*     layout = &_nya_ui.layouts[_nya_ui.depth - 1];
-    const _NYA_UILook* look   = _nya_ui_look();
+    _NYA_UILayout*    layout = &_nya_ui.layouts[_nya_ui.depth - 1];
+    const NYA_UILook* look   = _nya_ui_look();
 
     NYA_Rectf bounds = layout->bounds;
     f32       side   = look->line_heights[NYA_UI_TEXT_TITLE];
@@ -83,7 +83,7 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
         u64 menu = _nya_ui_id(layout->scope, "menu");
         b8  open = ui->open == menu;
 
-        if (_nya_ui_chrome_button(ui, "menu", button, _NYA_UI_MARK_MENU)) ui->open = open ? 0 : menu;
+        if (_nya_ui_chrome_button(ui, "menu", button, NYA_UI_MARK_MENU)) ui->open = open ? 0 : menu;
 
         if (open) {
             u32   picked = NYA_UI_MENU_NONE;
@@ -91,7 +91,7 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
 
             // as wide as the widest label plus the room a selectable puts around one, so it never wraps its own row.
             f32 width = 0.0F;
-            for (u32 i = 0; i < window.menu_count; i++) width = nya_max(width, nya_font_width(look->fonts[layout->text], window.menu[i]));
+            for (u32 i = 0; i < window.menu_count; i++) width = nya_max(width, _nya_ui_text_width(layout->text, window.menu[i]));
 
             width += (look->padding * 5.0F) + look->line_heights[layout->text];
 
@@ -105,12 +105,12 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
     }
 
     if (window.collapse) {
-        _NYA_UIMark mark = state->collapsed ? _NYA_UI_MARK_COLLAPSED : _NYA_UI_MARK_EXPANDED;
+        NYA_UIMark mark = state->collapsed ? NYA_UI_MARK_COLLAPSED : NYA_UI_MARK_EXPANDED;
 
         if (_nya_ui_chrome_button(ui, "collapse", collapse, mark)) state->collapsed = !state->collapsed;
     }
 
-    if (window.close && _nya_ui_chrome_button(ui, "close", close, _NYA_UI_MARK_CLOSE)) state->open = false;
+    if (window.close && _nya_ui_chrome_button(ui, "close", close, NYA_UI_MARK_CLOSE)) state->open = false;
 
     if (window.resize && !state->collapsed) {
         f32       grip_side = _nya_ui_px(NYA_UI_GRIP);
@@ -118,7 +118,11 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
 
         _nya_ui_window_resize(ui, layout->key, state, bounds, grip);
 
-        if (_nya_ui_drawn(grip)) _nya_ui_mark_draw(ui, _NYA_UI_MARK_GRIP, grip, look->style.text_dim);
+        if (_nya_ui_drawn(grip)) {
+            NYA_UIWidgetDraw draw = { .kind = NYA_UI_WIDGET_GRIP, .rect = grip, .as_mark = { .mark = NYA_UI_MARK_GRIP } };
+
+            _nya_ui_draw(ui, &draw);
+        }
     }
 
     layout->clip = inner;
@@ -146,12 +150,12 @@ b8 nya_ui_section_begin(NYA_UI* ui, NYA_ConstCString label, b8* open) {
     nya_assert(label != nullptr && open != nullptr);
 
     const _NYA_UILayout* layout = &_nya_ui.layouts[_nya_ui.depth - 1];
-    const _NYA_UILook*   look   = _nya_ui_look();
+    const NYA_UILook*    look   = _nya_ui_look();
 
     f32 height = _nya_ui_item_height(layout);
     f32 mark   = look->line_heights[layout->text];
 
-    f32       text_width = nya_font_width(look->fonts[layout->text], label);
+    f32       text_width = _nya_ui_text_width(layout->text, label);
     NYA_Rectf rect       = _nya_ui_place((NYA_UISize){ 0 }, (f32x2){ ceilf(text_width) + (look->padding * 3.0F) + mark, height }, true);
 
     _NYA_UIWidget widget = _nya_ui_widget(ui, label, rect, false);
@@ -160,14 +164,15 @@ b8 nya_ui_section_begin(NYA_UI* ui, NYA_ConstCString label, b8* open) {
     if (widget.activated) *open = !*open;
 
     if (_nya_ui_drawn(rect)) {
-        NYA_Rectf body  = _nya_ui_body_draw(ui, rect, widget);
-        NYA_Color color = _nya_ui_color(&look->style.text, widget);
+        NYA_UIWidgetDraw draw = {
+            .kind    = NYA_UI_WIDGET_SECTION,
+            .rect    = rect,
+            .state   = _nya_ui_state(ui, widget),
+            .label   = label,
+            .as_mark = { .mark = *open ? NYA_UI_MARK_EXPANDED : NYA_UI_MARK_COLLAPSED },
+        };
 
-        NYA_Rectf chevron = { body.x + look->padding, roundf(body.y + ((body.height - mark) * 0.5F)), mark, mark };
-        _nya_ui_mark_draw(ui, *open ? _NYA_UI_MARK_EXPANDED : _NYA_UI_MARK_COLLAPSED, chevron, color);
-
-        NYA_Rectf text = { body.x + (look->padding * 2.0F) + mark, body.y, body.width, body.height };
-        _nya_ui_text_draw(ui, layout, label, text_width, text, NYA_UI_ALIGN_START, color);
+        _nya_ui_draw(ui, &draw);
     }
 
     if (!*open) return false;
@@ -231,75 +236,26 @@ void _nya_ui_window_resize(NYA_UI* ui, u64 key, NYA_UIWindowState* state, NYA_Re
     state->size = (f32x2){ nya_max(state->size.x + delta.x, least.x), nya_max(state->size.y + delta.y, least.y) };
 }
 
-b8 _nya_ui_chrome_button(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect, _NYA_UIMark mark) {
+b8 _nya_ui_chrome_button(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect, NYA_UIMark mark) {
     nya_assert(ui != nullptr && label != nullptr);
-    nya_assert(mark < _NYA_UI_MARK_COUNT);
+    nya_assert(mark < NYA_UI_MARK_COUNT);
 
     // no _nya_ui_place: the bar is chrome the panel already reserved, so its buttons take no room in the content.
     _NYA_UIWidget widget = _nya_ui_widget(ui, label, rect, false);
     if (widget.refused) return false;
 
     if (_nya_ui_drawn(rect)) {
-        const _NYA_UILook* look = _nya_ui_look();
-
         // the fill only once it is worth seeing, so a quiet title bar is a title and three marks rather than a row
         // of buttons, and the focus mark still lands because that is drawn whatever the fill does.
-        NYA_Rectf body = widget.focused || widget.held ? _nya_ui_body_draw(ui, rect, widget) : rect;
+        NYA_UIWidgetDraw draw = {
+            .kind    = NYA_UI_WIDGET_CHROME,
+            .rect    = rect,
+            .state   = _nya_ui_state(ui, widget),
+            .as_mark = { .mark = mark, .body = widget.focused || widget.held },
+        };
 
-        _nya_ui_mark_draw(ui, mark, nya_rect_expand(body, -roundf(body.height * 0.25F)), _nya_ui_color(&look->style.text, widget));
+        _nya_ui_draw(ui, &draw);
     }
 
     return widget.activated;
-}
-
-void _nya_ui_mark_draw(NYA_UI* ui, _NYA_UIMark mark, NYA_Rectf rect, NYA_Color color) {
-    nya_assert(ui != nullptr);
-    nya_assert(mark < _NYA_UI_MARK_COUNT);
-
-    if (rect.width <= 0.0F || rect.height <= 0.0F) return;
-
-    NYA_Window* window    = ui->window;
-    f32         thickness = nya_max(_nya_ui_px(1.5F), 1.0F);
-    NYA_Color   faded     = _nya_ui_fade(color);
-
-    f32x2 top_left     = { rect.x, rect.y };
-    f32x2 bottom_right = { rect.x + rect.width, rect.y + rect.height };
-    f32x2 center       = { rect.x + (rect.width * 0.5F), rect.y + (rect.height * 0.5F) };
-
-    switch (mark) {
-        case _NYA_UI_MARK_CLOSE: {
-            nya_render2d_line(window, top_left, bottom_right, thickness, faded);
-            nya_render2d_line(window, (f32x2){ bottom_right.x, top_left.y }, (f32x2){ top_left.x, bottom_right.y }, thickness, faded);
-        } break;
-
-        // a triangle rather than two lines: a chevron a cell tall in a terminal is one glyph either way, and a
-        // filled one survives being rounded to cells where a stroked one falls between them.
-        case _NYA_UI_MARK_EXPANDED: {
-            nya_render2d_triangle(window, top_left, (f32x2){ bottom_right.x, top_left.y }, (f32x2){ center.x, bottom_right.y }, faded);
-        } break;
-
-        case _NYA_UI_MARK_COLLAPSED: {
-            nya_render2d_triangle(window, top_left, (f32x2){ bottom_right.x, center.y }, (f32x2){ top_left.x, bottom_right.y }, faded);
-        } break;
-
-        case _NYA_UI_MARK_MENU: {
-            for (u32 i = 0; i < 3; i++) {
-                f32 y = roundf(rect.y + (rect.height * ((f32)i * 0.5F)));
-
-                nya_render2d_rect(window, rect.x, nya_min(y, bottom_right.y - thickness), rect.width, thickness, faded);
-            }
-        } break;
-
-        // two strokes along the corner, which is what a resize grip is everywhere anyone has seen one.
-        case _NYA_UI_MARK_GRIP: {
-            for (u32 i = 1; i < 3; i++) {
-                f32 inset = rect.width * ((f32)i / 3.0F);
-
-                nya_render2d_line(window, (f32x2){ rect.x + inset, bottom_right.y }, (f32x2){ bottom_right.x, rect.y + inset }, thickness, faded);
-            }
-        } break;
-
-        case _NYA_UI_MARK_COUNT:
-        default:                  nya_unreachable();
-    }
 }

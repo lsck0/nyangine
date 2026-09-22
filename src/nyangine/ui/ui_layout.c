@@ -28,7 +28,7 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
     nya_assert(at == nullptr || id != nullptr, "a float takes no place in its container, so it is named");
 
     const _NYA_UILayout* parent = &_nya_ui.layouts[_nya_ui.depth - 1];
-    const _NYA_UILook*   look   = _nya_ui_look();
+    const NYA_UILook*    look   = _nya_ui_look();
     const NYA_UISkin*    skin   = &look->style.panel_skin;
 
     u64 key   = id != nullptr ? _nya_ui_id(parent->scope, id) : _nya_ui_id_at(parent->key, parent->count);
@@ -80,7 +80,7 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
 
     if (panel.title != nullptr) {
         header      = look->line_heights[NYA_UI_TEXT_TITLE] + look->spacing;
-        title_width = nya_font_width(look->fonts[NYA_UI_TEXT_TITLE], panel.title);
+        title_width = _nya_ui_text_width(NYA_UI_TEXT_TITLE, panel.title);
     }
 
     f32x2            chrome   = { before.x + after.x, before.y + after.y + header };
@@ -271,32 +271,15 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
 
     if (!_nya_ui_drawing()) return true;
 
-    NYA_Window*        window = ui->window;
-    const NYA_UIStyle* style  = &look->style;
+    // the whole frame in one call, the title with it: what a panel looks like is not the layout's business.
+    NYA_UIWidgetDraw frame = {
+        .kind     = NYA_UI_WIDGET_PANEL,
+        .rect     = bounds,
+        .label    = panel.title,
+        .as_panel = { .options = &layout->options, .title_width = title_width, .inset = before },
+    };
 
-    if (!panel.frameless) {
-        NYA_Color fill    = panel.fill;
-        b8        colored = fill.r != 0.0F || fill.g != 0.0F || fill.b != 0.0F || fill.a != 0.0F;
-
-        if (!colored) fill = style->panel;
-
-        if (!_nya_ui_skin_draw(ui, skin, bounds, fill)) {
-            if (look->depth > 0.0F) nya_render2d_rect_rounded(window, bounds.x, bounds.y + look->depth, bounds.width, bounds.height, look->radius, _nya_ui_fade(style->ink));
-            nya_render2d_rect_rounded(window, bounds.x, bounds.y, bounds.width, bounds.height, look->radius, _nya_ui_fade(fill));
-            if (look->outline > 0.0F) {
-                nya_render2d_rect_rounded_outline(window, bounds.x, bounds.y, bounds.width, bounds.height, look->radius, look->outline, _nya_ui_fade(style->ink));
-            }
-        }
-    }
-
-    if (panel.title != nullptr) {
-        NYA_Font title = look->fonts[NYA_UI_TEXT_TITLE];
-        f32      x     = roundf(bounds.x + ((bounds.width - title_width) * 0.5F));
-        f32      y     = bounds.y + before.y;
-
-        if (look->depth > 0.0F) nya_font_draw(window, title, panel.title, x, y + roundf(look->depth * 0.5F), _nya_ui_fade(style->ink));
-        nya_font_draw(window, title, panel.title, x, y, _nya_ui_fade(style->text.normal));
-    }
+    _nya_ui_draw(ui, &frame);
 
     if (scrolls[0] || scrolls[1]) {
         _nya_ui_scissor(ui, clip);
@@ -315,7 +298,7 @@ void nya_ui_panel_end(NYA_UI* ui) {
 
     const _NYA_UILayout* parent  = &_nya_ui.layouts[_nya_ui.depth - 1];
     const NYA_UIPanel*   options = &layout->options;
-    const _NYA_UILook*   look    = _nya_ui_look();
+    const NYA_UILook*    look    = _nya_ui_look();
 
     f32x2 content = layout->main == 1 ? (f32x2){ layout->across, layout->used } : (f32x2){ layout->used, layout->across };
     f32x2 natural = {
@@ -457,7 +440,7 @@ b8 nya_ui_table_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UITable table) {
 
     if (table.headers == nullptr) return true;
 
-    const _NYA_UILook* look = _nya_ui_look();
+    const NYA_UILook* look = _nya_ui_look();
 
     if (nya_ui_table_row_begin(ui)) {
         for (u32 i = 0; i < table.columns; i++) nya_ui_label(ui, table.headers[i], look->style.text_dim);
@@ -466,7 +449,12 @@ b8 nya_ui_table_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UITable table) {
 
     // a rule under the headers, which is what makes the first row read as a header rather than as data.
     NYA_Rectf rule = nya_ui_space(ui, 0.0F, 1.0F);
-    if (_nya_ui_drawn(rule)) nya_render2d_rect(ui->window, rule.x, rule.y, rule.width, rule.height, _nya_ui_fade(look->style.text_dim));
+
+    if (_nya_ui_drawn(rule)) {
+        NYA_UIWidgetDraw draw = { .kind = NYA_UI_WIDGET_RULE, .rect = rule, .color = look->style.text_dim };
+
+        _nya_ui_draw(ui, &draw);
+    }
 
     return true;
 }
@@ -496,10 +484,15 @@ b8 nya_ui_table_row_begin(NYA_UI* ui) {
 
     // before the cells, since an immediate pass draws in call order and a stripe belongs under them.
     if (striped && _nya_ui_drawn(row->bounds)) {
-        NYA_Color ink   = _nya_ui_look()->style.text_dim;
-        NYA_Color tint  = { ink.r, ink.g, ink.b, ink.a * NYA_UI_STRIPE_ALPHA };
+        NYA_Color ink = _nya_ui_look()->style.text_dim;
 
-        nya_render2d_rect(ui->window, row->bounds.x, row->bounds.y, row->bounds.width, row->bounds.height, _nya_ui_fade(tint));
+        NYA_UIWidgetDraw draw = {
+            .kind  = NYA_UI_WIDGET_STRIPE,
+            .rect  = row->bounds,
+            .color = { ink.r, ink.g, ink.b, ink.a * NYA_UI_STRIPE_ALPHA },
+        };
+
+        _nya_ui_draw(ui, &draw);
     }
 
     return true;

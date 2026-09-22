@@ -13,8 +13,8 @@
 #include "nyangine/core/core_keys.h"
 #include "nyangine/core/core_window.h"
 #include "nyangine/math/math_shapes.h"
-#include "nyangine/renderer/render_font.h"
 #include "nyangine/ui/ui.h"
+#include "nyangine/ui/ui_present.h"
 
 
 /*
@@ -22,25 +22,6 @@
  * TYPES
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
-
-/** A style with its sizes multiplied by the pass's scale, in whole pixels, and its fonts resolved. */
-typedef struct {
-    NYA_UIStyle style;
-
-    f32 margin;
-    f32 padding;
-    f32 spacing;
-    f32 radius;
-    f32 outline;
-    f32 depth;
-    f32 pop;
-    f32 focus_bar;
-    f32 item_height;
-
-    /** Indexed by NYA_UIText, INHERIT holding the body's. */
-    NYA_Font fonts[NYA_UI_TEXT_COUNT];
-    f32      line_heights[NYA_UI_TEXT_COUNT];
-} _NYA_UILook;
 
 /** One open container. Axis 0 is across the window and 1 down it. */
 typedef struct {
@@ -196,6 +177,9 @@ struct NYA_UI {
     NYA_Window*      window;
     NYA_UIPass       pass;
 
+    /** What every widget is drawn and measured through. The shape presenter until a caller says otherwise. */
+    const NYA_UIPresenter* present;
+
     /** Resolved when set, so every zero is already its default. */
     NYA_UIStyle style;
     f32         scale;
@@ -335,7 +319,7 @@ typedef struct {
     u32           depth;
 
     /** The window's look and the pushed ones on top of it. */
-    _NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1];
+    NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1];
     u32         look_depth;
 
     /** The window's safe area in pixels, inset by the margin. */
@@ -394,8 +378,31 @@ NYA_INTERNAL NYA_UIStyle _nya_ui_style_resolve(NYA_UIStyle style);
 /** The explicit scale, or the window's height against the reference height, at least the display's scale, in steps. */
 NYA_INTERNAL f32 _nya_ui_scale_derive(const NYA_Window* window, const NYA_UIStyle* style);
 
-NYA_INTERNAL _NYA_UILook        _nya_ui_look_build(const NYA_UIStyle* style, f32 scale);
-NYA_INTERNAL const _NYA_UILook* _nya_ui_look(void);
+/**
+ * Builds the look at `depth` through the presenter and selects it, which is what makes every size the layout adds
+ * up the backend's rather than this module's. `_at` builds a pushed style instead of the window's own.
+ * */
+NYA_INTERNAL void              _nya_ui_look_build(const NYA_UI* ui, u32 depth);
+NYA_INTERNAL void              _nya_ui_look_build_at(const NYA_UI* ui, u32 depth, const NYA_UIStyle* style);
+NYA_INTERNAL const NYA_UILook* _nya_ui_look(void);
+
+/*
+ * THE PRESENTER. Everything the module asks of its backend goes through these; see ui_present.h for the shape of it.
+ */
+
+/** The open pass's presenter. */
+NYA_INTERNAL const NYA_UIPresenter* _nya_ui_present(void) __attr_no_discard;
+
+/** `widget`'s state as a presenter sees it, the two animations resolved to how far through they are. */
+NYA_INTERNAL NYA_UIWidgetState _nya_ui_state(const NYA_UI* ui, _NYA_UIWidget widget) __attr_no_discard;
+
+/** Fills in what the pass knows — the text role, the opacity and the clip — and hands `widget` to the presenter. */
+NYA_INTERNAL void _nya_ui_draw(NYA_UI* ui, NYA_UIWidgetDraw* widget);
+
+/** What `text` measures at `role`, within `room` and folded by `overflow`, and the width of its first `bytes`. */
+NYA_INTERNAL f32x2 _nya_ui_measure(NYA_UIText role, NYA_ConstCString text, f32 room, NYA_UIOverflow overflow) __attr_no_discard;
+NYA_INTERNAL f32   _nya_ui_text_width(NYA_UIText role, NYA_ConstCString text) __attr_no_discard;
+NYA_INTERNAL f32   _nya_ui_measure_bytes(NYA_UIText role, NYA_ConstCString text, u32 bytes) __attr_no_discard;
 
 /** `value`, in pixels at scale 1, as whole pixels at the pass's scale. */
 NYA_INTERNAL f32 _nya_ui_px(f32 value);
@@ -487,10 +494,13 @@ NYA_INTERNAL void _nya_ui_reveal(NYA_Rectf rect);
 NYA_INTERNAL void _nya_ui_panel_drag(NYA_UI* ui, u64 key, _NYA_UIPanelState* state, NYA_Rectf bounds, f32 header, b8 covered);
 
 /**
- * A typed field for the widget `widget`: edits `buffer` while it has the keyboard, starts on `start`, stops on return,
- * cancel or a press outside `owner`, and draws `box` with the text and caret. True when the text changed.
+ * A typed field for the widget `widget`: edits `buffer` while it has the keyboard, starts on `start`, and stops on
+ * return, cancel or a press outside `owner`. True when the text changed.
+ *
+ * It draws nothing itself. `out` is filled with what the presenter needs to show the box, the line, the selection
+ * and the caret, so the widget that owns the field sends it out with the rest of itself in one call.
  * */
-NYA_INTERNAL b8 _nya_ui_field(NYA_UI* ui, _NYA_UIWidget widget, b8 start, NYA_Rectf owner, NYA_Rectf box, char* buffer, u32 capacity);
+NYA_INTERNAL b8 _nya_ui_field(NYA_UI* ui, _NYA_UIWidget widget, b8 start, NYA_Rectf owner, NYA_Rectf box, char* buffer, u32 capacity, NYA_UIFieldDraw* out);
 
 /** Moves `widget`'s focus and press toward its state over the style's transition, and eases them. */
 NYA_INTERNAL void _nya_ui_animate(_NYA_UIWidget* widget);
@@ -512,32 +522,8 @@ NYA_INTERNAL void _nya_ui_layer_set(const NYA_UI* ui, s32 layer);
 
 NYA_INTERNAL f32 _nya_ui_item_height(const _NYA_UILayout* layout);
 
-/** The widget's colour from `colors` for its state. */
-NYA_INTERNAL NYA_Color _nya_ui_color(const NYA_UIStateColors* colors, _NYA_UIWidget widget);
-
-/** The widget's skin for its state, a state without a texture taking the normal one's. */
-NYA_INTERNAL NYA_UISkin _nya_ui_skin(const NYA_UIStateSkins* skins, _NYA_UIWidget widget);
-
-/** Draws `skin` over `rect`, tinted by `tint`, the flat colour, when the skin has none. False, drawing nothing, for a flat skin or a texture still loading. */
-NYA_INTERNAL b8 _nya_ui_skin_draw(const NYA_UI* ui, const NYA_UISkin* skin, NYA_Rectf rect, NYA_Color tint);
-
-/** The shadow, fill, outline and focus mark of a widget, popped when newly focused and sunk when held. Returns the body. */
-NYA_INTERNAL NYA_Rectf _nya_ui_body_draw(NYA_UI* ui, NYA_Rectf rect, _NYA_UIWidget widget);
-
-/** A slider or toggle track, a field's box, or the filled part of a track in `color`. */
-NYA_INTERNAL void _nya_ui_track_draw(NYA_UI* ui, NYA_Rectf rect, f32 radius, NYA_Color color);
-
-/** `text`, measured `width` wide, centred vertically in `rect` and placed across it by `align`. */
-NYA_INTERNAL void _nya_ui_text_draw(NYA_UI* ui, const _NYA_UILayout* layout, NYA_ConstCString text, f32 width, NYA_Rectf rect, NYA_UIAlign align, NYA_Color color);
-
-/** `color` with its alpha multiplied by the opacity groups open around it. Identity when none are, so it is free. */
-NYA_INTERNAL NYA_Color _nya_ui_fade(NYA_Color color) __attr_no_discard;
-
-/** The bar for `axis` of a scrolling container, drawn in the padding after its content. */
+/** The bar for `axis` of a scrolling container, placed in the padding after its content and sent to the presenter. */
 NYA_INTERNAL void _nya_ui_scrollbar_draw(NYA_UI* ui, const _NYA_UILayout* layout, u32 axis);
-
-/** Draws `icon` into `rect`, taking its texture and tint from the style when it names none. False when nothing was drawn. */
-NYA_INTERNAL b8 _nya_ui_icon_draw(const NYA_UI* ui, const NYA_UIIcon* icon, NYA_Rectf rect, NYA_Color tint);
 
 /**
  * A row of `count` cells sharing the container, each named by `id` and its index, with the chosen one marked. True
@@ -551,22 +537,8 @@ NYA_INTERNAL b8 _nya_ui_choice_row(NYA_UI* ui, NYA_ConstCString id, const NYA_Co
  * */
 NYA_INTERNAL b8 _nya_ui_choice_list(NYA_UI* ui, NYA_ConstCString id, const NYA_ConstCString* labels, u32 count, u32* selected, f32x2 at, f32 width);
 
-/** The X, chevron, hamburger and corner grip a window's chrome is drawn from. */
-typedef enum {
-    _NYA_UI_MARK_CLOSE = 0,
-    _NYA_UI_MARK_COLLAPSED,
-    _NYA_UI_MARK_EXPANDED,
-    _NYA_UI_MARK_MENU,
-    _NYA_UI_MARK_GRIP,
-
-    _NYA_UI_MARK_COUNT,
-} _NYA_UIMark;
-
-/** Draws `mark` centred in `rect` from lines and triangles, since chrome must not need a glyph the face may lack. */
-NYA_INTERNAL void _nya_ui_mark_draw(NYA_UI* ui, _NYA_UIMark mark, NYA_Rectf rect, NYA_Color color);
-
 /** One square chrome button in a window's title bar, named `label` and drawn as `mark`. True when activated. */
-NYA_INTERNAL b8 _nya_ui_chrome_button(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect, _NYA_UIMark mark) __attr_no_discard;
+NYA_INTERNAL b8 _nya_ui_chrome_button(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect, NYA_UIMark mark) __attr_no_discard;
 
 /**
  * Drags a window's bottom right corner by the pointer on `grip`, writing what it leaves to `state->size` in pixels

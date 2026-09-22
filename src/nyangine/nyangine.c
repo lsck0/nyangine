@@ -82,6 +82,10 @@
 // ui.c first: it defines the module's one static state, which every other ui_*.c file reads. The rest are
 // independent of each other and only ordered to read alphabetically.
 #include "nyangine/ui/ui.c"
+// the seam, then its backends, then the widgets above them: nothing above ui_present_*.c names a primitive.
+#include "nyangine/ui/ui_present.c"
+#include "nyangine/ui/ui_present_record.c"
+#include "nyangine/ui/ui_present_shape.c"
 #include "nyangine/ui/ui_draw.c"
 #include "nyangine/ui/ui_input.c"
 #include "nyangine/ui/ui_layout.c"

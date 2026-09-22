@@ -4119,15 +4119,49 @@ What the ui_*.c files share: the per window state, the open pass's scratch, and 
 
 ```c
 // types
-typedef struct { NYA_UIStyle style; f32 margin; f32 padding; f32 spacing; f32 radius; f32 outline; f32 depth; f32 pop; f32 focus_bar; f32 item_height; NYA_Font fonts[NYA_UI_TEXT_COUNT]; f32 line_heights[NYA_UI_TEXT_COUNT]; } _NYA_UILook  // A style with its sizes multiplied by the pass's scale, in whole pixels, and its fonts resolved.
 typedef struct { f32x2 origin; f32x2 extent; f32x2 room; u32 main; f32 gap; NYA_UISize children; NYA_UIAlign align; NYA_UIOverflow overflow; NYA_UIText text; f32 used; f32 across; u32 count; f32 fixed; f32 grow; f32 grow_placed; f32 grow_space; f32 grow_total; u64 key; u64 scope; u32 group; const f32* columns; u32 column_count; b8 striped; u32 panel; NYA_UIPanel options; NYA_Rectf bounds; u32 root_panel; s32 layer; b8 floating; f32x2 before; f32x2 after; f32 header; f32 title_width; f32x2 scroll; NYA_Rectf clip; b8 covered; b8 scrolls[2]; b8 clipping; b8 hidden; } _NYA_UILayout  // One open container.
 typedef struct { u64 id; u64 pass; f32x2 size; b8 measured; f32x2 content; f32 fixed; f32 grow; u32 count; f32x2 scroll; f32x2 drag; f64 shown_s; f64 seen_s; b8 top_level; NYA_Rectf bounds; s32 z; u64 order; } _NYA_UIPanelState
 typedef struct { u64 id; b8 refused; b8 disabled; b8 focused; b8 held; b8 activated; f32 focus; f32 press; } _NYA_UIWidget  // A widget's standing in the current pass.
 typedef struct { u64 id; f64 time_s; f32 focus; f32 press; } _NYA_UIAnimation  // Where one widget's transitions stand, and when they were last stepped.
-struct NYA_UI { b8 claimed; NYA_WindowHandle handle; NYA_Window* window; NYA_UIPass pass; NYA_UIStyle style; f32 scale; u64 focus; u32 focus_index; f64 focus_changed_s; b8 reveal; u64 active; b8 dragging; u32 grab; u64 hue_id; f32 hue; char hex[10]; u64 editing; u32 caret; b8 typing; u32 select; u64 click_id; f64 click_s; u64 open; u64 drag_panel; u64 resize_panel; f32x2 resize_grip; u64 bounce_id; f64 bounce_s; f32x2 drag_grip; u64 pass_current; u64 pass_previous; }  // What persists per window.
+struct NYA_UI { b8 claimed; NYA_WindowHandle handle; NYA_Window* window; NYA_UIPass pass; const NYA_UIPresenter* present; NYA_UIStyle style; f32 scale; u64 focus; u32 focus_index; f64 focus_changed_s; b8 reveal; u64 active; b8 dragging; u32 grab; u64 hue_id; f32 hue; char hex[10]; u64 editing; u32 caret; b8 typing; u32 select; u64 click_id; f64 click_s; u64 open; u64 drag_panel; u64 resize_panel; f32x2 resize_grip; u64 bounce_id; f64 bounce_s; f32x2 drag_grip; u64 pass_current; u64 pass_previous; }  // What persists per window.
 typedef struct { NYA_InputAction action; NYA_Keycode key; } _NYA_UIPress  // What a press is read from: an action, or a raw key when the action is NONE.
-typedef struct { NYA_UI windows[NYA_WINDOW_MAX]; NYA_UI* open; u64 pass_serial; b8 registered; NYA_TraceScope trace; b8 confirm; b8 cancel; b8 confirm_down; b8 presses[_NYA_UI_PRESS_COUNT]; f32x2 pointer; b8 pointer_moved; b8 pointer_pressed; b8 pointer_down; b8 pointer_released; f32 wheel; f32 wheel_x; b8 editing_seen; b8 typing_at_begin; u64 press_tick; b8 tick_presses[_NYA_UI_PRESS_COUNT]; u32 repeat_press; f32 repeat_s; u64 widgets[NYA_UI_WIDGETS_MAX]; u32 widget_groups[NYA_UI_WIDGETS_MAX]; u32 widget_panels[NYA_UI_WIDGETS_MAX]; b8 widget_horizontal[NYA_UI_WIDGETS_MAX]; u32 widget_count; u32 widget_count_worst; u32 focus_found; NYA_Rectf claims[NYA_UI_CLAIMS_MAX]; u32 claim_count; b8 drag_started; _NYA_UILayout layouts[NYA_UI_DEPTH_MAX]; u32 depth; _NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 look_depth; NYA_Rectf safe; NYA_UISize next; b8 next_set; u32 disabled; f32 opacities[NYA_UI_OPACITY_DEPTH_MAX + 1]; u32 opacity_depth; s32 layer_base; _NYA_UIPanelState panels[NYA_UI_PANELS_MAX]; u32 panel_count; u64 raise_serial; _NYA_UIAnimation animations[NYA_UI_ANIMATIONS_MAX]; } _NYA_UISystem
-typedef enum { _NYA_UI_MARK_CLOSE = 0, _NYA_UI_MARK_COLLAPSED, _NYA_UI_MARK_EXPANDED, _NYA_UI_MARK_MENU, _NYA_UI_MARK_GRIP, _NYA_UI_MARK_COUNT, } _NYA_UIMark  // The X, chevron, hamburger and corner grip a window's chrome is drawn from.
+typedef struct { NYA_UI windows[NYA_WINDOW_MAX]; NYA_UI* open; u64 pass_serial; b8 registered; NYA_TraceScope trace; b8 confirm; b8 cancel; b8 confirm_down; b8 presses[_NYA_UI_PRESS_COUNT]; f32x2 pointer; b8 pointer_moved; b8 pointer_pressed; b8 pointer_down; b8 pointer_released; f32 wheel; f32 wheel_x; b8 editing_seen; b8 typing_at_begin; u64 press_tick; b8 tick_presses[_NYA_UI_PRESS_COUNT]; u32 repeat_press; f32 repeat_s; u64 widgets[NYA_UI_WIDGETS_MAX]; u32 widget_groups[NYA_UI_WIDGETS_MAX]; u32 widget_panels[NYA_UI_WIDGETS_MAX]; b8 widget_horizontal[NYA_UI_WIDGETS_MAX]; u32 widget_count; u32 widget_count_worst; u32 focus_found; NYA_Rectf claims[NYA_UI_CLAIMS_MAX]; u32 claim_count; b8 drag_started; _NYA_UILayout layouts[NYA_UI_DEPTH_MAX]; u32 depth; NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 look_depth; NYA_Rectf safe; NYA_UISize next; b8 next_set; u32 disabled; f32 opacities[NYA_UI_OPACITY_DEPTH_MAX + 1]; u32 opacity_depth; s32 layer_base; _NYA_UIPanelState panels[NYA_UI_PANELS_MAX]; u32 panel_count; u64 raise_serial; _NYA_UIAnimation animations[NYA_UI_ANIMATIONS_MAX]; } _NYA_UISystem
+```
+
+### ui_present.h
+
+The seam between a widget and whatever puts it on a screen. A `nya_ui_*` call decides what a widget *is* this
+
+```c
+// types
+struct NYA_UILook { NYA_UIStyle style; f32 margin; f32 padding; f32 spacing; f32 radius; f32 outline; f32 depth; f32 pop; f32 focus_bar; f32 item_height; f32 line_heights[NYA_UI_TEXT_COUNT]; }
+struct NYA_UIWidgetState { u64 id; b8 disabled; b8 focused; b8 held; b8 activated; f32 focus; f32 press; f32 pop; f32 bounce; }
+typedef enum NYA_UIMark { NYA_UI_MARK_CLOSE = 0, NYA_UI_MARK_COLLAPSED, NYA_UI_MARK_EXPANDED, NYA_UI_MARK_MENU, NYA_UI_MARK_GRIP, NYA_UI_MARK_COUNT, } NYA_UIMark  // The X, chevron, hamburger and corner grip a window's chrome is drawn from.
+struct NYA_UIFieldDraw { NYA_Rectf box; NYA_ConstCString buffer; NYA_ConstCString composing; u32 caret; u32 select; u32 composing_from; u32 composing_to; f32 shift; b8 editing; }
+typedef enum NYA_UIWidgetKind { NYA_UI_WIDGET_SCRIM = 0, NYA_UI_WIDGET_PANEL, NYA_UI_WIDGET_LABEL, NYA_UI_WIDGET_BUTTON, NYA_UI_WIDGET_SELECTABLE, NYA_UI_WIDGET_TOGGLE, NYA_UI_WIDGET_SLIDER, NYA_UI_WIDGET_RADIO, NYA_UI_WIDGET_DROPDOWN, NYA_UI_WIDGET_FIELD, NYA_UI_WIDGET_COLOR_PICKER, NYA_UI_WIDGET_CHART, NYA_UI_WIDGET_ICON, NYA_UI_WIDGET_SECTION, NYA_UI_WIDGET_CHROME, NYA_UI_WIDGET_GRIP, NYA_UI_WIDGET_SCROLLBAR, NYA_UI_WIDGET_RULE, NYA_UI_WIDGET_STRIPE, NYA_UI_WIDGET_UNDERLINE, NYA_UI_WIDGET_KIND_COUNT, } NYA_UIWidgetKind  // Everything the UI can ask to be drawn.
+struct NYA_UIWidgetDraw { NYA_UIWidgetKind kind; NYA_Rectf rect; NYA_UIWidgetState state; NYA_UIText text; NYA_ConstCString label; NYA_Color color; f32 opacity; NYA_Rectf clip; b8 clip_whole; union { struct { f32 room; NYA_UIOverflow overflow; NYA_UIAlign align; } as_label; struct { const NYA_UIPanel* options; f32 title_width; f32x2 inset; } as_panel; struct { b8 on; } as_choice; struct { NYA_Rectf track; f32 t; } as_slider; struct { NYA_ConstCString shown; b8 open; } as_dropdown; struct { NYA_UIFieldDraw field; } as_field; struct { NYA_Rectf plane; NYA_Rectf hue; NYA_Rectf alpha; NYA_Rectf swatch; NYA_ColorHSV hsv; NYA_Color value; NYA_UIFieldDraw field; } as_picker; struct { const NYA_UIChart* chart; } as_chart; struct { const NYA_UIIcon* icon; } as_icon; struct { NYA_UIMark mark; b8 body; } as_mark; }; }  // One widget, whole.
+struct NYA_UIPresenter { NYA_ConstCString name; void* state; void (*look_build)(void* state, u32 depth, const NYA_UIStyle* style, f32 scale, NYA_UILook* out); void (*look_use)(void* state, u32 depth); f32x2 (*measure)(void* state, NYA_UIText role, NYA_ConstCString text, f32 room, NYA_UIOverflow overflow); f32 (*measure_bytes)(void* state, NYA_UIText role, NYA_ConstCString text, u32 bytes); void (*clip_set)(void* state, NYA_Window* window, NYA_Rectf clip, b8 whole); s32 (*layer_get)(void* state, NYA_Window* window); void (*layer_set)(void* state, NYA_Window* window, s32 layer); void (*draw)(void* state, NYA_Window* window, const NYA_UIWidgetDraw* widget); }  // One backend.
+struct NYA_UIRecorder { NYA_UIPresenter presenter; f32x2 cell; NYA_UIWidgetDraw widgets[NYA_UI_RECORD_MAX]; u32 count; u32 wanted; char text[NYA_UI_RECORD_TEXT_MAX]; u32 text_used; NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 depth; NYA_Rectf clip; s32 layer; }  // The recording presenter's tables, which the caller owns and which outlive a pass.
+
+// macros
+NYA_UI_RECORD_MAX 256  // Widgets one recorded pass keeps.
+NYA_UI_RECORD_TEXT_MAX 8192  // Bytes of label and value text one recorded pass keeps.
+NYA_UI_RECORD_CELL ((f32x2){ 8.0F, 16.0F })  // What a recorder measures with when its caller names no cell: the terminal's, so a dump reads like a TUI.
+
+// functions
+void nya_ui_presenter_set(NYA_Window* window, const NYA_UIPresenter* presenter)  // The presenter `window`'s passes go through, from the next one on.
+const NYA_UIPresenter* nya_ui_presenter_get(const NYA_Window* window)
+const NYA_UIPresenter* nya_ui_presenter_shape(void)  // Shapes and glyphs through render2d and the font registry: what every window uses until told otherwise.
+NYA_ConstCString nya_ui_widget_kind_name(NYA_UIWidgetKind kind)  // The kind's name, for logs and assertions.
+void nya_ui_look_scale(const NYA_UIStyle* style, f32 scale, NYA_UILook* out)
+void nya_ui_recorder_init(NYA_UIRecorder* recorder, f32x2 cell)  // Prepares `recorder` and the presenter inside it.
+void nya_ui_recorder_deinit(NYA_UIRecorder* recorder)
+void nya_ui_recorder_reset(NYA_UIRecorder* recorder)  // Throws the last pass away.
+const NYA_UIPresenter* nya_ui_recorder_presenter(NYA_UIRecorder* recorder)
+u32 nya_ui_recorder_count(const NYA_UIRecorder* recorder)
+const NYA_UIWidgetDraw* nya_ui_recorder_at(const NYA_UIRecorder* recorder, u32 index)
+const NYA_UIWidgetDraw* nya_ui_recorder_find(const NYA_UIRecorder* recorder, NYA_UIWidgetKind kind, NYA_ConstCString label)  // The first recorded widget of `kind` whose label is `label`, or null.
+u32 nya_ui_recorder_write(const NYA_UIRecorder* recorder, char* out, u32 capacity)  // The pass as text, one line per widget: kind, rectangle, state and label.
 ```
 
 ## physics
