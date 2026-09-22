@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nyangine notes</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <main>
+      <h1>notes</h1>
+      <p class="hint">
+        Served out of the asset system by <code>http_static.h</code>. The same files answer at
+        <code>/static/app.&lt;hash&gt;.css</code>, cached for a year.
+      </p>
+
+      <form id="compose">
+        <input id="text" name="text" type="text" placeholder="a note" autocomplete="off" required />
+        <button type="submit">write</button>
+      </form>
+
+      <ul id="notes"></ul>
+      <p id="status" class="hint"></p>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

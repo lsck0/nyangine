@@ -1,8 +1,8 @@
 # The HTTP server
 
 A nyangine program can serve HTTP: routing, a middleware chain, typed request and response structs,
-JSON bodies through `serde`, JWT authentication, and an OpenAPI document generated from the handlers
-themselves.
+JSON bodies through `serde`, JWT authentication, an OpenAPI document generated from the handlers
+themselves, and a web bundle served out of the asset system with content hashed names and ETags.
 
 It is off unless a program turns it on. Before `nya_system_http_init` there is no thread, no socket
 and no allocation, and a build that never calls it links the same as one written before the module
@@ -223,6 +223,96 @@ error it can act on. The version is a `#define` in `http_openapi.h` with this re
 QUERY is still an IETF draft, so that `#define` and `NYA_HttpMethod` are the two places a change to
 the draft would land.
 
+## The web bundle
+
+`http_static.h` serves a page and what it loads. The files are assets, so they get the asset system's
+handles, its files in development and its baked blob in a release; the caller reads them with
+`nya_asset_read` and hands the bytes over, because `core` sits above `http` in the module order this
+tree is moving to and a server that reached into the asset system would invert it.
+
+```c
+NYA_HttpStaticFile files[] = {
+    { .asset = NYA_ASSET_WEB_INDEX_HTML, .path = "/",        .data = html, .size = html_size },
+    { .asset = NYA_ASSET_WEB_APP_CSS,    .path = "/app.css", .data = css,  .size = css_size  },
+};
+
+NYA_EXPECT(nya_http_static_mount((NYA_HttpStaticConfig){ .files = files, .count = nya_carray_length(files) }));
+defer nya_http_static_unmount();
+
+NYA_EXPECT(nya_http_server_merge(nya_http_static_router()));
+```
+
+`examples/web_server/` is the caller: `/` is a page that reads and writes the notes resource beside it.
+
+### One route per file, and no path resolution anywhere
+
+A mount turns each file into exact routes and nothing else, and the router matches a path by comparing
+it whole. A request either **is** one of those strings or it is a 404. There is no root to escape from,
+no segment joined onto a directory and no byte of a request that ever becomes part of a file name,
+which is the one decision here that matters: path resolution is what static serving gets wrong.
+
+So there are no listings, no implicit `index.html` for a directory, and no "try the path, then the path
+plus `.html`". The entry point is the file whose `path` the program wrote down.
+
+The way in that is left is the program itself, building an asset handle out of something a stranger
+said. A mount checks every handle before it serves a byte of it: under the root, made only of
+`A-Za-z0-9._-` and `/`, no `.` or `..` segment, no empty segment, no leading dot on a segment, and a
+suffix this server has a media type for. One rule set refuses `..`, an absolute path, a backslash, a
+percent escape, a NUL and every byte an overlong UTF-8 sequence is made of. Where the assets are still
+files, a handle naming a symlink or a directory is refused too: a link is a name for bytes somewhere
+else, which is the whole thing this is trying not to serve. `tests/nyangine/http/test_static.c` checks
+each of those as a refusal, and checks the same spellings over a socket, where the parser answers 400
+and the router 404.
+
+### What a name means
+
+The hash is SHA-256 over the bytes as they are served, taken at mount, and its first
+`NYA_HTTP_STATIC_HASH_DIGITS` hex digits spell both the name and the ETag. One hash, one spelling.
+
+| Path                     | `Cache-Control`                       | Why                                              |
+| :----------------------- | :------------------------------------ | :----------------------------------------------- |
+| `/static/app.<hash>.css` | `public, max-age=31536000, immutable` | new bytes are a new name, so it cannot go stale   |
+| `/`, `/app.css`          | `no-cache`                            | one name, changing bytes: stored, revalidated     |
+
+Both carry the `ETag`, and both answer a matching `If-None-Match` with `304 Not Modified` and no body,
+comparing weakly as RFC 9110 requires, so `W/"x"`, `"x"` and `*` all match. `no-cache` is "store it and
+ask me first", not "do not store"; `no-store` would make a browser refetch the entry point on every
+navigation for nothing.
+
+There is no `Last-Modified` and no `If-Modified-Since`. The ETag answers the question exactly, a second
+validator is a second answer that can disagree with the first, and in a release the bytes come out of
+the executable's `.rodata` and have no modification time that is not a fiction.
+
+Content types come from the served file's own suffix, out of a closed table, and a suffix with no media
+type in it is refused at mount rather than served as `application/octet-stream`. Nothing a request says
+has any say in what a file is.
+
+### No content coding, and no ranges
+
+Responses go out as they are stored: no `Content-Encoding`, and therefore no `Vary: Accept-Encoding`.
+The compressor this engine vendors is LZ4, which is not a registered HTTP content coding and which no
+browser can decode; gzip and brotli are a dependency decision of their own rather than a side effect of
+serving a page. A `Vary` on a response that does not vary only splits every cache entry in two.
+
+The build does compress the bundle where compression pays here: `src/build/pp/asset.c` stores an asset
+LZ4-compressed inside the executable when that is smaller, so a release carries the bundle compressed
+and the asset system expands it on the read that feeds a mount.
+
+Ranges are not implemented and nothing advertises `Accept-Ranges`. A file is at most
+`NYA_HTTP_MAX_STATIC_FILE_BYTES` and leaves in one write, so a `Range` header is ignored and the whole
+representation is answered, which is what RFC 9110 says a server without ranges does.
+
+### The policy a page carries
+
+The default `Content-Security-Policy` is `default-src 'none'`, which is right for a JSON body and would
+stop a page loading its own stylesheet. An HTML file from the bundle replaces it with
+`NYA_HTTP_STATIC_PAGE_CSP`: same origin for scripts, styles, images, fonts and fetches, no inline
+anything, and `frame-ancestors`, `base-uri` and `form-action` shut as the default has them. Every other
+media type keeps the default, so an SVG opened on its own is a document that may load nothing.
+
+Everything else applies unchanged. The security headers, the origin-agnostic rate limits and the
+per-address connection cap are the server's, not a route's, and these routes are routes like any other.
+
 ## Authentication
 
 `Authorization: Bearer <jwt>`, HS256 over the crypto module's HMAC-SHA256 (`crypto_hash.h`).
@@ -298,6 +388,10 @@ driven by `./build run fuzz http_request`.
 | `NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND` |      20 | refill rate of one address's request bucket               |
 | `NYA_HTTP_DEFAULT_REQUEST_BURST`       |      40 | requests one address may send at once                     |
 | `NYA_HTTP_MAX_RATE_BUCKETS`            |      64 | addresses tracked; the one touched longest ago makes room |
+| `NYA_HTTP_MAX_STATIC_FILES`            |      32 | files one mount of the web bundle serves                  |
+| `NYA_HTTP_MAX_STATIC_FILE_BYTES`       |   65536 | one served file; it leaves in one write                   |
+| `NYA_HTTP_MAX_STATIC_BYTES`            | 1048576 | every mounted file together, which is the mount's cost    |
+| `NYA_HTTP_STATIC_HASH_DIGITS`          |      16 | hex digits of SHA-256 in a hashed name and its ETag       |
 
 Every one is a `#define` a consumer can override from the command line.
 

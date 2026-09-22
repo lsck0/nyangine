@@ -1,17 +1,20 @@
 /**
  * @file examples/web_server/main.c
  *
- * An HTTP server: a resource of its own, typed requests and responses through reflection, and the
- * OpenAPI document generated from the route table rather than written.
+ * An HTTP server: a resource of its own, typed requests and responses through reflection, the OpenAPI
+ * document generated from the route table rather than written, and a page served out of the asset
+ * system that talks to the resource.
  *
  * ```
  * ./build run example web_server            # serves on 127.0.0.1:47800 until interrupted
  * ./web_server.example --port 8080
  * ```
  *
- * Then, from another terminal:
+ * Open `http://127.0.0.1:47800/` for the page. Then, from another terminal:
  *
  * ```
+ * curl -i localhost:47800/                  # the entry point: an ETag and no-cache
+ * curl -i localhost:47800/static/app.*.css  # the same bytes, immutable for a year
  * curl -X QUERY localhost:47800/api/notes -H 'Content-Type: application/json' -d '{}'
  * curl -X QUERY localhost:47800/api/notes -H 'Accept: application/nya' -d '{}'   # the native format
  * curl -X QUERY localhost:47800/api/notes -H 'Accept: application/nya-binary' -d '{}' -o notes.bin
@@ -57,11 +60,24 @@
  * A read is a QUERY here. A request in this server is a reflected struct and a GET has nowhere to put
  * one, so the four verbs a resource is written in are QUERY, POST, PUT and DELETE; see
  * `http_router.h`. GET still works and `/docs` is one, because a browser has no other verb.
+ *
+ * ## The page is three assets, not three string literals
+ *
+ * `assets/web/` holds the html, the css and the js, and they are assets like a texture or a font: the
+ * generated handles below are what `src/genyarated/assets.h` wrote, a debug build reads the files and a
+ * release reads them out of the baked blob. `nya_http_static_mount` hashes each one and serves it at
+ * two names, so the browser caches the stylesheet for a year and still sees a change immediately; see
+ * `http_static.h`.
+ *
+ * That is the one thing this example needs the engine for beyond the socket: reading an asset goes
+ * through the asset system, so the four systems it stands on come up below. They are cheap and they
+ * warn about audio and fonts on a machine with neither, which is a server and is fine.
  * */
 #include "nyangine/nyangine.h"
 
 #include "nyangine/nyangine.c"
 
+#include "SDL3/SDL_init.h"
 #include "SDL3/SDL_timer.h"
 
 /*
@@ -442,6 +458,51 @@ NYA_INTERNAL const NYA_HttpRouter OTP_ROUTER = {
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE PAGE
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * Three assets, each served twice: once at the name the html links it by, which revalidates, and once
+ * at a name containing the hash of its bytes, which a browser may keep for a year. The generated
+ * handles are what makes this a list of files rather than a directory to walk, and a path a request
+ * asks for is compared whole against these: nothing a caller sends ever becomes part of a file name.
+ */
+NYA_INTERNAL const struct {
+    NYA_AssetHandle  asset;
+    NYA_ConstCString path;
+} BUNDLE_SOURCES[] = {
+    { NYA_ASSET_WEB_INDEX_HTML, "/"        },
+    { NYA_ASSET_WEB_APP_CSS,    "/app.css" },
+    { NYA_ASSET_WEB_APP_JS,     "/app.js"  },
+};
+
+/** Reads the three through the asset system and hands them to the bundle. */
+NYA_INTERNAL NYA_Error mount_bundle(NYA_Arena* scratch) {
+    NYA_HttpStaticFile files[nya_carray_length(BUNDLE_SOURCES)] = { 0 };
+
+    for (u64 index = 0; index < nya_carray_length(BUNDLE_SOURCES); index++) {
+        u8* data = nullptr;
+        u64 size = 0;
+
+        // html, css and js are assets like a texture or a font: this reads the file in a debug build
+        // and the baked blob in a release, and there is no second pipeline for web files.
+        NYA_TRY(nya_asset_read(scratch, BUNDLE_SOURCES[index].asset, &data, &size));
+
+        files[index] = (NYA_HttpStaticFile){
+            .asset = BUNDLE_SOURCES[index].asset,
+            .path  = BUNDLE_SOURCES[index].path,
+            .data  = data,
+            .size  = size,
+        };
+    }
+
+    // the mount copies what it is handed, so `scratch` is the caller's to drop after this returns.
+    return nya_http_static_mount((NYA_HttpStaticConfig){ .files = files, .count = nya_carray_length(files) });
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * THE PROGRAM
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -480,9 +541,28 @@ s32 main(s32 argc, char** argv) {
     (void)signal(SIGINT, stop);
 
     /*
-     * No window, no renderer, no world. An HTTP server needs none of the engine's frame, which is
-     * what makes a dedicated one of these deployable as a plain binary.
+     * No window, no renderer, no world, and no frame loop. What does come up is the asset system,
+     * because the page below is three assets: an app instance for it to hang off, the callback and
+     * event registries it hooks into, and then itself. That is the whole of the engine this needs.
      */
+    b8 sdl_started = SDL_Init(0);
+
+    if (!sdl_started) {
+        nya_log_error("SDL could not start: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+
+    _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
+
+    nya_system_callback_init();
+    defer nya_system_callback_deinit();
+
+    NYA_EXPECT(nya_system_events_init(), "while starting the event registry the asset system hooks into");
+    defer nya_system_events_deinit();
+
+    nya_system_asset_init();
+    defer nya_system_asset_deinit();
+
     NYA_Error started = nya_system_http_init((NYA_HttpConfig){ .port = port });
 
     if (!started.ok) {
@@ -521,7 +601,23 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_http_server_merge(nya_http_openapi_router()), "while merging the generated document");
     defer nya_http_server_unmerge(nya_http_openapi_router());
 
-    nya_log_info("Serving on http://127.0.0.1:%u — /docs for the generated page, ctrl-c to stop.", nya_http_server_port());
+    /*
+     * The page. The three files are read and hashed once here; merging puts the routes that built on
+     * the server, which is the same two steps every other resource here takes. The scratch arena is
+     * only alive for the read, because the mount keeps a copy of its own.
+     */
+    NYA_Arena* scratch = nya_arena_create(.name = "web_bundle_scratch");
+
+    NYA_EXPECT(mount_bundle(scratch), "while reading the web bundle");
+    defer nya_http_static_unmount();
+
+    nya_arena_destroy(scratch);
+
+    NYA_EXPECT(nya_http_server_merge(nya_http_static_router()), "while merging the web bundle");
+    defer nya_http_server_unmerge(nya_http_static_router());
+
+    nya_log_info("Serving on http://127.0.0.1:%u — / for the page, /docs for the generated one, ctrl-c to stop.", nya_http_server_port());
+    nya_log_info("The stylesheet is also at %s, cached for a year.", nya_http_static_url(NYA_ASSET_WEB_APP_CSS));
 
     /*
      * The drain is the whole loop. nya_system_http_tick accepts what is waiting, reads what has

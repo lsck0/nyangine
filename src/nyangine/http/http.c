@@ -9,6 +9,10 @@
 /**/
 #include "nyangine/http/http_router.c"
 /**/
+// after the router, whose route table it builds, and beside the server rather than inside it: the
+// bundle is a resource a program merges, not something the listener knows about.
+#include "nyangine/http/http_static.c"
+/**/
 // after the router, which it dispatches through, and before openapi, which reads its mount table.
 #include "nyangine/http/http_server.c"
 /**/
