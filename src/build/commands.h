@@ -11,6 +11,7 @@
  *   bench.c      `./build run bench`
  *   changelog.c  `./build version` and `./build changelog`
  *   check.c      `./build check`
+ *   lint.c       the rules `./build check` runs before clang-tidy
  *   dist.c       `./build dist`
  *   example.c    `./build run example`
  *   fuzz.c       `./build run fuzz`
@@ -92,6 +93,12 @@ void bench_runner(NYA_ArgCommand* command);
  * Runs clang-tidy over the translation units, optionally filtered.
  * */
 void check_runner(NYA_ArgCommand* command);
+
+/**
+ * The project's own rules, run by `./build check` before clang-tidy: banned calls, the module order, verb pairs,
+ * callers for every NYA_API, and .clangd against the build's flags. Prints each finding and returns how many.
+ * */
+u32 lint_run(void);
 
 /**
  * Builds and runs the tests, optionally filtered.

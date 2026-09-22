@@ -11,6 +11,8 @@
 #include "build/test.c"
 // After test.c: they borrow NYA_BuildRulePointer and its derived array, which test.c declares.
 #include "build/bench.c"
+#include "build/lint.c"
+// After lint.c, whose lint_run it calls before clang-tidy.
 #include "build/check.c"
 // Before dist.c: it defines build_capture, and writes the CHANGELOG.md every distribution ships.
 #include "build/changelog.c"

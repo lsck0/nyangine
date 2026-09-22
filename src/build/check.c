@@ -41,6 +41,13 @@ void check_runner(NYA_ArgCommand* command) {
     nya_assert(strict != nullptr);
     nya_assert(nya_string_equals(strict->name, "strict"));
 
+    // the project's own rules first: they read the whole tree in about a second, where clang-tidy takes minutes.
+    // Only for a whole check, since a filter names translation units and these rules have none.
+    if (filters->values_count == 0) {
+        u32 findings = lint_run();
+        if (strict->value.as_b8 && findings > 0) nya_log_panic("The project's own rules found %u problem%s; see above.", findings, findings == 1 ? "" : "s");
+    }
+
     /*
      * The four roots, each with the flag set its own build rule uses.
      *
