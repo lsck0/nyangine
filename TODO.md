@@ -150,6 +150,12 @@ Found on the way, and since fixed:
   `[x]` The nn and cursor clusters, which were the last two the audit named by size. **81 down to 36**,
   recounted rather than subtracted: the earlier arithmetic in this entry was me taking numbers off a
   total instead of re-running the sweep, and the sweep is the only thing that knows.
+- `[!]` `tests/gnyame/test_agent` can hang indefinitely, and it outlives the `timeout` the runner wraps it
+  in. Seen twice on 2026-09-22: one instance orphaned for 5h32m, and a later suite run stuck on it for
+  40m against a normal suite time of about 8 minutes. It is not every run — the suite passed 235 of 235
+  several times the same day — so it is intermittent, and it has no wall clock bound of its own
+  (`--episodes` and `--ticks` bound the work, nothing bounds the time). A hung test that escapes its own
+  timeout is worse than a failing one: it stops the suite without saying anything. Give it a deadline.
 - `[!]` The audit's method is worth being honest about. Two earlier runs of it were wrong and were caught
   by spot checking: one missed `bench/` and called the benchmark harness dead, another excluded headers
   and called `nya_physics3d_body_attach_with_options` dead when it is reached through a macro. A sweep
