@@ -136,7 +136,10 @@ Found on the way, and since fixed:
   2D radius query already had in the simulation harness.
   `[x]` The window cluster, `test_window_state.c`, and it found a real bug: `nya_window_is_visible` is
   the only one of the family that reads the absence of a flag, so on the zero flags of a handle that is
-  not a window it answered true. 81 down to 39.
+  not a window it answered true.
+  `[x]` The rng and audio clusters: the four sampled widths and the four audio calls, each carrying the
+  one assertion a bug would hide behind — that a signed width reaches a negative at all, and that an
+  unspecified 3D facing becomes -z rather than the raw zero. 81 down to 31.
 - `[!]` The audit's method is worth being honest about. Two earlier runs of it were wrong and were caught
   by spot checking: one missed `bench/` and called the benchmark harness dead, another excluded headers
   and called `nya_physics3d_body_attach_with_options` dead when it is reached through a macro. A sweep
