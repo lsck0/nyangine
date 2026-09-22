@@ -466,7 +466,62 @@ s32 main(void) {
         nya_assert(!nya_http_response_text(&response, "no", NYA_HTTP_MEDIA_TEXT).ok);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: application/nya as a body type, in both directions
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        /*
+         * The native format is what two nyangine programs talk in: it parses substantially faster
+         * than JSON and carries the same NYA_Object. JSON stays the answer for everyone else, which
+         * is the half worth testing hardest — an integration that has never heard of this engine
+         * must not be handed a body it cannot read.
+         */
+        NYA_HttpRequest* request  = nullptr;
+        u64              consumed = 0;
+        NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
+
+        NYA_ConstCString native = "POST /a HTTP/1.1\r\nContent-Type: application/nya\r\nContent-Length: 30\r\n\r\n"
+                                  "nya 2 0\n{ name: string \"ny\"; }\n";
+
+        nya_assert(parse(arena, native, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_check(request->media_type == NYA_HTTP_MEDIA_NYA, "application/nya is recognised, got %d", (int)request->media_type);
+
+        NYA_Object* document = nullptr;
+        nya_check(nya_http_request_document(request, arena, &document).ok, "and parses as a document");
+
+        if (document != nullptr) {
+            NYA_Value* name = nya_object_get(document, "name");
+            nya_check(name != nullptr && name->type == NYA_TYPE_STRING, "with its fields in it");
+        }
+
+        // The JSON-only entry point refuses it by name rather than parsing it by accident.
+        NYA_Object* refused = nullptr;
+        nya_check(!nya_http_request_json(request, arena, &refused).ok, "nya_http_request_json refuses a native body");
+
+        // ── what the caller is answered in ──
+        NYA_HttpRequest* asking = nullptr;
+
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: application/nya\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_NYA, "a caller that names it is answered in it");
+
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: application/json\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_JSON, "one that names JSON gets JSON");
+
+        /*
+         * The two that decide whether this is safe to turn on. A browser sends the wildcard and has
+         * never heard of this format, and a caller with no Accept at all has said nothing — neither
+         * is a statement that the native format can be read.
+         */
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: */*\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_JSON, "a wildcard is not a request for the native format");
+
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_JSON, "and neither is no Accept header at all");
+
+        printf("  PASSED\n");
+    }
+
     printf("PASSED: http message\n");
 
-    return EXIT_SUCCESS;
+    return nya_check_failures() == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -369,7 +369,7 @@ b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString
     return false;
 }
 
-NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena, NYA_Object** out_object) {
+NYA_Error nya_http_request_document(const NYA_HttpRequest* request, NYA_Arena* arena, NYA_Object** out_object) {
     nya_assert(request != nullptr);
     nya_assert(arena != nullptr);
     nya_assert(out_object != nullptr);
@@ -378,21 +378,64 @@ NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena
 
     if (request->body_size == 0) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the request has no body");
 
-    if (request->media_type != NYA_HTTP_MEDIA_JSON) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the request body is not JSON");
+    /*
+     * Whichever of the two the caller announced. A handler asks for a document and does not care
+     * which one arrived: both parse to the same NYA_Object, which is the point of having one
+     * vocabulary type.
+     */
+    NYA_SerdeFormat format = NYA_SERDE_FORMAT_COUNT;
 
-    NYA_TRY(nya_deserialize(arena, request->body, request->body_size, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE, out_object));
+    if (request->media_type == NYA_HTTP_MEDIA_JSON) format = NYA_SERDE_FORMAT_JSON;
+    if (request->media_type == NYA_HTTP_MEDIA_NYA) format = NYA_SERDE_FORMAT_NYA;
 
-    if (*out_object == nullptr) return nya_error(NYA_ERROR_PARSE, "the request body is not a JSON object");
+    if (format == NYA_SERDE_FORMAT_COUNT) {
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the request body is neither application/json nor application/nya");
+    }
+
+    /*
+     * No checksum. The native format carries one for a file on disk, where a torn write is the thing
+     * it guards against; a request body has TCP underneath it and is signed or not at a different
+     * layer entirely, and enforcing it here would refuse every document a client composed by hand.
+     */
+    NYA_TRY(nya_deserialize(arena, request->body, request->body_size, format, NYA_SERDE_NO_CHECKSUM, out_object));
+
+    if (*out_object == nullptr) return nya_error(NYA_ERROR_PARSE, "the request body is not an object");
 
     return NYA_OK;
+}
+
+NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena, NYA_Object** out_object) {
+    nya_assert(request != nullptr);
+
+    if (request->media_type == NYA_HTTP_MEDIA_NYA) {
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "the request body is application/nya; use nya_http_request_document");
+    }
+
+    return nya_http_request_document(request, arena, out_object);
+}
+
+NYA_HttpMediaType nya_http_request_accepts(const NYA_HttpRequest* request) {
+    nya_assert(request != nullptr);
+
+    /*
+     * The native format only when the caller named it. Anything else answers JSON, including no
+     * Accept header at all and the wildcard a browser sends: a client that has never heard of this
+     * engine must not be handed a body it cannot read, and a wildcard is not a statement that it can.
+     */
+    NYA_ConstCString accepted = nya_http_request_header(request, "accept");
+
+    if (accepted != nullptr && strstr(accepted, "application/nya") != nullptr) return NYA_HTTP_MEDIA_NYA;
+
+    return NYA_HTTP_MEDIA_JSON;
 }
 
 NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, void* out_dto) {
     nya_assert(type != nullptr);
     nya_assert(out_dto != nullptr);
 
+    // Either document format, since a DTO is filled from the NYA_Object and not from the bytes.
     NYA_Object* document = nullptr;
-    NYA_TRY(nya_http_request_json(request, arena, &document));
+    NYA_TRY(nya_http_request_document(request, arena, &document));
 
     // zeroed rather than left alone: nya_reflect_from_object skips a field the document omits, and the
     // DTO the caller handed us may be a stack struct holding the last request's values.
@@ -491,17 +534,26 @@ NYA_Error nya_http_response_printf(NYA_HttpResponse* response, NYA_HttpMediaType
     return NYA_OK;
 }
 
-NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object) {
+NYA_Error nya_http_response_document(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object, NYA_HttpMediaType media) {
     nya_assert(arena != nullptr);
     nya_assert(object != nullptr);
 
-    NYA_String* text = nya_serialize(arena, object, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
+    // Anything other than the two document types is a caller's mistake, not a negotiation outcome.
+    const NYA_SerdeFormat format = media == NYA_HTTP_MEDIA_NYA ? NYA_SERDE_FORMAT_NYA : NYA_SERDE_FORMAT_JSON;
+    if (media != NYA_HTTP_MEDIA_NYA) media = NYA_HTTP_MEDIA_JSON;
+
+    NYA_String* text = nya_serialize(arena, object, format, NYA_SERDE_NO_CHECKSUM);
     if (text == nullptr) return nya_error(NYA_ERROR_NOT_OK, "the response document could not be serialized");
 
-    return nya_http_response_bytes(response, (const u8*)text->items, text->length, NYA_HTTP_MEDIA_JSON);
+    return nya_http_response_bytes(response, (const u8*)text->items, text->length, media);
 }
 
-NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto) {
+NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object) {
+    return nya_http_response_document(response, arena, object, NYA_HTTP_MEDIA_JSON);
+}
+
+NYA_Error nya_http_response_reflect_as(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto,
+                                       NYA_HttpMediaType media) {
     nya_assert(arena != nullptr);
     nya_assert(type != nullptr);
     nya_assert(dto != nullptr);
@@ -509,7 +561,11 @@ NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena
     NYA_Object* document = nya_reflect_to_object(arena, type, dto);
     if (document == nullptr) return nya_error(NYA_ERROR_NOT_OK, "%s could not be described as a document", type->name);
 
-    return nya_http_response_json(response, arena, document);
+    return nya_http_response_document(response, arena, document, media);
+}
+
+NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto) {
+    return nya_http_response_reflect_as(response, arena, type, dto, NYA_HTTP_MEDIA_JSON);
 }
 
 NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString name, NYA_ConstCString value) {

@@ -160,6 +160,28 @@ NYA_API b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_Cons
  * NYA_ERROR_INVALID_ARGUMENT rather than an empty document, since "no body" and "{}" are different
  * requests.
  * */
+/**
+ * The body as a document, whichever of the two formats the caller announced.
+ *
+ * `application/json` and `application/nya` both parse to an NYA_Object, so a handler asks for a
+ * document and never learns which arrived. The native format is what two nyangine programs use
+ * between themselves; JSON is what everything else uses, and neither is privileged here.
+ *
+ * The native format's checksum is not enforced: it guards a file on disk against a torn write, and a
+ * request body has TCP underneath it. Enforcing it would refuse every document composed by hand.
+ * */
+NYA_API NYA_Error nya_http_request_document(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object) __attr_no_discard;
+
+/**
+ * Which document format this caller asked to be answered in.
+ *
+ * NYA_HTTP_MEDIA_NYA only when Accept names `application/nya`; JSON for everything else, including no
+ * Accept header and the wildcard a browser sends. A wildcard is not a statement that a client can read
+ * the native format, and a caller that has never heard of this engine must not be handed one.
+ * */
+NYA_API NYA_HttpMediaType nya_http_request_accepts(const NYA_HttpRequest* request) __attr_no_discard;
+
+/** The JSON half of nya_http_request_document. Refuses a body that announced the native format. */
 NYA_API NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object) __attr_no_discard;
 
 /**
@@ -203,6 +225,15 @@ NYA_API NYA_Error nya_http_response_printf(NYA_HttpResponse* response, NYA_HttpM
     __attr_fmt_printf(3, 4) __attr_no_discard;
 
 /** Renders `object` as JSON into the body. `arena` is scratch and holds nothing once this returns. */
+/**
+ * The body as a document in `media`, which is NYA_HTTP_MEDIA_JSON or NYA_HTTP_MEDIA_NYA.
+ *
+ * Pair with nya_http_request_accepts to answer a caller in whatever it asked for.
+ * */
+NYA_API NYA_Error nya_http_response_document(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object, NYA_HttpMediaType media)
+    __attr_no_discard;
+
+/** nya_http_response_document as JSON. */
 NYA_API NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object) __attr_no_discard;
 
 /**
@@ -210,6 +241,10 @@ NYA_API NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* 
  * here uses: the schema in the OpenAPI document is generated from the same table, so a field added to
  * the DTO appears in both without either being edited.
  * */
+/** nya_http_response_reflect in `media`, for a handler that has asked what the caller accepts. */
+NYA_API NYA_Error nya_http_response_reflect_as(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto,
+                                               NYA_HttpMediaType media) __attr_no_discard;
+
 NYA_API NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto)
     __attr_no_discard;
 

@@ -12,7 +12,8 @@
  * Then, from another terminal:
  *
  * ```
- * curl -X QUERY localhost:47800/api/notes -d '{}'
+ * curl -X QUERY localhost:47800/api/notes -H 'Content-Type: application/json' -d '{}'
+ * curl -X QUERY localhost:47800/api/notes -H 'Accept: application/nya' -d '{}'   # the native format
  * curl -X POST  localhost:47800/api/notes -d '{"text":"the first note"}'
  * curl -X DELETE localhost:47800/api/notes -d '{"id":1}'
  * curl localhost:47800/docs                 # the generated page
@@ -114,7 +115,13 @@ NYA_INTERNAL NYA_HttpStatus notes_query(NYA_HttpExchange* exchange) {
     nya_object_set(body, "count", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NOTE_COUNT });
     nya_object_set(body, "notes", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *notes });
 
-    if (!nya_http_response_json(exchange->response, exchange->arena, body).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+        /*
+     * In whatever the caller asked for. A nyangine client sends Accept: application/nya and gets the
+     * native document, which parses faster at both ends; anything else gets JSON.
+     */
+    const NYA_HttpMediaType answer = nya_http_request_accepts(exchange->request);
+
+    if (!nya_http_response_document(exchange->response, exchange->arena, body, answer).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     return NYA_HTTP_STATUS_OK;
 }
@@ -123,7 +130,7 @@ NYA_INTERNAL NYA_HttpStatus notes_query(NYA_HttpExchange* exchange) {
 NYA_INTERNAL NYA_HttpStatus notes_post(NYA_HttpExchange* exchange) {
     // A body that is not an object at all is the caller's mistake and answers 400, not 500.
     NYA_Object* incoming = nullptr;
-    if (!nya_http_request_json(exchange->request, exchange->arena, &incoming).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!nya_http_request_document(exchange->request, exchange->arena, &incoming).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_Value* text = nya_object_get(incoming, "text");
     if (text == nullptr || text->type != NYA_TYPE_STRING || text->as_string[0] == '\0') return NYA_HTTP_STATUS_BAD_REQUEST;
@@ -140,7 +147,11 @@ NYA_INTERNAL NYA_HttpStatus notes_post(NYA_HttpExchange* exchange) {
     NOTE_COUNT++;
 
     NYA_Value stored = note_to_value(exchange->arena, note);
-    if (!nya_http_response_json(exchange->response, exchange->arena, &stored.as_object).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+        const NYA_HttpMediaType answer = nya_http_request_accepts(exchange->request);
+
+    if (!nya_http_response_document(exchange->response, exchange->arena, &stored.as_object, answer).ok) {
+        return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    }
 
     return NYA_HTTP_STATUS_CREATED;
 }
@@ -148,7 +159,7 @@ NYA_INTERNAL NYA_HttpStatus notes_post(NYA_HttpExchange* exchange) {
 /** Removes one by id. */
 NYA_INTERNAL NYA_HttpStatus notes_delete(NYA_HttpExchange* exchange) {
     NYA_Object* incoming = nullptr;
-    if (!nya_http_request_json(exchange->request, exchange->arena, &incoming).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
+    if (!nya_http_request_document(exchange->request, exchange->arena, &incoming).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     /*
      * S64, not U64: serde parses every JSON integer as signed, because JSON does not say which it is.

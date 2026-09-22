@@ -230,6 +230,17 @@ enum NYA_HttpMediaType {
     NYA_HTTP_MEDIA_NONE = 0,
 
     NYA_HTTP_MEDIA_JSON,
+
+    /**
+     * The engine's own document format, `application/nya`.
+     *
+     * What two nyangine programs talk in. It parses substantially faster than JSON and carries the
+     * same NYA_Object, so a server answers either from one document and a client asks for whichever
+     * it can read. JSON stays the default for anything that did not ask, because an integration that
+     * has never heard of this engine must not have to learn a format to call it.
+     * */
+    NYA_HTTP_MEDIA_NYA,
+
     NYA_HTTP_MEDIA_TEXT,
     NYA_HTTP_MEDIA_HTML,
 

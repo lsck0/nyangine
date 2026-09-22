@@ -4348,7 +4348,9 @@ NYA_HTTP_MAX_RESPONSE_HEAD_BYTES 4864  // Bytes the rendered status line and hea
 NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, OUT NYA_HttpRequest* out_request, OUT u64* out_consumed, OUT NYA_HttpStatus* out_status)  // Parses one request out of the front of `data`.
 NYA_ConstCString nya_http_request_header(const NYA_HttpRequest* request, NYA_ConstCString name)  // The value of the header called `name`, or null when there is none.
 b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString name, OUT char* buffer, u64 capacity)  // Percent-decodes the query parameter called `name` into `buffer`, null terminated.
-NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object)  // The body as a serde document, allocated from `arena`.
+NYA_Error nya_http_request_document(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object)  // The body as a document, whichever of the two formats the caller announced.
+NYA_HttpMediaType nya_http_request_accepts(const NYA_HttpRequest* request)  // Which document format this caller asked to be answered in.
+NYA_Error nya_http_request_json(const NYA_HttpRequest* request, NYA_Arena* arena, OUT NYA_Object** out_object)  // The JSON half of nya_http_request_document.
 NYA_Error nya_http_request_reflect(const NYA_HttpRequest* request, NYA_Arena* arena, const NYA_TypeReflection* type, OUT void* out_dto)  // The body straight into `out_dto`, by the DTO's own reflection.
 void nya_http_response_create(OUT NYA_HttpResponse* response, u8* buffer, u64 capacity)
 void nya_http_response_destroy(NYA_HttpResponse* response)  // Unbinds it.
@@ -4356,8 +4358,10 @@ void nya_http_response_reset(NYA_HttpResponse* response)  // Empties the body, t
 NYA_Error nya_http_response_bytes(NYA_HttpResponse* response, const u8* data, u64 size, NYA_HttpMediaType media_type)  // NYA_ERROR_OUT_OF_MEMORY when the body would not fit, which is a bug in the handler and not in the request.
 NYA_Error nya_http_response_text(NYA_HttpResponse* response, NYA_ConstCString text, NYA_HttpMediaType media_type)
 NYA_Error nya_http_response_printf(NYA_HttpResponse* response, NYA_HttpMediaType media_type, NYA_ConstCString format, ...)
-NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object)  // Renders `object` as JSON into the body.
-NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto)  // Renders `dto` as JSON through its reflection.
+NYA_Error nya_http_response_document(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object, NYA_HttpMediaType media)  // The body as a document in `media`, which is NYA_HTTP_MEDIA_JSON or NYA_HTTP_MEDIA_NYA.
+NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_Object* object)  // nya_http_response_document as JSON.
+NYA_Error nya_http_response_reflect_as(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto, NYA_HttpMediaType media)  // nya_http_response_reflect in `media`, for a handler that has asked what the caller accepts.
+NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto)
 NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString name, NYA_ConstCString value)  // Adds one header.
 NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Renders the status line and every header into `buffer`, ending with the blank line.
 ```
@@ -4476,7 +4480,7 @@ The vocabulary of one HTTP exchange: what a client may ask, what this program ma
 // types
 enum NYA_HttpMethod { NYA_HTTP_METHOD_NONE = 0, NYA_HTTP_METHOD_GET, NYA_HTTP_METHOD_HEAD, NYA_HTTP_METHOD_QUERY, NYA_HTTP_METHOD_POST, NYA_HTTP_METHOD_PUT, NYA_HTTP_METHOD_PATCH, NYA_HTTP_METHOD_DELETE, NYA_HTTP_METHOD_OPTIONS, NYA_HTTP_METHOD_COUNT, }  // The verb.
 enum NYA_HttpStatus { NYA_HTTP_STATUS_NONE = 0, NYA_HTTP_STATUS_OK = 200, NYA_HTTP_STATUS_CREATED = 201, NYA_HTTP_STATUS_NO_CONTENT = 204, NYA_HTTP_STATUS_BAD_REQUEST = 400, NYA_HTTP_STATUS_UNAUTHORIZED = 401, NYA_HTTP_STATUS_FORBIDDEN = 403, NYA_HTTP_STATUS_NOT_FOUND = 404, NYA_HTTP_STATUS_METHOD_NOT_ALLOWED = 405, NYA_HTTP_STATUS_REQUEST_TIMEOUT = 408, NYA_HTTP_STATUS_LENGTH_REQUIRED = 411, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE = 413, NYA_HTTP_STATUS_URI_TOO_LONG = 414, NYA_HTTP_STATUS_UNSUPPORTED_MEDIA = 415, NYA_HTTP_STATUS_UNPROCESSABLE = 422, NYA_HTTP_STATUS_HEADERS_TOO_LARGE = 431, NYA_HTTP_STATUS_INTERNAL_ERROR = 500, NYA_HTTP_STATUS_NOT_IMPLEMENTED = 501, NYA_HTTP_STATUS_SERVICE_UNAVAILABLE = 503, NYA_HTTP_STATUS_HTTP_VERSION = 505, }  // Every status this server can produce, and the only values a handler may return.
-enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
+enum NYA_HttpMediaType { NYA_HTTP_MEDIA_NONE = 0, NYA_HTTP_MEDIA_JSON, NYA_HTTP_MEDIA_NYA, NYA_HTTP_MEDIA_TEXT, NYA_HTTP_MEDIA_HTML, NYA_HTTP_MEDIA_OTHER, NYA_HTTP_MEDIA_COUNT, }  // What a body is, as a closed set rather than a string.
 struct NYA_HttpHeader { char name[NYA_HTTP_MAX_HEADER_NAME]; char value[NYA_HTTP_MAX_HEADER_VALUE]; }  // One header, both halves bounded and null terminated.
 struct NYA_HttpRequest { NYA_HttpMethod method; char path[NYA_HTTP_MAX_PATH]; char query[NYA_HTTP_MAX_QUERY]; NYA_HttpHeader headers[NYA_HTTP_MAX_HEADERS]; u32 header_count; NYA_HttpMediaType media_type; b8 keep_alive; u8 body[NYA_HTTP_MAX_BODY_BYTES + 1]; u64 body_size; }  // A request that parsed.
 struct NYA_HttpResponse { NYA_HttpStatus status; NYA_HttpMediaType media_type; NYA_HttpHeader headers[NYA_HTTP_MAX_RESPONSE_HEADERS]; u32 header_count; u8* body; u64 body_capacity; u64 body_size; }  // What a handler fills in.
