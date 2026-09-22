@@ -24,7 +24,8 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 - [`nn`](#nn) — Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else.
 - [`debug`](#debug) — The overlay, the trace, the crash window, and drawing physics shapes and networks.
 - [`plugins`](#plugins) — Optional dependencies behind a flag: curl, sqlite, lua, discord, steam.
-- [`platform`](#platform) — The thin OS layer: clock, filesystem, process spawning, signals and raw memory.
+- [`platform`](#platform) — The thin OS layer: clock, filesystem, process spawning, signals and the terminal.
+- [`os`](#os) — The syscalls themselves: pages, the two clocks, the kernel's random source.
 
 ## base
 
@@ -5411,7 +5412,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size)  // Wher
 
 ## platform
 
-The thin OS layer: clock, filesystem, process spawning, signals and raw memory.
+The thin OS layer: clock, filesystem, process spawning, signals and the terminal.
 
 ### clock.h
 
@@ -5649,35 +5650,11 @@ b8 nya_ipc_peer_equals(NYA_IpcPeerId a, NYA_IpcPeerId b)
 b8 nya_ipc_peer_is_set(NYA_IpcPeerId peer)  // Whether an id names a connection at all.
 ```
 
-### memory.h
-
-```c
-// functions
-u64 nya_memory_page_size(void)  // Bytes per page, which every commit is rounded to.
-void* nya_memory_reserve(u64 size)
-b8 nya_memory_commit(void* address, u64 size)  // Makes a reserved range readable and writable, rounded out to whole pages.
-void nya_memory_release(void* address, u64 size)  // Returns a whole reservation, committed or not.
-u64 nya_memory_resident_bytes(const void* address, u64 size)  // Bytes of a mapped range that are in physical memory right now, in whole pages.
-u64 nya_memory_process_resident_bytes(void)  // The whole process's resident set: the working set on Windows.
-```
-
 ### platform.h
 
 ```c
 // functions
 u32 nya_platform_processor_count(void)  // Hardware threads available to this process, or 1 when that cannot be determined.
-```
-
-### random.h
-
-The operating system's random source, and nothing else. One function.
-
-```c
-// macros
-NYA_RANDOM_MAX_BYTES 4096  // Most bytes one call may ask for.
-
-// functions
-b8 nya_random_bytes(OUT u8* out, u64 size)  // Fills `out` with `size` unpredictable bytes.
 ```
 
 ### signals.h
@@ -5742,5 +5719,45 @@ b8 nya_terminal_image_draw(u16 column, u16 row, const u8* rgba, u32 width, u32 h
 void nya_terminal_image_clear(void)  // Removes every image this module has placed.
 u32 nya_terminal_ink(f32 red, f32 green, f32 blue)
 u32 nya_terminal_utf8_decode(const u8* bytes, u64 size, OUT u32* out_codepoint)  // One code point out of UTF-8 bytes.
+```
+
+## os
+
+The syscalls themselves: pages, the two clocks, the kernel's random source.
+
+### os_page.h
+
+Virtual memory straight from the operating system: address space, and pages behind it.
+
+```c
+// functions
+u64 nya_os_page_size(void)  // Bytes per page, which every commit is rounded to.
+void* nya_os_page_reserve(u64 size)
+b8 nya_os_page_commit(void* address, u64 size)  // Makes a reserved range readable and writable, rounded out to whole pages.
+b8 nya_os_page_release(void* address, u64 size)  // Returns a whole reservation, committed or not.
+u64 nya_os_page_resident_bytes(const void* address, u64 size)  // Bytes of a mapped range that are in physical memory right now, in whole pages.
+u64 nya_os_process_resident_bytes(void)  // The whole process's resident set: the working set on Windows.
+```
+
+### os_random.h
+
+The operating system's random source, and nothing else. One function.
+
+```c
+// macros
+NYA_OS_RANDOM_MAX_BYTES 4096  // Most bytes one call may ask for.
+
+// functions
+b8 nya_os_random_bytes(OUT u8* out, u64 size)  // Fills `out` with `size` unpredictable bytes.
+```
+
+### os_time.h
+
+The two clocks the operating system has, in nanoseconds and nothing else.
+
+```c
+// functions
+u64 nya_os_time_wall_ns(void)  // Nanoseconds since the Unix epoch, from the system clock.
+u64 nya_os_time_monotonic_ns(void)  // Nanoseconds from an arbitrary zero, counting up and never back.
 ```
 

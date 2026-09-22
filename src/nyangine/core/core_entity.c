@@ -89,7 +89,7 @@ void nya_system_entity_init(void) {
 
     *system = (NYA_EntitySystem){
         .allocator   = allocator,
-        .entities    = nya_memory_reserve(NYA_ENTITY_MAX * sizeof(NYA_Entity)),
+        .entities    = nya_os_page_reserve(NYA_ENTITY_MAX * sizeof(NYA_Entity)),
         .occupied    = nya_arena_alloc(allocator, NYA_ENTITY_MAX * sizeof(b8)),
         .generations = nya_arena_alloc(allocator, NYA_ENTITY_MAX * sizeof(u32)),
         .free_slots  = nya_arena_alloc(allocator, NYA_ENTITY_MAX * sizeof(u32)),
@@ -129,7 +129,8 @@ void nya_system_entity_deinit(void) {
 
     NYA_EntitySystem* system = &nya_world()->entity_system;
 
-    nya_memory_release(system->entities, NYA_ENTITY_MAX * sizeof(NYA_Entity));
+    b8 released = nya_os_page_release(system->entities, NYA_ENTITY_MAX * sizeof(NYA_Entity));
+    nya_assert(released, "the entity table's reservation could not be returned");
     nya_arena_destroy(system->allocator);
     *system = (NYA_EntitySystem){ 0 };
 
@@ -962,7 +963,7 @@ b8 _nya_entity_table_commit(NYA_EntitySystem* system) {
 
     u32 slots = nya_min((u32)NYA_ENTITY_COMMIT_SLOTS, NYA_ENTITY_MAX - system->committed_slots);
 
-    if (!nya_memory_commit(&system->entities[system->committed_slots], (u64)slots * sizeof(NYA_Entity))) return false;
+    if (!nya_os_page_commit(&system->entities[system->committed_slots], (u64)slots * sizeof(NYA_Entity))) return false;
 
     system->committed_slots += slots;
 

@@ -102,6 +102,14 @@ s32 main(void) {
     // 2020, i.e. > 1.5e18 ns; a monotonic clock counting since boot is far below that.
     u64 monotonic_now = nya_clock_get_monotonic_ns();
     nya_assert(monotonic_now < nya_time_ms_to_ns(year_2020_ms), "the monotonic clock is using the Unix epoch");
+
+    // the wall clock's four units are one os reading divided, so they must bracket each other too.
+    u64 wall_s  = nya_clock_get_timestamp_s();
+    u64 wall_µs = nya_clock_get_timestamp_µs();
+    u64 wall_ns = nya_clock_get_timestamp_ns();
+
+    nya_assert(nya_time_s_to_µs(wall_s) <= wall_µs, "wall s disagrees with µs");
+    nya_assert(nya_time_µs_to_ns(wall_µs) <= wall_ns + nya_time_ms_to_ns(1), "wall µs disagrees with ns");
   }
   printf("  PASSED\n");
 

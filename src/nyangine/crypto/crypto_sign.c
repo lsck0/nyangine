@@ -1,7 +1,7 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/crypto/crypto_secret.h"
 #include "nyangine/crypto/crypto_sign.h"
-#include "nyangine/platform/random/random.h"
+#include "nyangine/os/os_random.h"
 #include "monocypher.h"
 #include "optional/monocypher-ed25519.h"
 

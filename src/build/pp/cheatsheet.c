@@ -112,7 +112,8 @@ NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
     { "nn",       "nn",       "Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else."        },
     { "debug",    "debug",    "The overlay, the trace, the crash window, and drawing physics shapes and networks."        },
     { "plugins",  "plugins",  "Optional dependencies behind a flag: curl, sqlite, lua, discord, steam."                  },
-    { "platform", "platform", "The thin OS layer: clock, filesystem, process spawning, signals and raw memory."          },
+    { "platform", "platform", "The thin OS layer: clock, filesystem, process spawning, signals and the terminal."      },
+    { "os",       "os",       "The syscalls themselves: pages, the two clocks, the kernel's random source."              },
 };
 
 /*

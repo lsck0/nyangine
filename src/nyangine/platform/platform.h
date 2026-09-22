@@ -7,8 +7,6 @@
 #include "nyangine/platform/filesystem/filesystem.h"
 #include "nyangine/platform/host/host.h"
 #include "nyangine/platform/ipc/ipc.h"
-#include "nyangine/platform/memory/memory.h"
-#include "nyangine/platform/random/random.h"
 #include "nyangine/platform/signals/signals.h"
 #include "nyangine/platform/terminal/terminal.h"
 

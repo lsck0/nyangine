@@ -168,7 +168,7 @@ NYA_INTERNAL void _nya_crash_append_platform(OUT u8* buffer, u32 capacity, OUT u
 
     // What this process holds, beside what the machine has: a leak shows as the two diverging, and the
     // pair together is what says whether the machine ran out or this program did.
-    u64 resident = nya_memory_process_resident_bytes();
+    u64 resident = nya_os_process_resident_bytes();
     if (resident > 0) {
         _nya_crash_format_bytes(resident, amount, (u32)sizeof(amount));
         _nya_crash_append(buffer, capacity, length, "  ram used  %s resident in this process\n", (NYA_ConstCString)amount);

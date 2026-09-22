@@ -1,10 +1,45 @@
 #include "nyangine/base/base.h"
+#include "nyangine/os/os_time.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+/*
+ * Both clocks are one os call in nanoseconds, and every unit below is that number divided. This used
+ * to be two files of seven functions, each doing its own conversion from the platform's own epoch and
+ * its own tick rate, which is seven chances for the two targets to disagree about the same moment.
+ */
+
+u64 nya_clock_get_timestamp_s(void) {
+    return nya_os_time_wall_ns() / 1'000'000'000ULL;
+}
+
+u64 nya_clock_get_timestamp_ms(void) {
+    return nya_os_time_wall_ns() / 1'000'000ULL;
+}
+
+u64 nya_clock_get_timestamp_µs(void) {
+    return nya_os_time_wall_ns() / 1'000ULL;
+}
+
+u64 nya_clock_get_timestamp_ns(void) {
+    return nya_os_time_wall_ns();
+}
+
+u64 nya_clock_get_monotonic_ms(void) {
+    return nya_os_time_monotonic_ns() / 1'000'000ULL;
+}
+
+u64 nya_clock_get_monotonic_µs(void) {
+    return nya_os_time_monotonic_ns() / 1'000ULL;
+}
+
+u64 nya_clock_get_monotonic_ns(void) {
+    return nya_os_time_monotonic_ns();
+}
 
 /*
  * Civil date from a day count, after Howard Hinnant's chrono algorithms. Not localtime_r or gmtime_r:

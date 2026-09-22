@@ -1,7 +1,7 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/crypto/crypto_aead.h"
 #include "nyangine/crypto/crypto_secret.h"
-#include "nyangine/platform/random/random.h"
+#include "nyangine/os/os_random.h"
 #include "monocypher.h"
 
 /*
@@ -25,7 +25,7 @@ NYA_INTERNAL void _nya_crypto_aead_message_check(NYA_CryptoAeadMessage message);
 NYA_Error nya_crypto_nonce_random(OUT NYA_CryptoNonce24* out_nonce) {
     nya_assert(out_nonce != nullptr);
 
-    if (!nya_random_bytes(out_nonce->bytes, sizeof(out_nonce->bytes))) {
+    if (!nya_os_random_bytes(out_nonce->bytes, sizeof(out_nonce->bytes))) {
         *out_nonce = (NYA_CryptoNonce24){ 0 };
         return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
     }

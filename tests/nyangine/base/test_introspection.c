@@ -91,7 +91,7 @@ s32 main(void) {
 
     nya_assert(nya_arena_resident_bytes(arena) == 0, "an arena without regions holds nothing");
 
-    u64 page    = nya_memory_page_size();
+    u64 page    = nya_os_page_size();
     u8* written = nya_arena_alloc(arena, 64 * page);
     nya_memset(written, 0x5A, 64 * page);
 

@@ -1,7 +1,7 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/crypto/crypto_exchange.h"
 #include "nyangine/crypto/crypto_secret.h"
-#include "nyangine/platform/random/random.h"
+#include "nyangine/os/os_random.h"
 #include "monocypher.h"
 
 /*
@@ -18,7 +18,7 @@ NYA_Error nya_crypto_exchange_key_pair_create(OUT NYA_CryptoExchangeKeyPair* out
     NYA_CryptoExchangeSecretKey secret = { 0 };
     defer                       nya_crypto_wipe(&secret, sizeof(secret));
 
-    if (!nya_random_bytes(secret.bytes, sizeof(secret.bytes))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
+    if (!nya_os_random_bytes(secret.bytes, sizeof(secret.bytes))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
 
     nya_crypto_exchange_key_pair_from_secret(&secret, out_key_pair);
 

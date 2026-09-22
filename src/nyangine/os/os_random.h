@@ -1,11 +1,11 @@
 /**
- * @file random.h
+ * @file os_random.h
  *
  * The operating system's random source, and nothing else. One function.
  *
  * ```c
  * u8 key[32];
- * if (!nya_random_bytes(key, sizeof(key))) {
+ * if (!nya_os_random_bytes(key, sizeof(key))) {
  *     nya_log_error("the system random source failed; not generating an identity");
  *     return nya_error(NYA_ERROR_NOT_OK, "no entropy");
  * }
@@ -36,7 +36,7 @@
  * the loop and the Windows `ULONG` cast. A larger request is a programming mistake, not a runtime
  * condition, so it asserts rather than returning false.
  * */
-#define NYA_RANDOM_MAX_BYTES 4096
+#define NYA_OS_RANDOM_MAX_BYTES 4096
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -51,7 +51,8 @@
  * to crash: a headless box with a starved pool is a real thing, and the caller decides whether it
  * can continue without the bytes. `out` holds nothing meaningful then and must not be used.
  *
- * `size` must be between 1 and NYA_RANDOM_MAX_BYTES; anything else is a programming mistake and
- * asserts.
+ * False as well when `out` is null or `size` is zero or past NYA_OS_RANDOM_MAX_BYTES. Those are
+ * programming mistakes rather than runtime conditions, but this layer is below the assertion
+ * machinery, so it refuses instead: the caller checks the return either way.
  * */
-NYA_API b8 nya_random_bytes(OUT u8* out, u64 size) __attr_no_discard;
+NYA_API b8 nya_os_random_bytes(OUT u8* out, u64 size) __attr_no_discard;

@@ -419,7 +419,7 @@ NYA_Error nya_websocket_create(NYA_Arena* arena, NYA_WebSocketOptions options, O
 
     u8 nonce[NYA_WEBSOCKET_KEY_BYTES] = { 0 };
 
-    if (!nya_random_bytes(nonce, sizeof(nonce))) {
+    if (!nya_os_random_bytes(nonce, sizeof(nonce))) {
         nya_arena_free(arena, socket->message, ceiling + 1);
         nya_arena_free(arena, socket, sizeof(NYA_WebSocket));
 
@@ -1045,7 +1045,7 @@ NYA_Error _nya_websocket_queue_frame(NYA_WebSocket* socket, NYA_WebSocketOpcode 
     }
 
     u8 mask[4] = { 0 };
-    if (!nya_random_bytes(mask, sizeof(mask))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed, so no mask could be made");
+    if (!nya_os_random_bytes(mask, sizeof(mask))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed, so no mask could be made");
 
     u8  header[NYA_WEBSOCKET_MAX_HEADER_BYTES] = { 0 };
     u64 header_size                            = 0;

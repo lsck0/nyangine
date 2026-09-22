@@ -60,7 +60,7 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
     { "nya_gpu_transfer_buffer_create", "created and released: the pair is create/release, which the vocabulary does not list" },
     { "nya_gpu_transfer_buffer_release", "created and released: the pair is create/release, which the vocabulary does not list" },
     { "nya_input_source_release", "created and released: the pair is create/release, which the vocabulary does not list" },
-    { "nya_memory_release", "created and released: the pair is create/release, which the vocabulary does not list" },
+    { "nya_os_page_release", "created and released: the pair is create/release, which the vocabulary does not list" },
     { "nya_render3d_mesh_release", "created and released: the pair is create/release, which the vocabulary does not list" },
     { "nya_terrain2d_release", "created and released: the pair is create/release, which the vocabulary does not list" },
     { "nya_terrain3d_release", "created and released: the pair is create/release, which the vocabulary does not list" },

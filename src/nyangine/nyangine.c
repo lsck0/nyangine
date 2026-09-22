@@ -1,3 +1,6 @@
+// first: base's arena takes its pages from it and its clock reads from it.
+#include "nyangine/os/os.c"
+
 #include "nyangine/base/base.c"
 #include "nyangine/math/math.c"
 #include "nyangine/nn/nn.c"

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "nyangine/base/base.h"
+#include "nyangine/os/os.h"
 #include "nyangine/crypto/crypto.h"
 #include "nyangine/math/math.h"
 #include "nyangine/nn/nn.h"

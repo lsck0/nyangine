@@ -188,7 +188,7 @@ s32 main(void) {
     printf("TEST: a TOTP secret, the size RFC 6238 asks for\n");
     {
         u8 secret[20];
-        nya_assert(nya_random_bytes(secret, sizeof(secret)));
+        nya_assert(nya_os_random_bytes(secret, sizeof(secret)));
 
         char text[NYA_CRYPTO_BASE32_LENGTH(20) + 1] = { 0 };
         u64  length                                 = 0;

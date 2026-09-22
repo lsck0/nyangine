@@ -88,9 +88,19 @@ NYA_INTERNAL const _LintBannedCall _LINT_BANNED_CALLS[] = {
  * the roadmap calls `app`.
  */
 NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
-    { "base",     0 }, { "platform", 1 }, { "math",    1 }, { "serde",   2 }, { "nn",      2 }, { "crypto",  2 }, { "net",     3 },
-    { "http",     4 }, { "core",     5 }, { "renderer", 6 }, { "ui",      7 }, { "physics", 8 }, { "debug",   9 }, { "testing", 10 },
-    { "plugins",  10 },
+    { "os",       0 }, { "base",     1 }, { "platform", 2 }, { "math",    2 }, { "serde",   3 }, { "nn",      3 }, { "crypto",  3 },
+    { "net",      4 }, { "http",     5 }, { "core",     6 }, { "renderer", 7 }, { "ui",      8 }, { "physics", 9 }, { "debug",   10 },
+    { "testing",  11 }, { "plugins", 11 },
+};
+
+/**
+ * Headers every module may include whatever its rank: type names, attribute macros and the libc
+ * includes. They declare no function, so nothing can depend on them in the sense the rule is about.
+ * */
+NYA_INTERNAL const NYA_ConstCString _LINT_PRELUDE[] = {
+    "base/base_basic.h",
+    "base/base_types.h",
+    "base/base_attributes.h",
 };
 
 /** The pairs from the style guide's verb vocabulary, with the engine's own init/deinit for init/shutdown. */
@@ -250,6 +260,14 @@ void _lint_rule_layering(Lint* lint) {
 
             // the umbrella header and same-module includes say nothing about the order.
             if (to == nullptr || nya_string_equals(to, from)) continue;
+
+            // the prelude is below every module, including the lowest: it is types, attributes and the
+            // libc includes, with no code in it at all, so depending on it cannot invert anything.
+            b8 prelude = false;
+            for (u32 index = 0; index < nya_carray_length(_LINT_PRELUDE); index++) {
+                prelude |= nya_string_ends_with(included, _LINT_PRELUDE[index]);
+            }
+            if (prelude) continue;
 
             const _LintModule* to_module = _lint_module_find(to);
             if (to_module == nullptr) continue;

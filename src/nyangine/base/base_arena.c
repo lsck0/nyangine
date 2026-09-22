@@ -632,7 +632,7 @@ u64 nya_arena_resident_bytes(NYA_Arena* arena) {
     nya_assert(arena != nullptr);
 
     u64 resident = 0;
-    nya_dll_foreach (arena, region) resident += nya_memory_resident_bytes(region->memory, region->capacity);
+    nya_dll_foreach (arena, region) resident += nya_os_page_resident_bytes(region->memory, region->capacity);
 
     return resident;
 }
@@ -694,7 +694,7 @@ void nya_arena_stats_report(void) {
     }
 
     nya_log_info("Arena: %-28s %8s %12" PRIu64 " %12" PRIu64 " %12" PRIu64, "TOTAL", "", total_used, total_reserved, total_resident);
-    nya_log_info("Arena: %-28s %8s %12s %12s %12" PRIu64, "PROCESS", "", "", "", nya_memory_process_resident_bytes());
+    nya_log_info("Arena: %-28s %8s %12s %12s %12" PRIu64, "PROCESS", "", "", "", nya_os_process_resident_bytes());
 }
 
 /*

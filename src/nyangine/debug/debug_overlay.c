@@ -416,7 +416,7 @@ NYA_ConstCString _nya_debug_format_bytes(u64 bytes) {
 }
 
 void _nya_debug_memory_sample(void) {
-    _NYA_DebugMemorySample sample = { .process_resident = nya_memory_process_resident_bytes() };
+    _NYA_DebugMemorySample sample = { .process_resident = nya_os_process_resident_bytes() };
 
     // the biggest arenas by used bytes. A partial selection sort, cheaper than sorting the registry to show six.
     u32 registry_count = nya_arena_registry_count();

@@ -12,7 +12,7 @@
 #include "nyangine/core/core_event.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/platform/clock/clock.h"
-#include "nyangine/platform/random/random.h"
+#include "nyangine/os/os_random.h"
 #include "SDL3_net/SDL_net.h"
 
 /*
@@ -690,7 +690,7 @@ void _nya_http_request_id(OUT char* out) {
 
     // an id only has to be unique, not secret, so a CSPRNG that fails falls back to the request count
     // rather than refusing the request.
-    if (!nya_random_bytes(bits, sizeof(bits))) {
+    if (!nya_os_random_bytes(bits, sizeof(bits))) {
         for (u32 index = 0; index < sizeof(bits); index++) bits[index] = (u8)(_NYA_HTTP->request_count >> (index * 8));
     }
 

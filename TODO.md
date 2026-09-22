@@ -978,7 +978,7 @@ Each changes what gets built. A recommendation is given; the call is mine.
 - `[x]` **How a new program uses nyangine.** Decided 2026-09-22: programs live in this tree for now, beside
   gnyame: one repository, one build, and every engine change tested against every program. Moving a program
   into its own repository with nyangine as a pinned submodule is for later, once the engine stops being clay.
-- `[ ]` **Where base gets pages, time and files.** Found 2026-09-22 while taking `base` off `platform`. The four
+- `[~]` **Where base gets pages, time and files.** Found 2026-09-22 while taking `base` off `platform`. The four
   includes the lint rule counts are the visible part: arenas reserve and commit pages (`platform/memory`), perf and
   logging read clocks, the log's file sink opens and appends to a file, and `base_file`, `base_build` (the build
   framework), `base_integrity` and `base_version` are OS services that happen to live in `base`. The target says
@@ -995,6 +995,15 @@ Each changes what gets built. A recommendation is given; the call is mine.
   Recommendation: the first. It is what the other two converge to once the page provider and the clock need a
   home, and a web target then implements `os` once (pages from `memory.grow`, time from the host) instead of
   every module learning about wasm.
+
+  Decided 2026-09-22: the first, and started. `src/nyangine/os/` is rank zero, below `base`, and holds pages
+  (was `platform/memory`), the kernel's random source (was `platform/random`) and the two clocks in nanoseconds.
+  Nothing in it may include anything above `base_types.h`, `base_attributes.h` and `base_basic.h` — the prelude,
+  which the lint rule exempts because it declares no function — so nothing there asserts: an `os` call reports
+  failure and the layer above decides what it means. `platform/clock` is now seven functions over two `os` calls
+  where it was seven functions twice. Still to move: the file handles, directory iteration and process spawning,
+  and with them `nya_filesystem_*` and `nya_command_*`, which `base` calls and which therefore belong in `base`
+  rather than `platform` once they sit on `os`.
 - `[x]` **`nn` in the engine.** Decided 2026-09-22: it stays a library module, usable by any program, and
   it is also a testing mechanism: a DQN or NEAT agent plays a UI or a game through the input queue the way a
   person would (`testing_agent.h`). It extends to every example that has a UI, not only gnyame: the TUI and

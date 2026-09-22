@@ -12,7 +12,7 @@
  *
  * ```c
  * u8 salt[NYA_CRYPTO_ARGON2ID_SALT_BYTES] = { 0 };
- * if (!nya_random_bytes(salt, sizeof(salt))) return nya_error(NYA_ERROR_NOT_OK, "no entropy");
+ * if (!nya_os_random_bytes(salt, sizeof(salt))) return nya_error(NYA_ERROR_NOT_OK, "no entropy");
  *
  * NYA_Arena* scratch = nya_arena_create(.name = "login");
  * defer      nya_arena_destroy(scratch);

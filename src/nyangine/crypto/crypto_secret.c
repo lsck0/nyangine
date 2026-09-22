@@ -1,6 +1,6 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/crypto/crypto_secret.h"
-#include "nyangine/platform/random/random.h"
+#include "nyangine/os/os_random.h"
 #include "monocypher.h"
 
 /*
@@ -12,7 +12,7 @@
 NYA_Error nya_crypto_key_create(OUT NYA_CryptoKey32* out_key) {
     nya_assert(out_key != nullptr);
 
-    if (!nya_random_bytes(out_key->bytes, sizeof(out_key->bytes))) {
+    if (!nya_os_random_bytes(out_key->bytes, sizeof(out_key->bytes))) {
         nya_crypto_wipe(out_key, sizeof(*out_key));
         return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
     }

@@ -1,11 +1,12 @@
 #include <errno.h>
 #include <sys/random.h>
 
-#include "nyangine/nyangine.h"
+#include "nyangine/os/os_random.h"
 
-b8 nya_random_bytes(OUT u8* out, u64 size) {
-    nya_assert(out != nullptr);
-    nya_assert(size > 0 && size <= NYA_RANDOM_MAX_BYTES, "asked for %llu bytes of entropy", (unsigned long long)size);
+b8 nya_os_random_bytes(OUT u8* out, u64 size) {
+    // refused rather than asserted: this layer is below the assertion machinery, and a caller that
+    // asks for nothing or for more than the bound gets the same "no bytes" answer as a starved pool.
+    if (out == nullptr || size == 0 || size > NYA_OS_RANDOM_MAX_BYTES) return false;
 
     u64 filled = 0;
 
@@ -25,8 +26,6 @@ b8 nya_random_bytes(OUT u8* out, u64 size) {
 
         filled += (u64)got;
     }
-
-    nya_assert(filled == size);
 
     return true;
 }
