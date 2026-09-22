@@ -4390,7 +4390,7 @@ The wire boundary: bytes a stranger sent, in; bytes this program will send, out.
 enum NYA_HttpParse { NYA_HTTP_PARSE_INCOMPLETE = 0, NYA_HTTP_PARSE_DONE, NYA_HTTP_PARSE_REFUSED, }  // What one call to nya_http_request_parse decided.
 
 // macros
-NYA_HTTP_MAX_RESPONSE_HEAD_BYTES 4864  // Bytes the rendered status line and headers may take.
+NYA_HTTP_MAX_RESPONSE_HEAD_BYTES 5376  // Bytes the rendered status line and headers may take.
 
 // functions
 NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, OUT NYA_HttpRequest* out_request, OUT u64* out_consumed, OUT NYA_HttpStatus* out_status)  // Parses one request out of the front of `data`.

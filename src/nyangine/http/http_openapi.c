@@ -222,6 +222,16 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
     return NYA_OK;
 }
 
+/**
+ * The page's one style block, kept apart so the Content-Security-Policy the page is served with can name it by its
+ * hash: the page loads nothing else, and the server's default CSP would otherwise refuse even this.
+ * */
+#define _NYA_HTTP_PAGE_STYLE                                                                                                                     \
+    "body{font:14px ui-monospace,monospace;margin:2rem;max-width:60rem}"                                                                             \
+    "h2{margin-top:2rem}table{border-collapse:collapse;width:100%}"                                                                                  \
+    "td,th{border-bottom:1px solid #ccc;padding:.4rem;text-align:left;vertical-align:top}"                                                          \
+    "code{background:#f2f2f2;padding:.1rem .3rem}"
+
 NYA_Error nya_http_openapi_page(NYA_Arena* arena, NYA_String** out_html) {
     nya_assert(arena != nullptr);
     nya_assert(out_html != nullptr);
@@ -234,13 +244,7 @@ NYA_Error nya_http_openapi_page(NYA_Arena* arena, NYA_String** out_html) {
     NYA_String* html = nya_string_create(arena);
 
     nya_string_extend(html, "<!doctype html><meta charset=utf-8><title>nyangine</title>");
-    nya_string_extend(
-        html,
-        "<style>body{font:14px ui-monospace,monospace;margin:2rem;max-width:60rem}"
-        "h2{margin-top:2rem}table{border-collapse:collapse;width:100%}"
-        "td,th{border-bottom:1px solid #ccc;padding:.4rem;text-align:left;vertical-align:top}"
-        "code{background:#f2f2f2;padding:.1rem .3rem}</style>"
-    );
+    nya_string_extend(html, "<style>" _NYA_HTTP_PAGE_STYLE "</style>");
 
     nya_string_extend_sprintf(
         html,
@@ -361,6 +365,17 @@ NYA_HttpStatus _nya_http_docs_get(NYA_HttpExchange* exchange) {
     }
 
     NYA_Error written = nya_http_response_bytes(exchange->response, (const u8*)html->items, html->length, NYA_HTTP_MEDIA_HTML);
+
+    // the default policy with the page's own style block allowed by its hash, and nothing else loosened.
+    u8 digest[NYA_SHA256_BYTES] = { 0 };
+    nya_sha256((const u8*)_NYA_HTTP_PAGE_STYLE, sizeof(_NYA_HTTP_PAGE_STYLE) - 1, digest);
+
+    NYA_String* hash = nya_string_create(exchange->arena);
+    nya_base64_encode(hash, digest, sizeof(digest));
+
+    NYA_String* policy = nya_string_sprintf(exchange->arena, "default-src 'none'; style-src 'sha256-%.*s'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+                                            (int)hash->length, hash->items);
+    if (written.ok) written = nya_http_response_header(exchange->response, "Content-Security-Policy", nya_string_to_cstring(exchange->arena, policy));
 
     if (!written.ok) {
         nya_log_error("The documentation page is larger than the response buffer.");

@@ -82,10 +82,11 @@
 /**
  * Bytes the rendered status line and headers may take.
  *
- * Big enough for the fixed headers plus every custom one at its full bound, which the static assert
- * in http_message.c checks rather than trusting this number.
+ * Big enough for the fixed headers, the default security headers and every custom one at its full bound:
+ * 256 + 512 + 8 × (48 + 512 + 4) = 5280, rounded up. The static assert in http_message.c checks the sum rather
+ * than trusting this number.
  * */
-#define NYA_HTTP_MAX_RESPONSE_HEAD_BYTES 4864
+#define NYA_HTTP_MAX_RESPONSE_HEAD_BYTES 5376
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

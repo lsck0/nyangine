@@ -410,6 +410,21 @@ s32 main(void) {
 
         nya_assert(nya_string_starts_with(page, "HTTP/1.1 200 OK\r\n"));
         nya_assert(nya_string_contains(page, "Content-Type: text/html"));
+
+        // the policy names the style block the page actually carries, which is the check a browser makes.
+        NYA_ConstCString text  = nya_string_to_cstring(arena, page);
+        NYA_ConstCString open  = strstr(text, "<style>");
+        NYA_ConstCString close = open != nullptr ? strstr(open, "</style>") : nullptr;
+        nya_assert(open != nullptr && close != nullptr, "the page carries a style block");
+
+        u8 digest[NYA_SHA256_BYTES] = { 0 };
+        nya_sha256((const u8*)open + 7, (u64)(close - (open + 7)), digest);
+        NYA_String* hash = nya_string_create(arena);
+        nya_base64_encode(hash, digest, sizeof(digest));
+
+        NYA_String* allowed = nya_string_sprintf(arena, "style-src 'sha256-%.*s'", (int)hash->length, hash->items);
+        nya_assert(nya_string_contains(page, nya_string_to_cstring(arena, allowed)), "the CSP allows exactly the page's own style block");
+        nya_assert(nya_string_count(page, "Content-Security-Policy") == 1, "and replaces the default instead of adding to it");
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

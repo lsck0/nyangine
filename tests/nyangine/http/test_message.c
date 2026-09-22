@@ -475,6 +475,14 @@ s32 main(void) {
         nya_assert(nya_string_contains(rendered, "Date: Sun, 06 Nov 1994 08:49:37 GMT\r\n"), "every answer carries its Date");
         nya_assert(nya_string_ends_with(rendered, "\r\n\r\n"), "the head ends with the blank line");
 
+        // the security headers are on every answer, without a route or a layer having to ask.
+        nya_assert(nya_string_contains(rendered, "Content-Security-Policy: default-src 'none'; frame-ancestors 'none'"), "the strict CSP is the default");
+        nya_assert(nya_string_contains(rendered, "X-Content-Type-Options: nosniff\r\n"));
+        nya_assert(nya_string_contains(rendered, "Referrer-Policy: no-referrer\r\n"));
+        nya_assert(nya_string_contains(rendered, "Cross-Origin-Opener-Policy: same-origin\r\n"));
+        nya_assert(nya_string_contains(rendered, "Cross-Origin-Embedder-Policy: require-corp\r\n"));
+        nya_assert(nya_string_contains(rendered, "Cross-Origin-Resource-Policy: same-origin\r\n"));
+
         // a body larger than the buffer is the handler's mistake and is refused rather than truncated.
         u8 oversized[128] = { 0 };
         nya_assert(!nya_http_response_bytes(&response, oversized, sizeof(oversized), NYA_HTTP_MEDIA_TEXT).ok);
@@ -488,8 +496,16 @@ s32 main(void) {
 
         rendered = nya_string_from(arena, (NYA_ConstCString)head);
         nya_assert(nya_string_contains(rendered, "X-Fine: yes\r\n"));
+        nya_assert(nya_string_count(rendered, "Content-Security-Policy") == 1, "one policy, the default, while nothing replaced it");
         nya_assert(nya_string_contains(rendered, "Connection: close\r\n"));
         nya_assert(!nya_string_contains(rendered, "Injected"));
+
+        // a response that sets its own header of the same name, in any case, replaces the default rather than adding a second.
+        nya_assert(nya_http_response_header(&response, "content-security-policy", "default-src 'self'").ok);
+        nya_assert(nya_http_response_head(&response, NYA_HTTP_STATUS_OK, false, date, head, sizeof(head), &head_size).ok);
+        rendered = nya_string_from(arena, (NYA_ConstCString)head);
+        nya_assert(nya_string_count(rendered, "Content-Security-Policy") == 0 && nya_string_contains(rendered, "content-security-policy: default-src 'self'"),
+                   "the response's own policy replaced the default");
 
         // reset empties it without unbinding, which is what a layer replacing an answer does.
         nya_http_response_reset(&response);

@@ -18,9 +18,38 @@
 /** The fixed part of a rendered head: the status line, Content-Length, Content-Type, Connection and Date. */
 #define _NYA_HTTP_FIXED_HEAD_BYTES 256
 
+/*
+ * Written on every response, so no route, layer or error path can forget one. A response that sets a header of
+ * the same name itself replaces the default, which is how the /docs page names its one inline style block.
+ *
+ * The CSP is the strictest there is: nothing may load, nothing may frame it, and no form or <base> may point
+ * anywhere. JSON and .nya need no more, and a page that does says so in its own header. COEP and COOP are what
+ * a wasm client's threads need anyway. HSTS is left for TLS, since a browser ignores it over plain HTTP.
+ */
+#define _NYA_HTTP_DEFAULT_CSP "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
+NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SECURITY_HEADERS[][2] = {
+    { "Content-Security-Policy",      _NYA_HTTP_DEFAULT_CSP },
+    { "X-Content-Type-Options",       "nosniff" },
+    { "Referrer-Policy",              "no-referrer" },
+    { "Cross-Origin-Opener-Policy",   "same-origin" },
+    { "Cross-Origin-Embedder-Policy", "require-corp" },
+    { "Cross-Origin-Resource-Policy", "same-origin" },
+};
+
+/** Room for the defaults above, rendered: each name and value plus ": " and CRLF, with slack. Checked below. */
+#define _NYA_HTTP_SECURITY_HEAD_BYTES 512
+
+static_assert(
+    sizeof("Content-Security-Policy" _NYA_HTTP_DEFAULT_CSP "X-Content-Type-Options" "nosniff" "Referrer-Policy" "no-referrer"
+           "Cross-Origin-Opener-Policy" "same-origin" "Cross-Origin-Embedder-Policy" "require-corp" "Cross-Origin-Resource-Policy" "same-origin") +
+            (sizeof(": \r\n") - 1) * nya_carray_length(_NYA_HTTP_SECURITY_HEADERS) <= _NYA_HTTP_SECURITY_HEAD_BYTES,
+    "the default security headers outgrew the room kept for them"
+);
+
 static_assert(
     NYA_HTTP_MAX_RESPONSE_HEAD_BYTES >=
-        _NYA_HTTP_FIXED_HEAD_BYTES + NYA_HTTP_MAX_RESPONSE_HEADERS * (NYA_HTTP_MAX_HEADER_NAME + NYA_HTTP_MAX_HEADER_VALUE + 4),
+        _NYA_HTTP_FIXED_HEAD_BYTES + _NYA_HTTP_SECURITY_HEAD_BYTES + NYA_HTTP_MAX_RESPONSE_HEADERS * (NYA_HTTP_MAX_HEADER_NAME + NYA_HTTP_MAX_HEADER_VALUE + 4),
     "the rendered head buffer has to fit every custom header at its full bound, or a handler could be refused for a header it was allowed to set"
 );
 
@@ -605,6 +634,21 @@ NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatu
 
     (void)snprintf(line, sizeof(line), "Date: %s\r\n", (const char*)stamp);
     if (!_nya_http_head_append(buffer, capacity, &size, line)) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the response head does not fit");
+
+    for (u32 index = 0; index < nya_carray_length(_NYA_HTTP_SECURITY_HEADERS); index++) {
+        NYA_ConstCString name = _NYA_HTTP_SECURITY_HEADERS[index][0];
+
+        b8 replaced = false;
+        for (u32 custom = 0; custom < response->header_count && custom < NYA_HTTP_MAX_RESPONSE_HEADERS; custom++) {
+            replaced |= _nya_http_equals_ignore_case(response->headers[custom].name, strlen(response->headers[custom].name), name);
+        }
+        if (replaced) continue;
+
+        if (!_nya_http_head_append(buffer, capacity, &size, name) || !_nya_http_head_append(buffer, capacity, &size, ": ") ||
+            !_nya_http_head_append(buffer, capacity, &size, _NYA_HTTP_SECURITY_HEADERS[index][1]) || !_nya_http_head_append(buffer, capacity, &size, "\r\n")) {
+            return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the response head does not fit");
+        }
+    }
 
     for (u32 index = 0; index < response->header_count && index < NYA_HTTP_MAX_RESPONSE_HEADERS; index++) {
         if (!_nya_http_head_append(buffer, capacity, &size, response->headers[index].name) || !_nya_http_head_append(buffer, capacity, &size, ": ") ||

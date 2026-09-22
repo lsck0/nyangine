@@ -650,9 +650,13 @@ logged-in user.
     signature". The PGP component fills it, and without the component the option does not appear.
   - A `pgp` component, off by default; see "Decisions" for the library.
   A user may enrol both factors and use either one. Recovery codes cover losing both.
-- `[ ]` A security header layer on by default: a strict CSP generated from what the app serves, HSTS,
+- `[~]` A security header layer on by default: a strict CSP generated from what the app serves, HSTS,
   `nosniff`, `frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, and COOP/COEP, which wasm threads need
-  for `SharedArrayBuffer` anyway.
+  for `SharedArrayBuffer` anyway. Done in the response head writer rather than a layer, so no route, layer or
+  error path can skip it: every answer carries `default-src 'none'` with framing, `<base>` and form targets
+  shut, `nosniff`, `no-referrer`, COOP, COEP and CORP. A response that sets a header of the same name replaces
+  the default; `/docs` does, naming its one style block by SHA-256, and `test_server` checks the hash against
+  the page it serves. Left: HSTS, which waits for TLS, and generating the policy for the static web bundle.
 - `[ ]` A WebSocket server in `http`, sharing one frame codec with the curl client rather than a second copy.
   It is the live channel for the web client and the transport for browser multiplayer.
 - `[ ]` Static serving of the web bundle: content hashed names, immutable caching, ETags, precompressed at build.
