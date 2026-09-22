@@ -396,6 +396,52 @@ s32 main(void) {
 #undef TEST_NEAT_PATH
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the activations and the phase names nothing had called
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * nya_nn_neat_relu, nya_nn_neat_sigmoid_gentle and nya_nn_neat_phase_name had no caller anywhere.
+     * An activation is a place where being quietly wrong costs a training run rather than a crash:
+     * a relu that passes negatives through still trains, just worse, and nothing says so.
+     */
+
+    // Rectified linear: zero below, identity above, and zero exactly at zero.
+    nya_check(nya_nn_neat_relu(-1.0) == 0.0, "relu clears a negative, got %f", nya_nn_neat_relu(-1.0));
+    nya_check(nya_nn_neat_relu(0.0) == 0.0, "and is zero at zero, got %f", nya_nn_neat_relu(0.0));
+    nya_check(nya_nn_neat_relu(2.5) == 2.5, "and passes a positive through, got %f", nya_nn_neat_relu(2.5));
+
+    // The logistic sigmoid: a half at zero, and the two halves symmetric about it.
+    nya_check(fabs(nya_nn_neat_sigmoid_gentle(0.0) - 0.5) < 1e-12, "the gentle sigmoid is a half at zero, got %f",
+              nya_nn_neat_sigmoid_gentle(0.0));
+
+    const f64 above = nya_nn_neat_sigmoid_gentle(2.0);
+    const f64 below = nya_nn_neat_sigmoid_gentle(-2.0);
+
+    nya_check(fabs((above + below) - 1.0) < 1e-12, "and symmetric about it, got %f and %f", above, below);
+    nya_check(above > 0.5 && below < 0.5, "with the sign the right way round");
+
+    // Saturating rather than overflowing, which is what an unbounded input has to do here.
+    nya_check(nya_nn_neat_sigmoid_gentle(1000.0) <= 1.0 && nya_nn_neat_sigmoid_gentle(1000.0) > 0.99,
+              "it saturates toward one, got %f", nya_nn_neat_sigmoid_gentle(1000.0));
+    nya_check(nya_nn_neat_sigmoid_gentle(-1000.0) >= 0.0 && nya_nn_neat_sigmoid_gentle(-1000.0) < 0.01,
+              "and toward zero, got %f", nya_nn_neat_sigmoid_gentle(-1000.0));
+
+    // Every phase names itself, and no two share a name: the observer prints these.
+    for (u32 phase = 0; phase < NYA_NEAT_PHASE_COUNT; phase++) {
+      NYA_ConstCString name = nya_nn_neat_phase_name((NYA_NeatPhase)phase);
+
+      nya_check(name != nullptr && name[0] != '\0', "phase " FMTu32 " has a name", phase);
+
+      for (u32 other = 0; other < phase; other++) {
+        nya_check(strcmp(name, nya_nn_neat_phase_name((NYA_NeatPhase)other)) != 0, "phase " FMTu32 " and " FMTu32 " have different names",
+                  phase, other);
+      }
+    }
+
+    printf("  PASSED\n");
+  }
+
   printf("PASSED: test_neat\n");
-  return 0;
+  return nya_check_failures() == 0 ? 0 : 1;
 }

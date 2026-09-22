@@ -600,6 +600,37 @@ int main(void) {
     printf("  PASSED: visualiser guards\n");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the learning rate can be read and changed between steps
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * The pair a schedule needs, and neither had a caller. A setter that does not reach the optimizer
+     * is the worst kind of wrong here: the schedule runs, the numbers in the log move, and training
+     * carries on at whatever rate it started with.
+     */
+    NYA_NNTensor* w = nya_nn_tensor_create(arena, NYA_NN_SHAPE(1), true);
+    nya_nn_tensor_fill(w, 1.0F);
+
+    NYA_NNOptimizer* sgd = nya_nn_optimizer_sgd(arena, (NYA_NNOptimizerConfig){ .learning_rate = 0.1F });
+    nya_nn_optimizer_add(sgd, w);
+
+    nya_check(fabsf(nya_nn_optimizer_get_learning_rate(sgd) - 0.1F) < 1e-6F, "the rate reads back as configured, got %f",
+              (f64)nya_nn_optimizer_get_learning_rate(sgd));
+
+    nya_nn_optimizer_set_learning_rate(sgd, 0.5F);
+    nya_check(fabsf(nya_nn_optimizer_get_learning_rate(sgd) - 0.5F) < 1e-6F, "and as set, got %f",
+              (f64)nya_nn_optimizer_get_learning_rate(sgd));
+
+    // And the step actually uses the new one: 1.0 - 0.5 * 2.0 = 0.0, where the old rate gives 0.8.
+    w->grad[0] = 2.0F;
+    nya_nn_optimizer_step(sgd);
+
+    nya_check(fabsf(w->data[0]) < 1e-5F, "a step after the change uses the new rate, got %f", (f64)w->data[0]);
+
+    printf("  PASSED\n");
+  }
+
   printf("PASSED: test_nn\n");
-  return 0;
+  return nya_check_failures() == 0 ? 0 : 1;
 }

@@ -182,6 +182,56 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the cursor, which is four more calls nothing made
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * nya_cursor_set, nya_cursor, nya_cursor_visible_set and nya_cursor_visible had no caller. The
+     * shape is engine state rather than a request the window system can refuse — the header says it
+     * is cheap to call every frame with the same value, which only holds if the engine remembers what
+     * is set — so unlike the window flags above, this one does assert that it took.
+     */
+    const NYA_CursorShape original  = nya_cursor();
+    const b8              was_shown = nya_cursor_visible();
+
+    /*
+     * Whether a shape sticks is the platform's to decide: the offscreen driver answers
+     * "CreateSystemCursor is not currently supported" for every one of them, and the engine's
+     * documented answer to that is to warn and keep whatever it had. So the claim here is the one
+     * that holds either way — a shape it could not create leaves the previous one intact rather than
+     * recording a shape that was never set.
+     */
+    for (u32 shape = 0; shape < NYA_CURSOR_COUNT; shape++) {
+      nya_cursor_set((NYA_CursorShape)shape);
+
+      const NYA_CursorShape now = nya_cursor();
+      nya_check(now == (NYA_CursorShape)shape || now == original, "cursor shape " FMTu32 " either took or was left alone, got %d", shape,
+                (int)now);
+    }
+
+    // An out of range shape is refused outright, whatever the platform can do.
+    nya_cursor_set(NYA_CURSOR_COUNT);
+    nya_check(nya_cursor() < NYA_CURSOR_COUNT, "an out of range shape is refused, got %d", (int)nya_cursor());
+
+    // Setting the same shape twice is the every-frame case the header invites, and must not drift.
+    const NYA_CursorShape twice_before = nya_cursor();
+    nya_cursor_set(NYA_CURSOR_WAIT);
+    nya_cursor_set(NYA_CURSOR_WAIT);
+    nya_check(nya_cursor() == NYA_CURSOR_WAIT || nya_cursor() == twice_before, "setting the same shape twice does not drift");
+
+    nya_cursor_visible_set(false);
+    nya_check(!nya_cursor_visible(), "the pointer can be hidden");
+
+    nya_cursor_visible_set(true);
+    nya_check(nya_cursor_visible(), "and shown again");
+
+    nya_cursor_set(original);
+    nya_cursor_visible_set(was_shown);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // CLEANUP
   // ─────────────────────────────────────────────────────────────────────────────
   nya_window_destroy(window);
