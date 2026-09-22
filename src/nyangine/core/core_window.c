@@ -314,6 +314,16 @@ b8 nya_window_is_minimized(NYA_WindowHandle window) {
 }
 
 b8 nya_window_is_visible(NYA_WindowHandle window) {
+    /*
+     * The validity check is the whole point, and it is why this one does not read like its neighbours.
+     *
+     * Visible is the only state here that is the absence of a flag rather than its presence, so the
+     * shape every other getter uses — flags of a window that is not a window are zero, and zero fails
+     * a `!= 0` test — gives exactly the wrong answer: a handle held across a close reported itself
+     * visible. Nothing is visible.
+     */
+    if (!nya_window_is_valid(window)) return false;
+
     return (nya_window_flags(window) & SDL_WINDOW_HIDDEN) == 0;
 }
 
