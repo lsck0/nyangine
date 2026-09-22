@@ -90,9 +90,9 @@ the feature being bolted on, and the whole converges on one architecture over ti
 | Networking       | attack and cheat resistant, optional end to end public key encryption                                                                         | `[x]` X25519 stateless handshake, XChaCha20-Poly1305 per packet, pinned server keys, rate limits, server authority with a violation score, delta snapshots, fuzzed decoders                                                                                                                                                                                          |
 | Web server       | an HTTP server, middleware, typed DTOs, generated OpenAPI                                                                                     | `[~]` `src/nyangine/http/`: router per resource, layer chain, identity extractor, JWT over HMAC-SHA256, OpenAPI and a page generated from the route tables, a metrics resource over the app's own numbers. Open: a login route, and the PGP half of the second factor                                                                                                |
 | Targets          | Linux, Windows, Steam Linux, Steam Windows                                                                                                    | `[x]` all four build; Steam Linux against the sniper SDK (glibc 2.31, GnuTLS). A terminal is now a fifth target through `-DNYA_TERMINAL`, verified on Linux only. Web is wanted and not started; Android is out                                                                                                                                                      |
-| Layering         | a module DAG; a program links only the modules it uses; SDL only behind platform and renderer backends                                        | `[ ]` the include graph has cycles (base↔math, base↔platform, core↔renderer/ui/net/physics, nn→renderer, renderer→debug, http→core), now each a counted allowance in the lint rule that can only fall. `net` and `http` sit on `core`, which is SDL, so a CLI tool or a server links the whole engine. `NYA_NO_SDL` stands in for "no core" inside `base`                                                                                                       |
+| Layering         | a module DAG; a program links only the modules it uses; SDL only behind platform and renderer backends                                        | `[~]` `base` is clean: it includes neither `math` nor `platform`, and an `os` layer below it holds the syscalls. The rest still has cycles (core↔renderer/ui/net/physics, nn→renderer, renderer→debug, http→core), each a counted allowance in the lint rule that can only fall. `net` and `http` sit on `core`, which is SDL, so a CLI tool or a server links the whole engine. `NYA_NO_SDL` stands in for "no core" inside `base`                                                                                                       |
 | Base             | preprocessor passes, reflection, introspection, errors, stack traces, memory debugging, platform info, integrity, custom static analysis      | `[x]` all present; `check --strict` runs the project's own lint rules (`src/build/lint.c`) before clang-tidy: banned calls, module order, verb pairs, callers, `.clangd` drift                                                                                                                                                                                         |
-| Standard library | typesafe containers, strings, math, dynamic objects, a safe file, an ORM, crypto, time, a binary wire form                                   | `[~]` containers, strings, math, `NYA_Object`, reflection-driven ORM (as a plugin). Missing: atomic file write as a base call (only saves do it), dates and times, URLs                                                                                                                                                  |
+| Standard library | typesafe containers, strings, math, dynamic objects, a safe file, an ORM, crypto, time, a binary wire form                                   | `[~]` containers, strings, math, `NYA_Object`, reflection-driven ORM (as a plugin). Missing: dates and times as a type rather than a timestamp, URLs                                                                                                                                                  |
 | Auth             | login, JWT in secure cookies, CSRF defence, revocation, rate limits, TOTP and PGP second factors                                              | `[~]` JWT over HMAC-SHA256 and a PGP challenge seam. No cookies, no login route, no user store, no password hashing, no revocation, no TOTP                                                                                                                                                                                                                           |
 | Web client       | C compiled to wasm, the same `nya_ui_*` calls, the same DTO headers as the server, transport in the `nya` format                            | `[ ]` not started                                                                                                                                                                                                                                                                                                                                                      |
 | Customization    | plugins, editable config, editable UI style files                                                                                             | `[~]` Lua plugins with compile time permissions, hot reloaded `engine.nya`. No UI style files, no signed plugins, no plugin repositories, no VM budgets                                                                                                                                                                                                                  |
@@ -111,8 +111,10 @@ have to be moved again. Within a phase, items can land in any order. Every item 
 One direction for every include, and the lower a module sits the fewer programs it assumes:
 
 ```
-base      containers, strings, arenas, errors, logging, reflection, ceilings, hashing   (no OS, no SDL)
-platform  clock, files, threads, sockets, processes, IPC, terminal, host probes, CSPRNG (per OS, and web)
+os        pages, clocks, file handles, processes, CSPRNG; later threads and sockets  (one file per target)
+base      containers, strings, arenas, errors, logging, reflection, ceilings, hashing,
+          the file system, commands and clocks over `os`                                  (no SDL)
+platform  IPC, terminal, signals, host probes                                          (per OS, and web)
 math      scalars, vectors, matrices, noise, random                                     (beside base)
 serde     text and binary `.nya`, json, jsonc, the reflection bridge
 crypto    monocypher behind one API, plus SHA-1/SHA-256/HMAC, base32/64, constant time compare
@@ -340,14 +342,16 @@ Small, and first, because every later phase trusts these numbers.
 
 The refactor the rest stands on. Behaviour does not change; the include graph and the link lines do.
 
-- `[~]` `base` stops including `math` and `platform`. The math half is done: `nya_min` and `nya_max` moved down
-  into `base_compare.h` and the vector and matrix array derivations up into math, and the lint rule now refuses
-  the edge. The platform half is not four stray includes: see "Where base gets pages, time and files" under
-  Decisions. The ceiling registry also moves from `core` into `base`, since it is introspection and `base`
-  already calls it under `NYA_NO_SDL` guards.
+- `[~]` `base` stops including `math` and `platform`. Both halves are done. Math: `nya_min` and `nya_max` moved
+  down into `base_compare.h` and the vector and matrix array derivations up into math. Platform: an `os` layer
+  below `base` (see "Where base gets pages, time and files" under Decisions) now holds the syscalls, and the
+  file system, commands and clocks came down into `base` on top of it, so the `base -> platform` allowance is
+  deleted rather than lowered. Left in this item: the ceiling registry moves from `core` into `base`, since it
+  is introspection and `base` already calls it under `NYA_NO_SDL` guards.
 - `[ ]` Threads (`core_job.c` uses `SDL_thread`) and sockets (`net_udp.c` and `http_server.c` use SDL_net) move
-  into `platform`, one implementation per OS. SDL_net leaves the vendor list, which also means one socket layer
-  for the web backend to implement rather than SDL's.
+  into `os`, one file per target, with whatever wants an arena or an `NYA_Error` on top of them in `base` — the
+  shape the file system, commands and clocks already have. SDL_net leaves the vendor list, which also means one
+  socket layer for the web backend to implement rather than SDL's.
 - `[ ]` `net` splits: the transport and the encrypted session need no entity and move below `app`; snapshots,
   commands and prediction become `replicate` above it. `physics` stops including `core_types.h` by moving the
   types it shares down.
@@ -1019,25 +1023,29 @@ Each changes what gets built. A recommendation is given; the call is mine.
   person would (`testing_agent.h`). It extends to every example that has a UI, not only gnyame: the TUI and
   the web frontend are UIs an agent can play too. Its drawing still moves out of `nn` (Phase 1), so the
   module depends on nothing above `math`.
-- `[ ]` **Lambdas through a preprocessor pass.** Asked 2026-09-22. C has no function literals, and every
-  callback here (`nya_callback`, event hooks, systems, comparators) is a named function somewhere else in the
-  file. What a pass could do, and where it stops:
-  - Possible: non-capturing lambdas. `nya_lambda(void, (NYA_Event* event), { ... })` at the use site expands
-    to a generated name; the pass lifts the body into a function defined in a generated file included at the
-    end of the same `.c`, with its prototype in one included at the top. The body sits after every static it
-    might name, `#line` keeps the debugger and the diagnostics on the original line, and `base_lexer` finds
-    the call without a parser. About the size of `luabind.c`.
-  - Not possible without cost: captures. A capture is a context that outlives the frame, which in C means an
-    allocation and a lifetime someone owns. The engine's callbacks already take `void* user_data`, and a
-    struct passed through it is the honest spelling of a capture.
-  - The catches: the name must survive hot reload, since `nya_callback` resolves by name and a lambda named
-    for its line is renamed by an edit above it, so the name would come from the enclosing function and an
-    index instead. clangd sees an undefined name until the pass has run once. And the passes today only write
-    side files; this would be the first that changes what a source file compiles to.
-  - Clang's blocks (`-fblocks`) do capture, but a block is not a function pointer, needs a runtime library,
-    and cannot go through the callback registry at all.
-  - Recommendation: not yet. The five callers that would read better do not outweigh the first pass that
-    rewrites a translation unit. Revisit if the UI or the job system grows a real need for inline callbacks.
+- `[x]` **Lambdas through a preprocessor pass.** Asked 2026-09-22, and built the same day: the recommendation
+  below was "not yet", and the answer was to do it anyway. C has no function literals, and every callback here
+  (`nya_callback`, event hooks, systems, comparators) was a named function somewhere else in the file.
+  - Landed: `nya_lambda(tag, ReturnType, (params), { body })`, the macro in `base_lambda.h` and the pass in
+    `src/build/pp/lambda.c`, hooked as `generate_lambdas`. The body is hoisted into a companion header per
+    source file under `src/genyarated/lambdas/`, which that source includes itself, so the body compiles inside
+    the file it was written in and can name that file's statics. `#line` keeps the diagnostics on the line
+    somebody typed. `manifest.txt` is the watermark `nya_pp_is_current` reads, since the companion set is
+    dynamic; stale companions are pruned. Nothing is written unless every tree parses, so a malformed body
+    cannot leave half a generated file behind.
+  - An explicit tag rather than a name built from `__LINE__`: a line-keyed name is renamed by any edit above
+    it, churns every hoisted body below it in a diff, and reads as `_nya_lambda_l217` in a stack trace. It is
+    also what makes the hot reload catch below a non-issue, since `nya_callback` resolves by name.
+  - Captures are still not possible, and that is the safety property: the hoisted function is at file scope, so
+    naming a local is an ordinary compile error rather than a lifetime bug. A struct through the `void*
+    user_data` every callback already takes is the honest spelling of a capture.
+  - The caller: `src/gnyame/layers/layer_pause_menu.c`, whose locale row passed a callback declared at the top
+    and defined 280 lines below.
+  - Known and documented rather than papered over: a lambda inside an `#if` arm is hoisted anyway, because the
+    pass reads text and not preprocessor state, and then trips `-Werror` as an unused function. The parser
+    itself has no unit test, since the pass lives in the build tool and the test binaries do not link it; its
+    error paths were exercised by running it against deliberately malformed input.
+
 
 # The stack
 
