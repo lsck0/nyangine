@@ -112,6 +112,17 @@
 /** Share of a bar above which it is drawn hot rather than calm. */
 #define HOT_SHARE 0.85F
 
+/**
+ * The legend picture, calm to hot, in the top right corner of terminals with the kitty protocol. Its
+ * pixels are the terminal's own, not NYA_TERMINAL_CELL_WIDTH_PX's: 48 by 16 is five or six cells wide
+ * and one tall in the fonts terminals ship with, which fits the empty margin row above the header.
+ * */
+#define LEGEND_WIDTH_PX  48
+#define LEGEND_HEIGHT_PX 16
+
+/** Columns from the right edge where the legend starts, room for its width in any common font. */
+#define LEGEND_COLUMNS_FROM_RIGHT 8
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -141,6 +152,10 @@ typedef struct {
     /** Whether the terminal panel is folded away, and how many resizes the run has seen. */
     b8  terminal_open;
     u32 resizes;
+
+    /** Whether the legend picture has been sent, and how many resizes had happened when it was. */
+    b8  legend_sent;
+    u32 legend_resizes;
 
     /** Set when a widget asked to stop, since a UI pass reports rather than exits. */
     b8 quit;
@@ -179,8 +194,13 @@ static void arena_row(NYA_UI* ui, NYA_Window* window, Dashboard* dashboard, u32 
     NYA_Rectf track = nya_ui_space(ui, 0.0F, ROW_HEIGHT);
 
     if (track.width > 0.0F) {
+        b8 hot = share >= HOT_SHARE;
+
         nya_render2d_rect(window, track.x, track.y, track.width, track.height, COLOR_TRACK);
-        nya_render2d_rect(window, track.x, track.y, roundf(track.width * share), track.height, share >= HOT_SHARE ? COLOR_HOT : COLOR_FILL);
+        nya_render2d_rect(window, track.x, track.y, roundf(track.width * share), track.height, hot ? COLOR_HOT : COLOR_FILL);
+
+        // hot said a second time, in bold at the bar's end, because a terminal with no colour draws both bars alike.
+        if (hot) nya_render2d_terminal_glyph(window, track.x + track.width - CELL_W, track.y, '!', COLOR_TEXT, NYA_TERMINAL_ATTRIBUTE_BOLD);
     }
 
     nya_ui_panel_end(ui);
@@ -242,7 +262,8 @@ static void controls_panel(NYA_UI* ui, Dashboard* dashboard, NYA_Arena* worker) 
 
 /**
  * The whole frame, run twice: once from the input pass, which moves focus and returns what widgets
- * did, and once from the draw pass, which draws it. Nothing here knows it is a terminal.
+ * did, and once from the draw pass, which draws it. Nothing here knows it is a terminal except the
+ * bold mark on a hot bar, which is the attribute a pixel surface does not have.
  * */
 static void frame_pass(NYA_Window* window, NYA_UIPass pass, Dashboard* dashboard, NYA_Arena* worker) {
     nya_assert(window != nullptr && dashboard != nullptr && worker != nullptr);
@@ -290,6 +311,55 @@ static void frame_pass(NYA_Window* window, NYA_UIPass pass, Dashboard* dashboard
     if (nya_ui_cancelled(ui)) dashboard->quit = true;
 
     nya_ui_end(ui);
+}
+
+/** The legend's pixels, calm on the left to hot on the right: what the two bar colours mean, in one strip. */
+static void legend_fill(u8* rgba) {
+    nya_assert(rgba != nullptr);
+
+    for (u32 x = 0; x < LEGEND_WIDTH_PX; x++) {
+        f32       t     = (f32)x / (f32)(LEGEND_WIDTH_PX - 1);
+        NYA_Color color = {
+            nya_lerp(COLOR_FILL.r, COLOR_HOT.r, t),
+            nya_lerp(COLOR_FILL.g, COLOR_HOT.g, t),
+            nya_lerp(COLOR_FILL.b, COLOR_HOT.b, t),
+            1.0F,
+        };
+
+        for (u32 y = 0; y < LEGEND_HEIGHT_PX; y++) {
+            u8* pixel = &rgba[(((u64)y * LEGEND_WIDTH_PX) + x) * 4U];
+
+            pixel[0] = (u8)(color.r * 255.0F);
+            pixel[1] = (u8)(color.g * 255.0F);
+            pixel[2] = (u8)(color.b * 255.0F);
+            pixel[3] = (u8)(color.a * 255.0F);
+        }
+    }
+}
+
+/**
+ * Sends the legend after the frame's cells, or it would sit under them. A placement stays until it is
+ * cleared, so it goes out once and again only when a resize has repainted the screen beneath it.
+ * */
+static void legend_show(NYA_Window* window, Dashboard* dashboard, const u8* rgba) {
+    nya_assert(window != nullptr && dashboard != nullptr && rgba != nullptr);
+
+    if (!nya_terminal_capabilities().kitty_images) return;
+    if (dashboard->legend_sent && dashboard->legend_resizes == dashboard->resizes) return;
+
+    // marked before the send, so a screen with no room for it is not asked again every frame.
+    dashboard->legend_sent    = true;
+    dashboard->legend_resizes = dashboard->resizes;
+
+    nya_terminal_image_clear();
+
+    // a terminal narrower than the legend's room has no corner to put it in.
+    u16 columns = nya_terminal_columns();
+    if (columns <= LEGEND_COLUMNS_FROM_RIGHT) return;
+
+    // false only where the protocol is missing, which was asked above; the picture is decoration either way.
+    f32 x = (f32)(columns - LEGEND_COLUMNS_FROM_RIGHT) * CELL_W;
+    (void)nya_render2d_terminal_image(window, x, 0.0F, rgba, LEGEND_WIDTH_PX, LEGEND_HEIGHT_PX);
 }
 
 /*
@@ -391,6 +461,10 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     NYA_Arena* scratch = nya_arena_create(.name = "scratch");
 
+    // filled once: the picture never changes, only whether the screen under it still holds it.
+    static u8 legend[LEGEND_WIDTH_PX * LEGEND_HEIGHT_PX * 4];
+    legend_fill(legend);
+
     /*
      * Torn down at the bottom rather than with `defer`, which is what the rest of the tree uses.
      * clang's static analyser models a `defer` as running where it is written, so every use of these
@@ -431,6 +505,7 @@ s32 main(s32 argc, NYA_CString* argv) {
         nya_render2d_terminal_frame_begin(window, COLOR_GROUND);
         frame_pass(window, NYA_UI_PASS_DRAW, &dashboard, worker);
         nya_render2d_terminal_frame_end(window);
+        legend_show(window, &dashboard, legend);
 
         nya_arena_free_all(scratch);
 
@@ -438,6 +513,9 @@ s32 main(s32 argc, NYA_CString* argv) {
         // core_app.c's frame limiter calls SDL_DelayNS for the same reason.
         SDL_Delay(FRAME_INTERVAL_MS);
     }
+
+    // removed by the program that placed it, rather than trusting each terminal to drop it with the alternate screen.
+    nya_terminal_image_clear();
 
     nya_arena_destroy(scratch);
     nya_arena_destroy(worker);
