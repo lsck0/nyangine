@@ -179,9 +179,12 @@ NYA_INTERNAL NYA_BuildRule show_stats = {
         .program = "tokei",
 
         /*
-         * Vendor and tests both excluded, so the number means "how much engine is there".
+         * Vendor, tests, the examples and the generated tree are all excluded, so the number means "how
+         * much engine is there": nobody wrote src/genyarated, and an example is a caller rather than the
+         * thing being measured.
          */
-        .arguments = { ".", "--exclude", "vendor", "--exclude", "assets", "--exclude", "tests", },
+        .arguments = { ".",           "--exclude", "vendor",         "--exclude", "assets", "--exclude", "tests",
+                       "--exclude",   "examples",  "--exclude",      "src/genyarated", },
     },
 };
 
