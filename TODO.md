@@ -313,17 +313,20 @@ the packager ones.
   particle is born at exactly alpha one, so for its first tick every flame particle drew through the
   opaque pipeline: depth written, no addition, a solid square punched through the plume. Blend mode is
   explicit caller intent and alpha is a heuristic, so additive now never counts as opaque.
-- `[ ]` Two tests are flaky under a loaded parallel suite run and pass 10 to 12 of 12 standalone. Both are
-  wall clock dependent under the sanitizers, and a flaky test is a bug with priority, so neither should sit
-  here long.
-  - `test_robots`, on `the drones move`. Not state: it isolates its own save root. Under load the training
-    job gets through fewer generations, and a genome that has not evolved far can legitimately hold every
-    drone still, which the test reads as not moving. Give it a deterministic generation count rather than a
-    wall clock budget.
-  - `test_trace`, on the `spin_ns` timing windows. Same shape, and it predates the system registry: the
-    registry's own accounting is off by default and deliberately reads the real monotonic clock rather than
-    the simulated one, because a simulated clock advances one tick per frame and would report every system
-    as costing the same.
+- `[x]` Both flaky tests are fixed, and fixed in their shape rather than by widening a number until it
+  stopped failing. Neither depends on the wall clock any more.
+  - `test_robots` asserted movement in a single tick. `brain_fitness > 0` says a genome flies toward the
+    player eventually; it does not say it thrusts on any particular tick, and which genome wins depends on
+    how many generations the training job got through, which under a loaded parallel run is not the same
+    number twice. It now watches a horizon of `GNY_ROBOT_MOVE_HORIZON_TICKS` and asks whether any drone
+    moved, which is what the fitness actually promises.
+  - `test_trace` needed a tight upper bound on a wall clock measurement — 2 ms of spin had to read under
+    2.9 — which a sanitized build on a loaded machine oversleeps straight through. The child now spins five
+    times the parent instead of half, so attribution separates the two by the whole of the child's spin
+    whatever the machine does.
+
+  Measured rather than assumed: three full parallel suite runs, both green in all three, 230 of 230 each
+  time.
 - `[ ]` RenderDoc closes immediately instead of capturing. Not the anti-tamper check — that early-returns
   unless `NYA_SHIPPING_BUILD` (`base_integrity.c:148,172`). Cause still unknown.
 - `[x]` `monocypher.h` not found, `NYA_LuaVM` unknown, `windows.h` not found, and the
