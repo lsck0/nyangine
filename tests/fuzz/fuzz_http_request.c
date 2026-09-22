@@ -130,7 +130,7 @@ static void fuzz_once(const u8* data, u64 size) {
     u64 head_size                              = 0;
 
     nya_assert(
-        nya_http_response_head(&response, NYA_HTTP_STATUS_OK, request->keep_alive, head, sizeof(head), &head_size).ok,
+        nya_http_response_head(&response, NYA_HTTP_STATUS_OK, request->keep_alive, (NYA_Instant){ 0 }, head, sizeof(head), &head_size).ok,
         "a request that parsed could not be answered"
     );
 }

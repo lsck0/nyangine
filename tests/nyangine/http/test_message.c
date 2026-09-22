@@ -461,7 +461,10 @@ s32 main(void) {
         u8  head[NYA_HTTP_MAX_RESPONSE_HEAD_BYTES] = { 0 };
         u64 head_size                              = 0;
 
-        nya_assert(nya_http_response_head(&response, NYA_HTTP_STATUS_OK, true, head, sizeof(head), &head_size).ok);
+        // RFC 9110's own example moment, so the Date line is a fixed string rather than whatever now is.
+        NYA_Instant date = { .ns = 784'111'777LL * NYA_NS_PER_SECOND };
+
+        nya_assert(nya_http_response_head(&response, NYA_HTTP_STATUS_OK, true, date, head, sizeof(head), &head_size).ok);
 
         NYA_String* rendered = nya_string_from(arena, (NYA_ConstCString)head);
 
@@ -469,6 +472,7 @@ s32 main(void) {
         nya_assert(nya_string_contains(rendered, "Content-Length: 5\r\n"));
         nya_assert(nya_string_contains(rendered, "Content-Type: text/plain; charset=utf-8\r\n"));
         nya_assert(nya_string_contains(rendered, "Connection: keep-alive\r\n"));
+        nya_assert(nya_string_contains(rendered, "Date: Sun, 06 Nov 1994 08:49:37 GMT\r\n"), "every answer carries its Date");
         nya_assert(nya_string_ends_with(rendered, "\r\n\r\n"), "the head ends with the blank line");
 
         // a body larger than the buffer is the handler's mistake and is refused rather than truncated.
@@ -480,7 +484,7 @@ s32 main(void) {
         nya_assert(!nya_http_response_header(&response, "Bad Name", "x").ok);
         nya_assert(nya_http_response_header(&response, "X-Fine", "yes").ok);
 
-        nya_assert(nya_http_response_head(&response, NYA_HTTP_STATUS_OK, false, head, sizeof(head), &head_size).ok);
+        nya_assert(nya_http_response_head(&response, NYA_HTTP_STATUS_OK, false, date, head, sizeof(head), &head_size).ok);
 
         rendered = nya_string_from(arena, (NYA_ConstCString)head);
         nya_assert(nya_string_contains(rendered, "X-Fine: yes\r\n"));

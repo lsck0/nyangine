@@ -4403,7 +4403,7 @@ NYA_Error nya_http_response_json(NYA_HttpResponse* response, NYA_Arena* arena, c
 NYA_Error nya_http_response_reflect_as(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto, NYA_HttpMediaType media)  // nya_http_response_reflect in `media`, for a handler that has asked what the caller accepts.
 NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Arena* arena, const NYA_TypeReflection* type, const void* dto)
 NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString name, NYA_ConstCString value)  // Adds one header.
-NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Renders the status line and every header into `buffer`, ending with the blank line.
+NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, NYA_Instant date, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Renders the status line and every header into `buffer`, ending with the blank line.
 ```
 
 ### http_metrics.h
@@ -5248,6 +5248,79 @@ u64 nya_clock_get_monotonic_ns(void)
 void nya_clock_civil_from_days(s64 days, OUT s32* out_year, OUT u32* out_month, OUT u32* out_day)  // The proleptic Gregorian date a day count since the Unix epoch falls on, and back again.
 s64 nya_clock_days_from_civil(s32 year, u32 month, u32 day)
 u32 nya_clock_format_utc(u64 timestamp_s, NYA_ClockFormat format, OUT u8* buffer, u32 capacity)
+```
+
+### clock_format.h
+
+Instants as text and back, in the two formats the wire uses: RFC 3339 for JSON, `.nya` and logs, and
+
+```c
+// types
+enum NYA_TimeParse { NYA_TIME_PARSE_OK = 0, NYA_TIME_PARSE_TRUNCATED, NYA_TIME_PARSE_EXPECTED_DIGIT, NYA_TIME_PARSE_EXPECTED_SEPARATOR, NYA_TIME_PARSE_MONTH_RANGE, NYA_TIME_PARSE_DAY_RANGE, NYA_TIME_PARSE_HOUR_RANGE, NYA_TIME_PARSE_MINUTE_RANGE, NYA_TIME_PARSE_SECOND_RANGE, NYA_TIME_PARSE_LEAP_SECOND, NYA_TIME_PARSE_FRACTION_TOO_LONG, NYA_TIME_PARSE_EXPECTED_OFFSET, NYA_TIME_PARSE_OFFSET_RANGE, NYA_TIME_PARSE_DAY_NAME, NYA_TIME_PARSE_WEEKDAY_MISMATCH, NYA_TIME_PARSE_MONTH_NAME, NYA_TIME_PARSE_EXPECTED_GMT, NYA_TIME_PARSE_OBSOLETE_FORMAT, NYA_TIME_PARSE_OUT_OF_RANGE, NYA_TIME_PARSE_TRAILING_BYTES, NYA_TIME_PARSE_COUNT, }  // Which rule a parse failed, or that none did.
+
+// macros
+NYA_RFC3339_FRACTION_DIGITS_MAX 9  // Fraction digits RFC 3339 may carry here.
+NYA_RFC3339_LENGTH_MAX (19 + 1 + NYA_RFC3339_FRACTION_DIGITS_MAX + 1)
+NYA_RFC9110_LENGTH 29  // IMF-fixdate is fixed width: `Sun, 06 Nov 1994 08:49:37 GMT`.
+
+// functions
+u32 nya_instant_to_rfc3339(NYA_Instant instant, OUT u8* buffer, u32 capacity)
+NYA_TimeParse nya_instant_from_rfc3339(const u8* text, u64 length, OUT NYA_Instant* out_instant, OUT u64* out_position)  // Parses RFC 3339's `date-time` from exactly `text[0, length)`.
+u32 nya_instant_to_rfc9110(NYA_Instant instant, OUT u8* buffer, u32 capacity)  // Writes `instant` as IMF-fixdate into `buffer`, null terminated, and returns NYA_RFC9110_LENGTH.
+NYA_TimeParse nya_instant_from_rfc9110(const u8* text, u64 length, OUT NYA_Instant* out_instant, OUT u64* out_position)  // Parses IMF-fixdate from exactly `text[0, length)`, with the same contract as nya_instant_from_rfc3339.
+NYA_ConstCString nya_time_parse_text(NYA_TimeParse result)  // The rule, in a few words, for a log line or an error body.
+```
+
+### clock_instant.h
+
+Moments, spans and calendar days as types of their own. A bare u64 from clock.h says nothing about
+
+```c
+// types
+struct NYA_Instant { s64 ns; }  // A moment, in UTC.
+struct NYA_Duration { s64 ns; }  // The signed distance between two instants.
+struct NYA_Date { s32 year; u8 month; u8 day; }  // A day in the proleptic Gregorian calendar, with no zone.
+struct NYA_TimeOfDay { u8 hour; u8 minute; u8 second; u32 nanosecond; }  // A moment within a day.
+struct NYA_IsoWeek { s32 year; u8 week; }  // ISO 8601's week date.
+enum NYA_Weekday { NYA_WEEKDAY_MONDAY, NYA_WEEKDAY_TUESDAY, NYA_WEEKDAY_WEDNESDAY, NYA_WEEKDAY_THURSDAY, NYA_WEEKDAY_FRIDAY, NYA_WEEKDAY_SATURDAY, NYA_WEEKDAY_SUNDAY, NYA_WEEKDAY_COUNT, }  // ISO 8601's numbering, Monday first.
+struct NYA_InstantSource { NYA_Instant (*now)(void* context); void* context; }  // Where nya_instant_now reads.
+
+// macros
+NYA_NS_PER_SECOND 1'000'000'000LL
+NYA_NS_PER_MINUTE (60LL * NYA_NS_PER_SECOND)
+NYA_NS_PER_HOUR (60LL * NYA_NS_PER_MINUTE)
+NYA_NS_PER_DAY (24LL * NYA_NS_PER_HOUR)
+NYA_DATE_YEAR_MIN 0  // The years a NYA_Date may hold.
+NYA_DATE_YEAR_MAX 9'999
+
+// functions
+NYA_Instant nya_instant_now(void)  // The current moment.
+void nya_instant_source_set(NYA_InstantSource source)
+NYA_InstantSource nya_instant_source(void)
+NYA_Instant nya_instant_add_duration(NYA_Instant instant, NYA_Duration duration)
+NYA_Instant nya_instant_subtract_duration(NYA_Instant instant, NYA_Duration duration)
+b8 nya_instant_add_duration_checked(NYA_Instant instant, NYA_Duration duration, OUT NYA_Instant* out_instant)  // The same, false and nothing written when the result would leave the range.
+b8 nya_instant_subtract_duration_checked(NYA_Instant instant, NYA_Duration duration, OUT NYA_Instant* out_instant)
+NYA_Duration nya_duration_between(NYA_Instant from, NYA_Instant to)
+b8 nya_duration_between_checked(NYA_Instant from, NYA_Instant to, OUT NYA_Duration* out_duration)
+NYA_Duration nya_duration_from_s(s64 seconds)  // Spans from coarser units.
+NYA_Duration nya_duration_from_ms(s64 milliseconds)
+void nya_instant_to_utc(NYA_Instant instant, OUT NYA_Date* out_date, OUT NYA_TimeOfDay* out_time)  // The UTC day and time of day `instant` falls on.
+b8 nya_instant_from_utc(NYA_Date date, NYA_TimeOfDay time, OUT NYA_Instant* out_instant)  // The instant a UTC day and time of day name.
+b8 nya_date_is_valid(NYA_Date date)  // Month 1 to 12, day within that month in that year, year within NYA_DATE_YEAR_MIN and _MAX.
+b8 nya_date_is_leap_year(s32 year)  // The Gregorian rule: every fourth year, except centuries, except every fourth century.
+u32 nya_date_days_in_month(NYA_Date date)
+s64 nya_date_to_days(NYA_Date date)  // Days since 1970-01-01, and back.
+NYA_Date nya_date_from_days(s64 days)
+NYA_Date nya_date_add_days(NYA_Date date, s64 days)
+b8 nya_date_add_days_checked(NYA_Date date, s64 days, OUT NYA_Date* out_date)
+NYA_Date nya_date_add_months(NYA_Date date, s32 months)
+b8 nya_date_add_months_checked(NYA_Date date, s32 months, OUT NYA_Date* out_date)
+NYA_Date nya_date_end_of_month(NYA_Date date)
+NYA_Weekday nya_date_weekday(NYA_Date date)
+NYA_IsoWeek nya_date_iso_week(NYA_Date date)
+b8 nya_time_of_day_is_valid(NYA_TimeOfDay time)  // Hour below 24, minute and second below 60, nanosecond below a second.
+NYA_Duration nya_time_of_day_to_duration(NYA_TimeOfDay time)  // Time since midnight.
 ```
 
 ### command.h

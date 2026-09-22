@@ -22,6 +22,13 @@ NYA_INTERNAL NYA_Session* _NYA_SESSION_PLAYING = nullptr;
 /** The clock the app reads while a session runs. Advanced by exactly one tick per frame. */
 NYA_INTERNAL u64 _nya_session_clock_ns(void);
 
+/**
+ * The date the app reads while a session runs: the simulation's origin plus the ticks played. From the
+ * tick count rather than from `clock_ns`, which is seeded from the real clock, so fast forward and real
+ * time see the same dates and their digests stay comparable.
+ * */
+NYA_INTERNAL NYA_Instant _nya_session_instant_now(void* context);
+
 /** The NYA_EVENT_FRAME_STARTED hook: advances the clock, observes, chooses, acts, and counts. */
 NYA_INTERNAL void _nya_session_on_frame_started(NYA_Event* event);
 
@@ -195,6 +202,10 @@ u32 nya_session_run(NYA_Session* session) {
         .never_sleep        = !session->real_time,
     });
 
+    // in both modes, unlike the frame clock: a date is part of what a tick computes, not of its pacing.
+    NYA_InstantSource instant_source_before = nya_instant_source();
+    nya_instant_source_set((NYA_InstantSource){ .now = _nya_session_instant_now, .context = session });
+
     NYA_EventHook hook = {
         .event_type = NYA_EVENT_FRAME_STARTED,
         .hook_type  = NYA_EVENT_HOOK_TYPE_IMMEDIATE,
@@ -226,6 +237,7 @@ u32 nya_session_run(NYA_Session* session) {
     nya_event_hook_unregister(hook);
     nya_event_hook_unregister(tick_hook);
     nya_app_time_source_set(previous);
+    nya_instant_source_set(instant_source_before);
 
     /*
      * The assumption the whole harness rests on, checked rather than trusted: the agent acted once per
@@ -444,6 +456,17 @@ u64 _nya_session_clock_ns(void) {
     nya_assert(_NYA_SESSION_PLAYING != nullptr, "the session clock is installed with no session playing");
 
     return _NYA_SESSION_PLAYING->clock_ns;
+}
+
+NYA_Instant _nya_session_instant_now(void* context) {
+    const NYA_Session* session = context;
+    nya_assert(session != nullptr, "the session's instant source was installed without its session");
+
+    u64 elapsed_ns = 0;
+    b8  overflowed = __builtin_mul_overflow(session->tick, session->time_step_ns, &elapsed_ns);
+    nya_assert(!overflowed && elapsed_ns <= (u64)(S64_MAX - NYA_SIMULATION_INSTANT_ORIGIN_NS), "the session's date ran past 2262");
+
+    return (NYA_Instant){ .ns = NYA_SIMULATION_INSTANT_ORIGIN_NS + (s64)elapsed_ns };
 }
 
 void _nya_session_on_frame_started(NYA_Event* event) {

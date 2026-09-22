@@ -17,6 +17,9 @@ NYA_INTERNAL u32 _nya_simulation_action_pick(NYA_SimulationRun* run);
 /** Appends an action index to the history ring. */
 NYA_INTERNAL void _nya_simulation_history_push(NYA_SimulationRun* run, u32 action);
 
+/** The instant source a run installs: the fixed origin plus the simulated clock. */
+NYA_INTERNAL NYA_Instant _nya_simulation_instant_now(void* context);
+
 /** One primitive field, filled from the run's entropy and whatever the hint says it means. */
 NYA_INTERNAL void _nya_simulation_fill_primitive(NYA_SimulationRun* run, const NYA_TypeReflection* type, NYA_ReflectHint hint, void* instance);
 
@@ -115,6 +118,11 @@ u32 nya_simulation_run(NYA_SimulationRun* run) {
 
     u32 failures_before = run->failures;
 
+    // anything an action does that reads the date (an expiry, a retention sweep) sees simulated time,
+    // so it replays with the seed. Put back after, so the run leaves no clock of its own behind.
+    NYA_InstantSource instant_source_before = nya_instant_source();
+    nya_instant_source_set((NYA_InstantSource){ .now = _nya_simulation_instant_now, .context = run });
+
     for (run->step = 0; run->step < run->step_count; run->step++) {
         // reset per step, so a draw's coordinate is (seed, step, index within the step) and adding a
         // draw inside one action cannot shift the decisions of every step after it.
@@ -137,6 +145,7 @@ u32 nya_simulation_run(NYA_SimulationRun* run) {
         for (u32 i = 0; i < run->check_count; i++) run->checks[i].run(run);
     }
 
+    nya_instant_source_set(instant_source_before);
     nya_log_level_set(level_before);
 
     /*
@@ -418,6 +427,16 @@ void _nya_simulation_history_push(NYA_SimulationRun* run, u32 action) {
 
     run->history[run->history_count % NYA_SIMULATION_HISTORY_MAX] = (u16)action;
     run->history_count++;
+}
+
+NYA_Instant _nya_simulation_instant_now(void* context) {
+    const NYA_SimulationRun* run = context;
+    nya_assert(run != nullptr, "the simulation's instant source was installed without its run");
+
+    // a run long enough to leave the instant range would be centuries of simulated time.
+    nya_assert(run->clock_ns <= (u64)(S64_MAX - NYA_SIMULATION_INSTANT_ORIGIN_NS), "the simulated date ran past 2262");
+
+    return (NYA_Instant){ .ns = NYA_SIMULATION_INSTANT_ORIGIN_NS + (s64)run->clock_ns };
 }
 
 void _nya_simulation_fill_primitive(NYA_SimulationRun* run, const NYA_TypeReflection* type, NYA_ReflectHint hint, void* instance) {

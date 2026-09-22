@@ -24,6 +24,10 @@
 static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";
 #define SECRET_SIZE (sizeof(SECRET) - 1)
 
+static NYA_Instant pinned_now(void* context) {
+    return *(const NYA_Instant*)context;
+}
+
 static void sleep_ms(u32 milliseconds) {
     struct timespec request = { .tv_sec = milliseconds / 1000, .tv_nsec = (long)(milliseconds % 1000) * 1000000L };
     (void)nanosleep(&request, nullptr);
@@ -157,14 +161,27 @@ s32 main(void) {
         nya_assert(nya_http_server_request_count() == 1);
         nya_assert(nya_http_server_connection_count() == 1);
 
-        // a second request on the same connection, which is what keep-alive is for.
+        // every answer is dated from nya_instant_now, which is what lets a simulation pin it.
+        nya_assert(nya_string_contains(received, "\r\nDate: ") && nya_string_contains(received, " GMT\r\n"));
+
+        NYA_InstantSource wall   = nya_instant_source();
+        NYA_Instant       pinned = { .ns = 784'111'777LL * NYA_NS_PER_SECOND };
+        nya_instant_source_set((NYA_InstantSource){ .now = pinned_now, .context = &pinned });
+
+        nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
+        nya_assert(nya_string_contains(nya_string_from(arena, answer), "\r\nDate: Sun, 06 Nov 1994 08:49:37 GMT\r\n"));
+
+        nya_instant_source_set(wall);
+        nya_assert(nya_http_server_request_count() == 2);
+
+        // a third request on the same connection, which is what keep-alive is for.
         nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_CEILINGS_PATH " HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);
 
         received = nya_string_from(arena, answer);
         nya_assert(nya_string_starts_with(received, "HTTP/1.1 200 OK\r\n"));
         nya_assert(nya_string_contains(received, "\"rows\""));
 
-        nya_assert(nya_http_server_request_count() == 2);
+        nya_assert(nya_http_server_request_count() == 3);
 
         // a path nothing answers, and a method the path does not.
         nya_assert(exchange(client, "GET /api/nothing HTTP/1.1\r\nHost: localhost\r\n\r\n", answer, sizeof(answer)) > 0);

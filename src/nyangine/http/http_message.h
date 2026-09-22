@@ -71,6 +71,7 @@
 #include "nyangine/base/base_reflection.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/http/http_types.h"
+#include "nyangine/platform/clock/clock_instant.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -264,7 +265,10 @@ NYA_API NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_Const
  *
  * `status` rather than `response->status` because the status a client is told is the dispatcher's to
  * decide: a layer may turn a handler's 200 into a 304 without the handler's body changing.
+ *
+ * `date` becomes the Date header, which RFC 9110 6.6.1 has a server with a clock send on every answer.
+ * Taken rather than read here so the head stays a pure function of its arguments: the server passes
+ * nya_instant_now, and a test or the fuzz target pins it.
  * */
-NYA_API NYA_Error
-nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, OUT u8* buffer, u64 capacity, OUT u64* out_size)
-    __attr_no_discard;
+NYA_API NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, NYA_Instant date, OUT u8* buffer,
+                                         u64 capacity, OUT u64* out_size) __attr_no_discard;

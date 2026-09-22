@@ -6,6 +6,7 @@
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_string.h"
 #include "nyangine/http/http_message.h"
+#include "nyangine/platform/clock/clock_format.h"
 #include "nyangine/serde/serde.h"
 
 /*
@@ -14,7 +15,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** The fixed part of a rendered head: the status line, Content-Length, Content-Type and Connection. */
+/** The fixed part of a rendered head: the status line, Content-Length, Content-Type, Connection and Date. */
 #define _NYA_HTTP_FIXED_HEAD_BYTES 256
 
 static_assert(
@@ -571,7 +572,8 @@ NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString 
     return NYA_OK;
 }
 
-NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, u8* buffer, u64 capacity, u64* out_size) {
+NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, NYA_Instant date, u8* buffer, u64 capacity,
+                                 u64* out_size) {
     nya_assert(response != nullptr);
     nya_assert(buffer != nullptr);
     nya_assert(out_size != nullptr);
@@ -597,6 +599,12 @@ NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatu
     if (!_nya_http_head_append(buffer, capacity, &size, keep_alive ? "Connection: keep-alive\r\n" : "Connection: close\r\n")) {
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the response head does not fit");
     }
+
+    u8 stamp[NYA_RFC9110_LENGTH + 1] = { 0 };
+    (void)nya_instant_to_rfc9110(date, stamp, sizeof(stamp));
+
+    (void)snprintf(line, sizeof(line), "Date: %s\r\n", (const char*)stamp);
+    if (!_nya_http_head_append(buffer, capacity, &size, line)) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the response head does not fit");
 
     for (u32 index = 0; index < response->header_count && index < NYA_HTTP_MAX_RESPONSE_HEADERS; index++) {
         if (!_nya_http_head_append(buffer, capacity, &size, response->headers[index].name) || !_nya_http_head_append(buffer, capacity, &size, ": ") ||

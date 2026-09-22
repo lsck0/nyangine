@@ -589,7 +589,7 @@ b8 _nya_http_write(_NYA_HttpConnection* connection, const NYA_HttpResponse* resp
     u8  head[NYA_HTTP_MAX_RESPONSE_HEAD_BYTES] = { 0 };
     u64 head_size                              = 0;
 
-    NYA_Error rendered = nya_http_response_head(response, status, keep_alive, head, sizeof(head), &head_size);
+    NYA_Error rendered = nya_http_response_head(response, status, keep_alive, nya_instant_now(), head, sizeof(head), &head_size);
 
     if (!rendered.ok) {
         nya_log_error("A %d response head could not be rendered; dropping the connection.", (s32)status);

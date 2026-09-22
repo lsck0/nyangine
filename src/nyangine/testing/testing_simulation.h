@@ -14,7 +14,7 @@
  *   nya_simulation_roll / _below /
  *     _chance / _range_f32 / _pick      the entropy every action draws from
  *   nya_simulation_advance / _now_ns /
- *     _delta_s                          the simulated clock
+ *     _delta_s                          the simulated clock, which nya_instant_now reads during a run
  *   nya_simulation_fail                 records a failure and prints the replay command
  *   nya_simulation_fill                 well shaped random data for any reflected type
  *
@@ -98,6 +98,16 @@
 
 /** Longest a name may be, so the summary table lines up without measuring twice. */
 #define NYA_SIMULATION_NAME_MAX 48
+
+/**
+ * What nya_instant_now reads at simulated time zero, in a simulation and in a session alike:
+ * 2000-01-01T00:00:00Z. Fixed rather than read off the wall clock, or a seed would replay against a
+ * different date every day. A round date on purpose, so a stamp in a failing run's log reads as
+ * simulated at a glance.
+ * */
+#ifndef NYA_SIMULATION_INSTANT_ORIGIN_NS
+#define NYA_SIMULATION_INSTANT_ORIGIN_NS (946'684'800LL * 1'000'000'000LL)
+#endif
 
 /**
  * The siphash key the entropy is drawn under.

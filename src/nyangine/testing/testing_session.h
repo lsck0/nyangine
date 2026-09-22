@@ -42,7 +42,7 @@
  * ## Why it is the same run either way
  *
  * A fast-forwarded run is only worth anything if it finds the bugs a real one would, which means it
- * has to be the same run. Three things make it one, and each is load bearing:
+ * has to be the same run. Four things make it one, and each is load bearing:
  *
  *   - The tick is a fixed timestep. Every system in the tick phase is handed NYA_AppOptions.time_step_ns
  *     whatever the wall clock did, so the clock changes how often a tick happens and never what one does.
@@ -52,6 +52,8 @@
  *     tick. The agent acts once per frame, which is therefore once per tick, in the same place in the
  *     frame a real player's input lands: dispatched at NYA_EVENT_FRAME_STARTED and handled by the
  *     event pump before the tick runs.
+ *   - nya_instant_now reads NYA_SIMULATION_INSTANT_ORIGIN_NS plus the ticks played, in both modes, so
+ *     anything dated (an expiry, a timestamp in a save) is dated the same on every replay.
  *
  * `real_time` is the proof rather than a feature: it paces the same session to the wall clock, one
  * step per frame, and leaves everything else alone. Same seed, same digest, and the only difference is
