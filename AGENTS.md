@@ -58,7 +58,6 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | `nn`       | tensors, layers, optimizers, DQN, NEAT                                       |
 | `debug`    | the overlay and the trace                                                    |
 | `plugins`  | optional dependencies behind a flag: curl, sqlite, lua, discord, steam        |
-| `editor`   | empty. `editor.c` and `editor.h` contain nothing.                             |
 
 Not in the engine yet, and planned in `TODO.md`'s roadmap: the module layering and the component
 system (every module above `base`, `platform` and `math` added or removed by one line in

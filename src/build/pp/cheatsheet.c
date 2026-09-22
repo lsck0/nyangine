@@ -98,10 +98,6 @@ NYA_INTERNAL void _nya_cheatsheet_file_blurb(NYA_ConstCString text, u64 length, 
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/**
- * `editor/` is absent on purpose: editor.c and editor.h are empty, so listing it would promise an
- * API that does not exist.
- * */
 NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
     { "base",     "base",     "Arenas, strings, arrays, logging, errors, assertions, hashing, files. No SDL, no window." },
     { "core",     "core",     "The application loop: entities, systems, events, input, audio, assets, config, saves." },
