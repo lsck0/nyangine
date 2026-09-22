@@ -213,17 +213,17 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room for the HTTP server");
     }
 
-    *state = (_NYA_HttpState){
-        .allocator = arena,
-        .scratch   = nya_arena_create(.name = "http_exchange"),
-        .listener  = listener,
-        .port      = config.port,
-        .max_connections =
-            config.max_connections == 0 || config.max_connections > NYA_HTTP_MAX_CONNECTIONS ? NYA_HTTP_MAX_CONNECTIONS : config.max_connections,
-        .max_connections_per_address = config.max_connections_per_address != 0 ? config.max_connections_per_address : NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS,
-        .requests_per_second         = config.requests_per_second != 0 ? config.requests_per_second : NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND,
-        .request_burst               = config.request_burst != 0 ? config.request_burst : NYA_HTTP_DEFAULT_REQUEST_BURST,
-    };
+    // field by field after a memset: a compound literal of the whole state is a 200 KB stack temporary unoptimized.
+    nya_memset(state, 0, sizeof(*state));
+    state->allocator = arena;
+    state->scratch   = nya_arena_create(.name = "http_exchange");
+    state->listener  = listener;
+    state->port      = config.port;
+    state->max_connections =
+        config.max_connections == 0 || config.max_connections > NYA_HTTP_MAX_CONNECTIONS ? NYA_HTTP_MAX_CONNECTIONS : config.max_connections;
+    state->max_connections_per_address = config.max_connections_per_address != 0 ? config.max_connections_per_address : NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS;
+    state->requests_per_second         = config.requests_per_second != 0 ? config.requests_per_second : NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND;
+    state->request_burst               = config.request_burst != 0 ? config.request_burst : NYA_HTTP_DEFAULT_REQUEST_BURST;
     state->max_connections_per_address = nya_min(state->max_connections_per_address, state->max_connections);
 
     if (state->scratch == nullptr) {

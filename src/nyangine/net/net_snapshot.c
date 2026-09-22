@@ -529,8 +529,9 @@ void nya_net_replica_map_clear(NYA_NetReplicaMap* map) {
     nya_assert(map != nullptr);
 
     // does not despawn. A reconnecting caller wants a fresh world, and one shutting down destroys the
-    // world anyway.
-    *map = (NYA_NetReplicaMap){ 0 };
+    // world anyway. A memset rather than `*map = (NYA_NetReplicaMap){ 0 }`: unoptimized, that builds the
+    // 624 KB map as a temporary on the stack first, which overflows the 1 MB a Windows thread gets.
+    nya_memset(map, 0, sizeof(*map));
 }
 
 void nya_net_replica_interpolate(NYA_NetReplicaMap* map, f64 render_tick, f32 tick_seconds, f32 extrapolation_limit_s, NYA_EntityHandle predicted_remote) {
@@ -595,7 +596,7 @@ void nya_net_replica_map_despawn_all(NYA_NetReplicaMap* map) {
         nya_entity_despawn_deferred(map->entries[i].local);
     }
 
-    *map = (NYA_NetReplicaMap){ 0 };
+    nya_memset(map, 0, sizeof(*map));
 }
 
 NYA_EntityHandle nya_net_replica_local(const NYA_NetReplicaMap* map, NYA_EntityHandle remote) {

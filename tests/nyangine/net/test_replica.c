@@ -54,7 +54,7 @@ s32 main(void) {
   NYA_NetReplicaMap* map = nya_arena_alloc(arena, sizeof(NYA_NetReplicaMap));
   nya_assert(map != nullptr);
 
-  *map = (NYA_NetReplicaMap){ 0 };
+  nya_memset(map, 0, sizeof(*map));
 
   /*
    * The client's table is pushed out of step with the server's before anything is replicated.
@@ -414,19 +414,23 @@ s32 main(void) {
 
     NYA_EntityHandle survivor = nya_entity_spawn(.flags = FLAG_REPLICATED, .position = { 1.0F, 2.0F, 3.0F });
 
-    NYA_NetReplicaMap scratch = { 0 };
+    // on the arena for the same reason as the map above.
+    NYA_NetReplicaMap* scratch = nya_arena_alloc(arena, sizeof(NYA_NetReplicaMap));
+    nya_assert(scratch != nullptr);
+
+    nya_memset(scratch, 0, sizeof(*scratch));
 
     // A pairing by hand, since what is being tested is the clear rather than how the map was filled.
-    scratch.entries[0] = (NYA_NetReplica){ .remote = { .index = 77, .generation = 1 }, .local = survivor, .present = true };
-    scratch.count      = 1;
-    scratch.by_remote_index[77] = 1;
+    scratch->entries[0] = (NYA_NetReplica){ .remote = { .index = 77, .generation = 1 }, .local = survivor, .present = true };
+    scratch->count      = 1;
+    scratch->by_remote_index[77] = 1;
 
-    nya_assert(nya_entity_is_valid(nya_net_replica_local(&scratch, (NYA_EntityHandle){ .index = 77, .generation = 1 })));
+    nya_assert(nya_entity_is_valid(nya_net_replica_local(scratch, (NYA_EntityHandle){ .index = 77, .generation = 1 })));
 
-    nya_net_replica_map_clear(&scratch);
+    nya_net_replica_map_clear(scratch);
 
-    nya_assert(scratch.count == 0, "the map was not cleared");
-    nya_assert(!nya_entity_is_valid(nya_net_replica_local(&scratch, (NYA_EntityHandle){ .index = 77, .generation = 1 })),
+    nya_assert(scratch->count == 0, "the map was not cleared");
+    nya_assert(!nya_entity_is_valid(nya_net_replica_local(scratch, (NYA_EntityHandle){ .index = 77, .generation = 1 })),
                "a cleared map still resolves");
 
     // The entity is untouched, which is the whole difference from despawn_all.

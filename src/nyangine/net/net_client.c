@@ -227,7 +227,7 @@ NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString na
 
     if (!nya_net_transport_is_local(transport)) {
         _NYA_NET_CLIENT.replicas  = nya_arena_alloc(_NYA_NET_CLIENT.allocator, sizeof(NYA_NetReplicaMap));
-        *_NYA_NET_CLIENT.replicas = (NYA_NetReplicaMap){ 0 };
+        nya_net_replica_map_clear(_NYA_NET_CLIENT.replicas);
     }
 
     return NYA_OK;

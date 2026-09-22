@@ -89,7 +89,10 @@
 // -mf16c turns the half float casts in NYA_Vertex3D into one instruction instead of a libgcc call per channel.
 // Every AVX2 CPU has FMA3 and F16C (all came with Haswell), so neither adds a requirement.
 #define CFLAGS        "-std=c2y", "-mavx", "-mavx2", "-mfma", "-mf16c", "-fdefer-ts", "-fenable-matrix", "-ggdb"
-#define WARNINGS      "-Werror", "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro"
+// -Wframe-larger-than: a Windows thread gets 1 MB of stack against Linux's 8, so a frame that fits here can
+// overflow there, and only CI on Windows would say so. A quarter of that stays one frame's share. Unoptimized
+// builds count compound literal temporaries too, so `*big = (T){ 0 }` of a large T is caught; memset it instead.
+#define WARNINGS      "-Werror", "-Wall", "-Wextra", "-Wstrict-prototypes", "-Wswitch", "-Wswitch-default", "-Wimplicit-fallthrough", "-Wframe-larger-than=262144", "-Wno-gnu", "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro"
 /*
  * A rule that compiles with `-c` takes only compile flags: under -Werror clang rejects a linker flag it
  * cannot use. Link only are LINKER_FLAGS, every *_LINK macro, FLAGS_LINUX_X86_64, FLAGS_WINDOWS_X86_64

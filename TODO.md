@@ -1235,7 +1235,11 @@ the packager ones.
 - `[x]` `monocypher.h` not found, `NYA_LuaVM` unknown, `windows.h` not found, and the
   `modernize-redundant-void-arg` lint were all `.clangd` gaps. Fixed.
 - `[x]` `build-steam-linux` red in CI: monocypher was missing from the steamrt vendor set. Fixed.
-- `[x]` `test-windows` red on `test_replica`: a 624 KB `NYA_NetReplicaMap` on a 1 MB Windows stack. Fixed.
+- `[x]` `test-windows` red on `test_replica`: a 624 KB `NYA_NetReplicaMap` on a 1 MB Windows stack. The first
+  fix moved the local to the arena and stayed red, because `*map = (NYA_NetReplicaMap){ 0 }` builds the same
+  624 KB as a temporary when unoptimized, and so did `nya_net_replica_map_clear`, `_despawn_all` and
+  `nya_net_client_attach` in the engine itself. Those zero with a memset now, and every build compiles with
+  `-Wframe-larger-than=262144`, so a frame that only Windows would overflow fails on Linux first.
 
 ## `[~]` Crash reporting
 

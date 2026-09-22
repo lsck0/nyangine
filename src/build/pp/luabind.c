@@ -185,7 +185,7 @@ void nya_luabind_generate(void) {
     nya_array_sort(files, _nya_luabind_compare);
 
     _NYA_LuaBindSet* set = nya_arena_alloc(arena, sizeof(_NYA_LuaBindSet));
-    *set                 = (_NYA_LuaBindSet){ 0 };
+    nya_memset(set, 0, sizeof(*set));
 
     nya_array_foreach (files, file) _nya_luabind_scan_file(set, arena, nya_string_to_cstring(arena, file));
 
