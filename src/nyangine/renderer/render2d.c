@@ -123,6 +123,15 @@ NYA_INTERNAL void _nya_render2d_textf_va(NYA_Window* window, NYA_ConstCString fo
 
 NYA_INTERNAL b8 _nya_render2d_prepare(NYA_Window* window, NYA_ConstCString pipeline, SDL_GPUTexture* texture, SDL_GPUSampler* sampler, u32 vertex_count, u32 index_count);
 
+/**
+ * Draws the stand-in for a texture that is not there, and warns once for the handle.
+ *
+ * Returns true when it drew, so a caller can say `if (missing) { placeholder; return; }` in one line.
+ * False while the asset is merely still loading, which is the ordinary case for a frame or two after a
+ * load is queued and is not something to put magenta on the screen for.
+ * */
+NYA_INTERNAL b8 _nya_render2d_texture_placeholder(NYA_Window* window, NYA_ConstCString handle, f32 x, f32 y, f32 width, f32 height);
+
 /** Lays a box out, drawing when `window` is non-null and only measuring when it is not. */
 NYA_INTERNAL f32x2 _nya_render2d_text_box_layout(NYA_Window* window, NYA_ConstCString text, NYA_Render2DTextBox params);
 
@@ -850,9 +859,42 @@ f32x2 nya_render2d_world_to_screen(NYA_Window* window, f32x2 world) {
  * ─────────────────────────────────────────────────────────
  */
 
+/** Full extent of the placeholder when the caller asked for a texture's own size and there is none. */
+#define NYA_RENDER2D_PLACEHOLDER_SIZE 64.0F
+
+/** How thick the cross over the placeholder is drawn, as a fraction of the shorter side. */
+#define NYA_RENDER2D_PLACEHOLDER_BAR 0.16F
+
+b8 _nya_render2d_texture_placeholder(NYA_Window* window, NYA_ConstCString handle, f32 x, f32 y, f32 width, f32 height) {
+    nya_assert(window != nullptr);
+
+    if (!nya_asset_is_missing((NYA_CString)handle)) return false;
+
+    nya_asset_missing_report(handle);
+
+    if (width <= 0.0F) width = NYA_RENDER2D_PLACEHOLDER_SIZE;
+    if (height <= 0.0F) height = NYA_RENDER2D_PLACEHOLDER_SIZE;
+
+    /*
+     * Magenta and a black cross, which is the one thing on a screen nobody mistakes for art. Drawn with
+     * the shape pipeline rather than a generated checkerboard texture, so this needs no GPU resource of
+     * its own, no upload at startup, and nothing to release: a missing asset is already a bad day and a
+     * placeholder that can itself fail to load would be a poor joke.
+     */
+    nya_render2d_rect(window, x, y, width, height, (NYA_Color){ 1.0F, 0.0F, 1.0F, 1.0F });
+
+    const f32 bar = nya_max(1.0F, nya_min(width, height) * NYA_RENDER2D_PLACEHOLDER_BAR);
+
+    nya_render2d_line(window, (f32x2){ x, y }, (f32x2){ x + width, y + height }, bar, NYA_COLOR_BLACK);
+    nya_render2d_line(window, (f32x2){ x + width, y }, (f32x2){ x, y + height }, bar, NYA_COLOR_BLACK);
+
+    return true;
+}
 
 void nya_render2d_texture(NYA_Window* window, NYA_ConstCString texture_handle, f32 x, f32 y, NYA_Color tint) {
     // cast because nya_asset_get takes a mutable handle it only reads.
+    if (_nya_render2d_texture_placeholder(window, texture_handle, x, y, 0.0F, 0.0F)) return;
+
     NYA_Asset* asset = nya_asset_get((NYA_CString)texture_handle);
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return;
 
@@ -864,6 +906,8 @@ void nya_render2d_texture(NYA_Window* window, NYA_ConstCString texture_handle, f
 
 void nya_render2d_texture_ex(NYA_Window* window, NYA_ConstCString texture_handle, NYA_Render2DTexture params) {
     nya_assert(window != nullptr);
+
+    if (_nya_render2d_texture_placeholder(window, texture_handle, params.x, params.y, params.width, params.height)) return;
 
     NYA_Asset* asset = nya_asset_get((NYA_CString)texture_handle);
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED || asset->as_texture.texture == nullptr) {
@@ -944,6 +988,8 @@ void nya_render2d_texture_rect(
     NYA_Color        tint
 ) {
     nya_assert(window != nullptr);
+
+    if (_nya_render2d_texture_placeholder(window, texture_handle, destination_x, destination_y, destination_width, destination_height)) return;
 
     // missing or still loading is normal right after a load. cast: nya_asset_get only reads the handle.
     NYA_Asset* asset = nya_asset_get((NYA_CString)texture_handle);

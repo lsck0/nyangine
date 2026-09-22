@@ -251,6 +251,20 @@ NYA_INTERNAL SDL_GPUVertexBufferDescription vertex_buffer_description_2d = {
  * ─────────────────────────────────────────────────────────
  */
 
+/**
+ * Handles nya_asset_missing_report has already spoken about.
+ *
+ * A flat array of pointers into the asset handles the caller passed, compared by content. Small and
+ * linear on purpose: it is walked once per missing draw, and a scene with more than a handful of broken
+ * handles has a bigger problem than the cost of this loop. Past the ceiling it stops recording, which
+ * costs a repeated warning rather than a wrong one.
+ */
+#define _NYA_ASSET_MISSING_REPORTED_MAX 128
+#define _NYA_ASSET_MISSING_HANDLE_MAX   128
+
+NYA_INTERNAL u8  _nya_asset_missing_reported[_NYA_ASSET_MISSING_REPORTED_MAX][_NYA_ASSET_MISSING_HANDLE_MAX];
+NYA_INTERNAL u32 _nya_asset_missing_reported_count = 0;
+
 void nya_system_asset_init(void) {
     NYA_App* app = nya_app_get();
 
@@ -303,6 +317,8 @@ void nya_system_asset_init(void) {
         .fn         = nya_callback(_nya_asset_reload_process),
     });
 #endif // NYA_ASSET_HOT_RELOAD
+
+    nya_ceiling_register("asset_missing_reports", _NYA_ASSET_MISSING_REPORTED_MAX, &_nya_asset_missing_reported_count);
 
     nya_log_info("Asset system initialized.");
 }
@@ -522,6 +538,30 @@ NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) {
     NYA_Asset* asset = nya_dict_get(system->assets, handle);
     return asset ? asset->status : NYA_ASSET_STATUS_UNLOADED;
 }
+
+b8 nya_asset_is_missing(NYA_AssetHandle handle) {
+    const NYA_AssetStatus status = nya_asset_status(handle);
+
+    return status == NYA_ASSET_STATUS_UNLOADED || status == NYA_ASSET_STATUS_FAILED;
+}
+
+
+void nya_asset_missing_report(NYA_ConstCString handle) {
+    if (handle == nullptr) return;
+
+    for (u32 i = 0; i < _nya_asset_missing_reported_count; i++) {
+        if (strcmp((const char*)_nya_asset_missing_reported[i], handle) == 0) return;
+    }
+
+    nya_log_warn("Asset '%s' is missing; drawing a placeholder in its place.", handle);
+
+    if (_nya_asset_missing_reported_count >= _NYA_ASSET_MISSING_REPORTED_MAX) return;
+
+    (void)snprintf((char*)_nya_asset_missing_reported[_nya_asset_missing_reported_count], _NYA_ASSET_MISSING_HANDLE_MAX, "%s", handle);
+    _nya_asset_missing_reported_count++;
+}
+
+void nya_asset_missing_forget(void) { _nya_asset_missing_reported_count = 0; }
 
 SDL_GPUGraphicsPipeline* nya_asset_graphics_pipeline(NYA_Asset* asset, SDL_GPUSampleCount sample_count, b8 normals, b8 face_culling) {
     if (asset == nullptr || asset->status != NYA_ASSET_STATUS_LOADED) return nullptr;
@@ -2455,6 +2495,9 @@ void _nya_asset_reload_process(NYA_Event* event) {
             nya_array_push_back(&postponed, *handle);
         } else {
             nya_log_debug("Reloading asset: %s", *handle);
+
+            // an asset that has been fixed on disk gets to complain again if it is still wrong.
+            nya_asset_missing_forget();
 
             /*
              * The shaders are rebuilt before the pipeline, or it binds the old modules again. Both queues drain in

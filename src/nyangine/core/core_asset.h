@@ -582,6 +582,30 @@ NYA_API NYA_Error nya_asset_set_window_icon(NYA_WindowHandle window, NYA_AssetHa
 NYA_API NYA_AssetStatus nya_asset_status(NYA_AssetHandle handle) __attr_no_discard;
 
 /**
+ * Whether an asset is one a caller should draw a placeholder for: absent, or loaded and failed.
+ *
+ * Not the same question as "is it ready". An asset that is still LOADING is neither ready nor missing,
+ * and it is the ordinary case for the frame or two after a load is queued. Drawing something obviously
+ * wrong in its place would make every load flash, so this answers false for it.
+ * */
+NYA_API b8 nya_asset_is_missing(NYA_AssetHandle handle) __attr_no_discard;
+
+/**
+ * Logs that `handle` is missing, once for that handle and never again.
+ *
+ * A draw call that finds nothing behind a handle happens every frame for as long as the handle is
+ * wrong, and a warning per frame is a log nobody can read. The first one names the asset; the rest are
+ * the placeholder on the screen.
+ *
+ * Cleared by nya_asset_missing_forget, which a reload calls: an asset that has been fixed and reloaded
+ * deserves to be able to complain again.
+ * */
+NYA_API void nya_asset_missing_report(NYA_ConstCString handle);
+
+/** Forgets every handle nya_asset_missing_report has warned about. */
+NYA_API void nya_asset_missing_forget(void);
+
+/**
  * The pipeline to bind for a target of `sample_count`, built the first time a target of that kind asks, so a single
  * sampled render texture or a changed MSAA setting needs no second asset. Null while the asset is not loaded or when
  * SDL refuses the build. A `single_sampled` pipeline ignores `sample_count`.
