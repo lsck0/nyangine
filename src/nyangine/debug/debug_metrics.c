@@ -4,7 +4,7 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/core/core_app.h"
 #include "nyangine/core/core_ceiling.h"
-#include "nyangine/http/http_metrics.h"
+#include "nyangine/debug/debug_metrics.h"
 #include "nyangine/http/http_server.h"
 #include "nyangine/platform/clock/clock.h"
 

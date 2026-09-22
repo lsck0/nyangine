@@ -1,5 +1,5 @@
 /**
- * @file nn_neat_draw.h
+ * @file debug_nn_neat.h
  *
  * ```c
  * nya_render2d_font_set(NYA_ASSET_FONTS_ALDRICH_TTF, 24.0F);

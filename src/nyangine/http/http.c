@@ -10,5 +10,4 @@
 // after the router, which it dispatches through, and before openapi, which reads its mount table.
 #include "nyangine/http/http_server.c"
 /**/
-#include "nyangine/http/http_metrics.c"
 #include "nyangine/http/http_openapi.c"

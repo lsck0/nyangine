@@ -14,7 +14,7 @@
  * http_auth.h      JWT over HMAC-SHA256, the bearer extractor, and the second factor seam
  * http_server.h    the listener, the connections and the drain
  * http_openapi.h   the OpenAPI document and the browsable page, both generated from the route table
- * http_metrics.h   the first resource: this program's own frame time, ceilings, arenas and systems
+ * ../debug/debug_metrics.h   the first resource, this program's own numbers; in debug, since it reads the app loop
  * ```
  *
  * ```c
@@ -53,7 +53,6 @@
 
 #include "nyangine/http/http_auth.h"
 #include "nyangine/http/http_message.h"
-#include "nyangine/http/http_metrics.h"
 #include "nyangine/http/http_openapi.h"
 #include "nyangine/http/http_router.h"
 #include "nyangine/http/http_server.h"

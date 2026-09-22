@@ -56,7 +56,7 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | `http`     | an HTTP/1.1 server, routing and layers, JWT, OpenAPI generated from both       |
 | `serde`    | one dynamic value type, to and from json, jsonc and the `.nya` format         |
 | `nn`       | tensors, layers, optimizers, DQN, NEAT                                       |
-| `debug`    | the overlay and the trace                                                    |
+| `debug`    | the overlay, the trace, the crash window, and drawing physics and networks   |
 | `plugins`  | optional dependencies behind a flag: curl, sqlite, lua, discord, steam        |
 
 Not in the engine yet, and planned in `TODO.md`'s roadmap: the module layering and the component

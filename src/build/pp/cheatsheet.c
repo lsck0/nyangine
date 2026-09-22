@@ -108,8 +108,8 @@ NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
     { "net",      "net",      "Encrypted UDP client and server: handshake, commands, delta snapshots and prediction."    },
     { "http",     "http",     "An HTTP/1.1 server, its router and layers, JWT auth, and OpenAPI generated from both."    },
     { "serde",    "serde",    "One dynamic value type, serialized to and from json, jsonc and the engine's own format."  },
-    { "nn",       "nn",       "Tensors, layers, optimizers, DQN and NEAT, with draw helpers for both."                   },
-    { "debug",    "debug",    "The overlay and the trace: scoped spans, counters and a Chrome trace capture."            },
+    { "nn",       "nn",       "Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else."        },
+    { "debug",    "debug",    "The overlay, the trace, the crash window, and drawing physics shapes and networks."        },
     { "plugins",  "plugins",  "Optional dependencies behind a flag: curl, sqlite, lua, discord, steam."                  },
     { "platform", "platform", "The thin OS layer: clock, filesystem, process spawning, signals and raw memory."          },
 };

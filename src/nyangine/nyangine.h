@@ -31,10 +31,6 @@
 #include "nyangine/renderer/render_particles.h"
 // before renderer.h, which stores a window's NYA_FluidRenderOptions by value.
 #include "nyangine/renderer/render_fluid.h"
-// the NEAT visualizer needs the renderer, so it sits with it. The build tool compiles nn with
-// -DNYA_NO_SDL.
-#include "nyangine/nn/nn_draw.h"
-#include "nyangine/nn/nn_neat_draw.h"
 #include "nyangine/debug/debug.h"
 #include "nyangine/renderer/renderer.h"
 #include "nyangine/ui/ui.h"

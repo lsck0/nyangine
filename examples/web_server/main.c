@@ -33,7 +33,7 @@
  *
  * The server's nicest shape is a `// @reflect` DTO: `nya_http_request_reflect` fills one straight from
  * the body and `nya_http_response_reflect` renders one back, with the OpenAPI schema generated from
- * the same reflection. That is what `http_metrics.c` does, and it is what a resource inside the engine
+ * the same reflection. That is what `debug_metrics.c` does, and it is what a resource inside the engine
  * should do.
  *
  * It cannot be done here. The reflection preprocessor scans two trees, `src/nyangine` and `src/gnyame`,

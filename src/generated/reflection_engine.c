@@ -659,6 +659,197 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_SettingsGraphics = {
     .field_count = 11,
 };
 
+/* NYA_HttpMetricsDto, src/nyangine/debug/debug_metrics.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpMetricsDto_FIELDS[] = {
+    { .name = "measured_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, measured_at_s), .hint = NYA_HINT_NONE },
+    { .name = "uptime_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, uptime_ns), .hint = NYA_HINT_NONE },
+    { .name = "fps", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_HttpMetricsDto, fps), .hint = NYA_HINT_NONE },
+    { .name = "delta_time_s", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_HttpMetricsDto, delta_time_s), .hint = NYA_HINT_NONE },
+    { .name = "work_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, work_ns), .hint = NYA_HINT_NONE },
+    { .name = "sleep_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, sleep_ns), .hint = NYA_HINT_NONE },
+    { .name = "elapsed_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, elapsed_ns), .hint = NYA_HINT_NONE },
+    { .name = "min_frame_time_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, min_frame_time_ns), .hint = NYA_HINT_NONE },
+    { .name = "connection_count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpMetricsDto, connection_count), .hint = NYA_HINT_NONE },
+    { .name = "request_count", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, request_count), .hint = NYA_HINT_NONE },
+    { .name = "accounting_enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_HttpMetricsDto, accounting_enabled), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpMetricsDto = {
+    .name = "NYA_HttpMetricsDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpMetricsDto),
+    .alignment = alignof(NYA_HttpMetricsDto),
+    .fields = _NYA_REFLECT_NYA_HttpMetricsDto_FIELDS,
+    .field_count = 11,
+};
+
+/* NYA_HttpCeilingDto, src/nyangine/debug/debug_metrics.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingDto_name_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpCeilingDto*)nullptr)->name),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_METRICS_MAX_NAME),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpCeilingDto_FIELDS[] = {
+    { .name = "name", .type = &_NYA_REFLECT_NYA_HttpCeilingDto_name_ARRAY, .offset = nya_offsetof(NYA_HttpCeilingDto, name), .hint = NYA_HINT_NONE },
+    { .name = "capacity", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpCeilingDto, capacity), .hint = NYA_HINT_NONE },
+    { .name = "live", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpCeilingDto, live), .hint = NYA_HINT_NONE },
+    { .name = "fullness", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_HttpCeilingDto, fullness), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingDto = {
+    .name = "NYA_HttpCeilingDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpCeilingDto),
+    .alignment = alignof(NYA_HttpCeilingDto),
+    .fields = _NYA_REFLECT_NYA_HttpCeilingDto_FIELDS,
+    .field_count = 4,
+};
+
+/* NYA_HttpCeilingsDto, src/nyangine/debug/debug_metrics.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingsDto_rows_ARRAY = {
+    .name = "NYA_HttpCeilingDto[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpCeilingsDto*)nullptr)->rows),
+    .alignment = alignof(NYA_HttpCeilingDto),
+    .element = &_NYA_REFLECT_NYA_HttpCeilingDto, .element_count = (NYA_HTTP_METRICS_MAX_ROWS),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpCeilingsDto_FIELDS[] = {
+    { .name = "count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpCeilingsDto, count), .hint = NYA_HINT_NONE },
+    { .name = "truncated", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpCeilingsDto, truncated), .hint = NYA_HINT_NONE },
+    { .name = "rows", .type = &_NYA_REFLECT_NYA_HttpCeilingsDto_rows_ARRAY, .offset = nya_offsetof(NYA_HttpCeilingsDto, rows), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingsDto = {
+    .name = "NYA_HttpCeilingsDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpCeilingsDto),
+    .alignment = alignof(NYA_HttpCeilingsDto),
+    .fields = _NYA_REFLECT_NYA_HttpCeilingsDto_FIELDS,
+    .field_count = 3,
+};
+
+/* NYA_HttpArenaDto, src/nyangine/debug/debug_metrics.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenaDto_name_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpArenaDto*)nullptr)->name),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_METRICS_MAX_NAME),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpArenaDto_FIELDS[] = {
+    { .name = "name", .type = &_NYA_REFLECT_NYA_HttpArenaDto_name_ARRAY, .offset = nya_offsetof(NYA_HttpArenaDto, name), .hint = NYA_HINT_NONE },
+    { .name = "region_count", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpArenaDto, region_count), .hint = NYA_HINT_NONE },
+    { .name = "used_bytes", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpArenaDto, used_bytes), .hint = NYA_HINT_NONE },
+    { .name = "reserved_bytes", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpArenaDto, reserved_bytes), .hint = NYA_HINT_NONE },
+    { .name = "free_list_bytes", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpArenaDto, free_list_bytes), .hint = NYA_HINT_NONE },
+    { .name = "fragmentation", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_HttpArenaDto, fragmentation), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenaDto = {
+    .name = "NYA_HttpArenaDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpArenaDto),
+    .alignment = alignof(NYA_HttpArenaDto),
+    .fields = _NYA_REFLECT_NYA_HttpArenaDto_FIELDS,
+    .field_count = 6,
+};
+
+/* NYA_HttpArenasDto, src/nyangine/debug/debug_metrics.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenasDto_rows_ARRAY = {
+    .name = "NYA_HttpArenaDto[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpArenasDto*)nullptr)->rows),
+    .alignment = alignof(NYA_HttpArenaDto),
+    .element = &_NYA_REFLECT_NYA_HttpArenaDto, .element_count = (NYA_HTTP_METRICS_MAX_ROWS),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpArenasDto_FIELDS[] = {
+    { .name = "count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpArenasDto, count), .hint = NYA_HINT_NONE },
+    { .name = "truncated", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpArenasDto, truncated), .hint = NYA_HINT_NONE },
+    { .name = "rows", .type = &_NYA_REFLECT_NYA_HttpArenasDto_rows_ARRAY, .offset = nya_offsetof(NYA_HttpArenasDto, rows), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenasDto = {
+    .name = "NYA_HttpArenasDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpArenasDto),
+    .alignment = alignof(NYA_HttpArenasDto),
+    .fields = _NYA_REFLECT_NYA_HttpArenasDto_FIELDS,
+    .field_count = 3,
+};
+
+/* NYA_HttpOwnerDto, src/nyangine/debug/debug_metrics.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpOwnerDto_name_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpOwnerDto*)nullptr)->name),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_METRICS_MAX_NAME),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpOwnerDto_FIELDS[] = {
+    { .name = "name", .type = &_NYA_REFLECT_NYA_HttpOwnerDto_name_ARRAY, .offset = nya_offsetof(NYA_HttpOwnerDto, name), .hint = NYA_HINT_NONE },
+    { .name = "system_count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpOwnerDto, system_count), .hint = NYA_HINT_NONE },
+    { .name = "enabled_count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpOwnerDto, enabled_count), .hint = NYA_HINT_NONE },
+    { .name = "time_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpOwnerDto, time_ns), .hint = NYA_HINT_NONE },
+    { .name = "memory_bytes", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpOwnerDto, memory_bytes), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpOwnerDto = {
+    .name = "NYA_HttpOwnerDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpOwnerDto),
+    .alignment = alignof(NYA_HttpOwnerDto),
+    .fields = _NYA_REFLECT_NYA_HttpOwnerDto_FIELDS,
+    .field_count = 5,
+};
+
+/* NYA_HttpSystemsDto, src/nyangine/debug/debug_metrics.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpSystemsDto_rows_ARRAY = {
+    .name = "NYA_HttpOwnerDto[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpSystemsDto*)nullptr)->rows),
+    .alignment = alignof(NYA_HttpOwnerDto),
+    .element = &_NYA_REFLECT_NYA_HttpOwnerDto, .element_count = (NYA_SYSTEM_OWNER_MAX),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpSystemsDto_FIELDS[] = {
+    { .name = "count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpSystemsDto, count), .hint = NYA_HINT_NONE },
+    { .name = "truncated", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpSystemsDto, truncated), .hint = NYA_HINT_NONE },
+    { .name = "accounting_enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_HttpSystemsDto, accounting_enabled), .hint = NYA_HINT_NONE },
+    { .name = "rows", .type = &_NYA_REFLECT_NYA_HttpSystemsDto_rows_ARRAY, .offset = nya_offsetof(NYA_HttpSystemsDto, rows), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpSystemsDto = {
+    .name = "NYA_HttpSystemsDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpSystemsDto),
+    .alignment = alignof(NYA_HttpSystemsDto),
+    .fields = _NYA_REFLECT_NYA_HttpSystemsDto_FIELDS,
+    .field_count = 4,
+};
+
+/* NYA_HttpAccountingDto, src/nyangine/debug/debug_metrics.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpAccountingDto_FIELDS[] = {
+    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_HttpAccountingDto, enabled), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpAccountingDto = {
+    .name = "NYA_HttpAccountingDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpAccountingDto),
+    .alignment = alignof(NYA_HttpAccountingDto),
+    .fields = _NYA_REFLECT_NYA_HttpAccountingDto_FIELDS,
+    .field_count = 1,
+};
+
 /* NYA_HttpScope, src/nyangine/http/http_auth.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_HttpScope_VARIANTS[] = {
@@ -706,197 +897,6 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpIdentity = {
     .alignment = alignof(NYA_HttpIdentity),
     .fields = _NYA_REFLECT_NYA_HttpIdentity_FIELDS,
     .field_count = 4,
-};
-
-/* NYA_HttpMetricsDto, src/nyangine/http/http_metrics.h */
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_HttpMetricsDto_FIELDS[] = {
-    { .name = "measured_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, measured_at_s), .hint = NYA_HINT_NONE },
-    { .name = "uptime_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, uptime_ns), .hint = NYA_HINT_NONE },
-    { .name = "fps", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_HttpMetricsDto, fps), .hint = NYA_HINT_NONE },
-    { .name = "delta_time_s", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_HttpMetricsDto, delta_time_s), .hint = NYA_HINT_NONE },
-    { .name = "work_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, work_ns), .hint = NYA_HINT_NONE },
-    { .name = "sleep_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, sleep_ns), .hint = NYA_HINT_NONE },
-    { .name = "elapsed_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, elapsed_ns), .hint = NYA_HINT_NONE },
-    { .name = "min_frame_time_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, min_frame_time_ns), .hint = NYA_HINT_NONE },
-    { .name = "connection_count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpMetricsDto, connection_count), .hint = NYA_HINT_NONE },
-    { .name = "request_count", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpMetricsDto, request_count), .hint = NYA_HINT_NONE },
-    { .name = "accounting_enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_HttpMetricsDto, accounting_enabled), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_HttpMetricsDto = {
-    .name = "NYA_HttpMetricsDto",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_HttpMetricsDto),
-    .alignment = alignof(NYA_HttpMetricsDto),
-    .fields = _NYA_REFLECT_NYA_HttpMetricsDto_FIELDS,
-    .field_count = 11,
-};
-
-/* NYA_HttpCeilingDto, src/nyangine/http/http_metrics.h */
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingDto_name_ARRAY = {
-    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_HttpCeilingDto*)nullptr)->name),
-    .alignment = alignof(char),
-    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_METRICS_MAX_NAME),
-};
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_HttpCeilingDto_FIELDS[] = {
-    { .name = "name", .type = &_NYA_REFLECT_NYA_HttpCeilingDto_name_ARRAY, .offset = nya_offsetof(NYA_HttpCeilingDto, name), .hint = NYA_HINT_NONE },
-    { .name = "capacity", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpCeilingDto, capacity), .hint = NYA_HINT_NONE },
-    { .name = "live", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpCeilingDto, live), .hint = NYA_HINT_NONE },
-    { .name = "fullness", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_HttpCeilingDto, fullness), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingDto = {
-    .name = "NYA_HttpCeilingDto",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_HttpCeilingDto),
-    .alignment = alignof(NYA_HttpCeilingDto),
-    .fields = _NYA_REFLECT_NYA_HttpCeilingDto_FIELDS,
-    .field_count = 4,
-};
-
-/* NYA_HttpCeilingsDto, src/nyangine/http/http_metrics.h */
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingsDto_rows_ARRAY = {
-    .name = "NYA_HttpCeilingDto[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_HttpCeilingsDto*)nullptr)->rows),
-    .alignment = alignof(NYA_HttpCeilingDto),
-    .element = &_NYA_REFLECT_NYA_HttpCeilingDto, .element_count = (NYA_HTTP_METRICS_MAX_ROWS),
-};
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_HttpCeilingsDto_FIELDS[] = {
-    { .name = "count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpCeilingsDto, count), .hint = NYA_HINT_NONE },
-    { .name = "truncated", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpCeilingsDto, truncated), .hint = NYA_HINT_NONE },
-    { .name = "rows", .type = &_NYA_REFLECT_NYA_HttpCeilingsDto_rows_ARRAY, .offset = nya_offsetof(NYA_HttpCeilingsDto, rows), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_HttpCeilingsDto = {
-    .name = "NYA_HttpCeilingsDto",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_HttpCeilingsDto),
-    .alignment = alignof(NYA_HttpCeilingsDto),
-    .fields = _NYA_REFLECT_NYA_HttpCeilingsDto_FIELDS,
-    .field_count = 3,
-};
-
-/* NYA_HttpArenaDto, src/nyangine/http/http_metrics.h */
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenaDto_name_ARRAY = {
-    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_HttpArenaDto*)nullptr)->name),
-    .alignment = alignof(char),
-    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_METRICS_MAX_NAME),
-};
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_HttpArenaDto_FIELDS[] = {
-    { .name = "name", .type = &_NYA_REFLECT_NYA_HttpArenaDto_name_ARRAY, .offset = nya_offsetof(NYA_HttpArenaDto, name), .hint = NYA_HINT_NONE },
-    { .name = "region_count", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpArenaDto, region_count), .hint = NYA_HINT_NONE },
-    { .name = "used_bytes", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpArenaDto, used_bytes), .hint = NYA_HINT_NONE },
-    { .name = "reserved_bytes", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpArenaDto, reserved_bytes), .hint = NYA_HINT_NONE },
-    { .name = "free_list_bytes", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpArenaDto, free_list_bytes), .hint = NYA_HINT_NONE },
-    { .name = "fragmentation", .type = &_NYA_REFLECT_f32, .offset = nya_offsetof(NYA_HttpArenaDto, fragmentation), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenaDto = {
-    .name = "NYA_HttpArenaDto",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_HttpArenaDto),
-    .alignment = alignof(NYA_HttpArenaDto),
-    .fields = _NYA_REFLECT_NYA_HttpArenaDto_FIELDS,
-    .field_count = 6,
-};
-
-/* NYA_HttpArenasDto, src/nyangine/http/http_metrics.h */
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenasDto_rows_ARRAY = {
-    .name = "NYA_HttpArenaDto[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_HttpArenasDto*)nullptr)->rows),
-    .alignment = alignof(NYA_HttpArenaDto),
-    .element = &_NYA_REFLECT_NYA_HttpArenaDto, .element_count = (NYA_HTTP_METRICS_MAX_ROWS),
-};
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_HttpArenasDto_FIELDS[] = {
-    { .name = "count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpArenasDto, count), .hint = NYA_HINT_NONE },
-    { .name = "truncated", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpArenasDto, truncated), .hint = NYA_HINT_NONE },
-    { .name = "rows", .type = &_NYA_REFLECT_NYA_HttpArenasDto_rows_ARRAY, .offset = nya_offsetof(NYA_HttpArenasDto, rows), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_HttpArenasDto = {
-    .name = "NYA_HttpArenasDto",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_HttpArenasDto),
-    .alignment = alignof(NYA_HttpArenasDto),
-    .fields = _NYA_REFLECT_NYA_HttpArenasDto_FIELDS,
-    .field_count = 3,
-};
-
-/* NYA_HttpOwnerDto, src/nyangine/http/http_metrics.h */
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpOwnerDto_name_ARRAY = {
-    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_HttpOwnerDto*)nullptr)->name),
-    .alignment = alignof(char),
-    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_METRICS_MAX_NAME),
-};
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_HttpOwnerDto_FIELDS[] = {
-    { .name = "name", .type = &_NYA_REFLECT_NYA_HttpOwnerDto_name_ARRAY, .offset = nya_offsetof(NYA_HttpOwnerDto, name), .hint = NYA_HINT_NONE },
-    { .name = "system_count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpOwnerDto, system_count), .hint = NYA_HINT_NONE },
-    { .name = "enabled_count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpOwnerDto, enabled_count), .hint = NYA_HINT_NONE },
-    { .name = "time_ns", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpOwnerDto, time_ns), .hint = NYA_HINT_NONE },
-    { .name = "memory_bytes", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_HttpOwnerDto, memory_bytes), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_HttpOwnerDto = {
-    .name = "NYA_HttpOwnerDto",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_HttpOwnerDto),
-    .alignment = alignof(NYA_HttpOwnerDto),
-    .fields = _NYA_REFLECT_NYA_HttpOwnerDto_FIELDS,
-    .field_count = 5,
-};
-
-/* NYA_HttpSystemsDto, src/nyangine/http/http_metrics.h */
-
-static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpSystemsDto_rows_ARRAY = {
-    .name = "NYA_HttpOwnerDto[]", .kind = NYA_REFLECT_ARRAY,
-    .size = sizeof(((NYA_HttpSystemsDto*)nullptr)->rows),
-    .alignment = alignof(NYA_HttpOwnerDto),
-    .element = &_NYA_REFLECT_NYA_HttpOwnerDto, .element_count = (NYA_SYSTEM_OWNER_MAX),
-};
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_HttpSystemsDto_FIELDS[] = {
-    { .name = "count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpSystemsDto, count), .hint = NYA_HINT_NONE },
-    { .name = "truncated", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpSystemsDto, truncated), .hint = NYA_HINT_NONE },
-    { .name = "accounting_enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_HttpSystemsDto, accounting_enabled), .hint = NYA_HINT_NONE },
-    { .name = "rows", .type = &_NYA_REFLECT_NYA_HttpSystemsDto_rows_ARRAY, .offset = nya_offsetof(NYA_HttpSystemsDto, rows), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_HttpSystemsDto = {
-    .name = "NYA_HttpSystemsDto",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_HttpSystemsDto),
-    .alignment = alignof(NYA_HttpSystemsDto),
-    .fields = _NYA_REFLECT_NYA_HttpSystemsDto_FIELDS,
-    .field_count = 4,
-};
-
-/* NYA_HttpAccountingDto, src/nyangine/http/http_metrics.h */
-
-static const NYA_ReflectField _NYA_REFLECT_NYA_HttpAccountingDto_FIELDS[] = {
-    { .name = "enabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_HttpAccountingDto, enabled), .hint = NYA_HINT_NONE },
-};
-
-const NYA_TypeReflection _NYA_REFLECT_NYA_HttpAccountingDto = {
-    .name = "NYA_HttpAccountingDto",
-    .kind = NYA_REFLECT_STRUCT,
-    .size = sizeof(NYA_HttpAccountingDto),
-    .alignment = alignof(NYA_HttpAccountingDto),
-    .fields = _NYA_REFLECT_NYA_HttpAccountingDto_FIELDS,
-    .field_count = 1,
 };
 
 /* NYA_HttpProblem, src/nyangine/http/http_router.h */
@@ -1627,8 +1627,6 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_SettingsVolumes,
     &_NYA_REFLECT_NYA_GraphicsQuality,
     &_NYA_REFLECT_NYA_SettingsGraphics,
-    &_NYA_REFLECT_NYA_HttpScope,
-    &_NYA_REFLECT_NYA_HttpIdentity,
     &_NYA_REFLECT_NYA_HttpMetricsDto,
     &_NYA_REFLECT_NYA_HttpCeilingDto,
     &_NYA_REFLECT_NYA_HttpCeilingsDto,
@@ -1637,6 +1635,8 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_HttpOwnerDto,
     &_NYA_REFLECT_NYA_HttpSystemsDto,
     &_NYA_REFLECT_NYA_HttpAccountingDto,
+    &_NYA_REFLECT_NYA_HttpScope,
+    &_NYA_REFLECT_NYA_HttpIdentity,
     &_NYA_REFLECT_NYA_HttpProblem,
     &_NYA_REFLECT_NYA_Quaternion,
     &_NYA_REFLECT_NYA_EaseType,

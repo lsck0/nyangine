@@ -51,8 +51,6 @@
 // After both renderers, for the reason particles are: a 2D volume draws through render2d and a 3D one
 // through render3d, and the solver itself is CPU only, so a headless test steps and draws it.
 #include "nyangine/renderer/render_fluid.c"
-#include "nyangine/nn/nn_draw.c"
-#include "nyangine/nn/nn_neat_draw.c"
 #include "nyangine/debug/debug.c"
 #include "nyangine/renderer/render2d_sprite.c"
 // After render2d.c: the real 3D flush reuses its pass suspend and resume, which are internal to that

@@ -1,5 +1,5 @@
 /**
- * @file http_metrics.h
+ * @file debug_metrics.h
  *
  * The first resource: this program, over HTTP. Frame time, the ceilings, the arenas, and the system
  * registry's per-owner accounting.

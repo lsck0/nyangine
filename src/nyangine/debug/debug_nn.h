@@ -1,5 +1,5 @@
 /**
- * @file nn_draw.h
+ * @file debug_nn.h
  *
  * ```c
  * nya_nn_draw(window, network, graph, state, (NYA_NNDrawStyle){

@@ -20,8 +20,8 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 - [`net`](#net) — Encrypted UDP client and server: handshake, commands, delta snapshots and prediction.
 - [`http`](#http) — An HTTP/1.1 server, its router and layers, JWT auth, and OpenAPI generated from both.
 - [`serde`](#serde) — One dynamic value type, serialized to and from json, jsonc and the engine's own format.
-- [`nn`](#nn) — Tensors, layers, optimizers, DQN and NEAT, with draw helpers for both.
-- [`debug`](#debug) — The overlay and the trace: scoped spans, counters and a Chrome trace capture.
+- [`nn`](#nn) — Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else.
+- [`debug`](#debug) — The overlay, the trace, the crash window, and drawing physics shapes and networks.
 - [`plugins`](#plugins) — Optional dependencies behind a flag: curl, sqlite, lua, discord, steam.
 - [`platform`](#platform) — The thin OS layer: clock, filesystem, process spawning, signals and raw memory.
 
@@ -4414,34 +4414,6 @@ NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString 
 NYA_Error nya_http_response_head(const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, NYA_Instant date, OUT u8* buffer, u64 capacity, OUT u64* out_size)  // Renders the status line and every header into `buffer`, ending with the blank line.
 ```
 
-### http_metrics.h
-
-The first resource: this program, over HTTP. Frame time, the ceilings, the arenas, and the system
-
-```c
-// types
-struct NYA_HttpMetricsDto { u64 measured_at_s; u64 uptime_ns; f32 fps; f32 delta_time_s; u64 work_ns; u64 sleep_ns; u64 elapsed_ns; u64 min_frame_time_ns; u32 connection_count; u64 request_count; b8 accounting_enabled; }  // What QUERY /api/metrics answers: the frame, and what the server itself has done.
-struct NYA_HttpCeilingDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u32 capacity; u32 live; f32 fullness; }  // One fixed capacity array and how full it is.
-struct NYA_HttpCeilingsDto { u32 count; u32 truncated; NYA_HttpCeilingDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What QUERY /api/metrics/ceilings answers.
-struct NYA_HttpArenaDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u64 region_count; u64 used_bytes; u64 reserved_bytes; u64 free_list_bytes; f32 fragmentation; }  // One live arena.
-struct NYA_HttpArenasDto { u32 count; u32 truncated; NYA_HttpArenaDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What QUERY /api/metrics/arenas answers.
-struct NYA_HttpOwnerDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u32 system_count; u32 enabled_count; u64 time_ns; u64 memory_bytes; }  // One owner's systems: the engine's, the game's, or a plugin's.
-struct NYA_HttpSystemsDto { u32 count; u32 truncated; b8 accounting_enabled; NYA_HttpOwnerDto rows[NYA_SYSTEM_OWNER_MAX]; }  // What QUERY /api/metrics/systems answers.
-struct NYA_HttpAccountingDto { b8 enabled; }
-
-// macros
-NYA_HTTP_METRICS_PATH "/api/metrics"
-NYA_HTTP_METRICS_CEILINGS_PATH "/api/metrics/ceilings"
-NYA_HTTP_METRICS_ARENAS_PATH "/api/metrics/arenas"
-NYA_HTTP_METRICS_SYSTEMS_PATH "/api/metrics/systems"
-NYA_HTTP_METRICS_ACCOUNTING_PATH "/api/metrics/accounting"
-NYA_HTTP_METRICS_MAX_ROWS 48  // Rows one list answer carries.
-NYA_HTTP_METRICS_MAX_NAME 64  // Longest name in a row, terminator included.
-
-// functions
-const NYA_HttpRouter* nya_http_metrics_router(void)  // Static storage, so it outlives any mount and needs no lifetime from the caller.
-```
-
 ### http_openapi.h
 
 The schema, generated from the route tables and the DTO reflections, and served by the program it
@@ -4632,7 +4604,7 @@ enum NYA_SerdeFlags { NYA_SERDE_NONE = 0, NYA_SERDE_PRETTY = 1 << 0, NYA_SERDE_O
 
 ## nn
 
-Tensors, layers, optimizers, DQN and NEAT, with draw helpers for both.
+Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else.
 
 ### nn_dqn.h
 
@@ -4657,19 +4629,6 @@ u32 nya_nn_dqn_replay_count(const NYA_NNDQN* dqn)
 f32 nya_nn_dqn_exploration(const NYA_NNDQN* dqn)
 f32 nya_nn_dqn_average_loss(const NYA_NNDQN* dqn)  // Mean loss over recent gradient steps.
 NYA_NNSequential* nya_nn_dqn_network(NYA_NNDQN* dqn)  // The online network, for saving it or drawing it.
-```
-
-### nn_draw.h
-
-```c
-// types
-struct NYA_NNDrawStyle { f32 x, y; f32 width, height; f32 node_radius; NYA_ConstCString font; f32 font_size; b8 show_values; NYA_ConstCString* input_labels; u32 input_label_count; NYA_ConstCString* output_labels; u32 output_label_count; b8 hide_truncation_note; f32 weight_threshold; NYA_Color color_input; NYA_Color color_hidden; NYA_Color color_output; NYA_Color color_positive; NYA_Color color_negative; }
-
-// macros
-NYA_NN_DRAW_MAX_UNITS 12  // Units drawn per column before the layer is sampled down.
-
-// functions
-void nya_nn_draw(NYA_Window* window, NYA_NNSequential* network, NYA_NNGraph* graph, const f32* input, NYA_NNDrawStyle style)  // Draws `network`, with the activations produced by running it on `input`.
 ```
 
 ### nn_layer.h
@@ -4747,16 +4706,6 @@ f64 nya_nn_neat_fitness_max(const NYA_Neat* neat)
 f64 nya_nn_neat_fitness_average(const NYA_Neat* neat)
 ```
 
-### nn_neat_draw.h
-
-```c
-// types
-struct NYA_NeatDrawStyle { f32 x, y; f32 width, height; f32 node_radius; b8 hide_values; b8 hide_labels; NYA_ConstCString font; f32 font_size; b8 show_weights; b8 show_disabled; NYA_Color color_bias; NYA_Color color_sensor; NYA_Color color_hidden; NYA_Color color_output; NYA_Color color_positive; NYA_Color color_negative; }  // How the network is drawn.
-
-// functions
-void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_NeatDrawStyle style)  // Draws `network`.
-```
-
 ### nn_optim.h
 
 ```c
@@ -4832,7 +4781,7 @@ void nya_nn_backward(NYA_NNGraph* graph, NYA_NNTensor* loss)  // Walks the tape 
 
 ## debug
 
-The overlay and the trace: scoped spans, counters and a Chrome trace capture.
+The overlay, the trace, the crash window, and drawing physics shapes and networks.
 
 ### debug_crash.h
 
@@ -4850,6 +4799,57 @@ void nya_crash_reporter_deinit(void)  // Removes the observer.
 u32 nya_crash_report_compose(const NYA_CrashInfo* info, OUT u8* buffer, u32 capacity)
 NYA_Error nya_crash_report_submit(NYA_ConstCString report, OUT u8* out_path, u32 path_capacity)  // Hands the report to the developer, and writes where it went into `out_path`.
 void nya_crash_window_show(const NYA_CrashInfo* info, NYA_ConstCString report)  // Opens the crash window on `report` and blocks until the player closes it.
+```
+
+### debug_metrics.h
+
+The first resource: this program, over HTTP. Frame time, the ceilings, the arenas, and the system
+
+```c
+// types
+struct NYA_HttpMetricsDto { u64 measured_at_s; u64 uptime_ns; f32 fps; f32 delta_time_s; u64 work_ns; u64 sleep_ns; u64 elapsed_ns; u64 min_frame_time_ns; u32 connection_count; u64 request_count; b8 accounting_enabled; }  // What QUERY /api/metrics answers: the frame, and what the server itself has done.
+struct NYA_HttpCeilingDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u32 capacity; u32 live; f32 fullness; }  // One fixed capacity array and how full it is.
+struct NYA_HttpCeilingsDto { u32 count; u32 truncated; NYA_HttpCeilingDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What QUERY /api/metrics/ceilings answers.
+struct NYA_HttpArenaDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u64 region_count; u64 used_bytes; u64 reserved_bytes; u64 free_list_bytes; f32 fragmentation; }  // One live arena.
+struct NYA_HttpArenasDto { u32 count; u32 truncated; NYA_HttpArenaDto rows[NYA_HTTP_METRICS_MAX_ROWS]; }  // What QUERY /api/metrics/arenas answers.
+struct NYA_HttpOwnerDto { char name[NYA_HTTP_METRICS_MAX_NAME]; u32 system_count; u32 enabled_count; u64 time_ns; u64 memory_bytes; }  // One owner's systems: the engine's, the game's, or a plugin's.
+struct NYA_HttpSystemsDto { u32 count; u32 truncated; b8 accounting_enabled; NYA_HttpOwnerDto rows[NYA_SYSTEM_OWNER_MAX]; }  // What QUERY /api/metrics/systems answers.
+struct NYA_HttpAccountingDto { b8 enabled; }
+
+// macros
+NYA_HTTP_METRICS_PATH "/api/metrics"
+NYA_HTTP_METRICS_CEILINGS_PATH "/api/metrics/ceilings"
+NYA_HTTP_METRICS_ARENAS_PATH "/api/metrics/arenas"
+NYA_HTTP_METRICS_SYSTEMS_PATH "/api/metrics/systems"
+NYA_HTTP_METRICS_ACCOUNTING_PATH "/api/metrics/accounting"
+NYA_HTTP_METRICS_MAX_ROWS 48  // Rows one list answer carries.
+NYA_HTTP_METRICS_MAX_NAME 64  // Longest name in a row, terminator included.
+
+// functions
+const NYA_HttpRouter* nya_http_metrics_router(void)  // Static storage, so it outlives any mount and needs no lifetime from the caller.
+```
+
+### debug_nn.h
+
+```c
+// types
+struct NYA_NNDrawStyle { f32 x, y; f32 width, height; f32 node_radius; NYA_ConstCString font; f32 font_size; b8 show_values; NYA_ConstCString* input_labels; u32 input_label_count; NYA_ConstCString* output_labels; u32 output_label_count; b8 hide_truncation_note; f32 weight_threshold; NYA_Color color_input; NYA_Color color_hidden; NYA_Color color_output; NYA_Color color_positive; NYA_Color color_negative; }
+
+// macros
+NYA_NN_DRAW_MAX_UNITS 12  // Units drawn per column before the layer is sampled down.
+
+// functions
+void nya_nn_draw(NYA_Window* window, NYA_NNSequential* network, NYA_NNGraph* graph, const f32* input, NYA_NNDrawStyle style)  // Draws `network`, with the activations produced by running it on `input`.
+```
+
+### debug_nn_neat.h
+
+```c
+// types
+struct NYA_NeatDrawStyle { f32 x, y; f32 width, height; f32 node_radius; b8 hide_values; b8 hide_labels; NYA_ConstCString font; f32 font_size; b8 show_weights; b8 show_disabled; NYA_Color color_bias; NYA_Color color_sensor; NYA_Color color_hidden; NYA_Color color_output; NYA_Color color_positive; NYA_Color color_negative; }  // How the network is drawn.
+
+// functions
+void nya_nn_neat_draw(NYA_Window* window, const NYA_NeatNetwork* network, NYA_NeatDrawStyle style)  // Draws `network`.
 ```
 
 ### debug_overlay.h
