@@ -13,6 +13,7 @@
  *   crypto_sign.h       Ed25519 signatures, RFC 8032
  *   crypto_kdf.h        Argon2id, for passwords and anything else a person types
  *   crypto_encoding.h   base32, RFC 4648, for TOTP secrets
+ *   crypto_totp.h       RFC 6238 one time passwords: a secret and a clock to six digits
  *
  * Randomness is platform/random/random.h, which this module draws from and does not wrap.
  *
@@ -56,3 +57,4 @@
 #include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/crypto/crypto_kdf.h"
 #include "nyangine/crypto/crypto_sign.h"
+#include "nyangine/crypto/crypto_totp.h"

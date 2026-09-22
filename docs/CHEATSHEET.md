@@ -4979,6 +4979,29 @@ void nya_crypto_sign(const NYA_CryptoSignSecretKey* secret_key, const u8* messag
 b8 nya_crypto_sign_verify(const NYA_CryptoSignPublicKey* public_key, const u8* message, u64 size, const NYA_CryptoSignature* signature)  // Whether `signature` is `public_key`'s over exactly `message`.
 ```
 
+### crypto_totp.h
+
+RFC 6238 time based one time passwords: a secret and a clock become six digits.
+
+```c
+// types
+struct NYA_CryptoTotpSecret { u8 bytes[NYA_CRYPTO_TOTP_SECRET_BYTES]; }  // The secret one account shares with one authenticator.
+
+// macros
+NYA_CRYPTO_TOTP_SECRET_BYTES 20
+NYA_CRYPTO_TOTP_STEP_S 30  // RFC 6238 section 4: the step X in seconds, and T0, which is the unix epoch itself.
+NYA_CRYPTO_TOTP_EPOCH_S 0
+NYA_CRYPTO_TOTP_DIGITS 6  // Digits a code is written in, and therefore 10^6 possible codes.
+NYA_CRYPTO_TOTP_CODE_BYTES (NYA_CRYPTO_TOTP_DIGITS + 1)  // A code as text: the digits and a terminator.
+
+// functions
+NYA_Error nya_crypto_totp_secret_create(OUT NYA_CryptoTotpSecret* out_secret)  // A secret from the operating system's random source.
+void nya_crypto_totp_secret_destroy(NYA_CryptoTotpSecret* secret)  // Wipes the secret.
+u64 nya_crypto_totp_counter(u64 unix_s)  // The step number `unix_s` falls in: RFC 6238's T = (unix - T0) / X.
+void nya_crypto_totp_code(const u8* key, u64 key_size, u64 counter, OUT char out_code[NYA_CRYPTO_TOTP_CODE_BYTES])  // The six digit code for `counter`, terminated, zero padded on the left.
+b8 nya_crypto_totp_code_equals(const char a[NYA_CRYPTO_TOTP_CODE_BYTES], const char b[NYA_CRYPTO_TOTP_CODE_BYTES])  // Whether two codes are the same, in time that does not depend on where they differ.
+```
+
 ## nn
 
 Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else.
