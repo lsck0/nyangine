@@ -45,9 +45,9 @@
  *
  * It is the server half of "one stack for everything": a nyangine program that serves a web interface
  * for its own metrics, with the DTOs the schema is generated from being the same types a generated
- * client would be generated from. It is not a public-facing web server. Rate limiting, TLS, request
- * size policy above these bounds and everything else on the perimeter belong to a proxy in front,
- * which is a decision recorded in TODO.md and not an omission.
+ * client would be generated from. Connections and requests are limited per address in process (see
+ * http_server.h). TLS and request size policy above these bounds still belong to a proxy in front,
+ * until TLS lands in process as TODO.md plans.
  * */
 #pragma once
 

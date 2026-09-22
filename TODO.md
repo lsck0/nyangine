@@ -621,10 +621,13 @@ logged-in user.
   safe) with 403 before every layer and the handler when `Sec-Fetch-Site` is anything but `same-origin` or
   `none`, or when `Origin` names another host than `Host`; one with neither is not a browser page and passes.
   The router's table check makes every write route declare 403. `SameSite=Strict` waits for the cookies.
-- `[ ]` Simple limits in process, as layers and at accept, each bound a `#define` with its reasoning: connections
+- `[~]` Simple limits in process, as layers and at accept, each bound a `#define` with its reasoning: connections
   per address and in total, requests per address as a token bucket, and a stricter bucket with backoff for
   login and second factors. Over a limit answers 429 or refuses the accept; it never queues unbounded. Limits
-  key on the peer address, never on `X-Forwarded-For` unless a trusted proxy address is configured.
+  key on the peer address, never on `X-Forwarded-For` unless a trusted proxy address is configured. In:
+  the per address connection cap at accept, and a token bucket per address in the server (64 tracked, the
+  stalest evicted) answering 429 with Retry-After. Missing: the login bucket with backoff (waits for the
+  login route) and the trusted proxy address.
 - `[ ]` **Second factor: TOTP through authenticator apps.** It lands first, and it needs no new dependency.
   - RFC 6238 with the parameters every app accepts: HMAC-SHA1, 6 digits, a 30 second step, and a 160 bit
     secret from the CSPRNG. Proven against the RFC's published vectors.
@@ -672,8 +675,8 @@ logged-in user.
   `Secure` cookie over plain HTTP.
 - `[ ]` ACME (Let's Encrypt) so a single executable gets and renews its own certificate. Without it, "one
   binary" still needs certbot beside it. After TLS works with a supplied certificate.
-- `[ ]` `docs/http.md` ("What belongs to a proxy") and the headers of `http.h` and `http_server.h` say TLS and
-  rate limits belong to a proxy. They change in the same commits as the code above.
+- `[~]` `docs/http.md` ("What belongs to a proxy") and the headers of `http.h` and `http_server.h` say TLS
+  belongs to a proxy; the rate limit half is updated. They change in the same commits as the code above.
 - `[ ]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
   path traversal in static serving, request smuggling, resource exhaustion). Every finding becomes a test.
 
@@ -1220,6 +1223,10 @@ the packager ones.
 
   Measured rather than assumed: three full parallel suite runs, both green in all three, 230 of 230 each
   time.
+- `[ ]` `test_attack` failed once in a full suite run on 2026-09-22, at "an over-length fragment inside a
+  legal sealed datagram is refused": the server held no peer afterwards. It passed the rerun and 8 of 8
+  runs alone, with two other checkouts running their suites on the same machine at the time. No warning
+  was logged, so the peer went by a path that removes silently or by the timeout. Unreproduced.
 - `[x]` RenderDoc closed immediately because its Vulkan layer has no Wayland support: SDL cannot build an
   instance that can make a surface, its Vulkan backend reports itself unsupported, and the renderer
   subsystem fails at startup. Not the anti-tamper check, not the validation layers (the release build fails

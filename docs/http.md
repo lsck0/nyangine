@@ -284,23 +284,35 @@ driven by `./build run fuzz http_request`.
 
 ### Bounds
 
-| Constant                            | Default | What it holds                                  |
-| :---------------------------------- | ------: | :--------------------------------------------- |
-| `NYA_HTTP_MAX_CONNECTIONS`          |       8 | connections at once                            |
-| `NYA_HTTP_MAX_HEAD_BYTES`           |    4096 | request line and headers together              |
-| `NYA_HTTP_MAX_BODY_BYTES`           |    8192 | request body, chunked framing undone           |
-| `NYA_HTTP_MAX_RESPONSE_BYTES`       |   65536 | one response body; one buffer, shared          |
-| `NYA_HTTP_MAX_HEADERS`              |      24 | headers kept from a request                    |
-| `NYA_HTTP_MAX_CHUNKS`               |      64 | chunks one body may be built from              |
-| `NYA_HTTP_IDLE_TIMEOUT_MS`          |    5000 | silence before a connection is dropped         |
-| `NYA_HTTP_MAX_REQUESTS_PER_TICK`    |      16 | requests answered per frame, across every peer |
+| Constant                               | Default | What it holds                                             |
+| :------------------------------------- | ------: | :-------------------------------------------------------- |
+| `NYA_HTTP_MAX_CONNECTIONS`             |       8 | connections at once                                       |
+| `NYA_HTTP_MAX_HEAD_BYTES`              |    4096 | request line and headers together                         |
+| `NYA_HTTP_MAX_BODY_BYTES`              |    8192 | request body, chunked framing undone                      |
+| `NYA_HTTP_MAX_RESPONSE_BYTES`          |   65536 | one response body; one buffer, shared                     |
+| `NYA_HTTP_MAX_HEADERS`                 |      24 | headers kept from a request                               |
+| `NYA_HTTP_MAX_CHUNKS`                  |      64 | chunks one body may be built from                         |
+| `NYA_HTTP_IDLE_TIMEOUT_MS`             |    5000 | silence before a connection is dropped                    |
+| `NYA_HTTP_MAX_REQUESTS_PER_TICK`       |      16 | requests answered per frame, across every peer            |
+| `NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS` |       4 | connections one address may hold                          |
+| `NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND` |      20 | refill rate of one address's request bucket               |
+| `NYA_HTTP_DEFAULT_REQUEST_BURST`       |      40 | requests one address may send at once                     |
+| `NYA_HTTP_MAX_RATE_BUCKETS`            |      64 | addresses tracked; the one touched longest ago makes room |
 
 Every one is a `#define` a consumer can override from the command line.
 
+## Limits in process
+
+One address holds at most `max_connections_per_address` connections; the next is closed at accept
+rather than queued. Each request, once parsed, spends a token from its address's bucket; an empty
+bucket answers `429 Too Many Requests` with `Retry-After` and closes. The three values sit in
+`NYA_HttpConfig`, zero meaning the default above. The address is the socket's peer and never
+`X-Forwarded-For`, so behind a proxy every client shares one budget; trusting a proxy's header waits
+for a configured proxy address.
+
 ## What belongs to a proxy
 
-TLS, rate limiting per address, and any request bound above the ones here. Bind to loopback and put a
-proxy in front. This is the server half of "one stack for everything", not a public-facing web server,
+TLS, and any request bound above the ones here. Bind to loopback and put a proxy in front. This is the server half of "one stack for everything", not a public-facing web server,
 and that is a decision recorded in `TODO.md` rather than an omission.
 
 ## The first resource

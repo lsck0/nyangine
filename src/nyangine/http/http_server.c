@@ -1,9 +1,11 @@
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "SDL3/SDL_error.h"
 
 #include "nyangine/base/base_assert.h"
+#include "nyangine/base/base_compare.h"
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_string.h"
 #include "nyangine/core/core_ceiling.h"
@@ -34,7 +36,17 @@ struct _NYA_HttpConnection {
 
     /** Answered with `Connection: close`, so it is dropped as soon as the answer is queued. */
     b8 closing;
+
+    /** The peer, as SDL_net spells it. What the per address limits key on, and never a forwarded header. */
+    char address[NYA_HTTP_MAX_ADDRESS];
 };
+
+/** One address's request budget: a token bucket, refilled continuously and spent one token per request. */
+typedef struct {
+    char address[NYA_HTTP_MAX_ADDRESS];
+    f64  tokens;
+    u64  refilled_at_ns;
+} _NYA_HttpRateBucket;
 
 struct _NYA_HttpState {
     NYA_Arena* allocator;
@@ -46,6 +58,12 @@ struct _NYA_HttpState {
 
     u16 port;
     u32 max_connections;
+    u32 max_connections_per_address;
+    u32 requests_per_second;
+    u32 request_burst;
+
+    _NYA_HttpRateBucket buckets[NYA_HTTP_MAX_RATE_BUCKETS];
+    u32                 bucket_count;
 
     /** Copied from the config, so the caller may wipe theirs. Zeroed by deinit. */
     u8  secret[NYA_HTTP_MAX_SECRET_BYTES];
@@ -98,8 +116,11 @@ NYA_INTERNAL b8 _nya_http_handle(_NYA_HttpConnection* connection, u32* budget) _
 /** Dispatches one parsed request and writes the answer. False when the connection is finished. */
 NYA_INTERNAL b8 _nya_http_answer(_NYA_HttpConnection* connection, b8 keep_alive) __attr_no_discard;
 
-/** Writes one status with a problem body and nothing else, for a request that never became one. */
-NYA_INTERNAL void _nya_http_refuse(_NYA_HttpConnection* connection, NYA_HttpStatus status);
+/** Writes one status with a problem body and nothing else, for a request that never became one. A nonzero `retry_after_s` becomes `Retry-After`. */
+NYA_INTERNAL void _nya_http_refuse(_NYA_HttpConnection* connection, NYA_HttpStatus status, NYA_ConstCString detail, u32 retry_after_s);
+
+/** Spends one token from `address`'s bucket. False when it is empty, with the seconds until one refills. */
+NYA_INTERNAL b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) __attr_no_discard;
 
 /** Renders and queues a response. False when the socket has failed. */
 NYA_INTERNAL b8 _nya_http_write(_NYA_HttpConnection* connection, const NYA_HttpResponse* response, NYA_HttpStatus status, b8 keep_alive, b8 head_only)
@@ -199,7 +220,11 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
         .port      = config.port,
         .max_connections =
             config.max_connections == 0 || config.max_connections > NYA_HTTP_MAX_CONNECTIONS ? NYA_HTTP_MAX_CONNECTIONS : config.max_connections,
+        .max_connections_per_address = config.max_connections_per_address != 0 ? config.max_connections_per_address : NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS,
+        .requests_per_second         = config.requests_per_second != 0 ? config.requests_per_second : NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND,
+        .request_burst               = config.request_burst != 0 ? config.request_burst : NYA_HTTP_DEFAULT_REQUEST_BURST,
     };
+    state->max_connections_per_address = nya_min(state->max_connections_per_address, state->max_connections);
 
     if (state->scratch == nullptr) {
         nya_arena_destroy(arena);
@@ -223,6 +248,7 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     _NYA_HTTP = state;
 
     nya_ceiling_register("http_connections", _NYA_HTTP->max_connections, &_NYA_HTTP->connection_count);
+    nya_ceiling_register("http_rate_buckets", NYA_HTTP_MAX_RATE_BUCKETS, &_NYA_HTTP->bucket_count);
 
     /*
      * Drained where input is drained, for the same reason the control socket is: a request is input
@@ -463,7 +489,25 @@ void _nya_http_accept(void) {
             continue;
         }
 
+        // the peer as the socket reports it. A header could claim anything, so the limits never read one.
+        char         address[NYA_HTTP_MAX_ADDRESS] = { 0 };
+        NET_Address* peer                          = NET_GetStreamSocketAddress(socket);
+        NYA_ConstCString text                      = peer != nullptr ? NET_GetAddressString(peer) : nullptr;
+        (void)snprintf(address, sizeof(address), "%s", text != nullptr ? text : "unknown");
+        NET_UnrefAddress(peer);
+
+        // and one address cannot take every slot. Closed rather than queued, like the connection past the last.
+        u32 held = 0;
+        for (u32 index = 0; index < _NYA_HTTP->max_connections; index++) {
+            if (_NYA_HTTP->connections[index].socket != nullptr && strcmp(_NYA_HTTP->connections[index].address, address) == 0) held++;
+        }
+        if (held >= _NYA_HTTP->max_connections_per_address) {
+            NET_DestroyStreamSocket(socket);
+            continue;
+        }
+
         *slot = (_NYA_HttpConnection){ .socket = socket, .active_at_ns = nya_clock_get_monotonic_ns() };
+        (void)snprintf(slot->address, sizeof(slot->address), "%s", address);
 
         _NYA_HTTP->connection_count++;
     }
@@ -477,7 +521,7 @@ b8 _nya_http_receive(_NYA_HttpConnection* connection) {
      * request and there is nothing left to wait for.
      */
     if (room == 0) {
-        _nya_http_refuse(connection, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE);
+        _nya_http_refuse(connection, NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE, "the request could not be parsed", 0);
         return false;
     }
 
@@ -507,7 +551,14 @@ b8 _nya_http_handle(_NYA_HttpConnection* connection, u32* budget) {
         if (parsed == NYA_HTTP_PARSE_INCOMPLETE) return true;
 
         if (parsed == NYA_HTTP_PARSE_REFUSED) {
-            _nya_http_refuse(connection, refusal);
+            _nya_http_refuse(connection, refusal, "the request could not be parsed", 0);
+            return false;
+        }
+
+        // counted once a request has parsed, so a slow sender is the idle timeout's to deal with and not this.
+        u32 retry_after_s = 0;
+        if (!_nya_http_rate_take(connection->address, &retry_after_s)) {
+            _nya_http_refuse(connection, NYA_HTTP_STATUS_TOO_MANY_REQUESTS, "this address has sent more requests than it may; see Retry-After", retry_after_s);
             return false;
         }
 
@@ -562,7 +613,9 @@ b8 _nya_http_answer(_NYA_HttpConnection* connection, b8 keep_alive) {
     return _nya_http_write(connection, &response, status, keep_alive, head_only);
 }
 
-void _nya_http_refuse(_NYA_HttpConnection* connection, NYA_HttpStatus status) {
+void _nya_http_refuse(_NYA_HttpConnection* connection, NYA_HttpStatus status, NYA_ConstCString detail, u32 retry_after_s) {
+    nya_assert(detail != nullptr);
+
     nya_arena_free_all(_NYA_HTTP->scratch);
 
     NYA_HttpResponse response = { 0 };
@@ -575,13 +628,21 @@ void _nya_http_refuse(_NYA_HttpConnection* connection, NYA_HttpStatus status) {
         "{\"status\":%d,\"error\":\"%s\",\"detail\":\"%s\"}",
         (s32)status,
         nya_http_status_text(status),
-        "the request could not be parsed"
+        detail
     );
 
     if (!written.ok) nya_http_response_reset(&response);
 
+    // a client told to slow down is told when to come back.
+    if (retry_after_s > 0) {
+        char seconds[16] = { 0 };
+        (void)snprintf(seconds, sizeof(seconds), "%u", retry_after_s);
+        if (!nya_http_response_header(&response, "Retry-After", seconds).ok) nya_http_response_reset(&response);
+    }
+
     // never keep-alive: a stream the parser gave up on cannot be resynchronised, and guessing where
-    // the next request starts is the request smuggling bug this refuses in the first place.
+    // the next request starts is the request smuggling bug this refuses in the first place. A peer
+    // over its budget is closed too, since anything it pipelined behind the refused request is unread.
     (void)_nya_http_write(connection, &response, status, false, false);
 }
 
@@ -607,6 +668,47 @@ b8 _nya_http_write(_NYA_HttpConnection* connection, const NYA_HttpResponse* resp
     nya_assert(response->body_size <= (u64)S32_MAX, "the response buffer is sixty four kilobytes");
 
     return NET_WriteToStreamSocket(connection->socket, response->body, (s32)response->body_size);
+}
+
+b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {
+    nya_assert(address != nullptr && out_retry_after_s != nullptr);
+
+    u64 now_ns = nya_clock_get_monotonic_ns();
+
+    _NYA_HttpRateBucket* bucket = nullptr;
+    for (u32 index = 0; index < _NYA_HTTP->bucket_count; index++) {
+        if (strcmp(_NYA_HTTP->buckets[index].address, address) == 0) bucket = &_NYA_HTTP->buckets[index];
+    }
+
+    // a new address starts full. Past the table's bound the budget touched longest ago makes room; see the bound.
+    if (bucket == nullptr) {
+        if (_NYA_HTTP->bucket_count < NYA_HTTP_MAX_RATE_BUCKETS) {
+            bucket = &_NYA_HTTP->buckets[_NYA_HTTP->bucket_count++];
+        } else {
+            bucket = &_NYA_HTTP->buckets[0];
+            for (u32 index = 1; index < NYA_HTTP_MAX_RATE_BUCKETS; index++) {
+                if (_NYA_HTTP->buckets[index].refilled_at_ns < bucket->refilled_at_ns) bucket = &_NYA_HTTP->buckets[index];
+            }
+        }
+
+        *bucket = (_NYA_HttpRateBucket){ .tokens = (f64)_NYA_HTTP->request_burst, .refilled_at_ns = now_ns };
+        (void)snprintf(bucket->address, sizeof(bucket->address), "%s", address);
+    }
+
+    f64 elapsed_s          = (f64)(now_ns - bucket->refilled_at_ns) / 1e9;
+    bucket->tokens         = nya_min(bucket->tokens + (elapsed_s * (f64)_NYA_HTTP->requests_per_second), (f64)_NYA_HTTP->request_burst);
+    bucket->refilled_at_ns = now_ns;
+
+    if (bucket->tokens >= 1.0) {
+        bucket->tokens -= 1.0;
+        return true;
+    }
+
+    // a whole token's refill, rounded up, since Retry-After is in whole seconds and early is refused again.
+    *out_retry_after_s = (u32)ceil((1.0 - bucket->tokens) / (f64)_NYA_HTTP->requests_per_second);
+    if (*out_retry_after_s == 0) *out_retry_after_s = 1;
+
+    return false;
 }
 
 void _nya_http_close(_NYA_HttpConnection* connection) {

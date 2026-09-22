@@ -384,6 +384,60 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: one address cannot take every slot, however many there are.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        u16   port = start_server((NYA_HttpConfig){ .max_connections = 8, .max_connections_per_address = 2 });
+        defer nya_system_http_deinit();
+
+        NET_StreamSocket* sockets[3] = { 0 };
+        for (u32 index = 0; index < 3; index++) sockets[index] = connect_to(port);
+        defer {
+            for (u32 index = 0; index < 3; index++) NET_DestroyStreamSocket(sockets[index]);
+        }
+
+        for (u32 attempt = 0; attempt < 50; attempt++) {
+            nya_system_http_tick();
+            sleep_ms(2);
+        }
+
+        nya_assert(nya_http_server_connection_count() == 2, "the third from the same address is closed while five slots are free");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: an address past its budget is told 429 and when to come back.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        // one a second is slow enough that nothing refills while the burst is spent.
+        u16   port = start_server((NYA_HttpConfig){ .requests_per_second = 1, .request_burst = 3 });
+        defer nya_system_http_deinit();
+
+        nya_assert(nya_http_server_merge(nya_http_metrics_router()).ok);
+
+        NET_StreamSocket* client = connect_to(port);
+        defer             NET_DestroyStreamSocket(client);
+
+        for (u32 index = 0; index < 3; index++) {
+            nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+            nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"), "the burst is served");
+        }
+
+        nya_assert(exchange(client, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+
+        NYA_String* refused = nya_string_from(arena, answer);
+        nya_assert(nya_string_starts_with(refused, "HTTP/1.1 429 Too Many Requests\r\n"));
+        nya_assert(nya_string_contains(refused, "Retry-After: 1\r\n"));
+        nya_assert(nya_string_contains(refused, "Connection: close\r\n"));
+
+        // the budget is the address's, not the connection's: a fresh socket does not reset it.
+        NET_StreamSocket* again = connect_to(port);
+        defer             NET_DestroyStreamSocket(again);
+
+        nya_assert(exchange(again, "QUERY " NYA_HTTP_METRICS_PATH " HTTP/1.1\r\nHost: x\r\n\r\n", answer, sizeof(answer)) > 0);
+        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 429 "));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: the schema and the page, served by the program they describe.
     // ─────────────────────────────────────────────────────────────────────────────
     {

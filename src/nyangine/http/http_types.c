@@ -58,6 +58,7 @@ NYA_INTERNAL const _NYA_HttpStatusRow _NYA_HTTP_STATUS_ROWS[] = {
     { NYA_HTTP_STATUS_URI_TOO_LONG,        "URI Too Long"                    },
     { NYA_HTTP_STATUS_UNSUPPORTED_MEDIA,   "Unsupported Media Type"          },
     { NYA_HTTP_STATUS_UNPROCESSABLE,       "Unprocessable Content"           },
+    { NYA_HTTP_STATUS_TOO_MANY_REQUESTS,   "Too Many Requests" },
     { NYA_HTTP_STATUS_HEADERS_TOO_LARGE,   "Request Header Fields Too Large" },
     { NYA_HTTP_STATUS_INTERNAL_ERROR,      "Internal Server Error"           },
     { NYA_HTTP_STATUS_NOT_IMPLEMENTED,     "Not Implemented"                 },

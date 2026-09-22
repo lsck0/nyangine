@@ -52,8 +52,13 @@
  * NYA_HTTP_MAX_PENDING_WRITE_BYTES outstanding is dropped rather than buffered further. It may send
  * nonsense: every refusal is a status and a close, and nothing it sends reaches an assertion.
  *
- * What is *not* here, deliberately: TLS, rate limiting per address, and any request bound above the
- * ones in http_types.h. Those belong to a proxy in front. Bind to loopback and put one there.
+ * One address may hold NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS connections; the next is closed at
+ * accept. Each address spends one token per request from a bucket of `request_burst` refilled at
+ * `requests_per_second`; an empty bucket answers 429 with Retry-After and closes. The address is the
+ * socket's peer, never a forwarded header, so behind a proxy every client shares the proxy's budget.
+ *
+ * What is *not* here yet: TLS, and any request bound above the ones in http_types.h. Until TLS
+ * lands, bind to loopback and put a proxy in front.
  *
  * Thread safety: none. Everything here runs on the thread that called init.
  * */
@@ -126,6 +131,16 @@ struct NYA_HttpConfig {
 
     /** Connections at once, 1..NYA_HTTP_MAX_CONNECTIONS. Zero means the maximum. */
     u32 max_connections;
+
+    /** Connections one address may hold, 1..max_connections. Zero means NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS. */
+    u32 max_connections_per_address;
+
+    /**
+     * An address's request budget: refilled at this many a second, holding at most `request_burst`. Past it
+     * the answer is 429 with Retry-After and the connection closes. Zero means the NYA_HTTP_DEFAULT_ one.
+     * */
+    u32 requests_per_second;
+    u32 request_burst;
 
     /**
      * The token signing secret, copied at init so the caller's buffer can be wiped straight after.
