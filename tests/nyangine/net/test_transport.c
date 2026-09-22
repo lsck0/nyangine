@@ -916,12 +916,20 @@ s32 main(void) {
     nya_assert(!nya_net_transport_listen(transport, (u16)(port + 1)).ok, "listening twice was accepted");
     nya_assert(!nya_net_transport_connect(transport, "127.0.0.1", port).ok, "connecting on a listening socket was accepted");
 
-    // A hostname that cannot resolve is an error a player can act on rather than a hang.
+    /*
+     * A hostname that cannot resolve is still an error a player can act on, but it arrives as a
+     * DISCONNECTED event rather than from connect itself.
+     *
+     * That moved on purpose. Connect used to answer by waiting for the resolver, up to the whole five
+     * second connect timeout, inside the caller's call — an error a player can act on is worth less
+     * than five seconds of a stopped game, and a game cannot avoid it by being careful. The name is
+     * polled from the update now, so connect reports that the attempt started and the failure follows.
+     */
     NYA_NetTransport* client = nullptr;
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
     NYA_Error unresolvable = nya_net_transport_connect(client, "this-host-does-not-exist.invalid", 1234);
-    nya_assert(!unresolvable.ok, "an unresolvable hostname was accepted");
+    nya_assert(unresolvable.ok, "starting a connection to an unresolvable hostname is not itself a failure");
 
     // Stats and the address for a peer that never existed answer rather than faulting, because a debug
     // overlay reads them without checking.
@@ -946,6 +954,44 @@ s32 main(void) {
 
     nya_net_transport_destroy(client);
     nya_net_transport_destroy(transport);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: connecting to a name that will not resolve returns at once
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * This used to sit inside NET_WaitUntilResolved for up to the whole connect timeout, five
+     * seconds, before returning to the caller. For a game that is five seconds of a stopped frame
+     * because somebody typed the hostname wrong, and no amount of care in the caller could avoid it.
+     *
+     * The bound here is deliberately loose. What is being held to account is "does not wait for the
+     * resolver", not "is fast": a quarter of a second is far below the five that would mean it
+     * waited, and far above anything a non-blocking call needs.
+     */
+    NYA_NetTransport* slow = nullptr;
+    NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &slow));
+
+    const u64 before = nya_clock_get_monotonic_ms();
+
+    // Reserved by RFC 6761 to never resolve, so this is the failing case on any machine anywhere.
+    const NYA_Error connecting = nya_net_transport_connect(slow, "nyangine.invalid", 27015);
+
+    const u64 waited = nya_clock_get_monotonic_ms() - before;
+
+    nya_check(waited < 250, "connect returns without waiting for the resolver, took " FMTu64 " ms", waited);
+    nya_check(connecting.ok, "and reports the attempt as started rather than failed");
+
+    /*
+     * The failure arrives as an event instead, which is what asking rather than waiting costs. Not
+     * waited for here either: whether a resolver answers within any particular time is the machine's
+     * business, and a test that insists on it fails on a network it does not control.
+     */
+    pump(slow, 4);
+
+    nya_net_transport_destroy(slow);
+
+    printf("  PASSED\n");
   }
 
   printf("PASSED: test_transport (0 failures)\n");

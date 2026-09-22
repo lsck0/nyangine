@@ -301,6 +301,16 @@ typedef struct {
     u64          connect_started_ms;
     u64          connect_last_sent_ms;
 
+    /**
+     * The hostname has not come back yet, so there is no socket and no peer.
+     *
+     * SDL_net resolves on its own thread and NET_GetAddressStatus asks without blocking, so this is
+     * polled from the update instead of waited on. Connecting used to wait here for up to the whole
+     * connect timeout, five seconds, inside the caller's call — which for a game is five seconds of a
+     * frozen frame on a hostname that was misspelled.
+     * */
+    b8 resolving;
+
     /** A challenge came back with a key other than the pinned one, so a timeout is reported as an identity failure. */
     b8 identity_refused;
 
@@ -570,6 +580,41 @@ NYA_Error _nya_net_udp_listen(NYA_NetTransport* transport, u16 port) {
     return NYA_OK;
 }
 
+/**
+ * Opens the socket and adds the server's peer, once the hostname has resolved.
+ *
+ * Split out of _nya_net_udp_connect because it can only run after the name is known, and the name is
+ * now known from the update rather than from a wait inside connect. False when the socket could not be
+ * opened, which the caller turns into a failed connection.
+ * */
+NYA_INTERNAL b8 _nya_net_udp_resolve_finish(NYA_NetTransport* transport, u64 now_ms) {
+    _NYA_NetUdpState* state = transport->state;
+
+    // port zero lets the system pick, so two copies of a game on one machine can both connect.
+    state->socket = NET_CreateDatagramSocket(nullptr, 0, 0);
+    if (state->socket == nullptr) {
+        nya_log_warn("Could not open a UDP socket: %s", SDL_GetError());
+
+        return false;
+    }
+
+    // the server's slot exists from here, so its handshake packets are recognised by address.
+    const u32 slot = _nya_net_udp_add_peer(state, state->connect_address, state->connect_port);
+    nya_assert(slot < NYA_NET_MAX_PEERS, "a client's first peer slot is always free");
+
+    state->resolving = false;
+
+    /*
+     * The clock restarts here rather than at connect. Otherwise a slow lookup spends the connection's
+     * whole budget before a single packet has been sent, and a player on a slow resolver would see a
+     * timeout without the game ever having tried to reach the server.
+     */
+    state->connect_started_ms   = now_ms;
+    state->connect_last_sent_ms = 0;
+
+    return true;
+}
+
 NYA_Error _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString address, u16 port) {
     nya_assert(address != nullptr);
 
@@ -577,14 +622,12 @@ NYA_Error _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString add
 
     if (state->socket != nullptr) return nya_error(NYA_ERROR_NOT_OK, "this transport already has a socket");
 
+    /*
+     * Returns at once with an address that may still be resolving; NET_GetAddressStatus is how it is
+     * asked later. Nothing here blocks, so a caller may connect from a frame without dropping one.
+     */
     NET_Address* resolved = NET_ResolveHostname(address);
     if (resolved == nullptr) return nya_error(NYA_ERROR_NOT_FOUND, "could not resolve '%s': %s", address, SDL_GetError());
-
-    // SDL_net resolves asynchronously; this waits.
-    if (NET_WaitUntilResolved(resolved, _NYA_NET_UDP_CONNECT_TIMEOUT_MS) != 1) {
-        NET_UnrefAddress(resolved);
-        return nya_error(NYA_ERROR_NOT_FOUND, "could not resolve '%s': %s", address, SDL_GetError());
-    }
 
     NYA_Error keyed = nya_net_key_pair_create(&state->ephemeral);
     if (!keyed.ok) {
@@ -592,18 +635,12 @@ NYA_Error _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString add
         return keyed;
     }
 
-    // port zero lets the system pick, so two copies of a game on one machine can both connect.
-    state->socket = NET_CreateDatagramSocket(nullptr, 0, 0);
-    if (state->socket == nullptr) {
-        NET_UnrefAddress(resolved);
-        return nya_error(NYA_ERROR_NOT_OK, "could not open a UDP socket: %s", SDL_GetError());
-    }
-
-    // the server's slot exists from the start, so its handshake packets are recognised by address.
-    u32 slot = _nya_net_udp_add_peer(state, resolved, port);
-    nya_assert(slot < NYA_NET_MAX_PEERS, "a client's first peer slot is always free");
-
+    /*
+     * The socket and the peer wait for the name. A peer is found by address, and an address that has
+     * not resolved is not one yet; see _nya_net_udp_resolve_finish, which does both once it has.
+     */
     state->connecting           = true;
+    state->resolving            = true;
     state->connect_address      = resolved;
     state->connect_port         = port;
     state->connect_started_ms   = nya_clock_get_monotonic_ms();
@@ -1548,7 +1585,43 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
 
     u64 now_ms = nya_clock_get_monotonic_ms();
 
-    if (state->connecting) {
+    /*
+     * The name, if it has not come back yet. Asked, never waited on: this runs inside the caller's
+     * frame and a DNS lookup that takes a second must cost a second of connecting rather than a
+     * second of a stopped game.
+     */
+    if (state->connecting && state->resolving) {
+        const NET_Status status = NET_GetAddressStatus(state->connect_address);
+
+        if (status == 1) {
+            if (!_nya_net_udp_resolve_finish(transport, now_ms)) {
+                state->connecting = false;
+                state->resolving  = false;
+
+                _nya_net_udp_event(state, (_NYA_NetUdpEvent){
+                    .kind   = NYA_NET_TRANSPORT_EVENT_DISCONNECTED,
+                    .reason = NYA_NET_DISCONNECT_TIMEOUT,
+                });
+            }
+        } else if (status < 0 || _nya_net_elapsed_ms(now_ms, state->connect_started_ms) > _NYA_NET_UDP_CONNECT_TIMEOUT_MS) {
+            /*
+             * A name that will not resolve and a name that is taking too long end the same way. It is
+             * reported as an event rather than returned, because by now the caller's connect has long
+             * since returned OK; that is what asking instead of waiting costs.
+             */
+            nya_log_warn("Could not resolve the server's hostname: %s", SDL_GetError());
+
+            state->connecting = false;
+            state->resolving  = false;
+
+            _nya_net_udp_event(state, (_NYA_NetUdpEvent){
+                .kind   = NYA_NET_TRANSPORT_EVENT_DISCONNECTED,
+                .reason = NYA_NET_DISCONNECT_TIMEOUT,
+            });
+        }
+    }
+
+    if (state->connecting && !state->resolving) {
         u32 server = _nya_net_udp_find_peer(state, state->connect_address, state->connect_port);
 
         if (_nya_net_elapsed_ms(now_ms, state->connect_started_ms) > _NYA_NET_UDP_CONNECT_TIMEOUT_MS) {
