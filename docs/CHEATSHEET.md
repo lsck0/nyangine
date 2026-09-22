@@ -3093,6 +3093,7 @@ NYA_RENDER3D_PIPELINE_INSTANCED_TEXTURED "nya_mesh3d_instanced_textured_pipeline
 NYA_RENDER3D_PIPELINE_INSTANCED_SHADOW "nya_mesh3d_instanced_shadow_pipeline"  // Instanced, depth only, for the shadow pass.
 NYA_RENDER3D_PIPELINE_SKY "nya_sky3d_pipeline"  // The fullscreen sky.
 NYA_RENDER3D_PIPELINE_SKINNED "nya_mesh3d_skinned_pipeline"  // The skinned mesh pipeline.
+NYA_RENDER3D_PIPELINE_SKINNED_TEXTURED "nya_mesh3d_skinned_textured_pipeline"  // The same, sampling a base colour texture, for a posed mesh whose parts name one.
 NYA_RENDER3D_PIPELINE_SKINNED_SHADOW "nya_mesh3d_skinned_shadow_pipeline"  // The depth-only skinned pipeline, so a skinned mesh casts a shadow.
 NYA_RENDER3D_PIPELINE_OVERLAY "nya_mesh3d_overlay_pipeline"
 NYA_RENDER3D_PIPELINE_TRANSPARENT "nya_mesh3d_transparent_pipeline"

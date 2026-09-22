@@ -2151,30 +2151,68 @@ void _nya_render3d_skinned_draw(NYA_Window* window, const NYA_Render3DSegment* s
     // released since it was recorded, or its copy has not run.
     if (registered == nullptr || registered->pending_upload != nullptr) return;
 
-    NYA_Asset* pipeline = nya_asset_get((NYA_AssetHandle)(shadow ? NYA_RENDER3D_PIPELINE_SKINNED_SHADOW : NYA_RENDER3D_PIPELINE_SKINNED));
+    /*
+     * The mesh's parts, so each material's run draws with its own texture, as the immediate and
+     * instanced paths already do. The whole mesh used to go out as one untextured draw, which drew a
+     * rigged model in its vertex colours and nothing else however many materials it had.
+     *
+     * The skinned vertices are the same geometry as `vertices` in another layout, so a part's run of
+     * positions is a part's run here too. A mesh that came in through nya_render3d_mesh_register has no
+     * asset behind it and is one untextured part, exactly as it is over there.
+     */
+    NYA_Asset* asset = nya_asset_get((NYA_AssetHandle)segment->skinned);
 
-    if (pipeline == nullptr || pipeline->status != NYA_ASSET_STATUS_LOADED) return;
+    NYA_MeshPart        single_part = { .first_vertex = 0, .vertex_count = registered->vertex_count, .texture = -1 };
+    const NYA_MeshPart* parts       = &single_part;
+    u32                 part_count  = 1;
+
+    if (asset != nullptr && asset->status == NYA_ASSET_STATUS_LOADED && asset->as_mesh.part_count > 0) {
+        parts      = asset->as_mesh.parts;
+        part_count = asset->as_mesh.part_count;
+    } else {
+        asset = nullptr;
+    }
 
     f32_4x4 view_projection = _nya_render3d_pass_view_projection(batch, pass);
 
-    SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, pipeline));
-    SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = registered->vertices }, 1);
+    for (u32 p = 0; p < part_count; p++) {
+        const NYA_MeshPart* part = &parts[p];
 
-    SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
-    SDL_PushGPUVertexUniformData(render->render_commands, 1, segment->skin, sizeof(*segment->skin));
+        if (part->vertex_count == 0) continue;
+        if (part->first_vertex + part->vertex_count > registered->vertex_count) continue;
 
-    // the shadow pipeline declares no uniform or sampler, and binding one is a validation error.
-    if (!shadow) {
-        SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
+        // a part's own texture, unless textures are switched off, in which case it draws in its vertex colour.
+        const b8 textured = !shadow && asset != nullptr && part->texture >= 0 && nya_render_feature_enabled(window, NYA_RENDER_FEATURE_TEXTURES);
 
-        // mesh3d.frag.hlsl always declares the shadow map's sampler.
-        _nya_render3d_bind_samplers(window, nullptr, nullptr);
+        SDL_GPUTexture* texture = textured ? asset->as_mesh.textures[part->texture] : nullptr;
+        SDL_GPUSampler* sampler = texture != nullptr ? _nya_render_sampler_for(asset->as_mesh.filter) : nullptr;
+
+        NYA_ConstCString pipeline_handle = shadow      ? NYA_RENDER3D_PIPELINE_SKINNED_SHADOW
+                                         : texture     ? NYA_RENDER3D_PIPELINE_SKINNED_TEXTURED
+                                                       : NYA_RENDER3D_PIPELINE_SKINNED;
+
+        NYA_Asset* pipeline = nya_asset_get((NYA_AssetHandle)pipeline_handle);
+        if (pipeline == nullptr || pipeline->status != NYA_ASSET_STATUS_LOADED) continue;
+
+        SDL_BindGPUGraphicsPipeline(render->render_pass, _nya_render_pipeline(window, pipeline));
+        SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = registered->vertices }, 1);
+
+        SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
+        SDL_PushGPUVertexUniformData(render->render_commands, 1, segment->skin, sizeof(*segment->skin));
+
+        // the shadow pipeline declares no uniform or sampler, and binding one is a validation error.
+        if (!shadow) {
+            SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
+
+            // mesh3d.frag.hlsl always declares the shadow map's sampler.
+            _nya_render3d_bind_samplers(window, texture, sampler);
+        }
+
+        SDL_DrawGPUPrimitives(render->render_pass, part->vertex_count, 1, part->first_vertex, 0);
+
+        batch->frame_draw_calls++;
+        nya_trace_draws(1);
     }
-
-    SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);
-
-    batch->frame_draw_calls++;
-    nya_trace_draws(1);
 }
 
 NYA_Render3DMeshGroup* _nya_render3d_mesh_group(NYA_Render3DBatch* batch, NYA_ConstCString handle, b8 transparent) {

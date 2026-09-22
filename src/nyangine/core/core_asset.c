@@ -1771,7 +1771,9 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
                 .position = { positions[v].x, positions[v].y, positions[v].z },
                 .uv       = { (f16)uvs[v].x, (f16)uvs[v].y },
                 .normals  = { normals[v].x, normals[v].y, normals[v].z },
-                .color    = { 1.0F, 1.0F, 1.0F, 1.0F },
+
+                // white until the parts below say otherwise, so a vertex outside every run still draws.
+                .color = { 1.0F, 1.0F, 1.0F, 1.0F },
             };
 
             u32 quantised = 0;
@@ -1788,6 +1790,24 @@ NYA_INTERNAL NYA_Error _nya_asset_build_mesh(NYA_AssetHandle handle, const u8* d
             // four rounded weights miss 255 by at most two steps, which the strongest influence absorbs unnoticed.
             nya_assert(quantised >= 253 && quantised <= 257 && skinned[v].weights[0] >= 2);
             skinned[v].weights[0] = (u8)(skinned[v].weights[0] + 255 - quantised);
+        }
+
+        /*
+         * The material's base colour, folded in per part, exactly as the static path folds it while
+         * staging its vertices. The skinned buffer is uploaded straight from here and never passes
+         * through that staging, so a rigged model used to lose every material colour it had and draw
+         * white; see _nya_render3d_mesh_upload for the other half of the same rule.
+         */
+        for (u32 p = 0; p < part_count; p++) {
+            const NYA_MeshPart* part = &mesh_parts[p];
+            const u32           end  = part->first_vertex + part->vertex_count;
+
+            for (u32 v = part->first_vertex; v < end && v < written; v++) {
+                skinned[v].color[0] = (f16)part->base_color.r;
+                skinned[v].color[1] = (f16)part->base_color.g;
+                skinned[v].color[2] = (f16)part->base_color.b;
+                skinned[v].color[3] = (f16)part->base_color.a;
+            }
         }
 
         out_asset->as_mesh.skinned_vertices = skinned;

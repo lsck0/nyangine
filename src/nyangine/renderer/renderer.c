@@ -807,6 +807,20 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
       },
   }), "while queueing the skinned mesh pipeline");
 
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
+      .handle               = NYA_RENDER3D_PIPELINE_SKINNED_TEXTURED,
+      .as_graphics_pipeline = {
+          .window                 = window,
+          .vertex_shader_handle   = NYA_ASSET_SHADER_MESH3D_SKINNED_VERT,
+          .fragment_shader_handle = NYA_ASSET_SHADER_MESH3D_TEXTURED_FRAG,
+          .vertex_layout          = NYA_VERTEX_LAYOUT_3D_SKINNED,
+          .depth_test             = true,
+          .depth_write            = true,
+          .cull_back_faces        = true,
+      },
+  }), "while queueing the textured skinned mesh pipeline");
+
     /* The transparent pass: the four pipelines above without depth writing. */
     /* The overlay pass: the transparent pipeline without depth testing either. */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){

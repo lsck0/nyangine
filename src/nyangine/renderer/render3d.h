@@ -97,6 +97,9 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
  * */
 #define NYA_RENDER3D_PIPELINE_SKINNED "nya_mesh3d_skinned_pipeline"
 
+/** The same, sampling a base colour texture, for a posed mesh whose parts name one. */
+#define NYA_RENDER3D_PIPELINE_SKINNED_TEXTURED "nya_mesh3d_skinned_textured_pipeline"
+
 /** The depth-only skinned pipeline, so a skinned mesh casts a shadow. See nya_render3d_skinned_mesh. */
 #define NYA_RENDER3D_PIPELINE_SKINNED_SHADOW "nya_mesh3d_skinned_shadow_pipeline"
 

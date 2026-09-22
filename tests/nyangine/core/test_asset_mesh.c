@@ -190,6 +190,69 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a rigged model's skinned vertices carry their part's material colour
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type   = NYA_ASSET_TYPE_MESH,
+      .handle = NYA_ASSET_MODELS_BENDER_FBX,
+    }));
+
+    end_frame();
+
+    NYA_Asset* asset = nya_asset_get(NYA_ASSET_MODELS_BENDER_FBX);
+    nya_check(asset != nullptr && asset->status == NYA_ASSET_STATUS_LOADED, "the rigged model loads");
+
+    if (asset != nullptr && asset->status == NYA_ASSET_STATUS_LOADED) {
+      nya_check(asset->as_mesh.skeleton != nullptr, "and has a skeleton, or it is not the rigged one");
+      nya_check(asset->as_mesh.skinned_vertices != nullptr, "and a skinned copy of its geometry");
+
+      if (asset->as_mesh.skinned_vertices != nullptr) {
+        /*
+         * The skinned buffer is uploaded straight from the loader and never passes through the staging
+         * that folds a part's base colour into the static vertices, so every skinned vertex used to be
+         * white whatever material it belonged to. Checked per part rather than in bulk: a single-part
+         * model would pass a bulk check by accident.
+         */
+        u32 matched = 0;
+
+        for (u32 p = 0; p < asset->as_mesh.part_count; p++) {
+          const NYA_MeshPart* part = &asset->as_mesh.parts[p];
+          const u32           end  = part->first_vertex + part->vertex_count;
+
+          for (u32 v = part->first_vertex; v < end && v < asset->as_mesh.vertex_count; v++) {
+            const NYA_VertexSkinned3D* vertex = &asset->as_mesh.skinned_vertices[v];
+
+            // f16 on the way in, so the comparison has to allow what that rounding costs.
+            if (fabsf((f32)vertex->color[0] - part->base_color.r) > 0.01F) continue;
+            if (fabsf((f32)vertex->color[1] - part->base_color.g) > 0.01F) continue;
+            if (fabsf((f32)vertex->color[2] - part->base_color.b) > 0.01F) continue;
+
+            matched++;
+          }
+        }
+
+        nya_check(matched == asset->as_mesh.vertex_count, "every skinned vertex carries its part's colour, %u of %u", matched,
+                  asset->as_mesh.vertex_count);
+
+        /*
+         * Worth knowing what this is worth: bender.fbx is one part with a white material, so the check
+         * above passes whether or not the colour is folded in. It guards the rule rather than proving
+         * it, and it will start proving it the day a rigged model with materials is in the tree. The
+         * one thing it does catch today is a vertex left at zero, which would draw the model black.
+         */
+        nya_check(asset->as_mesh.parts[0].base_color.a > 0.0F, "and the part it came from is not transparent");
+      }
+
+      nya_log_info("  bender.fbx: %u parts, %u vertices, part 0 base colour %.2f %.2f %.2f", asset->as_mesh.part_count,
+                   asset->as_mesh.vertex_count, (f64)asset->as_mesh.parts[0].base_color.r, (f64)asset->as_mesh.parts[0].base_color.g,
+                   (f64)asset->as_mesh.parts[0].base_color.b);
+    }
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: something that is not an FBX fails rather than being believed
   // ─────────────────────────────────────────────────────────────────────────────
   {
