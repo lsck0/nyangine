@@ -1268,6 +1268,37 @@ NYA_BuildInfo nya_build_info(void)  // What this binary is.
 u32 nya_build_line(OUT u8* out, u32 capacity)  // The same as one line, `"<kind> <version> <commit>, built <time>"`, written into `out`.
 ```
 
+### base_watch.h
+
+What the program's variables held, so a crash report says more than where it stopped.
+
+```c
+// types
+enum NYA_WatchType { NYA_WATCH_TYPE_SIGNED, NYA_WATCH_TYPE_UNSIGNED, NYA_WATCH_TYPE_FLOAT, NYA_WATCH_TYPE_BOOL, NYA_WATCH_TYPE_CHAR, NYA_WATCH_TYPE_CSTRING, NYA_WATCH_TYPE_STRING, NYA_WATCH_TYPE_POINTER, NYA_WATCH_TYPE_OPAQUE, NYA_WATCH_TYPE_COUNT, }  // How a value is written down.
+struct NYA_WatchEntry { u32 frame; NYA_ConstCString function; NYA_ConstCString name; NYA_ConstCString type_name; const void* address; NYA_WatchType type; u32 size; }  // One live variable.
+
+// macros
+NYA_WATCH_STRING_MAX 64  // How much of a string is written down.
+NYA_WATCH_VALUE_MAX 192  // Longest rendered value, terminator included: the string above, its quotes, its length and an address.
+NYA_WATCH_RING_MAX 64  // Entries one thread's ring holds.
+nya_assert_eq(left, right)  // The comparison assertions.
+nya_assert_ne(left, right)
+nya_assert_lt(left, right)
+nya_assert_le(left, right)
+nya_assert_gt(left, right)
+nya_assert_ge(left, right)
+nya_watch(function)  // Registers the function's own locals, from where it is written to wherever the function returns.
+
+// functions
+u32 nya_watch_value_format(NYA_WatchType type, u32 size, const void* address, OUT u8* buffer, u32 capacity)  // Writes what lives at `address` into `buffer` as terminated text, and returns its length.
+u32 nya_watch_frame_begin(void)  // Opens a frame's group.
+void nya_watch_frame_end(u32 frame)  // Drops everything registered since the mark, whether this frame registered it or a callee leaked it.
+void nya_watch_record(u32 frame, NYA_ConstCString function, NYA_ConstCString name, NYA_ConstCString type_name, NYA_WatchType type, u32 size, const void* address)  // Registers one variable into the calling thread's ring.
+u32 nya_watch_count(void)  // Entries that can still be read, oldest first: index 0 is the outermost frame's first local.
+const NYA_WatchEntry* nya_watch_at(u32 index)  // Entry `index`, or null past the count.
+u32 nya_watch_dropped(void)  // How many entries the ring dropped to make room.
+```
+
 ## core
 
 The application loop: entities, systems, events, input, audio, assets, config, saves.
@@ -5222,7 +5253,7 @@ The crash reporter: what a player sees when the engine dies.
 ```c
 // macros
 NYA_CRASH_REPORT_MAX_BYTES  // Largest report that can be composed, statically allocated once.
-NYA_CRASH_REPORT_LINE_MAX (NYA_LOG_RING_MAX + 128)  // Lines the window can index for scrolling.
+NYA_CRASH_REPORT_LINE_MAX (NYA_LOG_RING_MAX + NYA_WATCH_RING_MAX + 128)  // Lines the window can index for scrolling.
 NYA_CRASH_REPORT_PATH_MAX (NYA_LOG_DIRECTORY_MAX + 64)  // Longest path a written report can have, terminator included.
 
 // functions

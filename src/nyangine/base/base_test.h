@@ -6,6 +6,7 @@
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_basic.h"
 #include "nyangine/base/base_logging.h"
+#include "nyangine/base/base_watch.h"
 
 #ifdef NYA_TESTING
 
@@ -30,8 +31,12 @@
 #define nya_expect_crash(code)                                                                                                                       \
     do {                                                                                                                                             \
         jmp_buf  _nya_crash_jmp;                                                                                                                     \
-        jmp_buf* _nya_crash_previous = _nya_crash_prevent_push(&_nya_crash_jmp);                                                                     \
+        /* the longjmp out of a crash runs no defer, and unregistering a watched frame is one: without    \
+         * this the ring would keep pointers into frames the jump has already thrown away. */             \
+        const u32 _nya_crash_watch_mark = nya_watch_frame_begin();                                                                                   \
+        jmp_buf*  _nya_crash_previous   = _nya_crash_prevent_push(&_nya_crash_jmp);                                                                  \
         if (setjmp(_nya_crash_jmp) == 0) { code; }                                                                                                   \
+        nya_watch_frame_end(_nya_crash_watch_mark);                                                                                                  \
         _nya_crash_prevent_pop(_nya_crash_previous);                                                                                                 \
         nya_assert_always(nya_crash_caught() != nullptr, "Expected a crash, but none happened.");                                                    \
     } while (0)

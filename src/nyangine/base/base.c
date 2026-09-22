@@ -29,3 +29,4 @@
 #include "nyangine/base/base_url.c"
 // after base_types.c and the platform clock and filesystem it reads the build time through.
 #include "nyangine/base/base_version.c"
+#include "nyangine/base/base_watch.c"

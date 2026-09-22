@@ -51,6 +51,9 @@ NYA_INTERNAL void _nya_crash_append(OUT u8* buffer, u32 capacity, OUT u32* lengt
 /** Splits `report` on newlines into _nya_crash_report_lines. Lines past the index are dropped. */
 NYA_INTERNAL void _nya_crash_report_index(NYA_ConstCString report);
 
+/** The watched locals, innermost frame first. See base_watch.h. */
+NYA_INTERNAL void _nya_crash_append_watch(OUT u8* buffer, u32 capacity, OUT u32* length);
+
 /** Bytes as a human number: `15.9 GiB`. */
 NYA_INTERNAL void _nya_crash_format_bytes(u64 bytes, OUT u8* buffer, u32 capacity);
 
@@ -205,6 +208,50 @@ NYA_INTERNAL void _nya_crash_append_platform(OUT u8* buffer, u32 capacity, OUT u
     _nya_crash_append(buffer, capacity, length, "  gpu used  %s allocated by the engine\n", (NYA_ConstCString)amount);
 }
 
+void _nya_crash_append_watch(OUT u8* buffer, u32 capacity, OUT u32* length) {
+    const u32 count = nya_watch_count();
+
+    _nya_crash_append(buffer, capacity, length, "\nWatched values\n");
+
+    if (count == 0) {
+        _nya_crash_append(buffer, capacity, length, "  none registered\n");
+        return;
+    }
+
+    const u32 dropped = nya_watch_dropped();
+    if (dropped > 0) {
+        _nya_crash_append(buffer, capacity, length, "  the %u oldest were dropped; the ring holds %u\n", dropped, (u32)NYA_WATCH_RING_MAX);
+    }
+
+    /*
+     * Innermost frame first, because that is the one that crashed, but each frame's own locals in the
+     * order they were declared: a frame read backwards is harder to match against the source than a
+     * list of frames read backwards.
+     *
+     * Nothing here allocates or takes a lock. The ring belongs to this thread, which is the thread that
+     * crashed, and nya_watch_value_format reads only the bytes an entry described.
+     */
+    for (u32 end = count; end > 0;) {
+        const u32 frame = nya_watch_at(end - 1)->frame;
+
+        u32 start = end;
+        while (start > 0 && nya_watch_at(start - 1)->frame == frame) start--;
+
+        _nya_crash_append(buffer, capacity, length, "  %s\n", nya_watch_at(start)->function);
+
+        for (u32 i = start; i < end; i++) {
+            const NYA_WatchEntry* entry = nya_watch_at(i);
+
+            u8 value[NYA_WATCH_VALUE_MAX] = { 0 };
+            (void)nya_watch_value_format(entry->type, entry->size, entry->address, value, (u32)sizeof(value));
+
+            _nya_crash_append(buffer, capacity, length, "    %s %s = %s\n", entry->type_name, entry->name, (NYA_ConstCString)value);
+        }
+
+        end = start;
+    }
+}
+
 u32 nya_crash_report_compose(const NYA_CrashInfo* info, OUT u8* buffer, u32 capacity) {
     nya_assert(info != nullptr);
     nya_assert(buffer != nullptr);
@@ -240,6 +287,10 @@ u32 nya_crash_report_compose(const NYA_CrashInfo* info, OUT u8* buffer, u32 capa
     } else if (length + 1 < capacity) {
         length += nya_backtrace_format(&info->backtrace, &buffer[length], capacity - length);
     }
+
+    // Between the trace and the log: the trace says where the program was, this says what it held there,
+    // and the log says how it got there.
+    _nya_crash_append_watch(buffer, capacity, &length);
 
     const u32 logged = nya_log_ring_count();
     _nya_crash_append(buffer, capacity, &length, "\nLog, the last %u lines of at most %u\n", logged, (u32)NYA_LOG_RING_MAX);

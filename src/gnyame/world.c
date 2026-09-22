@@ -474,7 +474,7 @@ u32 gny_post_passes(NYA_Window* window, OUT NYA_PostPass* out_passes) {
         };
     }
 
-    nya_assert(count <= GNY_POST_PASSES_MAX);
+    nya_assert_le(count, (u32)GNY_POST_PASSES_MAX);
 
     return count;
 }

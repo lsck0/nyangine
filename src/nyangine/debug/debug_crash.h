@@ -17,8 +17,13 @@
  *
  * Registers one observer on base_logging.h's crash funnel, so an assertion, a panic, a thrown error and
  * a hardware fault all produce the same report. The report carries the crash itself, the stack it came
- * from, what the build is, what the machine is, and the last NYA_LOG_RING_MAX log lines, which is the
- * part that usually says what the program was actually doing.
+ * from, what the build is, what the machine is, what every watched frame's locals held, and the last
+ * NYA_LOG_RING_MAX log lines, which is the part that usually says what the program was actually doing.
+ *
+ * The watched values come from base_watch.h's per thread ring, which a function opts into with an
+ * annotation; see build/pp/watch.h. The walk is part of composing the report, so it runs on the fault
+ * path too, where it neither allocates nor takes a lock: the ring is fixed storage belonging to the
+ * thread that crashed.
  *
  * For everything but a fault the report is shown in a window with Close, Copy and Send to developer,
  * unless nobody is there to press one: a test build or a headless app writes the file instead.
@@ -55,6 +60,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/base/base_watch.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -67,15 +73,19 @@
  *
  * The log ring is the part that grows: NYA_LOG_RING_MAX lines of up to NYA_LOG_RING_LINE_MAX bytes is
  * 64 KiB by itself, and the header, the build and platform block and a 64 frame stack trace add about
- * 12 KiB on top. A report that would overflow is truncated with a line saying so, never silently cut.
+ * 12 KiB on top. The watched values are the other ring, so they are counted the same way: a full one is
+ * NYA_WATCH_RING_MAX lines of a value and the name and type in front of it.
+ *
+ * A report that would overflow is truncated with a line saying so, never silently cut.
  * */
-#define NYA_CRASH_REPORT_MAX_BYTES ((NYA_LOG_RING_MAX * NYA_LOG_RING_LINE_MAX) + (16 * 1024))
+#define NYA_CRASH_REPORT_MAX_BYTES \
+    ((NYA_LOG_RING_MAX * NYA_LOG_RING_LINE_MAX) + (NYA_WATCH_RING_MAX * (NYA_WATCH_VALUE_MAX + 64)) + (16 * 1024))
 
 /**
  * Lines the window can index for scrolling. The report is line oriented and the ring is the bulk of it,
- * so this is the ring plus the fixed blocks around it, rounded up.
+ * so this is both rings plus the fixed blocks around them, rounded up.
  * */
-#define NYA_CRASH_REPORT_LINE_MAX (NYA_LOG_RING_MAX + 128)
+#define NYA_CRASH_REPORT_LINE_MAX (NYA_LOG_RING_MAX + NYA_WATCH_RING_MAX + 128)
 
 /** Longest path a written report can have, terminator included. */
 #define NYA_CRASH_REPORT_PATH_MAX (NYA_LOG_DIRECTORY_MAX + 64)

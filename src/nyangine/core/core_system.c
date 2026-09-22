@@ -925,7 +925,7 @@ NYA_Error _nya_system_sort(void) {
         return nya_error(NYA_ERROR_NOT_OK, "%s", (NYA_ConstCString)message);
     }
 
-    nya_assert(order_count == count, "the sort dropped " FMTu32 " of " FMTu32 " systems", count - order_count, count);
+    nya_assert_eq(order_count, count);
 
     // Permuted only now that the order is known to be legal, so a rejected graph leaves the registry
     // exactly as the caller left it and the error can be fixed and finalize called again.

@@ -25,6 +25,12 @@
  * */
 #define nya_assert_always(...)      _NYA_ASSERT_ENABLED(__VA_ARGS__)
 
+/*
+ * The comparison assertions, nya_assert_eq and its five siblings, are in base_watch.h: they print what
+ * each side held, with the same formatter the watched locals of a crash report are printed by. They
+ * cannot live here, because base_array.h includes this header and they need NYA_String.
+ */
+
 #define nya_assert_type_match(a, b) static_assert(__builtin_types_compatible_p(typeof(a), typeof(b)), "Incompatible types.")
 #define nya_unused(...)             ((void)(0, __VA_ARGS__))
 
