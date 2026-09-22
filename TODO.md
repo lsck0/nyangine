@@ -122,7 +122,19 @@ Found on the way, and since fixed:
   Both return how many bodies they drew, which is what a headless test can hold them to: counting the
   geometry needs a GPU, and a batch with no buffers records nothing. The 3D scene's switchboard has the
   toggle.
-- `[ ]` Not started: core systems audit.
+- `[~]` Core systems audit, started. Method: every `NYA_API` name against every `.c`, `.h`, `.lua` and
+  `.nya` under src, tests, examples, bench, plugins, assets and packaging; a name appearing at most twice
+  is its own declaration and definition and nothing else. **81 of 1791 public functions are called by
+  nothing at all.** Worst: steam 24, window 13, entity 7, nn 6. The window ones are the whole
+  `nya_window_is_*` family; the entity ones are every spatial query (`nya_entity_query_box`, `_ray`,
+  `_sphere`, `_flags`).
+  `[ ]` Still to decide, and it is a judgement call rather than a sweep: this is a library, so some
+  unexercised surface is deliberate. Each cluster wants a caller, a test, or deletion.
+  `[x]` Steam was the worst of them and is done: `test_steam.c` runs the module against a fake.
+- `[!]` The audit's method is worth being honest about. Two earlier runs of it were wrong and were caught
+  by spot checking: one missed `bench/` and called the benchmark harness dead, another excluded headers
+  and called `nya_physics3d_body_attach_with_options` dead when it is reached through a macro. A sweep
+  that is not spot checked is a confident wrong answer.
 
 ---
 
@@ -451,7 +463,8 @@ the packager ones.
 ## `[ ]` Steam
 
 - `[x]` Lobbies, peer to peer, achievements, stats and Cloud. `net_steam.c` is a real transport now.
-- `[ ]` None of it has been exercised against a running Steam client; it is tested against a fake.
+- `[x]` It is tested against a fake now, which it was not when this said so: `test_steam.c` was written
+  today. `[ ]` None of it has been exercised against a running Steam client.
 - Note: `plugins/steam/steam.c` **is** compiled and linked for the steam targets. The "Steam is dead code"
   section further down predates that and is stale.
 
