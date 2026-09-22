@@ -304,6 +304,23 @@ NYA_INTERNAL NYA_HttpStatus notes_delete(NYA_HttpExchange* exchange) {
 #define OTP_ACTIVATE_PATH "/api/otp/activate"
 #define OTP_VERIFY_PATH   "/api/otp/verify"
 #define OTP_RECOVER_PATH  "/api/otp/recover"
+#define SESSION_PATH      "/api/session"
+
+/**
+ * How long a session lasts here. Short on purpose: an access token is checked by its signature alone
+ * and nothing can call it back, so the only thing limiting a stolen one is how soon it stops working.
+ * A real server pairs this with a refresh token in a session row; see TODO.md, "Sessions".
+ * */
+#define SESSION_SECONDS 900
+
+/**
+ * The secret this server signs its sessions with, made once at startup from the CSPRNG.
+ *
+ * Made rather than configured, because an example that shipped a secret would be an example of how to
+ * lose one. It also means every restart invalidates every session it issued, which is the honest
+ * behaviour for a server that keeps nothing.
+ * */
+static u8 SESSION_SECRET[32] = { 0 };
 
 /**
  * The one account this example has a factor for.
@@ -406,6 +423,62 @@ NYA_INTERNAL NYA_HttpStatus otp_activate(NYA_HttpExchange* exchange) {
     return otp_status(verdict);
 }
 
+/**
+ * Mints the access token for the account the second factor just proved, and puts it in the cookie a
+ * browser will send back on its own.
+ *
+ * `__Host-` is the prefix that makes the name belong to this host alone, `HttpOnly` keeps it away from
+ * script, and `SameSite=Strict` is what makes it safe for a browser to send it at all: dispatch already
+ * refuses a cross site write, and the two together are the CSRF defence.
+ * */
+NYA_INTERNAL NYA_HttpStatus session_issue(NYA_HttpExchange* exchange) {
+    NYA_HttpIdentity identity = {
+        .scope        = NYA_HTTP_SCOPE_READ,
+        .issued_at_s  = exchange->now_s,
+        .expires_at_s = exchange->now_s + SESSION_SECONDS,
+    };
+
+    (void)snprintf(identity.subject, sizeof(identity.subject), "%s", "the one account");
+
+    char token[NYA_HTTP_MAX_TOKEN_BYTES] = { 0 };
+
+    if (!nya_http_jwt_encode(&identity, SESSION_SECRET, sizeof(SESSION_SECRET), token, sizeof(token)).ok) {
+        return NYA_HTTP_STATUS_INTERNAL_SERVER_ERROR;
+    }
+
+    NYA_Error set = nya_http_response_cookie(exchange->response,
+                                             &(NYA_HttpCookie){
+                                                 .name      = NYA_HTTP_SESSION_COOKIE,
+                                                 .value     = token,
+                                                 .max_age_s = SESSION_SECONDS,
+                                                 .http_only = true,
+                                                 .secure    = true,
+                                                 .same_site = NYA_HTTP_SAME_SITE_STRICT,
+                                             });
+
+    return set.ok ? NYA_HTTP_STATUS_NO_CONTENT : NYA_HTTP_STATUS_INTERNAL_SERVER_ERROR;
+}
+
+/** Who the cookie says you are. Reached by the cookie alone, which is the point of the route. */
+NYA_INTERNAL NYA_HttpStatus session_read(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity) {
+    NYA_Object* body = nya_object_create(exchange->arena);
+
+    nya_object_set(body, "subject", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)identity->subject });
+    nya_object_set(body, "expires_at_s", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = identity->expires_at_s });
+
+    return nya_http_response_json(exchange->response, exchange->arena, body).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_SERVER_ERROR;
+}
+
+/**
+ * Signing out. The cookie is cleared with the attributes it was set with, because a browser matches on
+ * those: a clear with a different path leaves the original in place and the session alive.
+ * */
+NYA_INTERNAL NYA_HttpStatus session_clear(NYA_HttpExchange* exchange) {
+    NYA_Error cleared = nya_http_response_cookie_clear(exchange->response, NYA_HTTP_SESSION_COOKIE, "/", true);
+
+    return cleared.ok ? NYA_HTTP_STATUS_NO_CONTENT : NYA_HTTP_STATUS_INTERNAL_SERVER_ERROR;
+}
+
 /** One code against the factor that is on. What a login route will call once there is one. */
 NYA_INTERNAL NYA_HttpStatus otp_verify(NYA_HttpExchange* exchange) {
     NYA_ConstCString code = otp_submitted_code(exchange);
@@ -413,7 +486,11 @@ NYA_INTERNAL NYA_HttpStatus otp_verify(NYA_HttpExchange* exchange) {
 
     if (!FACTOR.active) return NYA_HTTP_STATUS_UNAUTHORIZED;
 
-    return otp_status(nya_http_totp_verify(&FACTOR.guard, &FACTOR.secret, code, exchange->now_s));
+    NYA_HttpStatus verified = otp_status(nya_http_totp_verify(&FACTOR.guard, &FACTOR.secret, code, exchange->now_s));
+
+    // the factor proven is what a session is issued against, which is the half of a login this example
+    // can honestly do: there is no password and no user store, so the second factor stands for both.
+    return verified == NYA_HTTP_STATUS_NO_CONTENT ? session_issue(exchange) : verified;
 }
 
 /** One recovery code, for the phone that is gone. Spent by the call, so it works exactly once. */
@@ -533,6 +610,40 @@ NYA_INTERNAL const NYA_HttpRouter OTP_ROUTER = {
 };
 
 /*
+ * The session itself: what the factor above issues, and the two things a caller does with it. There is
+ * no route that creates one here, because creating one is logging in and this example has no password
+ * and no user store — /api/otp/verify stands in for that, and says so.
+ */
+NYA_INTERNAL const NYA_HttpRoute SESSION_ROUTES[] = {
+    {
+     .method              = NYA_HTTP_METHOD_GET,
+     .path                = SESSION_PATH,
+     .auth                = NYA_HTTP_AUTH_BEARER,
+     .handler_identified  = session_read,
+     .summary             = "Who the session cookie says you are",
+     .description         = "Reached by the `" NYA_HTTP_SESSION_COOKIE "` cookie alone, which the browser sends on its own, or by "
+                            "`Authorization: Bearer` for a caller that is not a browser.",
+     .statuses            = { NYA_HTTP_STATUS_OK, NYA_HTTP_STATUS_UNAUTHORIZED, NYA_HTTP_STATUS_FORBIDDEN },
+     },
+    {
+     .method      = NYA_HTTP_METHOD_DELETE,
+     .path        = SESSION_PATH,
+     .auth        = NYA_HTTP_AUTH_NONE,
+     .handler     = session_clear,
+     .summary     = "Signs out",
+     .description = "Clears the cookie with the attributes it was set with, which is what a browser matches on. The token itself "
+                        "stays valid until it expires, since nothing can call a signature back; that is what the short lifetime is for.",
+     .statuses    = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_INTERNAL_ERROR },
+     },
+};
+
+NYA_INTERNAL const NYA_HttpRouter SESSION_ROUTER = {
+    .name        = "session",
+    .routes      = SESSION_ROUTES,
+    .route_count = nya_carray_length(SESSION_ROUTES),
+};
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * THE PAGE
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -639,7 +750,15 @@ s32 main(s32 argc, char** argv) {
     nya_system_asset_init();
     defer nya_system_asset_deinit();
 
-    NYA_Error started = nya_system_http_init((NYA_HttpConfig){ .port = port });
+    // the secret the sessions are signed with, made here so that nothing ships one and a restart ends
+    // every session this server issued.
+    if (!nya_os_random_bytes(SESSION_SECRET, sizeof(SESSION_SECRET))) {
+        nya_log_error("The system random source failed, so no session secret could be made.");
+
+        return EXIT_FAILURE;
+    }
+
+    NYA_Error started = nya_system_http_init((NYA_HttpConfig){ .port = port, .secret = SESSION_SECRET, .secret_size = sizeof(SESSION_SECRET) });
 
     if (!started.ok) {
         u8 message[256];
@@ -661,6 +780,9 @@ s32 main(s32 argc, char** argv) {
      */
     NYA_EXPECT(nya_http_server_merge(&OTP_ROUTER), "while merging the second factor");
     defer nya_http_server_unmerge(&OTP_ROUTER);
+
+    NYA_EXPECT(nya_http_server_merge(&SESSION_ROUTER), "while merging the session");
+    defer nya_http_server_unmerge(&SESSION_ROUTER);
 
     /*
      * The engine's own metrics, which are reflected DTOs: asked for as application/nya-binary they go

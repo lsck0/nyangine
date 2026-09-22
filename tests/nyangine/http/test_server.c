@@ -281,6 +281,52 @@ s32 main(void) {
         nya_assert(exchange(client, nya_string_to_cstring(arena, off), answer, sizeof(answer)) > 0);
         nya_assert(!nya_system_accounting_is_enabled());
 
+        /*
+         * And the same token in the cookie a browser sends on its own, which is what a session is. The
+         * route is reached by it, which is the whole point; that a cross site caller cannot use it this
+         * way is the origin check's case further down, and SameSite=Strict on the cookie itself.
+         */
+        NYA_String* by_cookie = nya_string_sprintf(
+            arena,
+            "PUT " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
+            "Cookie: theme=dark; " NYA_HTTP_SESSION_COOKIE "=%s\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n"
+            "{\"enabled\":true}",
+            token
+        );
+
+        nya_assert(exchange(client, nya_string_to_cstring(arena, by_cookie), answer, sizeof(answer)) > 0);
+        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 200 OK\r\n"), "the cookie did not reach the extractor");
+        nya_assert(nya_system_accounting_is_enabled());
+
+        // a header beats a cookie: a caller that sent one meant to, where a cookie is sent for them.
+        NYA_String* both = nya_string_sprintf(
+            arena,
+            "PUT " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
+            "Authorization: Bearer nonsense\r\nCookie: " NYA_HTTP_SESSION_COOKIE "=%s\r\n"
+            "Content-Type: application/json\r\nContent-Length: 17\r\n\r\n{\"enabled\":false}",
+            token
+        );
+
+        nya_assert(exchange(client, nya_string_to_cstring(arena, both), answer, sizeof(answer)) > 0);
+        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 401 Unauthorized\r\n"), "the header was not the one read");
+        nya_assert(nya_system_accounting_is_enabled(), "and the refused request changed nothing");
+
+        // a malformed cookie header is no cookie at all, not a cookie read out of the wreckage.
+        NYA_String* mangled = nya_string_sprintf(
+            arena,
+            "PUT " NYA_HTTP_METRICS_ACCOUNTING_PATH " HTTP/1.1\r\nHost: localhost\r\n"
+            "Cookie: theme=dark;" NYA_HTTP_SESSION_COOKIE "=%s\r\nContent-Type: application/json\r\nContent-Length: 17\r\n\r\n"
+            "{\"enabled\":false}",
+            token
+        );
+
+        nya_assert(exchange(client, nya_string_to_cstring(arena, mangled), answer, sizeof(answer)) > 0);
+        nya_assert(nya_string_starts_with(nya_string_from(arena, answer), "HTTP/1.1 401 Unauthorized\r\n"), "a mangled header was read anyway");
+
+        // left as the suite found it.
+        nya_assert(exchange(client, nya_string_to_cstring(arena, off), answer, sizeof(answer)) > 0);
+        nya_assert(!nya_system_accounting_is_enabled());
+
         // a body that is not the DTO the route takes.
         NYA_String* nonsense = nya_string_sprintf(
             arena,

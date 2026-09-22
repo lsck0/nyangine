@@ -4642,16 +4642,42 @@ NYA_HTTP_MAX_TOKEN_BYTES 512  // Longest token this server will encode or look a
 NYA_HTTP_MAX_SECRET_BYTES 64  // Longest signing secret.
 NYA_HTTP_MIN_SECRET_BYTES 32  // Shortest secret that will be accepted.
 NYA_HTTP_CHALLENGE_WINDOW_S 30  // How long a second factor challenge stays valid, and the granularity it is minted at.
+NYA_HTTP_SESSION_COOKIE "__Host-session"  // The name of the cookie an access token travels in, which carries a prefix a browser enforces.
 
 // functions
 NYA_Error nya_http_jwt_encode(const NYA_HttpIdentity* identity, const u8* secret, u64 secret_size, OUT char* out_token, u64 capacity)  // Signs `identity` into `out_token` as a compact JWS.
 NYA_Error nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* secret, u64 secret_size, u64 now_s, OUT NYA_HttpIdentity* out_identity)  // Verifies `token` and parses what it claims.
 b8 nya_http_bearer_token(const NYA_HttpRequest* request, OUT const char** out_token, OUT u64* out_size)  // The token out of `Authorization: Bearer <token>`, pointing into the request and copying nothing.
+b8 nya_http_access_token(const NYA_HttpRequest* request, OUT const char** out_token, OUT u64* out_size)
 b8 nya_http_scope_contains(const NYA_HttpIdentity* identity, NYA_HttpScope required)  // Whether `identity` carries every bit in `required`.
 NYA_Error nya_http_challenge_create(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, OUT u8 out_challenge[NYA_CRYPTO_SHA256_BYTES])  // A challenge for `subject`, valid for the window `now_s` falls in.
 b8 nya_http_challenge_verify(NYA_ConstCString subject, const u8* secret, u64 secret_size, u64 now_s, const u8 challenge[NYA_CRYPTO_SHA256_BYTES])  // Whether `challenge` is one this server issued for `subject`, in the current window or the one before it.
 void nya_http_second_factor_set(NYA_HttpSecondFactorFn verify)  // Installs the signature verifier.
 NYA_HttpSecondFactorFn nya_http_second_factor(void)  // What nya_http_second_factor_set last installed, or null.
+```
+
+### http_cookie.h
+
+Cookies, in both directions: reading the one header a browser sends, and writing the ones it should
+
+```c
+// types
+typedef enum { NYA_HTTP_SAME_SITE_STRICT = 0, NYA_HTTP_SAME_SITE_LAX, NYA_HTTP_SAME_SITE_NONE, } NYA_HttpSameSite  // How a browser should decide whether to send a cookie with a cross site request.
+typedef struct { NYA_ConstCString name; NYA_ConstCString value; s64 max_age_s; b8 http_only; b8 secure; NYA_HttpSameSite same_site; NYA_ConstCString path; NYA_ConstCString domain; } NYA_HttpCookie  // One cookie to set, as `nya_http_response_cookie` renders it.
+typedef struct { const char* text; u64 size; } NYA_HttpCookieValue  // One cookie as it arrived: a view into the request, copying nothing and not null terminated.
+
+// macros
+NYA_HTTP_MAX_COOKIES 16  // Pairs one request's `Cookie` header may hold.
+NYA_HTTP_MAX_COOKIE_NAME 64  // A cookie name, terminator included.
+NYA_HTTP_MAX_COOKIE_VALUE 512  // A cookie value, terminator included.
+
+// functions
+b8 nya_http_cookie_read(const NYA_HttpRequest* request, NYA_ConstCString name, OUT NYA_HttpCookieValue* out_value)
+u32 nya_http_cookie_count(const NYA_HttpRequest* request)  // How many well formed pairs the request carries, and zero for a header this parser refuses.
+b8 nya_http_cookie_at(const NYA_HttpRequest* request, u32 index, OUT NYA_HttpCookieValue* out_name, OUT NYA_HttpCookieValue* out_value)  // The pair at `index` in the order the browser sent it, for a caller walking them.
+NYA_Error nya_http_response_cookie(NYA_HttpResponse* response, const NYA_HttpCookie* cookie)  // Adds one `Set-Cookie` header.
+NYA_Error nya_http_response_cookie_clear(NYA_HttpResponse* response, NYA_ConstCString name, NYA_ConstCString path, b8 secure)  // Deletes `name` by setting it empty with an expiry in the past.
+b8 nya_http_cookie_parse(const char* header, u64 size, OUT NYA_HttpCookieValue* out_names, OUT NYA_HttpCookieValue* out_values, OUT u32* out_count)
 ```
 
 ### http_message.h

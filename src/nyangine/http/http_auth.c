@@ -6,6 +6,7 @@
 #include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/crypto/crypto_secret.h"
 #include "nyangine/http/http_auth.h"
+#include "nyangine/http/http_cookie.h"
 #include "nyangine/serde/serde.h"
 
 /*
@@ -281,6 +282,24 @@ nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* sec
     out_identity->expires_at_s = expires_at_s;
 
     return NYA_OK;
+}
+
+b8 nya_http_access_token(const NYA_HttpRequest* request, const char** out_token, u64* out_size) {
+    nya_assert(out_token != nullptr);
+    nya_assert(out_size != nullptr);
+
+    // the header first: a caller that sent one meant to, where a cookie is sent by the browser on its own.
+    if (nya_http_bearer_token(request, out_token, out_size)) return true;
+
+    NYA_HttpCookieValue session = { 0 };
+    if (!nya_http_cookie_read(request, NYA_HTTP_SESSION_COOKIE, &session)) return false;
+
+    if (session.size == 0 || session.size >= NYA_HTTP_MAX_TOKEN_BYTES) return false;
+
+    *out_token = session.text;
+    *out_size  = session.size;
+
+    return true;
 }
 
 b8 nya_http_bearer_token(const NYA_HttpRequest* request, const char** out_token, u64* out_size) {

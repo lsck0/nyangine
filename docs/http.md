@@ -333,6 +333,24 @@ in this engine and is not going into it as a side effect of an HTTP server.
 `nya_http_second_factor_set` installs a verifier, and a route demanding a second factor with none
 installed answers 501 rather than passing. Nothing silently succeeds.
 
+**Where the token comes in.** `Authorization: Bearer` first, and then the `__Host-session` cookie when
+there is no such header. A cookie is sent by the browser whether the page meant to send it or not,
+which is what CSRF is, so the cookie form is only safe behind the two defences this server already
+has: dispatch refuses a cross site request that changes anything before any handler runs, and the
+cookie is written `SameSite=Strict`, so a browser does not attach it to a cross site request at all.
+A header always wins over a cookie, because a caller that sent a header meant to.
+
+**Cookies** (`http_cookie.h`) refuse rather than repair, in both directions. The parser takes exactly
+one spelling — `name=value`, separated by `"; "` — and refuses the whole header for anything else: a
+quoted value, a comma, a backslash, a control byte, a name twice, more than `NYA_HTTP_MAX_COOKIES`
+pairs. A partly read header is the disagreement between two parsers that a stolen session lives in, so
+there is no partial answer, and a refused header reads as no cookies at all. Writing refuses a value
+that would need quoting rather than quoting it. `__Host-` and `__Secure-` are rules a browser
+enforces, so they are enforced here too, where the mistake is still visible: a `__Host-` cookie
+without `Secure`, with a `Domain`, or with a `Path` other than `/` is refused at the call rather than
+silently dropped by the browser later. The parser is fuzzed, with re-rendering the parsed pairs back
+to the original bytes as its oracle.
+
 **The secret** comes from the environment and nowhere else. There is no default, and a secret shorter
 than `NYA_HTTP_MIN_SECRET_BYTES` is refused at startup rather than accepted and quietly useless. A
 server with no secret serves its open routes and answers 503 on the rest.

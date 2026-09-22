@@ -414,7 +414,7 @@ NYA_HttpStatus _nya_http_router_extract_identity(NYA_HttpExchange* exchange) {
     const char* token      = nullptr;
     u64         token_size = 0;
 
-    if (!nya_http_bearer_token(exchange->request, &token, &token_size)) {
+    if (!nya_http_access_token(exchange->request, &token, &token_size)) {
         NYA_HttpStatus status = nya_http_response_problem(exchange, NYA_HTTP_STATUS_UNAUTHORIZED, "this route needs a bearer token");
 
         // after the body, not before: writing the problem empties the response, headers included, so

@@ -14,6 +14,7 @@
  * http_auth.h      JWT over HMAC-SHA256, the bearer extractor, and the second factor seam
  * http_totp.h      the TOTP second factor: enrolment, recovery codes, and one verification
  * http_server.h    the listener, the connections and the drain
+ * http_cookie.h    cookies in and out, with the __Host- and __Secure- rules enforced here too
  * http_static.h    the web bundle out of the asset system: hashed names, ETags, one route per file
  * http_websocket.h the RFC 6455 wire format, shared with the curl client in plugins/curl
  * http_websocket_server.h  the upgrade, and a connection that outlives the exchange that made it
@@ -57,6 +58,7 @@
 #pragma once
 
 #include "nyangine/http/http_auth.h"
+#include "nyangine/http/http_cookie.h"
 #include "nyangine/http/http_message.h"
 #include "nyangine/http/http_openapi.h"
 #include "nyangine/http/http_router.h"

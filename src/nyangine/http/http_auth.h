@@ -195,6 +195,21 @@ nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* sec
  * */
 NYA_API b8 nya_http_bearer_token(const NYA_HttpRequest* request, OUT const char** out_token, OUT u64* out_size);
 
+/** The name of the cookie an access token travels in, which carries a prefix a browser enforces. */
+#define NYA_HTTP_SESSION_COOKIE "__Host-session"
+
+/**
+ * The access token out of `Authorization: Bearer`, or out of the NYA_HTTP_SESSION_COOKIE cookie when
+ * there is no such header. Points into the request and copies nothing.
+ *
+ * A cookie is sent by the browser whether or not the page meant to send it, which is what CSRF is, so a
+ * token that arrives this way is only safe behind the two defences this server already has: dispatch
+ * refuses a cross site request that changes anything before any handler runs, and the cookie itself is
+ * written `SameSite=Strict`, so a browser does not attach it to a cross site request in the first place.
+ * A route that wants neither of those takes the header form and nothing else.
+ * */
+NYA_API b8 nya_http_access_token(const NYA_HttpRequest* request, OUT const char** out_token, OUT u64* out_size);
+
 /*
  * ─────────────────────────────────────────────────────────
  * SCOPES
