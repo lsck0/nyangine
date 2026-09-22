@@ -6,7 +6,7 @@
 #include "nyangine/base/base_logging.h"
 #include "nyangine/base/base_string.h"
 #include "nyangine/http/http_message.h"
-#include "nyangine/platform/clock/clock_format.h"
+#include "nyangine/base/base_clock_format.h"
 #include "nyangine/serde/serde.h"
 
 /*

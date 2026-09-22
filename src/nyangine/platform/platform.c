@@ -3,9 +3,6 @@
 // Target independent halves, before the per target sources: ipc.c declares the seven internals they
 // define and terminal.c the six, and each of these holds the part of its module that is the same on
 // both.
-#include "nyangine/platform/clock/clock.c"
-#include "nyangine/platform/clock/clock_format.c"
-#include "nyangine/platform/clock/clock_instant.c"
 #include "nyangine/platform/host/host.c"
 #include "nyangine/platform/ipc/ipc.c"
 #include "nyangine/platform/terminal/terminal.c"

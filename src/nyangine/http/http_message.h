@@ -71,7 +71,7 @@
 #include "nyangine/base/base_reflection.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/http/http_types.h"
-#include "nyangine/platform/clock/clock_instant.h"
+#include "nyangine/base/base_clock_instant.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -996,14 +996,24 @@ Each changes what gets built. A recommendation is given; the call is mine.
   home, and a web target then implements `os` once (pages from `memory.grow`, time from the host) instead of
   every module learning about wasm.
 
-  Decided 2026-09-22: the first, and started. `src/nyangine/os/` is rank zero, below `base`, and holds pages
-  (was `platform/memory`), the kernel's random source (was `platform/random`) and the two clocks in nanoseconds.
-  Nothing in it may include anything above `base_types.h`, `base_attributes.h` and `base_basic.h` — the prelude,
-  which the lint rule exempts because it declares no function — so nothing there asserts: an `os` call reports
-  failure and the layer above decides what it means. `platform/clock` is now seven functions over two `os` calls
-  where it was seven functions twice. Still to move: the file handles, directory iteration and process spawning,
-  and with them `nya_filesystem_*` and `nya_command_*`, which `base` calls and which therefore belong in `base`
-  rather than `platform` once they sit on `os`.
+  Decided 2026-09-22, and done. `src/nyangine/os/` is rank zero, below `base`: pages, the kernel's random
+  source, the two clocks in nanoseconds and the sleep, file handles with directory iteration and the paths the
+  host names itself, and process spawning with its pipes. Nothing in it may include anything above
+  `base_types.h`, `base_attributes.h` and `base_basic.h` — the prelude, which the lint rule exempts because it
+  declares no function — so nothing there asserts: an `os` call reports failure and the layer above decides what
+  it means.
+
+  Everything `base` was reaching up for came down with it: `nya_filesystem_*` and `NYA_File` are
+  `base/base_filesystem.c`, `nya_command_*` is `base/base_command.c`, and `nya_clock_*`, `nya_instant_*` and the
+  RFC 9110 formatting are `base/base_clock*.c`, all pure arithmetic over `os`. The `base -> platform` allowance
+  is gone rather than lowered. `platform` keeps what is OS-facing but wants engine types and is not `base`'s
+  business: signals, the terminal, ipc and the host's own description.
+
+  What it bought, measured: the file system was 1208 lines written twice and is 792 of syscalls plus one
+  implementation; commands were 713 lines written twice and are 276 written once over 523 of syscalls; the clock
+  was seven functions twice and is seven functions over two `os` calls. Two drains that had already drifted apart
+  (one polled, one spun with a sleep) are now one.
+
 - `[x]` **`nn` in the engine.** Decided 2026-09-22: it stays a library module, usable by any program, and
   it is also a testing mechanism: a DQN or NEAT agent plays a UI or a game through the input queue the way a
   person would (`testing_agent.h`). It extends to every example that has a UI, not only gnyame: the TUI and

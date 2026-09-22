@@ -1,6 +1,6 @@
-#include "nyangine/base/base.h"
-#include "nyangine/platform/clock/clock_format.h"
-#include "nyangine/platform/clock/clock_instant.h"
+#include "nyangine/base/base_assert.h"
+#include "nyangine/base/base_clock_format.h"
+#include "nyangine/base/base_clock_instant.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -25,7 +25,7 @@
  * are the only files in the engine that may hold a syscall. A target independent half belongs in the
  * caller, not here: see base/base_filesystem.c, which is the whole file system over these primitives
  * where it used to be ~30 functions written twice, base/base_command.c, which is the drain and the
- * capture written once, and platform/clock/clock.c, which is seven functions over two os calls where
+ * capture written once, and base/base_clock.c, which is seven functions over two os calls where
  * it used to be seven functions twice.
  * */
 #pragma once

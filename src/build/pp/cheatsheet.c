@@ -99,7 +99,7 @@ NYA_INTERNAL void _nya_cheatsheet_file_blurb(NYA_ConstCString text, u64 length, 
  */
 
 NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
-    { "base",     "base",     "Arenas, strings, arrays, logging, errors, hashing, the file system, commands. No SDL." },
+    { "base",     "base",     "Arenas, strings, arrays, logging, errors, hashing, files, commands, clocks. No SDL." },
     { "core",     "core",     "The application loop: entities, systems, events, input, audio, assets, config, saves." },
     { "math",     "math",     "Scalars, vectors, matrices, quaternions, shapes, noise, random, springs and tweens."     },
     { "renderer", "renderer", "2D and 3D drawing, cameras, text, particles, post processing and render targets."        },
@@ -112,7 +112,7 @@ NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
     { "nn",       "nn",       "Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else."        },
     { "debug",    "debug",    "The overlay, the trace, the crash window, and drawing physics shapes and networks."        },
     { "plugins",  "plugins",  "Optional dependencies behind a flag: curl, sqlite, lua, discord, steam."                  },
-    { "platform", "platform", "The thin OS layer: the clock, signals, the terminal, ipc and what the host is."           },
+    { "platform", "platform", "What the host is, and how to talk to it: signals, the terminal and ipc."                 },
     { "os",       "os",       "The syscalls themselves: files, pages, the two clocks, random bytes, processes."          },
 };
 

@@ -11,7 +11,7 @@
 #include "nyangine/core/core_ceiling.h"
 #include "nyangine/core/core_event.h"
 #include "nyangine/http/http_server.h"
-#include "nyangine/platform/clock/clock.h"
+#include "nyangine/base/base_clock.h"
 #include "nyangine/os/os_random.h"
 #include "SDL3_net/SDL_net.h"
 

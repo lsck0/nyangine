@@ -6,7 +6,7 @@
 #include "nyangine/core/core_ceiling.h"
 #include "nyangine/debug/debug_metrics.h"
 #include "nyangine/http/http_server.h"
-#include "nyangine/platform/clock/clock.h"
+#include "nyangine/base/base_clock.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 
 ## Modules
 
-- [`base`](#base) — Arenas, strings, arrays, logging, errors, assertions, hashing, the file system. No SDL.
+- [`base`](#base) — Arenas, strings, arrays, logging, errors, hashing, files, commands, clocks. No SDL.
 - [`core`](#core) — The application loop: entities, systems, events, input, audio, assets, config, saves.
 - [`math`](#math) — Scalars, vectors, matrices, quaternions, shapes, noise, random, springs and tweens.
 - [`renderer`](#renderer) — 2D and 3D drawing, cameras, text, particles, post processing and render targets.
@@ -24,12 +24,12 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 - [`nn`](#nn) — Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else.
 - [`debug`](#debug) — The overlay, the trace, the crash window, and drawing physics shapes and networks.
 - [`plugins`](#plugins) — Optional dependencies behind a flag: curl, sqlite, lua, discord, steam.
-- [`platform`](#platform) — The thin OS layer: the clock, process spawning, signals and the terminal.
-- [`os`](#os) — The syscalls themselves: files, pages, the two clocks, the kernel's random source.
+- [`platform`](#platform) — What the host is, and how to talk to it: signals, the terminal and ipc.
+- [`os`](#os) — The syscalls themselves: files, pages, the two clocks, random bytes, processes.
 
 ## base
 
-Arenas, strings, arrays, logging, errors, assertions, hashing, the file system. No SDL.
+Arenas, strings, arrays, logging, errors, hashing, files, commands, clocks. No SDL.
 
 ### base_arena.h
 
@@ -348,6 +348,135 @@ b8 nya_cache_remove(NYA_Cache* cache, const void* key, u64 key_size)  // Destroy
 void nya_cache_clear(NYA_Cache* cache)  // Destroys and forgets every entry.
 u32 nya_cache_count(const NYA_Cache* cache)
 u32 nya_cache_capacity(const NYA_Cache* cache)
+```
+
+### base_clock.h
+
+```c
+// types
+typedef enum { NYA_CLOCK_FORMAT_READABLE, NYA_CLOCK_FORMAT_FILENAME, NYA_CLOCK_FORMAT_COUNT, } NYA_ClockFormat  // How nya_clock_format_utc spells a moment.
+
+// macros
+nya_time_s_to_ms(seconds)
+nya_time_s_to_ µs(seconds) ((u64)(seconds) * 1'000'000ULL)
+nya_time_s_to_ns(seconds)
+nya_time_ms_to_s(milliseconds)
+nya_time_ms_to_
+nya_time_ms_to_ns(milliseconds)
+nya_time_
+nya_time_ns_to_s(nanoseconds)
+nya_time_ns_to_ms(nanoseconds)
+nya_time_ns_to_ µs(nanoseconds) ((f64)(nanoseconds) / 1'000.0F)
+NYA_CLOCK_SECONDS_PER_DAY 86'400ULL
+NYA_CLOCK_FORMAT_MAX_LENGTH 32  // Longest string nya_clock_format_utc produces, terminator included.
+
+// functions
+u64 nya_clock_get_timestamp_s(void)  // Time since the Unix epoch.
+u64 nya_clock_get_timestamp_ms(void)
+u64 nya_clock_get_timestamp_µs(void)
+u64 nya_clock_get_timestamp_ns(void)
+u64 nya_clock_get_monotonic_ms(void)  // Time since an unspecified fixed point, guaranteed never to go backwards.
+u64 nya_clock_get_monotonic_µs(void)
+u64 nya_clock_get_monotonic_ns(void)
+void nya_clock_civil_from_days(s64 days, OUT s32* out_year, OUT u32* out_month, OUT u32* out_day)  // The proleptic Gregorian date a day count since the Unix epoch falls on, and back again.
+s64 nya_clock_days_from_civil(s32 year, u32 month, u32 day)
+u32 nya_clock_format_utc(u64 timestamp_s, NYA_ClockFormat format, OUT u8* buffer, u32 capacity)
+```
+
+### base_clock_format.h
+
+Instants as text and back, in the two formats the wire uses: RFC 3339 for JSON, `.nya` and logs, and
+
+```c
+// types
+enum NYA_TimeParse { NYA_TIME_PARSE_OK = 0, NYA_TIME_PARSE_TRUNCATED, NYA_TIME_PARSE_EXPECTED_DIGIT, NYA_TIME_PARSE_EXPECTED_SEPARATOR, NYA_TIME_PARSE_MONTH_RANGE, NYA_TIME_PARSE_DAY_RANGE, NYA_TIME_PARSE_HOUR_RANGE, NYA_TIME_PARSE_MINUTE_RANGE, NYA_TIME_PARSE_SECOND_RANGE, NYA_TIME_PARSE_LEAP_SECOND, NYA_TIME_PARSE_FRACTION_TOO_LONG, NYA_TIME_PARSE_EXPECTED_OFFSET, NYA_TIME_PARSE_OFFSET_RANGE, NYA_TIME_PARSE_DAY_NAME, NYA_TIME_PARSE_WEEKDAY_MISMATCH, NYA_TIME_PARSE_MONTH_NAME, NYA_TIME_PARSE_EXPECTED_GMT, NYA_TIME_PARSE_OBSOLETE_FORMAT, NYA_TIME_PARSE_OUT_OF_RANGE, NYA_TIME_PARSE_TRAILING_BYTES, NYA_TIME_PARSE_COUNT, }  // Which rule a parse failed, or that none did.
+
+// macros
+NYA_RFC3339_FRACTION_DIGITS_MAX 9  // Fraction digits RFC 3339 may carry here.
+NYA_RFC3339_LENGTH_MAX (19 + 1 + NYA_RFC3339_FRACTION_DIGITS_MAX + 1)
+NYA_RFC9110_LENGTH 29  // IMF-fixdate is fixed width: `Sun, 06 Nov 1994 08:49:37 GMT`.
+
+// functions
+u32 nya_instant_to_rfc3339(NYA_Instant instant, OUT u8* buffer, u32 capacity)
+NYA_TimeParse nya_instant_from_rfc3339(const u8* text, u64 length, OUT NYA_Instant* out_instant, OUT u64* out_position)  // Parses RFC 3339's `date-time` from exactly `text[0, length)`.
+u32 nya_instant_to_rfc9110(NYA_Instant instant, OUT u8* buffer, u32 capacity)  // Writes `instant` as IMF-fixdate into `buffer`, null terminated, and returns NYA_RFC9110_LENGTH.
+NYA_TimeParse nya_instant_from_rfc9110(const u8* text, u64 length, OUT NYA_Instant* out_instant, OUT u64* out_position)  // Parses IMF-fixdate from exactly `text[0, length)`, with the same contract as nya_instant_from_rfc3339.
+NYA_ConstCString nya_time_parse_text(NYA_TimeParse result)  // The rule, in a few words, for a log line or an error body.
+```
+
+### base_clock_instant.h
+
+Moments, spans and calendar days as types of their own. A bare u64 from clock.h says nothing about
+
+```c
+// types
+struct NYA_Instant { s64 ns; }  // A moment, in UTC.
+struct NYA_Duration { s64 ns; }  // The signed distance between two instants.
+struct NYA_Date { s32 year; u8 month; u8 day; }  // A day in the proleptic Gregorian calendar, with no zone.
+struct NYA_TimeOfDay { u8 hour; u8 minute; u8 second; u32 nanosecond; }  // A moment within a day.
+struct NYA_IsoWeek { s32 year; u8 week; }  // ISO 8601's week date.
+enum NYA_Weekday { NYA_WEEKDAY_MONDAY, NYA_WEEKDAY_TUESDAY, NYA_WEEKDAY_WEDNESDAY, NYA_WEEKDAY_THURSDAY, NYA_WEEKDAY_FRIDAY, NYA_WEEKDAY_SATURDAY, NYA_WEEKDAY_SUNDAY, NYA_WEEKDAY_COUNT, }  // ISO 8601's numbering, Monday first.
+struct NYA_InstantSource { NYA_Instant (*now)(void* context); void* context; }  // Where nya_instant_now reads.
+
+// macros
+NYA_NS_PER_SECOND 1'000'000'000LL
+NYA_NS_PER_MINUTE (60LL * NYA_NS_PER_SECOND)
+NYA_NS_PER_HOUR (60LL * NYA_NS_PER_MINUTE)
+NYA_NS_PER_DAY (24LL * NYA_NS_PER_HOUR)
+NYA_DATE_YEAR_MIN 0  // The years a NYA_Date may hold.
+NYA_DATE_YEAR_MAX 9'999
+
+// functions
+NYA_Instant nya_instant_now(void)  // The current moment.
+void nya_instant_source_set(NYA_InstantSource source)
+NYA_InstantSource nya_instant_source(void)
+NYA_Instant nya_instant_add_duration(NYA_Instant instant, NYA_Duration duration)
+NYA_Instant nya_instant_subtract_duration(NYA_Instant instant, NYA_Duration duration)
+b8 nya_instant_add_duration_checked(NYA_Instant instant, NYA_Duration duration, OUT NYA_Instant* out_instant)  // The same, false and nothing written when the result would leave the range.
+b8 nya_instant_subtract_duration_checked(NYA_Instant instant, NYA_Duration duration, OUT NYA_Instant* out_instant)
+NYA_Duration nya_duration_between(NYA_Instant from, NYA_Instant to)
+b8 nya_duration_between_checked(NYA_Instant from, NYA_Instant to, OUT NYA_Duration* out_duration)
+NYA_Duration nya_duration_from_s(s64 seconds)  // Spans from coarser units.
+NYA_Duration nya_duration_from_ms(s64 milliseconds)
+void nya_instant_to_utc(NYA_Instant instant, OUT NYA_Date* out_date, OUT NYA_TimeOfDay* out_time)  // The UTC day and time of day `instant` falls on.
+b8 nya_instant_from_utc(NYA_Date date, NYA_TimeOfDay time, OUT NYA_Instant* out_instant)  // The instant a UTC day and time of day name.
+b8 nya_date_is_valid(NYA_Date date)  // Month 1 to 12, day within that month in that year, year within NYA_DATE_YEAR_MIN and _MAX.
+b8 nya_date_is_leap_year(s32 year)  // The Gregorian rule: every fourth year, except centuries, except every fourth century.
+u32 nya_date_days_in_month(NYA_Date date)
+s64 nya_date_to_days(NYA_Date date)  // Days since 1970-01-01, and back.
+NYA_Date nya_date_from_days(s64 days)
+NYA_Date nya_date_add_days(NYA_Date date, s64 days)
+b8 nya_date_add_days_checked(NYA_Date date, s64 days, OUT NYA_Date* out_date)
+NYA_Date nya_date_add_months(NYA_Date date, s32 months)
+b8 nya_date_add_months_checked(NYA_Date date, s32 months, OUT NYA_Date* out_date)
+NYA_Date nya_date_end_of_month(NYA_Date date)
+NYA_Weekday nya_date_weekday(NYA_Date date)
+NYA_IsoWeek nya_date_iso_week(NYA_Date date)
+b8 nya_time_of_day_is_valid(NYA_TimeOfDay time)  // Hour below 24, minute and second below 60, nanosecond below a second.
+NYA_Duration nya_time_of_day_to_duration(NYA_TimeOfDay time)  // Time since midnight.
+```
+
+### base_command.h
+
+Running another program: what to start, what it wrote, and what it returned.
+
+```c
+// types
+enum NYA_CommandFlags { NYA_COMMAND_FLAG_NONE = 0, NYA_COMMAND_FLAG_OUTPUT_SUPPRESS = (1 << 0), NYA_COMMAND_FLAG_OUTPUT_SHOW = (1 << 1), NYA_COMMAND_FLAG_OUTPUT_CAPTURE = (1 << 2), NYA_COMMAND_FLAG_DEFAULT = NYA_COMMAND_FLAG_OUTPUT_SHOW, }
+struct NYA_Command { NYA_CommandFlags flags; NYA_ConstCString working_directory; NYA_ConstCString program; NYA_ConstCString arguments[NYA_COMMAND_MAX_ARGUMENTS]; NYA_CString environment[NYA_COMMAND_MAX_ENV_VARS]; NYA_Arena* arena; s32 exit_code; NYA_String* stdout_content; NYA_String* stderr_content; u64 execution_time_ms; NYA_OsProcess process; NYA_OsPipe stdout_pipe; NYA_OsPipe stderr_pipe; u64 start_time_ms; }
+
+// macros
+NYA_COMMAND_MAX_ARGUMENTS 512
+NYA_COMMAND_MAX_ENV_VARS 128
+NYA_COMMAND_MAX_WAIT_READY NYA_OS_PROCESS_WAIT_MAX  // Most commands one nya_command_wait_ready call watches.
+
+// functions
+NYA_Error nya_command_run(NYA_Command* command)
+NYA_Error nya_command_spawn(NYA_Command* command)  // Starts `command` and returns without waiting for it.
+NYA_Error nya_command_wait(NYA_Command* command)  // Waits for a spawned command, drains its output and fills in its results.
+NYA_Error nya_command_try_wait(NYA_Command* command, b8* out_finished)
+void nya_command_wait_ready(NYA_Command* const* commands, u32 count, u32 timeout_ms)  // Sleeps until one of the spawned `commands` may have progressed, or `timeout_ms` passes.
+void nya_command_destroy(NYA_Command* command)
 ```
 
 ### base_compare.h
@@ -5471,134 +5600,7 @@ void nya_steam_on_callback(u32 callback_id, const void* data, u32 size)  // Wher
 
 ## platform
 
-The thin OS layer: the clock, process spawning, signals and the terminal.
-
-### clock.h
-
-```c
-// types
-typedef enum { NYA_CLOCK_FORMAT_READABLE, NYA_CLOCK_FORMAT_FILENAME, NYA_CLOCK_FORMAT_COUNT, } NYA_ClockFormat  // How nya_clock_format_utc spells a moment.
-
-// macros
-nya_time_s_to_ms(seconds)
-nya_time_s_to_ µs(seconds) ((u64)(seconds) * 1'000'000ULL)
-nya_time_s_to_ns(seconds)
-nya_time_ms_to_s(milliseconds)
-nya_time_ms_to_
-nya_time_ms_to_ns(milliseconds)
-nya_time_
-nya_time_ns_to_s(nanoseconds)
-nya_time_ns_to_ms(nanoseconds)
-nya_time_ns_to_ µs(nanoseconds) ((f64)(nanoseconds) / 1'000.0F)
-NYA_CLOCK_SECONDS_PER_DAY 86'400ULL
-NYA_CLOCK_FORMAT_MAX_LENGTH 32  // Longest string nya_clock_format_utc produces, terminator included.
-
-// functions
-u64 nya_clock_get_timestamp_s(void)  // Time since the Unix epoch.
-u64 nya_clock_get_timestamp_ms(void)
-u64 nya_clock_get_timestamp_µs(void)
-u64 nya_clock_get_timestamp_ns(void)
-u64 nya_clock_get_monotonic_ms(void)  // Time since an unspecified fixed point, guaranteed never to go backwards.
-u64 nya_clock_get_monotonic_µs(void)
-u64 nya_clock_get_monotonic_ns(void)
-void nya_clock_civil_from_days(s64 days, OUT s32* out_year, OUT u32* out_month, OUT u32* out_day)  // The proleptic Gregorian date a day count since the Unix epoch falls on, and back again.
-s64 nya_clock_days_from_civil(s32 year, u32 month, u32 day)
-u32 nya_clock_format_utc(u64 timestamp_s, NYA_ClockFormat format, OUT u8* buffer, u32 capacity)
-```
-
-### clock_format.h
-
-Instants as text and back, in the two formats the wire uses: RFC 3339 for JSON, `.nya` and logs, and
-
-```c
-// types
-enum NYA_TimeParse { NYA_TIME_PARSE_OK = 0, NYA_TIME_PARSE_TRUNCATED, NYA_TIME_PARSE_EXPECTED_DIGIT, NYA_TIME_PARSE_EXPECTED_SEPARATOR, NYA_TIME_PARSE_MONTH_RANGE, NYA_TIME_PARSE_DAY_RANGE, NYA_TIME_PARSE_HOUR_RANGE, NYA_TIME_PARSE_MINUTE_RANGE, NYA_TIME_PARSE_SECOND_RANGE, NYA_TIME_PARSE_LEAP_SECOND, NYA_TIME_PARSE_FRACTION_TOO_LONG, NYA_TIME_PARSE_EXPECTED_OFFSET, NYA_TIME_PARSE_OFFSET_RANGE, NYA_TIME_PARSE_DAY_NAME, NYA_TIME_PARSE_WEEKDAY_MISMATCH, NYA_TIME_PARSE_MONTH_NAME, NYA_TIME_PARSE_EXPECTED_GMT, NYA_TIME_PARSE_OBSOLETE_FORMAT, NYA_TIME_PARSE_OUT_OF_RANGE, NYA_TIME_PARSE_TRAILING_BYTES, NYA_TIME_PARSE_COUNT, }  // Which rule a parse failed, or that none did.
-
-// macros
-NYA_RFC3339_FRACTION_DIGITS_MAX 9  // Fraction digits RFC 3339 may carry here.
-NYA_RFC3339_LENGTH_MAX (19 + 1 + NYA_RFC3339_FRACTION_DIGITS_MAX + 1)
-NYA_RFC9110_LENGTH 29  // IMF-fixdate is fixed width: `Sun, 06 Nov 1994 08:49:37 GMT`.
-
-// functions
-u32 nya_instant_to_rfc3339(NYA_Instant instant, OUT u8* buffer, u32 capacity)
-NYA_TimeParse nya_instant_from_rfc3339(const u8* text, u64 length, OUT NYA_Instant* out_instant, OUT u64* out_position)  // Parses RFC 3339's `date-time` from exactly `text[0, length)`.
-u32 nya_instant_to_rfc9110(NYA_Instant instant, OUT u8* buffer, u32 capacity)  // Writes `instant` as IMF-fixdate into `buffer`, null terminated, and returns NYA_RFC9110_LENGTH.
-NYA_TimeParse nya_instant_from_rfc9110(const u8* text, u64 length, OUT NYA_Instant* out_instant, OUT u64* out_position)  // Parses IMF-fixdate from exactly `text[0, length)`, with the same contract as nya_instant_from_rfc3339.
-NYA_ConstCString nya_time_parse_text(NYA_TimeParse result)  // The rule, in a few words, for a log line or an error body.
-```
-
-### clock_instant.h
-
-Moments, spans and calendar days as types of their own. A bare u64 from clock.h says nothing about
-
-```c
-// types
-struct NYA_Instant { s64 ns; }  // A moment, in UTC.
-struct NYA_Duration { s64 ns; }  // The signed distance between two instants.
-struct NYA_Date { s32 year; u8 month; u8 day; }  // A day in the proleptic Gregorian calendar, with no zone.
-struct NYA_TimeOfDay { u8 hour; u8 minute; u8 second; u32 nanosecond; }  // A moment within a day.
-struct NYA_IsoWeek { s32 year; u8 week; }  // ISO 8601's week date.
-enum NYA_Weekday { NYA_WEEKDAY_MONDAY, NYA_WEEKDAY_TUESDAY, NYA_WEEKDAY_WEDNESDAY, NYA_WEEKDAY_THURSDAY, NYA_WEEKDAY_FRIDAY, NYA_WEEKDAY_SATURDAY, NYA_WEEKDAY_SUNDAY, NYA_WEEKDAY_COUNT, }  // ISO 8601's numbering, Monday first.
-struct NYA_InstantSource { NYA_Instant (*now)(void* context); void* context; }  // Where nya_instant_now reads.
-
-// macros
-NYA_NS_PER_SECOND 1'000'000'000LL
-NYA_NS_PER_MINUTE (60LL * NYA_NS_PER_SECOND)
-NYA_NS_PER_HOUR (60LL * NYA_NS_PER_MINUTE)
-NYA_NS_PER_DAY (24LL * NYA_NS_PER_HOUR)
-NYA_DATE_YEAR_MIN 0  // The years a NYA_Date may hold.
-NYA_DATE_YEAR_MAX 9'999
-
-// functions
-NYA_Instant nya_instant_now(void)  // The current moment.
-void nya_instant_source_set(NYA_InstantSource source)
-NYA_InstantSource nya_instant_source(void)
-NYA_Instant nya_instant_add_duration(NYA_Instant instant, NYA_Duration duration)
-NYA_Instant nya_instant_subtract_duration(NYA_Instant instant, NYA_Duration duration)
-b8 nya_instant_add_duration_checked(NYA_Instant instant, NYA_Duration duration, OUT NYA_Instant* out_instant)  // The same, false and nothing written when the result would leave the range.
-b8 nya_instant_subtract_duration_checked(NYA_Instant instant, NYA_Duration duration, OUT NYA_Instant* out_instant)
-NYA_Duration nya_duration_between(NYA_Instant from, NYA_Instant to)
-b8 nya_duration_between_checked(NYA_Instant from, NYA_Instant to, OUT NYA_Duration* out_duration)
-NYA_Duration nya_duration_from_s(s64 seconds)  // Spans from coarser units.
-NYA_Duration nya_duration_from_ms(s64 milliseconds)
-void nya_instant_to_utc(NYA_Instant instant, OUT NYA_Date* out_date, OUT NYA_TimeOfDay* out_time)  // The UTC day and time of day `instant` falls on.
-b8 nya_instant_from_utc(NYA_Date date, NYA_TimeOfDay time, OUT NYA_Instant* out_instant)  // The instant a UTC day and time of day name.
-b8 nya_date_is_valid(NYA_Date date)  // Month 1 to 12, day within that month in that year, year within NYA_DATE_YEAR_MIN and _MAX.
-b8 nya_date_is_leap_year(s32 year)  // The Gregorian rule: every fourth year, except centuries, except every fourth century.
-u32 nya_date_days_in_month(NYA_Date date)
-s64 nya_date_to_days(NYA_Date date)  // Days since 1970-01-01, and back.
-NYA_Date nya_date_from_days(s64 days)
-NYA_Date nya_date_add_days(NYA_Date date, s64 days)
-b8 nya_date_add_days_checked(NYA_Date date, s64 days, OUT NYA_Date* out_date)
-NYA_Date nya_date_add_months(NYA_Date date, s32 months)
-b8 nya_date_add_months_checked(NYA_Date date, s32 months, OUT NYA_Date* out_date)
-NYA_Date nya_date_end_of_month(NYA_Date date)
-NYA_Weekday nya_date_weekday(NYA_Date date)
-NYA_IsoWeek nya_date_iso_week(NYA_Date date)
-b8 nya_time_of_day_is_valid(NYA_TimeOfDay time)  // Hour below 24, minute and second below 60, nanosecond below a second.
-NYA_Duration nya_time_of_day_to_duration(NYA_TimeOfDay time)  // Time since midnight.
-```
-
-### command.h
-
-```c
-// types
-enum NYA_CommandFlags { NYA_COMMAND_FLAG_NONE = 0, NYA_COMMAND_FLAG_OUTPUT_SUPPRESS = (1 << 0), NYA_COMMAND_FLAG_OUTPUT_SHOW = (1 << 1), NYA_COMMAND_FLAG_OUTPUT_CAPTURE = (1 << 2), NYA_COMMAND_FLAG_DEFAULT = NYA_COMMAND_FLAG_OUTPUT_SHOW, }
-struct NYA_Command { NYA_CommandFlags flags; NYA_ConstCString working_directory; NYA_ConstCString program; NYA_ConstCString arguments[NYA_COMMAND_MAX_ARGUMENTS]; NYA_CString environment[NYA_COMMAND_MAX_ENV_VARS]; NYA_Arena* arena; s32 exit_code; NYA_String* stdout_content; NYA_String* stderr_content; u64 execution_time_ms; u64 process_handle; u64 thread_handle; s32 stdout_pipe; s32 stderr_pipe; u64 start_time_ms; }
-
-// macros
-NYA_COMMAND_MAX_ARGUMENTS 512
-NYA_COMMAND_MAX_ENV_VARS 128
-NYA_COMMAND_MAX_WAIT_READY 64  // Most commands one nya_command_wait_ready call watches.
-
-// functions
-NYA_Error nya_command_run(NYA_Command* command)
-NYA_Error nya_command_spawn(NYA_Command* command)  // Starts `command` and returns without waiting for it.
-NYA_Error nya_command_wait(NYA_Command* command)  // Waits for a spawned command, drains its output and fills in its results.
-NYA_Error nya_command_try_wait(NYA_Command* command, b8* out_finished)
-void nya_command_wait_ready(NYA_Command* const* commands, u32 count, u32 timeout_ms)  // Sleeps until one of the spawned `commands` may have progressed, or `timeout_ms` passes.
-void nya_command_destroy(NYA_Command* command)
-```
+What the host is, and how to talk to it: signals, the terminal and ipc.
 
 ### host.h
 
@@ -5616,7 +5618,6 @@ b8 nya_host_memory_total_bytes(OUT u64* out_bytes)  // Physical RAM installed.
 b8 nya_host_gpu_memory_total_bytes(OUT u64* out_bytes)  // Video memory on the display adapter.
 void nya_host_distribution_name(OUT u8* buffer, u32 capacity)  // Writes which system this is, null terminated and truncated to `capacity`.
 void nya_host_kernel_name(OUT u8* buffer, u32 capacity)  // Writes the kernel, null terminated and truncated to `capacity`.
-u32 nya_host_process_id(void)  // This process's id.
 b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value)  // Sets `name` to `value` in this process's environment, replacing what was there.
 b8 nya_host_environment_remove(NYA_ConstCString name)  // Removes `name` from this process's environment.
 ```
@@ -5734,7 +5735,7 @@ u32 nya_terminal_utf8_decode(const u8* bytes, u64 size, OUT u32* out_codepoint) 
 
 ## os
 
-The syscalls themselves: files, pages, the two clocks, the kernel's random source.
+The syscalls themselves: files, pages, the two clocks, random bytes, processes.
 
 ### os_file.h
 
@@ -5798,6 +5799,34 @@ b8 nya_os_page_commit(void* address, u64 size)  // Makes a reserved range readab
 b8 nya_os_page_release(void* address, u64 size)  // Returns a whole reservation, committed or not.
 u64 nya_os_page_resident_bytes(const void* address, u64 size)  // Bytes of a mapped range that are in physical memory right now, in whole pages.
 u64 nya_os_process_resident_bytes(void)  // The whole process's resident set: the working set on Windows.
+```
+
+### os_process.h
+
+Starting another program, watching it, and reading what it writes.
+
+```c
+// types
+typedef s64 NYA_OsPipe  // One end of a pipe: a file descriptor on Linux, a HANDLE cast to this on Windows.
+enum NYA_OsProcessStatus { NYA_OS_PROCESS_OK, NYA_OS_PROCESS_PENDING, NYA_OS_PROCESS_CLOSED, NYA_OS_PROCESS_FAILED, NYA_OS_PROCESS_STATUS_COUNT, }  // How a call here ended.
+struct NYA_OsProcess { u64 handle; u64 thread; }  // A started process.
+struct NYA_OsProcessSpawn { NYA_ConstCString program; const NYA_ConstCString* arguments; NYA_ConstCString working_directory; NYA_CString* environment; NYA_OsPipe stdout_pipe; NYA_OsPipe stderr_pipe; b8 suppress_output; }  // What to start and how, for nya_os_process_spawn.
+
+// macros
+NYA_OS_PIPE_NONE ((NYA_OsPipe)(-1))  // Not a pipe.
+NYA_OS_PROCESS_WAIT_FOREVER ((u32)0xFFFFFFFF)  // A wait that only ends when the process does.
+NYA_OS_PROCESS_WAIT_MAX 64  // Most processes and pipes one nya_os_process_wait_any call watches.
+NYA_OS_PROCESS_WAIT_PIPES_MAX (NYA_OS_PROCESS_WAIT_MAX * 2)
+
+// functions
+NYA_OsProcessStatus nya_os_pipe_open(OUT NYA_OsPipe* out_read, OUT NYA_OsPipe* out_write)  // A pipe for a child's output: `out_write` is what it is given, `out_read` what this process keeps.
+void nya_os_pipe_close(NYA_OsPipe pipe)  // Closes one end.
+NYA_OsProcessStatus nya_os_pipe_read(NYA_OsPipe pipe, OUT u8* buffer, u64 capacity, OUT u64* out_taken)  // Reads whatever is in the pipe right now, up to `capacity` bytes, without ever waiting for more.
+u32 nya_os_process_id(void)  // This process's id.
+NYA_OsProcessStatus nya_os_process_spawn(const NYA_OsProcessSpawn* spawn, OUT NYA_OsProcess* out_process)  // Starts `spawn->program` and returns as soon as it is running, without waiting for it.
+NYA_OsProcessStatus nya_os_process_wait(NYA_OsProcess process, u32 timeout_ms, OUT s32* out_exit_code)  // Whether `process` has exited and with what code, waiting up to `timeout_ms` for it to.
+void nya_os_process_wait_any(const NYA_OsProcess* processes, u32 process_count, const NYA_OsPipe* pipes, u32 pipe_count, u32 timeout_ms)  // Sleeps until one of `processes` or `pipes` may have moved, or `timeout_ms` passes.
+NYA_OsProcessStatus nya_os_process_kill(NYA_OsProcess process)  // Ends `process` now, without giving it a chance to clean up.
 ```
 
 ### os_random.h
