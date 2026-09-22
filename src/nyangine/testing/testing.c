@@ -1,4 +1,5 @@
 #ifdef NYA_TESTING
+#include "nyangine/testing/testing_deadline.c"
 #include "nyangine/testing/testing_property.c"
 #include "nyangine/testing/testing_simulation.c"
 // after the harness they register against.

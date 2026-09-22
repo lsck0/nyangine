@@ -9,6 +9,7 @@
 #pragma once
 
 #ifdef NYA_TESTING
+#include "nyangine/testing/testing_deadline.h"
 #include "nyangine/testing/testing_property.h"
 #include "nyangine/testing/testing_simulation.h"
 /**/

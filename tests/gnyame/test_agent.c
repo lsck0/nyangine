@@ -29,6 +29,13 @@
 /** Genomes per generation in the regression run. Small: a generation is that many sessions. */
 #define REGRESSION_POPULATION 4
 
+/**
+ * Wall clock the regression run may take. It takes about 2 s sanitized on the 8 thread dev machine, and
+ * hung twice on 2026-09-22 (one instance for 5h32m), so 60 s is thirty times the normal run and still
+ * fails a hang well inside the CI job's own timeout.
+ * */
+#define REGRESSION_DEADLINE_S 60
+
 /** A seed nobody chose, for a run nobody is replaying. Printed by the run itself. */
 static u64 seed_fresh(void) {
     u64 now = nya_clock_get_monotonic_ns();
@@ -94,6 +101,11 @@ s32 main(s32 argc, NYA_CString argv[]) {
     }
 
     if (seed == 0) seed = seed_fresh();
+
+    // armed before anything comes up and stopped after everything goes down, since a hang in bring-up
+    // or teardown is still a hang. A training run is as long as whoever started it asked for.
+    if (kind == NYA_AGENT_KIND_COUNT) nya_test_deadline_start("test_agent", REGRESSION_DEADLINE_S);
+    defer nya_test_deadline_stop();
 
     // no display: the agent plays headless, which is the whole point of playing it
     // a thousand times faster than a person could.
