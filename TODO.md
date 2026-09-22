@@ -526,8 +526,12 @@ nothing when off.
 - `[x]` The skinned draw is culled now: `nya_render3d_skinned_bounds` gives the sphere the pose occupies,
   taken from the posed bone origins rather than the rest box and padded by the rest radius. It sits in
   `render_cull.c`, which both builds include, so a headless test reaches the real arithmetic.
-- `[ ]` The skinned draw still ignores material parts and textures: one segment, one draw, no per-part
-  material and no texture binding, where `nya_render3d_mesh` honours both.
+- `[x]` The skinned draw walks the mesh's parts and binds each material's texture, through a
+  `NYA_RENDER3D_PIPELINE_SKINNED_TEXTURED` that needed no new shader. The loader also folds each part's
+  base colour into the skinned vertices, which it never did: that buffer is uploaded straight from the
+  loader and never passes the staging the static path folds colour in, so a rigged model drew white.
+- `[ ]` Nothing in the tree exercises either: `bender.fbx` is one part, white, untextured. A rigged model
+  with materials would turn the new test from a guard into a demonstration.
 - `[ ]` No test reaches the non-headless skinned draw.
 - A ring of six standing stones around the basin in the 3D demo, which is what gave three features their first
   caller in the game. Each slab is built here rather than loaded, at three detail levels registered with
