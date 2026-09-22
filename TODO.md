@@ -540,7 +540,18 @@ logged-in user.
   SO headers, and the `@secret` check. `web_server` moves onto it first. Today its notes resource keeps one
   `ExampleNote` in memory and builds the response by hand as an `NYA_Object` in `note_to_value`, so it has a
   Model and no DTO type at all.
-- `[ ]` **Role based permissions, modelled on Discord.** A `permissions` component with no dependency on `http`,
+- `[~]` **Role based permissions, modelled on Discord.** Landed 2026-09-22 as `src/nyangine/permission/`, rank
+  3, below `net` and `http`: bits, roles with positions, per resource overwrites, Discord's resolution order
+  (with a naive oracle as the test), the hierarchy rules enforced inside the calls, an audit ring, and runtime
+  labels so a role editor asks the table what exists rather than being compiled against one program's bits. Two
+  callers: gnyame's guild (the pause menu shows your rank and greys the kick button by the resolver) and
+  gnyame's web interface (the same table over QUERY and DELETE, where the refusal is a 403). Missing: the
+  resolution cache and its version counter, which wait for `db`; `SECOND_FACTOR` becoming authentication
+  strength rather than a scope; routes declaring the permission they need so the extractor checks before the
+  handler; and the role editor UI.
+
+  The original entry, kept because the parts above are what remains of it: a `permissions` component with no
+  dependency on `http`,
   so the multiplayer server (kick, ban, mute), the IPC control socket and the HTTP routes all check one thing.
   Today there are four fixed JWT scope bits (`READ`, `WRITE`, `ADMIN`, `SECOND_FACTOR`) and no roles. The model:
   - **Permissions** are bits in a `u64`, declared by the program as a `@flags` enum, with a few reserved by the
