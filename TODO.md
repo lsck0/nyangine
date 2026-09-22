@@ -265,8 +265,12 @@ the packager ones.
   library, man page, licence); an optional `assets/` if not bundled into the executable; a `data/` folder
   holding user-editable settings and colour theme plus non-editable save data; and `plugins/`.
 - `[ ]` Assets on the filesystem are encrypted or obfuscated so they cannot be extracted or modified.
-- `[ ]` Settings must be user-editable, so bad settings need good errors naming the key, the value and what was
-  expected. Save data is the opposite and gets an integrity check.
+- `[x]` Settings are user-editable and a bad line explains itself: the file, the key, what was found and what
+  was expected. The half that said nothing was a value the type checker has no quarrel with — a volume of 5,
+  seven MSAA samples, a field of view of 200 — which its setter corrected in silence. Both loaders compare
+  what was asked for against what was kept and name the key, the value and the range. Read back from the
+  setter rather than against limits written out again, so there is one place that decides.
+  `[ ]` Still open: save data is the opposite and wants an integrity check.
 - `[ ]` `CHANGELOG.md`, generated from history, shipped with every release.
 - `[ ]` `secrets/` committed to GitHub, encrypted with sops and gpg, holding the signing key among other things.
 - `[ ]` CI/CD produces every release build so Steam and the packagers can pick up a new version.
@@ -364,8 +368,11 @@ the packager ones.
 - `[ ]` Reflections still do not exist; the switch is there and answers off.
 - `[~]` 2D and 3D fluids, Navier-Stokes. In progress.
 - `[ ]` Better 2D and 3D skyboxes. Fog in specific regions rather than only globally, rain, clouds, stars.
-- `[ ]` Placeholders for missing assets: log a warning once, then draw something obviously wrong rather than
-  nothing. Today a failed asset silently draws nothing (`render2d.c:853`).
+- `[x]` Placeholders for missing assets. Magenta with a black cross, drawn with the shape pipeline rather
+  than a generated texture, so it needs no GPU resource and cannot itself fail to load. `nya_asset_is_missing`
+  keeps an asset that is merely still LOADING out of it, or every load would flash, and
+  `nya_asset_missing_report` warns once per handle rather than once per frame. Textures only so far; a
+  missing mesh still draws nothing.
 - `[ ]` Character customization: recolour, retexture and paint a loaded default model. Clothes and hair later.
 
 ## `[ ]` Engine
