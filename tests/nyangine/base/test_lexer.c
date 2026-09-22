@@ -421,5 +421,47 @@ s32 main(void) {
     nya_lexer_destroy(&digit_lexer);
   }
 
+  // Character literals, as C writes them. Off, the quote in '"' opens a string that swallows the rest of the line.
+  {
+    NYA_ConstCString source = "c == '\"' || c == '\\'' ; after";
+
+    NYA_Lexer plain_lexer = nya_lexer_create(source);
+    nya_lexer_run(&plain_lexer);
+
+    b8 swallowed = true;
+    nya_array_foreach (plain_lexer.tokens, token) {
+      if (token->type == NYA_TOKEN_IDENT && token->length == 5 && memcmp(&source[token->source_location], "after", 5) == 0) swallowed = false;
+    }
+    nya_assert(swallowed, "without the flag the stray quote runs a string over 'after', which is why the flag exists");
+
+    nya_lexer_destroy(&plain_lexer);
+
+    NYA_Lexer c_lexer = nya_lexer_create(source, NYA_LEXER_CHAR_LITERALS);
+    nya_lexer_run(&c_lexer);
+
+    // c, =, =, '"', |, |, c, =, =, '\'', ;, after, EOF
+    nya_assert(c_lexer.tokens->length == 13, "got %llu tokens", (unsigned long long)c_lexer.tokens->length);
+    nya_assert(c_lexer.tokens->items[3].type == NYA_TOKEN_CHARACTER);
+    nya_assert(token_text_is(&c_lexer, 3, "\""), "the character is what sits between the quotes");
+    nya_assert(c_lexer.tokens->items[9].type == NYA_TOKEN_CHARACTER);
+    nya_assert(token_text_is(&c_lexer, 9, "\\'"), "an escaped quote does not close it");
+    nya_assert(c_lexer.tokens->items[11].type == NYA_TOKEN_IDENT && token_text_is(&c_lexer, 11, "after"));
+
+    nya_lexer_destroy(&c_lexer);
+  }
+
+  // A C23 digit separator is part of its number, not the start of a character literal.
+  {
+    NYA_Lexer separated = nya_lexer_create("0x8000'0000 1'000 x", NYA_LEXER_CHAR_LITERALS);
+    nya_lexer_run(&separated);
+
+    nya_assert(separated.tokens->length == 4, "two numbers, a name and the end, got %llu", (unsigned long long)separated.tokens->length);
+    nya_assert(separated.tokens->items[0].type == NYA_TOKEN_NUMBER_INTEGER && token_text_is(&separated, 0, "0x8000'0000"));
+    nya_assert(separated.tokens->items[1].type == NYA_TOKEN_NUMBER_INTEGER && token_text_is(&separated, 1, "1'000"));
+    nya_assert(separated.tokens->items[2].type == NYA_TOKEN_IDENT);
+
+    nya_lexer_destroy(&separated);
+  }
+
   return 0;
 }

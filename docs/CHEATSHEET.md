@@ -605,8 +605,8 @@ u64 _nya_integrity_stamped_mac(void)  // The MAC stamped into this executable, r
 
 ```c
 // types
-enum NYA_TokenType { NYA_TOKEN_INVALID, NYA_TOKEN_EOF, NYA_TOKEN_SYMBOL, NYA_TOKEN_IDENT, NYA_TOKEN_NUMBER_INTEGER, NYA_TOKEN_NUMBER_FLOAT, NYA_TOKEN_STRING, NYA_TOKEN_COMMENT, NYA_TOKEN_COUNT, }
-enum NYA_LexerFlags { NYA_LEXER_DEFAULT = 0, NYA_LEXER_UTF8_IDENTS = 1U << 0, }  // Opt in lexer behaviour.
+enum NYA_TokenType { NYA_TOKEN_INVALID, NYA_TOKEN_EOF, NYA_TOKEN_SYMBOL, NYA_TOKEN_IDENT, NYA_TOKEN_NUMBER_INTEGER, NYA_TOKEN_NUMBER_FLOAT, NYA_TOKEN_STRING, NYA_TOKEN_CHARACTER, NYA_TOKEN_COMMENT, NYA_TOKEN_COUNT, }
+enum NYA_LexerFlags { NYA_LEXER_DEFAULT = 0, NYA_LEXER_UTF8_IDENTS = 1U << 0, NYA_LEXER_CHAR_LITERALS = 1U << 1, }  // Opt in lexer behaviour.
 struct NYA_Token { NYA_TokenType type; u32 source_location; u32 length; u32 line_number; u32 char_number; union { u8 symbol; b8 is_block_comment; }; }
 struct NYA_Lexer { NYA_Arena* arena; NYA_ConstCString source; u32 cursor; NYA_LexerFlags flags; u32 current_line_number; u32 current_char_number; NYA_ArrayᐸNYA_Tokenᐳ* tokens; }
 

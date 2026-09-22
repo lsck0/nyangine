@@ -44,6 +44,11 @@ enum NYA_TokenType {
     NYA_TOKEN_STRING,
 
     /**
+     * A character literal, only with NYA_LEXER_CHAR_LITERALS. Covers what is between the quotes, like a string.
+     * */
+    NYA_TOKEN_CHARACTER,
+
+    /**
      * A line or block comment. `source_location` and `length` cover the *body*, not the delimiters.
      * */
     NYA_TOKEN_COMMENT,
@@ -59,6 +64,12 @@ enum NYA_LexerFlags {
      * Let bytes at or above 0x80 start and continue an identifier.
      * */
     NYA_LEXER_UTF8_IDENTS = 1U << 0,
+
+    /**
+     * Lex `'x'` as one NYA_TOKEN_CHARACTER, as C does. Without it a quote is a symbol, and in C source the
+     * `'"'` in `c == '"'` would open a string that runs to the next quote in the file.
+     * */
+    NYA_LEXER_CHAR_LITERALS = 1U << 1,
 };
 
 struct NYA_Token {

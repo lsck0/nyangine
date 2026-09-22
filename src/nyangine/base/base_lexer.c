@@ -12,6 +12,12 @@
 NYA_INTERNAL b8 _nya_lexer_is_ident_start(u8 character, NYA_LexerFlags flags);
 NYA_INTERNAL b8 _nya_lexer_is_ident_continue(u8 character, NYA_LexerFlags flags);
 
+/**
+ * Lexes a run from the opening `quote` at the cursor to the matching close, honouring backslash escapes,
+ * and pushes it as `type`. The token covers the contents, not the quotes.
+ * */
+NYA_INTERNAL void _nya_lexer_quoted(NYA_Lexer* lexer, u8 quote, NYA_TokenType type);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -188,6 +194,15 @@ void nya_lexer_run(NYA_Lexer* lexer) {
 
             while (true) {
                 current_char = lexer->source[lexer->cursor];
+
+                // a digit separator, as C23 writes 0x8000'0000U: between two digits, and only where quotes are C's.
+                if (current_char == '\'' && (lexer->flags & NYA_LEXER_CHAR_LITERALS) != 0 && lexer->cursor > start_cursor &&
+                    isxdigit(lexer->source[lexer->cursor - 1]) && isxdigit(lexer->source[lexer->cursor + 1])) {
+                    lexer->cursor              += 1;
+                    lexer->current_char_number += 1;
+                    continue;
+                }
+
                 if (is_hex) {
                     // A hexadecimal float: 0x1.91eb86p+1. The mantissa is written in hex so it
                     // survives a round trip through text exactly, which decimal cannot promise, and
@@ -295,45 +310,13 @@ void nya_lexer_run(NYA_Lexer* lexer) {
 
         // lex string literal
         if (current_char == '"') {
-            u32 start_cursor      = lexer->cursor + 1;
-            u32 start_char_number = lexer->current_char_number;
-            u32 start_line_number = lexer->current_line_number;
+            _nya_lexer_quoted(lexer, '"', NYA_TOKEN_STRING);
+            continue;
+        }
 
-            lexer->cursor              += 1;
-            lexer->current_char_number += 1;
-
-            while (true) {
-                current_char = lexer->source[lexer->cursor];
-                if (current_char == '\0') break;
-                if (current_char == '\\' && lexer->source[lexer->cursor + 1] != '\0') {
-                    lexer->cursor              += 2;
-                    lexer->current_char_number += 2;
-                    continue;
-                }
-                if (current_char == '"') {
-                    lexer->cursor              += 1;
-                    lexer->current_char_number += 1;
-                    break;
-                }
-                if (current_char == '\n') {
-                    lexer->cursor              += 1;
-                    lexer->current_line_number += 1;
-                    lexer->current_char_number  = 1;
-                } else {
-                    lexer->cursor              += 1;
-                    lexer->current_char_number += 1;
-                }
-            }
-
-            NYA_Token token = {
-                .type            = NYA_TOKEN_STRING,
-                .source_location = start_cursor,
-                .length          = lexer->cursor - start_cursor - (current_char == '"' ? 1 : 0),
-                .line_number     = start_line_number,
-                .char_number     = start_char_number,
-            };
-            nya_array_push_back(lexer->tokens, token);
-
+        // lex character literal, opt in: C has them, and the json and .nya dialects do not.
+        if (current_char == '\'' && (lexer->flags & NYA_LEXER_CHAR_LITERALS) != 0) {
+            _nya_lexer_quoted(lexer, '\'', NYA_TOKEN_CHARACTER);
             continue;
         }
 
@@ -373,6 +356,51 @@ void nya_lexer_run(NYA_Lexer* lexer) {
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+void _nya_lexer_quoted(NYA_Lexer* lexer, u8 quote, NYA_TokenType type) {
+    nya_assert(lexer != nullptr);
+    nya_assert((u8)lexer->source[lexer->cursor] == quote);
+
+    u32 start_cursor      = lexer->cursor + 1;
+    u32 start_char_number = lexer->current_char_number;
+    u32 start_line_number = lexer->current_line_number;
+
+    lexer->cursor              += 1;
+    lexer->current_char_number += 1;
+
+    u8 current_char = 0;
+    while (true) {
+        current_char = lexer->source[lexer->cursor];
+        if (current_char == '\0') break;
+        if (current_char == '\\' && lexer->source[lexer->cursor + 1] != '\0') {
+            lexer->cursor              += 2;
+            lexer->current_char_number += 2;
+            continue;
+        }
+        if (current_char == quote) {
+            lexer->cursor              += 1;
+            lexer->current_char_number += 1;
+            break;
+        }
+        if (current_char == '\n') {
+            lexer->cursor              += 1;
+            lexer->current_line_number += 1;
+            lexer->current_char_number  = 1;
+        } else {
+            lexer->cursor              += 1;
+            lexer->current_char_number += 1;
+        }
+    }
+
+    NYA_Token token = {
+        .type            = type,
+        .source_location = start_cursor,
+        .length          = lexer->cursor - start_cursor - (current_char == quote ? 1 : 0),
+        .line_number     = start_line_number,
+        .char_number     = start_char_number,
+    };
+    nya_array_push_back(lexer->tokens, token);
+}
 
 b8 _nya_lexer_is_ident_start(u8 character, NYA_LexerFlags flags) {
     if (('a' <= character && character <= 'z') || ('A' <= character && character <= 'Z') || character == '_') return true;
