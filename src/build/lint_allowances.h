@@ -190,16 +190,6 @@ NYA_INTERNAL const _LintAllowed _LINT_CALLERS_ALLOWED[] = {
     { "nya_physics3d_wake", "no caller when the rule landed" },
     // lua.h
     { "nya_lua_nil", "no caller when the rule landed" },
-    // steam.h
-    { "nya_steam_lobby_invite", "no caller when the rule landed" },
-    { "nya_steam_lobby_list_at", "no caller when the rule landed" },
-    { "nya_steam_lobby_list_count", "no caller when the rule landed" },
-    { "nya_steam_lobby_list_request", "no caller when the rule landed" },
-    { "nya_steam_lobby_member_at", "no caller when the rule landed" },
-    { "nya_steam_lobby_member_data_get", "no caller when the rule landed" },
-    { "nya_steam_lobby_member_data_set", "no caller when the rule landed" },
-    { "nya_steam_lobby_member_limit", "no caller when the rule landed" },
-    { "nya_steam_stats_store", "no caller when the rule landed" },
     // render2d_sprite.h
     { "nya_sprite_from_atlas", "no caller when the rule landed" },
     // render2d_terminal.h

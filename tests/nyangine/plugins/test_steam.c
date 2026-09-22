@@ -47,9 +47,26 @@ static struct {
   u32 cloud_size;
   b8  cloud_present;
 
+  /** The lobby search and the one lobby this account sits in. */
+  u8  search_key[64];
+  u8  search_value[64];
+  u32 search_limit;
+  u64 search_results[4];
+  u32 search_result_count;
+
+  u64 lobby_members[3];
+  u32 lobby_member_count;
+  u32 lobby_member_limit;
+  u8  member_data_key[64];
+  u8  member_data_value[64];
+  u64 invited;
+
   /** Set to make the next write refuse, which is how a failure path is reached at all. */
   b8 refuse;
 } fake;
+
+#define FAKE_LOBBY_ID  0x0186000000000042ULL
+#define FAKE_FRIEND_ID 0x1100001234000007ULL
 
 static NYA_SteamInitResult fake_connect(OUT char* out_message, u64 capacity) {
   fake.connects++;
@@ -128,6 +145,39 @@ static b8 fake_stats_store(void) {
   return !fake.refuse;
 }
 
+static b8 fake_lobby_list_request(NYA_ConstCString key, NYA_ConstCString value, u32 max_results) {
+  (void)snprintf((char*)fake.search_key, sizeof(fake.search_key), "%s", key != nullptr ? key : "");
+  (void)snprintf((char*)fake.search_value, sizeof(fake.search_value), "%s", value != nullptr ? value : "");
+  fake.search_limit = max_results;
+
+  return !fake.refuse;
+}
+
+static u64 fake_lobby_list_at(u32 index) { return index < fake.search_result_count ? fake.search_results[index] : 0; }
+
+static u32 fake_lobby_member_count(u64 lobby) { return lobby == FAKE_LOBBY_ID ? fake.lobby_member_count : 0; }
+static u64 fake_lobby_member_at(u64 lobby, u32 index) { return lobby == FAKE_LOBBY_ID && index < fake.lobby_member_count ? fake.lobby_members[index] : 0; }
+static u32 fake_lobby_member_limit(u64 lobby) { return lobby == FAKE_LOBBY_ID ? fake.lobby_member_limit : 0; }
+
+static NYA_ConstCString fake_lobby_member_data_get(u64 lobby, u64 user, NYA_ConstCString key) {
+  if (lobby != FAKE_LOBBY_ID || user != FAKE_USER_ID || strcmp((const char*)fake.member_data_key, key) != 0) return "";
+  return (NYA_ConstCString)fake.member_data_value;
+}
+
+static void fake_lobby_member_data_set(u64 lobby, NYA_ConstCString key, NYA_ConstCString value) {
+  if (lobby != FAKE_LOBBY_ID) return;
+
+  (void)snprintf((char*)fake.member_data_key, sizeof(fake.member_data_key), "%s", key);
+  (void)snprintf((char*)fake.member_data_value, sizeof(fake.member_data_value), "%s", value);
+}
+
+static b8 fake_lobby_invite(u64 lobby, u64 user) {
+  if (lobby != FAKE_LOBBY_ID) return false;
+
+  fake.invited = user;
+  return !fake.refuse;
+}
+
 static b8 fake_cloud_enabled(void) { return true; }
 
 static b8 fake_cloud_quota(OUT u64* out_total, OUT u64* out_available) {
@@ -190,6 +240,15 @@ static const NYA_SteamBackend FAKE_BACKEND = {
   .stat_get_float = fake_stat_get_float,
   .stat_set_float = fake_stat_set_float,
   .stats_store    = fake_stats_store,
+
+  .lobby_list_request    = fake_lobby_list_request,
+  .lobby_list_at         = fake_lobby_list_at,
+  .lobby_member_count    = fake_lobby_member_count,
+  .lobby_member_at       = fake_lobby_member_at,
+  .lobby_member_limit    = fake_lobby_member_limit,
+  .lobby_member_data_get = fake_lobby_member_data_get,
+  .lobby_member_data_set = fake_lobby_member_data_set,
+  .lobby_invite          = fake_lobby_invite,
 
   .cloud_enabled = fake_cloud_enabled,
   .cloud_quota   = fake_cloud_quota,
@@ -270,6 +329,10 @@ s32 main(void) {
     NYA_EXPECT(nya_steam_stat_set_float("distance_km", 12.5F));
     nya_check(nya_steam_stat_get_float("distance_km") == 12.5F, "and a float one, got %f", (f64)nya_steam_stat_get_float("distance_km"));
 
+    const u32 stores = fake.stat_stores;
+    NYA_EXPECT(nya_steam_stats_store());
+    nya_check(fake.stat_stores == stores + 1, "storing reaches the client once, got " FMTu32 " against " FMTu32, fake.stat_stores, stores + 1);
+
     printf("  PASSED\n");
   }
 
@@ -306,6 +369,71 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a lobby search reaches the client and its answer is read from the decoder
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * The list is filled by the callback Steam sends when the search finishes, so the test sends it the
+     * way the client would, through nya_steam_on_callback. A zero id in the middle is a row Steam could
+     * not resolve and has to be skipped rather than shown as a lobby nobody can join.
+     */
+    NYA_EXPECT(nya_steam_lobby_list_request("mode", "coop", 3));
+    nya_check(strcmp((const char*)fake.search_key, "mode") == 0 && strcmp((const char*)fake.search_value, "coop") == 0, "the filter reaches the client");
+    nya_check(fake.search_limit == 3, "with its limit, got " FMTu32, fake.search_limit);
+
+    nya_check(!nya_steam_lobby_list_request("mode", "", 3).ok, "a key with no value is refused before the client sees it");
+
+    fake.search_results[0]    = 0x0186000000000001ULL;
+    fake.search_results[1]    = 0;
+    fake.search_results[2]    = 0x0186000000000003ULL;
+    fake.search_result_count  = 3;
+    _NYA_SteamLobbyMatchList list = { .lobbies_matching = 3 };
+    nya_steam_on_callback(_NYA_STEAM_CALLBACK_LOBBY_MATCH_LIST, &list, sizeof(list));
+
+    nya_check(nya_steam_lobby_list_count() == 2, "the unresolved row is skipped, got " FMTu32, nya_steam_lobby_list_count());
+    nya_check(nya_steam_lobby_list_at(1).value == 0x0186000000000003ULL, "and the rows after it close up");
+    nya_check(!nya_steam_id_is_set(nya_steam_lobby_list_at(2)), "an index past the end is no lobby rather than a crash");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: inside a lobby, members, the limit, member data and invites reach it
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    const NYA_SteamId lobby  = { .value = FAKE_LOBBY_ID };
+    const NYA_SteamId self   = { .value = FAKE_USER_ID };
+    const NYA_SteamId friend = { .value = FAKE_FRIEND_ID };
+
+    // outside a lobby, the calls that act on the current one refuse rather than guessing which.
+    nya_check(nya_steam_lobby_member_data_set("ready", "1").kind == NYA_ERROR_NOT_FOUND, "member data outside a lobby is refused");
+    nya_check(nya_steam_lobby_invite(friend).kind == NYA_ERROR_NOT_FOUND, "and so is an invite");
+
+    _NYA_SteamLobbyEnter entered = { .lobby = FAKE_LOBBY_ID, .response = 1 };
+    nya_steam_on_callback(_NYA_STEAM_CALLBACK_LOBBY_ENTER, &entered, sizeof(entered));
+
+    fake.lobby_members[0]   = FAKE_USER_ID;
+    fake.lobby_members[1]   = FAKE_FRIEND_ID;
+    fake.lobby_member_count = 2;
+    fake.lobby_member_limit = 4;
+
+    nya_check(nya_steam_lobby_member_at(lobby, 1).value == FAKE_FRIEND_ID, "the second member is the friend");
+    nya_check(!nya_steam_id_is_set(nya_steam_lobby_member_at(lobby, 2)), "and there is no third");
+    nya_check(nya_steam_lobby_member_limit(lobby) == 4, "the limit comes from the client, got " FMTu32, nya_steam_lobby_member_limit(lobby));
+    nya_check(nya_steam_lobby_member_limit(NYA_STEAM_ID_NONE) == 0, "and no lobby has no limit");
+
+    NYA_EXPECT(nya_steam_lobby_member_data_set("ready", "1"));
+    nya_check(strcmp(nya_steam_lobby_member_data_get(lobby, self, "ready"), "1") == 0, "member data written is read back");
+    nya_check(nya_steam_lobby_member_data_get(lobby, friend, "ready")[0] == '\0', "for this account only, not the friend");
+
+    NYA_EXPECT(nya_steam_lobby_invite(friend));
+    nya_check(fake.invited == FAKE_FRIEND_ID, "the invite reaches the client for the right friend");
+    nya_check(!nya_steam_lobby_invite(NYA_STEAM_ID_NONE).ok, "and nobody cannot be invited");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a client that refuses produces an error, not a quiet success
   // ─────────────────────────────────────────────────────────────────────────────
   {
@@ -315,6 +443,8 @@ s32 main(void) {
     nya_check(!nya_steam_achievement_progress("never", 1, 2).ok, "and so is refused progress");
     nya_check(!nya_steam_stat_set_int("never", 1).ok, "and a refused stat");
     nya_check(!nya_steam_cloud_write("never.sav", (const u8*)"x", 1).ok, "and a refused cloud write");
+    nya_check(!nya_steam_stats_store().ok, "and a refused store");
+    nya_check(!nya_steam_lobby_list_request(nullptr, nullptr, 0).ok, "and a refused lobby search");
 
     // Reading a file that is not there is a failure too, rather than an empty success.
     u8  read[8] = { 0 };
