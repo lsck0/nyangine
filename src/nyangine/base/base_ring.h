@@ -30,7 +30,7 @@
 #include "nyangine/base/base_memory.h"
 #include "nyangine/base/base_template.h"
 #include "nyangine/base/base_types.h"
-#include "nyangine/math/math_scalar.h"
+#include "nyangine/base/base_compare.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

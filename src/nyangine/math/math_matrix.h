@@ -3,6 +3,7 @@
  * */
 #pragma once
 
+#include "nyangine/base/base_array.h"
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/math/math_vector.h"
@@ -25,6 +26,19 @@ typedef f64  f64_4x4 __attr_matrix(4, 4);
 typedef f128 f128_2x2 __attr_matrix(2, 2);
 typedef f128 f128_3x3 __attr_matrix(3, 3);
 typedef f128 f128_4x4 __attr_matrix(4, 4);
+
+nya_derive_array(f16_2x2);
+nya_derive_array(f16_3x3);
+nya_derive_array(f16_4x4);
+nya_derive_array(f32_2x2);
+nya_derive_array(f32_3x3);
+nya_derive_array(f32_4x4);
+nya_derive_array(f64_2x2);
+nya_derive_array(f64_3x3);
+nya_derive_array(f64_4x4);
+nya_derive_array(f128_2x2);
+nya_derive_array(f128_3x3);
+nya_derive_array(f128_4x4);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

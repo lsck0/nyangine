@@ -348,6 +348,16 @@ u32 nya_cache_count(const NYA_Cache* cache)
 u32 nya_cache_capacity(const NYA_Cache* cache)
 ```
 
+### base_compare.h
+
+nya_min and nya_max, which the containers need to grow and which are therefore in base rather than in
+
+```c
+// macros
+nya_min(a, b)
+nya_max(a, b)
+```
+
 ### base_compress.h
 
 Block compression, wrapping LZ4.
@@ -2831,8 +2841,6 @@ f64 nya_rng_sample_f64(NYA_RNG* rng, NYA_RNGDistribution distribution)
 ```c
 // macros
 NYA_EPSILON 1.0e-6F  // Default tolerance for f32 comparisons.
-nya_min(a, b)
-nya_max(a, b)
 nya_clamp(value, min, max)  // Clamps `value` into [`min`, `max`].
 nya_lerp(a, b, t)  // Linear interpolation from `a` to `b`.
 ```

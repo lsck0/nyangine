@@ -9,6 +9,7 @@
  * */
 #pragma once
 
+#include "nyangine/base/base_array.h"
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
 
@@ -32,6 +33,20 @@ typedef f128 f128x2 __attr_vector(2);
 /* Four lanes, not three, as a compiler workaround. */
 typedef f128 f128x3 __attr_vector(4);
 typedef f128 f128x4 __attr_vector(4);
+
+// here rather than in base_array.h with the scalar ones, since base comes before math and cannot name these.
+nya_derive_array(f16x2);
+nya_derive_array(f16x3);
+nya_derive_array(f16x4);
+nya_derive_array(f32x2);
+nya_derive_array(f32x3);
+nya_derive_array(f32x4);
+nya_derive_array(f64x2);
+nya_derive_array(f64x3);
+nya_derive_array(f64x4);
+nya_derive_array(f128x2);
+nya_derive_array(f128x3);
+nya_derive_array(f128x4);
 
 /*
  * Integer lanes, for code that works on a whole register at once rather than on a point in space.

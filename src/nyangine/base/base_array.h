@@ -25,9 +25,7 @@
 #include "nyangine/base/base_memory.h"
 #include "nyangine/base/base_template.h"
 #include "nyangine/base/base_types.h"
-#include "nyangine/math/math_matrix.h"
-#include "nyangine/math/math_scalar.h"
-#include "nyangine/math/math_vector.h"
+#include "nyangine/base/base_compare.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -89,31 +87,6 @@ nya_derive_array(f16ptr);
 nya_derive_array(f32ptr);
 nya_derive_array(f64ptr);
 nya_derive_array(f128ptr);
-
-nya_derive_array(f16x2);
-nya_derive_array(f16x3);
-nya_derive_array(f16x4);
-nya_derive_array(f32x2);
-nya_derive_array(f32x3);
-nya_derive_array(f32x4);
-nya_derive_array(f64x2);
-nya_derive_array(f64x3);
-nya_derive_array(f64x4);
-nya_derive_array(f128x2);
-nya_derive_array(f128x3);
-nya_derive_array(f128x4);
-nya_derive_array(f16_2x2);
-nya_derive_array(f16_3x3);
-nya_derive_array(f16_4x4);
-nya_derive_array(f32_2x2);
-nya_derive_array(f32_3x3);
-nya_derive_array(f32_4x4);
-nya_derive_array(f64_2x2);
-nya_derive_array(f64_3x3);
-nya_derive_array(f64_4x4);
-nya_derive_array(f128_2x2);
-nya_derive_array(f128_3x3);
-nya_derive_array(f128_4x4);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

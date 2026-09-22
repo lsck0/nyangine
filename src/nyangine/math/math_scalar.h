@@ -5,6 +5,7 @@
 
 #include "nyangine/base/base_assert.h"
 #include "nyangine/base/base_basic.h"
+#include "nyangine/base/base_compare.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -32,21 +33,6 @@
  * inspect.
  */
 
-#define nya_min(a, b)                                                                                                                                \
-    ({                                                                                                                                               \
-        __auto_type _nya_min_a = (a);                                                                                                                \
-        __auto_type _nya_min_b = (b);                                                                                                                \
-        nya_assert_type_match(_nya_min_a, _nya_min_b);                                                                                               \
-        _nya_min_a < _nya_min_b ? _nya_min_a : _nya_min_b;                                                                                           \
-    })
-
-#define nya_max(a, b)                                                                                                                                \
-    ({                                                                                                                                               \
-        __auto_type _nya_max_a = (a);                                                                                                                \
-        __auto_type _nya_max_b = (b);                                                                                                                \
-        nya_assert_type_match(_nya_max_a, _nya_max_b);                                                                                               \
-        _nya_max_a > _nya_max_b ? _nya_max_a : _nya_max_b;                                                                                           \
-    })
 
 /**
  * Clamps `value` into [`min`, `max`]. An inverted range is a bug, not a silently empty interval.
