@@ -114,6 +114,9 @@
 
 #define HUD_POINT_SIZE 18.0F
 
+/** The room around the table. Blue rather than black, so the dark green playfield's edge still reads against it. */
+#define ROOM_COLOR ((NYA_Color){ 0.07F, 0.08F, 0.13F, 1.0F })
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
@@ -328,7 +331,10 @@ NYA_INTERNAL void ball_serve(void) {
  */
 
 void pinball_layer_on_create(NYA_Window* window) {
-    nya_unused(window);
+    nya_assert(window != nullptr);
+
+    // nothing is drawn behind the table, so what the window clears to is the room it stands in.
+    nya_render_clear_color_set(window, ROOM_COLOR);
 
     nya_input_action_bind(PINBALL_ACTION_LEFT_FLIPPER, NYA_KEY_A);
     nya_input_action_bind(PINBALL_ACTION_LEFT_FLIPPER, NYA_KEY_LEFT);
