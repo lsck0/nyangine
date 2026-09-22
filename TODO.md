@@ -565,8 +565,15 @@ logged-in user.
     declares nothing is refused at merge unless it is explicitly `PUBLIC`.
   - **Every change is audited:** who changed which role or overwrite, from what to what, and when, in an
     append-only table.
+  - **Not an HTTP feature** (set 2026-09-22). A guild in a game is the same problem as a project on a server:
+    roles, ranks, who may kick whom, who may edit the shared thing. So `permissions` sits below `http` and
+    below `net`, knows nothing about a request, and takes ids rather than tokens. A game asks it whether this
+    player may demote that one; the HTTP extractor asks it the same question about a route. One resolver, one
+    hierarchy rule, one audit trail, and the same role editor UI over either, since the UI is `nya_ui_*` and
+    runs on all four backends.
   - **Callers:** the role editor in `web_frontend` (reorder roles, toggle permissions, set overwrites per
-    resource) is the demonstration, and the multiplayer example gives the host a moderator role.
+    resource) is the demonstration, the multiplayer example gives the host a moderator role, and gnyame gets a
+    guild whose ranks are the same roles with the same resolver — the proof that nothing here is web only.
   - Plugin permissions stay what they are: compile time, per build, for code rather than people. The two
     systems share no bits.
 - `[ ]` **Users and sessions**: an `accounts` component over `db`, `crypto` and `permissions`, with a user
