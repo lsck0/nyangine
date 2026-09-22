@@ -10,19 +10,14 @@
 
 #include "nyangine/nyangine.c"
 
-/** Whichever port is free. A busy one would be a flaky test rather than a failure. */
-#define FIRST_PORT 47960
-#define LAST_PORT  47976
-
-/** Starts the server on the first port that binds, or fails the test saying it could not. */
+/** Starts the server on a port the system chose; see test_server.c's copy for why not a fixed window. */
 static u16 start_server(void) {
-    for (u16 port = FIRST_PORT; port <= LAST_PORT; port++) {
-        if (nya_system_http_init((NYA_HttpConfig){ .port = port }).ok) return port;
-    }
+    u16 port = 0;
+    NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
 
-    nya_assert(false, "no port in [%d, %d] could be bound", FIRST_PORT, LAST_PORT);
+    NYA_EXPECT(nya_system_http_init((NYA_HttpConfig){ .port = port }), "while starting the test server");
 
-    return 0;
+    return port;
 }
 
 /** The value at `key`, as a string, or null. */

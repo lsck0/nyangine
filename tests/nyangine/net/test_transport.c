@@ -9,9 +9,6 @@
 
 #include <time.h>
 
-/** A port unlikely to be taken. Several are tried, because a busy port is a flaky test otherwise. */
-#define FIRST_PORT 47820
-
 /** How long a pump loop waits for something to happen before giving up on it. */
 #define PUMP_TIMEOUT_MS 4000
 
@@ -235,17 +232,9 @@ s32 main(void) {
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
-    // several ports, so a port in use on a shared CI machine is not a flaky failure.
-    u16 port = 0;
+    NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
 
-    for (u16 candidate = FIRST_PORT; candidate < FIRST_PORT + 16; candidate++) {
-      if (nya_net_transport_listen(server, candidate).ok) {
-        port = candidate;
-        break;
-      }
-    }
-
-    nya_assert(port != 0, "could not bind any port in the test range");
+    const u16 port = nya_net_transport_port(server);
     nya_assert(!nya_net_transport_is_local(server), "a UDP transport is not local even on loopback");
 
     NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
@@ -399,14 +388,9 @@ s32 main(void) {
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
-    u16 port = 0;
-    for (u16 candidate = FIRST_PORT + 32; candidate < FIRST_PORT + 48; candidate++) {
-      if (nya_net_transport_listen(server, candidate).ok) {
-        port = candidate;
-        break;
-      }
-    }
-    nya_assert(port != 0, "could not bind any port in the lossy test range");
+    NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
+
+    const u16 port = nya_net_transport_port(server);
 
     NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
 
@@ -479,14 +463,9 @@ s32 main(void) {
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
-    u16 port = 0;
-    for (u16 candidate = FIRST_PORT + 64; candidate < FIRST_PORT + 80; candidate++) {
-      if (nya_net_transport_listen(server, candidate).ok) {
-        port = candidate;
-        break;
-      }
-    }
-    nya_assert(port != 0, "could not bind any port in the timeout test range");
+    NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
+
+    const u16 port = nya_net_transport_port(server);
 
     NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
 
@@ -566,14 +545,9 @@ s32 main(void) {
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
-    u16 port = 0;
-    for (u16 candidate = FIRST_PORT + 96; candidate < FIRST_PORT + 112; candidate++) {
-      if (nya_net_transport_listen(server, candidate).ok) {
-        port = candidate;
-        break;
-      }
-    }
-    nya_assert(port != 0);
+    NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
+
+    const u16 port = nya_net_transport_port(server);
 
     NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
 
@@ -616,11 +590,9 @@ s32 main(void) {
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &client));
 
-    u16 port = 0;
-    for (u16 candidate = FIRST_PORT + 160; candidate < FIRST_PORT + 176 && port == 0; candidate++) {
-      if (nya_net_transport_listen(server, candidate).ok) port = candidate;
-    }
-    nya_assert(port != 0);
+    NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
+
+    const u16 port = nya_net_transport_port(server);
 
     NYA_EXPECT(nya_net_transport_connect(client, "127.0.0.1", port));
 
@@ -765,11 +737,9 @@ s32 main(void) {
     NYA_NetTransport* server = nullptr;
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ .identity = server_identity }, &server));
 
-    u16 port = 0;
-    for (u16 candidate = FIRST_PORT + 176; candidate < FIRST_PORT + 192 && port == 0; candidate++) {
-      if (nya_net_transport_listen(server, candidate).ok) port = candidate;
-    }
-    nya_assert(port != 0);
+    NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
+
+    const u16 port = nya_net_transport_port(server);
 
     nya_assert(nya_memcmp(nya_net_transport_public_key(server), server_identity.public_key, NYA_NET_KEY_SIZE) == 0, "the server is not who it was told to be");
 
@@ -932,14 +902,9 @@ s32 main(void) {
 
     // a transport holds one socket. Listening twice or connecting after listening would discard the first,
     // so both are refused.
-    u16 port = 0;
-    for (u16 candidate = FIRST_PORT + 128; candidate < FIRST_PORT + 144; candidate++) {
-      if (nya_net_transport_listen(transport, candidate).ok) {
-        port = candidate;
-        break;
-      }
-    }
-    nya_assert(port != 0);
+    NYA_EXPECT(nya_net_transport_listen(transport, 0), "the system had no free UDP port");
+
+    const u16 port = nya_net_transport_port(transport);
 
     nya_assert(!nya_net_transport_listen(transport, (u16)(port + 1)).ok, "listening twice was accepted");
     nya_assert(!nya_net_transport_connect(transport, "127.0.0.1", port).ok, "connecting on a listening socket was accepted");

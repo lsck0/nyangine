@@ -36,6 +36,17 @@ NYA_Error nya_net_transport_listen(NYA_NetTransport* transport, u16 port) {
     return transport->vtable->listen(transport, port);
 }
 
+u16 nya_net_transport_port(NYA_NetTransport* transport) {
+    nya_assert(transport != nullptr);
+    nya_assert(transport->vtable != nullptr);
+
+    // zero, not an assertion: "no port" is the honest answer for a loopback pair and for Steam's relay,
+    // and a caller printing where it is reachable should be able to ask any transport.
+    if (transport->vtable->port == nullptr) return 0;
+
+    return transport->vtable->port(transport);
+}
+
 NYA_Error nya_net_transport_connect(NYA_NetTransport* transport, NYA_ConstCString address, u16 port) {
     nya_assert(transport != nullptr);
     nya_assert(transport->vtable != nullptr);

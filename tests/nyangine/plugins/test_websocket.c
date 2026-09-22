@@ -15,10 +15,6 @@
 
 #include "nyangine/nyangine.c"
 
-/** Ports are tried from here, because a busy one would be a flaky test rather than a failure. */
-#define FIRST_PORT 47960
-#define LAST_PORT  47976
-
 /** How long the two ends are pumped against each other before a step is called lost. */
 #define PUMP_STEPS 4000
 
@@ -394,12 +390,10 @@ s32 main(void) {
     Server server = { 0 };
     u16    port   = 0;
 
-    for (u16 candidate = FIRST_PORT; candidate <= LAST_PORT && port == 0; candidate++) {
-      server.listener = NET_CreateServer(nullptr, candidate, 0);
-      if (server.listener != nullptr) port = candidate;
-    }
+    NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
 
-    nya_assert(port != 0, "no free port between %u and %u", (u32)FIRST_PORT, (u32)LAST_PORT);
+    server.listener = NET_CreateServer(nullptr, port, 0);
+    nya_assert(server.listener != nullptr, "could not listen on port %u: %s", (u32)port, SDL_GetError());
     defer server_destroy(&server);
 
     NYA_String* url = nya_string_sprintf(arena, "ws://127.0.0.1:%u/socket", (unsigned)port);
@@ -496,12 +490,10 @@ s32 main(void) {
       Server server = { 0 };
       u16    port   = 0;
 
-      for (u16 candidate = FIRST_PORT; candidate <= LAST_PORT && port == 0; candidate++) {
-        server.listener = NET_CreateServer(nullptr, candidate, 0);
-        if (server.listener != nullptr) port = candidate;
-      }
+      NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
 
-      nya_assert(port != 0);
+      server.listener = NET_CreateServer(nullptr, port, 0);
+      nya_assert(server.listener != nullptr, "could not listen on port %u: %s", (u32)port, SDL_GetError());
 
       NYA_String* url = nya_string_sprintf(arena, "ws://127.0.0.1:%u/", (unsigned)port);
 

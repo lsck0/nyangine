@@ -226,11 +226,8 @@ s32 main(void) {
     NYA_NetTransport* server = nullptr;
     NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
 
-    u16 port = 0;
-    for (u16 candidate = 48600; candidate < 48616 && port == 0; candidate++) {
-      if (nya_net_transport_listen(server, candidate).ok) port = candidate;
-    }
-    nya_assert(port != 0);
+    // only so the transport has a socket; nothing here sends to it, so its number is nobody's business.
+    NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
 
     NET_Address* address = NET_ResolveHostname("127.0.0.1");
     nya_assert(address != nullptr && NET_WaitUntilResolved(address, 3000) == 1);

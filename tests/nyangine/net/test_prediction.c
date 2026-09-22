@@ -11,7 +11,6 @@
 
 #define FLAG_REPLICATED (1ULL << 11)
 
-#define FIRST_PORT 48300
 #define TICK_SECONDS (1.0F / 60.0F)
 
 /** How far the client's movement disagrees with the server's, per tick. Well past the correction threshold. */
@@ -112,14 +111,9 @@ s32 main(void) {
     .on_apply_command = nya_callback(apply_movement),
   }));
 
-  u16 port = 0;
-  for (u16 candidate = FIRST_PORT; candidate < FIRST_PORT + 16; candidate++) {
-    if (nya_net_server_listen(candidate).ok) {
-      port = candidate;
-      break;
-    }
-  }
-  nya_assert(port != 0, "could not bind any port in the test range");
+  NYA_EXPECT(nya_net_server_listen(0), "the system had no free UDP port");
+
+  const u16 port = nya_net_server_port();
 
   (void)nya_world_set(CLIENT_WORLD);
 

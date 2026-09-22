@@ -18,9 +18,6 @@
 
 #include "nyangine/nyangine.c"
 
-#define FIRST_PORT 47940
-#define LAST_PORT  47956
-
 static const u8 SECRET[] = "0123456789abcdef0123456789abcdef";
 #define SECRET_SIZE (sizeof(SECRET) - 1)
 
@@ -33,17 +30,21 @@ static void sleep_ms(u32 milliseconds) {
     (void)nanosleep(&request, nullptr);
 }
 
-/** Starts on the first port that binds. A busy one would be a flaky test rather than a failure. */
+/**
+ * Starts on a port the system chose.
+ *
+ * The config requires a real number, so the zero port is asked of the system here instead of passed
+ * through. A scan over a fixed window is what it replaces: two suites running side by side scan the same
+ * window and land on the same port.
+ * */
 static u16 start_server(NYA_HttpConfig config) {
-    for (u16 port = FIRST_PORT; port <= LAST_PORT; port++) {
-        config.port = port;
+    u16 port = 0;
+    NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
 
-        if (nya_system_http_init(config).ok) return port;
-    }
+    config.port = port;
+    NYA_EXPECT(nya_system_http_init(config), "while starting the test server");
 
-    nya_assert(false, "no port in [%d, %d] could be bound", FIRST_PORT, LAST_PORT);
-
-    return 0;
+    return port;
 }
 
 /** Connects to the server, waiting for the connection to come up. */
@@ -128,8 +129,9 @@ s32 main(void) {
 
         nya_assert(!nya_system_http_init((NYA_HttpConfig){ .port = 0 }).ok, "a server needs a port");
 
-        // a secret that is present and too short does not start a server that only fails later.
-        nya_assert(!nya_system_http_init((NYA_HttpConfig){ .port = FIRST_PORT, .secret = SECRET, .secret_size = 4 }).ok);
+        // a secret that is present and too short does not start a server that only fails later. Any port
+        // will do: the secret is refused before anything is bound.
+        nya_assert(!nya_system_http_init((NYA_HttpConfig){ .port = 8080, .secret = SECRET, .secret_size = 4 }).ok);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

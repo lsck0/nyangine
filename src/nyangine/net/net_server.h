@@ -213,6 +213,15 @@ NYA_API NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port) 
 /** Whether a socket is open. False for single player, true once opened to the LAN. */
 NYA_API b8 nya_net_server_is_listening(void) __attr_no_discard;
 
+/**
+ * The port players reach this server on, or zero when it is not listening.
+ *
+ * Not the number passed to nya_net_server_listen: zero there means "whichever port is free", so what was
+ * asked for and what was bound are only the same when a port was named. This is the one to print, to show
+ * in a HUD, and to put in whatever tells a player where the game is.
+ * */
+NYA_API u16 nya_net_server_port(void) __attr_no_discard;
+
 /** The key players pin to be sure they reached this server, or null until it listens. */
 NYA_API const u8* nya_net_server_public_key(void) __attr_no_discard;
 

@@ -4,6 +4,7 @@
 #include "nyangine/net/net_config.c"
 #include "nyangine/net/net_crypto.c"
 #include "nyangine/net/net_message.c"
+#include "nyangine/net/net_port.c"
 #include "nyangine/net/net_transport.c"
 /**/
 #include "nyangine/net/net_loopback.c"

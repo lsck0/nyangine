@@ -10,8 +10,7 @@
 
 #define FLAG_REPLICATED (1ULL << 11)
 
-#define FIRST_PORT 48700
-#define TICK_S     (1.0F / 60.0F)
+#define TICK_S (1.0F / 60.0F)
 
 /** Seconds of simulation, and the tail over which the settled figure is taken. */
 #define SCENE_SECONDS   20
@@ -86,11 +85,9 @@ s32 main(void) {
         .on_apply_command = nya_callback(apply_movement),
     }));
 
-    u16 port = 0;
-    for (u16 candidate = FIRST_PORT; candidate < FIRST_PORT + 16 && port == 0; candidate++) {
-        if (nya_net_server_listen(candidate).ok) port = candidate;
-    }
-    nya_assert(port != 0, "could not bind any port in the bench range");
+    NYA_EXPECT(nya_net_server_listen(0), "the system had no free UDP port");
+
+    const u16 port = nya_net_server_port();
 
     (void)nya_world_set(CLIENT_WORLD);
 

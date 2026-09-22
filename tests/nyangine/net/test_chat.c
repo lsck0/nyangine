@@ -20,7 +20,6 @@ s32 main(void) {
 
 #define FLAG_REPLICATED (1ULL << 2)
 
-#define FIRST_PORT      47960
 #define PUMP_TIMEOUT_MS 15000
 #define TICK_SECONDS    (1.0F / 60.0F)
 
@@ -453,15 +452,9 @@ s32 main(void) {
     .on_client_event   = nya_callback(on_client_event),
   }));
 
-  u16 port = 0;
-  for (u16 candidate = FIRST_PORT; candidate < FIRST_PORT + 16; candidate++) {
-    if (nya_net_server_listen(candidate).ok) {
-      port = candidate;
-      break;
-    }
-  }
+  NYA_EXPECT(nya_net_server_listen(0), "the system had no free UDP port");
 
-  nya_assert(port != 0, "could not bind any port in the test range");
+  const u16 port = nya_net_server_port();
 
   printf("  [server] listening on %u\n", port);
 

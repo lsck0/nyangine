@@ -17,7 +17,6 @@
 /** World units per second a held direction moves a player. Whatever; it just has to be deterministic. */
 #define SPEED 100.0F
 
-#define FIRST_PORT 47900
 #define PUMP_TIMEOUT_MS 5000
 
 static void sleep_ms(u32 milliseconds) {
@@ -223,15 +222,9 @@ s32 main(void) {
       .on_spawn_player  = nya_callback(spawn_player),
     }));
 
-    u16 port = 0;
-    for (u16 candidate = FIRST_PORT; candidate < FIRST_PORT + 16; candidate++) {
-      if (nya_net_server_listen(candidate).ok) {
-        port = candidate;
-        break;
-      }
-    }
+    NYA_EXPECT(nya_net_server_listen(0), "the system had no free UDP port");
 
-    nya_assert(port != 0, "could not bind any port in the test range");
+    const u16 port = nya_net_server_port();
     nya_assert(nya_net_server_is_listening());
 
     printf("  listening on %u\n", port);
@@ -369,14 +362,9 @@ s32 main(void) {
       .on_spawn_player  = nya_callback(spawn_player),
     }));
 
-    u16 port = 0;
-    for (u16 candidate = FIRST_PORT + 32; candidate < FIRST_PORT + 48; candidate++) {
-      if (nya_net_server_listen(candidate).ok) {
-        port = candidate;
-        break;
-      }
-    }
-    nya_assert(port != 0);
+    NYA_EXPECT(nya_net_server_listen(0), "the system had no free UDP port");
+
+    const u16 port = nya_net_server_port();
 
     SPAWN_CALLS = 0;
 

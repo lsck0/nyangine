@@ -5,8 +5,8 @@
  * unreliable channels, events drained by polling. No window, no world, no entities.
  *
  * ```
- * ./build run example net_echo          # both ends in one process, over a real localhost socket
- * ./net_echo.example --listen 47900     # just the server
+ * ./build run example net_echo          # both ends in one process, on a port the system picks
+ * ./net_echo.example --listen 47900     # just the server, on a port a client can be told in advance
  * ./net_echo.example --connect 127.0.0.1 47900   # just the client, from another terminal
  * ```
  *
@@ -49,15 +49,6 @@
  * CONSTANTS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
-
-/**
- * Where the in-process run binds. Well above the registered range and away from
- * NYA_NET_DEFAULT_PORT, so running this beside the game does not collide with it.
- * */
-#define FIRST_PORT 47900
-
-/** Ports tried before giving up, so one already in use is not a failure. */
-#define PORT_ATTEMPTS 16
 
 /** Round trips the client asks for before it disconnects. */
 #define ROUNDS 5
@@ -195,15 +186,6 @@ NYA_INTERNAL void endpoint_report(NYA_NetTransport* transport, const Endpoint* e
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Binds the first free port in the example's range. Zero when every one of them is taken. */
-NYA_INTERNAL u16 server_bind(NYA_NetTransport* server, u16 first) {
-    for (u16 candidate = first; candidate < first + PORT_ATTEMPTS; candidate++) {
-        if (nya_net_transport_listen(server, candidate).ok) return candidate;
-    }
-
-    return 0;
-}
-
 s32 main(s32 argc, NYA_CString* argv) {
     nya_backtrace_init();
 
@@ -221,7 +203,12 @@ s32 main(s32 argc, NYA_CString* argv) {
     // ── which halves to run ─────────────────────────────────────────────────────────────────────
     b8               listen_only  = false;
     b8               connect_only = false;
-    u16              port         = FIRST_PORT;
+    /*
+     * Zero means the system picks, which is what the in-process run wants: two copies of this example, or
+     * a test suite beside it, must not have to agree on a number to stay out of each other's way. --listen
+     * overrides it, because a client in another terminal has to be told where to go.
+     */
+    u16              port         = 0;
     NYA_ConstCString address      = "127.0.0.1";
 
     for (s32 i = 1; i < argc; i++) {
@@ -254,13 +241,15 @@ s32 main(s32 argc, NYA_CString* argv) {
         // come back to keeps one instead; see nya_net_key_pair_load.
         NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server), "while creating the server transport");
 
-        u16 bound = server_bind(server, port);
-        if (bound == 0) {
-            nya_log_error("Could not bind any port from %u to %u.", port, port + PORT_ATTEMPTS - 1);
+        NYA_Error listening = nya_net_transport_listen(server, port);
+        if (!listening.ok) {
+            nya_log_error("Could not listen: %s", (NYA_ConstCString)listening.message);
             return EXIT_FAILURE;
         }
 
-        port = bound;
+        // Read back rather than echoed: with port zero the number is the system's, and the client below
+        // is about to connect to it.
+        port = nya_net_transport_port(server);
         nya_log_info("server: listening on %u.", port);
     }
 

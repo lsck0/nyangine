@@ -19,6 +19,7 @@
 #include "nyangine/net/net_config.h"
 #include "nyangine/net/net_crypto.h"
 #include "nyangine/net/net_message.h"
+#include "nyangine/net/net_port.h"
 #include "nyangine/net/net_transport.h"
 // Names NYA_Entity, so it pulls core_entity.h in on its own rather than relying on nyangine.h's order.
 #include "nyangine/net/net_snapshot.h"

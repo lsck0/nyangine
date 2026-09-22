@@ -55,10 +55,6 @@ static const NYA_TypeReflection R_KNOBS = {
   .field_count = 2,
 };
 
-/** Ports are tried from here, because a busy one would be a flaky test rather than a failure. */
-#define FIRST_PORT 47990
-#define LAST_PORT  48006
-
 /** xorshift, so a failure replays exactly from the seed. */
 static u64 SEED = 0x6E7961636F6E7472ULL;
 
@@ -392,12 +388,10 @@ s32 main(void) {
     Upgrader server = { 0 };
     u16      port   = 0;
 
-    for (u16 candidate = FIRST_PORT; candidate <= LAST_PORT && port == 0; candidate++) {
-      server.listener = NET_CreateServer(nullptr, candidate, 0);
-      if (server.listener != nullptr) port = candidate;
-    }
+    NYA_EXPECT(nya_net_port_pick(NYA_NET_PROTOCOL_TCP, &port), "the system had no free TCP port");
 
-    nya_assert(port != 0, "no free port between %u and %u", (u32)FIRST_PORT, (u32)LAST_PORT);
+    server.listener = NET_CreateServer(nullptr, port, 0);
+    nya_assert(server.listener != nullptr, "could not listen on port %u: %s", (u32)port, SDL_GetError());
     defer upgrader_destroy(&server);
 
     NYA_String* url = nya_string_sprintf(arena, "ws://127.0.0.1:%u/", (unsigned)port);

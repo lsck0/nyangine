@@ -10,8 +10,6 @@
 
 #include <time.h>
 
-#define FIRST_PORT 48100
-
 /*
  * The wire layout, restated here rather than shared with the implementation.
  */
@@ -240,16 +238,18 @@ static u32 newest_peer(NYA_NetTransport* transport) {
   return newest;
 }
 
-/** Binds a fresh listening server in the test range. */
-static NYA_NetTransport* listen_server(NYA_Arena* arena, u16 first, OUT u16* out_port) {
+/**
+ * Binds a fresh listening server on a port the system chose.
+ *
+ * Port zero, not a scan over a fixed window: two checkouts running their suites on one machine picked
+ * the same window and collided on 48100, which is the failure this file was reported for.
+ * */
+static NYA_NetTransport* listen_server(NYA_Arena* arena, OUT u16* out_port) {
   NYA_NetTransport* server = nullptr;
   NYA_EXPECT(nya_net_transport_udp_create(arena, (NYA_NetUdpOptions){ 0 }, &server));
+  NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
 
-  *out_port = 0;
-  for (u16 candidate = first; candidate < first + 16 && *out_port == 0; candidate++) {
-    if (nya_net_transport_listen(server, candidate).ok) *out_port = candidate;
-  }
-  nya_assert(*out_port != 0, "could not bind any port in the test range");
+  *out_port = nya_net_transport_port(server);
 
   return server;
 }
@@ -272,7 +272,7 @@ s32 main(void) {
   // ═════════════════════════════════════════════════════════════════════════════
 
   u16               port   = 0;
-  NYA_NetTransport* server = listen_server(arena, FIRST_PORT, &port);
+  NYA_NetTransport* server = listen_server(arena, &port);
 
   NET_Address* target = NET_ResolveHostname("127.0.0.1");
   nya_assert(target != nullptr);
@@ -555,7 +555,7 @@ s32 main(void) {
   printf("TEST: one address cannot hold more than a few slots\n");
   {
     u16               cap_port   = 0;
-    NYA_NetTransport* cap_server = listen_server(arena, FIRST_PORT + 32, &cap_port);
+    NYA_NetTransport* cap_server = listen_server(arena, &cap_port);
 
     RawPeer peers[_NYA_NET_UDP_MAX_PEERS_PER_ADDRESS + 1] = { 0 };
 

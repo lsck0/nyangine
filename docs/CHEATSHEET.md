@@ -4476,6 +4476,18 @@ NYA_Error nya_net_message_write_object(NYA_Arena* arena, NYA_String* out, const 
 NYA_Error nya_net_message_read_object(NYA_Arena* arena, const u8* data, u64 size, OUT NYA_Object** out_object)  // Reads a length-prefixed serde_nya document back.
 ```
 
+### net_port.h
+
+Asking the system which port is free instead of guessing one.
+
+```c
+// types
+enum NYA_NetProtocol { NYA_NET_PROTOCOL_UDP = 0, NYA_NET_PROTOCOL_TCP, NYA_NET_PROTOCOL_COUNT, }  // Which port space a number is asked for in: TCP and UDP number theirs separately.
+
+// functions
+NYA_Error nya_net_port_pick(NYA_NetProtocol protocol, OUT u16* out_port)
+```
+
 ### net_server.h
 
 ```c
@@ -4499,6 +4511,7 @@ b8 nya_net_server_running(void)
 NYA_Error nya_net_server_listen(u16 port)  // Starts accepting players over UDP on `port`.
 NYA_Error nya_net_server_listen_on(NYA_NetTransportKind kind, u16 port)  // Starts accepting players over `kind`.
 b8 nya_net_server_is_listening(void)  // Whether a socket is open.
+u16 nya_net_server_port(void)  // The port players reach this server on, or zero when it is not listening.
 const u8* nya_net_server_public_key(void)  // The key players pin to be sure they reached this server, or null until it listens.
 NYA_Error nya_net_server_attach_local(OUT NYA_NetTransport** out_client_transport)  // Attaches a local player over a loopback transport, and hands back the client end.
 NYA_NetPeerId nya_net_server_local_peer(void)  // The local player's peer id, or NYA_NET_PEER_NONE on a dedicated server.
@@ -4562,7 +4575,7 @@ struct NYA_NetTransportEvent { NYA_NetTransportEventKind kind; NYA_NetPeerId pee
 struct NYA_NetPeerStats { f32 rtt_ms; f32 jitter_ms; f32 packet_loss; u64 bytes_sent; u64 bytes_received; u64 packets_sent; u64 packets_received; u32 bytes_sent_per_second; u32 bytes_received_per_second; u64 retransmits; u64 packets_rejected; u32 snapshot_bytes; u32 violations; f32 interpolation_delay_ms; }  // What a connection is currently costing, for a debug overlay and for the client's clock sync.
 struct NYA_NetConditions { u32 latency_ms; u32 jitter_ms; f32 loss_percent; f32 duplicate_percent; f32 reorder_percent; }  // A bad network on purpose, applied to what one endpoint sends.
 struct NYA_NetUdpOptions { NYA_NetKeyPair identity; u8 server_key[NYA_NET_KEY_SIZE]; NYA_NetConditions conditions; }  // How a UDP transport identifies itself and whom it trusts.
-struct NYA_NetTransportVTable { NYA_ConstCString name; NYA_NetTransportKind kind; NYA_Error (*listen)(NYA_NetTransport* transport, u16 port); NYA_Error (*connect)(NYA_NetTransport* transport, NYA_ConstCString address, u16 port); NYA_Error (*send)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size); b8 (*poll)(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event); void (*disconnect)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason); NYA_NetPeerStats (*stats)(NYA_NetTransport* transport, NYA_NetPeerId peer); NYA_ConstCString (*peer_address)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*condition)(NYA_NetTransport* transport, NYA_NetConditions conditions); const u8* (*public_key)(NYA_NetTransport* transport); const u8* (*peer_key)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*destroy)(NYA_NetTransport* transport); }  // What every transport implements.
+struct NYA_NetTransportVTable { NYA_ConstCString name; NYA_NetTransportKind kind; NYA_Error (*listen)(NYA_NetTransport* transport, u16 port); u16 (*port)(NYA_NetTransport* transport); NYA_Error (*connect)(NYA_NetTransport* transport, NYA_ConstCString address, u16 port); NYA_Error (*send)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size); b8 (*poll)(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event); void (*disconnect)(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetDisconnect reason); NYA_NetPeerStats (*stats)(NYA_NetTransport* transport, NYA_NetPeerId peer); NYA_ConstCString (*peer_address)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*condition)(NYA_NetTransport* transport, NYA_NetConditions conditions); const u8* (*public_key)(NYA_NetTransport* transport); const u8* (*peer_key)(NYA_NetTransport* transport, NYA_NetPeerId peer); void (*destroy)(NYA_NetTransport* transport); }  // What every transport implements.
 struct NYA_NetTransport { const NYA_NetTransportVTable* vtable; NYA_Arena* allocator; void* state; }  // One transport instance.
 
 // functions
@@ -4570,6 +4583,7 @@ NYA_Error nya_net_transport_loopback_create(NYA_Arena* arena, OUT NYA_NetTranspo
 NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptions options, OUT NYA_NetTransport** out_transport)  // A transport over UDP datagrams, encrypted, with reliability and fragmentation on top.
 NYA_Error nya_net_transport_steam_create(NYA_Arena* arena, OUT NYA_NetTransport** out_transport)  // A transport over Steam's relayed peer-to-peer sockets.
 NYA_Error nya_net_transport_listen(NYA_NetTransport* transport, u16 port)
+u16 nya_net_transport_port(NYA_NetTransport* transport)
 NYA_Error nya_net_transport_connect(NYA_NetTransport* transport, NYA_ConstCString address, u16 port)
 NYA_Error nya_net_transport_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size)
 b8 nya_net_transport_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event)

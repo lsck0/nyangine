@@ -290,6 +290,9 @@ typedef struct {
 
     b8 listening;
 
+    /** What the socket is bound to, which is not what listen was asked for when it was asked for zero. */
+    u16 port;
+
     /** This endpoint's long term key: always set on a listening server, optional on a client. */
     NYA_NetKeyPair identity;
 
@@ -359,6 +362,7 @@ typedef struct {
 } _NYA_NetUdpState;
 
 NYA_INTERNAL NYA_Error        _nya_net_udp_listen(NYA_NetTransport* transport, u16 port);
+NYA_INTERNAL u16              _nya_net_udp_port(NYA_NetTransport* transport);
 NYA_INTERNAL NYA_Error        _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString address, u16 port);
 NYA_INTERNAL NYA_Error        _nya_net_udp_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size);
 NYA_INTERNAL b8               _nya_net_udp_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event);
@@ -494,6 +498,7 @@ NYA_INTERNAL const NYA_NetTransportVTable _NYA_NET_UDP_VTABLE = {
     .kind = NYA_NET_TRANSPORT_UDP,
 
     .listen       = &_nya_net_udp_listen,
+    .port         = &_nya_net_udp_port,
     .connect      = &_nya_net_udp_connect,
     .send         = &_nya_net_udp_send,
     .poll         = &_nya_net_udp_poll,
@@ -573,11 +578,20 @@ NYA_Error _nya_net_udp_listen(NYA_NetTransport* transport, u16 port) {
 
     if (!nya_net_key_is_set(state->identity.secret_key)) NYA_TRY(nya_net_key_pair_create(&state->identity));
 
+    /*
+     * Zero means "whichever one is free", which is how two servers come up on one machine with nothing
+     * agreed in advance. The number is taken from the system first rather than passed straight through,
+     * because SDL_net will not say afterwards what it bound, and a server that cannot name its own port
+     * cannot tell a client where it is. nya_net_transport_port is how the caller reads it back.
+     */
+    if (port == 0) NYA_TRY(nya_net_port_pick(NYA_NET_PROTOCOL_UDP, &port));
+
     // a null address binds every local interface, so a host on ethernet and wifi is reachable on both.
     state->socket = NET_CreateDatagramSocket(nullptr, port, 0);
     if (state->socket == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not bind UDP port %u: %s", port, SDL_GetError());
 
     state->listening = true;
+    state->port      = port;
 
     char key[NYA_NET_KEY_HEX_SIZE];
     nya_net_key_to_hex(state->identity.public_key, key);
@@ -585,6 +599,12 @@ NYA_Error _nya_net_udp_listen(NYA_NetTransport* transport, u16 port) {
     nya_log_info("Listening for players on UDP port %u, server key %s.", port, key);
 
     return NYA_OK;
+}
+
+u16 _nya_net_udp_port(NYA_NetTransport* transport) {
+    const _NYA_NetUdpState* state = transport->state;
+
+    return state->port;
 }
 
 /**

@@ -47,7 +47,7 @@ void gny_layer_ui_on_render(NYA_Window* window) {
     NYA_ConstCString lines[] = {
         nya_string_hud_boxes(boxes, awake),
         nya_string_hud_players(nya_net_server_peer_count()),
-        nya_net_server_is_listening() ? nya_string_hud_hosting(GNY_LAUNCH.listen_port) : nya_string_hud_offline(),
+        nya_net_server_is_listening() ? nya_string_hud_hosting(nya_net_server_port()) : nya_string_hud_offline(),
         nya_string_hud_hovering(hovered != nullptr ? hovered->name : "-"),
     };
 

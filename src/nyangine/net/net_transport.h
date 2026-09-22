@@ -145,6 +145,9 @@ struct NYA_NetTransportVTable {
     /** Starts accepting peers on `port`. Null for a transport that cannot listen. */
     NYA_Error (*listen)(NYA_NetTransport* transport, u16 port);
 
+    /** The local port this endpoint is bound to. Null for a transport that has no port at all. */
+    u16 (*port)(NYA_NetTransport* transport);
+
     /** Starts connecting to `address`. Completion arrives as a CONNECTED event, or a timeout. */
     NYA_Error (*connect)(NYA_NetTransport* transport, NYA_ConstCString address, u16 port);
 
@@ -229,6 +232,17 @@ NYA_API NYA_Error nya_net_transport_steam_create(NYA_Arena* arena, OUT NYA_NetTr
  */
 
 NYA_API NYA_Error nya_net_transport_listen(NYA_NetTransport* transport, u16 port) __attr_no_discard;
+
+/**
+ * The local port this transport accepts peers on, or zero for one that accepts none: a loopback pair, a Steam
+ * socket, a UDP transport that has not listened, and a UDP client, whose source port is the system's business.
+ *
+ * Listening on port zero asks the system for a number instead of naming one, which is how two servers come up
+ * on one machine without agreeing in advance; this is how the number gets back out again, to be printed, put
+ * in a server browser entry, or handed to the client the same program is about to start.
+ * */
+NYA_API u16 nya_net_transport_port(NYA_NetTransport* transport) __attr_no_discard;
+
 NYA_API NYA_Error nya_net_transport_connect(NYA_NetTransport* transport, NYA_ConstCString address, u16 port) __attr_no_discard;
 NYA_API NYA_Error nya_net_transport_send(NYA_NetTransport* transport, NYA_NetPeerId peer, NYA_NetChannel channel, const u8* data, u64 size) __attr_no_discard;
 NYA_API b8        nya_net_transport_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out_event);

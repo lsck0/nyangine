@@ -315,6 +315,12 @@ b8 nya_net_server_is_listening(void) {
     return _NYA_NET_SERVER.udp != nullptr;
 }
 
+u16 nya_net_server_port(void) {
+    if (_NYA_NET_SERVER.udp == nullptr) return 0;
+
+    return nya_net_transport_port(_NYA_NET_SERVER.udp);
+}
+
 const u8* nya_net_server_public_key(void) {
     if (_NYA_NET_SERVER.udp == nullptr) return nullptr;
 
