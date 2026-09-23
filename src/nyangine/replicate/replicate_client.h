@@ -181,3 +181,13 @@ NYA_API NYA_Error nya_net_client_send_event(const NYA_Object* event) __attr_no_d
  * follows how regularly snapshots arrive. Call once per frame with the frame's real duration.
  * */
 NYA_API void nya_net_client_interpolate(f32 delta_time_s);
+
+/**
+ * One tick of the client: what the registry runs, registered as the "net_client" system when a client
+ * starts.
+ *
+ * Declared rather than kept to its own file because it is registered by name — a callback handle is
+ * re-resolved against the new image after a code reload, and a name only the definition knows is a
+ * name dlsym cannot find. Nothing outside the registry should call it.
+ * */
+NYA_API void nya_net_client_system_tick(f32 delta_time_s);

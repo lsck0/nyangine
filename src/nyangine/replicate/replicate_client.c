@@ -140,7 +140,6 @@ NYA_INTERNAL void _nya_net_client_reconcile(const NYA_NetSnapshot* snapshot, f32
 NYA_INTERNAL void _nya_net_client_reset(void);
 
 /** nya_net_client_tick behind the system registry's signature, reading the tick off the world. */
-NYA_INTERNAL_CALLBACK void _nya_net_client_system_tick(f32 delta_time_s);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -244,7 +243,7 @@ NYA_Error nya_net_client_attach(NYA_NetTransport* transport, NYA_ConstCString na
      */
     if (nya_app_get()->initialized) {
         nya_system_unregister("net_client");
-        nya_system_register((NYA_SystemEntry){ .name = "net_client", .after = "entity", .tick = nya_callback(_nya_net_client_system_tick) });
+        nya_system_register((NYA_SystemEntry){ .name = "net_client", .after = "entity", .tick = nya_callback(nya_net_client_system_tick) });
     }
 
     return NYA_OK;
@@ -790,6 +789,6 @@ void _nya_net_client_reset(void) {
     };
 }
 
-void _nya_net_client_system_tick(f32 delta_time_s) {
+void nya_net_client_system_tick(f32 delta_time_s) {
     nya_net_client_tick(nya_world()->sim_system.tick, delta_time_s);
 }

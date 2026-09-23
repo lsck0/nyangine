@@ -301,3 +301,12 @@ NYA_API NYA_NetPeerStats nya_net_server_peer_stats(NYA_NetPeerId peer) __attr_no
  * The most recent command applied for a peer.
  * */
 NYA_API NYA_NetCommand nya_net_server_last_command(NYA_NetPeerId peer) __attr_no_discard;
+
+/**
+ * One tick of the server: what the registry runs, registered as the "net_server" system when a server
+ * starts.
+ *
+ * Declared for the same reason nya_net_client_tick is: it is registered by name, and a name only the
+ * definition knows is one a code reload cannot resolve. Nothing outside the registry should call it.
+ * */
+NYA_API void nya_net_server_system_tick(f32 delta_time_s);

@@ -201,7 +201,6 @@ NYA_INTERNAL void _nya_net_server_broadcast_roster(NYA_NetPeerId about, NYA_Cons
 NYA_INTERNAL void _nya_net_server_send(_NYA_NetServerPeerState* state, NYA_NetChannel channel, const NYA_String* payload);
 
 /** nya_net_server_tick behind the system registry's signature, reading the tick off the world. */
-NYA_INTERNAL_CALLBACK void _nya_net_server_system_tick(f32 delta_time_s);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -247,7 +246,7 @@ NYA_Error nya_net_server_start(NYA_NetServerConfig config) {
      * one with a frame pays nothing for a server it never starts.
      */
     if (nya_app_get()->initialized) {
-        nya_system_register((NYA_SystemEntry){ .name = "net_server", .after = "entity", .tick = nya_callback(_nya_net_server_system_tick) });
+        nya_system_register((NYA_SystemEntry){ .name = "net_server", .after = "entity", .tick = nya_callback(nya_net_server_system_tick) });
     }
 
     return NYA_OK;
@@ -1234,6 +1233,6 @@ void _nya_net_server_send(_NYA_NetServerPeerState* state, NYA_NetChannel channel
     if (!sent.ok) nya_log_debug("Could not send to '%s': %s", state->public_state.name, (NYA_ConstCString)sent.message);
 }
 
-void _nya_net_server_system_tick(f32 delta_time_s) {
+void nya_net_server_system_tick(f32 delta_time_s) {
     nya_net_server_tick(nya_world()->sim_system.tick, delta_time_s);
 }
