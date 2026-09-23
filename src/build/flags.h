@@ -176,8 +176,11 @@
  * `./build vendor`: emcc is not part of the default toolchain and not every checkout has it, so
  * nothing here is reached by a native build or by `./build check`. See wasm_runner.
  *
- * A set of flags of its own rather than CFLAGS: CFLAGS carries -mavx/-mfma/-mf16c and -fenable-matrix,
- * which are x86 and which emcc rejects. What the demo needs is the wasm target's own list below.
+ * A set of flags of its own rather than CFLAGS: CFLAGS carries -mavx/-mfma/-mf16c, which are x86 and
+ * which emcc rejects. What the demo needs is the wasm target's own list below — which does share two
+ * language flags with CFLAGS, -fdefer-ts (the engine's deferred `defer` statement) and -fenable-matrix
+ * (the matrix_type extension the math headers declare types with), since the engine source these now
+ * pull in uses both and emcc's clang accepts both.
  */
 #define EMCC                   "emcc"
 #define WASM_OUTPUT_DIRECTORY  "./web"
@@ -191,10 +194,23 @@
 
 // MODULARIZE so the loader is a factory the page instantiates when it chooses, and ENVIRONMENT=web,node
 // so the same .js both loads in a browser and runs under node, which is how `./build wasm` verifies it.
-// ALLOW_MEMORY_GROWTH because the demo's arena is a static page and the module should not fail a larger
-// document later. No CFLAGS: see the comment above.
+// ALLOW_MEMORY_GROWTH because the arena grows its regions with malloc and the module should not fail a
+// larger document later.
+//
+// NYA_WASM_WITH_ENGINE switches wasm_demo.c from its stand-in to the real path: the engine's own arena,
+// NYA_Object and JSON serde, compiled from the leaf translation units that file includes. -fdefer-ts
+// and -fenable-matrix are the two CFLAGS language flags that engine source needs (see the comment
+// above). NYA_NO_SDL is set inside wasm_demo.c, before it pulls the headers, so it is not repeated here.
 #define FLAGS_WASM                                                     \
-    "-std=c2y", "-O2",                                                 \
+    "-std=c2y", "-O2", "-fdefer-ts", "-fenable-matrix",                \
+    "-DNYA_WASM_WITH_ENGINE",                                          \
+    /* the same warning suppressions CFLAGS carries: the engine source */ \
+    /* the wasm path now compiles trips these exactly as the native build does. */ \
+    "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro", \
+    /* wasm32's size_t is a 32-bit unsigned long, where the LP64 native build's is 64-bit, so a %zu */ \
+    /* paired with a u64 in an engine format string is exact natively but mismatched here. The call */ \
+    /* sites are vetted on the native -Werror build; the difference is ABI, not a bug, so silence it. */ \
+    "-Wno-format",                                                    \
     "-sEXPORTED_FUNCTIONS=_" WASM_EXPORTED_SYMBOL,                     \
     "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString",             \
     "-sMODULARIZE=1", "-sEXPORT_NAME=createNyangineModule",            \

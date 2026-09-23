@@ -14,7 +14,12 @@ NYA_String* nya_serialize(NYA_Arena* arena, const NYA_Object* object, NYA_SerdeF
         case NYA_SERDE_FORMAT_NYA:        return nya_serde_nya_serialize(arena, object, flags);
         case NYA_SERDE_FORMAT_JSON:       return nya_serde_json_serialize(arena, object, flags);
         case NYA_SERDE_FORMAT_JSONC:      return nya_serde_jsonc_serialize(arena, object, flags);
+#if !OS_WASM
+        // The binary .nya wire format encodes an f128 as x87 80-bit extended precision; a wasm build's
+        // long double is IEEE quad, a different layout, so serde_nya_binary.c is not compiled for that
+        // target (see the wasm_demo.c include set) and this arm falls through to the default there.
         case NYA_SERDE_FORMAT_NYA_BINARY: return nya_serde_nya_binary_serialize(arena, object, flags);
+#endif
 
         default:                          nya_log_panic("Unknown serialization format %d.", (int)format);
     }
@@ -29,7 +34,10 @@ NYA_Error nya_deserialize(NYA_Arena* arena, const u8* data, u64 size, NYA_SerdeF
         case NYA_SERDE_FORMAT_NYA:        return nya_serde_nya_deserialize(arena, data, size, flags, out_object);
         case NYA_SERDE_FORMAT_JSON:       return nya_serde_json_deserialize(arena, data, size, flags, out_object);
         case NYA_SERDE_FORMAT_JSONC:      return nya_serde_jsonc_deserialize(arena, data, size, flags, out_object);
+#if !OS_WASM
+        // Not built on wasm; see the matching arm in nya_serialize above.
         case NYA_SERDE_FORMAT_NYA_BINARY: return nya_serde_nya_binary_deserialize(arena, data, size, flags, out_object);
+#endif
 
         default:                          nya_log_panic("Unknown serialization format %d.", (int)format);
     }

@@ -13,7 +13,12 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <fenv.h>
+#if !defined(__wasm__) && !defined(__EMSCRIPTEN__)
+// x86 SIMD intrinsics: the header exists only for x86 targets. The wasm target has no <immintrin.h>,
+// and the engine's SIMD paths (which -mavx/-mf16c enable) are not built there. Guarded off on wasm so
+// the native x86 build keeps this include exactly.
 #include <immintrin.h>
+#endif
 #include <inttypes.h>
 #include <locale.h>
 #include <math.h>

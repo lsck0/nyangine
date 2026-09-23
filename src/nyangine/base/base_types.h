@@ -32,7 +32,17 @@ typedef int16_t     s16;
 typedef int32_t     s32;
 typedef int64_t     s64;
 typedef __int128_t  s128;
+#if defined(__wasm__) || defined(__EMSCRIPTEN__)
+// clang for wasm32-unknown-emscripten rejects _Float16 ("not supported on this target") and no flag
+// turns it on, so the wasm build takes f16 as a plain float. This is a soft-float widening: f16
+// becomes 4 bytes here, not 2. The wasm demo only serialises to JSON *text* (nya_serialize ... JSON),
+// where a value's in-memory width never reaches the wire, so it is invisible there. It would matter to
+// the binary serde format and to reflection (both read sizeof), so this platform only serialises to
+// text. Guarded so the native build keeps _Float16 exactly.
+typedef float       f16;
+#else
 typedef _Float16    f16;
+#endif
 typedef float       f32;
 typedef double      f64;
 typedef long double f128;

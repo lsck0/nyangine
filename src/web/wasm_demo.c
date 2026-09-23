@@ -2,33 +2,30 @@
  * @file wasm_demo.c
  *
  * The headless slice of the engine compiled to WebAssembly, exported to JavaScript. The seed of the
- * CSR path: proof that engine-shaped C runs in a browser and hands a string back across the JS
- * boundary, built and run by `./build wasm`.
+ * CSR path: proof that real engine C — its arena, NYA_Object and JSON serde — runs in a browser and
+ * hands a string back across the JS boundary, built and run by `./build wasm`.
  *
- * WHY THIS FILE IS SELF-CONTAINED, AND NOT `#include "nyangine/serde/serde.c"`
+ * TWO PATHS, SELECTED BY NYA_WASM_WITH_ENGINE
  *
- * The intended demo was to build a real NYA_Object and call nya_serialize(...). That does not compile
- * under emcc today, and the block is in the foundation every engine translation unit rests on rather
- * than in one leaf file, so narrowing the included set cannot reach past it:
+ * `./build wasm` defines NYA_WASM_WITH_ENGINE (see FLAGS_WASM), which takes the real path below: it
+ * includes the leaf engine translation units the arena → object → serialize chain needs and the export
+ * returns exactly what nya_serialize(...) produced. The #ifndef path above it is the original
+ * stand-in — a bump allocator and a hand-written JSON writer in the same shape — kept as a
+ * dependency-free fallback for building this file without the engine (plain `emcc wasm_demo.c`).
  *
- *   - base/base_types.h declares `typedef _Float16 f16;`. clang for wasm32-unknown-emscripten answers
- *     "_Float16 is not supported on this target", and no flag turns it on. `__fp16` exists but is a
- *     storage-only type a function may not return, and the engine returns f16 by value (math_random.h),
- *     so it is not a drop-in either. Only float / a soft-float struct would do, and that changes the
- *     size and the ABI of a type the whole engine, its SIMD and its binary serde are built on.
- *   - base/base_basic.h includes <immintrin.h> unconditionally — x86 intrinsics with no wasm form.
- *   - math/ uses clang's matrix_type extension (needs -fenable-matrix, a flag we could pass) on f16
- *     matrices (which we cannot compile, per the first point).
- *   - os/os.c has no branch for OS_WASM — the platform macro exists (base_basic.h already defines
- *     OS_WASM and ARCH_WASM32), but no page/thread/time backend answers it, so the arena has no memory
- *     source. base/base.c then also pulls threads, sockets, libbacktrace and the vendored lz4, none of
- *     which a wasm build has.
+ * The port that made the real path compile was small and lives beside the engine, each change guarded
+ * so the native build is untouched:
  *
- * Making the engine compile here is a real platform port that touches base_types.h, base_basic.h and a
- * new os wasm backend — engine work, owned elsewhere, and out of scope for a build-system change. So
- * this file stands in for the real path with a bump allocator and a JSON writer in the same shape the
- * engine's own arena and serde produce: no malloc, a caller-visible buffer bound, and bounded writes.
- * When the port lands, the block under NYA_WASM_WITH_ENGINE below is what replaces the stand-in.
+ *   - base/base_types.h: `_Float16` is rejected for wasm32-unknown-emscripten, so f16 is a plain float
+ *     there (a soft-float widening to 4 bytes). It is invisible to this demo, which serialises to JSON
+ *     *text* where a value's in-memory width never reaches the wire; it is gated so native keeps
+ *     _Float16 exactly. The binary .nya format, which does depend on the width, is not built for wasm.
+ *   - base/base_basic.h: <immintrin.h> (x86-only) is gated off on wasm.
+ *   - math/ declares matrix types with clang's matrix_type extension; FLAGS_WASM passes -fenable-matrix
+ *     (and -fdefer-ts, for `defer`), the two language flags emcc's clang shares with the native CFLAGS.
+ *   - os/os_wasm.c is a new wasm-only page/time/random backend, since os.c's branches are Linux and
+ *     Windows and pull threads, sockets, libbacktrace and lz4. Only the leaves are included, never
+ *     base.c/os.c wholesale, for that reason.
  * */
 
 #include <emscripten/emscripten.h>
@@ -36,6 +33,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef NYA_WASM_WITH_ENGINE
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * A BUMP ARENA, THE SAME BARGAIN base/base_arena.c MAKES
@@ -137,32 +135,75 @@ const char* nyangine_demo(void) {
     return buffer.items;
 }
 
+#else // NYA_WASM_WITH_ENGINE
 /*
- * The real path, kept compiling-ready and switched off. When the engine gains a wasm f16, drops
- * <immintrin.h> on wasm, and grows an os wasm backend, define NYA_WASM_WITH_ENGINE and this replaces
- * everything above: real arena, real NYA_Object, real serde. Left here so the port has a target to
- * light up rather than a paragraph to reconstruct.
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE REAL PATH: THE ENGINE'S OWN ARENA, NYA_Object AND SERDE, COMPILED TO WASM
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * This is what the stand-in above stood in for, now live. `./build wasm` defines NYA_WASM_WITH_ENGINE
+ * and compiles the leaf translation units named below, so the export builds a real NYA_Object and hands
+ * back what nya_serialize(...) produced — the same code the native engine runs.
+ *
+ * The set is hand-picked, not base.c/os.c: those unity headers pull threads, sockets, libbacktrace and
+ * lz4, none of which a wasm module has. Only the leaves the arena → object → JSON path reaches are
+ * included, plus os_wasm.c, the wasm-only page/time/random backend (native f16 and <immintrin.h> are
+ * gated off for this target in base_types.h and base_basic.h). The order matches base.c's: a unity
+ * build has one definition of each symbol, so a file is included exactly once and after what it needs.
  */
-#ifdef NYA_WASM_WITH_ENGINE
 #define NYA_NO_SDL
-#include "nyangine/os/os.c"
-#include "nyangine/base/base.c"
-#include "nyangine/serde/serde.c"
+#include "nyangine/nyangine.h"
 
+#include "nyangine/os/os_wasm.c"
+
+#include "nyangine/base/base_arena.c"
+// NYA_BACKTRACE_SUPPORTED is 0 here (it needs OS_LINUX or OS_WINDOWS), so this compiles to the same
+// no-op capture/format the build tool itself links against — no libbacktrace, which wasm has none of.
+#include "nyangine/base/base_backtrace.c"
+#include "nyangine/base/base_ceiling.c"
+#include "nyangine/base/base_error.c"
+#include "nyangine/base/base_hash.c"
+#include "nyangine/base/base_logging.c"
+#include "nyangine/base/base_object.c"
+#include "nyangine/base/base_reflection.c"
+#include "nyangine/base/base_string.c"
+#include "nyangine/base/base_types.c"
+
+// serde.c's leaves, minus serde_nya_binary.c: its wire format hardcodes x87 80-bit long double, which
+// wasm's IEEE-quad f128 is not, so the binary format is not built for this target. serde_dispatch.c's
+// two binary arms are gated off under OS_WASM to match.
+#include "nyangine/serde/serde_dispatch.c"
+#include "nyangine/serde/serde_json.c"
+#include "nyangine/serde/serde_jsonc.c"
+#include "nyangine/serde/serde_nya.c"
+#include "nyangine/serde/serde_reflect.c"
+
+/**
+ * The real export. Builds a small NYA_Object on the engine's arena and returns the string
+ * nya_serialize(...) writes for it, so what the page renders is genuine engine output, not a
+ * hand-written echo. Same symbol name and same `string` cwrap contract as the stand-in it replaces.
+ *
+ * The returned pointer is a cstring on `arena`, valid until the next call: this one arena is static, so
+ * the buffer outlives the return the way the stand-in's static page did. A later, multi-call export
+ * would copy into JS-owned linear memory and destroy the arena; the demo has one document and one
+ * reader, so it keeps the arena and resets nothing.
+ */
 EMSCRIPTEN_KEEPALIVE
-const char* nyangine_demo_engine(void) {
-    /* One arena for the object and the string it serializes to; a fresh one per call, freed on return. */
-    NYA_Arena* arena = nya_arena_create(.name = "wasm_demo");
+const char* nyangine_demo(void) {
+    // Static, not per-call: the returned cstring lives on this arena and must outlive the return, and
+    // the demo serializes one document, so there is nothing to reclaim between calls.
+    static NYA_Arena* arena = nullptr;
+    if (arena == nullptr) arena = nya_arena_create(.name = "wasm_demo");
 
     NYA_Object* object = nya_object_create(arena);
     nya_object_add(object, "engine", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "nyangine" });
     nya_object_add(object, "target", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "wasm32" });
+    nya_object_add(object, "renderer", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "csr" });
     nya_object_add(object, "answer", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 42 });
 
     NYA_String* json = nya_serialize(arena, object, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
 
-    /* The string lives in `arena`; a real export copies it into linear memory the JS side owns before
-     * destroying the arena. Sketched, not wired, because this whole block does not compile yet. */
     return nya_string_to_cstring(arena, json);
 }
-#endif
+
+#endif // NYA_WASM_WITH_ENGINE
