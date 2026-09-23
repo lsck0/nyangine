@@ -319,17 +319,17 @@ Small, and first, because every later phase trusts these numbers.
   - The verb rule judges public names only and skips `_is_` predicates. Most of its allowances are the
     vocabulary's gaps rather than bugs: containers insert with `set` and pair it with `remove`, GPU resources
     are created and released, and arena owned objects have no destroy. Deciding those words is its own item.
-- `[ ]` The uncalled functions: a caller, a test or deletion, decided per cluster. The rule above counts them
+- `[x]` The uncalled functions: a caller, a test or deletion, decided per cluster. The rule above counts them
   as identifiers, where the old audit matched text and counted a doc comment or a string naming a function as
   a call, so it finds 81 where the audit's count had come down to 36 (the window, Steam, fluid and renderer
-  clusters are most of the difference). Every entry sits in `_LINT_CALLERS_ALLOWED`, grouped by header; each
-  cluster decided removes its lines. Down to 20 after the window, Steam, testing, asset blob, input, base and core
-  clusters: tests, real callers, two deletions (`nya_simulation_pick`, a duplicate of `nya_simulation_below`, and
-  `nya_string_println`) and one bug found (`nya_i18n_load_bytes` kept watching the previous locale's file). Some
-  unexercised surface is deliberate, since this is a library: that
-  becomes an entry with a real reason instead of "no caller when the rule landed". Earlier: steam, entity
-  queries, window state, rng, audio, nn and cursor got tests, and the window cluster found a real bug
-  (`nya_window_is_visible` answered true for a handle that is not a window).
+  clusters are most of the difference). `_LINT_CALLERS_ALLOWED` is empty now: every entry got a test, a real
+  caller, or was deleted, cluster by cluster — window, Steam, testing, asset blob, input, base, core, then the
+  last five (nn's step budget and the DQN's acting network, a tensor copy, Lua's nil and the JSON responder).
+  Two deletions (`nya_simulation_pick`, a duplicate of `nya_simulation_below`, and `nya_string_println`) and one
+  bug found (`nya_i18n_load_bytes` kept watching the previous locale's file). Earlier: steam, entity queries,
+  window state, rng, audio, nn and cursor got tests, and the window cluster found a real bug
+  (`nya_window_is_visible` answered true for a handle that is not a window). No library surface needed a
+  deliberate no-caller entry; nothing wanted one that the tests or gnyame didn't already want more.
 - `[ ]` The verb vocabulary's gaps the verb rule turned up: `set`/`remove` on every container, `create`/`release`
   on GPU resources, arena owned objects with no `destroy`, and brackets like `nya_trace_frame_end` whose other
   half is implicit. Decide the words once, in the style guide, then rename or pair.
