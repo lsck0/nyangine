@@ -792,6 +792,11 @@ logged-in user.
     a slash command, answer an interaction), queued and drained against Discord's per-*bucket* rate limit
     headers, because a client that ignores those does not get a slower bot, it gets a banned one.
     `examples/discord_bot` is the program.
+  - The Telegram **bot** landed 2026-09-23 as `src/nyangine/plugins/telegram_bot/telegram.h`: `getUpdates` with
+    the offset as the acknowledgement, messages and callback queries as updates, `sendMessage` and
+    `answerCallbackQuery` queued behind a cooldown a 429's `retry_after` sets, and the webhook secret compared in
+    constant time. Long polling is off unless a caller sets `poll_timeout_s`, because the transfers are
+    synchronous and a frame cannot wait thirty seconds for a quiet chat.
   - Missing for a Twitch **bot**: EventSub over WebSocket (the same gateway shape) or over webhooks (which now
     verify), and chat, which is IRC over TLS — the one piece that wants TLS in process rather than through curl.
   - Missing for **sending** a webhook: nothing but a helper. `nya_request_post` posts a JSON body today; what a
@@ -799,6 +804,17 @@ logged-in user.
     does either.
   - A bot is also the first program that is not a game and not a server: it is the composition entry above, with
     a net part and no window.
+  - **One client per service, and no "connections" module**, decided 2026-09-23 when Telegram made it two. The
+    protocols do not rhyme: Discord holds a socket and reads rate limit buckets out of headers, Telegram polls an
+    offset and is told to wait by a number in a body, Twitch will do both at once. A facade over the three would
+    be a switch statement with three arms and a lowest common denominator that fits none of them, and the thing a
+    caller actually wants — "answer this message" — is one call either way.
+    - What does repeat is mechanical, and that is what to extract when Twitch makes it three: a queue of calls
+      with attempts and a backoff, the `perform` / `now_ms` seam that lets a test drive a client with no network,
+      the bounded copies, and the token that is wiped and never logged. Today each client has its own copy of
+      those, which is the honest amount of sharing for two.
+    - Inbound is already shared, and was the piece worth sharing: `http_webhook.h` verifies a signed callback for
+      whoever sends one, and Telegram's weaker "echo my secret back" check sits beside it saying so.
 - `[ ]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
   path traversal in static serving, request smuggling, resource exhaustion). Every finding becomes a test.
 

@@ -4601,6 +4601,7 @@ u64 nya_net_client_server_tick(void)  // The newest server tick applied.
 u64 nya_net_client_correction_count(void)  // How many corrections have happened since connecting.
 NYA_Error nya_net_client_send_event(const NYA_Object* event)  // Sends a game-defined event to the server.
 void nya_net_client_interpolate(f32 delta_time_s)
+void nya_net_client_system_tick(f32 delta_time_s)  // One tick of the client: what the registry runs, registered as the "net_client" system when a client starts.
 ```
 
 ### replicate_command.h
@@ -4660,6 +4661,7 @@ u64 nya_net_server_rewind_ticks(void)  // How far back the last rewind went, in 
 b8 nya_net_stats_line(OUT char* out, u64 capacity)
 NYA_NetPeerStats nya_net_server_peer_stats(NYA_NetPeerId peer)  // What a player's connection is costing, and how often they broke the rules.
 NYA_NetCommand nya_net_server_last_command(NYA_NetPeerId peer)  // The most recent command applied for a peer.
+void nya_net_server_system_tick(f32 delta_time_s)  // One tick of the server: what the registry runs, registered as the "net_server" system when a server starts.
 ```
 
 ### replicate_snapshot.h
@@ -6148,6 +6150,45 @@ NYA_Error nya_steam_p2p_accept(NYA_SteamId user)  // Accepts a session a SESSION
 void nya_steam_p2p_close(NYA_SteamId user)  // Closes the session with `user`.
 void nya_steam_backend_set(const NYA_SteamBackend* backend)  // Installs a backend, in place of the one nya_system_steam_init would pick.
 void nya_steam_on_callback(u32 callback_id, const void* data, u32 size)  // Where a backend hands one of Steam's callbacks in.
+```
+
+### telegram.h
+
+A Telegram bot: the updates it is handed and the messages it sends back.
+
+```c
+// types
+enum NYA_TelegramUpdateKind { NYA_TELEGRAM_UPDATE_NONE = 0, NYA_TELEGRAM_UPDATE_MESSAGE, NYA_TELEGRAM_UPDATE_EDITED_MESSAGE, NYA_TELEGRAM_UPDATE_CALLBACK_QUERY, NYA_TELEGRAM_UPDATE_OTHER, NYA_TELEGRAM_UPDATE_KIND_COUNT, }  // What one update turned out to be.
+enum NYA_TelegramCallKind { NYA_TELEGRAM_CALL_SEND_MESSAGE = 0, NYA_TELEGRAM_CALL_ANSWER_CALLBACK, NYA_TELEGRAM_CALL_KIND_COUNT, }  // Which call a queued entry is, which is also what it is reported as.
+struct NYA_TelegramUpdate { u64 update_id; NYA_TelegramUpdateKind kind; s64 chat_id; u64 from_id; char from[NYA_TELEGRAM_MAX_NAME]; char text[NYA_TELEGRAM_MAX_TEXT]; u64 message_id; char callback_id[NYA_TELEGRAM_MAX_ID]; }  // One thing that happened, as much of it as this models.
+struct NYA_TelegramOptions { NYA_ConstCString token; NYA_ConstCString base_url; u64 timeout_ms; u32 poll_timeout_s; NYA_Error (*perform)(void* user, NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response); u64 (*now_ms)(void* user); void* user; }
+struct NYA_TelegramResult { u64 id; NYA_TelegramCallKind kind; NYA_ConstCString method; u32 status; NYA_Error error; }  // What one queued call came to.
+
+// macros
+NYA_TELEGRAM_URL "https:  // Where the bot API lives.
+NYA_TELEGRAM_MAX_TOKEN 128  // Bytes a token may take, terminator included.
+NYA_TELEGRAM_MAX_TEXT 4096  // A message's text, terminator included.
+NYA_TELEGRAM_MAX_NAME 128  // A display name or a username, terminator included.
+NYA_TELEGRAM_MAX_ID 64  // A callback query's id, terminator included.
+NYA_TELEGRAM_MAX_UPDATES 16  // Updates held between one answer and the calls that read them.
+NYA_TELEGRAM_MAX_QUEUE 32  // Calls waiting to be sent.
+NYA_TELEGRAM_POLL_INTERVAL_MS 1000  // How long the client waits between polls when it is not long polling.
+NYA_TELEGRAM_RETRY_MS 500  // What a failed call waits before the next attempt, doubled per attempt.
+NYA_TELEGRAM_MAX_ATTEMPTS 3  // How often one call is attempted before its failure is reported to the caller.
+NYA_TELEGRAM_SECRET_HEADER "X-Telegram-Bot-Api-Secret-Token"  // The header a webhook's secret arrives in.
+
+// functions
+NYA_Error nya_telegram_create(NYA_Arena* arena, NYA_TelegramOptions options, OUT NYA_Telegram** out_bot)  // Makes a client.
+void nya_telegram_destroy(NYA_Telegram* bot)  // Wipes the token and gives the arena back.
+b8 nya_telegram_poll(NYA_Telegram* bot, OUT NYA_TelegramUpdate* out_update)  // Hands over the next update, and asks for more when there are none and enough time has passed.
+NYA_Error nya_telegram_send(NYA_Telegram* bot, s64 chat_id, NYA_ConstCString text, OUT u64* out_id)  // Queues a message.
+NYA_Error nya_telegram_answer_callback(NYA_Telegram* bot, NYA_ConstCString callback_id, NYA_ConstCString text, OUT u64* out_id)  // Queues the answer a pressed button is waiting for.
+b8 nya_telegram_result_poll(NYA_Telegram* bot, OUT NYA_TelegramResult* out_result)  // Sends the next queued call that is due, and reports the one that finished.
+u32 nya_telegram_pending(const NYA_Telegram* bot)  // How many calls are waiting, so a caller can stop queueing before the queue refuses one.
+u64 nya_telegram_offset(const NYA_Telegram* bot)  // The offset the next poll will ask from: one past the highest update handed over.
+u64 nya_telegram_cooldown_ms(const NYA_Telegram* bot, u64 now_ms)  // Milliseconds until the client may send again, zero when it may now.
+b8 nya_telegram_webhook_verify(const NYA_HttpExchange* exchange, NYA_ConstCString secret)  // Whether this request carries the secret the bot registered with its webhook.
+b8 nya_telegram_update_read(const NYA_Object* object, OUT NYA_TelegramUpdate* out_update)  // Reads one update out of a parsed webhook body, which is the same object `getUpdates` returns in its array.
 ```
 
 ## platform
