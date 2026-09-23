@@ -104,6 +104,15 @@ NYA_INTERNAL const NYA_ConstCString _LINT_PRELUDE[] = {
     "base/base_attributes.h",
 };
 
+/**
+ * Words that make a field a secret by its name alone.
+ *
+ * The same four src/nyangine/http/http_log.c redacts a query parameter for, and for the same reason: a
+ * name is the only evidence there is where nothing describes the value. A reflected field named like
+ * one of these carries `@redact`, or says `@loggable` to mean it on purpose.
+ * */
+NYA_INTERNAL const NYA_ConstCString _LINT_SECRET_WORDS[] = { "password", "token", "secret", "code" };
+
 /** The pairs from the style guide's verb vocabulary, with the engine's own init/deinit for init/shutdown. */
 NYA_INTERNAL const NYA_ConstCString _LINT_VERB_PAIRS[][2] = {
     { "create", "destroy" }, { "init", "deinit" }, { "start", "stop" },     { "begin", "end" },           { "open", "close" },
@@ -139,12 +148,23 @@ NYA_INTERNAL const _LintModule* _lint_module_find(const NYA_String* name) __attr
 /** The module a path under src/nyangine/ belongs to, or null for anything else. */
 NYA_INTERNAL NYA_String* _lint_module_of(NYA_Arena* arena, const NYA_String* path) __attr_no_discard;
 
+/**
+ * Whether the comment token at `index` carries `marker` at the start of one of its lines, which is
+ * exactly where src/build/pp/reflection.c looks for an annotation. Written to agree with it: a rule
+ * that accepted a spelling the generator ignores would pass a field that is never redacted.
+ * */
+NYA_INTERNAL b8 _lint_comment_has(const LintFile* file, u64 index, NYA_ConstCString marker) __attr_no_discard;
+
+/** Whether `name` holds `word`, neither of them case sensitive. */
+NYA_INTERNAL b8 _lint_name_holds(const NYA_String* name, NYA_ConstCString word) __attr_no_discard;
+
 NYA_INTERNAL void _lint_rule_lexed(Lint* lint);
 NYA_INTERNAL void _lint_rule_banned_calls(Lint* lint);
 NYA_INTERNAL void _lint_rule_layering(Lint* lint);
 NYA_INTERNAL void _lint_rule_verb_pairs(Lint* lint);
 NYA_INTERNAL void _lint_rule_callers(Lint* lint);
 NYA_INTERNAL void _lint_rule_clangd(Lint* lint);
+NYA_INTERNAL void _lint_rule_redact(Lint* lint);
 
 // The allowances: what each rule knowingly lets through today, and why. After the declarations it reads.
 #include "build/lint_allowances.h"
@@ -171,6 +191,7 @@ u32 lint_run(void) {
     _lint_rule_verb_pairs(&lint);
     _lint_rule_callers(&lint);
     _lint_rule_clangd(&lint);
+    _lint_rule_redact(&lint);
 
     nya_array_foreach (lint.files, file) nya_lexer_destroy(&file->lexer);
 
@@ -499,6 +520,83 @@ void _lint_rule_clangd(Lint* lint) {
 }
 
 /*
+ * A reflected field named like a secret carries `@redact`, or says out loud that it is meant to be read.
+ *
+ * Reflection is what writes a struct out — into a log record, a debug dump, an IPC message — so a field
+ * it describes is a field that can appear somewhere a person reads, and `password`, `token`, `secret`
+ * and `code` are the names that then cost something. The tag is a one-word decision and its absence is
+ * indistinguishable from nobody having thought about it, which is what this rule turns into a failure.
+ *
+ * `@loggable` is the other answer, for a field whose name says secret and whose content does not: an
+ * expiry, a count of codes, a token *type*. It has to be written, because the point is the decision.
+ *
+ * Scoped to the headers under src/nyangine and src/gnyame, which is exactly what the reflection pass
+ * reads; a struct anywhere else has no generated table and nothing to tag.
+ */
+void _lint_rule_redact(Lint* lint) {
+    nya_array_foreach (lint->files, file) {
+        if (file->generated || !nya_string_ends_with(file->path, ".h")) continue;
+        if (!nya_string_contains(file->path, "src/nyangine/") && !nya_string_contains(file->path, "src/gnyame/")) continue;
+
+        NYA_ArrayᐸNYA_Tokenᐳ* tokens = file->lexer.tokens;
+
+        for (u64 index = 0; index < tokens->length; index++) {
+            if (!_lint_comment_has(file, index, "@reflect")) continue;
+
+            u64 cursor = index + 1;
+            while (cursor < tokens->length && tokens->items[cursor].type == NYA_TOKEN_COMMENT) cursor++;
+
+            if (_lint_token_is(file, &tokens->items[cursor], "typedef")) cursor++;
+
+            // an enum has variants rather than fields, and a variant carries no value to redact.
+            if (!_lint_token_is(file, &tokens->items[cursor], "struct") && !_lint_token_is(file, &tokens->items[cursor], "union")) continue;
+
+            while (cursor < tokens->length && !_lint_symbol_is(&tokens->items[cursor], '{')) cursor++;
+
+            u32 depth = 0;
+
+            for (; cursor < tokens->length; cursor++) {
+                NYA_Token* token = &tokens->items[cursor];
+
+                if (_lint_symbol_is(token, '{')) depth++;
+                if (_lint_symbol_is(token, '}') && --depth == 0) break;
+
+                // a declarator, by the same shape the reflection pass reads: a name, then the end of
+                // the declaration, another declarator, or an array extent.
+                if (token->type != NYA_TOKEN_IDENT || cursor + 1 >= tokens->length) continue;
+                if (!_lint_symbol_is(&tokens->items[cursor + 1], ';') && !_lint_symbol_is(&tokens->items[cursor + 1], ',') &&
+                    !_lint_symbol_is(&tokens->items[cursor + 1], '[')) {
+                    continue;
+                }
+
+                NYA_String* name = _lint_token_text(nya_arena_global, file, token);
+
+                NYA_ConstCString word = nullptr;
+                for (u32 entry = 0; entry < nya_carray_length(_LINT_SECRET_WORDS) && word == nullptr; entry++) {
+                    if (_lint_name_holds(name, _LINT_SECRET_WORDS[entry])) word = _LINT_SECRET_WORDS[entry];
+                }
+                if (word == nullptr) continue;
+
+                // the annotation sits in a comment on the field's own line, which is where the
+                // reflection pass reads `@key` and `@skip` from too.
+                b8 answered = false;
+                for (u64 look = cursor + 1; look < tokens->length && look < cursor + 6 && !answered; look++) {
+                    if (tokens->items[look].type != NYA_TOKEN_COMMENT || tokens->items[look].line_number != token->line_number) continue;
+
+                    answered = _lint_comment_has(file, look, "@redact") || _lint_comment_has(file, look, "@loggable") ||
+                               _lint_comment_has(file, look, "@skip");
+                }
+                if (answered) continue;
+
+                _lint_report(lint, "redact", file->path, token->line_number,
+                             "%.*s is a reflected field named like a '%s': tag it @redact, or @loggable to say it may be read",
+                             (int)name->length, name->items, word);
+            }
+        }
+    }
+}
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -562,6 +660,58 @@ b8 _lint_symbol_is(const NYA_Token* token, u8 symbol) {
 
 NYA_String* _lint_token_text(NYA_Arena* arena, const LintFile* file, const NYA_Token* token) {
     return nya_string_sprintf(arena, "%.*s", (int)token->length, &file->lexer.source[token->source_location]);
+}
+
+b8 _lint_comment_has(const LintFile* file, u64 index, NYA_ConstCString marker) {
+    if (index >= file->lexer.tokens->length) return false;
+
+    NYA_Token token = file->lexer.tokens->items[index];
+    if (token.type != NYA_TOKEN_COMMENT) return false;
+
+    u64 size = strlen(marker);
+    if (token.length < size) return false;
+
+    NYA_ConstCString body = &file->lexer.source[token.source_location];
+
+    for (u64 at = 0; at + size <= token.length; at++) {
+        if (nya_memcmp(body + at, marker, size) != 0) continue;
+
+        // only at the start of a line within the comment, so prose that names an annotation is prose.
+        b8 at_line_start = true;
+
+        for (u64 back = at; back > 0; back--) {
+            u8 previous = (u8)body[back - 1];
+
+            if (previous == '\n') break;
+            if (previous == ' ' || previous == '\t' || previous == '*') continue;
+
+            at_line_start = false;
+            break;
+        }
+
+        if (at_line_start) return true;
+    }
+
+    return false;
+}
+
+b8 _lint_name_holds(const NYA_String* name, NYA_ConstCString word) {
+    u64 size = strlen(word);
+    if (name->length < size) return false;
+
+    for (u64 at = 0; at + size <= name->length; at++) {
+        b8 same = true;
+
+        for (u64 i = 0; i < size && same; i++) {
+            char character = name->items[at + i];
+
+            same = (character >= 'A' && character <= 'Z' ? (char)(character - 'A' + 'a') : character) == word[i];
+        }
+
+        if (same) return true;
+    }
+
+    return false;
 }
 
 NYA_ArrayᐸNYA_Stringᐳ* _lint_api_names(const LintFile* file) {
