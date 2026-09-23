@@ -31,10 +31,10 @@ NYA_Value* nya_object_get(const NYA_Object* obj, NYA_CString key) {
     return nya_dict_get(obj, key);
 }
 
-void nya_object_set(NYA_Object* obj, NYA_CString key, NYA_Value value) {
+void nya_object_add(NYA_Object* obj, NYA_CString key, NYA_Value value) {
     nya_assert(obj != nullptr);
     nya_assert(key != nullptr);
-    nya_dict_set(obj, key, value);
+    nya_dict_add(obj, key, value);
 }
 
 void nya_object_remove(NYA_Object* obj, NYA_CString key) {

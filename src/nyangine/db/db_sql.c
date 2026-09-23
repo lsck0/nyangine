@@ -318,13 +318,13 @@ NYA_Object* _nya_sql_row_to_object(sqlite3_stmt* statement, NYA_Arena* arena) {
         NYA_CString key        = nya_string_to_cstring(arena, key_string);
 
         switch (sqlite3_column_type(statement, i)) {
-            case SQLITE_INTEGER: nya_object_set(row, key, (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = sqlite3_column_int64(statement, i) }); break;
-            case SQLITE_FLOAT:   nya_object_set(row, key, (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = sqlite3_column_double(statement, i) }); break;
+            case SQLITE_INTEGER: nya_object_add(row, key, (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = sqlite3_column_int64(statement, i) }); break;
+            case SQLITE_FLOAT:   nya_object_add(row, key, (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = sqlite3_column_double(statement, i) }); break;
 
             case SQLITE_TEXT: {
                 NYA_ConstCString text = (NYA_ConstCString)sqlite3_column_text(statement, i);
                 NYA_String*      copy = nya_string_sprintf(arena, "%s", text != nullptr ? text : "");
-                nya_object_set(row, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, copy) });
+                nya_object_add(row, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, copy) });
             } break;
 
             /*
@@ -336,13 +336,13 @@ NYA_Object* _nya_sql_row_to_object(sqlite3_stmt* statement, NYA_Arena* arena) {
 
                 NYA_String* encoded = nya_string_create(arena);
                 nya_base64_encode(encoded, data, (u64)(size > 0 ? size : 0));
-                nya_object_set(row, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, encoded) });
+                nya_object_add(row, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, encoded) });
             } break;
 
             // Present with a null value rather than absent, so a caller can tell "no such column"
             // from "this column is null".
             case SQLITE_NULL:
-            default:          nya_object_set(row, key, (NYA_Value){ .type = NYA_TYPE_NULL }); break;
+            default:          nya_object_add(row, key, (NYA_Value){ .type = NYA_TYPE_NULL }); break;
         }
     }
 

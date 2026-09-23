@@ -3,7 +3,7 @@
  *
  * ```c
  * NYA_Object* progress = nya_object_create(arena);
- * nya_object_set(progress, "depth", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 41 });
+ * nya_object_add(progress, "depth", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 41 });
  *
  * NYA_EXPECT(nya_save_write("saves/slot0.nya", progress, NYA_SERDE_PRETTY));
  *
@@ -166,7 +166,7 @@ NYA_API NYA_Error nya_save_database_open(NYA_Arena* arena, NYA_ConstCString rela
  * only cheap way to tell them apart.
  *
  * ```c
- * nya_object_set(save, NYA_SAVE_VERSION_KEY, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 3 });
+ * nya_object_add(save, NYA_SAVE_VERSION_KEY, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 3 });
  * ```
  * */
 #define NYA_SAVE_VERSION_KEY "save_version"

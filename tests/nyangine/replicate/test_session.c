@@ -443,9 +443,9 @@ s32 main(void) {
       nya_net_message_begin(payload, NYA_NET_MSG_HELLO);
 
       NYA_Object* hello = nya_object_create(arena);
-      nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION + 99 });
-      nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-      nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "from the future" });
+      nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION + 99 });
+      nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+      nya_object_add(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "from the future" });
 
       NYA_EXPECT(nya_net_message_write_object(arena, payload, hello));
 
@@ -468,9 +468,9 @@ s32 main(void) {
       nya_net_message_begin(payload, NYA_NET_MSG_HELLO);
 
       NYA_Object* hello = nya_object_create(arena);
-      nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION + 99 });
-      nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-      nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "from the future" });
+      nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION + 99 });
+      nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+      nya_object_add(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "from the future" });
 
       NYA_EXPECT(nya_net_message_write_object(arena, payload, hello));
 

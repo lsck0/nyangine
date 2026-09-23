@@ -485,7 +485,7 @@ NYA_INTERNAL NYA_Dictᐸb8ᐳ* _test_scan_header_identifiers(void) {
             b8* known  = nya_dict_get(identifiers, name);
 
             if (known == nullptr) {
-                nya_dict_set(identifiers, name, usable);
+                nya_dict_add(identifiers, name, usable);
             } else {
                 *known = *known && usable;
             }

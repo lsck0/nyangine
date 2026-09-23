@@ -675,9 +675,9 @@ void _nya_control_send_error(NYA_IpcPeerId peer, const NYA_Value* id, NYA_ConstC
 
     NYA_Object* reply = nya_object_create(_NYA_CONTROL->scratch);
 
-    if (id != nullptr) nya_object_set(reply, "id", *id);
-    nya_object_set(reply, "ok", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = false });
-    nya_object_set(
+    if (id != nullptr) nya_object_add(reply, "id", *id);
+    nya_object_add(reply, "ok", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = false });
+    nya_object_add(
         reply,
         "error",
         (NYA_Value){ .type      = NYA_TYPE_STRING,
@@ -706,7 +706,7 @@ void _nya_control_handle(NYA_IpcPeerId peer, const NYA_Object* request) {
     }
 
     NYA_Object* reply = nya_object_create(_NYA_CONTROL->scratch);
-    if (id != nullptr) nya_object_set(reply, "id", *id);
+    if (id != nullptr) nya_object_add(reply, "id", *id);
 
     b8 ok = true;
 
@@ -736,7 +736,7 @@ void _nya_control_handle(NYA_IpcPeerId peer, const NYA_Object* request) {
     // A verb that failed has already sent its own error, which says which rule it was.
     if (!ok) return;
 
-    nya_object_set(reply, "ok", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
+    nya_object_add(reply, "ok", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
     _nya_control_send(peer, reply);
 }
 
@@ -745,9 +745,9 @@ void _nya_control_handle_hello(NYA_IpcPeerId peer, const NYA_Object* request, NY
 
     NYA_Arena* scratch = _NYA_CONTROL->scratch;
 
-    nya_object_set(reply, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_CONTROL_PROTOCOL_VERSION });
-    nya_object_set(reply, "engine", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "nyangine" });
-    nya_object_set(reply, "version", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)NYA_VERSION });
+    nya_object_add(reply, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_CONTROL_PROTOCOL_VERSION });
+    nya_object_add(reply, "engine", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "nyangine" });
+    nya_object_add(reply, "version", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)NYA_VERSION });
 
     NYA_ArrayᐸNYA_Valueᐳ* permissions = nya_array_create(scratch, NYA_Value);
 
@@ -759,7 +759,7 @@ void _nya_control_handle_hello(NYA_IpcPeerId peer, const NYA_Object* request, NY
         nya_array_push_back(permissions, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "dispatch" }));
     }
 
-    nya_object_set(reply, "permissions", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *permissions });
+    nya_object_add(reply, "permissions", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *permissions });
 
     NYA_ArrayᐸNYA_Valueᐳ* objects = nya_array_create(scratch, NYA_Value);
 
@@ -767,7 +767,7 @@ void _nya_control_handle_hello(NYA_IpcPeerId peer, const NYA_Object* request, NY
         nya_array_push_back(objects, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = _NYA_CONTROL_EXPOSED[i].name }));
     }
 
-    nya_object_set(reply, "objects", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *objects });
+    nya_object_add(reply, "objects", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *objects });
 
     NYA_ArrayᐸNYA_Valueᐳ* events = nya_array_create(scratch, NYA_Value);
 
@@ -777,7 +777,7 @@ void _nya_control_handle_hello(NYA_IpcPeerId peer, const NYA_Object* request, NY
         nya_array_push_back(events, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)NYA_EVENT_NAME_MAP[type] }));
     }
 
-    nya_object_set(reply, "events", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *events });
+    nya_object_add(reply, "events", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *events });
 }
 
 void _nya_control_handle_object_list(NYA_Object* reply) {
@@ -788,13 +788,13 @@ void _nya_control_handle_object_list(NYA_Object* reply) {
     for (u32 i = 0; i < _NYA_CONTROL_EXPOSED_COUNT; i++) {
         NYA_Object* entry = nya_object_create(scratch);
 
-        nya_object_set(entry, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = _NYA_CONTROL_EXPOSED[i].name });
-        nya_object_set(entry, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)_NYA_CONTROL_EXPOSED[i].type->name });
+        nya_object_add(entry, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = _NYA_CONTROL_EXPOSED[i].name });
+        nya_object_add(entry, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)_NYA_CONTROL_EXPOSED[i].type->name });
 
         nya_array_push_back(objects, ((NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *entry }));
     }
 
-    nya_object_set(reply, "objects", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *objects });
+    nya_object_add(reply, "objects", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *objects });
 }
 
 void _nya_control_handle_object_get(NYA_IpcPeerId peer, const NYA_Object* request, NYA_Object* reply, OUT b8* out_ok) {
@@ -820,8 +820,8 @@ void _nya_control_handle_object_get(NYA_IpcPeerId peer, const NYA_Object* reques
         return;
     }
 
-    nya_object_set(reply, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = exposure->name });
-    nya_object_set(reply, "value", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *value });
+    nya_object_add(reply, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = exposure->name });
+    nya_object_add(reply, "value", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *value });
 
     *out_ok = true;
 }
@@ -1049,16 +1049,16 @@ void _nya_control_on_engine_event(NYA_Event* event) {
 
         NYA_Object* push = nya_object_create(scratch);
 
-        nya_object_set(push, "op", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "event" });
-        nya_object_set(push, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)NYA_EVENT_NAME_MAP[event->type] });
-        nya_object_set(push, "timestamp", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = event->timestamp });
+        nya_object_add(push, "op", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "event" });
+        nya_object_add(push, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)NYA_EVENT_NAME_MAP[event->type] });
+        nya_object_add(push, "timestamp", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = event->timestamp });
 
         if (event->type == NYA_EVENT_CONTROL_MESSAGE && event->as_control_message_event.name != nullptr) {
-            nya_object_set(push, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)event->as_control_message_event.name });
+            nya_object_add(push, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)event->as_control_message_event.name });
         } else if (_NYA_CONTROL_EVENT_PAYLOAD[event->type] != nullptr) {
             NYA_Object* payload = nya_reflect_to_object(scratch, _NYA_CONTROL_EVENT_PAYLOAD[event->type], &event->as_asset_event);
 
-            if (payload != nullptr) nya_object_set(push, "payload", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *payload });
+            if (payload != nullptr) nya_object_add(push, "payload", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *payload });
         }
 
         _nya_control_send(connection->peer, push);

@@ -746,9 +746,9 @@ s32 main(void) {
 
     // A valid document, then padding past the limit. Valid so that a refusal can only be about the size.
     NYA_Object* hello = nya_object_create(arena);
-    nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-    nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-    nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "attacker" });
+    nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_add(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "attacker" });
 
     NYA_EXPECT(nya_net_message_write_object(arena, payload, hello));
 
@@ -783,9 +783,9 @@ s32 main(void) {
       nya_net_message_begin(hello_payload, NYA_NET_MSG_HELLO);
 
       NYA_Object* hello = nya_object_create(arena);
-      nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-      nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-      nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "liar" });
+      nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+      nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+      nya_object_add(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "liar" });
 
       NYA_EXPECT(nya_net_message_write_object(arena, hello_payload, hello));
 
@@ -831,9 +831,9 @@ s32 main(void) {
     nya_net_message_begin(hello_payload, NYA_NET_MSG_HELLO);
 
     NYA_Object* hello = nya_object_create(arena);
-    nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-    nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-    nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "timetraveller" });
+    nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_add(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "timetraveller" });
 
     NYA_EXPECT(nya_net_message_write_object(arena, hello_payload, hello));
     SEND_AS_CLIENT(hello_payload);
@@ -898,9 +898,9 @@ s32 main(void) {
     nya_net_message_begin(hello_payload, NYA_NET_MSG_HELLO);
 
     NYA_Object* hello = nya_object_create(arena);
-    nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-    nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-    nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "malformer" });
+    nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_add(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "malformer" });
 
     NYA_EXPECT(nya_net_message_write_object(arena, hello_payload, hello));
     SEND_AS_CLIENT(hello_payload);
@@ -938,10 +938,10 @@ s32 main(void) {
     nya_net_message_begin(hello_payload, NYA_NET_MSG_HELLO);
 
     NYA_Object* hello = nya_object_create(arena);
-    nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-    nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-    nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "speedhack" });
-    nya_object_set(hello, "tick", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1000 });
+    nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_add(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "speedhack" });
+    nya_object_add(hello, "tick", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1000 });
 
     NYA_EXPECT(nya_net_message_write_object(arena, hello_payload, hello));
     SEND_AS_CLIENT(hello_payload);
@@ -1007,9 +1007,9 @@ s32 main(void) {
     nya_net_message_begin(hello_payload, NYA_NET_MSG_HELLO);
 
     NYA_Object* hello = nya_object_create(arena);
-    nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-    nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-    nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "teleporter" });
+    nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_add(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "teleporter" });
 
     NYA_EXPECT(nya_net_message_write_object(arena, hello_payload, hello));
     SEND_AS_CLIENT(hello_payload);

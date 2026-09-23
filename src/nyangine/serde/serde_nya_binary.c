@@ -572,7 +572,7 @@ NYA_Error _nya_serde_nya_binary_read_object(_NYA_SerdeNyaBinaryReader* reader, O
 
     reader->depth++;
 
-    // sized so that no insertion below grows the table: nya_dict_set grows past a load of three quarters.
+    // sized so that no insertion below grows the table: nya_dict_add grows past a load of three quarters.
     u64        capacity = count == 0 ? 0 : (u64)count + (u64)count / 3 + 1;
     NYA_Object object   = nya_dict_create_with_capacity_on_stack(reader->arena, NYA_Value, capacity);
 
@@ -604,7 +604,7 @@ NYA_Error _nya_serde_nya_binary_read_object(_NYA_SerdeNyaBinaryReader* reader, O
         NYA_Value value = { 0 };
         NYA_TRY(_nya_serde_nya_binary_read_value(reader, &value));
 
-        nya_object_set(&object, key, value);
+        nya_object_add(&object, key, value);
     }
 
     nya_assert(object.length == (u64)count, "a member was dropped or merged although every key was distinct");

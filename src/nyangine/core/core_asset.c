@@ -385,7 +385,7 @@ void _nya_asset_lookup_remember(NYA_AssetHandle handle, u64 handle_length, NYA_A
     void* slot = nullptr;
 
     // cannot fail: the caller checked the key fits, and a least recent cache always makes room.
-    NYA_EXPECT(nya_cache_insert(_nya_asset_lookup, handle, handle_length, _nya_asset_lookup_generation, &slot));
+    NYA_EXPECT(nya_cache_add(_nya_asset_lookup, handle, handle_length, _nya_asset_lookup_generation, &slot));
     *(NYA_Asset**)slot = asset;
 }
 
@@ -521,7 +521,7 @@ NYA_Error nya_asset_load(NYA_AssetLoadParameters parameters) {
         .reference_count = 0,
     };
 
-    nya_dict_set(system->assets, parameters.handle, new_asset);
+    nya_dict_add(system->assets, parameters.handle, new_asset);
 
     // the insert may have rehashed, moving every NYA_Asset* the memo holds.
     _nya_asset_lookup_invalidate();

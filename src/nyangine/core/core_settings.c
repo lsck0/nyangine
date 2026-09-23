@@ -97,7 +97,7 @@ NYA_Object* nya_settings_to_object(NYA_Arena* arena) {
 
     NYA_Object* root = nya_object_create(arena);
 
-    nya_object_set(root, NYA_SAVE_VERSION_KEY, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = NYA_SETTINGS_VERSION });
+    nya_object_add(root, NYA_SAVE_VERSION_KEY, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = NYA_SETTINGS_VERSION });
 
     // Copied rather than cast: the two are the same bytes by static_assert, and a copy says so without
     // asking the compiler to believe an f32 array and a struct of f32 alias.
@@ -106,7 +106,7 @@ NYA_Object* nya_settings_to_object(NYA_Arena* arena) {
 
     NYA_Object* volumes_object = nya_reflect_to_object(arena, nya_reflect_of(NYA_SettingsVolumes), &volumes);
 
-    nya_object_set(root, "volumes", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *volumes_object });
+    nya_object_add(root, "volumes", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *volumes_object });
 
     NYA_Object* bindings = nya_object_create(arena);
     for (u32 action = 1; action < NYA_INPUT_ACTION_MAX; action++) {
@@ -129,17 +129,17 @@ NYA_Object* nya_settings_to_object(NYA_Arena* arena) {
             nya_array_push_back(keys, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, text) }));
         }
 
-        nya_object_set(bindings, (NYA_CString)name, (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *keys });
+        nya_object_add(bindings, (NYA_CString)name, (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *keys });
     }
 
-    nya_object_set(root, "bindings", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *bindings });
+    nya_object_add(root, "bindings", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *bindings });
 
     NYA_ConstCString name = nya_settings_player_name();
-    if (name[0] != '\0') nya_object_set(root, "player_name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)name });
+    if (name[0] != '\0') nya_object_add(root, "player_name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)name });
 
     NYA_Object* graphics = nya_reflect_to_object(arena, nya_reflect_of(NYA_SettingsGraphics), &nya_settings()->graphics);
 
-    nya_object_set(root, "graphics", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *graphics });
+    nya_object_add(root, "graphics", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *graphics });
 
     return root;
 }

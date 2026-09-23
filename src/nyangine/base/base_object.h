@@ -83,7 +83,7 @@ NYA_API void        nya_object_reset(NYA_Object* obj);
 NYA_API void        nya_object_destroy(NYA_Object* obj);
 NYA_API void        nya_object_destroy_on_stack(NYA_Object* obj);
 NYA_API NYA_Value*  nya_object_get(const NYA_Object* obj, NYA_CString key);
-NYA_API void        nya_object_set(NYA_Object* obj, NYA_CString key, NYA_Value value);
+NYA_API void        nya_object_add(NYA_Object* obj, NYA_CString key, NYA_Value value);
 NYA_API void        nya_object_remove(NYA_Object* obj, NYA_CString key);
 
 NYA_API NYA_String* nya_s128_to_string(NYA_Arena* arena, s128 value);

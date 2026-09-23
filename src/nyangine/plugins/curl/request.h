@@ -6,7 +6,7 @@
  * defer      nya_arena_destroy(arena);
  *
  * NYA_Object* body = nya_object_create(arena);
- * nya_object_set(body, "score", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 4200 });
+ * nya_object_add(body, "score", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 4200 });
  *
  * NYA_Response response = { 0 };
  * NYA_Error    result   = nya_request_perform(arena, (NYA_Request){

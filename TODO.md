@@ -319,20 +319,29 @@ Small, and first, because every later phase trusts these numbers.
   - The verb rule judges public names only and skips `_is_` predicates. Most of its allowances are the
     vocabulary's gaps rather than bugs: containers insert with `set` and pair it with `remove`, GPU resources
     are created and released, and arena owned objects have no destroy. Deciding those words is its own item.
-- `[ ]` The uncalled functions: a caller, a test or deletion, decided per cluster. The rule above counts them
+- `[x]` The uncalled functions: a caller, a test or deletion, decided per cluster. The rule above counts them
   as identifiers, where the old audit matched text and counted a doc comment or a string naming a function as
   a call, so it finds 81 where the audit's count had come down to 36 (the window, Steam, fluid and renderer
-  clusters are most of the difference). Every entry sits in `_LINT_CALLERS_ALLOWED`, grouped by header; each
-  cluster decided removes its lines. Down to 20 after the window, Steam, testing, asset blob, input, base and core
-  clusters: tests, real callers, two deletions (`nya_simulation_pick`, a duplicate of `nya_simulation_below`, and
-  `nya_string_println`) and one bug found (`nya_i18n_load_bytes` kept watching the previous locale's file). Some
-  unexercised surface is deliberate, since this is a library: that
-  becomes an entry with a real reason instead of "no caller when the rule landed". Earlier: steam, entity
-  queries, window state, rng, audio, nn and cursor got tests, and the window cluster found a real bug
-  (`nya_window_is_visible` answered true for a handle that is not a window).
-- `[ ]` The verb vocabulary's gaps the verb rule turned up: `set`/`remove` on every container, `create`/`release`
+  clusters are most of the difference). `_LINT_CALLERS_ALLOWED` is empty now: every entry got a test, a real
+  caller, or was deleted, cluster by cluster — window, Steam, testing, asset blob, input, base, core, then the
+  last five (nn's step budget and the DQN's acting network, a tensor copy, Lua's nil and the JSON responder).
+  Two deletions (`nya_simulation_pick`, a duplicate of `nya_simulation_below`, and `nya_string_println`) and one
+  bug found (`nya_i18n_load_bytes` kept watching the previous locale's file). Earlier: steam, entity queries,
+  window state, rng, audio, nn and cursor got tests, and the window cluster found a real bug
+  (`nya_window_is_visible` answered true for a handle that is not a window). No library surface needed a
+  deliberate no-caller entry; nothing wanted one that the tests or gnyame didn't already want more.
+- `[~]` The verb vocabulary's gaps the verb rule turned up: `set`/`remove` on every container, `create`/`release`
   on GPU resources, arena owned objects with no `destroy`, and brackets like `nya_trace_frame_end` whose other
-  half is implicit. Decide the words once, in the style guide, then rename or pair.
+  half is implicit. Decided in AGENTS.md's naming conventions. Containers pair with `add`, not `set` or
+  `insert`, matching `nya_array_add`/`nya_array_remove`: `nya_dict_add`, `nya_hmap_add`, `nya_hset_add`,
+  `nya_cache_add`, `nya_object_add` and `nya_host_environment_add` renamed, which empties that half of
+  `_LINT_VERB_PAIRS_ALLOWED`. GPU resources and arena owned objects are decided too — `create`/`release` for
+  what the arena does not own, no destroy at all for what it does — but stay allowances rather than a rule
+  change: `create` and `release` are each already half of a different pair (`create`/`destroy`,
+  `acquire`/`release`), so the checker asks for both halves independently and a correctly paired
+  `create`/`release` function still needs an entry. The frame and tick markers are decided as not brackets at
+  all, for the same reason renaming them would not clear the check. Left: whether the checker should accept
+  any one satisfied pair instead of every pair a word belongs to, which is a rule change, not a naming one.
 - `[x]` `src/nyangine/editor/` is two empty files and no editor is planned. Deleted.
 - `[x]` `assets/shader/compiled/mesh3d_outline.vert.*` has no source under `assets/shader/source/`. It is left
   over from the inverted hull that screen space ink replaced. The shader rule now deletes compiled outputs whose

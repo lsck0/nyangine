@@ -1048,17 +1048,17 @@ NYA_Object* nya_tilemap_to_object(NYA_Arena* arena, const NYA_Tilemap* map) {
     NYA_Object* root = nya_object_create(arena);
 
     // the fields Tiled writes and this loader reads, including its version keys.
-    nya_object_set(root, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "map" });
-    nya_object_set(root, "infinite", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = false });
-    nya_object_set(root, "renderorder", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "right-down" });
-    nya_object_set(root, "orientation",
+    nya_object_add(root, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "map" });
+    nya_object_add(root, "infinite", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = false });
+    nya_object_add(root, "renderorder", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "right-down" });
+    nya_object_add(root, "orientation",
                    (NYA_Value){ .type      = NYA_TYPE_STRING,
                                 .as_string = (NYA_CString)(map->orientation == NYA_TILEMAP_ISOMETRIC ? "isometric" : "orthogonal") });
 
-    nya_object_set(root, "width", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = map->width });
-    nya_object_set(root, "height", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = map->height });
-    nya_object_set(root, "tilewidth", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = map->tile_width });
-    nya_object_set(root, "tileheight", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = map->tile_height });
+    nya_object_add(root, "width", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = map->width });
+    nya_object_add(root, "height", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = map->height });
+    nya_object_add(root, "tilewidth", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = map->tile_width });
+    nya_object_add(root, "tileheight", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = map->tile_height });
 
     // tilesets
     NYA_ArrayᐸNYA_Valueᐳ* tilesets = nya_array_create(arena, NYA_Value);
@@ -1068,20 +1068,20 @@ NYA_Object* nya_tilemap_to_object(NYA_Arena* arena, const NYA_Tilemap* map) {
 
         NYA_Object* entry = nya_object_create(arena);
 
-        nya_object_set(entry, "firstgid", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->first_gid });
-        nya_object_set(entry, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)tileset->name });
-        nya_object_set(entry, "image", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)tileset->texture });
-        nya_object_set(entry, "tilewidth", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->tile_width });
-        nya_object_set(entry, "tileheight", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->tile_height });
-        nya_object_set(entry, "columns", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->columns });
-        nya_object_set(entry, "tilecount", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->tile_count });
-        nya_object_set(entry, "spacing", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->spacing });
-        nya_object_set(entry, "margin", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->margin });
+        nya_object_add(entry, "firstgid", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->first_gid });
+        nya_object_add(entry, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)tileset->name });
+        nya_object_add(entry, "image", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)tileset->texture });
+        nya_object_add(entry, "tilewidth", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->tile_width });
+        nya_object_add(entry, "tileheight", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->tile_height });
+        nya_object_add(entry, "columns", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->columns });
+        nya_object_add(entry, "tilecount", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->tile_count });
+        nya_object_add(entry, "spacing", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->spacing });
+        nya_object_add(entry, "margin", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = tileset->margin });
 
         nya_array_push_back(tilesets, ((NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *entry }));
     }
 
-    nya_object_set(root, "tilesets", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *tilesets });
+    nya_object_add(root, "tilesets", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *tilesets });
 
     // layers
     NYA_ArrayᐸNYA_Valueᐳ* layers = nya_array_create(arena, NYA_Value);
@@ -1095,14 +1095,14 @@ NYA_Object* nya_tilemap_to_object(NYA_Arena* arena, const NYA_Tilemap* map) {
 
         NYA_Object* entry = nya_object_create(arena);
 
-        nya_object_set(entry, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "tilelayer" });
-        nya_object_set(entry, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)layer->name });
-        nya_object_set(entry, "visible", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = layer->visible });
-        nya_object_set(entry, "opacity", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = layer->opacity });
-        nya_object_set(entry, "width", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = layer->width });
-        nya_object_set(entry, "height", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = layer->height });
-        nya_object_set(entry, "x", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 0 });
-        nya_object_set(entry, "y", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 0 });
+        nya_object_add(entry, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "tilelayer" });
+        nya_object_add(entry, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)layer->name });
+        nya_object_add(entry, "visible", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = layer->visible });
+        nya_object_add(entry, "opacity", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = layer->opacity });
+        nya_object_add(entry, "width", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = layer->width });
+        nya_object_add(entry, "height", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = layer->height });
+        nya_object_add(entry, "x", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 0 });
+        nya_object_add(entry, "y", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 0 });
 
         NYA_ArrayᐸNYA_Valueᐳ* data = nya_array_create(arena, NYA_Value);
 
@@ -1113,12 +1113,12 @@ NYA_Object* nya_tilemap_to_object(NYA_Arena* arena, const NYA_Tilemap* map) {
             nya_array_push_back(data, ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = gid }));
         }
 
-        nya_object_set(entry, "data", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *data });
+        nya_object_add(entry, "data", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *data });
 
         nya_array_push_back(layers, ((NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *entry }));
     }
 
-    nya_object_set(root, "layers", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *layers });
+    nya_object_add(root, "layers", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *layers });
 
     return root;
 }

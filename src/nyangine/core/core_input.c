@@ -805,11 +805,11 @@ void _nya_input_state_handle_event(NYA_InputState* state, const NYA_Event* event
         b8*         is_pressed = nya_hmap_get(state->keys_pressed, keycode);
 
         if (is_down) {
-            if (is_pressed == nullptr || !(*is_pressed)) nya_hmap_set(state->keys_just_pressed, keycode, true);
-            nya_hmap_set(state->keys_pressed, keycode, true);
+            if (is_pressed == nullptr || !(*is_pressed)) nya_hmap_add(state->keys_just_pressed, keycode, true);
+            nya_hmap_add(state->keys_pressed, keycode, true);
         } else {
-            nya_hmap_set(state->keys_pressed, keycode, false);
-            nya_hmap_set(state->keys_just_released, keycode, true);
+            nya_hmap_add(state->keys_pressed, keycode, false);
+            nya_hmap_add(state->keys_just_released, keycode, true);
         }
     }
 

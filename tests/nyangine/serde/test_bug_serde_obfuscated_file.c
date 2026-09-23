@@ -22,7 +22,7 @@ s32 main(void) {
 
       for (u32 i = 0; i < field_count; i++) {
         NYA_String* key = nya_string_sprintf(arena, "field_%u", i);
-        nya_object_set(object, nya_string_to_cstring(arena, key), ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = (i * 37U) + 11U }));
+        nya_object_add(object, nya_string_to_cstring(arena, key), ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = (i * 37U) + 11U }));
       }
 
       // Whether this document actually contains a zero byte decides whether it exercises the bug.

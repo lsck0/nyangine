@@ -96,8 +96,8 @@ NYA_INTERNAL NYA_EntityHandle _nya_lua_argument_handle(const NYA_LuaCall* call, 
 NYA_INTERNAL NYA_Value _nya_lua_handle_value(NYA_Arena* arena, NYA_EntityHandle handle) {
     NYA_Object table = nya_object_create_on_stack(arena);
 
-    nya_object_set(&table, "index", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)handle.index });
-    nya_object_set(&table, "generation", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)handle.generation });
+    nya_object_add(&table, "index", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)handle.index });
+    nya_object_add(&table, "generation", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)handle.generation });
 
     return (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = table };
 }
@@ -215,9 +215,9 @@ NYA_INTERNAL void nya_lua_binding_position(NYA_LuaCall* call) {
 
     NYA_Object position = nya_object_create_on_stack(call->arena);
 
-    nya_object_set(&position, "x", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)entity->position.x });
-    nya_object_set(&position, "y", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)entity->position.y });
-    nya_object_set(&position, "z", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)entity->position.z });
+    nya_object_add(&position, "x", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)entity->position.x });
+    nya_object_add(&position, "y", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)entity->position.y });
+    nya_object_add(&position, "z", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)entity->position.z });
 
     call->results[0]   = (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = position };
     call->result_count = 1;

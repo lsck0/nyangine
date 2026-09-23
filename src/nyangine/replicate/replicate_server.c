@@ -853,9 +853,9 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
         nya_net_message_begin(payload, NYA_NET_MSG_REJECT);
 
         NYA_Object* reject = nya_object_create(scratch);
-        nya_object_set(reject, "reason", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_DISCONNECT_VERSION });
-        nya_object_set(reject, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-        nya_object_set(reject, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+        nya_object_add(reject, "reason", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_DISCONNECT_VERSION });
+        nya_object_add(reject, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+        nya_object_add(reject, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
 
         NYA_EXPECT(nya_net_message_write_object(scratch, payload, reject));
 
@@ -881,7 +881,7 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
         nya_net_message_begin(payload, NYA_NET_MSG_REJECT);
 
         NYA_Object* reject = nya_object_create(scratch);
-        nya_object_set(reject, "reason", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_DISCONNECT_FULL });
+        nya_object_add(reject, "reason", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_DISCONNECT_FULL });
 
         NYA_EXPECT(nya_net_message_write_object(scratch, payload, reject));
         (void)nya_net_transport_send(transport, peer, NYA_NET_CHANNEL_RELIABLE, payload->items, payload->length);
@@ -919,12 +919,12 @@ void _nya_net_server_handle_hello(NYA_NetTransport* transport, NYA_NetPeerId pee
     nya_net_message_begin(welcome, NYA_NET_MSG_WELCOME);
 
     NYA_Object* body_object = nya_object_create(scratch);
-    nya_object_set(body_object, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = peer.index });
-    nya_object_set(body_object, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = peer.generation });
-    nya_object_set(body_object, "entity_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = state->public_state.entity.index });
-    nya_object_set(body_object, "entity_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = state->public_state.entity.generation });
-    nya_object_set(body_object, "replicated_flag", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = _NYA_NET_SERVER.config.replicated_flag });
-    nya_object_set(body_object, "tick_ns", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_app_get()->options.time_step_ns });
+    nya_object_add(body_object, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = peer.index });
+    nya_object_add(body_object, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = peer.generation });
+    nya_object_add(body_object, "entity_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = state->public_state.entity.index });
+    nya_object_add(body_object, "entity_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = state->public_state.entity.generation });
+    nya_object_add(body_object, "replicated_flag", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = _NYA_NET_SERVER.config.replicated_flag });
+    nya_object_add(body_object, "tick_ns", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_app_get()->options.time_step_ns });
 
     NYA_EXPECT(nya_net_message_write_object(scratch, welcome, body_object));
 
@@ -1203,9 +1203,9 @@ void _nya_net_server_broadcast_roster(NYA_NetPeerId about, NYA_ConstCString name
     nya_net_message_begin(payload, joined ? NYA_NET_MSG_PEER_JOINED : NYA_NET_MSG_PEER_LEFT);
 
     NYA_Object* object = nya_object_create(scratch);
-    nya_object_set(object, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = about.index });
-    nya_object_set(object, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = about.generation });
-    nya_object_set(object, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)name });
+    nya_object_add(object, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = about.index });
+    nya_object_add(object, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = about.generation });
+    nya_object_add(object, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)name });
 
     if (!nya_net_message_write_object(scratch, payload, object).ok) return;
 

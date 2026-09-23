@@ -137,15 +137,15 @@ static NYA_Object* draw_object(NYA_Property* property) {
         NYA_CString key = draw_key(property, 12);
 
         switch (nya_property_draw_u8(property) % 5) {
-            case 0: nya_object_set(object, key, (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_property_draw_u64(property) }); break;
-            case 1: nya_object_set(object, key, (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)nya_property_draw_u64(property) }); break;
-            case 2: nya_object_set(object, key, (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = nya_property_draw_bool(property, 50) }); break;
-            case 3: nya_object_set(object, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_property_draw_text(property, 24) }); break;
+            case 0: nya_object_add(object, key, (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_property_draw_u64(property) }); break;
+            case 1: nya_object_add(object, key, (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)nya_property_draw_u64(property) }); break;
+            case 2: nya_object_add(object, key, (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = nya_property_draw_bool(property, 50) }); break;
+            case 3: nya_object_add(object, key, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_property_draw_text(property, 24) }); break;
 
             // the finite range only: a NaN is not equal to itself, so a round trip that preserved it
             // perfectly would still fail the comparison. What a NaN does to a parser is a fuzz
             // question, and tests/fuzz asks it.
-            default: nya_object_set(object, key, (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)nya_property_draw_f32(property, -1.0e6F, 1.0e6F) }); break;
+            default: nya_object_add(object, key, (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)nya_property_draw_f32(property, -1.0e6F, 1.0e6F) }); break;
         }
     }
 
@@ -385,7 +385,7 @@ static NYA_Object* draw_document(NYA_Property* property, u32 depth) {
     NYA_Object* object = nya_object_create(property->allocator);
 
     u32 members = (u32)nya_property_draw_below(property, CONTAINER_ITEMS_MAX + 1);
-    for (u32 i = 0; i < members; i++) nya_object_set(object, draw_key(property, 8), draw_value(property, depth + 1));
+    for (u32 i = 0; i < members; i++) nya_object_add(object, draw_key(property, 8), draw_value(property, depth + 1));
 
     return object;
 }
@@ -912,7 +912,7 @@ static b8 law_dict_remembers(NYA_Property* property) {
 
         u32 value = (u32)nya_property_draw_u64(property);
 
-        nya_dict_set(dict, key, value);
+        nya_dict_add(dict, key, value);
 
         u32* read = nya_dict_get(dict, key);
 
@@ -946,7 +946,7 @@ static b8 law_hset_holds_members_once(NYA_Property* property) {
         u64 before = set->length;
         b8  known  = nya_hset_contains(set, item);
 
-        nya_hset_insert(set, item);
+        nya_hset_add(set, item);
 
         if (!nya_hset_contains(set, item)) {
             nya_property_note(property, "%u was inserted and is not in the set", item);

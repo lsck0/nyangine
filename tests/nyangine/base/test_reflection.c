@@ -428,8 +428,8 @@ s32 main(void) {
     // What an older save looks like against a newer struct: it mentions one field and knows nothing
     // about the rest.
     NYA_Object* partial = nya_object_create(arena);
-    nya_object_set(partial, "health", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = 5 });
-    nya_object_set(partial, "unknown_field", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 1 });
+    nya_object_add(partial, "health", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = 5 });
+    nya_object_add(partial, "unknown_field", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 1 });
 
     TestEntity entity = sample();
 
@@ -449,7 +449,7 @@ s32 main(void) {
   printf("TEST: bounded char array\n");
   {
     NYA_Object* object = nya_object_create(arena);
-    nya_object_set(object, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "a name far longer than sixteen bytes" });
+    nya_object_add(object, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "a name far longer than sixteen bytes" });
 
     TestEntity entity = { 0 };
     NYA_EXPECT(nya_reflect_from_object(&_NYA_REFLECT_TestEntity, &entity, object));
@@ -472,7 +472,7 @@ s32 main(void) {
     with_hook.on_apply           = test_apply;
 
     NYA_Object* object = nya_object_create(arena);
-    nya_object_set(object, "health", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = 77 });
+    nya_object_add(object, "health", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = 77 });
 
     TestEntity entity = { 0 };
 

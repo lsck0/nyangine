@@ -81,7 +81,7 @@ u32 nya_platform_processor_count(void) {
     return (u32)info.dwNumberOfProcessors;
 }
 
-b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value) {
+b8 nya_host_environment_add(NYA_ConstCString name, NYA_ConstCString value) {
     nya_assert(name != nullptr && value != nullptr);
 
     // the CRT's copy rather than SetEnvironmentVariable, since getenv reads the CRT's and not the OS block.

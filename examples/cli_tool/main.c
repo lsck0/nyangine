@@ -36,13 +36,13 @@ NYA_INTERNAL NYA_Object* document_create(NYA_Arena* arena) {
     nya_assert(arena != nullptr);
 
     NYA_Object* engine = nya_object_create(arena);
-    nya_object_set(engine, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "nyangine" });
-    nya_object_set(engine, "modules", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 12 });
-    nya_object_set(engine, "assertions_in_release", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
+    nya_object_add(engine, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "nyangine" });
+    nya_object_add(engine, "modules", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 12 });
+    nya_object_add(engine, "assertions_in_release", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
 
     NYA_Object* root = nya_object_create(arena);
-    nya_object_set(root, "engine", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *engine });
-    nya_object_set(root, "tick_rate_hz", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 62 });
+    nya_object_add(root, "engine", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *engine });
+    nya_object_add(root, "tick_rate_hz", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 62 });
 
     return root;
 }

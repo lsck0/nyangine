@@ -107,13 +107,13 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
 
     NYA_Object* document = nya_object_create(arena);
 
-    nya_object_set(document, "openapi", _nya_http_json_string(NYA_HTTP_OPENAPI_VERSION));
+    nya_object_add(document, "openapi", _nya_http_json_string(NYA_HTTP_OPENAPI_VERSION));
 
     NYA_Object* info = nya_object_create(arena);
-    nya_object_set(info, "title", _nya_http_json_string("nyangine"));
-    nya_object_set(info, "version", _nya_http_json_string(NYA_VERSION));
-    nya_object_set(info, "description", _nya_http_json_string("Generated from the route tables of a running nyangine program."));
-    nya_object_set(document, "info", _nya_http_json_object(info));
+    nya_object_add(info, "title", _nya_http_json_string("nyangine"));
+    nya_object_add(info, "version", _nya_http_json_string(NYA_VERSION));
+    nya_object_add(info, "description", _nya_http_json_string("Generated from the route tables of a running nyangine program."));
+    nya_object_add(document, "info", _nya_http_json_object(info));
 
     /*
      * One tag per mounted resource, in mount order, so a reader sees the same grouping the code has.
@@ -128,7 +128,7 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
         if (router == nullptr) continue;
 
         NYA_Object* tag = nya_object_create(arena);
-        nya_object_set(tag, "name", _nya_http_json_string(router->name));
+        nya_object_add(tag, "name", _nya_http_json_string(router->name));
         nya_array_push_back(tags, _nya_http_json_object(tag));
 
         for (u32 position = 0; position < router->route_count; position++) {
@@ -165,10 +165,10 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
 
             NYA_CString key = nya_string_to_cstring(arena, nya_string_from(arena, method));
 
-            nya_object_set(item, key, _nya_http_json_object(operation));
+            nya_object_add(item, key, _nya_http_json_object(operation));
 
             if (existing == nullptr || existing->type != NYA_TYPE_OBJECT) {
-                nya_object_set(paths, (NYA_CString)route->path, _nya_http_json_object(item));
+                nya_object_add(paths, (NYA_CString)route->path, _nya_http_json_object(item));
             }
 
             // every DTO any route names, once, under its own C type name.
@@ -181,7 +181,7 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
                 NYA_Object* schema = _nya_http_schema_of(arena, named[slot], 0);
                 if (schema == nullptr) continue;
 
-                nya_object_set(schemas, (NYA_CString)named[slot]->name, _nya_http_json_object(schema));
+                nya_object_add(schemas, (NYA_CString)named[slot]->name, _nya_http_json_object(schema));
             }
         }
     }
@@ -191,29 +191,29 @@ NYA_Error nya_http_openapi_document(NYA_Arena* arena, NYA_String** out_json) {
     if (nya_object_get(schemas, "NYA_HttpProblem") == nullptr) {
         NYA_Object* problem = _nya_http_schema_of(arena, nya_reflect_of(NYA_HttpProblem), 0);
 
-        if (problem != nullptr) nya_object_set(schemas, "NYA_HttpProblem", _nya_http_json_object(problem));
+        if (problem != nullptr) nya_object_add(schemas, "NYA_HttpProblem", _nya_http_json_object(problem));
     }
 
-    nya_object_set(document, "tags", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *tags });
-    nya_object_set(document, "paths", _nya_http_json_object(paths));
+    nya_object_add(document, "tags", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *tags });
+    nya_object_add(document, "paths", _nya_http_json_object(paths));
 
     /*
      * One security scheme, because there is one: a bearer JWT. Named here and referenced by every
      * operation that needs it, which is how a generated client knows to send the header.
      */
     NYA_Object* bearer = nya_object_create(arena);
-    nya_object_set(bearer, "type", _nya_http_json_string("http"));
-    nya_object_set(bearer, "scheme", _nya_http_json_string("bearer"));
-    nya_object_set(bearer, "bearerFormat", _nya_http_json_string("JWT"));
+    nya_object_add(bearer, "type", _nya_http_json_string("http"));
+    nya_object_add(bearer, "scheme", _nya_http_json_string("bearer"));
+    nya_object_add(bearer, "bearerFormat", _nya_http_json_string("JWT"));
 
     NYA_Object* security_schemes = nya_object_create(arena);
-    nya_object_set(security_schemes, "bearer", _nya_http_json_object(bearer));
+    nya_object_add(security_schemes, "bearer", _nya_http_json_object(bearer));
 
     NYA_Object* components = nya_object_create(arena);
-    nya_object_set(components, "securitySchemes", _nya_http_json_object(security_schemes));
-    nya_object_set(components, "schemas", _nya_http_json_object(schemas));
+    nya_object_add(components, "securitySchemes", _nya_http_json_object(security_schemes));
+    nya_object_add(components, "schemas", _nya_http_json_object(schemas));
 
-    nya_object_set(document, "components", _nya_http_json_object(components));
+    nya_object_add(document, "components", _nya_http_json_object(components));
 
     NYA_String* json = nya_serialize(arena, document, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
     if (json == nullptr) return nya_error(NYA_ERROR_NOT_OK, "the OpenAPI document could not be serialized");
@@ -421,13 +421,13 @@ NYA_Object* _nya_http_schema_of(NYA_Arena* arena, const NYA_TypeReflection* type
                 NYA_Object* property = _nya_http_schema_of_field(arena, field, depth + 1);
                 if (property == nullptr) continue;
 
-                nya_object_set(properties, (NYA_CString)field->name, _nya_http_json_object(property));
+                nya_object_add(properties, (NYA_CString)field->name, _nya_http_json_object(property));
                 nya_array_push_back(required, _nya_http_json_string(field->name));
             }
 
-            nya_object_set(schema, "type", _nya_http_json_string("object"));
-            nya_object_set(schema, "properties", _nya_http_json_object(properties));
-            nya_object_set(schema, "required", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *required });
+            nya_object_add(schema, "type", _nya_http_json_string("object"));
+            nya_object_add(schema, "properties", _nya_http_json_object(properties));
+            nya_object_add(schema, "required", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *required });
 
             return schema;
         }
@@ -436,8 +436,8 @@ NYA_Object* _nya_http_schema_of(NYA_Arena* arena, const NYA_TypeReflection* type
         case NYA_REFLECT_VECTOR: {
             // a char array goes out as text, so it is described as text. See the header note.
             if (type->element != nullptr && type->element->kind == NYA_REFLECT_PRIMITIVE && type->element->primitive == NYA_TYPE_CHAR) {
-                nya_object_set(schema, "type", _nya_http_json_string("string"));
-                nya_object_set(schema, "maxLength", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)type->element_count - 1 });
+                nya_object_add(schema, "type", _nya_http_json_string("string"));
+                nya_object_add(schema, "maxLength", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)type->element_count - 1 });
 
                 return schema;
             }
@@ -445,10 +445,10 @@ NYA_Object* _nya_http_schema_of(NYA_Arena* arena, const NYA_TypeReflection* type
             NYA_Object* items = _nya_http_schema_of(arena, type->element, depth + 1);
             if (items == nullptr) return nullptr;
 
-            nya_object_set(schema, "type", _nya_http_json_string("array"));
-            nya_object_set(schema, "items", _nya_http_json_object(items));
-            nya_object_set(schema, "minItems", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)type->element_count });
-            nya_object_set(schema, "maxItems", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)type->element_count });
+            nya_object_add(schema, "type", _nya_http_json_string("array"));
+            nya_object_add(schema, "items", _nya_http_json_object(items));
+            nya_object_add(schema, "minItems", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)type->element_count });
+            nya_object_add(schema, "maxItems", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)type->element_count });
 
             return schema;
         }
@@ -458,7 +458,7 @@ NYA_Object* _nya_http_schema_of(NYA_Arena* arena, const NYA_TypeReflection* type
             // which is nothing a document can carry. See base_reflection.h.
             if (type->element == nullptr || type->element->kind != NYA_REFLECT_PRIMITIVE || type->element->primitive != NYA_TYPE_CHAR) return nullptr;
 
-            nya_object_set(schema, "type", _nya_http_json_string("string"));
+            nya_object_add(schema, "type", _nya_http_json_string("string"));
 
             return schema;
         }
@@ -494,14 +494,14 @@ NYA_Object* _nya_http_schema_of_enum(NYA_Arena* arena, const NYA_TypeReflection*
         nya_array_push_back(variants, _nya_http_json_string(type->variants[index].name));
     }
 
-    nya_object_set(names, "type", _nya_http_json_string("string"));
-    nya_object_set(names, "enum", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *variants });
+    nya_object_add(names, "type", _nya_http_json_string("string"));
+    nya_object_add(names, "enum", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *variants });
 
     if (!bitflags) return names;
 
     NYA_Object* schema = nya_object_create(arena);
-    nya_object_set(schema, "type", _nya_http_json_string("array"));
-    nya_object_set(schema, "items", _nya_http_json_object(names));
+    nya_object_add(schema, "type", _nya_http_json_string("array"));
+    nya_object_add(schema, "items", _nya_http_json_object(names));
 
     return schema;
 }
@@ -512,43 +512,43 @@ void _nya_http_schema_of_primitive(NYA_Object* schema, NYA_Type primitive) {
         case NYA_TYPE_B16:
         case NYA_TYPE_B32:
         case NYA_TYPE_B64:
-        case NYA_TYPE_B128: nya_object_set(schema, "type", _nya_http_json_string("boolean")); return;
+        case NYA_TYPE_B128: nya_object_add(schema, "type", _nya_http_json_string("boolean")); return;
 
         case NYA_TYPE_F16:
         case NYA_TYPE_F32:
-            nya_object_set(schema, "type", _nya_http_json_string("number"));
-            nya_object_set(schema, "format", _nya_http_json_string("float"));
+            nya_object_add(schema, "type", _nya_http_json_string("number"));
+            nya_object_add(schema, "format", _nya_http_json_string("float"));
             return;
 
         case NYA_TYPE_F64:
         case NYA_TYPE_F128:
-            nya_object_set(schema, "type", _nya_http_json_string("number"));
-            nya_object_set(schema, "format", _nya_http_json_string("double"));
+            nya_object_add(schema, "type", _nya_http_json_string("number"));
+            nya_object_add(schema, "format", _nya_http_json_string("double"));
             return;
 
         case NYA_TYPE_CHAR:
         case NYA_TYPE_WCHAR:
         case NYA_TYPE_STRING:
-        case NYA_TYPE_WSTRING: nya_object_set(schema, "type", _nya_http_json_string("string")); return;
+        case NYA_TYPE_WSTRING: nya_object_add(schema, "type", _nya_http_json_string("string")); return;
 
         case NYA_TYPE_U8:
         case NYA_TYPE_U16:
         case NYA_TYPE_U32:
-            nya_object_set(schema, "type", _nya_http_json_string("integer"));
-            nya_object_set(schema, "format", _nya_http_json_string("int32"));
-            nya_object_set(schema, "minimum", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 0 });
+            nya_object_add(schema, "type", _nya_http_json_string("integer"));
+            nya_object_add(schema, "format", _nya_http_json_string("int32"));
+            nya_object_add(schema, "minimum", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 0 });
             return;
 
         case NYA_TYPE_U64:
         case NYA_TYPE_U128:
-            nya_object_set(schema, "type", _nya_http_json_string("integer"));
-            nya_object_set(schema, "format", _nya_http_json_string("int64"));
-            nya_object_set(schema, "minimum", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 0 });
+            nya_object_add(schema, "type", _nya_http_json_string("integer"));
+            nya_object_add(schema, "format", _nya_http_json_string("int64"));
+            nya_object_add(schema, "minimum", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 0 });
             return;
 
         default:
-            nya_object_set(schema, "type", _nya_http_json_string("integer"));
-            nya_object_set(schema, "format", _nya_http_json_string("int64"));
+            nya_object_add(schema, "type", _nya_http_json_string("integer"));
+            nya_object_add(schema, "format", _nya_http_json_string("int64"));
             return;
     }
 }
@@ -560,7 +560,7 @@ NYA_Object* _nya_http_responses_of(NYA_Arena* arena, const NYA_HttpRoute* route)
         NYA_HttpStatus status = route->statuses[index];
 
         NYA_Object* response = nya_object_create(arena);
-        nya_object_set(response, "description", _nya_http_json_string(nya_http_status_text(status)));
+        nya_object_add(response, "description", _nya_http_json_string(nya_http_status_text(status)));
 
         /*
          * A success carries the route's response DTO and a refusal carries NYA_HttpProblem. That is
@@ -572,20 +572,20 @@ NYA_Object* _nya_http_responses_of(NYA_Arena* arena, const NYA_HttpRoute* route)
             NYA_Object* reference = nya_object_create(arena);
 
             NYA_String* path = nya_string_sprintf(arena, "#/components/schemas/%s", body->name);
-            nya_object_set(reference, "$ref", _nya_http_json_string(nya_string_to_cstring(arena, path)));
+            nya_object_add(reference, "$ref", _nya_http_json_string(nya_string_to_cstring(arena, path)));
 
             NYA_Object* media = nya_object_create(arena);
-            nya_object_set(media, "schema", _nya_http_json_object(reference));
+            nya_object_add(media, "schema", _nya_http_json_object(reference));
 
             NYA_Object* content = nya_object_create(arena);
-            nya_object_set(content, "application/json", _nya_http_json_object(media));
+            nya_object_add(content, "application/json", _nya_http_json_object(media));
 
-            nya_object_set(response, "content", _nya_http_json_object(content));
+            nya_object_add(response, "content", _nya_http_json_object(content));
         }
 
         NYA_String* code = nya_string_sprintf(arena, "%d", (s32)status);
 
-        nya_object_set(responses, nya_string_to_cstring(arena, code), _nya_http_json_object(response));
+        nya_object_add(responses, nya_string_to_cstring(arena, code), _nya_http_json_object(response));
     }
 
     return responses;
@@ -594,19 +594,19 @@ NYA_Object* _nya_http_responses_of(NYA_Arena* arena, const NYA_HttpRoute* route)
 NYA_Object* _nya_http_operation_of(NYA_Arena* arena, const NYA_HttpRouter* router, const NYA_HttpRoute* route) {
     NYA_Object* operation = nya_object_create(arena);
 
-    nya_object_set(operation, "summary", _nya_http_json_string(route->summary));
+    nya_object_add(operation, "summary", _nya_http_json_string(route->summary));
 
-    if (route->description != nullptr) nya_object_set(operation, "description", _nya_http_json_string(route->description));
+    if (route->description != nullptr) nya_object_add(operation, "description", _nya_http_json_string(route->description));
 
     NYA_ArrayᐸNYA_Valueᐳ* tags = nya_array_create(arena, NYA_Value);
     nya_array_push_back(tags, _nya_http_json_string(router->name));
-    nya_object_set(operation, "tags", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *tags });
+    nya_object_add(operation, "tags", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *tags });
 
     // the operation id a generated client turns into a function name: "metrics_get_api_metrics".
     NYA_String* identifier = nya_string_sprintf(arena, "%s_%s_%s", router->name, nya_http_method_text(route->method), route->path);
     nya_string_replace(identifier, "/", "_");
     nya_string_to_lower(identifier);
-    nya_object_set(operation, "operationId", _nya_http_json_string(nya_string_to_cstring(arena, identifier)));
+    nya_object_add(operation, "operationId", _nya_http_json_string(nya_string_to_cstring(arena, identifier)));
 
     if (route->auth != NYA_HTTP_AUTH_NONE) {
         NYA_ArrayᐸNYA_Valueᐳ* scopes = nya_array_create(arena, NYA_Value);
@@ -621,34 +621,34 @@ NYA_Object* _nya_http_operation_of(NYA_Arena* arena, const NYA_HttpRouter* route
         }
 
         NYA_Object* requirement = nya_object_create(arena);
-        nya_object_set(requirement, "bearer", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *scopes });
+        nya_object_add(requirement, "bearer", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *scopes });
 
         NYA_ArrayᐸNYA_Valueᐳ* security = nya_array_create(arena, NYA_Value);
         nya_array_push_back(security, _nya_http_json_object(requirement));
 
-        nya_object_set(operation, "security", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *security });
+        nya_object_add(operation, "security", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *security });
     }
 
     if (route->request_type != nullptr) {
         NYA_Object* reference = nya_object_create(arena);
 
         NYA_String* path = nya_string_sprintf(arena, "#/components/schemas/%s", route->request_type->name);
-        nya_object_set(reference, "$ref", _nya_http_json_string(nya_string_to_cstring(arena, path)));
+        nya_object_add(reference, "$ref", _nya_http_json_string(nya_string_to_cstring(arena, path)));
 
         NYA_Object* media = nya_object_create(arena);
-        nya_object_set(media, "schema", _nya_http_json_object(reference));
+        nya_object_add(media, "schema", _nya_http_json_object(reference));
 
         NYA_Object* content = nya_object_create(arena);
-        nya_object_set(content, "application/json", _nya_http_json_object(media));
+        nya_object_add(content, "application/json", _nya_http_json_object(media));
 
         NYA_Object* body = nya_object_create(arena);
-        nya_object_set(body, "required", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
-        nya_object_set(body, "content", _nya_http_json_object(content));
+        nya_object_add(body, "required", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
+        nya_object_add(body, "content", _nya_http_json_object(content));
 
-        nya_object_set(operation, "requestBody", _nya_http_json_object(body));
+        nya_object_add(operation, "requestBody", _nya_http_json_object(body));
     }
 
-    nya_object_set(operation, "responses", _nya_http_json_object(_nya_http_responses_of(arena, route)));
+    nya_object_add(operation, "responses", _nya_http_json_object(_nya_http_responses_of(arena, route)));
 
     return operation;
 }

@@ -433,10 +433,10 @@ void _nya_net_client_send_hello(void) {
     nya_net_message_begin(payload, NYA_NET_MSG_HELLO);
 
     NYA_Object* hello = nya_object_create(scratch);
-    nya_object_set(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-    nya_object_set(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-    nya_object_set(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = _NYA_NET_CLIENT.name });
-    nya_object_set(hello, "tick", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = _NYA_NET_CLIENT.local_tick });
+    nya_object_add(hello, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+    nya_object_add(hello, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+    nya_object_add(hello, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = _NYA_NET_CLIENT.name });
+    nya_object_add(hello, "tick", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = _NYA_NET_CLIENT.local_tick });
 
     if (!nya_net_message_write_object(scratch, payload, hello).ok) return;
 

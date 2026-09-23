@@ -243,12 +243,12 @@ void _nya_simulation_save_write(NYA_SimulationRun* run) {
      */
     NYA_Object* object = nya_object_create(_NYA_SIMULATION_ACTIONS.scratch);
 
-    nya_object_set(object, "step", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = run->step });
-    nya_object_set(object, "entities", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = nya_entity_count() });
-    nya_object_set(object, "clock_ns", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_simulation_now_ns(run) });
-    nya_object_set(object, "gravity_y", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = nya_physics2d_gravity().y });
-    nya_object_set(object, "frozen", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = !nya_physics2d_enabled() });
-    nya_object_set(object, "label", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"simulation" });
+    nya_object_add(object, "step", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = run->step });
+    nya_object_add(object, "entities", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = nya_entity_count() });
+    nya_object_add(object, "clock_ns", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_simulation_now_ns(run) });
+    nya_object_add(object, "gravity_y", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = nya_physics2d_gravity().y });
+    nya_object_add(object, "frozen", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = !nya_physics2d_enabled() });
+    nya_object_add(object, "label", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"simulation" });
 
     (void)nya_save_write(NYA_SIMULATION_SAVE_FILE, object, nya_simulation_chance(run, 50) ? NYA_SERDE_PRETTY : NYA_SERDE_NONE);
 }

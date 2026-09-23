@@ -49,7 +49,7 @@ s32 main(void) {
         NYA_HMapᐸu32ˏu32ᐳ* map = nya_hmap_create_with_capacity(arena, u32, u32, 0);
         nya_check(map->capacity == 0, "expected a capacity of 0 to start, got " FMTu64, map->capacity);
 
-        nya_hmap_set(map, 7U, 42U);
+        nya_hmap_add(map, 7U, 42U);
 
         nya_check(map->capacity > 0, "capacity is still " FMTu64 " after a set", map->capacity);
         nya_check(map->length == 1, "length is " FMTu64 ", expected 1", map->length);
@@ -59,7 +59,7 @@ s32 main(void) {
         if (found != nullptr) nya_check(*found == 42U, "key 7 gave " FMTu32 ", expected 42", *found);
 
         // Still a working table afterwards, not merely one that survived the first write.
-        for (u32 i = 0; i < 200U; i++) nya_hmap_set(map, i, i * 3U);
+        for (u32 i = 0; i < 200U; i++) nya_hmap_add(map, i, i * 3U);
         nya_check(map->length == 200, "length is " FMTu64 " after 200 distinct keys, expected 200", map->length);
 
         u32* late = nya_hmap_get(map, 199U);
@@ -74,7 +74,7 @@ s32 main(void) {
         NYA_Dictᐸu32ᐳ* dict = nya_dict_create_with_capacity(arena, u32, 0);
         nya_check(dict->capacity == 0, "expected a capacity of 0 to start, got " FMTu64, dict->capacity);
 
-        nya_dict_set(dict, "alice", 1U);
+        nya_dict_add(dict, "alice", 1U);
 
         nya_check(dict->capacity > 0, "capacity is still " FMTu64 " after a set", dict->capacity);
         nya_check(dict->length == 1, "length is " FMTu64 ", expected 1", dict->length);
@@ -92,14 +92,14 @@ s32 main(void) {
         NYA_HSetᐸu32ᐳ* set = nya_hset_create_with_capacity(arena, u32, 0);
         nya_check(set->capacity == 0, "expected a capacity of 0 to start, got " FMTu64, set->capacity);
 
-        nya_hset_insert(set, 9U);
+        nya_hset_add(set, 9U);
 
         nya_check(set->capacity > 0, "capacity is still " FMTu64 " after an insert", set->capacity);
         nya_check(set->length == 1, "length is " FMTu64 ", expected 1", set->length);
         nya_check(nya_hset_contains(set, 9U), "9 was not present after being inserted");
 
         // A duplicate must not grow the set a second time.
-        nya_hset_insert(set, 9U);
+        nya_hset_add(set, 9U);
         nya_check(set->length == 1, "length is " FMTu64 " after inserting 9 twice, expected 1", set->length);
     }
 

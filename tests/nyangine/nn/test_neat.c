@@ -380,7 +380,7 @@ s32 main(void) {
       // evaluation, which is what a save file from elsewhere might contain.
       NYA_Object* bad = nya_nn_neat_network_to_object(arena, original);
       NYA_Value*  connections = nya_object_get(bad, "connections");
-      nya_object_set(&connections->as_array.items[0].as_object, "out", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 999 });
+      nya_object_add(&connections->as_array.items[0].as_object, "out", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 999 });
 
       nya_assert(!nya_nn_neat_network_from_object(arena, bad, nya_nn_neat_sigmoid, &rejected).ok, "an out of range endpoint must be refused");
     }

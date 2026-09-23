@@ -299,8 +299,8 @@ NYA_Error nya_net_chat_send(NYA_ConstCString text) {
 
     NYA_Object* event = nya_object_create(scratch);
 
-    nya_object_set(event, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)_NYA_NET_CHAT_KIND });
-    nya_object_set(event, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = clean });
+    nya_object_add(event, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)_NYA_NET_CHAT_KIND });
+    nya_object_add(event, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = clean });
 
     // No name and no id. The server fills both in from its own table; see net_chat.h on why sending
     // them would be pointless rather than dangerous.
@@ -319,9 +319,9 @@ NYA_Error nya_net_chat_broadcast_system(NYA_ConstCString text) {
 
     NYA_Object* event = nya_object_create(scratch);
 
-    nya_object_set(event, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)_NYA_NET_CHAT_KIND });
-    nya_object_set(event, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = clean });
-    nya_object_set(event, "system", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
+    nya_object_add(event, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)_NYA_NET_CHAT_KIND });
+    nya_object_add(event, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = clean });
+    nya_object_add(event, "system", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
 
     return nya_net_server_send_event(NYA_NET_PEER_NONE, event);
 }
@@ -354,11 +354,11 @@ b8 nya_net_chat_server_consume(NYA_NetPeerId peer, const NYA_Object* event) {
 
     NYA_Object* out = nya_object_create(scratch);
 
-    nya_object_set(out, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)_NYA_NET_CHAT_KIND });
-    nya_object_set(out, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = clean });
-    nya_object_set(out, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)sender->name });
-    nya_object_set(out, "sender", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = peer.index });
-    nya_object_set(out, "generation", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = peer.generation });
+    nya_object_add(out, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)_NYA_NET_CHAT_KIND });
+    nya_object_add(out, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = clean });
+    nya_object_add(out, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)sender->name });
+    nya_object_add(out, "sender", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = peer.index });
+    nya_object_add(out, "generation", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = peer.generation });
 
     NYA_Error sent = nya_net_server_send_event(NYA_NET_PEER_NONE, out);
 

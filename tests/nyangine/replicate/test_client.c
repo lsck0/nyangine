@@ -75,11 +75,11 @@ static NYA_String* build_welcome(NYA_Arena* arena, u32 peer_index, u32 entity_in
   nya_net_message_begin(payload, NYA_NET_MSG_WELCOME);
 
   NYA_Object* body = nya_object_create(arena);
-  nya_object_set(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = peer_index });
-  nya_object_set(body, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
-  nya_object_set(body, "entity_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = entity_index });
-  nya_object_set(body, "entity_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
-  nya_object_set(body, "replicated_flag", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = FLAG_REPLICATED });
+  nya_object_add(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = peer_index });
+  nya_object_add(body, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
+  nya_object_add(body, "entity_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = entity_index });
+  nya_object_add(body, "entity_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
+  nya_object_add(body, "replicated_flag", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = FLAG_REPLICATED });
 
   NYA_EXPECT(nya_net_message_write_object(arena, payload, body));
 
@@ -164,9 +164,9 @@ s32 main(void) {
       nya_net_message_begin(payload, NYA_NET_MSG_WELCOME);
 
       NYA_Object* body = nya_object_create(arena);
-      nya_object_set(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
-      nya_object_set(body, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
-      nya_object_set(body, "tick_ns", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = offered });
+      nya_object_add(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
+      nya_object_add(body, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
+      nya_object_add(body, "tick_ns", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = offered });
       NYA_EXPECT(nya_net_message_write_object(arena, payload, body));
 
       send_as_server(server_end, payload);
@@ -195,7 +195,7 @@ s32 main(void) {
     nya_net_message_begin(payload, NYA_NET_MSG_REJECT);
 
     NYA_Object* reject = nya_object_create(arena);
-    nya_object_set(reject, "reason", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_DISCONNECT_VERSION });
+    nya_object_add(reject, "reason", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_DISCONNECT_VERSION });
 
     NYA_EXPECT(nya_net_message_write_object(arena, payload, reject));
 
@@ -253,11 +253,11 @@ s32 main(void) {
       nya_net_message_begin(payload, round == 0 ? NYA_NET_MSG_PEER_JOINED : NYA_NET_MSG_PEER_LEFT);
 
       NYA_Object* body = nya_object_create(arena);
-      nya_object_set(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 5 });
-      nya_object_set(body, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
+      nya_object_add(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 5 });
+      nya_object_add(body, "peer_generation", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 1 });
       // The same name both times, deliberately: the assertion below is that whichever message arrived last
       // reached the hook, and two different names would not distinguish that from only one arriving.
-      nya_object_set(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "Grace" });
+      nya_object_add(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "Grace" });
 
       NYA_EXPECT(nya_net_message_write_object(arena, payload, body));
       send_as_server(server_end, payload);
@@ -277,7 +277,7 @@ s32 main(void) {
       nya_net_message_begin(payload, NYA_NET_MSG_PEER_JOINED);
 
       NYA_Object* body = nya_object_create(arena);
-      nya_object_set(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 6 });
+      nya_object_add(body, "peer_index", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 6 });
       // no generation, no name
 
       NYA_EXPECT(nya_net_message_write_object(arena, payload, body));
@@ -309,7 +309,7 @@ s32 main(void) {
     nya_net_message_begin(payload, NYA_NET_MSG_GAME_EVENT);
 
     NYA_Object* event = nya_object_create(arena);
-    nya_object_set(event, "chat", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "hello" });
+    nya_object_add(event, "chat", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "hello" });
 
     NYA_EXPECT(nya_net_message_write_object(arena, payload, event));
     send_as_server(server_end, payload);

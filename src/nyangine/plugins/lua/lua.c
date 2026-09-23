@@ -277,7 +277,7 @@ void _nya_lua_read(lua_State* state, NYA_Arena* arena, s32 index, u32 depth, OUT
                     NYA_Value entry = { 0 };
                     _nya_lua_read(state, arena, -1, depth + 1, &entry);
 
-                    nya_object_set(&object, key, entry);
+                    nya_object_add(&object, key, entry);
                 }
 
                 lua_pop(state, 1);

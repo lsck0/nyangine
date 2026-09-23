@@ -727,7 +727,7 @@ s32 main(void) {
       nya_assert(nya_net_key_is_set(first.public_key) && nya_memcmp(&first, &second, sizeof(first)) == 0, "a saved identity changed between loads");
 
       NYA_Object* damaged = nya_object_create(arena);
-      nya_object_set(damaged, "secret_key", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "not a key" });
+      nya_object_add(damaged, "secret_key", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "not a key" });
       NYA_EXPECT(nya_save_write(relative, damaged, NYA_SERDE_NONE));
 
       NYA_EXPECT(nya_net_key_pair_load(path, &second));

@@ -119,8 +119,8 @@ s32 main(void) {
     printf("TEST: nya_reflect_check on an unknown key\n");
     {
         NYA_Object* document = nya_object_create(arena);
-        nya_object_set(document, "fov", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = 100.0F });
-        nya_object_set(document, "fov_but_spelled_wrong", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = 100.0F });
+        nya_object_add(document, "fov", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = 100.0F });
+        nya_object_add(document, "fov_but_spelled_wrong", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = 100.0F });
 
         Findings findings = { 0 };
 
@@ -147,7 +147,7 @@ s32 main(void) {
     printf("TEST: nya_reflect_check on a wrong value\n");
     {
         NYA_Object* document = nya_object_create(arena);
-        nya_object_set(document, "fov", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "quite wide" });
+        nya_object_add(document, "fov", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "quite wide" });
 
         Findings findings = { 0 };
 
@@ -166,7 +166,7 @@ s32 main(void) {
     printf("TEST: nya_reflect_check on an unknown enum variant\n");
     {
         NYA_Object* document = nya_object_create(arena);
-        nya_object_set(document, "shadows", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "NYA_GRAPHICS_QUALITY_ULTRA" });
+        nya_object_add(document, "shadows", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "NYA_GRAPHICS_QUALITY_ULTRA" });
 
         Findings findings = { 0 };
 
@@ -195,7 +195,7 @@ s32 main(void) {
         long_name[sizeof(long_name) - 1] = '\0';
 
         NYA_Object* document = nya_object_create(arena);
-        nya_object_set(document, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = long_name });
+        nya_object_add(document, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = long_name });
 
         Findings findings = { 0 };
 

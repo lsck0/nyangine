@@ -419,7 +419,7 @@ s32 main(void) {
 
     // An object, which is what a control protocol actually sends.
     NYA_Object* body = nya_object_create(arena);
-    nya_object_set(body, "op", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 6 });
+    nya_object_add(body, "op", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 6 });
 
     NYA_EXPECT(nya_websocket_send_object(socket, arena, body));
     pump(socket, &server, arena, &collected, &collected.texts, 2);

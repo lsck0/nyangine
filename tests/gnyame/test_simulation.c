@@ -103,8 +103,8 @@ s32 main(s32 argc, NYA_CString argv[]) {
     NYA_CString data_home = nya_string_to_cstring(scratch, nya_path_join(scratch, nya_string_to_cstring(scratch, temp_root), "gnyame-test-simulation"));
     (void)nya_filesystem_delete_recursive(data_home);
 
-    nya_assert(nya_host_environment_set("XDG_DATA_HOME", data_home));
-    nya_assert(nya_host_environment_set("APPDATA", data_home));
+    nya_assert(nya_host_environment_add("XDG_DATA_HOME", data_home));
+    nya_assert(nya_host_environment_add("APPDATA", data_home));
 
     // the arena first, so the removal below still has the path: defers run last registered first, and
     // `data_home` was allocated out of `scratch`.

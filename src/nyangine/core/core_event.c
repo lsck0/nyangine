@@ -138,7 +138,7 @@ void nya_event_hook_register(NYA_EventHook hook) {
 
             if (!hook_array) {
                 NYA_ArrayᐸNYA_EventHookᐳ new_hook_array = nya_array_create_on_stack(app->event_system.allocator, NYA_EventHook);
-                nya_hmap_set(app->event_system.deferred_event_hooks, hook.event_type, new_hook_array);
+                nya_hmap_add(app->event_system.deferred_event_hooks, hook.event_type, new_hook_array);
                 hook_array = nya_hmap_get(app->event_system.deferred_event_hooks, hook.event_type);
             }
         } break;
@@ -148,7 +148,7 @@ void nya_event_hook_register(NYA_EventHook hook) {
 
             if (!hook_array) {
                 NYA_ArrayᐸNYA_EventHookᐳ new_hook_array = nya_array_create_on_stack(app->event_system.allocator, NYA_EventHook);
-                nya_hmap_set(app->event_system.immediate_event_hooks, hook.event_type, new_hook_array);
+                nya_hmap_add(app->event_system.immediate_event_hooks, hook.event_type, new_hook_array);
                 hook_array = nya_hmap_get(app->event_system.immediate_event_hooks, hook.event_type);
             }
         } break;

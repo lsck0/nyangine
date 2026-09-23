@@ -174,7 +174,21 @@ stands.
 - `NYA_API` marks a public declaration and is what the cheatsheet generator reads. `NYA_INTERNAL`
   is `static` plus hidden visibility and never appears in a public header.
 - Every verb ships with its partner in the same header, adjacent: `create`/`destroy`,
-  `init`/`shutdown`, `begin`/`end`, `push`/`pop`, `attach`/`detach`.
+  `init`/`shutdown`, `begin`/`end`, `push`/`pop`, `attach`/`detach`, `add`/`remove`. A container's
+  insert is `add`, whatever it inserts or replaces — `nya_dict_add`, `nya_hmap_add`, `nya_hset_add`,
+  `nya_cache_add`, `nya_object_add`, `nya_host_environment_add` — matching
+  `nya_array_add`/`nya_array_remove` rather than `set` or `insert`, which the tree also uses for
+  things that are not containers (a property setter, a string edited in place). A `create` that
+  returns a value living entirely in the caller's arena wants no `destroy`: the arena discards it.
+  A resource owned outside the arena — a GPU buffer, an OS page, a claimed input slot — pairs
+  `create` with `release` instead, mirroring the API it wraps (SDL releases its own GPU objects;
+  `nya_gpu_buffer_release` is that verb, not a weaker `destroy`). A function named for *when* in the
+  frame or tick it runs, not for what it opens and leaves open, is not a bracket and carries no
+  `begin`/`end` partner (`nya_trace_frame_end`, called once by the app loop to close the frame's
+  figures into history, has no matching `_begin`). The verb-pair rule cannot tell these apart from a
+  real gap by name alone — a `create` still wants its own `destroy` checked, a `release` its own
+  `acquire`, a `_begin` or `_end` its own bracket half — so each stays a named entry in
+  `lint_allowances.h` rather than a clean pass.
 - Fallible calls return `NYA_Error` and are `__attr_no_discard`. `NYA_TRY(expr)` propagates,
   `NYA_EXPECT(expr, "context")` crashes through the crash sink with a backtrace.
 - A comparison gets `nya_assert_eq(a, b)` or one of its five siblings, which report what each side

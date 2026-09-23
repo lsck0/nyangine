@@ -160,13 +160,13 @@ static void send_spoofed_line(void) {
 
   NYA_Object* event = nya_object_create(scratch);
 
-  nya_object_set(event, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "chat" });
-  nya_object_set(event, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)SPOOF_TEXT });
+  nya_object_add(event, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "chat" });
+  nya_object_add(event, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)SPOOF_TEXT });
 
   // The fields the server is supposed to ignore entirely.
-  nya_object_set(event, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "alice" });
-  nya_object_set(event, "sender", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 999 });
-  nya_object_set(event, "system", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
+  nya_object_add(event, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString) "alice" });
+  nya_object_add(event, "sender", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 999 });
+  nya_object_add(event, "system", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
 
   NYA_EXPECT(nya_net_client_send_event(event));
 }

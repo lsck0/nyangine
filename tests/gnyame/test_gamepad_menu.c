@@ -48,8 +48,8 @@ s32 main(void) {
     NYA_CString data_home = nya_string_to_cstring(scratch, nya_path_join(scratch, nya_string_to_cstring(scratch, temp_root), "gnyame-test-gamepad"));
     (void)nya_filesystem_delete_recursive(data_home);
 
-    nya_assert(nya_host_environment_set("XDG_DATA_HOME", data_home));
-    nya_assert(nya_host_environment_set("APPDATA", data_home));
+    nya_assert(nya_host_environment_add("XDG_DATA_HOME", data_home));
+    nya_assert(nya_host_environment_add("APPDATA", data_home));
 
     _NYA_APP_INSTANCE = (NYA_App){ .initialized = true };
 

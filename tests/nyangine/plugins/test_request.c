@@ -146,8 +146,8 @@ s32 main(void) {
   // ─────────────────────────────────────────────────────────────────────────────
   {
     NYA_Object* body = nya_object_create(arena);
-    nya_object_set(body, "score", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 4200 });
-    nya_object_set(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"player" });
+    nya_object_add(body, "score", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 4200 });
+    nya_object_add(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"player" });
 
     NYA_Response response = { 0 };
     NYA_Error    result   = nya_request_perform(
@@ -175,7 +175,7 @@ s32 main(void) {
     // Not an error, deliberately: a shared request struct filled in by a helper should not become a
     // special case at every call site just because this one is a GET.
     NYA_Object* body = nya_object_create(arena);
-    nya_object_set(body, "ignored", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
+    nya_object_add(body, "ignored", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
 
     NYA_Response response = { 0 };
     NYA_Error    result   = nya_request_perform(
@@ -231,7 +231,7 @@ s32 main(void) {
     nya_assert(nya_string_contains((NYA_ConstCString)get.message, "GET"), "the wrapper really did send a GET");
 
     NYA_Object* body = nya_object_create(arena);
-    nya_object_set(body, "x", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
+    nya_object_add(body, "x", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
 
     NYA_Error post = nya_request_post(arena, CLOSED_PORT_URL, body, &response);
     nya_assert(post.kind == NYA_ERROR_NOT_FOUND);
