@@ -1,0 +1,77 @@
+<!doctype html>
+<!--
+  The game slice, live: the engine's 2D render path — a cleared background and a textured sprite — drawn
+  to a real WebGL2 canvas by the wasm module `nyangine_game.{js,wasm}` that `./build wasm-game` builds.
+  The module stands up the SDL_GPU → GLES3 shim (src/nyangine/renderer/gpu_gles) and issues the same
+  SDL_GPU command stream the engine's render2d flush issues; the browser is just another GPU backend.
+
+  Contrast web/ui.html, which renders the immediate-mode UI to the DOM with no GPU. Here there is a real
+  WebGL2 context and real draw calls.
+
+  Serve it, do not open it as a file:// — a wasm module is fetched over HTTP. From the repo root, after
+  `./build wasm-game`:
+
+      python3 -m http.server -d web 8000     # then open http://localhost:8000/game.html
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nyangine · game</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root { --bg:#0f1116; --ink:#d8dbe2; --dim:#9498a2; --accent:#5a7cff; }
+      html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+      #wrap { display:flex; flex-direction:column; align-items:center; gap:12px; padding:20px 16px; box-sizing:border-box; }
+      h1 { font-size:16px; font-weight:600; margin:0; color:var(--ink); }
+      /* The one canvas the shim binds by the selector "#canvas". A backing store is set from JS to match
+         its display size, so the drawing buffer is 1:1 with CSS pixels. */
+      #canvas { width:min(640px, 92vw); aspect-ratio:4/3; background:#000; border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.35); display:block; }
+      #status { font:12px/1.4 ui-monospace,Menlo,Consolas,monospace; color:var(--dim); text-align:center; max-width:640px; }
+      #status .err { color:#ff7b72; }
+      #status .ok { color:#7ee787; }
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <h1>nyangine · 2D render path on WebGL2</h1>
+      <canvas id="canvas" tabindex="-1"></canvas>
+      <p id="status">loading…</p>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("canvas");
+      const status = document.getElementById("status");
+
+      // Match the drawing buffer to the displayed size, so the sprite lands where the ortho places it.
+      function sizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        const w = Math.max(1, Math.round(rect.width));
+        const h = Math.max(1, Math.round(rect.height));
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      }
+      sizeCanvas();
+      window.addEventListener("resize", sizeCanvas);
+
+      // Emscripten emits this loader beside nyangine_game.wasm. MODULARIZE means it defines a factory
+      // rather than running on load, so the page decides when to instantiate — after the canvas exists.
+      var Module = { canvas: canvas };
+    </script>
+    <script src="./nyangine_game.js"></script>
+    <script>
+      createNyangineGameModule({ canvas: canvas })
+        .then((Module) => {
+          // main() already ran setup, the one-frame self-check, and registered the render loop. Read the
+          // self-check back for a status line: 1 means the shim ran the frame in the right SDL_GPU order.
+          const selfcheck = Module.cwrap("nyangine_game_selfcheck", "number", []);
+          const ok = selfcheck() === 1;
+          status.innerHTML = ok
+            ? '<span class="ok">running</span> — the 2D path drew through the SDL_GPU→GLES3 shim; the checkerboard sprite is on a live WebGL2 canvas.'
+            : '<span class="err">the shim call sequence did not match — see the console.</span>';
+        })
+        .catch((error) => {
+          status.innerHTML = '<span class="err">failed to load the wasm module — is it served over HTTP, and has ./build wasm-game run?</span> ' + String(error);
+        });
+    </script>
+  </body>
+</html>

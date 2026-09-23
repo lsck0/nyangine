@@ -255,6 +255,47 @@
     "-sMODULARIZE=1", "-sEXPORT_NAME=createNyangineUiModule",          \
     "-sENVIRONMENT=web,node", "-sALLOW_MEMORY_GROWTH=1"
 
+/*
+ * The third WebAssembly target, the GAME slice: the engine's 2D render path — a cleared background and a
+ * textured sprite — drawn to a real WebGL2 canvas through the SDL_GPU → GLES3 shim in
+ * src/nyangine/renderer/gpu_gles, driven by emscripten_set_main_loop. Its own command, source, outputs
+ * and exports beside `./build wasm` and `./build wasm-ui`, for the same reason the other two stand apart:
+ * emcc is off the default toolchain. See wasm_game_runner and src/web/wasm_game.c.
+ */
+#define WASM_GAME_SOURCE      "./src/web/wasm_game.c"
+#define WASM_GAME_JS_OUTPUT   WASM_OUTPUT_DIRECTORY "/nyangine_game.js"
+#define WASM_GAME_WASM_OUTPUT WASM_OUTPUT_DIRECTORY "/nyangine_game.wasm"
+// The self-check export the loader must name (the frame-sequence assertion, callable from node). main()
+// runs setup + the browser main loop; this is what a headless node run calls to prove the shim ran.
+#define WASM_GAME_SYMBOL      "nyangine_game_selfcheck"
+
+/*
+ * The two compiled GLSL ES 300 shaders the 2D path needs (batch2d vertex + textured fragment), baked into
+ * the module's virtual filesystem at build time with --embed-file. The shim compiles this source at
+ * runtime with glShaderSource/glCompileShader; nothing reads a shader from the host at run time. The
+ * "src@dst" form maps each onto a short virtual path the demo opens.
+ */
+#define WASM_GAME_SHADER_EMBEDS                                                                    \
+    "--embed-file", "assets/shader/compiled/batch2d.vert.glsl@shaders/batch2d.vert.glsl",          \
+    "--embed-file", "assets/shader/compiled/textured.frag.glsl@shaders/textured.frag.glsl",        \
+    "--embed-file", "assets/shader/compiled/shape.frag.glsl@shaders/shape.frag.glsl"
+
+// The same base as FLAGS_WASM_UI (language flags, warning suppressions, MODULARIZE, memory growth, the
+// vendored header roots NYA_App's graph needs to parse), plus the WebGL2/GLES3 switches the shim's
+// context and glDrawElements path require, the two shaders embedded, and this target's own export and
+// factory name. NYA_HEADLESS is set inside wasm_game.c (no GPU *device path in the headers*, since the
+// device the demo makes is the shim's, not SDL's).
+#define FLAGS_WASM_GAME                                                 \
+    "-std=c2y", "-O2", "-fdefer-ts", "-fenable-matrix",                \
+    "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro", "-Wno-format", \
+    WASM_UI_VENDOR_INCLUDES,                                           \
+    "-sUSE_WEBGL2=1", "-sFULL_ES3=1", "-sMIN_WEBGL_VERSION=2", "-sMAX_WEBGL_VERSION=2", \
+    WASM_GAME_SHADER_EMBEDS,                                           \
+    "-sEXPORTED_FUNCTIONS=_main,_" WASM_GAME_SYMBOL,                    \
+    "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString",             \
+    "-sMODULARIZE=1", "-sEXPORT_NAME=createNyangineGameModule",        \
+    "-sENVIRONMENT=web,node", "-sALLOW_MEMORY_GROWTH=1"
+
 // Runs the engine with the drawing compiled out. Everything else still runs, so a test exercises
 // the real frame loop; there is just no GPU device to create, which is what CI cannot provide.
 #define FLAGS_HEADLESS "-DNYA_HEADLESS"
