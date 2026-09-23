@@ -1,12 +1,10 @@
 #pragma once
 
-#include "SDL3/SDL_mutex.h"
-#include "SDL3/SDL_thread.h"
-
 #include "nyangine/base/base.h"
 #include "nyangine/base/base_arena.h"
 #include "nyangine/base/base_array.h"
 #include "nyangine/base/base_heap.h"
+#include "nyangine/base/base_thread.h"
 #include "nyangine/core/core_callback.h"
 
 /*
@@ -19,10 +17,8 @@ typedef u64                  NYA_JobHandle;
 typedef enum NYA_JobPriority NYA_JobPriority;
 typedef struct NYA_JobSystem NYA_JobSystem;
 typedef struct NYA_Job       NYA_Job;
-typedef SDL_Thread*          SDL_ThreadPtr;
 nya_derive_heap(NYA_Job);
 nya_derive_array(NYA_Job);
-nya_derive_array(SDL_ThreadPtr);
 
 typedef int (*NYA_JobFn)(NYA_Job* job);
 
@@ -54,7 +50,7 @@ struct NYA_Job {
 
     /* set by the system */
     NYA_JobHandle job_handle;
-    SDL_Thread*   sdl_thread;
+    NYA_Thread*   thread;
 };
 
 /*
@@ -66,10 +62,10 @@ struct NYA_Job {
 struct NYA_JobSystem {
     NYA_Arena* allocator;
 
-    SDL_Mutex*         job_queue_mutex;
+    NYA_Mutex*         job_queue_mutex;
     NYA_HeapᐸNYA_Jobᐳ* job_queue;
 
-    SDL_Mutex* job_active_mutex;
+    NYA_Mutex* job_active_mutex;
 
     /**
      * Running jobs, in storage that never moves.
@@ -87,7 +83,7 @@ struct NYA_JobSystem {
      * */
     NYA_JobHandle next_job_handle;
 
-    SDL_Thread* scheduler;
+    NYA_Thread* scheduler;
 
     /**
      * Told to the scheduler thread by whoever calls nya_system_job_deinit.

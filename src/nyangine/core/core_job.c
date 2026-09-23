@@ -6,8 +6,11 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_INTERNAL s32 _nya_job_compare(const NYA_Job* a, const NYA_Job* b);
-NYA_INTERNAL s32 _nya_job_scheduler(void* data);
+NYA_INTERNAL s32  _nya_job_compare(const NYA_Job* a, const NYA_Job* b);
+NYA_INTERNAL void _nya_job_scheduler(void* data);
+
+/** What a job's thread runs, since a job is a callback handle and a thread takes a plain function. */
+NYA_INTERNAL void _nya_job_run(void* data);
 
 /*
  * How often the scheduler starts queued work and reaps threads that have finished.
@@ -34,19 +37,31 @@ NYA_INTERNAL s32 _nya_job_scheduler(void* data);
 NYA_Error nya_system_job_init(void) {
     NYA_App* app = nya_app_get();
 
-    // Both mutex results used to go straight into the struct unchecked, so an allocation failure
-    // here surfaced much later as every SDL_LockMutex in the frame loop silently doing nothing.
-    SDL_Mutex* job_queue_mutex = SDL_CreateMutex();
-    if (job_queue_mutex == nullptr) return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_CreateMutex() failed for the job queue: %s", SDL_GetError());
+    // Ahead of the locks now, because the locks and the scheduler's record are allocated out of it.
+    NYA_Arena* allocator = nya_arena_create(.name = "job_system_allocator");
 
-    SDL_Mutex* job_active_mutex = SDL_CreateMutex();
-    if (job_active_mutex == nullptr) {
-        SDL_DestroyMutex(job_queue_mutex);
-        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "SDL_CreateMutex() failed for the active job list: %s", SDL_GetError());
+    // Both mutex results used to go straight into the struct unchecked, so a failure here surfaced
+    // much later as every lock taken in the frame loop silently doing nothing.
+    NYA_Mutex* job_queue_mutex  = nullptr;
+    NYA_Mutex* job_active_mutex = nullptr;
+
+    NYA_Error queue_lock = nya_mutex_create(allocator, &job_queue_mutex);
+    if (!queue_lock.ok) {
+        nya_arena_destroy(allocator);
+
+        return queue_lock;
+    }
+
+    NYA_Error active_lock = nya_mutex_create(allocator, &job_active_mutex);
+    if (!active_lock.ok) {
+        nya_mutex_destroy(job_queue_mutex);
+        nya_arena_destroy(allocator);
+
+        return active_lock;
     }
 
     app->job_system = (NYA_JobSystem){
-        .allocator        = nya_arena_create(.name = "job_system_allocator"),
+        .allocator        = allocator,
         .job_queue_mutex  = job_queue_mutex,
         .job_active_mutex = job_active_mutex,
     };
@@ -56,14 +71,14 @@ NYA_Error nya_system_job_init(void) {
     app->job_system.job_queue = nya_heap_create(app->job_system.allocator, NYA_Job, _nya_job_compare);
 
     // Started last: the scheduler reads everything above, so it must not exist until they do.
-    app->job_system.scheduler = SDL_CreateThread(_nya_job_scheduler, "Job Scheduler", nullptr);
-    if (app->job_system.scheduler == nullptr) {
-        nya_arena_destroy(app->job_system.allocator);
-        SDL_DestroyMutex(job_queue_mutex);
-        SDL_DestroyMutex(job_active_mutex);
+    NYA_Error scheduler = nya_thread_spawn(allocator, _nya_job_scheduler, nullptr, "Job Scheduler", &app->job_system.scheduler);
+    if (!scheduler.ok) {
+        nya_mutex_destroy(job_queue_mutex);
+        nya_mutex_destroy(job_active_mutex);
+        nya_arena_destroy(allocator);
         app->job_system = (NYA_JobSystem){ 0 };
 
-        return nya_error(NYA_ERROR_NOT_OK, "SDL_CreateThread() failed for the job scheduler: %s", SDL_GetError());
+        return scheduler;
     }
 
     nya_log_info("Job system initialized.");
@@ -74,7 +89,7 @@ void nya_system_job_deinit(void) {
     NYA_App* app = nya_app_get();
 
     atomic_store_explicit(&app->job_system.scheduler_should_exit, true, memory_order_relaxed);
-    SDL_WaitThread(app->job_system.scheduler, nullptr);
+    nya_thread_join(app->job_system.scheduler);
 
     /*
      * Whatever was still running when the scheduler stopped, drained here.
@@ -82,15 +97,16 @@ void nya_system_job_deinit(void) {
     for (u32 slot = 0; slot < _NYA_JOB_MAX_ACTIVE; slot++) {
         if (!app->job_system.job_slot_used[slot]) continue;
 
-        SDL_WaitThread(app->job_system.job_slots[slot].sdl_thread, nullptr);
+        nya_thread_join(app->job_system.job_slots[slot].thread);
+        app->job_system.job_slots[slot].thread = nullptr;
 
         app->job_system.job_slot_used[slot] = false;
         app->job_system.job_active_count--;
     }
 
-    SDL_DestroyMutex(app->job_system.job_queue_mutex);
+    nya_mutex_destroy(app->job_system.job_queue_mutex);
     nya_heap_destroy(app->job_system.job_queue);
-    SDL_DestroyMutex(app->job_system.job_active_mutex);
+    nya_mutex_destroy(app->job_system.job_active_mutex);
 
     nya_arena_destroy(app->job_system.allocator);
 
@@ -109,13 +125,13 @@ NYA_JobHandle nya_job_submit(NYA_Job job) {
     /*
      * The counter, under the same lock as the push it belongs with.
      */
-    SDL_LockMutex(app->job_system.job_queue_mutex);
+    nya_mutex_lock(app->job_system.job_queue_mutex);
 
     NYA_JobHandle handle = ++app->job_system.next_job_handle;
     job.job_handle       = handle;
 
     nya_heap_push(app->job_system.job_queue, job);
-    SDL_UnlockMutex(app->job_system.job_queue_mutex);
+    nya_mutex_unlock(app->job_system.job_queue_mutex);
 
     return handle;
 }
@@ -132,8 +148,8 @@ b8 nya_job_is_done(NYA_JobHandle job_handle) {
 
     b8 is_done = true;
 
-    SDL_LockMutex(job_system->job_active_mutex);
-    SDL_LockMutex(job_system->job_queue_mutex);
+    nya_mutex_lock(job_system->job_active_mutex);
+    nya_mutex_lock(job_system->job_queue_mutex);
     {
         /* Holding a slot means not done; the thread state is not consulted. */
         for (u32 slot = 0; slot < _NYA_JOB_MAX_ACTIVE; slot++) {
@@ -151,8 +167,8 @@ b8 nya_job_is_done(NYA_JobHandle job_handle) {
             }
         };
     }
-    SDL_UnlockMutex(job_system->job_active_mutex);
-    SDL_UnlockMutex(job_system->job_queue_mutex);
+    nya_mutex_unlock(job_system->job_active_mutex);
+    nya_mutex_unlock(job_system->job_queue_mutex);
 
     return is_done;
 }
@@ -167,7 +183,16 @@ s32 _nya_job_compare(const NYA_Job* a, const NYA_Job* b) {
     return (s32)a->priority - (s32)b->priority;
 }
 
-NYA_INTERNAL s32 _nya_job_scheduler(void* data) {
+void _nya_job_run(void* data) {
+    NYA_Job* job = (NYA_Job*)data;
+
+    NYA_JobFn function = nya_callback_get(job->function);
+
+    // what a job returns goes nowhere: a caller asks nya_job_is_done and reads the job's own out_data.
+    (void)function(job);
+}
+
+void _nya_job_scheduler(void* data) {
     nya_unused(data);
 
     NYA_App*       app        = nya_app_get();
@@ -185,8 +210,8 @@ NYA_INTERNAL s32 _nya_job_scheduler(void* data) {
         u32 finished_count = 0;
         u32 started_count  = 0;
 
-        SDL_LockMutex(job_system->job_active_mutex);
-        SDL_LockMutex(job_system->job_queue_mutex);
+        nya_mutex_lock(job_system->job_active_mutex);
+        nya_mutex_lock(job_system->job_queue_mutex);
         {
             /*
              * Reap first, so a slot freed by this pass can be refilled by the scheduling below
@@ -194,9 +219,11 @@ NYA_INTERNAL s32 _nya_job_scheduler(void* data) {
              */
             for (u32 slot = 0; slot < _NYA_JOB_MAX_ACTIVE; slot++) {
                 if (!job_system->job_slot_used[slot]) continue;
-                if (SDL_GetThreadState(job_system->job_slots[slot].sdl_thread) == SDL_THREAD_ALIVE) continue;
+                if (!nya_thread_is_finished(job_system->job_slots[slot].thread)) continue;
 
-                SDL_WaitThread(job_system->job_slots[slot].sdl_thread, nullptr);
+                // the flag says the job's function has returned; the thread it ran on is still to be waited for.
+                nya_thread_join(job_system->job_slots[slot].thread);
+                job_system->job_slots[slot].thread = nullptr;
 
                 finished_jobs[finished_count++] = job_system->job_slots[slot];
 
@@ -225,11 +252,8 @@ NYA_INTERNAL s32 _nya_job_scheduler(void* data) {
                  * exists: it keeps dereferencing this record while later jobs are scheduled and
                  * earlier ones are reaped, and neither may move it.
                  */
-                NYA_JobFn   function = nya_callback_get(job_ptr->function);
-                SDL_Thread* thread   = SDL_CreateThread((int (*)(void*))function, nullptr, job_ptr);
-                nya_assert(thread != nullptr, "SDL_CreateThread() failed for a job: %s", SDL_GetError());
-
-                job_ptr->sdl_thread = thread;
+                NYA_Error started = nya_thread_spawn(job_system->allocator, _nya_job_run, job_ptr, "Job", &job_ptr->thread);
+                nya_assert(started.ok, "a job's thread could not be started: %s", (NYA_ConstCString)started.message);
 
                 started_jobs[started_count++] = *job_ptr;
             }
@@ -239,8 +263,8 @@ NYA_INTERNAL s32 _nya_job_scheduler(void* data) {
             busy = job_system->job_active_count > 0 || job_system->job_queue->length > 0;
         }
         // Released in the reverse of the order they were taken.
-        SDL_UnlockMutex(job_system->job_queue_mutex);
-        SDL_UnlockMutex(job_system->job_active_mutex);
+        nya_mutex_unlock(job_system->job_queue_mutex);
+        nya_mutex_unlock(job_system->job_active_mutex);
 
         /*
          * Announced with both locks released, which is the whole reason this is collected first.
@@ -261,6 +285,4 @@ NYA_INTERNAL s32 _nya_job_scheduler(void* data) {
 
         SDL_Delay(busy ? _NYA_JOB_BUSY_TICK_MS : _NYA_JOB_IDLE_TICK_MS);
     }
-
-    return 0;
 }
