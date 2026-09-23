@@ -342,5 +342,46 @@ s32 main(void) {
         offset = (f32x2){ 0 };
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: folding a window anchored to the bottom leaves its title bar where it is.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        /*
+         * The same rule as growing: the origin moves by the anchor's share of every change in height,
+         * so a bottom anchored window would fold by walking its bar down the screen, out from under the
+         * chevron that folded it. Folded here by writing the flag, which is the other way it happens
+         * and the one that proves the correction is not the chevron's doing.
+         */
+        anchor = NYA_UI_ANCHOR_BOTTOM_LEFT;
+        offset = (f32x2){ 40.0F, 40.0F };
+        state  = (NYA_UIWindowState){ .open = true };
+
+        Scene open_at = { 0 };
+        for (u32 pass = 0; pass < 3; pass++) open_at = scene(NYA_UI_PASS_DRAW);
+
+        state.collapsed = true;
+
+        Scene folded = { 0 };
+        for (u32 pass = 0; pass < 3; pass++) folded = scene(NYA_UI_PASS_DRAW);
+
+        nya_check(folded.bounds.height < open_at.bounds.height, "a folded window is shorter, %.0f against %.0f", (f64)folded.bounds.height,
+                  (f64)open_at.bounds.height);
+        nya_check(fabsf(folded.bounds.y - open_at.bounds.y) < 2.0F, "the title bar stayed at %.0f, and is now at %.0f", (f64)open_at.bounds.y,
+                  (f64)folded.bounds.y);
+
+        // and unfolding puts the body back under the same bar rather than pushing the bar up.
+        state.collapsed = false;
+
+        Scene reopened = { 0 };
+        for (u32 pass = 0; pass < 3; pass++) reopened = scene(NYA_UI_PASS_DRAW);
+
+        nya_check(reopened.body_seen, "it runs its body again");
+        nya_check(fabsf(reopened.bounds.y - open_at.bounds.y) < 2.0F, "and the bar is still at %.0f, now %.0f", (f64)open_at.bounds.y,
+                  (f64)reopened.bounds.y);
+
+        anchor = NYA_UI_ANCHOR_TOP_LEFT;
+        offset = (f32x2){ 0 };
+    }
+
     return nya_check_failures() == 0 ? 0 : 1;
 }

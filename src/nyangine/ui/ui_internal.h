@@ -128,6 +128,26 @@ typedef struct {
     /** How far a draggable panel has been moved from where its anchor puts it, in pixels. */
     f32x2 drag;
 
+    /**
+     * The height the last pass laid this panel out at, and whether that pass had the window folded.
+     *
+     * Folding changes a window's height, and an anchor that is not at the top moves the origin by a
+     * fraction of every change in height: a window anchored to the bottom would fold by walking its
+     * title bar down the screen, out from under the chevron that folded it. The pass that first lays
+     * the new height out is where both heights are known, so that is where the drag offset is
+     * corrected. See nya_ui_window_begin.
+     * */
+    f32 fold_height;
+    b8  folded;
+
+    /**
+     * The height to correct a fold against, or zero when none is waiting.
+     *
+     * A panel lays out at the size the last pass measured, so the pass the flag changes on is still the
+     * old height: the correction has to wait for the first pass that is actually a different size.
+     * */
+    f32 fold_from;
+
     /** Wall clock seconds when it last began showing, and when it was last opened. */
     f64 shown_s;
     f64 seen_s;

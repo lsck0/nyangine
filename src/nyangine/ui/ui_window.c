@@ -50,6 +50,33 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
 
     NYA_Rectf bounds = layout->bounds;
 
+    /*
+     * A fold, measured. Both heights are known here and nowhere earlier: the one the last pass laid out
+     * and the one this pass just did. The origin has already moved by the anchor's share of the
+     * difference, and this puts it back, by the same rule the corner grip corrects a resize with. A
+     * person folding a window is looking at its title bar, so the title bar is what holds still.
+     *
+     * Keyed off the flag rather than off the chevron, so a program that folds a window itself gets the
+     * same window back.
+     */
+    _NYA_UIPanelState* folding = &_nya_ui.panels[layout->root_panel];
+
+    if (folding->folded != state->collapsed) {
+        folding->folded    = state->collapsed;
+        folding->fold_from = folding->fold_height;
+    }
+
+    if (folding->fold_from > 0.0F && fabsf(bounds.height - folding->fold_from) > 0.5F) {
+        // the anchor's row, the same 0 / 0.5 / 1 share of a size change the grip corrects by.
+        u32 row  = (u32)layout->options.anchor / 3;
+        f32 down = (f32)row * 0.5F;
+
+        folding->drag.y   += (bounds.height - folding->fold_from) * down;
+        folding->fold_from = 0.0F;
+    }
+
+    folding->fold_height = bounds.height;
+
     // square to the bar, so a chrome button is a button in it rather than a tile filling it.
     f32 side = look->title_bar;
 
