@@ -219,6 +219,15 @@ b8 nya_ui_typing(const NYA_Window* window) {
     return _nya_ui_context(window)->typing;
 }
 
+b8 nya_ui_pointer_over(const NYA_Window* window) {
+    nya_assert(window != nullptr);
+
+    // One pointer, one _nya_ui: the window is taken for the API's sake and the day this becomes per window.
+    nya_unused(window);
+
+    return _nya_ui.pointer_over_panel;
+}
+
 void nya_ui_focus_reset(NYA_Window* window) {
     nya_assert(window != nullptr);
 

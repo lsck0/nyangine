@@ -264,6 +264,14 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             NYA_MouseButtonEvent* mouse = &event->as_mouse_button_event;
             if (mouse->button != NYA_MOUSE_BUTTON_LEFT) break;
 
+            // A click that landed on the features panel is the panel's, not the world's: without this the
+            // same press toggles a switch and grabs a cube behind it. The panel is not modal, so the event
+            // reaches here regardless; nya_ui_pointer_over is how a non-modal UI claims its pointer.
+            if (nya_ui_pointer_over(window)) {
+                event->was_handled = true;
+                break;
+            }
+
             // a ray: in 3D the pixel under the cursor is a line.
             NYA_Render3DRay ray = nya_render3d_screen_ray(window, (f32x2){ mouse->x, mouse->y });
 
@@ -675,6 +683,18 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
      * While a menu is up the menu reads pause itself, which is what gny_modal_active answers.
      */
     if (nya_input_action_just_pressed(NYA_INPUT_ACTION_PAUSE) && !gny_modal_active()) gny_screen_request(GNY_SCREEN_PAUSE);
+
+    /*
+     * The features panel's input pass. Immediate-mode UI hit-tests the pointer in an input pass against what
+     * the last draw pass measured, so a panel that is only ever drawn (as this one was) can never be clicked
+     * or dragged — the click falls straight through to the 3D scene and grabs a cube instead. The draw pass
+     * still runs in on_render; this is the missing half, exactly as the menu layers pair the two.
+     */
+    if (scene->features_open) {
+        NYA_UI* ui = gny_ui_begin(window, NYA_UI_PASS_INPUT);
+        gny_layer_cube3d_features_draw(ui, window, &scene->show_hitboxes);
+        gny_ui_end(window, ui);
+    }
 
     /*
      * The terrain's detail levels, from where the camera is.

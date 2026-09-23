@@ -45,6 +45,10 @@ void _nya_ui_input_read(NYA_UI* ui) {
 
     b8 input = ui->pass == NYA_UI_PASS_INPUT;
 
+    // Recomputed each input pass by the panels as they lay out; cleared here so a panel that closed stops
+    // swallowing world clicks the moment it is gone.
+    if (input) _nya_ui.pointer_over_panel = false;
+
     f32x2 delta              = nya_input_mouse_position_delta();
     _nya_ui.confirm          = input && nya_input_action_just_pressed(NYA_INPUT_ACTION_CONFIRM);
     _nya_ui.cancel           = input && nya_input_action_just_pressed(NYA_INPUT_ACTION_CANCEL);

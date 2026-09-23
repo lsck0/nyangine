@@ -175,6 +175,13 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
             if (sizes[axis].kind == NYA_UI_SIZE_FIXED || sizes[axis].kind == NYA_UI_SIZE_GROW) room[axis] = nya_min(room[axis], size[axis]);
             if (sizes[axis].max > 0.0F) room[axis] = nya_min(room[axis], _nya_ui_px(sizes[axis].max));
         }
+
+        // A titled or draggable top level panel swallows a pointer inside it, so a scene under a non-modal
+        // UI (nya_ui_pointer_over) can skip a world click that landed on the panel. The frameless HUD is a
+        // read-only overlay and takes no clicks, so it is left out.
+        if (ui->pass == NYA_UI_PASS_INPUT && (panel.title != nullptr || panel.draggable) && nya_rect_contains(bounds, _nya_ui.pointer)) {
+            _nya_ui.pointer_over_panel = true;
+        }
     } else {
         u32 main  = parent->main;
         u32 cross = 1 - main;

@@ -303,6 +303,16 @@ typedef struct {
     b8    pointer_down;
     b8    pointer_released;
 
+    /**
+     * Whether this input pass found the pointer inside a top level titled or draggable panel.
+     *
+     * A scene under the UI reads it (nya_ui_pointer_over) to skip a world click that landed on a panel:
+     * the UI is not modal, so events still reach the scene, and without this a click that toggles a switch
+     * would also drop a crate behind it. Set during the input pass, read the frame after, like every other
+     * hit test here. The frameless HUD is not a panel a click should be swallowed by, so it does not count.
+     * */
+    b8    pointer_over_panel;
+
     /** The wheel this pass, down and across. A container that scrolls takes the axis it uses and zeroes it. */
     f32 wheel;
     f32 wheel_x;

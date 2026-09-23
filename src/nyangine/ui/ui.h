@@ -967,6 +967,16 @@ NYA_API b8 nya_ui_cancelled(const NYA_UI* ui) __attr_no_discard;
  * */
 NYA_API b8 nya_ui_typing(const NYA_Window* window) __attr_no_discard;
 
+/**
+ * Whether the last input pass found the pointer over a top level titled or draggable panel.
+ *
+ * For a scene drawn under a non-modal UI: the UI is not a barrier, so a world click still reaches the
+ * scene's on_event, and a click that lands on a panel would otherwise also act in the world behind it —
+ * toggling a switch and dropping a crate at once. A scene guards its pick with this. The frameless HUD
+ * takes no clicks and does not count; a modal menu already stops events through nya_ui_modal_event.
+ * */
+NYA_API b8 nya_ui_pointer_over(const NYA_Window* window) __attr_no_discard;
+
 /** Moves focus to the first widget of the next pass, stops typing and drops any press. For a menu that opens fresh. */
 NYA_API void nya_ui_focus_reset(NYA_Window* window);
 
