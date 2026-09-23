@@ -64,13 +64,18 @@ struct NYA_Physics2DPointQuery {
 void nya_system_physics2d_init(void) {
     NYA_Physics2DSystem* system = &nya_world()->physics2d_system;
 
+    // taken once rather than kept live: both are baked into b2WorldDef at creation and Box2D has no way
+    // to change sub_step_count afterward, so re-reading the config on every reload would only ever move
+    // gravity, and a game that wants that already has nya_physics2d_gravity_set for it.
+    const NYA_ConfigEnginePhysics* config = &nya_config_engine()->physics;
+
     *system = (NYA_Physics2DSystem){
         .initialized      = true,
         .enabled          = true,
         .pixels_per_meter = NYA_PHYSICS2D_PIXELS_PER_METER,
-        .gravity          = NYA_PHYSICS2D_GRAVITY_DEFAULT,
-        .sub_step_count   = NYA_PHYSICS2D_SUB_STEPS,
-        .hit_threshold    = NYA_PHYSICS2D_HIT_THRESHOLD,
+        .gravity  = config->gravity > 0.0F ? (f32x2){ 0.0F, config->gravity * NYA_PHYSICS2D_PIXELS_PER_METER } : NYA_PHYSICS2D_GRAVITY_DEFAULT,
+        .sub_step_count = config->sub_steps > 0 ? config->sub_steps : NYA_PHYSICS2D_SUB_STEPS,
+        .hit_threshold  = NYA_PHYSICS2D_HIT_THRESHOLD,
     };
 
     b2WorldDef world_def = b2DefaultWorldDef();

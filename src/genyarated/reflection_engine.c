@@ -315,6 +315,21 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigEngine = {
     .field_count = 5,
 };
 
+/* NYA_ConfigDocument, src/nyangine/core/core_config.h */
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_ConfigDocument_FIELDS[] = {
+    { .name = "engine", .type = &_NYA_REFLECT_NYA_ConfigEngine, .offset = nya_offsetof(NYA_ConfigDocument, engine), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_ConfigDocument = {
+    .name = "NYA_ConfigDocument",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_ConfigDocument),
+    .alignment = alignof(NYA_ConfigDocument),
+    .fields = _NYA_REFLECT_NYA_ConfigDocument_FIELDS,
+    .field_count = 1,
+};
+
 /* NYA_EntityState, src/nyangine/core/core_entity.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_EntityState_VARIANTS[] = {
@@ -1771,6 +1786,7 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_ConfigEnginePhysics,
     &_NYA_REFLECT_NYA_ConfigEngineAudio,
     &_NYA_REFLECT_NYA_ConfigEngine,
+    &_NYA_REFLECT_NYA_ConfigDocument,
     &_NYA_REFLECT_NYA_EntityState,
     &_NYA_REFLECT_NYA_EntityVisualKind,
     &_NYA_REFLECT_NYA_PluginPermission,

@@ -49,13 +49,17 @@ NYA_INTERNAL void _nya_physics3d_dispatch_collisions(const NYA_Physics3DSystem* 
 void nya_system_physics3d_init(void) {
     NYA_Physics3DSystem* system = &nya_world()->physics3d_system;
 
+    // see the identical note in physics2d.c: taken once because Box3D bakes both into its world def at
+    // creation and offers no way to change sub_step_count later.
+    const NYA_ConfigEnginePhysics* config = &nya_config_engine()->physics;
+
     *system = (NYA_Physics3DSystem){
         .initialized     = true,
         .enabled         = true,
         .units_per_meter = NYA_PHYSICS3D_UNITS_PER_METER,
-        .gravity         = NYA_PHYSICS3D_GRAVITY_DEFAULT,
-        .sub_step_count  = NYA_PHYSICS3D_SUB_STEPS,
-        .hit_threshold   = NYA_PHYSICS3D_HIT_THRESHOLD,
+        .gravity = config->gravity > 0.0F ? (f32x3){ 0.0F, -config->gravity * NYA_PHYSICS3D_UNITS_PER_METER, 0.0F } : NYA_PHYSICS3D_GRAVITY_DEFAULT,
+        .sub_step_count = config->sub_steps > 0 ? config->sub_steps : NYA_PHYSICS3D_SUB_STEPS,
+        .hit_threshold  = NYA_PHYSICS3D_HIT_THRESHOLD,
     };
 
     b3WorldDef world_def = b3DefaultWorldDef();

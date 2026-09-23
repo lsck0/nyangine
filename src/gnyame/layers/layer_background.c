@@ -88,7 +88,7 @@ void gny_layer_background_on_render(NYA_Window* window) {
     f32x2 camera = view.position * view.zoom;
 
     // in the sky's horizon colour, like the 3D fog. the config's fields win where it sets them.
-    NYA_Render2DHaze haze = NYA_CONFIG.engine.renderer.haze;
+    NYA_Render2DHaze haze = nya_config_engine()->renderer.haze;
 
     if (haze.color.a <= 0.0F) haze.color = gny_sky_state().bottom;
 

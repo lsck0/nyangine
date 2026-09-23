@@ -386,9 +386,16 @@ The refactor the rest stands on. Behaviour does not change; the include graph an
 - `[x]` `http_metrics` moved out of `http` to beside `debug`, and `nn`'s drawing out of `nn` the same way, both
   2026-09-23: one depended on the app loop from inside `http`, the other made a pure library reach for a
   renderer.
-- `[ ]` The engine owns its configuration, one typed struct per module taken at `init` and swapped whole on
-  reload, instead of `NYA_CONFIG` living in the game DLL. This unblocks "Ceiling auditing" below and the shadow
-  settings that are loaded and read by nothing.
+- `[x]` The engine owns its configuration, 2026-09-23: `nya_config_engine()` returns a pointer into
+  `NYA_App.config_system`, loaded once by `nya_system_config_init` — ahead of "world", and so ahead of
+  physics2d/physics3d, which now take `gravity` and `sub_steps` from it at `init` — and kept live the
+  same way every other `nya_config_watch` is. `GNY_Config` in `gnyame/config.h` shrank to `GNY_ConfigGame`,
+  the game's own half of `engine.nya`; `gny_config_attach` still exists but now only re-watches that,
+  since a code reload no longer touches the engine's own half at all. Two shadow settings came back wired
+  rather than deleted: `engine.physics.gravity` and `.sub_steps` had no reader anywhere (physics world
+  creation hardcoded `NYA_PHYSICS{2D,3D}_GRAVITY_DEFAULT` and `NYA_PHYSICS{2D,3D}_SUB_STEPS`), and now
+  feed both, falling back to those same macros at zero — which is why the shipped `engine.nya` defaults
+  (9.81, 4) change nothing.
 - `[ ]` Components, as described under "Components: everything is a plugin". Convert the five existing
   optional dependencies first (curl, sqlite, Lua, Discord, Steam), because they show the five edits most
   clearly. Then every module above `math`. The generated umbrella header replaces `nyangine.h`'s hand-written
@@ -1912,10 +1919,10 @@ Ceilings are registered and shown in `debug_overlay.c`, fullest first, amber pas
 are 33 registration sites now, up from 20, as the IPC, control, WebSocket, simulation, registry and UI
 tables came in.
 
-- Blocked: `NYA_TWEEN_MAX`, `NYA_ENTITY_MAX` and `NYA_RENDER2D_FONT_CACHE_MAX` cannot become config,
-  because `NYA_CONFIG` is a global in the game DLL (`gnyame/config.h`) that no engine module can read.
-  The same is why `shadow_bias`, `shadow_cascades` and `shadow_map_size` are loaded and read by nothing.
-  Either the engine owns the config instance or these stay macros.
+- Was blocked on the engine owning its config instance, done 2026-09-23 (see Phase 1): `NYA_TWEEN_MAX`,
+  `NYA_ENTITY_MAX` and `NYA_RENDER2D_FONT_CACHE_MAX` can now become config through `nya_config_engine()`
+  the way `shadow_bias`, `shadow_cascades` and `shadow_map_size` already do. Still `[ ]`: nothing reads
+  these three as config yet, only the ownership that made it possible is in place.
 
 ## `[~]` SDF text
 

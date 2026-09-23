@@ -424,7 +424,7 @@ u32 gny_post_passes(NYA_Window* window, OUT NYA_PostPass* out_passes) {
     nya_assert(out_passes != nullptr);
 
     GNY_World*                      world    = gny_world();
-    const NYA_ConfigEngineRenderer* renderer = &NYA_CONFIG.engine.renderer;
+    const NYA_ConfigEngineRenderer* renderer = &nya_config_engine()->renderer;
 
     b8 grading = nya_render_feature_on(window, NYA_RENDER_FEATURE_GRADE, world->grade_enabled) && renderer->grade_strength > 0.0F
               && renderer->grade_lut[0] != '\0';
@@ -487,7 +487,7 @@ u32 gny_post_passes(NYA_Window* window, OUT NYA_PostPass* out_passes) {
 void gny_bloom_apply(NYA_Window* window, NYA_PostBloom scene) {
     nya_assert(window != nullptr);
 
-    NYA_PostBloom bloom = NYA_CONFIG.engine.renderer.bloom;
+    NYA_PostBloom bloom = nya_config_engine()->renderer.bloom;
 
     bloom.enabled = bloom.enabled && gny_world()->bloom_enabled;
 

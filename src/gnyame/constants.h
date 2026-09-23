@@ -1040,7 +1040,7 @@
  * THE 3D SCENE'S EFFECTS
  * ─────────────────────────────────────────────────────────
  *
- * Their look comes from NYA_CONFIG.engine.renderer. These are how the scene drives them.
+ * Their look comes from nya_config_engine()->renderer. These are how the scene drives them.
  */
 
 /** A 2x2 sheet in reading order. Scuffs and blob shadows both use its soft round third cell. */

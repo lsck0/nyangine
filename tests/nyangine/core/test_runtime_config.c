@@ -68,31 +68,42 @@ s32 main(void) {
   defer nya_system_callback_deinit();
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST: the shipped starter file loads into a fresh GNY_Config with its real values
+  // TEST: the shipped starter file's "engine" object is already loaded by nya_system_config_init
   // ─────────────────────────────────────────────────────────────────────────────
   /*
-   * GNY_CONFIG_FILE holds all of NYA_CONFIG, with "engine" and "game" at the top level like GNY_Config,
-   * since gny_world_create loads it in one call. NYA_ConfigEngine's fields are one level down; the next
-   * test loads NYA_ConfigEngine alone from a fixture shaped for it.
+   * The engine's own half is not fetched here: nya_system_config_init, called above, already loaded it
+   * into nya_config_engine(), the same way any other program brings it up. NYA_ConfigEngine's fields are
+   * one level down from that; the next test loads NYA_ConfigEngine alone from a fixture shaped for it.
    */
-  printf("TEST: nya_config_load reads assets/config/engine.nya\n");
+  printf("TEST: nya_system_config_init reads assets/config/engine.nya's \"engine\" object\n");
+  {
+    const NYA_ConfigEngine* engine = nya_config_engine();
+
+    nya_assert(engine->renderer.shadow_bias == 0.0015F, "shadow_bias, got %f", (double)engine->renderer.shadow_bias);
+    nya_assert(engine->renderer.shadow_cascades == 2, "shadow_cascades, got %u", engine->renderer.shadow_cascades);
+    nya_assert(engine->renderer.shadow_map_size == 1024, "shadow_map_size, got %u", engine->renderer.shadow_map_size);
+    nya_assert(engine->renderer.shadow_color.a == 0.25F, "shadow_color.a, got %f", (double)engine->renderer.shadow_color.a);
+    nya_assert(nya_string_equals(engine->renderer.grade_lut, NYA_ASSET_GRADES_VIVID_CUBE), "grade_lut, got '%s'", engine->renderer.grade_lut);
+    nya_assert(engine->renderer.grade_strength == 0.4F, "grade_strength, got %f", (double)engine->renderer.grade_strength);
+    nya_assert(engine->renderer.depth_of_field.focus == NYA_POST_FOCUS_OFF, "depth_of_field.focus, got %d",
+               (s32)engine->renderer.depth_of_field.focus);
+    nya_assert(engine->renderer.depth_of_field.focus_range == 1.5F, "depth_of_field.focus_range, got %f",
+               (double)engine->renderer.depth_of_field.focus_range);
+    nya_assert(engine->renderer.decals.enabled && !engine->renderer.output.hdr, "decals on and hdr off");
+    nya_assert(engine->physics.gravity == 9.81F, "gravity, got %f", (double)engine->physics.gravity);
+    nya_assert(engine->physics.sub_steps == 4, "sub_steps, got %u", engine->physics.sub_steps);
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the same file's "game" object loads into GNY_Config on its own
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: nya_config_load reads assets/config/engine.nya's \"game\" object\n");
   {
     GNY_Config config = { 0 };
     NYA_EXPECT(nya_config_load(GNY_CONFIG_FILE, nya_reflect_of(GNY_Config), &config));
 
-    nya_assert(config.engine.renderer.shadow_bias == 0.0015F, "shadow_bias, got %f", (double)config.engine.renderer.shadow_bias);
-    nya_assert(config.engine.renderer.shadow_cascades == 2, "shadow_cascades, got %u", config.engine.renderer.shadow_cascades);
-    nya_assert(config.engine.renderer.shadow_map_size == 1024, "shadow_map_size, got %u", config.engine.renderer.shadow_map_size);
-    nya_assert(config.engine.renderer.shadow_color.a == 0.25F, "shadow_color.a, got %f", (double)config.engine.renderer.shadow_color.a);
-    nya_assert(nya_string_equals(config.engine.renderer.grade_lut, NYA_ASSET_GRADES_VIVID_CUBE), "grade_lut, got '%s'", config.engine.renderer.grade_lut);
-    nya_assert(config.engine.renderer.grade_strength == 0.4F, "grade_strength, got %f", (double)config.engine.renderer.grade_strength);
-    nya_assert(config.engine.renderer.depth_of_field.focus == NYA_POST_FOCUS_OFF, "depth_of_field.focus, got %d",
-               (s32)config.engine.renderer.depth_of_field.focus);
-    nya_assert(config.engine.renderer.depth_of_field.focus_range == 1.5F, "depth_of_field.focus_range, got %f",
-               (double)config.engine.renderer.depth_of_field.focus_range);
-    nya_assert(config.engine.renderer.decals.enabled && !config.engine.renderer.output.hdr, "decals on and hdr off");
-    nya_assert(config.engine.physics.gravity == 9.81F, "gravity, got %f", (double)config.engine.physics.gravity);
-    nya_assert(config.engine.physics.sub_steps == 4, "sub_steps, got %u", config.engine.physics.sub_steps);
     nya_assert(config.game.player_speed == 220.0F, "player_speed, got %f", (double)config.game.player_speed);
     nya_assert(config.game.player_spawn_spacing == 64.0F, "player_spawn_spacing, got %f",
                (double)config.game.player_spawn_spacing);

@@ -87,9 +87,12 @@ that, they froze on frames without a tick and jumped on the next, which reads as
 
 ## Configuration
 
-`NYA_CONFIG` hot reloads from `assets/config/engine.nya`, backed by reflection — a field added to a
-config struct appears in the file with no parsing code written. Defaults live in code and are
-complete: the engine runs with no config file at all.
+`assets/config/engine.nya` has two objects at its top level, `engine` and `game`, and each is owned by
+whoever reads it. The engine's own half is loaded once, during bring-up, and lives in the engine itself
+— `nya_config_engine()` reaches it from anywhere, without going through the game. A game's own half is
+its own struct, loaded and hot reloaded the same way any config is. Both are backed by reflection — a
+field added to a config struct appears in the file with no parsing code written — and defaults live in
+code and are complete: the engine runs with no config file at all.
 
 ## Memory
 

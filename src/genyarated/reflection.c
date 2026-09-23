@@ -57,7 +57,6 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_ConfigGame = {
 /* GNY_Config, src/gnyame/config.h */
 
 static const NYA_ReflectField _NYA_REFLECT_GNY_Config_FIELDS[] = {
-    { .name = "engine", .type = &_NYA_REFLECT_NYA_ConfigEngine, .offset = nya_offsetof(GNY_Config, engine), .hint = NYA_HINT_NONE },
     { .name = "game", .type = &_NYA_REFLECT_GNY_ConfigGame, .offset = nya_offsetof(GNY_Config, game), .hint = NYA_HINT_NONE },
 };
 
@@ -67,7 +66,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_Config = {
     .size = sizeof(GNY_Config),
     .alignment = alignof(GNY_Config),
     .fields = _NYA_REFLECT_GNY_Config_FIELDS,
-    .field_count = 2,
+    .field_count = 1,
 };
 
 /* GNY_EntityKind, src/gnyame/entities/entities.h */
@@ -165,6 +164,7 @@ const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_ConfigEnginePhysics,
     &_NYA_REFLECT_NYA_ConfigEngineAudio,
     &_NYA_REFLECT_NYA_ConfigEngine,
+    &_NYA_REFLECT_NYA_ConfigDocument,
     &_NYA_REFLECT_NYA_EntityState,
     &_NYA_REFLECT_NYA_EntityVisualKind,
     &_NYA_REFLECT_NYA_PluginPermission,

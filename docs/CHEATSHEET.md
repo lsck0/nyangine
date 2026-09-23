@@ -1616,19 +1616,22 @@ NYA_CallbackHandle _nya_callback(NYA_Callback callback)
 ```c
 // types
 struct NYA_ConfigWatch { NYA_CString handle; const NYA_TypeReflection* type; void* instance; u64 modification_time; u64 next_recovery_ns; }  // One file nya_config_watch is following, and where the last load of it landed.
-struct NYA_ConfigSystem { NYA_Arena* registry; NYA_ConfigWatch watches[NYA_CONFIG_WATCH_MAX]; u32 watch_count; }
 struct NYA_ConfigEngineRenderer { NYA_RenderFeatures features; f32 shadow_bias; u32 shadow_cascades; u32 shadow_map_size; NYA_PostInk ink; NYA_PostAmbientOcclusion ambient_occlusion; NYA_PostAntialias antialias; NYA_PostDepthOfField depth_of_field; NYA_PostSpeedLines speed_lines; NYA_PostBloom bloom; NYA_PostEyeAdaptation eye_adaptation; NYA_PostLightShafts light_shafts; NYA_PostMotionBlur motion_blur; NYA_Render3DFog fog; NYA_Render2DHaze haze; NYA_Render3DDecals decals; NYA_RenderOutput output; NYA_PostDebugView debug_view; NYA_Color shadow_color; char grade_lut[NYA_CONFIG_ASSET_PATH_MAX]; f32 grade_strength; }  // Renderer tuning a game may want to reach without a rebuild.
 struct NYA_ConfigEnginePhysics { f32 gravity; u32 sub_steps; }  // Solver tuning shared by both worlds.
 struct NYA_ConfigEngineAudio { NYA_AudioPropagation propagation; NYA_AudioEffects sound; NYA_AudioEffects music; NYA_AudioEffects master; }  // Sound: how it travels through the world, and each bus's effects.
 struct NYA_ConfigEngine { NYA_ConfigEngineRenderer renderer; NYA_ConfigEnginePhysics physics; NYA_ConfigEngineAudio audio; NYA_UIStyle ui; NYA_HttpLogConfig http_log; }
+struct NYA_ConfigDocument { NYA_ConfigEngine engine; }
+struct NYA_ConfigSystem { NYA_Arena* registry; NYA_ConfigWatch watches[NYA_CONFIG_WATCH_MAX]; u32 watch_count; NYA_ConfigDocument document; }
 
 // macros
 NYA_CONFIG_WATCH_MAX 8  // Distinct files nya_config_watch may be watching at once.
 NYA_CONFIG_ASSET_PATH_MAX 128  // Longest asset path a config field can hold, terminator included.
+NYA_CONFIG_ENGINE_FILE "./assets/config/engine.nya"  // Where the engine's own half of the shared config file lives.
 
 // functions
 void nya_system_config_init(void)  // Brings up the system and, under NYA_ASSET_HOT_RELOAD, registers the watch's frame hook.
 void nya_system_config_deinit(void)  // Releases the watch registry.
+NYA_ConfigEngine* nya_config_engine(void)
 NYA_Error nya_config_load(NYA_ConstCString path, const NYA_TypeReflection* type, void* instance)
 NYA_Error nya_config_watch(NYA_ConstCString path, const NYA_TypeReflection* type, void* instance)  // Loads `path` into `instance`, then keeps it in sync with the file while NYA_ASSET_HOT_RELOAD is compiled in.
 ```

@@ -979,7 +979,7 @@ NYA_API NYA_Color nya_render_clear_color(NYA_Window* window) __attr_no_discard;
  * config every frame. Windows share pipelines, so the sample count is every window's.
  *
  * ```c
- * nya_render_options_set(window, (NYA_RenderOptions){ .msaa_samples = NYA_CONFIG.engine.renderer.msaa_samples });
+ * nya_render_options_set(window, (NYA_RenderOptions){ .msaa_samples = nya_config_engine()->renderer.msaa_samples });
  * ```
  * */
 NYA_API void nya_render_options_set(NYA_Window* window, NYA_RenderOptions options);

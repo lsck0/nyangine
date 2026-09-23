@@ -420,7 +420,7 @@ void gny_layer_cube3d_on_event(NYA_Window* window, NYA_Event* event) {
             }
 
             // the config's own fields, so the file sets where they start and a save puts them back.
-            NYA_ConfigEngineRenderer* look = &NYA_CONFIG.engine.renderer;
+            NYA_ConfigEngineRenderer* look = &nya_config_engine()->renderer;
 
             if (nya_input_action_matches(GNY_ACTION_TOGGLE_INK, key->key, key->modifier_flags)) {
                 look->ink.enabled  = !look->ink.enabled;
@@ -795,7 +795,7 @@ void gny_layer_cube3d_on_update(NYA_Window* window, f32 delta_time_s) {
     _gny_cube3d_bender_advance(scene, delta_time_s);
 
     // from the config every tick, so an edit is heard live. the engine traces once a frame, after the listener moves.
-    NYA_AudioPropagation propagation = NYA_CONFIG.engine.audio.propagation;
+    NYA_AudioPropagation propagation = nya_config_engine()->audio.propagation;
     propagation.space                = NYA_AUDIO_SPACE_3D;
     nya_audio_propagation_set(propagation);
 
@@ -894,7 +894,7 @@ NYA_INTERNAL void _gny_cube3d_draw_scene(NYA_Window* window) {
 
     // fog in the sky's horizon colour, so the terrain's rim dissolves into the sky. tinted toward the light, which
     // matters at dawn. the config's fields win where it sets them.
-    NYA_Render3DFog fog = NYA_CONFIG.engine.renderer.fog;
+    NYA_Render3DFog fog = nya_config_engine()->renderer.fog;
 
     if (fog.color.a <= 0.0F) fog.color = sky.bottom;
     if (fog.density <= 0.0F) fog.density = GNY_SKY3D_FOG_DENSITY;
@@ -1172,7 +1172,7 @@ void gny_layer_cube3d_on_render(NYA_Window* window) {
             .near_distance = nya_max(subject_distance - subject_reach, 0.1F),
             .range         = subject_distance + subject_reach,
             .strength      = GNY_CUBE3D_SHADOW_STRENGTH,
-            .bias          = NYA_CONFIG.engine.renderer.shadow_bias,
+            .bias          = nya_config_engine()->renderer.shadow_bias,
         }
     );
 
@@ -1419,7 +1419,7 @@ void _gny_cube3d_bender_advance(GNY_Cube3DScene* scene, f32 delta_time_s) {
 }
 
 void _gny_cube3d_effects_apply(NYA_Window* window, GNY_Cube3DScene* scene, f32x3 eye) {
-    const NYA_ConfigEngineRenderer* config = &NYA_CONFIG.engine.renderer;
+    const NYA_ConfigEngineRenderer* config = &nya_config_engine()->renderer;
 
     // how the camera moved since last frame. the first frame after entering has nothing to compare with.
     f32   now_s    = nya_app_get()->frame_stats.uptime_s;

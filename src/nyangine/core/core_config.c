@@ -42,6 +42,16 @@ void nya_system_config_init(void) {
     });
 #endif // NYA_ASSET_HOT_RELOAD
 
+    /*
+     * Before anything else in this run touches nya_config_engine: "config" runs ahead of "world" (and
+     * therefore physics2d/physics3d, which take their own settings at init) in core_app.c's registration
+     * order precisely so this line has already landed by the time a module first asks. Not fatal, like a
+     * missing settings file anywhere else in the engine: a program with no engine.nya gets the defaults
+     * every NYA_ConfigEngine field already has.
+     */
+    NYA_Error loaded = nya_config_watch(NYA_CONFIG_ENGINE_FILE, nya_reflect_of(NYA_ConfigDocument), &app->config_system.document);
+    if (!loaded.ok) nya_log_warn("Could not load %s: %s", NYA_CONFIG_ENGINE_FILE, (NYA_ConstCString)loaded.message);
+
     nya_log_info("Config system initialized.");
 }
 
@@ -77,6 +87,10 @@ NYA_Error nya_config_load(NYA_ConstCString path, const NYA_TypeReflection* type,
     // above leaves it exactly as it was. nya_reflect_from_object cannot itself fail on a config
     // struct with no @on_apply, but returning its result keeps that true for one that grows one.
     return nya_reflect_from_object(type, instance, object);
+}
+
+NYA_ConfigEngine* nya_config_engine(void) {
+    return &nya_app_get()->config_system.document.engine;
 }
 
 NYA_Error nya_config_watch(NYA_ConstCString path, const NYA_TypeReflection* type, void* instance) {

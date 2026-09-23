@@ -464,7 +464,7 @@ void _gny_widgets_panel(NYA_Window* window, NYA_UI* ui) {
 }
 
 void _gny_look_panel(NYA_UI* ui) {
-    NYA_UIStyle* style = &NYA_CONFIG.engine.ui;
+    NYA_UIStyle* style = &nya_config_engine()->ui;
 
     NYA_ConstCString items[_GNY_WINDOW_MENU_COUNT] = {
         [_GNY_WINDOW_MENU_RESET] = nya_string_menu_reset(),
