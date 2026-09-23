@@ -43,6 +43,7 @@
 #include "nyangine/base/base_string.h"
 #include "nyangine/base/base_template.h"
 #include "nyangine/base/base_test.h"
+#include "nyangine/base/base_thread.h"
 #include "nyangine/base/base_types.h"
 #include "nyangine/base/base_url.h"
 #include "nyangine/base/base_version.h"

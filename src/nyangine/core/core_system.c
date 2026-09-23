@@ -133,6 +133,8 @@ NYA_INTERNAL NYA_Error _nya_system_barrier(void) __attr_no_discard;
  */
 
 void nya_system_register(NYA_SystemEntry entry) {
+    nya_thread_main_only("the system registry");
+
     _nya_system_ceilings_register();
 
     nya_assert(entry.name != nullptr, "a system must be registered with a name");
@@ -146,6 +148,8 @@ void nya_system_register(NYA_SystemEntry entry) {
 }
 
 void nya_system_unregister(NYA_ConstCString name) {
+    nya_thread_main_only("the system registry");
+
     nya_assert(name != nullptr, "a system must be unregistered by name");
 
     if (_nya_system_registry.running) {
@@ -171,6 +175,8 @@ void nya_system_unregister(NYA_ConstCString name) {
  */
 
 void nya_system_enable(NYA_ConstCString name) {
+    nya_thread_main_only("the system registry");
+
     nya_assert(name != nullptr, "a system must be enabled by name");
 
     if (_nya_system_registry.running) {
@@ -182,6 +188,8 @@ void nya_system_enable(NYA_ConstCString name) {
 }
 
 void nya_system_disable(NYA_ConstCString name) {
+    nya_thread_main_only("the system registry");
+
     nya_assert(name != nullptr, "a system must be disabled by name");
 
     if (_nya_system_registry.running) {
@@ -441,6 +449,8 @@ b8 nya_system_registry_runs_phase_at(u32 index, NYA_SystemPhase phase) {
  */
 
 void nya_system_accounting_enable(void) {
+    nya_thread_main_only("the system registry's accounting");
+
     if (_nya_system_registry.accounting) return;
 
     // From zero rather than from whatever the last session left, so the first frame after it is turned
@@ -454,6 +464,8 @@ void nya_system_accounting_enable(void) {
 }
 
 void nya_system_accounting_disable(void) {
+    nya_thread_main_only("the system registry's accounting");
+
     _nya_system_registry.accounting = false;
 }
 
@@ -482,6 +494,8 @@ u64 nya_system_registry_time_ns_at(u32 index) {
 }
 
 u32 nya_system_owner_count(void) {
+    nya_thread_main_only("the system registry");
+
     u32 count = 0;
 
     // Distinct owners, in the order they first appear. A linear scan over at most a few dozen entries,

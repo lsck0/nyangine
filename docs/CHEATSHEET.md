@@ -1162,6 +1162,17 @@ NYA_CHECK_REPORT_MAX 20  // Failures printed in full before the rest are only co
 const NYA_CrashInfo* nya_crash_caught(void)  // The most recently prevented crash on this thread, or nullptr if none has been caught.
 ```
 
+### base_thread.h
+
+Which thread the program calls its own, so a module that is only safe on it can say so and be
+
+```c
+// functions
+void nya_thread_main_claim(void)  // Names the calling thread as the program's main one.
+b8 nya_thread_main_is_current(void)  // Whether this is that thread, or nothing has claimed yet.
+void nya_thread_main_only(NYA_ConstCString what)  // Crashes when it is not, naming `what` the caller was reaching for.
+```
+
 ### base_types.h
 
 Fundamental type defines, casting and parsing.

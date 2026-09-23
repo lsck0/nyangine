@@ -395,6 +395,10 @@ NYA_Error nya_app_init_with_options(NYA_AppOptions options) {
     nya_assert(options.frame_rate_limit > 0, "frame_rate_limit must be greater than 0");
     nya_assert(options.max_concurrent_jobs > 0, "max_concurrent_jobs must be greater than 0");
 
+    // whoever starts the app owns the frame, and everything the frame owns is checked against this;
+    // see base_thread.h. Claimed first, so a guard that fires below names the right thread.
+    nya_thread_main_claim();
+
     // uptime starts here, so it includes the integrity check and SDL_Init below.
     u64 started_ns = nya_clock_get_monotonic_ns();
 

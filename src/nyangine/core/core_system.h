@@ -84,6 +84,11 @@
  * add systems at runtime: which plugin's systems are eating the frame, how much memory each holds,
  * and whose code raised an error. Leave it zero and the system belongs to the engine, which is what
  * core_app.c wants and nothing else does.
+ *
+ * THREADS. The registry is the main thread's. Registering, unregistering, enabling, disabling,
+ * accounting and the owner walk all call nya_thread_main_only (base_thread.h), so a job or an HTTP
+ * worker that reaches one crashes there rather than corrupting the table on a Tuesday. The read-only
+ * `_at` accessors are left alone: they are what an overlay and a metrics route poll.
  * */
 #pragma once
 
