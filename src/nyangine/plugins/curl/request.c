@@ -13,6 +13,18 @@ typedef struct {
     NYA_String* string;
 } _NYA_RequestSink;
 
+/**
+ * The object as `key=value&key=value`, percent encoded.
+ *
+ * An error for a value that is an object or an array, because a form body has nowhere to put one: a
+ * caller that meant to send nesting meant to send JSON, and flattening it quietly would make a token
+ * endpoint answer something unhelpful about a parameter nobody wrote.
+ * */
+NYA_INTERNAL NYA_Error _nya_request_form_encode(NYA_Arena* arena, const NYA_Object* body, OUT NYA_String** out_encoded) __attr_no_discard;
+
+/** Appends `text` to `out`, percent encoding everything outside RFC 3986's unreserved set. */
+NYA_INTERNAL void _nya_request_form_append(NYA_String* out, NYA_ConstCString text);
+
 NYA_INTERNAL u64 _nya_request_write_callback(char* data, u64 size, u64 count, void* user_data);
 NYA_INTERNAL u64 _nya_request_header_callback(char* data, u64 size, u64 count, void* user_data);
 
@@ -119,10 +131,19 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
     /*
      * The body, serialized compactly.
      */
-    NYA_CString payload = nullptr;
+    NYA_CString payload      = nullptr;
+    b8          payload_form = request.body_kind == NYA_REQUEST_BODY_FORM;
+
     if (request.body != nullptr && request.method != NYA_REQUEST_METHOD_GET) {
-        NYA_String* serialized = nya_serde_json_serialize(arena, request.body, NYA_SERDE_NONE);
-        payload                = nya_string_to_cstring(arena, serialized);
+        NYA_String* serialized = nullptr;
+
+        if (payload_form) {
+            NYA_TRY(_nya_request_form_encode(arena, request.body, &serialized));
+        } else {
+            serialized = nya_serde_json_serialize(arena, request.body, NYA_SERDE_NONE);
+        }
+
+        payload = nya_string_to_cstring(arena, serialized);
 
         curl_easy_setopt(handle, CURLOPT_POSTFIELDS, payload);
         curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE, (long)serialized->length);
@@ -137,7 +158,7 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
     defer curl_slist_free_all(headers);
 
     headers = curl_slist_append(headers, "Accept: application/json");
-    if (payload != nullptr) headers = curl_slist_append(headers, "Content-Type: application/json");
+    if (payload != nullptr) headers = curl_slist_append(headers, payload_form ? "Content-Type: application/x-www-form-urlencoded" : "Content-Type: application/json");
 
     // Bearer wins over basic when both are set, rather than sending two Authorization headers and
     // letting the server pick.
@@ -276,6 +297,65 @@ NYA_Error nya_request_post(NYA_Arena* arena, NYA_ConstCString url, const NYA_Obj
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+NYA_Error _nya_request_form_encode(NYA_Arena* arena, const NYA_Object* body, NYA_String** out_encoded) {
+    *out_encoded = nya_string_create(arena);
+
+    b8 first = true;
+
+    nya_dict_foreach_key (body, key) {
+        NYA_Value* value = nya_object_get(body, *key);
+        if (value == nullptr) continue;
+
+        if (!first) nya_string_extend(*out_encoded, "&");
+        first = false;
+
+        _nya_request_form_append(*out_encoded, *key);
+        nya_string_extend(*out_encoded, "=");
+
+        switch (value->type) {
+            case NYA_TYPE_STRING: _nya_request_form_append(*out_encoded, value->as_string); break;
+
+            case NYA_TYPE_B8: nya_string_extend(*out_encoded, value->as_b8 ? "true" : "false"); break;
+
+            case NYA_TYPE_S64: nya_string_extend_sprintf(*out_encoded, FMTs64, value->as_s64); break;
+            case NYA_TYPE_F64: nya_string_extend_sprintf(*out_encoded, "%g", value->as_f64); break;
+
+            // An object or an array has no form encoding, and neither does a type this does not model.
+            default:
+                return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' cannot go in a form encoded body: it is not a string, a number or a boolean", *key);
+        }
+    }
+
+    return NYA_OK;
+}
+
+void _nya_request_form_append(NYA_String* out, NYA_ConstCString text) {
+    static const char HEX[] = "0123456789ABCDEF";
+
+    if (text == nullptr) return;
+
+    for (u64 index = 0; text[index] != '\0'; index++) {
+        char character = text[index];
+
+        // RFC 3986's unreserved set, which is what may stand for itself. Everything else is encoded,
+        // including the `+ / =` that a base64 value carries and that a server would otherwise read as
+        // structure: a code_verifier or a token is exactly the value this is usually carrying.
+        b8 unreserved = (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') ||
+                        (character >= '0' && character <= '9') || character == '-' || character == '.' || character == '_' || character == '~';
+
+        if (unreserved) {
+            nya_string_push_back(out, (u8)character);
+            continue;
+        }
+
+        u8 byte = (u8)character;
+
+        nya_string_push_back(out, (u8)'%');
+        nya_string_push_back(out, (u8)HEX[(byte >> 4) & 0x0FU]);
+        nya_string_push_back(out, (u8)HEX[byte & 0x0FU]);
+    }
+}
 
 u64 _nya_request_write_callback(char* data, u64 size, u64 count, void* user_data) {
     _NYA_RequestSink* sink  = (_NYA_RequestSink*)user_data;

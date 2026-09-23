@@ -257,6 +257,47 @@ s32 main(void) {
     );
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a form encoded body, which is what a token endpoint takes.
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Object* body = nya_object_create(arena);
+
+    nya_object_add(body, "grant_type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"authorization_code" });
+
+    // the characters that make this worth encoding at all: a code_verifier is base64url and a redirect
+    // uri is a url, and `: / = + &` in an unencoded body would read as structure.
+    nya_object_add(body, "redirect_uri", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"https://app.test/callback?x=1" });
+    nya_object_add(body, "code", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"a+b/c=d&e" });
+    nya_object_add(body, "expires_in", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 3600 });
+    nya_object_add(body, "consent", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
+
+    NYA_String* encoded = nullptr;
+    nya_assert(_nya_request_form_encode(arena, body, &encoded).ok, "a flat object encodes");
+
+    NYA_ConstCString text = nya_string_to_cstring(arena, encoded);
+
+    nya_assert(nya_string_contains(text, "grant_type=authorization_code"), "a plain value stands for itself, got '%s'", text);
+    nya_assert(nya_string_contains(text, "code=a%2Bb%2Fc%3Dd%26e"), "and every reserved character is escaped, got '%s'", text);
+    nya_assert(nya_string_contains(text, "redirect_uri=https%3A%2F%2Fapp.test%2Fcallback%3Fx%3D1"), "including in a url, got '%s'", text);
+    nya_assert(nya_string_contains(text, "expires_in=3600"), "a number is written as one, got '%s'", text);
+    nya_assert(nya_string_contains(text, "consent=true"), "and so is a boolean, got '%s'", text);
+    nya_assert(!nya_string_contains(text, "&&") && text[0] != '&', "pairs are joined by one separator, got '%s'", text);
+
+    // a form body has nowhere to put nesting, so this is an error rather than something flattened.
+    NYA_Object* nested = nya_object_create(arena);
+    NYA_Object* inner  = nya_object_create(arena);
+
+    nya_object_add(inner, "deep", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"value" });
+    nya_object_add(nested, "outer", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *inner });
+
+    NYA_String* refused = nullptr;
+    NYA_Error   error   = _nya_request_form_encode(arena, nested, &refused);
+
+    nya_assert(!error.ok, "an object inside a form body is refused");
+    nya_assert(nya_string_contains((NYA_ConstCString)error.message, "outer"), "naming the key that cannot go, got '%s'", (NYA_ConstCString)error.message);
+  }
+
   printf("PASSED: test_request\n");
   return 0;
 }

@@ -65,14 +65,12 @@
  * a year ago still apply — ordinary session and revocation concerns that belong to whatever this feeds
  * into, not to a token verifier.
  *
- * ── the token endpoint sends JSON, which is not what RFC 6749 asks for ──
+ * ── the token endpoint is form encoded, as RFC 6749 asks ──
  *
- * The authorization code is redeemed with `plugins/curl/request.h`, and that module serializes every
- * body as `application/json`; it has no form-urlencoded body to offer. RFC 6749 section 4.1.3 wants
- * `application/x-www-form-urlencoded` here. Google's and Auth0's token endpoints accept a JSON body
- * without complaint; a provider that insists on the RFC's encoding — most default Keycloak
- * installations, for one — will refuse this exchange with an `invalid_request`, and the fix belongs in
- * request.h as a form-urlencoded body option, not as a special case grown here.
+ * The authorization code is redeemed with `plugins/curl/request.h` and `NYA_REQUEST_BODY_FORM`, so the
+ * body is `application/x-www-form-urlencoded` as section 4.1.3 requires. Google and Auth0 would take
+ * JSON; a default Keycloak install would not, and the RFC is unambiguous, so there is nothing to
+ * decide per provider.
  * */
 #pragma once
 

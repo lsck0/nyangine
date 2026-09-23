@@ -312,7 +312,15 @@ NYA_Error nya_oidc_exchange(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_Co
     NYA_Response response  = { 0 };
     NYA_Error    performed = provider->perform(
         provider->user, arena,
-        (NYA_Request){ .method = NYA_REQUEST_METHOD_POST, .url = provider->token_endpoint, .body = body, .timeout_ms = provider->timeout_ms },
+        (NYA_Request){
+            .method = NYA_REQUEST_METHOD_POST,
+            .url    = provider->token_endpoint,
+            .body   = body,
+
+            // what RFC 6749 section 4.1.3 asks for, and the one encoding every provider takes.
+            .body_kind  = NYA_REQUEST_BODY_FORM,
+            .timeout_ms = provider->timeout_ms,
+        },
         &response
     );
 

@@ -37,6 +37,7 @@
  */
 
 typedef enum NYA_RequestMethod  NYA_RequestMethod;
+typedef enum NYA_RequestBody    NYA_RequestBody;
 typedef struct NYA_Request      NYA_Request;
 typedef struct NYA_RequestHeader NYA_RequestHeader;
 typedef struct NYA_Response     NYA_Response;
@@ -65,6 +66,25 @@ enum NYA_RequestMethod {
     NYA_REQUEST_METHOD_COUNT,
 };
 
+/** How `body` is written onto the wire, and what `Content-Type` says about it. */
+enum NYA_RequestBody {
+    /** Compact JSON, `application/json`. What an ordinary API takes and the default. */
+    NYA_REQUEST_BODY_JSON = 0,
+
+    /**
+     * `application/x-www-form-urlencoded`: `key=value&key=value`, percent encoded.
+     *
+     * What OAuth 2 and OpenID Connect token endpoints take, and what a default Keycloak install takes
+     * and nothing else — RFC 6749 says the request parameters are form encoded, and several providers
+     * read that strictly. The object's values must be strings, numbers or booleans, because a form body
+     * has no nesting to put an object or an array into; one of those is an error rather than something
+     * quietly flattened.
+     * */
+    NYA_REQUEST_BODY_FORM,
+
+    NYA_REQUEST_BODY_COUNT,
+};
+
 struct NYA_RequestHeader {
     NYA_ConstCString name;
     NYA_ConstCString value;
@@ -77,9 +97,12 @@ struct NYA_Request {
     NYA_ConstCString url;
 
     /**
-     * Serialized as compact JSON and sent as the body. Null sends none.
+     * Sent as the body, in whatever `body_kind` says. Null sends none.
      * */
     const NYA_Object* body;
+
+    /** How to write `body`. Zero is JSON, which is what everything but a token endpoint wants. */
+    NYA_RequestBody body_kind;
 
     /** Terminated by the first entry with a null name. Overrides anything this module sets by default. */
     NYA_RequestHeader headers[NYA_REQUEST_MAX_HEADERS];
