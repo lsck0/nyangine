@@ -89,6 +89,7 @@
 #include "nyangine/ui/ui_present.c"
 #include "nyangine/ui/ui_present_record.c"
 #include "nyangine/ui/ui_present_shape.c"
+#include "nyangine/ui/ui_present_cell.c"
 #include "nyangine/ui/ui_draw.c"
 #include "nyangine/ui/ui_input.c"
 #include "nyangine/ui/ui_layout.c"

@@ -13,6 +13,14 @@
  * Tab and shift-tab step through every widget, the arrows move within a panel and between them,
  * enter activates, escape quits, and the mouse still works where the terminal reports one.
  *
+ * ## What draws it
+ *
+ * The cell presenter, installed on the window below: the widgets are the engine's, and what they look like
+ * is `ui_present_cell.c` — `[ quit ]`, `[x] filling`, a box drawing frame, a bar of blocks. Take the
+ * `nya_ui_presenter_set` out and the same program still runs, drawn by the shape presenter through the
+ * terminal backend, which is rectangles rasterised into cells; that is what a TUI looked like here before.
+ * Focus is reverse video and the angle delimiters, so it reads on a terminal with no colour at all.
+ *
  * ## How a program picks the terminal backend
  *
  * `NYA_TERMINAL`, defined before the engine is included. It implies `NYA_HEADLESS` (see
@@ -84,10 +92,14 @@
 #define PADDING    CELL_H
 
 /**
- * The focus mark, in pixels, which here is one whole cell. Anything narrower falls between two cells
- * and the only sign of what has focus is a colour the terminal may not have. See NYA_UIStyle.
+ * The focus mark, in pixels, which here is one whole cell. The cell presenter marks focus with reverse
+ * video and the angle delimiters instead and never draws a bar, but the number is still what the layout
+ * adds up, so it is a whole cell like everything else here. See NYA_UIStyle and ui_present_cell.h.
  * */
 #define FOCUS_BAR CELL_W
+
+/** Bars kept from a pass until the UI's cells are on the screen. One per row a terminal can show. */
+#define BARS_MAX NYA_TERMINAL_ROWS_MAX
 
 /** The controls beside the arenas, and the widest an arena's name may be. Both in columns. */
 #define CONTROLS_COLUMNS 28.0F
@@ -137,6 +149,18 @@ typedef enum {
     MEASURE_COUNT,
 } Measure;
 
+/**
+ * One arena's occupancy bar: the room the layout gave it and how full that arena is.
+ *
+ * Kept rather than drawn where it is declared, because the UI is drawn into a grid of cells and put on the
+ * screen in one go: anything the program draws itself has to go on after that, or the panel the bar sits in
+ * covers it. See ui_present_cell.h.
+ * */
+typedef struct {
+    NYA_Rectf track;
+    f32       share;
+} Bar;
+
 /** Everything the frame needs that is not an arena. Plain data, passed down rather than global. */
 typedef struct {
     u32 frame;
@@ -159,6 +183,10 @@ typedef struct {
 
     /** Set when a widget asked to stop, since a UI pass reports rather than exits. */
     b8 quit;
+
+    /** What the last draw pass laid out room for, drawn once the UI's own cells are down. */
+    Bar bars[BARS_MAX];
+    u32 bar_count;
 } Dashboard;
 
 /*
@@ -167,9 +195,9 @@ typedef struct {
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** One arena: a row that takes focus, a track behind it, and the filled share of it. */
-static void arena_row(NYA_UI* ui, NYA_Window* window, Dashboard* dashboard, u32 index, const NYA_ArenaStats* stats) {
-    nya_assert(ui != nullptr && window != nullptr && dashboard != nullptr && stats != nullptr);
+/** One arena: a row that takes focus, and the room its bar is drawn into once the UI is on the screen. */
+static void arena_row(NYA_UI* ui, Dashboard* dashboard, u32 index, const NYA_ArenaStats* stats) {
+    nya_assert(ui != nullptr && dashboard != nullptr && stats != nullptr);
 
     NYA_ConstCString name = stats->name != nullptr ? stats->name : "(unnamed)";
     u64              part = dashboard->measure == MEASURE_USED ? stats->used_bytes : stats->free_list_bytes;
@@ -188,22 +216,37 @@ static void arena_row(NYA_UI* ui, NYA_Window* window, Dashboard* dashboard, u32 
     nya_ui_size(ui, nya_ui_fixed(NAME_COLUMNS * CELL_W));
     if (nya_ui_selectable(ui, name, dashboard->selected == index)) dashboard->selected = index;
 
-    // the bar is drawn into room the layout gave it, which is what nya_ui_space is for: the widgets
-    // above it are the engine's, this is the program's, and they share one column of pixels.
+    // the bar takes room the layout gave it, which is what nya_ui_space is for: the widgets above it are
+    // the engine's, this is the program's, and they share one column of pixels.
     nya_ui_size(ui, nya_ui_grow(1));
     NYA_Rectf track = nya_ui_space(ui, 0.0F, ROW_HEIGHT);
 
-    if (track.width > 0.0F) {
-        b8 hot = share >= HOT_SHARE;
-
-        nya_render2d_rect(window, track.x, track.y, track.width, track.height, COLOR_TRACK);
-        nya_render2d_rect(window, track.x, track.y, roundf(track.width * share), track.height, hot ? COLOR_HOT : COLOR_FILL);
-
-        // hot said a second time, in bold at the bar's end, because a terminal with no colour draws both bars alike.
-        if (hot) nya_render2d_terminal_glyph(window, track.x + track.width - CELL_W, track.y, '!', COLOR_TEXT, NYA_TERMINAL_ATTRIBUTE_BOLD);
+    if (track.width > 0.0F && dashboard->bar_count < nya_carray_length(dashboard->bars)) {
+        dashboard->bars[dashboard->bar_count] = (Bar){ .track = track, .share = share };
+        dashboard->bar_count                 += 1;
     }
 
     nya_ui_panel_end(ui);
+}
+
+/**
+ * The bars, after the UI's cells have reached the screen. A program draws over the UI here rather than into
+ * it: the presenter owns a grid of characters and puts it down in one go, so a rectangle drawn while the
+ * pass was open would be covered by the panel the bar sits in.
+ * */
+static void bars_draw(NYA_Window* window, const Dashboard* dashboard) {
+    nya_assert(window != nullptr && dashboard != nullptr);
+
+    for (u32 i = 0; i < dashboard->bar_count; i++) {
+        const Bar* bar = &dashboard->bars[i];
+        b8         hot = bar->share >= HOT_SHARE;
+
+        nya_render2d_rect(window, bar->track.x, bar->track.y, bar->track.width, bar->track.height, COLOR_TRACK);
+        nya_render2d_rect(window, bar->track.x, bar->track.y, roundf(bar->track.width * bar->share), bar->track.height, hot ? COLOR_HOT : COLOR_FILL);
+
+        // hot said a second time, in bold at the bar's end, because a terminal with no colour draws both bars alike.
+        if (hot) nya_render2d_terminal_glyph(window, bar->track.x + bar->track.width - CELL_W, bar->track.y, '!', COLOR_TEXT, NYA_TERMINAL_ATTRIBUTE_BOLD);
+    }
 }
 
 /** The controls beside the arenas: what the bars show, what the worker arena does, and the way out. */
@@ -270,6 +313,8 @@ static void frame_pass(NYA_Window* window, NYA_UIPass pass, Dashboard* dashboard
 
     NYA_UI* ui = nya_ui_begin(window, pass);
 
+    dashboard->bar_count = 0;
+
     NYA_UIPanel root = { .width = nya_ui_grow(1), .height = nya_ui_grow(1), .frameless = true };
 
     if (nya_ui_panel_begin(ui, "root", root)) {
@@ -293,7 +338,7 @@ static void frame_pass(NYA_Window* window, NYA_UIPass pass, Dashboard* dashboard
                     if (arena == nullptr) continue;
 
                     NYA_ArenaStats stats = nya_arena_stats(arena);
-                    arena_row(ui, window, dashboard, i, &stats);
+                    arena_row(ui, dashboard, i, &stats);
                 }
 
                 nya_ui_panel_end(ui);
@@ -455,6 +500,17 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     nya_ui_style_set(window, dashboard_style());
 
+    /*
+     * The presenter that makes this a TUI rather than a drawing of a GUI: buttons as `[ quit ]`, panels as box
+     * drawing, the slider as blocks. Without it the shape presenter draws rectangles, which the terminal
+     * backend rasterises into cells — the same widgets, doing the same things, in a look nobody expects from a
+     * terminal. Static because the grid is most of a megabyte and it outlives every pass.
+     */
+    static NYA_UICells cells;
+
+    nya_ui_cells_init(&cells, (NYA_UICellOptions){ .cell = { CELL_W, CELL_H } });
+    nya_ui_presenter_set(window, nya_ui_cells_presenter(&cells));
+
     // the arena the dashboard watches. Named, because the name is the label on its bar, and sized to
     // the budget so the bar is a fraction of a number this file chose.
     NYA_Arena* worker = nya_arena_create(.name = "worker", .region_size = WORKER_BUDGET_BYTES);
@@ -503,7 +559,14 @@ s32 main(s32 argc, NYA_CString* argv) {
         nya_assert(line->length > 0, "sprintf produced nothing");
 
         nya_render2d_terminal_frame_begin(window, COLOR_GROUND);
+
+        // the UI into its own grid of characters, that grid onto the terminal, and then what this program
+        // draws itself. See ui_present_cell.h for why those are three steps and not one.
+        nya_ui_cells_reset(&cells);
         frame_pass(window, NYA_UI_PASS_DRAW, &dashboard, worker);
+        nya_ui_cells_present(&cells);
+        bars_draw(window, &dashboard);
+
         nya_render2d_terminal_frame_end(window);
         legend_show(window, &dashboard, legend);
 
@@ -516,6 +579,10 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     // removed by the program that placed it, rather than trusting each terminal to drop it with the alternate screen.
     nya_terminal_image_clear();
+
+    // the window goes back to the shape presenter before the grid it was pointing at is thrown away.
+    nya_ui_presenter_set(window, nullptr);
+    nya_ui_cells_deinit(&cells);
 
     nya_arena_destroy(scratch);
     nya_arena_destroy(worker);

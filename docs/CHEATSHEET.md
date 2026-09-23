@@ -4165,6 +4165,30 @@ const NYA_UIWidgetDraw* nya_ui_recorder_find(const NYA_UIRecorder* recorder, NYA
 u32 nya_ui_recorder_write(const NYA_UIRecorder* recorder, char* out, u32 capacity)  // The pass as text, one line per widget: kind, rectangle, state and label.
 ```
 
+### ui_present_cell.h
+
+The presenter that draws the UI as a terminal draws things: a button is `[ save ]`, a toggle is `[x] label`, a
+
+```c
+// types
+struct NYA_UICellOptions { f32x2 cell; b8 ascii; }  // What a caller decides about the grid.
+struct NYA_UICells { NYA_UIPresenter presenter; NYA_UICellOptions options; NYA_TerminalCell cells[NYA_UI_CELL_ROWS_MAX][NYA_UI_CELL_COLUMNS_MAX]; u16 used_columns; u16 used_rows; u8 layers[NYA_UI_CELL_ROWS_MAX][NYA_UI_CELL_COLUMNS_MAX]; NYA_UILook looks[NYA_UI_STYLE_DEPTH_MAX + 1]; u32 depth; s32 clip_column; s32 clip_row; s32 clip_columns; s32 clip_rows; s32 layer; }  // The grid the cell presenter draws into, which the caller owns and which outlives a pass.
+
+// macros
+NYA_UI_CELL_COLUMNS_MAX NYA_TERMINAL_COLUMNS_MAX  // Columns the grid holds.
+NYA_UI_CELL_ROWS_MAX NYA_TERMINAL_ROWS_MAX  // Rows the grid holds, by the same reasoning.
+NYA_UI_CELL_SIZE  // What one cell is in pixels when a caller names none: the terminal's, so a TUI needs no numbers of its own.
+
+// functions
+void nya_ui_cells_init(NYA_UICells* cells, NYA_UICellOptions options)  // Prepares `cells` and the presenter inside it.
+void nya_ui_cells_deinit(NYA_UICells* cells)
+void nya_ui_cells_reset(NYA_UICells* cells)  // Throws the last pass away.
+const NYA_UIPresenter* nya_ui_cells_presenter(NYA_UICells* cells)
+NYA_TerminalCell nya_ui_cells_at(const NYA_UICells* cells, u16 column, u16 row)  // One cell.
+void nya_ui_cells_present(const NYA_UICells* cells)
+u32 nya_ui_cells_write(const NYA_UICells* cells, char* out, u32 capacity)
+```
+
 ## physics
 
 Box2D and Box3D behind one interface: bodies, shapes, queries and a character controller.
