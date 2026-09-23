@@ -123,6 +123,16 @@
  * ─────────────────────────────────────────────────────────
  */
 
+#define JWKS_EC_X "5P_TGFB_fOb8s9HiuPd7FKMl10sDvGETdFrYcq8kkLo"
+#define JWKS_EC_Y "bJdoN89iTGM4siIKrVoAdbhHhwYxLVyPGdSKpn4wURU"
+
+/** alg ES256, kid test-key-ec, the same claims the RSA fixture carries. */
+#define ID_TOKEN_ES256 \
+  "eyJhbGciOiJFUzI1NiIsImtpZCI6InRlc3Qta2V5LWVjIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL2lzc3Vlci50ZXN0IiwiYXVkIj"\
+  "oiY2xpZW50LTEyMyIsInN1YiI6InVzZXItNDIiLCJleHAiOjE3MDAwMDM2MDAsImlhdCI6MTY5OTk5OTk5MCwibm9uY2UiOiJ0ZXN0LW5vbmNl"\
+  "LWZpeHR1cmUiLCJlbWFpbCI6ImFkYUBleGFtcGxlLnRlc3QiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwibmFtZSI6IkFkYSBGaXh0dXJlIn0.3N"\
+  "gMU8U46jg3OapyY5IcVKINgikvpSMIR0Krlp1h4og2boS2FFuT2jYbNkznJ4Vbgqeg3Olp11qTCDOQ8lSRRw"
+
 static const char* DISCOVERY_GOOD = "{\"issuer\":\"" ISSUER "\",\"authorization_endpoint\":\"" ISSUER "/authorize\","
                                      "\"token_endpoint\":\"" ISSUER "/token\",\"jwks_uri\":\"" ISSUER "/jwks\","
                                      "\"userinfo_endpoint\":\"" ISSUER "/userinfo\"}";
@@ -132,6 +142,16 @@ static const char* DISCOVERY_WRONG_ISSUER = "{\"issuer\":\"https://not-the-issue
 
 static const char* JWKS_GOOD = "{\"keys\":[{\"kty\":\"RSA\",\"kid\":\"test-key-1\",\"use\":\"sig\",\"alg\":\"RS256\",\"n\":\"" JWKS_N
                                 "\",\"e\":\"" JWKS_E "\"}]}";
+
+/** Both keys, which is what a provider that signs some tokens with each publishes. */
+static const char* JWKS_RSA_AND_EC = "{\"keys\":[{\"kty\":\"RSA\",\"kid\":\"test-key-1\",\"use\":\"sig\",\"alg\":\"RS256\",\"n\":\"" JWKS_N
+                                      "\",\"e\":\"" JWKS_E "\"},"
+                                      "{\"kty\":\"EC\",\"kid\":\"test-key-ec\",\"use\":\"sig\",\"alg\":\"ES256\",\"crv\":\"P-256\",\"x\":\"" JWKS_EC_X
+                                      "\",\"y\":\"" JWKS_EC_Y "\"}]}";
+
+/** The EC key published under the *RSA* key's kid: the confusion the family check refuses. */
+static const char* JWKS_EC_AS_RSA_KID = "{\"keys\":[{\"kty\":\"EC\",\"kid\":\"test-key-1\",\"use\":\"sig\",\"alg\":\"ES256\",\"crv\":\"P-256\",\"x\":\"" JWKS_EC_X
+                                         "\",\"y\":\"" JWKS_EC_Y "\"}]}";
 
 #define TOKEN_BODY(id_token)                                                                                                                         \
   "{\"access_token\":\"test-access-token-fixture\",\"token_type\":\"Bearer\",\"expires_in\":3600,\"id_token\":\"" id_token "\"}"
@@ -291,10 +311,10 @@ s32 main(void) {
 
     char expected_challenge[64] = { 0 };
     u64  expected_length         = 0;
-    // _nya_oidc_base64url_encode rather than a crypto_encoding.h call: this file shares oidc.c's
+    // nya_crypto_base64url_encode rather than a crypto_encoding.h call: this file shares oidc.c's
     // translation unit, and that is the temporary local copy oidc.c itself uses — see its file note.
     nya_check(
-        _nya_oidc_base64url_encode(expected_hash.bytes, sizeof(expected_hash.bytes), expected_challenge, sizeof(expected_challenge), &expected_length),
+        nya_crypto_base64url_encode(expected_hash.bytes, sizeof(expected_hash.bytes), expected_challenge, sizeof(expected_challenge), &expected_length),
         "the expected challenge encodes"
     );
 
@@ -345,6 +365,46 @@ s32 main(void) {
     NYA_Error      again  = nya_oidc_exchange(provider, arena, "another-code", &state, &second);
     nya_check(again.ok, "the second exchange succeeds too: %s", (NYA_ConstCString)again.message);
     nya_check(fake.performed == 4, "with no extra jwks fetch, %u transfers so far", fake.performed);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: an ES256 token, against a provider that publishes both kinds of key.
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    Fake              fake     = { .now_ms = 1000, .now_s = 1'700'000'000 };
+    NYA_OidcProvider* provider = discovered_provider(arena, &fake);
+
+    fake_push(&fake, 200, TOKEN_BODY(ID_TOKEN_ES256));
+    fake_push(&fake, 200, JWKS_RSA_AND_EC);
+
+    NYA_OidcAuthorizeState state = { 0 };
+    (void)snprintf(state.nonce, sizeof(state.nonce), "%s", "test-nonce-fixture");
+    (void)snprintf(state.state, sizeof(state.state), "%s", "whatever");
+    (void)snprintf(state.code_verifier, sizeof(state.code_verifier), "%s", "verifier");
+
+    NYA_OidcClaims claims   = { 0 };
+    NYA_Error      exchange = nya_oidc_exchange(provider, arena, "code", &state, &claims);
+
+    nya_check(exchange.ok, "an ES256 id_token verifies: %s", (NYA_ConstCString)exchange.message);
+    nya_check(nya_string_equals((NYA_ConstCString)claims.subject, "user-42"), "and carries its subject, got '%s'", claims.subject);
+
+    /*
+     * The same token against a jwks that publishes the EC key under the RSA key's kid. The signature
+     * would verify with that key; what refuses it is that the header said ES256 and the kid it named
+     * is not an ES256 key, which is the confusion a verifier keyed on kid alone would walk into.
+     */
+    Fake              confused          = { .now_ms = 1000, .now_s = 1'700'000'000 };
+    NYA_OidcProvider* confused_provider = discovered_provider(arena, &confused);
+
+    fake_push(&confused, 200, TOKEN_BODY(ID_TOKEN_GOOD));
+    fake_push(&confused, 200, JWKS_EC_AS_RSA_KID);
+
+    NYA_OidcClaims mismatched = { 0 };
+    NYA_Error      refused    = nya_oidc_exchange(confused_provider, arena, "code", &state, &mismatched);
+
+    nya_check(!refused.ok, "an RS256 token whose kid names an EC key is refused");
+    nya_check(nya_string_contains((NYA_ConstCString)refused.message, "alg"), "saying the alg is not what the kid names, got '%s'",
+              (NYA_ConstCString)refused.message);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

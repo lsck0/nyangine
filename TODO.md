@@ -845,6 +845,27 @@ logged-in user.
         something generic with a service argument.
     - Inbound is already shared, and was the piece worth sharing: `http_webhook.h` verifies a signed callback for
       whoever sends one, and Telegram's weaker "echo my secret back" check sits beside it saying so.
+- `[x]` **OpenID Connect**, asked 2026-09-23 and landed the same day as `src/nyangine/plugins/oidc/`: the
+  authorization code flow with PKCE, discovery, a JWKS cached by `kid` with a rate limited refetch for a
+  rotation, and an id_token this engine verifies itself rather than trusting because TLS carried it.
+  - **RS256 and ES256 both**, because a provider signs with one or the other and `crypto` had neither.
+    `crypto_rsa.h` is PKCS#1 v1.5 over SHA-256 with the padding rebuilt and compared whole; `crypto_ecdsa.h`
+    is P-256 with the on-curve check every key goes through. Both are verification only, on published
+    numbers, for the reasons their headers give — and where this engine signs, it still signs Ed25519.
+  - `alg` is compared against those two spellings and nothing else, which is the whole of `alg: none` and
+    the HS256 downgrade: the module never computes an HMAC, so there is no confused-algorithm path to fall
+    into. The key a `kid` names must also be of the family `alg` asked for, or an RSA key could be handed to
+    the ECDSA verifier.
+  - Every refusal is its own message: the issuer, the audience in both its string and array forms, the
+    expiry, an `iat` in the future, the nonce, an `azp` that is not this client, an unknown `kid`, a
+    signature that does not verify. A refused token leaves the claims struct empty rather than half filled.
+  - The pending login — state, nonce, verifier — is the caller's to keep, because a provider is a
+    long lived singleton and a login is not. That also means **the caller compares the `state` it stored
+    against the one the callback carried**; the module never sees a query string and says so in its header.
+  - Still open: the token endpoint's body is JSON, which Google and Auth0 take and a default Keycloak does
+    not. Form-urlencoded belongs to `plugins/curl/request.h` rather than to this module, and that is where
+    it will go.
+
 - `[ ]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
   path traversal in static serving, request smuggling, resource exhaustion). Every finding becomes a test.
 
@@ -1071,7 +1092,7 @@ Considered, not planned (2026-09-22):
   rich text, docking.
 - Signed automatic updates outside Steam and the packagers.
 - IME for CJK input, multiple windows per program, and a readiness route separate from health.
-- Organisations (tenants), OpenID Connect and SAML single sign-on.
+- Organisations (tenants) and SAML single sign-on. OpenID Connect landed 2026-09-23; see Phase 3.
 - Generated list conventions (pagination, filtering, sorting).
 - Email (SMTP) for verification and resets. Recovery stays with recovery codes and admin resets.
 - Budgets per kind of program checked in CI.

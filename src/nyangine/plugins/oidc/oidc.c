@@ -17,10 +17,20 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** One cached key: the `kid` it answers to, and the public key it names. */
+/**
+ * One cached key: the `kid` it answers to, which family it is, and the key itself.
+ *
+ * The family is kept because it is half of the check that matters: a token whose header says RS256
+ * must be verified with an RSA key and an ES256 one with an EC key, and a verifier that looked up a
+ * key by `kid` alone would be one a provider's own key rotation could confuse.
+ * */
 typedef struct {
-    char                   kid[NYA_OIDC_MAX_KID];
-    NYA_CryptoRsaPublicKey key;
+    char kid[NYA_OIDC_MAX_KID];
+
+    NYA_OidcAlgorithm algorithm;
+
+    NYA_CryptoRsaPublicKey   rsa;
+    NYA_CryptoEcdsaPublicKey ec;
 } _NYA_OidcKey;
 
 struct NYA_OidcProvider {
@@ -90,14 +100,14 @@ NYA_INTERNAL b8 _nya_oidc_claim_audience_contains(const NYA_Object* payload, NYA
 NYA_INTERNAL NYA_Error _nya_oidc_jwks_fetch(NYA_OidcProvider* provider, NYA_Arena* arena) __attr_no_discard;
 
 /** The cached key named `kid`, or null. */
-NYA_INTERNAL const NYA_CryptoRsaPublicKey* _nya_oidc_jwks_find(const NYA_OidcProvider* provider, NYA_ConstCString kid) __attr_no_discard;
+NYA_INTERNAL const _NYA_OidcKey* _nya_oidc_jwks_find(const NYA_OidcProvider* provider, NYA_ConstCString kid) __attr_no_discard;
 
 /**
  * The key named `kid`, fetching once if it is not held. A second miss right after a fetch is refused
  * rather than fetched again: see NYA_OIDC_JWKS_REFETCH_COOLDOWN_MS.
  * */
 NYA_INTERNAL NYA_Error
-_nya_oidc_jwks_ensure(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString kid, OUT const NYA_CryptoRsaPublicKey** out_key) __attr_no_discard;
+_nya_oidc_jwks_ensure(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString kid, OUT const _NYA_OidcKey** out_key) __attr_no_discard;
 
 /**
  * Decodes and verifies `token` against `provider`'s issuer, client id and jwks, checks `nonce` against
@@ -106,16 +116,6 @@ _nya_oidc_jwks_ensure(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCSt
 NYA_INTERNAL NYA_Error _nya_oidc_id_token_verify(
     NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString token, u64 token_size, NYA_ConstCString expected_nonce, OUT NYA_OidcClaims* out_claims
 ) __attr_no_discard;
-
-/*
- * TEMPORARY: crypto_encoding.h does not yet carry base64url in this tree — it is being promoted out of
- * http_auth.c into crypto_encoding.h as nya_crypto_base64url_encode/decode in parallel with this file.
- * These three are that function copied verbatim (see http_auth.c), to delete the moment the real ones
- * land; nothing else in this file should grow a second base64url of its own.
- */
-NYA_INTERNAL b8 _nya_oidc_base64url_encode(const u8* data, u64 size, OUT char* out_text, u64 capacity, OUT u64* out_size);
-NYA_INTERNAL b8 _nya_oidc_base64url_decode(const char* text, u64 size, OUT u8* out_data, u64 capacity, OUT u64* out_size);
-NYA_INTERNAL u8 _nya_oidc_base64url_value(char character) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -250,7 +250,7 @@ NYA_Error nya_oidc_authorize_url(const NYA_OidcProvider* provider, char* out_url
 
     char code_challenge[NYA_OIDC_SECRET_TEXT_BYTES] = { 0 };
     u64  challenge_length                            = 0;
-    if (!_nya_oidc_base64url_encode(verifier_hash.bytes, sizeof(verifier_hash.bytes), code_challenge, sizeof(code_challenge), &challenge_length)) {
+    if (!nya_crypto_base64url_encode(verifier_hash.bytes, sizeof(verifier_hash.bytes), code_challenge, sizeof(code_challenge), &challenge_length)) {
         *out_state = (NYA_OidcAuthorizeState){ 0 };
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the code challenge does not fit");
     }
@@ -443,7 +443,7 @@ b8 _nya_oidc_random_secret(char out[NYA_OIDC_SECRET_TEXT_BYTES]) {
     if (!nya_os_random_bytes(bytes, sizeof(bytes))) return false;
 
     u64 length  = 0;
-    b8  encoded = _nya_oidc_base64url_encode(bytes, sizeof(bytes), out, NYA_OIDC_SECRET_TEXT_BYTES, &length);
+    b8  encoded = nya_crypto_base64url_encode(bytes, sizeof(bytes), out, NYA_OIDC_SECRET_TEXT_BYTES, &length);
 
     nya_crypto_wipe(bytes, sizeof(bytes));
 
@@ -530,30 +530,63 @@ NYA_Error _nya_oidc_jwks_fetch(NYA_OidcProvider* provider, NYA_Arena* arena) {
         if (entry->type != NYA_TYPE_OBJECT) continue;
 
         char kty[16] = { 0 };
-        if (!_nya_oidc_claim_string(&entry->as_object, "kty", kty, sizeof(kty)) || !nya_string_equals((NYA_ConstCString)kty, "RSA")) continue;
+        if (!_nya_oidc_claim_string(&entry->as_object, "kty", kty, sizeof(kty))) continue;
 
         char kid[NYA_OIDC_MAX_KID] = { 0 };
         if (!_nya_oidc_claim_string(&entry->as_object, "kid", kid, sizeof(kid))) continue;
 
-        // a 4096 bit modulus is 683 base64url characters; this leaves slack rather than sizing exactly.
-        char n_text[700] = { 0 };
-        char e_text[32]  = { 0 };
-        if (!_nya_oidc_claim_string(&entry->as_object, "n", n_text, sizeof(n_text))) continue;
-        if (!_nya_oidc_claim_string(&entry->as_object, "e", e_text, sizeof(e_text))) continue;
+        _NYA_OidcKey held = { 0 };
 
-        u8  modulus[NYA_CRYPTO_RSA_MAX_BYTES] = { 0 };
-        u64 modulus_size                       = 0;
-        if (!_nya_oidc_base64url_decode(n_text, strlen(n_text), modulus, sizeof(modulus), &modulus_size)) continue;
+        if (nya_string_equals((NYA_ConstCString)kty, "RSA")) {
+            // a 4096 bit modulus is 683 base64url characters; this leaves slack rather than sizing exactly.
+            char n_text[700] = { 0 };
+            char e_text[32]  = { 0 };
+            if (!_nya_oidc_claim_string(&entry->as_object, "n", n_text, sizeof(n_text))) continue;
+            if (!_nya_oidc_claim_string(&entry->as_object, "e", e_text, sizeof(e_text))) continue;
 
-        u8  exponent[8]  = { 0 };
-        u64 exponent_size = 0;
-        if (!_nya_oidc_base64url_decode(e_text, strlen(e_text), exponent, sizeof(exponent), &exponent_size)) continue;
+            u8  modulus[NYA_CRYPTO_RSA_MAX_BYTES] = { 0 };
+            u64 modulus_size                      = 0;
+            if (!nya_crypto_base64url_decode(n_text, strlen(n_text), modulus, sizeof(modulus), &modulus_size)) continue;
 
-        NYA_CryptoRsaPublicKey key = { 0 };
-        if (!nya_crypto_rsa_public_key_from_parts(modulus, modulus_size, exponent, exponent_size, &key).ok) continue;
+            u8  exponent[8]   = { 0 };
+            u64 exponent_size = 0;
+            if (!nya_crypto_base64url_decode(e_text, strlen(e_text), exponent, sizeof(exponent), &exponent_size)) continue;
 
-        _nya_oidc_copy(provider->keys[stored].kid, sizeof(provider->keys[stored].kid), kid);
-        provider->keys[stored].key = key;
+            if (!nya_crypto_rsa_public_key_from_parts(modulus, modulus_size, exponent, exponent_size, &held.rsa).ok) continue;
+
+            held.algorithm = NYA_OIDC_ALGORITHM_RS256;
+        } else if (nya_string_equals((NYA_ConstCString)kty, "EC")) {
+            /*
+             * P-256 and no other curve, because ES256 names exactly that one. A provider that also
+             * publishes a P-384 key for ES384 has that key skipped rather than stored under an
+             * algorithm this cannot verify, which is the same refusal one step earlier.
+             */
+            char crv[16] = { 0 };
+            if (!_nya_oidc_claim_string(&entry->as_object, "crv", crv, sizeof(crv)) || !nya_string_equals((NYA_ConstCString)crv, "P-256")) continue;
+
+            char x_text[64] = { 0 };
+            char y_text[64] = { 0 };
+            if (!_nya_oidc_claim_string(&entry->as_object, "x", x_text, sizeof(x_text))) continue;
+            if (!_nya_oidc_claim_string(&entry->as_object, "y", y_text, sizeof(y_text))) continue;
+
+            u8  x[NYA_CRYPTO_ECDSA_COORDINATE_BYTES] = { 0 };
+            u8  y[NYA_CRYPTO_ECDSA_COORDINATE_BYTES] = { 0 };
+            u64 x_size                               = 0;
+            u64 y_size                               = 0;
+
+            if (!nya_crypto_base64url_decode(x_text, strlen(x_text), x, sizeof(x), &x_size)) continue;
+            if (!nya_crypto_base64url_decode(y_text, strlen(y_text), y, sizeof(y), &y_size)) continue;
+
+            if (!nya_crypto_ecdsa_public_key_from_xy(x, x_size, y, y_size, &held.ec).ok) continue;
+
+            held.algorithm = NYA_OIDC_ALGORITHM_ES256;
+        } else {
+            continue;
+        }
+
+        _nya_oidc_copy(held.kid, sizeof(held.kid), kid);
+
+        provider->keys[stored] = held;
         stored++;
     }
 
@@ -562,15 +595,15 @@ NYA_Error _nya_oidc_jwks_fetch(NYA_OidcProvider* provider, NYA_Arena* arena) {
     return NYA_OK;
 }
 
-const NYA_CryptoRsaPublicKey* _nya_oidc_jwks_find(const NYA_OidcProvider* provider, NYA_ConstCString kid) {
+const _NYA_OidcKey* _nya_oidc_jwks_find(const NYA_OidcProvider* provider, NYA_ConstCString kid) {
     for (u32 i = 0; i < provider->key_count; i++) {
-        if (nya_string_equals((NYA_ConstCString)provider->keys[i].kid, kid)) return &provider->keys[i].key;
+        if (nya_string_equals((NYA_ConstCString)provider->keys[i].kid, kid)) return &provider->keys[i];
     }
 
     return nullptr;
 }
 
-NYA_Error _nya_oidc_jwks_ensure(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString kid, const NYA_CryptoRsaPublicKey** out_key) {
+NYA_Error _nya_oidc_jwks_ensure(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString kid, const _NYA_OidcKey** out_key) {
     *out_key = _nya_oidc_jwks_find(provider, kid);
     if (*out_key != nullptr) return NYA_OK;
 
@@ -616,7 +649,7 @@ NYA_Error _nya_oidc_id_token_verify(
      */
     u8  header_bytes[512] = { 0 };
     u64 header_size        = 0;
-    if (!_nya_oidc_base64url_decode(token, first, header_bytes, sizeof(header_bytes), &header_size)) {
+    if (!nya_crypto_base64url_decode(token, first, header_bytes, sizeof(header_bytes), &header_size)) {
         return nya_error(NYA_ERROR_PARSE, "the id_token's header is not base64url");
     }
 
@@ -625,28 +658,43 @@ NYA_Error _nya_oidc_id_token_verify(
     if (header == nullptr) return nya_error(NYA_ERROR_PARSE, "the id_token's header is not a JSON object");
 
     char alg[16] = { 0 };
-    if (!_nya_oidc_claim_string(header, "alg", alg, sizeof(alg)) || !nya_string_equals((NYA_ConstCString)alg, "RS256")) {
+    if (!_nya_oidc_claim_string(header, "alg", alg, sizeof(alg))) return nya_error(NYA_ERROR_PARSE, "the id_token's header carries no alg");
+
+    NYA_OidcAlgorithm algorithm = NYA_OIDC_ALGORITHM_NONE;
+
+    if (nya_string_equals((NYA_ConstCString)alg, "RS256")) algorithm = NYA_OIDC_ALGORITHM_RS256;
+    if (nya_string_equals((NYA_ConstCString)alg, "ES256")) algorithm = NYA_OIDC_ALGORITHM_ES256;
+
+    if (algorithm == NYA_OIDC_ALGORITHM_NONE) {
         // covers "none", "HS256" and everything else in one refusal: this module never computes an
         // HMAC over anything, so there is no downgrade path to fall into even for a header that asks.
-        return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's alg is not RS256");
+        return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's alg is neither RS256 nor ES256");
     }
 
     char kid[NYA_OIDC_MAX_KID] = { 0 };
     if (!_nya_oidc_claim_string(header, "kid", kid, sizeof(kid))) return nya_error(NYA_ERROR_PARSE, "the id_token's header carries no kid");
 
-    const NYA_CryptoRsaPublicKey* key = nullptr;
+    const _NYA_OidcKey* key = nullptr;
     NYA_TRY(_nya_oidc_jwks_ensure(provider, arena, kid, &key));
 
+    /*
+     * The key's family has to be the one the header asked for. A `kid` names one key and a provider
+     * would not publish two kinds under it, but "would not" is not a check: an RSA key verifying an
+     * ES256 token is exactly the confusion this refuses before any arithmetic happens.
+     */
+    if (key->algorithm != algorithm) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's alg is not what its kid names a key for");
+
     u8  signature[NYA_CRYPTO_RSA_MAX_BYTES] = { 0 };
-    u64 signature_size                       = 0;
-    if (!_nya_oidc_base64url_decode(token + second + 1, token_size - second - 1, signature, sizeof(signature), &signature_size)) {
+    u64 signature_size                      = 0;
+    if (!nya_crypto_base64url_decode(token + second + 1, token_size - second - 1, signature, sizeof(signature), &signature_size)) {
         return nya_error(NYA_ERROR_PARSE, "the id_token's signature is not base64url");
     }
 
     // over "header.payload" exactly as they arrived, before either half is parsed as anything but bytes.
-    if (!nya_crypto_rsa_verify_sha256(key, (const u8*)token, second, signature, signature_size)) {
-        return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's signature does not verify");
-    }
+    b8 verified = algorithm == NYA_OIDC_ALGORITHM_RS256 ? nya_crypto_rsa_verify_sha256(&key->rsa, (const u8*)token, second, signature, signature_size)
+                                                        : nya_crypto_ecdsa_verify_sha256(&key->ec, (const u8*)token, second, signature, signature_size);
+
+    if (!verified) return nya_error(NYA_ERROR_PERMISSION_DENIED, "the id_token's signature does not verify");
 
     /*
      * Everything from here on is trusted, because the signature just proved this provider's key signed
@@ -654,7 +702,7 @@ NYA_Error _nya_oidc_id_token_verify(
      */
     u8  payload_bytes[NYA_OIDC_MAX_ID_TOKEN_BYTES] = { 0 };
     u64 payload_size                                = 0;
-    if (!_nya_oidc_base64url_decode(token + first + 1, second - first - 1, payload_bytes, sizeof(payload_bytes), &payload_size)) {
+    if (!nya_crypto_base64url_decode(token + first + 1, second - first - 1, payload_bytes, sizeof(payload_bytes), &payload_size)) {
         return nya_error(NYA_ERROR_PARSE, "the id_token's payload is not base64url");
     }
 
@@ -707,88 +755,4 @@ NYA_Error _nya_oidc_id_token_verify(
     out_claims->raw = payload;
 
     return NYA_OK;
-}
-
-/*
- * TEMPORARY — see the declarations above. Copied from http_auth.c's _nya_http_base64url_* rather than
- * shared with it, because there is nowhere below `base` and `http` both sit to share it from until
- * crypto_encoding.h grows these for real.
- */
-b8 _nya_oidc_base64url_encode(const u8* data, u64 size, char* out_text, u64 capacity, u64* out_size) {
-    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-
-    nya_assert(capacity > 0);
-
-    *out_size   = 0;
-    out_text[0] = '\0';
-
-    u64 encoded = (size / 3) * 4 + (size % 3 == 0 ? 0 : size % 3 + 1);
-    if (encoded + 1 > capacity) return false;
-
-    u64 written = 0;
-
-    for (u64 index = 0; index < size; index += 3) {
-        u64 remaining = size - index;
-
-        u32 chunk = (u32)data[index] << 16;
-        if (remaining > 1) chunk |= (u32)data[index + 1] << 8;
-        if (remaining > 2) chunk |= (u32)data[index + 2];
-
-        out_text[written++] = alphabet[(chunk >> 18) & 0x3FU];
-        out_text[written++] = alphabet[(chunk >> 12) & 0x3FU];
-
-        if (remaining > 1) out_text[written++] = alphabet[(chunk >> 6) & 0x3FU];
-        if (remaining > 2) out_text[written++] = alphabet[chunk & 0x3FU];
-    }
-
-    out_text[written] = '\0';
-    *out_size         = written;
-
-    return true;
-}
-
-b8 _nya_oidc_base64url_decode(const char* text, u64 size, u8* out_data, u64 capacity, u64* out_size) {
-    *out_size = 0;
-
-    if (size == 0 || size % 4 == 1) return false;
-
-    u64 decoded = (size / 4) * 3 + (size % 4 == 0 ? 0 : size % 4 - 1);
-    if (decoded > capacity) return false;
-
-    u64 written = 0;
-
-    for (u64 index = 0; index < size; index += 4) {
-        u64 remaining = size - index;
-
-        u8  values[4] = { 0, 0, 0, 0 };
-        u64 group     = remaining < 4 ? remaining : 4;
-
-        for (u64 offset = 0; offset < group; offset++) {
-            values[offset] = _nya_oidc_base64url_value(text[index + offset]);
-            if (values[offset] == 64) return false;
-        }
-
-        if (group == 2 && (values[1] & 0x0FU) != 0) return false;
-        if (group == 3 && (values[2] & 0x03U) != 0) return false;
-
-        u32 chunk = ((u32)values[0] << 18) | ((u32)values[1] << 12) | ((u32)values[2] << 6) | (u32)values[3];
-
-        out_data[written++] = (u8)((chunk >> 16) & 0xFFU);
-        if (group > 2) out_data[written++] = (u8)((chunk >> 8) & 0xFFU);
-        if (group > 3) out_data[written++] = (u8)(chunk & 0xFFU);
-    }
-
-    *out_size = written;
-
-    return true;
-}
-
-u8 _nya_oidc_base64url_value(char character) {
-    if (character >= 'A' && character <= 'Z') return (u8)(character - 'A');
-    if (character >= 'a' && character <= 'z') return (u8)(character - 'a' + 26);
-    if (character >= '0' && character <= '9') return (u8)(character - '0' + 52);
-    if (character == '-') return 62;
-    if (character == '_') return 63;
-
-    return 64;
 }

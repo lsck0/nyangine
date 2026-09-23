@@ -219,6 +219,7 @@ and a route.
 | `net_echo` | 304 | transports, an OS-assigned port, a client and server in one process |
 | `discord_bot` | 288 | a program with no window: a gateway socket, events, and the calls that answer them |
 | `twitch_bot` | 268 | the same shape against a second service: a subscription per session, chat over HTTP |
+| `oidc_login` | 146 | logging a person in through an identity provider, with the id_token checked here |
 | `tui_dashboard` | 601 | the UI in a terminal |
 | `pong_multiplayer` | 458 | the app loop, entities, replication |
 | `pinball3d` | 643 | 3D, physics, cameras |

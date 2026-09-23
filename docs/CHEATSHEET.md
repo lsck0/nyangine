@@ -6130,6 +6130,7 @@ void nya_lua_collect(NYA_LuaVM* vm)  // Runs a full garbage collection cycle.
 
 ```c
 // types
+enum NYA_OidcAlgorithm { NYA_OIDC_ALGORITHM_NONE = 0, NYA_OIDC_ALGORITHM_RS256, NYA_OIDC_ALGORITHM_ES256, NYA_OIDC_ALGORITHM_COUNT, }  // What signed an id_token, and what a cached key can verify.
 struct NYA_OidcOptions { NYA_ConstCString issuer; NYA_ConstCString client_id; NYA_ConstCString client_secret; NYA_ConstCString redirect_uri; NYA_ConstCString scopes; u64 timeout_ms; NYA_Error (*perform)(void* user, NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response); u64 (*now_ms)(void* user); u64 (*now_s)(void* user); void* user; }
 struct NYA_OidcAuthorizeState { char state[NYA_OIDC_SECRET_TEXT_BYTES]; char nonce[NYA_OIDC_SECRET_TEXT_BYTES]; char code_verifier[NYA_OIDC_SECRET_TEXT_BYTES]; }
 struct NYA_OidcClaims { char subject[NYA_OIDC_MAX_SUBJECT]; char issuer[NYA_OIDC_MAX_URL]; char email[NYA_OIDC_MAX_EMAIL]; b8 email_verified; char name[NYA_OIDC_MAX_NAME]; char picture[NYA_OIDC_MAX_PICTURE]; char access_token[NYA_OIDC_MAX_ACCESS_TOKEN_BYTES]; const NYA_Object* raw; }  // What a verified id_token says, plus enough to ask for more.

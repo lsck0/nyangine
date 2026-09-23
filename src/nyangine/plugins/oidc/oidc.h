@@ -50,11 +50,13 @@
  * with one shared secret there is nothing to learn from the token before that check. An id_token is
  * signed by one of several keys a provider rotates, named by `kid` in the header, so which key to try
  * has to come from the token itself. What stays true is that the header is trusted for exactly two
- * things — `alg`, to refuse anything that is not RS256, and `kid`, to pick a key this provider's own
- * jwks already holds — and nothing else about the token is believed until nya_crypto_rsa_verify_sha256
- * says the bytes were signed by that key. `alg` is compared against "RS256" and nothing else, which is
- * the whole of the `alg: none` bug and the HS256-downgrade one: this module never computes an HMAC over
- * anything, so there is no confused-algorithm path to fall into even if it wanted to.
+ * things — `alg`, to refuse anything that is neither RS256 nor ES256, and `kid`, to pick a key this
+ * provider's own jwks already holds — and nothing else about the token is believed until the signature
+ * over those exact bytes verifies. `alg` is compared against those two spellings and nothing else,
+ * which is the whole of the `alg: none` bug and the HS256-downgrade one: this module never computes an
+ * HMAC over anything, so there is no confused-algorithm path to fall into even if it wanted to. The
+ * key found by `kid` must also be of the family `alg` named, so an RSA key cannot be handed to the
+ * ECDSA verifier or the other way round.
  *
  * ── what a caller still has to decide ──
  *
@@ -176,10 +178,29 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+typedef enum NYA_OidcAlgorithm        NYA_OidcAlgorithm;
 typedef struct NYA_OidcOptions        NYA_OidcOptions;
 typedef struct NYA_OidcAuthorizeState NYA_OidcAuthorizeState;
 typedef struct NYA_OidcClaims         NYA_OidcClaims;
 typedef struct NYA_OidcProvider       NYA_OidcProvider;
+
+/**
+ * What signed an id_token, and what a cached key can verify.
+ *
+ * The two a provider actually uses. `none` is the zero and is not a value a token may carry: it is
+ * what a key nobody could read stays, so a key that failed to parse can never verify anything.
+ * */
+enum NYA_OidcAlgorithm {
+    NYA_OIDC_ALGORITHM_NONE = 0,
+
+    /** RSA with PKCS#1 v1.5 and SHA-256. What Google, Auth0 and a default Keycloak sign with. */
+    NYA_OIDC_ALGORITHM_RS256,
+
+    /** ECDSA over P-256 with SHA-256. Smaller tokens, and what a provider configured for it sends. */
+    NYA_OIDC_ALGORITHM_ES256,
+
+    NYA_OIDC_ALGORITHM_COUNT,
+};
 
 struct NYA_OidcOptions {
     /** Required. No trailing slash; this is the exact string the discovery document's own `issuer` must equal. */
