@@ -337,7 +337,13 @@ void _nya_ui_shape_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw*
         case NYA_UI_WIDGET_CHROME: {
             // the fill only once it is worth seeing, so a quiet title bar is a title and three marks rather than a row
             // of buttons, and the focus mark still lands because that is drawn whatever the fill does.
-            NYA_Rectf body = widget->as_mark.body ? _nya_ui_shape_body(window, widget->rect) : widget->rect;
+            /*
+             * Inset from the bar rather than filling it. A chrome square is square to the title bar so
+             * that it is an easy target, and a fill that took the whole square turned the bar into a row
+             * of slabs; the target stays the square and only what is drawn is smaller.
+             */
+            NYA_Rectf seat = nya_rect_expand(widget->rect, -roundf(widget->rect.height * 0.16F));
+            NYA_Rectf body = widget->as_mark.body ? _nya_ui_shape_body(window, seat) : seat;
 
             _nya_ui_shape_mark(window, widget->as_mark.mark, nya_rect_expand(body, -roundf(body.height * 0.25F)), _nya_ui_shape_color(&style->text));
         } break;
@@ -684,25 +690,30 @@ void _nya_ui_shape_panel(NYA_Window* window, const NYA_UIWidgetDraw* widget) {
     }
 
     if (widget->label[0] != '\0') {
-        NYA_Font title = look->fonts[NYA_UI_TEXT_TITLE];
-
         /*
-         * Centred in what the chrome leaves rather than in the whole bar, and centred down the bar's
-         * height rather than sitting on its top edge. A title centred across the whole width drifts
-         * under the close button as soon as it is long enough, which is the window that looks broken.
+         * Centred in what the chrome leaves rather than across the whole bar, and dropped to the largest
+         * size that fits in it. A title centred across the whole width slides under the close button as
+         * soon as it is long enough, which is the window that looks broken; shrinking is what a label
+         * with no room does here too, so a window behaves like the rest of the UI.
          */
         f32 left  = bounds.x + widget->as_panel.inset.x + widget->as_panel.title_room.x;
         f32 right = bounds.x + bounds.width - widget->as_panel.inset.x - widget->as_panel.title_room.y;
         f32 room  = nya_max(right - left, 0.0F);
 
-        f32 x = roundf(left + ((room - widget->as_panel.title_width) * 0.5F));
+        f32      width = 0.0F;
+        NYA_Font title = _nya_ui_shape_fit(NYA_UI_TEXT_TITLE, widget->label, room, NYA_UI_OVERFLOW_SHRINK, &width);
+
+        f32 x = roundf(left + ((room - width) * 0.5F));
         f32 y = bounds.y + widget->as_panel.inset.y;
 
+        // centred down the bar rather than sitting on its top edge, at whatever size it ended up.
         if (widget->as_panel.bar > 0.0F) {
-            y += roundf((widget->as_panel.bar - look->look.line_heights[NYA_UI_TEXT_TITLE]) * 0.5F);
+            f32 line = nya_font_valid(title) ? ceilf(nya_font_metrics(title).line_height) : look->look.line_heights[NYA_UI_TEXT_TITLE];
+
+            y += roundf((widget->as_panel.bar - line) * 0.5F);
         }
 
-        // and never before the room it was given, so a title too long to fit starts where the bar does.
+        // and never before the room it was given, so a title with nowhere to go starts where the bar does.
         x = nya_max(x, left);
 
         if (look->look.depth > 0.0F) nya_font_draw(window, title, widget->label, x, y + roundf(look->look.depth * 0.5F), _nya_ui_shape_fade(style->ink));
