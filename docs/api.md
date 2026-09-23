@@ -215,12 +215,13 @@ and a route.
 | :--- | ---: | :--- |
 | `hello_world` | 13 | the smallest program that links the engine |
 | `cli_tool` | 241 | `nya_args` command trees, no window, no SDL |
-| `plugin_scripting` | 190 | Lua plugins with compile-time permissions |
+| `plugin_scripting` | 189 | Lua plugins with compile-time permissions |
 | `net_echo` | 304 | transports, an OS-assigned port, a client and server in one process |
+| `discord_bot` | 288 | a program with no window: a gateway socket, events, and the calls that answer them |
 | `tui_dashboard` | 601 | the UI in a terminal |
 | `pong_multiplayer` | 458 | the app loop, entities, replication |
 | `pinball3d` | 643 | 3D, physics, cameras |
-| `web_server` | 901 | routers, DTOs, the generated document, static files, WebSockets, TOTP, sessions |
+| `web_server` | 1073 | routers, DTOs, the generated document, static files, WebSockets, TOTP, sessions, rows in a database |
 
 Run any of them with `./build run example <name>`.
 

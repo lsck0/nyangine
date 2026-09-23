@@ -472,10 +472,19 @@ What every kind of program in the examples table needs and `base` does not have 
   7693, 7748, 8032, 9106, 4648 and draft-irtf-cfrg-xchacha, with the base and websocket copies deleted. Ed25519
   comes from monocypher's optional RFC 8032 file, now vendored, and `nya_crypto_sign_verify` refuses small order
   public keys, which monocypher's own verify accepts. base64url is still private to `http_auth.c`.
-- `[ ]` `db` as a component: SQLCipher in place of vendored sqlite, plus `plugins/sqlite/orm.h`. The `server`
-  profile includes it. The whole database is encrypted (see "Decisions", encryption at rest). Schema migrations
-  are derived from the difference between two reflections, never hand written. sqlean and sqlvec become
-  components of their own, or go; nothing calls them today that could not live without them.
+- `[~]` `db` as a module. Landed 2026-09-23 as `src/nyangine/db/` at rank 4, behind `NYA_MODULE_DB`, moved out
+  of `plugins/sqlite`: `db_sql.h` is the connection, `db_orm.h` the reflection-driven mapping, `db_migrate.h`
+  the schema difference, `db_extensions.c` the sqlean and sqlvec glue. Migrations are derived from the
+  difference between two reflections and never hand written; the derivation emits `CREATE TABLE` and
+  `ADD COLUMN` and refuses a drop, a rename, a type change or a moved key, because those are the four a
+  derivation cannot tell apart from a mistake. A migration that fails halfway rolls its transaction back.
+  `examples/web_server` keeps its notes as rows rather than an array.
+  - The key seam is in place: `nya_sql_open` takes a key of `NYA_SQL_KEY_SIZE` bytes and a build that cannot
+    use one refuses it rather than opening the database in the clear, which `nya_sql_encryption_available`
+    answers for. SQLCipher itself is deliberately not vendored yet, so today every build answers false.
+  - Still open: SQLCipher in place of vendored sqlite, so the whole database is encrypted (see "Decisions",
+    encryption at rest). sqlean and sqlvec did not become components of their own; they are one glue file
+    inside `db` instead, which is where they stay unless something needs them apart from it.
 - `[ ]` Encrypted fields in `.nya` files: a reflection tag (`@secret`) makes serde write that field encrypted,
   with XChaCha20-Poly1305 under a key the program supplies. When the PGP component is present, it can also be
   encrypted to a recipient's public key. For secrets that live in files rather than the database: tokens in a
@@ -493,34 +502,39 @@ What every kind of program in the examples table needs and `base` does not have 
 `http_server` becomes a real application backend. The server trusts nothing from the network, including a
 logged-in user.
 
-- `[ ]` **A threaded server.** Today it is one drain a frame on the thread that called init, at most
-  `NYA_HTTP_MAX_REQUESTS_PER_TICK` (16) requests a frame, and "Thread safety: none". That caps a server at the
-  frame rate and puts every TLS handshake and Argon2id hash on the main thread. The shape:
-  - Non-blocking sockets over the OS readiness API in `platform` (epoll on Linux, IOCP or `WSAPoll` on
-    Windows), an accept and I/O loop on its own thread, and a fixed pool of worker threads that parse, run the
-    layers and the handler, and serialize. The pool size is config (`engine.nya`) with a default derived from
-    the core count, and the bound is written down beside it.
-  - Each worker owns everything that is not thread safe on purpose: its arenas (an arena per exchange,
-    reset after the answer), its SQLCipher connection, its TLS contexts. Nothing is shared except the
-    connection table, the rate limit buckets (sharded by address hash) and the counters, and each of those
-    says how it is made safe.
-  - A route declares where it runs. `WORKER` is the default: handlers over `db` and their own arguments. `MAIN`
-    is for handlers that touch program state (entities, the system registry, the metrics resource): the
-    exchange is queued to the frame, answered there, and handed back to its worker to write. A debug build
-    asserts that a worker never enters a main-thread-only module, so a missing `MAIN` fails loudly the first
-    time it runs.
-  - `workers = 0` keeps today's behaviour: everything drained on the frame. That is the mode simulation and
-    session tests run in, since threads would take their determinism away. The threaded mode gets its own
-    tests under ThreadSanitizer, which joins the sanitizer set for this module.
-  - The header's "what a hostile peer may do" section is rewritten for the threaded shape: which limits are
-    per worker and which are global, and what a slow handler can and cannot hold up.
-  Threads and sockets come from `platform` after Phase 1 rather than from SDL.
-- `[~]` **Request logging with redaction.** Landed: a random `X-Request-Id` on every answer, set as the
-  thread's log tag (`nya_log_tag_set`) while the request is served, so every line it causes carries it; and
-  the summary line (method, route, status, duration, bytes in and out, subject, address truncated to /24 or
-  /48). Missing: the `headers` and `bodies` levels and their config, the header deny list, `@redact`, the
-  address setting (full or none), the tag on a handler queued to the main thread, a trace span or the crash
-  report's own fields (it reaches the report only through the ring), and the property test.
+- `[~]` **A threaded server.** Landed 2026-09-23. `workers` on `NYA_HttpConfig` picks the shape and zero is
+  the default, which is the old one: one drain a frame on the thread that called init, nothing concurrent and
+  nothing locked, and it stays the mode simulation and session tests run in because threads would take their
+  determinism away. Above zero a listener thread owns the sockets — it accepts, reads, parses, spends the rate
+  limit token and writes — and that many worker threads run the layers, the extractor and the handler, each on
+  its own arena, reset after the answer. gnyame's web interface runs with two.
+  - A route declares where it runs through `NYA_HttpAffinity`. `NYA_HTTP_AFFINITY_WORKER` is the default;
+    `NYA_HTTP_AFFINITY_MAIN` is for a handler that touches program state (entities, the system registry, the
+    metrics resource), and its exchange is queued to the frame, answered inside `nya_system_http_tick` and
+    handed back to the listener to write. `nya_thread_main_only` (`base_thread.h`) guards the calls that only
+    the frame may make, so a handler that forgot its `MAIN` crashes the first time it runs rather than
+    corrupting something quietly.
+  - No bound moved: everything in `http_types.h` holds in both modes, and the connection table, the rate
+    limit buckets and the counters live on the listener thread and are only ever touched there, which is what
+    makes them safe without a lock.
+  - `tests/nyangine/http/test_server_threaded.c` drives the threaded mode, including a shutdown while a
+    handler is still running, and runs under ThreadSanitizer.
+  - Still open: the sockets. They are still SDL_net polled per pass rather than non-blocking over an OS
+    readiness API (epoll on Linux, IOCP or `WSAPoll` on Windows) in `platform`, which is the Phase 1 move, and
+    the worker count is a field a program passes rather than a setting in `engine.nya` with a default derived
+    from the core count.
+- `[~]` **Request logging with redaction.** Landed 2026-09-23 as `src/nyangine/http/http_log.{h,c}`, the layer
+  moved out of `http_router.c`: a random `X-Request-Id` on every answer, set as the answering thread's log tag
+  (`nya_log_tag_set`) around the dispatch, so every line one request causes carries it in either server mode;
+  the three levels (`summary`, `headers`, `bodies`) configured under `engine.http_log` and applied again on
+  hot reload through `@on_apply`; the header deny list, always applied and extensible through `deny`; bodies
+  redacted structurally through the route's `request_type` and `response_type` reflection, with `@redact` read
+  by the reflection generator; query parameters redacted by name; the address policy (truncated to /24 or /48
+  by default, full or none by setting); and fail closed — a body that does not parse as its route's DTO is
+  logged as its size and eight bytes of BLAKE2b, never as bytes. `./build check` refuses a reflected field
+  named `password`, `token`, `secret` or `code` that carries neither `@redact` nor `@loggable`, and
+  `tests/nyangine/http/test_log.c` ends with the property: a marker in every tagged field reaches no sink, at
+  any level.
   - Every exchange gets a random request id, returned as `X-Request-Id`. It is attached to every log line,
     error, trace span and crash report produced while serving that request, including a handler queued to the
     main thread.
@@ -547,6 +561,8 @@ logged-in user.
     marked as deliberately loggable.
   - Tagged fields are redacted wherever reflection writes them, so the same rule covers `net` messages, IPC
     control commands and debug dumps, not only HTTP.
+  - Still open: a trace span and the crash report's own fields — the request id reaches a report only through
+    the log ring — and the security-event retention below, which is still one retention for everything.
 - `[ ]` The Model/SO/DTO split in `http` and `db`: the conversion naming, the `web` profile refusing model and
   SO headers, and the `@secret` check. `web_server` moves onto it first. Today its notes resource keeps one
   `ExampleNote` in memory and builds the response by hand as an `NYA_Object` in `note_to_value`, so it has a
@@ -761,10 +777,14 @@ logged-in user.
   HTTPS requests and `wss` client sockets, `http` receives, and `http_webhook.h` (2026-09-23) proves an incoming
   callback came from who it claims — HMAC-SHA256 as Twitch EventSub and GitHub sign, Ed25519 as Discord signs an
   interactions endpoint, both over the bytes that arrived, both with a timestamp window against replay.
-  - Missing for a Discord **bot**: the gateway, which is identify, heartbeat, resume and intents over the
-    WebSocket that already exists, plus the REST side's rate limit buckets. `plugins/discord` is the GameSDK —
-    rich presence and join secrets — and has nothing to do with the bot API; a bot belongs beside it rather than
-    inside it, since one is a game's own Discord integration and the other is a program that is a Discord client.
+  - The Discord **bot** landed 2026-09-23 as `src/nyangine/plugins/discord_bot/`, beside `plugins/discord`
+    rather than inside it: that one is the GameSDK — rich presence and join secrets — and this one is a program
+    that *is* a Discord client. `discord_gateway.h` is the `wss` half (identify, heartbeat with the jittered
+    first beat, sequence numbers, resume on a resumable close, a fresh identify on one that is not, and the
+    six close codes that must never be retried), and `discord_rest.h` the HTTP half (send a message, register
+    a slash command, answer an interaction), queued and drained against Discord's per-*bucket* rate limit
+    headers, because a client that ignores those does not get a slower bot, it gets a banned one.
+    `examples/discord_bot` is the program.
   - Missing for a Twitch **bot**: EventSub over WebSocket (the same gateway shape) or over webhooks (which now
     verify), and chat, which is IRC over TLS — the one piece that wants TLS in process rather than through curl.
   - Missing for **sending** a webhook: nothing but a helper. `nya_request_post` posts a JSON body today; what a
