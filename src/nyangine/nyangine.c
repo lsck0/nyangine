@@ -18,6 +18,8 @@
 // stores anything. Behind its flag for the reason nyangine.h gives.
 #ifdef NYA_MODULE_DB
 #include "nyangine/db/db.c"
+// after db, whose ORM holds its tables, and after crypto, which hashes its passwords and its tokens.
+#include "nyangine/accounts/accounts.c"
 #endif
 
 // Each plugin is behind its own NYA_PLUGIN_* flag; see plugins.h.

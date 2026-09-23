@@ -15,6 +15,9 @@
 // Above base and crypto, below net, http and everything that stores anything. Behind a flag until
 // the component system lands, because it wants sqlite on the include line and a host tool has none.
 #include "nyangine/db/db.h"
+// Above db, crypto and permission and below http: a user is a row, a password is a hash and a role is
+// permission's bitmask. Inside db's flag because its two tables are db's.
+#include "nyangine/accounts/accounts.h"
 #endif
 #include "nyangine/plugins/plugins.h"
 #include "nyangine/serde/serde.h"

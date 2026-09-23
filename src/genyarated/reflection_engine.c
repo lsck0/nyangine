@@ -35,6 +35,101 @@ const NYA_TypeReflection _NYA_REFLECT_f32x2 = { .name = "f32x2", .kind = NYA_REF
 const NYA_TypeReflection _NYA_REFLECT_f32x3 = { .name = "f32x3", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x3), .alignment = alignof(f32x3), .element = &_NYA_REFLECT_f32, .element_count = 3 };
 const NYA_TypeReflection _NYA_REFLECT_f32x4 = { .name = "f32x4", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x4), .alignment = alignof(f32x4), .element = &_NYA_REFLECT_f32, .element_count = 4 };
 
+/* NYA_AccountSession, src/nyangine/accounts/accounts_session.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession_token_hash_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountSession*)nullptr)->token_hash),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_TOKEN_HASH_BYTES),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession_address_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountSession*)nullptr)->address),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_ADDRESS),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession_agent_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountSession*)nullptr)->agent),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_AGENT),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AccountSession_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "user_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, user_id), .hint = NYA_HINT_NONE },
+    { .name = "token_hash", .type = &_NYA_REFLECT_NYA_AccountSession_token_hash_ARRAY, .offset = nya_offsetof(NYA_AccountSession, token_hash), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "address", .type = &_NYA_REFLECT_NYA_AccountSession_address_ARRAY, .offset = nya_offsetof(NYA_AccountSession, address), .hint = NYA_HINT_NONE },
+    { .name = "agent", .type = &_NYA_REFLECT_NYA_AccountSession_agent_ARRAY, .offset = nya_offsetof(NYA_AccountSession, agent), .hint = NYA_HINT_NONE },
+    { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, created_at_s), .hint = NYA_HINT_NONE },
+    { .name = "used_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, used_at_s), .hint = NYA_HINT_NONE },
+    { .name = "expires_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountSession, expires_at_s), .hint = NYA_HINT_NONE },
+    { .name = "revoked", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AccountSession, revoked), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession = {
+    .name = "NYA_AccountSession",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AccountSession),
+    .alignment = alignof(NYA_AccountSession),
+    .fields = _NYA_REFLECT_NYA_AccountSession_FIELDS,
+    .field_count = 9,
+};
+
+/* NYA_AccountUser, src/nyangine/accounts/accounts_user.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountUser_username_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountUser*)nullptr)->username),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_USERNAME),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountUser_normalized_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountUser*)nullptr)->normalized),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_USERNAME),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountUser_display_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountUser*)nullptr)->display),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_DISPLAY),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountUser_password_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountUser*)nullptr)->password),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_HASH),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AccountUser_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "username", .type = &_NYA_REFLECT_NYA_AccountUser_username_ARRAY, .offset = nya_offsetof(NYA_AccountUser, username), .hint = NYA_HINT_NONE },
+    { .name = "normalized", .type = &_NYA_REFLECT_NYA_AccountUser_normalized_ARRAY, .offset = nya_offsetof(NYA_AccountUser, normalized), .hint = NYA_HINT_NONE },
+    { .name = "display", .type = &_NYA_REFLECT_NYA_AccountUser_display_ARRAY, .offset = nya_offsetof(NYA_AccountUser, display), .hint = NYA_HINT_NONE },
+    { .name = "password", .type = &_NYA_REFLECT_NYA_AccountUser_password_ARRAY, .offset = nya_offsetof(NYA_AccountUser, password), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "roles", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, roles), .hint = NYA_HINT_NONE },
+    { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, created_at_s), .hint = NYA_HINT_NONE },
+    { .name = "password_changed_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountUser, password_changed_at_s), .hint = NYA_HINT_NONE },
+    { .name = "disabled", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_AccountUser, disabled), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AccountUser = {
+    .name = "NYA_AccountUser",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AccountUser),
+    .alignment = alignof(NYA_AccountUser),
+    .fields = _NYA_REFLECT_NYA_AccountUser_FIELDS,
+    .field_count = 9,
+};
+
 /* NYA_AudioPass, src/nyangine/core/core_audio_effects.h */
 
 static const NYA_ReflectField _NYA_REFLECT_NYA_AudioPass_FIELDS[] = {
@@ -1773,6 +1868,8 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle = {
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT] = {
+    &_NYA_REFLECT_NYA_AccountSession,
+    &_NYA_REFLECT_NYA_AccountUser,
     &_NYA_REFLECT_NYA_AudioPass,
     &_NYA_REFLECT_NYA_AudioEqualizer,
     &_NYA_REFLECT_NYA_AudioCompressor,
