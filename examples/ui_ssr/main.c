@@ -69,10 +69,26 @@ NYA_INTERNAL NYA_Window WINDOW = {
 
 NYA_INTERNAL NYA_UIHtml HTML;
 
-/** The application's entire state. A click changes one of these and the page redraws from it. */
-NYA_INTERNAL s32 STATE_COUNT   = 0;
-NYA_INTERNAL b8  STATE_DARK     = false;
-NYA_INTERNAL u32 STATE_TAB      = 0;
+/**
+ * One session's whole state — the counter, the theme, the tab — carried in a sealed cookie, not on the
+ * server. Two browsers get two of these, because each request brings its own; the server keeps nothing
+ * per client. See http_seal.h: sealed so a client cannot read or forge it, and it fits a cookie many
+ * times over at twelve bytes.
+ * */
+typedef struct {
+    s32 count;
+    u32 tab;
+    b8  dark;
+} AppState;
+
+/** The key the state cookie is sealed with, made at startup: a restart forgets every session, which for
+ *  a counter is fine and for a real app is where a keyring persisted across restarts would go. */
+NYA_INTERNAL u8 SEAL_KEY[32] = { 0 };
+
+/** The cookie the sealed state travels in. A __Host- cookie over TLS; plain here since the demo is http. */
+#define STATE_COOKIE "nya_state"
+#define STATE_LABEL  "ui_ssr.state"
+#define STATE_TTL_S  (7 * 24 * 3600)
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -84,31 +100,31 @@ NYA_INTERNAL u32 STATE_TAB      = 0;
  * The UI, described the same way for a browser, a terminal and a GPU. It reads the state above and, on
  * an input pass, changes it; on a draw pass it hands each widget to whatever presenter is installed.
  * */
-NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass) {
+NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, AppState* app) {
     NYA_UI* ui = nya_ui_begin(window, pass);
 
     if (nya_ui_panel_begin(ui, "app", (NYA_UIPanel){ .anchor = NYA_UI_ANCHOR_CENTER, .width = nya_ui_fixed(420), .title = "nyangine · live" })) {
         // a row of tabs, one chosen. Clicking one is a click the server turns into a pointer.
         static const NYA_ConstCString TABS[] = { "counter", "theme" };
-        (void)nya_ui_tabs(ui, "tabs", TABS, nya_carray_length(TABS), &STATE_TAB);
+        (void)nya_ui_tabs(ui, "tabs", TABS, nya_carray_length(TABS), &app->tab);
 
-        if (STATE_TAB == 0) {
+        if (app->tab == 0) {
             char line[64] = { 0 };
-            (void)snprintf(line, sizeof(line), "count: %d", STATE_COUNT);
+            (void)snprintf(line, sizeof(line), "count: %d", app->count);
             nya_ui_label(ui, line);
 
             if (nya_ui_panel_begin(ui, "buttons", (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .frameless = true })) {
-                if (nya_ui_button(ui, "-1")) STATE_COUNT--;
+                if (nya_ui_button(ui, "-1")) app->count--;
                 nya_ui_size(ui, nya_ui_grow(1));
-                if (nya_ui_button(ui, "+1")) STATE_COUNT++;
+                if (nya_ui_button(ui, "+1")) app->count++;
                 nya_ui_size(ui, nya_ui_grow(1));
-                if (nya_ui_button(ui, "reset")) STATE_COUNT = 0;
+                if (nya_ui_button(ui, "reset")) app->count = 0;
 
                 nya_ui_panel_end(ui);
             }
         } else {
-            (void)nya_ui_toggle(ui, "dark mode", &STATE_DARK);
-            nya_ui_label(ui, STATE_DARK ? "the theme is dark" : "the theme is light");
+            (void)nya_ui_toggle(ui, "dark mode", &app->dark);
+            nya_ui_label(ui, app->dark ? "the theme is dark" : "the theme is light");
         }
 
         nya_ui_panel_end(ui);
@@ -124,15 +140,55 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass) {
  */
 
 /** Runs one input pass with the current input, then a draw pass into HTML. Leaves HTML holding the body. */
-NYA_INTERNAL void render(void) {
-    component(&WINDOW, NYA_UI_PASS_INPUT);
+NYA_INTERNAL void render(AppState* app) {
+    component(&WINDOW, NYA_UI_PASS_INPUT, app);
 
     nya_ui_html_reset(&HTML);
-    component(&WINDOW, NYA_UI_PASS_DRAW);
+    component(&WINDOW, NYA_UI_PASS_DRAW, app);
 
     // The frame ends the way a real one does, so this pass's presses do not linger into the next.
     NYA_Event ended = { .type = NYA_EVENT_UPDATING_ENDED };
     _nya_system_event_on_update_ended_hook(&ended);
+}
+
+/** Reads a session's state out of its sealed cookie, or a fresh zeroed one when there is no valid cookie. */
+NYA_INTERNAL AppState app_from_cookie(NYA_HttpExchange* exchange) {
+    AppState app = { 0 };
+
+    NYA_HttpCookieValue cookie = { 0 };
+    if (!nya_http_cookie_read(exchange->request, STATE_COOKIE, &cookie)) return app;
+
+    char token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
+    if (cookie.size >= sizeof(token)) return app;
+    nya_memcpy(token, cookie.text, cookie.size);
+
+    // A tampered, expired or forged cookie simply opens to nothing and the session starts fresh; the
+    // seal is what makes trusting a client-held blob safe. See http_seal.h.
+    u8  bytes[sizeof(AppState)] = { 0 };
+    u64 size                    = 0;
+
+    if (nya_http_unseal(SEAL_KEY, sizeof(SEAL_KEY), STATE_LABEL, token, strlen(token), bytes, sizeof(bytes), &size) && size == sizeof(AppState)) {
+        nya_memcpy(&app, bytes, sizeof(AppState));
+    }
+
+    return app;
+}
+
+/** Seals a session's state back into its cookie, so the next request from that browser carries it. */
+NYA_INTERNAL b8 app_to_cookie(NYA_HttpExchange* exchange, const AppState* app) {
+    char token[NYA_HTTP_SEAL_MAX_TOKEN] = { 0 };
+
+    if (!nya_http_seal(SEAL_KEY, sizeof(SEAL_KEY), STATE_LABEL, (const u8*)app, sizeof(AppState), STATE_TTL_S, token, sizeof(token)).ok) return false;
+
+    return nya_http_response_cookie(exchange->response,
+                                    &(NYA_HttpCookie){
+                                        .name      = STATE_COOKIE,
+                                        .value     = token,
+                                        .max_age_s = STATE_TTL_S,
+                                        .http_only = true,
+                                        .same_site = NYA_HTTP_SAME_SITE_STRICT,
+                                    })
+        .ok;
 }
 
 /** Feeds a click at (x, y) as a real mouse would: move there, press, release, all in one input frame. */
@@ -164,7 +220,9 @@ NYA_INTERNAL void inject_click(f32 x, f32 y) {
 
 /** The first load: the whole page, so a browser has the surface, the stylesheet and the client. */
 NYA_INTERNAL NYA_HttpStatus handle_page(NYA_HttpExchange* exchange) {
-    render();
+    AppState app = app_from_cookie(exchange);
+    render(&app);
+    if (!app_to_cookie(exchange, &app)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     /*
      * A per-response nonce for the one inline script, so the page's own Content-Security-Policy can allow
@@ -182,7 +240,7 @@ NYA_INTERNAL NYA_HttpStatus handle_page(NYA_HttpExchange* exchange) {
 
     char policy[256] = { 0 };
     (void)snprintf(policy, sizeof(policy),
-                   "default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-%s'; connect-src 'self'; base-uri 'none'; form-action 'none'",
+                   "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'nonce-%s'; connect-src 'self'; base-uri 'none'; form-action 'none'",
                    nonce);
 
     if (!nya_http_response_header(exchange->response, "Content-Security-Policy", policy).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
@@ -213,14 +271,21 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
     u64 id = 0;
     if (!nya_type_parse(NYA_TYPE_U64, (const u8*)(text + 1), strlen(text + 1), &id)) return NYA_HTTP_STATUS_BAD_REQUEST;
 
+    // This session's state, and a render so the id-to-rectangle table matches the cookie the click was
+    // made against — the previous render may have been another browser's.
+    AppState app = app_from_cookie(exchange);
+    render(&app);
+
     NYA_Rectf rect = { 0 };
     if (nya_ui_html_rect(&HTML, (u32)id, &rect)) {
         inject_click(rect.x + rect.width * 0.5F, rect.y + rect.height * 0.5F);
     }
 
     // Whether or not the id resolved, re-render: an unknown id simply changes nothing, and the client
-    // still gets a consistent surface back.
-    render();
+    // still gets a consistent surface back. Then the changed state is sealed back into the cookie.
+    render(&app);
+
+    if (!app_to_cookie(exchange, &app)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     NYA_ConstCString fragment = nya_ui_html_body(&HTML);
 
@@ -285,6 +350,11 @@ s32 main(s32 argc, char** argv) {
     defer nya_system_input_deinit();
     nya_system_asset_init();
     defer nya_system_asset_deinit();
+
+    if (!nya_os_random_bytes(SEAL_KEY, sizeof(SEAL_KEY))) {
+        nya_log_error("The system random source failed, so no state-sealing key could be made.");
+        return EXIT_FAILURE;
+    }
 
     nya_ui_html_init(&HTML, NYA_UI_HTML_CELL);
     nya_ui_presenter_set(&WINDOW, nya_ui_html_presenter(&HTML));
