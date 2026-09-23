@@ -137,6 +137,14 @@ NYA_INTERNAL void _nya_render3d_foliage_draw(NYA_Window* window, const NYA_Rende
 NYA_INTERNAL void _nya_render3d_foliage_disturbers_pick(const NYA_Render3DBatch* batch, f32x3 center, f32 plant_radius,
                                                         struct NYA_ShaderFoliageUniform* uniform);
 
+/**
+ * Draws a segment's water surface. Only the camera pass, since water casts no shadow. Captures the opaque
+ * scene drawn so far for the refraction (a no-op that falls back to the water colour when the target is the
+ * window rather than a render texture), then draws the surface through the water pipeline.
+ * */
+NYA_INTERNAL void _nya_render3d_water_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
+                                           const struct NYA_ShaderMesh3DUniform* uniform);
+
 /** The matrix a pass rasterises with. */
 NYA_INTERNAL f32_4x4 _nya_render3d_pass_view_projection(const NYA_Render3DBatch* batch, u32 pass) __attr_no_discard;
 
@@ -1278,6 +1286,159 @@ void _nya_render3d_foliage_disturbers_pick(const NYA_Render3DBatch* batch, f32x3
     uniform->disturber_count = (f32)picked;
 }
 
+void nya_render3d_water(NYA_Window* window, NYA_ConstCString handle, f32x3 position, f32x3 scale, NYA_Quaternion rotation,
+                        NYA_Render3DWater water) {
+    nya_assert(window != nullptr);
+
+    if (handle == nullptr) return;
+
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    if (!batch->active) return;
+
+    /*
+     * Water draws a registered mesh, exactly like foliage: the model-space still surface never changes, only
+     * the waves that lift it and the flow that scrolls the ripples, which travel as per-object uniforms. The
+     * shore weight the fragment stage reads for the deep-to-shallow blend and the bank foam rides in the
+     * vertices' colour alpha, which a loaded model file would not carry, so an unregistered handle is not drawn.
+     */
+    NYA_Render3DRegisteredMesh* registered = _nya_render3d_registered(batch, handle);
+
+    if (registered == nullptr) return;
+
+    _nya_render3d_registered_flush_upload(window, registered);
+
+    // its copy has not run yet, so the buffer holds nothing to draw.
+    if (registered->pending_upload != nullptr || registered->vertex_count == 0) return;
+
+    f32_4x4 model = nya_matrix_transform(position, nya_quaternion_to_matrix3(rotation), scale);
+
+    // zero means unset, the same rule foliage and NYA_ParticleBurst use.
+    f32 flow_speed = water.flow_speed > 0.0F ? water.flow_speed : 1.0F;
+    f32 amplitude  = water.wave_amplitude > 0.0F ? water.wave_amplitude : 0.12F;
+    f32 frequency  = water.wave_frequency > 0.0F ? water.wave_frequency : 0.5F;
+    f32 choppiness = water.choppiness > 0.0F ? nya_clamp(water.choppiness, 0.0F, 1.0F) : 0.3F;
+    f32 opacity    = water.opacity > 0.0F ? nya_clamp(water.opacity, 0.0F, 1.0F) : 0.85F;
+    f32 foam_band  = water.foam > 0.0F ? nya_clamp(water.foam, 0.0F, 1.0F) : 0.12F;
+
+    // zeroed colours read as a deep blue-green channel and a pale teal shallow, so a bare struct still looks like water.
+    NYA_Color deep = water.deep_color;
+    if (deep.r == 0.0F && deep.g == 0.0F && deep.b == 0.0F && deep.a == 0.0F) deep = (NYA_Color){ 0.02F, 0.10F, 0.14F, 0.85F };
+
+    NYA_Color shallow = water.shallow_color;
+    if (shallow.r == 0.0F && shallow.g == 0.0F && shallow.b == 0.0F && shallow.a == 0.0F) shallow = (NYA_Color){ 0.10F, 0.30F, 0.34F, 0.35F };
+
+    // the current's heading on the ground; the horizontal part is what flows, a zero vector reading as +x.
+    f32x2 flow_dir = { water.flow_direction.x, water.flow_direction.z };
+    if (flow_dir.x == 0.0F && flow_dir.y == 0.0F) flow_dir = (f32x2){ 1.0F, 0.0F };
+    flow_dir = nya_vector_normalize(flow_dir);
+
+    // the surface's own clock, so the animation runs without the caller threading a time through. uptime_s is
+    // the f32 the engine keeps for exactly this; it loses resolution only after hours (see NYA_FrameStats).
+    f32 time = nya_app_get()->frame_stats.uptime_s;
+
+    // in the frame arena, read only by this scene's playback — the same lifetime the foliage and skinned uniforms have.
+    struct NYA_ShaderWaterVertexUniform* vertex =
+        nya_arena_alloc(nya_app_get()->frame_allocator, sizeof(struct NYA_ShaderWaterVertexUniform));
+    struct NYA_ShaderWaterFragUniform* frag =
+        nya_arena_alloc(nya_app_get()->frame_allocator, sizeof(struct NYA_ShaderWaterFragUniform));
+
+    if (vertex == nullptr || frag == nullptr) return;
+
+    for (u32 row = 0; row < 4; row++) {
+        for (u32 column = 0; column < 4; column++) vertex->model[row][column] = model[row][column];
+    }
+
+    vertex->flow_x     = flow_dir.x;
+    vertex->flow_z     = flow_dir.y;
+    vertex->flow_speed = flow_speed;
+    vertex->time       = time;
+
+    vertex->amplitude  = amplitude;
+    vertex->frequency  = frequency;
+    vertex->wave_speed = flow_speed;
+    vertex->choppiness = choppiness;
+
+    // the wind is only read when the caller asks for it, so an unset wind_influence leaves the water on its own flow.
+    f32 wind_influence = nya_clamp(water.wind_influence, 0.0F, 1.0F);
+
+    vertex->wind_x         = wind_influence > 0.0F ? water.wind.x : 0.0F;
+    vertex->wind_z         = wind_influence > 0.0F ? water.wind.z : 0.0F;
+    vertex->wind_influence = wind_influence;
+    vertex->wind_pad       = 0.0F;
+
+    // the capture texel and the has_refraction flag are filled at draw time, once the capture is known. refraction
+    // is a reflection of the scene behind, so it is switched off with NYA_RENDER_FEATURE_REFLECTIONS, as glass is.
+    b8 reflections = nya_render_feature_enabled(window, NYA_RENDER_FEATURE_REFLECTIONS);
+
+    frag->texel_x        = 0.0F;
+    frag->texel_y        = 0.0F;
+    frag->refraction     = reflections ? nya_clamp(water.refraction, 0.0F, 1.0F) : 0.0F;
+    frag->has_refraction = 0.0F;
+
+    frag->deep_r    = deep.r;
+    frag->deep_g    = deep.g;
+    frag->deep_b    = deep.b;
+    frag->deep_murk = deep.a;
+
+    frag->shallow_r    = shallow.r;
+    frag->shallow_g    = shallow.g;
+    frag->shallow_b    = shallow.b;
+    frag->shallow_murk = shallow.a;
+
+    frag->shore_width     = foam_band;
+    frag->crest_threshold = 0.6F;
+    frag->foam_softness   = 0.25F;
+    frag->opacity         = opacity;
+
+    // a fresnel toward a pale sky tint at grazing angles — the cheap reflection until planar/SSR lands (roadmap 1104).
+    frag->fresnel_power = 4.0F;
+    frag->reflection_r  = 0.55F;
+    frag->reflection_g  = 0.68F;
+    frag->reflection_b  = 0.82F;
+
+    frag->flow_x     = flow_dir.x;
+    frag->flow_z     = flow_dir.y;
+    frag->flow_cycle = NYA_RENDER3D_WATER_RIPPLE_CYCLE;
+    frag->flow_time  = time;
+
+    frag->ripple_scale    = 0.6F;
+    frag->ripple_strength = 0.35F;
+    frag->ripple_speed    = flow_speed;
+    frag->ripple_pad      = 0.0F;
+
+    _nya_render3d_passes_prepare(window);
+
+    f32x3 bounds_min = f32x3_zero;
+    f32x3 bounds_max = f32x3_zero;
+    (void)_nya_render3d_resolved_bounds(registered, nullptr, &bounds_min, &bounds_max);
+
+    // culled against the camera. the waves lift the surface off its rest bounds and the choppiness pinch pulls it
+    // sideways, so pad the radius by that reach or a crest pops out at a screen edge. see NYA_WATER_WAVE_PEAK.
+    f32x3 extent       = (bounds_max - bounds_min) * scale * 0.5F;
+    f32x3 middle       = (bounds_max + bounds_min) * scale * 0.5F;
+    f32x3 world_center = position + nya_quaternion_rotate(rotation, middle);
+
+    f32 lift   = amplitude * (NYA_WATER_WAVE_PEAK + choppiness) * nya_vector_length(scale);
+    f32 radius = nya_vector_length(extent) + lift;
+
+    u8 passes = _nya_render3d_passes_seeing(window, world_center, radius);
+
+    // only the camera pass draws water: it casts no shadow, and it refracts the scene the cascades never draw.
+    if ((passes & 1U) == 0) return;
+
+    // what came before draws first, as its own segment, so the refraction capture sees it.
+    nya_render3d_flush(window);
+
+    NYA_Render3DSegment* segment = &batch->segments[batch->segment_count];
+
+    segment->water                = handle;
+    segment->water_vertex_uniform = vertex;
+    segment->water_frag_uniform   = frag;
+
+    _nya_render3d_segment_close(window);
+}
+
 void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center, f32x3 scale, NYA_Quaternion rotation, NYA_Color color) {
     nya_assert(window != nullptr);
 
@@ -2039,6 +2200,13 @@ void _nya_render3d_pass_draw(NYA_Window* window, u32 pass) {
             continue;
         }
 
+        if (segment->water != nullptr) {
+            // only the camera pass: water casts no shadow, and it refracts the scene behind, which the cascades
+            // do not draw. see nya_render3d_water.
+            if (pass == 0) _nya_render3d_water_draw(window, segment, uniform);
+            continue;
+        }
+
         if (segment->skinned != nullptr) {
             // the bits _nya_render3d_passes_seeing set when the pose was recorded.
             if ((segment->skinned_passes & (u8)(1U << pass)) != 0) _nya_render3d_skinned_draw(window, segment, uniform, pass);
@@ -2494,6 +2662,72 @@ void _nya_render3d_foliage_draw(NYA_Window* window, const NYA_Render3DSegment* s
 
     // untextured: no base colour, but mesh3d.frag always declares the shadow map's sampler.
     _nya_render3d_bind_samplers(window, nullptr, nullptr);
+
+    SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);
+
+    batch->frame_draw_calls++;
+    nya_trace_draws(1);
+    batch->frame_vertices += registered->vertex_count;
+}
+
+void _nya_render3d_water_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+
+    // released since it was recorded, or its copy has not run.
+    NYA_Render3DRegisteredMesh* registered = _nya_render3d_registered(batch, segment->water);
+
+    if (registered == nullptr || registered->pending_upload != nullptr || registered->vertex_count == 0) return;
+
+    // still loading on the first frames, like a textured mesh.
+    NYA_Asset* pipeline = nya_asset_get((NYA_AssetHandle)NYA_RENDER3D_PIPELINE_WATER);
+
+    if (pipeline == nullptr || pipeline->status != NYA_ASSET_STATUS_LOADED) return;
+
+    SDL_GPUGraphicsPipeline* build = _nya_render_pipeline(window, pipeline);
+    if (build == nullptr) return;
+
+    // a local copy of the frag uniform: the capture size and the has_refraction flag are only known now, and the
+    // segment's copy is const. Everything else was filled when the surface was recorded. See nya_render3d_water.
+    struct NYA_ShaderWaterFragUniform frag = *segment->water_frag_uniform;
+
+    /*
+     * The refraction capture: the opaque scene drawn so far, copied so the surface can sample what is behind it.
+     * Only attempted when the surface asked to refract, since the capture ends and restarts the render pass. It
+     * succeeds only from a render texture (the sole target resolved mid-frame), exactly as the glass path; drawn
+     * to the window it returns false and the surface falls back to its deep-to-shallow colour.
+     */
+    b8 refract = frag.refraction > 0.0F && _nya_render3d_refraction_capture(window);
+
+    SDL_GPUSampler* linear = _nya_render_sampler_for(NYA_TEXTURE_FILTER_LINEAR);
+
+    // the capture, or the always-valid shadow placeholder as a stand-in the shader ignores when has_refraction is zero.
+    SDL_GPUTexture* scene = refract ? batch->refraction_capture : _nya_render3d_shadow_map(batch);
+
+    if (refract) {
+        frag.texel_x        = batch->refraction_width > 0 ? 1.0F / (f32)batch->refraction_width : 0.0F;
+        frag.texel_y        = batch->refraction_height > 0 ? 1.0F / (f32)batch->refraction_height : 0.0F;
+        frag.has_refraction = 1.0F;
+    }
+
+    // the camera's matrix: pass zero, the only one water draws in.
+    f32_4x4 view_projection = _nya_render3d_pass_view_projection(batch, 0);
+
+    // a capture resumes into a fresh pass with nothing bound, so bind the pipeline and the vertex buffer here
+    // whether or not the capture ran — the same rebind the glass path does.
+    SDL_BindGPUGraphicsPipeline(render->render_pass, build);
+    SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = registered->vertices }, 1);
+
+    // view-projection at b0, the surface's placement/waves/flow/wind at b1 — the split the foliage path uses.
+    SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
+    SDL_PushGPUVertexUniformData(render->render_commands, 1, segment->water_vertex_uniform, sizeof(*segment->water_vertex_uniform));
+
+    // b0: the shared lighting uniform, so the surface is lit and glints like any mesh. b1: the water look.
+    SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
+    SDL_PushGPUFragmentUniformData(render->render_commands, 1, &frag, sizeof(frag));
+
+    // the captured scene at t0, the single sampler water declares (it reads no shadow map).
+    SDL_BindGPUFragmentSamplers(render->render_pass, 0, &(SDL_GPUTextureSamplerBinding){ .texture = scene, .sampler = linear }, 1);
 
     SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);
 

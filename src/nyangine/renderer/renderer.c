@@ -1014,6 +1014,42 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
       },
   }), "while queueing the glass pipeline");
 
+    /* A flowing water surface: waves in the vertex stage, refraction and foam in the fragment stage. */
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
+      .handle    = NYA_ASSET_SHADER_WATER_VERT,
+      .as_shader = {
+          // two: the view-projection at b0 and the placement, waves, flow and wind at b1. see the foliage path.
+          .num_uniform_buffers = 2,
+      },
+  }), "while queueing the water vertex shader");
+
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type      = NYA_ASSET_TYPE_SHADER_FRAGMENT,
+      .handle    = NYA_ASSET_SHADER_WATER_FRAG,
+      // one sampler: the captured scene at t0 (water reads no shadow map). two uniform blocks: the shared
+      // lighting at b0 and the water look at b1.
+      .as_shader = { .num_samplers = 1, .num_uniform_buffers = 2 },
+  }), "while queueing the water fragment shader");
+
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
+      .handle               = NYA_RENDER3D_PIPELINE_WATER,
+      .as_graphics_pipeline = {
+          .window                 = window,
+          .vertex_shader_handle   = NYA_ASSET_SHADER_WATER_VERT,
+          .fragment_shader_handle = NYA_ASSET_SHADER_WATER_FRAG,
+
+          // blended, so where the surface does not refract its opacity shows what is behind it.
+          .blend           = true,
+          .vertex_layout   = NYA_VERTEX_LAYOUT_3D,
+          .depth_test      = true,
+          .depth_write     = true,
+          // both faces: a river is seen from above, but a low camera catches the far bank's underside.
+          .cull_back_faces = false,
+      },
+  }), "while queueing the water pipeline");
+
     nya_trace_scope(NYA_TRACE_SCENE);
 
     u32 mesh_buffer_size = (u32)(NYA_RENDER3D_MAX_VERTICES * sizeof(NYA_Vertex3D));

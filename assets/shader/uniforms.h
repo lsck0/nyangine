@@ -26,6 +26,8 @@ typedef struct NYA_ShaderCrtUniform      NYA_ShaderCrtUniform;
 typedef struct NYA_ShaderSkyUniform      NYA_ShaderSkyUniform;
 typedef struct NYA_ShaderGlassUniform    NYA_ShaderGlassUniform;
 typedef struct NYA_ShaderFoliageUniform  NYA_ShaderFoliageUniform;
+typedef struct NYA_ShaderWaterVertexUniform NYA_ShaderWaterVertexUniform;
+typedef struct NYA_ShaderWaterFragUniform   NYA_ShaderWaterFragUniform;
 
 /** effect_blur.frag.hlsl. One directional pass; run it twice, transposed, for a real gaussian. */
 struct NYA_ShaderBlurUniform {
@@ -518,3 +520,58 @@ struct NYA_ShaderFoliageUniform {
 
 static_assert(sizeof(struct NYA_ShaderFoliageUniform) == 224,
               "a float4x4, four float4 rows, four disturber rows, a strength row and a count row, matching foliage.vert.hlsl");
+
+/**
+ * water.vert.hlsl: the surface's placement, the current, the wave shape and the sampled wind, at b1 so a
+ * static mesh does not carry it. The vertex stage lifts model-space vertices into travelling waves about the
+ * still plane (y = 0) before view-projecting, reusing the lit fragment path for shading. Each row below is one
+ * float4 and the matrix is four rows, so nothing crosses a sixteen-byte boundary — std140-expressible, which
+ * is what lets it cross-compile to GLSL ES 300.
+ * */
+struct NYA_ShaderWaterVertexUniform {
+    /** Row major, the same convention as foliage's model: mul(model, vertex) in the shader. */
+    f32_4x4 model;
+
+    /** The current's heading on the ground (x, z), how fast crests travel, and the field's time in w. */
+    f32 flow_x, flow_z, flow_speed, time;
+
+    /** Wave height, wavelength (as a frequency), travel speed and the Gerstner choppiness that sharpens crests. */
+    f32 amplitude, frequency, wave_speed, choppiness;
+
+    /** The wind's horizontal push (x, z) from nya_wind_sample, how much it drives the chop, and one float of padding. */
+    f32 wind_x, wind_z, wind_influence, wind_pad;
+};
+
+static_assert(sizeof(struct NYA_ShaderWaterVertexUniform) == 112,
+              "a float4x4 and three float4 rows, matching the Water cbuffer in water.vert.hlsl");
+
+/**
+ * water.frag.hlsl: the refraction capture's texel size and strength, the deep and shallow body colours, the
+ * foam and opacity, the Fresnel reflection tint, the flow, and the ripple detail. A block at b1 so the plain
+ * lit pipelines do not carry water state. Each row is one float4, matching the cbuffer field for field.
+ * */
+struct NYA_ShaderWaterFragUniform {
+    /** One capture texel in uv (x, y), the refraction strength, and 1 when the capture is live (0 falls back). */
+    f32 texel_x, texel_y, refraction, has_refraction;
+
+    /** The deep channel colour; alpha is how murky the deep body is (how much it hides the refracted scene). */
+    f32 deep_r, deep_g, deep_b, deep_murk;
+
+    /** The shallow bank colour; alpha is the shallow body's murk, usually lower so the banks read clearer. */
+    f32 shallow_r, shallow_g, shallow_b, shallow_murk;
+
+    /** Shore foam band width (in shore-weight), the crest foam threshold, the crest foam softness, and the surface opacity. */
+    f32 shore_width, crest_threshold, foam_softness, opacity;
+
+    /** The Fresnel exponent, then the reflection tint the surface leans toward at grazing angles. */
+    f32 fresnel_power, reflection_r, reflection_g, reflection_b;
+
+    /** The current's heading (x, z), the ripple flow-map cycle in seconds, and the field's time. */
+    f32 flow_x, flow_z, flow_cycle, flow_time;
+
+    /** The ripple field's spatial scale, its normal strength, its travel speed, and one float of padding. */
+    f32 ripple_scale, ripple_strength, ripple_speed, ripple_pad;
+};
+
+static_assert(sizeof(struct NYA_ShaderWaterFragUniform) == 112,
+              "seven float4 rows, matching the WaterUniform cbuffer in water.frag.hlsl");

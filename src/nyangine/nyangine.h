@@ -49,6 +49,9 @@
 // before render_particles.h and render3d's foliage draw, both of which read a sampled wind vector. Pure
 // CPU math, so a headless test samples it exactly as a shader would.
 #include "nyangine/renderer/render_wind.h"
+// the flow-map and wave math a water surface rests on. Pure CPU math like the wind, and render3d.h's water
+// draw path reads it, so it comes before renderer.h.
+#include "nyangine/renderer/render_water.h"
 #include "nyangine/renderer/render_particles.h"
 // before renderer.h, which stores a window's NYA_FluidRenderOptions by value.
 #include "nyangine/renderer/render_fluid.h"

@@ -134,6 +134,19 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
  * */
 #define NYA_RENDER3D_PIPELINE_GLASS "nya_mesh3d_glass_pipeline"
 
+/**
+ * A flowing water surface. Model-space vertices lifted into travelling waves in the vertex stage, then a
+ * fragment stage that refracts the captured scene, blends deep to shallow, and foams the banks and crests.
+ * Like foliage, one draw of one registered mesh with its own per-object uniforms. See nya_render3d_water.
+ * */
+#define NYA_RENDER3D_PIPELINE_WATER "nya_water_pipeline"
+
+/**
+ * How long, in seconds, a water surface's flow-map ripple layer takes to wrap before the other layer's copy
+ * takes over. The two are half a cycle out of step, so this also sets the crossfade rate. See nya_water_flow.
+ * */
+#define NYA_RENDER3D_WATER_RIPPLE_CYCLE 6.0F
+
 /*
  * Additive pass. Emission such as fire and glow has to brighten toward white rather than average like alpha
  * blending. Addition is commutative, so this pass needs no sorting.
@@ -307,6 +320,7 @@ typedef enum NYA_Render3DDepth      NYA_Render3DDepth;
 typedef struct NYA_Render3DTextureBinding NYA_Render3DTextureBinding;
 typedef enum NYA_FoliageStyle       NYA_FoliageStyle;
 typedef struct NYA_Render3DFoliage  NYA_Render3DFoliage;
+typedef struct NYA_Render3DWater    NYA_Render3DWater;
 
 /* Forward declared: NYA_Vertex3D belongs to renderer.h, which includes this file. */
 typedef struct NYA_Vertex3D NYA_Vertex3D;
@@ -677,6 +691,56 @@ struct NYA_Render3DFoliage {
     NYA_Color tint;
 };
 
+/**
+ * A flowing water surface. Passed by value to nya_render3d_water. Zeroed fields take sensible defaults, so
+ * `(NYA_Render3DWater){ 0 }` is a plausible calm river along +x; the caller usually sets at least the flow and
+ * the colours. The surface mesh (a flat strip the caller lays along the riverbed and registers, its vertices'
+ * still height at y = 0) carries the shore weight in each vertex colour's alpha — 0 down the channel, 1 at the
+ * banks — which drives both the deep-to-shallow colour and the shoreline foam.
+ * */
+struct NYA_Render3DWater {
+    /** Which way the current flows, in world space. The horizontal part is used; a zero vector is read as +x. */
+    f32x3 flow_direction;
+
+    /** How fast the wave crests travel along the flow. Zero is read as a gentle default. */
+    f32 flow_speed;
+
+    /** Wave height in world units. Zero is read as a small default; the surface never lifts past a set multiple of it. */
+    f32 wave_amplitude;
+
+    /** Wave wavelength as a spatial frequency (larger is choppier, shorter waves). Zero is read as a default. */
+    f32 wave_frequency;
+
+    /**
+     * How much the wind field bends the flow, in [0, 1]. Zero leaves the water on its own steady current; higher
+     * lets a sampled wind (see `wind`) hurry the travel and lift the chop, so water shares one wind with foliage
+     * and particles. Off by default, since a caller need not have a wind field.
+     * */
+    f32 wind_influence;
+
+    /** The wind's horizontal push at the surface, from nya_wind_sample. Only read when `wind_influence` is set. */
+    f32x3 wind;
+
+    /** How sharply the crests pinch, in [0, 1]: zero is round swells, one is peaked chop. A light default when zero. */
+    f32 choppiness;
+
+    /** The deep channel colour. A zeroed colour is read as a deep blue-green. */
+    NYA_Color deep_color;
+
+    /** The shallow bank colour. A zeroed colour is read as a pale teal. */
+    NYA_Color shallow_color;
+
+    /** How opaque the surface is where it does not refract, in [0, 1]. Zero is read as a mostly-opaque default. */
+    f32 opacity;
+
+    /** How strongly the surface refracts the scene behind it, in [0, 1]. Only visible when the scene is a render
+     *  texture, the same limit the glass material has; drawn to the window the body falls back to its colour. */
+    f32 refraction;
+
+    /** How wide the foam band along the banks is, as a fraction of the shore weight, in [0, 1]. Zero is a thin default. */
+    f32 foam;
+};
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FUNCTIONS
@@ -1009,6 +1073,30 @@ NYA_API NYA_Render3DFoliage nya_render3d_foliage_style(NYA_FoliageStyle style) _
  * ```
  * */
 NYA_API void nya_render3d_foliage_disturb(NYA_Window* window, f32x3 position, f32 radius, f32 strength);
+
+/**
+ * Draws a registered mesh as a flowing water surface: model-space vertices lifted into travelling waves in
+ * the vertex stage, then refracted, depth-blended and foamed in the fragment stage. Like foliage, one draw of
+ * one registered mesh (nya_render3d_mesh_register) with its own per-object uniforms — the still surface at
+ * y = 0 and the shore weight in each vertex colour's alpha (0 down the channel, 1 at the banks).
+ *
+ * Drawn in the camera pass, after the opaque scene, so it can refract what is behind it. The refraction only
+ * shows when the scene is drawn into a render texture (through nya_post_begin, say), the same limit the glass
+ * material has; drawn straight to the window the body falls back to its deep-to-shallow colour. Water is lit
+ * and reflects the sun, but does not cast or receive a cast shadow.
+ *
+ * ```c
+ * NYA_Render3DWater river = {
+ *     .flow_direction = { 1, 0, 0.2F }, .flow_speed = 1.0F, .wave_amplitude = 0.15F, .wave_frequency = 0.6F,
+ *     .deep_color = { 0.02F, 0.12F, 0.18F, 1 }, .shallow_color = { 0.10F, 0.35F, 0.38F, 1 }, .refraction = 0.5F,
+ * };
+ * river.wind = nya_wind_sample(&wind, surface_center);   // optional: share the one wind field
+ * river.wind_influence = 0.5F;
+ * nya_render3d_water(window, "river_surface", position, (f32x3){ 1, 1, 1 }, nya_quaternion_identity, river);
+ * ```
+ * */
+NYA_API void nya_render3d_water(NYA_Window* window, NYA_ConstCString handle, f32x3 position, f32x3 scale, NYA_Quaternion rotation,
+                                NYA_Render3DWater water);
 
 /** Releases a registered mesh's GPU buffer. Safe for a handle that was never registered. */
 NYA_API void nya_render3d_mesh_release(NYA_Window* window, NYA_ConstCString handle);

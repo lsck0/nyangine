@@ -163,6 +163,13 @@ void nya_render3d_foliage_disturb(NYA_Window* window, f32x3 position, f32 radius
     nya_unused(position, radius, strength);
 }
 
+void nya_render3d_water(NYA_Window* window, NYA_ConstCString handle, f32x3 position, f32x3 scale, NYA_Quaternion rotation,
+                        NYA_Render3DWater water) {
+    nya_assert(window != nullptr);
+
+    nya_unused(handle, position, scale, rotation, water);
+}
+
 NYA_Render3DFoliage nya_render3d_foliage_style(NYA_FoliageStyle style) {
     switch (style) {
         case NYA_FOLIAGE_LEAVES: {

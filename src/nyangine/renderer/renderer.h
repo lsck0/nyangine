@@ -656,6 +656,17 @@ struct NYA_Render3DSegment {
     const struct NYA_ShaderFoliageUniform* foliage_uniform;
 
     /**
+     * A flowing water surface drawn instead of the geometry above: its registered handle, the vertex stage's
+     * wave/flow/wind uniform, and the fragment stage's colour/foam/refraction uniform, all in the frame arena.
+     * Like foliage — one draw of one mesh with its own per-object uniforms — but lifted into waves and refracting
+     * the captured scene rather than bent in the wind. Water is only ever seen by the camera pass (it casts no
+     * shadow), and it is drawn after the opaque geometry so the refraction sees what is behind it.
+     * */
+    NYA_ConstCString                          water;
+    const struct NYA_ShaderWaterVertexUniform* water_vertex_uniform;
+    const struct NYA_ShaderWaterFragUniform*   water_frag_uniform;
+
+    /**
      * Which passes see the posed mesh, one bit each, as a mesh group carries for the geometry above.
      *
      * Only a skinned segment uses it. The immediate and instanced paths decide per object and per group,

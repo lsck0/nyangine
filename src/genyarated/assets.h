@@ -66,6 +66,8 @@
 #define NYA_ASSET_SHADER_TEXT_FRAG                       "./assets/shader/source/text.frag.hlsl"
 #define NYA_ASSET_SHADER_TEXT_SDF_FRAG                   "./assets/shader/source/text_sdf.frag.hlsl"
 #define NYA_ASSET_SHADER_TEXTURED_FRAG                   "./assets/shader/source/textured.frag.hlsl"
+#define NYA_ASSET_SHADER_WATER_FRAG                      "./assets/shader/source/water.frag.hlsl"
+#define NYA_ASSET_SHADER_WATER_VERT                      "./assets/shader/source/water.vert.hlsl"
 #define NYA_ASSET_SOUNDS_FIRE_WAV                        "./assets/sounds/fire.wav"
 #define NYA_ASSET_SOUNDS_HIT_WAV                         "./assets/sounds/hit.wav"
 #define NYA_ASSET_TEXTURES_DECALS_PNG                    "./assets/textures/decals.png"
