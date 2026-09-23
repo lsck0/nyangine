@@ -26,6 +26,7 @@
 #include "nyangine/base/base_path.c"
 #include "nyangine/base/base_perf.c"
 #include "nyangine/base/base_string.c"
+#include "nyangine/base/base_socket.c"
 #include "nyangine/base/base_thread.c"
 #include "nyangine/base/base_types.c"
 #include "nyangine/base/base_url.c"

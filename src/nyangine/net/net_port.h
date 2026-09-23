@@ -45,7 +45,7 @@ enum NYA_NetProtocol {
  * Public rather than internal to net_udp.c, which is its first caller through
  * `nya_net_transport_listen(transport, 0)`, because a listener whose port someone else validates has to ask
  * the question itself: the HTTP server refuses a zero port in its config, so its test asks here and hands
- * over a real number. SDL_net reports no call for the port a socket ended up bound to, so this is the only
+ * over a real number. This is the only
  * way to learn one.
  * */
 NYA_API NYA_Error nya_net_port_pick(NYA_NetProtocol protocol, OUT u16* out_port) __attr_no_discard;

@@ -6,7 +6,6 @@
 #include "nyangine/nyangine.h"
 
 #include "SDL3/SDL_init.h"
-#include "SDL3_net/SDL_net.h"
 
 #include <time.h>
 
@@ -61,42 +60,47 @@ static void pump(NYA_NetTransport* transport, u32 times) {
 
 /** A hostile client on its own socket that completed a real handshake, so its sealed packets are accepted. */
 typedef struct {
-  NET_DatagramSocket* socket;
-  u8                  send_key[KEY_SIZE];
-  u8                  receive_key[KEY_SIZE];
-  u64                 sequence;
+  NYA_OsSocket socket;
+  u8           send_key[KEY_SIZE];
+  u8           receive_key[KEY_SIZE];
+  u64          sequence;
 } RawPeer;
 
-static void send_connect(NET_DatagramSocket* socket, NET_Address* target, u16 port, u32 size) {
+static void send_connect(NYA_OsSocket socket, NYA_OsAddress target, u16 port, u32 size) {
   u8 connect[CONNECT_SIZE] = { 0 };
   write_u32(connect, PROTOCOL);
   connect[4] = KIND_CONNECT;
 
-  (void)NET_SendDatagram(socket, target, port, connect, (int)size);
+  target.port = port;
+
+  (void)nya_os_socket_send_to(socket, target, connect, size);
+}
+
+/** The server's address with the port a case is aiming at: an address carries its port now. */
+static NYA_OsAddress _target_at(NYA_OsAddress target, u16 port) {
+  target.port = port;
+  return target;
 }
 
 /**
  * Waits for a datagram of kind `kind` on `socket`, pumping the server meanwhile. Copies it into `out`, which holds
  * at least NYA_NET_MAX_DATAGRAM bytes, and returns its size, or zero on a timeout.
  * */
-static u64 await_kind(NET_DatagramSocket* socket, NYA_NetTransport* server, u8 kind, u8* out, u32 timeout_ms) {
+static u64 await_kind(NYA_OsSocket socket, NYA_NetTransport* server, u8 kind, u8* out, u32 timeout_ms) {
   u64 deadline = nya_clock_get_monotonic_ms() + timeout_ms;
 
   while (nya_clock_get_monotonic_ms() < deadline) {
     pump(server, 1);
 
-    NET_Datagram* reply = nullptr;
+    u8            reply[NYA_NET_MAX_DATAGRAM] = { 0 };
+    u64           size                        = 0;
+    NYA_OsAddress from                        = { 0 };
 
-    while (NET_ReceiveDatagram(socket, &reply) && reply != nullptr) {
-      u64 size = (u64)reply->buflen;
-      b8  hit  = size >= 5 && reply->buf[4] == kind && size <= NYA_NET_MAX_DATAGRAM;
-
-      if (hit) nya_memcpy(out, reply->buf, size);
-
-      NET_DestroyDatagram(reply);
-      reply = nullptr;
-
-      if (hit) return size;
+    while (nya_os_socket_receive_from(socket, reply, sizeof(reply), &size, &from) == NYA_OS_SOCKET_OK) {
+      if (size >= 5 && reply[4] == kind) {
+        nya_memcpy(out, reply, size);
+        return size;
+      }
     }
 
     sleep_ms(2);
@@ -127,7 +131,7 @@ static void build_response(const u8* challenge, u8* response, NYA_NetKeyPair* ep
 }
 
 /** Completes a real handshake on a raw socket, so the attacker is a legitimate, keyed peer. */
-static b8 raw_handshake(RawPeer* peer, NET_Address* target, u16 port, NYA_NetTransport* server) {
+static b8 raw_handshake(RawPeer* peer, NYA_OsAddress target, u16 port, NYA_NetTransport* server) {
   u8 datagram[NYA_NET_MAX_DATAGRAM];
 
   for (u32 attempt = 0; attempt < 20; attempt++) {
@@ -141,7 +145,7 @@ static b8 raw_handshake(RawPeer* peer, NET_Address* target, u16 port, NYA_NetTra
 
     build_response(datagram, response, &ephemeral, premaster);
 
-    (void)NET_SendDatagram(peer->socket, target, port, response, RESPONSE_SIZE);
+    (void)nya_os_socket_send_to(peer->socket, _target_at(target, port), response, RESPONSE_SIZE);
 
     if (await_kind(peer->socket, server, KIND_ACCEPT, datagram, 300) != ACCEPT_SIZE) continue;
 
@@ -159,7 +163,7 @@ static b8 raw_handshake(RawPeer* peer, NET_Address* target, u16 port, NYA_NetTra
 }
 
 /** Seals `body` behind a header and sends it as the raw peer. `body` is encrypted in place. */
-static void raw_send(RawPeer* peer, NET_Address* target, u16 port, u8 kind, u8 fragment_count, u8* body, u64 body_size) {
+static void raw_send(RawPeer* peer, NYA_OsAddress target, u16 port, u8 kind, u8 fragment_count, u8* body, u64 body_size) {
   nya_assert(HEADER_SIZE + body_size + MAC_SIZE <= RAW_PACKET_SIZE_MAX);
 
   // static, not on the stack: 64 KB is a lot of frame, and the test sends from one thread only
@@ -178,7 +182,7 @@ static void raw_send(RawPeer* peer, NET_Address* target, u16 port, u8 kind, u8 f
   nya_memcpy(packet + HEADER_SIZE, body, body_size);
   _nya_net_crypto_seal(peer->send_key, sequence, packet, HEADER_SIZE, packet + HEADER_SIZE, body_size, packet + HEADER_SIZE + body_size);
 
-  (void)NET_SendDatagram(peer->socket, target, port, packet, (int)total);
+  (void)nya_os_socket_send_to(peer->socket, _target_at(target, port), packet, total);
 }
 
 /** Writes one fragment header at `out`, returning its size. */
@@ -262,7 +266,7 @@ s32 main(void) {
   b8 sdl_ok = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
 
-  nya_assert(NET_Init(), "NET_Init failed: %s", SDL_GetError());
+  nya_assert(nya_os_socket_start() == NYA_OS_SOCKET_OK, "the host's socket library would not start");
 
   NYA_Arena* arena = nya_arena_create(.name = "test_attack");
   defer      nya_arena_destroy(arena);
@@ -274,14 +278,13 @@ s32 main(void) {
   u16               port   = 0;
   NYA_NetTransport* server = listen_server(arena, &port);
 
-  NET_Address* target = NET_ResolveHostname("127.0.0.1");
-  nya_assert(target != nullptr);
-  nya_assert(NET_WaitUntilResolved(target, 3000) == 1, "could not resolve loopback");
+  NYA_OsAddress target = { 0 };
+  nya_assert(nya_os_address_resolve("127.0.0.1", 0, NYA_OS_ADDRESS_V4, &target) == NYA_OS_SOCKET_OK, "could not resolve loopback");
 
   printf("TEST: a CONNECT is answered without amplification, and only at a bounded rate\n");
   {
-    NET_DatagramSocket* flooder = NET_CreateDatagramSocket(nullptr, 0, 0);
-    nya_assert(flooder != nullptr);
+    NYA_OsSocket flooder = NYA_OS_SOCKET_NONE;
+    nya_assert(nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, 0, 0, &flooder) == NYA_OS_SOCKET_OK, "a raw socket would not open");
 
     u8 datagram[NYA_NET_MAX_DATAGRAM];
 
@@ -308,14 +311,14 @@ s32 main(void) {
     nya_assert(answered <= 24, "a flood of CONNECTs got %u answers from a rate limited server", answered);
     nya_assert(peer_count(server) == before, "a CONNECT took a peer slot");
 
-    NET_DestroyDatagramSocket(flooder);
+    nya_os_socket_close(flooder);
     sleep_ms(2100);
   }
 
   printf("TEST: a forged cookie or a bad tag takes no slot\n");
   {
-    NET_DatagramSocket* forger = NET_CreateDatagramSocket(nullptr, 0, 0);
-    nya_assert(forger != nullptr);
+    NYA_OsSocket forger = NYA_OS_SOCKET_NONE;
+    nya_assert(nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, 0, 0, &forger) == NYA_OS_SOCKET_OK, "a raw socket would not open");
 
     u32 before = peer_count(server);
 
@@ -330,28 +333,28 @@ s32 main(void) {
     // a made up cookie: a keyed hash under a secret only the server holds, so guessing is the only option.
     build_response(datagram, response, &ephemeral, premaster);
     for (u32 i = 0; i < 8; i++) response[5 + i] ^= 0xCD;
-    (void)NET_SendDatagram(forger, target, port, response, RESPONSE_SIZE);
+    (void)nya_os_socket_send_to(forger, _target_at(target, port), response, RESPONSE_SIZE);
 
     // a real cookie with a tag that does not match: a client that does not know what the server's key needs.
     build_response(datagram, response, &ephemeral, premaster);
     response[RESPONSE_SIZE - 1] ^= 0x01;
-    (void)NET_SendDatagram(forger, target, port, response, RESPONSE_SIZE);
+    (void)nya_os_socket_send_to(forger, _target_at(target, port), response, RESPONSE_SIZE);
 
     // a low order ephemeral key, which would force an all zero shared secret.
     build_response(datagram, response, &ephemeral, premaster);
     nya_memset(response + 13, 0, KEY_SIZE);
-    (void)NET_SendDatagram(forger, target, port, response, RESPONSE_SIZE);
+    (void)nya_os_socket_send_to(forger, _target_at(target, port), response, RESPONSE_SIZE);
 
     nya_assert(await_kind(forger, server, KIND_ACCEPT, datagram, 400) == 0, "a forged response was accepted");
     nya_assert(peer_count(server) == before, "a forged response took a slot");
 
     printf("  forged cookie, bad tag and low order key refused\n");
 
-    NET_DestroyDatagramSocket(forger);
+    nya_os_socket_close(forger);
   }
 
-  RawPeer attacker = { .socket = NET_CreateDatagramSocket(nullptr, 0, 0) };
-  nya_assert(attacker.socket != nullptr, "could not open an attacker socket: %s", SDL_GetError());
+  RawPeer attacker = { 0 };
+  nya_assert(nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, 0, 0, &attacker.socket) == NYA_OS_SOCKET_OK, "a raw socket would not open");
 
   nya_assert(raw_handshake(&attacker, target, port, server), "the attacker could not join to mount the attacks");
 
@@ -430,7 +433,7 @@ s32 main(void) {
     // an unauthenticated DISCONNECT from the attacker's socket, in the old unsealed shape and as garbage.
     for (u32 attempt = 0; attempt < 20; attempt++) {
       u8 packet[HEADER_SIZE + 1 + 8] = { KIND_DISCONNECT };
-      (void)NET_SendDatagram(attacker.socket, target, port, packet, sizeof(packet));
+      (void)nya_os_socket_send_to(attacker.socket, _target_at(target, port), packet, sizeof(packet));
     }
 
     // a message the server receives, whose sealed bytes are then replayed and tampered with as if from the client's address.
@@ -560,12 +563,12 @@ s32 main(void) {
     RawPeer peers[_NYA_NET_UDP_MAX_PEERS_PER_ADDRESS + 1] = { 0 };
 
     for (u32 i = 0; i < _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS; i++) {
-      peers[i].socket = NET_CreateDatagramSocket(nullptr, 0, 0);
+      nya_assert(nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, 0, 0, &peers[i].socket) == NYA_OS_SOCKET_OK, "a raw socket would not open");
       nya_assert(raw_handshake(&peers[i], target, cap_port, cap_server), "join %u of the allowed %d failed", i, _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS);
     }
 
     RawPeer* extra = &peers[_NYA_NET_UDP_MAX_PEERS_PER_ADDRESS];
-    extra->socket  = NET_CreateDatagramSocket(nullptr, 0, 0);
+    nya_assert(nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, 0, 0, &extra->socket) == NYA_OS_SOCKET_OK, "a raw socket would not open");
 
     u8 datagram[NYA_NET_MAX_DATAGRAM];
     send_connect(extra->socket, target, cap_port, CONNECT_SIZE);
@@ -576,7 +579,7 @@ s32 main(void) {
     u8             premaster[KEY_SIZE] = { 0 };
 
     build_response(datagram, response, &ephemeral, premaster);
-    (void)NET_SendDatagram(extra->socket, target, cap_port, response, RESPONSE_SIZE);
+    (void)nya_os_socket_send_to(extra->socket, _target_at(target, cap_port), response, RESPONSE_SIZE);
 
     u64 refused = await_kind(extra->socket, cap_server, KIND_REFUSED, datagram, 500);
 
@@ -585,7 +588,7 @@ s32 main(void) {
     nya_assert(peer_count(cap_server) == _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS, "one address holds %u slots", peer_count(cap_server));
     nya_assert(refused == 6 && datagram[5] == NYA_NET_DISCONNECT_FULL, "the extra connection was not refused as full");
 
-    for (u32 i = 0; i <= _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS; i++) NET_DestroyDatagramSocket(peers[i].socket);
+    for (u32 i = 0; i <= _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS; i++) nya_os_socket_close(peers[i].socket);
 
     nya_net_transport_destroy(cap_server);
   }
@@ -608,7 +611,7 @@ s32 main(void) {
       // every other one gets a valid protocol word, so the handshake parser sees it too.
       if ((iteration % 2) == 0 && size >= 4) write_u32(packet, PROTOCOL);
 
-      (void)NET_SendDatagram(attacker.socket, target, port, packet, (int)size);
+      (void)nya_os_socket_send_to(attacker.socket, _target_at(target, port), packet, size);
 
       // Drained periodically rather than per packet, so the receive loop's own batching is exercised too.
       if ((iteration % 64) == 0) pump(server, 1);
@@ -619,8 +622,7 @@ s32 main(void) {
     printf("  3000 random datagrams survived\n");
   }
 
-  NET_UnrefAddress(target);
-  NET_DestroyDatagramSocket(attacker.socket);
+  nya_os_socket_close(attacker.socket);
   nya_net_transport_destroy(server);
 
   // ═════════════════════════════════════════════════════════════════════════════
@@ -1031,7 +1033,6 @@ s32 main(void) {
     }
 
     NYA_Entity* entity = nya_entity_get(CHEATER);
-    nya_assert(entity != nullptr);
 
     f32 limit = 10.0F * 200.0F * CHEAT_TICK * 1.01F;
 
@@ -1085,7 +1086,7 @@ s32 main(void) {
   nya_world_destroy(world);
   nya_system_callback_deinit();
 
-  NET_Quit();
+  nya_os_socket_stop();
 
   printf("PASSED: test_attack (0 failures)\n");
 

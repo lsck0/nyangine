@@ -1089,6 +1089,21 @@ nya_ring_foreach(ring_ptr, item_name)
 nya_ring_foreach_reverse(ring_ptr, item_name)
 ```
 
+### base_socket.h
+
+What sits on top of os_socket.h: a name lookup that does not stop the frame, and the errors the rest
+
+```c
+// types
+enum NYA_ResolverStatus { NYA_RESOLVER_PENDING = 0, NYA_RESOLVER_OK, NYA_RESOLVER_FAILED, NYA_RESOLVER_STATUS_COUNT, }  // Where a lookup has got to.
+
+// functions
+NYA_Error nya_resolver_create(NYA_Arena* arena, NYA_ConstCString host, u16 port, NYA_OsAddressKind prefer, OUT NYA_Resolver** out_resolver)  // Starts looking `host` up, with `port` carried through to the answer.
+NYA_ResolverStatus nya_resolver_poll(NYA_Resolver* resolver, OUT NYA_OsAddress* out_address)  // Where the lookup is, and the address once there is one.
+void nya_resolver_destroy(NYA_Resolver* resolver)  // Lets a resolver go.
+NYA_ConstCString nya_resolver_error(const NYA_Resolver* resolver)  // What the host said, in words, once a lookup failed.
+```
+
 ### base_string.h
 
 ```c
@@ -6498,6 +6513,48 @@ NYA_OS_RANDOM_MAX_BYTES 4096  // Most bytes one call may ask for.
 
 // functions
 b8 nya_os_random_bytes(OUT u8* out, u64 size)  // Fills `out` with `size` unpredictable bytes.
+```
+
+### os_socket.h
+
+Sockets as the operating system hands them over: a datagram socket, a listening stream socket, the
+
+```c
+// types
+enum NYA_OsSocketStatus { NYA_OS_SOCKET_OK, NYA_OS_SOCKET_WOULD_BLOCK, NYA_OS_SOCKET_CLOSED, NYA_OS_SOCKET_REFUSED, NYA_OS_SOCKET_IN_USE, NYA_OS_SOCKET_UNREACHABLE, NYA_OS_SOCKET_FAILED, NYA_OS_SOCKET_STATUS_COUNT, }  // How a call here ended.
+enum NYA_OsSocketKind { NYA_OS_SOCKET_DATAGRAM = 0, NYA_OS_SOCKET_LISTENER, NYA_OS_SOCKET_KIND_COUNT, }  // Which kind of socket to open.
+enum NYA_OsAddressKind { NYA_OS_ADDRESS_NONE = 0, NYA_OS_ADDRESS_V4, NYA_OS_ADDRESS_V6, NYA_OS_ADDRESS_KIND_COUNT, }  // Which kind of address, which is also how many of its bytes mean anything.
+struct NYA_OsSocket { u64 handle; }  // One socket, as the host names it.
+struct NYA_OsAddress { NYA_OsAddressKind kind; u8 bytes[16]; u16 port; u32 scope; }  // An address and a port, by value.
+struct NYA_OsSocketWait { NYA_OsSocket socket; b8 readable; b8 writable; b8 is_readable; b8 is_writable; b8 is_closed; }  // One socket to watch, and what it turned out to be ready for.
+
+// macros
+NYA_OS_SOCKET_NONE ((NYA_OsSocket){ .handle = 0 })  // A socket that was never opened, and what a closed one is set to.
+NYA_OS_ADDRESS_TEXT_MAX 64  // Bytes an address's text form needs, terminator included: an IPv6 literal in brackets with a port.
+NYA_OS_SOCKET_BACKLOG 64  // How many connections may be waiting to be accepted before the host refuses one.
+NYA_OS_SOCKET_WAIT_MAX 128  // Sockets one wait may watch.
+NYA_OS_SOCKET_WAIT_FOREVER ((u32)0xFFFFFFFF)  // A wait that only ends when a socket is ready.
+
+// functions
+NYA_OsSocketStatus nya_os_socket_start(void)  // Starts the host's socket library, once per process, and refers to it until the matching stop.
+void nya_os_socket_stop(void)  // The pair.
+NYA_OsSocketStatus nya_os_socket_open(NYA_OsSocketKind kind, u16 port, u32 backlog, OUT NYA_OsSocket* out_socket)  // Opens a socket of `kind`, bound to `port` or to whatever the host picks when `port` is zero.
+NYA_OsSocketStatus nya_os_socket_accept(NYA_OsSocket listener, OUT NYA_OsSocket* out_socket, OUT NYA_OsAddress* out_from)  // Takes the next waiting connection, non-blocking.
+NYA_OsSocketStatus nya_os_socket_connect(NYA_OsAddress address, OUT NYA_OsSocket* out_socket)  // Starts connecting a stream socket to `address`.
+void nya_os_socket_close(NYA_OsSocket socket)  // Closes a socket.
+NYA_OsSocketStatus nya_os_socket_send_to(NYA_OsSocket socket, NYA_OsAddress to, const u8* data, u64 size)  // Sends one datagram to `to`.
+NYA_OsSocketStatus nya_os_socket_receive_from(NYA_OsSocket socket, OUT u8* out_data, u64 capacity, OUT u64* out_size, OUT NYA_OsAddress* out_from)  // Takes the next datagram waiting, into `out_data`.
+NYA_OsSocketStatus nya_os_socket_send(NYA_OsSocket socket, const u8* data, u64 size, OUT u64* out_sent)  // Writes what the host will take of `data`, which may be none of it and is often not all of it.
+NYA_OsSocketStatus nya_os_socket_receive(NYA_OsSocket socket, OUT u8* out_data, u64 capacity, OUT u64* out_read)  // Reads what has arrived, up to `capacity`.
+NYA_OsSocketStatus nya_os_socket_wait(NYA_OsSocketWait* sockets, u32 count, u32 timeout_ms, OUT u32* out_ready)  // Waits until one of `sockets` is ready or `timeout_ms` passes, and fills in what each one turned out to be.
+NYA_OsSocketStatus nya_os_socket_error(NYA_OsSocket socket)  // What a socket's own error slot says, which is where a non-blocking connect's answer ends up.
+NYA_OsSocketStatus nya_os_socket_address(NYA_OsSocket socket, OUT NYA_OsAddress* out_address)  // The address a socket is bound to, which is how a caller learns the port the host picked for it.
+NYA_OsSocketStatus nya_os_socket_set_no_delay(NYA_OsSocket socket, b8 no_delay)  // Turns Nagle's algorithm off, so a small write goes now rather than waiting for company.
+NYA_OsSocketStatus nya_os_address_resolve(NYA_ConstCString host, u16 port, NYA_OsAddressKind prefer, OUT NYA_OsAddress* out_address)  // Turns a host name or a literal into an address, and may take as long as the host's resolver does.
+NYA_OsAddress nya_os_address_any(NYA_OsAddressKind kind, u16 port)  // The address that means "every interface", for a server that binds one.
+b8 nya_os_address_equals(NYA_OsAddress a, NYA_OsAddress b)  // Whether two addresses are the same host and port.
+b8 nya_os_address_equals_host(NYA_OsAddress a, NYA_OsAddress b)  // Whether two addresses are the same host, whatever port each one came from.
+b8 nya_os_address_text(NYA_OsAddress address, b8 with_port, OUT char* out_text, u64 capacity)  // Writes `address` as text into `out_text`, which holds NYA_OS_ADDRESS_TEXT_MAX bytes.
 ```
 
 ### os_thread.h

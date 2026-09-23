@@ -85,7 +85,7 @@ s32 main(void) {
 
   b8 sdl_ok = SDL_Init(0);
   nya_assert(sdl_ok, "SDL_Init failed: %s", SDL_GetError());
-  nya_assert(NET_Init(), "NET_Init failed: %s", SDL_GetError());
+  nya_assert(nya_os_socket_start() == NYA_OS_SOCKET_OK, "the host's socket library would not start");
 
   nya_system_callback_init();
   defer nya_system_callback_deinit();
@@ -229,8 +229,8 @@ s32 main(void) {
     // only so the transport has a socket; nothing here sends to it, so its number is nobody's business.
     NYA_EXPECT(nya_net_transport_listen(server, 0), "the system had no free UDP port");
 
-    NET_Address* address = NET_ResolveHostname("127.0.0.1");
-    nya_assert(address != nullptr && NET_WaitUntilResolved(address, 3000) == 1);
+    NYA_OsAddress address = { 0 };
+    nya_assert(nya_os_address_resolve("127.0.0.1", 9, NYA_OS_ADDRESS_V4, &address) == NYA_OS_SOCKET_OK);
 
     _NYA_NetUdpState* state = server->state;
 
@@ -244,7 +244,7 @@ s32 main(void) {
       if (slot >= NYA_NET_MAX_PEERS || !state->peers[slot].occupied) {
         if (slot < NYA_NET_MAX_PEERS) dropped++;
 
-        slot = _nya_net_udp_add_peer(state, address, 9);
+        slot = _nya_net_udp_add_peer(state, address);
         nya_assert(slot < NYA_NET_MAX_PEERS);
 
         state->peers[slot].established = true;
@@ -261,7 +261,7 @@ s32 main(void) {
       _nya_net_udp_write_u32(input, 0x6E796106U);
       input[4] = (u8)below(8);
 
-      _nya_net_udp_handle_handshake(server, (iteration & 1) ? slot : NYA_NET_MAX_PEERS, address, 9, input, size);
+      _nya_net_udp_handle_handshake(server, (iteration & 1) ? slot : NYA_NET_MAX_PEERS, address, input, size);
 
       // a sealed packet whose plaintext is noise shaped like fragments.
       u64 body = below(NYA_NET_MAX_DATAGRAM - 28);
@@ -297,7 +297,6 @@ s32 main(void) {
 
     printf("  20000 handshake and sealed packets parsed; the peer was dropped for misbehaving %u times\n", dropped);
 
-    NET_UnrefAddress(address);
     nya_net_transport_destroy(server);
   }
 
@@ -386,7 +385,7 @@ s32 main(void) {
     printf("  3000 mutated client messages survived\n");
   }
 
-  NET_Quit();
+  nya_os_socket_stop();
 
   printf("PASSED: test_fuzz (0 failures)\n");
 

@@ -2,7 +2,6 @@
 
 #include "nyangine/net/net_bytes.h"
 
-#include "SDL3_net/SDL_net.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -181,7 +180,7 @@ typedef struct {
     b8  occupied;
     u32 generation;
 
-    NET_Address* address;
+    NYA_OsAddress address;
     u16          port;
 
     /** Printed form of address:port, resolved once. */
@@ -276,9 +275,8 @@ typedef struct {
 
 /** A datagram the conditioner is holding back. */
 typedef struct {
-    NET_Address* address;
-    u16          port;
-    u16          size;
+    NYA_OsAddress address;
+    u16           size;
     u64          due_ms;
     u8           bytes[NYA_NET_MAX_DATAGRAM];
 } _NYA_NetUdpDelayed;
@@ -286,7 +284,7 @@ typedef struct {
 typedef struct {
     NYA_Arena* allocator;
 
-    NET_DatagramSocket* socket;
+    NYA_OsSocket socket;
 
     b8 listening;
 
@@ -305,8 +303,11 @@ typedef struct {
 
     /* connecting out */
 
-    b8           connecting;
-    NET_Address* connect_address;
+    b8            connecting;
+    NYA_OsAddress connect_address;
+
+    /** The lookup, while there is one. Null once the name is known or the connection gave up. */
+    NYA_Resolver* resolver;
     u16          connect_port;
     u64          connect_started_ms;
     u64          connect_last_sent_ms;
@@ -314,10 +315,10 @@ typedef struct {
     /**
      * The hostname has not come back yet, so there is no socket and no peer.
      *
-     * SDL_net resolves on its own thread and NET_GetAddressStatus asks without blocking, so this is
-     * polled from the update instead of waited on. Connecting used to wait here for up to the whole
-     * connect timeout, five seconds, inside the caller's call — which for a game is five seconds of a
-     * frozen frame on a hostname that was misspelled.
+     * The lookup runs on its own thread and nya_resolver_poll asks without blocking, so this is polled
+     * from the update instead of waited on. Connecting used to wait here for up to the whole connect
+     * timeout, five seconds, inside the caller's call — which for a game is five seconds of a frozen
+     * frame on a hostname that was misspelled.
      * */
     b8 resolving;
 
@@ -381,10 +382,10 @@ NYA_INTERNAL void _nya_net_udp_receive(NYA_NetTransport* transport);
 NYA_INTERNAL void _nya_net_udp_update(NYA_NetTransport* transport);
 
 /** One handshake packet, from a known peer's address (`peer_index`) or a stranger's (NYA_NET_MAX_PEERS). */
-NYA_INTERNAL void _nya_net_udp_handle_handshake(NYA_NetTransport* transport, u32 peer_index, NET_Address* address, u16 port, const u8* data, u64 size);
+NYA_INTERNAL void _nya_net_udp_handle_handshake(NYA_NetTransport* transport, u32 peer_index, NYA_OsAddress address, const u8* data, u64 size);
 
 /** A RESPONSE from a stranger: the only way a peer slot is ever taken on a server. */
-NYA_INTERNAL void _nya_net_udp_handle_response(NYA_NetTransport* transport, NET_Address* address, u16 port, const u8* data);
+NYA_INTERNAL void _nya_net_udp_handle_response(NYA_NetTransport* transport, NYA_OsAddress address, const u8* data);
 
 /** A client's side of CHALLENGE and ACCEPT. */
 NYA_INTERNAL void _nya_net_udp_handle_challenge(NYA_NetTransport* transport, u32 peer_index, const u8* data);
@@ -407,7 +408,7 @@ NYA_INTERNAL u64 _nya_net_udp_write_fragment(
 );
 
 /** Sends one datagram, or hands it to the conditioner. */
-NYA_INTERNAL void _nya_net_udp_transmit(_NYA_NetUdpState* state, NET_Address* address, u16 port, const u8* data, u64 size);
+NYA_INTERNAL void _nya_net_udp_transmit(_NYA_NetUdpState* state, NYA_OsAddress address, const u8* data, u64 size);
 
 /** A roll in [0, 1) for the conditioner. */
 NYA_INTERNAL f32 _nya_net_udp_roll(_NYA_NetUdpState* state) __attr_no_discard;
@@ -416,19 +417,19 @@ NYA_INTERNAL f32 _nya_net_udp_roll(_NYA_NetUdpState* state) __attr_no_discard;
 NYA_INTERNAL void _nya_net_udp_release_delayed(_NYA_NetUdpState* state, b8 all);
 
 /** The cookie an address must echo to get a peer slot. */
-NYA_INTERNAL u64 _nya_net_udp_cookie(_NYA_NetUdpState* state, NET_Address* address, u16 port, u64 epoch_offset) __attr_no_discard;
+NYA_INTERNAL u64 _nya_net_udp_cookie(_NYA_NetUdpState* state, NYA_OsAddress address, u64 epoch_offset) __attr_no_discard;
 
 /** Whether `cookie` is one this server would recently have issued to this address. */
-NYA_INTERNAL b8 _nya_net_udp_cookie_valid(_NYA_NetUdpState* state, NET_Address* address, u16 port, u64 cookie) __attr_no_discard;
+NYA_INTERNAL b8 _nya_net_udp_cookie_valid(_NYA_NetUdpState* state, NYA_OsAddress address, u64 cookie) __attr_no_discard;
 
 /** Whether this address may send another handshake packet now, spending one if so. */
-NYA_INTERNAL b8 _nya_net_udp_handshake_allowed(_NYA_NetUdpState* state, NET_Address* address) __attr_no_discard;
+NYA_INTERNAL b8 _nya_net_udp_handshake_allowed(_NYA_NetUdpState* state, NYA_OsAddress address) __attr_no_discard;
 
 /** The peer at `address`:`port`, or NYA_NET_MAX_PEERS when there is none. */
-NYA_INTERNAL u32 _nya_net_udp_find_peer(_NYA_NetUdpState* state, NET_Address* address, u16 port) __attr_no_discard;
+NYA_INTERNAL u32 _nya_net_udp_find_peer(_NYA_NetUdpState* state, NYA_OsAddress address) __attr_no_discard;
 
 /** Takes a free peer slot for `address`:`port`, or NYA_NET_MAX_PEERS when the table is full. */
-NYA_INTERNAL u32 _nya_net_udp_add_peer(_NYA_NetUdpState* state, NET_Address* address, u16 port) __attr_no_discard;
+NYA_INTERNAL u32 _nya_net_udp_add_peer(_NYA_NetUdpState* state, NYA_OsAddress address) __attr_no_discard;
 
 NYA_INTERNAL void _nya_net_udp_remove_peer(NYA_NetTransport* transport, u32 peer_index, NYA_NetDisconnect reason, b8 notify);
 
@@ -527,7 +528,7 @@ NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptions optio
     u8 cookie_key[24] = { 0 };
     if (!nya_os_random_bytes(cookie_key, sizeof(cookie_key))) return nya_error(NYA_ERROR_NOT_OK, "the system random source failed");
 
-    if (!NET_Init()) return nya_error(NYA_ERROR_NOT_OK, "SDL_net could not start: %s", SDL_GetError());
+    if (nya_os_socket_start() != NYA_OS_SOCKET_OK) return nya_error(NYA_ERROR_NOT_OK, "the host's socket library could not start");
     _NYA_NET_UDP_INIT_COUNT++;
 
     _NYA_NetUdpState* state = nya_arena_alloc(arena, sizeof(_NYA_NetUdpState));
@@ -574,24 +575,33 @@ NYA_Error nya_net_transport_udp_create(NYA_Arena* arena, NYA_NetUdpOptions optio
 NYA_Error _nya_net_udp_listen(NYA_NetTransport* transport, u16 port) {
     _NYA_NetUdpState* state = transport->state;
 
-    if (state->socket != nullptr) return nya_error(NYA_ERROR_NOT_OK, "this transport already has a socket");
+    if (state->socket.handle != 0) return nya_error(NYA_ERROR_NOT_OK, "this transport already has a socket");
 
     if (!nya_net_key_is_set(state->identity.secret_key)) NYA_TRY(nya_net_key_pair_create(&state->identity));
 
     /*
      * Zero means "whichever one is free", which is how two servers come up on one machine with nothing
-     * agreed in advance. The number is taken from the system first rather than passed straight through,
-     * because SDL_net will not say afterwards what it bound, and a server that cannot name its own port
-     * cannot tell a client where it is. nya_net_transport_port is how the caller reads it back.
+     * agreed in advance. The socket is asked afterwards what it actually bound, so a server can always
+     * tell a client where it is; nya_net_transport_port is how the caller reads it back.
      */
-    if (port == 0) NYA_TRY(nya_net_port_pick(NYA_NET_PROTOCOL_UDP, &port));
+    NYA_OsSocketStatus opened = nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, port, 0, &state->socket);
 
-    // a null address binds every local interface, so a host on ethernet and wifi is reachable on both.
-    state->socket = NET_CreateDatagramSocket(nullptr, port, 0);
-    if (state->socket == nullptr) return nya_error(NYA_ERROR_NOT_OK, "could not bind UDP port %u: %s", port, SDL_GetError());
+    if (opened == NYA_OS_SOCKET_IN_USE) return nya_error(NYA_ERROR_NOT_OK, "UDP port %u is already taken", port);
+    if (opened != NYA_OS_SOCKET_OK) return nya_error(NYA_ERROR_NOT_OK, "could not bind UDP port %u", port);
+
+    NYA_OsAddress bound = { 0 };
+
+    if (nya_os_socket_address(state->socket, &bound) != NYA_OS_SOCKET_OK) {
+        nya_os_socket_close(state->socket);
+        state->socket = NYA_OS_SOCKET_NONE;
+
+        return nya_error(NYA_ERROR_NOT_OK, "the UDP socket will not say what it bound");
+    }
 
     state->listening = true;
-    state->port      = port;
+    state->port      = bound.port;
+
+    port = bound.port;
 
     char key[NYA_NET_KEY_HEX_SIZE];
     nya_net_key_to_hex(state->identity.public_key, key);
@@ -618,15 +628,14 @@ NYA_INTERNAL b8 _nya_net_udp_resolve_finish(NYA_NetTransport* transport, u64 now
     _NYA_NetUdpState* state = transport->state;
 
     // port zero lets the system pick, so two copies of a game on one machine can both connect.
-    state->socket = NET_CreateDatagramSocket(nullptr, 0, 0);
-    if (state->socket == nullptr) {
-        nya_log_warn("Could not open a UDP socket: %s", SDL_GetError());
+    if (nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, 0, 0, &state->socket) != NYA_OS_SOCKET_OK) {
+        nya_log_warn("Could not open a UDP socket.");
 
         return false;
     }
 
     // the server's slot exists from here, so its handshake packets are recognised by address.
-    const u32 slot = _nya_net_udp_add_peer(state, state->connect_address, state->connect_port);
+    const u32 slot = _nya_net_udp_add_peer(state, state->connect_address);
     nya_assert(slot < NYA_NET_MAX_PEERS, "a client's first peer slot is always free");
 
     state->resolving = false;
@@ -647,18 +656,19 @@ NYA_Error _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString add
 
     _NYA_NetUdpState* state = transport->state;
 
-    if (state->socket != nullptr) return nya_error(NYA_ERROR_NOT_OK, "this transport already has a socket");
+    if (state->socket.handle != 0) return nya_error(NYA_ERROR_NOT_OK, "this transport already has a socket");
 
     /*
-     * Returns at once with an address that may still be resolving; NET_GetAddressStatus is how it is
-     * asked later. Nothing here blocks, so a caller may connect from a frame without dropping one.
+     * Started rather than waited for: a name lookup is the host's resolver and may take seconds, which
+     * for a game is seconds of a frozen frame on a hostname that was misspelled. A literal is answered
+     * inside this call, so connecting to an address costs nothing extra. See base_socket.h.
      */
-    NET_Address* resolved = NET_ResolveHostname(address);
-    if (resolved == nullptr) return nya_error(NYA_ERROR_NOT_FOUND, "could not resolve '%s': %s", address, SDL_GetError());
+    NYA_Resolver* resolver = nullptr;
+    NYA_TRY(nya_resolver_create(state->allocator, address, port, NYA_OS_ADDRESS_NONE, &resolver));
 
     NYA_Error keyed = nya_net_key_pair_create(&state->ephemeral);
     if (!keyed.ok) {
-        NET_UnrefAddress(resolved);
+        nya_resolver_destroy(resolver);
         return keyed;
     }
 
@@ -668,7 +678,7 @@ NYA_Error _nya_net_udp_connect(NYA_NetTransport* transport, NYA_ConstCString add
      */
     state->connecting           = true;
     state->resolving            = true;
-    state->connect_address      = resolved;
+    state->resolver             = resolver;
     state->connect_port         = port;
     state->connect_started_ms   = nya_clock_get_monotonic_ms();
     state->connect_last_sent_ms = 0;
@@ -697,23 +707,13 @@ void _nya_net_udp_destroy(NYA_NetTransport* transport) {
 
     _nya_net_udp_release_delayed(state, true);
 
-    if (state->connect_address != nullptr) {
-        /*
-         * SDL_net's NET_Quit drops addresses still queued for its resolver without releasing them (resolver_queue
-         * is set to NULL in SDL_net.c at 4dd9d84), which LeakSanitizer reported as 81 bytes from test_transport
-         * under load. Waiting out this transport's own lookup first keeps it off that queue. Delete once
-         * SDL_net releases the queue itself.
-         */
-        if (state->resolving) (void)NET_WaitUntilResolved(state->connect_address, _NYA_NET_UDP_RESOLVE_WAIT_MS);
-
-        NET_UnrefAddress(state->connect_address);
-        state->connect_address = nullptr;
+    if (state->resolver != nullptr) {
+        nya_resolver_destroy(state->resolver);
+        state->resolver = nullptr;
     }
 
-    if (state->socket != nullptr) {
-        NET_DestroyDatagramSocket(state->socket);
-        state->socket = nullptr;
-    }
+    nya_os_socket_close(state->socket);
+    state->socket = NYA_OS_SOCKET_NONE;
 
     nya_arena_destroy(state->delivered);
 
@@ -723,10 +723,10 @@ void _nya_net_udp_destroy(NYA_NetTransport* transport) {
 
     transport->state = nullptr;
 
-    // balances NET_Init in create. SDL_net reference counts.
+    // balances the start in create, which is counted for the hosts where it means something.
     if (_NYA_NET_UDP_INIT_COUNT > 0) {
         _NYA_NET_UDP_INIT_COUNT--;
-        NET_Quit();
+        nya_os_socket_stop();
     }
 }
 
@@ -869,7 +869,7 @@ void _nya_net_udp_send_packet(NYA_NetTransport* transport, u32 peer_index, u8 ki
 
     u64 size = _NYA_NET_UDP_HEADER_SIZE + body_size + _NYA_NET_MAC_SIZE;
 
-    _nya_net_udp_transmit(state, connection->address, connection->port, buffer, size);
+    _nya_net_udp_transmit(state, connection->address, buffer, size);
 
     connection->stats.bytes_sent += size;
     connection->stats.packets_sent++;
@@ -877,14 +877,14 @@ void _nya_net_udp_send_packet(NYA_NetTransport* transport, u32 peer_index, u8 ki
     connection->ack_pending  = false;
 }
 
-void _nya_net_udp_transmit(_NYA_NetUdpState* state, NET_Address* address, u16 port, const u8* data, u64 size) {
+void _nya_net_udp_transmit(_NYA_NetUdpState* state, NYA_OsAddress address, const u8* data, u64 size) {
     nya_assert(size <= NYA_NET_MAX_DATAGRAM);
 
-    if (state->socket == nullptr || address == nullptr) return;
+    if (state->socket.handle == 0 || address.kind == NYA_OS_ADDRESS_NONE) return;
 
     if (state->delayed == nullptr || !nya_net_conditions_active(state->conditions)) {
         // a failed send is a full buffer or a blip, not a dead peer. the timeout decides that.
-        if (!NET_SendDatagram(state->socket, address, port, data, (int)size)) nya_log_debug("UDP send failed: %s", SDL_GetError());
+        if (nya_os_socket_send_to(state->socket, address, data, size) != NYA_OS_SOCKET_OK) nya_log_debug("UDP send failed.");
         return;
     }
 
@@ -912,8 +912,7 @@ void _nya_net_udp_transmit(_NYA_NetUdpState* state, NET_Address* address, u16 po
 
         _NYA_NetUdpDelayed* held = &state->delayed[state->delayed_count++];
 
-        held->address = NET_RefAddress(address);
-        held->port    = port;
+        held->address = address;
         held->size    = (u16)size;
         held->due_ms  = due_ms;
         nya_memcpy(held->bytes, data, size);
@@ -944,9 +943,7 @@ void _nya_net_udp_release_delayed(_NYA_NetUdpState* state, b8 all) {
             continue;
         }
 
-        if (state->socket != nullptr) (void)NET_SendDatagram(state->socket, held->address, held->port, held->bytes, (int)held->size);
-
-        NET_UnrefAddress(held->address);
+        if (state->socket.handle != 0) (void)nya_os_socket_send_to(state->socket, held->address, held->bytes, held->size);
     }
 
     state->delayed_count = kept;
@@ -965,23 +962,25 @@ void _nya_net_udp_condition(NYA_NetTransport* transport, NYA_NetConditions condi
     if (!nya_net_conditions_active(conditions)) _nya_net_udp_release_delayed(state, true);
 }
 
-u64 _nya_net_udp_cookie(_NYA_NetUdpState* state, NET_Address* address, u16 port, u64 epoch_offset) {
-    int         address_size  = 0;
-    const void* address_bytes = NET_GetAddressBytes(address, &address_size);
+u64 _nya_net_udp_cookie(_NYA_NetUdpState* state, NYA_OsAddress address, u64 epoch_offset) {
+    // The address's own bytes, which is what makes a cookie belong to one host: sixteen for v6 and the
+    // first four of them for v4.
+    u64       address_size  = address.kind == NYA_OS_ADDRESS_V6 ? 16 : (address.kind == NYA_OS_ADDRESS_V4 ? 4 : 0);
+    const u8* address_bytes = address.bytes;
 
     u64 epoch = (nya_clock_get_monotonic_ms() / _NYA_NET_UDP_COOKIE_WINDOW_MS) - epoch_offset;
 
     u8  material[64] = { 0 };
     u64 at           = 0;
 
-    if (address_bytes != nullptr && address_size > 0) {
-        u64 copied = nya_min((u64)address_size, sizeof(material) - 16);
+    if (address_size > 0) {
+        u64 copied = nya_min(address_size, sizeof(material) - 16);
 
         nya_memcpy(material, address_bytes, copied);
         at += copied;
     }
 
-    _nya_net_udp_write_u16(material + at, port);
+    _nya_net_udp_write_u16(material + at, address.port);
     at += 2;
     _nya_net_udp_write_u64(material + at, epoch);
     at += 8;
@@ -992,19 +991,19 @@ u64 _nya_net_udp_cookie(_NYA_NetUdpState* state, NET_Address* address, u16 port,
     return cookie == 0 ? 1 : cookie;
 }
 
-b8 _nya_net_udp_cookie_valid(_NYA_NetUdpState* state, NET_Address* address, u16 port, u64 cookie) {
+b8 _nya_net_udp_cookie_valid(_NYA_NetUdpState* state, NYA_OsAddress address, u64 cookie) {
     if (cookie == 0) return false;
 
     // current and previous window, so a response crossing a boundary is still accepted.
-    return cookie == _nya_net_udp_cookie(state, address, port, 0) || cookie == _nya_net_udp_cookie(state, address, port, 1);
+    return cookie == _nya_net_udp_cookie(state, address, 0) || cookie == _nya_net_udp_cookie(state, address, 1);
 }
 
-b8 _nya_net_udp_handshake_allowed(_NYA_NetUdpState* state, NET_Address* address) {
-    int         address_size  = 0;
-    const void* address_bytes = NET_GetAddressBytes(address, &address_size);
+b8 _nya_net_udp_handshake_allowed(_NYA_NetUdpState* state, NYA_OsAddress address) {
+    u64       address_size  = address.kind == NYA_OS_ADDRESS_V6 ? 16 : (address.kind == NYA_OS_ADDRESS_V4 ? 4 : 0);
+    const u8* address_bytes = address.bytes;
 
     // the address without the port: a port is free to change, an address is what an attacker has few of.
-    u64 hash = address_bytes != nullptr && address_size > 0 ? nya_siphash(address_bytes, (u64)address_size, state->cookie_key_high, state->cookie_key_low) : 0;
+    u64 hash = address_size > 0 ? nya_siphash(address_bytes, address_size, state->cookie_key_high, state->cookie_key_low) : 0;
 
     _NYA_NetUdpBucket* bucket = &state->buckets[hash % _NYA_NET_UDP_HANDSHAKE_BUCKETS];
 
@@ -1063,37 +1062,39 @@ b8 _nya_net_udp_poll(NYA_NetTransport* transport, OUT NYA_NetTransportEvent* out
 void _nya_net_udp_receive(NYA_NetTransport* transport) {
     _NYA_NetUdpState* state = transport->state;
 
-    if (state->socket == nullptr) return;
+    if (state->socket.handle == 0) return;
 
     // bounded, so a flood cannot stall the frame loop. the rest waits in the socket buffer.
     for (u32 drained = 0; drained < _NYA_NET_UDP_MAX_RECEIVE_PER_POLL; drained++) {
-        NET_Datagram* datagram = nullptr;
+        u8            datagram[NYA_NET_MAX_DATAGRAM] = { 0 };
+        u64           size                           = 0;
+        NYA_OsAddress from                           = { 0 };
 
-        // false is an error; a null datagram with true is simply nothing waiting.
-        if (!NET_ReceiveDatagram(state->socket, &datagram)) {
-            nya_log_debug("UDP receive failed: %s", SDL_GetError());
-            return;
+        NYA_OsSocketStatus received = nya_os_socket_receive_from(state->socket, datagram, sizeof(datagram), &size, &from);
+
+        // Nothing waiting is the ordinary end of this loop, and the one error a datagram socket gives
+        // per peer — a refused one on the way back — must not take the socket down with it.
+        if (received == NYA_OS_SOCKET_WOULD_BLOCK) return;
+
+        if (received != NYA_OS_SOCKET_OK) {
+            nya_log_debug("UDP receive failed.");
+            continue;
         }
 
-        if (datagram == nullptr) return;
+        u32 index = _nya_net_udp_find_peer(state, from);
 
-        u64 size  = datagram->buflen > 0 ? (u64)datagram->buflen : 0;
-        u32 index = _nya_net_udp_find_peer(state, datagram->addr, datagram->port);
-
-        // oversized is dropped before anything reads it. short or foreign packets on a shared port are normal.
-        if (size > NYA_NET_MAX_DATAGRAM || size == 0) {
-            nya_log_debug("Dropping a %llu byte datagram.", (unsigned long long)size);
-        } else if (size >= _NYA_NET_UDP_PREFIX_SIZE && _nya_net_udp_read_u32(datagram->buf) == _NYA_NET_UDP_PROTOCOL) {
-            _nya_net_udp_handle_handshake(transport, index, datagram->addr, datagram->port, datagram->buf, size);
+        // short or foreign packets on a shared port are normal, and an empty one carries nothing.
+        if (size == 0) {
+            nya_log_debug("Dropping an empty datagram.");
+        } else if (size >= _NYA_NET_UDP_PREFIX_SIZE && _nya_net_udp_read_u32(datagram) == _NYA_NET_UDP_PROTOCOL) {
+            _nya_net_udp_handle_handshake(transport, index, from, datagram, size);
         } else if (index < NYA_NET_MAX_PEERS) {
-            _nya_net_udp_handle_packet(transport, index, datagram->buf, size);
+            _nya_net_udp_handle_packet(transport, index, datagram, size);
         }
-
-        NET_DestroyDatagram(datagram);
     }
 }
 
-void _nya_net_udp_handle_handshake(NYA_NetTransport* transport, u32 peer_index, NET_Address* address, u16 port, const u8* data, u64 size) {
+void _nya_net_udp_handle_handshake(NYA_NetTransport* transport, u32 peer_index, NYA_OsAddress address, const u8* data, u64 size) {
     _NYA_NetUdpState* state = transport->state;
 
     u8 kind = data[4];
@@ -1109,10 +1110,10 @@ void _nya_net_udp_handle_handshake(NYA_NetTransport* transport, u32 peer_index, 
 
             _nya_net_udp_write_u32(challenge, _NYA_NET_UDP_PROTOCOL);
             challenge[4] = _NYA_NET_UDP_KIND_CHALLENGE;
-            _nya_net_udp_write_u64(challenge + 5, _nya_net_udp_cookie(state, address, port, 0));
+            _nya_net_udp_write_u64(challenge + 5, _nya_net_udp_cookie(state, address, 0));
             nya_memcpy(challenge + 13, state->identity.public_key, NYA_NET_KEY_SIZE);
 
-            _nya_net_udp_transmit(state, address, port, challenge, sizeof(challenge));
+            _nya_net_udp_transmit(state, address, challenge, sizeof(challenge));
             return;
         }
 
@@ -1123,13 +1124,13 @@ void _nya_net_udp_handle_handshake(NYA_NetTransport* transport, u32 peer_index, 
             _NYA_NetUdpPeer* connection = &state->peers[peer_index];
 
             if (nya_memcmp(connection->client_ephemeral, data + 13, NYA_NET_KEY_SIZE) == 0) {
-                _nya_net_udp_transmit(state, address, port, connection->accept, _NYA_NET_UDP_ACCEPT_SIZE);
+                _nya_net_udp_transmit(state, address, connection->accept, _NYA_NET_UDP_ACCEPT_SIZE);
             }
 
             return;
         }
 
-        _nya_net_udp_handle_response(transport, address, port, data);
+        _nya_net_udp_handle_response(transport, address, data);
         return;
     }
 
@@ -1148,10 +1149,10 @@ void _nya_net_udp_handle_handshake(NYA_NetTransport* transport, u32 peer_index, 
     }
 }
 
-void _nya_net_udp_handle_response(NYA_NetTransport* transport, NET_Address* address, u16 port, const u8* data) {
+void _nya_net_udp_handle_response(NYA_NetTransport* transport, NYA_OsAddress address, const u8* data) {
     _NYA_NetUdpState* state = transport->state;
 
-    if (!_nya_net_udp_cookie_valid(state, address, port, _nya_net_udp_read_u64(data + 5))) return;
+    if (!_nya_net_udp_cookie_valid(state, address, _nya_net_udp_read_u64(data + 5))) return;
 
     u32 same_address = 0;
     b8  full         = true;
@@ -1162,7 +1163,9 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NET_Address* addr
             continue;
         }
 
-        if (NET_CompareAddresses(state->peers[i].address, address) == 0) same_address++;
+        // by host and not by port: a second socket on the same machine is a second port, so counting
+        // ports would be counting nothing.
+        if (nya_os_address_equals_host(state->peers[i].address, address)) same_address++;
     }
 
     if (full || same_address >= _NYA_NET_UDP_MAX_PEERS_PER_ADDRESS) {
@@ -1172,7 +1175,7 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NET_Address* addr
         refused[4] = _NYA_NET_UDP_KIND_REFUSED;
         refused[5] = (u8)NYA_NET_DISCONNECT_FULL;
 
-        _nya_net_udp_transmit(state, address, port, refused, sizeof(refused));
+        _nya_net_udp_transmit(state, address, refused, sizeof(refused));
         return;
     }
 
@@ -1210,7 +1213,7 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NET_Address* addr
     if (!nya_net_key_pair_create(&server_ephemeral).ok) return;
     if (!_nya_net_crypto_exchange(dh_ephemeral, server_ephemeral.secret_key, client_ephemeral)) return;
 
-    u32 added = _nya_net_udp_add_peer(state, address, port);
+    u32 added = _nya_net_udp_add_peer(state, address);
     nya_assert(added < NYA_NET_MAX_PEERS, "a free slot was counted above");
 
     _NYA_NetUdpPeer* connection = &state->peers[added];
@@ -1230,7 +1233,7 @@ void _nya_net_udp_handle_response(NYA_NetTransport* transport, NET_Address* addr
 
     connection->established = true;
 
-    _nya_net_udp_transmit(state, address, port, accept, _NYA_NET_UDP_ACCEPT_SIZE);
+    _nya_net_udp_transmit(state, address, accept, _NYA_NET_UDP_ACCEPT_SIZE);
 
     _nya_net_udp_event(state, (_NYA_NetUdpEvent){
         .kind = NYA_NET_TRANSPORT_EVENT_CONNECTED,
@@ -1283,7 +1286,7 @@ void _nya_net_udp_handle_challenge(NYA_NetTransport* transport, u32 peer_index, 
     state->has_response = true;
 
     // immediately, not on the retry timer: handshake latency is what the player sees as "connecting".
-    _nya_net_udp_transmit(state, state->peers[peer_index].address, state->peers[peer_index].port, response, _NYA_NET_UDP_RESPONSE_SIZE);
+    _nya_net_udp_transmit(state, state->peers[peer_index].address, response, _NYA_NET_UDP_RESPONSE_SIZE);
     state->connect_last_sent_ms = nya_clock_get_monotonic_ms();
 }
 
@@ -1626,9 +1629,16 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
      * second of a stopped game.
      */
     if (state->connecting && state->resolving) {
-        const NET_Status status = NET_GetAddressStatus(state->connect_address);
+        NYA_OsAddress      address = { 0 };
+        NYA_ResolverStatus status  = nya_resolver_poll(state->resolver, &address);
 
-        if (status == 1) {
+        if (status == NYA_RESOLVER_OK) {
+            state->connect_address = address;
+            state->connect_address.port = state->connect_port;
+
+            nya_resolver_destroy(state->resolver);
+            state->resolver = nullptr;
+
             if (!_nya_net_udp_resolve_finish(transport, now_ms)) {
                 state->connecting = false;
                 state->resolving  = false;
@@ -1638,13 +1648,16 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
                     .reason = NYA_NET_DISCONNECT_TIMEOUT,
                 });
             }
-        } else if (status < 0 || _nya_net_elapsed_ms(now_ms, state->connect_started_ms) > _NYA_NET_UDP_CONNECT_TIMEOUT_MS) {
+        } else if (status == NYA_RESOLVER_FAILED || _nya_net_elapsed_ms(now_ms, state->connect_started_ms) > _NYA_NET_UDP_CONNECT_TIMEOUT_MS) {
             /*
              * A name that will not resolve and a name that is taking too long end the same way. It is
              * reported as an event rather than returned, because by now the caller's connect has long
              * since returned OK; that is what asking instead of waiting costs.
              */
-            nya_log_warn("Could not resolve the server's hostname: %s", SDL_GetError());
+            nya_log_warn("Could not resolve the server's hostname: %s", nya_resolver_error(state->resolver));
+
+            nya_resolver_destroy(state->resolver);
+            state->resolver = nullptr;
 
             state->connecting = false;
             state->resolving  = false;
@@ -1657,7 +1670,7 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
     }
 
     if (state->connecting && !state->resolving) {
-        u32 server = _nya_net_udp_find_peer(state, state->connect_address, state->connect_port);
+        u32 server = _nya_net_udp_find_peer(state, state->connect_address);
 
         if (_nya_net_elapsed_ms(now_ms, state->connect_started_ms) > _NYA_NET_UDP_CONNECT_TIMEOUT_MS) {
             state->connecting = false;
@@ -1671,14 +1684,14 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
         } else if (_nya_net_elapsed_ms(now_ms, state->connect_last_sent_ms) >= _NYA_NET_UDP_CONNECT_RETRY_MS) {
             // whichever stage the handshake has reached, repeated until answered.
             if (state->has_response) {
-                _nya_net_udp_transmit(state, state->connect_address, state->connect_port, state->response, _NYA_NET_UDP_RESPONSE_SIZE);
+                _nya_net_udp_transmit(state, state->connect_address, state->response, _NYA_NET_UDP_RESPONSE_SIZE);
             } else {
                 u8 connect[_NYA_NET_UDP_CONNECT_SIZE] = { 0 };
 
                 _nya_net_udp_write_u32(connect, _NYA_NET_UDP_PROTOCOL);
                 connect[4] = _NYA_NET_UDP_KIND_CONNECT;
 
-                _nya_net_udp_transmit(state, state->connect_address, state->connect_port, connect, sizeof(connect));
+                _nya_net_udp_transmit(state, state->connect_address, connect, sizeof(connect));
             }
 
             state->connect_last_sent_ms = now_ms;
@@ -1733,11 +1746,12 @@ void _nya_net_udp_update(NYA_NetTransport* transport) {
  * ─────────────────────────────────────────────────────────
  */
 
-u32 _nya_net_udp_find_peer(_NYA_NetUdpState* state, NET_Address* address, u16 port) {
+u32 _nya_net_udp_find_peer(_NYA_NetUdpState* state, NYA_OsAddress address) {
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
         if (!state->peers[i].occupied) continue;
-        if (state->peers[i].port != port) continue;
-        if (NET_CompareAddresses(state->peers[i].address, address) != 0) continue;
+
+        // the port is part of the address now, so this is one comparison rather than two.
+        if (!nya_os_address_equals(state->peers[i].address, address)) continue;
 
         return i;
     }
@@ -1745,7 +1759,7 @@ u32 _nya_net_udp_find_peer(_NYA_NetUdpState* state, NET_Address* address, u16 po
     return NYA_NET_MAX_PEERS;
 }
 
-u32 _nya_net_udp_add_peer(_NYA_NetUdpState* state, NET_Address* address, u16 port) {
+u32 _nya_net_udp_add_peer(_NYA_NetUdpState* state, NYA_OsAddress address) {
     for (u32 i = 0; i < NYA_NET_MAX_PEERS; i++) {
         if (state->peers[i].occupied) continue;
 
@@ -1758,9 +1772,8 @@ u32 _nya_net_udp_add_peer(_NYA_NetUdpState* state, NET_Address* address, u16 por
             // never zero: nya_net_peer_is_set reads the generation.
             .generation = generation == 0 ? 1 : generation,
 
-            // referenced: SDL_net frees the address with the datagram.
-            .address = NET_RefAddress(address),
-            .port    = port,
+            // by value: an address is sixteen bytes and a port, and nothing here owns it.
+            .address = address,
 
             .local_sequence = 1,
 
@@ -1772,7 +1785,7 @@ u32 _nya_net_udp_add_peer(_NYA_NetUdpState* state, NET_Address* address, u16 por
             .incoming_reliable = nya_array_create(state->allocator, _NYA_NetUdpReliable),
         };
 
-        (void)snprintf(state->peers[i].address_text, sizeof(state->peers[i].address_text), "%s:%u", NET_GetAddressString(address), port);
+        (void)nya_os_address_text(address, true, state->peers[i].address_text, sizeof(state->peers[i].address_text));
 
         return i;
     }
@@ -1805,7 +1818,6 @@ void _nya_net_udp_remove_peer(NYA_NetTransport* transport, u32 peer_index, NYA_N
     nya_array_destroy(connection->outgoing_reliable);
     nya_array_destroy(connection->incoming_reliable);
 
-    if (connection->address != nullptr) NET_UnrefAddress(connection->address);
 
     // everything but the generation, which is bumped when the slot is reused so stale handles fail. the keys go too.
     u32 generation = connection->generation;

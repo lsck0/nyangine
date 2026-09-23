@@ -1,39 +1,5 @@
 #include "nyangine/nyangine.h"
 
-#include "SDL3_net/SDL_net.h"
-
-/*
- * The one place in the engine that opens a socket without SDL_net. SDL_net has no call that reports the
- * port a socket was bound to, and port zero is answered by the kernel, so the only way to see the number
- * is to hold the socket ourselves for the length of one getsockname.
- */
-#if OS_WINDOWS
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#endif
-
-/*
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * TYPES
- * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- */
-
-#if OS_WINDOWS
-typedef SOCKET _NYA_NetRawSocket;
-typedef int    _NYA_NetSockLength;
-#define _NYA_NET_RAW_INVALID  INVALID_SOCKET
-#define _nya_net_raw_close(s) (void)closesocket(s)
-#else
-typedef int       _NYA_NetRawSocket;
-typedef socklen_t _NYA_NetSockLength;
-#define _NYA_NET_RAW_INVALID  (-1)
-#define _nya_net_raw_close(s) (void)close(s)
-#endif
-
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PUBLIC API IMPLEMENTATION
@@ -46,42 +12,28 @@ NYA_Error nya_net_port_pick(NYA_NetProtocol protocol, OUT u16* out_port) {
 
     *out_port = 0;
 
+    if (nya_os_socket_start() != NYA_OS_SOCKET_OK) return nya_error(NYA_ERROR_IO, "the host's socket library could not start");
+    defer nya_os_socket_stop();
+
     /*
-     * Only for WSAStartup, which has to have run before socket() on Windows and which SDL_net owns here.
-     * Reference counted, so this neither starts nor stops anything a transport already has up.
+     * A socket on port zero, which the host answers with a free number, and then the socket is closed
+     * again. The number can be taken by somebody else between the close and whatever binds it next —
+     * that race is why a server binds zero itself and reads back what it got. This exists for the
+     * callers that cannot: a test that has to know the port before the thing it is testing starts.
      */
-    if (!NET_Init()) return nya_error(NYA_ERROR_NOT_OK, "SDL_net could not start: %s", SDL_GetError());
-    defer NET_Quit();
+    NYA_OsSocket socket = NYA_OS_SOCKET_NONE;
 
-    const int type = protocol == NYA_NET_PROTOCOL_TCP ? SOCK_STREAM : SOCK_DGRAM;
+    NYA_OsSocketStatus opened = protocol == NYA_NET_PROTOCOL_TCP ? nya_os_socket_open(NYA_OS_SOCKET_LISTENER, 0, 0, &socket) : nya_os_socket_open(NYA_OS_SOCKET_DATAGRAM, 0, 0, &socket);
 
-    _NYA_NetRawSocket handle = socket(AF_INET, type, 0);
-    if (handle == _NYA_NET_RAW_INVALID) return nya_error(NYA_ERROR_IO, "could not open a socket to ask the system for a port");
+    if (opened != NYA_OS_SOCKET_OK) return nya_error(NYA_ERROR_IO, "could not open a socket to ask the system for a port");
+    defer nya_os_socket_close(socket);
 
-    defer _nya_net_raw_close(handle);
+    NYA_OsAddress bound = { 0 };
+    if (nya_os_socket_address(socket, &bound) != NYA_OS_SOCKET_OK) return nya_error(NYA_ERROR_IO, "the system bound a port but would not say which");
 
-    // every interface, because that is what a listener binds: a number free only on loopback is no answer.
-    struct sockaddr_in wanted = {
-        .sin_family      = AF_INET,
-        .sin_port        = 0,
-        .sin_addr.s_addr = htonl(INADDR_ANY),
-    };
+    if (bound.port == 0) return nya_error(NYA_ERROR_NOT_OK, "the system reported port zero for a bound socket");
 
-    if (bind(handle, (const struct sockaddr*)&wanted, sizeof(wanted)) != 0) {
-        return nya_error(NYA_ERROR_IO, "could not bind port zero to ask the system for a port");
-    }
-
-    struct sockaddr_in  bound  = { 0 };
-    _NYA_NetSockLength length = (_NYA_NetSockLength)sizeof(bound);
-
-    if (getsockname(handle, (struct sockaddr*)&bound, &length) != 0) {
-        return nya_error(NYA_ERROR_IO, "the system bound a port but would not say which");
-    }
-
-    const u16 port = ntohs(bound.sin_port);
-    if (port == 0) return nya_error(NYA_ERROR_NOT_OK, "the system reported port zero for a bound socket");
-
-    *out_port = port;
+    *out_port = bound.port;
 
     return NYA_OK;
 }

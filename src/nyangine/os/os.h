@@ -7,6 +7,7 @@
  * os_page.h     virtual memory: reserve, commit, release, and what is resident
  * os_process.h  starting another program, its pipes, and waiting for it
  * os_random.h   the kernel's random source
+ * os_socket.h   datagram and stream sockets, the wait over them, and addresses
  * os_thread.h   threads, mutexes and counting semaphores
  * os_time.h     the wall clock and the monotonic clock in nanoseconds, and waiting on them
  *
@@ -35,5 +36,6 @@
 #include "nyangine/os/os_page.h"
 #include "nyangine/os/os_process.h"
 #include "nyangine/os/os_random.h"
+#include "nyangine/os/os_socket.h"
 #include "nyangine/os/os_thread.h"
 #include "nyangine/os/os_time.h"
