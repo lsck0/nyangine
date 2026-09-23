@@ -1167,13 +1167,29 @@ const NYA_CrashInfo* nya_crash_caught(void)  // The most recently prevented cras
 
 ### base_thread.h
 
-Which thread the program calls its own, so a module that is only safe on it can say so and be
+Threads the engine can start, wait for and lock against, and the one thread the program calls its own.
 
 ```c
+// types
+typedef void (*NYA_ThreadFn)(void* data)  // What a thread runs.
+
 // functions
+NYA_Error nya_thread_spawn(NYA_Arena* arena, NYA_ThreadFn function, void* data, NYA_ConstCString name, OUT NYA_Thread** out_thread)  // Starts `function` on a thread of its own with `data`, out of `arena`.
+b8 nya_thread_is_finished(const NYA_Thread* thread)  // Whether `thread`'s function has returned.
+void nya_thread_join(NYA_Thread* thread)  // Waits for `thread` to end and hands its record back to the arena it came from.
+void nya_thread_abandon(NYA_Thread* thread)  // Stops waiting for `thread`, leaving it to run and its record where it is.
+NYA_Error nya_mutex_create(NYA_Arena* arena, OUT NYA_Mutex** out_mutex)  // A lock out of `arena`, unlocked.
+void nya_mutex_destroy(NYA_Mutex* mutex)  // Gives the lock back to its arena.
+void nya_mutex_lock(NYA_Mutex* mutex)  // Takes `mutex`, waiting for as long as that takes.
+void nya_mutex_unlock(NYA_Mutex* mutex)  // Gives `mutex` back.
+NYA_Error nya_semaphore_create(NYA_Arena* arena, u32 initial, OUT NYA_Semaphore** out_semaphore)  // A counting semaphore out of `arena`, holding `initial` tokens.
+void nya_semaphore_destroy(NYA_Semaphore* semaphore)  // Gives the semaphore back to its arena.
+void nya_semaphore_post(NYA_Semaphore* semaphore)  // Adds one token, waking one waiter if any are waiting.
+void nya_semaphore_wait(NYA_Semaphore* semaphore)  // Takes one token, waiting for as long as that takes.
+b8 nya_semaphore_wait_timeout(NYA_Semaphore* semaphore, u32 timeout_ms)  // Takes one token if one arrives within `timeout_ms`.
 void nya_thread_main_claim(void)  // Names the calling thread as the program's main one.
 b8 nya_thread_main_is_current(void)  // Whether this is that thread, or nothing has claimed yet.
-void nya_thread_main_only(NYA_ConstCString what)  // Crashes when it is not, naming `what` the caller was reaching for.
+void nya_thread_main_only(NYA_ConstCString what)  // Crashes when it is not, naming `what` the caller was reaching for and which thread reached.
 ```
 
 ### base_types.h
@@ -1912,11 +1928,10 @@ b8 nya_clipboard_has_text(void)  // Whether the clipboard holds any text.
 ```c
 // types
 typedef u64 NYA_JobHandle
-typedef SDL_Thread* SDL_ThreadPtr
 typedef int (*NYA_JobFn)(NYA_Job* job)
 enum NYA_JobPriority { NYA_JOB_PRIORITY_LOW, NYA_JOB_PRIORITY_NORMAL, NYA_JOB_PRIORITY_HIGH, NYA_JOB_PRIORITY_COUNT, }
-struct NYA_Job { NYA_JobPriority priority; NYA_CallbackHandle function; void* in_data; u64 in_size; void** out_data; u64* out_size; NYA_JobHandle job_handle; SDL_Thread* sdl_thread; }
-struct NYA_JobSystem { NYA_Arena* allocator; SDL_Mutex* job_queue_mutex; NYA_HeapᐸNYA_Jobᐳ* job_queue; SDL_Mutex* job_active_mutex; NYA_Job job_slots[_NYA_JOB_MAX_ACTIVE]; b8 job_slot_used[_NYA_JOB_MAX_ACTIVE]; u32 job_active_count; NYA_JobHandle next_job_handle; SDL_Thread* scheduler; atomic b8 scheduler_should_exit; }
+struct NYA_Job { NYA_JobPriority priority; NYA_CallbackHandle function; void* in_data; u64 in_size; void** out_data; u64* out_size; NYA_JobHandle job_handle; NYA_Thread* thread; }
+struct NYA_JobSystem { NYA_Arena* allocator; NYA_Mutex* job_queue_mutex; NYA_HeapᐸNYA_Jobᐳ* job_queue; NYA_Mutex* job_active_mutex; NYA_Job job_slots[_NYA_JOB_MAX_ACTIVE]; b8 job_slot_used[_NYA_JOB_MAX_ACTIVE]; u32 job_active_count; NYA_JobHandle next_job_handle; NYA_Thread* scheduler; atomic b8 scheduler_should_exit; }
 
 // functions
 NYA_Error nya_system_job_init(void)
@@ -6361,6 +6376,38 @@ NYA_OS_RANDOM_MAX_BYTES 4096  // Most bytes one call may ask for.
 
 // functions
 b8 nya_os_random_bytes(OUT u8* out, u64 size)  // Fills `out` with `size` unpredictable bytes.
+```
+
+### os_thread.h
+
+A thread, a mutex and a counting semaphore, as the operating system hands them over: the caller owns
+
+```c
+// types
+typedef void (*NYA_OsThreadFn)(void* data)  // What a thread runs.
+enum NYA_OsThreadStatus { NYA_OS_THREAD_OK, NYA_OS_THREAD_TIMEOUT, NYA_OS_THREAD_FAILED, NYA_OS_THREAD_STATUS_COUNT, }  // How a call here ended.
+struct NYA_OsThread { u64 handle; }  // A running thread.
+struct NYA_OsThreadStart { NYA_OsThreadFn function; void* data; }  // What a spawned thread is to run, and with what.
+struct NYA_OsMutex { u64 storage[_NYA_OS_MUTEX_WORDS]; }  // A mutex, in the caller's storage.
+struct NYA_OsSemaphore { u64 storage[_NYA_OS_SEMAPHORE_WORDS]; }  // A counting semaphore, in the caller's storage.
+
+// macros
+NYA_OS_THREAD_WAIT_FOREVER ((u32)0xFFFFFFFF)  // A wait that only ends when the semaphore is posted.
+
+// functions
+NYA_OsThreadStatus nya_os_thread_spawn(NYA_OsThreadStart* start, OUT NYA_OsThread* out_thread)  // Starts `start->function` on a thread of its own and returns as soon as it is running.
+NYA_OsThreadStatus nya_os_thread_join(NYA_OsThread thread)  // Waits for `thread` to end and releases it.
+void nya_os_thread_abandon(NYA_OsThread thread)  // Stops waiting for `thread` and lets the host reclaim it whenever it ends.
+u64 nya_os_thread_id_current(void)  // A number no other thread running right now shares: pthread_self on Linux, GetCurrentThreadId on Windows.
+void nya_os_thread_name_set(NYA_ConstCString name)  // Labels the calling thread for a debugger, `top -H` and a trace.
+NYA_OsThreadStatus nya_os_mutex_init(OUT NYA_OsMutex* mutex)  // Prepares `mutex` for use.
+void nya_os_mutex_deinit(NYA_OsMutex* mutex)  // Releases what the host holds for `mutex`.
+void nya_os_mutex_lock(NYA_OsMutex* mutex)  // Takes `mutex`, waiting for as long as that takes.
+void nya_os_mutex_unlock(NYA_OsMutex* mutex)  // Gives `mutex` back.
+NYA_OsThreadStatus nya_os_semaphore_init(OUT NYA_OsSemaphore* semaphore, u32 initial)  // Prepares `semaphore` with `initial` tokens in it.
+void nya_os_semaphore_deinit(NYA_OsSemaphore* semaphore)  // Releases what the host holds for `semaphore`.
+void nya_os_semaphore_post(NYA_OsSemaphore* semaphore)  // Adds one token, waking one waiter if any are waiting.
+NYA_OsThreadStatus nya_os_semaphore_wait(NYA_OsSemaphore* semaphore, u32 timeout_ms)  // Takes one token, waiting up to `timeout_ms` for one to appear.
 ```
 
 ### os_time.h

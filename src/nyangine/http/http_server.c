@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "SDL3/SDL_error.h"
-#include "SDL3/SDL_mutex.h"
+// for SDL_CleanupTLS alone: nothing here is started by SDL any more. See _nya_http_thread_end.
 #include "SDL3/SDL_thread.h"
 #include "SDL3/SDL_timer.h"
 
@@ -198,15 +198,15 @@ struct _NYA_HttpState {
     /** Worker threads, and therefore handlers that can be running at once. Zero is the unthreaded mode. */
     u32 workers;
 
-    SDL_Thread*    listener_thread;
-    SDL_Thread*    worker_threads[NYA_HTTP_MAX_WORKERS];
-    SDL_Semaphore* work;
+    NYA_Thread*    listener_thread;
+    NYA_Thread*    worker_threads[NYA_HTTP_MAX_WORKERS];
+    NYA_Semaphore* work;
 
     /** Guards the two queues below and nothing else. Taken after `table_mutex`, never before it. */
-    SDL_Mutex* queue_mutex;
+    NYA_Mutex* queue_mutex;
 
     /** Guards the connection table, the connection count and the mounted routers. */
-    SDL_Mutex* table_mutex;
+    NYA_Mutex* table_mutex;
 
     /** Connection indices waiting to be answered. One entry per connection at most, so the table bounds them. */
     u32 worker_queue[NYA_HTTP_MAX_CONNECTIONS];
@@ -300,8 +300,11 @@ NYA_INTERNAL void _nya_http_websockets_drain(void);
 /** Sleeps between passes: on the sockets when there is nothing outstanding, briefly when there is. */
 NYA_INTERNAL void _nya_http_listener_wait(_NYA_HttpState* state);
 
-NYA_INTERNAL s32 _nya_http_listener_thread(void* data);
-NYA_INTERNAL s32 _nya_http_worker_thread(void* data);
+NYA_INTERNAL void _nya_http_listener_thread(void* data);
+NYA_INTERNAL void _nya_http_worker_thread(void* data);
+
+/** What every thread here runs on its way out, to give SDL back what it keeps per thread. */
+NYA_INTERNAL void _nya_http_thread_end(void);
 
 /** Starts the listener and the pool. Leaves nothing running when it fails. */
 NYA_INTERNAL NYA_Error _nya_http_threads_start(_NYA_HttpState* state) __attr_no_discard;
@@ -534,11 +537,11 @@ void nya_system_http_deinit(void) {
      * The listener first and on its own: once it has returned nothing reads, writes or accepts a
      * socket, so everything below is happening to a table nobody else is looking at.
      */
-    if (state->listener_thread != nullptr) SDL_WaitThread(state->listener_thread, nullptr);
+    if (state->listener_thread != nullptr) nya_thread_join(state->listener_thread);
 
     // every worker woken at once: one between requests returns immediately, one inside a handler
     // returns when the handler does, and _nya_http_workers_join is where that stops being waited for.
-    for (u32 index = 0; index < state->workers; index++) SDL_SignalSemaphore(state->work);
+    for (u32 index = 0; index < state->workers; index++) nya_semaphore_post(state->work);
 
     u32 stuck = _nya_http_workers_join(state);
 
@@ -575,9 +578,9 @@ void nya_system_http_deinit(void) {
 
     for (u32 index = 0; index < state->slot_count; index++) nya_arena_destroy(state->slots[index].arena);
 
-    if (state->work != nullptr) SDL_DestroySemaphore(state->work);
-    if (state->queue_mutex != nullptr) SDL_DestroyMutex(state->queue_mutex);
-    if (state->table_mutex != nullptr) SDL_DestroyMutex(state->table_mutex);
+    nya_semaphore_destroy(state->work);
+    nya_mutex_destroy(state->queue_mutex);
+    nya_mutex_destroy(state->table_mutex);
 
     NYA_Arena* arena = state->allocator;
     _NYA_HTTP        = nullptr;
@@ -616,8 +619,8 @@ NYA_Error nya_http_server_merge(const NYA_HttpRouter* router) {
 
     NYA_TRY(nya_http_router_check(router));
 
-    SDL_LockMutex(_NYA_HTTP->table_mutex);
-    defer SDL_UnlockMutex(_NYA_HTTP->table_mutex);
+    nya_mutex_lock(_NYA_HTTP->table_mutex);
+    defer nya_mutex_unlock(_NYA_HTTP->table_mutex);
 
     for (u32 index = 0; index < _NYA_HTTP->router_count; index++) {
         if (_NYA_HTTP->routers[index] == router) return nya_error(NYA_ERROR_ALREADY_EXISTS, "'%s' is already mounted", router->name);
@@ -635,8 +638,8 @@ NYA_Error nya_http_server_merge(const NYA_HttpRouter* router) {
 void nya_http_server_unmerge(const NYA_HttpRouter* router) {
     if (_NYA_HTTP == nullptr || router == nullptr) return;
 
-    SDL_LockMutex(_NYA_HTTP->table_mutex);
-    defer SDL_UnlockMutex(_NYA_HTTP->table_mutex);
+    nya_mutex_lock(_NYA_HTTP->table_mutex);
+    defer nya_mutex_unlock(_NYA_HTTP->table_mutex);
 
     for (u32 index = 0; index < _NYA_HTTP->router_count; index++) {
         if (_NYA_HTTP->routers[index] != router) continue;
@@ -675,8 +678,8 @@ u64 nya_http_server_request_count(void) {
 u32 nya_http_server_router_count(void) {
     if (_NYA_HTTP == nullptr) return 0;
 
-    SDL_LockMutex(_NYA_HTTP->table_mutex);
-    defer SDL_UnlockMutex(_NYA_HTTP->table_mutex);
+    nya_mutex_lock(_NYA_HTTP->table_mutex);
+    defer nya_mutex_unlock(_NYA_HTTP->table_mutex);
 
     return _NYA_HTTP->router_count;
 }
@@ -684,8 +687,8 @@ u32 nya_http_server_router_count(void) {
 const NYA_HttpRouter* nya_http_server_router_at(u32 index) {
     if (_NYA_HTTP == nullptr) return nullptr;
 
-    SDL_LockMutex(_NYA_HTTP->table_mutex);
-    defer SDL_UnlockMutex(_NYA_HTTP->table_mutex);
+    nya_mutex_lock(_NYA_HTTP->table_mutex);
+    defer nya_mutex_unlock(_NYA_HTTP->table_mutex);
 
     if (index >= _NYA_HTTP->router_count) return nullptr;
 
@@ -735,8 +738,8 @@ void _nya_http_pass(void) {
     // the whole pass under one lock, and the only other thread that wants it is the tick draining the
     // WebSockets. A pass is non-blocking socket calls over at most eight connections, so what it makes
     // the tick wait for is microseconds; a handler never runs under it.
-    SDL_LockMutex(_NYA_HTTP->table_mutex);
-    defer SDL_UnlockMutex(_NYA_HTTP->table_mutex);
+    nya_mutex_lock(_NYA_HTTP->table_mutex);
+    defer nya_mutex_unlock(_NYA_HTTP->table_mutex);
 
     _nya_http_accept();
 
@@ -1063,9 +1066,9 @@ void _nya_http_upgrade(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
     }
 
     // under the lock, because the listener reads this flag to know the socket is not its any more.
-    SDL_LockMutex(_NYA_HTTP->table_mutex);
+    nya_mutex_lock(_NYA_HTTP->table_mutex);
     connection->upgraded = true;
-    SDL_UnlockMutex(_NYA_HTTP->table_mutex);
+    nya_mutex_unlock(_NYA_HTTP->table_mutex);
 
     slot->answer = _NYA_HTTP_ANSWER_UPGRADED;
 }
@@ -1220,11 +1223,11 @@ void _nya_http_queue(_NYA_HttpState* state, u32 index, _NYA_HttpSlot* slot) {
     // published before the index reaches a queue, so whoever pops it sees a filled slot.
     atomic_store_explicit(&slot->state, _NYA_HTTP_SLOT_QUEUED, memory_order_release);
 
-    SDL_LockMutex(state->queue_mutex);
+    nya_mutex_lock(state->queue_mutex);
     _nya_http_queue_push(on_main ? state->main_queue : state->worker_queue, on_main ? &state->main_queued : &state->worker_queued, index);
-    SDL_UnlockMutex(state->queue_mutex);
+    nya_mutex_unlock(state->queue_mutex);
 
-    if (!on_main) SDL_SignalSemaphore(state->work);
+    if (!on_main) nya_semaphore_post(state->work);
 }
 
 b8 _nya_http_runs_on_main(const _NYA_HttpSlot* slot) {
@@ -1267,9 +1270,9 @@ void _nya_http_main_drain(void) {
     for (u32 answered = 0; answered < NYA_HTTP_MAX_REQUESTS_PER_TICK; answered++) {
         u32 index = 0;
 
-        SDL_LockMutex(state->queue_mutex);
+        nya_mutex_lock(state->queue_mutex);
         b8 taken = _nya_http_queue_pop(state->main_queue, &state->main_queued, &index);
-        SDL_UnlockMutex(state->queue_mutex);
+        nya_mutex_unlock(state->queue_mutex);
 
         if (!taken) return;
 
@@ -1289,8 +1292,8 @@ void _nya_http_main_drain(void) {
 }
 
 void _nya_http_websockets_drain(void) {
-    SDL_LockMutex(_NYA_HTTP->table_mutex);
-    defer SDL_UnlockMutex(_NYA_HTTP->table_mutex);
+    nya_mutex_lock(_NYA_HTTP->table_mutex);
+    defer nya_mutex_unlock(_NYA_HTTP->table_mutex);
 
     for (u32 index = 0; index < NYA_HTTP_MAX_CONNECTIONS; index++) {
         _NYA_HttpConnection* connection = &_NYA_HTTP->connections[index];
@@ -1306,7 +1309,7 @@ void _nya_http_listener_wait(_NYA_HttpState* state) {
     s32   watched_count                         = 0;
     b8    busy                                  = false;
 
-    SDL_LockMutex(state->table_mutex);
+    nya_mutex_lock(state->table_mutex);
     {
         watched[watched_count++] = state->listener;
 
@@ -1334,7 +1337,7 @@ void _nya_http_listener_wait(_NYA_HttpState* state) {
             watched[watched_count++] = connection->socket;
         }
     }
-    SDL_UnlockMutex(state->table_mutex);
+    nya_mutex_unlock(state->table_mutex);
 
     if (busy) {
         SDL_Delay(_NYA_HTTP_LISTENER_BUSY_MS);
@@ -1344,7 +1347,7 @@ void _nya_http_listener_wait(_NYA_HttpState* state) {
     (void)NET_WaitUntilInputAvailable(watched, watched_count, _NYA_HTTP_LISTENER_IDLE_MS);
 }
 
-s32 _nya_http_listener_thread(void* data) {
+void _nya_http_listener_thread(void* data) {
     _NYA_HttpState* state = (_NYA_HttpState*)data;
 
     while (!atomic_load_explicit(&state->stopping, memory_order_acquire)) {
@@ -1352,10 +1355,10 @@ s32 _nya_http_listener_thread(void* data) {
         _nya_http_listener_wait(state);
     }
 
-    return 0;
+    _nya_http_thread_end();
 }
 
-s32 _nya_http_worker_thread(void* data) {
+void _nya_http_worker_thread(void* data) {
     _NYA_HttpState* state = (_NYA_HttpState*)data;
 
     /*
@@ -1364,13 +1367,13 @@ s32 _nya_http_worker_thread(void* data) {
      * leaked; see nya_system_http_deinit.
      */
     while (!atomic_load_explicit(&state->stopping, memory_order_acquire)) {
-        if (!SDL_WaitSemaphoreTimeout(state->work, _NYA_HTTP_WORKER_WAIT_MS)) continue;
+        if (!nya_semaphore_wait_timeout(state->work, _NYA_HTTP_WORKER_WAIT_MS)) continue;
 
         u32 index = 0;
 
-        SDL_LockMutex(state->queue_mutex);
+        nya_mutex_lock(state->queue_mutex);
         b8 taken = _nya_http_queue_pop(state->worker_queue, &state->worker_queued, &index);
-        SDL_UnlockMutex(state->queue_mutex);
+        nya_mutex_unlock(state->queue_mutex);
 
         if (!taken) continue;
 
@@ -1384,45 +1387,63 @@ s32 _nya_http_worker_thread(void* data) {
         atomic_store_explicit(&slot->state, _NYA_HTTP_SLOT_DONE, memory_order_release);
     }
 
-    return 0;
+    _nya_http_thread_end();
+}
+
+/*
+ * These threads are the engine's own and SDL has never heard of them, but the sockets they work are
+ * SDL_net's, and SDL keeps a per thread error buffer for whoever calls into it. SDL frees that for the
+ * threads it started itself and at SDL_Quit for the main one, so a thread of ours that has talked to
+ * SDL_net has to say when it is done or that buffer is still allocated when the process ends. It goes
+ * when the sockets stop being SDL's.
+ */
+void _nya_http_thread_end(void) {
+    SDL_CleanupTLS();
 }
 
 NYA_Error _nya_http_threads_start(_NYA_HttpState* state) {
     if (state->workers == 0) return NYA_OK;
 
-    state->table_mutex = SDL_CreateMutex();
-    state->queue_mutex = SDL_CreateMutex();
-    state->work        = SDL_CreateSemaphore(0);
+    NYA_Mutex*     table_mutex = nullptr;
+    NYA_Mutex*     queue_mutex = nullptr;
+    NYA_Semaphore* work        = nullptr;
 
-    if (state->table_mutex == nullptr || state->queue_mutex == nullptr || state->work == nullptr) {
-        if (state->work != nullptr) SDL_DestroySemaphore(state->work);
-        if (state->queue_mutex != nullptr) SDL_DestroyMutex(state->queue_mutex);
-        if (state->table_mutex != nullptr) SDL_DestroyMutex(state->table_mutex);
+    NYA_Error table_lock = nya_mutex_create(state->allocator, &table_mutex);
+    NYA_Error queue_lock = nya_mutex_create(state->allocator, &queue_mutex);
+    NYA_Error work_count = nya_semaphore_create(state->allocator, 0, &work);
 
-        state->work        = nullptr;
-        state->queue_mutex = nullptr;
-        state->table_mutex = nullptr;
+    if (!table_lock.ok || !queue_lock.ok || !work_count.ok) {
+        nya_semaphore_destroy(work);
+        nya_mutex_destroy(queue_mutex);
+        nya_mutex_destroy(table_mutex);
 
-        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the HTTP server could not create its locks: %s", SDL_GetError());
+        // whichever of the three actually refused, since the caller wants the reason and not the order.
+        if (!table_lock.ok) return table_lock;
+        if (!queue_lock.ok) return queue_lock;
+
+        return work_count;
     }
+
+    // published together, so the state never holds a lock the failure above has just given back.
+    state->table_mutex = table_mutex;
+    state->queue_mutex = queue_mutex;
+    state->work        = work;
 
     // the workers first: a listener with nobody to hand an exchange to would queue one before the pool
     // exists, and starting the pool afterwards would be a race for no reason.
     for (u32 index = 0; index < state->workers; index++) {
-        state->worker_threads[index] = SDL_CreateThread(_nya_http_worker_thread, "HTTP Worker", state);
+        NYA_Error worker = nya_thread_spawn(state->allocator, _nya_http_worker_thread, state, "HTTP Worker", &state->worker_threads[index]);
 
-        if (state->worker_threads[index] != nullptr) continue;
-
-        NYA_Error failed = nya_error(NYA_ERROR_NOT_OK, "the HTTP server could not start a worker: %s", SDL_GetError());
+        if (worker.ok) continue;
 
         atomic_store_explicit(&state->stopping, true, memory_order_release);
 
-        for (u32 started = 0; started < index; started++) SDL_SignalSemaphore(state->work);
-        for (u32 started = 0; started < index; started++) SDL_WaitThread(state->worker_threads[started], nullptr);
+        for (u32 running = 0; running < index; running++) nya_semaphore_post(state->work);
+        for (u32 running = 0; running < index; running++) nya_thread_join(state->worker_threads[running]);
 
-        SDL_DestroySemaphore(state->work);
-        SDL_DestroyMutex(state->queue_mutex);
-        SDL_DestroyMutex(state->table_mutex);
+        nya_semaphore_destroy(state->work);
+        nya_mutex_destroy(state->queue_mutex);
+        nya_mutex_destroy(state->table_mutex);
 
         nya_memset(state->worker_threads, 0, sizeof(state->worker_threads));
         state->work        = nullptr;
@@ -1430,22 +1451,20 @@ NYA_Error _nya_http_threads_start(_NYA_HttpState* state) {
         state->table_mutex = nullptr;
         atomic_store_explicit(&state->stopping, false, memory_order_release);
 
-        return failed;
+        return worker;
     }
 
-    state->listener_thread = SDL_CreateThread(_nya_http_listener_thread, "HTTP Listener", state);
+    NYA_Error listener = nya_thread_spawn(state->allocator, _nya_http_listener_thread, state, "HTTP Listener", &state->listener_thread);
 
-    if (state->listener_thread == nullptr) {
-        NYA_Error failed = nya_error(NYA_ERROR_NOT_OK, "the HTTP server could not start its listener: %s", SDL_GetError());
-
+    if (!listener.ok) {
         atomic_store_explicit(&state->stopping, true, memory_order_release);
 
-        for (u32 started = 0; started < state->workers; started++) SDL_SignalSemaphore(state->work);
-        for (u32 started = 0; started < state->workers; started++) SDL_WaitThread(state->worker_threads[started], nullptr);
+        for (u32 running = 0; running < state->workers; running++) nya_semaphore_post(state->work);
+        for (u32 running = 0; running < state->workers; running++) nya_thread_join(state->worker_threads[running]);
 
-        SDL_DestroySemaphore(state->work);
-        SDL_DestroyMutex(state->queue_mutex);
-        SDL_DestroyMutex(state->table_mutex);
+        nya_semaphore_destroy(state->work);
+        nya_mutex_destroy(state->queue_mutex);
+        nya_mutex_destroy(state->table_mutex);
 
         nya_memset(state->worker_threads, 0, sizeof(state->worker_threads));
         state->work        = nullptr;
@@ -1453,7 +1472,7 @@ NYA_Error _nya_http_threads_start(_NYA_HttpState* state) {
         state->table_mutex = nullptr;
         atomic_store_explicit(&state->stopping, false, memory_order_release);
 
-        return failed;
+        return listener;
     }
 
     return NYA_OK;
@@ -1465,24 +1484,26 @@ u32 _nya_http_workers_join(_NYA_HttpState* state) {
     const u64 deadline_ns = nya_clock_get_monotonic_ns() + ((u64)NYA_HTTP_SHUTDOWN_GRACE_MS * 1000000ULL);
 
     for (u32 index = 0; index < state->workers; index++) {
-        SDL_Thread* thread = state->worker_threads[index];
+        NYA_Thread* thread = state->worker_threads[index];
 
         if (thread == nullptr) continue;
 
-        while (SDL_GetThreadState(thread) == SDL_THREAD_ALIVE && nya_clock_get_monotonic_ns() < deadline_ns) SDL_Delay(1);
+        state->worker_threads[index] = nullptr;
+
+        while (!nya_thread_is_finished(thread) && nya_clock_get_monotonic_ns() < deadline_ns) SDL_Delay(1);
 
         /*
          * Still inside a handler at the deadline. There is no way to stop a thread from out here that
          * is not worse than the problem — it may be holding a lock, or halfway through a write — so it
-         * is detached and the deadline is kept by everybody else.
+         * is let go of and the deadline is kept by everybody else.
          */
-        if (SDL_GetThreadState(thread) == SDL_THREAD_ALIVE) {
-            SDL_DetachThread(thread);
+        if (!nya_thread_is_finished(thread)) {
+            nya_thread_abandon(thread);
             stuck++;
             continue;
         }
 
-        SDL_WaitThread(thread, nullptr);
+        nya_thread_join(thread);
     }
 
     return stuck;

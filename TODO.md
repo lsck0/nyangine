@@ -352,10 +352,17 @@ The refactor the rest stands on. Behaviour does not change; the include graph an
   were already reaching up for it. It is `base/base_ceiling.*` now, the `NYA_NO_SDL` guards around those calls
   are gone because there is nothing left to guard, and the build tool keeps its own ceilings as a result. The
   `http -> core` allowance fell from 2 to 1 with it.
-- `[ ]` Threads (`core_job.c` uses `SDL_thread`) and sockets (`net_udp.c` and `http_server.c` use SDL_net) move
+- `[~]` Threads (`core_job.c` uses `SDL_thread`) and sockets (`net_udp.c` and `http_server.c` use SDL_net) move
   into `os`, one file per target, with whatever wants an arena or an `NYA_Error` on top of them in `base` — the
   shape the file system, commands and clocks already have. SDL_net leaves the vendor list, which also means one
-  socket layer for the web backend to implement rather than SDL's.
+  socket layer for the web backend to implement rather than SDL's. Threads are done: `os/os_thread.h` is a
+  thread, a mutex and a counting semaphore in storage the caller places, and it is a semaphore rather than a
+  condition variable because both callers wait on a count rather than on a predicate. `base_thread.h` adds what
+  that layer may not have — the record in an arena, the errors, the assertions, and the flag a thread raises as
+  it returns, which is the question neither host will answer about a thread and which `SDL_GetThreadState` used
+  to answer. `core_job.c` and `http_server.c` run on it. While the sockets are still SDL's, the two HTTP threads
+  call `SDL_CleanupTLS` on their way out: SDL frees its per thread error buffer only for threads it started
+  itself, and these are the engine's now. Sockets are what is left, and they take `SDL_Delay` with them.
 - `[ ]` `net` splits: the transport and the encrypted session need no entity and move below `app`; snapshots,
   commands and prediction become `replicate` above it. `physics` stops including `core_types.h` by moving the
   types it shares down.
