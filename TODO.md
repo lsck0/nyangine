@@ -1109,8 +1109,13 @@ The current track, reordered around one missing primitive.
 - `[ ]` Compute passes in the renderer. Raymarched volumes, GPU fluids, GPU particles and screen space
   reflections all wait on it ("Fluid volumes" says so); it comes before any of them.
 - `[ ]` Reflections: screen space for the scene, planar for still water.
-- `[ ]` Water as a surface: a heightfield of waves with shoreline foam, refraction through the glass path, and
+- `[~]` Water as a surface: a heightfield of waves with shoreline foam, refraction through the glass path, and
   the grid solver for what is in the air above it.
+  - `[x]` **Flowing river surface (landed `ae19305`)** — `nya_render3d_water`/`_style`, `render_water.{c,h}`,
+    `water.{vert,frag}.hlsl`. Dual scrolling-normal flow map + summed-sine/Gerstner waves + Fresnel reflection
+    tint + refraction (reuses the glass capture) + shoreline foam; reads the wind field for chop. Example
+    `water3d`, test `test_water`, cross-compiles to GLSL ES 300. Follow-ups: true depth-difference foam (needs a
+    scene-depth capture beside the colour), planar/SSR reflection (line 1111), an authored normal map.
 - `[~]` Weather and sky: one wind field read by particles, fluids, foliage and audio; rain, snow, clouds, stars
   and fog confined to volumes. Kept to the flat stylized look, never photoreal.
   - `[x]` **Wind field + foliage sway (landed `ee21e65`, 2026-09-23)** — the "one missing primitive"; no compute
@@ -1128,6 +1133,11 @@ The current track, reordered around one missing primitive.
     Example `foliage3d`, test `test_wind.c`. Verified on master: check 0/959, debug build + a foliage3d run under
     ASan+LSan+UBSan shut down clean (no leak — the reported leak did not reproduce). Follow-ups: instanced grass
     for density; particles and fluid emitters sampling the same wind field.
+- `[ ]` **Realistic-but-stylized showcase scene (user, 2026-09-24)** — one scene composing wind + foliage +
+  flowing water + dust/particles + sky/atmosphere + volumetric light beams (light shafts) + fog, all reading the
+  one shared wind field, kept inside the flat stylized art style (never photoreal). Not three separate examples
+  (`renderer_stress`/`foliage3d`/`water3d`) but a single cohesive world that proves they compose. Reuse the
+  existing systems; add the light-shaft/god-ray pass hookup if not already wired into a scene.
 - `[ ]` Our own stereo panner for interaural delay and head shadow. If it replaces what SDL_mixer does for us,
   SDL_mixer leaves the vendor list and only its decoders stay.
 - `[ ]` Multiplayer: fragmentation, lag compensation at render time, a WebSocket transport so browsers can join a
@@ -1147,6 +1157,29 @@ The current track, reordered around one missing primitive.
 ## Phase 7 — hardening and shipping
 
 Most of this is cheap and should be picked up whenever a phase leaves room.
+
+### Resilience (user, 2026-09-24)
+
+- `[x]` **Circuit breaker (`base_circuit`, landed `143ff36`)** — per-key closed→open→half-open, fails fast when a
+  dependency is down so retries stop hammering it, one half-open probe heals or re-trips. Wired into the curl
+  client beside the rate limiter (`NYA_Request.breaker`, keyed like the limiter; open ⇒ `NYA_ERROR_TIMEOUT`,
+  status 0, no socket). Test `test_circuit`. Different question from the limiter (over budget) and the backoff
+  (when to retry a call still worth making).
+- `[ ]` **Idempotency keys in `http`** — an `Idempotency-Key` request layer + a bounded, self-expiring dedup
+  store that replays the first response for a repeated key, so a retried POST charges once. Server-side; the
+  client half (method-aware retry gating) already exists.
+- `[ ]` **Reconnect-with-backoff + health routes** — the net/websocket clients reconnect on drop using
+  `nya_backoff_ms` (full jitter) and, once reconnected, resubscribe; plus liveness/readiness routes on the HTTP
+  server (a real handler behind the existing `health` route-tag concept), readiness gated on the breaker/db state.
+- `[ ]` **Self-healing beyond fail-fast** — optional supervised restart/re-exec on a fatal (the crash reporter
+  currently reports but does not relaunch), behind an opt-in so a crash loop cannot hide.
+
+### Docs deployment (user, 2026-09-24)
+
+- `[ ]` **One deployed docs site** — the GitBook carries all the hand-written prose markdown, and links across to
+  the generated **doxygen** (what the code does) and the **cheatsheet** (signatures) served from the SAME
+  deployment, so the three tiers are one site with working cross-links rather than three separate places. Wire
+  the doxygen + cheatsheet build output into the GitBook deploy so `SUMMARY.md`/nav reaches them.
 
 - `[ ]` Shipping flags: `_FORTIFY_SOURCE=3`, `-fstack-clash-protection`, full RELRO and `-z now`, checked on the
   produced binary rather than trusted from the flag list.
