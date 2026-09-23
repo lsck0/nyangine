@@ -31,6 +31,16 @@
  * a refusal is a 403 for the same reason it greys a button out in the game.
  */
 
+/**
+ * One array index as a key, allocated where the document is.
+ *
+ * NYA_Object is a dictionary that keeps the pointer it is handed, so a key has to outlive the object:
+ * a `char[8]` inside the loop that fills it does not, and the answer is serialized long after.
+ * */
+NYA_INTERNAL NYA_CString gny_web_index(NYA_Arena* arena, u32 index) {
+    return nya_string_to_cstring(arena, nya_string_sprintf(arena, "%u", index));
+}
+
 /** The roles, what each allows by name, and who holds what. What a role editor draws itself from. */
 NYA_INTERNAL NYA_HttpStatus gny_web_guild_read(NYA_HttpExchange* exchange) {
     NYA_Permissions* guild = gny_guild();
@@ -56,16 +66,16 @@ NYA_INTERNAL NYA_HttpStatus gny_web_guild_read(NYA_HttpExchange* exchange) {
 
             if ((allows & one) == 0 || nya_permission_label(guild, one)[0] == '\0') continue;
 
-            char index[8] = { 0 };
-            (void)snprintf(index, sizeof(index), "%u", count++);
+            // out of the exchange's arena and not off the stack: a document keeps the pointer it was
+            // given as the key, and a buffer inside this loop is gone before anything serializes it.
+            NYA_CString index = gny_web_index(exchange->arena, count++);
 
             nya_object_set(allowed, index, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_label(guild, one) });
         }
 
         nya_object_set(entry, "allows", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *allowed });
 
-        char index[8] = { 0 };
-        (void)snprintf(index, sizeof(index), "%u", role);
+        NYA_CString index = gny_web_index(exchange->arena, role);
 
         nya_object_set(roles, index, (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *entry });
     }
@@ -81,8 +91,7 @@ NYA_INTERNAL NYA_HttpStatus gny_web_guild_read(NYA_HttpExchange* exchange) {
     for (u32 bit = 0; bit < 64; bit++) {
         if ((labelled & (1ULL << bit)) == 0) continue;
 
-        char index[8] = { 0 };
-        (void)snprintf(index, sizeof(index), "%u", named++);
+        NYA_CString index = gny_web_index(exchange->arena, named++);
 
         nya_object_set(vocabulary, index,
                        (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_label(guild, 1ULL << bit) });
