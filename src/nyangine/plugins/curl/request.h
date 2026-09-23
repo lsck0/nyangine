@@ -26,6 +26,7 @@
 #include "nyangine/base/base_arena.h"
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_rate.h"
+#include "nyangine/base/base_circuit.h"
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_object.h"
 #include "nyangine/base/base_string.h"
@@ -178,6 +179,17 @@ struct NYA_Request {
      * name what the server calls it, so routes that share a budget share a bucket here too.
      * */
     NYA_ConstCString rate_key;
+
+    /**
+     * A circuit breaker for the dependency, keyed the same as the limiter (`rate_key`, else the host).
+     *
+     * Different question from the limiter: the limiter waits when this program is over budget; the
+     * breaker fails fast when the dependency is *down*, so a dead service is not hammered by retries and
+     * gets quiet air to recover. When it is OPEN the call returns NYA_ERROR_TIMEOUT at once with a
+     * status of zero, touching no socket. Every attempt's outcome trains it: a 5xx or a transport
+     * failure is a failure, any answered status (a 4xx included) is a success. See base_circuit.h.
+     * */
+    NYA_CircuitBreaker* breaker;
 };
 
 struct NYA_Response {

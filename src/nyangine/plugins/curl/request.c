@@ -547,7 +547,7 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
     nya_assert(out_response != nullptr);
 
     char key[NYA_RATE_MAX_KEY] = { 0 };
-    if (request.limiter != nullptr) _nya_request_rate_key(arena, &request, key, sizeof(key));
+    if (request.limiter != nullptr || request.breaker != nullptr) _nya_request_rate_key(arena, &request, key, sizeof(key));
 
     NYA_Error answer = NYA_OK;
 
@@ -556,9 +556,20 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
         // likely to be refused going out fastest.
         if (request.limiter != nullptr) (void)nya_rate_wait(request.limiter, key);
 
+        // The breaker second: if the dependency is known-down, fail fast without a socket. A status of
+        // zero, the same shape a transport failure leaves, so a caller that only reads status is right.
+        if (request.breaker != nullptr && !nya_circuit_allow(request.breaker, key)) {
+            nya_memset(out_response, 0, sizeof(*out_response));
+            return nya_error(NYA_ERROR_TIMEOUT, "circuit breaker open for '%s'", key);
+        }
+
         answer = _nya_request_perform_once(arena, request, out_response);
 
         if (request.limiter != nullptr) _nya_request_rate_learn(request.limiter, key, out_response);
+
+        // Train the breaker on the outcome: an answered status (a 4xx included — the dependency is up)
+        // is a success, a 5xx or a transport failure (status zero) is not.
+        if (request.breaker != nullptr) nya_circuit_record(request.breaker, key, out_response->status >= 100 && out_response->status < 500);
 
         if (answer.ok) return answer;
         if (attempt >= request.retries) return answer;

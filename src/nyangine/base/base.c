@@ -13,6 +13,7 @@
 #include "nyangine/base/base_crc.c"
 // after the clock it reads and the random source its jitter comes from.
 #include "nyangine/base/base_rate.c"
+#include "nyangine/base/base_circuit.c"
 #include "nyangine/base/base_error.c"
 #include "nyangine/base/base_filesystem.c"
 // after base_filesystem.c: the whole-file helpers are written over its handles.
