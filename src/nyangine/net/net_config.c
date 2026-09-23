@@ -41,6 +41,14 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
         // Single player is a server with nobody listening. See net.h; this default is that claim.
         .role = NYA_NET_ROLE_SERVER,
         .port = NYA_NET_DEFAULT_PORT,
+
+        /*
+         * Sockets unless something says otherwise. Loopback is the zero of the enum and the transport a
+         * single player game attaches to itself with, but it is not something a command line can ask
+         * for: it has no second end, so a `--server` that kept the zero would start, report a port and
+         * refuse every player with "that transport cannot accept players".
+         */
+        .transport = NYA_NET_TRANSPORT_UDP,
     };
 
     (void)snprintf(config.name, sizeof(config.name), "%s", "player");

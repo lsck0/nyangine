@@ -1341,7 +1341,7 @@ The application loop: entities, systems, events, input, audio, assets, config, s
 
 ```c
 // types
-struct NYA_AppOptions { u64 time_step_ns; u32 frame_rate_limit; u32 unfocused_frame_rate_limit; b8 vsync_enabled; u8 max_concurrent_jobs; b8 headless; NYA_ConstCString app_id; u32 steam_app_id; }
+struct NYA_AppOptions { u64 time_step_ns; u32 frame_rate_limit; u32 unfocused_frame_rate_limit; b8 vsync_enabled; u8 max_concurrent_jobs; b8 headless; NYA_ConstCString app_id; u32 steam_app_id; void (*parts)(void); }
 struct NYA_FrameStats { u64 started_ns; u64 uptime_ns; f32 uptime_s; u64 min_frame_time_ns; f32 delta_time_s; f32 fps; u64 frame_start_time_ns; u64 frame_end_time_ns; u64 prev_frame_time_ns; u64 elapsed_ns; u64 work_ns; u64 sleep_ns; s64 time_behind_ns; }
 struct NYA_AppTimeSource { u64 (*now_ns)(void); u32 catch_up_ticks_max; b8 never_sleep; }  // Where the frame loop reads time, and whether it may sleep for the frame rate limit.
 struct NYA_App { b8 initialized; b8 should_quit; NYA_World* world; NYA_AppOptions options; NYA_Arena* frame_allocator; NYA_Arena* live_resize_allocator; NYA_FrameStats frame_stats; NYA_AppTimeSource time_source; NYA_AssetSystem asset_system; NYA_CallbackSystem callback_system; NYA_ConfigSystem config_system; NYA_EventSystem event_system; NYA_I18nSystem i18n_system; NYA_InputSystem input_system; NYA_JobSystem job_system; NYA_RenderSystem render_system; NYA_SaveSystem save_system; NYA_SettingsSystem settings_system; NYA_WindowSystem window_system; }
@@ -2583,15 +2583,17 @@ One registry for every system in the process: the engine's subsystems, the game'
 
 ```c
 // types
+typedef u32 NYA_SystemFacilities  // A set of NYA_SystemFacility bits.
 enum NYA_SystemPhase { NYA_SYSTEM_PHASE_FRAME, NYA_SYSTEM_PHASE_TICK, NYA_SYSTEM_PHASE_RENDER, NYA_SYSTEM_PHASE_COUNT, }  // When in the frame a callback runs.
 enum NYA_SystemOwnerKind { NYA_SYSTEM_OWNER_ENGINE, NYA_SYSTEM_OWNER_GAME, NYA_SYSTEM_OWNER_PLUGIN, NYA_SYSTEM_OWNER_KIND_COUNT, }  // Who a system belongs to.
+enum NYA_SystemFacility { NYA_SYSTEM_FACILITY_WINDOW = 1U << 0, NYA_SYSTEM_FACILITY_GPU = 1U << 1, NYA_SYSTEM_FACILITY_AUDIO = 1U << 2, NYA_SYSTEM_FACILITY_TERMINAL = 1U << 3, NYA_SYSTEM_FACILITY_LISTENER = 1U << 4, }  // Something a system can only run with, and that another system is what brings into the process.
 struct NYA_SystemOwner { NYA_SystemOwnerKind kind; NYA_ConstCString plugin; }
 struct NYA_SystemOwnerStats { NYA_ConstCString name; NYA_SystemOwnerKind kind; u32 system_count; u32 enabled_count; u64 time_ns; u64 memory_bytes; }  // What one owner's systems cost, summed over the systems belonging to it.
 typedef NYA_Error (*NYA_SystemInitFn)(void)
 typedef void (*NYA_SystemDeinitFn)(void)
 typedef void (*NYA_SystemPhaseFn)(f32 delta_time_s)  // One phase's work for one system.
 typedef u64 (*NYA_SystemMemoryFn)(void)  // What a system reports holding right now, for the per-owner memory line.
-struct NYA_SystemEntry { NYA_ConstCString name; NYA_ConstCString after; NYA_ConstCString before; NYA_CallbackHandle init; NYA_CallbackHandle deinit; NYA_CallbackHandle frame; NYA_CallbackHandle tick; NYA_CallbackHandle render; b8 optional; NYA_SystemOwner owner; NYA_CallbackHandle memory_bytes; }
+struct NYA_SystemEntry { NYA_ConstCString name; NYA_ConstCString after; NYA_ConstCString before; NYA_CallbackHandle init; NYA_CallbackHandle deinit; NYA_CallbackHandle frame; NYA_CallbackHandle tick; NYA_CallbackHandle render; b8 optional; NYA_SystemFacilities needs; NYA_SystemFacilities provides; NYA_SystemOwner owner; NYA_CallbackHandle memory_bytes; }
 
 // macros
 NYA_SYSTEM_REGISTRY_MAX 64  // How many systems can be registered at once.
@@ -2611,6 +2613,10 @@ void nya_system_registry_run(NYA_SystemPhase phase, f32 delta_time_s)  // Runs `
 void nya_system_registry_run_deinit(void)  // Runs `deinit` in reverse finalized order, for every system whose `init` ran and succeeded.
 NYA_ConstCString nya_system_phase_name(NYA_SystemPhase phase)  // "frame", "tick" or "render".
 NYA_ConstCString nya_system_owner_name(NYA_SystemOwner owner)  // "engine", "game", or the plugin's own name.
+NYA_ConstCString nya_system_facility_name(NYA_SystemFacility facility)  // One facility as the noun a sentence takes: "a window", "a GPU device".
+NYA_SystemFacilities nya_system_facilities(void)  // What is up in this process right now: every `provides` of every system whose `init` has succeeded.
+void nya_system_facilities_provide(NYA_SystemFacilities facilities)
+void nya_system_facilities_withdraw(NYA_SystemFacilities facilities)  // Takes them away again.
 b8 nya_system_registry_is_running(void)  // Whether a phase run is in progress, which is what makes a mutation queue instead of apply.
 void nya_system_registry_report(void)  // Logs the schedule at debug level, one line per phase, in run order, with a disabled system marked.
 u32 nya_system_registry_count(void)  // How many systems are registered.
@@ -4135,7 +4141,7 @@ What the ui_*.c files share: the per window state, the open pass's scratch, and 
 ```c
 // types
 typedef struct { f32x2 origin; f32x2 extent; f32x2 room; u32 main; f32 gap; NYA_UISize children; NYA_UIAlign align; NYA_UIOverflow overflow; NYA_UIText text; f32 used; f32 across; u32 count; f32 fixed; f32 grow; f32 grow_placed; f32 grow_space; f32 grow_total; u64 key; u64 scope; u32 group; const f32* columns; u32 column_count; b8 striped; u32 panel; NYA_UIPanel options; NYA_Rectf bounds; u32 root_panel; s32 layer; b8 floating; f32x2 before; f32x2 after; f32 header; f32 title_width; f32x2 scroll; NYA_Rectf clip; b8 covered; b8 scrolls[2]; b8 clipping; b8 hidden; } _NYA_UILayout  // One open container.
-typedef struct { u64 id; u64 pass; f32x2 size; b8 measured; f32x2 content; f32 fixed; f32 grow; u32 count; f32x2 scroll; f32x2 drag; f64 shown_s; f64 seen_s; b8 top_level; NYA_Rectf bounds; s32 z; u64 order; } _NYA_UIPanelState
+typedef struct { u64 id; u64 pass; f32x2 size; b8 measured; f32x2 content; f32 fixed; f32 grow; u32 count; f32x2 scroll; f32x2 drag; f32 fold_height; b8 folded; f32 fold_from; f64 shown_s; f64 seen_s; b8 top_level; NYA_Rectf bounds; s32 z; u64 order; } _NYA_UIPanelState
 typedef struct { u64 id; b8 refused; b8 disabled; b8 focused; b8 held; b8 activated; f32 focus; f32 press; } _NYA_UIWidget  // A widget's standing in the current pass.
 typedef struct { u64 id; f64 time_s; f32 focus; f32 press; } _NYA_UIAnimation  // Where one widget's transitions stand, and when they were last stepped.
 struct NYA_UI { b8 claimed; NYA_WindowHandle handle; NYA_Window* window; NYA_UIPass pass; const NYA_UIPresenter* present; NYA_UIStyle style; f32 scale; u64 focus; u32 focus_index; f64 focus_changed_s; b8 reveal; u64 active; b8 dragging; u32 grab; u64 hue_id; f32 hue; char hex[10]; u64 editing; u32 caret; b8 typing; u32 select; u64 click_id; f64 click_s; u64 open; u64 drag_panel; u64 resize_panel; f32x2 resize_grip; u64 bounce_id; f64 bounce_s; f32x2 drag_grip; u64 pass_current; u64 pass_previous; }  // What persists per window.

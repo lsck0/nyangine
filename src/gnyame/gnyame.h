@@ -118,6 +118,36 @@ void gnyame_deinit(void);
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE PARTS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * What gnyame brings up, each one a system in the engine's registry rather than a line in a hand
+ * written startup sequence: one order shared with the engine's own subsystems, teardown that is the
+ * reverse of it by construction, and a part that says what it needs refused at startup rather than at
+ * its first frame. gnyame.c registers whichever of them a run is made of; see NYA_AppOptions.parts.
+ *
+ * Declared here because they are registered by name: a callback handle is re-resolved against the new
+ * image after a code reload, and a name only the definition knows is a name dlsym cannot find.
+ */
+NYA_Error gny_part_actions_init(void);
+void      gny_part_actions_deinit(void);
+NYA_Error gny_part_locale_init(void);
+NYA_Error gny_part_world_init(void);
+NYA_Error gny_part_plugins_init(void);
+NYA_Error gny_part_net_init(void);
+void      gny_part_net_deinit(void);
+NYA_Error gny_part_web_init(void);
+void      gny_part_web_deinit(void);
+NYA_Error gny_part_layers_init(void);
+NYA_Error gny_part_window_init(void);
+NYA_Error gny_part_social_init(void);
+void      gny_part_social_deinit(void);
+NYA_Error gny_part_screen_init(void);
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * NETWORKING
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
