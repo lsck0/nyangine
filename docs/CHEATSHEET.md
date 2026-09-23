@@ -6191,6 +6191,72 @@ b8 nya_telegram_webhook_verify(const NYA_HttpExchange* exchange, NYA_ConstCStrin
 b8 nya_telegram_update_read(const NYA_Object* object, OUT NYA_TelegramUpdate* out_update)  // Reads one update out of a parsed webhook body, which is the same object `getUpdates` returns in its array.
 ```
 
+### twitch_eventsub.h
+
+A Twitch bot's ear: the EventSub socket everything that happens on a channel arrives over.
+
+```c
+// types
+enum NYA_TwitchEventSubKind { NYA_TWITCH_EVENTSUB_NONE = 0, NYA_TWITCH_EVENTSUB_WELCOME, NYA_TWITCH_EVENTSUB_NOTIFICATION, NYA_TWITCH_EVENTSUB_REVOKED, NYA_TWITCH_EVENTSUB_DISCONNECTED, NYA_TWITCH_EVENTSUB_FATAL, NYA_TWITCH_EVENTSUB_KIND_COUNT, }  // What one poll turned up.
+enum NYA_TwitchEventSubState { NYA_TWITCH_EVENTSUB_STATE_IDLE = 0, NYA_TWITCH_EVENTSUB_STATE_CONNECTING, NYA_TWITCH_EVENTSUB_STATE_OPENED, NYA_TWITCH_EVENTSUB_STATE_READY, NYA_TWITCH_EVENTSUB_STATE_RECONNECTING, NYA_TWITCH_EVENTSUB_STATE_WAITING, NYA_TWITCH_EVENTSUB_STATE_STOPPED, NYA_TWITCH_EVENTSUB_STATE_COUNT, }  // Where the client is.
+struct NYA_TwitchEventSubTransport { void* user; NYA_Error (*open)(void* user, u32 slot, NYA_ConstCString url); void (*close)(void* user, u32 slot); b8 (*poll)(void* user, u32 slot, OUT NYA_WebSocketEvent* out_event); u64 (*now_ms)(void* user); u64 (*now_s)(void* user); }  // How the client reaches the socket and the clock.
+struct NYA_TwitchEventSubMessage { NYA_TwitchEventSubKind kind; NYA_ConstCString session; NYA_ConstCString subscription_type; const NYA_Object* event; NYA_ConstCString reason; u64 retry_in_ms; }
+struct NYA_TwitchEventSubOptions { NYA_ConstCString url; u64 max_message_bytes; b8 insecure_skip_tls_verify; NYA_TwitchEventSubTransport transport; }
+
+// macros
+NYA_TWITCH_EVENTSUB_URL "wss:  // Where a socket is opened when a caller names no url.
+NYA_TWITCH_EVENTSUB_MAX_ID 128  // A session id, a message id or a subscription type, terminator included.
+NYA_TWITCH_EVENTSUB_MAX_URL 512  // A reconnect url, terminator included.
+NYA_TWITCH_EVENTSUB_GRACE_MS 5000  // How long past the keepalive interval Twitch promised the socket is given before it counts as dead.
+NYA_TWITCH_EVENTSUB_KEEPALIVE_S 10  // The keepalive interval assumed until a welcome says otherwise.
+NYA_TWITCH_EVENTSUB_SEEN_MAX 64  // Message ids remembered, for the duplicates Twitch says it may send.
+NYA_TWITCH_EVENTSUB_REPLAY_S 600  // How old a message may be before it is dropped as a replay, whatever its id says.
+NYA_TWITCH_EVENTSUB_BACKOFF_MS 1000  // The first reconnect delay after a socket ends by itself, doubled per attempt up to the cap below.
+NYA_TWITCH_EVENTSUB_BACKOFF_MAX_MS 60000  // The longest a reconnect waits.
+
+// functions
+NYA_Error nya_twitch_eventsub_create(NYA_Arena* arena, NYA_TwitchEventSubOptions options, OUT NYA_TwitchEventSub** out_events)  // Makes a client.
+void nya_twitch_eventsub_destroy(NYA_TwitchEventSub* events)  // Closes whatever is open and frees the client.
+b8 nya_twitch_eventsub_poll(NYA_TwitchEventSub* events, OUT NYA_TwitchEventSubMessage* out_message)  // Runs the client and hands over the next thing that happened, or false when nothing did.
+NYA_ConstCString nya_twitch_eventsub_session(const NYA_TwitchEventSub* events)  // The live session id, or an empty string when there is none.
+NYA_TwitchEventSubState nya_twitch_eventsub_state(const NYA_TwitchEventSub* events)
+NYA_ConstCString nya_twitch_eventsub_state_name(NYA_TwitchEventSubState state)  // "ready", "waiting", and so on: the state as a word, for a log line or an overlay.
+```
+
+### twitch_helix.h
+
+A Twitch bot's voice: the HTTP API it subscribes through and answers with.
+
+```c
+// types
+enum NYA_TwitchHelixCallKind { NYA_TWITCH_HELIX_CALL_SUBSCRIBE = 0, NYA_TWITCH_HELIX_CALL_UNSUBSCRIBE, NYA_TWITCH_HELIX_CALL_CHAT_SEND, NYA_TWITCH_HELIX_CALL_KIND_COUNT, }  // Which call a queued entry is, which is also what it is reported as.
+struct NYA_TwitchHelixLimit { u32 limit; u32 remaining; u64 reset_s; }  // The bucket as the last reply described it.
+struct NYA_TwitchHelixOptions { NYA_ConstCString token; NYA_ConstCString client_id; NYA_ConstCString bot_id; NYA_ConstCString base_url; u64 timeout_ms; NYA_Error (*perform)(void* user, NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response); u64 (*now_ms)(void* user); u64 (*now_s)(void* user); void* user; }
+struct NYA_TwitchHelixResult { u64 id; NYA_TwitchHelixCallKind kind; NYA_ConstCString route; u32 status; const NYA_Object* body; NYA_Error error; }  // What one queued call came to.
+
+// macros
+NYA_TWITCH_HELIX_URL "https:  // Where the API lives.
+NYA_TWITCH_HELIX_MAX_TOKEN 128  // A token, terminator included.
+NYA_TWITCH_HELIX_MAX_ID 64  // A user id, a client id or a subscription version, terminator included.
+NYA_TWITCH_HELIX_MAX_TYPE 64  // A subscription type such as "channel.chat.message", terminator included.
+NYA_TWITCH_HELIX_MAX_SESSION 128  // A session id from the EventSub welcome, terminator included.
+NYA_TWITCH_HELIX_MAX_TEXT 512  // A chat message's text, terminator included.
+NYA_TWITCH_HELIX_MAX_ROUTE 64  // The route as a result names it, terminator included.
+NYA_TWITCH_HELIX_MAX_QUEUE 32  // Calls waiting to be sent.
+NYA_TWITCH_HELIX_RETRY_MS 500  // What a failed call waits before the next attempt, doubled per attempt.
+NYA_TWITCH_HELIX_MAX_ATTEMPTS 3  // How often one call is attempted before its failure is reported to the caller.
+
+// functions
+NYA_Error nya_twitch_helix_create(NYA_Arena* arena, NYA_TwitchHelixOptions options, OUT NYA_TwitchHelix** out_helix)  // Makes a client.
+void nya_twitch_helix_destroy(NYA_TwitchHelix* helix)  // Wipes the token and gives the arena back.
+NYA_Error nya_twitch_helix_subscribe(NYA_TwitchHelix* helix, NYA_ConstCString type, NYA_ConstCString version, NYA_ConstCString broadcaster_id, NYA_ConstCString session, OUT u64* out_id)
+NYA_Error nya_twitch_helix_unsubscribe(NYA_TwitchHelix* helix, NYA_ConstCString subscription_id, OUT u64* out_id)  // Queues the opposite: Twitch stops sending this subscription.
+NYA_Error nya_twitch_helix_chat_send(NYA_TwitchHelix* helix, NYA_ConstCString broadcaster_id, NYA_ConstCString text, OUT u64* out_id)  // Queues a chat message into a channel, sent as the bot account `bot_id` names.
+b8 nya_twitch_helix_poll(NYA_TwitchHelix* helix, OUT NYA_TwitchHelixResult* out_result)  // Sends the next queued call that is due, and reports the one that finished.
+u32 nya_twitch_helix_pending(const NYA_TwitchHelix* helix)  // How many calls are waiting, so a caller can stop queueing before the queue refuses one.
+NYA_TwitchHelixLimit nya_twitch_helix_limit(const NYA_TwitchHelix* helix)  // The bucket as the last reply described it.
+```
+
 ## platform
 
 What the host is, and how to talk to it: signals, the terminal and ipc.

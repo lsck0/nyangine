@@ -7,6 +7,8 @@
 // After the gateway, whose token check and bounded copy it reuses rather than writing a second pair.
 #include "nyangine/plugins/discord_bot/discord_rest.c"
 #include "nyangine/plugins/telegram_bot/telegram.c"
+#include "nyangine/plugins/twitch_bot/twitch_eventsub.c"
+#include "nyangine/plugins/twitch_bot/twitch_helix.c"
 #endif
 
 // Always, for the reason in plugins.h. steam.c includes steam_steamworks.c itself, under

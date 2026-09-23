@@ -14,6 +14,11 @@
 // The Telegram bot client, curl's dependent for the same reason. A different protocol shape — polling
 // rather than a socket — so a separate client rather than one with two backends. See telegram.h.
 #include "nyangine/plugins/telegram_bot/telegram.h"
+// The Twitch bot's ear. A third shape again: nothing is pushed until it has been subscribed to, and a
+// subscription is made over HTTP against the session this hands out. See twitch_eventsub.h.
+#include "nyangine/plugins/twitch_bot/twitch_eventsub.h"
+// After the socket: the calls that subscribe it to something and answer over it. See twitch_helix.h.
+#include "nyangine/plugins/twitch_bot/twitch_helix.h"
 #endif
 
 // Always: the module is a facade over a backend table, and only the backend is behind

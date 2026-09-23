@@ -797,8 +797,14 @@ logged-in user.
     `answerCallbackQuery` queued behind a cooldown a 429's `retry_after` sets, and the webhook secret compared in
     constant time. Long polling is off unless a caller sets `poll_timeout_s`, because the transfers are
     synchronous and a frame cannot wait thirty seconds for a quiet chat.
-  - Missing for a Twitch **bot**: EventSub over WebSocket (the same gateway shape) or over webhooks (which now
-    verify), and chat, which is IRC over TLS — the one piece that wants TLS in process rather than through curl.
+  - The Twitch **bot** landed 2026-09-23 as `src/nyangine/plugins/twitch_bot/`: `twitch_eventsub.h` is the
+    socket (welcome, keepalive silence as the only liveness signal there is, the reconnect that keeps the old
+    socket until the new one is welcomed, and the duplicate and replay rules Twitch documents), and
+    `twitch_helix.h` the calls that subscribe it to something and answer over it. Chat is no longer IRC: it
+    arrives as `channel.chat.message` over EventSub and a reply is `POST /helix/chat/messages`, so a chat bot
+    needs no second protocol and no TLS of its own — the one reason this item wanted TLS in process is gone.
+    - Still open for Twitch: minting and refreshing tokens, which is a browser flow ending at a redirect url
+      and a client secret this deliberately never holds. A program that owns a browser owns that.
   - Missing for **sending** a webhook: nothing but a helper. `nya_request_post` posts a JSON body today; what a
     sender owes is a signature over what it sends, a retry with backoff, and not blocking the frame while it
     does either.
@@ -809,10 +815,16 @@ logged-in user.
     offset and is told to wait by a number in a body, Twitch will do both at once. A facade over the three would
     be a switch statement with three arms and a lowest common denominator that fits none of them, and the thing a
     caller actually wants — "answer this message" — is one call either way.
-    - What does repeat is mechanical, and that is what to extract when Twitch makes it three: a queue of calls
-      with attempts and a backoff, the `perform` / `now_ms` seam that lets a test drive a client with no network,
-      the bounded copies, and the token that is wiped and never logged. Today each client has its own copy of
-      those, which is the honest amount of sharing for two.
+    - What repeats is mechanical, and Twitch made it three on the same day, so the extraction is now owed: a
+      queue of calls with attempts and a backoff, the `perform` / `now_ms` seam that lets a test drive a client
+      with no network, the bounded copies, and the token that is wiped and never logged. Three copies of that
+      exist in `discord_rest.c`, `telegram.c` and `twitch_helix.c`, and the third was where the copying started
+      to read as copying rather than as each client saying its own thing.
+      - The shape to extract, when it happens: a `bot_rest` with the queue, the attempts, the backoff and the
+        transport seam, taking a per-service vtable for "build this call's body", "which route and method", and
+        "read the rate limit out of this reply" — the three places the services genuinely differ. Each client
+        keeps its own header and its own vocabulary, so a caller still writes `nya_telegram_send` rather than
+        something generic with a service argument.
     - Inbound is already shared, and was the piece worth sharing: `http_webhook.h` verifies a signed callback for
       whoever sends one, and Telegram's weaker "echo my secret back" check sits beside it saying so.
 - `[ ]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
