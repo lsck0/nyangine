@@ -35,6 +35,48 @@ const NYA_TypeReflection _NYA_REFLECT_f32x2 = { .name = "f32x2", .kind = NYA_REF
 const NYA_TypeReflection _NYA_REFLECT_f32x3 = { .name = "f32x3", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x3), .alignment = alignof(f32x3), .element = &_NYA_REFLECT_f32, .element_count = 3 };
 const NYA_TypeReflection _NYA_REFLECT_f32x4 = { .name = "f32x4", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x4), .alignment = alignof(f32x4), .element = &_NYA_REFLECT_f32, .element_count = 4 };
 
+/* NYA_AccountIdentity, src/nyangine/accounts/accounts_identity.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity_provider_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountIdentity*)nullptr)->provider),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_PROVIDER),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity_subject_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountIdentity*)nullptr)->subject),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_SUBJECT),
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity_display_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountIdentity*)nullptr)->display),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_MAX_DISPLAY),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AccountIdentity_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountIdentity, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "account_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountIdentity, account_id), .hint = NYA_HINT_NONE },
+    { .name = "provider", .type = &_NYA_REFLECT_NYA_AccountIdentity_provider_ARRAY, .offset = nya_offsetof(NYA_AccountIdentity, provider), .hint = NYA_HINT_NONE },
+    { .name = "subject", .type = &_NYA_REFLECT_NYA_AccountIdentity_subject_ARRAY, .offset = nya_offsetof(NYA_AccountIdentity, subject), .hint = NYA_HINT_NONE },
+    { .name = "display", .type = &_NYA_REFLECT_NYA_AccountIdentity_display_ARRAY, .offset = nya_offsetof(NYA_AccountIdentity, display), .hint = NYA_HINT_NONE },
+    { .name = "linked_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountIdentity, linked_at_s), .hint = NYA_HINT_NONE },
+    { .name = "used_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountIdentity, used_at_s), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity = {
+    .name = "NYA_AccountIdentity",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AccountIdentity),
+    .alignment = alignof(NYA_AccountIdentity),
+    .fields = _NYA_REFLECT_NYA_AccountIdentity_FIELDS,
+    .field_count = 7,
+};
+
 /* NYA_AccountSession, src/nyangine/accounts/accounts_session.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession_token_hash_ARRAY = {
@@ -1868,6 +1910,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle = {
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT] = {
+    &_NYA_REFLECT_NYA_AccountIdentity,
     &_NYA_REFLECT_NYA_AccountSession,
     &_NYA_REFLECT_NYA_AccountUser,
     &_NYA_REFLECT_NYA_AudioPass,

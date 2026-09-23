@@ -458,6 +458,93 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the same person arriving through Steam, and then through Discord
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Database* db = open_accounts(arena);
+    defer nya_accounts_close();
+    defer nya_sql_close(db);
+
+    char folded[NYA_ACCOUNTS_MAX_PROVIDER] = { 0 };
+
+    nya_check(nya_account_provider_normalize("Steam", folded, sizeof(folded)), "a provider name folds");
+    nya_check(nya_string_equals(folded, "steam"), "to lower case, got '%s'", folded);
+    nya_check(nya_account_provider_normalize("accounts.google.com", folded, sizeof(folded)), "and an issuer host is one");
+    nya_check(!nya_account_provider_normalize("two words", folded, sizeof(folded)), "while something with a space in it is not");
+    nya_check(!nya_account_provider_normalize("", folded, sizeof(folded)), "and neither is nothing");
+
+    // first sign-in: there is no account yet, so one is made.
+    NYA_AccountUser player  = { 0 };
+    b8              created = false;
+
+    nya_check(nya_account_from_identity(arena, "steam", "76561198000000000", "ada", &player, &created).ok, "a first sign-in is answered");
+    nya_check(created, "by making an account");
+    nya_check(player.id != 0, "with an id, got %llu", (unsigned long long)player.id);
+    nya_check(player.password[0] == '\0', "and no password at all");
+
+    // which means no password gets in, whatever it is.
+    NYA_AccountUser refused = { 0 };
+    nya_check(!nya_account_authenticate(arena, player.username, "", ADDRESS, &refused).ok, "an empty password is not a way in");
+    nya_check(!nya_account_authenticate(arena, player.username, PASSWORD, ADDRESS, &refused).ok, "and nor is any other");
+
+    // second sign-in: the same subject is the same person, not a second account.
+    NYA_AccountUser again        = { 0 };
+    b8              created_again = false;
+
+    nya_check(nya_account_from_identity(arena, "STEAM", "76561198000000000", "ada", &again, &created_again).ok, "a second sign-in is answered");
+    nya_check(!created_again, "without making anything");
+    nya_check(again.id == player.id, "as the same account, got %llu against %llu", (unsigned long long)again.id, (unsigned long long)player.id);
+
+    u64 accounts = 0;
+    nya_check(nya_account_count(&accounts).ok && accounts == 1, "so there is one account, got %llu", (unsigned long long)accounts);
+
+    // and a different subject is a different person.
+    NYA_AccountUser other = { 0 };
+    nya_check(nya_account_from_identity(arena, "steam", "76561198000000001", "bob", &other, &created_again).ok, "somebody else signs in");
+    nya_check(other.id != player.id, "and is somebody else");
+
+    // the same person links Discord to the account they already have.
+    nya_check(nya_account_identity_link(arena, player.id, "discord", "308994132968210433", "ada#0001").ok, "a second provider is linked");
+
+    NYA_AccountUser found = { 0 };
+    nya_check(nya_account_find_by_identity(arena, "discord", "308994132968210433", &found).ok, "and finds that account");
+    nya_check(found.id == player.id, "which is the one they already had, got %llu", (unsigned long long)found.id);
+
+    NYA_AccountIdentity* linked = nullptr;
+    u32                  count  = 0;
+
+    nya_check(nya_account_identity_list(arena, player.id, &linked, &count).ok && count == 2, "both ways in are listed, got %u", count);
+
+    // what is refused: somebody else's subject, a second id for one provider, an email as a subject.
+    nya_check(!nya_account_identity_link(arena, other.id, "discord", "308994132968210433", "bob").ok, "a subject cannot be taken from its account");
+    nya_check(!nya_account_identity_link(arena, player.id, "steam", "76561198000000009", "ada").ok, "one provider is one login per account");
+    nya_check(!nya_account_identity_link(arena, player.id, "google", "ada@example.test", "ada").ok, "an email is not a subject");
+    nya_check(!nya_account_identity_link(arena, 999999, "google", "123", "nobody").ok, "and an account that is not there has no logins");
+
+    // linking the same one again is how a display name is refreshed, not an error.
+    nya_check(nya_account_identity_link(arena, player.id, "discord", "308994132968210433", "ada the second").ok, "the same link again is fine");
+    nya_check(nya_account_identity_list(arena, player.id, &linked, &count).ok && count == 2, "and adds nothing, got %u", count);
+
+    // a ban is a ban however somebody arrives.
+    nya_check(nya_account_disabled_set(arena, player.id, true).ok, "the account is disabled");
+    nya_check(!nya_account_from_identity(arena, "steam", "76561198000000000", "ada", &again, &created_again).ok, "and Steam no longer gets them in");
+    nya_check(nya_account_disabled_set(arena, player.id, false).ok, "it is enabled again");
+
+    // the last way in stays, so nobody unlinks themselves out of their own account.
+    nya_check(nya_account_identity_unlink(arena, player.id, "discord").ok, "one of two is unlinked");
+    nya_check(!nya_account_identity_unlink(arena, player.id, "steam").ok, "and the last one is not");
+
+    nya_check(nya_account_password_reset(arena, player.id, PASSWORD).ok, "a password is set");
+    nya_check(nya_account_identity_unlink(arena, player.id, "steam").ok, "and now the last identity may go");
+
+    nya_check(nya_account_authenticate(arena, player.username, PASSWORD, ADDRESS, &found).ok, "leaving the password as the way in");
+
+    // deleting the account takes its identities with it.
+    nya_check(nya_account_destroy(arena, other.id).ok, "the other account is deleted");
+    nya_check(nya_account_find_by_identity(arena, "steam", "76561198000000001", &found).kind == NYA_ERROR_NOT_FOUND, "and its Steam login with it");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what every call answers before the tables are open
   // ─────────────────────────────────────────────────────────────────────────────
   {

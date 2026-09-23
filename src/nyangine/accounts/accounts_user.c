@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "nyangine/accounts/accounts_identity.h"
 #include "nyangine/accounts/accounts_session.h"
 #include "nyangine/accounts/accounts_throttle.h"
 #include "nyangine/accounts/accounts_user.h"
@@ -31,6 +32,7 @@ typedef struct {
 
     NYA_OrmTable* users;
     NYA_OrmTable* sessions;
+    NYA_OrmTable* identities;
 
     b8 open;
 } _NYA_AccountsState;
@@ -74,6 +76,10 @@ NYA_INTERNAL b8 _nya_account_number(const char** cursor, char terminator, OUT u3
 /** Whether a password is inside the length bounds, said as the error a caller shows. */
 NYA_INTERNAL NYA_Error _nya_account_password_check(NYA_ConstCString password) __attr_no_discard;
 
+/** What both constructors are: a null password means an account that has none; see accounts_identity.h. */
+NYA_INTERNAL NYA_Error _nya_account_create(NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString password, OUT NYA_AccountUser* out_user)
+    __attr_no_discard;
+
 /** The one refusal a login has. Always the same words, whatever actually went wrong. */
 NYA_INTERNAL NYA_Error _nya_account_refused(void) __attr_no_discard;
 
@@ -97,6 +103,9 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
 
     NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountSession), "account_sessions", &_NYA_ACCOUNTS.sessions));
     NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.sessions));
+
+    NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountIdentity), "account_identities", &_NYA_ACCOUNTS.identities));
+    NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.identities));
 
     /*
      * The hash a login verifies against when the username is not there. Made from bytes nobody will
@@ -126,6 +135,7 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
 void nya_accounts_close(void) {
     if (!_NYA_ACCOUNTS.open) return;
 
+    nya_orm_close(_NYA_ACCOUNTS.identities);
     nya_orm_close(_NYA_ACCOUNTS.sessions);
     nya_orm_close(_NYA_ACCOUNTS.users);
 
@@ -138,6 +148,16 @@ b8 nya_accounts_is_open(void) {
 }
 
 NYA_Error nya_account_create(NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString password, NYA_AccountUser* out_user) {
+    NYA_TRY(_nya_account_password_check(password));
+
+    return _nya_account_create(arena, username, password, out_user);
+}
+
+NYA_Error nya_account_create_without_password(NYA_Arena* arena, NYA_ConstCString username, NYA_AccountUser* out_user) {
+    return _nya_account_create(arena, username, nullptr, out_user);
+}
+
+NYA_Error _nya_account_create(NYA_Arena* arena, NYA_ConstCString username, NYA_ConstCString password, NYA_AccountUser* out_user) {
     nya_assert(arena != nullptr && out_user != nullptr);
 
     nya_memset(out_user, 0, sizeof(NYA_AccountUser));
@@ -148,8 +168,6 @@ NYA_Error nya_account_create(NYA_Arena* arena, NYA_ConstCString username, NYA_Co
     if (!nya_account_username_normalize(username, normalized, sizeof(normalized))) {
         return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a username is one to %d characters with no control characters in it", NYA_ACCOUNTS_MAX_USERNAME - 1);
     }
-
-    NYA_TRY(_nya_account_password_check(password));
 
     // The normalised form is what uniqueness is decided on, so this is the question a caller's own
     // "is that name taken" has to ask too; see nya_account_username_normalize.
@@ -162,7 +180,9 @@ NYA_Error nya_account_create(NYA_Arena* arena, NYA_ConstCString username, NYA_Co
     (void)snprintf(user.normalized, sizeof(user.normalized), "%s", normalized);
     (void)snprintf(user.display, sizeof(user.display), "%s", username);
 
-    NYA_TRY(_nya_account_password_encode(password, user.password, sizeof(user.password)));
+    // Null is an account with no password at all, which is what an account made from a Steam or a
+    // Discord login is: the column stays empty and _nya_account_password_verify refuses an empty hash.
+    if (password != nullptr) NYA_TRY(_nya_account_password_encode(password, user.password, sizeof(user.password)));
 
     user.created_at_s          = nya_clock_get_timestamp_s();
     user.password_changed_at_s = user.created_at_s;
@@ -316,6 +336,17 @@ NYA_Error nya_account_destroy(NYA_Arena* arena, u64 id) {
     // and one whose token still validated against a user that is not there.
     u32 removed = 0;
     NYA_TRY(nya_account_session_purge(arena, id, &removed));
+
+    // and every way in, which would otherwise point at an account that is not there and would one day
+    // point at whoever is given that row id next.
+    NYA_AccountIdentity* identities = nullptr;
+    u32                  linked     = 0;
+
+    NYA_TRY(nya_account_identity_list(arena, id, &identities, &linked));
+
+    for (u32 index = 0; index < linked; index++) {
+        NYA_TRY(nya_orm_delete(_NYA_ACCOUNTS.identities, nya_sql_s64((s64)identities[index].id)));
+    }
 
     nya_crypto_wipe(user.password, sizeof(user.password));
 

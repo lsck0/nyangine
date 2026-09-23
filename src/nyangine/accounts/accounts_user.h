@@ -200,6 +200,15 @@ NYA_API NYA_Error nya_account_create(NYA_Arena* arena, NYA_ConstCString username
     __attr_no_discard;
 
 /**
+ * The same, for somebody who arrives through a provider rather than with a password.
+ *
+ * The account has no password at all: the column is empty and nya_account_authenticate refuses an
+ * empty hash, so it cannot be logged into with one until somebody sets one through
+ * nya_account_password_reset. See accounts_identity.h, which is what calls this.
+ * */
+NYA_API NYA_Error nya_account_create_without_password(NYA_Arena* arena, NYA_ConstCString username, OUT NYA_AccountUser* out_user) __attr_no_discard;
+
+/**
  * The account with this username, in its normalised form.
  *
  * NYA_ERROR_NOT_FOUND when there is none. Honest about that, unlike a login: this is the call an

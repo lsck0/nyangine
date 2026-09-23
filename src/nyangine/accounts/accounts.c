@@ -6,3 +6,5 @@
 #include "nyangine/accounts/accounts_user.c"
 /**/
 #include "nyangine/accounts/accounts_session.c"
+// last: it names the users table, the sessions table and both of their halves.
+#include "nyangine/accounts/accounts_identity.c"
