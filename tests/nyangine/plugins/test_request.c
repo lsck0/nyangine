@@ -115,6 +115,7 @@ s32 main(void) {
     nya_assert(response.raw_body->length == 0, "and it is empty");
     nya_assert(response.body == nullptr, "nothing to parse");
     nya_assert(response.content_type == nullptr, "and no headers came back");
+    nya_assert(response.raw_headers != nullptr && response.raw_headers->length == 0, "the header buffer exists and is empty");
 
     // The message names the method and the url, which is what makes a log line actionable.
     NYA_ConstCString message = (NYA_ConstCString)result.message;
@@ -182,6 +183,41 @@ s32 main(void) {
     );
 
     nya_assert(result.kind == NYA_ERROR_NOT_FOUND, "a GET with a body is still just a GET, got %d", (int)result.kind);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a response header is found by name, whatever case the server sent it in
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // Built by hand rather than fetched: what is in question is the reading, and a real server would
+    // decide the casing and the spacing for us.
+    NYA_Response response = {
+      .status      = 200,
+      .raw_body    = nya_string_create(arena),
+      .raw_headers = nya_string_from(arena, "Content-Type: application/json\r\nRetry-After:  1.5\t\nx-empty:\n"),
+    };
+
+    char value[64] = { 0 };
+
+    nya_assert(nya_response_header(&response, "content-type", value, sizeof(value)));
+    nya_assert(nya_string_equals(value, "application/json"), "matched case insensitively, as HTTP requires");
+
+    nya_assert(nya_response_header(&response, "RETRY-AFTER", value, sizeof(value)));
+    nya_assert(nya_string_equals(value, "1.5"), "with the padding and the line ending off, got '%s'", value);
+
+    nya_assert(nya_response_header(&response, "x-empty", value, sizeof(value)), "a header with an empty value is still there");
+    nya_assert(nya_string_equals(value, ""));
+
+    nya_assert(!nya_response_header(&response, "x-absent", value, sizeof(value)));
+    nya_assert(nya_string_equals(value, ""), "and the buffer is cleared rather than left holding the last answer");
+
+    // Refused rather than truncated: callers turn these into numbers, and half of a number is a wrong
+    // answer where a missing one is a known unknown.
+    char tiny[4] = { 0 };
+    nya_assert(!nya_response_header(&response, "content-type", tiny, sizeof(tiny)));
+
+    // A name that is a prefix of a real one must not match it.
+    nya_assert(!nya_response_header(&response, "content", value, sizeof(value)));
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

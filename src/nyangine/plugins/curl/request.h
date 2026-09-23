@@ -47,6 +47,15 @@ typedef struct NYA_Response     NYA_Response;
 /** What a request waits before giving up, when it does not say. Zero would mean forever. */
 #define NYA_REQUEST_DEFAULT_TIMEOUT_MS 30000
 
+/**
+ * Response header bytes kept, the whole block together.
+ *
+ * A server decides how many headers it sends and how long each one is, so without a bound a reply is a
+ * way to make this process allocate. Sixteen kilobytes is far past any real reply; past it the rest is
+ * dropped and nothing grows.
+ * */
+#define NYA_RESPONSE_MAX_HEADER_BYTES 16384
+
 enum NYA_RequestMethod {
     NYA_REQUEST_METHOD_GET,
     NYA_REQUEST_METHOD_POST,
@@ -109,6 +118,16 @@ struct NYA_Response {
 
     /** The Content-Type header as sent, or null when the server omitted it. */
     NYA_String* content_type;
+
+    /**
+     * Every response header as it arrived, one `name: value` per line, bounded by
+     * NYA_RESPONSE_MAX_HEADER_BYTES. Never null; empty when the transfer never got a reply. Read it with
+     * nya_response_header rather than searching it, so the case insensitive match happens in one place.
+     *
+     * A redirect chain leaves only the last reply's headers here: the earlier ones described a response
+     * the caller never sees a body for.
+     * */
+    NYA_String* raw_headers;
 };
 
 /*
@@ -127,6 +146,17 @@ NYA_API NYA_Error nya_request_get(NYA_Arena* arena, NYA_ConstCString url, OUT NY
 
 /** POST `body` as JSON to `url`. */
 NYA_API NYA_Error nya_request_post(NYA_Arena* arena, NYA_ConstCString url, const NYA_Object* body, OUT NYA_Response* out_response) __attr_no_discard;
+
+/**
+ * Copies the value of response header `name` into `out_value`, NUL terminated, and answers whether it was
+ * there.
+ *
+ * The name is matched case insensitively, as HTTP requires, and the value is trimmed of the surrounding
+ * whitespace and the line ending. A value longer than `capacity` is refused rather than truncated: a
+ * half read header is worse than a missing one, since a caller would act on a number that lost its
+ * digits. Only the first occurrence is returned.
+ * */
+NYA_API b8 nya_response_header(const NYA_Response* response, NYA_ConstCString name, OUT char* out_value, u64 capacity) __attr_no_discard;
 
 /** The method as it goes on the wire: "GET", "POST", and so on. */
 NYA_API NYA_ConstCString nya_request_method_name(NYA_RequestMethod method) __attr_no_discard;

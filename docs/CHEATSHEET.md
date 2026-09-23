@@ -5756,16 +5756,18 @@ Optional dependencies behind a flag: curl, sqlite, lua, discord, steam.
 enum NYA_RequestMethod { NYA_REQUEST_METHOD_GET, NYA_REQUEST_METHOD_POST, NYA_REQUEST_METHOD_PUT, NYA_REQUEST_METHOD_PATCH, NYA_REQUEST_METHOD_DELETE, NYA_REQUEST_METHOD_COUNT, }
 struct NYA_RequestHeader { NYA_ConstCString name; NYA_ConstCString value; }
 struct NYA_Request { NYA_RequestMethod method; NYA_ConstCString url; const NYA_Object* body; NYA_RequestHeader headers[NYA_REQUEST_MAX_HEADERS]; NYA_ConstCString bearer_token; struct { NYA_ConstCString user; NYA_ConstCString password; } basic_auth; u64 timeout_ms; b8 follow_redirects; b8 insecure_skip_tls_verify; }
-struct NYA_Response { u32 status; NYA_Object* body; NYA_String* raw_body; NYA_String* content_type; }
+struct NYA_Response { u32 status; NYA_Object* body; NYA_String* raw_body; NYA_String* content_type; NYA_String* raw_headers; }
 
 // macros
 NYA_REQUEST_MAX_HEADERS 32  // Room for the headers a caller adds.
 NYA_REQUEST_DEFAULT_TIMEOUT_MS 30000  // What a request waits before giving up, when it does not say.
+NYA_RESPONSE_MAX_HEADER_BYTES 16384  // Response header bytes kept, the whole block together.
 
 // functions
 NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response)  // Performs `request` and fills `out_response`.
 NYA_Error nya_request_get(NYA_Arena* arena, NYA_ConstCString url, OUT NYA_Response* out_response)  // GET `url`.
 NYA_Error nya_request_post(NYA_Arena* arena, NYA_ConstCString url, const NYA_Object* body, OUT NYA_Response* out_response)  // POST `body` as JSON to `url`.
+b8 nya_response_header(const NYA_Response* response, NYA_ConstCString name, OUT char* out_value, u64 capacity)  // Copies the value of response header `name` into `out_value`, NUL terminated, and answers whether it was there.
 NYA_ConstCString nya_request_method_name(NYA_RequestMethod method)  // The method as it goes on the wire: "GET", "POST", and so on.
 b8 nya_request_status_is_success(u32 status)  // Whether `status` is a 2xx.
 ```

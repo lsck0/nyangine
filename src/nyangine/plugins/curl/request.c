@@ -79,13 +79,12 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
     defer curl_easy_cleanup(handle);
 
     *out_response = (NYA_Response){
-        .raw_body = nya_string_create(arena),
+        .raw_body    = nya_string_create(arena),
+        .raw_headers = nya_string_create(arena),
     };
 
-    NYA_String* content_type = nya_string_create(arena);
-
     _NYA_RequestSink body_sink   = { .string = out_response->raw_body };
-    _NYA_RequestSink header_sink = { .string = content_type };
+    _NYA_RequestSink header_sink = { .string = out_response->raw_headers };
 
     curl_easy_setopt(handle, CURLOPT_URL, request.url);
     curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, method_name);
@@ -169,7 +168,10 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
     curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &status);
     out_response->status = (u32)status;
 
-    if (content_type->length > 0) out_response->content_type = content_type;
+    char content_type[256] = { 0 };
+    if (nya_response_header(out_response, "content-type", content_type, sizeof(content_type))) {
+        out_response->content_type = nya_string_from(arena, content_type);
+    }
 
     if (code != CURLE_OK) {
         return nya_error(_nya_request_kind_from_curl(code), "%s %s failed: %s", method_name, request.url, curl_easy_strerror(code));
@@ -204,6 +206,63 @@ NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Res
     return NYA_OK;
 }
 
+b8 nya_response_header(const NYA_Response* response, NYA_ConstCString name, char* out_value, u64 capacity) {
+    nya_assert(response != nullptr);
+    nya_assert(name != nullptr);
+    nya_assert(out_value != nullptr);
+    nya_assert(capacity > 0);
+
+    out_value[0] = '\0';
+
+    if (response->raw_headers == nullptr) return false;
+
+    const u8* text         = response->raw_headers->items;
+    u64       total        = response->raw_headers->length;
+    u64       name_length  = strlen(name);
+    if (name_length == 0) return false;
+
+    for (u64 line = 0; line < total;) {
+        u64 line_end = line;
+        while (line_end < total && text[line_end] != '\n') line_end++;
+
+        u64 colon = line;
+        while (colon < line_end && text[colon] != ':') colon++;
+
+        // No colon is not a header; skip the line rather than guess where the name ended.
+        if (colon == line_end || colon - line != name_length) {
+            line = line_end + 1;
+            continue;
+        }
+
+        b8 matches = true;
+        for (u64 i = 0; i < name_length && matches; i++) {
+            matches = tolower((int)text[line + i]) == tolower((int)(u8)name[i]);
+        }
+
+        if (!matches) {
+            line = line_end + 1;
+            continue;
+        }
+
+        u64 start = colon + 1;
+        while (start < line_end && (text[start] == ' ' || text[start] == '\t')) start++;
+
+        u64 stop = line_end;
+        while (stop > start && (text[stop - 1] == ' ' || text[stop - 1] == '\t' || text[stop - 1] == '\r')) stop--;
+
+        // Refused rather than truncated: a caller parses these into numbers, and half of a number is a
+        // wrong answer where a missing one is a known unknown.
+        if (stop - start + 1 > capacity) return false;
+
+        nya_memcpy(out_value, text + start, stop - start);
+        out_value[stop - start] = '\0';
+
+        return true;
+    }
+
+    return false;
+}
+
 NYA_Error nya_request_get(NYA_Arena* arena, NYA_ConstCString url, OUT NYA_Response* out_response) {
     return nya_request_perform(arena, (NYA_Request){ .method = NYA_REQUEST_METHOD_GET, .url = url }, out_response);
 }
@@ -236,33 +295,27 @@ u64 _nya_request_header_callback(char* data, u64 size, u64 count, void* user_dat
     u64               bytes = size * count;
 
     /*
-     * Only Content-Type is kept, and only its value.
-     */
-    /*
-     * A status line starts a new response, so anything collected so far belonged to a previous one.
+     * A status line starts a new response, so anything collected so far belonged to a previous one: a
+     * redirect chain and a 100-continue both arrive this way, and only the last reply's headers describe
+     * the body the caller gets.
      */
     if (bytes >= 5 && strncmp(data, "HTTP/", 5) == 0) {
         nya_string_clear(sink->string);
         return bytes;
     }
 
-    NYA_ConstCString prefix        = "content-type:";
-    u64              prefix_length = strlen(prefix);
-    if (bytes <= prefix_length) return bytes;
-
-    for (u64 i = 0; i < prefix_length; i++) {
-        char lowered = (char)((data[i] >= 'A' && data[i] <= 'Z') ? data[i] + ('a' - 'A') : data[i]);
-        if (lowered != prefix[i]) return bytes;
-    }
-
-    u64 start = prefix_length;
-    while (start < bytes && (data[start] == ' ' || data[start] == '\t')) start++;
-
+    // The blank line ending the block, which carries nothing.
     u64 end = bytes;
-    while (end > start && (data[end - 1] == '\r' || data[end - 1] == '\n')) end--;
+    while (end > 0 && (data[end - 1] == '\r' || data[end - 1] == '\n')) end--;
+    if (end == 0) return bytes;
 
-    nya_string_reserve(sink->string, end - start);
-    for (u64 i = start; i < end; i++) nya_string_push_back(sink->string, (u8)data[i]);
+    // Dropped rather than refused: a reply whose headers run past the bound still has a body worth
+    // reading, and aborting the transfer over a verbose server would be worse than not seeing the rest.
+    if (sink->string->length + end + 1 > NYA_RESPONSE_MAX_HEADER_BYTES) return bytes;
+
+    nya_string_reserve(sink->string, sink->string->length + end + 1);
+    for (u64 i = 0; i < end; i++) nya_string_push_back(sink->string, (u8)data[i]);
+    nya_string_push_back(sink->string, (u8)'\n');
 
     return bytes;
 }
