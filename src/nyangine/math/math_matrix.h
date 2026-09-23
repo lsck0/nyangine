@@ -46,9 +46,11 @@ nya_derive_array(f128_4x4);
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+#if !NYA_F16_IS_F32
 NYA_API f16_2x2  nya_matrix_create(f16x2 row1, f16x2 row2) __attr_overloaded;
 NYA_API f16_3x3  nya_matrix_create(f16x3 row1, f16x3 row2, f16x3 row3) __attr_overloaded;
 NYA_API f16_4x4  nya_matrix_create(f16x4 row1, f16x4 row2, f16x4 row3, f16x4 row4) __attr_overloaded;
+#endif
 NYA_API f32_2x2  nya_matrix_create(f32x2 row1, f32x2 row2) __attr_overloaded;
 NYA_API f32_3x3  nya_matrix_create(f32x3 row1, f32x3 row2, f32x3 row3) __attr_overloaded;
 NYA_API f32_4x4  nya_matrix_create(f32x4 row1, f32x4 row2, f32x4 row3, f32x4 row4) __attr_overloaded;
@@ -59,9 +61,11 @@ NYA_API f128_2x2 nya_matrix_create(f128x2 row1, f128x2 row2) __attr_overloaded;
 NYA_API f128_3x3 nya_matrix_create(f128x3 row1, f128x3 row2, f128x3 row3) __attr_overloaded;
 NYA_API f128_4x4 nya_matrix_create(f128x4 row1, f128x4 row2, f128x4 row3, f128x4 row4) __attr_overloaded;
 
+#if !NYA_F16_IS_F32
 NYA_API f16_2x2  nya_matrix_create(f16 entries[2][2]) __attr_overloaded;
 NYA_API f16_3x3  nya_matrix_create(f16 entries[3][3]) __attr_overloaded;
 NYA_API f16_4x4  nya_matrix_create(f16 entries[4][4]) __attr_overloaded;
+#endif
 NYA_API f32_2x2  nya_matrix_create(f32 entries[2][2]) __attr_overloaded;
 NYA_API f32_3x3  nya_matrix_create(f32 entries[3][3]) __attr_overloaded;
 NYA_API f32_4x4  nya_matrix_create(f32 entries[4][4]) __attr_overloaded;
@@ -110,9 +114,11 @@ NYA_API f32_4x4 nya_matrix_look_at(f32x3 eye, f32x3 target, f32x3 up);
  * */
 NYA_API f32_4x4 nya_matrix_transform(f32x3 translation, f32_3x3 rotation, f32x3 scale) __attr_no_discard;
 
+#if !NYA_F16_IS_F32
 NYA_API f16x2  nya_matrix_times_vector(f16_2x2 mat, f16x2 vec) __attr_overloaded;
 NYA_API f16x3  nya_matrix_times_vector(f16_3x3 mat, f16x3 vec) __attr_overloaded;
 NYA_API f16x4  nya_matrix_times_vector(f16_4x4 mat, f16x4 vec) __attr_overloaded;
+#endif
 NYA_API f32x2  nya_matrix_times_vector(f32_2x2 mat, f32x2 vec) __attr_overloaded;
 NYA_API f32x3  nya_matrix_times_vector(f32_3x3 mat, f32x3 vec) __attr_overloaded;
 NYA_API f32x4  nya_matrix_times_vector(f32_4x4 mat, f32x4 vec) __attr_overloaded;

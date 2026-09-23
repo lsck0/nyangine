@@ -40,8 +40,13 @@ typedef __int128_t  s128;
 // the binary serde format and to reflection (both read sizeof), so this platform only serialises to
 // text. Guarded so the native build keeps _Float16 exactly.
 typedef float       f16;
+// f16 is now the same type as f32, so the two collapse: any function overloaded on both (nya_matrix_create,
+// nya_matrix_times_vector) would declare the same signature twice, and clang rejects that. Code that guards its
+// f16 overloads with !NYA_F16_IS_F32 keeps only the f32 twin here, which f16 arguments resolve to unchanged.
+#define NYA_F16_IS_F32 1
 #else
 typedef _Float16    f16;
+#define NYA_F16_IS_F32 0
 #endif
 typedef float       f32;
 typedef double      f64;

@@ -12,6 +12,7 @@
  * ─────────────────────────────────────────────────────────
  */
 
+#if !NYA_F16_IS_F32
 f16_2x2 nya_matrix_create(f16x2 row1, f16x2 row2) __attr_overloaded {
     f16_2x2 result;
 
@@ -62,6 +63,7 @@ f16_4x4 nya_matrix_create(f16x4 row1, f16x4 row2, f16x4 row3, f16x4 row4) __attr
     return result;
 }
 
+#endif
 f32_2x2 nya_matrix_create(f32x2 row1, f32x2 row2) __attr_overloaded {
     f32_2x2 result;
 
@@ -212,6 +214,7 @@ f128_4x4 nya_matrix_create(f128x4 row1, f128x4 row2, f128x4 row3, f128x4 row4) _
     return result;
 }
 
+#if !NYA_F16_IS_F32
 f16_2x2 nya_matrix_create(f16 entries[2][2]) __attr_overloaded {
     f16_2x2 result;
 
@@ -242,6 +245,7 @@ f16_4x4 nya_matrix_create(f16 entries[4][4]) __attr_overloaded {
     return result;
 }
 
+#endif
 f32_2x2 nya_matrix_create(f32 entries[2][2]) __attr_overloaded {
     f32_2x2 result;
 
@@ -338,6 +342,7 @@ f128_4x4 nya_matrix_create(f128 entries[4][4]) __attr_overloaded {
  * ─────────────────────────────────────────────────────────
  */
 
+#if !NYA_F16_IS_F32
 f16x2 nya_matrix_times_vector(f16_2x2 mat, f16x2 vec) __attr_overloaded {
     return (f16x2){
         mat[0][0] * vec[0] + mat[0][1] * vec[1],
@@ -362,6 +367,7 @@ f16x4 nya_matrix_times_vector(f16_4x4 mat, f16x4 vec) __attr_overloaded {
     };
 }
 
+#endif
 f32x2 nya_matrix_times_vector(f32_2x2 mat, f32x2 vec) __attr_overloaded {
     return (f32x2){
         mat[0][0] * vec[0] + mat[0][1] * vec[1],
