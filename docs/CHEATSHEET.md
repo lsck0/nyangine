@@ -699,6 +699,18 @@ NYA_Error nya_filesystem_temp_directory(NYA_Arena* arena, OUT NYA_String** out_p
 NYA_Error nya_filesystem_user_data_directory(NYA_Arena* arena, NYA_ConstCString application, OUT NYA_String** out_path)  // Per user writable location for saves and logs.
 ```
 
+### base_handle.h
+
+A handle is an index into a table and the generation that slot was on when the handle was made.
+
+```c
+// types
+struct NYA_EntityHandle { u32 index; u32 generation; }  // Identifies an entity for as long as it lives.
+
+// macros
+NYA_ENTITY_HANDLE_NONE
+```
+
 ### base_hash.h
 
 ```c
@@ -2762,13 +2774,11 @@ f32 nya_tween_progress(NYA_Tween tween)  // How far along a tween is, from 0 at 
 // types
 enum NYA_SocialProvider { NYA_SOCIAL_PROVIDER_NONE = 0, NYA_SOCIAL_PROVIDER_DISCORD, NYA_SOCIAL_PROVIDER_STEAM, NYA_SOCIAL_PROVIDER_COUNT, }  // Which friends service an invite, a join or a presence card went through.
 struct NYA_WindowHandle { u32 index; u32 generation; }  // Identifies a window for as long as it exists.
-struct NYA_EntityHandle { u32 index; u32 generation; }  // Identifies an entity for as long as it lives.
 enum NYA_InputDeviceKind { NYA_INPUT_DEVICE_KIND_NONE = 0, NYA_INPUT_DEVICE_KIND_KEYBOARD, NYA_INPUT_DEVICE_KIND_MOUSE, NYA_INPUT_DEVICE_KIND_GAMEPAD, NYA_INPUT_DEVICE_KIND_COUNT, }
 struct NYA_InputSource { NYA_InputDeviceKind kind; u32 id; }  // Which physical or virtual device an input event came from, so several people can play on one machine.
 
 // macros
 NYA_WINDOW_HANDLE_NONE
-NYA_ENTITY_HANDLE_NONE
 NYA_INPUT_SOURCE_NONE
 ```
 
