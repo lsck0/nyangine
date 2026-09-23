@@ -1171,9 +1171,12 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   client beside the rate limiter (`NYA_Request.breaker`, keyed like the limiter; open ⇒ `NYA_ERROR_TIMEOUT`,
   status 0, no socket). Test `test_circuit`. Different question from the limiter (over budget) and the backoff
   (when to retry a call still worth making).
-- `[ ]` **Idempotency keys in `http`** — an `Idempotency-Key` request layer + a bounded, self-expiring dedup
-  store that replays the first response for a repeated key, so a retried POST charges once. Server-side; the
-  client half (method-aware retry gating) already exists.
+- `[x]` **Idempotency keys in `http` (landed `6b7bab3`)** — `http_idempotency.{c,h}`: `nya_http_layer_idempotency`
+  + a fixed 128-entry, TTL-expiring, mutex-guarded store keyed by `Idempotency-Key`, fingerprinted by
+  BLAKE2b(method+path+body). Unsafe methods only: no entry ⇒ reserve/run/capture; same key+fingerprint ⇒ replay
+  the stored status+body (`Idempotency-Replayed: true`), handler NOT re-run; in-flight ⇒ 409; same key, different
+  body ⇒ 422; malformed key ⇒ 400. Added `NYA_HTTP_STATUS_CONFLICT`. Caller: a `web_server` notes route; test
+  `test_idempotency` (injected clock) green under ASan+LSan+UBSan.
 - `[ ]` **Reconnect-with-backoff + health routes** — the net/websocket clients reconnect on drop using
   `nya_backoff_ms` (full jitter) and, once reconnected, resubscribe; plus liveness/readiness routes on the HTTP
   server (a real handler behind the existing `health` route-tag concept), readiness gated on the breaker/db state.
