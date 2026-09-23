@@ -1,5 +1,5 @@
 /**
- * The ORM over the sqlite plugin: a schema from a reflection, every value bound rather than
+ * The db module's ORM: a schema from a reflection, every value bound rather than
  * formatted, rows back into structs through nya_reflect_from_object, and a drifted table refused.
  *
  * The described types here are written out by hand rather than annotated, because the generator only

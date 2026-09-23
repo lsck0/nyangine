@@ -28,7 +28,8 @@ Each is a directory under `src/nyangine/` with a `<module>.h` that includes the 
 | `testing` | Property tests, deterministic simulation, sessions, agents |
 | `nn` | Tensors, DQN, NEAT |
 | `debug` | Overlay, tracing, the crash reporter |
-| `plugins` | curl, sqlite, Lua, Discord, Steam, each behind a compile flag |
+| `db` | One database file: bound statements, a reflected struct as a row, derived migrations |
+| `plugins` | curl, Lua, Discord, Steam, each behind a compile flag |
 
 `src/gnyame/` is a small game that exists to exercise every engine feature. The rule is that a
 feature gets a caller there, not only a test — verification means running it.

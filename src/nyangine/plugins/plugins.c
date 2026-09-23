@@ -8,12 +8,6 @@
 #include "nyangine/plugins/discord_bot/discord_rest.c"
 #endif
 
-#ifdef NYA_PLUGIN_SQLITE
-#include "nyangine/plugins/sqlite/sql.c"
-// After sql.c, whose connection and bound values it is written in terms of.
-#include "nyangine/plugins/sqlite/orm.c"
-#endif
-
 // Always, for the reason in plugins.h. steam.c includes steam_steamworks.c itself, under
 // NYA_PLUGIN_STEAM, so the flat API symbols are named only in a build that links the library.
 #include "nyangine/plugins/steam/steam.c"

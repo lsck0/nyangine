@@ -145,15 +145,15 @@ NYA_API NYA_Error nya_save_delete(NYA_ConstCString relative) __attr_no_discard;
  * ─────────────────────────────────────────────────────────
  */
 
-#ifdef NYA_PLUGIN_SQLITE
+#ifdef NYA_MODULE_DB
 
 /**
- * Opens a SQLite database at `relative`, creating it and its directory. Same root, so it syncs under the same
- * Auto-Cloud rule. The rest is plugins/sqlite/sql.h.
+ * Opens a database at `relative`, creating it and its directory. Same root, so it syncs under the same
+ * Auto-Cloud rule. The rest is db/db_sql.h.
  * */
 NYA_API NYA_Error nya_save_database_open(NYA_Arena* arena, NYA_ConstCString relative, OUT NYA_Database** out_database) __attr_no_discard;
 
-#endif // NYA_PLUGIN_SQLITE
+#endif // NYA_MODULE_DB
 
 /*
  * ─────────────────────────────────────────────────────────

@@ -38,8 +38,9 @@ CompileFlags:
       # Without these every plugin source is an empty translation unit as far as clangd is concerned
       # — no diagnostics, no completion, no rename coverage — which is the same failure the headless
       # fragment below was added to fix. Three whole modules were being edited blind.
+      # The optional modules, mirroring FLAGS_MODULES: without it the whole db module is empty here.
+      -DNYA_MODULE_DB,
       -DNYA_PLUGIN_CURL,
-      -DNYA_PLUGIN_SQLITE,
       -DNYA_PLUGIN_DISCORD,
       -DNYA_PLUGIN_LUA,
       # The game's plugin permission profile, mirroring FLAGS_PLUGIN_PERMISSIONS in src/build/flags.h.

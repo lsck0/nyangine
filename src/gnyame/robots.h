@@ -40,7 +40,7 @@ struct GNY_RobotBody {
 /**
  * One finished training run, which is one row of GNY_ROBOT_DATABASE_FILE. The table is this struct:
  * the schema, the insert and the drift check all come from the reflection below, so growing a column
- * is adding a field here. See plugins/sqlite/orm.h.
+ * is adding a field here. See db/db_orm.h.
  * */
 // @reflect
 struct GNY_RobotRun {

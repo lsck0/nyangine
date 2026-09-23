@@ -1,5 +1,5 @@
 /**
- * @file orm.h
+ * @file db_orm.h
  *
  * A reflected struct, stored as a row. The schema comes from the `@reflect` table, the primary key
  * from the `@key` annotation on one of its fields, and every value crosses as a bound parameter.
@@ -153,7 +153,7 @@
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_reflection.h"
 #include "nyangine/base/base_types.h"
-#include "nyangine/plugins/sqlite/sql.h"
+#include "nyangine/db/db_sql.h"
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

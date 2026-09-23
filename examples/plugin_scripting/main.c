@@ -19,7 +19,6 @@
  * | :------ | :------------------- | :--------------------------------------------------------- |
  * | lua     | `NYA_PLUGIN_LUA`     | the VM below, and the generated `nya` table                 |
  * | curl    | `NYA_PLUGIN_CURL`    | blocking HTTP requests, client side only; nothing calls it  |
- * | sqlite  | `NYA_PLUGIN_SQLITE`  | works                                                      |
  * | discord | `NYA_PLUGIN_DISCORD` | built, never wired to a running client                      |
  * | steam   | `NYA_PLUGIN_STEAM`   | compiled and linked for the steam targets only              |
  *

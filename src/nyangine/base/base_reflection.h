@@ -196,7 +196,7 @@ struct NYA_ReflectField {
      *
      * Nothing in this module reads it. An annotation is a fact about the source and this table is
      * where facts about the source land, so the flag lives here and the consumer that acts on it is
-     * elsewhere; the sqlite ORM is the one that exists, see plugins/sqlite/orm.h.
+     * elsewhere; the ORM in db/db_orm.h is the one that exists.
      * */
     b8 is_key;
 

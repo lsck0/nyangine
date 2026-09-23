@@ -1,5 +1,5 @@
 /**
- * @file sql.h
+ * @file db_sql.h
  *
  * Example:
  * ```c

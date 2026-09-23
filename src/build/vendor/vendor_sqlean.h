@@ -7,11 +7,11 @@
  * are compiled into the program and registered with sqlite3_auto_extension, as SQLite intends for
  * static use.
  *
- * The compiled file is src/nyangine/plugins/sqlite/sqlean_extensions.c, which includes the chosen
+ * The compiled file is src/nyangine/db/db_extensions.c, which includes the chosen
  * vendored sources and exposes `nya_sqlean_init`; it lists which extensions are in and why. Built
  * here, not in the unity build, so third party code is not held to the engine's warnings.
  *
- * Always built and linked. With NYA_PLUGIN_SQLITE off nothing references `nya_sqlean_init`, so the
+ * Always built and linked. With NYA_MODULE_DB off nothing references `nya_sqlean_init`, so the
  * linker pulls in nothing.
  *
  * This archive calls into libsqlite3.a, so it must come before it in the link. See vendor.h.
@@ -29,13 +29,13 @@
 #define SQLEAN_SOURCE "./vendor/sqlean/src"
 
 /** The one file compiled here. In this repository, not in the submodule; see the note above. */
-#define SQLEAN_GLUE_SOURCE "./src/nyangine/plugins/sqlite/sqlean_extensions.c"
+#define SQLEAN_GLUE_SOURCE "./src/nyangine/db/db_extensions.c"
 
 #define SQLEAN_BUILD_LINUX_X86_64   "./vendor/sqlean/build-linux-x86_64/"
 #define SQLEAN_BUILD_WINDOWS_X86_64 "./vendor/sqlean/build-windows-x86_64/"
 
-#define SQLEAN_O_LINUX_X86_64   SQLEAN_BUILD_LINUX_X86_64 "sqlean_extensions.o"
-#define SQLEAN_O_WINDOWS_X86_64 SQLEAN_BUILD_WINDOWS_X86_64 "sqlean_extensions.o"
+#define SQLEAN_O_LINUX_X86_64   SQLEAN_BUILD_LINUX_X86_64 "db_extensions.o"
+#define SQLEAN_O_WINDOWS_X86_64 SQLEAN_BUILD_WINDOWS_X86_64 "db_extensions.o"
 
 #define SQLEAN_A_LINUX_X86_64   SQLEAN_BUILD_LINUX_X86_64 "libsqlean.a"
 #define SQLEAN_A_WINDOWS_X86_64 SQLEAN_BUILD_WINDOWS_X86_64 "libsqlean.a"

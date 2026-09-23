@@ -1,5 +1,5 @@
 /**
- * @file sqlean_extensions.c
+ * @file db_extensions.c
  * */
 
 // SQLITE_CORE is what tells sqlite3ext.h these are compiled into the program rather than loaded, so
@@ -7,7 +7,7 @@
 // dispatch pointer. The build rule passes it; asserting it here means a misconfigured rule fails
 // with this sentence instead of at link time on a missing sqlite3_api symbol.
 #ifndef SQLITE_CORE
-#error "sqlean_extensions.c must be compiled with -DSQLITE_CORE, see vendor_sqlean.h"
+#error "db_extensions.c must be compiled with -DSQLITE_CORE, see vendor_sqlean.h"
 #endif
 
 #include "sqlite3ext.h"

@@ -11,6 +11,11 @@
 #include "nyangine/nn/nn.h"
 #include "nyangine/platform/platform.h"
 #include "nyangine/permission/permission.h"
+#ifdef NYA_MODULE_DB
+// Above base and crypto, below net, http and everything that stores anything. Behind a flag until
+// the component system lands, because it wants sqlite on the include line and a host tool has none.
+#include "nyangine/db/db.h"
+#endif
 #include "nyangine/plugins/plugins.h"
 #include "nyangine/serde/serde.h"
 

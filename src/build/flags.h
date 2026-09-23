@@ -107,9 +107,17 @@
 #define LINKER_FLAGS  "-lm", "-pthread"
 
 /*
- * Which optional plugins the *project* compiles. See src/nyangine/plugins/plugins.h.
+ * Which engine modules are optional today. `db` wants sqlite on the include line, which a host tool
+ * build does not have, so it is switched on here rather than compiled unconditionally by
+ * nyangine.h. The component system in TODO.md's roadmap replaces this with a component list.
  */
-#define FLAGS_PLUGINS "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_SQLITE", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA", FLAGS_PLUGIN_PERMISSIONS
+#define FLAGS_MODULES "-DNYA_MODULE_DB"
+
+/*
+ * Which optional plugins the *project* compiles. See src/nyangine/plugins/plugins.h. The optional
+ * modules ride along, so every rule that compiles the project passes both with one macro.
+ */
+#define FLAGS_PLUGINS FLAGS_MODULES, "-DNYA_PLUGIN_CURL", "-DNYA_PLUGIN_DISCORD", "-DNYA_PLUGIN_LUA", FLAGS_PLUGIN_PERMISSIONS
 
 /*
  * The game's one decision about what a Lua plugin may touch, fixed here and nowhere else: nothing at

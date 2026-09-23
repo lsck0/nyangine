@@ -46,7 +46,7 @@ b8 nya_orm_column_type(const NYA_TypeReflection* type, OUT NYA_OrmColumnType* ou
 
     if (type->kind == NYA_REFLECT_ENUM) {
         // A set of flags is written by reflection as a list of names, and a list is not a column, so
-        // the flags stay the integer they are in the struct. A plain enum keeps its name; see orm.h.
+        // the flags stay the integer they are in the struct. A plain enum keeps its name; see db_orm.h.
         *out_column = type->is_bitflags ? NYA_ORM_COLUMN_INTEGER : NYA_ORM_COLUMN_TEXT;
         return true;
     }
@@ -253,7 +253,7 @@ u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user
         }
     }
 
-    // The other direction. A warning rather than a failure, for the reason in orm.h: every statement
+    // The other direction. A warning rather than a failure, for the reason in db_orm.h: every statement
     // here names its columns, so a column no field describes is never read and never written.
     for (u32 c = 0; c < actual_count; c++) {
         b8 described = false;
@@ -303,19 +303,19 @@ NYA_Error nya_orm_schema_create(NYA_OrmTable* table) {
         }
 
         if (found == nullptr) {
-            return nya_error(NYA_ERROR_CORRUPT, "'%s' has no column '%s'; see the migration note in orm.h", table->name, field->name);
+            return nya_error(NYA_ERROR_CORRUPT, "'%s' has no column '%s'; see the migration note in db_orm.h", table->name, field->name);
         }
 
         NYA_String* declared = nya_string_from(&scratch, found->type);
         nya_string_to_upper(declared);
 
         if (!nya_string_equals(declared, NYA_ORM_COLUMN_TYPE_NAME_MAP[column])) {
-            return nya_error(NYA_ERROR_CORRUPT, "'%s.%s' is declared %s, not %s; see the migration note in orm.h", table->name, field->name,
+            return nya_error(NYA_ERROR_CORRUPT, "'%s.%s' is declared %s, not %s; see the migration note in db_orm.h", table->name, field->name,
                              found->type, NYA_ORM_COLUMN_TYPE_NAME_MAP[column]);
         }
 
         if (field == table->key && !found->is_primary_key) {
-            return nya_error(NYA_ERROR_CORRUPT, "'%s.%s' is not the table's primary key; see the migration note in orm.h", table->name,
+            return nya_error(NYA_ERROR_CORRUPT, "'%s.%s' is not the table's primary key; see the migration note in db_orm.h", table->name,
                              field->name);
         }
     }
@@ -484,7 +484,7 @@ NYA_Error nya_orm_select(
 
     NYA_ConstCString sql = table->sql_select;
 
-    // The only string a caller contributes, and it is SQL rather than data; see orm.h. Values are
+    // The only string a caller contributes, and it is SQL rather than data; see db_orm.h. Values are
     // bound to the `?` in it, and nya_sql_query checks that there are as many as it takes.
     if (clauses != nullptr && clauses[0] != '\0') {
         NYA_String* whole = nya_string_sprintf(arena, "%s %s", table->sql_select, clauses);
@@ -572,7 +572,7 @@ NYA_Error _nya_orm_build_statements(NYA_OrmTable* table, NYA_Arena* arena) {
 
         NYA_ConstCString separator = i > 0 ? ", " : "";
 
-        // Nothing but the type and, for the key, PRIMARY KEY. See orm.h for why no constraint this
+        // Nothing but the type and, for the key, PRIMARY KEY. See db_orm.h for why no constraint this
         // module does not rely on is declared here.
         nya_string_extend_sprintf(definitions, "%s%s %s%s", separator, field->name, NYA_ORM_COLUMN_TYPE_NAME_MAP[column],
                                   field == table->key ? " PRIMARY KEY" : "");

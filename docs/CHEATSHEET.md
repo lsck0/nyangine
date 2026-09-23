@@ -23,6 +23,7 @@ Anything spelled `_nya_` or `_NYA_`, or marked `NYA_INTERNAL`, is private and no
 - [`crypto`](#crypto) — Hashes, MACs, AEAD, X25519, Ed25519, Argon2id and base32, over monocypher and its vectors.
 - [`nn`](#nn) — Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else.
 - [`permission`](#permission) — Who may do what to which thing: roles, ranks, overwrites, one resolver, one audit.
+- [`db`](#db) — One database file: bound statements, a reflected struct as a row, derived migrations.
 - [`debug`](#debug) — The overlay, the trace, the crash window, and drawing physics shapes and networks.
 - [`plugins`](#plugins) — Optional dependencies behind a flag: curl, sqlite, lua, discord, steam.
 - [`platform`](#platform) — What the host is, and how to talk to it: signals, the terminal and ipc.
@@ -2348,7 +2349,7 @@ NYA_Error nya_save_write(NYA_ConstCString relative, const NYA_Object* object, NY
 NYA_Error nya_save_read(NYA_Arena* arena, NYA_ConstCString relative, NYA_SerdeFlags flags, OUT NYA_Object** out_object)  // Reads an object from `relative`, allocated from `arena`.
 b8 nya_save_exists(NYA_ConstCString relative)
 NYA_Error nya_save_delete(NYA_ConstCString relative)  // Harmless on a missing file, so deleting a slot twice is safe.
-NYA_Error nya_save_database_open(NYA_Arena* arena, NYA_ConstCString relative, OUT NYA_Database** out_database)  // Opens a SQLite database at `relative`, creating it and its directory.
+NYA_Error nya_save_database_open(NYA_Arena* arena, NYA_ConstCString relative, OUT NYA_Database** out_database)  // Opens a database at `relative`, creating it and its directory.
 u32 nya_save_version(const NYA_Object* object)  // The version an object declares, or zero when it declares none, which is how files from before versioning read.
 ```
 
@@ -5577,6 +5578,68 @@ b8 nya_permission_audit_at(const NYA_Permissions* permissions, u32 index, OUT NY
 u64 nya_permission_audit_dropped(const NYA_Permissions* permissions)  // How many entries the ring has dropped since the table was made, which a report says out loud.
 ```
 
+## db
+
+One database file: bound statements, a reflected struct as a row, derived migrations.
+
+### db_orm.h
+
+A reflected struct, stored as a row. The schema comes from the `@reflect` table, the primary key
+
+```c
+// types
+enum NYA_OrmColumnType { NYA_ORM_COLUMN_INTEGER, NYA_ORM_COLUMN_REAL, NYA_ORM_COLUMN_TEXT, NYA_ORM_COLUMN_COUNT, }  // The sqlite storage classes a described field can map to.
+typedef void (*NYA_OrmReportFn)(NYA_ConstCString column, NYA_ConstCString found, NYA_ConstCString expected, void* user_data)  // One difference between the table and the struct.
+struct NYA_OrmTable { NYA_Database* database; const NYA_TypeReflection* type; char name[NYA_ORM_NAME_MAX]; const NYA_ReflectField* key; b8 key_is_integer; const NYA_ReflectField* columns[NYA_ORM_COLUMN_MAX]; u32 column_count; u32 key_index; NYA_ConstCString sql_create; NYA_ConstCString sql_insert; NYA_ConstCString sql_insert_assigned; NYA_ConstCString sql_update; NYA_ConstCString sql_delete; NYA_ConstCString sql_select; NYA_ConstCString sql_find; }  // One described type bound to one table.
+
+// macros
+NYA_ORM_COLUMN_MAX 64  // Columns one table may have, which is fields one described type may have.
+NYA_ORM_NAME_MAX 64  // Longest table name, terminator included.
+nya_orm_at(table, instances, index)  // The `index`-th struct of what nya_orm_select returned.
+
+// functions
+b8 nya_orm_column_type(const NYA_TypeReflection* type, OUT NYA_OrmColumnType* out_column)  // Which column type describes `type`, or false when nothing does.
+NYA_Error nya_orm_open( NYA_Arena* arena, NYA_Database* database, const NYA_TypeReflection* type, NYA_ConstCString table_name, OUT NYA_OrmTable** out_table )  // Binds `type` to the table called `table_name` on `database`, building every statement into `arena`.
+void nya_orm_close(NYA_OrmTable* table)  // Releases the binding.
+NYA_Error nya_orm_schema_create(NYA_OrmTable* table)
+NYA_Error nya_orm_schema_destroy(NYA_OrmTable* table)
+u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user_data)
+NYA_Error nya_orm_insert(NYA_OrmTable* table, void* instance)  // Inserts `instance` as one row, every field bound to a parameter.
+NYA_Error nya_orm_update(NYA_OrmTable* table, const void* instance)  // Writes every non-key column of the row whose key `instance` holds.
+NYA_Error nya_orm_delete(NYA_OrmTable* table, NYA_SqlValue key)  // Deletes the row with `key`.
+NYA_Error nya_orm_find(NYA_OrmTable* table, NYA_Arena* arena, NYA_SqlValue key, OUT void* out_instance)  // Reads the row with `key` over `out_instance`, which is zeroed first and must be `type->size` bytes.
+NYA_Error nya_orm_select( NYA_OrmTable* table, NYA_Arena* arena, NYA_ConstCString clauses, const NYA_SqlValue* values, u32 value_count, OUT void** out_instances, OUT u32* out_count )
+```
+
+### db_sql.h
+
+```c
+// types
+typedef NYA_Object* NYA_SqlRow  // One row.
+enum NYA_SqlValueKind { NYA_SQL_VALUE_NULL, NYA_SQL_VALUE_S64, NYA_SQL_VALUE_F64, NYA_SQL_VALUE_TEXT, NYA_SQL_VALUE_BLOB, NYA_SQL_VALUE_COUNT, }
+struct NYA_SqlValue { NYA_SqlValueKind kind; union { s64 as_s64; f64 as_f64; NYA_ConstCString as_text; struct { const u8* data; u64 size; } as_blob; }; }  // One bound parameter.
+struct NYA_SqlResult { NYA_ArrayᐸNYA_SqlRowᐳ* rows; u64 rows_affected; s64 last_insert_id; }
+
+// macros
+nya_sql_null()
+nya_sql_s64(value)
+nya_sql_f64(value)
+nya_sql_text(value)
+nya_sql_blob(ptr, len)
+
+// functions
+NYA_Error nya_sql_open(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_Database** out_database)  // Opens `path`, creating it if it is not there.
+void nya_sql_close(NYA_Database* database)  // Closes the connection.
+NYA_Error nya_sql_exec(NYA_Database* database, NYA_ConstCString sql)  // Runs a statement that returns no rows.
+NYA_Error nya_sql_exec_bound(NYA_Database* database, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count)  // One statement, with parameters bound to its `?` placeholders.
+NYA_Error nya_sql_query( NYA_Database* database, NYA_Arena* arena, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count, OUT NYA_SqlResult* out_result )  // Runs one statement and collects every row into `out_result`.
+NYA_Error nya_sql_transaction_begin(NYA_Database* database)
+NYA_Error nya_sql_transaction_commit(NYA_Database* database)
+NYA_Error nya_sql_transaction_rollback(NYA_Database* database)
+NYA_ConstCString nya_sql_version(void)  // The library version SQLite reports, for a log line or a bug report.
+NYA_ConstCString nya_sql_vec_version(void)  // The sqlite-vec version linked in, in upstream's `vX.Y.Z` form.
+```
+
 ## debug
 
 The overlay, the trace, the crash window, and drawing physics shapes and networks.
@@ -5944,64 +6007,6 @@ void nya_lua_open_engine(NYA_LuaVM* vm)  // Puts the engine's `nya` table in fro
 void nya_lua_open_engine_permitted(NYA_LuaVM* vm, NYA_PluginPermission permissions)  // The same table with only the calls `permissions` allows, which is what a plugin gets.
 u64 nya_lua_memory_bytes(const NYA_LuaVM* vm)  // Bytes LuaJIT currently has allocated.
 void nya_lua_collect(NYA_LuaVM* vm)  // Runs a full garbage collection cycle.
-```
-
-### orm.h
-
-A reflected struct, stored as a row. The schema comes from the `@reflect` table, the primary key
-
-```c
-// types
-enum NYA_OrmColumnType { NYA_ORM_COLUMN_INTEGER, NYA_ORM_COLUMN_REAL, NYA_ORM_COLUMN_TEXT, NYA_ORM_COLUMN_COUNT, }  // The sqlite storage classes a described field can map to.
-typedef void (*NYA_OrmReportFn)(NYA_ConstCString column, NYA_ConstCString found, NYA_ConstCString expected, void* user_data)  // One difference between the table and the struct.
-struct NYA_OrmTable { NYA_Database* database; const NYA_TypeReflection* type; char name[NYA_ORM_NAME_MAX]; const NYA_ReflectField* key; b8 key_is_integer; const NYA_ReflectField* columns[NYA_ORM_COLUMN_MAX]; u32 column_count; u32 key_index; NYA_ConstCString sql_create; NYA_ConstCString sql_insert; NYA_ConstCString sql_insert_assigned; NYA_ConstCString sql_update; NYA_ConstCString sql_delete; NYA_ConstCString sql_select; NYA_ConstCString sql_find; }  // One described type bound to one table.
-
-// macros
-NYA_ORM_COLUMN_MAX 64  // Columns one table may have, which is fields one described type may have.
-NYA_ORM_NAME_MAX 64  // Longest table name, terminator included.
-nya_orm_at(table, instances, index)  // The `index`-th struct of what nya_orm_select returned.
-
-// functions
-b8 nya_orm_column_type(const NYA_TypeReflection* type, OUT NYA_OrmColumnType* out_column)  // Which column type describes `type`, or false when nothing does.
-NYA_Error nya_orm_open( NYA_Arena* arena, NYA_Database* database, const NYA_TypeReflection* type, NYA_ConstCString table_name, OUT NYA_OrmTable** out_table )  // Binds `type` to the table called `table_name` on `database`, building every statement into `arena`.
-void nya_orm_close(NYA_OrmTable* table)  // Releases the binding.
-NYA_Error nya_orm_schema_create(NYA_OrmTable* table)
-NYA_Error nya_orm_schema_destroy(NYA_OrmTable* table)
-u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user_data)
-NYA_Error nya_orm_insert(NYA_OrmTable* table, void* instance)  // Inserts `instance` as one row, every field bound to a parameter.
-NYA_Error nya_orm_update(NYA_OrmTable* table, const void* instance)  // Writes every non-key column of the row whose key `instance` holds.
-NYA_Error nya_orm_delete(NYA_OrmTable* table, NYA_SqlValue key)  // Deletes the row with `key`.
-NYA_Error nya_orm_find(NYA_OrmTable* table, NYA_Arena* arena, NYA_SqlValue key, OUT void* out_instance)  // Reads the row with `key` over `out_instance`, which is zeroed first and must be `type->size` bytes.
-NYA_Error nya_orm_select( NYA_OrmTable* table, NYA_Arena* arena, NYA_ConstCString clauses, const NYA_SqlValue* values, u32 value_count, OUT void** out_instances, OUT u32* out_count )
-```
-
-### sql.h
-
-```c
-// types
-typedef NYA_Object* NYA_SqlRow  // One row.
-enum NYA_SqlValueKind { NYA_SQL_VALUE_NULL, NYA_SQL_VALUE_S64, NYA_SQL_VALUE_F64, NYA_SQL_VALUE_TEXT, NYA_SQL_VALUE_BLOB, NYA_SQL_VALUE_COUNT, }
-struct NYA_SqlValue { NYA_SqlValueKind kind; union { s64 as_s64; f64 as_f64; NYA_ConstCString as_text; struct { const u8* data; u64 size; } as_blob; }; }  // One bound parameter.
-struct NYA_SqlResult { NYA_ArrayᐸNYA_SqlRowᐳ* rows; u64 rows_affected; s64 last_insert_id; }
-
-// macros
-nya_sql_null()
-nya_sql_s64(value)
-nya_sql_f64(value)
-nya_sql_text(value)
-nya_sql_blob(ptr, len)
-
-// functions
-NYA_Error nya_sql_open(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_Database** out_database)  // Opens `path`, creating it if it is not there.
-void nya_sql_close(NYA_Database* database)  // Closes the connection.
-NYA_Error nya_sql_exec(NYA_Database* database, NYA_ConstCString sql)  // Runs a statement that returns no rows.
-NYA_Error nya_sql_exec_bound(NYA_Database* database, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count)  // One statement, with parameters bound to its `?` placeholders.
-NYA_Error nya_sql_query( NYA_Database* database, NYA_Arena* arena, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count, OUT NYA_SqlResult* out_result )  // Runs one statement and collects every row into `out_result`.
-NYA_Error nya_sql_transaction_begin(NYA_Database* database)
-NYA_Error nya_sql_transaction_commit(NYA_Database* database)
-NYA_Error nya_sql_transaction_rollback(NYA_Database* database)
-NYA_ConstCString nya_sql_version(void)  // The library version SQLite reports, for a log line or a bug report.
-NYA_ConstCString nya_sql_vec_version(void)  // The sqlite-vec version linked in, in upstream's `vX.Y.Z` form.
 ```
 
 ### steam.h

@@ -50,6 +50,7 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | `platform` | signals, the terminal, ipc, what the host is                                 |
 | `math`     | scalars, vectors, matrices, quaternions, shapes, noise, random, springs       |
 | `crypto`   | hashes, HMAC, XChaCha20-Poly1305, X25519, Ed25519, Argon2id, base32, TOTP; monocypher |
+| `db`       | one database file: bound statements, a reflected struct as a row, derived migrations |
 | `core`     | the app loop, entities, systems, events, input, audio, assets, config, saves  |
 | `renderer` | 2D and 3D drawing, cameras, text, particles, post processing, three backends  |
 | `ui`       | immediate mode widgets                                                       |
@@ -59,13 +60,14 @@ Engine modules, each a directory under `src/nyangine/` with a `<module>.h` that 
 | `serde`    | one dynamic value type, to and from json, jsonc and `.nya` (text and binary)  |
 | `nn`       | tensors, layers, optimizers, DQN, NEAT                                       |
 | `debug`    | the overlay, the trace, the crash window, and drawing physics and networks   |
-| `plugins`  | optional dependencies behind a flag: curl, sqlite, lua, discord, steam        |
+| `plugins`  | optional dependencies behind a flag: curl, lua, discord, steam                |
 
 Not in the engine yet, and planned in `TODO.md`'s roadmap: the module layering and the component
 system (every module above `base`, `platform` and `math` added or removed by one line in
 `assets/config/plugins.nya`), a wasm target with a WebGPU renderer and a DOM UI presenter, TLS, the
-accounts, roles and sessions stack, and SQLCipher. Do not describe any of it as if it exists; the
-layout above and the flags below are how the tree works today.
+accounts, roles and sessions stack, and SQLCipher, which `db` has the seam for and not the cipher. Do
+not describe any of it as if it exists; the layout above and the flags below are how the tree works
+today.
 
 ### The three 2D backends
 

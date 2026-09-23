@@ -14,6 +14,12 @@
 // below net and http, both of which ask it the same question a game asks it. No SDL and no sockets.
 #include "nyangine/permission/permission.c"
 
+// After crypto, which a keyed database will draw its key handling from, and before everything that
+// stores anything. Behind its flag for the reason nyangine.h gives.
+#ifdef NYA_MODULE_DB
+#include "nyangine/db/db.c"
+#endif
+
 // Each plugin is behind its own NYA_PLUGIN_* flag; see plugins.h.
 #include "nyangine/plugins/plugins.c"
 

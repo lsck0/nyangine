@@ -111,6 +111,7 @@ NYA_INTERNAL const _NYA_CheatModule _NYA_CHEATSHEET_MODULES[] = {
     { "crypto",   "crypto",   "Hashes, MACs, AEAD, X25519, Ed25519, Argon2id and base32, over monocypher and its vectors." },
     { "nn",       "nn",       "Tensors, layers, optimizers, DQN and NEAT. A library above math and nothing else."        },
     { "permission", "permission", "Who may do what to which thing: roles, ranks, overwrites, one resolver, one audit."  },
+    { "db",       "db",       "One database file: bound statements, a reflected struct as a row, derived migrations." },
     { "debug",    "debug",    "The overlay, the trace, the crash window, and drawing physics shapes and networks."        },
     { "plugins",  "plugins",  "Optional dependencies behind a flag: curl, sqlite, lua, discord, steam."                  },
     { "platform", "platform", "What the host is, and how to talk to it: signals, the terminal and ipc."                 },

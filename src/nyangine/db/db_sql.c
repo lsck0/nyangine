@@ -20,7 +20,7 @@ struct NYA_Database {
 };
 
 /**
- * The sqlean bundle's entry point, defined in sqlean_extensions.c.
+ * The sqlean bundle's entry point, defined in db_extensions.c.
  * */
 extern int nya_sqlean_init(sqlite3* db, char** error_message, const sqlite3_api_routines* api);
 

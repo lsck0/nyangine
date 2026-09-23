@@ -1,5 +1,5 @@
 /**
- * The SQLite plugin: rows as NYA_Object, bound parameters, transactions.
+ * The db module's connection: rows as NYA_Object, bound parameters, transactions.
  **/
 
 #include "nyangine/nyangine.c"

@@ -182,7 +182,7 @@ NYA_Error nya_save_delete(NYA_ConstCString relative) {
  * ─────────────────────────────────────────────────────────
  */
 
-#ifdef NYA_PLUGIN_SQLITE
+#ifdef NYA_MODULE_DB
 
 NYA_Error nya_save_database_open(NYA_Arena* arena, NYA_ConstCString relative, OUT NYA_Database** out_database) {
     nya_assert(arena != nullptr);
@@ -202,7 +202,7 @@ NYA_Error nya_save_database_open(NYA_Arena* arena, NYA_ConstCString relative, OU
     return nya_sql_open(arena, path_cstring, out_database);
 }
 
-#endif // NYA_PLUGIN_SQLITE
+#endif // NYA_MODULE_DB
 
 /*
  * ─────────────────────────────────────────────────────────
