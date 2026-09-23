@@ -171,6 +171,35 @@
 // the tool would need SDL on the link line to build SDL, which is a bootstrap it cannot satisfy.
 #define FLAGS_BUILD_TOOL "-DNYA_NO_SDL"
 
+/*
+ * The WebAssembly target, the seed of the CSR path. Off the critical path and its own command like
+ * `./build vendor`: emcc is not part of the default toolchain and not every checkout has it, so
+ * nothing here is reached by a native build or by `./build check`. See wasm_runner.
+ *
+ * A set of flags of its own rather than CFLAGS: CFLAGS carries -mavx/-mfma/-mf16c and -fenable-matrix,
+ * which are x86 and which emcc rejects. What the demo needs is the wasm target's own list below.
+ */
+#define EMCC                   "emcc"
+#define WASM_OUTPUT_DIRECTORY  "./web"
+#define WASM_DEMO_SOURCE       "./src/web/wasm_demo.c"
+// emcc derives the .wasm from the .js stem, so naming the .js names both; the verifier checks each.
+#define WASM_JS_OUTPUT         WASM_OUTPUT_DIRECTORY "/nyangine.js"
+#define WASM_WASM_OUTPUT       WASM_OUTPUT_DIRECTORY "/nyangine.wasm"
+// The one C symbol the page calls. Named here so the -sEXPORTED_FUNCTIONS below and the verifier that
+// greps the loader for it cannot drift apart.
+#define WASM_EXPORTED_SYMBOL   "nyangine_demo"
+
+// MODULARIZE so the loader is a factory the page instantiates when it chooses, and ENVIRONMENT=web,node
+// so the same .js both loads in a browser and runs under node, which is how `./build wasm` verifies it.
+// ALLOW_MEMORY_GROWTH because the demo's arena is a static page and the module should not fail a larger
+// document later. No CFLAGS: see the comment above.
+#define FLAGS_WASM                                                     \
+    "-std=c2y", "-O2",                                                 \
+    "-sEXPORTED_FUNCTIONS=_" WASM_EXPORTED_SYMBOL,                     \
+    "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,UTF8ToString",             \
+    "-sMODULARIZE=1", "-sEXPORT_NAME=createNyangineModule",            \
+    "-sENVIRONMENT=web,node", "-sALLOW_MEMORY_GROWTH=1"
+
 // Runs the engine with the drawing compiled out. Everything else still runs, so a test exercises
 // the real frame loop; there is just no GPU device to create, which is what CI cannot provide.
 #define FLAGS_HEADLESS "-DNYA_HEADLESS"

@@ -1,0 +1,79 @@
+<!doctype html>
+<!--
+  The CSR entry point: a plain page that loads the wasm module `./build wasm` produces and calls one
+  exported C function. No framework on purpose — this is the thinnest possible proof that the engine's
+  headless slice runs in a browser and talks to JavaScript, and the seed the real client-side renderer
+  grows from.
+
+  Serve it, do not open it as a file:// — a wasm module is fetched over HTTP, which file:// does not
+  satisfy. From the repo root, after `./build wasm`:
+
+      python3 -m http.server -d web 8000     # then open http://localhost:8000/
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nyangine · wasm</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font: 15px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        background: #0f1117;
+        color: #e6e6e6;
+      }
+      main { width: min(640px, 90vw); }
+      h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem; color: #9db4ff; }
+      p { margin: 0 0 1rem; color: #9aa0aa; }
+      /* The one thing that matters on the page: what the C function returned, pretty-printed. */
+      pre {
+        margin: 0;
+        padding: 1rem 1.25rem;
+        border-radius: 10px;
+        background: #171a22;
+        border: 1px solid #262a35;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .status { margin-top: 1rem; font-size: 0.85rem; }
+      .ok { color: #7ee787; }
+      .err { color: #ff7b72; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>nyangine → WebAssembly</h1>
+      <p>Output of <code>nyangine_demo()</code>, a C function compiled to wasm and called from JavaScript:</p>
+      <pre id="output">loading…</pre>
+      <p class="status" id="status"></p>
+    </main>
+
+    <!-- Emscripten emits this loader beside nyangine.wasm. MODULARIZE means it defines a factory
+         rather than running on load, so the page decides when to instantiate. -->
+    <script src="./nyangine.js"></script>
+    <script>
+      const output = document.getElementById("output");
+      const status = document.getElementById("status");
+
+      createNyangineModule()
+        .then((Module) => {
+          // cwrap binds the exported C symbol once; 'string' reads the returned char* out of the
+          // module's linear memory as a JS string. The same call the CSR path will make per frame.
+          const demo = Module.cwrap("nyangine_demo", "string", []);
+          const json = demo();
+
+          // Pretty-print so the structure is readable; the raw string is what C actually returned.
+          output.textContent = JSON.stringify(JSON.parse(json), null, 2);
+          status.innerHTML = '<span class="ok">✓ wasm module loaded and called</span>';
+        })
+        .catch((error) => {
+          output.textContent = String(error);
+          status.innerHTML = '<span class="err">✗ failed to load the wasm module — is it served over HTTP?</span>';
+        });
+    </script>
+  </body>
+</html>
