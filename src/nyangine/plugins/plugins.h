@@ -7,6 +7,9 @@
 #include "nyangine/plugins/curl/request.h"
 // After request.h: a websocket's options reuse NYA_RequestHeader rather than restating it.
 #include "nyangine/plugins/curl/websocket.h"
+// The Discord bot client, which is curl's dependent and not NYA_PLUGIN_DISCORD's: that flag is the
+// GameSDK below, which a bot has nothing to do with. See discord_bot/discord_gateway.h.
+#include "nyangine/plugins/discord_bot/discord_gateway.h"
 #endif
 
 #ifdef NYA_PLUGIN_SQLITE

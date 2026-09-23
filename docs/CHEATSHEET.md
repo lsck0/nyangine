@@ -5830,6 +5830,44 @@ b8 nya_discord_poll(OUT NYA_DiscordEvent* out_event)  // Drains one queued event
 NYA_Error nya_discord_join_reply(NYA_ConstCString user_id, b8 accept)
 ```
 
+### discord_gateway.h
+
+The Discord bot gateway: the long lived `wss` connection a bot user holds open, over which Discord
+
+```c
+// types
+typedef enum { NYA_DISCORD_INTENT_GUILDS = 1U << 0, NYA_DISCORD_INTENT_GUILD_MEMBERS = 1U << 1, NYA_DISCORD_INTENT_GUILD_MODERATION = 1U << 2, NYA_DISCORD_INTENT_GUILD_EXPRESSIONS = 1U << 3, NYA_DISCORD_INTENT_GUILD_INTEGRATIONS = 1U << 4, NYA_DISCORD_INTENT_GUILD_WEBHOOKS = 1U << 5, NYA_DISCORD_INTENT_GUILD_INVITES = 1U << 6, NYA_DISCORD_INTENT_GUILD_VOICE_STATES = 1U << 7, NYA_DISCORD_INTENT_GUILD_PRESENCES = 1U << 8, NYA_DISCORD_INTENT_GUILD_MESSAGES = 1U << 9, NYA_DISCORD_INTENT_GUILD_MESSAGE_REACTIONS = 1U << 10, NYA_DISCORD_INTENT_GUILD_MESSAGE_TYPING = 1U << 11, NYA_DISCORD_INTENT_DIRECT_MESSAGES = 1U << 12, NYA_DISCORD_INTENT_DIRECT_MESSAGE_REACTIONS = 1U << 13, NYA_DISCORD_INTENT_DIRECT_MESSAGE_TYPING = 1U << 14, NYA_DISCORD_INTENT_MESSAGE_CONTENT = 1U << 15, NYA_DISCORD_INTENT_GUILD_SCHEDULED_EVENTS = 1U << 16, NYA_DISCORD_INTENT_AUTO_MODERATION_CONFIGURATION = 1U << 20, NYA_DISCORD_INTENT_AUTO_MODERATION_EXECUTION = 1U << 21, NYA_DISCORD_INTENT_GUILD_MESSAGE_POLLS = 1U << 24, NYA_DISCORD_INTENT_DIRECT_MESSAGE_POLLS = 1U << 25, } NYA_DiscordIntent  // Which events Discord sends, as the bitmask IDENTIFY carries.
+enum NYA_DiscordGatewayState { NYA_DISCORD_GATEWAY_STATE_IDLE = 0, NYA_DISCORD_GATEWAY_STATE_CONNECTING, NYA_DISCORD_GATEWAY_STATE_IDENTIFYING, NYA_DISCORD_GATEWAY_STATE_READY, NYA_DISCORD_GATEWAY_STATE_FATAL, NYA_DISCORD_GATEWAY_STATE_COUNT, }
+enum NYA_DiscordGatewayEventKind { NYA_DISCORD_GATEWAY_EVENT_NONE = 0, NYA_DISCORD_GATEWAY_EVENT_READY, NYA_DISCORD_GATEWAY_EVENT_RESUMED, NYA_DISCORD_GATEWAY_EVENT_DISPATCH, NYA_DISCORD_GATEWAY_EVENT_DISCONNECTED, NYA_DISCORD_GATEWAY_EVENT_FATAL, NYA_DISCORD_GATEWAY_EVENT_KIND_COUNT, }
+enum NYA_DiscordGatewayCloseAction { NYA_DISCORD_GATEWAY_CLOSE_RESUME = 0, NYA_DISCORD_GATEWAY_CLOSE_REIDENTIFY, NYA_DISCORD_GATEWAY_CLOSE_FATAL, NYA_DISCORD_GATEWAY_CLOSE_ACTION_COUNT, }  // What a close code obliges the client to do next.
+struct NYA_DiscordGatewayTransport { void* user; NYA_Error (*open)(void* user, NYA_ConstCString url); void (*close)(void* user); b8 (*poll)(void* user, OUT NYA_WebSocketEvent* out_event); NYA_Error (*send)(void* user, const char* text, u64 size); u64 (*now_ms)(void* user); f32 (*jitter)(void* user); }  // Where the gateway gets its bytes, its time and its randomness.
+struct NYA_DiscordGatewayEvent { NYA_DiscordGatewayEventKind kind; NYA_ConstCString name; const NYA_Object* data; u16 code; NYA_ConstCString reason; u64 retry_in_ms; }
+struct NYA_DiscordGatewayOptions { NYA_ConstCString token; u32 intents; NYA_ConstCString url; u32 shard_id; u32 shard_count; u64 max_message_bytes; u32 max_reconnect_attempts; NYA_DiscordGatewayTransport transport; b8 insecure_skip_tls_verify; }
+
+// macros
+NYA_DISCORD_GATEWAY_URL "wss:  // Where a bot dials when it has no resume url yet.
+NYA_DISCORD_GATEWAY_MAX_TOKEN 128  // Token bytes held, the terminator included.
+NYA_DISCORD_GATEWAY_MAX_SESSION 64  // Session id bytes, terminator included.
+NYA_DISCORD_GATEWAY_MAX_URL 256  // Resume url bytes, terminator included.
+NYA_DISCORD_GATEWAY_MAX_EVENT_NAME 64  // Dispatch name bytes, terminator included.
+NYA_DISCORD_GATEWAY_MAX_MESSAGE_BYTES 1048576  // The default ceiling on one gateway payload.
+NYA_DISCORD_GATEWAY_BACKOFF_MIN_MS 1000  // The first reconnect waits about this long, and each further one doubles it.
+NYA_DISCORD_GATEWAY_BACKOFF_MAX_MS 60000  // Where the doubling stops.
+NYA_DISCORD_GATEWAY_IDENTIFY_INTERVAL_MS 5000  // The shortest gap between two IDENTIFYs, which Discord's own limit is five seconds.
+NYA_DISCORD_GATEWAY_MAX_STEPS_PER_POLL 32  // How many payloads one poll may handle before returning with nothing.
+
+// functions
+NYA_Error nya_discord_gateway_create(NYA_Arena* arena, NYA_DiscordGatewayOptions options, OUT NYA_DiscordGateway** out_gateway)  // Validates the options, takes the client's buffers from `arena`, and starts connecting.
+void nya_discord_gateway_destroy(NYA_DiscordGateway* gateway)  // Closes the connection at whatever stage it reached, wipes the token, and frees the client.
+b8 nya_discord_gateway_poll(NYA_DiscordGateway* gateway, OUT NYA_DiscordGatewayEvent* out_event)  // Advances the connection and hands out one event, or returns false when there is nothing to report.
+NYA_DiscordGatewayState nya_discord_gateway_state(const NYA_DiscordGateway* gateway)
+s64 nya_discord_gateway_sequence(const NYA_DiscordGateway* gateway)  // The last sequence number Discord sent, or -1 when this session has not carried one yet.
+NYA_Error nya_discord_gateway_send(NYA_DiscordGateway* gateway, NYA_Arena* arena, const NYA_Object* payload)  // Sends one payload of the caller's own, such as a presence update or a guild member request.
+NYA_DiscordGatewayCloseAction nya_discord_gateway_close_action(u16 code)  // What a close code obliges a client to do, the whole table in one function.
+u64 nya_discord_gateway_backoff_ms(u32 attempt)  // How long to wait before reconnect attempt `attempt`, counted from zero.
+NYA_ConstCString nya_discord_gateway_state_name(NYA_DiscordGatewayState state)  // "ready", "identifying", ...
+```
+
 ### lua.h
 
 A LuaJIT VM, values crossing in both directions as NYA_Value, and C functions callable from a
