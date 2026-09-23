@@ -55,6 +55,7 @@ NYA_UI* nya_ui_begin(NYA_Window* window, NYA_UIPass pass) {
     _nya_ui.disabled        = 0;
     _nya_ui.claim_count     = 0;
     _nya_ui.drag_started    = false;
+    _nya_ui.raise_swallowed = 0;
     _nya_ui.opacities[0]    = 1.0F;
     _nya_ui.opacity_depth   = 0;
 

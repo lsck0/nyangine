@@ -23,6 +23,9 @@ NYA_INTERNAL const struct {
 NYA_INTERNAL NYA_UIWindowState _GNY_LOOK_WINDOW    = { .open = true };
 NYA_INTERNAL NYA_UIWindowState _GNY_WIDGETS_WINDOW = { .open = true };
 
+/** The guild window, which starts closed: a session's roles are not what a player opens the menu for. */
+NYA_INTERNAL NYA_UIWindowState _GNY_GUILD_WINDOW = { 0 };
+
 /** What both windows' hamburger offers, in the order NYA_UIWindowState.menu_picked indexes. */
 enum {
     _GNY_WINDOW_MENU_RESET = 0,
@@ -195,6 +198,7 @@ void _gny_pause_menu(NYA_Window* window, NYA_UIPass pass) {
         if (!_GNY_LOOK_WINDOW.open || !_GNY_WIDGETS_WINDOW.open) {
             if (nya_ui_panel_begin(ui, nullptr, (NYA_UIPanel){ .direction = NYA_UI_DIRECTION_ROW, .children = nya_ui_grow(1), .frameless = true })) {
                 if (!_GNY_LOOK_WINDOW.open && nya_ui_button(ui, nya_string_menu_look())) _GNY_LOOK_WINDOW = (NYA_UIWindowState){ .open = true };
+                if (!_GNY_GUILD_WINDOW.open && nya_ui_button(ui, "guild")) _GNY_GUILD_WINDOW = (NYA_UIWindowState){ .open = true };
                 if (!_GNY_WIDGETS_WINDOW.open && nya_ui_button(ui, nya_string_menu_widgets())) _GNY_WIDGETS_WINDOW = (NYA_UIWindowState){ .open = true };
 
                 nya_ui_panel_end(ui);

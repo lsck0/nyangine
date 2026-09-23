@@ -37,13 +37,21 @@ b8 nya_ui_window_begin(NYA_UI* ui, NYA_ConstCString id, NYA_UIWindow window, NYA
     if (window.resize && state->size.y > 0.0F && !state->collapsed) panel.height = nya_ui_fixed(state->size.y);
     if (state->collapsed) panel.height = nya_ui_fit();
 
+    // what the chrome about to be placed takes at each end, so the title is centred in what is left.
+    const NYA_UILook* measured = _nya_ui_look();
+    f32               chrome   = measured->title_bar;
+
+    panel.title_room = (f32x2){ window.menu_count > 0 ? chrome : 0.0F, (window.close ? chrome : 0.0F) + (window.collapse ? chrome : 0.0F) };
+
     if (!nya_ui_panel_begin(ui, id, panel)) return false;
 
     _NYA_UILayout*    layout = &_nya_ui.layouts[_nya_ui.depth - 1];
     const NYA_UILook* look   = _nya_ui_look();
 
     NYA_Rectf bounds = layout->bounds;
-    f32       side   = look->line_heights[NYA_UI_TEXT_TITLE];
+
+    // square to the bar, so a chrome button is a button in it rather than a tile filling it.
+    f32 side = look->title_bar;
 
     /*
      * The bar and the corner grip are chrome, outside the view a scrolling window clips its contents to, so the

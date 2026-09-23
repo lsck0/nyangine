@@ -581,6 +581,15 @@ struct NYA_UIPanel {
     /** Drawn centred at the top at the title size. Optional. */
     NYA_ConstCString title;
 
+    /**
+     * Room to leave at the left and right of the title strip, for chrome the caller draws there itself.
+     *
+     * The title is centred in what is left rather than across the whole strip, so a window's title and
+     * its close button cannot end up on top of each other. nya_ui_window_begin fills this in from the
+     * chrome it is about to place; a plain panel leaves it zero.
+     * */
+    f32x2 title_room;
+
     /** Overrides the style's panel colour. All four channels zero keeps it. */
     NYA_Color fill;
 

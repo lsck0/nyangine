@@ -347,6 +347,20 @@ typedef struct {
     /** Counts up forever, so a fresh value is above every order already handed out. */
     u64 raise_serial;
 
+    /**
+     * The panel a press brought forward this pass, or zero.
+     *
+     * A click on a window that is behind means "bring this forward", and a person aiming at a window
+     * they cannot fully see is aiming at the window, not at whatever widget happens to be under the
+     * pointer. So the press that raises is spent on the raise: the widgets in that panel do not take it
+     * as their own, and the release that follows finds nothing active to activate. The next click is a
+     * click on the widget, because by then the window is in front and nothing is raised.
+     *
+     * The panel's key rather than a flag, so only the raised panel's widgets swallow the press and a
+     * window that was already in front keeps behaving like one.
+     * */
+    u64 raise_swallowed;
+
     _NYA_UIAnimation animations[NYA_UI_ANIMATIONS_MAX];
 } _NYA_UISystem;
 
@@ -432,7 +446,11 @@ NYA_INTERNAL b8 _nya_ui_panel_over(const _NYA_UIPanelState* panel, const _NYA_UI
 NYA_INTERNAL b8 _nya_ui_panel_covered(const NYA_UI* ui, u32 index) __attr_no_discard;
 
 /** Puts the panel in slot `index` over every other standing one of its z. Idempotent when it is already there. */
-NYA_INTERNAL void _nya_ui_panel_raise(const NYA_UI* ui, u32 index);
+/**
+ * Puts a top level panel in front of the others in its own z band. True when it moved, which is false
+ * for the panel that was already in front.
+ * */
+NYA_INTERNAL b8 _nya_ui_panel_raise(const NYA_UI* ui, u32 index);
 
 /** How many standing panels the one in slot `index` sits over, which is the layer it draws in above the pass's. */
 NYA_INTERNAL u32 _nya_ui_panel_rank(const NYA_UI* ui, u32 index) __attr_no_discard;

@@ -79,7 +79,7 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
     f32 title_width = 0.0F;
 
     if (panel.title != nullptr) {
-        header      = look->line_heights[NYA_UI_TEXT_TITLE] + look->spacing;
+        header      = look->title_bar + look->spacing;
         title_width = _nya_ui_text_width(NYA_UI_TEXT_TITLE, panel.title);
     }
 
@@ -190,7 +190,9 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
         // what makes a dragged panel behave: it comes forward the moment it is touched and stays there.
         if (ui->pass == NYA_UI_PASS_INPUT && _nya_ui.pointer_pressed && !covered && !_nya_ui_claimed(_nya_ui.pointer) &&
             nya_rect_contains(bounds, _nya_ui.pointer)) {
-            _nya_ui_panel_raise(ui, index);
+            // a press that brought this panel out from under another is spent on that, and not on a
+            // widget inside it: somebody aiming at a window they cannot fully see is aiming at the window.
+            if (_nya_ui_panel_raise(ui, index)) _nya_ui.raise_swallowed = state->id;
         }
 
         // the renderer paints layers low to high whatever order the calls came in, so a raised panel declared
@@ -276,7 +278,11 @@ b8 _nya_ui_panel_open(NYA_UI* ui, NYA_ConstCString id, NYA_UIPanel panel, const 
         .kind     = NYA_UI_WIDGET_PANEL,
         .rect     = bounds,
         .label    = panel.title,
-        .as_panel = { .options = &layout->options, .title_width = title_width, .inset = before },
+        .as_panel = { .options       = &layout->options,
+                      .title_width   = title_width,
+                      .inset         = before,
+                      .bar           = header > 0.0F ? look->title_bar : 0.0F,
+                      .title_room    = panel.title_room },
     };
 
     _nya_ui_draw(ui, &frame);
@@ -586,11 +592,14 @@ b8 _nya_ui_panel_covered(const NYA_UI* ui, u32 index) {
     return false;
 }
 
-void _nya_ui_panel_raise(const NYA_UI* ui, u32 index) {
+b8 _nya_ui_panel_raise(const NYA_UI* ui, u32 index) {
     nya_assert(ui != nullptr && index < NYA_UI_PANELS_MAX);
     nya_assert(_nya_ui.panels[index].order != 0, "a top level panel takes its order when it is first declared");
 
     _NYA_UIPanelState* own = &_nya_ui.panels[index];
+
+    b8 moved      = false;
+    b8 overlapped = false;
 
     for (u32 i = 0; i < NYA_UI_PANELS_MAX; i++) {
         const _NYA_UIPanelState* other = &_nya_ui.panels[i];
@@ -598,12 +607,20 @@ void _nya_ui_panel_raise(const NYA_UI* ui, u32 index) {
         if (i == index || !_nya_ui_panel_standing(ui, other)) continue;
 
         // its own z band only: raising never lifts a panel over one the caller deliberately put above it.
-        if (other->z == own->z && other->order > own->order) {
-            _nya_ui.raise_serial += 1;
-            own->order            = _nya_ui.raise_serial;
-            return;
-        }
+        if (other->z != own->z || other->order <= own->order) continue;
+
+        // whether being under it was visible at all: a panel nothing overlaps looks the same in front as
+        // behind, so bringing it forward is not something a person can have meant by clicking it.
+        overlapped |= nya_rect_overlaps(other->bounds, own->bounds);
+        moved       = true;
     }
+
+    if (moved) {
+        _nya_ui.raise_serial += 1;
+        own->order            = _nya_ui.raise_serial;
+    }
+
+    return moved && overlapped;
 }
 
 u32 _nya_ui_panel_rank(const NYA_UI* ui, u32 index) {

@@ -180,6 +180,12 @@ void _nya_ui_shape_look_build(void* state, u32 depth, const NYA_UIStyle* style, 
         built->look.line_heights[i] = nya_font_valid(built->fonts[i]) ? ceilf(nya_font_metrics(built->fonts[i]).line_height) : 0.0F;
     }
 
+    // the title's line height plus the padding that sits around every other piece of text here, so a bar
+    // is a bar rather than a line of text with a frame drawn tight around it.
+    f32 title_line = built->look.line_heights[NYA_UI_TEXT_TITLE];
+
+    built->look.title_bar = title_line > 0.0F ? roundf(title_line + built->look.padding) : 0.0F;
+
     *out = built->look;
 }
 
@@ -679,8 +685,25 @@ void _nya_ui_shape_panel(NYA_Window* window, const NYA_UIWidgetDraw* widget) {
 
     if (widget->label[0] != '\0') {
         NYA_Font title = look->fonts[NYA_UI_TEXT_TITLE];
-        f32      x     = roundf(bounds.x + ((bounds.width - widget->as_panel.title_width) * 0.5F));
-        f32      y     = bounds.y + widget->as_panel.inset.y;
+
+        /*
+         * Centred in what the chrome leaves rather than in the whole bar, and centred down the bar's
+         * height rather than sitting on its top edge. A title centred across the whole width drifts
+         * under the close button as soon as it is long enough, which is the window that looks broken.
+         */
+        f32 left  = bounds.x + widget->as_panel.inset.x + widget->as_panel.title_room.x;
+        f32 right = bounds.x + bounds.width - widget->as_panel.inset.x - widget->as_panel.title_room.y;
+        f32 room  = nya_max(right - left, 0.0F);
+
+        f32 x = roundf(left + ((room - widget->as_panel.title_width) * 0.5F));
+        f32 y = bounds.y + widget->as_panel.inset.y;
+
+        if (widget->as_panel.bar > 0.0F) {
+            y += roundf((widget->as_panel.bar - look->look.line_heights[NYA_UI_TEXT_TITLE]) * 0.5F);
+        }
+
+        // and never before the room it was given, so a title too long to fit starts where the bar does.
+        x = nya_max(x, left);
 
         if (look->look.depth > 0.0F) nya_font_draw(window, title, widget->label, x, y + roundf(look->look.depth * 0.5F), _nya_ui_shape_fade(style->ink));
         nya_font_draw(window, title, widget->label, x, y, _nya_ui_shape_fade(style->text.normal));

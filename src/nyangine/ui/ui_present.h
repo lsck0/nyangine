@@ -123,6 +123,15 @@ struct NYA_UILook {
     f32 focus_bar;
     f32 item_height;
 
+    /**
+     * A title bar's height, which is the title's line height with room around it rather than the line
+     * height itself: a bar exactly as tall as its text has the text touching both edges and the chrome
+     * squares filling it corner to corner, which is what made the bar read as a row of buttons.
+     *
+     * Zero until the title face is usable, like the line heights it is worked out from.
+     * */
+    f32 title_bar;
+
     /** Indexed by NYA_UIText, INHERIT holding the body's. Zero while the face behind a role is not usable yet. */
     f32 line_heights[NYA_UI_TEXT_COUNT];
 };
@@ -257,6 +266,12 @@ struct NYA_UIWidgetDraw {
             const NYA_UIPanel* options;
             f32                title_width;
             f32x2              inset;
+
+            /** The title bar's height, so the title is centred in it rather than sitting on its top edge. */
+            f32 bar;
+
+            /** Room the caller's chrome takes at each end of the bar; the title stays between them. */
+            f32x2 title_room;
         } as_panel;
 
         /** SELECTABLE, TOGGLE, RADIO: whether it is the chosen one. */

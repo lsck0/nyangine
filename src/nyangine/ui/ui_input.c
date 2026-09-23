@@ -170,6 +170,9 @@ _NYA_UIWidget _nya_ui_widget(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect,
             _nya_ui.focus_found = index;
         }
 
+        // the press that brought this panel forward was spent on that; see raise_swallowed.
+        if (inside && _nya_ui.raise_swallowed != 0 && _nya_ui.panels[layout->root_panel].id == _nya_ui.raise_swallowed) inside = false;
+
         if (inside && _nya_ui.pointer_pressed) {
             ui->active = id;
 

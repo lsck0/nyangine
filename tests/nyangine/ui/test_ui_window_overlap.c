@@ -275,6 +275,36 @@ s32 main(void) {
         nya_check(!hit.over_hit, "and the window now behind refused it");
     }
 
+    // ── the click that brings a window forward is spent on that and nothing else ──
+    {
+        // the upper window is in front again after the drag above; put the lower one behind it first.
+        Scene now = scene(NYA_UI_PASS_DRAW);
+
+        if (now.under_layer > now.over_layer) {
+            f32x2 bar = { now.over_bounds.x + WIDTH - 120.0F, now.over_bounds.y + TITLE * 0.5F };
+            (void)click(bar);
+
+            now = scene(NYA_UI_PASS_DRAW);
+        }
+
+        nya_check(now.over_layer > now.under_layer, "the lower window is behind before this case");
+
+        // its own button, clear of the window in front: one click brings the window forward and the
+        // button does not take it, because somebody aiming at a window they cannot see is aiming at the
+        // window.
+        f32x2 own = { now.under_button.x + 20.0F, now.under_button.y + now.under_button.height * 0.5F };
+        nya_check(!nya_rect_contains(now.over_bounds, own), "the button clicked is clear of the window in front");
+
+        Scene raising = click(own);
+
+        nya_check(raising.under_layer > raising.over_layer, "the click brought the window forward");
+        nya_check(!raising.under_hit, "and was not also a press on the button under the pointer");
+
+        // the second click is a click on the button, because by then nothing is being raised.
+        Scene second = click(own);
+        nya_check(second.under_hit, "the next click activates it");
+    }
+
     // ── grabbing a window's bar brings it forward as it is grabbed ───────────────
     {
         Scene now = scene(NYA_UI_PASS_DRAW);
