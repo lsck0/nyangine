@@ -75,6 +75,20 @@ struct NYA_AppOptions {
      * connects to the client; zero, or a build without the plugin, leaves Steam alone.
      * */
     u32 steam_app_id;
+
+    /**
+     * Where a program registers its own parts: the window it wants, its game loop, a server, a TUI.
+     *
+     * Called once, after the engine has registered its own systems and before any of them is brought
+     * up, so a part is ordered against the engine's systems and checked against what they provide
+     * rather than being started by hand after `nya_app_init` has returned. That is what makes a program
+     * a list of parts instead of a kind: the same executable plays, or serves headless, or does both,
+     * by registering a different set here. See core_system.h, FACILITIES.
+     *
+     * A plain function pointer rather than a callback handle: it runs once, at startup, before the
+     * callback registry can have anything re-resolved against a reloaded image.
+     * */
+    void (*parts)(void);
 };
 
 struct NYA_FrameStats {

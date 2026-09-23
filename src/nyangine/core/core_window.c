@@ -183,6 +183,10 @@ NYA_WindowHandle nya_window_create(NYA_ConstCString title, u32 requested_width, 
 
     if ((flags & SDL_WINDOW_HIDDEN) == 0) SDL_ShowWindow(sdl_window);
 
+    // From here a window exists, which is what a presenter and anything else that draws is registered
+    // against. See NYA_SystemFacility.
+    nya_system_facilities_provide(NYA_SYSTEM_FACILITY_WINDOW);
+
     nya_log_info("Created window '%s' (slot %u, generation %u, %dx%d).", title, slot, handle.generation, actual_width, actual_height);
 
     return handle;
@@ -209,6 +213,10 @@ void nya_window_destroy(NYA_WindowHandle window) {
     app->window_system.generations[window.index]++;
     app->window_system.occupied[window.index] = false;
     app->window_system.count--;
+
+    // The last one closing takes the facility with it, so a part started after that is refused rather
+    // than drawing into a window that is gone.
+    if (app->window_system.count == 0) nya_system_facilities_withdraw(NYA_SYSTEM_FACILITY_WINDOW);
 
     *target = (NYA_Window){ 0 };
 }

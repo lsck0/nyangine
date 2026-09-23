@@ -162,6 +162,37 @@ static void plugin_tick(f32 delta_time_s) {
     log_push("plugin_tick");
 }
 
+/* A part that brings something into the process, and one that cannot start without it. */
+
+static NYA_Error provider_init(void) {
+    log_push("provider_init");
+    return NYA_OK;
+}
+static void provider_deinit(void) {
+    log_push("provider_deinit");
+}
+
+static NYA_Error dependent_init(void) {
+    log_push("dependent_init");
+    return NYA_OK;
+}
+
+/* A system whose init registers another one, which is what re-sorts the array bring-up is walking. */
+
+static void registered_during_init_tick(f32 delta_time_s) {
+    nya_unused(delta_time_s);
+}
+
+static NYA_Error registers_during_init(void) {
+    log_push("registrar_init");
+
+    // `before` rather than `after`, so the new entry sorts ahead of the one registering it: an
+    // index-based bring-up would step over everything the sort moved past its cursor.
+    nya_system_register((NYA_SystemEntry){ .name = "early", .before = "registrar", .init = nya_callback(a_init), .tick = nya_callback(registered_during_init_tick) });
+
+    return NYA_OK;
+}
+
 /* Counts warnings the overflow test expects, without caring what any other sink does with them. */
 static u32 warning_count = 0;
 
@@ -627,6 +658,94 @@ s32 main(void) {
         nya_assert(nya_system_registry_finalize().ok);
 
         nya_log_sink_clear();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a facility is what one system brings and another is checked against.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        _nya_system_registry_reset_for_test();
+        log_reset();
+
+        nya_system_register((NYA_SystemEntry){ .name     = "provider",
+                                               .init     = nya_callback(provider_init),
+                                               .deinit   = nya_callback(provider_deinit),
+                                               .provides = NYA_SYSTEM_FACILITY_WINDOW });
+        nya_system_register((NYA_SystemEntry){ .name  = "dependent",
+                                               .after = "provider",
+                                               .init  = nya_callback(dependent_init),
+                                               .needs = NYA_SYSTEM_FACILITY_WINDOW });
+
+        nya_assert(nya_system_registry_finalize().ok);
+        nya_assert(nya_system_facilities() == 0, "nothing is up before bring-up runs");
+        nya_assert(nya_system_registry_run_init().ok, "the provider comes first, so the dependent has what it asked for");
+
+        nya_assert((nya_system_facilities() & NYA_SYSTEM_FACILITY_WINDOW) != 0, "the provider's facility is up while it is");
+
+        static NYA_ConstCString const expected[] = { "provider_init", "dependent_init" };
+        nya_assert(log_equals(2, expected), "bring-up ran '%s'", log_text());
+
+        nya_system_registry_run_deinit();
+
+        nya_assert(nya_system_facilities() == 0, "a facility goes away with the system that provided it");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a facility nothing provides. A mandatory system stops bring-up by name;
+    // an optional one is stepped over, exactly as a failed init is.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        _nya_system_registry_reset_for_test();
+        log_reset();
+
+        nya_system_register((NYA_SystemEntry){ .name = "dependent", .init = nya_callback(dependent_init), .needs = NYA_SYSTEM_FACILITY_GPU });
+        nya_assert(nya_system_registry_finalize().ok);
+
+        NYA_Error refused = nya_system_registry_run_init();
+
+        nya_assert(!refused.ok, "a system that needs what nothing provides cannot be brought up");
+        nya_assert(log_count == 0, "and its init never ran: '%s'", log_text());
+        nya_assert(nya_string_contains((NYA_ConstCString)refused.message, "dependent"), "the refusal names the system: %s", (NYA_ConstCString)refused.message);
+        nya_assert(nya_string_contains((NYA_ConstCString)refused.message, "GPU"), "and what it wanted: %s", (NYA_ConstCString)refused.message);
+
+        _nya_system_registry_reset_for_test();
+        log_reset();
+
+        nya_system_register((NYA_SystemEntry){ .name     = "dependent",
+                                               .init     = nya_callback(dependent_init),
+                                               .needs    = NYA_SYSTEM_FACILITY_GPU,
+                                               .optional = true });
+        nya_system_register((NYA_SystemEntry){ .name = "after_it", .after = "dependent", .init = nya_callback(a_init) });
+
+        nya_assert(nya_system_registry_finalize().ok);
+        nya_assert(nya_system_registry_run_init().ok, "an optional system is skipped, not fatal");
+
+        static NYA_ConstCString const expected[] = { "a_init" };
+        nya_assert(log_equals(1, expected), "bring-up ran '%s'", log_text());
+
+        nya_system_registry_run_deinit();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a system's init may register more systems. The one it adds is brought up
+    // too, even when the sort moves it ahead of the system that added it.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        _nya_system_registry_reset_for_test();
+        log_reset();
+
+        nya_system_register((NYA_SystemEntry){ .name = "registrar", .init = nya_callback(registers_during_init) });
+        nya_system_register((NYA_SystemEntry){ .name = "last", .after = "registrar", .init = nya_callback(b_init) });
+
+        nya_assert(nya_system_registry_finalize().ok);
+        nya_assert(nya_system_registry_run_init().ok);
+
+        static NYA_ConstCString const expected[] = { "registrar_init", "a_init", "b_init" };
+        nya_assert(log_equals(3, expected), "bring-up ran '%s'", log_text());
+
+        nya_assert(nya_system_registry_count() == 3, "the system registered during bring-up stayed");
+
+        nya_system_registry_run_deinit();
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

@@ -48,12 +48,24 @@ typedef struct {
     /** Whether `init` ran and succeeded, which is what decides whether `deinit` runs. */
     b8 initialized[NYA_SYSTEM_REGISTRY_MAX];
 
+    /**
+     * Whether bring-up has already reached this entry, however that went. Separate from `initialized`
+     * because a system that was skipped — optional, or missing a facility — must not be tried again,
+     * and must not be torn down either. See nya_system_registry_run_init, which rescans rather than
+     * walking an index: a system's `init` may register more systems, and that reorders the array it
+     * would have been walking.
+     * */
+    b8 attempted[NYA_SYSTEM_REGISTRY_MAX];
+
     /** This frame's measured time so far, and the last whole frame's. Both parallel to `entries`. */
     u64 measuring_ns[NYA_SYSTEM_REGISTRY_MAX];
     u64 frame_ns[NYA_SYSTEM_REGISTRY_MAX];
 
     /** Whether the run loop times each system. See nya_system_accounting_enable. */
     b8 accounting;
+
+    /** What is up in this process: the `provides` of every system that is initialized, plus what a caller added. */
+    NYA_SystemFacilities facilities;
 
     u32 count;
 
@@ -230,29 +242,88 @@ NYA_Error nya_system_registry_run_init(void) {
     nya_assert(_nya_system_registry.finalized, "nya_system_registry_run_init was called before nya_system_registry_finalize");
     nya_assert(!_nya_system_registry.running, "nya_system_registry_run_init was called from inside a phase run");
 
-    for (u32 i = 0; i < _nya_system_registry.count; i++) {
-        const NYA_SystemEntry* entry = &_nya_system_registry.entries[i];
+    /*
+     * Rescanned from the front each time rather than walked by index, because a system's `init` may
+     * register more systems — a part that brings up a world registers the systems that tick it — and a
+     * registration re-sorts the array underneath. An index would then step over whatever the sort moved
+     * past it, which is a subsystem silently never brought up. `attempted` is what makes the rescan
+     * terminate, and it is permuted with everything else.
+     */
+    for (;;) {
+        // Anything the last `init` registered takes its place in the order before the next one is
+        // chosen, so a system added during bring-up comes up where it said it belongs rather than
+        // wherever it happened to be appended.
+        NYA_TRY(_nya_system_barrier());
+
+        u32 index = _nya_system_registry.count;
+
+        for (u32 i = 0; i < _nya_system_registry.count; i++) {
+            if (_nya_system_registry.attempted[i]) continue;
+
+            index = i;
+            break;
+        }
+
+        if (index == _nya_system_registry.count) return NYA_OK;
+
+        const NYA_SystemEntry* entry = &_nya_system_registry.entries[index];
+
+        _nya_system_registry.attempted[index] = true;
+
+        /*
+         * The registry's own copy of this row's name, not the pointer to it. An `init` that registers
+         * something re-sorts the array, and a row's name field points into the row: the pointer would
+         * then read whichever system moved into this slot, and a log line or a lookup made with it
+         * would be about the wrong one.
+         */
+        char name[NYA_SYSTEM_NAME_MAX] = { 0 };
+        (void)snprintf(name, sizeof(name), "%s", entry->name);
+
+        // What it asked for and did not get. Checked here rather than at registration, because a
+        // facility appears while bring-up walks the list: "renderer" provides the GPU that a presenter
+        // needs, and both are registered long before either runs.
+        NYA_SystemFacilities missing = entry->needs & ~_nya_system_registry.facilities;
+
+        if (missing != 0) {
+            NYA_ConstCString first = nya_system_facility_name((NYA_SystemFacility)(missing & (~missing + 1)));
+
+            if (entry->optional) {
+                nya_log_debug("'%s' needs %s, which nothing in this run provides; continuing without it.", entry->name, first);
+                continue;
+            }
+
+            nya_log_error("Subsystem initialization failed at '%s': it needs %s, which nothing in this run provides.", name, first);
+
+            nya_system_registry_run_deinit();
+
+            return nya_error(NYA_ERROR_NOT_OK, "'%s' needs %s, which nothing in this run provides", name, first);
+        }
 
         NYA_SystemInitFn init = (NYA_SystemInitFn)nya_callback_get(entry->init);
 
         // A system with nothing to bring up still counts as up, so its `deinit` runs like anyone else's.
         if (init == nullptr) {
-            _nya_system_registry.initialized[i] = true;
+            _nya_system_registry.initialized[index]  = true;
+            _nya_system_registry.facilities         |= entry->provides;
             continue;
         }
 
-        u64       init_start = nya_clock_get_monotonic_ns();
-        NYA_Error result     = init();
+        b8                   optional   = entry->optional;
+        NYA_SystemFacilities provides   = entry->provides;
+        u64                  init_start = nya_clock_get_monotonic_ns();
+
+        // `entry` points into the array this may re-sort, so nothing is read through it below.
+        NYA_Error result = init();
 
         if (!result.ok) {
-            if (entry->optional) {
+            if (optional) {
                 // Degraded, not broken: the run asked for a mode this system has no place in. See
                 // NYA_SystemEntry.optional.
-                nya_log_debug("'%s' is unavailable in this run; continuing without it. %s", entry->name, (NYA_ConstCString)result.message);
+                nya_log_debug("'%s' is unavailable in this run; continuing without it. %s", name, (NYA_ConstCString)result.message);
                 continue;
             }
 
-            nya_log_error("Subsystem initialization failed at '%s'; unwinding. %s", entry->name, (NYA_ConstCString)result.message);
+            nya_log_error("Subsystem initialization failed at '%s'; unwinding. %s", name, (NYA_ConstCString)result.message);
 
             // Reverse, and only as far as bring-up got: `initialized` was never set for this one.
             nya_system_registry_run_deinit();
@@ -260,12 +331,15 @@ NYA_Error nya_system_registry_run_init(void) {
             return result;
         }
 
-        _nya_system_registry.initialized[i] = true;
+        u32 settled = 0;
 
-        nya_log_debug("Brought up '%s' in %.1f ms.", entry->name, nya_time_ns_to_ms(nya_clock_get_monotonic_ns() - init_start));
+        // Found again by name: an `init` that registered something may have moved this row.
+        if (_nya_system_find(name, &settled)) _nya_system_registry.initialized[settled] = true;
+
+        _nya_system_registry.facilities |= provides;
+
+        nya_log_debug("Brought up '%s' in %.1f ms.", name, nya_time_ns_to_ms(nya_clock_get_monotonic_ns() - init_start));
     }
-
-    return NYA_OK;
 }
 
 void nya_system_registry_run(NYA_SystemPhase phase, f32 delta_time_s) {
@@ -322,9 +396,16 @@ void nya_system_registry_run_deinit(void) {
     for (u32 i = _nya_system_registry.count; i > 0; i--) {
         u32 index = i - 1;
 
-        // Cleared first, so a deinit that unregisters something cannot make this one run twice.
+        // Cleared first, so a deinit that unregisters something cannot make this one run twice. The
+        // attempt is forgotten with it, so a registry brought up again starts from nothing.
+        _nya_system_registry.attempted[index] = false;
+
         if (!_nya_system_registry.initialized[index]) continue;
         _nya_system_registry.initialized[index] = false;
+
+        // Before the teardown rather than after it: from the moment a facility is going away, nothing
+        // may be started against it, and a deinit is free to unregister and register as it likes.
+        _nya_system_registry.facilities &= ~_nya_system_registry.entries[index].provides;
 
         NYA_SystemDeinitFn deinit = (NYA_SystemDeinitFn)nya_callback_get(_nya_system_registry.entries[index].deinit);
         if (deinit != nullptr) deinit();
@@ -361,6 +442,35 @@ NYA_ConstCString nya_system_owner_name(NYA_SystemOwner owner) {
         case NYA_SYSTEM_OWNER_KIND_COUNT:
         default: nya_unreachable();
     }
+}
+
+NYA_ConstCString nya_system_facility_name(NYA_SystemFacility facility) {
+    switch (facility) {
+        case NYA_SYSTEM_FACILITY_WINDOW:   return "a window";
+        case NYA_SYSTEM_FACILITY_GPU:      return "a GPU device";
+        case NYA_SYSTEM_FACILITY_AUDIO:    return "an audio device";
+        case NYA_SYSTEM_FACILITY_TERMINAL: return "a terminal";
+        case NYA_SYSTEM_FACILITY_LISTENER: return "a listening server";
+
+        // The caller is filling in "'%s' needs %s", and two facilities are two sentences.
+        default: nya_unreachable();
+    }
+}
+
+NYA_SystemFacilities nya_system_facilities(void) {
+    return _nya_system_registry.facilities;
+}
+
+void nya_system_facilities_provide(NYA_SystemFacilities facilities) {
+    nya_thread_main_only("the system registry");
+
+    _nya_system_registry.facilities |= facilities;
+}
+
+void nya_system_facilities_withdraw(NYA_SystemFacilities facilities) {
+    nya_thread_main_only("the system registry");
+
+    _nya_system_registry.facilities &= ~facilities;
 }
 
 b8 nya_system_registry_is_running(void) {
@@ -721,6 +831,7 @@ void _nya_system_register_now(NYA_SystemEntry entry) {
     _nya_system_registry.names[_nya_system_registry.count]        = (_NYA_SystemNames){ 0 };
     _nya_system_registry.enabled[_nya_system_registry.count]      = true;
     _nya_system_registry.initialized[_nya_system_registry.count]  = false;
+    _nya_system_registry.attempted[_nya_system_registry.count]    = false;
     _nya_system_registry.measuring_ns[_nya_system_registry.count] = 0;
     _nya_system_registry.frame_ns[_nya_system_registry.count]     = 0;
     _nya_system_registry.count++;
@@ -767,6 +878,7 @@ void _nya_system_unregister_now(NYA_ConstCString name) {
         _nya_system_registry.names[i]        = _nya_system_registry.names[i + 1];
         _nya_system_registry.enabled[i]      = _nya_system_registry.enabled[i + 1];
         _nya_system_registry.initialized[i]  = _nya_system_registry.initialized[i + 1];
+        _nya_system_registry.attempted[i]    = _nya_system_registry.attempted[i + 1];
         _nya_system_registry.measuring_ns[i] = _nya_system_registry.measuring_ns[i + 1];
         _nya_system_registry.frame_ns[i]     = _nya_system_registry.frame_ns[i + 1];
     }
@@ -947,6 +1059,7 @@ NYA_Error _nya_system_sort(void) {
     _NYA_SystemNames sorted_names[NYA_SYSTEM_REGISTRY_MAX];
     b8               sorted_enabled[NYA_SYSTEM_REGISTRY_MAX];
     b8               sorted_initialized[NYA_SYSTEM_REGISTRY_MAX];
+    b8               sorted_attempted[NYA_SYSTEM_REGISTRY_MAX];
     u64              sorted_measuring_ns[NYA_SYSTEM_REGISTRY_MAX];
     u64              sorted_frame_ns[NYA_SYSTEM_REGISTRY_MAX];
 
@@ -955,6 +1068,7 @@ NYA_Error _nya_system_sort(void) {
         sorted_names[i]        = _nya_system_registry.names[order[i]];
         sorted_enabled[i]      = _nya_system_registry.enabled[order[i]];
         sorted_initialized[i]  = _nya_system_registry.initialized[order[i]];
+        sorted_attempted[i]    = _nya_system_registry.attempted[order[i]];
         sorted_measuring_ns[i] = _nya_system_registry.measuring_ns[order[i]];
         sorted_frame_ns[i]     = _nya_system_registry.frame_ns[order[i]];
     }
@@ -963,6 +1077,7 @@ NYA_Error _nya_system_sort(void) {
     nya_memcpy(_nya_system_registry.names, sorted_names, order_count * sizeof(_NYA_SystemNames));
     nya_memcpy(_nya_system_registry.enabled, sorted_enabled, order_count * sizeof(b8));
     nya_memcpy(_nya_system_registry.initialized, sorted_initialized, order_count * sizeof(b8));
+    nya_memcpy(_nya_system_registry.attempted, sorted_attempted, order_count * sizeof(b8));
     nya_memcpy(_nya_system_registry.measuring_ns, sorted_measuring_ns, order_count * sizeof(u64));
     nya_memcpy(_nya_system_registry.frame_ns, sorted_frame_ns, order_count * sizeof(u64));
 

@@ -18,6 +18,9 @@
  *   nya_system_is_enabled                 what those two last set
  *   nya_system_phase_name                 "frame", "tick", "render", for a log or an overlay
  *   nya_system_owner_name                 "engine", "game", or the plugin's own name
+ *   nya_system_facility_name              "a window", "a GPU device", for the sentence a refusal prints
+ *   nya_system_facilities                 what is up in this process right now
+ *   nya_system_facilities_provide         says something is up, for a part the registry did not start
  *   nya_system_registry_finalize          sorts by `after` into run order and reports a bad graph
  *   nya_system_registry_run_init          brings every system up in order, unwinding on failure
  *   nya_system_registry_run               runs one phase, in order, skipping disabled systems
@@ -85,6 +88,18 @@
  * and whose code raised an error. Leave it zero and the system belongs to the engine, which is what
  * core_app.c wants and nothing else does.
  *
+ * FACILITIES. A system may say what has to be up before it can start (`needs`) and what it brings up
+ * for others (`provides`). "window" provides a window, "renderer" a GPU device, an HTTP part a
+ * listener; a presenter needs the first two and a route that answers over the third needs it. Bring-up
+ * checks a system's needs against what is provided the moment before its `init` would run, so a UI
+ * started with no window is refused by name at startup rather than drawing into nothing and crashing
+ * on the first frame, and a headless run steps over the optional systems that wanted a screen instead
+ * of failing.
+ *
+ * This is what makes a program a list of parts rather than a kind. A game that also serves HTTP and a
+ * dedicated server that serves the same routes are the same registry with a different set started, and
+ * the difference is declared at each registration rather than spelled out in a hand written `main`.
+ *
  * THREADS. The registry is the main thread's. Registering, unregistering, enabling, disabling,
  * accounting and the owner walk all call nya_thread_main_only (base_thread.h), so a job or an HTTP
  * worker that reaches one crashes there rather than corrupting the table on a Tuesday. The read-only
@@ -150,9 +165,13 @@
 
 typedef enum NYA_SystemPhase          NYA_SystemPhase;
 typedef enum NYA_SystemOwnerKind      NYA_SystemOwnerKind;
+typedef enum NYA_SystemFacility       NYA_SystemFacility;
 typedef struct NYA_SystemOwner        NYA_SystemOwner;
 typedef struct NYA_SystemEntry        NYA_SystemEntry;
 typedef struct NYA_SystemOwnerStats   NYA_SystemOwnerStats;
+
+/** A set of NYA_SystemFacility bits. Zero asks for nothing and offers nothing. */
+typedef u32 NYA_SystemFacilities;
 
 /**
  * When in the frame a callback runs. `_COUNT` bounds the arrays keyed by it and is not a value
@@ -187,6 +206,32 @@ enum NYA_SystemOwnerKind {
     NYA_SYSTEM_OWNER_PLUGIN,
 
     NYA_SYSTEM_OWNER_KIND_COUNT,
+};
+
+/**
+ * Something a system can only run with, and that another system is what brings into the process.
+ *
+ * A part of a program — a window and its renderer, a terminal, a listening socket — is up or it is
+ * not, and everything above it either needs it or does not. Saying which at the registration site is
+ * what lets bring-up refuse a UI with no window by name, at startup, instead of drawing into nothing
+ * and crashing at the first frame. The bits are deliberately coarse: they describe what a system
+ * cannot invent for itself, not every resource it uses.
+ * */
+enum NYA_SystemFacility {
+    /** A window exists and is the thing a presenter draws into. Provided by "window". */
+    NYA_SYSTEM_FACILITY_WINDOW = 1U << 0,
+
+    /** A GPU device is open and can be drawn with. Provided by "renderer", and absent in a headless run. */
+    NYA_SYSTEM_FACILITY_GPU = 1U << 1,
+
+    /** An audio device is open. Provided by "audio", and absent where there is no sound card to open. */
+    NYA_SYSTEM_FACILITY_AUDIO = 1U << 2,
+
+    /** The process owns a terminal it may draw a TUI into: stdout is a tty and raw mode was taken. */
+    NYA_SYSTEM_FACILITY_TERMINAL = 1U << 3,
+
+    /** A server is listening, so anything that answers requests has something to answer on. */
+    NYA_SYSTEM_FACILITY_LISTENER = 1U << 4,
 };
 
 struct NYA_SystemOwner {
@@ -271,6 +316,19 @@ struct NYA_SystemEntry {
      * only whoever registers the system knows which run this is.
      * */
     b8 optional;
+
+    /**
+     * What has to be up before this system's `init` may run. Unmet, a mandatory system stops bring-up
+     * naming itself and what is missing, and an optional one is stepped over the way a failed `init`
+     * would be. See NYA_SystemFacility.
+     * */
+    NYA_SystemFacilities needs;
+
+    /**
+     * What this system brings into the process once its `init` has succeeded, and takes away again when
+     * its `deinit` runs. A system that provides nothing leaves it zero, which is nearly all of them.
+     * */
+    NYA_SystemFacilities provides;
 
     /** Zero is the engine. See OWNERSHIP above. */
     NYA_SystemOwner owner;
@@ -377,6 +435,25 @@ NYA_API NYA_ConstCString nya_system_phase_name(NYA_SystemPhase phase) __attr_no_
 
 /** "engine", "game", or the plugin's own name. The key every per-owner number is grouped by. */
 NYA_API NYA_ConstCString nya_system_owner_name(NYA_SystemOwner owner) __attr_no_discard;
+
+/**
+ * One facility as the noun a sentence takes: "a window", "a GPU device". Asserts on a set with more
+ * than one bit in it, because the caller is writing "'ui' needs %s" and a list is a different sentence.
+ * */
+NYA_API NYA_ConstCString nya_system_facility_name(NYA_SystemFacility facility) __attr_no_discard;
+
+/** What is up in this process right now: every `provides` of every system whose `init` has succeeded. */
+NYA_API NYA_SystemFacilities nya_system_facilities(void) __attr_no_discard;
+
+/**
+ * Adds to that set from outside the registry, for a part that the registry did not start: a test that
+ * opens a window itself, or an embedder that hands the engine one. Idempotent, and paired with
+ * nya_system_facilities_withdraw, which is what a system's own `deinit` does for it automatically.
+ * */
+NYA_API void nya_system_facilities_provide(NYA_SystemFacilities facilities);
+
+/** Takes them away again. A facility nothing provides any more is one a system may no longer be started against. */
+NYA_API void nya_system_facilities_withdraw(NYA_SystemFacilities facilities);
 
 /** Whether a phase run is in progress, which is what makes a mutation queue instead of apply. */
 NYA_API b8 nya_system_registry_is_running(void) __attr_no_discard;

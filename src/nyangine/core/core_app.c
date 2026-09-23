@@ -302,7 +302,8 @@ void _nya_app_register_subsystems(void) {
                                             .after    = "tween",
                                             .init     = nya_callback(_nya_app_bring_up_renderer),
                                             .deinit   = nya_callback(_nya_app_tear_down_renderer),
-                                            .optional = nya_app_get()->options.headless });
+                                            .optional = nya_app_get()->options.headless,
+                                            .provides = NYA_SYSTEM_FACILITY_GPU });
     nya_system_register((NYA_SystemEntry){ .name = "events", .after = "renderer", .init = nya_callback(_nya_app_bring_up_events), .deinit = nya_callback(_nya_app_tear_down_events) });
     nya_system_register((NYA_SystemEntry){ .name = "input", .after = "events", .init = nya_callback(_nya_app_bring_up_input), .deinit = nya_callback(_nya_app_tear_down_input) });
 
@@ -329,7 +330,11 @@ void _nya_app_register_subsystems(void) {
     nya_system_register((NYA_SystemEntry){ .name = "config", .after = "i18n", .init = nya_callback(_nya_app_bring_up_config), .deinit = nya_callback(_nya_app_tear_down_config) });
 
     // after the asset system, which creates the mixer these tracks use and destroys it after them.
-    nya_system_register((NYA_SystemEntry){ .name = "audio", .after = "config", .init = nya_callback(_nya_app_bring_up_audio), .deinit = nya_callback(_nya_app_tear_down_audio) });
+    nya_system_register((NYA_SystemEntry){ .name     = "audio",
+                                            .after    = "config",
+                                            .init     = nya_callback(_nya_app_bring_up_audio),
+                                            .deinit   = nya_callback(_nya_app_tear_down_audio),
+                                            .provides = NYA_SYSTEM_FACILITY_AUDIO });
 
     nya_system_register((NYA_SystemEntry){ .name = "world", .after = "audio", .init = nya_callback(_nya_app_bring_up_world), .deinit = nya_callback(_nya_app_tear_down_world) });
 
@@ -373,6 +378,13 @@ void _nya_app_register_subsystems(void) {
     // after "layers" in the render phase, which is what `after = entity` buys it: the only other render
     // system is the layer stack, and it sits well before this.
     nya_system_register((NYA_SystemEntry){ .name = "audio_render", .after = "entity", .render = nya_callback(_nya_app_render_audio) });
+
+    /*
+     * The program's own parts, last, so each of them may name any engine system in its `after` and none
+     * of the engine's has to know they exist. They are brought up in this one order with everything
+     * else, which is what lets a part say it needs a window and be refused at startup.
+     */
+    if (nya_app_get()->options.parts != nullptr) nya_app_get()->options.parts();
 
     // a finalize failure is a typo in an `after` string above, which only this function writes, so it asserts.
     NYA_Error finalized = nya_system_registry_finalize();
