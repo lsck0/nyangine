@@ -165,6 +165,40 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: edit-own beside edit-any, with the resource's owner as an input.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_Permissions* guild = nya_permissions_create(arena);
+
+        NYA_Permission EDIT_OWN = TEST_SPEAK;
+        NYA_Permission EDIT_ANY = TEST_BUILD;
+
+        // every member may edit their own; a moderator may edit anyone's.
+        NYA_EXPECT(nya_permission_role_edit(guild, NYA_PERMISSION_SYSTEM, NYA_PERMISSION_ROLE_EVERYONE, 0, EDIT_OWN, 100));
+
+        u32 mod = 0;
+        NYA_EXPECT(nya_permission_role_add(guild, NYA_PERMISSION_SYSTEM, "mod", 10, EDIT_ANY, 100, &mod));
+        NYA_EXPECT(nya_permission_role_grant(guild, NYA_PERMISSION_SYSTEM, BOB, mod, 100));
+
+        u64 alices_post = 7001;
+        u64 bobs_post   = 7002;
+
+        // alice edits her own and not bob's.
+        nya_check(nya_permission_may_act(guild, ALICE, HALL, ALICE, EDIT_ANY, EDIT_OWN), "a member edits their own");
+        nya_check(!nya_permission_may_act(guild, ALICE, HALL, BOB, EDIT_ANY, EDIT_OWN), "and not somebody else's");
+        (void)alices_post;
+        (void)bobs_post;
+
+        // bob, the moderator, edits anyone's — his own and alice's.
+        nya_check(nya_permission_may_act(guild, BOB, HALL, BOB, EDIT_ANY, EDIT_OWN), "a moderator edits their own");
+        nya_check(nya_permission_may_act(guild, BOB, HALL, ALICE, EDIT_ANY, EDIT_OWN), "and everyone else's");
+
+        // the resource still matters: edit-own denied in the vault is denied there even to the owner.
+        NYA_EXPECT(nya_permission_overwrite_set(guild, NYA_PERMISSION_SYSTEM, VAULT, NYA_PERMISSION_TARGET_ROLE, NYA_PERMISSION_ROLE_EVERYONE, NYA_PERMISSION_NONE, EDIT_OWN, 100));
+        nya_check(!nya_permission_may_act(guild, ALICE, VAULT, ALICE, EDIT_ANY, EDIT_OWN), "a per-resource deny reaches even the owner's own");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: roles union, and @everyone reaches a subject that was never added.
     // ─────────────────────────────────────────────────────────────────────────────
     {

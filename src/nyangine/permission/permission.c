@@ -802,6 +802,16 @@ b8 nya_permission_has(const NYA_Permissions* permissions, u64 subject, u64 resou
     return (nya_permission_resolve(permissions, subject, resource) & required) == required;
 }
 
+b8 nya_permission_may_act(const NYA_Permissions* permissions, u64 subject, u64 resource, u64 owner, NYA_Permission any, NYA_Permission own) {
+    NYA_Permission held = nya_permission_resolve(permissions, subject, resource);
+
+    // The any-permission first: somebody who may act on anyone's thing does not have to own this one.
+    if ((held & any) == any) return true;
+
+    // Otherwise the own-permission, and only over a thing this subject actually owns.
+    return subject == owner && (held & own) == own;
+}
+
 b8 nya_permission_outranks(const NYA_Permissions* permissions, u64 actor, u64 subject) {
     nya_assert(permissions != nullptr);
 

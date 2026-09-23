@@ -425,6 +425,23 @@ NYA_API NYA_Permission nya_permission_resolve(const NYA_Permissions* permissions
 NYA_API b8 nya_permission_has(const NYA_Permissions* permissions, u64 subject, u64 resource, NYA_Permission required) __attr_no_discard;
 
 /**
+ * Whether `subject` may act on a thing `owner` owns, holding either the any-permission or the
+ * own-permission-plus-ownership.
+ *
+ * The `CanEditOwnPost` beside `CanEditAnyPost` split: a program gives moderators `edit_any` and every
+ * member `edit_own`, and this is the one check a route makes rather than writing the OR by hand each
+ * time and forgetting the ownership half in one of them. True when the subject holds `any` on the
+ * resource, or holds `own` on it and is the owner. `owner` is whatever a program stored as the thing's
+ * owner; a subject acting on their own thing passes `subject == owner`.
+ *
+ * `resource` is the same resource id the rest of resolution uses, so a per-room overwrite still applies
+ * — `edit_own` denied in one room is denied there even to the owner.
+ * */
+NYA_API b8 nya_permission_may_act(
+    const NYA_Permissions* permissions, u64 subject, u64 resource, u64 owner, NYA_Permission any, NYA_Permission own
+) __attr_no_discard;
+
+/**
  * Whether `actor` outranks `subject`, which is what every change here is gated on.
  *
  * The owner outranks everyone, including another owner-less table's idea of one. Equal ranks do not
