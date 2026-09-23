@@ -262,6 +262,77 @@ NYA_Error nya_account_session_prune(NYA_Arena* arena, u64 keep_for_s, u32* out_r
     return NYA_OK;
 }
 
+NYA_Error nya_account_session_sweep(NYA_Arena* arena, u32* out_ended, u32* out_removed) {
+    nya_assert(arena != nullptr && out_ended != nullptr && out_removed != nullptr);
+
+    *out_ended   = 0;
+    *out_removed = 0;
+
+    if (!nya_accounts_is_open()) return nya_error(NYA_ERROR_NOT_OK, "the accounts tables are not open");
+
+    u64 now_s = nya_clock_get_timestamp_s();
+
+    /*
+     * First, the abandoned: a session unused past the idle window is invalid by its expiry already, but
+     * the row still reads as live. Revoked here so a list stops calling it a session, which is what the
+     * reference's "closed as abandoned after 30 days" trigger did.
+     */
+    u64 idle_cutoff = now_s > NYA_ACCOUNTS_SESSION_IDLE_S ? now_s - NYA_ACCOUNTS_SESSION_IDLE_S : 0;
+
+    void* abandoned = nullptr;
+    u32   count     = 0;
+
+    NYA_TRY(nya_orm_select(
+        _NYA_ACCOUNTS.sessions, arena, "WHERE revoked = 0 AND used_at_s <= ?", (NYA_SqlValue[]){ nya_sql_s64((s64)idle_cutoff) }, 1, &abandoned, &count
+    ));
+
+    for (u32 index = 0; index < count; index++) {
+        NYA_AccountSession* session = nya_orm_at(_NYA_ACCOUNTS.sessions, abandoned, index);
+
+        session->revoked = true;
+
+        NYA_TRY(nya_orm_update(_NYA_ACCOUNTS.sessions, session));
+
+        *out_ended += 1;
+    }
+
+    /*
+     * Then the bound on how many dead rows a user keeps. Ordered oldest first, every revoked row past
+     * the newest NYA_ACCOUNTS_SESSION_KEEP_REVOKED for its user is deleted — so a person with years of
+     * logins carries a list that stops growing rather than one that never forgets.
+     */
+    void* revoked = nullptr;
+    u32   revoked_count = 0;
+
+    NYA_TRY(nya_orm_select(
+        _NYA_ACCOUNTS.sessions, arena, "WHERE revoked = 1 ORDER BY user_id ASC, used_at_s DESC, id DESC", nullptr, 0, &revoked, &revoked_count
+    ));
+
+    u64 current_user = 0;
+    u32 kept         = 0;
+
+    for (u32 index = 0; index < revoked_count; index++) {
+        const NYA_AccountSession* session = nya_orm_at(_NYA_ACCOUNTS.sessions, revoked, index);
+
+        // The rows arrive grouped by user, newest first within each; the counter resets at each user, so
+        // "kept" is how many of this user's revoked rows have already been seen this group.
+        if (session->user_id != current_user) {
+            current_user = session->user_id;
+            kept         = 0;
+        }
+
+        kept++;
+
+        if (kept <= NYA_ACCOUNTS_SESSION_KEEP_REVOKED) continue;
+
+        NYA_TRY(nya_orm_delete(_NYA_ACCOUNTS.sessions, nya_sql_s64((s64)session->id)));
+
+        *out_removed += 1;
+    }
+
+    return NYA_OK;
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API IMPLEMENTATION

@@ -201,3 +201,21 @@ NYA_API NYA_Error nya_account_session_purge(NYA_Arena* arena, u64 user_id, OUT u
  * deletion that happened inside a validation would be a request paying for somebody else's tidying.
  * */
 NYA_API NYA_Error nya_account_session_prune(NYA_Arena* arena, u64 keep_for_s, OUT u32* out_removed) __attr_no_discard;
+
+/** How many revoked sessions are kept per user before the oldest are deleted. See nya_account_session_sweep. */
+#define NYA_ACCOUNTS_SESSION_KEEP_REVOKED 100
+
+/**
+ * The housekeeping a server runs on a timer: end the abandoned, and forget the long dead.
+ *
+ * Two things the reference's database triggers did and this does on a schedule, because SQLCipher has
+ * no scheduler. A session unused for longer than NYA_ACCOUNTS_SESSION_IDLE_S is already invalid by its
+ * expiry, but its row lingers; this revokes it so a list stops calling it live. And a user's revoked
+ * rows are kept only NYA_ACCOUNTS_SESSION_KEEP_REVOKED deep — a person with years of logins does not
+ * grow an unbounded table — the oldest beyond that deleted outright.
+ *
+ * `out_ended` is how many were newly revoked, `out_removed` how many rows were deleted. A program calls
+ * this from a timer, never from a request: a login must not pay for the tidying of accounts it will
+ * never touch.
+ * */
+NYA_API NYA_Error nya_account_session_sweep(NYA_Arena* arena, OUT u32* out_ended, OUT u32* out_removed) __attr_no_discard;

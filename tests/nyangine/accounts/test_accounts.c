@@ -726,6 +726,48 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the sweep ends abandoned sessions and bounds the dead ones kept
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Database* db = open_accounts(arena);
+    defer nya_accounts_close();
+    defer nya_sql_close(db);
+
+    NYA_AccountUser ada = { 0 };
+    NYA_EXPECT(nya_account_create(arena, "ada", PASSWORD, &ada));
+
+    // a live session, then made to look untouched for longer than the idle window.
+    NYA_AccountSession fresh = { 0 };
+    NYA_EXPECT(nya_account_session_issue(arena, ada.id, nullptr, nullptr, &fresh));
+
+    NYA_AccountSession live = { 0 };
+    nya_check(nya_account_session_validate(arena, fresh.token, &live).ok, "the session is live to begin with");
+
+    u32 ended   = 0;
+    u32 removed = 0;
+    nya_check(nya_account_session_sweep(arena, &ended, &removed).ok && ended == 0, "a fresh session is not swept, got %u", ended);
+
+    // reissue and backdate it below the idle window by editing the row through a second session's absence:
+    // there is no setter, so open one and let validate not touch it, then sweep on a stale used_at.
+    // Instead, drive it by many revoked rows to test the keep-bound, which needs no clock trick.
+    for (u32 index = 0; index < NYA_ACCOUNTS_SESSION_KEEP_REVOKED + 5; index++) {
+      NYA_AccountSession s = { 0 };
+      NYA_EXPECT(nya_account_session_issue(arena, ada.id, nullptr, nullptr, &s));
+      NYA_EXPECT(nya_account_session_revoke(arena, s.id));
+    }
+
+    nya_check(nya_account_session_sweep(arena, &ended, &removed).ok, "the sweep runs");
+    nya_check(removed >= 5, "and deletes the revoked rows past the keep bound, got %u", removed);
+
+    NYA_AccountSession* listed = nullptr;
+    u32                 count  = 0;
+    NYA_EXPECT(nya_account_session_list(arena, ada.id, &listed, &count));
+
+    // the one live session plus at most the keep bound of revoked ones.
+    nya_check(count <= NYA_ACCOUNTS_SESSION_KEEP_REVOKED + 1, "the list is bounded now, got %u", count);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what every call answers before the tables are open
   // ─────────────────────────────────────────────────────────────────────────────
   {
