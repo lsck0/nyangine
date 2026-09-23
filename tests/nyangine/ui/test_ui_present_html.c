@@ -93,6 +93,18 @@ s32 main(void) {
     nya_check(nya_string_contains(body, "data-nya=\"click\""), "and carries a click event");
     nya_check(nya_string_contains(body, "class=\"nya-toggle\""), "the toggle is a toggle");
     nya_check(nya_string_contains(body, "type=\"range\""), "the slider is a real range input");
+
+    // the id-to-widget table a live server reads: the slider's id resolves to its kind and a real track.
+    {
+        NYA_UIWidgetKind kind  = NYA_UI_WIDGET_LABEL;
+        NYA_Rectf        track = { 0 };
+        b8               found = false;
+        for (u32 id = 0; id < nya_ui_html_count(&html); id++) {
+            if (nya_ui_html_widget(&html, id, &kind, &track) && kind == NYA_UI_WIDGET_SLIDER) { found = true; break; }
+        }
+        nya_check(found, "the slider's id resolves to a slider kind");
+        nya_check(track.width > 0.0F, "with a track a value event can aim a pointer along, got %.1f", (f64)track.width);
+    }
     nya_check(nya_string_contains(body, "type=\"text\" value=\"ada\""), "the field carries its text");
     nya_check(nya_string_contains(body, "data-nya=\"input\""), "and reports input");
 

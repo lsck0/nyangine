@@ -129,6 +129,18 @@ struct NYA_UIHtml {
      * */
     NYA_Rectf rects[NYA_UI_HTML_MAX_WIDGETS];
 
+    /** What kind each id was, so a server knows a click is a button but an `input` is a slider or a field. */
+    NYA_UIWidgetKind kinds[NYA_UI_HTML_MAX_WIDGETS];
+
+    /**
+     * The interactive sub-rectangle of a value widget: a slider's track, a field's box, zero for the rest.
+     *
+     * A value event carries a number, and a slider takes the value the pointer is over its track — so a
+     * server turns `input=700` into a pointer at 70% along this rectangle, the same arithmetic a real drag
+     * is. See nya_ui_html_widget.
+     * */
+    NYA_Rectf value_rects[NYA_UI_HTML_MAX_WIDGETS];
+
     /** The current back-to-front layer, written as a z-index so a raised panel covers an earlier one. */
     s32 layer;
 
@@ -178,6 +190,15 @@ NYA_API b8 nya_ui_html_overflowed(const NYA_UIHtml* html) __attr_no_discard;
  * False for an id the last pass did not draw or one past the table, in which case `out_rect` is zeroed.
  * */
 NYA_API b8 nya_ui_html_rect(const NYA_UIHtml* html, u32 id, OUT NYA_Rectf* out_rect) __attr_no_discard;
+
+/**
+ * What widget `id` was, and its interactive value rectangle, for a server turning an `input` event back
+ * into a pointer.
+ *
+ * `out_kind` is the widget's kind; `out_value_rect` is its track (slider) or box (field), zero for a
+ * kind that has none. False for an id the last pass did not draw, in which case both are zeroed.
+ * */
+NYA_API b8 nya_ui_html_widget(const NYA_UIHtml* html, u32 id, OUT NYA_UIWidgetKind* out_kind, OUT NYA_Rectf* out_value_rect) __attr_no_discard;
 
 /**
  * Writes a whole page around the body: a doctype, the one stylesheet that colours every widget kind, the

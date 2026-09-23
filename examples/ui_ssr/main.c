@@ -79,6 +79,7 @@ typedef struct {
     s32 count;
     u32 tab;
     b8  dark;
+    f32 volume;
 } AppState;
 
 /** The key the state cookie is sealed with, made at startup: a restart forgets every session, which for
@@ -125,6 +126,14 @@ NYA_INTERNAL void component(NYA_Window* window, NYA_UIPass pass, AppState* app) 
         } else {
             (void)nya_ui_toggle(ui, "dark mode", &app->dark);
             nya_ui_label(ui, app->dark ? "the theme is dark" : "the theme is light");
+
+            // a slider, driven live from the browser: its input event carries a value the server turns
+            // into a pointer along the track, which is what a real drag is. See handle_event.
+            (void)nya_ui_slider(ui, "volume", &app->volume, 0.0F, 1.0F, 0.0F);
+
+            char vol[32] = { 0 };
+            (void)snprintf(vol, sizeof(vol), "volume: %d%%", (s32)(app->volume * 100.0F));
+            nya_ui_label(ui, vol);
         }
 
         nya_ui_panel_end(ui);
@@ -189,6 +198,24 @@ NYA_INTERNAL b8 app_to_cookie(NYA_HttpExchange* exchange, const AppState* app) {
                                         .same_site = NYA_HTTP_SAME_SITE_STRICT,
                                     })
         .ok;
+}
+
+/** Presses at a point, moves to another while held, and releases: a drag, which is what a slider reads. */
+NYA_INTERNAL void inject_drag(f32 x, f32 y) {
+    NYA_Event move = { .type = NYA_EVENT_MOUSE_MOVED, .as_mouse_moved_event = { .window = WINDOW.handle, .x = x, .y = y } };
+    nya_system_input_handle_event(&move);
+
+    NYA_Event down = {
+        .type                  = NYA_EVENT_MOUSE_BUTTON_DOWN,
+        .as_mouse_button_event = { .window = WINDOW.handle, .is_down = true, .button = NYA_MOUSE_BUTTON_LEFT, .x = x, .y = y, .clicks = 1 },
+    };
+    nya_system_input_handle_event(&down);
+
+    NYA_Event up = {
+        .type                  = NYA_EVENT_MOUSE_BUTTON_UP,
+        .as_mouse_button_event = { .window = WINDOW.handle, .is_down = false, .button = NYA_MOUSE_BUTTON_LEFT, .x = x, .y = y, .clicks = 1 },
+    };
+    nya_system_input_handle_event(&up);
 }
 
 /** Feeds a click at (x, y) as a real mouse would: move there, press, release, all in one input frame. */
@@ -260,8 +287,11 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
     NYA_Object* body = nullptr;
     if (!nya_http_request_document(exchange->request, exchange->arena, &body).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    NYA_Value* id_value = nya_object_get(body, "id");
+    NYA_Value* id_value    = nya_object_get(body, "id");
+    NYA_Value* event_value = nya_object_get(body, "event");
     if (id_value == nullptr || id_value->type != NYA_TYPE_STRING) return NYA_HTTP_STATUS_BAD_REQUEST;
+
+    NYA_ConstCString event = event_value != nullptr && event_value->type == NYA_TYPE_STRING ? event_value->as_string : "click";
 
     // The id is "wN"; the number is an index into the last render's rectangles and nothing else, so a
     // bad one aims at no widget rather than at anything it should not reach.
@@ -276,8 +306,20 @@ NYA_INTERNAL NYA_HttpStatus handle_event(NYA_HttpExchange* exchange) {
     AppState app = app_from_cookie(exchange);
     render(&app);
 
-    NYA_Rectf rect = { 0 };
-    if (nya_ui_html_rect(&HTML, (u32)id, &rect)) {
+    NYA_UIWidgetKind kind       = NYA_UI_WIDGET_LABEL;
+    NYA_Rectf        value_rect = { 0 };
+    NYA_Rectf        rect       = { 0 };
+
+    if (nya_string_equals(event, "input") && nya_ui_html_widget(&HTML, (u32)id, &kind, &value_rect) && kind == NYA_UI_WIDGET_SLIDER) {
+        // The slider's value arrives 0..1000 (the range input's span); aim a drag at that fraction of
+        // the track, and the component's own slider logic writes the bound value from where the pointer is.
+        f64 value = 0.0;
+        NYA_Value* v = nya_object_get(body, "value");
+        if (v != nullptr && v->type == NYA_TYPE_STRING) value = strtod(v->as_string, nullptr);
+
+        f32 t = (f32)nya_clamp(value / 1000.0, 0.0, 1.0);
+        inject_drag(value_rect.x + value_rect.width * t, value_rect.y + value_rect.height * 0.5F);
+    } else if (nya_ui_html_rect(&HTML, (u32)id, &rect)) {
         inject_click(rect.x + rect.width * 0.5F, rect.y + rect.height * 0.5F);
     }
 

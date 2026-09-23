@@ -133,6 +133,20 @@ b8 nya_ui_html_rect(const NYA_UIHtml* html, u32 id, NYA_Rectf* out_rect) {
     return true;
 }
 
+b8 nya_ui_html_widget(const NYA_UIHtml* html, u32 id, NYA_UIWidgetKind* out_kind, NYA_Rectf* out_value_rect) {
+    nya_assert(html != nullptr && out_kind != nullptr && out_value_rect != nullptr);
+
+    *out_kind       = NYA_UI_WIDGET_LABEL;
+    *out_value_rect = (NYA_Rectf){ 0 };
+
+    if (id >= html->sequence || id >= NYA_UI_HTML_MAX_WIDGETS) return false;
+
+    *out_kind       = html->kinds[id];
+    *out_value_rect = html->value_rects[id];
+
+    return true;
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * THE DOCUMENT
@@ -177,12 +191,26 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "<script%s>\n"
     "(function(){\n"
     "  var surface=document.getElementById('nya-surface');\n"
+    // morph the surface to the new HTML by id, rather than replacing it whole: an element that did not
+    // change is left alone, so its focus, caret and a mid-drag slider survive a redraw. The server is
+    // stateless — it holds no memory of the last render — so the diff has to happen here, which is where
+    // a browser keeps the live DOM anyway. New ids are added, gone ids removed, changed ones patched.
+    "  function morph(html){\n"
+    "    var next=document.createElement('div');next.innerHTML=html;\n"
+    "    var have={};for(var c=surface.firstElementChild;c;c=c.nextElementSibling)if(c.id)have[c.id]=c;\n"
+    "    var seen={};var active=document.activeElement;\n"
+    "    for(var n=next.firstElementChild;n;){var nx=n.nextElementSibling;seen[n.id]=1;var old=have[n.id];\n"
+    "      if(!old){surface.appendChild(n);}\n"
+    "      else{ if(old!==active && old.outerHTML!==n.outerHTML) old.replaceWith(n); }\n"
+    "      n=nx;}\n"
+    "    for(var id in have)if(!seen[id])have[id].remove();\n"
+    "  }\n"
     "  function send(id,event,value){\n"
     "    fetch('/event',{method:'POST',headers:{'content-type':'application/json'},\n"
     "      body:JSON.stringify({id:id,event:event,value:value})}).then(function(r){return r.text()}).then(function(html){\n"
-    "        if(html)surface.innerHTML=html;});\n"
+    "        if(html)morph(html);});\n"
     "  }\n"
-    "  surface.addEventListener('click',function(e){var t=e.target.closest('[data-nya]');if(t&&t.dataset.nya)send(t.id,t.dataset.nya,null);});\n"
+    "  surface.addEventListener('click',function(e){var t=e.target.closest('[data-nya]');if(t&&t.dataset.nya==='click')send(t.id,'click',null);});\n"
     "  surface.addEventListener('input',function(e){var t=e.target.closest('[data-nya]');if(t&&t.dataset.nya)send(t.id,'input',e.target.value);});\n"
     "})();\n"
     "</script></body></html>\n";
@@ -307,7 +335,13 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
     u32 id = html->sequence++;
 
     // Kept so a live server can aim a synthetic pointer at this widget from its id alone; see the header.
-    if (id < NYA_UI_HTML_MAX_WIDGETS) html->rects[id] = widget->rect;
+    if (id < NYA_UI_HTML_MAX_WIDGETS) {
+        html->rects[id]       = widget->rect;
+        html->kinds[id]       = widget->kind;
+        html->value_rects[id] = widget->kind == NYA_UI_WIDGET_SLIDER ? widget->as_slider.track
+                              : widget->kind == NYA_UI_WIDGET_FIELD  ? widget->as_field.field.box
+                                                                     : (NYA_Rectf){ 0 };
+    }
 
     NYA_ConstCString kind = _nya_ui_html_class(widget->kind);
 
