@@ -183,8 +183,10 @@ NYA_API b8 nya_ui_html_rect(const NYA_UIHtml* html, u32 id, OUT NYA_Rectf* out_r
  * Writes a whole page around the body: a doctype, the one stylesheet that colours every widget kind, the
  * body's elements, and the few lines of client script that forward events and swap in patches.
  *
- * `title` is the page's, escaped. Returns the bytes written, terminator excluded, and truncates rather
- * than overrun `capacity`. This is the first-load response; nya_ui_html_body is what every later patch
- * sends.
+ * `title` is the page's, escaped. `script_nonce`, when not empty, is written as the `nonce` on the one
+ * inline script, so a page served under a strict Content-Security-Policy can allow that script by nonce
+ * rather than by `'unsafe-inline'`; pass "" when there is no CSP to satisfy. Returns the bytes written,
+ * terminator excluded, and truncates rather than overrun `capacity`. This is the first-load response;
+ * nya_ui_html_body is what every later patch sends.
  * */
-NYA_API u32 nya_ui_html_document(const NYA_UIHtml* html, OUT char* out, u32 capacity, NYA_ConstCString title);
+NYA_API u32 nya_ui_html_document(const NYA_UIHtml* html, OUT char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce);

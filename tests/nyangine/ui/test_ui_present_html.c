@@ -114,7 +114,7 @@ s32 main(void) {
     // ─────────────────────────────────────────────────────────────────────────────
     {
         static char page[NYA_UI_HTML_MAX + 4096];
-        u32         written = nya_ui_html_document(&html, page, sizeof(page), "settings & more");
+        u32         written = nya_ui_html_document(&html, page, sizeof(page), "settings & more", "");
 
         nya_check(written > 0, "a document is written");
         nya_check(nya_string_starts_with(page, "<!doctype html>"), "as a page");

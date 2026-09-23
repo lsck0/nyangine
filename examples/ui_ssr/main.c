@@ -166,8 +166,29 @@ NYA_INTERNAL void inject_click(f32 x, f32 y) {
 NYA_INTERNAL NYA_HttpStatus handle_page(NYA_HttpExchange* exchange) {
     render();
 
+    /*
+     * A per-response nonce for the one inline script, so the page's own Content-Security-Policy can allow
+     * that script by nonce and nothing else. The server default is `default-src 'none'`, which would block
+     * the presenter's inline style and script outright; this route sets its own, tighter where it can be:
+     * the script is pinned to this nonce, and `style-src 'unsafe-inline'` is the one loosening — safe here
+     * because the presenter escapes every label, so no attribute a person set can carry style of its own.
+     */
+    u8 nonce_bytes[16] = { 0 };
+    if (!nya_os_random_bytes(nonce_bytes, sizeof(nonce_bytes))) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+
+    char nonce[32] = { 0 };
+    u64  nonce_len = 0;
+    if (!nya_crypto_base64url_encode(nonce_bytes, sizeof(nonce_bytes), nonce, sizeof(nonce), &nonce_len)) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+
+    char policy[256] = { 0 };
+    (void)snprintf(policy, sizeof(policy),
+                   "default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-%s'; connect-src 'self'; base-uri 'none'; form-action 'none'",
+                   nonce);
+
+    if (!nya_http_response_header(exchange->response, "Content-Security-Policy", policy).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+
     static char page[NYA_UI_HTML_MAX + 8192];
-    u32         written = nya_ui_html_document(&HTML, page, sizeof(page), "nyangine · live");
+    u32         written = nya_ui_html_document(&HTML, page, sizeof(page), "nyangine · live", nonce);
 
     if (written == 0) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 

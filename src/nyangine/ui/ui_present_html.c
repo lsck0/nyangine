@@ -166,7 +166,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "  [data-focused=\"1\"]{outline:2px solid var(--accent);outline-offset:-1px}\n"
     "</style></head><body>\n"
     "<div id=\"nya-surface\">\n%s</div>\n"
-    "<script>\n"
+    "<script%s>\n"
     "(function(){\n"
     "  var surface=document.getElementById('nya-surface');\n"
     "  function send(id,event,value){\n"
@@ -179,8 +179,13 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "})();\n"
     "</script></body></html>\n";
 
-u32 nya_ui_html_document(const NYA_UIHtml* html, char* out, u32 capacity, NYA_ConstCString title) {
+u32 nya_ui_html_document(const NYA_UIHtml* html, char* out, u32 capacity, NYA_ConstCString title, NYA_ConstCString script_nonce) {
     nya_assert(html != nullptr && out != nullptr && capacity > 0);
+
+    // The nonce as the attribute it becomes, or nothing. It is this server's own random value, not user
+    // data, so it needs no escaping; a caller that passes something else has misused it.
+    char nonce_attr[96] = { 0 };
+    if (script_nonce != nullptr && script_nonce[0] != '\0') (void)snprintf(nonce_attr, sizeof(nonce_attr), " nonce=\"%s\"", script_nonce);
 
     // The title through the same escaping a label gets, into a small stack buffer, since it is dropped
     // into the format string where a raw `<` would break the page.
@@ -192,7 +197,7 @@ u32 nya_ui_html_document(const NYA_UIHtml* html, char* out, u32 capacity, NYA_Co
         (void)snprintf(safe_title, sizeof(safe_title), "%.*s", (s32)nya_min(scratch.used, (u32)(sizeof(safe_title) - 1)), scratch.body);
     }
 
-    s32 written = snprintf(out, capacity, _NYA_UI_HTML_PAGE, safe_title, html->body);
+    s32 written = snprintf(out, capacity, _NYA_UI_HTML_PAGE, safe_title, html->body, nonce_attr);
 
     if (written <= 0) {
         out[0] = '\0';
