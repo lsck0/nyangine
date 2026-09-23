@@ -5253,6 +5253,8 @@ NYA_CRYPTO_BASE32_LENGTH(size)  // Characters `size` bytes encode to, padding in
 // functions
 NYA_Error nya_crypto_base32_encode(const u8* data, u64 size, OUT char* out_text, u64 capacity, OUT u64* out_length)
 NYA_Error nya_crypto_base32_decode(const char* text, u64 length, OUT u8* out_data, u64 capacity, OUT u64* out_size)
+b8 nya_crypto_base64url_encode(const u8* data, u64 size, OUT char* out_text, u64 capacity, OUT u64* out_size)
+b8 nya_crypto_base64url_decode(const char* text, u64 size, OUT u8* out_data, u64 capacity, OUT u64* out_size)  // The inverse.
 ```
 
 ### crypto_exchange.h
@@ -5325,6 +5327,25 @@ nya_crypto_argon2id(arena, out_hash, hash_size, ...)  // Hashes `.password` unde
 
 // functions
 NYA_Error _nya_crypto_argon2id(NYA_Arena* arena, OUT u8* out_hash, u64 hash_size, NYA_CryptoArgon2idOptions options)  // nya_crypto_argon2id with every option spelled out.
+```
+
+### crypto_rsa.h
+
+RSA signature verification, and nothing else: PKCS#1 v1.5 over SHA-256, which is what `RS256` means
+
+```c
+// types
+struct NYA_CryptoRsaPublicKey { u64 modulus[NYA_CRYPTO_RSA_MAX_LIMBS]; u32 limbs; u32 bits; u32 bytes; u64 exponent; }  // One public key, as the two numbers it is.
+
+// macros
+NYA_CRYPTO_RSA_MAX_BITS 4096  // The largest key this holds, in bits.
+NYA_CRYPTO_RSA_MIN_BITS 2048  // The smallest key this will verify with, in bits.
+NYA_CRYPTO_RSA_MAX_LIMBS (NYA_CRYPTO_RSA_MAX_BITS / 64)  // Sixty-four bit limbs a key of NYA_CRYPTO_RSA_MAX_BITS takes.
+NYA_CRYPTO_RSA_MAX_BYTES (NYA_CRYPTO_RSA_MAX_BITS / 8)  // Bytes a key of NYA_CRYPTO_RSA_MAX_BITS takes, which is also the size of a signature made with it.
+
+// functions
+NYA_Error nya_crypto_rsa_public_key_from_parts(const u8* modulus, u64 modulus_size, const u8* exponent, u64 exponent_size, OUT NYA_CryptoRsaPublicKey* out_key)  // Reads a key from the two big endian numbers a JWKS or a certificate carries.
+b8 nya_crypto_rsa_verify_sha256(const NYA_CryptoRsaPublicKey* key, const u8* message, u64 message_size, const u8* signature, u64 signature_size)  // Whether `signature` is this key's PKCS#1 v1.5 signature over SHA-256 of `message`.
 ```
 
 ### crypto_secret.h

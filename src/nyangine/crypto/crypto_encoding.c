@@ -193,3 +193,101 @@ u64 _nya_crypto_base32_tail_bytes(u64 characters) {
         default: return 0;
     }
 }
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * BASE64URL
+ * ─────────────────────────────────────────────────────────
+ */
+
+/** The value of one base64url character, or 64 for anything else. */
+NYA_INTERNAL u8 _nya_crypto_base64url_value(char character) __attr_no_discard;
+
+b8 nya_crypto_base64url_encode(const u8* data, u64 size, char* out_text, u64 capacity, u64* out_size) {
+    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+    nya_assert(capacity > 0);
+
+    *out_size   = 0;
+    out_text[0] = '\0';
+
+    // three bytes become four characters, and a trailing one or two become two or three.
+    u64 encoded = (size / 3) * 4 + (size % 3 == 0 ? 0 : size % 3 + 1);
+
+    if (encoded + 1 > capacity) return false;
+
+    u64 written = 0;
+
+    for (u64 index = 0; index < size; index += 3) {
+        u64 remaining = size - index;
+
+        u32 chunk = (u32)data[index] << 16;
+        if (remaining > 1) chunk |= (u32)data[index + 1] << 8;
+        if (remaining > 2) chunk |= (u32)data[index + 2];
+
+        out_text[written++] = alphabet[(chunk >> 18) & 0x3FU];
+        out_text[written++] = alphabet[(chunk >> 12) & 0x3FU];
+
+        if (remaining > 1) out_text[written++] = alphabet[(chunk >> 6) & 0x3FU];
+        if (remaining > 2) out_text[written++] = alphabet[chunk & 0x3FU];
+    }
+
+    out_text[written] = '\0';
+    *out_size         = written;
+
+    return true;
+}
+
+b8 nya_crypto_base64url_decode(const char* text, u64 size, u8* out_data, u64 capacity, u64* out_size) {
+    *out_size = 0;
+
+    // a base64 group is two, three or four characters; one leftover character encodes nothing and is
+    // the shape a truncated token has.
+    if (size == 0 || size % 4 == 1) return false;
+
+    u64 decoded = (size / 4) * 3 + (size % 4 == 0 ? 0 : size % 4 - 1);
+
+    if (decoded > capacity) return false;
+
+    u64 written = 0;
+
+    for (u64 index = 0; index < size; index += 4) {
+        u64 remaining = size - index;
+
+        u8  values[4] = { 0, 0, 0, 0 };
+        u64 group     = remaining < 4 ? remaining : 4;
+
+        for (u64 offset = 0; offset < group; offset++) {
+            values[offset] = _nya_crypto_base64url_value(text[index + offset]);
+            if (values[offset] == 64) return false;
+        }
+
+        /*
+         * A short final group carries bits that encode nothing: two characters hold one byte and four
+         * spare bits, three hold two bytes and two spare. Those have to be zero, or one signature has
+         * several spellings and a token can be edited into a different string that still verifies.
+         */
+        if (group == 2 && (values[1] & 0x0FU) != 0) return false;
+        if (group == 3 && (values[2] & 0x03U) != 0) return false;
+
+        u32 chunk = ((u32)values[0] << 18) | ((u32)values[1] << 12) | ((u32)values[2] << 6) | (u32)values[3];
+
+        out_data[written++] = (u8)((chunk >> 16) & 0xFFU);
+        if (group > 2) out_data[written++] = (u8)((chunk >> 8) & 0xFFU);
+        if (group > 3) out_data[written++] = (u8)(chunk & 0xFFU);
+    }
+
+    *out_size = written;
+
+    return true;
+}
+
+u8 _nya_crypto_base64url_value(char character) {
+    if (character >= 'A' && character <= 'Z') return (u8)(character - 'A');
+    if (character >= 'a' && character <= 'z') return (u8)(character - 'a' + 26);
+    if (character >= '0' && character <= '9') return (u8)(character - '0' + 52);
+    if (character == '-') return 62;
+    if (character == '_') return 63;
+
+    return 64;
+}

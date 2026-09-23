@@ -1,0 +1,200 @@
+/**
+ * RSA verification: a real signature from a real key, the refusals that matter more than it, and the
+ * bounds the header promises.
+ *
+ * The key material below is a fixture, made once with
+ * `openssl genrsa 2048` and signed with `openssl dgst -sha256 -sign`. It is in this file rather than
+ * generated at run time because a verifier has nothing to generate with, and because a signature
+ * somebody else produced is exactly the thing worth testing against: a bug that made this agree with
+ * itself would be invisible to a round trip.
+ **/
+
+#include "nyangine/nyangine.c"
+#include "nyangine/nyangine.h"
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * THE FIXTURE
+ * ─────────────────────────────────────────────────────────
+ */
+
+static const u8 FIXTURE_MODULUS[] = {
+  0xB6, 0xA4, 0x37, 0x45, 0xFE, 0xF9, 0x90, 0xD7, 0x50, 0xC0, 0x53, 0x1F,
+  0xA3, 0xB3, 0xD8, 0x75, 0xF1, 0xC7, 0xC8, 0x86, 0xDF, 0x6B, 0xBC, 0xA0,
+  0x29, 0xF5, 0x68, 0x1F, 0x5B, 0x45, 0x2E, 0x90, 0x88, 0x1C, 0x67, 0xD0,
+  0x75, 0x6C, 0x49, 0x0A, 0x45, 0xFB, 0x30, 0x6E, 0xA8, 0xB8, 0x04, 0xF5,
+  0xBB, 0x50, 0xAF, 0x36, 0x2E, 0x8B, 0x4B, 0xBC, 0x32, 0x19, 0xE5, 0xC9,
+  0xAD, 0xD0, 0x71, 0x1E, 0x87, 0x60, 0xA6, 0x64, 0x10, 0xA2, 0x47, 0x24,
+  0x4C, 0x66, 0x59, 0x65, 0xDB, 0x65, 0x31, 0xA2, 0x05, 0xA3, 0x7B, 0x69,
+  0x6D, 0xE2, 0x9D, 0x2F, 0x0D, 0x41, 0x6E, 0x70, 0x49, 0xB6, 0x98, 0x09,
+  0x5F, 0xED, 0x6A, 0x00, 0x4C, 0xBE, 0xFE, 0xD3, 0x5D, 0x23, 0x84, 0x12,
+  0xB1, 0x69, 0x9E, 0x38, 0xF7, 0xCE, 0x72, 0xBA, 0x5A, 0xE4, 0xC1, 0x81,
+  0xAD, 0xD2, 0x67, 0x87, 0x2B, 0x4F, 0x77, 0x1F, 0x68, 0xB4, 0x08, 0x60,
+  0x5C, 0x3C, 0x2E, 0xFD, 0x22, 0x14, 0xA1, 0x9E, 0x5A, 0x17, 0x90, 0x01,
+  0x1B, 0x95, 0xEA, 0xAF, 0x83, 0xFD, 0x36, 0xFB, 0x5B, 0x64, 0x00, 0xC2,
+  0x50, 0x08, 0x9B, 0x5E, 0x3E, 0x98, 0x71, 0x9D, 0x2E, 0x50, 0x2B, 0xD4,
+  0xEB, 0x30, 0x36, 0x13, 0x1D, 0x90, 0x32, 0x94, 0x19, 0x4F, 0x20, 0x66,
+  0xEC, 0x54, 0x68, 0xD8, 0xD2, 0xDC, 0x16, 0xA2, 0xEE, 0xC4, 0x5B, 0x5C,
+  0xB2, 0xF4, 0xF0, 0x95, 0xD0, 0xA5, 0xED, 0x4B, 0x64, 0x7D, 0xCB, 0xE8,
+  0xDC, 0x30, 0xB1, 0x43, 0x3E, 0xD7, 0xFE, 0x7F, 0x76, 0x5A, 0x7F, 0x2A,
+  0xB7, 0xDE, 0x02, 0xC0, 0x3B, 0xDB, 0x8C, 0x89, 0xEA, 0xBF, 0x79, 0xBD,
+  0xBA, 0xD0, 0xD0, 0x43, 0x77, 0x4D, 0x8C, 0xC1, 0x3B, 0xE8, 0xE9, 0x6A,
+  0xE4, 0xDF, 0x1A, 0x63, 0x5B, 0xB9, 0x31, 0xFF, 0xF2, 0x7E, 0x36, 0x02,
+  0xFA, 0x89, 0xA9, 0xE9,
+};
+
+static const u8 FIXTURE_SIGNATURE[] = {
+  0x6B, 0x63, 0x9E, 0xE7, 0x45, 0xDD, 0x4C, 0xC4, 0xFC, 0x58, 0xC8, 0x0C,
+  0xBF, 0x24, 0x6A, 0xD8, 0x10, 0x25, 0x2C, 0xC5, 0xF2, 0x25, 0xA3, 0x56,
+  0xCC, 0xD9, 0xB4, 0xC5, 0xFD, 0x2C, 0x10, 0xBE, 0x0A, 0xF8, 0xFD, 0xB1,
+  0x34, 0xC9, 0xBB, 0x24, 0x4A, 0xD8, 0x4A, 0x2F, 0xF5, 0xCA, 0x47, 0xD7,
+  0x1D, 0x77, 0x90, 0x8A, 0xEC, 0x36, 0x52, 0x4F, 0xDD, 0x5F, 0x55, 0x93,
+  0x6C, 0x2A, 0xCE, 0x75, 0x53, 0x51, 0xF3, 0xB7, 0x3B, 0xE6, 0x90, 0x50,
+  0x9F, 0xAA, 0x99, 0x9D, 0x7C, 0xCA, 0x43, 0x6C, 0xEE, 0x88, 0xCD, 0x39,
+  0x04, 0xBD, 0xB0, 0xB4, 0x41, 0xCB, 0x5C, 0xFD, 0x91, 0xA4, 0x7C, 0xB7,
+  0x1A, 0xD6, 0x89, 0x2E, 0x9D, 0x86, 0x3C, 0x43, 0xB1, 0x57, 0x58, 0xC7,
+  0x93, 0x0E, 0x6F, 0x92, 0x01, 0xBE, 0xF6, 0x17, 0xD4, 0xBC, 0xC7, 0xED,
+  0x4C, 0x9D, 0xD6, 0x1D, 0x0E, 0xC7, 0xE6, 0xF5, 0x28, 0x7B, 0x01, 0x6C,
+  0x5E, 0x8A, 0xE9, 0xE7, 0x71, 0xF9, 0xC5, 0xD9, 0x6B, 0xFD, 0xFF, 0xE2,
+  0x00, 0x94, 0xCB, 0x20, 0x2F, 0xA3, 0x8E, 0x96, 0x04, 0x49, 0x93, 0x8C,
+  0xC0, 0x43, 0x06, 0x62, 0xF6, 0x45, 0xA0, 0xE5, 0xD4, 0xFE, 0x72, 0xB6,
+  0x10, 0x1F, 0xBB, 0x5D, 0xDB, 0x45, 0x36, 0x5C, 0xF4, 0x7B, 0xB3, 0x01,
+  0xD4, 0x7F, 0x90, 0x39, 0x34, 0x5C, 0xD2, 0xDF, 0xC1, 0x6B, 0x3F, 0x6F,
+  0x9F, 0x7D, 0x3B, 0xBC, 0xCE, 0x82, 0xD9, 0xCA, 0x2D, 0xFE, 0x39, 0x68,
+  0xBF, 0xBD, 0x5E, 0x92, 0x86, 0xAB, 0x57, 0xFA, 0x62, 0x2D, 0x13, 0x45,
+  0xD7, 0x2B, 0x27, 0xE9, 0x5A, 0x03, 0x31, 0x12, 0x99, 0xA6, 0x92, 0xD3,
+  0xDA, 0xFD, 0x87, 0x9A, 0x90, 0x8B, 0x9A, 0xB7, 0x2A, 0x21, 0x54, 0x36,
+  0x45, 0xB1, 0x25, 0xA7, 0x1F, 0xC6, 0x96, 0x1D, 0x79, 0x21, 0x39, 0xE7,
+  0x1D, 0xFA, 0x03, 0x21,
+};
+
+static const char FIXTURE_MESSAGE[] = "the message this fixture signs";
+
+/** 65537, as a JWKS writes it: three big endian bytes. */
+static const u8 FIXTURE_EXPONENT[] = { 0x01, 0x00, 0x01 };
+
+s32 main(void) {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a signature openssl made verifies, and one byte of anything breaks it.
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_CryptoRsaPublicKey key = { 0 };
+
+    nya_check(nya_crypto_rsa_public_key_from_parts(FIXTURE_MODULUS, sizeof(FIXTURE_MODULUS), FIXTURE_EXPONENT, sizeof(FIXTURE_EXPONENT), &key).ok,
+              "the key is read from its two numbers");
+    nya_check(key.bits == 2048, "as a 2048 bit key, got %u", key.bits);
+    nya_check(key.exponent == 65537, "with the exponent everybody uses, got " FMTu64, key.exponent);
+
+    u64 message_size = sizeof(FIXTURE_MESSAGE) - 1;
+
+    nya_check(nya_crypto_rsa_verify_sha256(&key, (const u8*)FIXTURE_MESSAGE, message_size, FIXTURE_SIGNATURE, sizeof(FIXTURE_SIGNATURE)),
+              "the signature verifies against the message it was made over");
+
+    // a different message, which is the whole point of a signature.
+    nya_check(!nya_crypto_rsa_verify_sha256(&key, (const u8*)"the message this fixture signs.", message_size + 1, FIXTURE_SIGNATURE,
+                                            sizeof(FIXTURE_SIGNATURE)),
+              "and not against a message with one character more");
+
+    // every byte of the signature matters, so a few of them are checked one at a time.
+    for (u64 index = 0; index < sizeof(FIXTURE_SIGNATURE); index += 37) {
+      u8 tampered[sizeof(FIXTURE_SIGNATURE)];
+      nya_memcpy(tampered, FIXTURE_SIGNATURE, sizeof(tampered));
+
+      tampered[index] ^= 0x01;
+
+      nya_check(!nya_crypto_rsa_verify_sha256(&key, (const u8*)FIXTURE_MESSAGE, message_size, tampered, sizeof(tampered)),
+                "a signature with byte " FMTu64 " flipped is refused", index);
+    }
+
+    // and a signature of the wrong length is not a signature, however it was padded.
+    nya_check(!nya_crypto_rsa_verify_sha256(&key, (const u8*)FIXTURE_MESSAGE, message_size, FIXTURE_SIGNATURE, sizeof(FIXTURE_SIGNATURE) - 1),
+              "a short signature is refused rather than left padded");
+
+    u8 longer[sizeof(FIXTURE_SIGNATURE) + 1] = { 0 };
+    nya_memcpy(longer + 1, FIXTURE_SIGNATURE, sizeof(FIXTURE_SIGNATURE));
+
+    nya_check(!nya_crypto_rsa_verify_sha256(&key, (const u8*)FIXTURE_MESSAGE, message_size, longer, sizeof(longer)),
+              "and so is the same signature with a zero in front of it");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: what a key may not be.
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_CryptoRsaPublicKey key = { 0 };
+
+    // the floor, which is enforced here rather than by whoever is reading a provider's key list.
+    u8 small[128] = { 0 };
+    small[0]      = 0xC0;
+    small[127]    = 0x01;
+
+    nya_check(!nya_crypto_rsa_public_key_from_parts(small, sizeof(small), FIXTURE_EXPONENT, sizeof(FIXTURE_EXPONENT), &key).ok,
+              "a 1024 bit key is refused rather than verified with");
+
+    // an even modulus is not a product of two odd primes.
+    u8 even[sizeof(FIXTURE_MODULUS)];
+    nya_memcpy(even, FIXTURE_MODULUS, sizeof(even));
+    even[sizeof(even) - 1] &= (u8)0xFE;
+
+    nya_check(!nya_crypto_rsa_public_key_from_parts(even, sizeof(even), FIXTURE_EXPONENT, sizeof(FIXTURE_EXPONENT), &key).ok,
+              "an even modulus is refused");
+
+    // one would make every signature verify against every message.
+    u8 one[] = { 0x01 };
+    nya_check(!nya_crypto_rsa_public_key_from_parts(FIXTURE_MODULUS, sizeof(FIXTURE_MODULUS), one, sizeof(one), &key).ok, "the exponent one is refused");
+
+    u8 two[] = { 0x02 };
+    nya_check(!nya_crypto_rsa_public_key_from_parts(FIXTURE_MODULUS, sizeof(FIXTURE_MODULUS), two, sizeof(two), &key).ok, "and so is two");
+
+    u8 huge[9] = { 1, 0, 0, 0, 0, 0, 0, 0, 1 };
+    nya_check(!nya_crypto_rsa_public_key_from_parts(FIXTURE_MODULUS, sizeof(FIXTURE_MODULUS), huge, sizeof(huge), &key).ok,
+              "an exponent longer than eight bytes is refused");
+
+    u8 zero[4] = { 0 };
+    nya_check(!nya_crypto_rsa_public_key_from_parts(zero, sizeof(zero), FIXTURE_EXPONENT, sizeof(FIXTURE_EXPONENT), &key).ok,
+              "and a modulus of nothing but zeroes is not a modulus");
+
+    // a leading zero byte is what both DER and a JWKS may carry, so it is ignored rather than refused.
+    u8 padded[sizeof(FIXTURE_MODULUS) + 1] = { 0 };
+    nya_memcpy(padded + 1, FIXTURE_MODULUS, sizeof(FIXTURE_MODULUS));
+
+    NYA_CryptoRsaPublicKey from_padded = { 0 };
+    nya_check(nya_crypto_rsa_public_key_from_parts(padded, sizeof(padded), FIXTURE_EXPONENT, sizeof(FIXTURE_EXPONENT), &from_padded).ok,
+              "a modulus with a leading zero is the same modulus");
+    nya_check(from_padded.bits == 2048, "at the same size, got %u", from_padded.bits);
+    nya_check(nya_crypto_rsa_verify_sha256(&from_padded, (const u8*)FIXTURE_MESSAGE, sizeof(FIXTURE_MESSAGE) - 1, FIXTURE_SIGNATURE,
+                                           sizeof(FIXTURE_SIGNATURE)),
+              "and it verifies the same signature");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a forgery shaped like the padding, which is what the comparison exists for.
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_CryptoRsaPublicKey key = { 0 };
+    nya_check(nya_crypto_rsa_public_key_from_parts(FIXTURE_MODULUS, sizeof(FIXTURE_MODULUS), FIXTURE_EXPONENT, sizeof(FIXTURE_EXPONENT), &key).ok,
+              "the key is read");
+
+    /*
+     * The signature of a *different* key over this message: a number that decrypts to noise under
+     * this modulus. It stands in for every forgery that is not simply a flipped bit, and what refuses
+     * it is that the recovered block is compared against the padding whole rather than searched for a
+     * digest somewhere inside it.
+     */
+    u8 foreign[sizeof(FIXTURE_SIGNATURE)];
+    nya_memcpy(foreign, FIXTURE_SIGNATURE, sizeof(foreign));
+
+    foreign[0] = (u8)(foreign[0] ^ 0x80U);
+
+    nya_check(!nya_crypto_rsa_verify_sha256(&key, (const u8*)FIXTURE_MESSAGE, sizeof(FIXTURE_MESSAGE) - 1, foreign, sizeof(foreign)),
+              "a number that is not this key's signature is refused");
+
+    // and a key that was never read is not one to verify with.
+    NYA_CryptoRsaPublicKey empty = { 0 };
+    nya_check(!nya_crypto_rsa_verify_sha256(&empty, (const u8*)FIXTURE_MESSAGE, sizeof(FIXTURE_MESSAGE) - 1, FIXTURE_SIGNATURE,
+                                            sizeof(FIXTURE_SIGNATURE)),
+              "a zeroed key verifies nothing");
+  }
+
+  return nya_check_failures() == 0 ? 0 : 1;
+}

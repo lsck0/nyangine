@@ -45,23 +45,6 @@ NYA_INTERNAL NYA_HttpSecondFactorFn _NYA_HTTP_SECOND_FACTOR = nullptr;
  */
 
 /**
- * base64url without padding, which is what a JWS uses.
- *
- * Its own rather than base_base64.c's: that one is the padded, '+' and '/' alphabet, and a token in
- * that alphabet is not a token. Two alphabets in one function would be a flag nobody remembers to set.
- * */
-NYA_INTERNAL b8 _nya_http_base64url_encode(const u8* data, u64 size, OUT char* out_text, u64 capacity, OUT u64* out_size);
-
-/**
- * The inverse. False for a character outside the alphabet, for padding, for a length that cannot be
- * one, and for a final group whose spare bits are not zero; see the note at that check.
- * */
-NYA_INTERNAL b8 _nya_http_base64url_decode(const char* text, u64 size, OUT u8* out_data, u64 capacity, OUT u64* out_size);
-
-/** The value of one base64url character, or 64 for anything else. */
-NYA_INTERNAL u8 _nya_http_base64url_value(char character) __attr_no_discard;
-
-/**
  * Whether `subject` is one this server will put in a token: one to NYA_HTTP_MAX_SUBJECT - 1 characters
  * of `A-Z a-z 0-9 . _ - @`.
  *
@@ -128,7 +111,7 @@ NYA_Error nya_http_jwt_encode(const NYA_HttpIdentity* identity, const u8* secret
     char signing_input[NYA_HTTP_MAX_TOKEN_BYTES] = { 0 };
     u64  signing_size                            = 0;
 
-    if (!_nya_http_base64url_encode(
+    if (!nya_crypto_base64url_encode(
             (const u8*)_NYA_HTTP_JWT_HEADER,
             sizeof(_NYA_HTTP_JWT_HEADER) - 1,
             signing_input,
@@ -143,7 +126,7 @@ NYA_Error nya_http_jwt_encode(const NYA_HttpIdentity* identity, const u8* secret
     signing_input[signing_size++] = '.';
 
     u64 encoded = 0;
-    if (!_nya_http_base64url_encode(
+    if (!nya_crypto_base64url_encode(
             (const u8*)payload,
             (u64)payload_size,
             signing_input + signing_size,
@@ -164,7 +147,7 @@ NYA_Error nya_http_jwt_encode(const NYA_HttpIdentity* identity, const u8* secret
     out_token[signing_size] = '.';
 
     u64 tag_size = 0;
-    if (!_nya_http_base64url_encode(tag.bytes, sizeof(tag.bytes), out_token + signing_size + 1, capacity - signing_size - 1, &tag_size)) {
+    if (!nya_crypto_base64url_encode(tag.bytes, sizeof(tag.bytes), out_token + signing_size + 1, capacity - signing_size - 1, &tag_size)) {
         out_token[0] = '\0';
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "the token does not fit the caller's buffer");
     }
@@ -209,7 +192,7 @@ nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* sec
     u8  signature[NYA_CRYPTO_SHA256_BYTES + 4] = { 0 };
     u64 signature_size                  = 0;
 
-    if (!_nya_http_base64url_decode(token + second + 1, size - second - 1, signature, sizeof(signature), &signature_size)) {
+    if (!nya_crypto_base64url_decode(token + second + 1, size - second - 1, signature, sizeof(signature), &signature_size)) {
         return nya_error(NYA_ERROR_PARSE, "the signature is not base64url");
     }
 
@@ -229,7 +212,7 @@ nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* sec
     u8  header[_NYA_HTTP_JWT_PAYLOAD_BYTES] = { 0 };
     u64 header_size                         = 0;
 
-    if (!_nya_http_base64url_decode(token, first, header, sizeof(header), &header_size)) {
+    if (!nya_crypto_base64url_decode(token, first, header, sizeof(header), &header_size)) {
         return nya_error(NYA_ERROR_PARSE, "the header is not base64url");
     }
 
@@ -240,7 +223,7 @@ nya_http_jwt_decode(NYA_Arena* arena, const char* token, u64 size, const u8* sec
     u8  payload[_NYA_HTTP_JWT_PAYLOAD_BYTES] = { 0 };
     u64 payload_size                         = 0;
 
-    if (!_nya_http_base64url_decode(token + first + 1, second - first - 1, payload, sizeof(payload), &payload_size)) {
+    if (!nya_crypto_base64url_decode(token + first + 1, second - first - 1, payload, sizeof(payload), &payload_size)) {
         return nya_error(NYA_ERROR_PARSE, "the payload is not base64url");
     }
 
@@ -398,95 +381,6 @@ NYA_HttpSecondFactorFn nya_http_second_factor(void) {
  * PRIVATE API IMPLEMENTATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
-
-b8 _nya_http_base64url_encode(const u8* data, u64 size, char* out_text, u64 capacity, u64* out_size) {
-    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-
-    nya_assert(capacity > 0);
-
-    *out_size   = 0;
-    out_text[0] = '\0';
-
-    // three bytes become four characters, and a trailing one or two become two or three.
-    u64 encoded = (size / 3) * 4 + (size % 3 == 0 ? 0 : size % 3 + 1);
-
-    if (encoded + 1 > capacity) return false;
-
-    u64 written = 0;
-
-    for (u64 index = 0; index < size; index += 3) {
-        u64 remaining = size - index;
-
-        u32 chunk = (u32)data[index] << 16;
-        if (remaining > 1) chunk |= (u32)data[index + 1] << 8;
-        if (remaining > 2) chunk |= (u32)data[index + 2];
-
-        out_text[written++] = alphabet[(chunk >> 18) & 0x3FU];
-        out_text[written++] = alphabet[(chunk >> 12) & 0x3FU];
-
-        if (remaining > 1) out_text[written++] = alphabet[(chunk >> 6) & 0x3FU];
-        if (remaining > 2) out_text[written++] = alphabet[chunk & 0x3FU];
-    }
-
-    out_text[written] = '\0';
-    *out_size         = written;
-
-    return true;
-}
-
-b8 _nya_http_base64url_decode(const char* text, u64 size, u8* out_data, u64 capacity, u64* out_size) {
-    *out_size = 0;
-
-    // a base64 group is two, three or four characters; one leftover character encodes nothing and is
-    // the shape a truncated token has.
-    if (size == 0 || size % 4 == 1) return false;
-
-    u64 decoded = (size / 4) * 3 + (size % 4 == 0 ? 0 : size % 4 - 1);
-
-    if (decoded > capacity) return false;
-
-    u64 written = 0;
-
-    for (u64 index = 0; index < size; index += 4) {
-        u64 remaining = size - index;
-
-        u8  values[4] = { 0, 0, 0, 0 };
-        u64 group     = remaining < 4 ? remaining : 4;
-
-        for (u64 offset = 0; offset < group; offset++) {
-            values[offset] = _nya_http_base64url_value(text[index + offset]);
-            if (values[offset] == 64) return false;
-        }
-
-        /*
-         * A short final group carries bits that encode nothing: two characters hold one byte and four
-         * spare bits, three hold two bytes and two spare. Those have to be zero, or one signature has
-         * several spellings and a token can be edited into a different string that still verifies.
-         */
-        if (group == 2 && (values[1] & 0x0FU) != 0) return false;
-        if (group == 3 && (values[2] & 0x03U) != 0) return false;
-
-        u32 chunk = ((u32)values[0] << 18) | ((u32)values[1] << 12) | ((u32)values[2] << 6) | (u32)values[3];
-
-        out_data[written++] = (u8)((chunk >> 16) & 0xFFU);
-        if (group > 2) out_data[written++] = (u8)((chunk >> 8) & 0xFFU);
-        if (group > 3) out_data[written++] = (u8)(chunk & 0xFFU);
-    }
-
-    *out_size = written;
-
-    return true;
-}
-
-u8 _nya_http_base64url_value(char character) {
-    if (character >= 'A' && character <= 'Z') return (u8)(character - 'A');
-    if (character >= 'a' && character <= 'z') return (u8)(character - 'a' + 26);
-    if (character >= '0' && character <= '9') return (u8)(character - '0' + 52);
-    if (character == '-') return 62;
-    if (character == '_') return 63;
-
-    return 64;
-}
 
 b8 _nya_http_subject_is_valid(NYA_ConstCString subject, u64 size) {
     if (subject == nullptr || size == 0 || size >= NYA_HTTP_MAX_SUBJECT) return false;

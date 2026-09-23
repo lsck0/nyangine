@@ -56,5 +56,6 @@
 #include "nyangine/crypto/crypto_exchange.h"
 #include "nyangine/crypto/crypto_hash.h"
 #include "nyangine/crypto/crypto_kdf.h"
+#include "nyangine/crypto/crypto_rsa.h"
 #include "nyangine/crypto/crypto_sign.h"
 #include "nyangine/crypto/crypto_totp.h"

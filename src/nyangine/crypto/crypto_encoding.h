@@ -64,3 +64,28 @@ NYA_API NYA_Error nya_crypto_base32_encode(const u8* data, u64 size, OUT char* o
  * on either, and `out_size` is zero.
  * */
 NYA_API NYA_Error nya_crypto_base32_decode(const char* text, u64 length, OUT u8* out_data, u64 capacity, OUT u64* out_size) __attr_no_discard;
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * BASE64URL
+ * ─────────────────────────────────────────────────────────
+ */
+
+/**
+ * base64url without padding, which is the alphabet every token format uses: a JWS, a PKCE challenge,
+ * a JWKS key, a webhook signature.
+ *
+ * Its own rather than base_base64.c's, which is the padded `+` and `/` alphabet: a token in that
+ * alphabet is not a token, and one function with a flag for both is a flag somebody forgets to set.
+ * Here rather than in `base` for the reason at the top of this file — what it encodes is usually a
+ * secret, and the decoder refuses anything with more than one spelling.
+ * */
+NYA_API b8 nya_crypto_base64url_encode(const u8* data, u64 size, OUT char* out_text, u64 capacity, OUT u64* out_size);
+
+/**
+ * The inverse. False for a character outside the alphabet, for padding, for a length that cannot be
+ * one, and for a final group whose spare bits are not zero — that last one is what stops a signature
+ * from having several spellings, so a token cannot be edited into a different string that still
+ * verifies.
+ * */
+NYA_API b8 nya_crypto_base64url_decode(const char* text, u64 size, OUT u8* out_data, u64 capacity, OUT u64* out_size);
