@@ -334,12 +334,19 @@ browser, from the same `component()` function.
        - **No `layout(binding=)` and synthesized sampler names** (`_29`, `_78`): the backend assigns texture units
          (`glUniform1i`) and UBO binding points itself by declared/reflected order, not by name.
        - `effect_lut.frag` needs a `sampler3D` (fine on WebGL2). Dummy samplers synthesized for texelFetch passes.
-    2. GLES3 shim (`src/nyangine/renderer/gpu_gles/`, `#if OS_WASM`): implement the 53 SDL_GPU calls over
-       WebGL2. Command buffers execute immediately (WebGL2 has none); render pass = FBO bind + clear; pipeline =
-       linked program + cached GL state; transfer buffer = CPU staging + `glBufferSubData`/`glTexSubImage`;
-       fences = `glClientWaitSync`/no-op under emscripten's async loop. **Scope 2D first** (batch2d + shape/
-       textured/light2d, ~20 of the 53 calls) for a visible sprite on canvas, then 3D+shadow (needs the gather
-       fix above). WebGL2 context via emscripten's html5 GL API (bypass SDL_GPU entirely; SDL not on the GL path).
+    2. `[~]` **GLES3 shim (2D landed `c4d1390`)** — `src/nyangine/renderer/gpu_gles/gpu_gles.{c,h}`, `#if OS_WASM`.
+       Defines the opaque SDL_GPU handle structs as GLES state (legal — no SDL linked on wasm) and implements the
+       ~35 SDL_GPU functions the 2D path uses over WebGL2 (context via `emscripten_webgl_create_context`, command
+       buffers execute immediately, render pass = fbo0 + clear, pipeline = linked GLSL-ES program with bindings
+       assigned by reflection, push-uniforms = UBO + `glBindBufferBase`, draw = `glDrawElements`). `./build
+       wasm-game` builds `web/nyangine_game.{js,wasm}` + `web/game.html`; node selfcheck asserts the exact 16-call
+       2D frame sequence (PASS). Engine `.c` and `SDL_gpu.h` byte-identical. Only a browser can confirm pixels.
+       **Not yet routed through the real `nya_render2d_*` API** — two blockers: (a) `math_matrix.c` won't compile
+       on wasm (f16→float collapses `nya_matrix_create`'s f16/f32 overloads to one signature); (b) `renderer.c`
+       window bring-up is one ~700-line function that starts 2D+3D+post+shadow together with no 2D-only seam.
+       Next web stage: an f16/f32 wasm disambiguation + a 2D-only renderer bring-up, then real render2d + assets
+       (SDL_image/ttf) in wasm; after that 3D (needs depth FBOs, MSAA resolve, the textureGather web variant, the
+       5 plain-uniform shaders). Input still unwired.
     3. App loop under `emscripten_set_main_loop`; canvas input via emscripten html5 events → `NYA_Event`.
     4. A game example building to a canvas; the `web_frontend` caller. Verify a frame draws under node/headless
        where possible, then in-browser.
