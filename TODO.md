@@ -289,6 +289,33 @@ browser, from the same `component()` function.
   `emscripten_set_main_loop`, `ui` + a DOM or canvas presenter, and for the actual game a WebGL/GLES renderer
   backend against SDL3's emscripten port. Then a `web_frontend` caller and a game example that builds to a
   canvas. The base+serde port above is the foundation.
+  - **WALL found 2026-09-23:** the renderer is 100% SDL_GPU (216 call sites; `SDL_CreateGPUDevice` with
+    DXIL/MSL/SPIRV shader formats). SDL_GPU has no browser backend — no WebGL/WebGPU target in stable SDL3, so
+    neither the 3D renderer nor the 2D GPU shape presenter runs in wasm as written. The DOM/UI path (SSR done,
+    CSR in flight) is unaffected because it never touches SDL_GPU. To put a *rendered game* on the web needs one
+    of: (a) a new WebGL2/WebGPU render backend behind the same `renderer.h` seam + SPIRV→GLSL/WGSL shader
+    cross-compilation (largest); (b) a lightweight canvas-2D backend that consumes render2d's draw list and
+    bypasses SDL_GPU (2D games only); or (c) wait for an upstream SDL_GPU WebGPU backend.
+  - **Decision 2026-09-23 (user): the full render backend (a), targeting WebGL2/GLES3, not WebGPU.** Rationale:
+    emscripten's GLES3/WebGL2 is the mature browser path, and SPIRV-Cross (already inside vendored
+    `sdl-shadercross`) cross-compiles our SPIRV to GLSL ES 300 with no new toolchain — WebGPU would need Dawn +
+    naga/tint and has spottier browser support. SDL_GPU has no GL backend to reuse, and the engine has no render
+    seam (SDL_GPU types sit in the public `NYA_RenderSystem`/`NYA_RenderTexture` structs). So the plan is a
+    **SDL_GPU-API-shaped shim over GLES3** compiled only for wasm, leaving all 216 engine call sites and structs
+    unchanged. The surface is bounded: **53 distinct `SDL_*GPU*` functions** (inventory in git history of this
+    line's commit). Staged:
+    1. Shader pipeline: extend `build_shaders` to also emit GLSL ES 300 from the same HLSL via
+       DXC→SPIRV→SPIRV-Cross, written beside the `.spv`/`.dxil`/`.msl`; `_nya_asset_pick_correct_compiled_shader`
+       learns a GLSL format. (Touches the build system — sequence after the CSR-UI wasm build extension lands to
+       avoid churn on `flags.h`/`cli.c`.)
+    2. GLES3 shim (`src/nyangine/renderer/gpu_gles/`, `#if OS_WASM`): implement the 53 SDL_GPU calls over
+       WebGL2. Command buffers execute immediately (WebGL2 has none); render pass = FBO bind + clear; pipeline =
+       linked program + cached GL state; transfer buffer = CPU staging + `glBufferSubData`/`glTexSubImage`;
+       fences = `glClientWaitSync`/no-op under emscripten's async loop.
+    3. App loop under `emscripten_set_main_loop`; SDL3's emscripten port gives the GLES3 context + window/input.
+    4. A game example building to a canvas; the `web_frontend` caller. Verify a frame draws under node/headless
+       where possible, then in-browser.
+    Native builds stay byte-identical (every shim file gated `#if OS_WASM`).
 - `[ ]` **Remaining SSR:** text-field value write-back (needs text injection), custom style beyond colours
   (track/ink/scrim), engine per-frame animation (needs WebSocket frame streaming).
 
