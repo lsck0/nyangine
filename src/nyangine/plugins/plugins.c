@@ -4,6 +4,8 @@
 #include "nyangine/plugins/curl/websocket.c"
 // After the websocket, which its default transport is written in terms of.
 #include "nyangine/plugins/discord_bot/discord_gateway.c"
+// After the gateway, whose token check and bounded copy it reuses rather than writing a second pair.
+#include "nyangine/plugins/discord_bot/discord_rest.c"
 #endif
 
 #ifdef NYA_PLUGIN_SQLITE

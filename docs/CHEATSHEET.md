@@ -5868,6 +5868,47 @@ u64 nya_discord_gateway_backoff_ms(u32 attempt)  // How long to wait before reco
 NYA_ConstCString nya_discord_gateway_state_name(NYA_DiscordGatewayState state)  // "ready", "identifying", ...
 ```
 
+### discord_rest.h
+
+The other half of a Discord bot: the HTTP API it talks back through. The gateway says what happened;
+
+```c
+// types
+struct NYA_DiscordRateLimitBucket { char route[NYA_DISCORD_REST_MAX_ROUTE]; char id[NYA_DISCORD_REST_MAX_BUCKET_ID]; u32 limit; u32 remaining; u64 reset_at_ms; }  // One bucket as the last reply from it described it.
+struct NYA_DiscordRateLimit { NYA_DiscordRateLimitBucket buckets[NYA_DISCORD_REST_MAX_BUCKETS]; u32 bucket_count; u64 global_reset_at_ms; }  // Every bucket, plus the one limit that is not per bucket.
+typedef enum { NYA_DISCORD_REST_MESSAGE_SEND = 0, NYA_DISCORD_REST_COMMAND_REGISTER, NYA_DISCORD_REST_INTERACTION_REPLY, NYA_DISCORD_REST_KIND_COUNT, } NYA_DiscordRestKind  // Which of the three calls a queue entry is, which decides the method, the path and the body.
+struct NYA_DiscordRestOptions { NYA_ConstCString token; NYA_ConstCString application_id; NYA_ConstCString base_url; u64 timeout_ms; NYA_Error (*perform)(void* user, NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response); u64 (*now_ms)(void* user); void* user; }
+struct NYA_DiscordRestResult { u64 id; NYA_DiscordRestKind kind; NYA_ConstCString route; u32 status; const NYA_Object* body; NYA_Error error; }
+
+// macros
+NYA_DISCORD_REST_URL "https:  // Where the bot API lives.
+NYA_DISCORD_REST_MAX_TOKEN 128  // Token bytes held, terminator included.
+NYA_DISCORD_REST_MAX_URL 128  // API root bytes, terminator included.
+NYA_DISCORD_REST_MAX_ID 24  // Snowflake bytes, terminator included.
+NYA_DISCORD_REST_MAX_QUEUE 16  // Requests queued before a new one is refused.
+NYA_DISCORD_REST_MAX_BUCKETS 32  // Rate limit buckets remembered.
+NYA_DISCORD_REST_MAX_ROUTE 96  // Route key bytes, terminator included: the method and the path with the ids taken out.
+NYA_DISCORD_REST_MAX_BUCKET_ID 48  // Bucket id bytes, terminator included.
+NYA_DISCORD_REST_MAX_PATH 512  // Request path bytes, terminator included.
+NYA_DISCORD_REST_MAX_CONTENT 2048  // Message content bytes, terminator included.
+NYA_DISCORD_REST_MAX_NAME 48  // Slash command name bytes.
+NYA_DISCORD_REST_MAX_DESCRIPTION 256  // Slash command description bytes.
+NYA_DISCORD_REST_MAX_ATTEMPTS 3  // How many times one request is retried before it is given back as failed.
+NYA_DISCORD_REST_RETRY_MS 1000  // How long a retried request waits before it is tried again, doubling per attempt.
+
+// functions
+void nya_discord_rate_limit_observe(NYA_DiscordRateLimit* limits, NYA_ConstCString route, u32 status, const NYA_Response* response, u64 now_ms)  // Folds one reply's rate limit headers into `limits`.
+b8 nya_discord_rate_limit_ready(const NYA_DiscordRateLimit* limits, NYA_ConstCString route, u64 now_ms, OUT u64* out_wait_ms)  // Whether a request on `route` may go out now, and how long until it may when it may not.
+NYA_Error nya_discord_rest_create(NYA_Arena* arena, NYA_DiscordRestOptions options, OUT NYA_DiscordRest** out_rest)  // Copies the token, takes the queue from `arena`, and returns a client that has sent nothing yet.
+void nya_discord_rest_destroy(NYA_DiscordRest* rest)  // Wipes the token and frees the client, dropping anything still queued.
+NYA_Error nya_discord_rest_message_send(NYA_DiscordRest* rest, NYA_ConstCString channel_id, NYA_ConstCString content, OUT u64* out_id)  // Queues "post `content` to channel `channel_id`" and answers the id its result will carry.
+NYA_Error nya_discord_rest_command_register(NYA_DiscordRest* rest, NYA_ConstCString name, NYA_ConstCString description, OUT u64* out_id)  // Queues a global slash command under the configured application id.
+NYA_Error nya_discord_rest_interaction_reply(NYA_DiscordRest* rest, NYA_ConstCString interaction_id, NYA_ConstCString interaction_token, NYA_ConstCString content, OUT u64* out_id)  // Queues the answer to an interaction: type 4, a message the user sees in the channel.
+b8 nya_discord_rest_poll(NYA_DiscordRest* rest, OUT NYA_DiscordRestResult* out_result)  // Performs at most one queued request whose bucket allows it, and hands back its result.
+u32 nya_discord_rest_pending(const NYA_DiscordRest* rest)  // How many requests are queued, sent or waiting.
+const NYA_DiscordRateLimit* nya_discord_rest_limits(const NYA_DiscordRest* rest)  // The client's rate limit state, for a log line or an overlay.
+```
+
 ### lua.h
 
 A LuaJIT VM, values crossing in both directions as NYA_Value, and C functions callable from a
