@@ -1205,15 +1205,40 @@ b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {
         if (strcmp(_NYA_HTTP->buckets[index].address, address) == 0) bucket = &_NYA_HTTP->buckets[index];
     }
 
-    // a new address starts full. Past the table's bound the budget touched longest ago makes room; see the bound.
+    // a new address starts full. Past the table's bound one budget makes room, and which one is the
+    // whole of whether this table can be used against the addresses already in it; see below.
     if (bucket == nullptr) {
         if (_NYA_HTTP->bucket_count < NYA_HTTP_MAX_RATE_BUCKETS) {
             bucket = &_NYA_HTTP->buckets[_NYA_HTTP->bucket_count++];
         } else {
-            bucket = &_NYA_HTTP->buckets[0];
-            for (u32 index = 1; index < NYA_HTTP_MAX_RATE_BUCKETS; index++) {
-                if (_NYA_HTTP->buckets[index].refilled_at_ns < bucket->refilled_at_ns) bucket = &_NYA_HTTP->buckets[index];
+            /*
+             * Only a budget that has refilled all the way makes room. An address whose budget is spent
+             * is an address being refused right now, and evicting it would hand it a fresh burst — so
+             * somebody spraying source addresses could clear the table and start over as often as they
+             * liked, which is the eviction attack this bound used to have.
+             *
+             * Among the full ones the stalest goes, because they are all equally not being refused.
+             */
+            _NYA_HttpRateBucket* victim = nullptr;
+
+            for (u32 index = 0; index < NYA_HTTP_MAX_RATE_BUCKETS; index++) {
+                _NYA_HttpRateBucket* candidate = &_NYA_HTTP->buckets[index];
+
+                f64 idle_s    = (f64)(now_ns - candidate->refilled_at_ns) / 1e9;
+                f64 projected = candidate->tokens + (idle_s * (f64)_NYA_HTTP->requests_per_second);
+
+                if (projected < (f64)_NYA_HTTP->request_burst) continue;
+                if (victim == nullptr || candidate->refilled_at_ns < victim->refilled_at_ns) victim = candidate;
             }
+
+            // Every budget in the table is spent: the table is full of addresses being refused, and this
+            // one waits with them rather than taking a slot from one of them.
+            if (victim == nullptr) {
+                *out_retry_after_s = 1;
+                return false;
+            }
+
+            bucket = victim;
         }
 
         *bucket = (_NYA_HttpRateBucket){ .tokens = (f64)_NYA_HTTP->request_burst, .refilled_at_ns = now_ns };

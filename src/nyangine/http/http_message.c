@@ -28,6 +28,12 @@
  */
 #define _NYA_HTTP_DEFAULT_CSP "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
+/*
+ * The three a page is most often asked for by something it embedded rather than by the person reading
+ * it. A route that wants one says so itself, the same way it would say its own CSP.
+ */
+#define _NYA_HTTP_DEFAULT_PERMISSIONS "geolocation=(), camera=(), microphone=()"
+
 NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SECURITY_HEADERS[][2] = {
     { "Content-Security-Policy",      _NYA_HTTP_DEFAULT_CSP },
     { "X-Content-Type-Options",       "nosniff" },
@@ -35,6 +41,7 @@ NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SECURITY_HEADERS[][2] = {
     { "Cross-Origin-Opener-Policy",   "same-origin" },
     { "Cross-Origin-Embedder-Policy", "require-corp" },
     { "Cross-Origin-Resource-Policy", "same-origin" },
+    { "Permissions-Policy",           _NYA_HTTP_DEFAULT_PERMISSIONS },
 };
 
 /** Room for the defaults above, rendered: each name and value plus ": " and CRLF, with slack. Checked below. */
@@ -42,7 +49,8 @@ NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SECURITY_HEADERS[][2] = {
 
 static_assert(
     sizeof("Content-Security-Policy" _NYA_HTTP_DEFAULT_CSP "X-Content-Type-Options" "nosniff" "Referrer-Policy" "no-referrer"
-           "Cross-Origin-Opener-Policy" "same-origin" "Cross-Origin-Embedder-Policy" "require-corp" "Cross-Origin-Resource-Policy" "same-origin") +
+           "Cross-Origin-Opener-Policy" "same-origin" "Cross-Origin-Embedder-Policy" "require-corp" "Cross-Origin-Resource-Policy" "same-origin"
+           "Permissions-Policy" _NYA_HTTP_DEFAULT_PERMISSIONS) +
             (sizeof(": \r\n") - 1) * nya_carray_length(_NYA_HTTP_SECURITY_HEADERS) <= _NYA_HTTP_SECURITY_HEAD_BYTES,
     "the default security headers outgrew the room kept for them"
 );
