@@ -363,44 +363,44 @@ NYA_Object* nya_nn_neat_network_to_object(NYA_Arena* arena, const NYA_NeatNetwor
     NYA_Object* root = nya_object_create(arena);
 
     /* A version tag first. */
-    nya_object_set(root, "version", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 1 });
-    nya_object_set(root, "activation_steps", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = network->activation_steps });
+    nya_object_add(root, "version", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 1 });
+    nya_object_add(root, "activation_steps", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = network->activation_steps });
 
     NYA_ArrayᐸNYA_Valueᐳ* nodes = nya_array_create(arena, NYA_Value);
 
     nya_array_foreach (network->nodes, node) {
         NYA_Object* entry = nya_object_create(arena);
 
-        nya_object_set(entry, "kind", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = (u32)node->kind });
+        nya_object_add(entry, "kind", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = (u32)node->kind });
 
         // hidden nodes have no label; omitted, since a null string would round trip as "null".
         if (node->label != nullptr) {
             NYA_String* label = nya_string_sprintf(arena, "%s", node->label);
-            nya_object_set(entry, "label", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, label) });
+            nya_object_add(entry, "label", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = nya_string_to_cstring(arena, label) });
         }
 
         nya_array_push_back(nodes, ((NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *entry }));
     }
 
-    nya_object_set(root, "nodes", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *nodes });
+    nya_object_add(root, "nodes", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *nodes });
 
     NYA_ArrayᐸNYA_Valueᐳ* connections = nya_array_create(arena, NYA_Value);
 
     nya_array_foreach (network->connections, connection) {
         NYA_Object* entry = nya_object_create(arena);
 
-        nya_object_set(entry, "in", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = connection->in });
-        nya_object_set(entry, "out", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = connection->out });
-        nya_object_set(entry, "weight", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = connection->weight });
-        nya_object_set(entry, "enabled", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = connection->enabled });
+        nya_object_add(entry, "in", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = connection->in });
+        nya_object_add(entry, "out", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = connection->out });
+        nya_object_add(entry, "weight", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = connection->weight });
+        nya_object_add(entry, "enabled", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = connection->enabled });
 
         // saved: innovation numbers let this genome cross with its population later.
-        nya_object_set(entry, "innovation", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = connection->innovation_number });
+        nya_object_add(entry, "innovation", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = connection->innovation_number });
 
         nya_array_push_back(connections, ((NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *entry }));
     }
 
-    nya_object_set(root, "connections", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *connections });
+    nya_object_add(root, "connections", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *connections });
 
     return root;
 }

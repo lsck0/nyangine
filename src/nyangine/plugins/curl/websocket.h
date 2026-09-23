@@ -254,7 +254,7 @@ NYA_API NYA_Error nya_websocket_send_binary(NYA_WebSocket* socket, const u8* dat
  *
  * ```c
  * NYA_Object* request = nya_object_create(arena);
- * nya_object_set(request, "op", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 6 });
+ * nya_object_add(request, "op", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = 6 });
  * NYA_TRY(nya_websocket_send_object(socket, arena, request));
  * ```
  * */

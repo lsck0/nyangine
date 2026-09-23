@@ -2233,7 +2233,7 @@ NYA_FontAtlas* _nya_render2d_font_atlas(NYA_Window* window, NYA_ConstCString fon
     }
 
     void*     claimed = nullptr;
-    NYA_Error claim   = nya_cache_insert(_nya_render2d_font_cache, derived, derived_length, asset->generation, &claimed);
+    NYA_Error claim   = nya_cache_add(_nya_render2d_font_cache, derived, derived_length, asset->generation, &claimed);
     if (!claim.ok) {
         // the capacity was handled above, so this is a handle longer than the cache's key.
         if (_nya_render2d_atlas_warn_once(derived)) nya_log_warn("could not claim a glyph atlas slot for '%s': %s", derived, (NYA_ConstCString)claim.message);

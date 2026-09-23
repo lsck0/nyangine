@@ -12,8 +12,8 @@
  * NYA_Arena* arena = nya_arena_create(...);
  * NYA_HSetᐸPlayerᐳ* player_set = nya_hset_create(arena, Player);
  *
- * nya_hset_insert(player_set, (Player){ .id = 1, .name = "Alice" });
- * nya_hset_insert(player_set, (Player){ .id = 2, .name = "Bob" });
+ * nya_hset_add(player_set, (Player){ .id = 1, .name = "Alice" });
+ * nya_hset_add(player_set, (Player){ .id = 2, .name = "Bob" });
  *
  * nya_hset_foreach (player_set, player) nya_log_info("Player %u: %s", player->id, player->name);
  *
@@ -105,7 +105,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#define _nya_hset_insert_unchecked(hset_ptr, item)                                                                                                   \
+#define _nya_hset_add_unchecked(hset_ptr, item)                                                                                                   \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (hset_ptr)->items[0]);                                                                                           \
         typeof(item) item_var   = item;                                                                                                              \
@@ -146,7 +146,7 @@
                                                                                                                                                      \
         for (u64 i = 0; i < old_hset.capacity; i++) {                                                                                                \
             if (!old_hset.occupied[i]) continue;                                                                                                     \
-            _nya_hset_insert_unchecked(hset_ptr, old_hset.items[i]);                                                                                 \
+            _nya_hset_add_unchecked(hset_ptr, old_hset.items[i]);                                                                                 \
         }                                                                                                                                            \
                                                                                                                                                      \
         nya_arena_free((hset_ptr)->arena, old_hset.items, sizeof(*old_hset.items) * old_hset.capacity);                                              \
@@ -180,21 +180,21 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INSERT / REMOVE MACROS
+ * ADD / REMOVE MACROS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#define nya_hset_insert(hset_ptr, item)                                                                                                              \
+#define nya_hset_add(hset_ptr, item)                                                                                                              \
     ({                                                                                                                                               \
         nya_assert_type_match(item, (hset_ptr)->items[0]);                                                                                           \
-        /* Same zero capacity case as nya_hmap_set; see the note there. */                                                                           \
+        /* Same zero capacity case as nya_hmap_add; see the note there. */                                                                           \
         if ((hset_ptr)->capacity == 0) {                                                                                                             \
             nya_hset_resize_and_rehash(hset_ptr, _NYA_HASHSET_DEFAULT_CAPACITY);                                                                     \
         } else if (((f32)((hset_ptr)->length + 1) / (f32)(hset_ptr)->capacity) > _NYA_HASHSET_LOAD_FACTOR) {                                         \
             nya_hset_resize_and_rehash(hset_ptr, (hset_ptr)->capacity * 2);                                                                          \
         }                                                                                                                                            \
-        /* The probe loop lives only in _nya_hset_insert_unchecked, as nya_hmap_set and nya_dict_set delegate. */                                    \
-        _nya_hset_insert_unchecked(hset_ptr, item);                                                                                                  \
+        /* The probe loop lives only in _nya_hset_add_unchecked, as nya_hmap_add and nya_dict_add delegate. */                                    \
+        _nya_hset_add_unchecked(hset_ptr, item);                                                                                                  \
     })
 
 #define nya_hset_remove(hset_ptr, item)                                                                                                              \
@@ -214,7 +214,7 @@
                     typeof((hset_ptr)->items[0]) _rehash_item = (hset_ptr)->items[_rehash_idx];                                                      \
                     (hset_ptr)->occupied[_rehash_idx]         = false;                                                                               \
                     (hset_ptr)->length--;                                                                                                            \
-                    _nya_hset_insert_unchecked(hset_ptr, _rehash_item);                                                                              \
+                    _nya_hset_add_unchecked(hset_ptr, _rehash_item);                                                                              \
                     _rehash_idx = (_rehash_idx + 1) % (hset_ptr)->capacity;                                                                          \
                 }                                                                                                                                    \
                 break;                                                                                                                               \
@@ -249,7 +249,7 @@
         NYA_Arena* _union_arena = (src_hset_ptr)->arena;                                                                                             \
         _nya_hset_snapshot(src_hset_ptr, _union_items, _union_count, _union_bytes);                                                                  \
                                                                                                                                                      \
-        for (u64 _union_i = 0; _union_i < _union_count; _union_i++) nya_hset_insert(dest_hset_ptr, _union_items[_union_i]);                          \
+        for (u64 _union_i = 0; _union_i < _union_count; _union_i++) nya_hset_add(dest_hset_ptr, _union_items[_union_i]);                          \
                                                                                                                                                      \
         nya_arena_free(_union_arena, _union_items, _union_bytes);                                                                                    \
     } while (0)
@@ -294,7 +294,7 @@
             if (nya_hset_contains(dest_hset_ptr, _sym_items[_sym_i]))                                                                                \
                 nya_hset_remove(dest_hset_ptr, _sym_items[_sym_i]);                                                                                  \
             else                                                                                                                                     \
-                nya_hset_insert(dest_hset_ptr, _sym_items[_sym_i]);                                                                                  \
+                nya_hset_add(dest_hset_ptr, _sym_items[_sym_i]);                                                                                  \
         }                                                                                                                                            \
                                                                                                                                                      \
         nya_arena_free(_sym_arena, _sym_items, _sym_bytes);                                                                                          \

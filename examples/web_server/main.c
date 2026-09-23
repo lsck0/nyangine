@@ -202,9 +202,9 @@ static NYA_OrmTable* NOTES_TABLE = nullptr;
 NYA_INTERNAL NYA_Value note_to_value(NYA_Arena* arena, const ExampleNote* note) {
     NYA_Object* object = nya_object_create(arena);
 
-    nya_object_set(object, "id", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = note->id });
-    nya_object_set(object, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)note->text });
-    nya_object_set(object, "written_at_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = note->written_at_s });
+    nya_object_add(object, "id", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = note->id });
+    nya_object_add(object, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)note->text });
+    nya_object_add(object, "written_at_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = note->written_at_s });
 
     return (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *object };
 }
@@ -241,11 +241,11 @@ NYA_INTERNAL u64 note_count(void) {
 NYA_INTERNAL NYA_CString stream_snapshot(NYA_Arena* arena) {
     NYA_Object* body = nya_object_create(arena);
 
-    nya_object_set(body, "notes", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = note_count() });
-    nya_object_set(body, "requests", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_request_count() });
-    nya_object_set(body, "connections", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_connection_count() });
-    nya_object_set(body, "listeners", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_websocket_count() });
-    nya_object_set(body, "uptime_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)nya_clock_get_monotonic_ns() / 1e9 });
+    nya_object_add(body, "notes", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = note_count() });
+    nya_object_add(body, "requests", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_request_count() });
+    nya_object_add(body, "connections", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_connection_count() });
+    nya_object_add(body, "listeners", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_websocket_count() });
+    nya_object_add(body, "uptime_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = (f64)nya_clock_get_monotonic_ns() / 1e9 });
 
     NYA_String* text = nya_serialize(arena, body, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
     if (text == nullptr) return "{}";
@@ -328,8 +328,8 @@ NYA_INTERNAL NYA_HttpStatus notes_query(NYA_HttpExchange* exchange) {
         nya_array_push_back(notes, value);
     }
 
-    nya_object_set(body, "count", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = notes->length });
-    nya_object_set(body, "notes", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *notes });
+    nya_object_add(body, "count", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = notes->length });
+    nya_object_add(body, "notes", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *notes });
 
     /*
      * In whatever the caller asked for. A nyangine client sends Accept: application/nya-binary (or
@@ -579,8 +579,8 @@ NYA_INTERNAL NYA_HttpStatus session_issue(NYA_HttpExchange* exchange) {
 NYA_INTERNAL NYA_HttpStatus session_read(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity) {
     NYA_Object* body = nya_object_create(exchange->arena);
 
-    nya_object_set(body, "subject", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)identity->subject });
-    nya_object_set(body, "expires_at_s", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = identity->expires_at_s });
+    nya_object_add(body, "subject", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)identity->subject });
+    nya_object_add(body, "expires_at_s", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = identity->expires_at_s });
 
     return nya_http_response_json(exchange->response, exchange->arena, body).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }

@@ -12,8 +12,8 @@
  * NYA_Arena* arena = nya_arena_create(...);
  * NYA_DictᐸPlayerᐳ* players = nya_dict_create(arena, Player);
  *
- * nya_dict_set(players, "alice", (Player){ .id = 1, .name = "Alice" });
- * nya_dict_set(players, "bob",   (Player){ .id = 2, .name = "Bob" });
+ * nya_dict_add(players, "alice", (Player){ .id = 1, .name = "Alice" });
+ * nya_dict_add(players, "bob",   (Player){ .id = 2, .name = "Bob" });
  *
  * Player* alice = nya_dict_get(players, "alice");
  * if (alice != nullptr) {
@@ -108,7 +108,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#define _nya_dict_set_unchecked(dict_ptr, key, value)                                                                                                \
+#define _nya_dict_add_unchecked(dict_ptr, key, value)                                                                                                \
     ({                                                                                                                                               \
         nya_assert_type_match(value, (dict_ptr)->values[0]);                                                                                         \
         NYA_CString   key_var    = key;                                                                                                              \
@@ -132,7 +132,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
             index = (index + 1) % (dict_ptr)->capacity;                                                                                              \
             iterations++;                                                                                                                            \
         }                                                                                                                                            \
-        /* See _nya_hmap_set_unchecked: reaching the bound means the load factor invariant is                                                        \
+        /* See _nya_hmap_add_unchecked: reaching the bound means the load factor invariant is                                                        \
          * already broken, and dropping the entry silently surfaces as a missing key much later.  */                                                 \
         nya_assert(iterations < (dict_ptr)->capacity, "Dict is full; the entry was dropped rather than stored.");                                    \
         (void)updated;                                                                                                                               \
@@ -154,7 +154,7 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
                                                                                                                                                      \
         for (u64 i = 0; i < old_capacity; i++) {                                                                                                     \
             if (!old_occupied[i]) continue;                                                                                                          \
-            _nya_dict_set_unchecked(dict_ptr, old_keys[i], old_values[i]);                                                                           \
+            _nya_dict_add_unchecked(dict_ptr, old_keys[i], old_values[i]);                                                                           \
         }                                                                                                                                            \
                                                                                                                                                      \
         nya_arena_free((dict_ptr)->arena, old_keys, sizeof(*old_keys) * old_capacity);                                                               \
@@ -206,20 +206,20 @@ __attr_allow_unused static b8 nya_dict_equals_cstring(const NYA_CString* a, cons
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INSERT / REMOVE MACROS
+ * ADD / REMOVE MACROS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#define nya_dict_set(dict_ptr, key, value)                                                                                                           \
+#define nya_dict_add(dict_ptr, key, value)                                                                                                           \
     ({                                                                                                                                               \
         nya_assert_type_match(value, (dict_ptr)->values[0]);                                                                                         \
-        /* Same zero capacity case as nya_hmap_set; see the note there. */                                                                           \
+        /* Same zero capacity case as nya_hmap_add; see the note there. */                                                                           \
         if ((dict_ptr)->capacity == 0) {                                                                                                             \
             nya_dict_resize_and_rehash(dict_ptr, _NYA_HASHMAP_DEFAULT_CAPACITY);                                                                     \
         } else if (((f32)((dict_ptr)->length + 1) / (f32)(dict_ptr)->capacity) > _NYA_HASHMAP_LOAD_FACTOR) {                                         \
             nya_dict_resize_and_rehash(dict_ptr, (dict_ptr)->capacity * 2);                                                                          \
         }                                                                                                                                            \
-        _nya_dict_set_unchecked(dict_ptr, key, value);                                                                                               \
+        _nya_dict_add_unchecked(dict_ptr, key, value);                                                                                               \
     })
 
 #define nya_dict_remove(dict_ptr, key)                                                                                                               \

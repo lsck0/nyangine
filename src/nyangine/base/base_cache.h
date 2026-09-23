@@ -7,7 +7,7 @@
  * - `nya_cache_create` / `nya_cache_destroy`: storage comes from an arena, once, and never grows.
  * - `nya_cache_get`: the value for a key whose tag matches, or null.
  * - `nya_cache_lookup`: the same, telling a missing key from a stale one.
- * - `nya_cache_insert`: claims or replaces the entry for a key and returns its zeroed value.
+ * - `nya_cache_add`: claims or replaces the entry for a key and returns its zeroed value.
  * - `nya_cache_remove` / `nya_cache_clear`: drop entries, running the destructor on each value.
  * - `nya_cache_count` / `nya_cache_capacity`.
  *
@@ -26,7 +26,7 @@
  * Atlas* atlas = nya_cache_get(atlases, path, strlen(path), font->generation);
  * if (atlas == nullptr) {
  *     void*     slot  = nullptr;
- *     NYA_Error error = nya_cache_insert(atlases, path, strlen(path), font->generation, &slot);
+ *     NYA_Error error = nya_cache_add(atlases, path, strlen(path), font->generation, &slot);
  *     if (!error.ok) return nullptr;
  *
  *     atlas          = slot;
@@ -163,7 +163,7 @@ NYA_API NYA_CacheLookup nya_cache_lookup(NYA_Cache* cache, const void* key, u64 
  * value destroyed first. A full cache evicts or refuses by its policy; refusing, like a key longer than
  * `key_size_max`, is an error and leaves the cache as it was.
  * */
-NYA_API NYA_Error nya_cache_insert(NYA_Cache* cache, const void* key, u64 key_size, u64 tag, OUT void** out_value);
+NYA_API NYA_Error nya_cache_add(NYA_Cache* cache, const void* key, u64 key_size, u64 tag, OUT void** out_value);
 
 /** Destroys and forgets the entry for `key`. False if there was none. */
 NYA_API b8 nya_cache_remove(NYA_Cache* cache, const void* key, u64 key_size);

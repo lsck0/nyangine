@@ -49,11 +49,11 @@ s32 main(void) {
   printf("TEST: JSON round trip\n");
   {
     NYA_Object* obj = nya_object_create(arena);
-    nya_object_set(obj, "flag", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
-    nya_object_set(obj, "count", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 42 });
-    nya_object_set(obj, "ratio", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 0.5 });
-    nya_object_set(obj, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "nyangine" });
-    nya_object_set(obj, "nothing", (NYA_Value){ .type = NYA_TYPE_NULL });
+    nya_object_add(obj, "flag", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
+    nya_object_add(obj, "count", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 42 });
+    nya_object_add(obj, "ratio", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 0.5 });
+    nya_object_add(obj, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "nyangine" });
+    nya_object_add(obj, "nothing", (NYA_Value){ .type = NYA_TYPE_NULL });
 
     NYA_Object* back = roundtrip(arena, obj, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
 
@@ -81,8 +81,8 @@ s32 main(void) {
   printf("TEST: JSON pretty vs compact\n");
   {
     NYA_Object* obj = nya_object_create(arena);
-    nya_object_set(obj, "a", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
-    nya_object_set(obj, "b", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "two" });
+    nya_object_add(obj, "a", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
+    nya_object_add(obj, "b", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "two" });
 
     NYA_String* compact = nya_serialize(arena, obj, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
     NYA_String* pretty  = nya_serialize(arena, obj, NYA_SERDE_FORMAT_JSON, NYA_SERDE_PRETTY);
@@ -109,15 +109,15 @@ s32 main(void) {
   printf("TEST: JSON nesting\n");
   {
     NYA_Object* inner = nya_object_create(arena);
-    nya_object_set(inner, "depth", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 2 });
+    nya_object_add(inner, "depth", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 2 });
 
     NYA_ArrayᐸNYA_Valueᐳ* items = nya_array_create(arena, NYA_Value);
     nya_array_push_back(items, ((NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 10 }));
     nya_array_push_back(items, ((NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 20 }));
 
     NYA_Object* outer = nya_object_create(arena);
-    nya_object_set(outer, "inner", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *inner });
-    nya_object_set(outer, "items", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *items });
+    nya_object_add(outer, "inner", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *inner });
+    nya_object_add(outer, "items", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *items });
 
     NYA_Object* back = roundtrip(arena, outer, NYA_SERDE_FORMAT_JSON, NYA_SERDE_PRETTY);
 
@@ -141,9 +141,9 @@ s32 main(void) {
   printf("TEST: JSON escaping\n");
   {
     NYA_Object* obj = nya_object_create(arena);
-    nya_object_set(obj, "quote", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "he said \"hi\"" });
-    nya_object_set(obj, "slash", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "a\\b" });
-    nya_object_set(obj, "lines", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "one\ntwo\tthree" });
+    nya_object_add(obj, "quote", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "he said \"hi\"" });
+    nya_object_add(obj, "slash", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "a\\b" });
+    nya_object_add(obj, "lines", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "one\ntwo\tthree" });
 
     NYA_Object* back = roundtrip(arena, obj, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
 
@@ -221,7 +221,7 @@ s32 main(void) {
   printf("TEST: detection agrees with serialization\n");
   {
     NYA_Object* obj = nya_object_create(arena);
-    nya_object_set(obj, "k", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 7 });
+    nya_object_add(obj, "k", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 7 });
 
     NYA_SerdeFlags variants[] = { NYA_SERDE_NONE, NYA_SERDE_PRETTY };
 
@@ -321,8 +321,8 @@ s32 main(void) {
   printf("TEST: JSONC superset and output\n");
   {
     NYA_Object* obj = nya_object_create(arena);
-    nya_object_set(obj, "n", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 5 });
-    nya_object_set(obj, "s", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "text" });
+    nya_object_add(obj, "n", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 5 });
+    nya_object_add(obj, "s", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "text" });
 
     // Writing JSONC produces exactly what writing JSON does: no comments invented, no trailing comma.
     NYA_String* as_json  = nya_serialize(arena, obj, NYA_SERDE_FORMAT_JSON, NYA_SERDE_PRETTY);

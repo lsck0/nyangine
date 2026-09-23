@@ -179,7 +179,7 @@ NYA_Error nya_net_key_pair_load(NYA_ConstCString path, OUT NYA_NetKeyPair* out_k
     nya_net_key_to_hex(out_key_pair->secret_key, hex);
 
     NYA_Object* fresh = nya_object_create(scratch);
-    nya_object_set(fresh, "secret_key", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = hex });
+    nya_object_add(fresh, "secret_key", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = hex });
 
     NYA_String* directory = nya_path_dirname(scratch, path);
 

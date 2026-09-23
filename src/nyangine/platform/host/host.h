@@ -93,7 +93,7 @@ NYA_API void nya_host_kernel_name(OUT u8* buffer, u32 capacity);
  * Not thread safe on any OS: another thread reading the environment at the same time may see it torn.
  * Meant for tests and start up, before threads exist.
  * */
-NYA_API b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value) __attr_no_discard;
+NYA_API b8 nya_host_environment_add(NYA_ConstCString name, NYA_ConstCString value) __attr_no_discard;
 
 /** Removes `name` from this process's environment. Removing a name that is not set succeeds. */
 NYA_API b8 nya_host_environment_remove(NYA_ConstCString name) __attr_no_discard;

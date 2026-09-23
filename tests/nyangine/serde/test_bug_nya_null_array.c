@@ -21,8 +21,8 @@ s32 main(void) {
         nya_array_push_back(nulls, ((NYA_Value){ .type = NYA_TYPE_NULL }));
 
         NYA_Object* object = nya_object_create(arena);
-        nya_object_set(object, "nulls", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *nulls });
-        nya_object_set(object, "after", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 7 });
+        nya_object_add(object, "nulls", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *nulls });
+        nya_object_add(object, "after", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 7 });
 
         NYA_String* text = nya_serialize(arena, object, NYA_SERDE_FORMAT_NYA, NYA_SERDE_NONE);
 

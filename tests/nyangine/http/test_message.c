@@ -513,7 +513,7 @@ s32 main(void) {
 
         // a document answered as JSON whatever was negotiated, the way a fixed JSON endpoint answers.
         NYA_Object* document = nya_object_create(arena);
-        nya_object_set(document, "ok", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
+        nya_object_add(document, "ok", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
         nya_assert(nya_http_response_json(&response, arena, document).ok);
         nya_assert(response.media_type == NYA_HTTP_MEDIA_JSON, "the media type is JSON");
         nya_assert(response.body_size > 0 && nya_memcmp(body, "{", 1) == 0, "and the body is a JSON object");

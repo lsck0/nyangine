@@ -175,9 +175,9 @@ b8 nya_telegram_poll(NYA_Telegram* bot, NYA_TelegramUpdate* out_update) {
     bot->update_read  = 0;
 
     NYA_Object* body = nya_object_create(bot->exchanges);
-    nya_object_set(body, "offset", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)bot->offset });
-    nya_object_set(body, "limit", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = NYA_TELEGRAM_MAX_UPDATES });
-    nya_object_set(body, "timeout", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = bot->poll_timeout_s });
+    nya_object_add(body, "offset", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = (s64)bot->offset });
+    nya_object_add(body, "limit", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = NYA_TELEGRAM_MAX_UPDATES });
+    nya_object_add(body, "timeout", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = bot->poll_timeout_s });
 
     NYA_Response response  = { 0 };
     NYA_Error    performed = _nya_telegram_call(bot, "getUpdates", body, &response);
@@ -264,16 +264,16 @@ b8 nya_telegram_result_poll(NYA_Telegram* bot, NYA_TelegramResult* out_result) {
 
     switch (call.kind) {
         case NYA_TELEGRAM_CALL_SEND_MESSAGE: {
-            nya_object_set(body, "chat_id", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = call.chat_id });
-            nya_object_set(body, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = call.text });
+            nya_object_add(body, "chat_id", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = call.chat_id });
+            nya_object_add(body, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = call.text });
             break;
         }
 
         case NYA_TELEGRAM_CALL_ANSWER_CALLBACK:
         case NYA_TELEGRAM_CALL_KIND_COUNT:
         default: {
-            nya_object_set(body, "callback_query_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = call.callback_id });
-            if (call.text[0] != '\0') nya_object_set(body, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = call.text });
+            nya_object_add(body, "callback_query_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = call.callback_id });
+            if (call.text[0] != '\0') nya_object_add(body, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = call.text });
             break;
         }
     }

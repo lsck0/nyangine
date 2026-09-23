@@ -34,7 +34,7 @@ static void destroyed_reset(void) {
 /* Inserts a resource and asserts it went in. */
 static Resource* insert_resource(NYA_Cache* cache, NYA_ConstCString key, u64 tag, u32 id) {
     void*     slot  = nullptr;
-    NYA_Error error = nya_cache_insert(cache, key, strlen(key), tag, &slot);
+    NYA_Error error = nya_cache_add(cache, key, strlen(key), tag, &slot);
     nya_assert(error.ok, "inserting '%s' failed: %s", key, error.message);
     nya_assert(slot != nullptr);
 
@@ -107,7 +107,7 @@ s32 main(void) {
         nya_assert(nya_cache_get(cache, long_key, sizeof(long_key), 0) == nullptr);
 
         void*     slot  = nullptr;
-        NYA_Error error = nya_cache_insert(cache, long_key, sizeof(long_key), 0, &slot);
+        NYA_Error error = nya_cache_add(cache, long_key, sizeof(long_key), 0, &slot);
         nya_assert(!error.ok && error.kind == NYA_ERROR_INVALID_ARGUMENT, "a key over key_size_max is refused");
         nya_assert(slot == nullptr);
         nya_assert(nya_cache_count(cache) == 1, "a refused insert leaves the cache as it was");
@@ -130,9 +130,9 @@ s32 main(void) {
         } key_a = { 7, 17 }, key_b = { 7, 28 };
 
         void* slot = nullptr;
-        NYA_EXPECT(nya_cache_insert(cache, &key_a, sizeof(key_a), 0, &slot));
+        NYA_EXPECT(nya_cache_add(cache, &key_a, sizeof(key_a), 0, &slot));
         *(u64*)slot = 1700;
-        NYA_EXPECT(nya_cache_insert(cache, &key_b, sizeof(key_b), 0, &slot));
+        NYA_EXPECT(nya_cache_add(cache, &key_b, sizeof(key_b), 0, &slot));
         *(u64*)slot = 2800;
 
         u64* a = nya_cache_get(cache, &key_a, sizeof(key_a), 0);
@@ -231,7 +231,7 @@ s32 main(void) {
         (void)insert_resource(cache, "b", 0, 2);
 
         void*     slot  = nullptr;
-        NYA_Error error = nya_cache_insert(cache, "c", 1, 0, &slot);
+        NYA_Error error = nya_cache_add(cache, "c", 1, 0, &slot);
         nya_assert(!error.ok && error.kind == NYA_ERROR_OUT_OF_MEMORY, "a full refusing cache returns an error");
         nya_assert(slot == nullptr);
         nya_assert(destroyed_count == 0, "refusing destroys nothing");
@@ -296,7 +296,7 @@ s32 main(void) {
                 present_count--;
             } else if (present_count < CAPACITY) {
                 void* slot = nullptr;
-                NYA_EXPECT(nya_cache_insert(cache, text, (u64)length, 0, &slot));
+                NYA_EXPECT(nya_cache_add(cache, text, (u64)length, 0, &slot));
                 *(u32*)slot  = key;
                 present[key] = true;
                 present_count++;
@@ -325,7 +325,7 @@ s32 main(void) {
 
         for (u32 i = 0; i < 5; i++) {
             void* slot = nullptr;
-            NYA_EXPECT(nya_cache_insert(cache, &i, sizeof(i), 0, &slot));
+            NYA_EXPECT(nya_cache_add(cache, &i, sizeof(i), 0, &slot));
             nya_assert(((uintptr_t)slot & (alignof(Wide) - 1)) == 0, "value %u is not aligned to %zu", i, alignof(Wide));
             ((Wide*)slot)->lanes[3] = (f32)i;
         }
@@ -351,7 +351,7 @@ s32 main(void) {
 
         for (u32 i = 0; i < 4; i++) {
             void* slot = nullptr;
-            NYA_EXPECT(nya_cache_insert(cache, &i, sizeof(i), 0, &slot));
+            NYA_EXPECT(nya_cache_add(cache, &i, sizeof(i), 0, &slot));
         }
 
         // the registry sorts by fullness, so the row is found again rather than assumed to stay put.
@@ -360,7 +360,7 @@ s32 main(void) {
 
         u32   extra = 4;
         void* slot  = nullptr;
-        nya_assert(!nya_cache_insert(cache, &extra, sizeof(extra), 0, &slot).ok, "the capacity is a ceiling");
+        nya_assert(!nya_cache_add(cache, &extra, sizeof(extra), 0, &slot).ok, "the capacity is a ceiling");
         nya_assert(nya_ceiling_live_at(ceiling_index("test_cache_ceiling")) == 4);
 
         u32 zero = 0;
@@ -375,7 +375,7 @@ s32 main(void) {
         NYA_Cache* again = nya_cache_create(arena, u32, .name = "test_cache_ceiling", .capacity = 4, .key_size_max = 4);
         nya_assert(nya_ceiling_count() == registered);
 
-        NYA_EXPECT(nya_cache_insert(again, &zero, sizeof(zero), 0, &slot));
+        NYA_EXPECT(nya_cache_add(again, &zero, sizeof(zero), 0, &slot));
         nya_assert(nya_ceiling_live_at(ceiling_index("test_cache_ceiling")) == 1);
 
         nya_cache_destroy(again);
@@ -389,7 +389,7 @@ s32 main(void) {
         reentered        = cache;
 
         void* slot = nullptr;
-        NYA_EXPECT(nya_cache_insert(cache, "x", 1, 0, &slot));
+        NYA_EXPECT(nya_cache_add(cache, "x", 1, 0, &slot));
 
         nya_expect_crash(nya_cache_clear(cache));
         nya_assert(nya_crash_caught()->source == NYA_CRASH_SOURCE_ASSERT);

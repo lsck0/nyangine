@@ -46,7 +46,7 @@ s32 main(void) {
     printf("TEST: nya_hmap_destroy_on_stack\n");
     {
         NYA_HMapᐸu32ˏu32ᐳ map = nya_hmap_create_on_stack(arena, u32, u32);
-        nya_hmap_set(&map, 1U, 2U);
+        nya_hmap_add(&map, 1U, 2U);
         nya_hmap_destroy_on_stack(map);
 
         nya_check(map.keys == nullptr, "keys was not nulled");
@@ -56,7 +56,7 @@ s32 main(void) {
         nya_hmap_destroy_on_stack(map);
 
         // The set below is what used to dereference null: capacity said 64, so no resize happened.
-        nya_hmap_set(&map, 3U, 4U);
+        nya_hmap_add(&map, 3U, 4U);
         nya_check(map.length == 1, "length is " FMTu64 " after reuse, expected 1", map.length);
 
         u32* found = nya_hmap_get(&map, 3U);
@@ -69,7 +69,7 @@ s32 main(void) {
     printf("TEST: nya_hset_destroy_on_stack and nya_heap_destroy_on_stack\n");
     {
         NYA_HSetᐸu32ᐳ set = nya_hset_create_on_stack(arena, u32);
-        nya_hset_insert(&set, 5U);
+        nya_hset_add(&set, 5U);
         nya_hset_destroy_on_stack(&set);
 
         nya_check(set.length == 0, "hset length is " FMTu64 " after destroy", set.length);

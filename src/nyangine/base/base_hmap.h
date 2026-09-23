@@ -12,8 +12,8 @@
  * NYA_Arena* arena = nya_arena_create(...);
  * NYA_HMapᐸu32ˏPlayerᐳ* players = nya_hmap_create(arena, u32, Player);
  *
- * nya_hmap_set(players, 1, (Player){ .id = 1, .name = "Alice" });
- * nya_hmap_set(players, 2, (Player){ .id = 2, .name = "Bob" });
+ * nya_hmap_add(players, 1, (Player){ .id = 1, .name = "Alice" });
+ * nya_hmap_add(players, 2, (Player){ .id = 2, .name = "Bob" });
  *
  * Player* alice = nya_hmap_get(players, 1);
  * if (alice != nullptr) {
@@ -172,7 +172,7 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#define _nya_hmap_set_unchecked(hmap_ptr, key, value)                                                                                                \
+#define _nya_hmap_add_unchecked(hmap_ptr, key, value)                                                                                                \
     ({                                                                                                                                               \
         nya_assert_type_match(key, (hmap_ptr)->keys[0]);                                                                                             \
         nya_assert_type_match(value, (hmap_ptr)->values[0]);                                                                                         \
@@ -221,7 +221,7 @@
                                                                                                                                                      \
         for (u64 i = 0; i < old_capacity; i++) {                                                                                                     \
             if (!old_occupied[i]) continue;                                                                                                          \
-            _nya_hmap_set_unchecked(hmap_ptr, old_keys[i], old_values[i]);                                                                           \
+            _nya_hmap_add_unchecked(hmap_ptr, old_keys[i], old_values[i]);                                                                           \
         }                                                                                                                                            \
                                                                                                                                                      \
         nya_arena_free((hmap_ptr)->arena, old_keys, sizeof(*old_keys) * old_capacity);                                                               \
@@ -275,11 +275,11 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- * INSERT / REMOVE MACROS
+ * ADD / REMOVE MACROS
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-#define nya_hmap_set(hmap_ptr, key, value)                                                                                                           \
+#define nya_hmap_add(hmap_ptr, key, value)                                                                                                           \
     ({                                                                                                                                               \
         nya_assert_type_match(key, (hmap_ptr)->keys[0]);                                                                                             \
         nya_assert_type_match(value, (hmap_ptr)->values[0]);                                                                                         \
@@ -287,7 +287,7 @@
          * Zero capacity handled before the load factor is computed, the way nya_array_reserve and                                                   \
          * nya_heap_push already do it. A map created with capacity 0 could not grow and could not be                                                \
          * written to: the load factor divided by zero, doubling zero left it at zero, and                                                           \
-         * _nya_hmap_set_unchecked then took a hash modulo zero. Under the test build's                                                              \
+         * _nya_hmap_add_unchecked then took a hash modulo zero. Under the test build's                                                              \
          * -fno-sanitize-recover=all that is two sanitizer aborts in a row rather than a diagnosis.                                                  \
          */                                                                                                                                          \
         if ((hmap_ptr)->capacity == 0) {                                                                                                             \
@@ -295,7 +295,7 @@
         } else if (((f32)((hmap_ptr)->length + 1) / (f32)(hmap_ptr)->capacity) > _NYA_HASHMAP_LOAD_FACTOR) {                                         \
             nya_hmap_resize_and_rehash(hmap_ptr, (hmap_ptr)->capacity * 2);                                                                          \
         }                                                                                                                                            \
-        _nya_hmap_set_unchecked(hmap_ptr, key, value);                                                                                               \
+        _nya_hmap_add_unchecked(hmap_ptr, key, value);                                                                                               \
     })
 
 #define nya_hmap_remove(hmap_ptr, key)                                                                                                               \

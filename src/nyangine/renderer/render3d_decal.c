@@ -201,7 +201,7 @@ const _NYA_Render3DDecalGrid* _nya_render3d_decal_grid(NYA_Render3DDecalsGPU* gp
     if (grid != nullptr) return grid;
 
     void*     slot     = nullptr;
-    NYA_Error inserted = nya_cache_insert(gpu->grids, box, sizeof(*box), gpu->probe_generation, &slot);
+    NYA_Error inserted = nya_cache_add(gpu->grids, box, sizeof(*box), gpu->probe_generation, &slot);
     if (!inserted.ok) return nullptr;
 
     grid = slot;

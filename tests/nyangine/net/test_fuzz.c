@@ -175,10 +175,10 @@ s32 main(void) {
     NYA_EXPECT(nya_net_command_encode(commands, run, NYA_NET_COMMAND_REDUNDANCY));
 
     NYA_Object* object = nya_object_create(arena);
-    nya_object_set(object, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "chat" });
-    nya_object_set(object, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "hello there" });
-    nya_object_set(object, "sender", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 3 });
-    nya_object_set(object, "system", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = false });
+    nya_object_add(object, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "chat" });
+    nya_object_add(object, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "hello there" });
+    nya_object_add(object, "sender", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 3 });
+    nya_object_add(object, "system", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = false });
 
     NYA_String* document = nya_string_create(arena);
     NYA_EXPECT(nya_net_message_write_object(arena, document, object));
@@ -356,9 +356,9 @@ s32 main(void) {
         nya_net_message_begin(hello, NYA_NET_MSG_HELLO);
 
         NYA_Object* body = nya_object_create(arena);
-        nya_object_set(body, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
-        nya_object_set(body, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
-        nya_object_set(body, "tick", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = tick });
+        nya_object_add(body, "protocol", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_PROTOCOL_VERSION });
+        nya_object_add(body, "snapshot", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NYA_NET_SNAPSHOT_VERSION });
+        nya_object_add(body, "tick", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = tick });
         NYA_EXPECT(nya_net_message_write_object(arena, hello, body));
 
         (void)nya_net_transport_send(hostile, (NYA_NetPeerId){ .index = 0, .generation = 1 }, NYA_NET_CHANNEL_RELIABLE, hello->items, hello->length);

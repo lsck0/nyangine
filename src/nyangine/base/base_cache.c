@@ -239,7 +239,7 @@ NYA_CacheLookup nya_cache_lookup(NYA_Cache* cache, const void* key, u64 key_size
     return NYA_CACHE_LOOKUP_HIT;
 }
 
-NYA_Error nya_cache_insert(NYA_Cache* cache, const void* key, u64 key_size, u64 tag, OUT void** out_value) {
+NYA_Error nya_cache_add(NYA_Cache* cache, const void* key, u64 key_size, u64 tag, OUT void** out_value) {
     nya_assert(cache != nullptr);
     nya_assert(key != nullptr && key_size > 0, "cache keys are never empty");
     nya_assert(out_value != nullptr);

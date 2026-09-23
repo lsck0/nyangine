@@ -17,7 +17,7 @@ static const u32 SHARED[] = { 10, 16 };
 /** A capacity-16 set holding `values`, which is the shape every case below starts from. */
 static NYA_HSetᐸu32ᐳ* set_of(NYA_Arena* arena, const u32* values, u64 count) {
   NYA_HSetᐸu32ᐳ* set = nya_hset_create_with_capacity(arena, u32, 16);
-  for (u64 i = 0; i < count; i++) nya_hset_insert(set, values[i]);
+  for (u64 i = 0; i < count; i++) nya_hset_add(set, values[i]);
   return set;
 }
 
@@ -161,7 +161,7 @@ s32 main(void) {
     // nya_hset_resize_and_rehash, which frees the arrays being iterated.
     NYA_HSetᐸu32ᐳ* set       = nya_hset_create_with_capacity(arena, u32, 16);
     u64            threshold = (u64)((f32)set->capacity * _NYA_HASHSET_LOAD_FACTOR);
-    for (u32 i = 0; i < (u32)threshold; i++) nya_hset_insert(set, i * 7 + 1);
+    for (u32 i = 0; i < (u32)threshold; i++) nya_hset_add(set, i * 7 + 1);
 
     u64 length_before = set->length;
     nya_hset_union(set, set);

@@ -421,7 +421,7 @@ void _lint_rule_callers(Lint* lint) {
             if (count != nullptr) {
                 *count += 1;
             } else {
-                nya_dict_set(seen, name, 1U);
+                nya_dict_add(seen, name, 1U);
             }
         }
     }

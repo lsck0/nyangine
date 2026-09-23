@@ -74,7 +74,7 @@
  * The obvious fix does not work, so here is why, at the point somebody would try it. Lookups take a
  * string (nya_reflect_field, nya_reflect_path), so hashing the name and comparing hashes would hide
  * the *lookup* key. But the same `name` is also what gets written: nya_reflect_to_object passes it
- * straight to nya_object_set as the document key, and an enum's value is written as its variant's
+ * straight to nya_object_add as the document key, and an enum's value is written as its variant's
  * name. A field's name *is* the key it appears under in settings, in saves and in
  * `assets/config/engine.nya`. So a shipping build with hashed names writes hashed keys, and that
  * costs three things worth more than the obfuscation is worth: settings stop being editable by the

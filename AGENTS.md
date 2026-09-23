@@ -174,7 +174,11 @@ stands.
 - `NYA_API` marks a public declaration and is what the cheatsheet generator reads. `NYA_INTERNAL`
   is `static` plus hidden visibility and never appears in a public header.
 - Every verb ships with its partner in the same header, adjacent: `create`/`destroy`,
-  `init`/`shutdown`, `begin`/`end`, `push`/`pop`, `attach`/`detach`.
+  `init`/`shutdown`, `begin`/`end`, `push`/`pop`, `attach`/`detach`, `add`/`remove`. A container's
+  insert is `add`, whatever it inserts or replaces — `nya_dict_add`, `nya_hmap_add`, `nya_hset_add`,
+  `nya_cache_add`, `nya_object_add`, `nya_host_environment_add` — matching
+  `nya_array_add`/`nya_array_remove` rather than `set` or `insert`, which the tree also uses for
+  things that are not containers (a property setter, a string edited in place).
 - Fallible calls return `NYA_Error` and are `__attr_no_discard`. `NYA_TRY(expr)` propagates,
   `NYA_EXPECT(expr, "context")` crashes through the crash sink with a backtrace.
 - A comparison gets `nya_assert_eq(a, b)` or one of its five siblings, which report what each side

@@ -470,7 +470,7 @@ TTF_Text* _nya_text_run_resolve(NYA_ConstCString path, f32 point_size, NYA_Const
 
     // replaces a stale entry for the key, destroying the text laid out with the old face.
     void*     slot     = nullptr;
-    NYA_Error inserted = nya_cache_insert(_nya_text_run_cache, key, key_size, asset->generation, &slot);
+    NYA_Error inserted = nya_cache_add(_nya_text_run_cache, key, key_size, asset->generation, &slot);
     nya_assert(inserted.ok, "a least recently used cache evicts instead of refusing a key that fits");
 
     *(TTF_Text**)slot = shaped;

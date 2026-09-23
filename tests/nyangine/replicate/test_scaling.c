@@ -579,7 +579,7 @@ s32 main(void) {
     nya_assert(nya_net_server_peer(stale) == nullptr, "a stale peer id resolved");
 
     NYA_Object* event = nya_object_create(arena_for_events);
-    nya_object_set(event, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "test" });
+    nya_object_add(event, "kind", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "test" });
 
     // To one peer, and to everyone. NYA_NET_PEER_NONE means broadcast, which saves a caller writing the
     // same loop.

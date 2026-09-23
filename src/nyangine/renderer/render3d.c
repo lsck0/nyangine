@@ -2374,7 +2374,7 @@ NYA_Render3DRegisteredMesh* _nya_render3d_registered_claim(NYA_Render3DBatch* ba
     }
 
     void*     slot  = nullptr;
-    NYA_Error error = nya_cache_insert(batch->registered_meshes, handle, length, 0, &slot);
+    NYA_Error error = nya_cache_add(batch->registered_meshes, handle, length, 0, &slot);
 
     if (!error.ok) {
         nya_log_error("No room to register the mesh '%s'; raise NYA_RENDER3D_MAX_REGISTERED_MESHES.", handle);

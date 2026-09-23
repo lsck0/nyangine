@@ -142,8 +142,8 @@ s32 main(void) {
     // ── The other direction: an object becomes a keyed table, an array a 1..n one.
     {
         NYA_Object config = nya_object_create_on_stack(arena);
-        nya_object_set(&config, "level", nya_lua_number(7.0));
-        nya_object_set(&config, "title", nya_lua_string("deep"));
+        nya_object_add(&config, "level", nya_lua_number(7.0));
+        nya_object_add(&config, "title", nya_lua_string("deep"));
 
         NYA_Value value = { .type = NYA_TYPE_OBJECT, .as_object = config };
         NYA_EXPECT(nya_lua_global_set(vm, "config", &value));
@@ -222,7 +222,7 @@ s32 main(void) {
         NYA_EXPECT(nya_lua_run(vm, "function churn(t) return { n = (t.n or 0) + 1, tag = 'x' } end", "churn"));
 
         NYA_Object seed = nya_object_create_on_stack(arena);
-        nya_object_set(&seed, "n", nya_lua_number(0.0));
+        nya_object_add(&seed, "n", nya_lua_number(0.0));
 
         NYA_Value argument = { .type = NYA_TYPE_OBJECT, .as_object = seed };
 

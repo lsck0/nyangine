@@ -25,7 +25,7 @@ s32 main(void) {
     nya_assert(stored != probe, "the two buffers must be distinct objects");
     nya_assert(strcmp(stored, probe) == 0);
 
-    nya_dict_set(dict, stored, 42U);
+    nya_dict_add(dict, stored, 42U);
 
     u32* found = nya_dict_get(dict, probe);
     nya_assert(found != nullptr, "a key with equal content at another address was not found");
@@ -33,7 +33,7 @@ s32 main(void) {
     nya_assert(nya_dict_contains(dict, probe) == true);
 
     // And setting through the other buffer updates rather than inserting a second entry.
-    nya_dict_set(dict, probe, 43U);
+    nya_dict_add(dict, probe, 43U);
     nya_assert(dict->length == 1, "equal keys produced " FMTu64 " entries", dict->length);
     nya_assert(*nya_dict_get(dict, stored) == 43U);
     printf("  PASSED\n");
@@ -46,10 +46,10 @@ s32 main(void) {
   {
     NYA_Dictᐸu32ᐳ* dict = nya_dict_create(arena, u32);
 
-    nya_dict_set(dict, "a", 1U);
-    nya_dict_set(dict, "ab", 2U);
-    nya_dict_set(dict, "b", 3U);
-    nya_dict_set(dict, "", 4U);   // the empty key is a key like any other
+    nya_dict_add(dict, "a", 1U);
+    nya_dict_add(dict, "ab", 2U);
+    nya_dict_add(dict, "b", 3U);
+    nya_dict_add(dict, "", 4U);   // the empty key is a key like any other
 
     nya_assert(dict->length == 4);
     nya_assert(*nya_dict_get(dict, "a") == 1U);
@@ -76,7 +76,7 @@ s32 main(void) {
     NYA_String* owned    = nya_string_from(arena, "stable");
     NYA_CString owned_key = nya_string_to_cstring(arena, owned);
 
-    nya_dict_set(dict, owned_key, 7U);
+    nya_dict_add(dict, owned_key, 7U);
     nya_assert(*nya_dict_get(dict, "stable") == 7U);
 
     // Looking up with an independently built copy still finds it, which is the content-hash
@@ -102,7 +102,7 @@ s32 main(void) {
 
     for (u32 i = 0; i < COUNT; i++) {
       NYA_String* key = nya_string_sprintf(arena, "key-%u", i);
-      nya_dict_set(dict, nya_string_to_cstring(arena, key), i);
+      nya_dict_add(dict, nya_string_to_cstring(arena, key), i);
     }
     nya_assert(dict->length == COUNT);
 
@@ -132,7 +132,7 @@ s32 main(void) {
 
     for (u32 i = 0; i < COUNT; i++) {
       NYA_String* key = nya_string_sprintf(arena, "k%u", i);
-      nya_dict_set(dict, nya_string_to_cstring(arena, key), i);
+      nya_dict_add(dict, nya_string_to_cstring(arena, key), i);
     }
 
     // Remove every other entry.
@@ -172,8 +172,8 @@ s32 main(void) {
   printf("TEST: copy keeps the key semantics\n");
   {
     NYA_Dictᐸu32ᐳ* original = nya_dict_create(arena, u32);
-    nya_dict_set(original, "one", 1U);
-    nya_dict_set(original, "two", 2U);
+    nya_dict_add(original, "one", 1U);
+    nya_dict_add(original, "two", 2U);
 
     NYA_Dictᐸu32ᐳ  copy_val = nya_dict_copy(original);
     NYA_Dictᐸu32ᐳ* copy     = &copy_val;
@@ -187,7 +187,7 @@ s32 main(void) {
     nya_assert(*nya_dict_get(copy, probe) == 1U);
 
     // The copy is independent of the original.
-    nya_dict_set(copy, "three", 3U);
+    nya_dict_add(copy, "three", 3U);
     nya_assert(original->length == 2);
     nya_assert(nya_dict_get(original, "three") == nullptr);
     printf("  PASSED\n");

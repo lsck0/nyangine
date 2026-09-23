@@ -550,23 +550,23 @@ NYA_Object* _nya_discord_rest_body(NYA_Arena* arena, const _NYA_DiscordRestEntry
 
     switch (entry->kind) {
         case NYA_DISCORD_REST_MESSAGE_SEND:
-            nya_object_set(body, "content", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->content });
+            nya_object_add(body, "content", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->content });
             break;
 
         case NYA_DISCORD_REST_COMMAND_REGISTER:
-            nya_object_set(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->name });
-            nya_object_set(body, "description", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->description });
+            nya_object_add(body, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->name });
+            nya_object_add(body, "description", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->description });
             // Type 1 is CHAT_INPUT, which is what "slash command" means; the others are the right click
             // menu entries and take no description.
-            nya_object_set(body, "type", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
+            nya_object_add(body, "type", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 1 });
             break;
 
         case NYA_DISCORD_REST_INTERACTION_REPLY: {
             NYA_Object* data = nya_object_create(arena);
-            nya_object_set(data, "content", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->content });
+            nya_object_add(data, "content", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)entry->content });
 
-            nya_object_set(body, "type", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = _NYA_DISCORD_CALLBACK_MESSAGE });
-            nya_object_set(body, "data", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *data });
+            nya_object_add(body, "type", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = _NYA_DISCORD_CALLBACK_MESSAGE });
+            nya_object_add(body, "data", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *data });
             break;
         }
 

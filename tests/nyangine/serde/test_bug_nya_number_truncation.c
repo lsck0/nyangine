@@ -20,7 +20,7 @@ s32 main(void) {
     for (u32 i = 0; i < 300; i++) nya_string_push_back(digits, (u8)('1' + (i % 9)));
 
     NYA_Object* object = nya_object_create(arena);
-    nya_object_set(object, "value", ((NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 1.0 }));
+    nya_object_add(object, "value", ((NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 1.0 }));
 
     NYA_String* document = nya_serde_nya_serialize(arena, object, 0);
 
@@ -63,7 +63,7 @@ s32 main(void) {
   printf("TEST: an ordinary number is unaffected\n");
   {
     NYA_Object* object = nya_object_create(arena);
-    nya_object_set(object, "value", ((NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 1234.5 }));
+    nya_object_add(object, "value", ((NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 1234.5 }));
 
     NYA_String* document = nya_serde_nya_serialize(arena, object, 0);
 

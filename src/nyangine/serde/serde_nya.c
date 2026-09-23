@@ -404,7 +404,7 @@ NYA_INTERNAL NYA_Error _nya_serde_nya_parse_members(_NYA_SerdeNyaParser* parser,
 
         NYA_Value value;
         NYA_TRY(_nya_serde_nya_parse_typed_value(parser, &value));
-        nya_object_set(object, key, value);
+        nya_object_add(object, key, value);
 
         // Optional, so a hand written file may leave the last one off.
         _nya_serde_nya_accept_symbol(parser, ';');

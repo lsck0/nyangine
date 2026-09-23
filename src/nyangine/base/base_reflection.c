@@ -390,7 +390,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
          * same four words, and adding a kind to the switch below cannot open a hole in this.
          */
         if (redact && field->is_redacted) {
-            nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = NYA_REFLECT_REDACTED });
+            nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = NYA_REFLECT_REDACTED });
             continue;
         }
 
@@ -399,7 +399,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
                 NYA_Value value = nya_reflect_read(field_type, address);
                 if (value.type == NYA_TYPE_NULL) continue;
 
-                nya_object_set(object, (NYA_CString)field->name, value);
+                nya_object_add(object, (NYA_CString)field->name, value);
                 break;
             }
 
@@ -424,7 +424,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
                         nya_array_push_back(names, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)variant->name }));
                     }
 
-                    nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *names });
+                    nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *names });
                     break;
                 }
 
@@ -433,11 +433,11 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
                 // A value with no name is written as the number, because losing it entirely would be
                 // worse than writing something a newer build can still read.
                 if (name == nullptr) {
-                    nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = raw });
+                    nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = raw });
                     break;
                 }
 
-                nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)name });
+                nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)name });
                 break;
             }
 
@@ -446,7 +446,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
                 NYA_Object* nested = _nya_reflect_to_object(arena, field_type, address, redact);
                 if (nested == nullptr) continue;
 
-                nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *nested });
+                nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *nested });
                 break;
             }
 
@@ -464,7 +464,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
                     nya_memcpy(copy, text, length);
                     copy[length] = '\0';
 
-                    nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = copy });
+                    nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = copy });
                     break;
                 }
 
@@ -478,7 +478,7 @@ NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* t
                     nya_array_push_back(elements, _nya_reflect_element_to_value(arena, field_type->element, element_address, redact));
                 }
 
-                nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *elements });
+                nya_object_add(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *elements });
                 break;
             }
 

@@ -195,7 +195,7 @@ NYA_Object* nya_scene_to_object(NYA_Arena* arena, NYA_World* world) {
 
     NYA_Object* root = nya_object_create(arena);
 
-    nya_object_set(root, NYA_SAVE_VERSION_KEY, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = NYA_SCENE_VERSION });
+    nya_object_add(root, NYA_SAVE_VERSION_KEY, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = NYA_SCENE_VERSION });
 
     NYA_ArrayᐸNYA_Valueᐳ* entities = nya_array_create(arena, NYA_Value);
 
@@ -233,7 +233,7 @@ NYA_Object* nya_scene_to_object(NYA_Arena* arena, NYA_World* world) {
         nya_array_push_back(entities, ((NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *written }));
     }
 
-    nya_object_set(root, NYA_SCENE_ENTITIES_KEY, (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *entities });
+    nya_object_add(root, NYA_SCENE_ENTITIES_KEY, (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *entities });
 
     return root;
 }

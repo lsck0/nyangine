@@ -346,7 +346,7 @@ NYA_Cache* nya_cache_create_with_options(NYA_Arena* arena, NYA_CacheOptions opti
 void nya_cache_destroy(NYA_Cache* cache)  // Runs the destructor on every value, then frees the storage.
 void* nya_cache_get(NYA_Cache* cache, const void* key, u64 key_size, u64 tag)  // The value stored under `key` with `tag`, or null when the key is missing or carries another tag.
 NYA_CacheLookup nya_cache_lookup(NYA_Cache* cache, const void* key, u64 key_size, u64 tag, OUT void** out_value)  // nya_cache_get, but a stale entry's value is returned too, with NYA_CACHE_LOOKUP_STALE.
-NYA_Error nya_cache_insert(NYA_Cache* cache, const void* key, u64 key_size, u64 tag, OUT void** out_value)  // Stores `key` with `tag` and returns its value, zeroed.
+NYA_Error nya_cache_add(NYA_Cache* cache, const void* key, u64 key_size, u64 tag, OUT void** out_value)  // Stores `key` with `tag` and returns its value, zeroed.
 b8 nya_cache_remove(NYA_Cache* cache, const void* key, u64 key_size)  // Destroys and forgets the entry for `key`.
 void nya_cache_clear(NYA_Cache* cache)  // Destroys and forgets every entry.
 u32 nya_cache_count(const NYA_Cache* cache)
@@ -571,7 +571,7 @@ nya_dict_foreach_value(dict_ptr, value_name)
 nya_dict_resize_and_rehash(dict_ptr, new_capacity)
 nya_dict_contains(dict_ptr, key)
 nya_dict_get(dict_ptr, key)
-nya_dict_set(dict_ptr, key, value)
+nya_dict_add(dict_ptr, key, value)
 nya_dict_remove(dict_ptr, key)
 ```
 
@@ -769,7 +769,7 @@ nya_hmap_destroy_on_stack(hmap_ptr)
 nya_hmap_resize_and_rehash(hmap_ptr, new_capacity)
 nya_hmap_contains(hmap_ptr, key)
 nya_hmap_get(hmap_ptr, key)
-nya_hmap_set(hmap_ptr, key, value)
+nya_hmap_add(hmap_ptr, key, value)
 nya_hmap_remove(hmap_ptr, key)
 nya_hmap_copy(hmap_ptr)
 nya_hmap_move(hmap_ptr, new_arena_ptr)
@@ -791,7 +791,7 @@ nya_hset_destroy(hset_ptr)
 nya_hset_destroy_on_stack(hset_ptr)
 nya_hset_resize_and_rehash(hset_ptr, new_capacity)
 nya_hset_contains(hset_ptr, item)
-nya_hset_insert(hset_ptr, item)
+nya_hset_add(hset_ptr, item)
 nya_hset_remove(hset_ptr, item)
 nya_hset_union(dest_hset_ptr, src_hset_ptr)
 nya_hset_intersection(dest_hset_ptr, src_hset_ptr)
@@ -957,7 +957,7 @@ void nya_object_reset(NYA_Object* obj)
 void nya_object_destroy(NYA_Object* obj)
 void nya_object_destroy_on_stack(NYA_Object* obj)
 NYA_Value* nya_object_get(const NYA_Object* obj, NYA_CString key)
-void nya_object_set(NYA_Object* obj, NYA_CString key, NYA_Value value)
+void nya_object_add(NYA_Object* obj, NYA_CString key, NYA_Value value)
 void nya_object_remove(NYA_Object* obj, NYA_CString key)
 NYA_String* nya_s128_to_string(NYA_Arena* arena, s128 value)
 NYA_String* nya_u128_to_string(NYA_Arena* arena, u128 value)
@@ -6211,7 +6211,7 @@ b8 nya_host_memory_total_bytes(OUT u64* out_bytes)  // Physical RAM installed.
 b8 nya_host_gpu_memory_total_bytes(OUT u64* out_bytes)  // Video memory on the display adapter.
 void nya_host_distribution_name(OUT u8* buffer, u32 capacity)  // Writes which system this is, null terminated and truncated to `capacity`.
 void nya_host_kernel_name(OUT u8* buffer, u32 capacity)  // Writes the kernel, null terminated and truncated to `capacity`.
-b8 nya_host_environment_set(NYA_ConstCString name, NYA_ConstCString value)  // Sets `name` to `value` in this process's environment, replacing what was there.
+b8 nya_host_environment_add(NYA_ConstCString name, NYA_ConstCString value)  // Sets `name` to `value` in this process's environment, replacing what was there.
 b8 nya_host_environment_remove(NYA_ConstCString name)  // Removes `name` from this process's environment.
 ```
 

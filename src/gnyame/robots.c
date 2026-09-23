@@ -579,10 +579,10 @@ void _gny_robots_save(GNY_Robots* robots) {
         defer     nya_arena_destroy_on_stack(&scratch);
 
         NYA_Object* save = nya_object_create(&scratch);
-        nya_object_set(save, NYA_SAVE_VERSION_KEY, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = GNY_ROBOT_SAVE_VERSION });
-        nya_object_set(save, "generations", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = generations });
-        nya_object_set(save, "fitness", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = robots->brain_fitness });
-        nya_object_set(save, "genome", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *nya_nn_neat_network_to_object(&scratch, robots->brain) });
+        nya_object_add(save, NYA_SAVE_VERSION_KEY, (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = GNY_ROBOT_SAVE_VERSION });
+        nya_object_add(save, "generations", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = generations });
+        nya_object_add(save, "fitness", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = robots->brain_fitness });
+        nya_object_add(save, "genome", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *nya_nn_neat_network_to_object(&scratch, robots->brain) });
 
         NYA_Error saved = nya_save_write(GNY_ROBOT_SAVE_FILE, save, NYA_SERDE_NONE);
         if (!saved.ok) nya_log_warn("Could not save the robots' brain: %s", (NYA_ConstCString)saved.message);

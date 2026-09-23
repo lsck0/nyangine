@@ -364,7 +364,7 @@ s32 main(void) {
      * A payload of the caller's own, which is only legal once logged in.
      */
     NYA_Object* presence = nya_object_create(arena);
-    nya_object_set(presence, "op", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 3 });
+    nya_object_add(presence, "op", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = 3 });
 
     NYA_EXPECT(nya_discord_gateway_send(gateway, arena, presence));
     nya_assert(nya_string_contains(fake_last_sent(&fake), "\"op\":3"));

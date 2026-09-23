@@ -75,54 +75,54 @@ static void expect_refused(NYA_Arena* arena, const Document* document, NYA_Const
 static NYA_Object* document_with_every_type(NYA_Arena* arena) {
     NYA_Object* object = nya_object_create(arena);
 
-    nya_object_set(object, "nothing", (NYA_Value){ .type = NYA_TYPE_NULL });
-    nya_object_set(object, "b8", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
-    nya_object_set(object, "b16", (NYA_Value){ .type = NYA_TYPE_B16, .as_b16 = false });
-    nya_object_set(object, "b32", (NYA_Value){ .type = NYA_TYPE_B32, .as_b32 = true });
-    nya_object_set(object, "b64", (NYA_Value){ .type = NYA_TYPE_B64, .as_b64 = true });
-    nya_object_set(object, "b128", (NYA_Value){ .type = NYA_TYPE_B128, .as_b128 = false });
-    nya_object_set(object, "u8", (NYA_Value){ .type = NYA_TYPE_U8, .as_u8 = U8_MAX });
-    nya_object_set(object, "u16", (NYA_Value){ .type = NYA_TYPE_U16, .as_u16 = 0xBEEF });
-    nya_object_set(object, "u32", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 0xDEADBEEF });
-    nya_object_set(object, "u64", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = U64_MAX });
-    nya_object_set(object, "u128", (NYA_Value){ .type = NYA_TYPE_U128, .as_u128 = ((u128)U64_MAX << 64) | 7 });
-    nya_object_set(object, "s8", (NYA_Value){ .type = NYA_TYPE_S8, .as_s8 = -128 });
-    nya_object_set(object, "s16", (NYA_Value){ .type = NYA_TYPE_S16, .as_s16 = -2 });
-    nya_object_set(object, "s32", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = -123456 });
-    nya_object_set(object, "s64", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = S64_MIN });
-    nya_object_set(object, "s128", (NYA_Value){ .type = NYA_TYPE_S128, .as_s128 = -((s128)1 << 100) });
-    nya_object_set(object, "f16", (NYA_Value){ .type = NYA_TYPE_F16, .as_f16 = (f16)1.5F });
-    nya_object_set(object, "f32", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = -0.1F });
-    nya_object_set(object, "f64", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 1.0e300 });
-    nya_object_set(object, "f128", (NYA_Value){ .type = NYA_TYPE_F128, .as_f128 = 1.0L / 3.0L });
-    nya_object_set(object, "char", (NYA_Value){ .type = NYA_TYPE_CHAR, .as_char = 'n' });
-    nya_object_set(object, "string", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "nyangine \"quoted\"\n" });
-    nya_object_set(object, "empty", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "" });
+    nya_object_add(object, "nothing", (NYA_Value){ .type = NYA_TYPE_NULL });
+    nya_object_add(object, "b8", (NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true });
+    nya_object_add(object, "b16", (NYA_Value){ .type = NYA_TYPE_B16, .as_b16 = false });
+    nya_object_add(object, "b32", (NYA_Value){ .type = NYA_TYPE_B32, .as_b32 = true });
+    nya_object_add(object, "b64", (NYA_Value){ .type = NYA_TYPE_B64, .as_b64 = true });
+    nya_object_add(object, "b128", (NYA_Value){ .type = NYA_TYPE_B128, .as_b128 = false });
+    nya_object_add(object, "u8", (NYA_Value){ .type = NYA_TYPE_U8, .as_u8 = U8_MAX });
+    nya_object_add(object, "u16", (NYA_Value){ .type = NYA_TYPE_U16, .as_u16 = 0xBEEF });
+    nya_object_add(object, "u32", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 0xDEADBEEF });
+    nya_object_add(object, "u64", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = U64_MAX });
+    nya_object_add(object, "u128", (NYA_Value){ .type = NYA_TYPE_U128, .as_u128 = ((u128)U64_MAX << 64) | 7 });
+    nya_object_add(object, "s8", (NYA_Value){ .type = NYA_TYPE_S8, .as_s8 = -128 });
+    nya_object_add(object, "s16", (NYA_Value){ .type = NYA_TYPE_S16, .as_s16 = -2 });
+    nya_object_add(object, "s32", (NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = -123456 });
+    nya_object_add(object, "s64", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = S64_MIN });
+    nya_object_add(object, "s128", (NYA_Value){ .type = NYA_TYPE_S128, .as_s128 = -((s128)1 << 100) });
+    nya_object_add(object, "f16", (NYA_Value){ .type = NYA_TYPE_F16, .as_f16 = (f16)1.5F });
+    nya_object_add(object, "f32", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = -0.1F });
+    nya_object_add(object, "f64", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 1.0e300 });
+    nya_object_add(object, "f128", (NYA_Value){ .type = NYA_TYPE_F128, .as_f128 = 1.0L / 3.0L });
+    nya_object_add(object, "char", (NYA_Value){ .type = NYA_TYPE_CHAR, .as_char = 'n' });
+    nya_object_add(object, "string", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "nyangine \"quoted\"\n" });
+    nya_object_add(object, "empty", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "" });
 
     NYA_Object* inner = nya_object_create(arena);
-    nya_object_set(inner, "depth", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 2 });
-    nya_object_set(object, "inner", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *inner });
-    nya_object_set(object, "hollow", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *nya_object_create(arena) });
+    nya_object_add(inner, "depth", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = 2 });
+    nya_object_add(object, "inner", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *inner });
+    nya_object_add(object, "hollow", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *nya_object_create(arena) });
 
     NYA_ArrayᐸNYA_Valueᐳ* numbers = nya_array_create(arena, NYA_Value);
     for (u32 i = 0; i < 3; i++) nya_array_push_back(numbers, ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = i * 1000 }));
-    nya_object_set(object, "numbers", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *numbers });
+    nya_object_add(object, "numbers", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *numbers });
 
     NYA_ArrayᐸNYA_Valueᐳ* mixed = nya_array_create(arena, NYA_Value);
     nya_array_push_back(mixed, ((NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = 1 }));
     nya_array_push_back(mixed, ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "two" }));
     nya_array_push_back(mixed, ((NYA_Value){ .type = NYA_TYPE_NULL }));
-    nya_object_set(object, "mixed", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *mixed });
+    nya_object_add(object, "mixed", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *mixed });
 
     NYA_ArrayᐸNYA_Valueᐳ* nulls = nya_array_create(arena, NYA_Value);
     nya_array_push_back(nulls, ((NYA_Value){ .type = NYA_TYPE_NULL }));
     nya_array_push_back(nulls, ((NYA_Value){ .type = NYA_TYPE_NULL }));
-    nya_object_set(object, "nulls", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *nulls });
+    nya_object_add(object, "nulls", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *nulls });
 
     NYA_ArrayᐸNYA_Valueᐳ* grid = nya_array_create(arena, NYA_Value);
     nya_array_push_back(grid, ((NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *numbers }));
     nya_array_push_back(grid, ((NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = nya_array_create_on_stack(arena, NYA_Value) }));
-    nya_object_set(object, "grid", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *grid });
+    nya_object_add(object, "grid", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *grid });
 
     return object;
 }
@@ -210,7 +210,7 @@ s32 main(void) {
 
         // a value the format has no tag for fails the serialize, it does not write something unreadable.
         NYA_Object* pointer = nya_object_create(arena);
-        nya_object_set(pointer, "p", (NYA_Value){ .type = NYA_TYPE_U8_POINTER });
+        nya_object_add(pointer, "p", (NYA_Value){ .type = NYA_TYPE_U8_POINTER });
         nya_assert(nya_serialize(arena, pointer, NYA_SERDE_FORMAT_NYA_BINARY, NYA_SERDE_NONE) == nullptr);
         printf("  PASSED\n");
     }
@@ -243,8 +243,8 @@ s32 main(void) {
 
         // the encoder will not tie an object to a type it does not fit.
         NYA_Object* stranger = nya_object_create(arena);
-        nya_object_set(stranger, "enabled", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "yes" });
-        nya_object_set(stranger, "unheard_of", (NYA_Value){ .type = NYA_TYPE_U8, .as_u8 = 1 });
+        nya_object_add(stranger, "enabled", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "yes" });
+        nya_object_add(stranger, "unheard_of", (NYA_Value){ .type = NYA_TYPE_U8, .as_u8 = 1 });
         NYA_String* lying = nullptr;
         nya_assert(!nya_serde_nya_binary_encode(arena, stranger, nya_reflect_of(NYA_HttpAccountingDto), &lying).ok);
 
@@ -456,7 +456,7 @@ s32 main(void) {
         long_key[sizeof(long_key) - 1] = '\0';
 
         NYA_Object* keyed = nya_object_create(arena);
-        nya_object_set(keyed, long_key, (NYA_Value){ .type = NYA_TYPE_NULL });
+        nya_object_add(keyed, long_key, (NYA_Value){ .type = NYA_TYPE_NULL });
 
         NYA_String* bytes = nullptr;
         nya_assert(!nya_serde_nya_binary_encode(arena, keyed, nullptr, &bytes).ok);
@@ -470,7 +470,7 @@ s32 main(void) {
         }
 
         NYA_Object* deep = nya_object_create(arena);
-        nya_object_set(deep, "a", value);
+        nya_object_add(deep, "a", value);
         nya_assert(!nya_serde_nya_binary_encode(arena, deep, nullptr, &bytes).ok, "the encoder wrote a depth the decoder refuses");
         printf("  PASSED\n");
     }

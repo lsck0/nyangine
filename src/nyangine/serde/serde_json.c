@@ -317,7 +317,7 @@ NYA_INTERNAL NYA_Error _nya_serde_json_parse_object(_NYA_SerdeJsonParser* parser
 
         NYA_Value value;
         NYA_TRY(_nya_serde_json_parse_value(parser, &value));
-        nya_object_set(object, key, value);
+        nya_object_add(object, key, value);
 
         if (_nya_serde_json_accept_symbol(parser, ',')) {
             // JSONC: one trailing comma before the closing brace. `"a": 1,,` still fails on the second comma.

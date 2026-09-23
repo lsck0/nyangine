@@ -55,8 +55,8 @@ NYA_INTERNAL NYA_HttpStatus gny_web_guild_read(NYA_HttpExchange* exchange) {
     for (u32 role = 0; role < nya_permission_role_count(guild); role++) {
         NYA_Object* entry = nya_object_create(exchange->arena);
 
-        nya_object_set(entry, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_role_name(guild, role) });
-        nya_object_set(entry, "position", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = nya_permission_role_position(guild, role) });
+        nya_object_add(entry, "name", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_role_name(guild, role) });
+        nya_object_add(entry, "position", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = nya_permission_role_position(guild, role) });
 
         // by name rather than as a number: an editor that had to know the bits would be an editor
         // written for this game, and the whole point is that it is not.
@@ -73,17 +73,17 @@ NYA_INTERNAL NYA_HttpStatus gny_web_guild_read(NYA_HttpExchange* exchange) {
             // given as the key, and a buffer inside this loop is gone before anything serializes it.
             NYA_CString index = gny_web_index(exchange->arena, count++);
 
-            nya_object_set(allowed, index, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_label(guild, one) });
+            nya_object_add(allowed, index, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_label(guild, one) });
         }
 
-        nya_object_set(entry, "allows", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *allowed });
+        nya_object_add(entry, "allows", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *allowed });
 
         NYA_CString index = gny_web_index(exchange->arena, role);
 
-        nya_object_set(roles, index, (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *entry });
+        nya_object_add(roles, index, (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *entry });
     }
 
-    nya_object_set(body, "roles", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *roles });
+    nya_object_add(body, "roles", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *roles });
 
     // every permission that has a name, which is the vocabulary a role editor draws its rows from: it
     // asks the table what exists rather than being compiled against this game's bits.
@@ -96,13 +96,13 @@ NYA_INTERNAL NYA_HttpStatus gny_web_guild_read(NYA_HttpExchange* exchange) {
 
         NYA_CString index = gny_web_index(exchange->arena, named++);
 
-        nya_object_set(vocabulary, index,
+        nya_object_add(vocabulary, index,
                        (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)nya_permission_label(guild, 1ULL << bit) });
     }
 
-    nya_object_set(body, "permissions", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *vocabulary });
-    nya_object_set(body, "members", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = nya_permission_subject_count(guild) });
-    nya_object_set(body, "owner", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_permissions_owner(guild) });
+    nya_object_add(body, "permissions", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *vocabulary });
+    nya_object_add(body, "members", (NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = nya_permission_subject_count(guild) });
+    nya_object_add(body, "owner", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_permissions_owner(guild) });
 
     return nya_http_response_json(exchange->response, exchange->arena, body).ok ? NYA_HTTP_STATUS_OK : NYA_HTTP_STATUS_INTERNAL_ERROR;
 }

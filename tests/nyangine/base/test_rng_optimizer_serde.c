@@ -119,20 +119,20 @@ s32 main(void) {
   {
     NYA_Object* object = nya_object_create(arena);
 
-    nya_object_set(object, "b8", ((NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true }));
-    nya_object_set(object, "u8", ((NYA_Value){ .type = NYA_TYPE_U8, .as_u8 = 255 }));
-    nya_object_set(object, "u16", ((NYA_Value){ .type = NYA_TYPE_U16, .as_u16 = 65535 }));
-    nya_object_set(object, "u32", ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = U32_MAX }));
-    nya_object_set(object, "u64", ((NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = U64_MAX }));
-    nya_object_set(object, "s8", ((NYA_Value){ .type = NYA_TYPE_S8, .as_s8 = S8_MIN }));
-    nya_object_set(object, "s16", ((NYA_Value){ .type = NYA_TYPE_S16, .as_s16 = S16_MIN }));
-    nya_object_set(object, "s32", ((NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = S32_MIN }));
-    nya_object_set(object, "s64", ((NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = S64_MIN }));
-    nya_object_set(object, "f32", ((NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = 0.1F }));
-    nya_object_set(object, "f64", ((NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 0.1 }));
-    nya_object_set(object, "char", ((NYA_Value){ .type = NYA_TYPE_CHAR, .as_char = 'q' }));
-    nya_object_set(object, "string", ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "a \"quoted\"\n\tvalue" }));
-    nya_object_set(object, "null", ((NYA_Value){ .type = NYA_TYPE_NULL }));
+    nya_object_add(object, "b8", ((NYA_Value){ .type = NYA_TYPE_B8, .as_b8 = true }));
+    nya_object_add(object, "u8", ((NYA_Value){ .type = NYA_TYPE_U8, .as_u8 = 255 }));
+    nya_object_add(object, "u16", ((NYA_Value){ .type = NYA_TYPE_U16, .as_u16 = 65535 }));
+    nya_object_add(object, "u32", ((NYA_Value){ .type = NYA_TYPE_U32, .as_u32 = U32_MAX }));
+    nya_object_add(object, "u64", ((NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = U64_MAX }));
+    nya_object_add(object, "s8", ((NYA_Value){ .type = NYA_TYPE_S8, .as_s8 = S8_MIN }));
+    nya_object_add(object, "s16", ((NYA_Value){ .type = NYA_TYPE_S16, .as_s16 = S16_MIN }));
+    nya_object_add(object, "s32", ((NYA_Value){ .type = NYA_TYPE_S32, .as_s32 = S32_MIN }));
+    nya_object_add(object, "s64", ((NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = S64_MIN }));
+    nya_object_add(object, "f32", ((NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = 0.1F }));
+    nya_object_add(object, "f64", ((NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = 0.1 }));
+    nya_object_add(object, "char", ((NYA_Value){ .type = NYA_TYPE_CHAR, .as_char = 'q' }));
+    nya_object_add(object, "string", ((NYA_Value){ .type = NYA_TYPE_STRING, .as_string = "a \"quoted\"\n\tvalue" }));
+    nya_object_add(object, "null", ((NYA_Value){ .type = NYA_TYPE_NULL }));
 
     // .nya writes hexadecimal floats precisely so this is exact rather than approximate.
     NYA_String* encoded = nya_serde_nya_serialize(arena, object, 0);
