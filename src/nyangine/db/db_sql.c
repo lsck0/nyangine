@@ -50,11 +50,39 @@ NYA_ConstCString nya_sql_vec_version(void) {
     return SQLITE_VEC_VERSION;
 }
 
-NYA_Error nya_sql_open(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_Database** out_database) {
+b8 nya_sql_encryption_available(void) {
+    /*
+     * The seam and not the cipher. SQLCipher defines this one and takes the key through sqlite3_key
+     * immediately after the open, followed by a read of sqlite_schema, because that is where a wrong
+     * key is found: keying itself succeeds against any bytes. Until it is vendored there is nothing
+     * to say yes to. See db.h.
+     */
+#ifdef NYA_DB_SQLCIPHER
+    return true;
+#else
+    return false;
+#endif
+}
+
+NYA_Error nya_sql_open_with_options(NYA_Arena* arena, NYA_SqlOptions options, OUT NYA_Database** out_database) {
     nya_assert(arena != nullptr);
     nya_assert(out_database != nullptr);
 
+    NYA_ConstCString path = options.path;
+
     if (path == nullptr || path[0] == '\0') return nya_error(NYA_ERROR_INVALID_ARGUMENT, "database path is empty");
+
+    if (options.key != nullptr || options.key_size != 0) {
+        if (options.key == nullptr || options.key_size != NYA_SQL_KEY_SIZE) {
+            return nya_error(NYA_ERROR_INVALID_ARGUMENT, "a database key is %d bytes, not " FMTu32, NYA_SQL_KEY_SIZE, options.key_size);
+        }
+
+        // Before the open and not after it: a file created here and then refused would be a database
+        // somebody asked to have encrypted, sitting on the disk in the clear.
+        if (!nya_sql_encryption_available()) {
+            return nya_error(NYA_ERROR_NOT_SUPPORTED, "'%s' was given a key and this build has no cipher to use it with; see db.h", path);
+        }
+    }
 
     // Before the open below, not after: an auto extension only applies to connections created once
     // it is registered, so a connection opened first would silently lack every function.

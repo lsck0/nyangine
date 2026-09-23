@@ -5615,20 +5615,23 @@ NYA_Error nya_orm_select( NYA_OrmTable* table, NYA_Arena* arena, NYA_ConstCStrin
 
 ```c
 // types
+struct NYA_SqlOptions { NYA_ConstCString path; const u8* key; u32 key_size; }  // What nya_sql_open takes besides the arena and where to put the connection.
 typedef NYA_Object* NYA_SqlRow  // One row.
 enum NYA_SqlValueKind { NYA_SQL_VALUE_NULL, NYA_SQL_VALUE_S64, NYA_SQL_VALUE_F64, NYA_SQL_VALUE_TEXT, NYA_SQL_VALUE_BLOB, NYA_SQL_VALUE_COUNT, }
 struct NYA_SqlValue { NYA_SqlValueKind kind; union { s64 as_s64; f64 as_f64; NYA_ConstCString as_text; struct { const u8* data; u64 size; } as_blob; }; }  // One bound parameter.
 struct NYA_SqlResult { NYA_ArrayᐸNYA_SqlRowᐳ* rows; u64 rows_affected; s64 last_insert_id; }
 
 // macros
+NYA_SQL_KEY_SIZE 32
 nya_sql_null()
 nya_sql_s64(value)
 nya_sql_f64(value)
 nya_sql_text(value)
 nya_sql_blob(ptr, len)
+nya_sql_open(arena, database_path, out_database, ...)  // Opens `path`, creating it if it is not there.
 
 // functions
-NYA_Error nya_sql_open(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_Database** out_database)  // Opens `path`, creating it if it is not there.
+NYA_Error nya_sql_open_with_options(NYA_Arena* arena, NYA_SqlOptions options, OUT NYA_Database** out_database)  // What nya_sql_open expands to.
 void nya_sql_close(NYA_Database* database)  // Closes the connection.
 NYA_Error nya_sql_exec(NYA_Database* database, NYA_ConstCString sql)  // Runs a statement that returns no rows.
 NYA_Error nya_sql_exec_bound(NYA_Database* database, NYA_ConstCString sql, const NYA_SqlValue* values, u32 value_count)  // One statement, with parameters bound to its `?` placeholders.
@@ -5636,6 +5639,7 @@ NYA_Error nya_sql_query( NYA_Database* database, NYA_Arena* arena, NYA_ConstCStr
 NYA_Error nya_sql_transaction_begin(NYA_Database* database)
 NYA_Error nya_sql_transaction_commit(NYA_Database* database)
 NYA_Error nya_sql_transaction_rollback(NYA_Database* database)
+b8 nya_sql_encryption_available(void)
 NYA_ConstCString nya_sql_version(void)  // The library version SQLite reports, for a log line or a bug report.
 NYA_ConstCString nya_sql_vec_version(void)  // The sqlite-vec version linked in, in upstream's `vX.Y.Z` form.
 ```

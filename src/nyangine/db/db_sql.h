@@ -53,10 +53,34 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-typedef struct NYA_Database  NYA_Database;
-typedef struct NYA_SqlResult NYA_SqlResult;
-typedef struct NYA_SqlValue  NYA_SqlValue;
+typedef struct NYA_Database   NYA_Database;
+typedef struct NYA_SqlOptions NYA_SqlOptions;
+typedef struct NYA_SqlResult  NYA_SqlResult;
+typedef struct NYA_SqlValue   NYA_SqlValue;
 typedef enum NYA_SqlValueKind NYA_SqlValueKind;
+
+/**
+ * Bytes in the key a database is encrypted under: 32, which is crypto_secret.h's NYA_CryptoKey32 and
+ * what SQLCipher takes as a raw key. Fixed rather than a range, so no caller has to be changed on the
+ * day the cipher lands and no caller can pick a shorter one.
+ * */
+#define NYA_SQL_KEY_SIZE 32
+
+/** What nya_sql_open takes besides the arena and where to put the connection. */
+struct NYA_SqlOptions {
+    /** The file, created if it is not there, or ":memory:" for one that never touches disk. */
+    NYA_ConstCString path;
+
+    /**
+     * The key the whole file is encrypted under, or null for a database in the clear. Exactly
+     * NYA_SQL_KEY_SIZE bytes, read during the open and never copied, logged or put in a crash report.
+     *
+     * A build that cannot encrypt refuses a key rather than quietly writing the database in the
+     * clear; see the encryption note in db.h and nya_sql_encryption_available.
+     * */
+    const u8* key;
+    u32       key_size;
+};
 
 /** One row. A named typedef because nya_derive_array needs a single token for its type. */
 typedef NYA_Object* NYA_SqlRow;
@@ -117,8 +141,24 @@ struct NYA_SqlResult {
 
 /**
  * Opens `path`, creating it if it is not there. Use ":memory:" for a database that never touches disk.
+ *
+ * Anything beyond the path is an option, so a call that wants none reads as it always did:
+ *
+ * ```c
+ * NYA_TRY(nya_sql_open(arena, "./server.db", &database));
+ * NYA_TRY(nya_sql_open(arena, "./server.db", &database, .key = key.bytes, .key_size = sizeof(key.bytes)));
+ * ```
  * */
-NYA_API NYA_Error nya_sql_open(NYA_Arena* arena, NYA_ConstCString path, OUT NYA_Database** out_database) __attr_no_discard;
+// The parameter is not called `path`: a macro parameter is substituted after the dot too, so
+// `.path` would become `.whatever_the_caller_named_its_variable`.
+#define nya_sql_open(arena, database_path, out_database, ...) \
+    nya_sql_open_with_options((arena), (NYA_SqlOptions){ .path = (database_path), __VA_ARGS__ }, (out_database))
+
+/**
+ * What nya_sql_open expands to. A key that this build cannot honour is refused before the file is
+ * touched, so a database asked for encrypted is never created in the clear instead.
+ * */
+NYA_API NYA_Error nya_sql_open_with_options(NYA_Arena* arena, NYA_SqlOptions options, OUT NYA_Database** out_database) __attr_no_discard;
 
 /** Closes the connection. Safe on null, so an unwind path does not need to check. */
 NYA_API void nya_sql_close(NYA_Database* database);
@@ -144,6 +184,13 @@ NYA_API NYA_Error nya_sql_query(
 NYA_API NYA_Error nya_sql_transaction_begin(NYA_Database* database) __attr_no_discard;
 NYA_API NYA_Error nya_sql_transaction_commit(NYA_Database* database) __attr_no_discard;
 NYA_API NYA_Error nya_sql_transaction_rollback(NYA_Database* database) __attr_no_discard;
+
+/**
+ * Whether this build can honour NYA_SqlOptions.key, which today is false everywhere: the vendored
+ * sqlite has no cipher in it. Asked rather than assumed, so a program that must not store anything
+ * unencrypted can refuse to start instead of finding out by reading its own file off the disk.
+ * */
+NYA_API b8 nya_sql_encryption_available(void) __attr_no_discard;
 
 /** The library version SQLite reports, for a log line or a bug report. */
 NYA_API NYA_ConstCString nya_sql_version(void) __attr_no_discard;

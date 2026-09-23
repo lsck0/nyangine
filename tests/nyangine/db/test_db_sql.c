@@ -288,6 +288,39 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a key is refused by a build with no cipher, and no file is left behind
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    // The encryption seam. Written so it stays true on the day SQLCipher lands: what is asserted is
+    // that a key is either honoured or refused, never taken and then ignored.
+    u8 key[NYA_SQL_KEY_SIZE] = { 0 };
+    nya_assert(nya_os_random_bytes(key, sizeof(key)));
+
+    NYA_ConstCString path = "./_test_sql_keyed.db";
+    (void)remove(path);
+    defer (void)remove(path);
+
+    NYA_Database* db     = nullptr;
+    NYA_Error     opened = nya_sql_open(arena, path, &db, .key = key, .key_size = sizeof(key));
+
+    if (nya_sql_encryption_available()) {
+      NYA_EXPECT(opened);
+      nya_sql_close(db);
+    } else {
+      nya_assert(!opened.ok && opened.kind == NYA_ERROR_NOT_SUPPORTED, "a key this build cannot use is refused, not ignored");
+
+      // The half that matters: refusing after creating the file would leave a database somebody
+      // asked to have encrypted sitting there in the clear.
+      nya_assert(!nya_filesystem_exists(path), "a refused key created '%s' anyway", path);
+    }
+
+    // A key of the wrong size is the caller's mistake and is caught before anything is opened.
+    NYA_Error short_key = nya_sql_open(arena, path, &db, .key = key, .key_size = 16);
+    nya_assert(short_key.kind == NYA_ERROR_INVALID_ARGUMENT, "a 16 byte key is not a key");
+    nya_assert(!nya_filesystem_exists(path), "and it created nothing either");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a file backed database is created and persists across connections
   // ─────────────────────────────────────────────────────────────────────────────
   {

@@ -29,9 +29,15 @@
  * ─────────────────────────────────────────────────────────
  *
  * The plan is SQLCipher in place of the vendored sqlite, so the whole file is encrypted; see
- * "Decisions", encryption at rest, in TODO.md. It is not vendored yet, so a database written by this
- * module is a plain sqlite file that anyone who can read the disk can read, and anything in it that
- * must not be has to be encrypted by whoever stores it.
+ * "Decisions", encryption at rest, in TODO.md. What is here is the seam and not the cipher:
+ * nya_sql_open takes `.key`, 32 bytes, and nya_sql_encryption_available says whether this build can
+ * honour one. It cannot, anywhere, today — the vendored sqlite has no cipher — so a key is refused
+ * before the file is touched rather than written in the clear and not mentioned.
+ *
+ * What that leaves uncovered until SQLCipher is vendored: every byte of every database this module
+ * writes, the temporary files sqlite writes beside it, and the write-ahead log. A password hash, a
+ * session token or a TOTP secret stored through here is readable by anyone who can read the disk,
+ * so anything of that kind has to be encrypted by whoever stores it, or not stored.
  *
  * ─────────────────────────────────────────────────────────
  * ONE THREAD PER CONNECTION
