@@ -330,9 +330,18 @@ Small, and first, because every later phase trusts these numbers.
   window state, rng, audio, nn and cursor got tests, and the window cluster found a real bug
   (`nya_window_is_visible` answered true for a handle that is not a window). No library surface needed a
   deliberate no-caller entry; nothing wanted one that the tests or gnyame didn't already want more.
-- `[ ]` The verb vocabulary's gaps the verb rule turned up: `set`/`remove` on every container, `create`/`release`
+- `[~]` The verb vocabulary's gaps the verb rule turned up: `set`/`remove` on every container, `create`/`release`
   on GPU resources, arena owned objects with no `destroy`, and brackets like `nya_trace_frame_end` whose other
-  half is implicit. Decide the words once, in the style guide, then rename or pair.
+  half is implicit. Decided in AGENTS.md's naming conventions. Containers pair with `add`, not `set` or
+  `insert`, matching `nya_array_add`/`nya_array_remove`: `nya_dict_add`, `nya_hmap_add`, `nya_hset_add`,
+  `nya_cache_add`, `nya_object_add` and `nya_host_environment_add` renamed, which empties that half of
+  `_LINT_VERB_PAIRS_ALLOWED`. GPU resources and arena owned objects are decided too — `create`/`release` for
+  what the arena does not own, no destroy at all for what it does — but stay allowances rather than a rule
+  change: `create` and `release` are each already half of a different pair (`create`/`destroy`,
+  `acquire`/`release`), so the checker asks for both halves independently and a correctly paired
+  `create`/`release` function still needs an entry. The frame and tick markers are decided as not brackets at
+  all, for the same reason renaming them would not clear the check. Left: whether the checker should accept
+  any one satisfied pair instead of every pair a word belongs to, which is a rule change, not a naming one.
 - `[x]` `src/nyangine/editor/` is two empty files and no editor is planned. Deleted.
 - `[x]` `assets/shader/compiled/mesh3d_outline.vert.*` has no source under `assets/shader/source/`. It is left
   over from the inverted hull that screen space ink replaced. The shader rule now deletes compiled outputs whose
