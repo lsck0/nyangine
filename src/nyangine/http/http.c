@@ -6,6 +6,8 @@
 #include "nyangine/http/http_cookie.c"
 // after cookie, whose value bound it fits inside, and over crypto's AEAD.
 #include "nyangine/http/http_seal.c"
+// after seal, which it seals through with whichever key is newest.
+#include "nyangine/http/http_keyring.c"
 #include "nyangine/http/http_message.c"
 // beside http_auth.c and independent of it: it answers the second factor, where that answers the first.
 #include "nyangine/http/http_totp.c"
