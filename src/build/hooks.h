@@ -93,7 +93,11 @@ void hook_add_build_info_flag(NYA_BuildRule* rule);
 /** Appends VERSION as -DNYA_RC_VERSION_MAJOR, _MINOR and _PATCH, for the numeric fields of the Windows version resource. */
 void hook_add_version_resource_flags(NYA_BuildRule* rule);
 
-/** Deletes the rule's output file. Used to clean up after a rule that only ran for its effect. */
+/**
+ * Deletes the rule's output file, and says nothing when there is none to delete. Used to clean up after a
+ * rule that only ran for its effect, and before a rule whose command adds to its output instead of
+ * replacing it.
+ * */
 void hook_remove_output_file(NYA_BuildRule* rule);
 
 /** Deletes the rule's input file. Used to drop an intermediate once the rule has consumed it. */

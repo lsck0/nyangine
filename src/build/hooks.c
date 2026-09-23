@@ -474,6 +474,10 @@ void hook_remove_output_file(NYA_BuildRule* rule) {
     nya_assert(rule != nullptr);
     nya_assert(rule->output_file);
 
+    // A file that is not there is already the state this asks for, which is what lets the hook run
+    // before a rule as well as after one: the first build of an archive has nothing to delete.
+    if (!nya_filesystem_exists(rule->output_file)) return;
+
     NYA_EXPECT(nya_filesystem_delete(rule->output_file));
 }
 

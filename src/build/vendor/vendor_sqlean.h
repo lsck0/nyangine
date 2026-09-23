@@ -109,6 +109,12 @@ NYA_VendorRule vendor_sqlean_linux_x86_64 = {
                 .program   = "ar",
                 .arguments = { "rcs", SQLEAN_A_LINUX_X86_64, SQLEAN_O_LINUX_X86_64, },
             },
+
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object that
+            // gets renamed leaves its old self inside forever, and the link keeps seeing a definition the
+            // repository no longer contains. Deleting the archive first makes it say only what was just
+            // compiled.
+            .pre_build_hooks = { &hook_remove_output_file, },
         },
     },
 };
@@ -160,6 +166,10 @@ NYA_VendorRule vendor_sqlean_windows_x86_64 = {
                 .program   = NYA_WINDOWS_AR,
                 .arguments = { "rcs", SQLEAN_A_WINDOWS_X86_64, SQLEAN_O_WINDOWS_X86_64, },
             },
+
+            // The same reason as the linux archive above: the archive is rebuilt from scratch so a
+            // renamed object cannot survive in it.
+            .pre_build_hooks = { &hook_remove_output_file, },
         },
     },
 };

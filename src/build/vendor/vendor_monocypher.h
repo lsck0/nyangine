@@ -81,6 +81,11 @@ NYA_VendorRule vendor_monocypher_linux_x86_64 = {
                 .program   = "ar",
                 .arguments = { "rcs", MONOCYPHER_A_LINUX_X86_64, MONOCYPHER_O_LINUX_X86_64, },
             },
+
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
+            // that gets renamed would linger inside it. Deleting it first makes the archive say only
+            // what was just compiled.
+            .pre_build_hooks = { &hook_remove_output_file, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_monocypher_ed25519_linux_x86_64_compile",
@@ -103,6 +108,11 @@ NYA_VendorRule vendor_monocypher_linux_x86_64 = {
                 .program   = "ar",
                 .arguments = { "rcs", MONOCYPHER_ED25519_A_LINUX_X86_64, MONOCYPHER_ED25519_O_LINUX_X86_64, },
             },
+
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
+            // that gets renamed would linger inside it. Deleting it first makes the archive say only
+            // what was just compiled.
+            .pre_build_hooks = { &hook_remove_output_file, },
         },
     },
 };
@@ -149,6 +159,11 @@ NYA_VendorRule vendor_monocypher_windows_x86_64 = {
                 .program   = NYA_WINDOWS_AR,
                 .arguments = { "rcs", MONOCYPHER_A_WINDOWS_X86_64, MONOCYPHER_O_WINDOWS_X86_64, },
             },
+
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
+            // that gets renamed would linger inside it. Deleting it first makes the archive say only
+            // what was just compiled.
+            .pre_build_hooks = { &hook_remove_output_file, },
         },
         &(NYA_BuildRule){
             .name        = "vendor_monocypher_ed25519_windows_x86_64_compile",
@@ -171,6 +186,11 @@ NYA_VendorRule vendor_monocypher_windows_x86_64 = {
                 .program   = NYA_WINDOWS_AR,
                 .arguments = { "rcs", MONOCYPHER_ED25519_A_WINDOWS_X86_64, MONOCYPHER_ED25519_O_WINDOWS_X86_64, },
             },
+
+            // `ar rcs` adds to an archive that already exists rather than replacing it, so an object
+            // that gets renamed would linger inside it. Deleting it first makes the archive say only
+            // what was just compiled.
+            .pre_build_hooks = { &hook_remove_output_file, },
         },
     },
 };
