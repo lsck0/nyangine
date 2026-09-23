@@ -26,6 +26,10 @@
  * curl -X QUERY localhost:47800/api/metrics -H 'Accept: application/nya-binary' -d '{}' -o metrics.bin  # a DTO, typed
  * curl -X QUERY 'localhost:47800/api/notes?contains=first+note' -d '{}'         # only the notes containing it
  * curl -X POST  localhost:47800/api/notes -d '{"text":"the first note"}'
+ * # send the same Idempotency-Key twice: the second is a replay of the first, not a second note.
+ * curl -X POST localhost:47800/api/notes -H 'Idempotency-Key: k-1' -d '{"text":"once only"}'   # 201, writes it
+ * curl -i -X POST localhost:47800/api/notes -H 'Idempotency-Key: k-1' -d '{"text":"once only"}' # 201 + Idempotency-Replayed: true, no new note
+ * curl -X POST localhost:47800/api/notes -H 'Idempotency-Key: k-1' -d '{"text":"different"}'    # 422: same key, different body
  * curl -X DELETE localhost:47800/api/notes -d '{"id":1}'
  * # stop the server, start it again, and the notes above are still there: they are rows, not an array
  * curl -X POST localhost:47800/api/otp/enrol    # the URI to scan, the secret to type, the recovery codes
@@ -667,9 +671,13 @@ NYA_INTERNAL const NYA_HttpRoute NOTE_ROUTES[] = {
      .affinity      = NYA_HTTP_AFFINITY_MAIN,
      .handler       = notes_post,
      .summary       = "Writes a note",
-     .description   = "Answers with the note as stored, so the caller learns the id it was given.",
+     .description   = "Answers with the note as stored, so the caller learns the id it was given. Send `Idempotency-Key: <token>` and a "
+                        "retry with the same key returns the first note rather than writing a second; see the idempotency layer below.",
+     // CONFLICT, and UNPROCESSABLE beyond the handler's own: the idempotency layer on this router can
+     // answer 409 for a duplicate still in flight and 422 for a key reused with a different body, and a
+     // route's statuses cover its whole chain. BAD_REQUEST covers the layer's malformed-key answer too.
      .statuses      = { NYA_HTTP_STATUS_CREATED, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_UNPROCESSABLE,
-                           NYA_HTTP_STATUS_INTERNAL_ERROR },
+                           NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_INTERNAL_ERROR },
      },
     {
      .method       = NYA_HTTP_METHOD_DELETE,
@@ -678,14 +686,27 @@ NYA_INTERNAL const NYA_HttpRoute NOTE_ROUTES[] = {
      .affinity     = NYA_HTTP_AFFINITY_MAIN,
      .handler      = notes_delete,
      .summary      = "Removes a note by id",
-     .statuses     = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_NOT_FOUND },
+     // CONFLICT and UNPROCESSABLE for the same reason as the POST: an unsafe verb behind the
+     // idempotency layer can be answered by it, so it declares what the whole chain can produce.
+     .statuses     = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_NOT_FOUND,
+                          NYA_HTTP_STATUS_CONFLICT, NYA_HTTP_STATUS_UNPROCESSABLE },
      },
 };
+
+/*
+ * The idempotency layer, around the notes resource only: a POST retried with the same `Idempotency-Key`
+ * runs once and replays its first answer, so a dropped response never doubles a note. The QUERY passes
+ * straight through it, being safe; the DELETE is deduped like the POST. The store is readied in main()
+ * before this router is merged. See http_idempotency.h.
+ */
+NYA_INTERNAL const NYA_HttpLayerFn NOTE_LAYERS[] = { nya_http_layer_idempotency };
 
 NYA_INTERNAL const NYA_HttpRouter NOTE_ROUTER = {
     .name        = "notes",
     .routes      = NOTE_ROUTES,
     .route_count = nya_carray_length(NOTE_ROUTES),
+    .layers      = NOTE_LAYERS,
+    .layer_count = nya_carray_length(NOTE_LAYERS),
 };
 
 /*
@@ -975,6 +996,15 @@ s32 main(s32 argc, char** argv) {
         .address = NYA_HTTP_LOG_ADDRESS_NETWORK,
         .deny    = "x-api-key",
     });
+
+    /*
+     * The idempotency store the notes router's layer shares. Readied here, before the layer can run,
+     * so its lock exists for the four workers: a layer runs on whichever worker answers the request,
+     * and a store without a lock would race across them. A short TTL, because a client's retries are
+     * seconds apart and a key nobody sends again should not hold a slot for long. See http_idempotency.h.
+     */
+    NYA_EXPECT(nya_http_idempotency_init(NOTES_ARENA, .ttl_s = 120), "while readying the idempotency store");
+    defer nya_http_idempotency_deinit();
 
     // one root layer, outermost, so its record covers the whole exchange.
     static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };

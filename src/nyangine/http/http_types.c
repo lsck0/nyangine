@@ -57,6 +57,7 @@ NYA_INTERNAL const _NYA_HttpStatusRow _NYA_HTTP_STATUS_ROWS[] = {
     { NYA_HTTP_STATUS_NOT_FOUND,           "Not Found"                       },
     { NYA_HTTP_STATUS_METHOD_NOT_ALLOWED,  "Method Not Allowed"              },
     { NYA_HTTP_STATUS_REQUEST_TIMEOUT,     "Request Timeout"                 },
+    { NYA_HTTP_STATUS_CONFLICT,            "Conflict"                        },
     { NYA_HTTP_STATUS_LENGTH_REQUIRED,     "Length Required"                 },
     { NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE,   "Payload Too Large"               },
     { NYA_HTTP_STATUS_URI_TOO_LONG,        "URI Too Long"                    },

@@ -12,6 +12,7 @@
  * http_message.h   the wire boundary: bytes in, NYA_HttpRequest out; NYA_HttpResponse in, bytes out
  * http_router.h    routes, the layer chain, the identity extractor, and dispatch
  * http_log.h       what one exchange leaves in the log, and the redaction that happens before it does
+ * http_idempotency.h  a retried unsafe request runs once: the Idempotency-Key layer and its store
  * http_auth.h      JWT over HMAC-SHA256, the bearer extractor, and the second factor seam
  * http_totp.h      the TOTP second factor: enrolment, recovery codes, and one verification
  * http_server.h    the listener, the connections and the drain
@@ -61,6 +62,7 @@
 
 #include "nyangine/http/http_auth.h"
 #include "nyangine/http/http_cookie.h"
+#include "nyangine/http/http_idempotency.h"
 #include "nyangine/http/http_seal.h"
 #include "nyangine/http/http_keyring.h"
 #include "nyangine/http/http_log.h"

@@ -16,6 +16,9 @@
 // after the router, whose exchange it reads and whose chain it wraps, and after the message layer,
 // whose bodies it decodes: it is the one layer the engine ships.
 #include "nyangine/http/http_log.c"
+// after the router, whose chain it wraps, and the message layer, whose response it captures and
+// replays: another layer a program installs, this one making a retried unsafe request run once.
+#include "nyangine/http/http_idempotency.c"
 /**/
 // after the router, whose route table it builds, and beside the server rather than inside it: the
 // bundle is a resource a program merges, not something the listener knows about.
