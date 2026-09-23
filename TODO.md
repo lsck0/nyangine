@@ -261,7 +261,7 @@ start a new project on nyangine", so each builds from `./build run example <name
 | `multiplayer_2d` | authority, prediction, encryption, lobby             | `pong_multiplayer`; `net_echo` folds into it                  |
 | `game_3d`      | 3D rendering, physics, audio propagation, post chain    | `pinball3d`                                                  |
 | `http_server`  | TLS, routes, DTOs, OpenAPI, accounts, roles, db, jobs, uploads, WebSocket | `web_server`; `[ ]` all but routes and OpenAPI missing |
-| `web_frontend` | the same UI toolkit in a browser, against `http_server`, as wasm (CSR) and server rendered (SSR) | `[~]` SSR proven: `ui_ssr` example |
+| `web_frontend` | the same UI toolkit in a browser, against `http_server`, as wasm (CSR) and server rendered (SSR) | `[~]` SSR proven (`ui_ssr`) and CSR proven (`./build wasm-ui`, `web/ui.html`); the named caller against `http_server` is what remains |
 
 `plugin_scripting` stops being an example of its own: plugins are a feature of a program, so the 2D game or the
 TUI loads one. `net_echo` and `plugin_scripting` are deleted once their callers have moved.
@@ -285,6 +285,17 @@ browser, from the same `component()` function.
   `<immintrin.h>` guarded off, new `os/os_wasm.c` (page/time/random over calloc/clock_gettime/getentropy),
   `serde_nya_binary.c` excluded (x87 f128 wire format is unshimmable on wasm's IEEE-quad long double). Native
   build byte-identical (every change guarded).
+- `[x]` **CSR UI in wasm — the whole component, no server** — `./build wasm-ui` compiles the `ui` module +
+  `ui_present_html` + input + their base/math leaves under emscripten (`src/web/wasm_ui.c`), `web/ui.html`
+  mounts it. Exports `nyangine_ui_render()` (one settled draw pass to DOM body) and `nyangine_ui_event(id,event)`
+  (parses `wN`, looks the widget rect up via `nya_ui_html_rect`, injects a synthetic pointer, re-renders); state
+  lives in wasm globals. node-verified: click +1 → `count` 1→2, tab switch, toggle flips theme. `NYA_App` embeds
+  the renderer/asset/physics systems by value so it can't be defined without the vendored headers — cleared by
+  including `nyangine.h` whole (headers only, nothing from those libs compiled/linked) and compiling only the
+  leaf set; `core_app.c`/`core_window.c` replaced by a small windowless wasm surface in `wasm_ui.c`. Engine edits
+  all `#if OS_WASM`-gated (two GPU vertex `static_assert`s off where f16→float changes the size; SDL mutex/event
+  pump and IME/clipboard no-op'd), native byte-identical. Gap: value widgets (slider drag) not wired — click
+  only; text widths are the monospace-cell approximation the browser re-measures.
 - `[ ]` **Game → web (CSR, the goal):** the rest of the engine in wasm — `app` loop under
   `emscripten_set_main_loop`, `ui` + a DOM or canvas presenter, and for the actual game a WebGL/GLES renderer
   backend against SDL3's emscripten port. Then a `web_frontend` caller and a game example that builds to a
