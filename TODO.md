@@ -1113,15 +1113,21 @@ The current track, reordered around one missing primitive.
   the grid solver for what is in the air above it.
 - `[~]` Weather and sky: one wind field read by particles, fluids, foliage and audio; rain, snow, clouds, stars
   and fog confined to volumes. Kept to the flat stylized look, never photoreal.
-  - `[~]` **Wind field + foliage sway (in progress 2026-09-23)** — the "one missing primitive" this phase is
-    reordered around, and it needs NO compute pass (analytic CPU field + vertex-shader displacement), so it lands
-    ahead of line 1102. `nya_wind_*` gives a directional wind plus time-varying gust, sampleable by position;
-    foliage shaders read it as a uniform. Grass, leaves and branches are one base-anchored sway (bend grows with
-    height above the pivot, scaled by a per-vertex flexibility weight) parameterized by stiffness/frequency/
-    amplitude. Constraint: the mesh3d batch bakes world-space verts with only a `view_projection` uniform and
-    `NYA_Vertex3D` is fixed (sizeof 36, static_assert) — foliage needs its own per-object draw path that carries a
-    pivot, not the fully-baked batch (instanced grass is a follow-up). Shaders stay ESSL-300-safe so stage 1
-    cross-compiles them to web automatically. Later: particles and the fluid emitters sample the same field.
+  - `[x]` **Wind field + foliage sway (landed `ee21e65`, 2026-09-23)** — the "one missing primitive"; no compute
+    pass (analytic CPU field + vertex displacement). `render_wind.{c,h}`: `NYA_WindField` value type,
+    `nya_wind_field`/`_set`/`_advance`/`_at`/`_sample`/`_base`; the gust is 3 layered sines proven in [-1,1], no
+    grid. Foliage draw path (`nya_render3d_foliage`/`_style`/`_disturb`) reuses the skinned-mesh segment (one draw,
+    per-object vertex uniform b1) so a model-space mesh keeps its pivot at y=0; per-vertex flexibility rides vertex
+    colour alpha (base 0 → tip 1) so `NYA_Vertex3D` stays 36 bytes. New pipeline `foliage.vert.hlsl` + shared
+    `mesh3d.frag` (lit, shadowed), camera-pass only. Grass/leaves/branches are one shader+field, amplitude/
+    frequency/stiffness/flutter params. Look: height² cantilever falloff, per-instance phase+amplitude hash,
+    two-octave bend, two-axis leaf flutter, normal leaned by the applied displacement. **Physics interaction:**
+    `nya_render3d_foliage_disturb(pos,radius,strength)` — up to 16 disturbers (ceiling-registered), nearest 4 per
+    plant pushed into the uniform, shader adds a `(1-d/r)²` push-away on top of wind; the example feeds a dynamic
+    box3d body's position so a ball parts the grass. `foliage.vert` cross-compiles to GLSL ES 300 (web-ready).
+    Example `foliage3d`, test `test_wind.c`. Verified on master: check 0/959, debug build + a foliage3d run under
+    ASan+LSan+UBSan shut down clean (no leak — the reported leak did not reproduce). Follow-ups: instanced grass
+    for density; particles and fluid emitters sampling the same wind field.
 - `[ ]` Our own stereo panner for interaural delay and head shadow. If it replaces what SDL_mixer does for us,
   SDL_mixer leaves the vendor list and only its decoders stay.
 - `[ ]` Multiplayer: fragmentation, lag compensation at render time, a WebSocket transport so browsers can join a
