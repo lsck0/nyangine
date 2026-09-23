@@ -73,7 +73,11 @@
  * Sec-WebSocket-Protocol offer is ignored rather than answered, which RFC 6455 allows and which means
  * a client must not require one. permessage-deflate and every other extension: see http_websocket.h.
  *
- * Thread safety: none. Everything here runs on the thread that drains the server.
+ * Thread safety: none, and none is needed. Everything here runs on the thread that calls
+ * nya_system_http_tick, in both of http_server.h's modes: a threaded server answers the handshake
+ * there and its listener thread lets the socket go at the 101, so the table below, the callbacks and
+ * nya_http_websocket_broadcast_text are all one thread's. That thread is the frame, for a program that
+ * has one.
  * */
 #pragma once
 

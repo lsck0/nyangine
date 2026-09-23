@@ -35,11 +35,21 @@ NYA_INTERNAL void _nya_http_metrics_name(OUT char* destination, u64 capacity, NY
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
+/*
+ * Every route here is NYA_HTTP_AFFINITY_MAIN, which on a threaded server means it is answered inside
+ * the tick rather than on a worker.
+ *
+ * The whole resource is a read of what the frame writes: the app's frame statistics, the ceiling and
+ * arena registries, the system registry. None of that is published for another thread to read, and
+ * the registry guards say so out loud, so this resource belongs where the numbers are made. It costs
+ * the frame what it always cost, which is a few hundred bytes of copying.
+ */
 NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
     {
      .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NYA_HTTP_METRICS_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
+     .affinity      = NYA_HTTP_AFFINITY_MAIN,
      .handler       = _nya_http_metrics_query,
      .summary       = "Frame time and this server's own counters",
      .description   = "A read of nya_app_get's frame statistics and the HTTP server's connection and request counts. "
@@ -50,6 +60,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
      .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NYA_HTTP_METRICS_CEILINGS_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
+     .affinity      = NYA_HTTP_AFFINITY_MAIN,
      .handler       = _nya_http_metrics_ceilings_query,
      .summary       = "Every fixed capacity array and how full it is",
      .description   = "The ceiling registry, which is what every `nya_ceiling_register` in the engine publishes into. "
@@ -60,6 +71,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
      .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NYA_HTTP_METRICS_ARENAS_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
+     .affinity      = NYA_HTTP_AFFINITY_MAIN,
      .handler       = _nya_http_metrics_arenas_query,
      .summary       = "Every live arena: used, reserved and fragmentation",
      .description   = "The arena registry. Resident bytes are not here on purpose: reading them is a system call per "
@@ -70,6 +82,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
      .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NYA_HTTP_METRICS_SYSTEMS_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
+     .affinity      = NYA_HTTP_AFFINITY_MAIN,
      .handler       = _nya_http_metrics_systems_query,
      .summary       = "Per owner: how many systems, what they cost, what they hold",
      .description   = "The system registry grouped by owner: the engine, the game, and one per plugin. The times read "
@@ -80,6 +93,7 @@ NYA_INTERNAL const NYA_HttpRoute _NYA_HTTP_METRICS_ROUTES[] = {
      .method             = NYA_HTTP_METHOD_PUT,
      .path               = NYA_HTTP_METRICS_ACCOUNTING_PATH,
      .auth               = NYA_HTTP_AUTH_BEARER,
+     .affinity           = NYA_HTTP_AFFINITY_MAIN,
      .scope              = NYA_HTTP_SCOPE_WRITE,
      .handler_identified = _nya_http_metrics_accounting_put,
      .summary            = "Turn the registry's per system timing on or off",

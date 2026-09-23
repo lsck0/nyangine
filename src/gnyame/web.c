@@ -19,6 +19,9 @@
 
 #define GNY_WEB_GUILD_PATH "/api/guild"
 
+/** Worker threads behind the listener. See where it is passed for why two. */
+#define GNY_WEB_WORKERS 2
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * THE GUILD, OVER HTTP
@@ -138,11 +141,18 @@ NYA_INTERNAL NYA_HttpStatus gny_web_guild_kick(NYA_HttpExchange* exchange, const
     return NYA_HTTP_STATUS_NO_CONTENT;
 }
 
+/*
+ * Both routes are NYA_HTTP_AFFINITY_MAIN, because both read the guild table the game itself is
+ * writing: a kick from the pause menu and a kick over a socket are the same call into the same table,
+ * and that table has no lock. Answering them inside the frame is what makes "one question, two
+ * callers" true rather than nearly true; see http_server.h for what the other affinity promises.
+ */
 NYA_INTERNAL const NYA_HttpRoute GNY_WEB_GUILD_ROUTES[] = {
     {
      .method      = NYA_HTTP_METHOD_QUERY,
      .path        = GNY_WEB_GUILD_PATH,
      .auth        = NYA_HTTP_AUTH_NONE,
+     .affinity    = NYA_HTTP_AFFINITY_MAIN,
      .handler     = gny_web_guild_read,
      .summary     = "The session's roles and who is in it",
      .description = "The same table the game's pause menu reads. Permissions come back by name, so an editor needs to know nothing "
@@ -153,6 +163,7 @@ NYA_INTERNAL const NYA_HttpRoute GNY_WEB_GUILD_ROUTES[] = {
      .method             = NYA_HTTP_METHOD_DELETE,
      .path               = GNY_WEB_GUILD_PATH,
      .auth               = NYA_HTTP_AUTH_BEARER,
+     .affinity           = NYA_HTTP_AFFINITY_MAIN,
      .permission         = GNY_PERMISSION_KICK,
      .resource           = GNY_GUILD_SESSION,
      .handler_identified = gny_web_guild_kick,
@@ -206,8 +217,16 @@ void gny_web_start(void) {
     // anything inside decided.
     static const NYA_HttpLayerFn LAYERS[] = { nya_http_layer_log };
 
+    /*
+     * On its own thread, with two workers. The game is what this program is for, so the frame pays for
+     * as little of the web interface as it can: the listener accepts and reads, a worker verifies a
+     * token and renders an answer, and what is left for the frame is the routes that read the guild
+     * table, which is every route this file mounts of its own. Two is enough for an interface one
+     * person has open; see NYA_HTTP_MAX_WORKERS.
+     */
     NYA_Error started = nya_system_http_init((NYA_HttpConfig){
         .port        = (u16)port,
+        .workers     = GNY_WEB_WORKERS,
         .secret      = secret_size > 0 ? secret : nullptr,
         .secret_size = secret_size,
         .layers      = LAYERS,

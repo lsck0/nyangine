@@ -65,6 +65,19 @@
  * can still see the server is alive. A client may send `now` to ask for one out of turn; anything else
  * it sends is ignored, because a stream that takes commands is an API and this one is a view.
  *
+ * ## Four workers, and which routes are allowed on them
+ *
+ * The server runs threaded: a listener thread of its own and `WORKER_COUNT` workers, so a request is
+ * answered when it arrives rather than when this loop comes round, and the session's signature
+ * checking happens off the loop entirely.
+ *
+ * What may run on a worker is decided route by route, in the tables below. The session routes are a
+ * JWT over a secret that has not changed since startup, and the bundle and the generated document are
+ * read-only once mounted, so those run on workers. The notes and the second factor are this program's
+ * own state — an array, a counter, a replay guard — held in plain statics with no lock, so they are
+ * NYA_HTTP_AFFINITY_MAIN and are answered inside `nya_system_http_tick` below, where the loop and the
+ * stream already are. The metrics resource is the engine's and declares the same for itself.
+ *
  * ## QUERY rather than GET
  *
  * A read is a QUERY here. A request in this server is a reflected struct and a GET has nowhere to put
@@ -516,11 +529,18 @@ NYA_INTERNAL NYA_HttpStatus otp_recover(NYA_HttpExchange* exchange) {
  * `statuses` is the full set each route may answer with. A debug build asserts a handler never
  * returns one it did not declare, which is why the refusals above are listed alongside the successes.
  */
+/*
+ * NYA_HTTP_AFFINITY_MAIN on all three: the notes are a static array and two counters with nothing
+ * guarding them, so they are read and written where this program's loop is and nowhere else. Making
+ * them a worker's would mean a lock around every touch of NOTES, which is a bigger decision than an
+ * example should make quietly; the affinity is that decision, written down.
+ */
 NYA_INTERNAL const NYA_HttpRoute NOTE_ROUTES[] = {
     {
      .method        = NYA_HTTP_METHOD_QUERY,
      .path          = NOTES_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
+     .affinity      = NYA_HTTP_AFFINITY_MAIN,
      .handler       = notes_query,
      .summary       = "Every note",
      .description   = "A read, and therefore a QUERY rather than a GET. `?contains=text` keeps the notes containing it.",
@@ -530,6 +550,7 @@ NYA_INTERNAL const NYA_HttpRoute NOTE_ROUTES[] = {
      .method        = NYA_HTTP_METHOD_POST,
      .path          = NOTES_PATH,
      .auth          = NYA_HTTP_AUTH_NONE,
+     .affinity      = NYA_HTTP_AFFINITY_MAIN,
      .handler       = notes_post,
      .summary       = "Writes a note",
      .description   = "Answers with the note as stored, so the caller learns the id it was given.",
@@ -540,6 +561,7 @@ NYA_INTERNAL const NYA_HttpRoute NOTE_ROUTES[] = {
      .method       = NYA_HTTP_METHOD_DELETE,
      .path         = NOTES_PATH,
      .auth         = NYA_HTTP_AUTH_NONE,
+     .affinity     = NYA_HTTP_AFFINITY_MAIN,
      .handler      = notes_delete,
      .summary      = "Removes a note by id",
      .statuses     = { NYA_HTTP_STATUS_NO_CONTENT, NYA_HTTP_STATUS_BAD_REQUEST, NYA_HTTP_STATUS_FORBIDDEN, NYA_HTTP_STATUS_NOT_FOUND },
@@ -557,11 +579,17 @@ NYA_INTERNAL const NYA_HttpRouter NOTE_ROUTER = {
  * are not a resource: they are three steps of one flow, and a program that wants notes without a
  * factor merges one and not the other.
  */
+/*
+ * Main-thread too, and for a sharper reason than the notes: the replay guard is what makes a code work
+ * once, and a guard two threads can update at the same time is a guard that lets a replayed code
+ * through. The verification itself is cheap; it is FACTOR that is not shareable.
+ */
 NYA_INTERNAL const NYA_HttpRoute OTP_ROUTES[] = {
     {
      .method      = NYA_HTTP_METHOD_POST,
      .path        = OTP_ENROL_PATH,
      .auth        = NYA_HTTP_AUTH_NONE,
+     .affinity    = NYA_HTTP_AFFINITY_MAIN,
      .handler     = otp_enrol,
      .summary     = "Starts enrolling an authenticator",
      .description = "Answers with the otpauth URI to scan, the secret as base32 to type, and the recovery codes. All three are "
@@ -572,6 +600,7 @@ NYA_INTERNAL const NYA_HttpRoute OTP_ROUTES[] = {
      .method      = NYA_HTTP_METHOD_POST,
      .path        = OTP_ACTIVATE_PATH,
      .auth        = NYA_HTTP_AUTH_NONE,
+     .affinity    = NYA_HTTP_AFFINITY_MAIN,
      .handler     = otp_activate,
      .summary     = "Turns the enrolment on",
      .description = "`{\"code\":\"123456\"}`. The second step of enrolment: proves the authenticator holds the same secret before "
@@ -583,6 +612,7 @@ NYA_INTERNAL const NYA_HttpRoute OTP_ROUTES[] = {
      .method      = NYA_HTTP_METHOD_POST,
      .path        = OTP_VERIFY_PATH,
      .auth        = NYA_HTTP_AUTH_NONE,
+     .affinity    = NYA_HTTP_AFFINITY_MAIN,
      .handler     = otp_verify,
      .summary     = "Answers one code",
      .description = "`{\"code\":\"123456\"}`. One step of clock skew either side is accepted, and a code works once: the same "
@@ -594,6 +624,7 @@ NYA_INTERNAL const NYA_HttpRoute OTP_ROUTES[] = {
      .method      = NYA_HTTP_METHOD_POST,
      .path        = OTP_RECOVER_PATH,
      .auth        = NYA_HTTP_AUTH_NONE,
+     .affinity    = NYA_HTTP_AFFINITY_MAIN,
      .handler     = otp_recover,
      .summary     = "Spends one recovery code",
      .description = "`{\"code\":\"ABCDEFGH-IJKLMNOP\"}`, for the phone that is gone. Case and the dash do not matter; the code "
@@ -697,8 +728,17 @@ NYA_INTERNAL NYA_Error mount_bundle(NYA_Arena* scratch) {
 /** Default port. Loopback only unless `address` is set; see NYA_HttpConfig. */
 #define DEFAULT_PORT 47800
 
-/** How long the loop sleeps between drains. The server does no work of its own between requests. */
+/** How long the loop sleeps between ticks. The sockets are the listener thread's; see the file note. */
 #define TICK_SLEEP_MS 5
+
+/**
+ * Workers behind the listener.
+ *
+ * Four is past what a handful of connections needs and well inside NYA_HTTP_MAX_WORKERS. What it buys
+ * here is that a signature check or a TOTP verification never waits behind another request, and that
+ * neither of them is paid for by this loop.
+ * */
+#define WORKER_COUNT 4
 
 /** Set by the signal handler, so ctrl-c leaves through the same shutdown a clean exit does. */
 static volatile sig_atomic_t RUNNING = 1;
@@ -758,7 +798,12 @@ s32 main(s32 argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    NYA_Error started = nya_system_http_init((NYA_HttpConfig){ .port = port, .secret = SESSION_SECRET, .secret_size = sizeof(SESSION_SECRET) });
+    NYA_Error started = nya_system_http_init((NYA_HttpConfig){
+        .port        = port,
+        .secret      = SESSION_SECRET,
+        .secret_size = sizeof(SESSION_SECRET),
+        .workers     = WORKER_COUNT,
+    });
 
     if (!started.ok) {
         u8 message[256];
@@ -827,9 +872,10 @@ s32 main(s32 argc, char** argv) {
     nya_log_info("Streaming on ws://127.0.0.1:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", nya_http_server_port());
 
     /*
-     * The drain is the whole loop. nya_system_http_tick accepts what is waiting, reads what has
-     * arrived and answers what is complete, and returns rather than blocking, so a program that has
-     * other work to do puts this beside it instead of around it.
+     * The sockets are the listener thread's now, so what this loop owes the server is the other half:
+     * nya_system_http_tick answers the exchanges whose routes asked for this thread and drains the
+     * WebSockets. It returns rather than blocking, exactly as it did when it was the whole drain, so a
+     * program with other work to do still puts this beside it instead of around it.
      */
     u64 pushed_at_ms = 0;
 

@@ -33,13 +33,81 @@ NYA_EXPECT(nya_http_server_merge(nya_http_metrics_router()));
 NYA_EXPECT(nya_http_server_merge(nya_http_openapi_router()));
 ```
 
-The drain is hooked onto `NYA_EVENT_HANDLING_STARTED`, so a program running the engine's frame loop
+The tick is hooked onto `NYA_EVENT_HANDLING_STARTED`, so a program running the engine's frame loop
 needs no second call: a request arrives where a keypress arrives. A program with no frame loop — a
 headless tool, a test — calls `nya_system_http_tick` itself, and `nya_system_http_init` notices there
 is no app and says so at debug level rather than requiring one.
 
 `gnyame` starts a server when `GNYAME_WEB_PORT` names a port, which is the caller to read:
 `src/gnyame/web.c`.
+
+## One drain a frame, or a thread
+
+`workers` in the config decides, and zero is the default.
+
+**`workers = 0`** is what this has always been. `nya_system_http_tick` accepts, reads, answers and
+closes on whoever calls it, at most `NYA_HTTP_MAX_REQUESTS_PER_TICK` requests per call, and returns.
+No thread is started, nothing is concurrent, nothing takes a lock, and the whole exchange can be
+driven a step at a time — which is what `tests/nyangine/http/test_server.c` does and what a simulation
+needs, since threads would take its determinism away.
+
+**`workers = n`** starts a listener thread and `n` workers. The listener owns the sockets: it accepts,
+reads, parses, spends the address's rate limit token, and writes what comes back. A worker takes a
+parsed request and runs the layers, the extractor and the handler on its own arena. A request is then
+answered when it arrives rather than when the frame next comes round, and an Argon2id hash or a slow
+query costs the frame nothing.
+
+```c
+NYA_EXPECT(nya_system_http_init((NYA_HttpConfig){ .port = 7777, .workers = 4 }));
+```
+
+### A route says where it runs
+
+```c
+{
+    .method   = NYA_HTTP_METHOD_QUERY,
+    .path     = "/api/guild",
+    .affinity = NYA_HTTP_AFFINITY_MAIN,   // reads a table the frame writes
+    .handler  = guild_read,
+}
+```
+
+`NYA_HTTP_AFFINITY_WORKER` is the default and is a promise: the handler touches the exchange, its own
+arena, and state that is either immutable for the server's lifetime or safe on its own. Not the
+program — no entities, no system registry, no renderer, no UI.
+
+**The promise is enforced rather than documented.** The modules that belong to the frame call
+`nya_thread_main_only` (`base_thread.h`), which asserts against the thread the app claimed at startup.
+A handler that forgot its `MAIN` crashes the first time it runs, naming what it reached for, instead of
+corrupting a table weeks later. The system registry is the first module to say so; `core_system.h`
+records which of its calls do.
+
+`NYA_HTTP_AFFINITY_MAIN` exchanges are queued and answered inside `nya_system_http_tick`, then handed
+back to the listener to write. So a threaded server still has to be ticked, and a `MAIN` handler can
+still hold the frame up for as long as it runs — that is the trade it is making on purpose.
+
+The engine's own metrics resource declares `MAIN` for all five of its routes, because every one of them
+reads what the frame writes. `examples/web_server/main.c` is the mixed caller to read: its notes and
+its second factor are `MAIN`, and the session routes, the web bundle and the generated document run on
+workers.
+
+### WebSockets belong to the tick
+
+In both modes. The handshake is answered on the ticking thread and every frame after it is read,
+dispatched and written there, so `on_open`, `on_message` and `on_close` run where a program's own state
+lives and `nya_http_websocket_broadcast_text` stays a call the frame makes. The listener thread hands
+the socket over at the 101 and never touches it again.
+
+### Shutdown
+
+`nya_system_http_deinit` returns with nothing of the server running. The listener is stopped and joined
+first, so no socket is read, written or accepted after that point and none is left half closed; then
+the workers get `NYA_HTTP_SHUTDOWN_GRACE_MS` between them to leave the handler they are inside.
+
+A handler still running at the deadline cannot be stopped from outside, so the deadline is kept the
+only sound way: the port goes back, the thread is detached, and that server's arena and exchange
+buffers are leaked on purpose rather than freed under a thread that is still writing into them. It is
+logged as an error, because it is a bug in the handler.
 
 ## The verbs: QUERY, POST, PUT, DELETE
 
@@ -380,8 +448,14 @@ request, and a request that does not fit is answered with the status that says s
 - A peer that goes quiet mid-request is dropped after `NYA_HTTP_IDLE_TIMEOUT_MS`. A peer that stops
   reading is dropped once more than `NYA_HTTP_MAX_PENDING_WRITE_BYTES` is queued for it. A peer past
   the connection table is closed immediately rather than queued.
-- At most `NYA_HTTP_MAX_REQUESTS_PER_TICK` are answered per frame across every connection, so a
-  pipelining peer cannot take the frame.
+- At most `NYA_HTTP_MAX_REQUESTS_PER_TICK` are answered, or started, per drain pass across every
+  connection, so a pipelining peer cannot take the frame. A connection has at most one exchange in
+  flight and its next request is not parsed until the last one is written, so the connection table is
+  what bounds the work however fast a peer sends.
+- A thread raises no bound. Every limit here is global to the server rather than per worker, because
+  the connection table, the rate limit buckets and the counters live on the listener thread and are
+  only ever touched there. What a slow handler can hold up is its own connection, and — for a `MAIN`
+  route — the frame; not the other connections, the accept loop, the idle timeouts or shutdown.
 
 Nothing a client can send reaches an assertion. A hostile peer is an operating error, and an assert on
 one is a denial of service.
@@ -397,11 +471,13 @@ driven by `./build run fuzz http_request`.
 | `NYA_HTTP_MAX_CONNECTIONS`             |       8 | connections at once                                       |
 | `NYA_HTTP_MAX_HEAD_BYTES`              |    4096 | request line and headers together                         |
 | `NYA_HTTP_MAX_BODY_BYTES`              |    8192 | request body, chunked framing undone                      |
-| `NYA_HTTP_MAX_RESPONSE_BYTES`          |   65536 | one response body; one buffer, shared                     |
+| `NYA_HTTP_MAX_RESPONSE_BYTES`          |   65536 | one response body; one buffer per exchange in flight      |
 | `NYA_HTTP_MAX_HEADERS`                 |      24 | headers kept from a request                               |
 | `NYA_HTTP_MAX_CHUNKS`                  |      64 | chunks one body may be built from                         |
 | `NYA_HTTP_IDLE_TIMEOUT_MS`             |    5000 | silence before a connection is dropped                    |
-| `NYA_HTTP_MAX_REQUESTS_PER_TICK`       |      16 | requests answered per frame, across every peer            |
+| `NYA_HTTP_MAX_REQUESTS_PER_TICK`       |      16 | requests answered, or started, per drain pass             |
+| `NYA_HTTP_MAX_WORKERS`                 |       8 | worker threads, and so handlers running at once           |
+| `NYA_HTTP_SHUTDOWN_GRACE_MS`           |    2000 | how long deinit waits for a handler to finish             |
 | `NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS` |       4 | connections one address may hold                          |
 | `NYA_HTTP_DEFAULT_REQUESTS_PER_SECOND` |      20 | refill rate of one address's request bucket               |
 | `NYA_HTTP_DEFAULT_REQUEST_BURST`       |      40 | requests one address may send at once                     |
@@ -481,6 +557,9 @@ It arrives on the same listener, is parsed by the same parser, and spends a toke
 bucket before it is looked at. **A socket does not escape the server's limits by becoming a
 WebSocket**: it keeps the connection slot it was accepted into, and it is counted again against the
 WebSocket bounds below.
+
+The handshake is answered on the ticking thread even when the server has workers, because what it
+registers into is the table above — see [One drain a frame, or a thread](#one-drain-a-frame-or-a-thread).
 
 It also goes through the origin check (`Sec-Fetch-Site`, then `Origin` against `Host`) that every
 unsafe request goes through. An upgrade is a GET, so nothing about the method would have brought it
