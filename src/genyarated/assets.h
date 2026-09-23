@@ -44,6 +44,7 @@
 #define NYA_ASSET_SHADER_EFFECT_SCENE_HLSLI              "./assets/shader/source/effect_scene.hlsli"
 #define NYA_ASSET_SHADER_EFFECT_SCENE_DEBUG_FRAG         "./assets/shader/source/effect_scene_debug.frag.hlsl"
 #define NYA_ASSET_SHADER_EFFECT_SPEED_LINES_FRAG         "./assets/shader/source/effect_speed_lines.frag.hlsl"
+#define NYA_ASSET_SHADER_FOLIAGE_VERT                    "./assets/shader/source/foliage.vert.hlsl"
 #define NYA_ASSET_SHADER_LIGHT2D_FRAG                    "./assets/shader/source/light2d.frag.hlsl"
 #define NYA_ASSET_SHADER_MESH3D_FRAG                     "./assets/shader/source/mesh3d.frag.hlsl"
 #define NYA_ASSET_SHADER_MESH3D_VERT                     "./assets/shader/source/mesh3d.vert.hlsl"

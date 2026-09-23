@@ -39,6 +39,9 @@
 // before either renderer and in both: no GPU state, and headless tests reach it. render_camera.c holds
 // the camera arithmetic both renderers share.
 #include "nyangine/renderer/render_camera.c"
+// before either renderer: the wind field is analytic CPU math a headless test samples, and foliage in
+// render3d.c reads a vector taken from it. See render_wind.h.
+#include "nyangine/renderer/render_wind.c"
 // before everything that asks it what is switched on, and in both builds for the same reason.
 #include "nyangine/renderer/render_features.c"
 // both builds: asset loading creates textures through it, and headless tests read its counts.

@@ -612,6 +612,13 @@ typedef struct {
     u32 count;
 } NYA_Render3DIndexRange;
 
+/** One foliage disturber: a sphere in world space the plants bend away from. See nya_render3d_foliage_disturb. */
+typedef struct {
+    f32x3 position;
+    f32   radius;
+    f32   strength;
+} NYA_Render3DDisturber;
+
 /**
  * What the scene recorded between two state changes: the shading, the pipeline choice and the geometry drawn with
  * them. Recorded once and drawn by every pass, so the shadow cascades and the camera share one upload.
@@ -638,6 +645,15 @@ struct NYA_Render3DSegment {
     /** A posed mesh drawn instead of the geometry above: its handle and its palette, in the frame arena. */
     NYA_ConstCString                    skinned;
     const struct NYA_ShaderSkinUniform* skin;
+
+    /**
+     * A wind-swayed mesh drawn instead of the geometry above: its registered handle and the placement,
+     * wind and sway parameters, in the frame arena. Exactly like a skinned segment — one draw of one
+     * mesh, its own per-object vertex uniform — but bent about its base rather than posed by a skeleton.
+     * Foliage does not cast a shadow, so it is only ever seen by the camera pass; there is no pass mask.
+     * */
+    NYA_ConstCString                       foliage;
+    const struct NYA_ShaderFoliageUniform* foliage_uniform;
 
     /**
      * Which passes see the posed mesh, one bit each, as a mesh group carries for the geometry above.
@@ -710,6 +726,17 @@ struct NYA_Render3DBatch {
 
     /** The frame's fog. A fragment uniform, like `light`. */
     NYA_Render3DFog fog;
+
+    /**
+     * The frame's foliage disturbers: bodies the plants bend away from, fed after begin and cleared at
+     * the next one. Each foliage draw picks the nearest few and bakes them into its per-object uniform.
+     * See nya_render3d_foliage_disturb.
+     * */
+    NYA_Render3DDisturber foliage_disturbers[NYA_RENDER3D_FOLIAGE_DISTURBERS_MAX];
+    u32                   foliage_disturber_count;
+
+    /** The most disturbers fed in one frame, for the ceiling. */
+    u32 foliage_disturber_worst;
 
     /* Shadow pass. */
 

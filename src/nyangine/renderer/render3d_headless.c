@@ -150,6 +150,37 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
     nya_unused(window, handle, palette, bone_count, model, tint);
 }
 
+void nya_render3d_foliage(NYA_Window* window, NYA_ConstCString handle, f32x3 position, f32x3 scale, NYA_Quaternion rotation,
+                          NYA_Render3DFoliage foliage) {
+    nya_assert(window != nullptr);
+
+    nya_unused(handle, position, scale, rotation, foliage);
+}
+
+void nya_render3d_foliage_disturb(NYA_Window* window, f32x3 position, f32 radius, f32 strength) {
+    nya_assert(window != nullptr);
+
+    nya_unused(position, radius, strength);
+}
+
+NYA_Render3DFoliage nya_render3d_foliage_style(NYA_FoliageStyle style) {
+    switch (style) {
+        case NYA_FOLIAGE_LEAVES: {
+            return (NYA_Render3DFoliage){ .amplitude = 0.12F, .frequency = 1.6F, .stiffness = 0.35F, .flutter = 0.10F, .detail_frequency = 7.0F };
+        }
+
+        case NYA_FOLIAGE_BRANCHES: {
+            return (NYA_Render3DFoliage){ .amplitude = 0.06F, .frequency = 0.55F, .stiffness = 0.8F };
+        }
+
+        case NYA_FOLIAGE_GRASS:
+        case NYA_FOLIAGE_STYLE_COUNT:
+        default: {
+            return (NYA_Render3DFoliage){ .amplitude = 0.35F, .frequency = 1.1F, .stiffness = 0.1F };
+        }
+    }
+}
+
 void nya_render3d_cube(NYA_Window* window, f32x3 center, f32x3 size, NYA_Quaternion rotation, NYA_Color color) {
     nya_unused(window, center, size, rotation, color);
 }

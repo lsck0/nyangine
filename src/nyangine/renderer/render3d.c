@@ -129,6 +129,14 @@ NYA_INTERNAL void _nya_render3d_instanced_draw(NYA_Window* window, const NYA_Ren
 NYA_INTERNAL void _nya_render3d_skinned_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
                                              const struct NYA_ShaderMesh3DUniform* uniform, u32 pass);
 
+/** Draws a segment's wind-swayed mesh. Only the camera pass, since foliage casts no shadow. */
+NYA_INTERNAL void _nya_render3d_foliage_draw(NYA_Window* window, const NYA_Render3DSegment* segment,
+                                             const struct NYA_ShaderMesh3DUniform* uniform);
+
+/** Bakes the nearest disturbers to a plant into its uniform, out of the frame's fed set. */
+NYA_INTERNAL void _nya_render3d_foliage_disturbers_pick(const NYA_Render3DBatch* batch, f32x3 center, f32 plant_radius,
+                                                        struct NYA_ShaderFoliageUniform* uniform);
+
 /** The matrix a pass rasterises with. */
 NYA_INTERNAL f32_4x4 _nya_render3d_pass_view_projection(const NYA_Render3DBatch* batch, u32 pass) __attr_no_discard;
 
@@ -1057,6 +1065,219 @@ void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString handle, cons
     _nya_render3d_segment_close(window);
 }
 
+NYA_Render3DFoliage nya_render3d_foliage_style(NYA_FoliageStyle style) {
+    switch (style) {
+        case NYA_FOLIAGE_LEAVES: {
+            // low bend, quick flutter: a canopy shimmering rather than leaning.
+            return (NYA_Render3DFoliage){ .amplitude = 0.12F, .frequency = 1.6F, .stiffness = 0.35F, .flutter = 0.10F, .detail_frequency = 7.0F };
+        }
+
+        case NYA_FOLIAGE_BRANCHES: {
+            // stiff, long wavelength, small amplitude: a branch that gives a little in a gust.
+            return (NYA_Render3DFoliage){ .amplitude = 0.06F, .frequency = 0.55F, .stiffness = 0.8F };
+        }
+
+        case NYA_FOLIAGE_GRASS:
+        case NYA_FOLIAGE_STYLE_COUNT:
+        default: {
+            // full, slow, base-anchored bend, with almost no stiffness.
+            return (NYA_Render3DFoliage){ .amplitude = 0.35F, .frequency = 1.1F, .stiffness = 0.1F };
+        }
+    }
+}
+
+void nya_render3d_foliage(NYA_Window* window, NYA_ConstCString handle, f32x3 position, f32x3 scale, NYA_Quaternion rotation,
+                          NYA_Render3DFoliage foliage) {
+    nya_assert(window != nullptr);
+
+    if (handle == nullptr) return;
+
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    if (!batch->active) return;
+
+    /*
+     * Foliage draws a registered mesh: the model-space NYA_Vertex3D geometry never changes, only the
+     * wind that bends it, which travels as a per-object uniform. An unregistered handle is not drawn.
+     * The sway needs the packed vertices nya_render3d_mesh_register keeps and the flexibility weight in
+     * their colour alpha, so a loaded model file is not a foliage source without being registered first.
+     */
+    NYA_Render3DRegisteredMesh* registered = _nya_render3d_registered(batch, handle);
+
+    if (registered == nullptr) return;
+
+    _nya_render3d_registered_flush_upload(window, registered);
+
+    // its copy has not run yet, so the buffer holds nothing to draw.
+    if (registered->pending_upload != nullptr || registered->vertex_count == 0) return;
+
+    f32_4x4 model = nya_matrix_transform(position, nya_quaternion_to_matrix3(rotation), scale);
+
+    f32x3 bounds_min = f32x3_zero;
+    f32x3 bounds_max = f32x3_zero;
+    (void)_nya_render3d_resolved_bounds(registered, nullptr, &bounds_min, &bounds_max);
+
+    // the plant's height, so amplitude reads as a fraction of it. never zero, or the shader divides by it.
+    f32 height = nya_max(bounds_max.y, 0.0001F);
+
+    // zero means unset, the same rule NYA_ParticleBurst uses.
+    f32 amplitude        = foliage.amplitude > 0.0F ? foliage.amplitude : 0.2F;
+    f32 frequency        = foliage.frequency > 0.0F ? foliage.frequency : 1.0F;
+    f32 detail_frequency = foliage.detail_frequency > 0.0F ? foliage.detail_frequency : 6.0F;
+
+    NYA_Color tint = foliage.tint;
+    if (tint.r == 0.0F && tint.g == 0.0F && tint.b == 0.0F && tint.a == 0.0F) tint = NYA_COLOR_WHITE;
+
+    // a phase from the placement when the caller left it unset, so a field of identical plants does not
+    // sway in lockstep. the constants are the usual hash pair; any two large incommensurate ones do.
+    f32 phase = foliage.phase;
+    if (phase == 0.0F) phase = (position.x * 12.9898F) + (position.z * 78.233F);
+
+    // in the frame arena, read only by this scene's playback. same as the skinned path's palette.
+    struct NYA_ShaderFoliageUniform* uniform =
+        nya_arena_alloc(nya_app_get()->frame_allocator, sizeof(struct NYA_ShaderFoliageUniform));
+
+    if (uniform == nullptr) return;
+
+    for (u32 row = 0; row < 4; row++) {
+        for (u32 column = 0; column < 4; column++) uniform->model[row][column] = model[row][column];
+    }
+
+    uniform->wind_x = foliage.wind.x;
+    uniform->wind_y = foliage.wind.y;
+    uniform->wind_z = foliage.wind.z;
+    uniform->time   = foliage.time;
+
+    uniform->amplitude = amplitude;
+    uniform->frequency = frequency;
+    uniform->stiffness = nya_clamp(foliage.stiffness, 0.0F, 1.0F);
+    uniform->flutter   = foliage.flutter > 0.0F ? foliage.flutter : 0.0F;
+
+    uniform->detail_frequency = detail_frequency;
+    uniform->phase            = phase;
+    uniform->height_scale     = 1.0F / height;
+    uniform->pad              = 0.0F;
+
+    uniform->tint_r = tint.r;
+    uniform->tint_g = tint.g;
+    uniform->tint_b = tint.b;
+    uniform->tint_a = tint.a;
+
+    // the arena does not zero, so clear the disturber rows; the nearest few are filled in below.
+    uniform->disturber_count  = 0.0F;
+    uniform->disturber_pad[0] = uniform->disturber_pad[1] = uniform->disturber_pad[2] = 0.0F;
+
+    for (u32 d = 0; d < NYA_RENDER3D_FOLIAGE_DISTURBERS; d++) {
+        uniform->disturber_position_radius[d][0] = 0.0F;
+        uniform->disturber_position_radius[d][1] = 0.0F;
+        uniform->disturber_position_radius[d][2] = 0.0F;
+        uniform->disturber_position_radius[d][3] = 0.0F;
+        uniform->disturber_strength[d]           = 0.0F;
+    }
+
+    _nya_render3d_passes_prepare(window);
+
+    // culled against the camera. the sway pushes vertices out past the rest bounds, so pad the radius by
+    // the tip sway's reach — a fraction of the scaled height — or a bent plant pops out at the edge.
+    f32x3 extent       = (bounds_max - bounds_min) * scale * 0.5F;
+    f32x3 middle       = (bounds_max + bounds_min) * scale * 0.5F;
+    f32x3 world_center = position + nya_quaternion_rotate(rotation, middle);
+
+    f32 radius = nya_vector_length(extent) + (amplitude * height * nya_vector_length(scale));
+
+    // the nearest disturbers to this plant, so a moving body parts the grass it wades into. picked here
+    // and baked into the uniform, so the shader only loops over the few that can matter to this plant.
+    _nya_render3d_foliage_disturbers_pick(batch, world_center, radius, uniform);
+
+    u8 passes = _nya_render3d_passes_seeing(window, world_center, radius);
+
+    // only the camera pass draws foliage: it casts no shadow, and a shadow bit would ask for a foliage
+    // shadow pipeline that does not exist. nothing to record if the camera cannot see it.
+    if ((passes & 1U) == 0) return;
+
+    // what came before draws first, as its own segment.
+    nya_render3d_flush(window);
+
+    NYA_Render3DSegment* segment = &batch->segments[batch->segment_count];
+
+    segment->foliage         = handle;
+    segment->foliage_uniform = uniform;
+
+    _nya_render3d_segment_close(window);
+}
+
+void nya_render3d_foliage_disturb(NYA_Window* window, f32x3 position, f32 radius, f32 strength) {
+    nya_assert(window != nullptr);
+
+    // a disturber with no reach or no push does nothing, so it is not worth a slot.
+    if (radius <= 0.0F || strength <= 0.0F) return;
+
+    NYA_Render3DBatch* batch = &window->render_system.mesh_batch;
+
+    // full: counted by the ceiling's worst mark, not raised. losing the farthest few bodies under a
+    // crowd is correct, the same contract particles have when their pool is full.
+    if (batch->foliage_disturber_count >= NYA_RENDER3D_FOLIAGE_DISTURBERS_MAX) return;
+
+    batch->foliage_disturbers[batch->foliage_disturber_count++] = (NYA_Render3DDisturber){
+        .position = position,
+        .radius   = radius,
+        .strength = strength,
+    };
+
+    batch->foliage_disturber_worst = nya_max(batch->foliage_disturber_worst, batch->foliage_disturber_count);
+}
+
+void _nya_render3d_foliage_disturbers_pick(const NYA_Render3DBatch* batch, f32x3 center, f32 plant_radius,
+                                           struct NYA_ShaderFoliageUniform* uniform) {
+    u32 picked = 0;
+
+    // a small insertion into the uniform's fixed slots, keeping them ordered nearest-first. with a
+    // handful of disturbers this is cheaper than sorting, and the slot count is the shader's loop bound.
+    f32 picked_distance[NYA_RENDER3D_FOLIAGE_DISTURBERS];
+
+    for (u32 i = 0; i < batch->foliage_disturber_count; i++) {
+        const NYA_Render3DDisturber* disturber = &batch->foliage_disturbers[i];
+
+        // horizontal centre-to-centre distance, matching the shader's ground-plane parting.
+        f32x3 away = center - disturber->position;
+        f32   dist = nya_vector_length((f32x3){ away.x, 0.0F, away.z });
+
+        // out of reach of the whole plant: its farthest vertex is still outside this disturber.
+        if (dist > disturber->radius + plant_radius) continue;
+
+        // where this one belongs among those already kept, nearest first.
+        u32 at = picked < NYA_RENDER3D_FOLIAGE_DISTURBERS ? picked : NYA_RENDER3D_FOLIAGE_DISTURBERS;
+
+        while (at > 0 && dist < picked_distance[at - 1]) at--;
+
+        // no room and not nearer than the farthest kept: drop it.
+        if (at >= NYA_RENDER3D_FOLIAGE_DISTURBERS) continue;
+
+        u32 last = (picked < NYA_RENDER3D_FOLIAGE_DISTURBERS ? picked : NYA_RENDER3D_FOLIAGE_DISTURBERS - 1);
+
+        // shift the farther ones down to open the slot.
+        for (u32 s = last; s > at; s--) {
+            picked_distance[s]                       = picked_distance[s - 1];
+            uniform->disturber_position_radius[s][0] = uniform->disturber_position_radius[s - 1][0];
+            uniform->disturber_position_radius[s][1] = uniform->disturber_position_radius[s - 1][1];
+            uniform->disturber_position_radius[s][2] = uniform->disturber_position_radius[s - 1][2];
+            uniform->disturber_position_radius[s][3] = uniform->disturber_position_radius[s - 1][3];
+            uniform->disturber_strength[s]           = uniform->disturber_strength[s - 1];
+        }
+
+        picked_distance[at]                       = dist;
+        uniform->disturber_position_radius[at][0] = disturber->position.x;
+        uniform->disturber_position_radius[at][1] = disturber->position.y;
+        uniform->disturber_position_radius[at][2] = disturber->position.z;
+        uniform->disturber_position_radius[at][3] = disturber->radius;
+        uniform->disturber_strength[at]           = disturber->strength;
+
+        if (picked < NYA_RENDER3D_FOLIAGE_DISTURBERS) picked++;
+    }
+
+    uniform->disturber_count = (f32)picked;
+}
+
 void nya_render3d_mesh(NYA_Window* window, NYA_ConstCString handle, f32x3 center, f32x3 scale, NYA_Quaternion rotation, NYA_Color color) {
     nya_assert(window != nullptr);
 
@@ -1812,6 +2033,12 @@ void _nya_render3d_pass_draw(NYA_Window* window, u32 pass) {
 
         if (pass > 0 && !segment->casts_shadow) continue;
 
+        if (segment->foliage != nullptr) {
+            // only the camera pass: foliage casts no shadow, so the cascades never draw it. see nya_render3d_foliage.
+            if (pass == 0) _nya_render3d_foliage_draw(window, segment, uniform);
+            continue;
+        }
+
         if (segment->skinned != nullptr) {
             // the bits _nya_render3d_passes_seeing set when the pose was recorded.
             if ((segment->skinned_passes & (u8)(1U << pass)) != 0) _nya_render3d_skinned_draw(window, segment, uniform, pass);
@@ -2235,6 +2462,46 @@ void _nya_render3d_skinned_draw(NYA_Window* window, const NYA_Render3DSegment* s
     }
 }
 
+void _nya_render3d_foliage_draw(NYA_Window* window, const NYA_Render3DSegment* segment, const struct NYA_ShaderMesh3DUniform* uniform) {
+    NYA_RenderSystemWindow* render = &window->render_system;
+    NYA_Render3DBatch*      batch  = &render->mesh_batch;
+
+    // released since it was recorded, or its copy has not run.
+    NYA_Render3DRegisteredMesh* registered = _nya_render3d_registered(batch, segment->foliage);
+
+    if (registered == nullptr || registered->pending_upload != nullptr || registered->vertex_count == 0) return;
+
+    // still loading on the first frames, like a textured mesh.
+    NYA_Asset* pipeline = nya_asset_get((NYA_AssetHandle)NYA_RENDER3D_PIPELINE_FOLIAGE);
+
+    if (pipeline == nullptr || pipeline->status != NYA_ASSET_STATUS_LOADED) return;
+
+    SDL_GPUGraphicsPipeline* build = _nya_render_pipeline(window, pipeline);
+    if (build == nullptr) return;
+
+    // the camera's matrix: pass zero, the only one foliage draws in.
+    f32_4x4 view_projection = _nya_render3d_pass_view_projection(batch, 0);
+
+    SDL_BindGPUGraphicsPipeline(render->render_pass, build);
+    SDL_BindGPUVertexBuffers(render->render_pass, 0, &(SDL_GPUBufferBinding){ .buffer = registered->vertices }, 1);
+
+    // view-projection at b0, the plant's placement and wind at b1 — the same split the skinned path uses.
+    SDL_PushGPUVertexUniformData(render->render_commands, 0, &view_projection, sizeof(view_projection));
+    SDL_PushGPUVertexUniformData(render->render_commands, 1, segment->foliage_uniform, sizeof(*segment->foliage_uniform));
+
+    // foliage reuses mesh3d.frag, so it is lit and receives shadows like any mesh.
+    SDL_PushGPUFragmentUniformData(render->render_commands, 0, uniform, sizeof(*uniform));
+
+    // untextured: no base colour, but mesh3d.frag always declares the shadow map's sampler.
+    _nya_render3d_bind_samplers(window, nullptr, nullptr);
+
+    SDL_DrawGPUPrimitives(render->render_pass, registered->vertex_count, 1, 0, 0);
+
+    batch->frame_draw_calls++;
+    nya_trace_draws(1);
+    batch->frame_vertices += registered->vertex_count;
+}
+
 NYA_Render3DMeshGroup* _nya_render3d_mesh_group(NYA_Render3DBatch* batch, NYA_ConstCString handle, b8 transparent) {
     /*
      * Only the last group of the open segment or a new one: a group is a contiguous run of the instance array.
@@ -2617,6 +2884,10 @@ void _nya_render3d_begin_with(NYA_Window* window, f32_4x4 view_projection) {
 
     batch->blend        = NYA_RENDER3D_BLEND_ALPHA;
     batch->casts_shadow = true;
+
+    // foliage disturbers are per frame: fed after begin, gone at the next one, so a body that stops
+    // moving simply stops parting the grass.
+    batch->foliage_disturber_count = 0;
 }
 
 b8 _nya_render3d_object_begin(NYA_Window* window, NYA_Color color, f32x3 center, f32 radius, u32 vertices, u32 indices,

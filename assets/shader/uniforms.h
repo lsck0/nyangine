@@ -25,6 +25,7 @@ typedef struct NYA_ShaderLutUniform      NYA_ShaderLutUniform;
 typedef struct NYA_ShaderCrtUniform      NYA_ShaderCrtUniform;
 typedef struct NYA_ShaderSkyUniform      NYA_ShaderSkyUniform;
 typedef struct NYA_ShaderGlassUniform    NYA_ShaderGlassUniform;
+typedef struct NYA_ShaderFoliageUniform  NYA_ShaderFoliageUniform;
 
 /** effect_blur.frag.hlsl. One directional pass; run it twice, transposed, for a real gaussian. */
 struct NYA_ShaderBlurUniform {
@@ -476,3 +477,44 @@ struct NYA_ShaderSkinUniform {
     /** Multiplied into the vertex colour. Its own float4, since a cbuffer will not split one. */
     f32 tint_r, tint_g, tint_b, tint_a;
 };
+
+/**
+ * foliage.vert.hlsl: the plant's placement, the sampled wind, and the sway parameters, at b1 so static
+ * meshes do not carry it. The vertex stage bends model-space geometry about its base (the model origin)
+ * before view-projecting, reusing mesh3d.frag for shading. Field order matters: each row below is one
+ * float4, and the matrix is four rows, so nothing crosses a sixteen-byte boundary.
+ * */
+struct NYA_ShaderFoliageUniform {
+    /** Row major, the same convention as light_view_projection: mul(model, vertex) in the shader. */
+    f32_4x4 model;
+
+    /** The wind's displacement/force at the plant, from nya_wind_sample, and the field's time in w. */
+    f32 wind_x, wind_y, wind_z;
+    f32 time;
+
+    /** Tip sway as a fraction of height, the primary bend rate, 0..1 rigidity, and leaf-flutter amplitude. */
+    f32 amplitude, frequency, stiffness, flutter;
+
+    /** Flutter rate, a per-object phase offset, one over the plant's height, and one float of padding. */
+    f32 detail_frequency, phase, height_scale, pad;
+
+    /** Multiplied into the vertex colour, so one authored plant draws in many tints. */
+    f32 tint_r, tint_g, tint_b, tint_a;
+
+    /**
+     * The nearest disturbers to this plant: each row is a world position in xyz and its radius in w.
+     * The plant bends away from any it sits inside. Entries past `disturber_count` are stale and ignored.
+     * See nya_render3d_foliage_disturb and NYA_RENDER3D_FOLIAGE_DISTURBERS.
+     * */
+    f32 disturber_position_radius[NYA_RENDER3D_FOLIAGE_DISTURBERS][4];
+
+    /** One strength per disturber, packed into a single row since there are four of them. */
+    f32 disturber_strength[4];
+
+    /** How many of the rows above are live, as a float so it shares a float4 row. */
+    f32 disturber_count;
+    f32 disturber_pad[3];
+};
+
+static_assert(sizeof(struct NYA_ShaderFoliageUniform) == 224,
+              "a float4x4, four float4 rows, four disturber rows, a strength row and a count row, matching foliage.vert.hlsl");

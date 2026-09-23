@@ -636,6 +636,31 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
       },
   }), "while queueing the textured mesh pipeline");
 
+    /* Foliage: the mesh fragment shader, but a vertex stage that bends model-space geometry in the wind. */
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
+      .handle    = NYA_ASSET_SHADER_FOLIAGE_VERT,
+      .as_shader = {
+          // two: the view-projection at b0 and the placement, wind and sway parameters at b1. see the skinned path.
+          .num_uniform_buffers = 2,
+      },
+  }), "while queueing the foliage vertex shader");
+
+    NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
+      .type                 = NYA_ASSET_TYPE_GRAPHICS_PIPELINE,
+      .handle               = NYA_RENDER3D_PIPELINE_FOLIAGE,
+      .as_graphics_pipeline = {
+          .window                 = window,
+          .vertex_shader_handle   = NYA_ASSET_SHADER_FOLIAGE_VERT,
+          .fragment_shader_handle = NYA_ASSET_SHADER_MESH3D_FRAG,
+          .blend                  = true,
+          .vertex_layout          = NYA_VERTEX_LAYOUT_3D,
+          .depth_test             = true,
+          .depth_write            = true,
+          // no culling: grass blades and leaves are single sheets seen from both sides.
+      },
+  }), "while queueing the foliage pipeline");
+
     /* The shadow pass: depth only, culling front faces. */
     NYA_EXPECT(nya_asset_load((NYA_AssetLoadParameters){
       .type      = NYA_ASSET_TYPE_SHADER_VERTEX,
@@ -1043,7 +1068,10 @@ void nya_system_renderer_for_window_init(NYA_Window* window) {
     static b8 segments_registered = false;
 
     // the first window's count; every window has the same capacity.
-    if (!segments_registered) nya_ceiling_register("render3d_segments", NYA_RENDER3D_MAX_SEGMENTS, &mesh_batch->segment_count_worst);
+    if (!segments_registered) {
+        nya_ceiling_register("render3d_segments", NYA_RENDER3D_MAX_SEGMENTS, &mesh_batch->segment_count_worst);
+        nya_ceiling_register("foliage_disturbers", NYA_RENDER3D_FOLIAGE_DISTURBERS_MAX, &mesh_batch->foliage_disturber_worst);
+    }
     segments_registered = true;
 
     /* The instance buffer for the retained mesh path. */

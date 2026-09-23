@@ -110,6 +110,12 @@ typedef struct NYA_OcclusionBuffer NYA_OcclusionBuffer;
 /** The depth-only skinned pipeline, so a skinned mesh casts a shadow. See nya_render3d_skinned_mesh. */
 #define NYA_RENDER3D_PIPELINE_SKINNED_SHADOW "nya_mesh3d_skinned_shadow_pipeline"
 
+/**
+ * Wind-swayed foliage. Model-space vertices bent about their base in the vertex stage, so it carries a
+ * per-object pivot and the sampled wind that the fully-baked batch cannot. See nya_render3d_foliage.
+ * */
+#define NYA_RENDER3D_PIPELINE_FOLIAGE "nya_foliage_pipeline"
+
 #define NYA_RENDER3D_PIPELINE_OVERLAY "nya_mesh3d_overlay_pipeline"
 
 #define NYA_RENDER3D_PIPELINE_TRANSPARENT "nya_mesh3d_transparent_pipeline"
@@ -233,6 +239,21 @@ static_assert(NYA_RENDER3D_MAX_VERTICES <= 65536, "the 3D batch's indices are si
 #define NYA_RENDER3D_MESH_HANDLE_MAX 128
 #endif
 
+/**
+ * How many foliage disturbers one plant's vertex shader tests against. The shader loops over exactly
+ * this many, so it is a fixed cost and must stay small; each plant is given the nearest this-many of
+ * whatever was fed this frame. See nya_render3d_foliage_disturb.
+ * */
+#define NYA_RENDER3D_FOLIAGE_DISTURBERS 4
+
+/**
+ * How many disturbers a frame can be fed in total, before the nearest few are picked per plant. Bodies
+ * past this are counted and dropped, never drawn wrong. Ceiling-registered.
+ * */
+#ifndef NYA_RENDER3D_FOLIAGE_DISTURBERS_MAX
+#define NYA_RENDER3D_FOLIAGE_DISTURBERS_MAX 16
+#endif
+
 /** Segments around a sphere's equator. Halved for the rings from pole to pole. */
 /**
  * The handle the shared unit sphere is registered under, by the first nya_render3d_sphere of the run.
@@ -284,6 +305,8 @@ typedef struct NYA_Render3DSky      NYA_Render3DSky;
 typedef enum NYA_Render3DBlend      NYA_Render3DBlend;
 typedef enum NYA_Render3DDepth      NYA_Render3DDepth;
 typedef struct NYA_Render3DTextureBinding NYA_Render3DTextureBinding;
+typedef enum NYA_FoliageStyle       NYA_FoliageStyle;
+typedef struct NYA_Render3DFoliage  NYA_Render3DFoliage;
 
 /* Forward declared: NYA_Vertex3D belongs to renderer.h, which includes this file. */
 typedef struct NYA_Vertex3D NYA_Vertex3D;
@@ -598,6 +621,62 @@ struct NYA_Render3DRay {
     f32x3 direction;
 };
 
+/**
+ * The three foliage looks, all one shader and one wind field apart only in the parameters below. See
+ * nya_render3d_foliage_style, which fills a NYA_Render3DFoliage with a sensible set for each.
+ * */
+enum NYA_FoliageStyle {
+    /** A full, base-anchored low-frequency bend. Blades of grass, reeds, a wheat field. */
+    NYA_FOLIAGE_GRASS = 0,
+
+    /** A low-amplitude, high-frequency flutter with a per-instance phase. A canopy of leaves. */
+    NYA_FOLIAGE_LEAVES,
+
+    /** Stiff: a long wavelength and a small amplitude. Branches and trunks that barely give. */
+    NYA_FOLIAGE_BRANCHES,
+
+    NYA_FOLIAGE_STYLE_COUNT,
+};
+
+/**
+ * How one plant sways. Passed by value to nya_render3d_foliage. The wind is sampled by the caller from a
+ * NYA_WindField (see render_wind.h) so foliage stays independent of the field; the rest is the material
+ * that makes the same authored mesh read as grass, a leaf, or a branch. Zeroed fields take their defaults,
+ * so `(NYA_Render3DFoliage){ .wind = w }` is a valid light grass.
+ * */
+struct NYA_Render3DFoliage {
+    /** The wind's displacement/force at the plant, world space. From nya_wind_sample. */
+    f32x3 wind;
+
+    /** The wind field's time, so the sway animates. From NYA_WindField.time. */
+    f32 time;
+
+    /** Tip sway as a fraction of the plant's height. Zero is read as a light default. */
+    f32 amplitude;
+
+    /** The primary bend rate. Zero is read as a default. */
+    f32 frequency;
+
+    /** How rigid the plant is, in [0, 1]: zero bends fully, one barely moves. */
+    f32 stiffness;
+
+    /** High-frequency flutter amplitude, for leaves. Zero for grass and branches. */
+    f32 flutter;
+
+    /** The flutter rate. Zero is read as a default when `flutter` is set. */
+    f32 detail_frequency;
+
+    /**
+     * A per-object phase offset, so identical plants do not sway in lockstep. Any value; a hash of the
+     * plant's position is a good source, and nya_render3d_foliage seeds one from the placement when this
+     * is zero.
+     * */
+    f32 phase;
+
+    /** Multiplied into the mesh's vertex colour. A zeroed colour is read as white. */
+    NYA_Color tint;
+};
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * FUNCTIONS
@@ -892,6 +971,44 @@ NYA_API void nya_render3d_skinned_mesh(NYA_Window* window, NYA_ConstCString hand
                                        f32_4x4 model, NYA_Color tint);
 
 NYA_API b8 nya_render3d_mesh_register(NYA_Window* window, NYA_ConstCString handle, const NYA_Vertex3D* vertices, u32 vertex_count);
+
+/**
+ * Draws a registered mesh as wind-swayed foliage: model-space vertices bent about their base in the
+ * vertex stage before they are view-projected, so the plant anchors at its pivot and bends more toward
+ * its tips. `handle` must have been registered with nya_render3d_mesh_register; author the plant with
+ * its base at y = 0 and a flexibility weight up its height in the vertex colour's alpha (0 at the base,
+ * 1 at the tips). Foliage is lit and receives shadows like any mesh, but does not itself cast one.
+ *
+ * ```c
+ * NYA_Render3DFoliage grass = nya_render3d_foliage_style(NYA_FOLIAGE_GRASS);
+ * grass.wind = nya_wind_sample(&wind, tuft_position);
+ * grass.time = wind.time;
+ * nya_render3d_foliage(window, "grass_tuft", tuft_position, (f32x3){ 1, 1, 1 }, nya_quaternion_identity, grass);
+ * ```
+ * */
+NYA_API void nya_render3d_foliage(NYA_Window* window, NYA_ConstCString handle, f32x3 position, f32x3 scale, NYA_Quaternion rotation,
+                                  NYA_Render3DFoliage foliage);
+
+/**
+ * A NYA_Render3DFoliage filled with a sensible parameter set for one of the three looks. The caller
+ * still sets `wind`, `time` and `tint`; this only chooses amplitude, frequency, stiffness and flutter.
+ * */
+NYA_API NYA_Render3DFoliage nya_render3d_foliage_style(NYA_FoliageStyle style) __attr_no_discard;
+
+/**
+ * Adds a disturber for this frame: a sphere in world space that foliage bends away from, on top of the
+ * wind. Feed one per dynamic body that might brush the plants — its position, how far its influence
+ * reaches, and how hard it shoves — after nya_render3d_begin and before drawing foliage. Cleared every
+ * frame at nya_render3d_begin, so a body that stops moving simply stops being fed. Each plant is bent by
+ * the nearest NYA_RENDER3D_FOLIAGE_DISTURBERS of them.
+ *
+ * ```c
+ * nya_render3d_begin(window, camera);
+ * nya_render3d_foliage_disturb(window, nya_entity_render_position(creature), 1.2F, 1.0F);
+ * // ... draw the foliage ...
+ * ```
+ * */
+NYA_API void nya_render3d_foliage_disturb(NYA_Window* window, f32x3 position, f32 radius, f32 strength);
 
 /** Releases a registered mesh's GPU buffer. Safe for a handle that was never registered. */
 NYA_API void nya_render3d_mesh_release(NYA_Window* window, NYA_ConstCString handle);

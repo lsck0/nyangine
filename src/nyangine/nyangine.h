@@ -46,6 +46,9 @@
 #include "nyangine/renderer/render2d_terminal.h"
 #include "nyangine/renderer/render2d_sprite.h"
 #include "nyangine/renderer/render3d.h"
+// before render_particles.h and render3d's foliage draw, both of which read a sampled wind vector. Pure
+// CPU math, so a headless test samples it exactly as a shader would.
+#include "nyangine/renderer/render_wind.h"
 #include "nyangine/renderer/render_particles.h"
 // before renderer.h, which stores a window's NYA_FluidRenderOptions by value.
 #include "nyangine/renderer/render_fluid.h"
