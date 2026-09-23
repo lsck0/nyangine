@@ -1182,6 +1182,12 @@ Most of this is cheap and should be picked up whenever a phase leaves room.
   server (a real handler behind the existing `health` route-tag concept), readiness gated on the breaker/db state.
 - `[ ]` **Self-healing beyond fail-fast** — optional supervised restart/re-exec on a fatal (the crash reporter
   currently reports but does not relaunch), behind an opt-in so a crash loop cannot hide.
+- `[ ]` **Callback-backed HTTP route handlers (user, 2026-09-24)** — `NYA_HttpRoute.handler` is a raw fn pointer
+  registered once, so a code hot-reload dangles it and a running web server's handlers do NOT hot-swap. Add
+  `NYA_CallbackHandle handler_callback` set via `.handler_callback = nya_callback(fn)`; dispatch resolves it with
+  `nya_callback_get` at the two invoke sites + `nya_http_router_check`. `update_callback_pointers` then re-points
+  it on reload, so handler code swaps live. Raw pointer in release, named handle in dev. See [[code-hot-reload]].
+  Queued behind the resilience-#3 agent (both touch `http_router`).
 
 ### Docs deployment (user, 2026-09-24)
 
