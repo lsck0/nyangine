@@ -656,30 +656,41 @@ logged-in user.
     guild whose ranks are the same roles with the same resolver — the proof that nothing here is web only.
   - Plugin permissions stay what they are: compile time, per build, for code rather than people. The two
     systems share no bits.
-- `[ ]` **Users and sessions**: an `accounts` component over `db`, `crypto` and `permissions`, with a user
+- `[~]` **Users and sessions**: an `accounts` component over `db`, `crypto` and `permissions`, with a user
   Model, SO and DTO as in "Model, SO, DTO". Passwords use Argon2id, with the parameters written down beside
-  their measurement.
+  their measurement. Landed 2026-09-23 as `src/nyangine/accounts/` at rank 5: the module and its whole model
+  are in; what remains is mounting it on a caller (the example/frontend) and a couple of self-service edges.
   - **Self service:** register, log in, log out, change the password (ends every other session), change the
     username, set up and remove a second factor, regenerate recovery codes, list and revoke one's own sessions.
-  - **Registration policy**, a config choice per program: open, invite only (single use invite codes, hashed
-    in `db`, with an expiry), or closed with an admin creating accounts. A fresh install has no users, and its
-    first account is created from the CLI and becomes the owner. No default password exists anywhere.
-  - **Recovery without email.** A lost password is recovered with a recovery code, or reset by an admin
-    with `MANAGE_USERS`, which forces a new password at next login and ends every session. Email is not
-    planned (see "Enterprise level").
-  - **Admin management**, behind `MANAGE_USERS` and the role hierarchy: list and search users, see a user's
-    roles and sessions, revoke sessions, disable an account (refused at login, every session ended), ban with
-    a reason and optional expiry, reset a password or second factor, and assign roles below one's own. Every
-    action goes into the same append-only audit table as role changes.
-  - **Lockout without denial of service:** failed logins slow down per account and per address (the rate
-    limit buckets), and never lock an account outright, since an outright lockout lets anyone lock anyone out.
-  - **The user's data is theirs:** export everything stored about the account as one `.nya` or JSON document,
-    and delete the account. Deletion removes the Model rows and their sessions, keeps the audit entries with
-    the user replaced by a tombstone id, and cannot be undone. Both are required, not optional.
-  - **Username and display name** are parsed newtypes: length bounds, a normalised form for uniqueness so
-    look-alike names cannot collide, and no control characters.
+    In: register/authenticate/password_change (ends sessions)/session list/revoke/revoke_all, recovery
+    regenerate. Missing: change the username, and the second-factor set-up/removal wired to an account (the
+    TOTP primitive exists in `http_totp`, unbound to a user).
+  - **Registration policy** — DONE. `accounts_invite.h`: open, invite (single-use codes hashed in db with an
+    expiry, spent-only-on-success), or closed. `nya_account_register` enforces it. First account is the CLI's
+    to make with `nya_account_create` and no default password anywhere.
+  - **Recovery without email** — DONE. `accounts_recovery.h`: ten single-use base32 codes hashed in db,
+    throttled, feeding a password reset that ends every session. Admin reset is `nya_account_password_reset`.
+  - **Admin management** — model DONE, the screen is the caller's. `disabled_set` (refused at login, sessions
+    ended), `roles_set`, `find`, session revoke, and the append-only **audit table** (`accounts_audit.h`) that
+    every mutation records into. Missing: ban with a reason and optional expiry as its own state (disable + an
+    audit reason stands in today), and the admin *screen*.
+  - **Lockout without denial of service** — DONE. `accounts_throttle.h`: a doubling wait per account and per
+    address, never an outright lock.
+  - **The user's data is theirs** — DONE. `nya_account_export` (redacted `NYA_Object`, `.nya` or JSON) and
+    `nya_account_destroy` (removes rows + sessions + identities + recovery + invites, keeps audit as a
+    tombstone). Both required, both in.
+  - **Username and display name** — normalised form + control-character refusal + length bounds are in
+    (`nya_account_username_normalize`); the display-name newtype and look-alike (UTS #39) folding beyond ASCII
+    case are still open.
+  - **Beyond the reference, DONE:** provider identities so one account arrives through Steam/Discord/OIDC or a
+    password (`accounts_identity.h`); a rotating **keyring** so a signing-key roll logs nobody out
+    (`http_keyring.h`); **sealed cookies** for stateless client state (`http_seal.h`); **refresh rotation with
+    stolen-token detection** (`nya_account_session_rotate`); the session **sweep** on a timer; `permission`'s
+    absolute `permissions_forbidden` and ownership-aware `may_act`.
   - **Callers:** `web_frontend` has the self service screens and an admin screen, and `cli_app` gains the
     owner bootstrap and an admin command set over the IPC control socket, for a server with no browser open.
+    STILL OPEN — nothing mounts `accounts` over HTTP yet, so the two-user IDOR/BFLA test has no target. This is
+    the next step.
   - **Reference:** `~/projects/webapp-template/services/core/server` already implements this stack in Rust
     (axum, diesel, postgres), about 2.9 kLOC for auth, sessions, users and roles. Port its shape, not its code.
     It has these, and they are carried over:
@@ -689,30 +700,35 @@ logged-in user.
       newest 100 invalidated rows are kept. Postgres triggers do that sweeping there; here it is a system on a
       timer, since SQLCipher has no scheduler.
     - A keyring of the current signing key plus previous ones (`crates/auth/src/keyring.rs`), so the JWT key
-      rotates without logging everyone out. The HMAC secret from one environment variable that `http` has
-      today becomes this.
+      rotates without logging everyone out — DONE, `http_keyring.h`: newest key seals, every non-expired key
+      verifies, `nya_http_keyring_rotate` mints when due and prunes the expired. Ported onto `http_seal` rather
+      than a JWT. Persisting the ring is the program's call.
     - `constant_time` in `crates/auth/src/defense.rs`: every auth response is padded to at least 200 ms plus
       up to 15 ms of jitter, so the response time cannot reveal whether a user name exists.
     - TOTP in two steps (`/otp/enable`, then `/otp/validate` before it takes effect), `/otp/disable`, and
       regenerating backup codes.
-    - Permissions that know ownership: `CanEditOwnPost` beside `CanEditAnyPost`. The resolver above
-      gets the resource's owner as an input.
+    - Permissions that know ownership: `CanEditOwnPost` beside `CanEditAnyPost` — DONE,
+      `nya_permission_may_act(subject, resource, owner, any, own)`.
     - Roles with a unique priority and both `permissions` and `permissions_forbidden`, on roles and on users
-      directly. Discord's per-resource overwrites add to that.
+      directly — DONE, `nya_permission_role_forbid_set` / `nya_permission_subject_forbid_set`, an absolute deny
+      resolved after every allow and overwrite, below only the owner. Discord's per-resource overwrites already
+      add to that.
     - Tests split by domain into simulation cases (`tests/simulation/auth_cases.rs`, `session_cases.rs`,
       `user_cases.rs`) plus fuzzing. Mirror the same split in `tests/nyangine/accounts/`.
     - Random ids (UUIDs there) rather than sequential ones, so ids cannot be enumerated.
     Where this plan differs, it does so on purpose. The refresh token is an opaque random value stored hashed,
     where the template stores JWTs in the row. And there is a refresh token reuse check, which the template
-    does not have.
+    does not have — DONE, `nya_account_session_rotate`: a retired token replayed revokes the whole session.
 - `[~]` Sessions: an access token and a refresh token. In as of 2026-09-22: cookies in both directions
   (`http/http_cookie.*`), the extractor reading the access token from the `__Host-session` cookie when there is
   no `Authorization` header, and `examples/web_server` issuing one where a real server would — after the second
   factor proves the account, signed with a secret it makes from the CSPRNG at startup. The `__Host-` and
   `__Secure-` rules are enforced at the call rather than left to the browser to drop silently, and the parser is
-  fuzzed with re-rendering as its oracle. Missing: the refresh token and its rotation, which need a session row
-  and therefore the user store; logout that revokes rather than only clearing the cookie; the idle and absolute
-  limits; and the signed in devices list.
+  fuzzed with re-rendering as its oracle. The refresh token, its rotation with reuse detection, logout that
+  revokes, and the idle and absolute limits all landed 2026-09-23 in `accounts_session.*`
+  (`nya_account_session_issue`/`validate`/`rotate`/`revoke`/`list`, sliding idle bounded by an absolute life).
+  Missing now: wiring the access token as a short `http_seal` over the keyring, and mounting the signed-in
+  devices list on a caller.
   - **Access token:** a JWT naming the user, the session and how they authenticated, living minutes (the
     number written down with its reasoning). Sent in a `__Host-` cookie: `HttpOnly`, `Secure`,
     `SameSite=Strict`, `Path=/`. Checked by signature alone, no database read, which is why it must be short.
