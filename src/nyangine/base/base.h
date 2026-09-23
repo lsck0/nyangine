@@ -17,6 +17,7 @@
 #include "nyangine/base/base_compare.h"
 #include "nyangine/base/base_compress.h"
 #include "nyangine/base/base_crc.h"
+#include "nyangine/base/base_rate.h"
 #include "nyangine/base/base_diagnostics.h"
 #include "nyangine/base/base_dict.h"
 #include "nyangine/base/base_dll.h"

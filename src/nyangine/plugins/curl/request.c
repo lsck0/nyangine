@@ -72,7 +72,7 @@ b8 nya_request_status_is_success(u32 status) {
     return status >= 200 && status < 300;
 }
 
-NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response) {
+NYA_INTERNAL NYA_Error _nya_request_perform_once(NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response) {
     nya_assert(arena != nullptr);
     nya_assert(out_response != nullptr);
 
@@ -437,5 +437,154 @@ NYA_ErrorKind _nya_request_kind_from_status(u32 status) {
         case 501: return NYA_ERROR_NOT_SUPPORTED;
         case 504: return NYA_ERROR_TIMEOUT;
         default:  return NYA_ERROR_NOT_OK;
+    }
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * BEING A GOOD CLIENT
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/** The bucket a request spends from: what it named, or the host it is going to. */
+NYA_INTERNAL void _nya_request_rate_key(NYA_Arena* arena, const NYA_Request* request, OUT char* out_key, u64 capacity) {
+    out_key[0] = '\0';
+
+    if (request->rate_key != nullptr && request->rate_key[0] != '\0') {
+        (void)snprintf(out_key, capacity, "%s", request->rate_key);
+        return;
+    }
+
+    NYA_Url        url     = { 0 };
+    NYA_UrlFailure failure = { 0 };
+
+    // A url this cannot parse is one curl is about to refuse anyway; the whole string as a key is a
+    // bucket of its own, which is the safe way to be wrong here.
+    if (!nya_url_parse(request->url, strlen(request->url), &url, &failure).ok) {
+        (void)snprintf(out_key, capacity, "%s", request->url);
+        return;
+    }
+
+    (void)nya_unused(arena);
+    (void)snprintf(out_key, capacity, "%.*s", (s32)url.host.length, request->url + url.host.offset);
+}
+
+/** Reads a header as a number of seconds, as `Retry-After` and `X-RateLimit-Reset-After` are written. */
+NYA_INTERNAL b8 _nya_request_header_seconds(const NYA_Response* response, NYA_ConstCString name, OUT f64* out_seconds) {
+    char value[64] = { 0 };
+
+    if (!nya_response_header(response, name, value, sizeof(value))) return false;
+    if (value[0] == '\0') return false;
+
+    char* end     = nullptr;
+    f64   seconds = strtod(value, &end);
+
+    // A Retry-After may also be an HTTP date, which this does not read: a date needs a clock this
+    // program trusts against a clock it does not, and every API that matters sends the seconds form.
+    if (end == value || seconds < 0.0 || isnan(seconds)) return false;
+
+    *out_seconds = seconds;
+
+    return true;
+}
+
+/** Tells the limiter whatever this reply said about the budget. */
+NYA_INTERNAL void _nya_request_rate_learn(NYA_RateLimiter* limiter, NYA_ConstCString key, const NYA_Response* response) {
+    if (limiter == nullptr) return;
+
+    f64 seconds = 0.0;
+
+    // A 429 is the server stating the budget outright, so it wins over everything below.
+    if (response->status == 429 && _nya_request_header_seconds(response, "retry-after", &seconds)) {
+        nya_rate_told(limiter, key, (u64)(seconds * 1000.0));
+        return;
+    }
+
+    if (response->status == 429) {
+        // Refused with no number on it. A second is a guess, and the alternative is sending again at
+        // once, which is what gets an address blocked rather than a request refused.
+        nya_rate_told(limiter, key, 1000);
+        return;
+    }
+
+    /*
+     * The headers an API publishes on every reply, not just a refused one. Discord and GitHub both
+     * write these; reading them is what keeps the local bucket level with the server's without ever
+     * having to be refused first.
+     */
+    char remaining_text[32] = { 0 };
+
+    if (!nya_response_header(response, "x-ratelimit-remaining", remaining_text, sizeof(remaining_text))) return;
+
+    char* end       = nullptr;
+    f64   remaining = strtod(remaining_text, &end);
+
+    if (end == remaining_text || remaining < 0.0 || isnan(remaining)) return;
+
+    f64 reset_seconds = 0.0;
+    (void)_nya_request_header_seconds(response, "x-ratelimit-reset-after", &reset_seconds);
+
+    nya_rate_observed(limiter, key, remaining, (u64)(reset_seconds * 1000.0));
+}
+
+/** Whether this method may be sent again after a failure that is not a 429. See NYA_Request. */
+NYA_INTERNAL b8 _nya_request_is_idempotent(NYA_RequestMethod method) {
+    switch (method) {
+        // Sending one of these twice is sending it once, which is the whole of what idempotent means.
+        case NYA_REQUEST_METHOD_GET:
+        case NYA_REQUEST_METHOD_PUT:
+        case NYA_REQUEST_METHOD_DELETE: return true;
+
+        case NYA_REQUEST_METHOD_POST:
+        case NYA_REQUEST_METHOD_PATCH:
+        case NYA_REQUEST_METHOD_COUNT:
+        default: return false;
+    }
+}
+
+NYA_Error nya_request_perform(NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response) {
+    nya_assert(arena != nullptr);
+    nya_assert(out_response != nullptr);
+
+    char key[NYA_RATE_MAX_KEY] = { 0 };
+    if (request.limiter != nullptr) _nya_request_rate_key(arena, &request, key, sizeof(key));
+
+    NYA_Error answer = NYA_OK;
+
+    for (u32 attempt = 0; ; attempt++) {
+        // The budget first, every attempt: a retry that ignored the limiter would be the one call most
+        // likely to be refused going out fastest.
+        if (request.limiter != nullptr) (void)nya_rate_wait(request.limiter, key);
+
+        answer = _nya_request_perform_once(arena, request, out_response);
+
+        if (request.limiter != nullptr) _nya_request_rate_learn(request.limiter, key, out_response);
+
+        if (answer.ok) return answer;
+        if (attempt >= request.retries) return answer;
+        if (!nya_retry_is_worthwhile(out_response->status)) return answer;
+
+        /*
+         * A 429 is the server saying it did not do the thing, so it is safe to send again whatever the
+         * method is. Everything else — a 5xx, a timeout, a reset — means the answer was lost, never
+         * that the request was, and sending a POST again may well charge somebody twice.
+         */
+        b8 safe = out_response->status == 429 || _nya_request_is_idempotent(request.method) || request.retry_unsafe_methods;
+
+        if (!safe) return answer;
+
+        if (out_response->status == 429) {
+            // The limiter already holds what the server said; waiting on it is waiting exactly that long.
+            if (request.limiter != nullptr) continue;
+
+            f64 seconds = 0.0;
+            u64 wait_ms = _nya_request_header_seconds(out_response, "retry-after", &seconds) ? (u64)(seconds * 1000.0) : 1000;
+
+            nya_os_time_sleep_ms((u32)(wait_ms > NYA_RATE_MAX_WAIT_MS ? NYA_RATE_MAX_WAIT_MS : wait_ms));
+
+            continue;
+        }
+
+        nya_os_time_sleep_ms((u32)nya_backoff_ms(attempt));
     }
 }
