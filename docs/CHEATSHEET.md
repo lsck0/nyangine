@@ -6124,6 +6124,44 @@ u64 nya_lua_memory_bytes(const NYA_LuaVM* vm)  // Bytes LuaJIT currently has all
 void nya_lua_collect(NYA_LuaVM* vm)  // Runs a full garbage collection cycle.
 ```
 
+### oidc.h
+
+"Log in with Google" and its relatives: the authorization code flow with PKCE, ending at an id_token
+
+```c
+// types
+struct NYA_OidcOptions { NYA_ConstCString issuer; NYA_ConstCString client_id; NYA_ConstCString client_secret; NYA_ConstCString redirect_uri; NYA_ConstCString scopes; u64 timeout_ms; NYA_Error (*perform)(void* user, NYA_Arena* arena, NYA_Request request, OUT NYA_Response* out_response); u64 (*now_ms)(void* user); u64 (*now_s)(void* user); void* user; }
+struct NYA_OidcAuthorizeState { char state[NYA_OIDC_SECRET_TEXT_BYTES]; char nonce[NYA_OIDC_SECRET_TEXT_BYTES]; char code_verifier[NYA_OIDC_SECRET_TEXT_BYTES]; }
+struct NYA_OidcClaims { char subject[NYA_OIDC_MAX_SUBJECT]; char issuer[NYA_OIDC_MAX_URL]; char email[NYA_OIDC_MAX_EMAIL]; b8 email_verified; char name[NYA_OIDC_MAX_NAME]; char picture[NYA_OIDC_MAX_PICTURE]; char access_token[NYA_OIDC_MAX_ACCESS_TOKEN_BYTES]; const NYA_Object* raw; }  // What a verified id_token says, plus enough to ask for more.
+
+// macros
+NYA_OIDC_MAX_URL 512  // An issuer or a discovered endpoint, terminator included.
+NYA_OIDC_MAX_CLIENT_ID 256  // A client id, terminator included.
+NYA_OIDC_MAX_CLIENT_SECRET 256  // A client secret, terminator included.
+NYA_OIDC_MAX_REDIRECT_URI NYA_OIDC_MAX_URL  // A redirect uri, terminator included.
+NYA_OIDC_MAX_SCOPES 256  // The configured scope string, space separated, terminator included.
+NYA_OIDC_MAX_SUBJECT 256  // RFC 7519's own bound on `sub`: 255 ASCII characters, plus the terminator.
+NYA_OIDC_MAX_EMAIL 255  // RFC 5321's mailbox limit, plus the terminator.
+NYA_OIDC_MAX_NAME 128  // A display name.
+NYA_OIDC_MAX_PICTURE NYA_OIDC_MAX_URL  // A picture claim is a url.
+NYA_OIDC_MAX_KID 128  // A key id out of a JWKS `kid`, terminator included.
+NYA_OIDC_MAX_KEYS 4  // RSA keys a provider's jwks is cached as.
+NYA_OIDC_JWKS_REFETCH_COOLDOWN_MS 60000  // How long a jwks fetch must be honoured before another is allowed, in milliseconds.
+NYA_OIDC_CLOCK_SKEW_S 60  // Clock skew this side tolerates on `iat`, in seconds.
+NYA_OIDC_SECRET_BYTES 32
+NYA_OIDC_SECRET_TEXT_BYTES 44  // What NYA_OIDC_SECRET_BYTES becomes as base64url text, terminator included: 43 characters.
+NYA_OIDC_MAX_ID_TOKEN_BYTES 8192  // Longest id_token this reads, terminator included.
+NYA_OIDC_MAX_ACCESS_TOKEN_BYTES 2048  // Longest access_token this holds onto for a follow up nya_oidc_userinfo call, terminator included.
+
+// functions
+NYA_Error nya_oidc_create(NYA_Arena* arena, NYA_OidcOptions options, OUT NYA_OidcProvider** out_provider)  // Makes a provider.
+void nya_oidc_destroy(NYA_OidcProvider* provider)  // Wipes the client secret and any cached key material.
+NYA_Error nya_oidc_discover(NYA_OidcProvider* provider, NYA_Arena* arena)
+NYA_Error nya_oidc_authorize_url(const NYA_OidcProvider* provider, OUT char* out_url, u64 capacity, OUT NYA_OidcAuthorizeState* out_state)  // The url to send someone to, and the state this login needs kept until the callback.
+NYA_Error nya_oidc_exchange(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString code, const NYA_OidcAuthorizeState* state, OUT NYA_OidcClaims* out_claims)  // Redeems `code` at the token endpoint and verifies the id_token that comes back.
+NYA_Error nya_oidc_userinfo(NYA_OidcProvider* provider, NYA_Arena* arena, NYA_ConstCString access_token, OUT NYA_Object** out_claims)  // The userinfo endpoint's answer for `access_token`, parsed.
+```
+
 ### steam.h
 
 The Steamworks client: the connection, lobbies, peer-to-peer messaging, achievements, stats and Cloud.
