@@ -316,6 +316,13 @@ browser, from the same `component()` function.
     4. A game example building to a canvas; the `web_frontend` caller. Verify a frame draws under node/headless
        where possible, then in-browser.
     Native builds stay byte-identical (every shim file gated `#if OS_WASM`).
+    - **Feasibility validated 2026-09-23 (no code yet):** SPIRV-Cross is already vendored inside
+      `sdl-shadercross` (`external/SPIRV-Cross`, `libspirv-cross-c-shared.so`, C API in `spirv_cross_c.h`) with
+      `SPVC_BACKEND_GLSL` + `SPVC_COMPILER_OPTION_GLSL_VERSION`(300)/`_GLSL_ES`(true)/highp precision — so the
+      build tool links that lib and converts each `.spv` directly (shadercross itself exposes no GLSL output).
+      `emcc` 6.0.9 is installed (WebGL2/GLES3). The engine uses **no** compute pipeline or compute pass (the 53
+      SDL_GPU calls are all graphics), which is exactly what WebGL2 can host; push-constant uniforms map to a UBO
+      and the texture+sampler bindings map to combined `sampler2D`, both native SPIRV-Cross GLSL-ES behaviour.
 - `[ ]` **Remaining SSR:** text-field value write-back (needs text injection), custom style beyond colours
   (track/ink/scrim), engine per-frame animation (needs WebSocket frame streaming).
 
