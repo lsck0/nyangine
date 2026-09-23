@@ -172,6 +172,13 @@ s32 main(void) {
 
     nya_check(response.status == 404, "an HTTPS request is answered by the router, got %u", response.status);
 
+    // and it says so, which is a header a browser only honours over TLS and this server only sends there.
+    nya_check(nya_http_hsts(), "a TLS server sends HSTS");
+
+    char hsts[64] = { 0 };
+    nya_check(nya_response_header(&response, "Strict-Transport-Security", hsts, sizeof(hsts)), "on the response itself");
+    nya_check(nya_string_contains(hsts, "max-age="), "with a max-age on it, got '%s'", hsts);
+
     // and plain HTTP to the same port is refused rather than answered, which is the whole reason a TLS
     // server does not also speak the other thing.
     NYA_ConstCString plain = nya_string_to_cstring(arena, nya_string_sprintf(arena, "http://127.0.0.1:%u/", (u32)port));

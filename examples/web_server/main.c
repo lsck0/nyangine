@@ -8,6 +8,11 @@
  * ```
  * ./build run example web_server            # serves on 127.0.0.1:47800 until interrupted
  * ./web_server.example --port 8080
+ *
+ * # and over TLS, with a certificate this machine made for itself:
+ * openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
+ *     -addext subjectAltName=DNS:localhost,IP:127.0.0.1 -keyout key.pem -out cert.pem
+ * ./web_server.example --certificate cert.pem --key key.pem
  * ```
  *
  * Open `http://127.0.0.1:47800/` for the page. Then, from another terminal:
@@ -864,8 +869,14 @@ static void stop(int signal_number) {
 s32 main(s32 argc, char** argv) {
     u16 port = DEFAULT_PORT;
 
-    // Deliberately not base_args: one option, and the point of the file is the server.
+    NYA_ConstCString certificate_path = "";
+    NYA_ConstCString key_path         = "";
+
+    // Deliberately not base_args: three options, and the point of the file is the server.
     for (s32 i = 1; i + 1 < argc; i++) {
+        if (strcmp(argv[i], "--certificate") == 0) certificate_path = argv[i + 1];
+        if (strcmp(argv[i], "--key") == 0) key_path = argv[i + 1];
+
         if (strcmp(argv[i], "--port") != 0) continue;
 
         // atoi would turn "80a" into 80 and "http" into 0, serving on a port nobody asked for
@@ -875,6 +886,8 @@ s32 main(s32 argc, char** argv) {
             return EXIT_FAILURE;
         }
     }
+
+    b8 secure = certificate_path[0] != '\0' || key_path[0] != '\0';
 
     nya_log_level_set(NYA_LOG_LEVEL_INFO);
 
@@ -973,6 +986,11 @@ s32 main(s32 argc, char** argv) {
         .workers     = WORKER_COUNT,
         .layers      = LAYERS,
         .layer_count = nya_carray_length(LAYERS),
+
+        // Both or neither, which the server checks: see NYA_HttpConfig. Without them this is plain
+        // HTTP on loopback, which is what an example on a laptop wants.
+        .certificate_path = certificate_path,
+        .key_path         = key_path,
     });
 
     if (!started.ok) {
@@ -1037,9 +1055,11 @@ s32 main(s32 argc, char** argv) {
     NYA_EXPECT(nya_http_websocket_route_add(&NOTES_STREAM), "while mounting the notes stream");
     defer nya_http_websocket_route_remove(&NOTES_STREAM);
 
-    nya_log_info("Serving on http://127.0.0.1:%u — / for the page, /docs for the generated one, ctrl-c to stop.", nya_http_server_port());
+    nya_log_info("Serving on %s://127.0.0.1:%u — / for the page, /docs for the generated one, ctrl-c to stop.", secure ? "https" : "http",
+                 nya_http_server_port());
     nya_log_info("The stylesheet is also at %s, cached for a year.", nya_http_static_url(NYA_ASSET_WEB_APP_CSS));
-    nya_log_info("Streaming on ws://127.0.0.1:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", nya_http_server_port());
+    nya_log_info("Streaming on %s://127.0.0.1:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", secure ? "wss" : "ws",
+                 nya_http_server_port());
     nya_log_info("Logging at level %d, addresses as %d: a code posted to " OTP_VERIFY_PATH " is logged as \"" NYA_REFLECT_REDACTED "\".",
                  (s32)nya_http_log_config_get().level, (s32)nya_http_log_config_get().address);
 

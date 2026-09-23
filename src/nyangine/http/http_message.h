@@ -270,6 +270,22 @@ NYA_API NYA_Error nya_http_response_reflect(NYA_HttpResponse* response, NYA_Aren
 NYA_API NYA_Error nya_http_response_header(NYA_HttpResponse* response, NYA_ConstCString name, NYA_ConstCString value) __attr_no_discard;
 
 /**
+ * Whether every response carries `Strict-Transport-Security`.
+ *
+ * Set by nya_system_http_init from whether the server has a certificate, and not meant to be called
+ * by anything else: a browser ignores the header over plaintext, so a server that sent it anyway
+ * would be writing a line that says nothing, and one that sent it while serving TLS on some requests
+ * and not others would be making a promise it does not keep.
+ *
+ * The value is a year for this host, without `includeSubDomains` and without `preload`; a program
+ * that means either sets its own header, which replaces this one.
+ * */
+NYA_API void nya_http_hsts_set(b8 enabled);
+
+/** Whether it is on, which is what a test asks and what an operator's status page shows. */
+NYA_API b8 nya_http_hsts(void) __attr_no_discard;
+
+/**
  * Renders the status line and every header into `buffer`, ending with the blank line. The body is not
  * copied: a caller writes `buffer` and then `response->body`, which is one copy fewer than joining
  * them would be.

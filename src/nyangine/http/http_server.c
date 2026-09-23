@@ -563,6 +563,9 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     nya_ceiling_register("http_rate_buckets", NYA_HTTP_MAX_RATE_BUCKETS, &_NYA_HTTP->bucket_count);
     nya_ceiling_register("http_websockets", NYA_HTTP_MAX_WEBSOCKETS, &_NYA_HTTP_WEBSOCKET_COUNT);
 
+    // Every response says so, and only over TLS; see nya_http_hsts_set.
+    nya_http_hsts_set(state->tls != nullptr);
+
     NYA_ConstCString scheme = state->tls != nullptr ? "https" : "http";
 
     if (state->tls != nullptr) nya_log_info("TLS is on: %s", nya_tls_version());
@@ -631,6 +634,8 @@ void nya_system_http_deinit(void) {
 
         return;
     }
+
+    nya_http_hsts_set(false);
 
     // after every connection closed, since each of those released a session out of this context.
     if (state->tls != nullptr) {
