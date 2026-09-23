@@ -22,6 +22,7 @@
  * curl -X QUERY 'localhost:47800/api/notes?contains=first+note' -d '{}'         # only the notes containing it
  * curl -X POST  localhost:47800/api/notes -d '{"text":"the first note"}'
  * curl -X DELETE localhost:47800/api/notes -d '{"id":1}'
+ * # stop the server, start it again, and the notes above are still there: they are rows, not an array
  * curl -X POST localhost:47800/api/otp/enrol    # the URI to scan, the secret to type, the recovery codes
  * # the three below want -H 'Content-Type: application/json', since a body without one is not a document
  * curl -X POST localhost:47800/api/otp/activate -d '{"code":"123456"}'   # the factor is off until this passes
@@ -40,7 +41,20 @@
  * pieces of the engine: net_echo is the game transport, encrypted UDP between a world and its
  * players; this is TCP, HTTP and a router, and they share nothing but the word server.
  *
- * ## Why these are NYA_Object and not reflected structs
+ * ## The notes are in a database
+ *
+ * They are rows in a sqlite file under the save root, through the `db` module: `notes.db`, one table,
+ * created and kept level with the struct by `nya_orm_schema_migrate` at startup. Stop the server and
+ * start it again and the notes are still there, which is the only version of this example that is
+ * worth copying — an array that empties on restart is a demonstration of a router, not of a server.
+ *
+ * Three things that are worth reading for: the table is derived from the Model's reflection rather
+ * than written as SQL; every value a client sends crosses as a bound parameter, so a note whose text
+ * is `'); DROP TABLE notes;--` is stored and handed back as that text; and the file is *not*
+ * encrypted, because SQLCipher is not vendored yet — see the encryption note in `db.h` before putting
+ * anything in a database that would matter if somebody read the disk.
+ *
+ * ## Why the bodies are NYA_Object and not reflected structs
  *
  * The server's nicest shape is a `// @reflect` DTO: `nya_http_request_reflect` fills one straight from
  * the body and `nya_http_response_reflect` renders one back, with the OpenAPI schema generated from
@@ -54,7 +68,9 @@
  *
  * So the bodies here are built and read as `NYA_Object`, which is the vocabulary type underneath the
  * reflected path anyway and needs no generation step. Everything else — the router, the verbs, the
- * layers, the generated document — is exactly what a reflected resource uses.
+ * layers, the generated document — is exactly what a reflected resource uses. The note Model gets
+ * around it by writing out the description the generator would have emitted, which is what the ORM
+ * reads; it is six declarations where a resource inside the engine has one comment.
  *
  * The second factor routes are the exception, and they show why the rest is a limitation rather than a
  * style: their DTOs are the engine's own, so `nya_reflect_of` resolves, the OpenAPI document describes
@@ -108,9 +124,10 @@
  * two names, so the browser caches the stylesheet for a year and still sees a change immediately; see
  * `http_static.h`.
  *
- * That is the one thing this example needs the engine for beyond the socket: reading an asset goes
- * through the asset system, so the four systems it stands on come up below. They are cheap and they
- * warn about audio and fonts on a machine with neither, which is a server and is fine.
+ * That, and the storage, are what this example needs the engine for beyond the socket: reading an
+ * asset goes through the asset system and the notes go through the save root, so those systems come
+ * up below. They are cheap and they warn about audio and fonts on a machine with neither, which is a
+ * server and is fine.
  * */
 #include "nyangine/nyangine.h"
 
@@ -133,30 +150,80 @@
 /** Longest note kept, terminator included. */
 #define NOTE_TEXT_MAX 256
 
-/** One note. */
+/** One note. This is the Model: it is what a row is, and it never leaves this file as itself. */
 typedef struct {
-    u32  id;
+    s64  id;
     char text[NOTE_TEXT_MAX];
     f64  written_at_s;
 } ExampleNote;
 
 /*
- * The notes themselves. Static rather than allocated, because this outlives every request and a
- * request's arena does not: an arena here is scratch for one exchange and is gone when it answers.
+ * The description the ORM builds the table from, written by hand for the reason this file's block
+ * gives about DTOs: the reflection pass scans src/nyangine and src/gnyame, so a type declared in an
+ * example has no generated table and nya_reflect_of does not resolve. Inside the engine these six
+ * declarations are one `// @reflect` comment.
  */
-static ExampleNote NOTES[NOTES_MAX] = { 0 };
-static u32         NOTE_COUNT       = 0;
-static u32         NEXT_ID          = 1;
+static const NYA_TypeReflection NOTE_TEXT_ARRAY = {
+    .name          = "char[]",
+    .kind          = NYA_REFLECT_ARRAY,
+    .size          = NOTE_TEXT_MAX,
+    .alignment     = alignof(char),
+    .element       = nya_reflect_of(char),
+    .element_count = NOTE_TEXT_MAX,
+};
 
-/** One note as a document, which is what goes out over the wire. */
+static const NYA_ReflectField NOTE_FIELDS[] = {
+    // @key: the database assigns it, because an id that is zero on the way in is one the row has not
+    // got yet. That is what replaced the NEXT_ID counter this example used to keep.
+    { .name = "id", .type = nya_reflect_of(s64), .offset = nya_offsetof(ExampleNote, id), .is_key = true },
+    { .name = "text", .type = &NOTE_TEXT_ARRAY, .offset = nya_offsetof(ExampleNote, text) },
+    { .name = "written_at_s", .type = nya_reflect_of(f64), .offset = nya_offsetof(ExampleNote, written_at_s) },
+};
+
+static const NYA_TypeReflection NOTE_MODEL = {
+    .name        = "ExampleNote",
+    .kind        = NYA_REFLECT_STRUCT,
+    .size        = sizeof(ExampleNote),
+    .alignment   = alignof(ExampleNote),
+    .fields      = NOTE_FIELDS,
+    .field_count = nya_carray_length(NOTE_FIELDS),
+};
+
+/*
+ * The notes live in a database under the save root, so they are still there after a restart. The
+ * connection and the table outlive every request, which is why they are static: an exchange's arena
+ * is scratch for one answer and is gone when it is sent.
+ */
+static NYA_Arena*    NOTES_ARENA = nullptr;
+static NYA_Database* NOTES_DB    = nullptr;
+static NYA_OrmTable* NOTES_TABLE = nullptr;
+
+/** One note as a document, which is what goes out over the wire. The DTO, built by hand. */
 NYA_INTERNAL NYA_Value note_to_value(NYA_Arena* arena, const ExampleNote* note) {
     NYA_Object* object = nya_object_create(arena);
 
-    nya_object_set(object, "id", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = note->id });
+    nya_object_set(object, "id", (NYA_Value){ .type = NYA_TYPE_S64, .as_s64 = note->id });
     nya_object_set(object, "text", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (NYA_CString)note->text });
     nya_object_set(object, "written_at_s", (NYA_Value){ .type = NYA_TYPE_F64, .as_f64 = note->written_at_s });
 
     return (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *object };
+}
+
+/** How many rows there are, which is the ceiling check and the stream's snapshot both. */
+NYA_INTERNAL u64 note_count(void) {
+    NYA_Arena scratch = nya_arena_create_on_stack(.name = "note_count");
+    defer     nya_arena_destroy_on_stack(&scratch);
+
+    NYA_SqlResult result = { 0 };
+
+    // A database that cannot be read answers zero rather than a number it made up; the handler that
+    // matters answers 500 on its own failure, and the stream would rather be wrong than stop.
+    if (!nya_sql_query(NOTES_DB, &scratch, "SELECT COUNT(*) AS notes FROM notes", nullptr, 0, &result).ok) return 0;
+    if (result.rows->length == 0) return 0;
+
+    NYA_Value* notes = nya_object_get(result.rows->items[0], "notes");
+
+    return notes != nullptr && notes->type == NYA_TYPE_S64 && notes->as_s64 > 0 ? (u64)notes->as_s64 : 0;
 }
 
 /*
@@ -174,7 +241,7 @@ NYA_INTERNAL NYA_Value note_to_value(NYA_Arena* arena, const ExampleNote* note) 
 NYA_INTERNAL NYA_CString stream_snapshot(NYA_Arena* arena) {
     NYA_Object* body = nya_object_create(arena);
 
-    nya_object_set(body, "notes", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = NOTE_COUNT });
+    nya_object_set(body, "notes", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = note_count() });
     nya_object_set(body, "requests", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_request_count() });
     nya_object_set(body, "connections", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_server_connection_count() });
     nya_object_set(body, "listeners", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = nya_http_websocket_count() });
@@ -241,10 +308,23 @@ NYA_INTERNAL NYA_HttpStatus notes_query(NYA_HttpExchange* exchange) {
 
     if (!nya_url_query_find(&exchange->request->target, "contains", contains, sizeof(contains), &filtered).ok) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    for (u32 i = 0; i < NOTE_COUNT; i++) {
-        if (filtered && strstr(NOTES[i].text, contains) == nullptr) continue;
+    /*
+     * Every row, oldest first, as structs in this exchange's arena. The clause is a literal in this
+     * source and the filter below is not part of it: `WHERE text LIKE ?` would read as the obvious
+     * thing to write, and it would hand the client a pattern language, since `%` in what it sent is
+     * a wildcard. Reading the rows and filtering here keeps "contains" meaning contains.
+     */
+    void* rows  = nullptr;
+    u32   count = 0;
 
-        NYA_Value value = note_to_value(exchange->arena, &NOTES[i]);
+    if (!nya_orm_select(NOTES_TABLE, exchange->arena, "ORDER BY id", nullptr, 0, &rows, &count).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+
+    for (u32 i = 0; i < count; i++) {
+        const ExampleNote* note = nya_orm_at(NOTES_TABLE, rows, i);
+
+        if (filtered && strstr(note->text, contains) == nullptr) continue;
+
+        NYA_Value value = note_to_value(exchange->arena, note);
         nya_array_push_back(notes, value);
     }
 
@@ -272,21 +352,21 @@ NYA_INTERNAL NYA_HttpStatus notes_post(NYA_HttpExchange* exchange) {
     NYA_Value* text = nya_object_get(incoming, "text");
     if (text == nullptr || text->type != NYA_TYPE_STRING || text->as_string[0] == '\0') return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    // A full store is the caller asking for more than this server holds, not a server fault.
-    if (NOTE_COUNT >= NOTES_MAX) return NYA_HTTP_STATUS_UNPROCESSABLE;
+    // A full store is the caller asking for more than this server holds, not a server fault. The
+    // ceiling is this example's and not the database's; it is here so the file cannot grow forever.
+    if (note_count() >= NOTES_MAX) return NYA_HTTP_STATUS_UNPROCESSABLE;
 
-    ExampleNote* note = &NOTES[NOTE_COUNT];
+    // The id is left at zero, so the database assigns it and nya_orm_insert writes it back. The text
+    // is bound as a parameter, whatever quotes and semicolons the client put in it.
+    ExampleNote note = { .written_at_s = exchange->now_s };
+    (void)snprintf(note.text, sizeof(note.text), "%s", text->as_string);
 
-    *note = (ExampleNote){ .id = NEXT_ID, .written_at_s = exchange->now_s };
-    (void)snprintf(note->text, sizeof(note->text), "%s", text->as_string);
-
-    NEXT_ID++;
-    NOTE_COUNT++;
+    if (!nya_orm_insert(NOTES_TABLE, &note).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     // what the stream is for: whoever is watching hears about this now rather than on their next poll.
     stream_push();
 
-    NYA_Value stored = note_to_value(exchange->arena, note);
+    NYA_Value stored = note_to_value(exchange->arena, &note);
         const NYA_HttpMediaType answer = nya_http_request_accepts(exchange->request);
 
     if (!nya_http_response_document(exchange->response, exchange->arena, &stored.as_object, answer).ok) {
@@ -308,19 +388,16 @@ NYA_INTERNAL NYA_HttpStatus notes_delete(NYA_HttpExchange* exchange) {
     NYA_Value* id = nya_object_get(incoming, "id");
     if (id == nullptr || id->type != NYA_TYPE_S64 || id->as_s64 < 0) return NYA_HTTP_STATUS_BAD_REQUEST;
 
-    for (u32 i = 0; i < NOTE_COUNT; i++) {
-        if (NOTES[i].id != (u32)id->as_s64) continue;
+    NYA_Error removed = nya_orm_delete(NOTES_TABLE, nya_sql_s64(id->as_s64));
 
-        // Order is not promised, so the last one fills the hole rather than shifting the rest.
-        NOTES[i] = NOTES[NOTE_COUNT - 1];
-        NOTE_COUNT--;
+    // An id that matches no row is NYA_ERROR_NOT_FOUND, which is a 404 and not a 500: absence is in
+    // the return rather than in the data, so the two failures do not have to be told apart here.
+    if (removed.kind == NYA_ERROR_NOT_FOUND) return NYA_HTTP_STATUS_NOT_FOUND;
+    if (!removed.ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
-        stream_push();
+    stream_push();
 
-        return NYA_HTTP_STATUS_NO_CONTENT;
-    }
-
-    return NYA_HTTP_STATUS_NOT_FOUND;
+    return NYA_HTTP_STATUS_NO_CONTENT;
 }
 
 /*
@@ -825,6 +902,46 @@ s32 main(s32 argc, char** argv) {
 
     nya_system_asset_init();
     defer nya_system_asset_deinit();
+
+    /*
+     * The notes. Under the save root rather than beside the binary, so it lands where the rest of
+     * this program's data does and is created along with its directory. Everything the server knows
+     * is in that one file, which is what makes a restart uneventful: stop it, start it, and the
+     * notes are still there. It is not encrypted — see the encryption note in db.h — so nothing goes
+     * in it here that would matter if somebody read the disk.
+     */
+    NYA_Error saves = nya_system_save_init();
+
+    if (!saves.ok) {
+        // Fatal here, where it is a warning in a game: a game with no writable directory can still
+        // be played, and a server whose whole job is to keep what it is sent cannot run without one.
+        nya_log_error("No save root, so there is nowhere to keep the notes: %s", (NYA_ConstCString)saves.message);
+
+        return EXIT_FAILURE;
+    }
+
+    defer nya_system_save_deinit();
+
+    NOTES_ARENA = nya_arena_create(.name = "notes_db");
+    defer       nya_arena_destroy(NOTES_ARENA);
+
+    NYA_Error stored = nya_save_database_open(NOTES_ARENA, "notes.db", &NOTES_DB);
+
+    if (!stored.ok) {
+        nya_log_error("Could not open the notes database: %s", (NYA_ConstCString)stored.message);
+
+        return EXIT_FAILURE;
+    }
+
+    defer nya_sql_close(NOTES_DB);
+
+    NYA_EXPECT(nya_orm_open(NOTES_ARENA, NOTES_DB, &NOTE_MODEL, "notes", &NOTES_TABLE), "while binding the note model to its table");
+    defer nya_orm_close(NOTES_TABLE);
+
+    // Creates the table on a first run, and on any later one brings it level with the struct above:
+    // add a field and the column appears, and the notes written before it read it as zero. What it
+    // will not do is guess at a rename or a drop; see db_migrate.h.
+    NYA_EXPECT(nya_orm_schema_migrate(NOTES_TABLE), "while bringing the notes table level with the model");
 
     // the secret the sessions are signed with, made here so that nothing ships one and a restart ends
     // every session this server issued.
