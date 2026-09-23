@@ -1104,8 +1104,17 @@ The current track, reordered around one missing primitive.
 - `[ ]` Reflections: screen space for the scene, planar for still water.
 - `[ ]` Water as a surface: a heightfield of waves with shoreline foam, refraction through the glass path, and
   the grid solver for what is in the air above it.
-- `[ ]` Weather and sky: one wind field read by particles, fluids, foliage and audio; rain, snow, clouds, stars
+- `[~]` Weather and sky: one wind field read by particles, fluids, foliage and audio; rain, snow, clouds, stars
   and fog confined to volumes. Kept to the flat stylized look, never photoreal.
+  - `[~]` **Wind field + foliage sway (in progress 2026-09-23)** — the "one missing primitive" this phase is
+    reordered around, and it needs NO compute pass (analytic CPU field + vertex-shader displacement), so it lands
+    ahead of line 1102. `nya_wind_*` gives a directional wind plus time-varying gust, sampleable by position;
+    foliage shaders read it as a uniform. Grass, leaves and branches are one base-anchored sway (bend grows with
+    height above the pivot, scaled by a per-vertex flexibility weight) parameterized by stiffness/frequency/
+    amplitude. Constraint: the mesh3d batch bakes world-space verts with only a `view_projection` uniform and
+    `NYA_Vertex3D` is fixed (sizeof 36, static_assert) — foliage needs its own per-object draw path that carries a
+    pivot, not the fully-baked batch (instanced grass is a follow-up). Shaders stay ESSL-300-safe so stage 1
+    cross-compiles them to web automatically. Later: particles and the fluid emitters sample the same field.
 - `[ ]` Our own stereo panner for interaural delay and head shadow. If it replaces what SDL_mixer does for us,
   SDL_mixer leaves the vendor list and only its decoders stay.
 - `[ ]` Multiplayer: fragmentation, lag compensation at render time, a WebSocket transport so browsers can join a
