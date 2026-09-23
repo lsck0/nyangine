@@ -130,6 +130,22 @@
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; "                                  \
     "frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
+/**
+ * The same, for a page that submits a form back to its own origin.
+ *
+ * The one difference is `form-action 'self'`: the default and the bundle policy above both shut form
+ * submission off entirely, which is right for a JSON API and a single-page app that never posts a
+ * form, and wrong for server-rendered HTML where the form *is* the app. A server that renders forms
+ * sets this on those responses itself, the same way it would set any other CSP.
+ *
+ * Still no inline anything: HTMX works as markup attributes, and Alpine needs its CSP build, so a
+ * server-rendered page needs `'unsafe-inline'` nowhere. A page that reaches for an inline `<script>`
+ * or an `hx-on:` handler has to widen this, and widening it is the decision the default makes loud.
+ * */
+#define NYA_HTTP_STATIC_FORM_CSP                                                                                                                     \
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; "                                  \
+    "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES

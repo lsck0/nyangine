@@ -147,6 +147,77 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: an HTML form's POST body, read a field at a time.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        NYA_HttpRequest* request  = nullptr;
+        u64              consumed = 0;
+        NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
+
+        NYA_ConstCString text =
+            "POST /login HTTP/1.1\r\nHost: x\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 51\r\n\r\n"
+            "username=ada&password=a+long+one&note=two%26two%3D4";
+
+        nya_assert(parse(arena, text, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(request->media_type == NYA_HTTP_MEDIA_FORM, "a form body is named rather than refused");
+
+        char value[64] = { 0 };
+
+        nya_assert(nya_http_request_form_value(request, "username", value, sizeof(value)));
+        nya_assert(nya_string_equals(value, "ada"), "a field is read out, got '%s'", value);
+
+        nya_assert(nya_http_request_form_value(request, "password", value, sizeof(value)));
+        nya_assert(nya_string_equals(value, "a long one"), "'+' is a space, got '%s'", value);
+
+        // the '&' and '=' inside a value were percent-encoded, so they are not delimiters.
+        nya_assert(nya_http_request_form_value(request, "note", value, sizeof(value)));
+        nya_assert(nya_string_equals(value, "two&two=4"), "an escaped delimiter is data, got '%s'", value);
+
+        nya_assert(!nya_http_request_form_value(request, "absent", value, sizeof(value)), "a missing field is not there");
+        nya_assert(value[0] == '\0', "and leaves the buffer empty rather than stale");
+
+        // a value that does not fit is refused rather than truncated into a different value.
+        char tiny[4] = { 0 };
+        nya_assert(!nya_http_request_form_value(request, "password", tiny, sizeof(tiny)), "a value too big for the buffer is refused");
+
+        // a JSON body is not a form, whatever a caller asks of it.
+        NYA_ConstCString json =
+            "POST /login HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 15\r\n\r\n{\"username\":\"a\"}";
+
+        nya_assert(parse(arena, json, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(!nya_http_request_form_value(request, "username", value, sizeof(value)), "a JSON body is not read as a form");
+
+        // a malformed escape in a form value is refused, since the value is attacker-controlled.
+        NYA_ConstCString broken =
+            "POST /login HTTP/1.1\r\nHost: x\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 6\r\n\r\nx=%2z%";
+
+        // (Content-Length is deliberately the real body length below; the body is "x=%2z" then a bare '%'.)
+        NYA_ConstCString broken_real =
+            "POST /login HTTP/1.1\r\nHost: x\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 5\r\n\r\nx=%2z";
+
+        (void)broken;
+        nya_assert(parse(arena, broken_real, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(!nya_http_request_form_value(request, "x", value, sizeof(value)), "a malformed escape is refused rather than passed through");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: the media types a web bundle is served and read as.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        nya_assert(nya_http_media_type_parse("application/wasm", 16) == NYA_HTTP_MEDIA_WASM, "wasm has a name");
+        nya_assert(nya_string_equals(nya_http_media_type_text(NYA_HTTP_MEDIA_WASM), "application/wasm"), "and it is what is written back");
+
+        nya_assert(
+            nya_http_media_type_parse("application/x-www-form-urlencoded", 33) == NYA_HTTP_MEDIA_FORM,
+            "and a form body's type is recognised with its parameters stripped"
+        );
+        nya_assert(
+            nya_http_media_type_parse("application/x-www-form-urlencoded; charset=utf-8", 48) == NYA_HTTP_MEDIA_FORM,
+            "charset and all"
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: how many Host headers there are decides whether this is one request.
     // ─────────────────────────────────────────────────────────────────────────────
     {

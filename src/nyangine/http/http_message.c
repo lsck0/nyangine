@@ -98,6 +98,15 @@ NYA_INTERNAL b8 _nya_http_is_field_char(char character) __attr_no_discard;
 NYA_INTERNAL b8 _nya_http_hex_digit(char character, OUT u8* out_value);
 
 /**
+ * Decodes one `application/x-www-form-urlencoded` field into `out`, NUL terminated.
+ *
+ * `+` becomes a space and then the percent escapes are undone, which is the order the form encoding is
+ * defined in — a literal `+` in a value is sent as `%2B`, so undoing the escapes first would turn it
+ * into a space. False when a malformed escape or the capacity says the value is not one this can hold.
+ * */
+NYA_INTERNAL b8 _nya_http_form_decode(const char* text, u64 size, OUT char* out, u64 capacity) __attr_no_discard;
+
+/**
  * The next CRLF-terminated line at `*cursor`, within at most `line_max` bytes of it.
  *
  * Three answers rather than two: the line, "not here yet", and "this is longer than a line may be".
@@ -444,6 +453,48 @@ b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString
     return found;
 }
 
+b8 nya_http_request_form_value(const NYA_HttpRequest* request, NYA_ConstCString name, char* buffer, u64 capacity) {
+    nya_assert(request != nullptr && name != nullptr && buffer != nullptr && capacity > 0);
+
+    buffer[0] = '\0';
+
+    // Only a body that announced itself as a form is read as one: guessing at bytes whose type nobody
+    // stated is how a parser comes to decide what a request means from its first character.
+    if (request->media_type != NYA_HTTP_MEDIA_FORM || request->body_size == 0) return false;
+
+    const char* body = (const char*)request->body;
+    u64         size = request->body_size;
+
+    u64 cursor = 0;
+
+    while (cursor < size) {
+        // one `key=value`, up to the next `&`.
+        u64 pair_end = cursor;
+        while (pair_end < size && body[pair_end] != '&') pair_end++;
+
+        u64 equals = cursor;
+        while (equals < pair_end && body[equals] != '=') equals++;
+
+        // a pair with no `=` is a key with an empty value, which is a thing a form sends.
+        const char* key_text   = body + cursor;
+        u64         key_size   = equals - cursor;
+        const char* value_text = equals < pair_end ? body + equals + 1 : body + pair_end;
+        u64         value_size = equals < pair_end ? pair_end - equals - 1 : 0;
+
+        // The key is compared decoded, because a form may percent-encode it; a small stack buffer holds
+        // it, and a key longer than a header value is not one this server has a name to match.
+        char key[NYA_HTTP_MAX_HEADER_VALUE] = { 0 };
+
+        if (_nya_http_form_decode(key_text, key_size, key, sizeof(key)) && strcmp(key, name) == 0) {
+            return _nya_http_form_decode(value_text, value_size, buffer, capacity);
+        }
+
+        cursor = pair_end + 1;
+    }
+
+    return false;
+}
+
 NYA_Error nya_http_request_document(const NYA_HttpRequest* request, NYA_Arena* arena, NYA_Object** out_object) {
     return _nya_http_request_document_as(request, arena, nullptr, out_object);
 }
@@ -784,6 +835,43 @@ b8 _nya_http_hex_digit(char character, u8* out_value) {
     }
 
     return false;
+}
+
+b8 _nya_http_form_decode(const char* text, u64 size, char* out, u64 capacity) {
+    u64 written = 0;
+
+    for (u64 index = 0; index < size; index++) {
+        // Room for the byte and the terminator: a value that would not fit is not one this can hand back.
+        if (written + 1 >= capacity) return false;
+
+        char character = text[index];
+
+        if (character == '+') {
+            out[written++] = ' ';
+            continue;
+        }
+
+        if (character == '%') {
+            u8 high = 0;
+            u8 low  = 0;
+
+            // A '%' with fewer than two hex digits after it is a malformed escape, and a form value is
+            // attacker-controlled, so it is refused rather than passed through as the literal bytes.
+            if (index + 2 >= size) return false;
+            if (!_nya_http_hex_digit(text[index + 1], &high) || !_nya_http_hex_digit(text[index + 2], &low)) return false;
+
+            out[written++] = (char)((high << 4) | low);
+            index += 2;
+
+            continue;
+        }
+
+        out[written++] = character;
+    }
+
+    out[written] = '\0';
+
+    return true;
 }
 
 _NYA_HttpLine _nya_http_next_line(const u8* data, u64 size, u64 line_max, u64* cursor, const char** out_line, u64* out_length) {

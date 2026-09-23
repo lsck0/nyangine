@@ -87,6 +87,9 @@ NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_TEXT[NYA_HTTP_MEDIA_COUNT] = {
     [NYA_HTTP_MEDIA_PNG]        = "image/png",                  // bytes, as the three below are
     [NYA_HTTP_MEDIA_ICON]       = "image/vnd.microsoft.icon",
     [NYA_HTTP_MEDIA_WOFF2]      = "font/woff2",
+    [NYA_HTTP_MEDIA_WASM]       = "application/wasm",
+    // A form body is only ever read, never written, so it has no charset to render here.
+    [NYA_HTTP_MEDIA_FORM]       = "application/x-www-form-urlencoded",
     [NYA_HTTP_MEDIA_OTHER]      = "",
 };
 
@@ -104,6 +107,8 @@ NYA_INTERNAL NYA_ConstCString _NYA_HTTP_MEDIA_ESSENCE[NYA_HTTP_MEDIA_COUNT] = {
     [NYA_HTTP_MEDIA_PNG]        = "image/png",
     [NYA_HTTP_MEDIA_ICON]       = "image/vnd.microsoft.icon",
     [NYA_HTTP_MEDIA_WOFF2]      = "font/woff2",
+    [NYA_HTTP_MEDIA_WASM]       = "application/wasm",
+    [NYA_HTTP_MEDIA_FORM]       = "application/x-www-form-urlencoded",
     [NYA_HTTP_MEDIA_OTHER]      = "",
 };
 

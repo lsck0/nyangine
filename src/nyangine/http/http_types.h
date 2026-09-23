@@ -369,6 +369,18 @@ enum NYA_HttpMediaType {
     NYA_HTTP_MEDIA_ICON,
     NYA_HTTP_MEDIA_WOFF2,
 
+    /** `application/wasm`. What a CSR bundle's WebAssembly is served as; a suffix http_static.h names. */
+    NYA_HTTP_MEDIA_WASM,
+
+    /**
+     * `application/x-www-form-urlencoded`: an HTML form's POST body.
+     *
+     * A read, not a document: nya_http_request_document does not parse it, because it is `a=b&c=d` and
+     * not a tree. nya_http_request_form_value is what a handler reads a field out of it with. Here so a
+     * server that answers an HTML form has a name for what arrived rather than a 415.
+     * */
+    NYA_HTTP_MEDIA_FORM,
+
     /** Anything else a client announced. Never produced by this server. */
     NYA_HTTP_MEDIA_OTHER,
 

@@ -157,6 +157,19 @@ NYA_API NYA_ConstCString nya_http_request_header(const NYA_HttpRequest* request,
 NYA_API b8 nya_http_request_query_param(const NYA_HttpRequest* request, NYA_ConstCString name, OUT char* buffer, u64 capacity);
 
 /**
+ * Reads the field called `name` out of an `application/x-www-form-urlencoded` body, decoded into `buffer`.
+ *
+ * What a handler for an HTML form's POST uses, where a browser sends `a=b&c=d` rather than a document.
+ * `+` decodes to a space and the percent escapes are undone, in that order. False when the body is not
+ * a form, when there is no such field, when a value contains a malformed escape, or when the decoded
+ * value does not fit — `buffer` is left empty in every case, so an ignored return is the empty default.
+ *
+ * A field given twice answers the first: a form that repeats a name is a form doing something a server
+ * has no obligation to guess the meaning of, and the first is the one the person filled in.
+ * */
+NYA_API b8 nya_http_request_form_value(const NYA_HttpRequest* request, NYA_ConstCString name, OUT char* buffer, u64 capacity) __attr_no_discard;
+
+/**
  * The body as a serde document, allocated from `arena`.
  *
  * NYA_ERROR_INVALID_ARGUMENT when the request announced anything but JSON, which is the 415 case, and
