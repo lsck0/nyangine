@@ -71,6 +71,7 @@
 
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_types.h"
+#include "nyangine/math/math_shapes.h"
 #include "nyangine/math/math_vector.h"
 #include "nyangine/ui/ui_present.h"
 
@@ -83,6 +84,11 @@
 /** Bytes of HTML one pass may render to, terminator included. A menu is a few kilobytes; this is generous. */
 #ifndef NYA_UI_HTML_MAX
 #define NYA_UI_HTML_MAX 65536
+#endif
+
+/** Widgets one pass may render, which bounds the id-to-rectangle table a live server reads back. */
+#ifndef NYA_UI_HTML_MAX_WIDGETS
+#define NYA_UI_HTML_MAX_WIDGETS 256
 #endif
 
 /** The default metric, in pixels: a monospace cell, so a measurement here matches the terminal's grid. */
@@ -114,6 +120,14 @@ struct NYA_UIHtml {
 
     /** Widgets drawn this pass, which is the next widget's id and the count for the ceiling audit. */
     u32 sequence;
+
+    /**
+     * The rectangle each widget was drawn at, indexed by its id, up to NYA_UI_HTML_MAX_WIDGETS.
+     *
+     * A live server needs this and nothing else the browser has: to turn a click on element `wN` back
+     * into a pointer over that widget, it looks up rect N and aims the synthetic pointer at its centre.
+     * */
+    NYA_Rectf rects[NYA_UI_HTML_MAX_WIDGETS];
 
     /** The current back-to-front layer, written as a z-index so a raised panel covers an earlier one. */
     s32 layer;
@@ -157,6 +171,13 @@ NYA_API u32 nya_ui_html_count(const NYA_UIHtml* html) __attr_no_discard;
 
 /** Whether the last pass wanted more room than NYA_UI_HTML_MAX, so its HTML is truncated. */
 NYA_API b8 nya_ui_html_overflowed(const NYA_UIHtml* html) __attr_no_discard;
+
+/**
+ * The rectangle widget `id` was drawn at, for a server turning a click on `wN` into a pointer.
+ *
+ * False for an id the last pass did not draw or one past the table, in which case `out_rect` is zeroed.
+ * */
+NYA_API b8 nya_ui_html_rect(const NYA_UIHtml* html, u32 id, OUT NYA_Rectf* out_rect) __attr_no_discard;
 
 /**
  * Writes a whole page around the body: a doctype, the one stylesheet that colours every widget kind, the

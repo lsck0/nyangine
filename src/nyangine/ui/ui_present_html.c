@@ -115,6 +115,18 @@ b8 nya_ui_html_overflowed(const NYA_UIHtml* html) {
     return html->overflowed;
 }
 
+b8 nya_ui_html_rect(const NYA_UIHtml* html, u32 id, NYA_Rectf* out_rect) {
+    nya_assert(html != nullptr && out_rect != nullptr);
+
+    *out_rect = (NYA_Rectf){ 0 };
+
+    if (id >= html->sequence || id >= NYA_UI_HTML_MAX_WIDGETS) return false;
+
+    *out_rect = html->rects[id];
+
+    return true;
+}
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * THE DOCUMENT
@@ -158,7 +170,7 @@ NYA_INTERNAL NYA_ConstCString _NYA_UI_HTML_PAGE =
     "(function(){\n"
     "  var surface=document.getElementById('nya-surface');\n"
     "  function send(id,event,value){\n"
-    "    fetch(location.pathname+'/event',{method:'POST',headers:{'content-type':'application/json'},\n"
+    "    fetch('/event',{method:'POST',headers:{'content-type':'application/json'},\n"
     "      body:JSON.stringify({id:id,event:event,value:value})}).then(function(r){return r.text()}).then(function(html){\n"
     "        if(html)surface.innerHTML=html;});\n"
     "  }\n"
@@ -280,6 +292,9 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
     nya_assert(html != nullptr && widget != nullptr);
 
     u32 id = html->sequence++;
+
+    // Kept so a live server can aim a synthetic pointer at this widget from its id alone; see the header.
+    if (id < NYA_UI_HTML_MAX_WIDGETS) html->rects[id] = widget->rect;
 
     NYA_ConstCString kind = _nya_ui_html_class(widget->kind);
 
