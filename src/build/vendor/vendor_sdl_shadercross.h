@@ -47,6 +47,35 @@
 #endif
 
 /*
+ * SPIRV-Cross, vendored inside sdl-shadercross. Where shadercross runs the binary, the build tool links
+ * the C library straight in and calls it in-process: nya_asset_compile_shaders cross compiles every
+ * .spv to GLSL ES 300 beside it, so a later GLES3/WebGL2 backend has shaders it can load.
+ *
+ * Three parts, wired exactly like libbacktrace (base_backtrace.h keys the code off __has_include, build.c
+ * appends the flags only when the artifact exists): SHADERCROSS_SPIRV_CROSS_INCLUDE so <spirv_cross_c.h>
+ * resolves and __has_include finds it, SHADERCROSS_SPIRV_CROSS_LINK for the linker, and
+ * SHADERCROSS_SPIRV_CROSS_SO the path main() tests first — the .so is a shadercross build output, so on a
+ * fresh checkout it does not exist until the vendors are built, and the tool is what builds them.
+ *
+ * Host only. A Windows host does not build shadercross (DXC will not compile under MinGW) and takes the
+ * compiled shaders, GLSL included, from a Linux machine, so there is nothing to link there.
+ */
+#if OS_WINDOWS
+#define SHADERCROSS_SPIRV_CROSS_INCLUDE
+#define SHADERCROSS_SPIRV_CROSS_LINK
+#define SHADERCROSS_SPIRV_CROSS_SO ""
+#else
+#define SHADERCROSS_SPIRV_CROSS_DIRECTORY SHADERCROSS_BUILD "/external/SPIRV-Cross"
+#define SHADERCROSS_SPIRV_CROSS_SO        SHADERCROSS_SPIRV_CROSS_DIRECTORY "/libspirv-cross-c-shared.so"
+#define SHADERCROSS_SPIRV_CROSS_INCLUDE   "-I" SHADERCROSS_SOURCE "/external/SPIRV-Cross"
+// $ORIGIN, not the build directory: the tool runs from the tree root as ./build, and an $ORIGIN rpath
+// still resolves when the tree is not the main checkout (a worktree symlinks vendor/ back to it).
+#define SHADERCROSS_SPIRV_CROSS_LINK                                                                                                                 \
+    "-L" SHADERCROSS_SPIRV_CROSS_DIRECTORY, "-lspirv-cross-c-shared",                                                                                \
+    "-Wl,-rpath,$ORIGIN/vendor/sdl-shadercross/build-linux-x86_64/external/SPIRV-Cross"
+#endif
+
+/*
  * Windows only: puts every DLL in the tree, subprojects included, next to shadercross.exe, replacing
  * LD_LIBRARY_PATH. Absolute via %CWD%/hook_expand_cwd, since a relative output directory resolves per
  * target.

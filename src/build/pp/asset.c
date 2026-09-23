@@ -1,6 +1,19 @@
 #include "build/build.h"
 
 /*
+ * The GLSL-ES cross compiler. Keyed off the header the way base_backtrace.h keys the symbolizer off
+ * backtrace.h: build.c puts SPIRV-Cross's include path and link flags on the rebuild command together,
+ * and only once the vendored .so exists, so when it does not, __has_include is false, the code below
+ * degrades to writing no GLSL, and the tool still links. See vendor_sdl_shadercross.h for the flags.
+ */
+#if !OS_WINDOWS && __has_include("spirv_cross_c.h")
+#define NYA_BUILD_HAS_SPIRV_CROSS 1
+#include "spirv_cross_c.h"
+#else
+#define NYA_BUILD_HAS_SPIRV_CROSS 0
+#endif
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * PRIVATE API DECLARATION
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -22,6 +35,13 @@ NYA_INTERNAL b8 _nya_asset_shader_outdated(NYA_BuildRulePolicy policy, NYA_Const
 NYA_INTERNAL void _nya_asset_shader_prune(void);
 
 /**
+ * Cross compiles the SPIR-V at `spirv` to GLSL ES 300, writing it to `glsl`. The point of stage 1 of the
+ * web backend: a later GLES3/WebGL2 renderer loads these instead of the .spv Vulkan takes. Does nothing
+ * when the tool was built without SPIRV-Cross (NYA_BUILD_HAS_SPIRV_CROSS).
+ * */
+NYA_INTERNAL void _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString glsl);
+
+/**
  * Every format shaders compile to: the name shadercross takes, the file suffix, and the targets that bake it into
  * the release blob, which are the ones with an SDL GPU backend that accepts it. Vulkan takes SPIR-V, Direct3D 12
  * DXIL, Metal MSL. The loader picks by what the device accepts (_nya_asset_pick_correct_compiled_shader), so a
@@ -32,6 +52,17 @@ NYA_INTERNAL const NYA_ConstCString _NYA_ASSET_SHADER_FORMATS[][3] = {
     { "msl", ".msl", "OS_MAC" },
     { "spirv", ".spv", "OS_LINUX || OS_WINDOWS" },
 };
+
+/**
+ * The suffix of the GLSL ES 300 variant, cross compiled from each `.spv` by _nya_asset_shader_compile_glsl_es.
+ * Named `<shader>.<stage>.glsl` beside `<shader>.<stage>.spv`, e.g. `shape.frag.spv` -> `shape.frag.glsl`.
+ *
+ * Deliberately not one of _NYA_ASSET_SHADER_FORMATS: those are the backends shadercross writes and the
+ * loader picks between, and every one of them is baked into the release blob. Nothing loads GLSL yet (the
+ * GLES3 backend is a later stage), so it is produced beside the others but kept out of the index and the
+ * blob (_nya_asset_collect skips it) until a backend actually reads it.
+ * */
+#define SHADER_GLSL_ES_SUFFIX ".glsl"
 
 /** Memo behind _nya_asset_enumerate. See the note there for why it is safe to share. */
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _NYA_ASSET_FILES = nullptr;
@@ -114,6 +145,15 @@ void nya_asset_compile_shaders(void) {
                 },
             };
             NYA_EXPECT(nya_build(&rule));
+        }
+
+        // Beside the .spv, its GLSL ES 300 form for a later GLES3/WebGL2 backend. Compiled by the build
+        // tool in-process (shadercross has no GLSL target), and only when the .spv is newer than it: a
+        // changed shared include rebuilt the .spv above, so comparing against it also catches that.
+        NYA_CString spirv = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s.spv", (int)shader->length, shader->items));
+        NYA_CString glsl  = nya_string_to_cstring(nya_arena_global, nya_string_sprintf(nya_arena_global, "%.*s" SHADER_GLSL_ES_SUFFIX, (int)shader->length, shader->items));
+        if (nya_filesystem_exists(spirv) && _nya_asset_shader_outdated(NYA_BUILD_IF_OUTDATED, spirv, glsl)) {
+            _nya_asset_shader_compile_glsl_es(spirv, glsl);
         }
     }
 }
@@ -338,15 +378,17 @@ void _nya_asset_shader_prune(void) {
     nya_array_foreach (compiled, file) {
         NYA_CString path = nya_string_to_cstring(nya_arena_global, file);
 
-        // only what shadercross writes: anything else in the directory is not this rule's to judge.
-        u32 format = nya_carray_length(_NYA_ASSET_SHADER_FORMATS);
+        // only what the shader build writes: the per-backend formats shadercross emits and the GLSL ES
+        // variant produced beside them. Anything else in the directory is not this rule's to judge.
+        NYA_ConstCString suffix = nullptr;
         for (u32 i = 0; i < nya_carray_length(_NYA_ASSET_SHADER_FORMATS); i++) {
-            if (nya_string_ends_with(file, _NYA_ASSET_SHADER_FORMATS[i][1])) format = i;
+            if (nya_string_ends_with(file, _NYA_ASSET_SHADER_FORMATS[i][1])) suffix = _NYA_ASSET_SHADER_FORMATS[i][1];
         }
-        if (format == nya_carray_length(_NYA_ASSET_SHADER_FORMATS)) continue;
+        if (nya_string_ends_with(file, SHADER_GLSL_ES_SUFFIX)) suffix = SHADER_GLSL_ES_SUFFIX;
+        if (suffix == nullptr) continue;
 
         nya_string_strip_prefix(file, SHADER_COMPILED_DIRECTORY "/");
-        nya_string_strip_suffix(file, _NYA_ASSET_SHADER_FORMATS[format][1]);
+        nya_string_strip_suffix(file, suffix);
 
         NYA_String* source = nya_string_sprintf(nya_arena_global, SHADER_SOURCE_DIRECTORY "/%.*s.hlsl", (int)file->length, file->items);
         if (nya_filesystem_exists(nya_string_to_cstring(nya_arena_global, source))) continue;
@@ -355,6 +397,97 @@ void _nya_asset_shader_prune(void) {
         nya_log_info("Deleted %s: its source %.*s is gone.", path, (int)source->length, source->items);
     }
 }
+
+#if NYA_BUILD_HAS_SPIRV_CROSS
+/**
+ * Cross compiles `ir` to GLSL ES 300 and returns the source (owned by `context`), or nullptr on failure
+ * with the reason left in the context's last error. `uniforms_as_plain` is the one knob the caller turns:
+ * see the fallback in _nya_asset_shader_compile_glsl_es for why. Takes the IR by copy so the caller can try
+ * again with a different setting.
+ * */
+NYA_INTERNAL const char* _nya_asset_shader_emit_glsl_es(spvc_context context, spvc_parsed_ir ir, b8 uniforms_as_plain) {
+    spvc_compiler compiler = nullptr;
+    if (spvc_context_create_compiler(context, SPVC_BACKEND_GLSL, ir, SPVC_CAPTURE_MODE_COPY, &compiler) != SPVC_SUCCESS) return nullptr;
+
+    // The shaders come from HLSL, where a texture and a sampler are separate objects, and Vulkan SPIR-V
+    // keeps them that way. GLSL ES has no separate samplers, only combined `sampler2D`, so SPIRV-Cross has
+    // to fold each texture+sampler pair into one before it can emit anything; without this, compile() fails
+    // with "Cannot find mapping for combined sampler". The dummy sampler covers a texture read with no
+    // sampler of its own (a texelFetch/Load), which the post-process passes do.
+    spvc_variable_id dummy_sampler = 0;
+    if (spvc_compiler_build_dummy_sampler_for_combined_images(compiler, &dummy_sampler) != SPVC_SUCCESS) return nullptr;
+    if (spvc_compiler_build_combined_image_samplers(compiler) != SPVC_SUCCESS) return nullptr;
+
+    spvc_compiler_options options = nullptr;
+    if (spvc_compiler_create_compiler_options(compiler, &options) != SPVC_SUCCESS) return nullptr;
+
+    // GLSL ES 3.00, what WebGL2 and GLES3 accept. Default the float precision to highp so the output does
+    // not depend on an implementation's mediump range, which varies and is too narrow for the engine's math.
+    (void)spvc_compiler_options_set_uint(options, SPVC_COMPILER_OPTION_GLSL_VERSION, 300);
+    (void)spvc_compiler_options_set_bool(options, SPVC_COMPILER_OPTION_GLSL_ES, true);
+    (void)spvc_compiler_options_set_bool(options, SPVC_COMPILER_OPTION_GLSL_ES_DEFAULT_FLOAT_PRECISION_HIGHP, true);
+    if (uniforms_as_plain) (void)spvc_compiler_options_set_bool(options, SPVC_COMPILER_OPTION_GLSL_EMIT_UNIFORM_BUFFER_AS_PLAIN_UNIFORMS, true);
+
+    if (spvc_compiler_install_compiler_options(compiler, options) != SPVC_SUCCESS) return nullptr;
+
+    const char* source = nullptr;
+    if (spvc_compiler_compile(compiler, &source) != SPVC_SUCCESS) return nullptr;
+    return source;
+}
+
+void _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString glsl) {
+    nya_assert(spirv != nullptr);
+    nya_assert(glsl != nullptr);
+
+    // SPIR-V is a stream of 32-bit words; read the bytes the SPIR-V rule just wrote.
+    NYA_String* spirv_bytes = nya_string_create(nya_arena_global);
+    NYA_EXPECT(nya_file_read(spirv, spirv_bytes), "while reading %s to cross compile it to GLSL ES", spirv);
+    nya_assert(spirv_bytes->length % sizeof(SpvId) == 0, "%s is " FMTu64 " bytes, not a whole number of SPIR-V words.", spirv, spirv_bytes->length);
+
+    // An aligned copy: the parser takes a `const SpvId*`, and casting the byte buffer straight to one
+    // trips the alignment sanitizer the build tool runs under. The global arena aligns to 16.
+    size_t word_count = spirv_bytes->length / sizeof(SpvId);
+    SpvId* words      = nya_arena_alloc(nya_arena_global, spirv_bytes->length);
+    nya_memcpy(words, spirv_bytes->items, spirv_bytes->length);
+
+    // The context owns every allocation its children make, so one destroy at the end frees all of it, both
+    // compilers below and the returned GLSL string included.
+    spvc_context context = nullptr;
+    if (spvc_context_create(&context) != SPVC_SUCCESS) nya_log_panic("Could not create a SPIRV-Cross context for %s.", spirv);
+
+    spvc_parsed_ir ir = nullptr;
+    if (spvc_context_parse_spirv(context, words, word_count, &ir) != SPVC_SUCCESS)
+        nya_log_panic("SPIRV-Cross could not parse %s: %s", spirv, spvc_context_get_last_error_string(context));
+
+    // First as UBOs: a push constant or cbuffer block becomes a `uniform` block, the natural mapping. That
+    // fails for a block whose packing needs per-member byte offsets, because GLSL ES 300 has no offset
+    // qualifier on block members (no GL_ARB_enhanced_layouts). Fall back to plain uniforms, which carry no
+    // layout rule at all, and note it: the GLES3 backend uploads those with glUniform*, not a UBO binding.
+    const char* source = _nya_asset_shader_emit_glsl_es(context, ir, false);
+    if (source == nullptr) {
+        source = _nya_asset_shader_emit_glsl_es(context, ir, true);
+        if (source != nullptr) nya_log_info("%s: uniform block is not std140-expressible in GLSL ES 300, emitted as plain uniforms.", spirv);
+    }
+
+    // Non-fatal on purpose: stage 1 is meant to surface exactly which shaders a GLES3 backend cannot take as
+    // is, so a refusal is reported and the rest still build, rather than stopping the whole shader step.
+    if (source == nullptr) {
+        nya_log_warn("%s did not convert to GLSL ES 300, no variant written: %s", spirv, spvc_context_get_last_error_string(context));
+        spvc_context_destroy(context);
+        return;
+    }
+
+    NYA_EXPECT(nya_file_write(glsl, source), "while writing %s", glsl);
+    spvc_context_destroy(context);
+}
+#else
+void _nya_asset_shader_compile_glsl_es(NYA_ConstCString spirv, NYA_ConstCString glsl) {
+    // Built without SPIRV-Cross (see the guard at the top of this file): the library links in on the next
+    // rebuild once the vendors exist, and until then there is nothing to cross compile with.
+    (void)spirv;
+    (void)glsl;
+}
+#endif
 
 NYA_INTERNAL NYA_ArrayᐸNYA_Stringᐳ* _nya_asset_walk(NYA_ConstCString directory) {
     nya_assert(directory != nullptr);
@@ -386,6 +519,10 @@ NYA_INTERNAL b8 _nya_asset_collect(NYA_ConstCString path, const NYA_DirectoryEnt
     if (nya_string_ends_with(file, ".h")) return true;
     if (nya_string_ends_with(file, ".keep")) return true;
     if (nya_string_starts_with(file, NYA_ASSET_UNUSED_DIRECTORY)) return true;
+
+    // The GLSL ES shader variants are produced beside the .spv for a later GLES3 backend, but nothing
+    // loads them yet, so like NYA_ASSET_UNUSED_DIRECTORY they are neither indexed nor baked into the blob.
+    if (nya_string_ends_with(file, SHADER_GLSL_ES_SUFFIX)) return true;
 
     nya_array_push_back(files, *file);
     return true;
