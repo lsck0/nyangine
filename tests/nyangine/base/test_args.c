@@ -790,6 +790,48 @@ s32 main(void) {
   test_generated_zsh_script_parses_in_zsh(arena);
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a command that both does something and has more under it.
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    /*
+     * `./build` alone is not a thing to do, so a command with only subcommands is incomplete when it
+     * is named alone. A command with a handler of its own is different: `gnyame` plays and
+     * `gnyame serve` starts the same engine headless, and refusing the first would make the game
+     * something you have to name twice.
+     */
+    NYA_ArgCommand under = { .name = "under", .handler = (void*)1 };
+
+    NYA_ArgCommand root = {
+      .is_root     = true,
+      .handler     = (void*)1,
+      .subcommands = { &under },
+    };
+
+    NYA_ArgParser parser = { .name = "both", .root_command = &root };
+
+    NYA_CString     argv[]  = { (NYA_CString) "program" };
+    NYA_ArgCommand* command = nullptr;
+
+    nya_assert(nya_args_parse(&parser, 1, argv, &command).ok, "the root parses with no subcommand");
+    nya_assert(command == &root, "and it is the root that will run");
+    nya_assert(!root.incomplete, "which is not incomplete, because it has something of its own to do");
+
+    // and the subcommand still wins when it is named.
+    NYA_CString named[] = { (NYA_CString) "program", (NYA_CString) "under" };
+
+    nya_assert(nya_args_parse(&parser, 2, named, &command).ok, "naming the subcommand parses");
+    nya_assert(command == &under, "and that is what runs");
+
+    // a command with subcommands and nothing of its own is still incomplete, which is ./build's shape.
+    NYA_ArgCommand bare_under = { .name = "under", .handler = (void*)1 };
+    NYA_ArgCommand bare       = { .is_root = true, .subcommands = { &bare_under } };
+    NYA_ArgParser  bare_parser = { .name = "bare", .root_command = &bare };
+
+    nya_assert(nya_args_parse(&bare_parser, 1, argv, &command).ok, "it parses");
+    nya_assert(!nya_args_run_command(command).ok, "but there is nothing to run");
+  }
+
   // CLEANUP
   // ─────────────────────────────────────────────────────────────────────────────
   nya_arena_destroy(arena);

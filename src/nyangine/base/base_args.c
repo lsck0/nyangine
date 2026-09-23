@@ -82,10 +82,16 @@ subcommand_matching:
         }
     }
 
-    // final command to execute
+    /*
+     * The command that will run. A command with subcommands and nothing of its own is incomplete when
+     * it is named alone — `./build` is not a thing to do — but one that also has a handler is a
+     * command that does something *and* has more under it, which is what `gnyame` is: it plays, and
+     * `gnyame serve` is a different way to start the same engine.
+     */
     command_to_execute      = path[path_count - 1];
     b8 bad_input_flags_only = false;
-    if (command_to_execute->subcommands[0] != nullptr) {
+
+    if (command_to_execute->subcommands[0] != nullptr && command_to_execute->handler == nullptr && command_to_execute->build_rule == nullptr) {
         bad_input_flags_only           = true;
         command_to_execute->incomplete = true;
     }
