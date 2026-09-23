@@ -22,6 +22,10 @@
 #include "nyangine/plugins/plugins.h"
 #include "nyangine/serde/serde.h"
 
+// Above os and base and below http, which is the only thing here that wants a socket with a library
+// on it. Its own header answers when the build has no TLS library at all.
+#include "nyangine/tls/tls.h"
+
 #ifndef NYA_NO_SDL
 // Before core, which names a body and a physics system in core_app.h, core_entity.h and
 // core_world.h. Guarded with core rather than beside math because box2d and box3d are on the

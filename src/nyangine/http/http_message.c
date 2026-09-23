@@ -227,6 +227,7 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
     b8  chunked        = false;
     b8  has_length     = false;
     u64 content_length = 0;
+    u32 host_count     = 0;
 
     request->keep_alive = http_1_1;
 
@@ -321,6 +322,15 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
             chunked = true;
         } else if (name_fits && nya_string_equals(name, "content-type")) {
             request->media_type = nya_http_media_type_parse(value, value_size);
+        } else if (name_fits && nya_string_equals(name, "host")) {
+            // Counted whether or not it fits the table, for the reason the four above are: how many
+            // Host headers there are decides whether the request is one request.
+            host_count++;
+
+            if (value_size == 0) {
+                *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
+                return NYA_HTTP_PARSE_REFUSED;
+            }
         } else if (name_fits && nya_string_equals(name, "connection")) {
             if (value_size == 5 && _nya_http_lower(value[0]) == 'c') request->keep_alive = false;
             if (value_size == 10 && _nya_http_lower(value[0]) == 'k') request->keep_alive = true;
@@ -335,6 +345,16 @@ NYA_HttpParse nya_http_request_parse(const u8* data, u64 size, NYA_HttpRequest* 
         (void)_nya_http_copy_bounded(header->name, sizeof(header->name), name, colon);
 
         request->header_count++;
+    }
+
+    /*
+     * RFC 9112 makes Host a must on HTTP/1.1 and makes more than one of it invalid at any version. Both
+     * are smuggling cases rather than pedantry: a front end that routes on the second Host and a back
+     * end that routes on the first are two servers that disagree about who the request was for.
+     */
+    if (host_count > 1 || (http_1_1 && host_count == 0)) {
+        *out_status = NYA_HTTP_STATUS_BAD_REQUEST;
+        return NYA_HTTP_PARSE_REFUSED;
     }
 
     if (chunked && has_length) {

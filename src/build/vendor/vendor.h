@@ -20,6 +20,10 @@
 #include "build/vendor/vendor_lua.h"
 #include "build/vendor/vendor_lz4.h"
 #include "build/vendor/vendor_monocypher.h"
+// a rule with no parts: the system's OpenSSL, for the reason its own file gives.
+#if !OS_WINDOWS
+#include "build/vendor/vendor_openssl.h"
+#endif
 #include "build/vendor/vendor_sdl.h"
 #include "build/vendor/vendor_sdl_image.h"
 #include "build/vendor/vendor_sdl_mixer.h"
@@ -55,7 +59,7 @@
     &vendor_box2d_linux_x86_64,   &vendor_box3d_linux_x86_64,      &vendor_curl_linux_x86_64,       \
     &vendor_lua_linux_x86_64,     &vendor_lz4_linux_x86_64,        &vendor_sqlean_linux_x86_64,     \
     &vendor_sqlvec_linux_x86_64,  &vendor_sqlite_linux_x86_64,     &vendor_ufbx_linux_x86_64,       \
-    &vendor_monocypher_linux_x86_64
+    &vendor_monocypher_linux_x86_64, &vendor_openssl_linux_x86_64
 
 #define NYA_PROJECT_VENDORS_WINDOWS_X86_64                                                          \
     &vendor_sdl_windows_x86_64,   &vendor_sdl_image_windows_x86_64, &vendor_sdl_ttf_windows_x86_64, \

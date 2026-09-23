@@ -273,6 +273,10 @@ NYA_OsSocketStatus nya_os_socket_start(void) {
     return NYA_OS_SOCKET_OK;
 }
 
+s64 nya_os_socket_descriptor(NYA_OsSocket socket) {
+    return socket.handle == 0 ? -1 : (s64)(socket.handle - 1);
+}
+
 void nya_os_socket_stop(void) {
     if (_NYA_OS_SOCKET_STARTS == 0) return;
 

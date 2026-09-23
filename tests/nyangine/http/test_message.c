@@ -71,7 +71,7 @@ s32 main(void) {
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
 
         NYA_ConstCString text =
-            "POST /api/thing?name=a%20b&flag=1 HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n{\"enabled\":true}";
+            "POST /api/thing?name=a%20b&flag=1 HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 16\r\n\r\n{\"enabled\":true}";
 
         nya_assert(parse(arena, text, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
 
@@ -132,7 +132,7 @@ s32 main(void) {
         nya_assert(
             parse(
                 arena,
-                "QUERY /api/metrics HTTP/1.1\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n"
+                "QUERY /api/metrics HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n"
                 "8\r\n{\"enable\r\n8\r\nd\":true}\r\n0\r\n\r\n",
                 &request,
                 &consumed,
@@ -147,24 +147,46 @@ s32 main(void) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: how many Host headers there are decides whether this is one request.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nAccept: */*\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST, "HTTP/1.1 without a Host is not a request");
+
+        nya_assert(
+            refusal(arena, "GET /a HTTP/1.1\r\nHost: one.test\r\nHost: two.test\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
+            "two Hosts are two front ends disagreeing about who the request was for"
+        );
+
+        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: \r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST, "and an empty one names nobody");
+
+        // HTTP/1.0 never had one, and a client still sending 1.0 is not made to grow a header.
+        NYA_HttpRequest* request  = nullptr;
+        u64              consumed = 0;
+        NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
+
+        nya_assert(parse(arena, "GET /a HTTP/1.0\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(!request->keep_alive, "and it closes afterwards, as 1.0 does");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // TEST: a body on a verb that gives one no meaning is refused, not dropped.
     // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(
-            refusal(arena, "GET /a HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST,
+            refusal(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST,
             "an intermediary that reads those bytes as a body and a parser that reads them as the next request is smuggling"
         );
 
-        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
-        nya_assert(refusal(arena, "HEAD /a HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST);
-        nya_assert(refusal(arena, "OPTIONS /a HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "HEAD /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "OPTIONS /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\n\r\n{}") == NYA_HTTP_STATUS_BAD_REQUEST);
 
         // an announced empty body is not a body, and plenty of clients send one.
         NYA_HttpRequest* request  = nullptr;
         u64              consumed = 0;
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
 
-        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nContent-Length: 0\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_assert(request->body_size == 0);
 
         // the verbs a body means something on, which is the set the router is written in plus PATCH.
@@ -187,7 +209,7 @@ s32 main(void) {
         u64              consumed = 0;
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
 
-        NYA_ConstCString text = "POST /x HTTP/1.1\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n"
+        NYA_ConstCString text = "POST /x HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n"
                                 "8\r\n{\"enable\r\n8\r\nd\":true}\r\n0\r\n\r\n";
 
         nya_assert(parse(arena, text, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
@@ -227,11 +249,11 @@ s32 main(void) {
         nya_assert(status == NYA_HTTP_STATUS_NONE);
 
         // a head that is complete but a body that is not.
-        nya_assert(parse(arena, "POST /a HTTP/1.1\r\nContent-Length: 10\r\n\r\nshort", &request, &consumed, &status) == NYA_HTTP_PARSE_INCOMPLETE);
+        nya_assert(parse(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n\r\nshort", &request, &consumed, &status) == NYA_HTTP_PARSE_INCOMPLETE);
 
         // and a chunked body that stops mid chunk.
         nya_assert(
-            parse(arena, "POST /a HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n8\r\nfour", &request, &consumed, &status) == NYA_HTTP_PARSE_INCOMPLETE
+            parse(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n8\r\nfour", &request, &consumed, &status) == NYA_HTTP_PARSE_INCOMPLETE
         );
     }
 
@@ -298,17 +320,17 @@ s32 main(void) {
     // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(
-            refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
+            refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
             "a request carrying both framings has no safe interpretation"
         );
 
         nya_assert(
-            refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\nhello") == NYA_HTTP_STATUS_BAD_REQUEST,
+            refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\nhello") == NYA_HTTP_STATUS_BAD_REQUEST,
             "two Content-Lengths is the same disagreement in one header"
         );
 
         nya_assert(
-            refusal(arena, "POST /a HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED,
+            refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: gzip\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED,
             "a coding this server cannot undo is not a body it may read raw"
         );
 
@@ -321,21 +343,21 @@ s32 main(void) {
     // ─────────────────────────────────────────────────────────────────────────────
     {
         nya_assert(
-            refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 99999\r\n\r\n") == NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE,
+            refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 99999\r\n\r\n") == NYA_HTTP_STATUS_PAYLOAD_TOO_LARGE,
             "a body over the bound is refused before a byte of it is read"
         );
 
         nya_assert(
-            refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 99999999999999999999999\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
+            refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 99999999999999999999999\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST,
             "a length that does not fit a u64 is not a length"
         );
 
-        nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: -1\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
-        nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nContent-Length: 0x10\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: -1\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0x10\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
 
         // a head that never ends.
         NYA_String* long_head = nya_string_create(arena);
-        nya_string_extend(long_head, "GET /a HTTP/1.1\r\n");
+        nya_string_extend(long_head, "GET /a HTTP/1.1\r\nHost: localhost\r\n");
         while (long_head->length < NYA_HTTP_MAX_HEAD_BYTES + 64) nya_string_extend(long_head, "X-Padding: 0123456789abcdef\r\n");
 
         NYA_HttpRequest* request  = nullptr;
@@ -386,11 +408,11 @@ s32 main(void) {
 
         // the absolute and authority forms are a proxy's business and this is not a proxy.
         nya_assert(refusal(arena, "GET http://elsewhere/a HTTP/1.1\r\nHost: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
-        nya_assert(refusal(arena, "CONNECT elsewhere:443 HTTP/1.1\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED);
+        nya_assert(refusal(arena, "CONNECT elsewhere:443 HTTP/1.1\r\nHost: localhost\r\n\r\n") == NYA_HTTP_STATUS_NOT_IMPLEMENTED);
 
-        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nNo colon here\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
-        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\n: empty name\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
-        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nBad Name: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nNo colon here\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\n: empty name\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
+        nya_assert(refusal(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nBad Name: x\r\n\r\n") == NYA_HTTP_STATUS_BAD_REQUEST);
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -407,7 +429,7 @@ s32 main(void) {
         nya_assert(parse(arena, "GET /a HTTP/1.0\r\nConnection: keep-alive\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_assert(request->keep_alive);
 
-        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nConnection: close\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_assert(!request->keep_alive);
     }
 
@@ -419,14 +441,14 @@ s32 main(void) {
         u64              consumed = 0;
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
 
-        nya_assert(parse(arena, "POST /a HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(parse(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\n\r\n{}", &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
 
         NYA_Object* document = nullptr;
         nya_assert(!nya_http_request_json(request, arena, &document).ok, "a body this server was not told the type of is not parsed as one");
 
         // and a type it does not speak is the same refusal.
         nya_assert(
-            parse(arena, "POST /a HTTP/1.1\r\nContent-Type: text/xml\r\nContent-Length: 2\r\n\r\n{}", &request, &consumed, &status) ==
+            parse(arena, "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Type: text/xml\r\nContent-Length: 2\r\n\r\n{}", &request, &consumed, &status) ==
             NYA_HTTP_PARSE_DONE
         );
         nya_assert(request->media_type == NYA_HTTP_MEDIA_OTHER);
@@ -436,7 +458,7 @@ s32 main(void) {
         nya_assert(
             parse(
                 arena,
-                "POST /a HTTP/1.1\r\nContent-Type: application/json ; charset=utf-8\r\nContent-Length: 2\r\n\r\n{}",
+                "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json ; charset=utf-8\r\nContent-Length: 2\r\n\r\n{}",
                 &request,
                 &consumed,
                 &status
@@ -539,7 +561,7 @@ s32 main(void) {
         u64              consumed = 0;
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
 
-        NYA_ConstCString native = "POST /a HTTP/1.1\r\nContent-Type: application/nya\r\nContent-Length: 30\r\n\r\n"
+        NYA_ConstCString native = "POST /a HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/nya\r\nContent-Length: 30\r\n\r\n"
                                   "nya 2 0\n{ name: string \"ny\"; }\n";
 
         nya_assert(parse(arena, native, &request, &consumed, &status) == NYA_HTTP_PARSE_DONE);
@@ -560,10 +582,10 @@ s32 main(void) {
         // ── what the caller is answered in ──
         NYA_HttpRequest* asking = nullptr;
 
-        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: application/nya\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nAccept: application/nya\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_NYA, "a caller that names it is answered in it");
 
-        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: application/json\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nAccept: application/json\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_JSON, "one that names JSON gets JSON");
 
         /*
@@ -571,10 +593,10 @@ s32 main(void) {
          * never heard of this format, and a caller with no Accept at all has said nothing — neither
          * is a statement that the native format can be read.
          */
-        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: */*\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nAccept: */*\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_JSON, "a wildcard is not a request for the native format");
 
-        nya_assert(parse(arena, "GET /a HTTP/1.1\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_JSON, "and neither is no Accept header at all");
 
         printf("  PASSED\n");
@@ -589,10 +611,10 @@ s32 main(void) {
         NYA_HttpStatus   status   = NYA_HTTP_STATUS_NONE;
 
         // named first because its name contains the text form's: this is the case that ordering is for.
-        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: application/nya-binary\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nAccept: application/nya-binary\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_NYA_BINARY, "a caller that names the binary form is answered in it");
 
-        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nAccept: application/nya\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
+        nya_assert(parse(arena, "GET /a HTTP/1.1\r\nHost: localhost\r\nAccept: application/nya\r\n\r\n", &asking, &consumed, &status) == NYA_HTTP_PARSE_DONE);
         nya_check(nya_http_request_accepts(asking) == NYA_HTTP_MEDIA_NYA, "and one that names the text form never gets bytes");
 
         nya_check(nya_string_equals(nya_http_media_type_text(NYA_HTTP_MEDIA_NYA_BINARY), "application/nya-binary"), "bytes carry no charset");
@@ -609,7 +631,7 @@ s32 main(void) {
         // the answer, sent back as a request body: what a client built from the same headers would do.
         NYA_String* wire = nya_string_sprintf(
             arena,
-            "PUT /a HTTP/1.1\r\nContent-Type: application/nya-binary\r\nContent-Length: " FMTu64 "\r\n\r\n",
+            "PUT /a HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/nya-binary\r\nContent-Length: " FMTu64 "\r\n\r\n",
             response.body_size
         );
         for (u64 i = 0; i < response.body_size; i++) nya_string_push_back(wire, response.body[i]);

@@ -111,7 +111,18 @@
  * build does not have, so it is switched on here rather than compiled unconditionally by
  * nyangine.h. The component system in TODO.md's roadmap replaces this with a component list.
  */
-#define FLAGS_MODULES "-DNYA_MODULE_DB"
+#define FLAGS_MODULES "-DNYA_MODULE_DB", FLAGS_MODULE_TLS
+
+/*
+ * `tls` links the system's OpenSSL, which a Windows build has no copy of: curl reaches TLS through
+ * Schannel there, so that link line carries no libssl. See tls.h for why the library is the system's
+ * rather than vendored, and why nya_tls_available answering false is the honest Windows story for now.
+ */
+#if OS_WINDOWS
+#define FLAGS_MODULE_TLS "-DNYA_NO_TLS"
+#else
+#define FLAGS_MODULE_TLS "-DNYA_MODULE_TLS"
+#endif
 
 /*
  * Which optional plugins the *project* compiles. See src/nyangine/plugins/plugins.h. The optional

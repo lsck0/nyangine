@@ -40,6 +40,7 @@ CompileFlags:
       # fragment below was added to fix. Three whole modules were being edited blind.
       # The optional modules, mirroring FLAGS_MODULES: without it the whole db module is empty here.
       -DNYA_MODULE_DB,
+      -DNYA_MODULE_TLS,
       -DNYA_PLUGIN_CURL,
       -DNYA_PLUGIN_DISCORD,
       -DNYA_PLUGIN_LUA,

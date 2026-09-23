@@ -210,6 +210,16 @@ NYA_API NYA_OsSocketStatus nya_os_socket_start(void) __attr_no_discard;
 /** The pair. Releases the host's socket library when the last caller lets go. */
 NYA_API void nya_os_socket_stop(void);
 
+/**
+ * The host's own name for this socket — a file descriptor on Linux, a SOCKET on Windows — or -1 for
+ * NYA_OS_SOCKET_NONE.
+ *
+ * For a library that has to do its own reading and writing on a socket this module opened, which today
+ * means OpenSSL and nothing else; see tls.h. Not for a caller that only wants to read or write, since
+ * every host's differences are what the calls below are for.
+ * */
+NYA_API s64 nya_os_socket_descriptor(NYA_OsSocket socket) __attr_no_discard;
+
 /*
  * ─────────────────────────────────────────────────────────
  * OPENING

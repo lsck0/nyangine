@@ -26,6 +26,9 @@
 #include "nyangine/plugins/plugins.c"
 
 #ifndef NYA_NO_SDL
+// before http, whose listener wraps an accepted socket in a session. After os, whose descriptor it hands
+// to OpenSSL, and after base, whose arena holds the context.
+#include "nyangine/tls/tls.c"
 #include "nyangine/physics/physics.c"
 #include "nyangine/net/net.c"
 // before core, for the reason nyangine.h gives.

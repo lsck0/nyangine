@@ -94,6 +94,9 @@ NYA_INTERNAL const _LintModule _LINT_MODULES[] = {
     // net's rank rather than sitting under it: neither includes the other and neither ever should.
     { "db",       4 },
     { "net",      4 },
+    // tls is beside them: a socket with a library on it, above os and base and below the http server
+    // that is the only thing here with a reason to want one.
+    { "tls",      4 },
     // accounts is above db, crypto and permission and below http, because a program with no HTTP
     // server at all still has users: a CLI making the first account, a game with a control socket.
     { "accounts", 5 },

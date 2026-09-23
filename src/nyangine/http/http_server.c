@@ -109,6 +109,21 @@ struct _NYA_HttpConnection {
 
     /** The peer, as the socket reports it. What the per address limits key on, and never a forwarded header. */
     char address[NYA_HTTP_MAX_ADDRESS];
+
+    /**
+     * The TLS session over this socket, or null on a server with no certificate.
+     *
+     * Everything above this field is the same either way: the bytes in `received` are plaintext
+     * whichever they arrived as, so the parser, the router and every bound never learn there was TLS.
+     * The two places that do are _nya_http_receive and _nya_http_flush.
+     * */
+    NYA_TlsSession* tls;
+
+    /**
+     * The handshake asked to write rather than to read, which is the one time a connection with
+     * nothing queued still has to be woken on writability. See _nya_http_wait.
+     * */
+    b8 tls_wants_write;
 };
 
 /**
@@ -177,6 +192,14 @@ struct _NYA_HttpState {
 
     _NYA_HttpRateBucket buckets[NYA_HTTP_MAX_RATE_BUCKETS];
     u32                 bucket_count;
+
+    /**
+     * What every connection's TLS session is made from, or null on a server with no certificate.
+     *
+     * One context for the listener rather than one per connection: it holds the certificate, the key
+     * and the cipher list, none of which is per peer. See tls.h.
+     * */
+    NYA_TlsContext* tls;
 
     /** Copied from the config, so the caller may wipe theirs. Zeroed by deinit. */
     u8  secret[NYA_HTTP_MAX_SECRET_BYTES];
@@ -257,6 +280,15 @@ NYA_INTERNAL b8 _nya_http_receive(_NYA_HttpConnection* connection, _NYA_HttpSlot
  * on what one connection may make this program hold: a peer that asks for the largest answer over and
  * over and never reads is the case it exists for.
  * */
+/**
+ * Moves a connection's TLS handshake along, and answers whether the connection is still worth keeping.
+ *
+ * True for a handshake that finished *and* for one that is still going: both are a connection that has
+ * done nothing wrong. False is a handshake that failed or a peer that went away, which the caller
+ * answers by closing. A connection with no TLS on it is true and costs nothing.
+ * */
+NYA_INTERNAL b8 _nya_http_tls_ready(_NYA_HttpConnection* connection) __attr_no_discard;
+
 NYA_INTERNAL b8 _nya_http_push(_NYA_HttpConnection* connection, const u8* data, u64 size) __attr_no_discard;
 
 /**
@@ -363,6 +395,17 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
         return nya_error(NYA_ERROR_OUT_OF_MEMORY, "a server carries at most %d root layers", NYA_HTTP_MAX_LAYERS);
     }
 
+    b8 wants_certificate = config.certificate_path != nullptr && config.certificate_path[0] != '\0';
+    b8 wants_key         = config.key_path != nullptr && config.key_path[0] != '\0';
+
+    if (wants_certificate != wants_key) {
+        return nya_error(NYA_ERROR_INVALID_ARGUMENT, "TLS needs both a certificate and a key, or neither");
+    }
+
+    if (wants_certificate && !nya_tls_available()) {
+        return nya_error(NYA_ERROR_NOT_SUPPORTED, "this build has no TLS library, and will not serve plaintext in its place");
+    }
+
     if (nya_os_socket_start() != NYA_OS_SOCKET_OK) return nya_error(NYA_ERROR_NOT_OK, "the host's socket library could not start");
 
     /*
@@ -447,6 +490,25 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
 
     nya_memset(state->slots, 0, sizeof(_NYA_HttpSlot) * state->slot_count);
 
+    /*
+     * The certificate is read here rather than on the first connection: a path that is wrong, a key
+     * that does not match its certificate and a file nobody can read are all things to find out while
+     * a person is watching the server start, not on somebody's first request.
+     */
+    if (wants_certificate) {
+        NYA_Error ready = nya_tls_context_create(arena, &state->tls, .certificate_path = config.certificate_path, .key_path = config.key_path);
+
+        if (!ready.ok) {
+            for (u32 made = 0; made < state->slot_count; made++) nya_arena_destroy(state->slots[made].arena);
+
+            nya_arena_destroy(arena);
+            nya_os_socket_close(listener);
+            nya_os_socket_stop();
+
+            return ready;
+        }
+    }
+
     for (u32 index = 0; index < state->slot_count; index++) {
         state->slots[index].arena = nya_arena_create(.name = "http_exchange");
 
@@ -501,16 +563,21 @@ NYA_Error nya_system_http_init(NYA_HttpConfig config) {
     nya_ceiling_register("http_rate_buckets", NYA_HTTP_MAX_RATE_BUCKETS, &_NYA_HTTP->bucket_count);
     nya_ceiling_register("http_websockets", NYA_HTTP_MAX_WEBSOCKETS, &_NYA_HTTP_WEBSOCKET_COUNT);
 
+    NYA_ConstCString scheme = state->tls != nullptr ? "https" : "http";
+
+    if (state->tls != nullptr) nya_log_info("TLS is on: %s", nya_tls_version());
+
     if (state->workers > 0) {
         nya_log_info(
-            "HTTP server listening on http://%s:%u, on its own thread with %u worker%s",
+            "HTTP server listening on %s://%s:%u, on its own thread with %u worker%s",
+            scheme,
             requested,
             (u32)config.port,
             state->workers,
             state->workers == 1 ? "" : "s"
         );
     } else {
-        nya_log_info("HTTP server listening on http://%s:%u", requested, (u32)config.port);
+        nya_log_info("HTTP server listening on %s://%s:%u", scheme, requested, (u32)config.port);
     }
 
     return NYA_OK;
@@ -563,6 +630,12 @@ void nya_system_http_deinit(void) {
         nya_os_socket_stop();
 
         return;
+    }
+
+    // after every connection closed, since each of those released a session out of this context.
+    if (state->tls != nullptr) {
+        nya_tls_context_destroy(state->tls);
+        state->tls = nullptr;
     }
 
     // the secret leaves no copy behind in a freed region waiting to be handed out again.
@@ -874,7 +947,55 @@ void _nya_http_accept(void) {
         slot->active_at_ns = nya_clock_get_monotonic_ns();
         (void)snprintf(slot->address, sizeof(slot->address), "%s", address);
 
+        // Nothing is read or written here: the handshake happens on the drain passes that follow, so
+        // one peer opening a connection slowly cannot hold up the accept loop.
+        if (_NYA_HTTP->tls != nullptr) {
+            NYA_Error started = nya_tls_session_create(_NYA_HTTP->tls, socket, &slot->tls);
+
+            if (!started.ok) {
+                nya_log_warn("A TLS session could not be started: %s", (NYA_ConstCString)started.message);
+
+                nya_os_socket_close(socket);
+                nya_memset(slot, 0, sizeof(*slot));
+
+                continue;
+            }
+        }
+
         (void)atomic_fetch_add_explicit(&_NYA_HTTP->connection_count, 1, memory_order_relaxed);
+    }
+}
+
+b8 _nya_http_tls_ready(_NYA_HttpConnection* connection) {
+    if (connection->tls == nullptr) return true;
+    if (nya_tls_is_established(connection->tls)) return true;
+
+    connection->tls_wants_write = false;
+
+    switch (nya_tls_handshake(connection->tls)) {
+        case NYA_TLS_OK:
+            connection->active_at_ns = nya_clock_get_monotonic_ns();
+            return true;
+
+        // Still going, and the idle timeout is what bounds how long that may take: a peer that opens a
+        // connection and never finishes a handshake is a peer that has gone quiet.
+        case NYA_TLS_WANT_READ: return true;
+
+        case NYA_TLS_WANT_WRITE:
+            connection->tls_wants_write = true;
+            return true;
+
+        case NYA_TLS_CLOSED: return false;
+
+        case NYA_TLS_FAILED:
+        default:
+            /*
+             * Logged at debug rather than warn: a failed handshake is what a port scanner, a browser
+             * that does not like this certificate and somebody speaking plain HTTP to an https port all
+             * look like, and none of them is a fault of this server's worth a line in a log.
+             */
+            nya_log_debug("A TLS handshake from %s failed: %s", connection->address, nya_tls_error(connection->tls));
+            return false;
     }
 }
 
@@ -896,16 +1017,39 @@ b8 _nya_http_push(_NYA_HttpConnection* connection, const u8* data, u64 size) {
 b8 _nya_http_flush(_NYA_HttpConnection* connection) {
     if (connection->socket.handle == 0) return false;
 
+    // Nothing may be written before the handshake is done, and the handshake is what a fresh TLS
+    // connection's first pass through here is actually doing.
+    if (connection->tls != nullptr && !_nya_http_tls_ready(connection)) return false;
+
     while (connection->sent < connection->sending_size) {
         u64 wrote = 0;
 
-        NYA_OsSocketStatus status =
-            nya_os_socket_send(connection->socket, connection->sending + connection->sent, connection->sending_size - connection->sent, &wrote);
+        if (connection->tls != nullptr) {
+            NYA_TlsProgress progress =
+                nya_tls_send(connection->tls, connection->sending + connection->sent, connection->sending_size - connection->sent, &wrote);
 
-        // The host's buffer is full, which is a peer reading slowly rather than a peer that is gone:
-        // what is left stays queued and the bound above is what decides when that stops being fine.
-        if (status == NYA_OS_SOCKET_WOULD_BLOCK) break;
-        if (status != NYA_OS_SOCKET_OK) return false;
+            /*
+             * A TLS write may want to read, because a record cannot be written until whatever the peer
+             * is in the middle of sending has been taken. Both are "come back later" and neither is a
+             * failure; the tick returns here when the socket is ready.
+             */
+            if (progress == NYA_TLS_WANT_READ) break;
+
+            if (progress == NYA_TLS_WANT_WRITE) {
+                connection->tls_wants_write = true;
+                break;
+            }
+
+            if (progress != NYA_TLS_OK) return false;
+        } else {
+            NYA_OsSocketStatus status =
+                nya_os_socket_send(connection->socket, connection->sending + connection->sent, connection->sending_size - connection->sent, &wrote);
+
+            // The host's buffer is full, which is a peer reading slowly rather than a peer that is gone:
+            // what is left stays queued and the bound above is what decides when that stops being fine.
+            if (status == NYA_OS_SOCKET_WOULD_BLOCK) break;
+            if (status != NYA_OS_SOCKET_OK) return false;
+        }
 
         connection->sent         += wrote;
         connection->active_at_ns  = nya_clock_get_monotonic_ns();
@@ -939,12 +1083,30 @@ b8 _nya_http_receive(_NYA_HttpConnection* connection, _NYA_HttpSlot* slot) {
 
     u64 read = 0;
 
-    NYA_OsSocketStatus status = nya_os_socket_receive(connection->socket, connection->received + connection->received_size, room, &read);
+    if (connection->tls != nullptr) {
+        if (!_nya_http_tls_ready(connection)) return false;
 
-    // Nothing waiting is the ordinary answer; the end of the stream and a broken connection are both
-    // the connection going, which is what false means to the caller.
-    if (status == NYA_OS_SOCKET_WOULD_BLOCK) return true;
-    if (status != NYA_OS_SOCKET_OK) return false;
+        // Still handshaking: there is nothing to read yet and nothing has gone wrong.
+        if (!nya_tls_is_established(connection->tls)) return true;
+
+        NYA_TlsProgress progress = nya_tls_receive(connection->tls, connection->received + connection->received_size, room, &read);
+
+        if (progress == NYA_TLS_WANT_READ) return true;
+
+        if (progress == NYA_TLS_WANT_WRITE) {
+            connection->tls_wants_write = true;
+            return true;
+        }
+
+        if (progress != NYA_TLS_OK) return false;
+    } else {
+        NYA_OsSocketStatus status = nya_os_socket_receive(connection->socket, connection->received + connection->received_size, room, &read);
+
+        // Nothing waiting is the ordinary answer; the end of the stream and a broken connection are both
+        // the connection going, which is what false means to the caller.
+        if (status == NYA_OS_SOCKET_WOULD_BLOCK) return true;
+        if (status != NYA_OS_SOCKET_OK) return false;
+    }
 
     connection->received_size += read;
     connection->active_at_ns   = nya_clock_get_monotonic_ns();
@@ -1264,6 +1426,16 @@ b8 _nya_http_rate_take(NYA_ConstCString address, OUT u32* out_retry_after_s) {
 void _nya_http_close(_NYA_HttpConnection* connection) {
     if (connection->socket.handle == 0) return;
 
+    /*
+     * The session before the socket, and no close_notify with it: a connection being dropped here is
+     * one that timed out, misbehaved or is finished, and none of those is worth a round trip with a
+     * peer that may not answer. A peer that cares whether it got everything has Content-Length.
+     */
+    if (connection->tls != nullptr) {
+        nya_tls_session_destroy(connection->tls);
+        connection->tls = nullptr;
+    }
+
     // the report that the socket is gone, while the socket is still the thing that is going.
     if (connection->upgraded) _nya_http_websocket_detach(connection->socket);
 
@@ -1403,7 +1575,10 @@ void _nya_http_listener_wait(_NYA_HttpState* state) {
             // a slow reader is served as fast as it will read rather than at the idle timeout.
             b8 owes = connection->sending_size > connection->sent;
 
-            watched[watched_count++] = (NYA_OsSocketWait){ .socket = connection->socket, .readable = true, .writable = owes };
+            // and so does one whose TLS handshake is waiting on room to write, which is the one case
+            // where a connection owing nothing still has something to say.
+            watched[watched_count++] =
+                (NYA_OsSocketWait){ .socket = connection->socket, .readable = true, .writable = owes || connection->tls_wants_write };
         }
     }
     nya_mutex_unlock(state->table_mutex);

@@ -271,6 +271,10 @@ NYA_OsSocketStatus nya_os_socket_start(void) {
     return NYA_OS_SOCKET_OK;
 }
 
+s64 nya_os_socket_descriptor(NYA_OsSocket socket) {
+    return _nya_os_socket_fd(socket);
+}
+
 void nya_os_socket_stop(void) {}
 
 /*
