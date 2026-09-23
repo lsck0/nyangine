@@ -2,8 +2,9 @@
 <!--
   The game slice, live: the engine's 2D render path — a cleared background and a textured sprite — drawn
   to a real WebGL2 canvas by the wasm module `nyangine_game.{js,wasm}` that `./build wasm-game` builds.
-  The module stands up the SDL_GPU → GLES3 shim (src/nyangine/renderer/gpu_gles) and issues the same
-  SDL_GPU command stream the engine's render2d flush issues; the browser is just another GPU backend.
+  The module stands up the SDL_GPU → GLES3 shim (src/nyangine/renderer/gpu_gles) and drives the engine's
+  real nya_render2d_* API over it — nya_render2d_texture + nya_render2d_flush, compiled verbatim from
+  render2d.c — so the browser is just another GPU backend under the shipping 2D renderer.
 
   Contrast web/ui.html, which renders the immediate-mode UI to the DOM with no GPU. Here there is a real
   WebGL2 context and real draw calls.

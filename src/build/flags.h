@@ -284,9 +284,12 @@
 // vendored header roots NYA_App's graph needs to parse), plus the WebGL2/GLES3 switches the shim's
 // context and glDrawElements path require, the two shaders embedded, and this target's own export and
 // factory name. NYA_HEADLESS is set inside wasm_game.c (no GPU *device path in the headers*, since the
-// device the demo makes is the shim's, not SDL's).
+// device the demo makes is the shim's, not SDL's). NYA_PERF_FORCE_NODEBUG + NYA_TRACE_FORCE_DISABLED
+// compile the timers and trace scopes out: render2d.c's flush opens both, and a wasm slice measures
+// nothing, so this drops the perf/trace runtime leaves rather than dragging them into the shim TU.
 #define FLAGS_WASM_GAME                                                 \
     "-std=c2y", "-O2", "-fdefer-ts", "-fenable-matrix",                \
+    "-DNYA_PERF_FORCE_NODEBUG", "-DNYA_TRACE_FORCE_DISABLED",          \
     "-Wno-gcc-compat", "-Wno-initializer-overrides", "-Wno-keyword-macro", "-Wno-format", \
     WASM_UI_VENDOR_INCLUDES,                                           \
     "-sUSE_WEBGL2=1", "-sFULL_ES3=1", "-sMIN_WEBGL_VERSION=2", "-sMAX_WEBGL_VERSION=2", \
