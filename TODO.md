@@ -341,12 +341,18 @@ browser, from the same `component()` function.
        assigned by reflection, push-uniforms = UBO + `glBindBufferBase`, draw = `glDrawElements`). `./build
        wasm-game` builds `web/nyangine_game.{js,wasm}` + `web/game.html`; node selfcheck asserts the exact 16-call
        2D frame sequence (PASS). Engine `.c` and `SDL_gpu.h` byte-identical. Only a browser can confirm pixels.
-       **Not yet routed through the real `nya_render2d_*` API** — two blockers: (a) `math_matrix.c` won't compile
-       on wasm (f16→float collapses `nya_matrix_create`'s f16/f32 overloads to one signature); (b) `renderer.c`
-       window bring-up is one ~700-line function that starts 2D+3D+post+shadow together with no 2D-only seam.
-       Next web stage: an f16/f32 wasm disambiguation + a 2D-only renderer bring-up, then real render2d + assets
-       (SDL_image/ttf) in wasm; after that 3D (needs depth FBOs, MSAA resolve, the textureGather web variant, the
-       5 plain-uniform shaders). Input still unwired.
+       **Now routed through the real `nya_render2d_*` API (landed `f826b80`).** Both blockers cleared: (a)
+       `math_matrix.c` compiles on wasm via `NYA_F16_IS_F32` (`c553c98`); (b) the 2D-only bring-up seam lives
+       entirely in `src/web/wasm_game.c` (a twin of `wasm_ui.c`'s app/window backend) — `game_bringup()` stands up
+       the shim device, allocates the 2D batch buffers, builds the shape+textured pipelines from the GLSL-ES
+       shaders, and a 5-function wasm asset backend answers `nya_asset_get`/`_graphics_pipeline`/`_is_missing`/
+       `_missing_report` + `_nya_render_sampler_for` — so `render2d.c` and `renderer.c` are compiled UNCHANGED
+       (native byte-identical, zero `#if OS_WASM` in either). `draw_frame` calls `nya_render2d_texture_ex` +
+       `nya_render2d_flush`; node selfcheck asserts the exact 23-call real-render2d frame sequence + 1 draw/4
+       verts/6 indices (PASS). Leaves pulled under emcc: render2d, render_sort, render_camera, math_matrix,
+       math_shapes, render_glyph_atlas (dead-code-dropped text/TTF/cache). Only a browser confirms pixels.
+       Remaining: 3D (depth FBOs, MSAA resolve, the textureGather web variant, the 5 plain-uniform shaders),
+       asset loading (SDL_image/ttf) in wasm, and canvas input.
     3. App loop under `emscripten_set_main_loop`; canvas input via emscripten html5 events → `NYA_Event`.
     4. A game example building to a canvas; the `web_frontend` caller. Verify a frame draws under node/headless
        where possible, then in-browser.
