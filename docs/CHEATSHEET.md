@@ -4894,7 +4894,7 @@ NYA_HTTP_MAX_REQUESTS_PER_TICK 16  // Requests answered, or started, in one drai
 NYA_HTTP_MAX_WORKERS 8  // Worker threads one server may run, whatever the config or the core count says.
 NYA_HTTP_SHUTDOWN_GRACE_MS 2000  // How long nya_system_http_deinit waits for a handler that is still running before it stops waiting.
 NYA_HTTP_MAX_ACCEPTS_PER_TICK 4  // Connections accepted in one tick.
-NYA_HTTP_MAX_PENDING_WRITE_BYTES ((u64)NYA_HTTP_MAX_RESPONSE_BYTES * 4ULL)  // Bytes SDL_net may hold queued for one connection before it is dropped.
+NYA_HTTP_MAX_PENDING_WRITE_BYTES ((u64)NYA_HTTP_MAX_RESPONSE_BYTES * 4ULL)  // Bytes this server may hold queued for one connection before it is dropped.
 
 // functions
 NYA_Error nya_system_http_init(NYA_HttpConfig config)
