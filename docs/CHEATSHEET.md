@@ -4774,13 +4774,14 @@ Which handler answers a request, what runs around it, and what has to be true be
 ```c
 // types
 enum NYA_HttpAuth { NYA_HTTP_AUTH_NONE = 0, NYA_HTTP_AUTH_BEARER, }  // What a route demands of its caller before the handler is reached.
+enum NYA_HttpAffinity { NYA_HTTP_AFFINITY_WORKER = 0, NYA_HTTP_AFFINITY_MAIN, }  // Which thread a route's handler runs on once the server has workers; see http_server.h.
 struct NYA_HttpProblem { u32 status; char error[48]; char detail[192]; }  // The body every refusal carries, so a client parses one shape whatever went wrong.
 struct NYA_HttpExchange { const NYA_HttpRequest* request; NYA_HttpResponse* response; const NYA_HttpRoute* route; NYA_Arena* arena; NYA_HttpIdentity identity; b8 identified; const u8* secret; u64 secret_size; u64 now_s; u64 started_ns; NYA_ConstCString address; }  // One request being answered.
 typedef NYA_HttpStatus (*NYA_HttpHandlerFn)(NYA_HttpExchange* exchange)  // A handler on a route that demands nothing of its caller.
 typedef NYA_HttpStatus (*NYA_HttpIdentifiedFn)(NYA_HttpExchange* exchange, const NYA_HttpIdentity* identity)  // A handler on a route that demands an identity.
 typedef NYA_HttpStatus (*NYA_HttpLayerFn)(NYA_HttpExchange* exchange, NYA_HttpChain* next)  // One layer of the onion.
 struct NYA_HttpChain { const NYA_HttpLayerFn* layers; u32 count; u32 index; }  // Where a dispatch has got to in the layer chain.
-struct NYA_HttpRoute { NYA_HttpMethod method; NYA_ConstCString path; NYA_HttpAuth auth; NYA_HttpScope scope; NYA_Permission permission; u64 resource; u64 (*resource_of)(const NYA_HttpExchange* exchange); NYA_HttpHandlerFn handler; NYA_HttpIdentifiedFn handler_identified; NYA_ConstCString summary; NYA_ConstCString description; const NYA_TypeReflection* request_type; const NYA_TypeReflection* response_type; NYA_HttpStatus statuses[NYA_HTTP_MAX_STATUSES]; }  // One path and one method, with everything true of it beside it.
+struct NYA_HttpRoute { NYA_HttpMethod method; NYA_ConstCString path; NYA_HttpAuth auth; NYA_HttpAffinity affinity; NYA_HttpScope scope; NYA_Permission permission; u64 resource; u64 (*resource_of)(const NYA_HttpExchange* exchange); NYA_HttpHandlerFn handler; NYA_HttpIdentifiedFn handler_identified; NYA_ConstCString summary; NYA_ConstCString description; const NYA_TypeReflection* request_type; const NYA_TypeReflection* response_type; NYA_HttpStatus statuses[NYA_HTTP_MAX_STATUSES]; }  // One path and one method, with everything true of it beside it.
 struct NYA_HttpRouter { NYA_ConstCString name; const NYA_HttpRoute* routes; u32 route_count; const NYA_HttpLayerFn* layers; u32 layer_count; }  // One resource's routes, plus whatever wraps only them.
 
 // macros
@@ -4801,22 +4802,24 @@ NYA_HttpStatus nya_http_response_problem(NYA_HttpExchange* exchange, NYA_HttpSta
 
 ### http_server.h
 
-The listener: a TCP port, a handful of connections, and one drain a frame that reads whatever has
+The listener: a TCP port, a handful of connections, and either one drain a frame or a thread of its
 
 ```c
 // types
-struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; const NYA_HttpLayerFn* layers; u32 layer_count; }
+struct NYA_HttpConfig { u16 port; char address[NYA_HTTP_MAX_ADDRESS]; u32 workers; u32 max_connections; u32 max_connections_per_address; u32 requests_per_second; u32 request_burst; const u8* secret; u64 secret_size; const NYA_HttpLayerFn* layers; u32 layer_count; }
 
 // macros
 NYA_HTTP_IDLE_TIMEOUT_MS 5000  // How long a connection may sit without a complete request before it is dropped.
-NYA_HTTP_MAX_REQUESTS_PER_TICK 16  // Requests answered in one tick, across every connection.
+NYA_HTTP_MAX_REQUESTS_PER_TICK 16  // Requests answered, or started, in one drain pass across every connection.
+NYA_HTTP_MAX_WORKERS 8  // Worker threads one server may run, whatever the config or the core count says.
+NYA_HTTP_SHUTDOWN_GRACE_MS 2000  // How long nya_system_http_deinit waits for a handler that is still running before it stops waiting.
 NYA_HTTP_MAX_ACCEPTS_PER_TICK 4  // Connections accepted in one tick.
 NYA_HTTP_MAX_PENDING_WRITE_BYTES ((u64)NYA_HTTP_MAX_RESPONSE_BYTES * 4ULL)  // Bytes SDL_net may hold queued for one connection before it is dropped.
 
 // functions
 NYA_Error nya_system_http_init(NYA_HttpConfig config)
 void nya_system_http_deinit(void)  // Closes every connection and unbinds the port.
-void nya_system_http_tick(void)  // Accepts, reads, answers and closes, within every bound at the top of this file.
+void nya_system_http_tick(void)  // With no workers: accepts, reads, answers and closes, within every bound at the top of this file.
 NYA_Error nya_http_server_merge(const NYA_HttpRouter* router)  // Mounts one resource's router at the root, after checking it with nya_http_router_check.
 void nya_http_server_unmerge(const NYA_HttpRouter* router)  // Removes a mount.
 b8 nya_http_server_is_running(void)

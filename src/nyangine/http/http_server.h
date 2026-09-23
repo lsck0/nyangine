@@ -1,14 +1,14 @@
 /**
  * @file http_server.h
  *
- * The listener: a TCP port, a handful of connections, and one drain a frame that reads whatever has
- * arrived, answers it, and returns. No thread, no blocking call, and nothing allocated or opened
- * until nya_system_http_init is called.
+ * The listener: a TCP port, a handful of connections, and either one drain a frame or a thread of its
+ * own with a pool of workers behind it. Nothing is allocated, opened or started until
+ * nya_system_http_init is called.
  *
  * ```
  * nya_system_http_init            binds the port and starts accepting
  * nya_system_http_deinit          closes everything; every call below is a no-op again
- * nya_system_http_tick            drains the sockets. Registered on the frame for you
+ * nya_system_http_tick            drains the sockets, or the main thread's share of them
  *
  * nya_http_server_merge           mounts one resource's router at the root
  * nya_http_server_unmerge         the pair. A removed router answers 404 immediately
@@ -41,20 +41,58 @@
  * NYA_EXPECT(nya_http_server_merge(nya_http_metrics_router()));
  * ```
  *
+ * ── one drain a frame, or a thread ──
+ *
+ * `workers` in the config picks, and zero is the default:
+ *
+ * - **Zero.** What this has always been. nya_system_http_tick accepts, reads, answers and closes on
+ *   whoever calls it, at most NYA_HTTP_MAX_REQUESTS_PER_TICK requests per call, and returns. No
+ *   thread exists, so nothing is concurrent, nothing needs a lock and the whole exchange is
+ *   reproducible step by step. This is the mode a test, a simulation and a program with no
+ *   concurrency problem to solve want.
+ * - **One or more.** A listener thread owns the sockets: it accepts, reads, parses, spends the rate
+ *   limit token, hands the parsed request to a worker, and writes what comes back. `workers` worker
+ *   threads run the layers, the extractor and the handler, each on its own arena. Requests are
+ *   answered as fast as they arrive rather than as often as the frame runs, and an Argon2id hash or a
+ *   slow query costs the frame nothing.
+ *
+ * **A route says which thread it runs on** through NYA_HttpAffinity: NYA_HTTP_AFFINITY_WORKER, the
+ * default, or NYA_HTTP_AFFINITY_MAIN for a handler that reads or writes program state. A MAIN
+ * exchange is queued and answered inside nya_system_http_tick, so a threaded server still has to be
+ * ticked — from the frame, which init hooks for you, or from the program's own loop.
+ *
+ * **The promise a worker route makes is enforced, not documented.** The modules that belong to the
+ * frame call nya_thread_main_only (base_thread.h), so a handler that forgot its MAIN crashes the first
+ * time it runs, naming what it reached for, rather than corrupting a table under the frame.
+ *
  * ── what a hostile peer may do ──
  *
  * Anything it likes, and none of it may cost this process more than the fixed buffers in
- * http_types.h. It may connect and send nothing: the connection is dropped after
- * NYA_HTTP_IDLE_TIMEOUT_MS. It may send a byte a second forever: the head has to arrive inside
- * NYA_HTTP_MAX_HEAD_BYTES and inside that timeout, both of which it will fail. It may pipeline: at
- * most NYA_HTTP_MAX_REQUESTS_PER_TICK are answered per frame across every connection, so a peer
- * cannot take the frame. It may stop reading: the answer is queued, and a connection with more than
- * NYA_HTTP_MAX_PENDING_WRITE_BYTES outstanding is dropped rather than buffered further. It may send
- * nonsense: every refusal is a status and a close, and nothing it sends reaches an assertion.
+ * http_types.h. A thread does not raise a single bound: everything below holds in both modes, and
+ * every bound is global to the server rather than per worker, because the connection table, the rate
+ * limit buckets and the counters all live on the listener thread and are only ever touched there.
+ *
+ * It may connect and send nothing: the connection is dropped after NYA_HTTP_IDLE_TIMEOUT_MS. It may
+ * send a byte a second forever: the head has to arrive inside NYA_HTTP_MAX_HEAD_BYTES and inside that
+ * timeout, both of which it will fail. It may pipeline: a connection has at most one exchange in
+ * flight and the next request is not even parsed until the last one is written, and at most
+ * NYA_HTTP_MAX_REQUESTS_PER_TICK exchanges start per drain pass, so the in-flight work is bounded by
+ * the connection table however fast a peer sends. It may stop reading: the answer is queued, and a
+ * connection with more than NYA_HTTP_MAX_PENDING_WRITE_BYTES outstanding is dropped rather than
+ * buffered further. It may send nonsense: every refusal is a status and a close, and nothing it sends
+ * reaches an assertion.
+ *
+ * What a slow handler can hold up: its own connection, which is not read from or timed out while its
+ * answer is being written, and — for a MAIN route only — the frame. What it cannot hold up: every
+ * other connection, the accept loop, the idle timeouts, or shutdown past the deadline below.
  *
  * A connection that asks to be upgraded stops being an HTTP one and becomes a WebSocket on the same
  * socket, in the same slot, under the same per address cap; see http_websocket_server.h, which is where
- * the handshake and the bounds on what follows it are. It is drained from the same tick.
+ * the handshake and the bounds on what follows it are. **A WebSocket belongs to the tick in both
+ * modes**: the handshake is answered on the ticking thread and every frame after it is read, dispatched
+ * and written there, so `on_open`, `on_message` and `on_close` run where a program's own state lives and
+ * nya_http_websocket_broadcast_text stays a call the frame makes. The listener thread hands the socket
+ * over at the 101 and never touches it again.
  *
  * One address may hold NYA_HTTP_MAX_CONNECTIONS_PER_ADDRESS connections; the next is closed at
  * accept. Each address spends one token per request from a bucket of `request_burst` refilled at
@@ -64,7 +102,15 @@
  * What is *not* here yet: TLS, and any request bound above the ones in http_types.h. Until TLS
  * lands, bind to loopback and put a proxy in front.
  *
- * Thread safety: none. Everything here runs on the thread that called init.
+ * ── thread safety ──
+ *
+ * With `workers` at zero: none, and everything runs on the thread that drains.
+ *
+ * With workers: nya_system_http_init, nya_system_http_deinit and nya_system_http_tick are the main
+ * thread's, and merging or unmerging a router, the introspection calls and nya_http_websocket_* are
+ * safe to call from it while the server runs. A worker sees the routers as they were when its
+ * exchange was queued, so a merge never changes the table under a dispatch. Everything else — the
+ * connection table, the buckets, the sockets — is the listener thread's alone.
  * */
 #pragma once
 
@@ -90,12 +136,33 @@
 #define NYA_HTTP_IDLE_TIMEOUT_MS 5000
 
 /**
- * Requests answered in one tick, across every connection.
+ * Requests answered, or started, in one drain pass across every connection.
  *
  * The frame is the thing being protected. Sixteen is past anything a dashboard polling once a second
- * produces and is a number a pipelining peer cannot exceed at this program's expense.
+ * produces and is a number a pipelining peer cannot exceed at this program's expense. A threaded
+ * server counts the same way on its listener thread, so a pass starts at most this many exchanges and
+ * a tick answers at most this many NYA_HTTP_AFFINITY_MAIN ones.
  * */
 #define NYA_HTTP_MAX_REQUESTS_PER_TICK 16
+
+/**
+ * Worker threads one server may run, whatever the config or the core count says.
+ *
+ * Each worker costs an exchange arena and a stack and can only ever be working on one request, so
+ * this is also the number of handlers that can be running at once. Eight is more parallelism than a
+ * machine serving one program's own interface has work for, and the connection table is eight.
+ * */
+#define NYA_HTTP_MAX_WORKERS 8
+
+/**
+ * How long nya_system_http_deinit waits for a handler that is still running before it stops waiting.
+ *
+ * Two seconds is far longer than any handler that is not broken and short enough that a program's
+ * shutdown is not held hostage by one. Past it the sockets are closed and the port is given back
+ * anyway, and the state the stuck handler is still writing into is deliberately leaked rather than
+ * freed under it; see nya_system_http_deinit.
+ * */
+#define NYA_HTTP_SHUTDOWN_GRACE_MS 2000
 
 /**
  * Connections accepted in one tick. Bounded for the same reason: a process that loops on connect gets
@@ -129,6 +196,19 @@ struct NYA_HttpConfig {
      * reachable from the network by default is a decision nobody made on purpose.
      * */
     char address[NYA_HTTP_MAX_ADDRESS];
+
+    /**
+     * Worker threads, 0..NYA_HTTP_MAX_WORKERS, clamped rather than refused.
+     *
+     * Zero, the default, is one drain a frame on the thread that ticks: no thread is started, nothing
+     * is concurrent, and a test or a simulation gets the same bytes in the same order every run. Any
+     * other number starts a listener thread and that many workers; see the note at the top of this
+     * file for what a route may then do, and NYA_HttpAffinity for how it says so.
+     *
+     * Each worker adds an exchange's worth of fixed buffers, so the memory a server holds is
+     * `max_connections` request and response buffers either way plus one arena per worker.
+     * */
+    u32 workers;
 
     /** Connections at once, 1..NYA_HTTP_MAX_CONNECTIONS. Zero means the maximum. */
     u32 max_connections;
@@ -183,6 +263,18 @@ NYA_API NYA_Error nya_system_http_init(NYA_HttpConfig config) __attr_no_discard;
 /**
  * Closes every connection and unbinds the port. Idempotent, and a no-op when init was never called.
  *
+ * Bounded, and it returns with nothing of this server's still running. The listener thread is asked to
+ * stop and joined first, so no socket is read, written or accepted after that point and none is left
+ * half closed; then the workers are woken and given NYA_HTTP_SHUTDOWN_GRACE_MS between them to finish
+ * the handler they are inside. A handler that has finished by then is joined normally and everything
+ * is freed.
+ *
+ * A handler still running at the deadline cannot be stopped from outside — there is no safe way to
+ * kill a thread that may be holding a lock — so the deadline is honoured the only way that is sound:
+ * the sockets are closed and the port is given back, the thread is detached, and this server's arena
+ * and its exchange buffers are leaked on purpose rather than freed while that handler is still writing
+ * into them. It is logged as an error naming how many, because it is a bug in the handler.
+ *
  * Merged routers do not survive it: a router is mounted on a running server, so restarting the server
  * is a fresh mount. That is the opposite of core_control's exposures, and deliberately: an exposure
  * describes the program, a mount describes the server.
@@ -190,7 +282,9 @@ NYA_API NYA_Error nya_system_http_init(NYA_HttpConfig config) __attr_no_discard;
 NYA_API void nya_system_http_deinit(void);
 
 /**
- * Accepts, reads, answers and closes, within every bound at the top of this file. Never blocks.
+ * With no workers: accepts, reads, answers and closes, within every bound at the top of this file.
+ * With workers: answers the NYA_HTTP_AFFINITY_MAIN exchanges the listener has queued, and drains the
+ * WebSockets. Never blocks either way.
  *
  * Called for you once a frame. Public for the two cases that need it directly: a headless program
  * with no frame loop, and a test driving the exchange one step at a time.
@@ -205,6 +299,9 @@ NYA_API void nya_system_http_tick(void);
 
 /**
  * Mounts one resource's router at the root, after checking it with nya_http_router_check.
+ *
+ * Safe to call on a running threaded server: an exchange already in flight keeps the table it was
+ * queued against, so a mount or an unmount decides the next request rather than this one.
  *
  * `router` is not copied and must outlive the mount, which a `static const` table does for free.
  * NYA_ERROR_ALREADY_EXISTS for a router already mounted, NYA_ERROR_OUT_OF_MEMORY past

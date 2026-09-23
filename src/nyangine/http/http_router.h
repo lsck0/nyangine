@@ -89,8 +89,8 @@
  *
  * ── every handler documents itself ──
  *
- * `auth`, `scope`, `summary`, `request_type`, `response_type` and `statuses` are not documentation
- * beside the code, they are the route. The OpenAPI document is generated from them, and in a debug
+ * `auth`, `affinity`, `scope`, `summary`, `request_type`, `response_type` and `statuses` are not
+ * documentation beside the code, they are the route. The OpenAPI document is generated from them, and in a debug
  * build an exchange that ends in a status its route did not list trips an assertion: a status list
  * that drifts from the code is caught by the test suite rather than by a reader of the schema.
  *
@@ -133,6 +133,7 @@
  */
 
 typedef enum NYA_HttpAuth       NYA_HttpAuth;
+typedef enum NYA_HttpAffinity   NYA_HttpAffinity;
 typedef struct NYA_HttpProblem  NYA_HttpProblem;
 typedef struct NYA_HttpExchange NYA_HttpExchange;
 typedef struct NYA_HttpChain    NYA_HttpChain;
@@ -146,6 +147,35 @@ enum NYA_HttpAuth {
 
     /** A JWT in `Authorization: Bearer`, verified against the server secret. */
     NYA_HTTP_AUTH_BEARER,
+};
+
+/**
+ * Which thread a route's handler runs on once the server has workers; see http_server.h.
+ *
+ * It says nothing at all while `workers` is zero, where every handler runs on the thread that drains
+ * the server, which is what it has always done.
+ * */
+enum NYA_HttpAffinity {
+    /**
+     * A worker thread, which is the default and what most handlers are.
+     *
+     * The handler may touch the exchange, its own arena, the request, the response, and state it owns
+     * that is either immutable for the server's lifetime or made safe by itself. It may not touch the
+     * program: no entities, no system registry, no renderer, no UI. That is not a request — base_thread.h's
+     * nya_thread_main_only guards the modules that mean it, so a handler that gets this wrong crashes
+     * there the first time it runs rather than corrupting a table once a month.
+     * */
+    NYA_HTTP_AFFINITY_WORKER = 0,
+
+    /**
+     * The thread that calls nya_system_http_tick, which for a program with a frame loop is the frame.
+     *
+     * The exchange is parsed, rate limited and bounded on the listener thread like any other, then
+     * queued and answered inside the next tick, and handed back to the listener to write. That costs
+     * it up to one frame of latency and it may hold the frame up for as long as it runs, which is the
+     * trade a handler that reads or writes program state is making on purpose.
+     * */
+    NYA_HTTP_AFFINITY_MAIN,
 };
 
 // @reflect
@@ -245,6 +275,14 @@ struct NYA_HttpRoute {
     NYA_ConstCString path;
 
     NYA_HttpAuth auth;
+
+    /**
+     * Which thread the handler, the extractor and this route's layers run on. Zero is a worker.
+     *
+     * The one thing about a route a reader cannot work out from the handler, and the one that is
+     * expensive to get wrong, so it is declared beside `auth` rather than inferred.
+     * */
+    NYA_HttpAffinity affinity;
 
     /** Every bit the caller's identity has to carry. Only meaningful when `auth` is not _NONE. */
     NYA_HttpScope scope;
