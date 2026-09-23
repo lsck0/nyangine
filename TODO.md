@@ -127,7 +127,7 @@ http      server, client, routing, layers, cookies, WebSocket, OpenAPI, request 
 accounts  users, sessions, second factors (TOTP; PGP and passkeys as components)
 app       the loop, systems, events, input, config, assets, windows                    (SDL from here up)
 renderer  2D, 3D, terminal, web backends          audio   mixer, propagation, effects
-ui        widget model, then presenters: shapes (GPU, terminal) and DOM (web)
+ui        widget model, then presenters: shapes (GPU, terminal) and DOM (web — `ui_present_html`, landed 2026-09-23)
 desktop_shell  native dialogs, tray, notifications
 physics   Box2D and Box3D                          replicate  snapshots, prediction, lag compensation
 debug     overlay, trace, crash window             testing    property, simulation, sessions, agents
@@ -261,10 +261,36 @@ start a new project on nyangine", so each builds from `./build run example <name
 | `multiplayer_2d` | authority, prediction, encryption, lobby             | `pong_multiplayer`; `net_echo` folds into it                  |
 | `game_3d`      | 3D rendering, physics, audio propagation, post chain    | `pinball3d`                                                  |
 | `http_server`  | TLS, routes, DTOs, OpenAPI, accounts, roles, db, jobs, uploads, WebSocket | `web_server`; `[ ]` all but routes and OpenAPI missing |
-| `web_frontend` | the same UI toolkit in a browser, against `http_server`, as wasm (CSR) and server rendered (SSR) | `[ ]` needs Phase 4 |
+| `web_frontend` | the same UI toolkit in a browser, against `http_server`, as wasm (CSR) and server rendered (SSR) | `[~]` SSR proven: `ui_ssr` example |
 
 `plugin_scripting` stops being an example of its own: plugins are a feature of a program, so the 2D game or the
 TUI loads one. `net_echo` and `plugin_scripting` are deleted once their callers have moved.
+
+### One component, every surface (2026-09-23)
+
+The `nya_ui_*` component renders across TUI (`ui_present_cell`), native GPU (`ui_present_shape`) and now the
+browser, from the same `component()` function.
+
+- `[x]` **SSR render** — `ui_present_html.{h,c}`: one absolutely-positioned element per widget, stable id
+  (draw order), per-kind class, `data-nya` event, HTML-escaped labels, id→rect and id→kind/value-rect tables,
+  `nya_ui_html_document(title, nonce)` wrapping page + stylesheet + thin client. Custom `NYA_UIStyle` colours and
+  radius emitted as inline CSS. Tests: `test_ui_present_html`, `test_ui_interaction`.
+- `[x]` **SSR live loop** — `ui_ssr` example: `GET /` renders, `POST /event` turns `{id,event}` into a synthetic
+  pointer over the widget's rect (clicks) or a drag along its track (slider value events), runs the input pass,
+  re-renders. Client-side DOM morphing by id (server is stateless), preserving focus/caret. Per-session state in
+  a sealed cookie (two browsers, two counters). Page CSP: nonce'd script + `style-src 'unsafe-inline'`.
+- `[x]` **CSR real engine in wasm** — `./build wasm` compiles the engine's `base` + `serde` (leaves only, not
+  `base.c`/`os.c` wholesale) under emscripten and runs it: arena → `NYA_Object` → `nya_serialize(JSON)`, node-
+  verified as genuine (dict order, not the fallback writer's). The port: `f16` gated to `float` on wasm,
+  `<immintrin.h>` guarded off, new `os/os_wasm.c` (page/time/random over calloc/clock_gettime/getentropy),
+  `serde_nya_binary.c` excluded (x87 f128 wire format is unshimmable on wasm's IEEE-quad long double). Native
+  build byte-identical (every change guarded).
+- `[ ]` **Game → web (CSR, the goal):** the rest of the engine in wasm — `app` loop under
+  `emscripten_set_main_loop`, `ui` + a DOM or canvas presenter, and for the actual game a WebGL/GLES renderer
+  backend against SDL3's emscripten port. Then a `web_frontend` caller and a game example that builds to a
+  canvas. The base+serde port above is the foundation.
+- `[ ]` **Remaining SSR:** text-field value write-back (needs text injection), custom style beyond colours
+  (track/ink/scrim), engine per-frame animation (needs WebSocket frame streaming).
 
 ## Phase 0 — ground truth
 
