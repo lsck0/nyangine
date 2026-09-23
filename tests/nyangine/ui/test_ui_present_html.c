@@ -125,6 +125,39 @@ s32 main(void) {
         nya_check(nya_string_contains(page, "&lt;script&gt;alert(1)"), "with the widget body still escaped inside it");
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: a program's custom style reaches the browser as inline CSS. A distinctive
+    // accent and panel colour and a larger radius must show on the right elements,
+    // and a colour left at alpha zero must fall through to the stylesheet, unwritten.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        // The button body colour is deliberately alpha zero on every state: opaque blue would be unmistakable
+        // in the output, so its absence proves the presenter honours "alpha zero means the default".
+        nya_ui_style_set(&window, (NYA_UIStyle){
+                                      .panel  = { 0.0F, 1.0F, 0.0F, 1.0F },   // green, on the panel
+                                      .accent = { 1.0F, 0.0F, 0.0F, 1.0F },   // red, on the chosen toggle
+                                      .radius = 16.0F,
+                                      .button = { .normal   = { 0.0F, 0.0F, 1.0F, 0.0F },
+                                                  .focused  = { 0.0F, 0.0F, 1.0F, 0.0F },
+                                                  .pressed  = { 0.0F, 0.0F, 1.0F, 0.0F },
+                                                  .disabled = { 0.0F, 0.0F, 1.0F, 0.0F } },
+                                  });
+
+        state_toggle = true;   // so the toggle is "on" and wears the accent
+
+        menu(&window, NYA_UI_PASS_INPUT);
+
+        nya_ui_html_reset(&html);
+        menu(&window, NYA_UI_PASS_DRAW);
+
+        NYA_ConstCString styled = nya_ui_html_body(&html);
+
+        nya_check(nya_string_contains(styled, "background:rgba(0,255,0"), "the custom panel colour reaches the panel as inline CSS");
+        nya_check(nya_string_contains(styled, "rgba(255,0,0"), "and the custom accent reaches the chosen toggle");
+        nya_check(nya_string_contains(styled, "border-radius:16px"), "and the larger radius rounds the styled widgets");
+        nya_check(!nya_string_contains(styled, "0,0,255"), "a colour left at alpha zero is not emitted, leaving the stylesheet's default");
+    }
+
     nya_ui_html_deinit(&html);
 
     return nya_check_failures() == 0 ? 0 : 1;

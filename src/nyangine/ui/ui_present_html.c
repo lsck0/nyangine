@@ -43,6 +43,12 @@ NYA_INTERNAL void _nya_ui_html_putf(NYA_UIHtml* html, NYA_ConstCString format, .
 /** The class suffix for a widget kind: `button`, `label`, … . Never null. */
 NYA_INTERNAL NYA_ConstCString _nya_ui_html_class(NYA_UIWidgetKind kind) __attr_no_discard;
 
+/** The button-state colour a discrete backend picks: disabled, then held, then focused, else normal. */
+NYA_INTERNAL NYA_Color _nya_ui_html_button_color(const NYA_UIStateColors* colors, const NYA_UIWidgetState* state) __attr_no_discard;
+
+/** Appends `;<prop>:rgba(...)` from a colour, unless it is the zeroed "use the style default" one, which the stylesheet then answers — the same bargain the GPU backend makes with an all-zero colour. */
+NYA_INTERNAL void _nya_ui_html_style_color(NYA_UIHtml* html, NYA_ConstCString prop, NYA_Color color);
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * LIFETIME
@@ -313,10 +319,62 @@ void _nya_ui_html_draw(void* state, NYA_Window* window, const NYA_UIWidgetDraw* 
 
     if (widget->opacity < 1.0F) _nya_ui_html_putf(html, ";opacity:%.3f", (f64)widget->opacity);
 
-    // A colour the caller set on this specific widget, as the GPU backend also honours over the style.
-    if (widget->color.a > 0.0F) {
-        _nya_ui_html_putf(html, ";color:rgba(%d,%d,%d,%.3f)", (s32)(widget->color.r * 255.0F), (s32)(widget->color.g * 255.0F),
-                          (s32)(widget->color.b * 255.0F), (f64)widget->color.a);
+    // A colour the caller set on this specific widget, as the GPU backend also honours over the style. It
+    // wins the text colour, since the style block below writes fills and borders and never `color`.
+    _nya_ui_html_style_color(html, "color", widget->color);
+
+    // The program's own style, at the depth this pass selected, written as inline CSS that layers over the
+    // fixed stylesheet: a custom accent, panel colour or radius set with nya_ui_style_set/_push reaches the
+    // browser here. It is the same NYA_UILook the GPU backend draws from, turned into properties rather than
+    // triangles; a zeroed colour is left to the stylesheet, exactly as the GPU leaves it to the style.
+    const NYA_UILook*  look  = &html->looks[html->depth];
+    const NYA_UIStyle* style = &look->style;
+
+    switch (widget->kind) {
+        case NYA_UI_WIDGET_PANEL:
+            _nya_ui_html_style_color(html, "background", style->panel);
+            if (look->radius > 0.0F) _nya_ui_html_putf(html, ";border-radius:%dpx", (s32)look->radius);
+            break;
+
+        // The button family shares a body colour and a rounded border. A selectable or a toggle that is on
+        // takes the accent — the colour the stylesheet's `[data-on]` rule uses — since an inline fill would
+        // otherwise sit over that rule and hide the chosen state.
+        case NYA_UI_WIDGET_BUTTON:
+        case NYA_UI_WIDGET_SELECTABLE:
+        case NYA_UI_WIDGET_TOGGLE:
+        case NYA_UI_WIDGET_RADIO:
+        case NYA_UI_WIDGET_DROPDOWN: {
+            b8 chosen = (widget->kind == NYA_UI_WIDGET_SELECTABLE || widget->kind == NYA_UI_WIDGET_TOGGLE)
+                        && widget->as_choice.on && !widget->state.disabled;
+
+            NYA_Color fill = chosen ? style->accent : _nya_ui_html_button_color(&style->button, &widget->state);
+
+            _nya_ui_html_style_color(html, "background", fill);
+            _nya_ui_html_style_color(html, "border-color", fill);
+            if (look->radius > 0.0F) _nya_ui_html_putf(html, ";border-radius:%dpx", (s32)look->radius);
+            break;
+        }
+
+        // The accent under a chosen tab is the accent colour, flat.
+        case NYA_UI_WIDGET_UNDERLINE: _nya_ui_html_style_color(html, "background", style->accent); break;
+
+        // The rest keep the stylesheet's fill: a label and text follow the per-widget colour above, the
+        // scrim, rule and stripe are fixed sheets, and the value widgets draw through their own inputs.
+        case NYA_UI_WIDGET_SCRIM:
+        case NYA_UI_WIDGET_LABEL:
+        case NYA_UI_WIDGET_SLIDER:
+        case NYA_UI_WIDGET_FIELD:
+        case NYA_UI_WIDGET_COLOR_PICKER:
+        case NYA_UI_WIDGET_CHART:
+        case NYA_UI_WIDGET_ICON:
+        case NYA_UI_WIDGET_SECTION:
+        case NYA_UI_WIDGET_CHROME:
+        case NYA_UI_WIDGET_GRIP:
+        case NYA_UI_WIDGET_SCROLLBAR:
+        case NYA_UI_WIDGET_RULE:
+        case NYA_UI_WIDGET_STRIPE:
+        case NYA_UI_WIDGET_KIND_COUNT:
+        default:                      break;
     }
 
     _nya_ui_html_put(html, "\"");
@@ -435,6 +493,27 @@ NYA_ConstCString _nya_ui_html_class(NYA_UIWidgetKind kind) {
     }
 
     return "widget";
+}
+
+NYA_Color _nya_ui_html_button_color(const NYA_UIStateColors* colors, const NYA_UIWidgetState* state) {
+    // The discrete pick the terminal and the skin selection make, rather than the GPU's eased mix: a static
+    // render has one state, not a frame mid-transition, so it reads the same order — disabled over held over
+    // focused over the resting colour.
+    if (state->disabled) return colors->disabled;
+    if (state->held) return colors->pressed;
+    if (state->focused) return colors->focused;
+
+    return colors->normal;
+}
+
+void _nya_ui_html_style_color(NYA_UIHtml* html, NYA_ConstCString prop, NYA_Color color) {
+    // Alpha zero is the style's "leave it to the default", so nothing is written and the stylesheet's colour
+    // stands — the GPU backend reads the same all-zero colour as "use the style" and draws nothing new either.
+    if (color.a <= 0.0F) return;
+
+    // `prop` is one of this file's own literals, never a caller's text, so it needs no escaping.
+    _nya_ui_html_putf(html, ";%s:rgba(%d,%d,%d,%.3f)", prop, (s32)(color.r * 255.0F), (s32)(color.g * 255.0F),
+                      (s32)(color.b * 255.0F), (f64)color.a);
 }
 
 u32 _nya_ui_html_cells(NYA_ConstCString text, u32 bytes) {
