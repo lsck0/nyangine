@@ -756,6 +756,22 @@ logged-in user.
   binary" still needs certbot beside it. After TLS works with a supplied certificate.
 - `[~]` `docs/http.md` ("What belongs to a proxy") and the headers of `http.h` and `http_server.h` say TLS
   belongs to a proxy; the rate limit half is updated. They change in the same commits as the code above.
+- `[~]` **Bots and webhooks**, asked 2026-09-23. A Discord or Twitch bot is a program that talks to an API over
+  HTTPS, holds a WebSocket open, and takes signed callbacks. Three of those four are in: `plugins/curl` does
+  HTTPS requests and `wss` client sockets, `http` receives, and `http_webhook.h` (2026-09-23) proves an incoming
+  callback came from who it claims — HMAC-SHA256 as Twitch EventSub and GitHub sign, Ed25519 as Discord signs an
+  interactions endpoint, both over the bytes that arrived, both with a timestamp window against replay.
+  - Missing for a Discord **bot**: the gateway, which is identify, heartbeat, resume and intents over the
+    WebSocket that already exists, plus the REST side's rate limit buckets. `plugins/discord` is the GameSDK —
+    rich presence and join secrets — and has nothing to do with the bot API; a bot belongs beside it rather than
+    inside it, since one is a game's own Discord integration and the other is a program that is a Discord client.
+  - Missing for a Twitch **bot**: EventSub over WebSocket (the same gateway shape) or over webhooks (which now
+    verify), and chat, which is IRC over TLS — the one piece that wants TLS in process rather than through curl.
+  - Missing for **sending** a webhook: nothing but a helper. `nya_request_post` posts a JSON body today; what a
+    sender owes is a signature over what it sends, a retry with backoff, and not blocking the frame while it
+    does either.
+  - A bot is also the first program that is not a game and not a server: it is the composition entry above, with
+    a net part and no window.
 - `[ ]` A pentest pass over `http_server` (authn/authz bypass, session fixation, CSRF, injection through the ORM,
   path traversal in static serving, request smuggling, resource exhaustion). Every finding becomes a test.
 
