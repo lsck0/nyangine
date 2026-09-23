@@ -10,3 +10,4 @@
 #include "nyangine/accounts/accounts_identity.c"
 // last: it names the recovery table on the state the user half owns, and the throttle.
 #include "nyangine/accounts/accounts_recovery.c"
+#include "nyangine/accounts/accounts_invite.c"

@@ -77,6 +77,34 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity = {
     .field_count = 7,
 };
 
+/* NYA_AccountInvite, src/nyangine/accounts/accounts_invite.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountInvite_code_hash_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountInvite*)nullptr)->code_hash),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (72),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AccountInvite_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "code_hash", .type = &_NYA_REFLECT_NYA_AccountInvite_code_hash_ARRAY, .offset = nya_offsetof(NYA_AccountInvite, code_hash), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "created_by", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, created_by), .hint = NYA_HINT_NONE },
+    { .name = "used_by", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, used_by), .hint = NYA_HINT_NONE },
+    { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, created_at_s), .hint = NYA_HINT_NONE },
+    { .name = "expires_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, expires_at_s), .hint = NYA_HINT_NONE },
+    { .name = "used_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountInvite, used_at_s), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AccountInvite = {
+    .name = "NYA_AccountInvite",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AccountInvite),
+    .alignment = alignof(NYA_AccountInvite),
+    .fields = _NYA_REFLECT_NYA_AccountInvite_FIELDS,
+    .field_count = 7,
+};
+
 /* NYA_AccountRecoveryCode, src/nyangine/accounts/accounts_recovery.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountRecoveryCode_code_hash_ARRAY = {
@@ -1936,6 +1964,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle = {
 
 const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_AccountIdentity,
+    &_NYA_REFLECT_NYA_AccountInvite,
     &_NYA_REFLECT_NYA_AccountRecoveryCode,
     &_NYA_REFLECT_NYA_AccountSession,
     &_NYA_REFLECT_NYA_AccountUser,

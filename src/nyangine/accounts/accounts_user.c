@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "nyangine/accounts/accounts_identity.h"
+#include "nyangine/accounts/accounts_invite.h"
 #include "nyangine/accounts/accounts_recovery.h"
 #include "nyangine/accounts/accounts_session.h"
 #include "nyangine/accounts/accounts_throttle.h"
@@ -35,6 +36,7 @@ typedef struct {
     NYA_OrmTable* sessions;
     NYA_OrmTable* identities;
     NYA_OrmTable* recovery_codes;
+    NYA_OrmTable* invites;
 
     b8 open;
 } _NYA_AccountsState;
@@ -112,6 +114,9 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
     NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountRecoveryCode), "account_recovery_codes", &_NYA_ACCOUNTS.recovery_codes));
     NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.recovery_codes));
 
+    NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountInvite), "account_invites", &_NYA_ACCOUNTS.invites));
+    NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.invites));
+
     /*
      * The hash a login verifies against when the username is not there. Made from bytes nobody will
      * ever type, so it can never match, and made *here* so that the first failed login for a name
@@ -140,6 +145,7 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
 void nya_accounts_close(void) {
     if (!_NYA_ACCOUNTS.open) return;
 
+    nya_orm_close(_NYA_ACCOUNTS.invites);
     nya_orm_close(_NYA_ACCOUNTS.recovery_codes);
     nya_orm_close(_NYA_ACCOUNTS.identities);
     nya_orm_close(_NYA_ACCOUNTS.sessions);

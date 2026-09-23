@@ -616,6 +616,70 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: registration policy — open, invite-only, and closed
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Database* db = open_accounts(arena);
+    defer nya_accounts_close();
+    defer nya_sql_close(db);
+
+    // the owner, made directly as the CLI bootstrap does, whatever the policy.
+    NYA_AccountUser owner = { 0 };
+    NYA_EXPECT(nya_account_create(arena, "owner", PASSWORD, &owner));
+
+    // OPEN: anybody registers, no code needed.
+    NYA_AccountUser open_user = { 0 };
+    nya_check(nya_account_register(arena, NYA_ACCOUNT_REGISTRATION_OPEN, "bob", PASSWORD, nullptr, &open_user).ok, "open registration takes anybody");
+    nya_check(open_user.id != 0 && open_user.roles == 0, "with an account and no roles");
+
+    // CLOSED: nobody self-registers.
+    NYA_AccountUser closed_user = { 0 };
+    NYA_Error closed = nya_account_register(arena, NYA_ACCOUNT_REGISTRATION_CLOSED, "carol", PASSWORD, nullptr, &closed_user);
+    nya_check(!closed.ok && closed.kind == NYA_ERROR_PERMISSION_DENIED, "closed registration refuses everyone");
+
+    // INVITE: a code is needed, and a bad one is refused.
+    NYA_AccountUser no_code = { 0 };
+    nya_check(!nya_account_register(arena, NYA_ACCOUNT_REGISTRATION_INVITE, "dave", PASSWORD, nullptr, &no_code).ok, "invite-only needs a code");
+    nya_check(!nya_account_register(arena, NYA_ACCOUNT_REGISTRATION_INVITE, "dave", PASSWORD, "AAAA-AAAA-AAAA-AAAA", &no_code).ok, "and a real one");
+
+    // the owner hands out a code.
+    char code[NYA_ACCOUNTS_INVITE_CODE_TEXT] = { 0 };
+    nya_check(nya_account_invite_issue(arena, owner.id, 7 * 24 * 3600, code, sizeof(code)).ok, "an invite is made");
+    nya_check(code[0] != '\0' && strchr(code, '-') != nullptr, "with a grouped code, got '%s'", code);
+    char never[NYA_ACCOUNTS_INVITE_CODE_TEXT] = { 0 };
+    nya_check(!nya_account_invite_issue(arena, owner.id, 0, never, sizeof(never)).ok, "an invite with no expiry is refused");
+
+    // a taken username fails and leaves the code unused, so a second try with it still works.
+    NYA_AccountUser clash = { 0 };
+    nya_check(!nya_account_register(arena, NYA_ACCOUNT_REGISTRATION_INVITE, "owner", PASSWORD, code, &clash).ok, "a taken name fails");
+
+    NYA_AccountUser dave = { 0 };
+    nya_check(nya_account_register(arena, NYA_ACCOUNT_REGISTRATION_INVITE, "dave", PASSWORD, code, &dave).ok, "and the code is still good after");
+    nya_check(dave.id != 0, "so dave gets in");
+
+    // single use: the same code does not work twice.
+    NYA_AccountUser eve = { 0 };
+    nya_check(!nya_account_register(arena, NYA_ACCOUNT_REGISTRATION_INVITE, "eve", PASSWORD, code, &eve).ok, "a spent code is done");
+
+    // the owner sees who they let in.
+    NYA_AccountInvite* listed = nullptr;
+    u32                count  = 0;
+    nya_check(nya_account_invite_list(arena, owner.id, &listed, &count).ok && count == 1, "the owner's invite is listed, got %u", count);
+    nya_check(listed[0].used_by == dave.id, "showing it was dave who used it");
+
+    // an unused invite can be revoked before it is spent.
+    char code2[NYA_ACCOUNTS_INVITE_CODE_TEXT] = { 0 };
+    NYA_EXPECT(nya_account_invite_issue(arena, owner.id, 3600, code2, sizeof(code2)));
+    nya_check(nya_account_invite_revoke(arena, code2).ok, "an unused invite is revoked");
+    NYA_AccountUser frank = { 0 };
+    nya_check(!nya_account_register(arena, NYA_ACCOUNT_REGISTRATION_INVITE, "frank", PASSWORD, code2, &frank).ok, "and no longer works");
+
+    // a sweep clears the spent and expired invites, keeping the unused-and-valid ones.
+    u32 removed = 0;
+    nya_check(nya_account_invite_prune(arena, 0, &removed).ok && removed >= 1, "a prune clears the spent invite, got %u", removed);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what every call answers before the tables are open
   // ─────────────────────────────────────────────────────────────────────────────
   {
