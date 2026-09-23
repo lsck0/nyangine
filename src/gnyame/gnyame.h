@@ -71,7 +71,8 @@
  * ## Tuning
  *
  * Every number the game uses is a named constant in constants.h. Values meant to change without a
- * rebuild go in GNY_Config and assets/config/engine.nya.
+ * rebuild go in assets/config/engine.nya: the game's own in GNY_Config, the engine's own reached
+ * through nya_config_engine.
  * */
 #pragma once
 

@@ -60,8 +60,8 @@ enum {
     GNY_ACTION_TOGGLE_SYSTEM,
 
     /*
-     * The 3D demo's render features, on the number row. They flip NYA_CONFIG.engine.renderer, so the config file sets
-     * where they start.
+     * The 3D demo's render features, on the number row. They flip nya_config_engine()->renderer, so the config file
+     * sets where they start.
      */
     GNY_ACTION_TOGGLE_INK,
     GNY_ACTION_TOGGLE_OCCLUSION,

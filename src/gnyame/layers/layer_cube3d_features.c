@@ -2,8 +2,8 @@
  * @file layer_cube3d_features.c
  *
  * The 3D demo's render feature switchboard: one row per NYA_RenderFeature, cycling the tri-state switch the
- * renderer reads. It writes NYA_CONFIG.engine.renderer.features, which gny_config_renderer_apply already hands
- * to nya_render_features_set every frame, so there is no second copy of the state anywhere.
+ * renderer reads. It writes nya_config_engine()->renderer.features, which gny_config_renderer_apply already
+ * hands to nya_render_features_set every frame, so there is no second copy of the state anywhere.
  *
  * Deliberately not a second graphics settings menu. The pause menu's panel owns NYA_SettingsGraphics, the
  * player's settings, and escape reaches it from this scene; these are the developer switches above them, which
@@ -80,13 +80,13 @@ void gny_layer_cube3d_features_draw(NYA_UI* ui, NYA_Window* window, b8* show_hit
     _gny_cube3d_decal_legend(ui);
 
     // nothing to put back while every switch is already on default.
-    NYA_RenderToggle* switches = (NYA_RenderToggle*)&NYA_CONFIG.engine.renderer.features;
+    NYA_RenderToggle* switches = (NYA_RenderToggle*)&nya_config_engine()->renderer.features;
 
     b8 changed = false;
     for (u32 feature = 0; feature < NYA_RENDER_FEATURE_COUNT; feature++) changed = changed || switches[feature] != NYA_RENDER_TOGGLE_DEFAULT;
 
     if (!changed) nya_ui_disabled_begin(ui);
-    if (nya_ui_button(ui, nya_string_menu_reset())) NYA_CONFIG.engine.renderer.features = (NYA_RenderFeatures){ 0 };
+    if (nya_ui_button(ui, nya_string_menu_reset())) nya_config_engine()->renderer.features = (NYA_RenderFeatures){ 0 };
     if (!changed) nya_ui_disabled_end(ui);
 
     nya_ui_panel_end(ui);
@@ -141,7 +141,7 @@ void _gny_cube3d_feature_column(NYA_UI* ui, NYA_Window* window, NYA_ConstCString
     if (!nya_ui_panel_begin(ui, id, (NYA_UIPanel){ .width = nya_ui_grow(1), .frameless = true })) return;
 
     // read as an array, which the static asserts in render_features.h make legal.
-    NYA_RenderToggle* switches = (NYA_RenderToggle*)&NYA_CONFIG.engine.renderer.features;
+    NYA_RenderToggle* switches = (NYA_RenderToggle*)&nya_config_engine()->renderer.features;
     nya_watch(_gny_cube3d_feature_column);
 
     for (u32 feature = first; feature < end; feature++) _gny_cube3d_feature_row(ui, window, switches, (NYA_RenderFeature)feature);

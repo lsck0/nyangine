@@ -78,7 +78,7 @@ typedef struct GNY_Cube3DScene {
     /**
      * Draws every collision shape over the scene. Off by default; the switchboard turns it on.
      *
-     * Kept on the scene rather than in NYA_CONFIG.engine.renderer.features, because it is not one: the
+     * Kept on the scene rather than in nya_config_engine()->renderer.features, because it is not one: the
      * renderer never asks about it and a saved config that came back with the hitboxes on would be a
      * puzzle rather than a setting.
      * */
@@ -136,7 +136,7 @@ typedef struct GNY_Cube3DScene {
 
 /**
  * Draws the render feature switchboard over the scene: one row per NYA_RenderFeature, writing
- * NYA_CONFIG.engine.renderer.features. Only while `features_open`; `0` toggles it.
+ * nya_config_engine()->renderer.features. Only while `features_open`; `0` toggles it.
  *
  * `show_hitboxes` is the scene's own flag and not one of those rows, which is why it is passed rather
  * than read from the config with the rest.

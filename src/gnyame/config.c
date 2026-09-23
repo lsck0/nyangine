@@ -12,7 +12,7 @@ void gny_config_attach(void) {
 void gny_config_renderer_apply(NYA_Window* window) {
     nya_assert(window != nullptr);
 
-    const NYA_ConfigEngineRenderer* renderer = &NYA_CONFIG.engine.renderer;
+    const NYA_ConfigEngineRenderer* renderer = &nya_config_engine()->renderer;
 
     // first, because everything set below is laid over by the switches rather than the other way round.
     nya_render_features_set(window, renderer->features);
@@ -39,7 +39,7 @@ void gny_config_renderer_apply(NYA_Window* window) {
 }
 
 void gny_config_audio_apply(void) {
-    const NYA_ConfigEngineAudio* audio = &NYA_CONFIG.engine.audio;
+    const NYA_ConfigEngineAudio* audio = &nya_config_engine()->audio;
 
     nya_audio_bus_effects_set(NYA_AUDIO_BUS_SOUND, audio->sound);
     nya_audio_bus_effects_set(NYA_AUDIO_BUS_MUSIC, audio->music);
@@ -51,7 +51,7 @@ NYA_INTERNAL NYA_UIRecorder _gny_ui_recorder;
 NYA_INTERNAL b8             _gny_ui_recording;
 
 NYA_UI* gny_ui_begin(NYA_Window* window, NYA_UIPass pass) {
-    nya_ui_style_set(window, NYA_CONFIG.engine.ui);
+    nya_ui_style_set(window, nya_config_engine()->ui);
 
     // an input pass reads the pointer against what the last draw pass measured, so both go through one presenter.
     nya_ui_presenter_set(window, _gny_ui_recording ? nya_ui_recorder_presenter(&_gny_ui_recorder) : nullptr);

@@ -2,13 +2,17 @@
  * @file config.h
  *
  * ```c
- * f32 speed = NYA_CONFIG.game.player_speed;
- * u32 cascades = NYA_CONFIG.engine.renderer.shadow_cascades;
+ * f32 speed    = NYA_CONFIG.game.player_speed;
+ * u32 cascades = nya_config_engine()->renderer.shadow_cascades;
  * ```
  *
- * NYA_CONFIG is a global in this DLL, so a code reload zeroes it and unmaps what the config watch
- * points at. gnyame_run then calls gny_config_attach, which reloads the file into the new global and
- * repoints the watch.
+ * `engine.nya` has two objects at its top level, "engine" and "game", and each is owned by whoever
+ * reads it: the engine's own half lives in the engine (core_config.h's nya_config_engine) and needs
+ * nothing from this file. NYA_CONFIG here is the game's own half only, GNY_ConfigGame, and it is still a
+ * global in this DLL: a code reload zeroes it and unmaps what its watch points at, which is what
+ * gny_config_attach is still for. gnyame_run calls it once after every reload, reloading the file into
+ * the new global and repointing the watch — the engine half needs no equivalent, since a code reload
+ * never touches the engine that hosts this DLL.
  * */
 #pragma once
 
@@ -20,9 +24,9 @@
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-/** Where the runtime config lives, an asset path exactly like a locale's. See core_i18n.h's own
- *  NYA_I18N_ASSET_DIRECTORY for the same reasoning: this is also what the file is registered under. */
-#define GNY_CONFIG_FILE "./assets/config/engine.nya"
+/** The same file nya_config_engine's half was loaded from; see NYA_CONFIG_ENGINE_FILE in core_config.h,
+ *  which this names rather than duplicates. */
+#define GNY_CONFIG_FILE NYA_CONFIG_ENGINE_FILE
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -77,17 +81,19 @@ struct GNY_ConfigGame {
 };
 
 /**
- * The whole of NYA_CONFIG: the engine's own tunables plus gnyame's. See NYA_ConfigEngine in
- * core_config.h for the engine-owned half.
+ * gnyame's own half of `engine.nya`'s top level: the "game" object, and nothing of "engine", which
+ * nya_config_engine owns instead. One field rather than GNY_ConfigGame itself, for the same reason
+ * NYA_ConfigDocument in core_config.h is: nya_config_load wants "game" to be a field name it can match,
+ * not a subtree the caller has already cut out.
  * */
 // @reflect
 struct GNY_Config {
-    NYA_ConfigEngine engine;
-    GNY_ConfigGame   game;
+    GNY_ConfigGame game;
 };
 
 /**
- * The single instance: `NYA_CONFIG.engine.renderer.shadow_bias`, `NYA_CONFIG.game.player_speed`.
+ * The game's own single instance: `NYA_CONFIG.game.player_speed`. See nya_config_engine for the
+ * engine's own settings, which do not live here.
  * */
 extern GNY_Config NYA_CONFIG;
 

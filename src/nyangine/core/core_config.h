@@ -2,11 +2,23 @@
  * @file core_config.h
  *
  * ```c
- * NYA_EXPECT(nya_config_watch("assets/config/engine.nya", nya_reflect_of(NYA_ConfigEngine), &NYA_CONFIG.engine));
+ * const NYA_ConfigEngine* config = nya_config_engine();
+ * f32                     bias   = config->renderer.shadow_bias;
  * ```
  *
- * `type` and `instance` are not owned or copied. When they live in a hot reloadable game DLL, call
- * nya_config_watch again after every code reload; a watch on the same path replaces its pointers.
+ * The engine's own half of `engine.nya` — nya_config_engine, below — is loaded by nya_system_config_init
+ * and lives for the process, so a module reads it through that accessor rather than watching the file
+ * itself. A game's own section of the same file is its own struct, loaded and watched the ordinary way;
+ * see GNY_Config in gnyame/config.h.
+ *
+ * ```c
+ * NYA_EXPECT(nya_config_watch("assets/config/my_section.nya", nya_reflect_of(MyConfig), &my_instance));
+ * ```
+ *
+ * `type` and `instance` are not owned or copied by nya_config_watch itself. When they live in a hot
+ * reloadable game DLL, call nya_config_watch again after every code reload; a watch on the same path
+ * replaces its pointers. The engine's own watch above needs none of this: `nya_system_config_init` runs
+ * once, in the engine, which a code reload never unloads.
  * */
 #pragma once
 
@@ -36,14 +48,21 @@
 /** Longest asset path a config field can hold, terminator included. */
 #define NYA_CONFIG_ASSET_PATH_MAX 128
 
+/**
+ * Where the engine's own half of the shared config file lives. A game's "game" object sits in the same
+ * file; see GNY_CONFIG_FILE in gnyame/config.h, which names this same path rather than a copy of it.
+ * */
+#define NYA_CONFIG_ENGINE_FILE "./assets/config/engine.nya"
+
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-typedef struct NYA_ConfigWatch  NYA_ConfigWatch;
-typedef struct NYA_ConfigSystem NYA_ConfigSystem;
+typedef struct NYA_ConfigWatch    NYA_ConfigWatch;
+typedef struct NYA_ConfigDocument NYA_ConfigDocument;
+typedef struct NYA_ConfigSystem   NYA_ConfigSystem;
 
 /** One file nya_config_watch is following, and where the last load of it landed. */
 struct NYA_ConfigWatch {
@@ -65,15 +84,6 @@ struct NYA_ConfigWatch {
      *  mirrors one watch at a time instead of for a single fixed pair of handles. */
     u64 next_recovery_ns;
 #endif // NYA_ASSET_HOT_RELOAD
-};
-
-struct NYA_ConfigSystem {
-    /** Owns every watched path's copy. A game may pass a string living in its own hot-reloadable DLL,
-     *  which a code reload can unmap; this arena's copy does not depend on that DLL staying mapped. */
-    NYA_Arena* registry;
-
-    NYA_ConfigWatch watches[NYA_CONFIG_WATCH_MAX];
-    u32             watch_count;
 };
 
 /*
@@ -153,12 +163,14 @@ struct NYA_ConfigEngineRenderer {
  * */
 // @reflect
 struct NYA_ConfigEnginePhysics {
-    /** Downward acceleration, world units per second squared. See NYA_PHYSICS2D_GRAVITY_DEFAULT and
-     *  NYA_PHYSICS3D_GRAVITY_DEFAULT, both 9.81 scaled into that world's own units. */
+    /** Downward acceleration, world units per second squared. Read once, at nya_system_physics2d_init /
+     *  nya_system_physics3d_init. Zero or negative falls back to NYA_PHYSICS2D_GRAVITY_DEFAULT and
+     *  NYA_PHYSICS3D_GRAVITY_DEFAULT, both 9.81 scaled and signed into that world's own units. */
     f32 gravity;
 
-    /** Solver iterations per step. See NYA_PHYSICS2D_SUB_STEPS / NYA_PHYSICS3D_SUB_STEPS: more gives
-     *  stiffer stacks and less overlap, at a linear cost. */
+    /** Solver iterations per step, read once at the same inits. Zero falls back to
+     *  NYA_PHYSICS2D_SUB_STEPS / NYA_PHYSICS3D_SUB_STEPS: more gives stiffer stacks and less overlap, at
+     *  a linear cost. */
     u32 sub_steps;
 };
 
@@ -178,9 +190,9 @@ struct NYA_ConfigEngineAudio {
 };
 
 /**
- * The engine-owned half of a game's config, reached as `NYA_CONFIG.engine.renderer.shadow_bias` and
- * so on once a game embeds this in its own root config struct. See GNY_Config in gnyame/config.h for
- * the game-owned half, and the file header for how the whole is loaded and watched.
+ * The engine's own tunables, reached through nya_config_engine as `nya_config_engine()->renderer.shadow_bias`
+ * and so on. See GNY_Config in gnyame/config.h for the game's own half of the same file, and the file
+ * header above for why this half needs no watch or re-attach of its own.
  * */
 // @reflect
 struct NYA_ConfigEngine {
@@ -197,6 +209,36 @@ struct NYA_ConfigEngine {
      * server on the next reload rather than on the next restart.
      * */
     NYA_HttpLogConfig http_log;
+};
+
+/**
+ * The shape `engine.nya` really has at its top level: an "engine" object beside a "game" one the engine
+ * does not reflect. One field rather than NYA_ConfigEngine itself, so nya_config_load can be pointed at
+ * the file directly instead of at an "engine" subtree somebody has already cut out of it.
+ * */
+// @reflect
+struct NYA_ConfigDocument {
+    NYA_ConfigEngine engine;
+};
+
+struct NYA_ConfigSystem {
+    /** Owns every watched path's copy. A game may pass a string living in its own hot-reloadable DLL,
+     *  which a code reload can unmap; this arena's copy does not depend on that DLL staying mapped. */
+    NYA_Arena* registry;
+
+    NYA_ConfigWatch watches[NYA_CONFIG_WATCH_MAX];
+    u32             watch_count;
+
+    /**
+     * The engine's own half of NYA_CONFIG_ENGINE_FILE, loaded by nya_system_config_init and, under
+     * NYA_ASSET_HOT_RELOAD, kept in sync by the same watch tick as everything else nya_config_watch
+     * follows. Written in place rather than swapped behind a pointer: every field below NYA_ConfigEngine
+     * is a plain value with no `@on_apply` of its own (NYA_HttpLogConfig is the one exception and does
+     * its own swap into a private copy, see http_log.h), so a reload can only ever finish a field's write
+     * or not start it — nothing here reads a struct that is half one version and half another. See
+     * nya_config_engine.
+     * */
+    NYA_ConfigDocument document;
 };
 
 /*
@@ -216,6 +258,19 @@ NYA_API void nya_system_config_init(void);
 
 /** Releases the watch registry. Safe before anything has been loaded. */
 NYA_API void nya_system_config_deinit(void);
+
+/**
+ * The engine's own tunables, live for as long as the process: renderer, physics, audio, ui and
+ * http_log, loaded from NYA_CONFIG_ENGINE_FILE by nya_system_config_init and kept current by the same
+ * hot reload every other watch gets. Mutable rather than `const`: a few debug switchboards (the 3D
+ * demo's render feature toggles, its look panel) write into it on purpose, as an in-memory override the
+ * config file's own values still win back on the next edit, since a reload writes every field again
+ * rather than only the ones that changed.
+ *
+ * Never null: before nya_system_config_init runs, or if NYA_CONFIG_ENGINE_FILE could not be read, this
+ * still points at a real (zeroed, all-default) NYA_ConfigEngine rather than at nothing.
+ * */
+NYA_API NYA_ConfigEngine* nya_config_engine(void) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────

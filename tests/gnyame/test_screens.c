@@ -164,7 +164,7 @@ s32 main(void) {
     NYA_EXPECT(nya_i18n_load(NYA_I18N_BASE_LOCALE, NYA_STRING_KEYS, NYA_STRING_COUNT));
 
     // what assets/config/engine.nya sets for the menus, without watching the file.
-    NYA_CONFIG.engine.ui = (NYA_UIStyle){ .font = "menu", .title_font = "menu_title", .body_size = GNY_MENU_ITEM_SIZE, .title_size = GNY_MENU_TITLE_SIZE, .item_height = 42.0F };
+    nya_config_engine()->ui = (NYA_UIStyle){ .font = "menu", .title_font = "menu_title", .body_size = GNY_MENU_ITEM_SIZE, .title_size = GNY_MENU_TITLE_SIZE, .item_height = 42.0F };
 
     GNY_LAYER_GAME   = layer_stub(GNY_LAYER_GAME_ID);
     GNY_LAYER_UI     = layer_stub(GNY_LAYER_UI_ID);
