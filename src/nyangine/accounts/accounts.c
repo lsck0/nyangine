@@ -11,3 +11,4 @@
 // last: it names the recovery table on the state the user half owns, and the throttle.
 #include "nyangine/accounts/accounts_recovery.c"
 #include "nyangine/accounts/accounts_invite.c"
+#include "nyangine/accounts/accounts_audit.c"

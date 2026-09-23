@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "nyangine/accounts/accounts_audit.h"
 #include "nyangine/accounts/accounts_identity.h"
 #include "nyangine/accounts/accounts_invite.h"
 #include "nyangine/accounts/accounts_recovery.h"
@@ -39,6 +40,7 @@ typedef struct {
     NYA_OrmTable* identities;
     NYA_OrmTable* recovery_codes;
     NYA_OrmTable* invites;
+    NYA_OrmTable* audit;
 
     b8 open;
 } _NYA_AccountsState;
@@ -119,6 +121,9 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
     NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountInvite), "account_invites", &_NYA_ACCOUNTS.invites));
     NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.invites));
 
+    NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountAudit), "account_audit", &_NYA_ACCOUNTS.audit));
+    NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.audit));
+
     /*
      * The hash a login verifies against when the username is not there. Made from bytes nobody will
      * ever type, so it can never match, and made *here* so that the first failed login for a name
@@ -147,6 +152,7 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
 void nya_accounts_close(void) {
     if (!_NYA_ACCOUNTS.open) return;
 
+    nya_orm_close(_NYA_ACCOUNTS.audit);
     nya_orm_close(_NYA_ACCOUNTS.invites);
     nya_orm_close(_NYA_ACCOUNTS.recovery_codes);
     nya_orm_close(_NYA_ACCOUNTS.identities);
@@ -202,6 +208,8 @@ NYA_Error _nya_account_create(NYA_Arena* arena, NYA_ConstCString username, NYA_C
     user.password_changed_at_s = user.created_at_s;
 
     NYA_TRY(nya_orm_insert(_NYA_ACCOUNTS.users, &user));
+
+    nya_account_audit_record(arena, 0, user.id, NYA_ACCOUNT_ACTION_CREATED, "");
 
     *out_user = user;
 
@@ -324,6 +332,8 @@ NYA_Error nya_account_password_reset(NYA_Arena* arena, u64 id, NYA_ConstCString 
     u32 ended = 0;
     NYA_TRY(nya_account_session_revoke_all(arena, id, &ended));
 
+    nya_account_audit_record(arena, 0, id, NYA_ACCOUNT_ACTION_PASSWORD_CHANGED, "");
+
     return NYA_OK;
 }
 
@@ -443,6 +453,10 @@ NYA_Error nya_account_destroy(NYA_Arena* arena, u64 id) {
 
     nya_crypto_wipe(user.password, sizeof(user.password));
 
+    // Written before the row goes, so the entry exists; the subject id it names now resolves to no
+    // account, which is the tombstone the header describes.
+    nya_account_audit_record(arena, 0, id, NYA_ACCOUNT_ACTION_DELETED, "");
+
     return nya_orm_delete(_NYA_ACCOUNTS.users, nya_sql_s64((s64)id));
 }
 
@@ -463,6 +477,10 @@ NYA_Error nya_account_disabled_set(NYA_Arena* arena, u64 id, b8 disabled) {
         NYA_TRY(nya_account_session_revoke_all(arena, id, &ended));
     }
 
+    // The actor is the caller's to know; this records that it happened, and the route that called it
+    // records who by passing itself to nya_account_audit_record when it has a richer story to tell.
+    nya_account_audit_record(arena, 0, id, disabled ? NYA_ACCOUNT_ACTION_DISABLED : NYA_ACCOUNT_ACTION_ENABLED, "");
+
     return NYA_OK;
 }
 
@@ -474,7 +492,11 @@ NYA_Error nya_account_roles_set(NYA_Arena* arena, u64 id, u64 roles) {
 
     user.roles = roles;
 
-    return nya_orm_update(_NYA_ACCOUNTS.users, &user);
+    NYA_TRY(nya_orm_update(_NYA_ACCOUNTS.users, &user));
+
+    nya_account_audit_record(arena, 0, id, NYA_ACCOUNT_ACTION_ROLES_SET, "");
+
+    return NYA_OK;
 }
 
 NYA_Error nya_account_count(u64* out_count) {

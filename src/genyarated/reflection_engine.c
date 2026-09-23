@@ -35,6 +35,33 @@ const NYA_TypeReflection _NYA_REFLECT_f32x2 = { .name = "f32x2", .kind = NYA_REF
 const NYA_TypeReflection _NYA_REFLECT_f32x3 = { .name = "f32x3", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x3), .alignment = alignof(f32x3), .element = &_NYA_REFLECT_f32, .element_count = 3 };
 const NYA_TypeReflection _NYA_REFLECT_f32x4 = { .name = "f32x4", .kind = NYA_REFLECT_VECTOR, .size = sizeof(f32x4), .alignment = alignof(f32x4), .element = &_NYA_REFLECT_f32, .element_count = 4 };
 
+/* NYA_AccountAudit, src/nyangine/accounts/accounts_audit.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountAudit_reason_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountAudit*)nullptr)->reason),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_ACCOUNTS_AUDIT_REASON_MAX),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AccountAudit_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountAudit, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountAudit, at_s), .hint = NYA_HINT_NONE },
+    { .name = "actor_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountAudit, actor_id), .hint = NYA_HINT_NONE },
+    { .name = "subject_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountAudit, subject_id), .hint = NYA_HINT_NONE },
+    { .name = "action", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_AccountAudit, action), .hint = NYA_HINT_NONE },
+    { .name = "reason", .type = &_NYA_REFLECT_NYA_AccountAudit_reason_ARRAY, .offset = nya_offsetof(NYA_AccountAudit, reason), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AccountAudit = {
+    .name = "NYA_AccountAudit",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AccountAudit),
+    .alignment = alignof(NYA_AccountAudit),
+    .fields = _NYA_REFLECT_NYA_AccountAudit_FIELDS,
+    .field_count = 6,
+};
+
 /* NYA_AccountIdentity, src/nyangine/accounts/accounts_identity.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity_provider_ARRAY = {
@@ -1963,6 +1990,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle = {
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT] = {
+    &_NYA_REFLECT_NYA_AccountAudit,
     &_NYA_REFLECT_NYA_AccountIdentity,
     &_NYA_REFLECT_NYA_AccountInvite,
     &_NYA_REFLECT_NYA_AccountRecoveryCode,

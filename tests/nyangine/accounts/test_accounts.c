@@ -768,6 +768,52 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: the audit records what was done, append-only, and survives the account
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Database* db = open_accounts(arena);
+    defer nya_accounts_close();
+    defer nya_sql_close(db);
+
+    NYA_AccountUser ada = { 0 };
+    NYA_EXPECT(nya_account_create(arena, "ada", PASSWORD, &ada));
+
+    // creating recorded one entry.
+    NYA_AccountAudit* rows  = nullptr;
+    u32               count = 0;
+    nya_check(nya_account_audit_list(arena, ada.id, 50, &rows, &count).ok && count == 1, "creating records one entry, got %u", count);
+    nya_check(rows[0].action == NYA_ACCOUNT_ACTION_CREATED, "which is a creation");
+    nya_check(nya_string_equals(nya_account_action_name(NYA_ACCOUNT_ACTION_CREATED), "created"), "with a name");
+
+    // the admin actions each add one, newest first.
+    NYA_EXPECT(nya_account_disabled_set(arena, ada.id, true));
+    NYA_EXPECT(nya_account_roles_set(arena, ada.id, 0b11));
+    NYA_EXPECT(nya_account_password_reset(arena, ada.id, REPLACEMENT));
+
+    nya_check(nya_account_audit_count(arena, ada.id, &count).ok && count == 4, "four events now, got %u", count);
+    NYA_EXPECT(nya_account_audit_list(arena, ada.id, 50, &rows, &count));
+    nya_check(rows[0].action == NYA_ACCOUNT_ACTION_PASSWORD_CHANGED, "the newest is the password change, got %u", rows[0].action);
+
+    // a manual entry with an actor and a reason, which is what an admin route writes.
+    nya_account_audit_record(arena, 999, ada.id, NYA_ACCOUNT_ACTION_DISABLED, "spam");
+    NYA_EXPECT(nya_account_audit_list(arena, ada.id, 1, &rows, &count));
+    nya_check(count == 1 && rows[0].actor_id == 999 && nya_string_equals(rows[0].reason, "spam"), "an actor and a reason are kept");
+
+    // deleting the account keeps its audit entries: the subject id is a tombstone now.
+    u64 id = ada.id;
+    NYA_EXPECT(nya_account_destroy(arena, id));
+
+    nya_check(!nya_account_find_by_id(arena, id, &ada).ok, "the account is gone");
+    nya_check(nya_account_audit_count(arena, id, &count).ok && count > 0, "but its audit trail is not, got %u events", count);
+    NYA_EXPECT(nya_account_audit_list(arena, id, 1, &rows, &count));
+    nya_check(rows[0].action == NYA_ACCOUNT_ACTION_DELETED, "the last of which is the deletion itself");
+
+    // a retention sweep is the only deletion, and it drops everything older than the horizon.
+    u32 removed = 0;
+    nya_check(nya_account_audit_prune(arena, 0, &removed).ok && removed > 0, "a prune clears the old entries, got %u", removed);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what every call answers before the tables are open
   // ─────────────────────────────────────────────────────────────────────────────
   {

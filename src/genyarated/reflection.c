@@ -151,6 +151,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_RobotRun = {
 };
 
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
+    &_NYA_REFLECT_NYA_AccountAudit,
     &_NYA_REFLECT_NYA_AccountIdentity,
     &_NYA_REFLECT_NYA_AccountInvite,
     &_NYA_REFLECT_NYA_AccountRecoveryCode,
