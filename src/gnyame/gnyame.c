@@ -210,13 +210,223 @@ NYA_INTERNAL void _gnyame_parts(void) {
                                            .owner = owner });
 }
 
-void gnyame_init(s32 argc, NYA_CString* argv) {
+/*
+ * ─────────────────────────────────────────────────────────
+ * THE COMMAND LINE
+ * ─────────────────────────────────────────────────────────
+ *
+ * A program here is not "a game" or "a server": it is a CLI whose commands start different sets of
+ * the parts above. `gnyame` plays, `gnyame serve` runs headless and serves, `gnyame export` writes the
+ * world it would have generated and exits. Every one of them is the same engine with a different list
+ * registered, which is what "programs compose" means in practice.
+ *
+ * The flags are declared here and *interpreted* by net_config.h, one pair at a time through
+ * nya_net_config_apply. So the help text below and the meaning of `--tickrate` cannot drift apart:
+ * this file says what the flags are called and `net` says what they do.
+ */
+
+/** Which command a run is. Play is the zero, because `gnyame` with no argument is the game. */
+typedef enum {
+    _GNY_COMMAND_PLAY = 0,
+    _GNY_COMMAND_SERVE,
+    _GNY_COMMAND_EXPORT,
+} _GnyCommand;
+
+NYA_INTERNAL _GnyCommand _GNY_COMMAND = _GNY_COMMAND_PLAY;
+
+/** Where `gnyame export` writes, from its positional argument. */
+NYA_INTERNAL char _GNY_EXPORT_PATH[256] = { 0 };
+
+/* The launch flags, shared by the commands that can take them. */
+
+/*
+ * Every one of these carries a default, which is what makes it optional: a parameter with none is one
+ * the parser insists on. The default is never read — `was_matched` decides whether a flag reaches
+ * net_config.h at all, so an untouched flag leaves that vocabulary's own default alone.
+ */
+#define _GNY_FLAG_STRING(variable, flag, text)                                                                                                       \
+    NYA_INTERNAL NYA_ArgParameter variable = { .kind          = NYA_ARG_PARAMETER_KIND_FLAG,                                                          \
+                                               .value.type    = NYA_TYPE_STRING,                                                                     \
+                                               .name          = (flag),                                                                              \
+                                               .description   = (text),                                                                                \
+                                               .default_value = { .type = NYA_TYPE_STRING, .as_string = (char*)"" } }
+
+#define _GNY_FLAG_NUMBER(variable, flag, text)                                                                                                       \
+    NYA_INTERNAL NYA_ArgParameter variable = { .kind          = NYA_ARG_PARAMETER_KIND_FLAG,                                                          \
+                                               .value.type    = NYA_TYPE_S64,                                                                        \
+                                               .name          = (flag),                                                                              \
+                                               .description   = (text),                                                                                \
+                                               .default_value = { .type = NYA_TYPE_S64, .as_s64 = 0 } }
+
+_GNY_FLAG_STRING(_gny_flag_connect, "connect", "Join the server at this address instead of playing alone.");
+_GNY_FLAG_NUMBER(_gny_flag_port, "port", "The port to reach a server on, or to serve from.");
+_GNY_FLAG_NUMBER(_gny_flag_listen, "listen", "Also listen on this port, so friends can join this game.");
+_GNY_FLAG_STRING(_gny_flag_name, "name", "What other players see. Remembered from the pause menu otherwise.");
+_GNY_FLAG_NUMBER(_gny_flag_max_players, "max-players", "How many may be connected at once.");
+_GNY_FLAG_NUMBER(_gny_flag_tickrate, "tickrate", "Fixed updates a second, 10 to 240.");
+_GNY_FLAG_STRING(_gny_flag_server_key, "server-key", "The only server key this client will talk to, 64 hex digits.");
+_GNY_FLAG_NUMBER(_gny_flag_seed, "seed", "The world to generate. Zero draws one.");
+_GNY_FLAG_STRING(_gny_flag_transport, "transport", "udp or steam.");
+_GNY_FLAG_NUMBER(_gny_flag_latency, "net-latency", "Simulate this many milliseconds of latency.");
+_GNY_FLAG_NUMBER(_gny_flag_jitter, "net-jitter", "Simulate this much jitter, in milliseconds.");
+_GNY_FLAG_NUMBER(_gny_flag_loss, "net-loss", "Simulate this percentage of packet loss.");
+_GNY_FLAG_NUMBER(_gny_flag_duplicate, "net-duplicate", "Simulate this percentage of duplicated packets.");
+_GNY_FLAG_NUMBER(_gny_flag_reorder, "net-reorder", "Simulate this percentage of reordered packets.");
+
+NYA_INTERNAL NYA_ArgParameter _gny_flag_help = { .kind          = NYA_ARG_PARAMETER_KIND_FLAG,
+                                                 .value.type    = NYA_TYPE_B8,
+                                                 .name          = "help",
+                                                 .description   = "Show this message.",
+                                                 .default_value = { .type = NYA_TYPE_B8, .as_b8 = false } };
+
+NYA_INTERNAL NYA_ArgParameter _gny_argument_output = {
+    .kind        = NYA_ARG_PARAMETER_KIND_POSITIONAL,
+    .value.type  = NYA_TYPE_STRING,
+    .name        = "output",
+    .description = "Where to write the world, as a .nya document.",
+    .completion  = { .kind = NYA_ARG_COMPLETION_KIND_FILE },
+};
+
+/** Every flag a launch understands, in the order the help lists them. */
+#define _GNY_LAUNCH_FLAGS                                                                                                                                &_gny_flag_connect, &_gny_flag_port, &_gny_flag_listen, &_gny_flag_name, &_gny_flag_max_players, &_gny_flag_tickrate, &_gny_flag_server_key,              &_gny_flag_seed, &_gny_flag_transport, &_gny_flag_latency, &_gny_flag_jitter, &_gny_flag_loss, &_gny_flag_duplicate, &_gny_flag_reorder
+
+/*
+ * One handler per command, and all they do is say which command this is: the work happens after the
+ * engine is up, and a handler runs while nothing has been brought up yet.
+ */
+NYA_INTERNAL void _gny_handle_play(NYA_ArgCommand* command) {
+    nya_unused(command);
+
+    _GNY_COMMAND = _GNY_COMMAND_PLAY;
+}
+
+NYA_INTERNAL void _gny_handle_serve(NYA_ArgCommand* command) {
+    nya_unused(command);
+
+    _GNY_COMMAND = _GNY_COMMAND_SERVE;
+}
+
+NYA_INTERNAL void _gny_handle_export(NYA_ArgCommand* command) {
+    nya_unused(command);
+
+    _GNY_COMMAND = _GNY_COMMAND_EXPORT;
+}
+
+NYA_INTERNAL NYA_ArgCommand _gny_command_serve = {
+    .name        = "serve",
+    .description = "Run a dedicated server: no window, no local player, everything else the same.",
+    .parameters  = { _GNY_LAUNCH_FLAGS, &_gny_flag_help },
+    .handler     = _gny_handle_serve,
+};
+
+NYA_INTERNAL NYA_ArgCommand _gny_command_export = {
+    .name        = "export",
+    .description = "Generate a world and write it out, without opening anything.",
+    .parameters  = { &_gny_argument_output, &_gny_flag_seed, &_gny_flag_help },
+    .handler     = _gny_handle_export,
+};
+
+/*
+ * The root carries no description of its own — the parser reserves that for the program's, above —
+ * so "what running this with no command does" is said in the parser's description instead.
+ */
+NYA_INTERNAL NYA_ArgCommand _gny_command_root = {
+    .is_root    = true,
+    .parameters = { _GNY_LAUNCH_FLAGS, &_gny_flag_help },
+    .handler    = _gny_handle_play,
+    .subcommands = { &_gny_command_serve, &_gny_command_export },
+};
+
+NYA_INTERNAL NYA_ArgParser _gny_parser = {
+    .name        = "gnyame",
+    // NYA_VERSION rather than VERSION: a check or a test builds this translation unit without the
+    // build's own -DVERSION, and "unknown" is a better answer there than a compile error.
+    .version     = NYA_VERSION,
+    .description = "The demo game, and the reference for how a program is built on nyangine. With no command it plays.",
+    .root_command = &_gny_command_root,
+};
+
+/**
+ * Hands every flag the parser matched to net_config.h, which is where a flag means something.
+ *
+ * A number is written back out as text because that is the shape the vocabulary takes, and because a
+ * flag that is a number here and a string there would be two descriptions of one thing again.
+ * */
+NYA_INTERNAL void _gnyame_launch_from(const NYA_ArgCommand* command, OUT NYA_NetLaunchConfig* out_launch) {
+    *out_launch = nya_net_config_default();
+
+    // A server says so before anything else, because the rest of the resolution depends on it.
+    if (_GNY_COMMAND == _GNY_COMMAND_SERVE) (void)nya_net_config_apply(out_launch, "server", nullptr);
+
+    for (u32 index = 0; index < NYA_ARG_MAX_PARAMETERS; index++) {
+        const NYA_ArgParameter* parameter = command->parameters[index];
+        if (parameter == nullptr) break;
+
+        if (!parameter->was_matched || parameter->kind != NYA_ARG_PARAMETER_KIND_FLAG) continue;
+        if (nya_string_equals(parameter->name, "help")) continue;
+
+        char text[NYA_NET_MAX_ADDRESS] = { 0 };
+
+        if (parameter->value.type == NYA_TYPE_STRING) {
+            (void)snprintf(text, sizeof(text), "%s", parameter->value.as_string != nullptr ? parameter->value.as_string : "");
+        } else {
+            (void)snprintf(text, sizeof(text), FMTs64, parameter->value.as_s64);
+        }
+
+        (void)nya_net_config_apply(out_launch, parameter->name, text);
+    }
+
+    nya_net_config_finish(out_launch);
+}
+
+b8 gnyame_init(s32 argc, NYA_CString* argv) {
     _gnyame_loaded = true;
 
     /*
-     * The command line is read first, because it decides what to bring up.
+     * The command line is read first, because it decides what to bring up — which parts are
+     * registered, and whether there is a frame at all.
      */
-    _GNY_LAUNCH = nya_net_config_from_args(argc, argv);
+    _gny_parser.executable_name = argv[0];
+
+    NYA_ArgCommand* command = nullptr;
+    NYA_Error       parsed  = nya_args_parse(&_gny_parser, argc, argv, &command);
+
+    if (!parsed.ok) {
+        (void)fprintf(stderr, "Error: %s\n\n", (NYA_ConstCString)parsed.message);
+        nya_args_print_usage(&_gny_parser, command);
+
+        return false;
+    }
+
+    if (_gny_flag_help.value.as_b8) {
+        nya_args_print_usage(&_gny_parser, command);
+        return false;
+    }
+
+    // The handler only records which command this is; everything it implies happens below, once the
+    // parts it asks for have been brought up.
+    NYA_Error chosen = nya_args_run_command(command);
+
+    if (!chosen.ok) {
+        (void)fprintf(stderr, "Error: %s\n", (NYA_ConstCString)chosen.message);
+        return false;
+    }
+
+    if (_GNY_COMMAND == _GNY_COMMAND_EXPORT) {
+        if (!_gny_argument_output.was_matched || _gny_argument_output.value.as_string == nullptr) {
+            (void)fprintf(stderr, "Error: export needs somewhere to write\n\n");
+            nya_args_print_usage(&_gny_parser, command);
+
+            return false;
+        }
+
+        (void)snprintf(_GNY_EXPORT_PATH, sizeof(_GNY_EXPORT_PATH), "%s", _gny_argument_output.value.as_string);
+    }
+
+    _gnyame_launch_from(command, &_GNY_LAUNCH);
+
+    // An export opens nothing and joins nothing: it is the world generator and a file.
+    if (_GNY_COMMAND == _GNY_COMMAND_EXPORT) _GNY_LAUNCH.dedicated = true;
 
     /*
      * The tick rate, from the command line where one was given.
@@ -252,6 +462,8 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
     );
 
     if (_GNY_LAUNCH.dedicated) nya_log_info("Running headless; no window will be created.");
+
+    return true;
 }
 
 /*
@@ -259,6 +471,65 @@ void gnyame_init(s32 argc, NYA_CString* argv) {
  * GNYAME RUN
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
+
+/**
+ * `gnyame export`: the world this launch would have generated, written out and nothing else.
+ *
+ * The one shot command, and the reason a program here is a CLI rather than a game with a server mode:
+ * this brings up exactly the parts that make a world, asks them for it, and returns. There is no
+ * frame, no window and no socket, and the same code made the world that a game would have played in.
+ * */
+NYA_INTERNAL NYA_Error _gnyame_export(NYA_ConstCString path) {
+    NYA_Arena* arena = nya_arena_create(.name = "gnyame_export");
+    defer nya_arena_destroy(arena);
+
+    /*
+     * The ground is generated here rather than waited for: a playing run makes it when the game screen
+     * is pushed, and this command pushes nothing. The seed is the launch's, so `--seed` means the same
+     * thing to an export as it does to a game.
+     */
+    gny_terrain_generate(gny_world()->terrain_seed);
+
+    const GNY_World* world = gny_world();
+
+    NYA_Object* document = nya_object_create(arena);
+
+    nya_object_add(document, "seed", (NYA_Value){ .type = NYA_TYPE_U64, .as_u64 = world->terrain_seed });
+    nya_object_add(document, "half_width", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = GNY_TERRAIN_HALF_WIDTH });
+    nya_object_add(document, "step", (NYA_Value){ .type = NYA_TYPE_F32, .as_f32 = GNY_TERRAIN_POINT_STEP });
+
+    /*
+     * The ground as the numbers it is, sampled at the step the generator used, rather than whatever
+     * the physics body ended up holding: this file is the world, and it must read the same on a
+     * machine that never ran the physics.
+     */
+    NYA_ArrayᐸNYA_Valueᐳ* heights = nya_array_create(arena, NYA_Value);
+
+    for (u32 index = 0; index < GNY_TERRAIN_POINT_COUNT; index++) {
+        f32 x = -GNY_TERRAIN_HALF_WIDTH + ((f32)index * GNY_TERRAIN_POINT_STEP);
+
+        // A named value rather than a compound literal in the call: the braces would split the macro's
+        // arguments at the comma inside them.
+        NYA_Value height = { .type = NYA_TYPE_F32, .as_f32 = nya_terrain2d_height_at(world->terrain2d, x) };
+
+        nya_array_add(heights, height);
+    }
+
+    nya_object_add(document, "heights", (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *heights });
+
+    NYA_String* text = nya_serialize(arena, document, NYA_SERDE_FORMAT_NYA, NYA_SERDE_PRETTY);
+    if (text == nullptr) return nya_error(NYA_ERROR_NOT_OK, "the world could not be written as a document");
+
+    NYA_File file = { 0 };
+    NYA_TRY(nya_file_open(path, NYA_FILE_MODE_WRITE | NYA_FILE_MODE_CREATE | NYA_FILE_MODE_TRUNCATE, &file));
+    defer nya_file_close(&file);
+
+    NYA_TRY(nya_file_write_bytes(&file, text->items, text->length));
+
+    nya_log_info("Wrote the world of seed " FMTu64 " to %s, %u points.", world->terrain_seed, path, GNY_TERRAIN_POINT_COUNT);
+
+    return NYA_OK;
+}
 
 void gnyame_run(void) {
     // a freshly reloaded DLL starts with zeroed globals: layers and config are rebuilt, the rest lives in the world.
@@ -268,6 +539,20 @@ void gnyame_run(void) {
         _gnyame_loaded = true;
 
         nya_log_debug("Restored the layers and config after a code reload.");
+    }
+
+    // The one shot command does its work here rather than in init, because it needs the world that
+    // the parts brought up — and then there is no frame to run.
+    if (_GNY_COMMAND == _GNY_COMMAND_EXPORT) {
+        NYA_Error written = _gnyame_export(_GNY_EXPORT_PATH);
+
+        if (!written.ok) nya_log_error("Could not export: %s", (NYA_ConstCString)written.message);
+
+        // A hot reloading build calls this until the app says it is done, and a one shot command is
+        // done after one.
+        nya_app_get()->should_quit = true;
+
+        return;
     }
 
     nya_app_run();

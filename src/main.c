@@ -18,9 +18,12 @@ s32 main(s32 argc, NYA_CString* argv) {
     // fault is captured with a stack trace and routed through the central crash sink.
     nya_backtrace_init();
 
-    gnyame_init(argc, argv);
-    gnyame_run();
-    gnyame_deinit();
+    // False is a command line that said its piece and is done: `--help`, or one that could not be
+    // understood. Nothing was brought up, so there is nothing to take down either.
+    if (gnyame_init(argc, argv)) {
+        gnyame_run();
+        gnyame_deinit();
+    }
 
     nya_backtrace_deinit();
 
@@ -104,7 +107,7 @@ NYA_INTERNAL b8 dll_settled(DllSettle* settle, u64 loaded_modified, u64 modified
 #else
 #define DLL_PATH "./gnyame.debug.so"
 #endif
-typedef void(gnyame_init_fn)(s32 argc, NYA_CString* argv);
+typedef b8(gnyame_init_fn)(s32 argc, NYA_CString* argv);
 typedef void(gnyame_run_fn)(void);
 typedef void(gnyame_deinit_fn)(void);
 
@@ -136,7 +139,13 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     if (!dll_load()) nya_log_panic("Failed to load %s: %s.", DLL_PATH, dlerror());
 
-    gnyame_init(argc, argv);
+    // A command line that said its piece — `--help`, or one that could not be understood — leaves
+    // nothing running and nothing to take down. See gnyame.h.
+    if (!gnyame_init(argc, argv)) {
+        nya_backtrace_deinit();
+        return EXIT_SUCCESS;
+    }
+
     nya_app = nya_app_get();
 
     /*
@@ -298,7 +307,7 @@ void update_callback_pointers(void) {
 #define DLL_LOADED_PATH_FORMAT "./gnyame.debug.loaded.%u.dll"
 #endif
 
-typedef void(gnyame_init_fn)(s32 argc, NYA_CString* argv);
+typedef b8(gnyame_init_fn)(s32 argc, NYA_CString* argv);
 typedef void(gnyame_run_fn)(void);
 typedef void(gnyame_deinit_fn)(void);
 
@@ -328,7 +337,13 @@ s32 main(s32 argc, NYA_CString* argv) {
 
     if (!dll_load()) nya_log_panic("Failed to load %s: error %lu.", DLL_PATH, GetLastError());
 
-    gnyame_init(argc, argv);
+    // A command line that said its piece — `--help`, or one that could not be understood — leaves
+    // nothing running and nothing to take down. See gnyame.h.
+    if (!gnyame_init(argc, argv)) {
+        nya_backtrace_deinit();
+        return EXIT_SUCCESS;
+    }
+
     nya_app = nya_app_get();
 
     // Started after nya_app exists. See the note on the Linux path: the watch thread writes

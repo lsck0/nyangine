@@ -9,10 +9,14 @@
  * developer builds load it as a DLL and reload it when the file changes (gnyame.c).
  *
  * ```c
- * void gnyame_init(s32 argc, NYA_CString* argv);  // nya_app_init, then build the world and push layers
- * void gnyame_run(void);                          // nya_app_run until should_quit
+ * b8   gnyame_init(s32 argc, NYA_CString* argv);  // read the command line, then bring up its parts
+ * void gnyame_run(void);                          // the frame loop, or the one shot the command asked for
  * void gnyame_deinit(void);                       // save, nya_app_deinit
  * ```
+ *
+ * `main` is a CLI: `gnyame` plays, `gnyame serve` runs headless and serves, `gnyame export <path>`
+ * writes the world it would have generated and exits. Each is the same engine with a different set of
+ * parts registered; see THE PARTS in gnyame.c.
  *
  * A code reload unloads nothing but zeroes every global in the new DLL and calls gnyame_run again. State
  * that must survive lives in GNY_World (world.h), which the engine world owns, and callbacks are passed
@@ -110,7 +114,13 @@
  * */
 #define GNY_FLAG_REPLICATED (1ULL << 20)
 
-void gnyame_init(s32 argc, NYA_CString* argv);
+/**
+ * Reads the command line and brings up the parts it asks for.
+ *
+ * False when there is nothing to run — `--help`, or a command line that could not be understood — and
+ * then nothing was brought up and gnyame_deinit must not be called either.
+ * */
+b8 gnyame_init(s32 argc, NYA_CString* argv);
 
 /** Runs the app. After a code reload, first rebuilds what this DLL's globals held. */
 void gnyame_run(void);

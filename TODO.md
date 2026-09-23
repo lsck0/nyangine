@@ -393,7 +393,7 @@ The refactor the rest stands on. Behaviour does not change; the include graph an
   optional dependencies first (curl, sqlite, Lua, Discord, Steam), because they show the five edits most
   clearly. Then every module above `math`. The generated umbrella header replaces `nyangine.h`'s hand-written
   list, and the generated `.clangd` ends the "flags are hand maintained" warning in `AGENTS.md`.
-- `[ ]` **Programs compose**, asked for 2026-09-22: a full 3D game can also host an HTTP server for something,
+- `[x]` **Programs compose**, asked for 2026-09-22 and finished 2026-09-23: a full 3D game can also host an HTTP server for something,
   and can be started as one path of a CLI. So a program's `main` is a CLI over `nya_args` (the build tool's
   command tree, already in `base`), and "run the game" is one command of it beside others such as a headless
   dedicated server with its HTTP API, a TUI dashboard over the same state, or a one shot export. gnyame is the
@@ -407,10 +407,15 @@ The refactor the rest stands on. Behaviour does not change; the include graph an
     program drives or a thread it owns — and `core_system.h`, which already registers engine subsystems and game
     systems alike, is where they are registered rather than each growing its own `_start`/`_stop` pair called
     from a hand written `main`.
-  - What that needs, roughly in order: one answer for who owns the frame (today `nya_app_run` owns it and the
-    HTTP server drains on its event, while a headless server has no frame at all); the threaded server from
-    Phase 3, so a part can own a thread instead of a tick; and a part declaring what it needs, so starting the
-    UI part without a window is refused at startup rather than at the first draw.
+  - What that needed, and what each turned into: the frame is the app loop's in every mode, and a part that
+    wants a thread owns one (the threaded server); a part declares what it needs through
+    `NYA_SystemEntry.needs`, so a UI part with no window is refused at startup by name rather than at its
+    first draw; and `NYA_AppOptions.parts` is where a program hands its list over.
+  - The CLI landed 2026-09-23: `gnyame` plays, `gnyame serve` runs headless and serves, `gnyame export <path>`
+    writes the world it would have generated and exits, each registering a different set of parts. The flags
+    are *named* in gnyame's command tree and *interpreted* by `net_config.h` one pair at a time through
+    `nya_net_config_apply`, so the help text and the meaning of `--tickrate` cannot drift apart.
+  - Still open: CI running each path, and the same shape for the other examples.
 - `[ ]` Profiles are just named component lists: `cli`, `tui`, `server`, `desktop`, `game`, `web`. The project,
   every example and every test names one or lists its own components. Done when `cli_app` links no SDL, its size
   is measured and written here, and removing a component from gnyame's list either builds or fails naming the

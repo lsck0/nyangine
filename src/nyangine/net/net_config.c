@@ -7,14 +7,13 @@
  */
 
 /**
- * Whether `argument` is `--name` or `--name=value`, and where the value is.
+ * Whether `name` is a flag that takes a value, which is what decides whether the next argv entry
+ * belongs to it or is an argument of its own.
+ *
+ * An exception of one rather than a second description of every flag: `--server` is the only flag in
+ * this vocabulary that takes none.
  * */
-NYA_INTERNAL b8 _nya_net_config_matches(NYA_ConstCString argument, NYA_ConstCString name, OUT NYA_ConstCString* out_attached) __attr_no_discard;
-
-/**
- * The value for a flag: attached if there was one, otherwise the next argv entry.
- * */
-NYA_INTERNAL NYA_ConstCString _nya_net_config_value(s32 argc, NYA_CString* argv, s32* at, NYA_ConstCString attached) __attr_no_discard;
+NYA_INTERNAL b8 _nya_net_config_takes_value(NYA_ConstCString name) __attr_no_discard;
 
 /** Parses an unsigned decimal, or reports the default with a warning. Never exits. */
 NYA_INTERNAL u64 _nya_net_config_number(NYA_ConstCString text, NYA_ConstCString what, u64 fallback) __attr_no_discard;
@@ -36,7 +35,7 @@ NYA_INTERNAL u16 _nya_net_config_port_from_text(NYA_ConstCString text, u64 lengt
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
 
-NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
+NYA_NetLaunchConfig nya_net_config_default(void) {
     NYA_NetLaunchConfig config = {
         // Single player is a server with nobody listening. See net.h; this default is that claim.
         .role = NYA_NET_ROLE_SERVER,
@@ -53,8 +52,158 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
 
     (void)snprintf(config.name, sizeof(config.name), "%s", "player");
 
-    b8 wants_server  = false;
-    b8 wants_connect = false;
+    return config;
+}
+
+b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_ConstCString value) {
+    nya_assert(config != nullptr);
+    nya_assert(name != nullptr);
+
+    if (nya_string_equals(name, "server")) {
+        config->dedicated = true;
+        return true;
+    }
+
+    if (nya_string_equals(name, "connect")) {
+        if (value == nullptr || value[0] == '\0') {
+            nya_log_warn("--connect needs an address; ignoring it and starting single player.");
+            return true;
+        }
+
+        (void)snprintf(config->address, sizeof(config->address), "%s", value);
+        return true;
+    }
+
+    if (nya_string_equals(name, "port")) {
+        u64 port = _nya_net_config_number(value, "--port", NYA_NET_DEFAULT_PORT);
+
+        // Zero is "let the system choose", which is meaningless for a port players have to reach,
+        // and anything above 65535 is not a port at all.
+        if (port == 0 || port > 65535) {
+            nya_log_warn("--port %llu is not a usable port; using %d.", (unsigned long long)port, NYA_NET_DEFAULT_PORT);
+            port = NYA_NET_DEFAULT_PORT;
+        }
+
+        config->port = (u16)port;
+        return true;
+    }
+
+    if (nya_string_equals(name, "listen")) {
+        u64 port = _nya_net_config_number(value, "--listen", NYA_NET_DEFAULT_PORT);
+
+        if (port == 0 || port > 65535) {
+            nya_log_warn("--listen %llu is not a usable port; not listening.", (unsigned long long)port);
+        return true;
+        }
+
+        config->listen_port = (u16)port;
+        return true;
+    }
+
+    if (nya_string_equals(name, "name")) {
+        if (value == nullptr || value[0] == '\0') {
+            nya_log_warn("--name needs a value; keeping '%s'.", config->name);
+        return true;
+        }
+
+        // Truncated rather than refused. A name is cosmetic, and a player with a long one should
+        // get a short one rather than no game.
+        (void)snprintf(config->name, sizeof(config->name), "%s", value);
+        config->named = true;
+        return true;
+    }
+
+    if (nya_string_equals(name, "max-players")) {
+        config->max_players = (u32)_nya_net_config_number(value, "--max-players", 0);
+        return true;
+    }
+
+    if (nya_string_equals(name, "tickrate")) {
+        config->tickrate = (u32)_nya_net_config_number(value, "--tickrate", 0);
+        return true;
+    }
+
+    if (nya_string_equals(name, "server-key")) {
+        if (!nya_net_key_from_hex(value, config->server_key)) nya_log_warn("--server-key needs 64 hex digits; trusting the first key the server presents.");
+        return true;
+    }
+
+    if (nya_string_equals(name, "net-latency")) {
+        config->conditions.latency_ms = (u32)nya_min(_nya_net_config_number(value, "--net-latency", 0), (u64)5000);
+        return true;
+    }
+
+    if (nya_string_equals(name, "net-jitter")) {
+        config->conditions.jitter_ms = (u32)nya_min(_nya_net_config_number(value, "--net-jitter", 0), (u64)5000);
+        return true;
+    }
+
+    if (nya_string_equals(name, "net-loss")) {
+        config->conditions.loss_percent = _nya_net_config_percent(value, "--net-loss");
+        return true;
+    }
+
+    if (nya_string_equals(name, "net-duplicate")) {
+        config->conditions.duplicate_percent = _nya_net_config_percent(value, "--net-duplicate");
+        return true;
+    }
+
+    if (nya_string_equals(name, "net-reorder")) {
+        config->conditions.reorder_percent = _nya_net_config_percent(value, "--net-reorder");
+        return true;
+    }
+
+    if (nya_string_equals(name, "transport")) {
+        if (value != nullptr && nya_string_equals(value, NYA_NET_JOIN_SCHEME_STEAM)) {
+            config->transport = NYA_NET_TRANSPORT_STEAM;
+        return true;
+        }
+
+        if (value != nullptr && nya_string_equals(value, NYA_NET_JOIN_SCHEME_UDP)) {
+            config->transport = NYA_NET_TRANSPORT_UDP;
+        return true;
+        }
+
+        nya_log_warn("--transport takes '%s' or '%s'; using udp.", NYA_NET_JOIN_SCHEME_UDP, NYA_NET_JOIN_SCHEME_STEAM);
+        return true;
+    }
+
+    if (nya_string_equals(name, "seed")) {
+        config->world_seed = _nya_net_config_number(value, "--seed", 0);
+        return true;
+    }
+
+    return false;
+}
+
+
+void nya_net_config_finish(NYA_NetLaunchConfig* config) {
+    nya_assert(config != nullptr);
+
+    b8 wants_connect = config->address[0] != '\0';
+
+    /*
+     * Contradictory. The server wins.
+     */
+    if (config->dedicated && wants_connect) {
+        nya_log_warn("Both --server and --connect were given; running as a server and ignoring --connect.");
+
+        wants_connect     = false;
+        config->address[0] = '\0';
+    }
+
+    if (wants_connect) {
+        config->role      = NYA_NET_ROLE_CLIENT;
+        config->dedicated = false;
+    }
+
+    // A dedicated server listens by definition: it exists for other people to connect to, so a
+    // --server without a --listen would be a process nobody can reach.
+    if (config->dedicated && config->listen_port == 0) config->listen_port = config->port;
+}
+
+NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
+    NYA_NetLaunchConfig config = nya_net_config_default();
 
     // From one, because argv[0] is the executable.
     for (s32 at = 1; at < argc; at++) {
@@ -63,163 +212,51 @@ NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) {
         NYA_ConstCString argument = argv[at];
         NYA_ConstCString attached = nullptr;
 
-        if (_nya_net_config_matches(argument, "server", &attached)) {
-            wants_server     = true;
-            config.dedicated = true;
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "connect", &attached)) {
-            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
-
-            if (value == nullptr || value[0] == '\0') {
-                nya_log_warn("--connect needs an address; ignoring it and starting single player.");
-                continue;
-            }
-
-            wants_connect = true;
-            (void)snprintf(config.address, sizeof(config.address), "%s", value);
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "port", &attached)) {
-            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
-
-            u64 port = _nya_net_config_number(value, "--port", NYA_NET_DEFAULT_PORT);
-
-            // Zero is "let the system choose", which is meaningless for a port players have to reach,
-            // and anything above 65535 is not a port at all.
-            if (port == 0 || port > 65535) {
-                nya_log_warn("--port %llu is not a usable port; using %d.", (unsigned long long)port, NYA_NET_DEFAULT_PORT);
-                port = NYA_NET_DEFAULT_PORT;
-            }
-
-            config.port = (u16)port;
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "listen", &attached)) {
-            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
-
-            u64 port = _nya_net_config_number(value, "--listen", NYA_NET_DEFAULT_PORT);
-
-            if (port == 0 || port > 65535) {
-                nya_log_warn("--listen %llu is not a usable port; not listening.", (unsigned long long)port);
-                continue;
-            }
-
-            config.listen_port = (u16)port;
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "name", &attached)) {
-            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
-
-            if (value == nullptr || value[0] == '\0') {
-                nya_log_warn("--name needs a value; keeping '%s'.", config.name);
-                continue;
-            }
-
-            // Truncated rather than refused. A name is cosmetic, and a player with a long one should
-            // get a short one rather than no game.
-            (void)snprintf(config.name, sizeof(config.name), "%s", value);
-            config.named = true;
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "max-players", &attached)) {
-            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
-
-            config.max_players = (u32)_nya_net_config_number(value, "--max-players", 0);
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "tickrate", &attached)) {
-            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
-
-            config.tickrate = (u32)_nya_net_config_number(value, "--tickrate", 0);
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "server-key", &attached)) {
-            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
-
-            if (!nya_net_key_from_hex(value, config.server_key)) nya_log_warn("--server-key needs 64 hex digits; trusting the first key the server presents.");
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "net-latency", &attached)) {
-            config.conditions.latency_ms = (u32)nya_min(_nya_net_config_number(_nya_net_config_value(argc, argv, &at, attached), "--net-latency", 0), (u64)5000);
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "net-jitter", &attached)) {
-            config.conditions.jitter_ms = (u32)nya_min(_nya_net_config_number(_nya_net_config_value(argc, argv, &at, attached), "--net-jitter", 0), (u64)5000);
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "net-loss", &attached)) {
-            config.conditions.loss_percent = _nya_net_config_percent(_nya_net_config_value(argc, argv, &at, attached), "--net-loss");
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "net-duplicate", &attached)) {
-            config.conditions.duplicate_percent = _nya_net_config_percent(_nya_net_config_value(argc, argv, &at, attached), "--net-duplicate");
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "net-reorder", &attached)) {
-            config.conditions.reorder_percent = _nya_net_config_percent(_nya_net_config_value(argc, argv, &at, attached), "--net-reorder");
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "transport", &attached)) {
-            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
-
-            if (value != nullptr && nya_string_equals(value, NYA_NET_JOIN_SCHEME_STEAM)) {
-                config.transport = NYA_NET_TRANSPORT_STEAM;
-                continue;
-            }
-
-            if (value != nullptr && nya_string_equals(value, NYA_NET_JOIN_SCHEME_UDP)) {
-                config.transport = NYA_NET_TRANSPORT_UDP;
-                continue;
-            }
-
-            nya_log_warn("--transport takes '%s' or '%s'; using udp.", NYA_NET_JOIN_SCHEME_UDP, NYA_NET_JOIN_SCHEME_STEAM);
-            continue;
-        }
-
-        if (_nya_net_config_matches(argument, "seed", &attached)) {
-            NYA_ConstCString value = _nya_net_config_value(argc, argv, &at, attached);
-
-            config.world_seed = _nya_net_config_number(value, "--seed", 0);
-            continue;
-        }
-
         /*
-         * Anything else is ignored, at debug rather than warn.
+         * The vocabulary lives in nya_net_config_apply and this loop only finds the pairs to hand it,
+         * so a program with its own command line — gnyame's, over nya_args — means the same thing by
+         * `--tickrate` as this does without either of them saying it twice.
          */
-        nya_log_debug("Ignoring unrecognised launch argument '%s'.", argument);
+        char name[64] = { 0 };
+
+        u64 length = 0;
+        while (argument[length] != '\0' && argument[length] != '=') length++;
+
+        if (length < 3 || argument[0] != '-' || argument[1] != '-') {
+            nya_log_debug("Ignoring unrecognised launch argument '%s'.", argument);
+            continue;
+        }
+
+        u64 copied = length - 2 < sizeof(name) - 1 ? length - 2 : sizeof(name) - 1;
+        nya_memcpy(name, argument + 2, copied);
+
+        if (argument[length] == '=') attached = argument + length + 1;
+
+        // A flag that takes no value must not eat the next argument, and one that does must: which is
+        // which is the vocabulary's business, so the value is read lazily as the next entry and the
+        // cursor only moves when the flag actually took it.
+        /*
+         * The next entry is this flag's value only if it is not itself a flag. `--port --server` is a
+         * port with no value followed by a flag, not a port called "--server": swallowing the second
+         * one would drop it silently, which is exactly what this used to do before the test below
+         * caught it.
+         */
+        NYA_ConstCString next = at + 1 < argc && argv[at + 1] != nullptr ? argv[at + 1] : nullptr;
+
+        if (next != nullptr && next[0] == '-' && next[1] == '-') next = nullptr;
+
+        NYA_ConstCString value = attached != nullptr ? attached : next;
+
+        if (!nya_net_config_apply(&config, name, value)) {
+            nya_log_debug("Ignoring unrecognised launch argument '%s'.", argument);
+            continue;
+        }
+
+        // Only a flag that actually took the next entry moves the cursor past it.
+        if (attached == nullptr && value != nullptr && _nya_net_config_takes_value(name)) at++;
     }
 
-    /*
-     * Contradictory. The server wins.
-     */
-    if (wants_server && wants_connect) {
-        nya_log_warn("Both --server and --connect were given; running as a server and ignoring --connect.");
-        wants_connect      = false;
-        config.address[0]  = '\0';
-    }
-
-    if (wants_connect) {
-        config.role      = NYA_NET_ROLE_CLIENT;
-        config.dedicated = false;
-    }
-
-    // A dedicated server listens by definition: it exists for other people to connect to, so a
-    // --server without a --listen would be a process nobody can reach.
-    if (config.dedicated && config.listen_port == 0) config.listen_port = config.port;
+    nya_net_config_finish(&config);
 
     return config;
 }
@@ -484,53 +521,8 @@ u16 _nya_net_config_port_from_text(NYA_ConstCString text, u64 length) {
     return (u16)value;
 }
 
-b8 _nya_net_config_matches(NYA_ConstCString argument, NYA_ConstCString name, OUT NYA_ConstCString* out_attached) {
-    nya_assert(argument != nullptr);
-    nya_assert(name != nullptr);
-    nya_assert(out_attached != nullptr);
-
-    *out_attached = nullptr;
-
-    // Only the long form. A single-letter flag in a game's command line collides with whatever a
-    // launcher prepends, and there is nothing here anyone types often enough to want the short one.
-    if (argument[0] != '-' || argument[1] != '-') return false;
-
-    const char* cursor = argument + 2;
-
-    for (const char* expected = name; *expected != '\0'; expected++, cursor++) {
-        if (*cursor != *expected) return false;
-    }
-
-    // An exact match: the value, if any, is the next argv entry.
-    if (*cursor == '\0') return true;
-
-    // `--name=value`: the value is attached. Everything after the first '=' is it, so a value
-    // containing an '=' survives.
-    if (*cursor == '=') {
-        *out_attached = cursor + 1;
-        return true;
-    }
-
-    // a longer flag that starts with this name, like `--portable` against `--port`.
-    return false;
-}
-
-NYA_ConstCString _nya_net_config_value(s32 argc, NYA_CString* argv, s32* at, NYA_ConstCString attached) {
-    nya_assert(at != nullptr);
-
-    if (attached != nullptr) return attached;
-
-    if (*at + 1 >= argc) return nullptr;
-    if (argv[*at + 1] == nullptr) return nullptr;
-
-    /*
-     * The next entry is only a value if it does not itself look like a flag.
-     */
-    if (argv[*at + 1][0] == '-' && argv[*at + 1][1] == '-') return nullptr;
-
-    *at += 1;
-
-    return argv[*at];
+b8 _nya_net_config_takes_value(NYA_ConstCString name) {
+    return !nya_string_equals(name, "server");
 }
 
 f32 _nya_net_config_percent(NYA_ConstCString text, NYA_ConstCString what) {

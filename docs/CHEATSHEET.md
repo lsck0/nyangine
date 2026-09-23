@@ -4446,7 +4446,10 @@ NYA_NET_JOIN_SCHEME_STEAM "steam"
 NYA_NET_MAX_JOIN_SECRET
 
 // functions
-NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv)  // Reads the command line.
+NYA_NetLaunchConfig nya_net_config_default(void)  // What a launch is before anything is said about it: single player, on the default port, over sockets.
+b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_ConstCString value)  // Applies one `--name value` pair, and answers whether it was a flag this vocabulary has.
+void nya_net_config_finish(NYA_NetLaunchConfig* config)
+NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv)
 void nya_net_config_report(const NYA_NetLaunchConfig* config)  // Logs what the config resolved to, at info.
 b8 nya_net_config_to_join_secret(const NYA_NetLaunchConfig* config, OUT char* out_secret, u64 capacity)  // Writes the address, port and server key of `config` as a join secret.
 b8 nya_net_config_from_join_secret(NYA_ConstCString secret, OUT NYA_NetLaunchConfig* out_config)  // Parses a join secret into the client half of a launch config: role, address, port and server key.

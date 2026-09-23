@@ -120,6 +120,33 @@ struct NYA_NetLaunchConfig {
 /**
  * Reads the command line. Never fails, and never exits.
  * */
+/**
+ * What a launch is before anything is said about it: single player, on the default port, over sockets.
+ * */
+NYA_API NYA_NetLaunchConfig nya_net_config_default(void) __attr_no_discard;
+
+/**
+ * Applies one `--name value` pair, and answers whether it was a flag this vocabulary has.
+ *
+ * The one place that knows what a launch flag *means*. A program with a command line of its own — a
+ * CLI over `nya_args`, as gnyame has — hands its parsed flags here one at a time, so what
+ * `--tickrate` does lives here while what it is called and how it is described live in that program's
+ * own command tree. `value` may be null for a flag that takes none.
+ *
+ * A value that is not usable is reported and the default kept rather than refused: somebody who
+ * mistyped a port wants the game to start, and the report is how they find out.
+ * */
+NYA_API b8 nya_net_config_apply(NYA_NetLaunchConfig* config, NYA_ConstCString name, NYA_ConstCString value);
+
+/**
+ * Settles what the flags mean together, once they have all been applied: `--server` with `--connect`
+ * is a server, a client is not dedicated, and a dedicated server listens.
+ *
+ * Apart from the applying because these answers depend on every flag rather than on one, and a
+ * program that applies its own would otherwise have to know the rules.
+ * */
+NYA_API void nya_net_config_finish(NYA_NetLaunchConfig* config);
+
 NYA_API NYA_NetLaunchConfig nya_net_config_from_args(s32 argc, NYA_CString* argv) __attr_no_discard;
 
 /** Logs what the config resolved to, at info. What a dedicated server's first line of output should be. */
