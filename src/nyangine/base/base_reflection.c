@@ -19,7 +19,11 @@ NYA_INTERNAL b8 _nya_reflect_write_integer(NYA_Type primitive, void* instance, s
 NYA_INTERNAL b8 _nya_reflect_real_to_s64(f64 real, OUT s64* out_value);
 
 /** One element of an array or vector, as a value. Shared by both, which differ only in their stride. */
-NYA_INTERNAL NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflection* element, const void* address);
+NYA_INTERNAL NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflection* element, const void* address, b8 redact);
+
+/** The one walk behind nya_reflect_to_object and its redacting twin; `redact` is the only difference. */
+NYA_INTERNAL NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance, b8 redact)
+    __attr_no_discard;
 
 /*
  * The check. See nya_reflect_check.
@@ -354,6 +358,14 @@ b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value v
  */
 
 NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance) {
+    return _nya_reflect_to_object(arena, type, instance, false);
+}
+
+NYA_Object* nya_reflect_to_object_redacted(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance) {
+    return _nya_reflect_to_object(arena, type, instance, true);
+}
+
+NYA_Object* _nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance, b8 redact) {
     nya_assert(arena != nullptr);
 
     if (type == nullptr || instance == nullptr) return nullptr;
@@ -371,6 +383,16 @@ NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* ty
         const void*               address     = (const u8*)instance + field->offset;
 
         if (field_type == nullptr) continue;
+
+        /*
+         * Before the switch and before the field is read, so what happens next does not depend on the
+         * field's kind: a tagged string, a tagged struct and a tagged array of them all come out as the
+         * same four words, and adding a kind to the switch below cannot open a hole in this.
+         */
+        if (redact && field->is_redacted) {
+            nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = NYA_REFLECT_REDACTED });
+            continue;
+        }
 
         switch (field_type->kind) {
             case NYA_REFLECT_PRIMITIVE: {
@@ -421,7 +443,7 @@ NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* ty
 
             case NYA_REFLECT_STRUCT:
             case NYA_REFLECT_UNION: {
-                NYA_Object* nested = nya_reflect_to_object(arena, field_type, address);
+                NYA_Object* nested = _nya_reflect_to_object(arena, field_type, address, redact);
                 if (nested == nullptr) continue;
 
                 nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *nested });
@@ -453,7 +475,7 @@ NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* ty
                 for (u32 e = 0; e < field_type->element_count; e++) {
                     const void* element_address = (const u8*)address + ((u64)e * field_type->element->size);
 
-                    nya_array_push_back(elements, _nya_reflect_element_to_value(arena, field_type->element, element_address));
+                    nya_array_push_back(elements, _nya_reflect_element_to_value(arena, field_type->element, element_address, redact));
                 }
 
                 nya_object_set(object, (NYA_CString)field->name, (NYA_Value){ .type = NYA_TYPE_ARRAY, .as_array = *elements });
@@ -901,9 +923,9 @@ u32 _nya_reflect_check_object(
     return problems;
 }
 
-NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflection* element, const void* address) {
+NYA_Value _nya_reflect_element_to_value(NYA_Arena* arena, const NYA_TypeReflection* element, const void* address, b8 redact) {
     if (element->kind == NYA_REFLECT_STRUCT || element->kind == NYA_REFLECT_UNION) {
-        NYA_Object* nested = nya_reflect_to_object(arena, element, address);
+        NYA_Object* nested = _nya_reflect_to_object(arena, element, address, redact);
 
         if (nested == nullptr) return (NYA_Value){ .type = NYA_TYPE_NULL };
 

@@ -100,6 +100,21 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * CONSTANTS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * What nya_reflect_to_object_redacted writes in place of a `@redact` field.
+ *
+ * One spelling, in one place, so a log is searchable for it and a test can assert on it. The angle
+ * brackets are not something a name or a number could hold, so a caller who sends this exact text has
+ * only managed to make their own request look redacted.
+ * */
+#define NYA_REFLECT_REDACTED "<redacted>"
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  * TYPES
  * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  */
@@ -184,6 +199,17 @@ struct NYA_ReflectField {
      * elsewhere; the sqlite ORM is the one that exists, see plugins/sqlite/orm.h.
      * */
     b8 is_key;
+
+    /**
+     * `@redact` on the field: its content is a secret, and nothing that writes this type for a person
+     * to read may write it.
+     *
+     * A fact about the source, like `is_key`, and acted on by nya_reflect_to_object_redacted, which is
+     * what every logging and dumping path goes through. It does not change what
+     * nya_reflect_to_object writes, because that is the conversion a response body and a save file are
+     * made of and redacting there would be redacting the answer itself.
+     * */
+    b8 is_redacted;
 
     /**
      * For a member of a tagged union: the value of the tag that selects this member.
@@ -306,7 +332,9 @@ NYA_API b8 nya_reflect_is_char_array(const NYA_TypeReflection* type) __attr_no_d
  *   and a self referencing type would otherwise never end
  *
  * What it leaves out, because none of it changes what a document means: type names (renaming a
- * struct is not a layout change), hints, `is_key` and `on_apply`.
+ * struct is not a layout change), hints, `is_key`, `is_redacted` and `on_apply`. Tagging a field
+ * `@redact` changes what a *log* holds, never what nya_reflect_to_object writes, so two builds that
+ * disagree about it still read each other's documents.
  *
  * Offsets and sizes are the compiler's, so a 32 bit peer disagrees with a 64 bit one over any type
  * holding a pointer, `char*` included. That is the intended strictness; a DTO meant for both carries
@@ -359,6 +387,21 @@ NYA_API NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflec
  * The inverse, in place.
  * */
 NYA_API NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance, const NYA_Object* object) __attr_no_discard;
+
+/**
+ * The same document, with every `@redact` field written as NYA_REFLECT_REDACTED instead of its
+ * content, at any depth and whatever the field's kind.
+ *
+ * This is what anything that turns a struct into text a person will read calls: a request log, a debug
+ * dump, an IPC or net message written out. The secret is never copied — the walk substitutes rather
+ * than overwriting afterwards — so there is no moment at which the arena holds it.
+ *
+ * It is a separate entry point rather than a flag on nya_reflect_to_object because the two have
+ * opposite jobs: that one builds the answer a caller receives and the save a program reloads, and both
+ * have to carry the field. Whoever writes for a reader chooses this one, once, and every sink
+ * downstream of that choice is covered.
+ * */
+NYA_API NYA_Object* nya_reflect_to_object_redacted(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance) __attr_no_discard;
 
 /*
  * ─────────────────────────────────────────────────────────

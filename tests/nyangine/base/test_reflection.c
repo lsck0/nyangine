@@ -150,6 +150,66 @@ static const NYA_TypeReflection _NYA_REFLECT_TestEntity = {
   .field_count = 8,
 };
 
+/*
+ * ─────────────────────────────────────────────────────────
+ * A TYPE WITH SECRETS IN IT
+ * ─────────────────────────────────────────────────────────
+ *
+ * `@redact` at three depths at once: a string beside a plain field, a whole nested struct, and a field
+ * of a struct inside an array. The walk has to substitute at all three, and nowhere else.
+ */
+
+typedef struct {
+  char code[16];
+  u32  attempts;
+} TestSecretCode;
+
+typedef struct {
+  char        label[16];
+  char        password[16];
+  TestVisual  look;
+  TestSecretCode codes[2];
+} TestAccount;
+
+static const NYA_ReflectField _NYA_REFLECT_TestSecretCode_FIELDS[] = {
+  { .name = "code", .type = &_NYA_REFLECT_char_16, .offset = nya_offsetof(TestSecretCode, code), .is_redacted = true },
+  { .name = "attempts", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(TestSecretCode, attempts) },
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_TestSecretCode = {
+  .name        = "TestSecretCode",
+  .kind        = NYA_REFLECT_STRUCT,
+  .size        = sizeof(TestSecretCode),
+  .alignment   = alignof(TestSecretCode),
+  .fields      = _NYA_REFLECT_TestSecretCode_FIELDS,
+  .field_count = 2,
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_TestSecretCode_2 = {
+  .name          = "TestSecretCode[]",
+  .kind          = NYA_REFLECT_ARRAY,
+  .size          = sizeof(TestSecretCode[2]),
+  .alignment     = alignof(TestSecretCode),
+  .element       = &_NYA_REFLECT_TestSecretCode,
+  .element_count = 2,
+};
+
+static const NYA_ReflectField _NYA_REFLECT_TestAccount_FIELDS[] = {
+  { .name = "label", .type = &_NYA_REFLECT_char_16, .offset = nya_offsetof(TestAccount, label) },
+  { .name = "password", .type = &_NYA_REFLECT_char_16, .offset = nya_offsetof(TestAccount, password), .is_redacted = true },
+  { .name = "look", .type = &_NYA_REFLECT_TestVisual, .offset = nya_offsetof(TestAccount, look), .is_redacted = true },
+  { .name = "codes", .type = &_NYA_REFLECT_TestSecretCode_2, .offset = nya_offsetof(TestAccount, codes) },
+};
+
+static const NYA_TypeReflection _NYA_REFLECT_TestAccount = {
+  .name        = "TestAccount",
+  .kind        = NYA_REFLECT_STRUCT,
+  .size        = sizeof(TestAccount),
+  .alignment   = alignof(TestAccount),
+  .fields      = _NYA_REFLECT_TestAccount_FIELDS,
+  .field_count = 4,
+};
+
 /** Proves on_apply runs, and runs after the fields are in place. */
 static u32 APPLY_CALLS      = 0;
 static s32 APPLY_SAW_HEALTH = 0;
@@ -421,6 +481,52 @@ s32 main(void) {
 
     nya_assert(APPLY_CALLS == 1, "the hook ran %u times", APPLY_CALLS);
     nya_assert(APPLY_SAW_HEALTH == 77, "the hook ran before the fields were written");
+
+    printf("  PASSED\n");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: @redact
+  // ─────────────────────────────────────────────────────────────────────────────
+  printf("TEST: redaction\n");
+  {
+    TestAccount account = {
+      .look  = { .color = { 0.5F, 0.5F, 0.5F, 1.0F }, .size = 2.0F },
+      .codes = { { .attempts = 3 }, { .attempts = 4 } },
+    };
+
+    (void)snprintf(account.label, sizeof(account.label), "luca");
+    (void)snprintf(account.password, sizeof(account.password), "hunter2");
+    (void)snprintf(account.codes[0].code, sizeof(account.codes[0].code), "AAAA-BBBB");
+    (void)snprintf(account.codes[1].code, sizeof(account.codes[1].code), "CCCC-DDDD");
+
+    // the plain conversion still writes everything: it is what a response body and a save are made of,
+    // and a redacting one would be redacting the answer rather than the record of it.
+    NYA_Object* plain = nya_reflect_to_object(arena, &_NYA_REFLECT_TestAccount, &account);
+    NYA_String* plain_text = nya_serialize(arena, plain, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
+
+    nya_assert(nya_string_contains(plain_text, "hunter2"), "nya_reflect_to_object must not redact");
+    nya_assert(nya_string_contains(plain_text, "AAAA-BBBB"));
+
+    NYA_Object* safe = nya_reflect_to_object_redacted(arena, &_NYA_REFLECT_TestAccount, &account);
+    NYA_String* safe_text = nya_serialize(arena, safe, NYA_SERDE_FORMAT_JSON, NYA_SERDE_NONE);
+
+    nya_assert(!nya_string_contains(safe_text, "hunter2"), "a tagged string survived: %.*s", (int)safe_text->length, safe_text->items);
+
+    // a tagged struct goes whole, rather than being walked into and half written.
+    nya_assert(!nya_string_contains(safe_text, "0.5"), "a tagged struct's fields survived");
+
+    // and a tagged field of a struct inside an array, which is the depth a walk is most likely to miss.
+    nya_assert(!nya_string_contains(safe_text, "AAAA-BBBB"), "a tagged field two levels down survived");
+    nya_assert(!nya_string_contains(safe_text, "CCCC-DDDD"));
+
+    // everything untagged is still there, at every depth, or the record would be useless.
+    nya_assert(nya_string_contains(safe_text, "luca"), "an untagged field was redacted");
+    nya_assert(nya_string_contains(safe_text, "\"attempts\""), "an untagged field beside a tagged one was lost");
+
+    NYA_Value* password = nya_object_get(safe, "password");
+    nya_assert(password != nullptr && password->type == NYA_TYPE_STRING);
+    nya_assert(nya_string_equals(password->as_string, NYA_REFLECT_REDACTED), "the substitution is one spelling everywhere");
 
     printf("  PASSED\n");
   }

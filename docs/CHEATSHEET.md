@@ -1015,12 +1015,13 @@ One generated description per annotated type, and everything generic over a stru
 typedef NYA_Error (*NYA_ReflectApplyFn)(void* instance)  // What `@on_apply` names.
 enum NYA_ReflectKind { NYA_REFLECT_PRIMITIVE, NYA_REFLECT_STRUCT, NYA_REFLECT_UNION, NYA_REFLECT_ENUM, NYA_REFLECT_ARRAY, NYA_REFLECT_VECTOR, NYA_REFLECT_POINTER, NYA_REFLECT_COUNT, }  // What a described type *is*, which selects which members of NYA_TypeReflection mean anything.
 enum NYA_ReflectHint { NYA_HINT_NONE, NYA_HINT_POSITION, NYA_HINT_SCALE, NYA_HINT_EULER, NYA_HINT_COLOR, NYA_HINT_ASSET, NYA_HINT_BITFLAGS, NYA_HINT_COUNT, }  // What a field *means*, where its type does not say.
-struct NYA_ReflectField { NYA_ConstCString name; const NYA_TypeReflection* type; u64 offset; NYA_ReflectHint hint; b8 is_key; b8 has_tag_value; s64 tag_value; }  // One member of a struct or union.
+struct NYA_ReflectField { NYA_ConstCString name; const NYA_TypeReflection* type; u64 offset; NYA_ReflectHint hint; b8 is_key; b8 is_redacted; b8 has_tag_value; s64 tag_value; }  // One member of a struct or union.
 struct NYA_ReflectVariant { NYA_ConstCString name; s64 value; }  // One variant of an enum.
 struct NYA_TypeReflection { NYA_ConstCString name; NYA_ReflectKind kind; u64 size; u64 alignment; NYA_Type primitive; const NYA_ReflectField* fields; u32 field_count; const NYA_ReflectField* tag_field; const NYA_ReflectVariant* variants; u32 variant_count; b8 is_bitflags; const NYA_TypeReflection* element; u32 element_count; NYA_ReflectApplyFn on_apply; }  // Everything known about one type.
 typedef void (*NYA_ReflectReportFn)(NYA_ConstCString path, NYA_ConstCString found, NYA_ConstCString expected, void* user_data)  // One problem found in a document.
 
 // macros
+NYA_REFLECT_REDACTED "<redacted>"  // What nya_reflect_to_object_redacted writes in place of a `@redact` field.
 nya_reflect_of(type)  // The reflection for `type`, by its bare name: `nya_reflect_of(NYA_Entity)`.
 NYA_REFLECT_LAYOUT_DEPTH_MAX 32  // Deepest nesting of described types the hash walks.
 NYA_REFLECT_PATH_MAX 256  // Longest dotted path a report carries, terminator included.
@@ -1039,6 +1040,7 @@ NYA_Value nya_reflect_read(const NYA_TypeReflection* type, const void* instance)
 b8 nya_reflect_write(const NYA_TypeReflection* type, void* instance, NYA_Value value)  // The inverse.
 NYA_Object* nya_reflect_to_object(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance)  // Any annotated type, as a self describing document.
 NYA_Error nya_reflect_from_object(const NYA_TypeReflection* type, void* instance, const NYA_Object* object)  // The inverse, in place.
+NYA_Object* nya_reflect_to_object_redacted(NYA_Arena* arena, const NYA_TypeReflection* type, const void* instance)
 u32 nya_reflect_check(const NYA_TypeReflection* type, const NYA_Object* object, NYA_ReflectReportFn report, void* user_data)
 ```
 
