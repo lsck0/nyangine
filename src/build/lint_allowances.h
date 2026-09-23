@@ -41,6 +41,7 @@ NYA_INTERNAL const _LintAllowed _LINT_VERB_PAIRS_ALLOWED[] = {
     { "nya_skeleton_player_layer_stop", "started by a verb other than start (play, rumble, move_to); rename or pair" },
     { "nya_sprite_animator_stop", "started by a verb other than start (play, rumble, move_to); rename or pair" },
     { "nya_blend_tree_init", "fills the caller's struct and holds nothing; the style still wants an empty deinit" },
+    { "nya_reconnect_init", "fills the caller's struct and holds nothing; the style still wants an empty deinit" },
     { "nya_skeleton_inertializer_init", "fills the caller's struct and holds nothing; the style still wants an empty deinit" },
     { "nya_skeleton_player_init", "fills the caller's struct and holds nothing; the style still wants an empty deinit" },
     { "nya_string_remove", "drops a substring wherever it occurs; there is no key to have added it at" },

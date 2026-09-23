@@ -62,6 +62,7 @@
 
 #include "nyangine/http/http_auth.h"
 #include "nyangine/http/http_cookie.h"
+#include "nyangine/http/http_health.h"
 #include "nyangine/http/http_idempotency.h"
 #include "nyangine/http/http_seal.h"
 #include "nyangine/http/http_keyring.h"

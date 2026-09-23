@@ -19,6 +19,7 @@
 #include "nyangine/base/base_crc.h"
 #include "nyangine/base/base_rate.h"
 #include "nyangine/base/base_circuit.h"
+#include "nyangine/base/base_reconnect.h"
 #include "nyangine/base/base_diagnostics.h"
 #include "nyangine/base/base_dict.h"
 #include "nyangine/base/base_dll.h"

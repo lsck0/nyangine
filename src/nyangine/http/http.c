@@ -13,6 +13,9 @@
 #include "nyangine/http/http_totp.c"
 /**/
 #include "nyangine/http/http_router.c"
+// after the router, whose route table it builds on: two routes an orchestrator polls for liveness and
+// readiness, the readiness checks a small registry the program composes.
+#include "nyangine/http/http_health.c"
 // after the router, whose exchange it reads and whose chain it wraps, and after the message layer,
 // whose bodies it decodes: it is the one layer the engine ships.
 #include "nyangine/http/http_log.c"

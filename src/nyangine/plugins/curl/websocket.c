@@ -79,12 +79,52 @@ struct NYA_WebSocket {
 
     b8 open_reported;
     b8 closed_reported;
+
+    /**
+     * The opt-in reconnect. Off (a zeroed policy) is the default and means a drop is final; on, an
+     * unexpected drop reopens the connection after a backoff. See base_reconnect.h.
+     * */
+    NYA_Reconnect reconnect;
+
+    /**
+     * What a redial needs, kept only when reconnect is on: the parsed url and a copy of the options
+     * whose strings live in this socket's arena rather than the caller's, so a reconnect a minute later
+     * does not read a url the caller has since freed.
+     * */
+    _NYA_WebSocketUrl    dial_url;
+    NYA_WebSocketOptions dial_options;
+
+    /** The caller asked to close, so the eventual CLOSED is expected and is never reconnected. */
+    b8 user_closed;
 };
 
 /* ── the url ── */
 
 /** Parses a ws or wss url into the only form anything else here accepts. */
 NYA_INTERNAL NYA_Error _nya_websocket_url_parse(NYA_ConstCString text, OUT _NYA_WebSocketUrl* out_url) __attr_no_discard;
+
+/* ── dialling ── */
+
+/**
+ * (Re)opens the connection: tears down any curl handles from a previous attempt, resets every buffer
+ * and the framing, makes a fresh key, and starts curl connecting again over `url` and `options`. Both
+ * the first connect and every reconnect go through here, so they cannot drift apart. On failure it
+ * leaves no curl handle behind and the socket's `easy`/`multi` are null.
+ * */
+NYA_INTERNAL NYA_Error _nya_websocket_dial(NYA_WebSocket* socket, const _NYA_WebSocketUrl* url, const NYA_WebSocketOptions* options) __attr_no_discard;
+
+/** Copies `source` into `out`, with its strings duplicated into `arena`, so a redial owns them. */
+NYA_INTERNAL NYA_Error _nya_websocket_options_dup(NYA_Arena* arena, const NYA_WebSocketOptions* source, OUT NYA_WebSocketOptions* out) __attr_no_discard;
+
+/** Duplicates `text` into `arena`. Null in is null out; the return is null only on out of memory. */
+NYA_INTERNAL NYA_ConstCString _nya_cstring_dup(NYA_Arena* arena, NYA_ConstCString text) __attr_no_discard;
+
+/**
+ * On a drop, whether the socket should wait and dial again rather than report CLOSED. True moves it to
+ * RECONNECTING and schedules the retry; false means the drop is final. Never true for a close the
+ * caller asked for.
+ * */
+NYA_INTERNAL b8 _nya_websocket_should_reconnect(NYA_WebSocket* socket);
 
 /* ── the handshake ── */
 
@@ -171,96 +211,41 @@ NYA_Error nya_websocket_create(NYA_Arena* arena, NYA_WebSocketOptions options, O
     }
 
     /*
-     * Opened before the socket is: the protocol has no socket in it, so a caller may queue a message in
-     * the same breath as the create and it goes out with the first flush after the 101.
+     * The reconnect policy, off unless the caller asked for it. When it is on, the redial a minute from
+     * now must not read the caller's url and headers — those are the caller's to free the moment create
+     * returns — so a copy of the options with its strings in this socket's arena, and the parsed url,
+     * are kept. The first connect then dials from that same copy, so the first attempt and every
+     * reconnect are byte for byte the same request.
      */
-    NYA_Error opened = nya_websocket_protocol_open(
-        &socket->protocol,
-        (NYA_WebSocketProtocolConfig){
-            .role             = NYA_WEBSOCKET_ROLE_CLIENT,
-            .message          = socket->message,
-            .message_capacity = ceiling,
-            .send             = socket->send,
-            .send_capacity    = sizeof(socket->send),
+    nya_reconnect_init(&socket->reconnect, options.reconnect);
+
+    const _NYA_WebSocketUrl*    dial_url     = &url;
+    const NYA_WebSocketOptions* dial_options = &options;
+
+    if (options.reconnect.enabled) {
+        NYA_Error copied = _nya_websocket_options_dup(arena, &options, &socket->dial_options);
+
+        if (!copied.ok) {
+            nya_arena_free(arena, socket->message, ceiling + 1);
+            nya_arena_free(arena, socket, sizeof(NYA_WebSocket));
+
+            return copied;
         }
-    );
 
-    if (!opened.ok) {
+        socket->dial_url = url;
+        dial_url         = &socket->dial_url;
+        dial_options     = &socket->dial_options;
+    }
+
+    NYA_Error dialed = _nya_websocket_dial(socket, dial_url, dial_options);
+
+    if (!dialed.ok) {
+        // _nya_websocket_dial leaves no curl handle behind on failure, so what is left to free is the
+        // arena the socket itself came out of.
         nya_arena_free(arena, socket->message, ceiling + 1);
         nya_arena_free(arena, socket, sizeof(NYA_WebSocket));
 
-        return opened;
-    }
-
-    u64 timeout_ms = options.handshake_timeout_ms == 0 ? (u64)NYA_WEBSOCKET_DEFAULT_TIMEOUT_MS : options.handshake_timeout_ms;
-
-    socket->handshake_deadline_ms = nya_clock_get_timestamp_ms() + timeout_ms;
-
-    u8 nonce[NYA_WEBSOCKET_KEY_BYTES] = { 0 };
-
-    if (!nya_os_random_bytes(nonce, sizeof(nonce))) {
-        nya_arena_free(arena, socket->message, ceiling + 1);
-        nya_arena_free(arena, socket, sizeof(NYA_WebSocket));
-
-        return nya_error(NYA_ERROR_NOT_OK, "the system random source failed, so no websocket key could be made");
-    }
-
-    {
-        NYA_Arena scratch = nya_arena_create_on_stack(.name = "websocket_key");
-        defer     nya_arena_destroy_on_stack(&scratch);
-
-        NYA_String* encoded = nya_string_create(&scratch);
-        nya_base64_encode(encoded, nonce, sizeof(nonce));
-
-        nya_assert(encoded->length == NYA_WEBSOCKET_KEY_TEXT_BYTES - 1, "a 16 byte base64 is always 24 characters");
-        nya_memcpy(socket->key_text, encoded->items, encoded->length);
-    }
-
-    // Computed now, so the check after the 101 is a comparison rather than a second place that knows
-    // the rule.
-    NYA_Error expected = nya_websocket_accept_from_key(socket->key_text, socket->expected_accept);
-
-    if (!expected.ok) {
-        nya_arena_free(arena, socket->message, ceiling + 1);
-        nya_arena_free(arena, socket, sizeof(NYA_WebSocket));
-
-        return expected;
-    }
-
-    socket->easy  = curl_easy_init();
-    socket->multi = curl_multi_init();
-
-    if (socket->easy == nullptr || socket->multi == nullptr) {
-        nya_websocket_destroy(socket);
-        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "curl could not make a handle");
-    }
-
-    (void)curl_easy_setopt(socket->easy, CURLOPT_URL, url.curl_url);
-
-    /*
-     * CONNECT_ONLY is the whole reason curl is here: it does the name resolution, the connect and the TLS
-     * handshake and then stops, leaving a socket that curl_easy_send and curl_easy_recv talk through.
-     * Everything above this line in the RFC is then this file's own code.
-     */
-    (void)curl_easy_setopt(socket->easy, CURLOPT_CONNECT_ONLY, 1L);
-    (void)curl_easy_setopt(socket->easy, CURLOPT_CONNECTTIMEOUT_MS, (long)timeout_ms);
-    (void)curl_easy_setopt(socket->easy, CURLOPT_NOSIGNAL, 1L);
-    (void)curl_easy_setopt(socket->easy, CURLOPT_PROTOCOLS_STR, "http,https");
-
-    if (options.insecure_skip_tls_verify) {
-        (void)curl_easy_setopt(socket->easy, CURLOPT_SSL_VERIFYPEER, 0L);
-        (void)curl_easy_setopt(socket->easy, CURLOPT_SSL_VERIFYHOST, 0L);
-    }
-
-    if (curl_multi_add_handle(socket->multi, socket->easy) != CURLM_OK) {
-        nya_websocket_destroy(socket);
-        return nya_error(NYA_ERROR_NOT_OK, "curl refused the handle");
-    }
-
-    NYA_Error queued = _nya_websocket_handshake_send(socket, &url, &options);
-    if (!queued.ok) {
-        nya_websocket_destroy(socket);
-        return queued;
+        return dialed;
     }
 
     *out_socket = socket;
@@ -301,6 +286,21 @@ b8 nya_websocket_poll(NYA_WebSocket* socket, OUT NYA_WebSocketEvent* out_event) 
     *out_event = (NYA_WebSocketEvent){ 0 };
 
     /*
+     * Waiting out a backoff after a drop: nothing happens until the retry is due, and when it is the
+     * socket dials again and falls through to the CONNECTING stage below in this same call. A dial that
+     * cannot even start is another drop, handled where every other drop is, at the CLOSED report.
+     */
+    if (socket->state == NYA_WEBSOCKET_STATE_RECONNECTING) {
+        if (!nya_reconnect_due(&socket->reconnect, nya_clock_get_timestamp_ms())) return false;
+
+        // Dialling moves the socket to CONNECTING, so this branch will not fire again for this attempt;
+        // the wait is cleared for good on the next OPEN, or reset by the next drop.
+        NYA_Error dialed = _nya_websocket_dial(socket, &socket->dial_url, &socket->dial_options);
+
+        if (!dialed.ok) _nya_websocket_fail(socket, NYA_WEBSOCKET_CLOSE_ABNORMAL, "the reconnect could not be started");
+    }
+
+    /*
      * One pass through the stages, in order, with no recursion and no loop: each stage either advances
      * the socket, leaves it exactly where it was, or closes it, and a stage that closed it falls through
      * to the CLOSED report at the bottom rather than calling back in.
@@ -324,6 +324,11 @@ b8 nya_websocket_poll(NYA_WebSocket* socket, OUT NYA_WebSocketEvent* out_event) 
     if (!socket->open_reported && socket->state == NYA_WEBSOCKET_STATE_OPEN) {
         socket->open_reported = true;
 
+        // A connect that reached OPEN is a good one, so the backoff starts over: the next drop, if any,
+        // waits base_ms again rather than picking up where the last run of failures left off. Harmless
+        // on the first connect, where the attempt count is already zero.
+        nya_reconnect_connected(&socket->reconnect);
+
         *out_event = (NYA_WebSocketEvent){ .kind = NYA_WEBSOCKET_EVENT_OPEN, .reason = "" };
         return true;
     }
@@ -337,6 +342,14 @@ b8 nya_websocket_poll(NYA_WebSocket* socket, OUT NYA_WebSocketEvent* out_event) 
     }
 
     if (socket->state == NYA_WEBSOCKET_STATE_CLOSED && !socket->closed_reported) {
+        // Before the drop is announced, the one place that decides a drop is not final: if the policy is
+        // on, the caller did not ask for this, and there are attempts left, the socket goes quiet and
+        // dials again later instead of reporting CLOSED. The peer never learns the difference.
+        if (_nya_websocket_should_reconnect(socket)) {
+            socket->state = NYA_WEBSOCKET_STATE_RECONNECTING;
+            return false;
+        }
+
         socket->closed_reported = true;
 
         *out_event = (NYA_WebSocketEvent){
@@ -387,6 +400,15 @@ NYA_Error nya_websocket_ping(NYA_WebSocket* socket, const u8* data, u64 size) {
 
 NYA_Error nya_websocket_close(NYA_WebSocket* socket, NYA_WebSocketClose code, NYA_ConstCString reason) {
     nya_assert(socket != nullptr);
+
+    // The caller asked, so whatever CLOSED follows is expected and is never reconnected, even mid-wait.
+    socket->user_closed = true;
+
+    // Asked to close while waiting out a backoff: there is no socket to say goodbye over, so end it now.
+    if (socket->state == NYA_WEBSOCKET_STATE_RECONNECTING) {
+        _nya_websocket_fail(socket, code, reason == nullptr ? "closed while reconnecting" : reason);
+        return NYA_OK;
+    }
 
     if (socket->state == NYA_WEBSOCKET_STATE_CLOSED || nya_websocket_protocol_is_closing(&socket->protocol)) return NYA_OK;
 
@@ -468,6 +490,199 @@ NYA_Error _nya_websocket_url_parse(NYA_ConstCString text, OUT _NYA_WebSocketUrl*
     );
 
     if (written < 0 || (u64)written >= sizeof(out_url->curl_url)) return nya_error(NYA_ERROR_INVALID_ARGUMENT, "'%s' is too long", text);
+
+    return NYA_OK;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────
+ * DIALLING
+ * ─────────────────────────────────────────────────────────
+ */
+
+NYA_ConstCString _nya_cstring_dup(NYA_Arena* arena, NYA_ConstCString text) {
+    nya_assert(arena != nullptr);
+
+    if (text == nullptr) return nullptr;
+
+    u64   size = strlen(text) + 1;
+    char* copy = nya_arena_alloc(arena, size);
+
+    if (copy == nullptr) return nullptr;
+
+    nya_memcpy(copy, text, size);
+
+    return copy;
+}
+
+NYA_Error _nya_websocket_options_dup(NYA_Arena* arena, const NYA_WebSocketOptions* source, OUT NYA_WebSocketOptions* out) {
+    nya_assert(arena != nullptr);
+    nya_assert(source != nullptr);
+    nya_assert(out != nullptr);
+
+    // Scalars and the reconnect policy come across by value; every pointer is replaced with a copy in
+    // `arena` below, since the originals are the caller's and outlive nothing.
+    *out = *source;
+
+    if (source->url != nullptr && (out->url = _nya_cstring_dup(arena, source->url)) == nullptr) {
+        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room to keep the websocket url for a reconnect");
+    }
+
+    if (source->subprotocol != nullptr && (out->subprotocol = _nya_cstring_dup(arena, source->subprotocol)) == nullptr) {
+        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room to keep the subprotocol for a reconnect");
+    }
+
+    if (source->bearer_token != nullptr && (out->bearer_token = _nya_cstring_dup(arena, source->bearer_token)) == nullptr) {
+        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room to keep the bearer token for a reconnect");
+    }
+
+    for (u32 i = 0; i < NYA_REQUEST_MAX_HEADERS && source->headers[i].name != nullptr; i++) {
+        if ((out->headers[i].name = _nya_cstring_dup(arena, source->headers[i].name)) == nullptr) {
+            return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room to keep a websocket header for a reconnect");
+        }
+
+        if (source->headers[i].value != nullptr && (out->headers[i].value = _nya_cstring_dup(arena, source->headers[i].value)) == nullptr) {
+            return nya_error(NYA_ERROR_OUT_OF_MEMORY, "no room to keep a websocket header for a reconnect");
+        }
+    }
+
+    return NYA_OK;
+}
+
+b8 _nya_websocket_should_reconnect(NYA_WebSocket* socket) {
+    nya_assert(socket != nullptr);
+
+    // A close the caller asked for is expected, and a policy that is off is the old behaviour: either
+    // way the drop is final.
+    if (socket->user_closed) return false;
+    if (!nya_reconnect_enabled(&socket->reconnect)) return false;
+
+    // Everything else is an unexpected drop: an abnormal close, a server going away, a protocol error
+    // this end raised. Redialling a socket that fails the same way every time is bounded by the policy's
+    // attempt cap, so even a doomed reconnect gives up rather than spinning.
+    return nya_reconnect_dropped(&socket->reconnect, nya_clock_get_timestamp_ms());
+}
+
+NYA_Error _nya_websocket_dial(NYA_WebSocket* socket, const _NYA_WebSocketUrl* url, const NYA_WebSocketOptions* options) {
+    nya_assert(socket != nullptr);
+    nya_assert(url != nullptr);
+    nya_assert(options != nullptr);
+
+    // Tear down whatever a previous attempt left, so a reconnect begins from the clean slate a first
+    // connect does.
+    if (socket->multi != nullptr && socket->easy != nullptr) (void)curl_multi_remove_handle(socket->multi, socket->easy);
+    if (socket->easy != nullptr) curl_easy_cleanup(socket->easy);
+    if (socket->multi != nullptr) (void)curl_multi_cleanup(socket->multi);
+
+    socket->easy   = nullptr;
+    socket->multi  = nullptr;
+    socket->socket = CURL_SOCKET_BAD;
+
+    // Every buffer and every report flag back to where create leaves them.
+    socket->handshake_size  = 0;
+    socket->request_size    = 0;
+    socket->receive_size    = 0;
+    socket->open_reported   = false;
+    socket->closed_reported = false;
+    socket->close_code      = NYA_WEBSOCKET_CLOSE_NONE;
+    socket->close_reason[0] = '\0';
+
+    /*
+     * Opened before the socket is: the protocol has no socket in it, so a caller may queue a message in
+     * the same breath as the create and it goes out with the first flush after the 101. This end is
+     * always a client.
+     */
+    NYA_TRY(nya_websocket_protocol_open(
+        &socket->protocol,
+        (NYA_WebSocketProtocolConfig){
+            .role             = NYA_WEBSOCKET_ROLE_CLIENT,
+            .message          = socket->message,
+            .message_capacity = socket->max_message_bytes,
+            .send             = socket->send,
+            .send_capacity    = sizeof(socket->send),
+        }
+    ));
+
+    u64 timeout_ms = options->handshake_timeout_ms == 0 ? (u64)NYA_WEBSOCKET_DEFAULT_TIMEOUT_MS : options->handshake_timeout_ms;
+
+    socket->handshake_deadline_ms = nya_clock_get_timestamp_ms() + timeout_ms;
+
+    // A fresh nonce every attempt: the key is per connection, and the answer the server is obliged to
+    // give is checked against this one.
+    u8 nonce[NYA_WEBSOCKET_KEY_BYTES] = { 0 };
+
+    if (!nya_os_random_bytes(nonce, sizeof(nonce))) {
+        return nya_error(NYA_ERROR_NOT_OK, "the system random source failed, so no websocket key could be made");
+    }
+
+    {
+        NYA_Arena scratch = nya_arena_create_on_stack(.name = "websocket_key");
+        defer     nya_arena_destroy_on_stack(&scratch);
+
+        NYA_String* encoded = nya_string_create(&scratch);
+        nya_base64_encode(encoded, nonce, sizeof(nonce));
+
+        nya_assert(encoded->length == NYA_WEBSOCKET_KEY_TEXT_BYTES - 1, "a 16 byte base64 is always 24 characters");
+        nya_memcpy(socket->key_text, encoded->items, encoded->length);
+    }
+
+    // Computed now, so the check after the 101 is a comparison rather than a second place that knows the rule.
+    NYA_TRY(nya_websocket_accept_from_key(socket->key_text, socket->expected_accept));
+
+    socket->easy  = curl_easy_init();
+    socket->multi = curl_multi_init();
+
+    if (socket->easy == nullptr || socket->multi == nullptr) {
+        if (socket->easy != nullptr) curl_easy_cleanup(socket->easy);
+        if (socket->multi != nullptr) (void)curl_multi_cleanup(socket->multi);
+
+        socket->easy  = nullptr;
+        socket->multi = nullptr;
+
+        return nya_error(NYA_ERROR_OUT_OF_MEMORY, "curl could not make a handle");
+    }
+
+    (void)curl_easy_setopt(socket->easy, CURLOPT_URL, url->curl_url);
+
+    /*
+     * CONNECT_ONLY is the whole reason curl is here: it does the name resolution, the connect and the TLS
+     * handshake and then stops, leaving a socket that curl_easy_send and curl_easy_recv talk through.
+     * Everything above this line in the RFC is then this file's own code.
+     */
+    (void)curl_easy_setopt(socket->easy, CURLOPT_CONNECT_ONLY, 1L);
+    (void)curl_easy_setopt(socket->easy, CURLOPT_CONNECTTIMEOUT_MS, (long)timeout_ms);
+    (void)curl_easy_setopt(socket->easy, CURLOPT_NOSIGNAL, 1L);
+    (void)curl_easy_setopt(socket->easy, CURLOPT_PROTOCOLS_STR, "http,https");
+
+    if (options->insecure_skip_tls_verify) {
+        (void)curl_easy_setopt(socket->easy, CURLOPT_SSL_VERIFYPEER, 0L);
+        (void)curl_easy_setopt(socket->easy, CURLOPT_SSL_VERIFYHOST, 0L);
+    }
+
+    if (curl_multi_add_handle(socket->multi, socket->easy) != CURLM_OK) {
+        curl_easy_cleanup(socket->easy);
+        (void)curl_multi_cleanup(socket->multi);
+
+        socket->easy  = nullptr;
+        socket->multi = nullptr;
+
+        return nya_error(NYA_ERROR_NOT_OK, "curl refused the handle");
+    }
+
+    NYA_Error queued = _nya_websocket_handshake_send(socket, url, options);
+
+    if (!queued.ok) {
+        (void)curl_multi_remove_handle(socket->multi, socket->easy);
+        curl_easy_cleanup(socket->easy);
+        (void)curl_multi_cleanup(socket->multi);
+
+        socket->easy  = nullptr;
+        socket->multi = nullptr;
+
+        return queued;
+    }
+
+    socket->state = NYA_WEBSOCKET_STATE_CONNECTING;
 
     return NYA_OK;
 }

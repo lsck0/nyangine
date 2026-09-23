@@ -87,6 +87,7 @@
 #include "nyangine/base/base_attributes.h"
 #include "nyangine/base/base_error.h"
 #include "nyangine/base/base_object.h"
+#include "nyangine/base/base_reconnect.h"
 #include "nyangine/base/base_types.h"
 // The protocol both ends share. A plugin depending on a module is the direction the layering allows;
 // http names nothing here.
@@ -156,6 +157,13 @@ enum NYA_WebSocketState {
     /** A close frame has been sent and the peer's has not come back. */
     NYA_WEBSOCKET_STATE_CLOSING,
 
+    /**
+     * Dropped, and waiting out the backoff before dialling again. Only ever reached when the options
+     * asked for a reconnect policy; without one a drop goes straight to CLOSED. The socket returns to
+     * CONNECTING on its own when the delay is up, and a caller keeps polling it exactly as before.
+     * */
+    NYA_WEBSOCKET_STATE_RECONNECTING,
+
     /** Done, for any reason. The socket never leaves this state; create another one. */
     NYA_WEBSOCKET_STATE_CLOSED,
 
@@ -189,6 +197,19 @@ struct NYA_WebSocketOptions {
 
     /** Accept any TLS certificate. Only for a test against a local server. */
     b8 insecure_skip_tls_verify;
+
+    /**
+     * Opt-in automatic reconnect. Disabled by default (a zeroed policy), which keeps the old behaviour:
+     * an unexpected drop is a single NYA_WEBSOCKET_EVENT_CLOSED and the socket is terminal.
+     *
+     * Enabled, a drop the caller did not ask for moves the socket to NYA_WEBSOCKET_STATE_RECONNECTING
+     * and dials again after nya_backoff_ms(attempt, ...) — full jitter, capped delay, capped attempts —
+     * rather than reporting CLOSED. A successful redial resets the backoff and reports OPEN again, which
+     * is the caller's cue to re-run whatever the connection needs re-established (re-subscribe, re-auth).
+     * When the attempts run out, or when the caller closes the socket itself, the drop is final and
+     * CLOSED is reported as always. See base_reconnect.h.
+     * */
+    NYA_ReconnectPolicy reconnect;
 };
 
 /*

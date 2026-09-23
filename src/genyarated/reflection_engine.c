@@ -1140,6 +1140,76 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_HttpIdentity = {
     .field_count = 4,
 };
 
+/* NYA_HttpHealthDto, src/nyangine/http/http_health.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpHealthDto_status_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpHealthDto*)nullptr)->status),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (16),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpHealthDto_FIELDS[] = {
+    { .name = "status", .type = &_NYA_REFLECT_NYA_HttpHealthDto_status_ARRAY, .offset = nya_offsetof(NYA_HttpHealthDto, status), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpHealthDto = {
+    .name = "NYA_HttpHealthDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpHealthDto),
+    .alignment = alignof(NYA_HttpHealthDto),
+    .fields = _NYA_REFLECT_NYA_HttpHealthDto_FIELDS,
+    .field_count = 1,
+};
+
+/* NYA_HttpReadyCheckDto, src/nyangine/http/http_health.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpReadyCheckDto_name_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpReadyCheckDto*)nullptr)->name),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (NYA_HTTP_HEALTH_MAX_NAME),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpReadyCheckDto_FIELDS[] = {
+    { .name = "name", .type = &_NYA_REFLECT_NYA_HttpReadyCheckDto_name_ARRAY, .offset = nya_offsetof(NYA_HttpReadyCheckDto, name), .hint = NYA_HINT_NONE },
+    { .name = "ready", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_HttpReadyCheckDto, ready), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpReadyCheckDto = {
+    .name = "NYA_HttpReadyCheckDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpReadyCheckDto),
+    .alignment = alignof(NYA_HttpReadyCheckDto),
+    .fields = _NYA_REFLECT_NYA_HttpReadyCheckDto_FIELDS,
+    .field_count = 2,
+};
+
+/* NYA_HttpReadinessDto, src/nyangine/http/http_health.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_HttpReadinessDto_checks_ARRAY = {
+    .name = "NYA_HttpReadyCheckDto[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_HttpReadinessDto*)nullptr)->checks),
+    .alignment = alignof(NYA_HttpReadyCheckDto),
+    .element = &_NYA_REFLECT_NYA_HttpReadyCheckDto, .element_count = (NYA_HTTP_HEALTH_MAX_CHECKS),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_HttpReadinessDto_FIELDS[] = {
+    { .name = "ready", .type = &_NYA_REFLECT_b8, .offset = nya_offsetof(NYA_HttpReadinessDto, ready), .hint = NYA_HINT_NONE },
+    { .name = "count", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpReadinessDto, count), .hint = NYA_HINT_NONE },
+    { .name = "failed", .type = &_NYA_REFLECT_u32, .offset = nya_offsetof(NYA_HttpReadinessDto, failed), .hint = NYA_HINT_NONE },
+    { .name = "checks", .type = &_NYA_REFLECT_NYA_HttpReadinessDto_checks_ARRAY, .offset = nya_offsetof(NYA_HttpReadinessDto, checks), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_HttpReadinessDto = {
+    .name = "NYA_HttpReadinessDto",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_HttpReadinessDto),
+    .alignment = alignof(NYA_HttpReadinessDto),
+    .fields = _NYA_REFLECT_NYA_HttpReadinessDto_FIELDS,
+    .field_count = 4,
+};
+
 /* NYA_HttpLogLevel, src/nyangine/http/http_log.h */
 
 static const NYA_ReflectVariant _NYA_REFLECT_NYA_HttpLogLevel_VARIANTS[] = {
@@ -2038,6 +2108,9 @@ const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE
     &_NYA_REFLECT_NYA_HttpAccountingDto,
     &_NYA_REFLECT_NYA_HttpScope,
     &_NYA_REFLECT_NYA_HttpIdentity,
+    &_NYA_REFLECT_NYA_HttpHealthDto,
+    &_NYA_REFLECT_NYA_HttpReadyCheckDto,
+    &_NYA_REFLECT_NYA_HttpReadinessDto,
     &_NYA_REFLECT_NYA_HttpLogLevel,
     &_NYA_REFLECT_NYA_HttpLogAddress,
     &_NYA_REFLECT_NYA_HttpLogConfig,

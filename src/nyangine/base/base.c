@@ -14,6 +14,8 @@
 // after the clock it reads and the random source its jitter comes from.
 #include "nyangine/base/base_rate.c"
 #include "nyangine/base/base_circuit.c"
+// after base_rate, whose nya_backoff_ms it draws each retry's delay from.
+#include "nyangine/base/base_reconnect.c"
 #include "nyangine/base/base_error.c"
 #include "nyangine/base/base_filesystem.c"
 // after base_filesystem.c: the whole-file helpers are written over its handles.

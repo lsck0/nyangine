@@ -37,6 +37,8 @@
  * curl -X POST localhost:47800/api/otp/activate -d '{"code":"123456"}'   # the factor is off until this passes
  * curl -X POST localhost:47800/api/otp/verify   -d '{"code":"123456"}'   # 204, or 401, or 429
  * curl -X POST localhost:47800/api/otp/recover  -d '{"code":"ABCDEFGH-IJKLMNOP"}'
+ * curl -i localhost:47800/healthz           # liveness: 200 while the process is up
+ * curl -i localhost:47800/readyz            # readiness: 200 when the db answers and its breaker is closed, else 503
  * curl localhost:47800/docs                 # the generated page
  * curl localhost:47800/openapi.json         # the document it is generated from
  * curl -X QUERY localhost:47800/api/metrics -d '{}'
@@ -207,6 +209,21 @@ static NYA_Arena*    NOTES_ARENA = nullptr;
 static NYA_Database* NOTES_DB    = nullptr;
 static NYA_OrmTable* NOTES_TABLE = nullptr;
 
+/*
+ * A breaker over the notes database. Every handler that touches the database records the outcome into
+ * it, so a run of failures trips it OPEN and calls are failed fast; the readiness route reads that same
+ * breaker's state rather than keeping a second idea of whether the database is healthy. This is the
+ * base_circuit tie-in http_health.h describes: the thing that fail-fasts the calls is the thing
+ * readiness reflects. See base_circuit.h.
+ */
+static NYA_CircuitBreaker* DB_BREAKER = nullptr;
+
+/** Keyed once, reused by both the breaker records and the readiness check that reads its state. */
+#define DB_CIRCUIT_KEY "notes-db"
+
+/** Ties the breaker to the readiness registry; its address is registered, so it is static. */
+static NYA_HttpHealthCircuit DB_CIRCUIT = { 0 };
+
 /** One note as a document, which is what goes out over the wire. The DTO, built by hand. */
 NYA_INTERNAL NYA_Value note_to_value(NYA_Arena* arena, const ExampleNote* note) {
     NYA_Object* object = nya_object_create(arena);
@@ -233,6 +250,44 @@ NYA_INTERNAL u64 note_count(void) {
     NYA_Value* notes = nya_object_get(result.rows->items[0], "notes");
 
     return notes != nullptr && notes->type == NYA_TYPE_S64 && notes->as_s64 > 0 ? (u64)notes->as_s64 : 0;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ * READINESS
+ * ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * The real readiness check: whether the notes database answers a trivial query right now. Registered as
+ * "db", so `GET /readyz` is 503 with `{"name":"db","ready":false}` in its list while the file is not
+ * open — which is what keeps traffic off this instance until its storage is up, rather than answering
+ * requests it can only 500. It reads program state, which is why the route is NYA_HTTP_AFFINITY_MAIN.
+ * */
+NYA_INTERNAL b8 example_db_ready(void* user) {
+    nya_unused(user);
+
+    if (NOTES_DB == nullptr) return false;
+
+    NYA_Arena scratch = nya_arena_create_on_stack(.name = "readyz_db");
+    defer     nya_arena_destroy_on_stack(&scratch);
+
+    NYA_SqlResult result = { 0 };
+
+    return nya_sql_query(NOTES_DB, &scratch, "SELECT 1", nullptr, 0, &result).ok;
+}
+
+/**
+ * Records a database call's outcome into the breaker, so readiness and fail-fast share one verdict. The
+ * allow is what base_circuit pairs with every record and what creates the breaker's entry; this example
+ * always makes the call rather than fail-fasting on it, since the point here is that /readyz reflects
+ * the breaker, not the fail-fast path itself.
+ * */
+NYA_INTERNAL void db_record(b8 ok) {
+    if (DB_BREAKER == nullptr) return;
+
+    (void)nya_circuit_allow(DB_BREAKER, DB_CIRCUIT_KEY);
+    nya_circuit_record(DB_BREAKER, DB_CIRCUIT_KEY, ok);
 }
 
 /*
@@ -326,7 +381,10 @@ NYA_INTERNAL NYA_HttpStatus notes_query(NYA_HttpExchange* exchange) {
     void* rows  = nullptr;
     u32   count = 0;
 
-    if (!nya_orm_select(NOTES_TABLE, exchange->arena, "ORDER BY id", nullptr, 0, &rows, &count).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    NYA_Error selected = nya_orm_select(NOTES_TABLE, exchange->arena, "ORDER BY id", nullptr, 0, &rows, &count);
+
+    db_record(selected.ok);
+    if (!selected.ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     for (u32 i = 0; i < count; i++) {
         const ExampleNote* note = nya_orm_at(NOTES_TABLE, rows, i);
@@ -370,7 +428,10 @@ NYA_INTERNAL NYA_HttpStatus notes_post(NYA_HttpExchange* exchange) {
     ExampleNote note = { .written_at_s = exchange->now_s };
     (void)snprintf(note.text, sizeof(note.text), "%s", text->as_string);
 
-    if (!nya_orm_insert(NOTES_TABLE, &note).ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
+    NYA_Error inserted = nya_orm_insert(NOTES_TABLE, &note);
+
+    db_record(inserted.ok);
+    if (!inserted.ok) return NYA_HTTP_STATUS_INTERNAL_ERROR;
 
     // what the stream is for: whoever is watching hears about this now rather than on their next poll.
     stream_push();
@@ -398,6 +459,10 @@ NYA_INTERNAL NYA_HttpStatus notes_delete(NYA_HttpExchange* exchange) {
     if (id == nullptr || id->type != NYA_TYPE_S64 || id->as_s64 < 0) return NYA_HTTP_STATUS_BAD_REQUEST;
 
     NYA_Error removed = nya_orm_delete(NOTES_TABLE, nya_sql_s64(id->as_s64));
+
+    // NOT_FOUND is the database working fine and the row simply not being there, so it counts as a
+    // healthy call to the breaker; only a real failure is recorded against it.
+    db_record(removed.ok || removed.kind == NYA_ERROR_NOT_FOUND);
 
     // An id that matches no row is NYA_ERROR_NOT_FOUND, which is a 404 and not a 500: absence is in
     // the return rather than in the data, so the two failures do not have to be told apart here.
@@ -977,6 +1042,21 @@ s32 main(s32 argc, char** argv) {
     // will not do is guess at a rename or a drop; see db_migrate.h.
     NYA_EXPECT(nya_orm_schema_migrate(NOTES_TABLE), "while bringing the notes table level with the model");
 
+    /*
+     * The database breaker and the two readiness checks it feeds. A handful of consecutive database
+     * failures trips the breaker OPEN, and while it is OPEN the "notes-db" readiness check reports
+     * not-ready, so /readyz answers 503 and this instance drops out of a load balancer's rotation until
+     * the database recovers. The "db" check is the direct one — does the file answer a query now — and
+     * the breaker check is the composed one, reflecting a state base_circuit already keeps. See
+     * base_circuit.h and http_health.h.
+     */
+    NYA_EXPECT(nya_circuit_breaker_create(NOTES_ARENA, &DB_BREAKER, .failure_threshold = 3, .open_ms = 5000), "while making the database breaker");
+
+    DB_CIRCUIT = (NYA_HttpHealthCircuit){ .breaker = DB_BREAKER, .key = DB_CIRCUIT_KEY };
+
+    NYA_EXPECT(nya_http_health_check_register("db", example_db_ready, nullptr), "while registering the database readiness check");
+    NYA_EXPECT(nya_http_health_check_register("notes-db-breaker", nya_http_health_circuit_ready, &DB_CIRCUIT), "while registering the breaker readiness check");
+
     // the secret the sessions are signed with, made here so that nothing ships one and a restart ends
     // every session this server issued.
     if (!nya_os_random_bytes(SESSION_SECRET, sizeof(SESSION_SECRET))) {
@@ -1056,6 +1136,14 @@ s32 main(s32 argc, char** argv) {
     defer nya_http_server_unmerge(nya_http_metrics_router());
 
     /*
+     * Liveness and readiness. /healthz is always 200 while the process can answer; /readyz runs the two
+     * checks registered above and answers 503 while the database is down or its breaker is OPEN. What an
+     * orchestrator polls to know whether to restart this process and whether to send it traffic.
+     */
+    NYA_EXPECT(nya_http_server_merge(nya_http_health_router()), "while merging the health routes");
+    defer nya_http_server_unmerge(nya_http_health_router());
+
+    /*
      * /openapi.json and /docs, generated by walking every merged route table. Opt in rather than
      * automatic: a server that does not want to publish its own shape should not have to unmerge it.
      */
@@ -1090,6 +1178,8 @@ s32 main(s32 argc, char** argv) {
     nya_log_info("The stylesheet is also at %s, cached for a year.", nya_http_static_url(NYA_ASSET_WEB_APP_CSS));
     nya_log_info("Streaming on %s://127.0.0.1:%u" NOTES_STREAM_PATH " — a snapshot a second, and one per write.", secure ? "wss" : "ws",
                  nya_http_server_port());
+    nya_log_info("Liveness at " NYA_HTTP_HEALTHZ_PATH " and readiness at " NYA_HTTP_READYZ_PATH " — %u readiness checks registered.",
+                 nya_http_health_check_count());
     nya_log_info("Logging at level %d, addresses as %d: a code posted to " OTP_VERIFY_PATH " is logged as \"" NYA_REFLECT_REDACTED "\".",
                  (s32)nya_http_log_config_get().level, (s32)nya_http_log_config_get().address);
 
