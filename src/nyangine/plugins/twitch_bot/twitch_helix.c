@@ -371,22 +371,22 @@ NYA_Object* _nya_twitch_helix_body(NYA_TwitchHelix* helix, const _NYA_TwitchHeli
 
     switch (call->kind) {
         case NYA_TWITCH_HELIX_CALL_SUBSCRIBE: {
-            nya_object_set(body, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->type });
-            nya_object_set(body, "version", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->version });
+            nya_object_add(body, "type", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->type });
+            nya_object_add(body, "version", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->version });
 
             // Who the subscription is about and who is listening. Twitch wants both for the chat types:
             // the channel whose chat it is, and the user whose token grants the read.
             NYA_Object* condition = nya_object_create(helix->exchanges);
-            nya_object_set(condition, "broadcaster_user_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->broadcaster_id });
-            nya_object_set(condition, "user_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = helix->bot_id });
+            nya_object_add(condition, "broadcaster_user_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->broadcaster_id });
+            nya_object_add(condition, "user_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = helix->bot_id });
 
-            nya_object_set(body, "condition", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *condition });
+            nya_object_add(body, "condition", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *condition });
 
             NYA_Object* transport = nya_object_create(helix->exchanges);
-            nya_object_set(transport, "method", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"websocket" });
-            nya_object_set(transport, "session_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->session });
+            nya_object_add(transport, "method", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)"websocket" });
+            nya_object_add(transport, "session_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->session });
 
-            nya_object_set(body, "transport", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *transport });
+            nya_object_add(body, "transport", (NYA_Value){ .type = NYA_TYPE_OBJECT, .as_object = *transport });
             break;
         }
 
@@ -396,9 +396,9 @@ NYA_Object* _nya_twitch_helix_body(NYA_TwitchHelix* helix, const _NYA_TwitchHeli
         case NYA_TWITCH_HELIX_CALL_CHAT_SEND:
         case NYA_TWITCH_HELIX_CALL_KIND_COUNT:
         default: {
-            nya_object_set(body, "broadcaster_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->broadcaster_id });
-            nya_object_set(body, "sender_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = helix->bot_id });
-            nya_object_set(body, "message", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->text });
+            nya_object_add(body, "broadcaster_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->broadcaster_id });
+            nya_object_add(body, "sender_id", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = helix->bot_id });
+            nya_object_add(body, "message", (NYA_Value){ .type = NYA_TYPE_STRING, .as_string = (char*)call->text });
             break;
         }
     }
