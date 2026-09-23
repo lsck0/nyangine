@@ -310,6 +310,46 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: a step that fails takes the whole migration back with it
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Database* db = nullptr;
+    NYA_EXPECT(nya_sql_open(arena, ":memory:", &db));
+    defer nya_sql_close(db);
+
+    NYA_OrmTable* v1 = nullptr;
+    NYA_EXPECT(nya_orm_open(arena, db, &NOTE_V1, "notes", &v1));
+    NYA_EXPECT(nya_orm_schema_migrate(v1));
+    nya_orm_close(v1);
+
+    NYA_OrmTable* v2 = nullptr;
+    NYA_EXPECT(nya_orm_open(arena, db, &NOTE_V2, "notes", &v2));
+    defer nya_orm_close(v2);
+
+    NYA_MigrationPlan* plan = nullptr;
+    NYA_EXPECT(nya_migration_plan_from_table(v2, arena, &plan));
+    nya_assert_eq(plan->step_count, 1U);
+
+    NYA_EXPECT(nya_migration_apply(db, plan));
+
+    /*
+     * The same plan a second time, which is the shape of every way a migration fails halfway: the
+     * statement is fine and the database says no. sqlite refuses the duplicate column, and what
+     * matters is that the transaction is rolled back rather than left open — an open transaction
+     * would hold the schema until the connection closed and make every later statement part of it.
+     */
+    NYA_Error twice = nya_migration_apply(db, plan);
+    nya_assert(!twice.ok, "adding a column that is already there is an error, not a no-op");
+
+    // Proven by starting another transaction: sqlite refuses a nested one, so this only succeeds if
+    // the failed migration rolled its own back.
+    NYA_EXPECT(nya_sql_transaction_begin(db));
+    NYA_EXPECT(nya_sql_transaction_rollback(db));
+
+    nya_assert_eq(nya_orm_schema_check(v2, nullptr, nullptr), 0U);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: a database written by an earlier run of this test
   // ─────────────────────────────────────────────────────────────────────────────
   {
