@@ -5582,6 +5582,25 @@ u64 nya_permission_audit_dropped(const NYA_Permissions* permissions)  // How man
 
 One database file: bound statements, a reflected struct as a row, derived migrations.
 
+### db_migrate.h
+
+What a table and a described type differ by, and which of those differences a machine may act on.
+
+```c
+// types
+enum NYA_MigrationStepKind { NYA_MIGRATION_STEP_CREATE_TABLE, NYA_MIGRATION_STEP_ADD_COLUMN, NYA_MIGRATION_STEP_COUNT, }  // What a derivable difference turns into.
+enum NYA_MigrationRefusalKind { NYA_MIGRATION_REFUSAL_REMOVED_COLUMN, NYA_MIGRATION_REFUSAL_RETYPED_COLUMN, NYA_MIGRATION_REFUSAL_MOVED_KEY, NYA_MIGRATION_REFUSAL_COUNT, }  // Why a difference was not turned into a statement.
+struct NYA_MigrationStep { NYA_MigrationStepKind kind; NYA_ConstCString subject; NYA_ConstCString sql; }  // One statement the plan will run, already built.
+struct NYA_MigrationRefusal { NYA_MigrationRefusalKind kind; NYA_ConstCString column; NYA_ConstCString found; NYA_ConstCString expected; }  // One difference the plan would not derive a statement for.
+struct NYA_MigrationPlan { char table[NYA_ORM_NAME_MAX]; NYA_MigrationStep steps[NYA_ORM_COLUMN_MAX]; u32 step_count; NYA_MigrationRefusal refusals[NYA_ORM_COLUMN_MAX * 2]; u32 refusal_count; b8 blocked; }  // The whole difference: what would be run, and what was refused.
+
+// functions
+NYA_ConstCString nya_migration_refusal_reason(NYA_MigrationRefusalKind kind)  // The sentence a refusal is reported with, so every caller says the same thing about it.
+NYA_Error nya_migration_plan_from_table(NYA_OrmTable* table, NYA_Arena* arena, OUT NYA_MigrationPlan** out_plan)  // What `table`'s type and the table actually in the database differ by.
+NYA_Error nya_migration_plan_from_types( NYA_Arena* arena, const NYA_TypeReflection* from, const NYA_TypeReflection* to, NYA_ConstCString table_name, OUT NYA_MigrationPlan** out_plan )
+NYA_Error nya_migration_apply(NYA_Database* database, const NYA_MigrationPlan* plan)
+```
+
 ### db_orm.h
 
 A reflected struct, stored as a row. The schema comes from the `@reflect` table, the primary key
@@ -5603,6 +5622,7 @@ NYA_Error nya_orm_open( NYA_Arena* arena, NYA_Database* database, const NYA_Type
 void nya_orm_close(NYA_OrmTable* table)  // Releases the binding.
 NYA_Error nya_orm_schema_create(NYA_OrmTable* table)
 NYA_Error nya_orm_schema_destroy(NYA_OrmTable* table)
+NYA_Error nya_orm_schema_migrate(NYA_OrmTable* table)
 u32 nya_orm_schema_check(NYA_OrmTable* table, NYA_OrmReportFn report, void* user_data)
 NYA_Error nya_orm_insert(NYA_OrmTable* table, void* instance)  // Inserts `instance` as one row, every field bound to a parameter.
 NYA_Error nya_orm_update(NYA_OrmTable* table, const void* instance)  // Writes every non-key column of the row whose key `instance` holds.

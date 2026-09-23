@@ -87,8 +87,11 @@
  * ─────────────────────────────────────────────────────────
  *
  * A schema that has drifted from the struct is the thing that actually bites, so it is said out loud
- * rather than worked around. This module never runs ALTER TABLE, never rebuilds a table and never
- * drops data to make a struct fit.
+ * rather than worked around. Nothing in *this* file runs ALTER TABLE, rebuilds a table or drops data
+ * to make a struct fit: it maps a type onto a table and says when the two disagree. Acting on that
+ * is db_migrate.h, which adds what it can derive and refuses what it cannot — and
+ * nya_orm_schema_migrate below is its one-call form, for a program that wants its table brought
+ * level at startup rather than only told that it is not.
  *
  * nya_orm_schema_create creates the table when it is absent and then checks the one that is there. It
  * fails, naming the columns, when the table is missing a column the struct describes, when a column's
@@ -101,10 +104,11 @@
  * so a column this build has never heard of is neither read nor written, which is what lets an older
  * build keep working against a table a newer one has grown.
  *
- * What to do about a failure is the caller's, and there are only three honest answers: write the
- * ALTER TABLE yourself with nya_sql_exec, copy the rows into a new table and rename it, or delete the
- * file and start again. A generated migration would have to guess which rename was a rename and which
- * was a drop, and a wrong guess is somebody's save file.
+ * What to do about a failure is the caller's. A missing column is derivable and nya_orm_schema_migrate
+ * adds it; the rest leave three honest answers, which are to write the statement yourself with
+ * nya_sql_exec, copy the rows into a new table and rename it, or delete the file and start again. No
+ * migration guesses which rename was a rename and which was a drop, because a wrong guess there is
+ * somebody's save file.
  *
  * ─────────────────────────────────────────────────────────
  * RELATIONS ARE NOT IN SCOPE
@@ -310,6 +314,16 @@ NYA_API NYA_Error nya_orm_schema_create(NYA_OrmTable* table) __attr_no_discard;
 
 /** `DROP TABLE IF EXISTS`. The partner of nya_orm_schema_create, and as final as it sounds. */
 NYA_API NYA_Error nya_orm_schema_destroy(NYA_OrmTable* table) __attr_no_discard;
+
+/**
+ * What nya_orm_schema_create is for a schema that has moved on: creates the table when it is absent,
+ * adds the columns the struct has gained since, logs every difference it would not derive, and fails
+ * naming the column when one of those differences means the table cannot hold this type.
+ *
+ * The rules are db_migrate.h's, in full, and this is the three calls it documents in one. Implemented
+ * there rather than here, because the mapping and the migration are different jobs.
+ * */
+NYA_API NYA_Error nya_orm_schema_migrate(NYA_OrmTable* table) __attr_no_discard;
 
 /**
  * Reads the table's real columns and reports every difference from the struct, returning how many it

@@ -77,6 +77,11 @@ bench/*
 tests/**/test_*
 !tests/**/test_*.c
 
+# The one test database that is kept on purpose: tests/nyangine/db/test_db_migrate.c reopens the file
+# the previous run of the suite wrote, because a schema that has never survived a restart has not been
+# shown to survive one.
+/_test_db_reopen.db
+
 # Objects the split compile and link rules write, see OBJECT_DIRECTORY in src/build/flags.h.
 /.objects/
 

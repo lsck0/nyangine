@@ -7,6 +7,7 @@
  * Overview:
  *   db_sql.h        the connection, bound statements, transactions, and the key the file is under
  *   db_orm.h        a described type bound to a table: insert, update, delete, find, select
+ *   db_migrate.h    what two schemas differ by, what of that is derivable, and what is refused
  *
  * It sits below `http` and `accounts` and above `base` and `crypto`: everything that has to survive a
  * restart — sessions, accounts, the permission cache, a bot's state — is a table here, and nothing in
@@ -21,7 +22,8 @@
  * NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(Note), "notes", &notes));
  * defer nya_orm_close(notes);
  *
- * NYA_TRY(nya_orm_schema_create(notes));
+ * // Creates the table, or grows the one that is there by the columns the struct has gained.
+ * NYA_TRY(nya_orm_schema_migrate(notes));
  * ```
  *
  * ─────────────────────────────────────────────────────────
@@ -52,3 +54,5 @@
 #include "nyangine/db/db_sql.h"
 // After db_sql.h: a table binds a described type to a connection and takes its key as an NYA_SqlValue.
 #include "nyangine/db/db_orm.h"
+// After db_orm.h: a plan is derived from a table's columns and the schema the database has.
+#include "nyangine/db/db_migrate.h"
