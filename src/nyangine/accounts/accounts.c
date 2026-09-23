@@ -8,3 +8,5 @@
 #include "nyangine/accounts/accounts_session.c"
 // last: it names the users table, the sessions table and both of their halves.
 #include "nyangine/accounts/accounts_identity.c"
+// last: it names the recovery table on the state the user half owns, and the throttle.
+#include "nyangine/accounts/accounts_recovery.c"

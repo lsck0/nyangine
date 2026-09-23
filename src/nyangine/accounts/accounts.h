@@ -7,6 +7,7 @@
  * accounts_session.h   the fact that they are logged in right now, and how that ends
  * accounts_throttle.h  what a wrong password costs the next one, so guessing is not free
  * accounts_identity.h  the same person arriving through Steam, through Discord, or with a password
+ * accounts_recovery.h  the codes that get somebody back in when the password is gone
  *
  * Users and sessions over `db`, `crypto` and `permission`. What this module is for is the part of an
  * application every application writes again and worse: a password that is stored as a hash nobody
@@ -63,6 +64,7 @@
 #pragma once
 
 #include "nyangine/accounts/accounts_identity.h"
+#include "nyangine/accounts/accounts_recovery.h"
 #include "nyangine/accounts/accounts_session.h"
 #include "nyangine/accounts/accounts_throttle.h"
 #include "nyangine/accounts/accounts_user.h"

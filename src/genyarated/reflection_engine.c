@@ -77,6 +77,31 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_AccountIdentity = {
     .field_count = 7,
 };
 
+/* NYA_AccountRecoveryCode, src/nyangine/accounts/accounts_recovery.h */
+
+static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountRecoveryCode_code_hash_ARRAY = {
+    .name = "char[]", .kind = NYA_REFLECT_ARRAY,
+    .size = sizeof(((NYA_AccountRecoveryCode*)nullptr)->code_hash),
+    .alignment = alignof(char),
+    .element = &_NYA_REFLECT_char, .element_count = (72),
+};
+
+static const NYA_ReflectField _NYA_REFLECT_NYA_AccountRecoveryCode_FIELDS[] = {
+    { .name = "id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountRecoveryCode, id), .hint = NYA_HINT_NONE, .is_key = true },
+    { .name = "account_id", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountRecoveryCode, account_id), .hint = NYA_HINT_NONE },
+    { .name = "code_hash", .type = &_NYA_REFLECT_NYA_AccountRecoveryCode_code_hash_ARRAY, .offset = nya_offsetof(NYA_AccountRecoveryCode, code_hash), .hint = NYA_HINT_NONE, .is_redacted = true },
+    { .name = "created_at_s", .type = &_NYA_REFLECT_u64, .offset = nya_offsetof(NYA_AccountRecoveryCode, created_at_s), .hint = NYA_HINT_NONE },
+};
+
+const NYA_TypeReflection _NYA_REFLECT_NYA_AccountRecoveryCode = {
+    .name = "NYA_AccountRecoveryCode",
+    .kind = NYA_REFLECT_STRUCT,
+    .size = sizeof(NYA_AccountRecoveryCode),
+    .alignment = alignof(NYA_AccountRecoveryCode),
+    .fields = _NYA_REFLECT_NYA_AccountRecoveryCode_FIELDS,
+    .field_count = 4,
+};
+
 /* NYA_AccountSession, src/nyangine/accounts/accounts_session.h */
 
 static const NYA_TypeReflection _NYA_REFLECT_NYA_AccountSession_token_hash_ARRAY = {
@@ -1911,6 +1936,7 @@ const NYA_TypeReflection _NYA_REFLECT_NYA_UIStyle = {
 
 const NYA_TypeReflection* const NYA_REFLECT_ENGINE_TYPES[NYA_REFLECT_ENGINE_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_AccountIdentity,
+    &_NYA_REFLECT_NYA_AccountRecoveryCode,
     &_NYA_REFLECT_NYA_AccountSession,
     &_NYA_REFLECT_NYA_AccountUser,
     &_NYA_REFLECT_NYA_AudioPass,

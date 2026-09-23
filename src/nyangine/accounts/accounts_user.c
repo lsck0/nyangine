@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "nyangine/accounts/accounts_identity.h"
+#include "nyangine/accounts/accounts_recovery.h"
 #include "nyangine/accounts/accounts_session.h"
 #include "nyangine/accounts/accounts_throttle.h"
 #include "nyangine/accounts/accounts_user.h"
@@ -33,6 +34,7 @@ typedef struct {
     NYA_OrmTable* users;
     NYA_OrmTable* sessions;
     NYA_OrmTable* identities;
+    NYA_OrmTable* recovery_codes;
 
     b8 open;
 } _NYA_AccountsState;
@@ -107,6 +109,9 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
     NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountIdentity), "account_identities", &_NYA_ACCOUNTS.identities));
     NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.identities));
 
+    NYA_TRY(nya_orm_open(arena, database, nya_reflect_of(NYA_AccountRecoveryCode), "account_recovery_codes", &_NYA_ACCOUNTS.recovery_codes));
+    NYA_TRY(nya_orm_schema_migrate(_NYA_ACCOUNTS.recovery_codes));
+
     /*
      * The hash a login verifies against when the username is not there. Made from bytes nobody will
      * ever type, so it can never match, and made *here* so that the first failed login for a name
@@ -135,6 +140,7 @@ NYA_Error nya_accounts_open(NYA_Arena* arena, NYA_Database* database) {
 void nya_accounts_close(void) {
     if (!_NYA_ACCOUNTS.open) return;
 
+    nya_orm_close(_NYA_ACCOUNTS.recovery_codes);
     nya_orm_close(_NYA_ACCOUNTS.identities);
     nya_orm_close(_NYA_ACCOUNTS.sessions);
     nya_orm_close(_NYA_ACCOUNTS.users);
@@ -346,6 +352,17 @@ NYA_Error nya_account_destroy(NYA_Arena* arena, u64 id) {
 
     for (u32 index = 0; index < linked; index++) {
         NYA_TRY(nya_orm_delete(_NYA_ACCOUNTS.identities, nya_sql_s64((s64)identities[index].id)));
+    }
+
+    // and the recovery codes, which would otherwise be a way into whoever gets this id next.
+    void* codes       = nullptr;
+    u32   code_count  = 0;
+
+    NYA_TRY(nya_orm_select(_NYA_ACCOUNTS.recovery_codes, arena, "WHERE account_id = ?", (NYA_SqlValue[]){ nya_sql_s64((s64)id) }, 1, &codes, &code_count));
+
+    for (u32 index = 0; index < code_count; index++) {
+        const NYA_AccountRecoveryCode* row = nya_orm_at(_NYA_ACCOUNTS.recovery_codes, codes, index);
+        NYA_TRY(nya_orm_delete(_NYA_ACCOUNTS.recovery_codes, nya_sql_s64((s64)row->id)));
     }
 
     nya_crypto_wipe(user.password, sizeof(user.password));

@@ -152,6 +152,7 @@ const NYA_TypeReflection _NYA_REFLECT_GNY_RobotRun = {
 
 const NYA_TypeReflection* const NYA_REFLECT_TYPES[NYA_REFLECT_TYPE_COUNT] = {
     &_NYA_REFLECT_NYA_AccountIdentity,
+    &_NYA_REFLECT_NYA_AccountRecoveryCode,
     &_NYA_REFLECT_NYA_AccountSession,
     &_NYA_REFLECT_NYA_AccountUser,
     &_NYA_REFLECT_NYA_AudioPass,

@@ -545,6 +545,77 @@ s32 main(void) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // TEST: recovery codes get somebody back in, once each, and the throttle covers them
+  // ─────────────────────────────────────────────────────────────────────────────
+  {
+    NYA_Database* db = open_accounts(arena);
+    defer nya_accounts_close();
+    defer nya_sql_close(db);
+
+    NYA_AccountUser ada = { 0 };
+    NYA_EXPECT(nya_account_create(arena, "ada", PASSWORD, &ada));
+
+    char codes[NYA_ACCOUNTS_RECOVERY_CODE_COUNT][NYA_ACCOUNTS_RECOVERY_CODE_TEXT] = { 0 };
+    u32  made                                                                     = 0;
+
+    nya_check(nya_account_recovery_generate(arena, ada.id, codes, &made).ok, "codes are generated");
+    nya_check(made == NYA_ACCOUNTS_RECOVERY_CODE_COUNT, "the full set, got %u", made);
+    nya_check(codes[0][0] != '\0' && codes[9][0] != '\0', "each with text");
+    nya_check(strchr(codes[0], '-') != nullptr, "grouped for reading, got '%s'", codes[0]);
+
+    u32 remaining = 0;
+    nya_check(nya_account_recovery_remaining(arena, ada.id, &remaining).ok && remaining == 10, "all ten are unused, got %u", remaining);
+
+    // a code proves the account is theirs, and is accepted however it is spaced or cased.
+    NYA_AccountUser who = { 0 };
+    char            messy[32] = { 0 };
+    (void)snprintf(messy, sizeof(messy), " %s ", codes[3]);
+    for (u64 i = 0; messy[i] != '\0'; i++) if (messy[i] >= 'A' && messy[i] <= 'Z') messy[i] = (char)(messy[i] - 'A' + 'a');
+
+    nya_check(nya_account_recovery_consume(arena, "ada", messy, ADDRESS, &who).ok, "a code lets them in, spacing and case and all");
+    nya_check(who.id == ada.id, "as their account, got %llu", (unsigned long long)who.id);
+
+    // single use: the same code does not work twice.
+    nya_check(!nya_account_recovery_consume(arena, "ada", codes[3], ADDRESS, &who).ok, "a spent code does not work again");
+    nya_check(nya_account_recovery_remaining(arena, ada.id, &remaining).ok && remaining == 9, "leaving nine, got %u", remaining);
+
+    // a wrong code and a wrong username are refused in the same words.
+    NYA_Error wrong_code = nya_account_recovery_consume(arena, "ada", "AAAA-AAAA", ADDRESS, &who);
+    NYA_Error wrong_user = nya_account_recovery_consume(arena, "nobody", codes[4], ADDRESS, &who);
+    nya_check(!wrong_code.ok && wrong_code.kind == NYA_ERROR_PERMISSION_DENIED, "a wrong code is refused");
+    nya_check(!wrong_user.ok && wrong_user.kind == NYA_ERROR_PERMISSION_DENIED, "and a wrong username");
+    nya_check(nya_string_equals((NYA_ConstCString)wrong_code.message, (NYA_ConstCString)wrong_user.message), "in the same words");
+
+    // regenerating replaces the set: every old code stops working.
+    nya_account_throttle_reset();
+    char again[NYA_ACCOUNTS_RECOVERY_CODE_COUNT][NYA_ACCOUNTS_RECOVERY_CODE_TEXT] = { 0 };
+    nya_check(nya_account_recovery_generate(arena, ada.id, again, &made).ok, "a new set is generated");
+    nya_check(nya_account_recovery_remaining(arena, ada.id, &remaining).ok && remaining == 10, "ten again, got %u", remaining);
+
+    nya_check(!nya_account_recovery_consume(arena, "ada", codes[5], ADDRESS, &who).ok, "an old code no longer works");
+    nya_check(nya_account_recovery_consume(arena, "ada", again[0], ADDRESS, &who).ok, "and a new one does");
+
+    // recovery is what stands in for a lost password: consume, then reset, which ends every session.
+    nya_account_throttle_reset();
+    NYA_AccountSession session = { 0 };
+    NYA_EXPECT(nya_account_session_issue(arena, ada.id, nullptr, nullptr, &session));
+
+    NYA_AccountUser recovered = { 0 };
+    nya_check(nya_account_recovery_consume(arena, "ada", again[1], ADDRESS, &recovered).ok, "a code recovers the account");
+    nya_check(nya_account_password_reset(arena, recovered.id, REPLACEMENT).ok, "a new password is set");
+
+    NYA_AccountSession gone = { 0 };
+    nya_check(!nya_account_session_validate(arena, session.token, &gone).ok, "and the old session is over");
+    nya_check(nya_account_authenticate(arena, "ada", REPLACEMENT, ADDRESS, &recovered).ok, "and the new password works");
+
+    // deleting the account takes its codes with it.
+    nya_account_throttle_reset();
+    nya_check(nya_account_destroy(arena, ada.id).ok, "the account is deleted");
+    NYA_AccountUser back = { 0 };
+    nya_check(!nya_account_recovery_consume(arena, "ada", again[2], ADDRESS, &back).ok, "and its codes are gone with it");
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // TEST: what every call answers before the tables are open
   // ─────────────────────────────────────────────────────────────────────────────
   {
