@@ -180,11 +180,12 @@ void _nya_ui_shape_look_build(void* state, u32 depth, const NYA_UIStyle* style, 
         built->look.line_heights[i] = nya_font_valid(built->fonts[i]) ? ceilf(nya_font_metrics(built->fonts[i]).line_height) : 0.0F;
     }
 
-    // the title's line height plus the padding that sits around every other piece of text here, so a bar
-    // is a bar rather than a line of text with a frame drawn tight around it.
+    // the title's line height and half the padding: enough that the text is not touching both edges, and
+    // no more, because the bar is chrome rather than a row — a whole padding made it the thickest thing
+    // on screen at a large title size.
     f32 title_line = built->look.line_heights[NYA_UI_TEXT_TITLE];
 
-    built->look.title_bar = title_line > 0.0F ? roundf(title_line + built->look.padding) : 0.0F;
+    built->look.title_bar = title_line > 0.0F ? roundf(title_line + (built->look.padding * 0.5F)) : 0.0F;
 
     *out = built->look;
 }

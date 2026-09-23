@@ -237,11 +237,40 @@ void _nya_ui_window_resize(NYA_UI* ui, u64 key, NYA_UIWindowState* state, NYA_Re
      * edge moves the window's origin as it grows, so a size measured from that origin feeds its own change back in
      * and the window runs away to its minimum in a handful of passes. A delta cannot: it does not read the origin.
      */
-    f32x2 delta     = { (_nya_ui.pointer.x - ui->resize_grip.x) / ui->scale, (_nya_ui.pointer.y - ui->resize_grip.y) / ui->scale };
+    f32x2 moved     = { _nya_ui.pointer.x - ui->resize_grip.x, _nya_ui.pointer.y - ui->resize_grip.y };
+    f32x2 delta     = { moved.x / ui->scale, moved.y / ui->scale };
     f32x2 least     = NYA_UI_WINDOW_MIN;
     ui->resize_grip = _nya_ui.pointer;
 
+    f32x2 before = state->size;
+
     state->size = (f32x2){ nya_max(state->size.x + delta.x, least.x), nya_max(state->size.y + delta.y, least.y) };
+
+    /*
+     * A window grows away from the corner that is being pulled, and stops at the screen rather than at
+     * its anchor.
+     *
+     * An anchor is a fraction of the room left over — 0 at the left edge, 0.5 centred, 1 at the right —
+     * so the origin moves by that fraction of every change in size. Left alone, a window anchored
+     * bottom right grows up and left while the pointer pulls down and right: the corner being dragged
+     * runs away from the hand dragging it. So the drag offset is corrected by exactly what the anchor
+     * moved, and the top left stays where it is. A window already against the edge it is anchored to
+     * has nowhere to put the growth and does grow inwards — there is no room to do anything else — but
+     * one with any space keeps its grabbed corner under the pointer.
+     */
+    f32x2 grew   = { (state->size.x - before.x) * ui->scale, (state->size.y - before.y) * ui->scale };
+    // the anchor's column and row, the same 0 / 0.5 / 1 the layout places it by.
+    u32 column = (u32)layout->options.anchor % 3;
+    u32 row    = (u32)layout->options.anchor / 3;
+
+    f32 across = (f32)column * 0.5F;
+    f32 down   = (f32)row * 0.5F;
+
+    // the drag offset is the panel's, which is where "where it is on screen" lives; see _nya_ui_panel_drag.
+    _NYA_UIPanelState* panel = &_nya_ui.panels[layout->root_panel];
+
+    panel->drag.x += grew.x * across;
+    panel->drag.y += grew.y * down;
 }
 
 b8 _nya_ui_chrome_button(NYA_UI* ui, NYA_ConstCString label, NYA_Rectf rect, NYA_UIMark mark) {

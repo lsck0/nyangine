@@ -182,7 +182,7 @@ nya 2 0
             easing: string "NYA_EASE_CUBIC_OUT";
             body_size: f32 22.0;
             small_size: f32 17.0;
-            title_size: f32 44.0;
+            title_size: f32 30.0;
             // Regions of a sheet for nine-slices. With no texture they stay flat; game.menu_sheet names one for the pause menu.
             // A white tint draws the sheet's own colours; a zero one tints it with the flat colour, as the track does
             // to fill a slider with the accent.

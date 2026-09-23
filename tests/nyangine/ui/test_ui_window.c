@@ -25,6 +25,12 @@ static NYA_Window window = { .handle = { .index = 1, .generation = 1 }, .screen_
 
 static NYA_UIWindowState state = { .open = true };
 
+/** Which corner the window hangs from, so a case can place it against an edge. */
+static NYA_UIAnchor anchor = NYA_UI_ANCHOR_TOP_LEFT;
+
+/** How far from that corner, which is the room an anchored window has to grow into. */
+static f32x2 offset = { 0 };
+
 static const NYA_ConstCString MENU[] = { "reset", "shut" };
 
 static void pointer_move(f32x2 point) {
@@ -65,7 +71,7 @@ static Scene scene(NYA_UIPass pass) {
     NYA_UI* ui  = nya_ui_begin(&window, pass);
 
     NYA_UIWindow tools = {
-        .panel      = { .width = nya_ui_fixed(WIDTH) },
+        .panel      = { .width = nya_ui_fixed(WIDTH), .anchor = anchor, .offset = offset },
         .title      = "tools",
         .close      = true,
         .collapse   = true,
@@ -293,6 +299,47 @@ s32 main(void) {
         (void)scene(NYA_UI_PASS_INPUT);
 
         nya_check(moved.bounds.x > big.bounds.x, "the window moved with the pointer, from %.1f to %.1f", (f64)big.bounds.x, (f64)moved.bounds.x);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // TEST: the grip follows the pointer whatever corner the window is anchored to.
+    // ─────────────────────────────────────────────────────────────────────────────
+    {
+        /*
+         * An anchor that pins the right or bottom edge places the window from that edge, so growing it
+         * moves its origin outward — and the corner being dragged runs away from the pointer rather
+         * than following it. A window grows towards the pull, whichever corner it hangs from.
+         */
+        anchor = NYA_UI_ANCHOR_BOTTOM_RIGHT;
+        offset = (f32x2){ 120.0F, 120.0F };
+        state  = (NYA_UIWindowState){ .open = true };
+
+        Scene placed = scene(NYA_UI_PASS_DRAW);
+        nya_check(placed.bounds.width > 0.0F, "the anchored window is up");
+
+        f32   grip   = 12.0F;
+        f32x2 corner = { placed.bounds.x + placed.bounds.width - (grip * 0.5F), placed.bounds.y + placed.bounds.height - (grip * 0.5F) };
+
+        pointer_move(corner);
+        pointer_button(true);
+        (void)scene(NYA_UI_PASS_INPUT);
+
+        pointer_move((f32x2){ corner.x + 40.0F, corner.y + 30.0F });
+        (void)scene(NYA_UI_PASS_INPUT);
+
+        pointer_button(false);
+        Scene grown = scene(NYA_UI_PASS_DRAW);
+
+        nya_check(grown.bounds.width > placed.bounds.width && grown.bounds.height > placed.bounds.height, "it grew, %.0fx%.0f to %.0fx%.0f",
+                  (f64)placed.bounds.width, (f64)placed.bounds.height, (f64)grown.bounds.width, (f64)grown.bounds.height);
+
+        // the corner that was grabbed is where the pointer left it, and the opposite one has not moved.
+        nya_check(fabsf(grown.bounds.x - placed.bounds.x) < 2.0F && fabsf(grown.bounds.y - placed.bounds.y) < 2.0F,
+                  "the window grew towards the pull: its top left moved from %.0f,%.0f to %.0f,%.0f", (f64)placed.bounds.x, (f64)placed.bounds.y,
+                  (f64)grown.bounds.x, (f64)grown.bounds.y);
+
+        anchor = NYA_UI_ANCHOR_TOP_LEFT;
+        offset = (f32x2){ 0 };
     }
 
     return nya_check_failures() == 0 ? 0 : 1;

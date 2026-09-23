@@ -352,7 +352,7 @@ s32 main(void) {
         nya_ui_look_scale(&style, 1.0F, &look);
 
         f32 line = ceilf(nya_font_metrics(nya_font(FACE, 44.0F)).line_height);
-        f32 bar  = roundf(line + look.padding);
+        f32 bar  = roundf(line + (look.padding * 0.5F));
 
         // the bottom of the drawn bar, which is the part a person aims at when the title is tall.
         f32x2 low = { now.over_bounds.x + WIDTH * 0.5F, now.over_bounds.y + look.padding + bar - 4.0F };
