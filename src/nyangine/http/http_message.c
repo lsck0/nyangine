@@ -42,6 +42,9 @@ NYA_INTERNAL const NYA_ConstCString _NYA_HTTP_SECURITY_HEADERS[][2] = {
     { "Cross-Origin-Embedder-Policy", "require-corp" },
     { "Cross-Origin-Resource-Policy", "same-origin" },
     { "Permissions-Policy",           _NYA_HTTP_DEFAULT_PERMISSIONS },
+    // Belt and suspenders for the CSP's frame-ancestors above: a pre-CSP browser honours only this
+    // one, so twenty four bytes buys the framing protection for the browsers the CSP cannot reach.
+    { "X-Frame-Options",              "DENY" },
 };
 
 /**
@@ -68,7 +71,7 @@ NYA_INTERNAL b8 _NYA_HTTP_HSTS_ENABLED = false;
 static_assert(
     sizeof("Content-Security-Policy" _NYA_HTTP_DEFAULT_CSP "X-Content-Type-Options" "nosniff" "Referrer-Policy" "no-referrer"
            "Cross-Origin-Opener-Policy" "same-origin" "Cross-Origin-Embedder-Policy" "require-corp" "Cross-Origin-Resource-Policy" "same-origin"
-           "Permissions-Policy" _NYA_HTTP_DEFAULT_PERMISSIONS "Strict-Transport-Security" _NYA_HTTP_HSTS) +
+           "Permissions-Policy" _NYA_HTTP_DEFAULT_PERMISSIONS "X-Frame-Options" "DENY" "Strict-Transport-Security" _NYA_HTTP_HSTS) +
             (sizeof(": \r\n") - 1) * (nya_carray_length(_NYA_HTTP_SECURITY_HEADERS) + 1) <= _NYA_HTTP_SECURITY_HEAD_BYTES,
     "the default security headers outgrew the room kept for them"
 );
